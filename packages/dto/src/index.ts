@@ -1,4 +1,4 @@
 // @scheduling/dto - Shared DTOs and Zod schemas
-// Placeholder - will be implemented in Step 4
 
-export {}
+// Re-export all schemas
+export * from './schemas'
