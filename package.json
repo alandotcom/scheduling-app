@@ -10,7 +10,7 @@
     "test": "pnpm -r run test",
     "lint": "oxlint .",
     "format": "biome format .",
-    "format:check": "biome format --check .",
+    "format:check": "biome check .",
     "typecheck": "pnpm -r run typecheck"
   },
   "devDependencies": {
