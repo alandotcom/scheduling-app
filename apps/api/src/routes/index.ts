@@ -1,8 +1,11 @@
 // oRPC router composition
-// Routes will be added in subsequent steps
 
 import { base, ORPCError } from '../lib/orpc.js'
 import type { Context } from '../lib/orpc.js'
+import { locationRoutes } from './locations.js'
+import { calendarRoutes } from './calendars.js'
+import { resourceRoutes } from './resources.js'
+import { appointmentTypeRoutes } from './appointment-types.js'
 
 // Authenticated procedure helper
 export const authed = base.use(async (opts) => {
@@ -28,14 +31,14 @@ export const health = base.handler(async () => {
   return { status: 'ok' as const }
 })
 
-// Main router - routes will be added in subsequent steps
+// Main router
 export const router = {
   health,
+  locations: locationRoutes,
+  calendars: calendarRoutes,
+  resources: resourceRoutes,
+  appointmentTypes: appointmentTypeRoutes,
   // Future routes:
-  // locations: locationRoutes,
-  // calendars: calendarRoutes,
-  // appointmentTypes: appointmentTypeRoutes,
-  // resources: resourceRoutes,
   // appointments: appointmentRoutes,
   // availability: availabilityRoutes,
   // clients: clientRoutes,
