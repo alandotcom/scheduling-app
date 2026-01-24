@@ -1,0 +1,239 @@
+CREATE TABLE "accounts" (
+	"id" uuid PRIMARY KEY DEFAULT uuidv7() NOT NULL,
+	"user_id" uuid NOT NULL,
+	"provider_id" text NOT NULL,
+	"provider_account_id" text NOT NULL,
+	"access_token" text,
+	"refresh_token" text,
+	"access_token_expires_at" timestamp with time zone,
+	"refresh_token_expires_at" timestamp with time zone,
+	"scope" text,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "api_tokens" (
+	"id" uuid PRIMARY KEY DEFAULT uuidv7() NOT NULL,
+	"org_id" uuid NOT NULL,
+	"user_id" uuid NOT NULL,
+	"name" text NOT NULL,
+	"token_hash" text NOT NULL,
+	"token_prefix" text NOT NULL,
+	"scope" text NOT NULL,
+	"last_used_at" timestamp with time zone,
+	"expires_at" timestamp with time zone,
+	"revoked_at" timestamp with time zone,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "api_tokens_token_hash_unique" UNIQUE("token_hash")
+);
+--> statement-breakpoint
+CREATE TABLE "appointment_type_calendars" (
+	"id" uuid PRIMARY KEY DEFAULT uuidv7() NOT NULL,
+	"appointment_type_id" uuid NOT NULL,
+	"calendar_id" uuid NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "appointment_type_resources" (
+	"id" uuid PRIMARY KEY DEFAULT uuidv7() NOT NULL,
+	"appointment_type_id" uuid NOT NULL,
+	"resource_id" uuid NOT NULL,
+	"quantity_required" integer DEFAULT 1 NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "appointment_types" (
+	"id" uuid PRIMARY KEY DEFAULT uuidv7() NOT NULL,
+	"org_id" uuid NOT NULL,
+	"name" text NOT NULL,
+	"duration_min" integer NOT NULL,
+	"padding_before_min" integer DEFAULT 0,
+	"padding_after_min" integer DEFAULT 0,
+	"capacity" integer DEFAULT 1,
+	"metadata" jsonb,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "appointments" (
+	"id" uuid PRIMARY KEY DEFAULT uuidv7() NOT NULL,
+	"org_id" uuid NOT NULL,
+	"calendar_id" uuid NOT NULL,
+	"appointment_type_id" uuid NOT NULL,
+	"client_id" uuid,
+	"start_at" timestamp with time zone NOT NULL,
+	"end_at" timestamp with time zone NOT NULL,
+	"timezone" text NOT NULL,
+	"status" text NOT NULL,
+	"notes" text,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "availability_overrides" (
+	"id" uuid PRIMARY KEY DEFAULT uuidv7() NOT NULL,
+	"calendar_id" uuid NOT NULL,
+	"date" text NOT NULL,
+	"start_time" text,
+	"end_time" text,
+	"is_blocked" boolean DEFAULT false,
+	"interval_min" integer,
+	"group_id" uuid
+);
+--> statement-breakpoint
+CREATE TABLE "availability_rules" (
+	"id" uuid PRIMARY KEY DEFAULT uuidv7() NOT NULL,
+	"calendar_id" uuid NOT NULL,
+	"weekday" integer NOT NULL,
+	"start_time" text NOT NULL,
+	"end_time" text NOT NULL,
+	"interval_min" integer,
+	"group_id" uuid
+);
+--> statement-breakpoint
+CREATE TABLE "blocked_time" (
+	"id" uuid PRIMARY KEY DEFAULT uuidv7() NOT NULL,
+	"calendar_id" uuid NOT NULL,
+	"start_at" timestamp with time zone NOT NULL,
+	"end_at" timestamp with time zone NOT NULL,
+	"recurring_rule" text
+);
+--> statement-breakpoint
+CREATE TABLE "calendars" (
+	"id" uuid PRIMARY KEY DEFAULT uuidv7() NOT NULL,
+	"org_id" uuid NOT NULL,
+	"location_id" uuid,
+	"name" text NOT NULL,
+	"timezone" text NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "clients" (
+	"id" uuid PRIMARY KEY DEFAULT uuidv7() NOT NULL,
+	"org_id" uuid NOT NULL,
+	"first_name" text NOT NULL,
+	"last_name" text NOT NULL,
+	"email" text,
+	"phone" text,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "event_outbox" (
+	"id" uuid PRIMARY KEY DEFAULT uuidv7() NOT NULL,
+	"org_id" uuid NOT NULL,
+	"type" text NOT NULL,
+	"payload" jsonb NOT NULL,
+	"status" text NOT NULL,
+	"next_attempt_at" timestamp with time zone,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "locations" (
+	"id" uuid PRIMARY KEY DEFAULT uuidv7() NOT NULL,
+	"org_id" uuid NOT NULL,
+	"name" text NOT NULL,
+	"timezone" text NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "org_memberships" (
+	"id" uuid PRIMARY KEY DEFAULT uuidv7() NOT NULL,
+	"org_id" uuid NOT NULL,
+	"user_id" uuid NOT NULL,
+	"role" text NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "orgs" (
+	"id" uuid PRIMARY KEY DEFAULT uuidv7() NOT NULL,
+	"name" text NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "resources" (
+	"id" uuid PRIMARY KEY DEFAULT uuidv7() NOT NULL,
+	"org_id" uuid NOT NULL,
+	"location_id" uuid,
+	"name" text NOT NULL,
+	"quantity" integer DEFAULT 1 NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+CREATE TABLE "scheduling_limits" (
+	"id" uuid PRIMARY KEY DEFAULT uuidv7() NOT NULL,
+	"calendar_id" uuid,
+	"group_id" uuid,
+	"min_notice_hours" integer,
+	"max_notice_days" integer,
+	"max_per_slot" integer,
+	"max_per_day" integer,
+	"max_per_week" integer
+);
+--> statement-breakpoint
+CREATE TABLE "sessions" (
+	"id" uuid PRIMARY KEY DEFAULT uuidv7() NOT NULL,
+	"user_id" uuid NOT NULL,
+	"token" text NOT NULL,
+	"expires_at" timestamp with time zone NOT NULL,
+	"ip_address" text,
+	"user_agent" text,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "sessions_token_unique" UNIQUE("token")
+);
+--> statement-breakpoint
+CREATE TABLE "users" (
+	"id" uuid PRIMARY KEY DEFAULT uuidv7() NOT NULL,
+	"email" text NOT NULL,
+	"email_verified" boolean DEFAULT false NOT NULL,
+	"name" text,
+	"image" text,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "users_email_unique" UNIQUE("email")
+);
+--> statement-breakpoint
+CREATE TABLE "verifications" (
+	"id" uuid PRIMARY KEY DEFAULT uuidv7() NOT NULL,
+	"identifier" text NOT NULL,
+	"value" text NOT NULL,
+	"expires_at" timestamp with time zone NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+ALTER TABLE "accounts" ADD CONSTRAINT "accounts_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "api_tokens" ADD CONSTRAINT "api_tokens_org_id_orgs_id_fk" FOREIGN KEY ("org_id") REFERENCES "public"."orgs"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "api_tokens" ADD CONSTRAINT "api_tokens_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "appointment_type_calendars" ADD CONSTRAINT "appointment_type_calendars_appointment_type_id_appointment_types_id_fk" FOREIGN KEY ("appointment_type_id") REFERENCES "public"."appointment_types"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "appointment_type_calendars" ADD CONSTRAINT "appointment_type_calendars_calendar_id_calendars_id_fk" FOREIGN KEY ("calendar_id") REFERENCES "public"."calendars"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "appointment_type_resources" ADD CONSTRAINT "appointment_type_resources_appointment_type_id_appointment_types_id_fk" FOREIGN KEY ("appointment_type_id") REFERENCES "public"."appointment_types"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "appointment_type_resources" ADD CONSTRAINT "appointment_type_resources_resource_id_resources_id_fk" FOREIGN KEY ("resource_id") REFERENCES "public"."resources"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "appointment_types" ADD CONSTRAINT "appointment_types_org_id_orgs_id_fk" FOREIGN KEY ("org_id") REFERENCES "public"."orgs"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "appointments" ADD CONSTRAINT "appointments_org_id_orgs_id_fk" FOREIGN KEY ("org_id") REFERENCES "public"."orgs"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "appointments" ADD CONSTRAINT "appointments_calendar_id_calendars_id_fk" FOREIGN KEY ("calendar_id") REFERENCES "public"."calendars"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "appointments" ADD CONSTRAINT "appointments_appointment_type_id_appointment_types_id_fk" FOREIGN KEY ("appointment_type_id") REFERENCES "public"."appointment_types"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "appointments" ADD CONSTRAINT "appointments_client_id_clients_id_fk" FOREIGN KEY ("client_id") REFERENCES "public"."clients"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "availability_overrides" ADD CONSTRAINT "availability_overrides_calendar_id_calendars_id_fk" FOREIGN KEY ("calendar_id") REFERENCES "public"."calendars"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "availability_rules" ADD CONSTRAINT "availability_rules_calendar_id_calendars_id_fk" FOREIGN KEY ("calendar_id") REFERENCES "public"."calendars"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "blocked_time" ADD CONSTRAINT "blocked_time_calendar_id_calendars_id_fk" FOREIGN KEY ("calendar_id") REFERENCES "public"."calendars"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "calendars" ADD CONSTRAINT "calendars_org_id_orgs_id_fk" FOREIGN KEY ("org_id") REFERENCES "public"."orgs"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "calendars" ADD CONSTRAINT "calendars_location_id_locations_id_fk" FOREIGN KEY ("location_id") REFERENCES "public"."locations"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "clients" ADD CONSTRAINT "clients_org_id_orgs_id_fk" FOREIGN KEY ("org_id") REFERENCES "public"."orgs"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "event_outbox" ADD CONSTRAINT "event_outbox_org_id_orgs_id_fk" FOREIGN KEY ("org_id") REFERENCES "public"."orgs"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "locations" ADD CONSTRAINT "locations_org_id_orgs_id_fk" FOREIGN KEY ("org_id") REFERENCES "public"."orgs"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "org_memberships" ADD CONSTRAINT "org_memberships_org_id_orgs_id_fk" FOREIGN KEY ("org_id") REFERENCES "public"."orgs"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "org_memberships" ADD CONSTRAINT "org_memberships_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "resources" ADD CONSTRAINT "resources_org_id_orgs_id_fk" FOREIGN KEY ("org_id") REFERENCES "public"."orgs"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "resources" ADD CONSTRAINT "resources_location_id_locations_id_fk" FOREIGN KEY ("location_id") REFERENCES "public"."locations"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "scheduling_limits" ADD CONSTRAINT "scheduling_limits_calendar_id_calendars_id_fk" FOREIGN KEY ("calendar_id") REFERENCES "public"."calendars"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "sessions" ADD CONSTRAINT "sessions_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+CREATE UNIQUE INDEX "appointment_type_calendars_type_calendar_idx" ON "appointment_type_calendars" USING btree ("appointment_type_id","calendar_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "appointment_type_resources_type_resource_idx" ON "appointment_type_resources" USING btree ("appointment_type_id","resource_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "org_memberships_org_user_idx" ON "org_memberships" USING btree ("org_id","user_id");

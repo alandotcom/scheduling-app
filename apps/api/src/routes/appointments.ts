@@ -27,6 +27,7 @@ import { db, withOrg } from '../lib/db.js'
 import { ORPCError } from '../lib/orpc.js'
 import { AvailabilityEngine } from '../services/availability-engine/index.js'
 import { events } from '../services/jobs/emitter.js'
+import { recordAudit, toAuditSnapshot, createAuditContext } from '../services/audit.js'
 
 const idInput = z.object({ id: z.string().uuid() })
 
@@ -386,6 +387,19 @@ export const create = authed
       status: appointment.status,
     })
 
+    // Record audit event
+    const authMethod = context.authMethod === 'token' ? 'api_token' : context.authMethod === 'session' ? 'session' : 'none'
+    await recordAudit(
+      createAuditContext(orgId, context.userId, authMethod),
+      {
+        action: 'create',
+        entityType: 'appointment',
+        entityId: appointment.id,
+        before: null,
+        after: toAuditSnapshot(appointment as unknown as Record<string, unknown>),
+      }
+    )
+
     return appointment
   })
 
@@ -446,6 +460,19 @@ export const update = authed
       previousNotes: existing.notes,
     })
 
+    // Record audit event
+    const authMethod = context.authMethod === 'token' ? 'api_token' : context.authMethod === 'session' ? 'session' : 'none'
+    await recordAudit(
+      createAuditContext(orgId, context.userId, authMethod),
+      {
+        action: 'update',
+        entityType: 'appointment',
+        entityId: updated!.id,
+        before: toAuditSnapshot(existing as unknown as Record<string, unknown>),
+        after: toAuditSnapshot(updated as unknown as Record<string, unknown>),
+      }
+    )
+
     return updated!
   })
 
@@ -497,6 +524,19 @@ export const cancel = authed
       endAt: updated!.endAt.toISOString(),
       reason: data?.reason,
     })
+
+    // Record audit event
+    const authMethod = context.authMethod === 'token' ? 'api_token' : context.authMethod === 'session' ? 'session' : 'none'
+    await recordAudit(
+      createAuditContext(orgId, context.userId, authMethod, { reason: data?.reason }),
+      {
+        action: 'cancel',
+        entityType: 'appointment',
+        entityId: updated!.id,
+        before: toAuditSnapshot(existing as unknown as Record<string, unknown>),
+        after: toAuditSnapshot(updated as unknown as Record<string, unknown>),
+      }
+    )
 
     return updated!
   })
@@ -644,6 +684,19 @@ export const reschedule = authed
       timezone: updated.timezone,
     })
 
+    // Record audit event
+    const authMethod = context.authMethod === 'token' ? 'api_token' : context.authMethod === 'session' ? 'session' : 'none'
+    await recordAudit(
+      createAuditContext(orgId, context.userId, authMethod),
+      {
+        action: 'reschedule',
+        entityType: 'appointment',
+        entityId: updated.id,
+        before: toAuditSnapshot(existing as unknown as Record<string, unknown>),
+        after: toAuditSnapshot(updated as unknown as Record<string, unknown>),
+      }
+    )
+
     return updated
   })
 
@@ -699,6 +752,19 @@ export const noShow = authed
       startAt: updated!.startAt.toISOString(),
       endAt: updated!.endAt.toISOString(),
     })
+
+    // Record audit event
+    const authMethod = context.authMethod === 'token' ? 'api_token' : context.authMethod === 'session' ? 'session' : 'none'
+    await recordAudit(
+      createAuditContext(orgId, context.userId, authMethod),
+      {
+        action: 'no_show',
+        entityType: 'appointment',
+        entityId: updated!.id,
+        before: toAuditSnapshot(existing as unknown as Record<string, unknown>),
+        after: toAuditSnapshot(updated as unknown as Record<string, unknown>),
+      }
+    )
 
     return updated!
   })

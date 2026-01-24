@@ -28,6 +28,7 @@ export const orgsRelations = relations(orgs, ({ many }) => ({
   appointments: many(appointments),
   eventOutbox: many(eventOutbox),
   apiTokens: many(apiTokens),
+  auditEvents: many(auditEvents),
 }))
 
 export const users = pgTable('users', {
@@ -410,6 +411,35 @@ export const apiTokensRelations = relations(apiTokens, ({ one }) => ({
   }),
   user: one(users, {
     fields: [apiTokens.userId],
+    references: [users.id],
+  }),
+}))
+
+// ============================================================================
+// AUDIT EVENTS
+// ============================================================================
+
+export const auditEvents = pgTable('audit_events', {
+  id,
+  orgId: uuid('org_id').notNull().references(() => orgs.id),
+  actorId: uuid('actor_id').references(() => users.id), // Who performed the action (null for system actions)
+  actorType: text('actor_type').notNull(), // 'user' | 'api_token' | 'system'
+  action: text('action').notNull(), // 'create' | 'update' | 'delete' | 'cancel' | 'reschedule' | 'no_show'
+  entityType: text('entity_type').notNull(), // 'appointment' | 'calendar' | 'location' | 'resource' | 'appointment_type' | 'client'
+  entityId: uuid('entity_id').notNull(),
+  before: jsonb('before'), // Snapshot of entity before change (null for create)
+  after: jsonb('after'), // Snapshot of entity after change (null for delete)
+  metadata: jsonb('metadata'), // Additional context (e.g., IP address, user agent, reason)
+  ...timestamps,
+})
+
+export const auditEventsRelations = relations(auditEvents, ({ one }) => ({
+  org: one(orgs, {
+    fields: [auditEvents.orgId],
+    references: [orgs.id],
+  }),
+  actor: one(users, {
+    fields: [auditEvents.actorId],
     references: [users.id],
   }),
 }))

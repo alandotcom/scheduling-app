@@ -8,6 +8,7 @@ import { appointmentTypeRoutes } from './appointment-types.js'
 import { availabilityRoutes } from './availability.js'
 import { appointmentRoutes } from './appointments.js'
 import { apiTokenRoutes } from './api-tokens.js'
+import { auditRoutes } from './audit.js'
 
 // Re-export authed and adminOnly from base for backwards compatibility
 export { authed, adminOnly } from './base.js'
@@ -27,6 +28,7 @@ export const router = {
   availability: availabilityRoutes,
   appointments: appointmentRoutes,
   apiTokens: apiTokenRoutes,
+  audit: auditRoutes,
   // Future routes:
   // clients: clientRoutes,
 }
