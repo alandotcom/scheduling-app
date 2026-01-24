@@ -6,6 +6,7 @@ import { calendarRoutes } from './calendars.js'
 import { resourceRoutes } from './resources.js'
 import { appointmentTypeRoutes } from './appointment-types.js'
 import { availabilityRoutes } from './availability.js'
+import { appointmentRoutes } from './appointments.js'
 
 // Re-export authed from base for backwards compatibility
 export { authed } from './base.js'
@@ -23,8 +24,8 @@ export const router = {
   resources: resourceRoutes,
   appointmentTypes: appointmentTypeRoutes,
   availability: availabilityRoutes,
+  appointments: appointmentRoutes,
   // Future routes:
-  // appointments: appointmentRoutes,
   // clients: clientRoutes,
 }
 
