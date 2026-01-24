@@ -34,3 +34,4 @@ coverage/
 tmp/
 .tmp/
 .agents/settings.local.json
+.ralph
