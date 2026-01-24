@@ -10,20 +10,14 @@ import {
   closeTestDb,
   setTestOrgContext,
   clearTestOrgContext,
-} from '@scheduling/db/test-utils'
-import type { BunSQLDatabase } from 'drizzle-orm/bun-sql'
-import type * as schema from '@scheduling/db/schema'
+} from "@scheduling/db/test-utils";
+import type { BunSQLDatabase } from "drizzle-orm/bun-sql";
+import type * as schema from "@scheduling/db/schema";
 
-export type TestDatabase = BunSQLDatabase<typeof schema>
+export type TestDatabase = BunSQLDatabase<typeof schema>;
 
 // Re-export db utilities for convenience
-export {
-  createTestDb,
-  resetTestDb,
-  closeTestDb,
-  setTestOrgContext,
-  clearTestOrgContext,
-}
+export { createTestDb, resetTestDb, closeTestDb, setTestOrgContext, clearTestOrgContext };
 
 /**
  * Setup helper that initializes the test database and provides
@@ -49,15 +43,15 @@ export {
  * ```
  */
 export function setupTestDb() {
-  let db: TestDatabase | null = null
+  let db: TestDatabase | null = null;
 
   return {
     /**
      * Initialize the test database. Call in beforeAll.
      */
     async init(): Promise<TestDatabase> {
-      db = await createTestDb() as TestDatabase
-      return db
+      db = (await createTestDb()) as TestDatabase;
+      return db;
     },
 
     /**
@@ -66,9 +60,9 @@ export function setupTestDb() {
      */
     getDb(): TestDatabase {
       if (!db) {
-        throw new Error('Test database not initialized. Call init() in beforeAll first.')
+        throw new Error("Test database not initialized. Call init() in beforeAll first.");
       }
-      return db
+      return db;
     },
 
     /**
@@ -76,15 +70,15 @@ export function setupTestDb() {
      * Call in beforeEach for test isolation.
      */
     async reset(): Promise<void> {
-      await resetTestDb()
+      await resetTestDb();
     },
 
     /**
      * Close the database connection. Call in afterAll.
      */
     async close(): Promise<void> {
-      await closeTestDb()
-      db = null
+      await closeTestDb();
+      db = null;
     },
 
     /**
@@ -92,9 +86,9 @@ export function setupTestDb() {
      */
     async setOrgContext(orgId: string): Promise<void> {
       if (!db) {
-        throw new Error('Test database not initialized.')
+        throw new Error("Test database not initialized.");
       }
-      await setTestOrgContext(db, orgId)
+      await setTestOrgContext(db, orgId);
     },
 
     /**
@@ -102,9 +96,9 @@ export function setupTestDb() {
      */
     async clearOrgContext(): Promise<void> {
       if (!db) {
-        throw new Error('Test database not initialized.')
+        throw new Error("Test database not initialized.");
       }
-      await clearTestOrgContext(db)
+      await clearTestOrgContext(db);
     },
-  }
+  };
 }

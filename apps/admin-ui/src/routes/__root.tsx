@@ -1,20 +1,20 @@
 // Root route layout with navigation shell
 
-import { createRootRoute, Link, Outlet } from '@tanstack/react-router'
-import { TanStackRouterDevtools } from '@tanstack/router-devtools'
-import { Calendar, Users, Clock, Settings, LogOut, MapPin, Package, Layers } from 'lucide-react'
-import { useAuth } from '@/contexts/auth'
-import { Button } from '@/components/ui/button'
+import { createRootRoute, Link, Outlet } from "@tanstack/react-router";
+import { TanStackRouterDevtools } from "@tanstack/router-devtools";
+import { Calendar, Users, Clock, Settings, LogOut, MapPin, Package, Layers } from "lucide-react";
+import { useAuth } from "@/contexts/auth";
+import { Button } from "@/components/ui/button";
 
 function RootLayout() {
-  const { user, isAuthenticated, logout, isLoading } = useAuth()
+  const { user, isAuthenticated, logout, isLoading } = useAuth();
 
   if (isLoading) {
     return (
       <div className="flex h-screen items-center justify-center">
         <div className="text-muted-foreground">Loading...</div>
       </div>
-    )
+    );
   }
 
   if (!isAuthenticated) {
@@ -22,7 +22,7 @@ function RootLayout() {
       <div className="flex min-h-screen flex-col">
         <Outlet />
       </div>
-    )
+    );
   }
 
   return (
@@ -42,10 +42,7 @@ function RootLayout() {
             <NavLink to="/" icon={<Calendar className="h-4 w-4" />}>
               Dashboard
             </NavLink>
-            <NavLink
-              to="/appointments"
-              icon={<Clock className="h-4 w-4" />}
-            >
+            <NavLink to="/appointments" icon={<Clock className="h-4 w-4" />}>
               Appointments
             </NavLink>
             <NavLink to="/calendars" icon={<Calendar className="h-4 w-4" />}>
@@ -72,22 +69,13 @@ function RootLayout() {
           <div className="border-t p-4">
             <div className="flex items-center gap-3">
               <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-primary-foreground">
-                {user?.name?.[0] ?? user?.email[0]?.toUpperCase() ?? 'U'}
+                {user?.name?.[0] ?? user?.email[0]?.toUpperCase() ?? "U"}
               </div>
               <div className="flex-1 overflow-hidden">
-                <div className="truncate text-sm font-medium">
-                  {user?.name ?? user?.email}
-                </div>
-                <div className="truncate text-xs text-muted-foreground">
-                  {user?.email}
-                </div>
+                <div className="truncate text-sm font-medium">{user?.name ?? user?.email}</div>
+                <div className="truncate text-xs text-muted-foreground">{user?.email}</div>
               </div>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => void logout()}
-                title="Sign out"
-              >
+              <Button variant="ghost" size="icon" onClick={() => void logout()} title="Sign out">
                 <LogOut className="h-4 w-4" />
               </Button>
             </div>
@@ -103,7 +91,7 @@ function RootLayout() {
       {/* Dev tools - only in development */}
       <TanStackRouterDevtools position="bottom-right" />
     </div>
-  )
+  );
 }
 
 function NavLink({
@@ -111,9 +99,9 @@ function NavLink({
   icon,
   children,
 }: {
-  to: string
-  icon: React.ReactNode
-  children: React.ReactNode
+  to: string;
+  icon: React.ReactNode;
+  children: React.ReactNode;
 }) {
   return (
     <Link
@@ -123,9 +111,9 @@ function NavLink({
       {icon}
       {children}
     </Link>
-  )
+  );
 }
 
 export const Route = createRootRoute({
   component: RootLayout,
-})
+});

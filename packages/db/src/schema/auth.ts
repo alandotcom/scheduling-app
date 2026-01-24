@@ -10,4 +10,4 @@ export {
   sessionsRelations,
   accountsRelations,
   apiTokensRelations,
-} from './index.js'
+} from "./index.js";

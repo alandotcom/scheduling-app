@@ -5,94 +5,98 @@
 // - Cancel, reschedule, no-show operations
 // - Race condition prevention with serializable transactions and retry logic
 
-import { z } from 'zod'
-import { eq, and, gt, gte, lte, ne, sql, or } from 'drizzle-orm'
-import { DateTime } from 'luxon'
+import { z } from "zod";
+import { eq, and, gt, gte, lte, ne, sql, or } from "drizzle-orm";
+import { DateTime } from "luxon";
 import {
   appointments,
   calendars,
   clients,
   appointmentTypes,
   appointmentTypeCalendars,
-} from '@scheduling/db/schema'
+} from "@scheduling/db/schema";
 import {
   createAppointmentSchema,
   updateAppointmentSchema,
   rescheduleAppointmentSchema,
   cancelAppointmentSchema,
   listAppointmentsQuerySchema,
-} from '@scheduling/dto'
-import { authed } from './base.js'
-import { db, withOrg } from '../lib/db.js'
-import { ORPCError } from '../lib/orpc.js'
-import { AvailabilityEngine } from '../services/availability-engine/index.js'
-import { events } from '../services/jobs/emitter.js'
-import { recordAudit, toAuditSnapshot, createAuditContext } from '../services/audit.js'
+} from "@scheduling/dto";
+import { authed } from "./base.js";
+import { db, withOrg } from "../lib/db.js";
+import { ORPCError } from "../lib/orpc.js";
+import { AvailabilityEngine } from "../services/availability-engine/index.js";
+import { events } from "../services/jobs/emitter.js";
+import { recordAudit, toAuditSnapshot, createAuditContext } from "../services/audit.js";
 
-const idInput = z.object({ id: z.string().uuid() })
+const idInput = z.object({ id: z.string().uuid() });
 
 // Serialization error code from PostgreSQL
-const SERIALIZATION_FAILURE = '40001'
+const SERIALIZATION_FAILURE = "40001";
 
 // Retry configuration
-const MAX_RETRIES = 3
-const BASE_DELAY_MS = 50
+const MAX_RETRIES = 3;
+const BASE_DELAY_MS = 50;
 
 // Helper to run a function with retry on serialization failure
 async function withRetry<T>(fn: () => Promise<T>): Promise<T> {
-  let lastError: Error | undefined
+  let lastError: Error | undefined;
   for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
     try {
-      return await fn()
+      return await fn();
     } catch (error: any) {
       // Check if it's a serialization failure
       if (error?.code === SERIALIZATION_FAILURE) {
-        lastError = error
+        lastError = error;
         // Exponential backoff: 50ms, 100ms, 150ms
-        await new Promise((resolve) => setTimeout(resolve, BASE_DELAY_MS * (attempt + 1)))
-        continue
+        await new Promise((resolve) => setTimeout(resolve, BASE_DELAY_MS * (attempt + 1)));
+        continue;
       }
       // Not a serialization failure, don't retry
-      throw error
+      throw error;
     }
   }
   // All retries exhausted
-  throw lastError
+  throw lastError;
 }
 
 // Helper to verify calendar belongs to org
 async function verifyCalendarAccess(orgId: string, calendarId: string) {
   const [calendar] = await withOrg(orgId, async (tx) => {
-    return tx.select().from(calendars).where(eq(calendars.id, calendarId)).limit(1)
-  })
+    return tx.select().from(calendars).where(eq(calendars.id, calendarId)).limit(1);
+  });
   if (!calendar) {
-    throw new ORPCError('NOT_FOUND', { message: 'Calendar not found' })
+    throw new ORPCError("NOT_FOUND", { message: "Calendar not found" });
   }
-  return calendar
+  return calendar;
 }
 
 // Helper to verify client belongs to org
 async function verifyClientAccess(orgId: string, clientId: string) {
   const [client] = await withOrg(orgId, async (tx) => {
-    return tx.select().from(clients).where(eq(clients.id, clientId)).limit(1)
-  })
+    return tx.select().from(clients).where(eq(clients.id, clientId)).limit(1);
+  });
   if (!client) {
-    throw new ORPCError('NOT_FOUND', { message: 'Client not found' })
+    throw new ORPCError("NOT_FOUND", { message: "Client not found" });
   }
-  return client
+  return client;
 }
 
 // Helper to verify appointment type exists and is linked to calendar
 async function verifyAppointmentTypeAndCalendar(
   orgId: string,
   appointmentTypeId: string,
-  calendarId: string
+  calendarId: string,
 ) {
   const [appointmentType] = await withOrg(orgId, async (tx) => {
-    return tx.select().from(appointmentTypes).where(eq(appointmentTypes.id, appointmentTypeId)).limit(1)
-  })
+    return tx
+      .select()
+      .from(appointmentTypes)
+      .where(eq(appointmentTypes.id, appointmentTypeId))
+      .limit(1);
+  });
   if (!appointmentType) {
-    throw new ORPCError('NOT_FOUND', { message: 'Appointment type not found' })
+    throw new ORPCError("NOT_FOUND", { message: "Appointment type not found" });
   }
 
   // Check if this appointment type is linked to this calendar
@@ -102,18 +106,18 @@ async function verifyAppointmentTypeAndCalendar(
     .where(
       and(
         eq(appointmentTypeCalendars.appointmentTypeId, appointmentTypeId),
-        eq(appointmentTypeCalendars.calendarId, calendarId)
-      )
+        eq(appointmentTypeCalendars.calendarId, calendarId),
+      ),
     )
-    .limit(1)
+    .limit(1);
 
   if (!link) {
-    throw new ORPCError('BAD_REQUEST', {
-      message: 'Appointment type is not available on this calendar',
-    })
+    throw new ORPCError("BAD_REQUEST", {
+      message: "Appointment type is not available on this calendar",
+    });
   }
 
-  return appointmentType
+  return appointmentType;
 }
 
 // ============================================================================
@@ -123,44 +127,45 @@ async function verifyAppointmentTypeAndCalendar(
 export const list = authed
   .input(listAppointmentsQuerySchema)
   .handler(async ({ input, context }) => {
-    const { cursor, limit, calendarId, appointmentTypeId, clientId, status, startDate, endDate } = input
-    const { orgId } = context
+    const { cursor, limit, calendarId, appointmentTypeId, clientId, status, startDate, endDate } =
+      input;
+    const { orgId } = context;
 
     const results = await withOrg(orgId, async (tx) => {
       // Build conditions array
-      const conditions: ReturnType<typeof eq>[] = []
+      const conditions: ReturnType<typeof eq>[] = [];
 
       if (cursor) {
-        conditions.push(gt(appointments.id, cursor))
+        conditions.push(gt(appointments.id, cursor));
       }
 
       if (calendarId) {
-        conditions.push(eq(appointments.calendarId, calendarId))
+        conditions.push(eq(appointments.calendarId, calendarId));
       }
 
       if (appointmentTypeId) {
-        conditions.push(eq(appointments.appointmentTypeId, appointmentTypeId))
+        conditions.push(eq(appointments.appointmentTypeId, appointmentTypeId));
       }
 
       if (clientId) {
-        conditions.push(eq(appointments.clientId, clientId))
+        conditions.push(eq(appointments.clientId, clientId));
       }
 
       if (status) {
-        conditions.push(eq(appointments.status, status))
+        conditions.push(eq(appointments.status, status));
       }
 
       if (startDate) {
-        const startDateTime = DateTime.fromISO(startDate).startOf('day').toJSDate()
-        conditions.push(gte(appointments.startAt, startDateTime))
+        const startDateTime = DateTime.fromISO(startDate).startOf("day").toJSDate();
+        conditions.push(gte(appointments.startAt, startDateTime));
       }
 
       if (endDate) {
-        const endDateTime = DateTime.fromISO(endDate).endOf('day').toJSDate()
-        conditions.push(lte(appointments.startAt, endDateTime))
+        const endDateTime = DateTime.fromISO(endDate).endOf("day").toJSDate();
+        conditions.push(lte(appointments.startAt, endDateTime));
       }
 
-      const whereClause = conditions.length > 0 ? and(...conditions) : undefined
+      const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
       return tx
         .select({
@@ -188,11 +193,11 @@ export const list = authed
         .leftJoin(clients, eq(appointments.clientId, clients.id))
         .where(whereClause)
         .limit(limit + 1)
-        .orderBy(appointments.id)
-    })
+        .orderBy(appointments.id);
+    });
 
-    const hasMore = results.length > limit
-    const items = hasMore ? results.slice(0, limit) : results
+    const hasMore = results.length > limit;
+    const items = hasMore ? results.slice(0, limit) : results;
 
     // Transform to response format
     const transformedItems = items.map((row) => ({
@@ -200,208 +205,210 @@ export const list = authed
       calendar: row.calendar ?? undefined,
       appointmentType: row.appointmentType ?? undefined,
       client: row.client ?? undefined,
-    }))
+    }));
 
     return {
       items: transformedItems,
-      nextCursor: hasMore ? items[items.length - 1]?.appointment.id ?? null : null,
+      nextCursor: hasMore ? (items[items.length - 1]?.appointment.id ?? null) : null,
       hasMore,
-    }
-  })
+    };
+  });
 
 // ============================================================================
 // GET SINGLE APPOINTMENT
 // ============================================================================
 
-export const get = authed
-  .input(idInput)
-  .handler(async ({ input, context }) => {
-    const { id } = input
-    const { orgId } = context
+export const get = authed.input(idInput).handler(async ({ input, context }) => {
+  const { id } = input;
+  const { orgId } = context;
 
-    const results = await withOrg(orgId, async (tx) => {
-      return tx
-        .select({
-          appointment: appointments,
-          calendar: {
-            id: calendars.id,
-            name: calendars.name,
-            timezone: calendars.timezone,
-          },
-          appointmentType: {
-            id: appointmentTypes.id,
-            name: appointmentTypes.name,
-            durationMin: appointmentTypes.durationMin,
-          },
-          client: {
-            id: clients.id,
-            firstName: clients.firstName,
-            lastName: clients.lastName,
-            email: clients.email,
-          },
-        })
-        .from(appointments)
-        .leftJoin(calendars, eq(appointments.calendarId, calendars.id))
-        .leftJoin(appointmentTypes, eq(appointments.appointmentTypeId, appointmentTypes.id))
-        .leftJoin(clients, eq(appointments.clientId, clients.id))
-        .where(eq(appointments.id, id))
-        .limit(1)
-    })
+  const results = await withOrg(orgId, async (tx) => {
+    return tx
+      .select({
+        appointment: appointments,
+        calendar: {
+          id: calendars.id,
+          name: calendars.name,
+          timezone: calendars.timezone,
+        },
+        appointmentType: {
+          id: appointmentTypes.id,
+          name: appointmentTypes.name,
+          durationMin: appointmentTypes.durationMin,
+        },
+        client: {
+          id: clients.id,
+          firstName: clients.firstName,
+          lastName: clients.lastName,
+          email: clients.email,
+        },
+      })
+      .from(appointments)
+      .leftJoin(calendars, eq(appointments.calendarId, calendars.id))
+      .leftJoin(appointmentTypes, eq(appointments.appointmentTypeId, appointmentTypes.id))
+      .leftJoin(clients, eq(appointments.clientId, clients.id))
+      .where(eq(appointments.id, id))
+      .limit(1);
+  });
 
-    if (results.length === 0) {
-      throw new ORPCError('NOT_FOUND', { message: 'Appointment not found' })
-    }
+  if (results.length === 0) {
+    throw new ORPCError("NOT_FOUND", { message: "Appointment not found" });
+  }
 
-    const row = results[0]!
-    return {
-      ...row.appointment,
-      calendar: row.calendar ?? undefined,
-      appointmentType: row.appointmentType ?? undefined,
-      client: row.client ?? undefined,
-    }
-  })
+  const row = results[0]!;
+  return {
+    ...row.appointment,
+    calendar: row.calendar ?? undefined,
+    appointmentType: row.appointmentType ?? undefined,
+    client: row.client ?? undefined,
+  };
+});
 
 // ============================================================================
 // CREATE APPOINTMENT
 // ============================================================================
 
-export const create = authed
-  .input(createAppointmentSchema)
-  .handler(async ({ input, context }) => {
-    const { calendarId, appointmentTypeId, startTime, timezone, clientId, notes } = input
-    const { orgId } = context
+export const create = authed.input(createAppointmentSchema).handler(async ({ input, context }) => {
+  const { calendarId, appointmentTypeId, startTime, timezone, clientId, notes } = input;
+  const { orgId } = context;
 
-    // Validate calendar access
-    await verifyCalendarAccess(orgId, calendarId)
+  // Validate calendar access
+  await verifyCalendarAccess(orgId, calendarId);
 
-    // Validate client if provided
-    if (clientId) {
-      await verifyClientAccess(orgId, clientId)
-    }
+  // Validate client if provided
+  if (clientId) {
+    await verifyClientAccess(orgId, clientId);
+  }
 
-    // Get and validate appointment type + calendar link
-    const appointmentType = await verifyAppointmentTypeAndCalendar(orgId, appointmentTypeId, calendarId)
+  // Get and validate appointment type + calendar link
+  const appointmentType = await verifyAppointmentTypeAndCalendar(
+    orgId,
+    appointmentTypeId,
+    calendarId,
+  );
 
-    // Parse start time and calculate end time
-    const startAt = new Date(startTime)
-    const endAt = DateTime.fromJSDate(startAt)
-      .plus({ minutes: appointmentType.durationMin })
-      .toJSDate()
+  // Parse start time and calculate end time
+  const startAt = new Date(startTime);
+  const endAt = DateTime.fromJSDate(startAt)
+    .plus({ minutes: appointmentType.durationMin })
+    .toJSDate();
 
-    // Check if booking is in the past
-    if (startAt < new Date()) {
-      throw new ORPCError('UNPROCESSABLE_CONTENT', {
-        message: 'BOOKING_IN_PAST: Cannot book appointments in the past',
-      })
-    }
+  // Check if booking is in the past
+  if (startAt < new Date()) {
+    throw new ORPCError("UNPROCESSABLE_CONTENT", {
+      message: "BOOKING_IN_PAST: Cannot book appointments in the past",
+    });
+  }
 
-    // Check availability using the engine
-    const engine = new AvailabilityEngine(db)
-    const availabilityCheck = await engine.checkSlot(appointmentTypeId, calendarId, startAt, timezone)
+  // Check availability using the engine
+  const engine = new AvailabilityEngine(db);
+  const availabilityCheck = await engine.checkSlot(
+    appointmentTypeId,
+    calendarId,
+    startAt,
+    timezone,
+  );
 
-    if (!availabilityCheck.available) {
-      const errorCode = availabilityCheck.reason || 'SLOT_UNAVAILABLE'
-      throw new ORPCError('CONFLICT', {
-        message: `${errorCode}: Time slot is not available`,
-      })
-    }
+  if (!availabilityCheck.available) {
+    const errorCode = availabilityCheck.reason || "SLOT_UNAVAILABLE";
+    throw new ORPCError("CONFLICT", {
+      message: `${errorCode}: Time slot is not available`,
+    });
+  }
 
-    // Create appointment with serializable transaction and locking
-    const appointment = await withRetry(async () => {
-      return db.transaction(
-        async (tx) => {
-          // Lock the calendar row to prevent concurrent bookings
-          await tx.execute(
-            sql`SELECT id FROM calendars WHERE id = ${calendarId} FOR UPDATE`
-          )
+  // Create appointment with serializable transaction and locking
+  const appointment = await withRetry(async () => {
+    return db.transaction(
+      async (tx) => {
+        // Lock the calendar row to prevent concurrent bookings
+        await tx.execute(sql`SELECT id FROM calendars WHERE id = ${calendarId} FOR UPDATE`);
 
-          // Set org context for RLS
-          await tx.execute(sql`SET LOCAL app.current_org_id = ${orgId}`)
+        // Set org context for RLS
+        await tx.execute(sql`SET LOCAL app.current_org_id = ${orgId}`);
 
-          // Double-check for overlapping appointments (with padding consideration)
-          const paddingBeforeMin = appointmentType.paddingBeforeMin ?? 0
-          const paddingAfterMin = appointmentType.paddingAfterMin ?? 0
-          const capacity = appointmentType.capacity ?? 1
+        // Double-check for overlapping appointments (with padding consideration)
+        const paddingBeforeMin = appointmentType.paddingBeforeMin ?? 0;
+        const paddingAfterMin = appointmentType.paddingAfterMin ?? 0;
+        const capacity = appointmentType.capacity ?? 1;
 
-          const paddedStartAt = DateTime.fromJSDate(startAt)
-            .minus({ minutes: paddingBeforeMin })
-            .toJSDate()
-          const paddedEndAt = DateTime.fromJSDate(endAt)
-            .plus({ minutes: paddingAfterMin })
-            .toJSDate()
+        const paddedStartAt = DateTime.fromJSDate(startAt)
+          .minus({ minutes: paddingBeforeMin })
+          .toJSDate();
+        const paddedEndAt = DateTime.fromJSDate(endAt)
+          .plus({ minutes: paddingAfterMin })
+          .toJSDate();
 
-          const overlappingAppointments = await tx
-            .select()
-            .from(appointments)
-            .where(
-              and(
-                eq(appointments.calendarId, calendarId),
-                ne(appointments.status, 'cancelled'),
-                // Check for overlap: start < other_end AND end > other_start
-                or(
-                  and(
-                    lte(appointments.startAt, paddedEndAt),
-                    gte(appointments.endAt, paddedStartAt)
-                  )
-                )
-              )
-            )
+        const overlappingAppointments = await tx
+          .select()
+          .from(appointments)
+          .where(
+            and(
+              eq(appointments.calendarId, calendarId),
+              ne(appointments.status, "cancelled"),
+              // Check for overlap: start < other_end AND end > other_start
+              or(
+                and(lte(appointments.startAt, paddedEndAt), gte(appointments.endAt, paddedStartAt)),
+              ),
+            ),
+          );
 
-          if (overlappingAppointments.length >= capacity) {
-            throw new ORPCError('CONFLICT', {
-              message: 'SLOT_UNAVAILABLE: Time slot is no longer available',
-            })
-          }
+        if (overlappingAppointments.length >= capacity) {
+          throw new ORPCError("CONFLICT", {
+            message: "SLOT_UNAVAILABLE: Time slot is no longer available",
+          });
+        }
 
-          // Insert the appointment
-          const [inserted] = await tx
-            .insert(appointments)
-            .values({
-              orgId,
-              calendarId,
-              appointmentTypeId,
-              clientId: clientId ?? null,
-              startAt,
-              endAt,
-              timezone,
-              status: 'scheduled',
-              notes: notes ?? null,
-            })
-            .returning()
+        // Insert the appointment
+        const [inserted] = await tx
+          .insert(appointments)
+          .values({
+            orgId,
+            calendarId,
+            appointmentTypeId,
+            clientId: clientId ?? null,
+            startAt,
+            endAt,
+            timezone,
+            status: "scheduled",
+            notes: notes ?? null,
+          })
+          .returning();
 
-          return inserted!
-        },
-        { isolationLevel: 'serializable' }
-      )
-    })
+        return inserted!;
+      },
+      { isolationLevel: "serializable" },
+    );
+  });
 
-    // Emit appointment created event
-    await events.appointmentCreated(orgId, {
-      appointmentId: appointment.id,
-      calendarId: appointment.calendarId,
-      appointmentTypeId: appointment.appointmentTypeId,
-      clientId: appointment.clientId,
-      startAt: appointment.startAt.toISOString(),
-      endAt: appointment.endAt.toISOString(),
-      timezone: appointment.timezone,
-      status: appointment.status,
-    })
+  // Emit appointment created event
+  await events.appointmentCreated(orgId, {
+    appointmentId: appointment.id,
+    calendarId: appointment.calendarId,
+    appointmentTypeId: appointment.appointmentTypeId,
+    clientId: appointment.clientId,
+    startAt: appointment.startAt.toISOString(),
+    endAt: appointment.endAt.toISOString(),
+    timezone: appointment.timezone,
+    status: appointment.status,
+  });
 
-    // Record audit event
-    const authMethod = context.authMethod === 'token' ? 'api_token' : context.authMethod === 'session' ? 'session' : 'none'
-    await recordAudit(
-      createAuditContext(orgId, context.userId, authMethod),
-      {
-        action: 'create',
-        entityType: 'appointment',
-        entityId: appointment.id,
-        before: null,
-        after: toAuditSnapshot(appointment as unknown as Record<string, unknown>),
-      }
-    )
+  // Record audit event
+  const authMethod =
+    context.authMethod === "token"
+      ? "api_token"
+      : context.authMethod === "session"
+        ? "session"
+        : "none";
+  await recordAudit(createAuditContext(orgId, context.userId, authMethod), {
+    action: "create",
+    entityType: "appointment",
+    entityId: appointment.id,
+    before: null,
+    after: toAuditSnapshot(appointment as unknown as Record<string, unknown>),
+  });
 
-    return appointment
-  })
+  return appointment;
+});
 
 // ============================================================================
 // UPDATE APPOINTMENT
@@ -410,47 +417,43 @@ export const create = authed
 export const update = authed
   .input(idInput.merge(z.object({ data: updateAppointmentSchema })))
   .handler(async ({ input, context }) => {
-    const { id, data } = input
-    const { orgId } = context
+    const { id, data } = input;
+    const { orgId } = context;
 
     // Get existing appointment
     const [existing] = await withOrg(orgId, async (tx) => {
-      return tx.select().from(appointments).where(eq(appointments.id, id)).limit(1)
-    })
+      return tx.select().from(appointments).where(eq(appointments.id, id)).limit(1);
+    });
 
     if (!existing) {
-      throw new ORPCError('NOT_FOUND', { message: 'Appointment not found' })
+      throw new ORPCError("NOT_FOUND", { message: "Appointment not found" });
     }
 
     // Validate client if being updated
     if (data.clientId !== undefined && data.clientId !== null) {
-      await verifyClientAccess(orgId, data.clientId)
+      await verifyClientAccess(orgId, data.clientId);
     }
 
     // Build update object
     const updateData: {
-      updatedAt: Date
-      clientId?: string | null
-      notes?: string | null
+      updatedAt: Date;
+      clientId?: string | null;
+      notes?: string | null;
     } = {
       updatedAt: new Date(),
-    }
+    };
 
     if (data.clientId !== undefined) {
-      updateData.clientId = data.clientId
+      updateData.clientId = data.clientId;
     }
 
     if (data.notes !== undefined) {
-      updateData.notes = data.notes
+      updateData.notes = data.notes;
     }
 
     const [updated] = await withOrg(orgId, async (tx) => {
-      return tx
-        .update(appointments)
-        .set(updateData)
-        .where(eq(appointments.id, id))
-        .returning()
-    })
+      return tx.update(appointments).set(updateData).where(eq(appointments.id, id)).returning();
+    });
 
     // Emit appointment updated event
     await events.appointmentUpdated(orgId, {
@@ -458,23 +461,25 @@ export const update = authed
       changes: data,
       previousClientId: existing.clientId,
       previousNotes: existing.notes,
-    })
+    });
 
     // Record audit event
-    const authMethod = context.authMethod === 'token' ? 'api_token' : context.authMethod === 'session' ? 'session' : 'none'
-    await recordAudit(
-      createAuditContext(orgId, context.userId, authMethod),
-      {
-        action: 'update',
-        entityType: 'appointment',
-        entityId: updated!.id,
-        before: toAuditSnapshot(existing as unknown as Record<string, unknown>),
-        after: toAuditSnapshot(updated as unknown as Record<string, unknown>),
-      }
-    )
+    const authMethod =
+      context.authMethod === "token"
+        ? "api_token"
+        : context.authMethod === "session"
+          ? "session"
+          : "none";
+    await recordAudit(createAuditContext(orgId, context.userId, authMethod), {
+      action: "update",
+      entityType: "appointment",
+      entityId: updated!.id,
+      before: toAuditSnapshot(existing as unknown as Record<string, unknown>),
+      after: toAuditSnapshot(updated as unknown as Record<string, unknown>),
+    });
 
-    return updated!
-  })
+    return updated!;
+  });
 
 // ============================================================================
 // CANCEL APPOINTMENT
@@ -483,22 +488,22 @@ export const update = authed
 export const cancel = authed
   .input(idInput.merge(z.object({ data: cancelAppointmentSchema.optional() })))
   .handler(async ({ input, context }) => {
-    const { id, data } = input
-    const { orgId } = context
+    const { id, data } = input;
+    const { orgId } = context;
 
     // Get existing appointment
     const [existing] = await withOrg(orgId, async (tx) => {
-      return tx.select().from(appointments).where(eq(appointments.id, id)).limit(1)
-    })
+      return tx.select().from(appointments).where(eq(appointments.id, id)).limit(1);
+    });
 
     if (!existing) {
-      throw new ORPCError('NOT_FOUND', { message: 'Appointment not found' })
+      throw new ORPCError("NOT_FOUND", { message: "Appointment not found" });
     }
 
-    if (existing.status === 'cancelled') {
-      throw new ORPCError('UNPROCESSABLE_CONTENT', {
-        message: 'APPOINTMENT_ALREADY_CANCELLED: Appointment is already cancelled',
-      })
+    if (existing.status === "cancelled") {
+      throw new ORPCError("UNPROCESSABLE_CONTENT", {
+        message: "APPOINTMENT_ALREADY_CANCELLED: Appointment is already cancelled",
+      });
     }
 
     // Update status to cancelled
@@ -506,13 +511,15 @@ export const cancel = authed
       return tx
         .update(appointments)
         .set({
-          status: 'cancelled',
-          notes: data?.reason ? `${existing.notes ? existing.notes + '\n' : ''}Cancelled: ${data.reason}` : existing.notes,
+          status: "cancelled",
+          notes: data?.reason
+            ? `${existing.notes ? existing.notes + "\n" : ""}Cancelled: ${data.reason}`
+            : existing.notes,
           updatedAt: new Date(),
         })
         .where(eq(appointments.id, id))
-        .returning()
-    })
+        .returning();
+    });
 
     // Emit appointment cancelled event
     await events.appointmentCancelled(orgId, {
@@ -523,23 +530,28 @@ export const cancel = authed
       startAt: updated!.startAt.toISOString(),
       endAt: updated!.endAt.toISOString(),
       reason: data?.reason,
-    })
+    });
 
     // Record audit event
-    const authMethod = context.authMethod === 'token' ? 'api_token' : context.authMethod === 'session' ? 'session' : 'none'
+    const authMethod =
+      context.authMethod === "token"
+        ? "api_token"
+        : context.authMethod === "session"
+          ? "session"
+          : "none";
     await recordAudit(
       createAuditContext(orgId, context.userId, authMethod, { reason: data?.reason }),
       {
-        action: 'cancel',
-        entityType: 'appointment',
+        action: "cancel",
+        entityType: "appointment",
         entityId: updated!.id,
         before: toAuditSnapshot(existing as unknown as Record<string, unknown>),
         after: toAuditSnapshot(updated as unknown as Record<string, unknown>),
-      }
-    )
+      },
+    );
 
-    return updated!
-  })
+    return updated!;
+  });
 
 // ============================================================================
 // RESCHEDULE APPOINTMENT
@@ -548,62 +560,66 @@ export const cancel = authed
 export const reschedule = authed
   .input(idInput.merge(z.object({ data: rescheduleAppointmentSchema })))
   .handler(async ({ input, context }) => {
-    const { id, data } = input
-    const { orgId } = context
+    const { id, data } = input;
+    const { orgId } = context;
 
     // Get existing appointment
     const [existing] = await withOrg(orgId, async (tx) => {
-      return tx.select().from(appointments).where(eq(appointments.id, id)).limit(1)
-    })
+      return tx.select().from(appointments).where(eq(appointments.id, id)).limit(1);
+    });
 
     if (!existing) {
-      throw new ORPCError('NOT_FOUND', { message: 'Appointment not found' })
+      throw new ORPCError("NOT_FOUND", { message: "Appointment not found" });
     }
 
-    if (existing.status === 'cancelled') {
-      throw new ORPCError('UNPROCESSABLE_CONTENT', {
-        message: 'APPOINTMENT_ALREADY_CANCELLED: Cannot reschedule a cancelled appointment',
-      })
+    if (existing.status === "cancelled") {
+      throw new ORPCError("UNPROCESSABLE_CONTENT", {
+        message: "APPOINTMENT_ALREADY_CANCELLED: Cannot reschedule a cancelled appointment",
+      });
     }
 
     // Get appointment type for duration
     const [appointmentType] = await withOrg(orgId, async (tx) => {
-      return tx.select().from(appointmentTypes).where(eq(appointmentTypes.id, existing.appointmentTypeId)).limit(1)
-    })
+      return tx
+        .select()
+        .from(appointmentTypes)
+        .where(eq(appointmentTypes.id, existing.appointmentTypeId))
+        .limit(1);
+    });
 
     if (!appointmentType) {
-      throw new ORPCError('NOT_FOUND', { message: 'Appointment type not found' })
+      throw new ORPCError("NOT_FOUND", { message: "Appointment type not found" });
     }
 
     // Parse new times
-    const newStartAt = new Date(data.newStartTime)
+    const newStartAt = new Date(data.newStartTime);
     const newEndAt = DateTime.fromJSDate(newStartAt)
       .plus({ minutes: appointmentType.durationMin })
-      .toJSDate()
+      .toJSDate();
 
     // Check if new time is in the past
     if (newStartAt < new Date()) {
-      throw new ORPCError('UNPROCESSABLE_CONTENT', {
-        message: 'BOOKING_IN_PAST: Cannot reschedule to a time in the past',
-      })
+      throw new ORPCError("UNPROCESSABLE_CONTENT", {
+        message: "BOOKING_IN_PAST: Cannot reschedule to a time in the past",
+      });
     }
 
     // Check availability for the new slot
-    const engine = new AvailabilityEngine(db)
+    const engine = new AvailabilityEngine(db);
     const availabilityCheck = await engine.checkSlot(
       existing.appointmentTypeId,
       existing.calendarId,
       newStartAt,
-      data.timezone
-    )
+      data.timezone,
+    );
 
     // The slot might show as unavailable because the current appointment occupies it
     // We need to check if the only conflict is with itself
-    if (!availabilityCheck.available && availabilityCheck.reason !== 'SLOT_UNAVAILABLE') {
-      const errorCode = availabilityCheck.reason || 'SLOT_UNAVAILABLE'
-      throw new ORPCError('CONFLICT', {
+    if (!availabilityCheck.available && availabilityCheck.reason !== "SLOT_UNAVAILABLE") {
+      const errorCode = availabilityCheck.reason || "SLOT_UNAVAILABLE";
+      throw new ORPCError("CONFLICT", {
         message: `${errorCode}: New time slot is not available`,
-      })
+      });
     }
 
     // Reschedule with serializable transaction
@@ -612,23 +628,23 @@ export const reschedule = authed
         async (tx) => {
           // Lock the calendar row
           await tx.execute(
-            sql`SELECT id FROM calendars WHERE id = ${existing.calendarId} FOR UPDATE`
-          )
+            sql`SELECT id FROM calendars WHERE id = ${existing.calendarId} FOR UPDATE`,
+          );
 
           // Set org context for RLS
-          await tx.execute(sql`SET LOCAL app.current_org_id = ${orgId}`)
+          await tx.execute(sql`SET LOCAL app.current_org_id = ${orgId}`);
 
           // Check for overlapping appointments (excluding this one)
-          const paddingBeforeMin = appointmentType.paddingBeforeMin ?? 0
-          const paddingAfterMin = appointmentType.paddingAfterMin ?? 0
-          const capacity = appointmentType.capacity ?? 1
+          const paddingBeforeMin = appointmentType.paddingBeforeMin ?? 0;
+          const paddingAfterMin = appointmentType.paddingAfterMin ?? 0;
+          const capacity = appointmentType.capacity ?? 1;
 
           const paddedStartAt = DateTime.fromJSDate(newStartAt)
             .minus({ minutes: paddingBeforeMin })
-            .toJSDate()
+            .toJSDate();
           const paddedEndAt = DateTime.fromJSDate(newEndAt)
             .plus({ minutes: paddingAfterMin })
-            .toJSDate()
+            .toJSDate();
 
           const overlappingAppointments = await tx
             .select()
@@ -636,21 +652,21 @@ export const reschedule = authed
             .where(
               and(
                 eq(appointments.calendarId, existing.calendarId),
-                ne(appointments.status, 'cancelled'),
+                ne(appointments.status, "cancelled"),
                 ne(appointments.id, id), // Exclude this appointment
                 or(
                   and(
                     lte(appointments.startAt, paddedEndAt),
-                    gte(appointments.endAt, paddedStartAt)
-                  )
-                )
-              )
-            )
+                    gte(appointments.endAt, paddedStartAt),
+                  ),
+                ),
+              ),
+            );
 
           if (overlappingAppointments.length >= capacity) {
-            throw new ORPCError('CONFLICT', {
-              message: 'SLOT_UNAVAILABLE: New time slot is no longer available',
-            })
+            throw new ORPCError("CONFLICT", {
+              message: "SLOT_UNAVAILABLE: New time slot is no longer available",
+            });
           }
 
           // Update the appointment
@@ -663,13 +679,13 @@ export const reschedule = authed
               updatedAt: new Date(),
             })
             .where(eq(appointments.id, id))
-            .returning()
+            .returning();
 
-          return updated!
+          return updated!;
         },
-        { isolationLevel: 'serializable' }
-      )
-    })
+        { isolationLevel: "serializable" },
+      );
+    });
 
     // Emit appointment rescheduled event
     await events.appointmentRescheduled(orgId, {
@@ -682,92 +698,94 @@ export const reschedule = authed
       newStartAt: updated.startAt.toISOString(),
       newEndAt: updated.endAt.toISOString(),
       timezone: updated.timezone,
-    })
+    });
 
     // Record audit event
-    const authMethod = context.authMethod === 'token' ? 'api_token' : context.authMethod === 'session' ? 'session' : 'none'
-    await recordAudit(
-      createAuditContext(orgId, context.userId, authMethod),
-      {
-        action: 'reschedule',
-        entityType: 'appointment',
-        entityId: updated.id,
-        before: toAuditSnapshot(existing as unknown as Record<string, unknown>),
-        after: toAuditSnapshot(updated as unknown as Record<string, unknown>),
-      }
-    )
+    const authMethod =
+      context.authMethod === "token"
+        ? "api_token"
+        : context.authMethod === "session"
+          ? "session"
+          : "none";
+    await recordAudit(createAuditContext(orgId, context.userId, authMethod), {
+      action: "reschedule",
+      entityType: "appointment",
+      entityId: updated.id,
+      before: toAuditSnapshot(existing as unknown as Record<string, unknown>),
+      after: toAuditSnapshot(updated as unknown as Record<string, unknown>),
+    });
 
-    return updated
-  })
+    return updated;
+  });
 
 // ============================================================================
 // NO-SHOW APPOINTMENT
 // ============================================================================
 
-export const noShow = authed
-  .input(idInput)
-  .handler(async ({ input, context }) => {
-    const { id } = input
-    const { orgId } = context
+export const noShow = authed.input(idInput).handler(async ({ input, context }) => {
+  const { id } = input;
+  const { orgId } = context;
 
-    // Get existing appointment
-    const [existing] = await withOrg(orgId, async (tx) => {
-      return tx.select().from(appointments).where(eq(appointments.id, id)).limit(1)
-    })
+  // Get existing appointment
+  const [existing] = await withOrg(orgId, async (tx) => {
+    return tx.select().from(appointments).where(eq(appointments.id, id)).limit(1);
+  });
 
-    if (!existing) {
-      throw new ORPCError('NOT_FOUND', { message: 'Appointment not found' })
-    }
+  if (!existing) {
+    throw new ORPCError("NOT_FOUND", { message: "Appointment not found" });
+  }
 
-    if (existing.status === 'cancelled') {
-      throw new ORPCError('UNPROCESSABLE_CONTENT', {
-        message: 'APPOINTMENT_ALREADY_CANCELLED: Cannot mark a cancelled appointment as no-show',
+  if (existing.status === "cancelled") {
+    throw new ORPCError("UNPROCESSABLE_CONTENT", {
+      message: "APPOINTMENT_ALREADY_CANCELLED: Cannot mark a cancelled appointment as no-show",
+    });
+  }
+
+  if (existing.status === "no_show") {
+    throw new ORPCError("UNPROCESSABLE_CONTENT", {
+      message: "APPOINTMENT_ALREADY_NO_SHOW: Appointment is already marked as no-show",
+    });
+  }
+
+  // Update status to no_show
+  const [updated] = await withOrg(orgId, async (tx) => {
+    return tx
+      .update(appointments)
+      .set({
+        status: "no_show",
+        updatedAt: new Date(),
       })
-    }
+      .where(eq(appointments.id, id))
+      .returning();
+  });
 
-    if (existing.status === 'no_show') {
-      throw new ORPCError('UNPROCESSABLE_CONTENT', {
-        message: 'APPOINTMENT_ALREADY_NO_SHOW: Appointment is already marked as no-show',
-      })
-    }
+  // Emit appointment no_show event
+  await events.appointmentNoShow(orgId, {
+    appointmentId: updated!.id,
+    calendarId: updated!.calendarId,
+    appointmentTypeId: updated!.appointmentTypeId,
+    clientId: updated!.clientId,
+    startAt: updated!.startAt.toISOString(),
+    endAt: updated!.endAt.toISOString(),
+  });
 
-    // Update status to no_show
-    const [updated] = await withOrg(orgId, async (tx) => {
-      return tx
-        .update(appointments)
-        .set({
-          status: 'no_show',
-          updatedAt: new Date(),
-        })
-        .where(eq(appointments.id, id))
-        .returning()
-    })
+  // Record audit event
+  const authMethod =
+    context.authMethod === "token"
+      ? "api_token"
+      : context.authMethod === "session"
+        ? "session"
+        : "none";
+  await recordAudit(createAuditContext(orgId, context.userId, authMethod), {
+    action: "no_show",
+    entityType: "appointment",
+    entityId: updated!.id,
+    before: toAuditSnapshot(existing as unknown as Record<string, unknown>),
+    after: toAuditSnapshot(updated as unknown as Record<string, unknown>),
+  });
 
-    // Emit appointment no_show event
-    await events.appointmentNoShow(orgId, {
-      appointmentId: updated!.id,
-      calendarId: updated!.calendarId,
-      appointmentTypeId: updated!.appointmentTypeId,
-      clientId: updated!.clientId,
-      startAt: updated!.startAt.toISOString(),
-      endAt: updated!.endAt.toISOString(),
-    })
-
-    // Record audit event
-    const authMethod = context.authMethod === 'token' ? 'api_token' : context.authMethod === 'session' ? 'session' : 'none'
-    await recordAudit(
-      createAuditContext(orgId, context.userId, authMethod),
-      {
-        action: 'no_show',
-        entityType: 'appointment',
-        entityId: updated!.id,
-        before: toAuditSnapshot(existing as unknown as Record<string, unknown>),
-        after: toAuditSnapshot(updated as unknown as Record<string, unknown>),
-      }
-    )
-
-    return updated!
-  })
+  return updated!;
+});
 
 // ============================================================================
 // ROUTE EXPORTS
@@ -781,4 +799,4 @@ export const appointmentRoutes = {
   cancel,
   reschedule,
   noShow,
-}
+};

@@ -1,23 +1,21 @@
 // oRPC routes for locations CRUD
 
-import { z } from 'zod'
+import { z } from "zod";
 import {
   createLocationSchema,
   updateLocationSchema,
   listLocationsQuerySchema,
-} from '@scheduling/dto'
-import { authed } from './base.js'
-import { locationService } from '../services/locations.js'
+} from "@scheduling/dto";
+import { authed } from "./base.js";
+import { locationService } from "../services/locations.js";
 
 // List locations with cursor pagination
-export const list = authed
-  .input(listLocationsQuerySchema)
-  .handler(async ({ input, context }) => {
-    return locationService.list(input, {
-      orgId: context.orgId,
-      userId: context.userId!,
-    })
-  })
+export const list = authed.input(listLocationsQuerySchema).handler(async ({ input, context }) => {
+  return locationService.list(input, {
+    orgId: context.orgId,
+    userId: context.userId!,
+  });
+});
 
 // Get single location by ID
 export const get = authed
@@ -26,18 +24,16 @@ export const get = authed
     return locationService.get(input.id, {
       orgId: context.orgId,
       userId: context.userId!,
-    })
-  })
+    });
+  });
 
 // Create location
-export const create = authed
-  .input(createLocationSchema)
-  .handler(async ({ input, context }) => {
-    return locationService.create(input, {
-      orgId: context.orgId,
-      userId: context.userId!,
-    })
-  })
+export const create = authed.input(createLocationSchema).handler(async ({ input, context }) => {
+  return locationService.create(input, {
+    orgId: context.orgId,
+    userId: context.userId!,
+  });
+});
 
 // Update location
 export const update = authed
@@ -45,14 +41,14 @@ export const update = authed
     z.object({
       id: z.string().uuid(),
       data: updateLocationSchema,
-    })
+    }),
   )
   .handler(async ({ input, context }) => {
     return locationService.update(input.id, input.data, {
       orgId: context.orgId,
       userId: context.userId!,
-    })
-  })
+    });
+  });
 
 // Delete location
 export const remove = authed
@@ -61,8 +57,8 @@ export const remove = authed
     return locationService.delete(input.id, {
       orgId: context.orgId,
       userId: context.userId!,
-    })
-  })
+    });
+  });
 
 // Export as route object
 export const locationRoutes = {
@@ -71,4 +67,4 @@ export const locationRoutes = {
   create,
   update,
   remove,
-}
+};

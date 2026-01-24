@@ -1,14 +1,14 @@
 // oRPC routes for appointment types CRUD with join table routes
 
-import { z } from 'zod'
-import { eq, gt, and } from 'drizzle-orm'
+import { z } from "zod";
+import { eq, gt, and } from "drizzle-orm";
 import {
   appointmentTypes,
   appointmentTypeCalendars,
   appointmentTypeResources,
   calendars,
   resources,
-} from '@scheduling/db/schema'
+} from "@scheduling/db/schema";
 import {
   createAppointmentTypeSchema,
   updateAppointmentTypeSchema,
@@ -16,18 +16,18 @@ import {
   createAppointmentTypeCalendarSchema,
   createAppointmentTypeResourceSchema,
   updateAppointmentTypeResourceSchema,
-} from '@scheduling/dto'
-import { authed } from './base.js'
-import { withOrg } from '../lib/db.js'
-import { ORPCError } from '../lib/orpc.js'
-import { events } from '../services/jobs/emitter.js'
+} from "@scheduling/dto";
+import { authed } from "./base.js";
+import { withOrg } from "../lib/db.js";
+import { ORPCError } from "../lib/orpc.js";
+import { events } from "../services/jobs/emitter.js";
 
 // List appointment types with cursor pagination
 export const list = authed
   .input(listAppointmentTypesQuerySchema)
   .handler(async ({ input, context }) => {
-    const { cursor, limit } = input
-    const { orgId } = context
+    const { cursor, limit } = input;
+    const { orgId } = context;
 
     const results = await withOrg(orgId, async (tx) => {
       return tx
@@ -35,46 +35,42 @@ export const list = authed
         .from(appointmentTypes)
         .where(cursor ? gt(appointmentTypes.id, cursor) : undefined)
         .limit(limit + 1)
-        .orderBy(appointmentTypes.id)
-    })
+        .orderBy(appointmentTypes.id);
+    });
 
-    const hasMore = results.length > limit
-    const items = hasMore ? results.slice(0, limit) : results
+    const hasMore = results.length > limit;
+    const items = hasMore ? results.slice(0, limit) : results;
 
     return {
       items,
-      nextCursor: hasMore ? items[items.length - 1]?.id ?? null : null,
+      nextCursor: hasMore ? (items[items.length - 1]?.id ?? null) : null,
       hasMore,
-    }
-  })
+    };
+  });
 
 // Get single appointment type by ID
 export const get = authed
   .input(z.object({ id: z.string().uuid() }))
   .handler(async ({ input, context }) => {
-    const { id } = input
-    const { orgId } = context
+    const { id } = input;
+    const { orgId } = context;
 
     const [appointmentType] = await withOrg(orgId, async (tx) => {
-      return tx
-        .select()
-        .from(appointmentTypes)
-        .where(eq(appointmentTypes.id, id))
-        .limit(1)
-    })
+      return tx.select().from(appointmentTypes).where(eq(appointmentTypes.id, id)).limit(1);
+    });
 
     if (!appointmentType) {
-      throw new ORPCError('NOT_FOUND', { message: 'Appointment type not found' })
+      throw new ORPCError("NOT_FOUND", { message: "Appointment type not found" });
     }
 
-    return appointmentType
-  })
+    return appointmentType;
+  });
 
 // Create appointment type
 export const create = authed
   .input(createAppointmentTypeSchema)
   .handler(async ({ input, context }) => {
-    const { orgId } = context
+    const { orgId } = context;
 
     const [appointmentType] = await withOrg(orgId, async (tx) => {
       return tx
@@ -88,8 +84,8 @@ export const create = authed
           capacity: input.capacity ?? null,
           metadata: input.metadata ?? null,
         })
-        .returning()
-    })
+        .returning();
+    });
 
     // Emit appointment type created event
     await events.appointmentTypeCreated(orgId, {
@@ -99,10 +95,10 @@ export const create = authed
       paddingBeforeMin: appointmentType!.paddingBeforeMin,
       paddingAfterMin: appointmentType!.paddingAfterMin,
       capacity: appointmentType!.capacity,
-    })
+    });
 
-    return appointmentType
-  })
+    return appointmentType;
+  });
 
 // Update appointment type
 export const update = authed
@@ -110,23 +106,19 @@ export const update = authed
     z.object({
       id: z.string().uuid(),
       data: updateAppointmentTypeSchema,
-    })
+    }),
   )
   .handler(async ({ input, context }) => {
-    const { id, data } = input
-    const { orgId } = context
+    const { id, data } = input;
+    const { orgId } = context;
 
     // Verify appointment type exists and belongs to org
     const [existing] = await withOrg(orgId, async (tx) => {
-      return tx
-        .select()
-        .from(appointmentTypes)
-        .where(eq(appointmentTypes.id, id))
-        .limit(1)
-    })
+      return tx.select().from(appointmentTypes).where(eq(appointmentTypes.id, id)).limit(1);
+    });
 
     if (!existing) {
-      throw new ORPCError('NOT_FOUND', { message: 'Appointment type not found' })
+      throw new ORPCError("NOT_FOUND", { message: "Appointment type not found" });
     }
 
     const [updated] = await withOrg(orgId, async (tx) => {
@@ -137,8 +129,8 @@ export const update = authed
           updatedAt: new Date(),
         })
         .where(eq(appointmentTypes.id, id))
-        .returning()
-    })
+        .returning();
+    });
 
     // Emit appointment type updated event
     await events.appointmentTypeUpdated(orgId, {
@@ -151,51 +143,47 @@ export const update = authed
         paddingAfterMin: existing.paddingAfterMin,
         capacity: existing.capacity,
       },
-    })
+    });
 
-    return updated
-  })
+    return updated;
+  });
 
 // Delete appointment type
 export const remove = authed
   .input(z.object({ id: z.string().uuid() }))
   .handler(async ({ input, context }) => {
-    const { id } = input
-    const { orgId } = context
+    const { id } = input;
+    const { orgId } = context;
 
     // Verify appointment type exists and belongs to org
     const [existing] = await withOrg(orgId, async (tx) => {
-      return tx
-        .select()
-        .from(appointmentTypes)
-        .where(eq(appointmentTypes.id, id))
-        .limit(1)
-    })
+      return tx.select().from(appointmentTypes).where(eq(appointmentTypes.id, id)).limit(1);
+    });
 
     if (!existing) {
-      throw new ORPCError('NOT_FOUND', { message: 'Appointment type not found' })
+      throw new ORPCError("NOT_FOUND", { message: "Appointment type not found" });
     }
 
     await withOrg(orgId, async (tx) => {
       // Delete associated calendars and resources first
       await tx
         .delete(appointmentTypeCalendars)
-        .where(eq(appointmentTypeCalendars.appointmentTypeId, id))
+        .where(eq(appointmentTypeCalendars.appointmentTypeId, id));
       await tx
         .delete(appointmentTypeResources)
-        .where(eq(appointmentTypeResources.appointmentTypeId, id))
-      return tx.delete(appointmentTypes).where(eq(appointmentTypes.id, id))
-    })
+        .where(eq(appointmentTypeResources.appointmentTypeId, id));
+      return tx.delete(appointmentTypes).where(eq(appointmentTypes.id, id));
+    });
 
     // Emit appointment type deleted event
     await events.appointmentTypeDeleted(orgId, {
       appointmentTypeId: id,
       name: existing.name,
       durationMin: existing.durationMin,
-    })
+    });
 
-    return { success: true }
-  })
+    return { success: true };
+  });
 
 // ============================================================================
 // CALENDAR ASSOCIATIONS
@@ -205,8 +193,8 @@ export const remove = authed
 export const listCalendars = authed
   .input(z.object({ appointmentTypeId: z.string().uuid() }))
   .handler(async ({ input, context }) => {
-    const { appointmentTypeId } = input
-    const { orgId } = context
+    const { appointmentTypeId } = input;
+    const { orgId } = context;
 
     // Verify appointment type exists
     const [appointmentType] = await withOrg(orgId, async (tx) => {
@@ -214,11 +202,11 @@ export const listCalendars = authed
         .select()
         .from(appointmentTypes)
         .where(eq(appointmentTypes.id, appointmentTypeId))
-        .limit(1)
-    })
+        .limit(1);
+    });
 
     if (!appointmentType) {
-      throw new ORPCError('NOT_FOUND', { message: 'Appointment type not found' })
+      throw new ORPCError("NOT_FOUND", { message: "Appointment type not found" });
     }
 
     const results = await withOrg(orgId, async (tx) => {
@@ -231,11 +219,11 @@ export const listCalendars = authed
         })
         .from(appointmentTypeCalendars)
         .innerJoin(calendars, eq(appointmentTypeCalendars.calendarId, calendars.id))
-        .where(eq(appointmentTypeCalendars.appointmentTypeId, appointmentTypeId))
-    })
+        .where(eq(appointmentTypeCalendars.appointmentTypeId, appointmentTypeId));
+    });
 
-    return results
-  })
+    return results;
+  });
 
 // Add calendar to appointment type
 export const addCalendar = authed
@@ -243,11 +231,11 @@ export const addCalendar = authed
     z.object({
       appointmentTypeId: z.string().uuid(),
       data: createAppointmentTypeCalendarSchema,
-    })
+    }),
   )
   .handler(async ({ input, context }) => {
-    const { appointmentTypeId, data } = input
-    const { orgId } = context
+    const { appointmentTypeId, data } = input;
+    const { orgId } = context;
 
     // Verify appointment type exists
     const [appointmentType] = await withOrg(orgId, async (tx) => {
@@ -255,24 +243,20 @@ export const addCalendar = authed
         .select()
         .from(appointmentTypes)
         .where(eq(appointmentTypes.id, appointmentTypeId))
-        .limit(1)
-    })
+        .limit(1);
+    });
 
     if (!appointmentType) {
-      throw new ORPCError('NOT_FOUND', { message: 'Appointment type not found' })
+      throw new ORPCError("NOT_FOUND", { message: "Appointment type not found" });
     }
 
     // Verify calendar exists
     const [calendar] = await withOrg(orgId, async (tx) => {
-      return tx
-        .select()
-        .from(calendars)
-        .where(eq(calendars.id, data.calendarId))
-        .limit(1)
-    })
+      return tx.select().from(calendars).where(eq(calendars.id, data.calendarId)).limit(1);
+    });
 
     if (!calendar) {
-      throw new ORPCError('NOT_FOUND', { message: 'Calendar not found' })
+      throw new ORPCError("NOT_FOUND", { message: "Calendar not found" });
     }
 
     // Check for existing association
@@ -283,16 +267,16 @@ export const addCalendar = authed
         .where(
           and(
             eq(appointmentTypeCalendars.appointmentTypeId, appointmentTypeId),
-            eq(appointmentTypeCalendars.calendarId, data.calendarId)
-          )
+            eq(appointmentTypeCalendars.calendarId, data.calendarId),
+          ),
         )
-        .limit(1)
-    })
+        .limit(1);
+    });
 
     if (existing) {
-      throw new ORPCError('CONFLICT', {
-        message: 'Calendar already associated with appointment type',
-      })
+      throw new ORPCError("CONFLICT", {
+        message: "Calendar already associated with appointment type",
+      });
     }
 
     const [association] = await withOrg(orgId, async (tx) => {
@@ -302,11 +286,11 @@ export const addCalendar = authed
           appointmentTypeId,
           calendarId: data.calendarId,
         })
-        .returning()
-    })
+        .returning();
+    });
 
-    return association
-  })
+    return association;
+  });
 
 // Remove calendar from appointment type
 export const removeCalendar = authed
@@ -314,11 +298,11 @@ export const removeCalendar = authed
     z.object({
       appointmentTypeId: z.string().uuid(),
       calendarId: z.string().uuid(),
-    })
+    }),
   )
   .handler(async ({ input, context }) => {
-    const { appointmentTypeId, calendarId } = input
-    const { orgId } = context
+    const { appointmentTypeId, calendarId } = input;
+    const { orgId } = context;
 
     // Verify association exists
     const [existing] = await withOrg(orgId, async (tx) => {
@@ -328,14 +312,14 @@ export const removeCalendar = authed
         .where(
           and(
             eq(appointmentTypeCalendars.appointmentTypeId, appointmentTypeId),
-            eq(appointmentTypeCalendars.calendarId, calendarId)
-          )
+            eq(appointmentTypeCalendars.calendarId, calendarId),
+          ),
         )
-        .limit(1)
-    })
+        .limit(1);
+    });
 
     if (!existing) {
-      throw new ORPCError('NOT_FOUND', { message: 'Association not found' })
+      throw new ORPCError("NOT_FOUND", { message: "Association not found" });
     }
 
     await withOrg(orgId, async (tx) => {
@@ -344,13 +328,13 @@ export const removeCalendar = authed
         .where(
           and(
             eq(appointmentTypeCalendars.appointmentTypeId, appointmentTypeId),
-            eq(appointmentTypeCalendars.calendarId, calendarId)
-          )
-        )
-    })
+            eq(appointmentTypeCalendars.calendarId, calendarId),
+          ),
+        );
+    });
 
-    return { success: true }
-  })
+    return { success: true };
+  });
 
 // ============================================================================
 // RESOURCE ASSOCIATIONS
@@ -360,8 +344,8 @@ export const removeCalendar = authed
 export const listResources = authed
   .input(z.object({ appointmentTypeId: z.string().uuid() }))
   .handler(async ({ input, context }) => {
-    const { appointmentTypeId } = input
-    const { orgId } = context
+    const { appointmentTypeId } = input;
+    const { orgId } = context;
 
     // Verify appointment type exists
     const [appointmentType] = await withOrg(orgId, async (tx) => {
@@ -369,11 +353,11 @@ export const listResources = authed
         .select()
         .from(appointmentTypes)
         .where(eq(appointmentTypes.id, appointmentTypeId))
-        .limit(1)
-    })
+        .limit(1);
+    });
 
     if (!appointmentType) {
-      throw new ORPCError('NOT_FOUND', { message: 'Appointment type not found' })
+      throw new ORPCError("NOT_FOUND", { message: "Appointment type not found" });
     }
 
     const results = await withOrg(orgId, async (tx) => {
@@ -387,11 +371,11 @@ export const listResources = authed
         })
         .from(appointmentTypeResources)
         .innerJoin(resources, eq(appointmentTypeResources.resourceId, resources.id))
-        .where(eq(appointmentTypeResources.appointmentTypeId, appointmentTypeId))
-    })
+        .where(eq(appointmentTypeResources.appointmentTypeId, appointmentTypeId));
+    });
 
-    return results
-  })
+    return results;
+  });
 
 // Add resource to appointment type
 export const addResource = authed
@@ -399,11 +383,11 @@ export const addResource = authed
     z.object({
       appointmentTypeId: z.string().uuid(),
       data: createAppointmentTypeResourceSchema,
-    })
+    }),
   )
   .handler(async ({ input, context }) => {
-    const { appointmentTypeId, data } = input
-    const { orgId } = context
+    const { appointmentTypeId, data } = input;
+    const { orgId } = context;
 
     // Verify appointment type exists
     const [appointmentType] = await withOrg(orgId, async (tx) => {
@@ -411,24 +395,20 @@ export const addResource = authed
         .select()
         .from(appointmentTypes)
         .where(eq(appointmentTypes.id, appointmentTypeId))
-        .limit(1)
-    })
+        .limit(1);
+    });
 
     if (!appointmentType) {
-      throw new ORPCError('NOT_FOUND', { message: 'Appointment type not found' })
+      throw new ORPCError("NOT_FOUND", { message: "Appointment type not found" });
     }
 
     // Verify resource exists
     const [resource] = await withOrg(orgId, async (tx) => {
-      return tx
-        .select()
-        .from(resources)
-        .where(eq(resources.id, data.resourceId))
-        .limit(1)
-    })
+      return tx.select().from(resources).where(eq(resources.id, data.resourceId)).limit(1);
+    });
 
     if (!resource) {
-      throw new ORPCError('NOT_FOUND', { message: 'Resource not found' })
+      throw new ORPCError("NOT_FOUND", { message: "Resource not found" });
     }
 
     // Check for existing association
@@ -439,16 +419,16 @@ export const addResource = authed
         .where(
           and(
             eq(appointmentTypeResources.appointmentTypeId, appointmentTypeId),
-            eq(appointmentTypeResources.resourceId, data.resourceId)
-          )
+            eq(appointmentTypeResources.resourceId, data.resourceId),
+          ),
         )
-        .limit(1)
-    })
+        .limit(1);
+    });
 
     if (existing) {
-      throw new ORPCError('CONFLICT', {
-        message: 'Resource already associated with appointment type',
-      })
+      throw new ORPCError("CONFLICT", {
+        message: "Resource already associated with appointment type",
+      });
     }
 
     const [association] = await withOrg(orgId, async (tx) => {
@@ -459,11 +439,11 @@ export const addResource = authed
           resourceId: data.resourceId,
           quantityRequired: data.quantityRequired,
         })
-        .returning()
-    })
+        .returning();
+    });
 
-    return association
-  })
+    return association;
+  });
 
 // Update resource association (quantity)
 export const updateResource = authed
@@ -472,11 +452,11 @@ export const updateResource = authed
       appointmentTypeId: z.string().uuid(),
       resourceId: z.string().uuid(),
       data: updateAppointmentTypeResourceSchema,
-    })
+    }),
   )
   .handler(async ({ input, context }) => {
-    const { appointmentTypeId, resourceId, data } = input
-    const { orgId } = context
+    const { appointmentTypeId, resourceId, data } = input;
+    const { orgId } = context;
 
     // Verify association exists
     const [existing] = await withOrg(orgId, async (tx) => {
@@ -486,14 +466,14 @@ export const updateResource = authed
         .where(
           and(
             eq(appointmentTypeResources.appointmentTypeId, appointmentTypeId),
-            eq(appointmentTypeResources.resourceId, resourceId)
-          )
+            eq(appointmentTypeResources.resourceId, resourceId),
+          ),
         )
-        .limit(1)
-    })
+        .limit(1);
+    });
 
     if (!existing) {
-      throw new ORPCError('NOT_FOUND', { message: 'Association not found' })
+      throw new ORPCError("NOT_FOUND", { message: "Association not found" });
     }
 
     const [updated] = await withOrg(orgId, async (tx) => {
@@ -503,14 +483,14 @@ export const updateResource = authed
         .where(
           and(
             eq(appointmentTypeResources.appointmentTypeId, appointmentTypeId),
-            eq(appointmentTypeResources.resourceId, resourceId)
-          )
+            eq(appointmentTypeResources.resourceId, resourceId),
+          ),
         )
-        .returning()
-    })
+        .returning();
+    });
 
-    return updated
-  })
+    return updated;
+  });
 
 // Remove resource from appointment type
 export const removeResource = authed
@@ -518,11 +498,11 @@ export const removeResource = authed
     z.object({
       appointmentTypeId: z.string().uuid(),
       resourceId: z.string().uuid(),
-    })
+    }),
   )
   .handler(async ({ input, context }) => {
-    const { appointmentTypeId, resourceId } = input
-    const { orgId } = context
+    const { appointmentTypeId, resourceId } = input;
+    const { orgId } = context;
 
     // Verify association exists
     const [existing] = await withOrg(orgId, async (tx) => {
@@ -532,14 +512,14 @@ export const removeResource = authed
         .where(
           and(
             eq(appointmentTypeResources.appointmentTypeId, appointmentTypeId),
-            eq(appointmentTypeResources.resourceId, resourceId)
-          )
+            eq(appointmentTypeResources.resourceId, resourceId),
+          ),
         )
-        .limit(1)
-    })
+        .limit(1);
+    });
 
     if (!existing) {
-      throw new ORPCError('NOT_FOUND', { message: 'Association not found' })
+      throw new ORPCError("NOT_FOUND", { message: "Association not found" });
     }
 
     await withOrg(orgId, async (tx) => {
@@ -548,13 +528,13 @@ export const removeResource = authed
         .where(
           and(
             eq(appointmentTypeResources.appointmentTypeId, appointmentTypeId),
-            eq(appointmentTypeResources.resourceId, resourceId)
-          )
-        )
-    })
+            eq(appointmentTypeResources.resourceId, resourceId),
+          ),
+        );
+    });
 
-    return { success: true }
-  })
+    return { success: true };
+  });
 
 // Export as route object
 export const appointmentTypeRoutes = {
@@ -576,4 +556,4 @@ export const appointmentTypeRoutes = {
     update: updateResource,
     remove: removeResource,
   },
-}
+};

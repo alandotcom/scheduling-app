@@ -1,33 +1,33 @@
 // Audit logging service for tracking changes to entities
 // Records actor, action, entity type/id, and before/after snapshots
 
-import { auditEvents } from '@scheduling/db/schema'
-import type { Database } from '../lib/db.js'
-import { withOrg } from '../lib/db.js'
+import { auditEvents } from "@scheduling/db/schema";
+import type { DbClient } from "../lib/db.js";
+import { withOrg } from "../lib/db.js";
 
-export type AuditAction = 'create' | 'update' | 'delete' | 'cancel' | 'reschedule' | 'no_show'
-export type AuditActorType = 'user' | 'api_token' | 'system'
+export type AuditAction = "create" | "update" | "delete" | "cancel" | "reschedule" | "no_show";
+export type AuditActorType = "user" | "api_token" | "system";
 export type AuditEntityType =
-  | 'appointment'
-  | 'calendar'
-  | 'location'
-  | 'resource'
-  | 'appointment_type'
-  | 'client'
+  | "appointment"
+  | "calendar"
+  | "location"
+  | "resource"
+  | "appointment_type"
+  | "client";
 
 export interface AuditContext {
-  orgId: string
-  actorId: string | null
-  actorType: AuditActorType
-  metadata?: Record<string, unknown>
+  orgId: string;
+  actorId: string | null;
+  actorType: AuditActorType;
+  metadata?: Record<string, unknown>;
 }
 
 export interface AuditEntry {
-  action: AuditAction
-  entityType: AuditEntityType
-  entityId: string
-  before?: Record<string, unknown> | null
-  after?: Record<string, unknown> | null
+  action: AuditAction;
+  entityType: AuditEntityType;
+  entityId: string;
+  before?: Record<string, unknown> | null;
+  after?: Record<string, unknown> | null;
 }
 
 /**
@@ -37,12 +37,12 @@ export interface AuditEntry {
 export async function recordAudit(
   context: AuditContext,
   entry: AuditEntry,
-  tx?: Database
+  tx?: DbClient,
 ): Promise<void> {
-  const { orgId, actorId, actorType, metadata } = context
-  const { action, entityType, entityId, before, after } = entry
+  const { orgId, actorId, actorType, metadata } = context;
+  const { action, entityType, entityId, before, after } = entry;
 
-  const insertFn = async (database: Database) => {
+  const insertFn = async (database: DbClient) => {
     await database.insert(auditEvents).values({
       orgId,
       actorId,
@@ -53,13 +53,13 @@ export async function recordAudit(
       before: before ?? null,
       after: after ?? null,
       metadata: metadata ?? null,
-    })
-  }
+    });
+  };
 
   if (tx) {
-    await insertFn(tx)
+    await insertFn(tx);
   } else {
-    await withOrg(orgId, insertFn)
+    await withOrg(orgId, insertFn);
   }
 }
 
@@ -68,21 +68,21 @@ export async function recordAudit(
  * Converts Date objects to ISO strings
  */
 export function toAuditSnapshot<T extends Record<string, unknown>>(
-  entity: T | null | undefined
+  entity: T | null | undefined,
 ): Record<string, unknown> | null {
-  if (!entity) return null
+  if (!entity) return null;
 
-  const snapshot: Record<string, unknown> = {}
+  const snapshot: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(entity)) {
     if (value instanceof Date) {
-      snapshot[key] = value.toISOString()
+      snapshot[key] = value.toISOString();
     } else if (value === undefined) {
-      snapshot[key] = null
+      snapshot[key] = null;
     } else {
-      snapshot[key] = value
+      snapshot[key] = value;
     }
   }
-  return snapshot
+  return snapshot;
 }
 
 /**
@@ -91,27 +91,27 @@ export function toAuditSnapshot<T extends Record<string, unknown>>(
 export function createAuditContext(
   orgId: string,
   userId: string | null,
-  authMethod: 'session' | 'api_token' | 'none',
-  metadata?: Record<string, unknown>
+  authMethod: "session" | "api_token" | "none",
+  metadata?: Record<string, unknown>,
 ): AuditContext {
-  let actorType: AuditActorType
-  if (authMethod === 'api_token') {
-    actorType = 'api_token'
-  } else if (authMethod === 'session' && userId) {
-    actorType = 'user'
+  let actorType: AuditActorType;
+  if (authMethod === "api_token") {
+    actorType = "api_token";
+  } else if (authMethod === "session" && userId) {
+    actorType = "user";
   } else {
-    actorType = 'system'
+    actorType = "system";
   }
 
   const context: AuditContext = {
     orgId,
     actorId: userId,
     actorType,
-  }
+  };
 
   if (metadata !== undefined) {
-    context.metadata = metadata
+    context.metadata = metadata;
   }
 
-  return context
+  return context;
 }

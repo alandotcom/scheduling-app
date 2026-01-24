@@ -1,23 +1,23 @@
 // Appointments list page with filters and status management
 
-import { useState } from 'react'
-import { createFileRoute, Navigate, Link } from '@tanstack/react-router'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Plus, X, Clock } from 'lucide-react'
+import { useState } from "react";
+import { createFileRoute, Navigate, Link } from "@tanstack/react-router";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { Plus, X, Clock } from "lucide-react";
 
-import { useAuth } from '@/contexts/auth'
-import { orpc } from '@/lib/query'
+import { useAuth } from "@/contexts/auth";
+import { orpc } from "@/lib/query";
 
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select'
+} from "@/components/ui/select";
 import {
   Table,
   TableBody,
@@ -25,8 +25,8 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from '@/components/ui/table'
-import { Badge } from '@/components/ui/badge'
+} from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -36,29 +36,29 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
+} from "@/components/ui/alert-dialog";
 
 const STATUS_COLORS: Record<string, string> = {
-  scheduled: 'bg-blue-100 text-blue-800',
-  confirmed: 'bg-green-100 text-green-800',
-  cancelled: 'bg-red-100 text-red-800',
-  no_show: 'bg-gray-100 text-gray-800',
-}
+  scheduled: "bg-blue-100 text-blue-800",
+  confirmed: "bg-green-100 text-green-800",
+  cancelled: "bg-red-100 text-red-800",
+  no_show: "bg-gray-100 text-gray-800",
+};
 
 function AppointmentsPage() {
-  const { isAuthenticated, isLoading: authLoading } = useAuth()
-  const queryClient = useQueryClient()
+  const { isAuthenticated, isLoading: authLoading } = useAuth();
+  const queryClient = useQueryClient();
 
   const [filters, setFilters] = useState({
-    calendarId: '',
-    appointmentTypeId: '',
-    status: '',
-    startDate: '',
-    endDate: '',
-  })
+    calendarId: "",
+    appointmentTypeId: "",
+    status: "",
+    startDate: "",
+    endDate: "",
+  });
 
-  const [cancellingId, setCancellingId] = useState<string | null>(null)
-  const [noShowId, setNoShowId] = useState<string | null>(null)
+  const [cancellingId, setCancellingId] = useState<string | null>(null);
+  const [noShowId, setNoShowId] = useState<string | null>(null);
 
   // Fetch appointments with filters
   const { data, isLoading, error } = useQuery(
@@ -70,84 +70,82 @@ function AppointmentsPage() {
           appointmentTypeId: filters.appointmentTypeId,
         }),
         ...(filters.status && {
-          status: filters.status as 'scheduled' | 'confirmed' | 'cancelled' | 'no_show',
+          status: filters.status as "scheduled" | "confirmed" | "cancelled" | "no_show",
         }),
         ...(filters.startDate && { startDate: filters.startDate }),
         ...(filters.endDate && { endDate: filters.endDate }),
       },
-    })
-  )
+    }),
+  );
 
   // Fetch calendars for filter
   const { data: calendarsData } = useQuery(
     orpc.calendars.list.queryOptions({
       input: { limit: 100 },
-    })
-  )
+    }),
+  );
 
   // Fetch appointment types for filter
   const { data: typesData } = useQuery(
     orpc.appointmentTypes.list.queryOptions({
       input: { limit: 100 },
-    })
-  )
+    }),
+  );
 
   // Cancel mutation
   const cancelMutation = useMutation(
     orpc.appointments.cancel.mutationOptions({
       onSuccess: () => {
-        queryClient.invalidateQueries({ queryKey: ['appointments'] })
-        setCancellingId(null)
+        queryClient.invalidateQueries({ queryKey: ["appointments"] });
+        setCancellingId(null);
       },
-    })
-  )
+    }),
+  );
 
   // No-show mutation
   const noShowMutation = useMutation(
     orpc.appointments.noShow.mutationOptions({
       onSuccess: () => {
-        queryClient.invalidateQueries({ queryKey: ['appointments'] })
-        setNoShowId(null)
+        queryClient.invalidateQueries({ queryKey: ["appointments"] });
+        setNoShowId(null);
       },
-    })
-  )
+    }),
+  );
 
-  if (authLoading) return null
-  if (!isAuthenticated) return <Navigate to="/login" />
+  if (authLoading) return null;
+  if (!isAuthenticated) return <Navigate to="/login" />;
 
-  const calendars = calendarsData?.items ?? []
-  const appointmentTypes = typesData?.items ?? []
+  const calendars = calendarsData?.items ?? [];
+  const appointmentTypes = typesData?.items ?? [];
 
   const formatDateTime = (dateString: string | Date) => {
-    const date = new Date(dateString)
-    return date.toLocaleString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-      hour: 'numeric',
-      minute: '2-digit',
+    const date = new Date(dateString);
+    return date.toLocaleString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
       hour12: true,
-    })
-  }
+    });
+  };
 
   const handleCancel = () => {
-    if (!cancellingId) return
-    cancelMutation.mutate({ id: cancellingId })
-  }
+    if (!cancellingId) return;
+    cancelMutation.mutate({ id: cancellingId });
+  };
 
   const handleNoShow = () => {
-    if (!noShowId) return
-    noShowMutation.mutate({ id: noShowId })
-  }
+    if (!noShowId) return;
+    noShowMutation.mutate({ id: noShowId });
+  };
 
   return (
     <div className="p-8">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold">Appointments</h1>
-          <p className="mt-1 text-muted-foreground">
-            View and manage all appointments.
-          </p>
+          <p className="mt-1 text-muted-foreground">View and manage all appointments.</p>
         </div>
         <Button asChild>
           <Link to="/appointments/new">
@@ -162,11 +160,11 @@ function AppointmentsPage() {
         <div className="space-y-2">
           <Label>Calendar</Label>
           <Select
-            value={filters.calendarId || 'all'}
+            value={filters.calendarId || "all"}
             onValueChange={(value) =>
               setFilters((f) => ({
                 ...f,
-                calendarId: value === 'all' ? '' : value,
+                calendarId: value === "all" ? "" : value,
               }))
             }
           >
@@ -186,11 +184,11 @@ function AppointmentsPage() {
         <div className="space-y-2">
           <Label>Type</Label>
           <Select
-            value={filters.appointmentTypeId || 'all'}
+            value={filters.appointmentTypeId || "all"}
             onValueChange={(value) =>
               setFilters((f) => ({
                 ...f,
-                appointmentTypeId: value === 'all' ? '' : value,
+                appointmentTypeId: value === "all" ? "" : value,
               }))
             }
           >
@@ -210,11 +208,11 @@ function AppointmentsPage() {
         <div className="space-y-2">
           <Label>Status</Label>
           <Select
-            value={filters.status || 'all'}
+            value={filters.status || "all"}
             onValueChange={(value) =>
               setFilters((f) => ({
                 ...f,
-                status: value === 'all' ? '' : value,
+                status: value === "all" ? "" : value,
               }))
             }
           >
@@ -235,9 +233,7 @@ function AppointmentsPage() {
           <Input
             type="date"
             value={filters.startDate}
-            onChange={(e) =>
-              setFilters((f) => ({ ...f, startDate: e.target.value }))
-            }
+            onChange={(e) => setFilters((f) => ({ ...f, startDate: e.target.value }))}
           />
         </div>
         <div className="space-y-2">
@@ -245,9 +241,7 @@ function AppointmentsPage() {
           <Input
             type="date"
             value={filters.endDate}
-            onChange={(e) =>
-              setFilters((f) => ({ ...f, endDate: e.target.value }))
-            }
+            onChange={(e) => setFilters((f) => ({ ...f, endDate: e.target.value }))}
           />
         </div>
       </div>
@@ -257,9 +251,7 @@ function AppointmentsPage() {
         {isLoading ? (
           <div className="text-center text-muted-foreground">Loading...</div>
         ) : error ? (
-          <div className="text-center text-destructive">
-            Error loading appointments
-          </div>
+          <div className="text-center text-destructive">Error loading appointments</div>
         ) : !data?.items.length ? (
           <div className="rounded-lg border bg-card p-8 text-center text-muted-foreground">
             No appointments found. Create your first appointment or adjust filters.
@@ -283,26 +275,23 @@ function AppointmentsPage() {
                     <TableCell className="font-medium">
                       {formatDateTime(appointment.startAt)}
                     </TableCell>
-                    <TableCell>
-                      {appointment.appointmentType?.name ?? '-'}
-                    </TableCell>
-                    <TableCell>{appointment.calendar?.name ?? '-'}</TableCell>
+                    <TableCell>{appointment.appointmentType?.name ?? "-"}</TableCell>
+                    <TableCell>{appointment.calendar?.name ?? "-"}</TableCell>
                     <TableCell>
                       {appointment.client
                         ? `${appointment.client.firstName} ${appointment.client.lastName}`
-                        : '-'}
+                        : "-"}
                     </TableCell>
                     <TableCell>
                       <Badge
-                        className={STATUS_COLORS[appointment.status] ?? ''}
+                        className={STATUS_COLORS[appointment.status] ?? ""}
                         variant="secondary"
                       >
-                        {appointment.status.replace('_', ' ')}
+                        {appointment.status.replace("_", " ")}
                       </Badge>
                     </TableCell>
                     <TableCell>
-                      {appointment.status === 'scheduled' ||
-                      appointment.status === 'confirmed' ? (
+                      {appointment.status === "scheduled" || appointment.status === "confirmed" ? (
                         <div className="flex gap-1">
                           <Button
                             variant="ghost"
@@ -334,16 +323,12 @@ function AppointmentsPage() {
       </div>
 
       {/* Cancel Confirmation */}
-      <AlertDialog
-        open={!!cancellingId}
-        onOpenChange={() => setCancellingId(null)}
-      >
+      <AlertDialog open={!!cancellingId} onOpenChange={() => setCancellingId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Cancel Appointment</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to cancel this appointment? The client will
-              be notified.
+              Are you sure you want to cancel this appointment? The client will be notified.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -352,7 +337,7 @@ function AppointmentsPage() {
               onClick={handleCancel}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              {cancelMutation.isPending ? 'Cancelling...' : 'Cancel Appointment'}
+              {cancelMutation.isPending ? "Cancelling..." : "Cancel Appointment"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -370,15 +355,15 @@ function AppointmentsPage() {
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={handleNoShow}>
-              {noShowMutation.isPending ? 'Saving...' : 'Mark as No-Show'}
+              {noShowMutation.isPending ? "Saving..." : "Mark as No-Show"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
     </div>
-  )
+  );
 }
 
-export const Route = createFileRoute('/appointments')({
+export const Route = createFileRoute("/appointments")({
   component: AppointmentsPage,
-})
+});

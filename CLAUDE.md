@@ -68,10 +68,11 @@ Key tables: `orgs`, `users`, `org_memberships`, `calendars`, `appointment_types`
 ## DTO/Schema Patterns
 
 Zod schemas follow create/update/response pattern:
+
 ```typescript
 // packages/dto/src/org.ts
-export const createOrgSchema = z.object({ name: z.string().min(1).max(255) })
-export type CreateOrgInput = z.infer<typeof createOrgSchema>
+export const createOrgSchema = z.object({ name: z.string().min(1).max(255) });
+export type CreateOrgInput = z.infer<typeof createOrgSchema>;
 ```
 
 Common validators in `packages/dto/src/common.ts`: UUID, timestamp, timezone, time (HH:MM), date (YYYY-MM-DD), weekday (0-6).
@@ -81,20 +82,26 @@ Common validators in `packages/dto/src/common.ts`: UUID, timestamp, timezone, ti
 Tests use a real Postgres database (`scheduling_test`) with RLS enforced. The test database is automatically created on first test run via the preload script.
 
 ```typescript
-import { createTestDb, resetTestDb, closeTestDb, seedTestOrg, setTestOrgContext } from '@scheduling/db/test-utils'
+import {
+  createTestDb,
+  resetTestDb,
+  closeTestDb,
+  seedTestOrg,
+  setTestOrgContext,
+} from "@scheduling/db/test-utils";
 
 // In test setup
-const db = await createTestDb()
-const { org, user } = await seedTestOrg(db)
+const db = await createTestDb();
+const { org, user } = await seedTestOrg(db);
 
 // Set org context before inserting/querying RLS-protected tables
-await setTestOrgContext(db, org.id)
+await setTestOrgContext(db, org.id);
 
 // Between tests
-await resetTestDb()
+await resetTestDb();
 
 // Cleanup
-await closeTestDb()
+await closeTestDb();
 ```
 
 **RLS-Protected Tables:** `locations`, `calendars`, `appointment_types`, `resources`, `clients`, `appointments`, `event_outbox`, `api_tokens`
@@ -106,6 +113,7 @@ Factory functions in `apps/api/src/test-utils/factories.ts` automatically set or
 Docker Compose provides Postgres 18 (port 5433) and Valkey/Redis (port 6380). Start with `docker compose up -d`.
 
 Environment variables in `.env`:
+
 - `DATABASE_URL=postgres://scheduling:scheduling@localhost:5433/scheduling`
 - `VALKEY_HOST=localhost`, `VALKEY_PORT=6380`
 - `AUTH_SECRET`, `PORT=3000`

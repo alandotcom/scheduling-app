@@ -5,6 +5,7 @@
 Phase 2 improvements for the scheduling platform focusing on testing, code quality, performance, and security. Building on the complete v1 implementation (14/15 steps done), this phase addresses gaps identified during codebase review.
 
 **Goals:**
+
 - Achieve full route test coverage with reliable test infrastructure
 - Refactor heavy route files into clean Repository + Service architecture
 - Strengthen linting with oxlint plugins and categories
@@ -17,13 +18,13 @@ Phase 2 improvements for the scheduling platform focusing on testing, code quali
 
 **Scope:** Full route coverage + critical path unit tests
 
-| Requirement | Details |
-|-------------|---------|
-| Route integration tests | All CRUD routes: appointments, calendars, locations, resources, appointment-types, availability, clients, api-tokens, audit |
-| Concurrent booking tests | Verify only one booking succeeds when two requests target same slot |
-| Test infrastructure | Test helpers that bypass auth, inject context directly |
-| Test database | Continue using PGLite (in-memory Postgres) |
-| Existing tests to keep | availability-engine, RLS, DTO schemas, health endpoint |
+| Requirement              | Details                                                                                                                     |
+| ------------------------ | --------------------------------------------------------------------------------------------------------------------------- |
+| Route integration tests  | All CRUD routes: appointments, calendars, locations, resources, appointment-types, availability, clients, api-tokens, audit |
+| Concurrent booking tests | Verify only one booking succeeds when two requests target same slot                                                         |
+| Test infrastructure      | Test helpers that bypass auth, inject context directly                                                                      |
+| Test database            | Continue using PGLite (in-memory Postgres)                                                                                  |
+| Existing tests to keep   | availability-engine, RLS, DTO schemas, health endpoint                                                                      |
 
 **Not in scope:** Playwright e2e tests for admin UI
 
@@ -55,6 +56,7 @@ apps/api/src/
 ```
 
 **Heavy files to refactor:**
+
 - `appointments.ts` (784 lines) → ~150 lines
 - `availability.ts` (887 lines) → ~200 lines
 - `appointment-types.ts` (579 lines) → ~100 lines
@@ -75,6 +77,7 @@ apps/api/src/
 ```
 
 **Rollout:**
+
 1. Enable new rules as warnings first
 2. Fix violations
 3. Promote to errors
@@ -84,12 +87,14 @@ apps/api/src/
 #### 4.1 Optimistic Locking with Exclusion Constraint
 
 **Current (pessimistic):**
+
 ```sql
 SELECT id FROM calendars WHERE id = $1 FOR UPDATE;
 -- + serializable isolation
 ```
 
 **New (optimistic):**
+
 ```sql
 -- Add exclusion constraint
 ALTER TABLE appointments ADD CONSTRAINT no_overlapping_appointments
@@ -104,6 +109,7 @@ ALTER TABLE appointments ADD CONSTRAINT no_overlapping_appointments
 ```
 
 **Benefits:**
+
 - Non-overlapping slots for same calendar can book concurrently
 - Database enforces constraint (can't be bypassed)
 - Simpler application code
@@ -111,6 +117,7 @@ ALTER TABLE appointments ADD CONSTRAINT no_overlapping_appointments
 #### 4.2 Availability Engine Query Optimization
 
 **Current:** 7+ database round trips
+
 ```
 1. Load appointment type
 2. Get valid calendars
@@ -123,6 +130,7 @@ ALTER TABLE appointments ADD CONSTRAINT no_overlapping_appointments
 ```
 
 **Optimized:** 2 queries
+
 ```
 Query 1: Load all configuration data with JOINs
   - Appointment type + calendars + rules + overrides + limits + resources
@@ -266,21 +274,21 @@ export class AppointmentService {
 export function createTestContext(
   orgId: string,
   userId: string,
-  role: 'admin' | 'staff' = 'admin'
+  role: "admin" | "staff" = "admin",
 ): Context {
   return {
     orgId,
     userId,
     sessionId: null,
     tokenId: null,
-    authMethod: 'test',
+    authMethod: "test",
     role,
-  }
+  };
 }
 
 // Usage in tests
-const ctx = createTestContext(org.id, user.id)
-const result = await appointmentService.create(input, ctx)
+const ctx = createTestContext(org.id, user.id);
+const result = await appointmentService.create(input, ctx);
 ```
 
 ## Data Models
@@ -396,20 +404,20 @@ apps/api/src/
 export const factories = {
   org: (overrides?: Partial<Org>) => ({
     id: randomUUID(),
-    name: 'Test Org',
+    name: "Test Org",
     ...overrides,
   }),
 
   appointment: (overrides?: Partial<Appointment>) => ({
     id: randomUUID(),
-    status: 'scheduled',
+    status: "scheduled",
     startAt: new Date(),
     endAt: new Date(Date.now() + 60 * 60 * 1000),
     ...overrides,
   }),
 
   // ... other factories
-}
+};
 ```
 
 ## Appendices
@@ -450,7 +458,7 @@ export const factories = {
 // apps/api/src/lib/auth.ts
 export const auth = betterAuth({
   database: drizzleAdapter(db, {
-    provider: 'pg',
+    provider: "pg",
     schema: {
       user: schema.users,
       session: schema.sessions,
@@ -469,25 +477,25 @@ export const auth = betterAuth({
     updateAge: 60 * 60 * 24,
   },
   advanced: {
-    useSecureCookies: process.env.NODE_ENV === 'production',
+    useSecureCookies: process.env.NODE_ENV === "production",
     defaultCookieAttributes: {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
     },
     disableCSRFCheck: false,
   },
-})
+});
 ```
 
 ### C. Files to Modify
 
-| File | Change |
-|------|--------|
-| `oxlintrc.json` | Add plugins and categories |
-| `apps/api/src/lib/auth.ts` | Add advanced config |
-| `apps/api/src/middleware/rls.ts` | Set user context |
-| `apps/api/src/routes/appointments.ts` | Extract to service/repo |
-| `apps/api/src/routes/availability.ts` | Extract to service/repo |
-| `apps/api/src/routes/appointment-types.ts` | Extract to service/repo |
-| `packages/db/src/migrations/` | Add exclusion constraint, user RLS |
+| File                                       | Change                             |
+| ------------------------------------------ | ---------------------------------- |
+| `oxlintrc.json`                            | Add plugins and categories         |
+| `apps/api/src/lib/auth.ts`                 | Add advanced config                |
+| `apps/api/src/middleware/rls.ts`           | Set user context                   |
+| `apps/api/src/routes/appointments.ts`      | Extract to service/repo            |
+| `apps/api/src/routes/availability.ts`      | Extract to service/repo            |
+| `apps/api/src/routes/appointment-types.ts` | Extract to service/repo            |
+| `packages/db/src/migrations/`              | Add exclusion constraint, user RLS |

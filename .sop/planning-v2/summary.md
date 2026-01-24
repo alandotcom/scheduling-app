@@ -20,48 +20,55 @@ Phase 2 improvements for the scheduling platform, building on the complete v1 im
 
 ## Key Decisions
 
-| Area | Decision |
-|------|----------|
-| Priority | Testing → Refactor → Linting → Performance → Auth |
-| Test coverage | Full route coverage + critical path unit tests |
-| Code pattern | Repository + Service layer separation |
-| Linting | Strict (correctness error, suspicious/perf warn) + plugins |
-| Locking | Optimistic with Postgres exclusion constraint |
-| Availability | Optimize queries (2 round trips), keep JS logic |
-| RLS | Hybrid - add to org_memberships + keep explicit check |
-| Auth | Basic hardening (secure cookies, CSRF) |
+| Area          | Decision                                                   |
+| ------------- | ---------------------------------------------------------- |
+| Priority      | Testing → Refactor → Linting → Performance → Auth          |
+| Test coverage | Full route coverage + critical path unit tests             |
+| Code pattern  | Repository + Service layer separation                      |
+| Linting       | Strict (correctness error, suspicious/perf warn) + plugins |
+| Locking       | Optimistic with Postgres exclusion constraint              |
+| Availability  | Optimize queries (2 round trips), keep JS logic            |
+| RLS           | Hybrid - add to org_memberships + keep explicit check      |
+| Auth          | Basic hardening (secure cookies, CSRF)                     |
 
 ## Implementation Plan
 
 15 steps organized for incremental, demoable progress:
 
 ### Phase 1: Testing Foundation (Steps 1-2)
+
 1. Set up test infrastructure and helpers
 2. Add integration tests for simple CRUD routes
 
 ### Phase 2: Refactor (Steps 3-5)
+
 3. Extract Repository layer for core entities
 4. Extract Service layer for core entities
 5. Add integration tests for calendars and appointment-types
 
 ### Phase 3: Performance (Steps 6-9)
+
 6. Add exclusion constraint migration
 7. Refactor appointments route to Repository + Service
 8. Add appointments integration tests (concurrent booking)
 9. Optimize availability engine queries
 
 ### Phase 4: Availability (Step 10)
+
 10. Add availability route integration tests
 
 ### Phase 5: Quality (Steps 11-12)
+
 11. Update oxlint configuration
 12. Fix linting violations
 
 ### Phase 6: Security (Steps 13-14)
+
 13. Add RLS for org_memberships
 14. Harden Better Auth configuration
 
 ### Phase 7: Completion (Step 15)
+
 15. Add api-tokens and audit route tests
 
 ## New Files to Create

@@ -1,8 +1,8 @@
 // Global error handler middleware
 
-import { createMiddleware } from 'hono/factory'
-import { ORPCError } from '@orpc/server'
-import { z, ZodError } from 'zod'
+import { createMiddleware } from "hono/factory";
+import { ORPCError } from "@orpc/server";
+import { z, ZodError } from "zod";
 
 // Map error codes to HTTP status codes
 const errorStatusMap: Record<string, number> = {
@@ -37,14 +37,14 @@ const errorStatusMap: Record<string, number> = {
   EXCEEDS_CAPACITY: 422,
   OUTSIDE_NOTICE_WINDOW: 422,
   APPOINTMENT_ALREADY_CANCELLED: 422,
-}
+};
 
 export const errorHandler = createMiddleware(async (c, next) => {
   try {
-    await next()
+    await next();
   } catch (error) {
     if (error instanceof ORPCError) {
-      const status = errorStatusMap[error.code] ?? 500
+      const status = errorStatusMap[error.code] ?? 500;
       return c.json(
         {
           error: {
@@ -53,32 +53,32 @@ export const errorHandler = createMiddleware(async (c, next) => {
             details: error.data,
           },
         },
-        status as 400 | 401 | 403 | 404 | 409 | 422 | 500
-      )
+        status as 400 | 401 | 403 | 404 | 409 | 422 | 500,
+      );
     }
 
     if (error instanceof ZodError) {
       return c.json(
         {
           error: {
-            code: 'VALIDATION_ERROR',
-            message: 'Request validation failed',
+            code: "VALIDATION_ERROR",
+            message: "Request validation failed",
             details: z.treeifyError(error),
           },
         },
-        400
-      )
+        400,
+      );
     }
 
-    console.error('Unhandled error:', error)
+    console.error("Unhandled error:", error);
     return c.json(
       {
         error: {
-          code: 'INTERNAL_ERROR',
-          message: 'An unexpected error occurred',
+          code: "INTERNAL_ERROR",
+          message: "An unexpected error occurred",
         },
       },
-      500
-    )
+      500,
+    );
   }
-})
+});

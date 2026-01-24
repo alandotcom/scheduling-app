@@ -1,20 +1,20 @@
 // Appointment Types management page with CRUD operations
 
-import { useState } from 'react'
-import { createFileRoute, Navigate, Link } from '@tanstack/react-router'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { useForm } from 'react-hook-form'
-import { zodResolver } from '@hookform/resolvers/zod'
-import { Plus, Pencil, Trash2, Link2, Calendar } from 'lucide-react'
+import { useState } from "react";
+import { createFileRoute, Navigate, Link } from "@tanstack/react-router";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { Plus, Pencil, Trash2, Link2, Calendar } from "lucide-react";
 
-import { useAuth } from '@/contexts/auth'
-import { orpc } from '@/lib/query'
-import { createAppointmentTypeSchema } from '@scheduling/dto'
-import type { CreateAppointmentTypeInput } from '@scheduling/dto'
+import { useAuth } from "@/contexts/auth";
+import { orpc } from "@/lib/query";
+import { createAppointmentTypeSchema } from "@scheduling/dto";
+import type { CreateAppointmentTypeInput } from "@scheduling/dto";
 
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Table,
   TableBody,
@@ -22,7 +22,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from '@/components/ui/table'
+} from "@/components/ui/table";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -32,20 +32,20 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
-import { Badge } from '@/components/ui/badge'
+} from "@/components/ui/alert-dialog";
+import { Badge } from "@/components/ui/badge";
 
 interface AppointmentTypeFormProps {
   defaultValues?: {
-    name: string
-    durationMin: number
-    paddingBeforeMin?: number
-    paddingAfterMin?: number
-    capacity?: number
-  }
-  onSubmit: (data: CreateAppointmentTypeInput) => void
-  onCancel: () => void
-  isSubmitting: boolean
+    name: string;
+    durationMin: number;
+    paddingBeforeMin?: number;
+    paddingAfterMin?: number;
+    capacity?: number;
+  };
+  onSubmit: (data: CreateAppointmentTypeInput) => void;
+  onCancel: () => void;
+  isSubmitting: boolean;
 }
 
 function AppointmentTypeForm({
@@ -61,24 +61,17 @@ function AppointmentTypeForm({
   } = useForm<CreateAppointmentTypeInput>({
     resolver: zodResolver(createAppointmentTypeSchema),
     defaultValues: defaultValues ?? {
-      name: '',
+      name: "",
       durationMin: 30,
     },
-  })
+  });
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
       <div className="space-y-2">
         <Label htmlFor="name">Name</Label>
-        <Input
-          id="name"
-          placeholder="Consultation"
-          {...register('name')}
-          disabled={isSubmitting}
-        />
-        {errors.name && (
-          <p className="text-sm text-destructive">{errors.name.message}</p>
-        )}
+        <Input id="name" placeholder="Consultation" {...register("name")} disabled={isSubmitting} />
+        {errors.name && <p className="text-sm text-destructive">{errors.name.message}</p>}
       </div>
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
@@ -88,13 +81,11 @@ function AppointmentTypeForm({
             type="number"
             min={5}
             step={5}
-            {...register('durationMin', { valueAsNumber: true })}
+            {...register("durationMin", { valueAsNumber: true })}
             disabled={isSubmitting}
           />
           {errors.durationMin && (
-            <p className="text-sm text-destructive">
-              {errors.durationMin.message}
-            </p>
+            <p className="text-sm text-destructive">{errors.durationMin.message}</p>
           )}
         </div>
         <div className="space-y-2">
@@ -104,8 +95,8 @@ function AppointmentTypeForm({
             type="number"
             min={1}
             placeholder="1"
-            {...register('capacity', {
-              setValueAs: (v) => (v === '' ? undefined : parseInt(v, 10)),
+            {...register("capacity", {
+              setValueAs: (v) => (v === "" ? undefined : parseInt(v, 10)),
             })}
             disabled={isSubmitting}
           />
@@ -120,8 +111,8 @@ function AppointmentTypeForm({
             min={0}
             step={5}
             placeholder="0"
-            {...register('paddingBeforeMin', {
-              setValueAs: (v) => (v === '' ? undefined : parseInt(v, 10)),
+            {...register("paddingBeforeMin", {
+              setValueAs: (v) => (v === "" ? undefined : parseInt(v, 10)),
             })}
             disabled={isSubmitting}
           />
@@ -134,101 +125,96 @@ function AppointmentTypeForm({
             min={0}
             step={5}
             placeholder="0"
-            {...register('paddingAfterMin', {
-              setValueAs: (v) => (v === '' ? undefined : parseInt(v, 10)),
+            {...register("paddingAfterMin", {
+              setValueAs: (v) => (v === "" ? undefined : parseInt(v, 10)),
             })}
             disabled={isSubmitting}
           />
         </div>
       </div>
       <div className="flex justify-end gap-2 pt-4">
-        <Button
-          type="button"
-          variant="outline"
-          onClick={onCancel}
-          disabled={isSubmitting}
-        >
+        <Button type="button" variant="outline" onClick={onCancel} disabled={isSubmitting}>
           Cancel
         </Button>
         <Button type="submit" disabled={isSubmitting}>
-          {isSubmitting ? 'Saving...' : 'Save'}
+          {isSubmitting ? "Saving..." : "Save"}
         </Button>
       </div>
     </form>
-  )
+  );
 }
 
 function AppointmentTypesPage() {
-  const { isAuthenticated, isLoading: authLoading } = useAuth()
-  const queryClient = useQueryClient()
+  const { isAuthenticated, isLoading: authLoading } = useAuth();
+  const queryClient = useQueryClient();
 
-  const [showCreateForm, setShowCreateForm] = useState(false)
+  const [showCreateForm, setShowCreateForm] = useState(false);
   const [editingType, setEditingType] = useState<{
-    id: string
-    name: string
-    durationMin: number
-    paddingBeforeMin?: number
-    paddingAfterMin?: number
-    capacity?: number
-  } | null>(null)
-  const [deletingTypeId, setDeletingTypeId] = useState<string | null>(null)
+    id: string;
+    name: string;
+    durationMin: number;
+    paddingBeforeMin?: number;
+    paddingAfterMin?: number;
+    capacity?: number;
+  } | null>(null);
+  const [deletingTypeId, setDeletingTypeId] = useState<string | null>(null);
 
   // Fetch appointment types
   const { data, isLoading, error } = useQuery(
     orpc.appointmentTypes.list.queryOptions({
       input: { limit: 100 },
-    })
-  )
+    }),
+  );
 
   // Create mutation
   const createMutation = useMutation(
     orpc.appointmentTypes.create.mutationOptions({
       onSuccess: () => {
-        queryClient.invalidateQueries({ queryKey: ['appointmentTypes'] })
-        setShowCreateForm(false)
+        queryClient.invalidateQueries({ queryKey: ["appointmentTypes"] });
+        setShowCreateForm(false);
       },
-    })
-  )
+    }),
+  );
 
   // Update mutation
   const updateMutation = useMutation(
     orpc.appointmentTypes.update.mutationOptions({
       onSuccess: () => {
-        queryClient.invalidateQueries({ queryKey: ['appointmentTypes'] })
-        setEditingType(null)
+        queryClient.invalidateQueries({ queryKey: ["appointmentTypes"] });
+        setEditingType(null);
       },
-    })
-  )
+    }),
+  );
 
   // Delete mutation
   const deleteMutation = useMutation(
     orpc.appointmentTypes.remove.mutationOptions({
       onSuccess: () => {
-        queryClient.invalidateQueries({ queryKey: ['appointmentTypes'] })
-        setDeletingTypeId(null)
+        queryClient.invalidateQueries({ queryKey: ["appointmentTypes"] });
+        setDeletingTypeId(null);
       },
-    })
-  )
+    }),
+  );
 
-  if (authLoading) return null
-  if (!isAuthenticated) return <Navigate to="/login" />
+  if (authLoading) return null;
+  if (!isAuthenticated) return <Navigate to="/login" />;
 
   const handleCreate = (formData: CreateAppointmentTypeInput) => {
-    createMutation.mutate(formData)
-  }
+    createMutation.mutate(formData);
+  };
 
   const handleUpdate = (formData: CreateAppointmentTypeInput) => {
-    if (!editingType) return
+    if (!editingType) return;
     updateMutation.mutate({
       id: editingType.id,
       data: formData,
-    })
-  }
+    });
+  };
 
   const handleDelete = () => {
-    if (!deletingTypeId) return
-    deleteMutation.mutate({ id: deletingTypeId })
-  }
+    if (!deletingTypeId) return;
+    deleteMutation.mutate({ id: deletingTypeId });
+  };
 
   return (
     <div className="p-8">
@@ -283,13 +269,10 @@ function AppointmentTypesPage() {
         {isLoading ? (
           <div className="text-center text-muted-foreground">Loading...</div>
         ) : error ? (
-          <div className="text-center text-destructive">
-            Error loading appointment types
-          </div>
+          <div className="text-center text-destructive">Error loading appointment types</div>
         ) : !data?.items.length ? (
           <div className="rounded-lg border bg-card p-8 text-center text-muted-foreground">
-            No appointment types yet. Create your first appointment type to get
-            started.
+            No appointment types yet. Create your first appointment type to get started.
           </div>
         ) : (
           <div className="rounded-lg border">
@@ -321,9 +304,7 @@ function AppointmentTypesPage() {
                     <TableCell>
                       <Badge variant="secondary">{type.capacity ?? 1}</Badge>
                     </TableCell>
-                    <TableCell>
-                      {new Date(type.createdAt).toLocaleDateString()}
-                    </TableCell>
+                    <TableCell>{new Date(type.createdAt).toLocaleDateString()}</TableCell>
                     <TableCell>
                       <div className="flex gap-1">
                         <Button variant="ghost" size="icon" asChild>
@@ -378,16 +359,12 @@ function AppointmentTypesPage() {
       </div>
 
       {/* Delete Confirmation */}
-      <AlertDialog
-        open={!!deletingTypeId}
-        onOpenChange={() => setDeletingTypeId(null)}
-      >
+      <AlertDialog open={!!deletingTypeId} onOpenChange={() => setDeletingTypeId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Appointment Type</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete this appointment type? This action
-              cannot be undone.
+              Are you sure you want to delete this appointment type? This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -396,15 +373,15 @@ function AppointmentTypesPage() {
               onClick={handleDelete}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              {deleteMutation.isPending ? 'Deleting...' : 'Delete'}
+              {deleteMutation.isPending ? "Deleting..." : "Delete"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
     </div>
-  )
+  );
 }
 
-export const Route = createFileRoute('/appointment-types')({
+export const Route = createFileRoute("/appointment-types")({
   component: AppointmentTypesPage,
-})
+});

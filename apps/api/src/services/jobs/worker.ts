@@ -1,34 +1,29 @@
 // Event outbox processing worker
 // Processes events from the queue and handles webhook delivery
 
-import type { Job, Worker } from 'bullmq'
-import { eq, and, lte } from 'drizzle-orm'
-import { eventOutbox } from '@scheduling/db/schema'
-import { db } from '../../lib/db.js'
-import type { DomainEvent, WebhookDeliveryJob } from './types.js'
-import { createEventWorker, createWebhookWorker } from './queue.js'
+import type { Job, Worker } from "bullmq";
+import { eq, and, lte } from "drizzle-orm";
+import { eventOutbox } from "@scheduling/db/schema";
+import { db } from "../../lib/db.js";
+import type { DomainEvent, WebhookDeliveryJob } from "./types.js";
+import { createEventWorker, createWebhookWorker } from "./queue.js";
 
 // Workers (lazily initialized)
-let eventWorker: Worker<DomainEvent> | null = null
-let webhookWorker: Worker<WebhookDeliveryJob> | null = null
+let eventWorker: Worker<DomainEvent> | null = null;
+let webhookWorker: Worker<WebhookDeliveryJob> | null = null;
 
 // Process domain events from the queue
 async function processEvent(job: Job<DomainEvent>): Promise<void> {
-  const event = job.data
+  const event = job.data;
 
-  console.log(`Processing event: ${event.type} (${event.id})`)
+  console.log(`Processing event: ${event.type} (${event.id})`);
 
   try {
     // Update outbox status to processing
     await db
       .update(eventOutbox)
-      .set({ status: 'processing' })
-      .where(
-        and(
-          eq(eventOutbox.orgId, event.orgId),
-          eq(eventOutbox.type, event.type)
-        )
-      )
+      .set({ status: "processing" })
+      .where(and(eq(eventOutbox.orgId, event.orgId), eq(eventOutbox.type, event.type)));
 
     // TODO: Look up webhook subscriptions for this org and event type
     // For now, just log the event and mark as delivered
@@ -40,42 +35,37 @@ async function processEvent(job: Job<DomainEvent>): Promise<void> {
     await db
       .update(eventOutbox)
       .set({
-        status: 'delivered',
+        status: "delivered",
         updatedAt: new Date(),
       })
-      .where(
-        and(
-          eq(eventOutbox.orgId, event.orgId),
-          eq(eventOutbox.type, event.type)
-        )
-      )
+      .where(and(eq(eventOutbox.orgId, event.orgId), eq(eventOutbox.type, event.type)));
 
-    console.log(`Event processed successfully: ${event.type} (${event.id})`)
+    console.log(`Event processed successfully: ${event.type} (${event.id})`);
   } catch (error) {
-    console.error(`Failed to process event: ${event.type} (${event.id})`, error)
-    throw error // Let BullMQ handle retry
+    console.error(`Failed to process event: ${event.type} (${event.id})`, error);
+    throw error; // Let BullMQ handle retry
   }
 }
 
 // Process webhook delivery jobs
 async function processWebhook(job: Job<WebhookDeliveryJob>): Promise<void> {
-  const { eventId, eventType, webhookUrl, payload, attemptNumber } = job.data
+  const { eventId, eventType, webhookUrl, payload, attemptNumber } = job.data;
 
   if (!webhookUrl) {
-    console.log(`No webhook URL for event ${eventId}, skipping delivery`)
-    return
+    console.log(`No webhook URL for event ${eventId}, skipping delivery`);
+    return;
   }
 
-  console.log(`Delivering webhook for ${eventType} to ${webhookUrl} (attempt ${attemptNumber})`)
+  console.log(`Delivering webhook for ${eventType} to ${webhookUrl} (attempt ${attemptNumber})`);
 
   try {
     const response = await fetch(webhookUrl, {
-      method: 'POST',
+      method: "POST",
       headers: {
-        'Content-Type': 'application/json',
-        'X-Event-Type': eventType,
-        'X-Event-ID': eventId,
-        'X-Attempt-Number': String(attemptNumber),
+        "Content-Type": "application/json",
+        "X-Event-Type": eventType,
+        "X-Event-ID": eventId,
+        "X-Attempt-Number": String(attemptNumber),
       },
       body: JSON.stringify({
         id: eventId,
@@ -84,88 +74,83 @@ async function processWebhook(job: Job<WebhookDeliveryJob>): Promise<void> {
         timestamp: new Date().toISOString(),
       }),
       signal: AbortSignal.timeout(30000), // 30 second timeout
-    })
+    });
 
     if (!response.ok) {
-      throw new Error(`Webhook delivery failed: ${response.status} ${response.statusText}`)
+      throw new Error(`Webhook delivery failed: ${response.status} ${response.statusText}`);
     }
 
-    console.log(`Webhook delivered successfully: ${eventId} to ${webhookUrl}`)
+    console.log(`Webhook delivered successfully: ${eventId} to ${webhookUrl}`);
   } catch (error) {
-    console.error(`Webhook delivery failed for ${eventId}:`, error)
-    throw error // Let BullMQ handle retry
+    console.error(`Webhook delivery failed for ${eventId}:`, error);
+    throw error; // Let BullMQ handle retry
   }
 }
 
 // Start all workers
 export function startWorkers(): void {
   if (!eventWorker) {
-    eventWorker = createEventWorker(processEvent)
-    eventWorker.on('completed', (job) => {
-      console.log(`Event job completed: ${job.id}`)
-    })
-    eventWorker.on('failed', (job, error) => {
-      console.error(`Event job failed: ${job?.id}`, error.message)
-    })
-    console.log('Event worker started')
+    eventWorker = createEventWorker(processEvent);
+    eventWorker.on("completed", (job) => {
+      console.log(`Event job completed: ${job.id}`);
+    });
+    eventWorker.on("failed", (job, error) => {
+      console.error(`Event job failed: ${job?.id}`, error.message);
+    });
+    console.log("Event worker started");
   }
 
   if (!webhookWorker) {
-    webhookWorker = createWebhookWorker(processWebhook)
-    webhookWorker.on('completed', (job) => {
-      console.log(`Webhook job completed: ${job.id}`)
-    })
-    webhookWorker.on('failed', (job, error) => {
-      console.error(`Webhook job failed: ${job?.id}`, error.message)
-    })
-    console.log('Webhook worker started')
+    webhookWorker = createWebhookWorker(processWebhook);
+    webhookWorker.on("completed", (job) => {
+      console.log(`Webhook job completed: ${job.id}`);
+    });
+    webhookWorker.on("failed", (job, error) => {
+      console.error(`Webhook job failed: ${job?.id}`, error.message);
+    });
+    console.log("Webhook worker started");
   }
 }
 
 // Stop all workers gracefully
 export async function stopWorkers(): Promise<void> {
   if (eventWorker) {
-    await eventWorker.close()
-    eventWorker = null
-    console.log('Event worker stopped')
+    await eventWorker.close();
+    eventWorker = null;
+    console.log("Event worker stopped");
   }
 
   if (webhookWorker) {
-    await webhookWorker.close()
-    webhookWorker = null
-    console.log('Webhook worker stopped')
+    await webhookWorker.close();
+    webhookWorker = null;
+    console.log("Webhook worker stopped");
   }
 }
 
 // Process stale outbox entries (fallback for missed queue entries)
 // This should be run periodically (e.g., every minute via cron)
 export async function processStaleOutboxEntries(): Promise<void> {
-  const staleThreshold = new Date(Date.now() - 5 * 60 * 1000) // 5 minutes ago
+  const staleThreshold = new Date(Date.now() - 5 * 60 * 1000); // 5 minutes ago
 
   const staleEntries = await db
     .select()
     .from(eventOutbox)
-    .where(
-      and(
-        eq(eventOutbox.status, 'pending'),
-        lte(eventOutbox.nextAttemptAt, staleThreshold)
-      )
-    )
-    .limit(100)
+    .where(and(eq(eventOutbox.status, "pending"), lte(eventOutbox.nextAttemptAt, staleThreshold)))
+    .limit(100);
 
   for (const entry of staleEntries) {
     try {
       // Re-enqueue the event
       const event: DomainEvent = {
         id: entry.id,
-        type: entry.type as DomainEvent['type'],
+        type: entry.type as DomainEvent["type"],
         orgId: entry.orgId,
         payload: entry.payload,
         timestamp: entry.createdAt.toISOString(),
-      }
+      };
 
-      const queue = await import('./queue.js')
-      await queue.getEventQueue().add(event.type, event, { jobId: event.id })
+      const queue = await import("./queue.js");
+      await queue.getEventQueue().add(event.type, event, { jobId: event.id });
 
       // Update next attempt time
       await db
@@ -174,9 +159,9 @@ export async function processStaleOutboxEntries(): Promise<void> {
           nextAttemptAt: new Date(Date.now() + 5 * 60 * 1000), // 5 minutes from now
           updatedAt: new Date(),
         })
-        .where(eq(eventOutbox.id, entry.id))
+        .where(eq(eventOutbox.id, entry.id));
     } catch (error) {
-      console.error(`Failed to re-enqueue stale entry ${entry.id}:`, error)
+      console.error(`Failed to re-enqueue stale entry ${entry.id}:`, error);
     }
   }
 }

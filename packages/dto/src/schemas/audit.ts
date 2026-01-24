@@ -1,21 +1,28 @@
-import { z } from 'zod'
-import { uuidSchema, timestampsSchema, dateSchema } from './common'
+import { z } from "zod";
+import { uuidSchema, timestampsSchema, dateSchema } from "./common";
 
 // Audit action enum
-export const auditActionSchema = z.enum(['create', 'update', 'delete', 'cancel', 'reschedule', 'no_show'])
+export const auditActionSchema = z.enum([
+  "create",
+  "update",
+  "delete",
+  "cancel",
+  "reschedule",
+  "no_show",
+]);
 
 // Audit actor type enum
-export const auditActorTypeSchema = z.enum(['user', 'api_token', 'system'])
+export const auditActorTypeSchema = z.enum(["user", "api_token", "system"]);
 
 // Audit entity type enum
 export const auditEntityTypeSchema = z.enum([
-  'appointment',
-  'calendar',
-  'location',
-  'resource',
-  'appointment_type',
-  'client',
-])
+  "appointment",
+  "calendar",
+  "location",
+  "resource",
+  "appointment_type",
+  "client",
+]);
 
 // Base audit event schema
 export const auditEventSchema = z.object({
@@ -30,7 +37,7 @@ export const auditEventSchema = z.object({
   after: z.record(z.string(), z.unknown()).nullable(),
   metadata: z.record(z.string(), z.unknown()).nullable(),
   ...timestampsSchema.shape,
-})
+});
 
 // List audit events query
 export const listAuditEventsQuerySchema = z.object({
@@ -42,21 +49,24 @@ export const listAuditEventsQuerySchema = z.object({
   endDate: dateSchema.optional(),
   cursor: uuidSchema.optional(),
   limit: z.number().int().min(1).max(100).default(20),
-})
+});
 
 // Response with optional actor relation
 export const auditEventResponseSchema = auditEventSchema.extend({
-  actor: z.object({
-    id: uuidSchema,
-    name: z.string().nullable(),
-    email: z.string(),
-  }).optional().nullable(),
-})
+  actor: z
+    .object({
+      id: uuidSchema,
+      name: z.string().nullable(),
+      email: z.string(),
+    })
+    .optional()
+    .nullable(),
+});
 
 // Inferred types
-export type AuditAction = z.infer<typeof auditActionSchema>
-export type AuditActorType = z.infer<typeof auditActorTypeSchema>
-export type AuditEntityType = z.infer<typeof auditEntityTypeSchema>
-export type AuditEvent = z.infer<typeof auditEventSchema>
-export type ListAuditEventsQuery = z.infer<typeof listAuditEventsQuerySchema>
-export type AuditEventResponse = z.infer<typeof auditEventResponseSchema>
+export type AuditAction = z.infer<typeof auditActionSchema>;
+export type AuditActorType = z.infer<typeof auditActorTypeSchema>;
+export type AuditEntityType = z.infer<typeof auditEntityTypeSchema>;
+export type AuditEvent = z.infer<typeof auditEventSchema>;
+export type ListAuditEventsQuery = z.infer<typeof listAuditEventsQuerySchema>;
+export type AuditEventResponse = z.infer<typeof auditEventResponseSchema>;

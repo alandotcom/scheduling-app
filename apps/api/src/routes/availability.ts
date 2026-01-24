@@ -4,15 +4,15 @@
 // - Blocked time ranges (single or recurring via RRULE)
 // - Scheduling limits (min/max notice, per-slot/day/week caps)
 
-import { z } from 'zod'
-import { eq, and, gt } from 'drizzle-orm'
+import { z } from "zod";
+import { eq, and, gt } from "drizzle-orm";
 import {
   availabilityRules,
   availabilityOverrides,
   blockedTime,
   schedulingLimits,
   calendars,
-} from '@scheduling/db/schema'
+} from "@scheduling/db/schema";
 import {
   createAvailabilityRuleSchema,
   updateAvailabilityRuleSchema,
@@ -25,28 +25,28 @@ import {
   updateSchedulingLimitsSchema,
   availabilityQuerySchema,
   availabilityCheckSchema,
-} from '@scheduling/dto'
-import { authed } from './base.js'
-import { db, withOrg } from '../lib/db.js'
-import { ORPCError } from '../lib/orpc.js'
-import { AvailabilityEngine } from '../services/availability-engine/index.js'
+} from "@scheduling/dto";
+import { authed } from "./base.js";
+import { db, withOrg } from "../lib/db.js";
+import { ORPCError } from "../lib/orpc.js";
+import { AvailabilityEngine } from "../services/availability-engine/index.js";
 
-const calendarIdInput = z.object({ calendarId: z.string().uuid() })
-const idInput = z.object({ id: z.string().uuid() })
+const calendarIdInput = z.object({ calendarId: z.string().uuid() });
+const idInput = z.object({ id: z.string().uuid() });
 const cursorPaginationInput = z.object({
   cursor: z.string().uuid().optional(),
   limit: z.number().int().min(1).max(100).default(20),
-})
+});
 
 // Helper to verify calendar belongs to org
 async function verifyCalendarAccess(orgId: string, calendarId: string) {
   const [calendar] = await withOrg(orgId, async (tx) => {
-    return tx.select().from(calendars).where(eq(calendars.id, calendarId)).limit(1)
-  })
+    return tx.select().from(calendars).where(eq(calendars.id, calendarId)).limit(1);
+  });
   if (!calendar) {
-    throw new ORPCError('NOT_FOUND', { message: 'Calendar not found' })
+    throw new ORPCError("NOT_FOUND", { message: "Calendar not found" });
   }
-  return calendar
+  return calendar;
 }
 
 // ============================================================================
@@ -57,10 +57,10 @@ async function verifyCalendarAccess(orgId: string, calendarId: string) {
 export const listRules = authed
   .input(calendarIdInput.merge(cursorPaginationInput))
   .handler(async ({ input, context }) => {
-    const { calendarId, cursor, limit } = input
-    const { orgId } = context
+    const { calendarId, cursor, limit } = input;
+    const { orgId } = context;
 
-    await verifyCalendarAccess(orgId, calendarId)
+    await verifyCalendarAccess(orgId, calendarId);
 
     const results = await withOrg(orgId, async (tx) => {
       return tx
@@ -69,52 +69,50 @@ export const listRules = authed
         .where(
           and(
             eq(availabilityRules.calendarId, calendarId),
-            cursor ? gt(availabilityRules.id, cursor) : undefined
-          )
+            cursor ? gt(availabilityRules.id, cursor) : undefined,
+          ),
         )
         .limit(limit + 1)
-        .orderBy(availabilityRules.weekday, availabilityRules.startTime)
-    })
+        .orderBy(availabilityRules.weekday, availabilityRules.startTime);
+    });
 
-    const hasMore = results.length > limit
-    const items = hasMore ? results.slice(0, limit) : results
+    const hasMore = results.length > limit;
+    const items = hasMore ? results.slice(0, limit) : results;
 
     return {
       items,
-      nextCursor: hasMore ? items[items.length - 1]?.id ?? null : null,
+      nextCursor: hasMore ? (items[items.length - 1]?.id ?? null) : null,
       hasMore,
-    }
-  })
+    };
+  });
 
 // Get single rule
-export const getRule = authed
-  .input(idInput)
-  .handler(async ({ input, context }) => {
-    const { id } = input
-    const { orgId } = context
+export const getRule = authed.input(idInput).handler(async ({ input, context }) => {
+  const { id } = input;
+  const { orgId } = context;
 
-    const [rule] = await withOrg(orgId, async (tx) => {
-      return tx.select().from(availabilityRules).where(eq(availabilityRules.id, id)).limit(1)
-    })
+  const [rule] = await withOrg(orgId, async (tx) => {
+    return tx.select().from(availabilityRules).where(eq(availabilityRules.id, id)).limit(1);
+  });
 
-    if (!rule) {
-      throw new ORPCError('NOT_FOUND', { message: 'Availability rule not found' })
-    }
+  if (!rule) {
+    throw new ORPCError("NOT_FOUND", { message: "Availability rule not found" });
+  }
 
-    // Verify calendar access
-    await verifyCalendarAccess(orgId, rule.calendarId)
+  // Verify calendar access
+  await verifyCalendarAccess(orgId, rule.calendarId);
 
-    return rule
-  })
+  return rule;
+});
 
 // Create rule
 export const createRule = authed
   .input(calendarIdInput.merge(z.object({ data: createAvailabilityRuleSchema })))
   .handler(async ({ input, context }) => {
-    const { calendarId, data } = input
-    const { orgId } = context
+    const { calendarId, data } = input;
+    const { orgId } = context;
 
-    await verifyCalendarAccess(orgId, calendarId)
+    await verifyCalendarAccess(orgId, calendarId);
 
     // Check for overlapping rules on the same weekday
     const existingRules = await withOrg(orgId, async (tx) => {
@@ -124,17 +122,17 @@ export const createRule = authed
         .where(
           and(
             eq(availabilityRules.calendarId, calendarId),
-            eq(availabilityRules.weekday, data.weekday)
-          )
-        )
-    })
+            eq(availabilityRules.weekday, data.weekday),
+          ),
+        );
+    });
 
     for (const existing of existingRules) {
       // Check if time ranges overlap
       if (data.startTime < existing.endTime && data.endTime > existing.startTime) {
-        throw new ORPCError('CONFLICT', {
+        throw new ORPCError("CONFLICT", {
           message: `Overlapping rule exists for weekday ${data.weekday}: ${existing.startTime}-${existing.endTime}`,
-        })
+        });
       }
     }
 
@@ -149,33 +147,33 @@ export const createRule = authed
           intervalMin: data.intervalMin ?? null,
           groupId: data.groupId ?? null,
         })
-        .returning()
-    })
+        .returning();
+    });
 
-    return rule
-  })
+    return rule;
+  });
 
 // Update rule
 export const updateRule = authed
   .input(idInput.merge(z.object({ data: updateAvailabilityRuleSchema })))
   .handler(async ({ input, context }) => {
-    const { id, data } = input
-    const { orgId } = context
+    const { id, data } = input;
+    const { orgId } = context;
 
     const [existing] = await withOrg(orgId, async (tx) => {
-      return tx.select().from(availabilityRules).where(eq(availabilityRules.id, id)).limit(1)
-    })
+      return tx.select().from(availabilityRules).where(eq(availabilityRules.id, id)).limit(1);
+    });
 
     if (!existing) {
-      throw new ORPCError('NOT_FOUND', { message: 'Availability rule not found' })
+      throw new ORPCError("NOT_FOUND", { message: "Availability rule not found" });
     }
 
-    await verifyCalendarAccess(orgId, existing.calendarId)
+    await verifyCalendarAccess(orgId, existing.calendarId);
 
     // Check for overlapping rules if weekday or times are changing
-    const newWeekday = data.weekday ?? existing.weekday
-    const newStartTime = data.startTime ?? existing.startTime
-    const newEndTime = data.endTime ?? existing.endTime
+    const newWeekday = data.weekday ?? existing.weekday;
+    const newStartTime = data.startTime ?? existing.startTime;
+    const newEndTime = data.endTime ?? existing.endTime;
 
     const otherRules = await withOrg(orgId, async (tx) => {
       return tx
@@ -184,17 +182,17 @@ export const updateRule = authed
         .where(
           and(
             eq(availabilityRules.calendarId, existing.calendarId),
-            eq(availabilityRules.weekday, newWeekday)
-          )
-        )
-    })
+            eq(availabilityRules.weekday, newWeekday),
+          ),
+        );
+    });
 
     for (const other of otherRules) {
-      if (other.id === id) continue
+      if (other.id === id) continue;
       if (newStartTime < other.endTime && newEndTime > other.startTime) {
-        throw new ORPCError('CONFLICT', {
+        throw new ORPCError("CONFLICT", {
           message: `Overlapping rule exists for weekday ${newWeekday}: ${other.startTime}-${other.endTime}`,
-        })
+        });
       }
     }
 
@@ -209,64 +207,62 @@ export const updateRule = authed
           groupId: data.groupId !== undefined ? data.groupId : existing.groupId,
         })
         .where(eq(availabilityRules.id, id))
-        .returning()
-    })
+        .returning();
+    });
 
-    return updated
-  })
+    return updated;
+  });
 
 // Delete rule
-export const deleteRule = authed
-  .input(idInput)
-  .handler(async ({ input, context }) => {
-    const { id } = input
-    const { orgId } = context
+export const deleteRule = authed.input(idInput).handler(async ({ input, context }) => {
+  const { id } = input;
+  const { orgId } = context;
 
-    const [existing] = await withOrg(orgId, async (tx) => {
-      return tx.select().from(availabilityRules).where(eq(availabilityRules.id, id)).limit(1)
-    })
+  const [existing] = await withOrg(orgId, async (tx) => {
+    return tx.select().from(availabilityRules).where(eq(availabilityRules.id, id)).limit(1);
+  });
 
-    if (!existing) {
-      throw new ORPCError('NOT_FOUND', { message: 'Availability rule not found' })
-    }
+  if (!existing) {
+    throw new ORPCError("NOT_FOUND", { message: "Availability rule not found" });
+  }
 
-    await verifyCalendarAccess(orgId, existing.calendarId)
+  await verifyCalendarAccess(orgId, existing.calendarId);
 
-    await withOrg(orgId, async (tx) => {
-      return tx.delete(availabilityRules).where(eq(availabilityRules.id, id))
-    })
+  await withOrg(orgId, async (tx) => {
+    return tx.delete(availabilityRules).where(eq(availabilityRules.id, id));
+  });
 
-    return { success: true }
-  })
+  return { success: true };
+});
 
 // Set weekly availability (bulk replace)
 export const setWeeklyAvailability = authed
   .input(calendarIdInput.merge(setWeeklyAvailabilitySchema))
   .handler(async ({ input, context }) => {
-    const { calendarId, rules } = input
-    const { orgId } = context
+    const { calendarId, rules } = input;
+    const { orgId } = context;
 
-    await verifyCalendarAccess(orgId, calendarId)
+    await verifyCalendarAccess(orgId, calendarId);
 
     // Validate no overlaps within the new rules
     for (let i = 0; i < rules.length; i++) {
       for (let j = i + 1; j < rules.length; j++) {
-        const a = rules[i]!
-        const b = rules[j]!
+        const a = rules[i]!;
+        const b = rules[j]!;
         if (a.weekday === b.weekday && a.startTime < b.endTime && a.endTime > b.startTime) {
-          throw new ORPCError('BAD_REQUEST', {
+          throw new ORPCError("BAD_REQUEST", {
             message: `Overlapping rules for weekday ${a.weekday}`,
-          })
+          });
         }
       }
     }
 
     // Delete existing rules and insert new ones
     const insertedRules = await withOrg(orgId, async (tx) => {
-      await tx.delete(availabilityRules).where(eq(availabilityRules.calendarId, calendarId))
+      await tx.delete(availabilityRules).where(eq(availabilityRules.calendarId, calendarId));
 
       if (rules.length === 0) {
-        return []
+        return [];
       }
 
       return tx
@@ -279,13 +275,13 @@ export const setWeeklyAvailability = authed
             endTime: rule.endTime,
             intervalMin: rule.intervalMin ?? null,
             groupId: rule.groupId ?? null,
-          }))
+          })),
         )
-        .returning()
-    })
+        .returning();
+    });
 
-    return { rules: insertedRules }
-  })
+    return { rules: insertedRules };
+  });
 
 // ============================================================================
 // AVAILABILITY OVERRIDES
@@ -295,10 +291,10 @@ export const setWeeklyAvailability = authed
 export const listOverrides = authed
   .input(calendarIdInput.merge(cursorPaginationInput))
   .handler(async ({ input, context }) => {
-    const { calendarId, cursor, limit } = input
-    const { orgId } = context
+    const { calendarId, cursor, limit } = input;
+    const { orgId } = context;
 
-    await verifyCalendarAccess(orgId, calendarId)
+    await verifyCalendarAccess(orgId, calendarId);
 
     const results = await withOrg(orgId, async (tx) => {
       return tx
@@ -307,55 +303,49 @@ export const listOverrides = authed
         .where(
           and(
             eq(availabilityOverrides.calendarId, calendarId),
-            cursor ? gt(availabilityOverrides.id, cursor) : undefined
-          )
+            cursor ? gt(availabilityOverrides.id, cursor) : undefined,
+          ),
         )
         .limit(limit + 1)
-        .orderBy(availabilityOverrides.date)
-    })
+        .orderBy(availabilityOverrides.date);
+    });
 
-    const hasMore = results.length > limit
-    const items = hasMore ? results.slice(0, limit) : results
+    const hasMore = results.length > limit;
+    const items = hasMore ? results.slice(0, limit) : results;
 
     return {
       items,
-      nextCursor: hasMore ? items[items.length - 1]?.id ?? null : null,
+      nextCursor: hasMore ? (items[items.length - 1]?.id ?? null) : null,
       hasMore,
-    }
-  })
+    };
+  });
 
 // Get single override
-export const getOverride = authed
-  .input(idInput)
-  .handler(async ({ input, context }) => {
-    const { id } = input
-    const { orgId } = context
+export const getOverride = authed.input(idInput).handler(async ({ input, context }) => {
+  const { id } = input;
+  const { orgId } = context;
 
-    const [override] = await withOrg(orgId, async (tx) => {
-      return tx
-        .select()
-        .from(availabilityOverrides)
-        .where(eq(availabilityOverrides.id, id))
-        .limit(1)
-    })
+  const [override] = await withOrg(orgId, async (tx) => {
+    return tx.select().from(availabilityOverrides).where(eq(availabilityOverrides.id, id)).limit(1);
+  });
 
-    if (!override) {
-      throw new ORPCError('NOT_FOUND', { message: 'Availability override not found' })
-    }
+  if (!override) {
+    throw new ORPCError("NOT_FOUND", { message: "Availability override not found" });
+  }
 
-    await verifyCalendarAccess(orgId, override.calendarId)
+  await verifyCalendarAccess(orgId, override.calendarId);
 
-    return override
-  })
+  return override;
+});
 
 // Create override
 export const createOverride = authed
   .input(calendarIdInput.merge(z.object({ data: createAvailabilityOverrideSchema })))
   .handler(async ({ input, context }) => {
-    const { calendarId, data } = input
-    const { orgId } = context
+    const { calendarId, data } = input;
+    const { orgId } = context;
 
-    await verifyCalendarAccess(orgId, calendarId)
+    await verifyCalendarAccess(orgId, calendarId);
 
     // Check for existing override on the same date
     const [existingOverride] = await withOrg(orgId, async (tx) => {
@@ -365,16 +355,16 @@ export const createOverride = authed
         .where(
           and(
             eq(availabilityOverrides.calendarId, calendarId),
-            eq(availabilityOverrides.date, data.date)
-          )
+            eq(availabilityOverrides.date, data.date),
+          ),
         )
-        .limit(1)
-    })
+        .limit(1);
+    });
 
     if (existingOverride) {
-      throw new ORPCError('CONFLICT', {
+      throw new ORPCError("CONFLICT", {
         message: `Override already exists for date ${data.date}`,
-      })
+      });
     }
 
     const [override] = await withOrg(orgId, async (tx) => {
@@ -389,32 +379,32 @@ export const createOverride = authed
           intervalMin: data.intervalMin ?? null,
           groupId: data.groupId ?? null,
         })
-        .returning()
-    })
+        .returning();
+    });
 
-    return override
-  })
+    return override;
+  });
 
 // Update override
 export const updateOverride = authed
   .input(idInput.merge(z.object({ data: updateAvailabilityOverrideSchema })))
   .handler(async ({ input, context }) => {
-    const { id, data } = input
-    const { orgId } = context
+    const { id, data } = input;
+    const { orgId } = context;
 
     const [existing] = await withOrg(orgId, async (tx) => {
       return tx
         .select()
         .from(availabilityOverrides)
         .where(eq(availabilityOverrides.id, id))
-        .limit(1)
-    })
+        .limit(1);
+    });
 
     if (!existing) {
-      throw new ORPCError('NOT_FOUND', { message: 'Availability override not found' })
+      throw new ORPCError("NOT_FOUND", { message: "Availability override not found" });
     }
 
-    await verifyCalendarAccess(orgId, existing.calendarId)
+    await verifyCalendarAccess(orgId, existing.calendarId);
 
     // If changing date, check for conflicts
     if (data.date && data.date !== existing.date) {
@@ -425,16 +415,16 @@ export const updateOverride = authed
           .where(
             and(
               eq(availabilityOverrides.calendarId, existing.calendarId),
-              eq(availabilityOverrides.date, data.date!)
-            )
+              eq(availabilityOverrides.date, data.date!),
+            ),
           )
-          .limit(1)
-      })
+          .limit(1);
+      });
 
       if (conflicting) {
-        throw new ORPCError('CONFLICT', {
+        throw new ORPCError("CONFLICT", {
           message: `Override already exists for date ${data.date}`,
-        })
+        });
       }
     }
 
@@ -450,39 +440,33 @@ export const updateOverride = authed
           groupId: data.groupId !== undefined ? data.groupId : existing.groupId,
         })
         .where(eq(availabilityOverrides.id, id))
-        .returning()
-    })
+        .returning();
+    });
 
-    return updated
-  })
+    return updated;
+  });
 
 // Delete override
-export const deleteOverride = authed
-  .input(idInput)
-  .handler(async ({ input, context }) => {
-    const { id } = input
-    const { orgId } = context
+export const deleteOverride = authed.input(idInput).handler(async ({ input, context }) => {
+  const { id } = input;
+  const { orgId } = context;
 
-    const [existing] = await withOrg(orgId, async (tx) => {
-      return tx
-        .select()
-        .from(availabilityOverrides)
-        .where(eq(availabilityOverrides.id, id))
-        .limit(1)
-    })
+  const [existing] = await withOrg(orgId, async (tx) => {
+    return tx.select().from(availabilityOverrides).where(eq(availabilityOverrides.id, id)).limit(1);
+  });
 
-    if (!existing) {
-      throw new ORPCError('NOT_FOUND', { message: 'Availability override not found' })
-    }
+  if (!existing) {
+    throw new ORPCError("NOT_FOUND", { message: "Availability override not found" });
+  }
 
-    await verifyCalendarAccess(orgId, existing.calendarId)
+  await verifyCalendarAccess(orgId, existing.calendarId);
 
-    await withOrg(orgId, async (tx) => {
-      return tx.delete(availabilityOverrides).where(eq(availabilityOverrides.id, id))
-    })
+  await withOrg(orgId, async (tx) => {
+    return tx.delete(availabilityOverrides).where(eq(availabilityOverrides.id, id));
+  });
 
-    return { success: true }
-  })
+  return { success: true };
+});
 
 // ============================================================================
 // BLOCKED TIME
@@ -492,10 +476,10 @@ export const deleteOverride = authed
 export const listBlockedTime = authed
   .input(calendarIdInput.merge(cursorPaginationInput))
   .handler(async ({ input, context }) => {
-    const { calendarId, cursor, limit } = input
-    const { orgId } = context
+    const { calendarId, cursor, limit } = input;
+    const { orgId } = context;
 
-    await verifyCalendarAccess(orgId, calendarId)
+    await verifyCalendarAccess(orgId, calendarId);
 
     const results = await withOrg(orgId, async (tx) => {
       return tx
@@ -504,51 +488,49 @@ export const listBlockedTime = authed
         .where(
           and(
             eq(blockedTime.calendarId, calendarId),
-            cursor ? gt(blockedTime.id, cursor) : undefined
-          )
+            cursor ? gt(blockedTime.id, cursor) : undefined,
+          ),
         )
         .limit(limit + 1)
-        .orderBy(blockedTime.startAt)
-    })
+        .orderBy(blockedTime.startAt);
+    });
 
-    const hasMore = results.length > limit
-    const items = hasMore ? results.slice(0, limit) : results
+    const hasMore = results.length > limit;
+    const items = hasMore ? results.slice(0, limit) : results;
 
     return {
       items,
-      nextCursor: hasMore ? items[items.length - 1]?.id ?? null : null,
+      nextCursor: hasMore ? (items[items.length - 1]?.id ?? null) : null,
       hasMore,
-    }
-  })
+    };
+  });
 
 // Get single blocked time
-export const getBlockedTime = authed
-  .input(idInput)
-  .handler(async ({ input, context }) => {
-    const { id } = input
-    const { orgId } = context
+export const getBlockedTime = authed.input(idInput).handler(async ({ input, context }) => {
+  const { id } = input;
+  const { orgId } = context;
 
-    const [block] = await withOrg(orgId, async (tx) => {
-      return tx.select().from(blockedTime).where(eq(blockedTime.id, id)).limit(1)
-    })
+  const [block] = await withOrg(orgId, async (tx) => {
+    return tx.select().from(blockedTime).where(eq(blockedTime.id, id)).limit(1);
+  });
 
-    if (!block) {
-      throw new ORPCError('NOT_FOUND', { message: 'Blocked time not found' })
-    }
+  if (!block) {
+    throw new ORPCError("NOT_FOUND", { message: "Blocked time not found" });
+  }
 
-    await verifyCalendarAccess(orgId, block.calendarId)
+  await verifyCalendarAccess(orgId, block.calendarId);
 
-    return block
-  })
+  return block;
+});
 
 // Create blocked time
 export const createBlockedTime = authed
   .input(calendarIdInput.merge(z.object({ data: createBlockedTimeSchema })))
   .handler(async ({ input, context }) => {
-    const { calendarId, data } = input
-    const { orgId } = context
+    const { calendarId, data } = input;
+    const { orgId } = context;
 
-    await verifyCalendarAccess(orgId, calendarId)
+    await verifyCalendarAccess(orgId, calendarId);
 
     const [block] = await withOrg(orgId, async (tx) => {
       return tx
@@ -559,28 +541,28 @@ export const createBlockedTime = authed
           endAt: new Date(data.endAt),
           recurringRule: data.recurringRule ?? null,
         })
-        .returning()
-    })
+        .returning();
+    });
 
-    return block
-  })
+    return block;
+  });
 
 // Update blocked time
 export const updateBlockedTime = authed
   .input(idInput.merge(z.object({ data: updateBlockedTimeSchema })))
   .handler(async ({ input, context }) => {
-    const { id, data } = input
-    const { orgId } = context
+    const { id, data } = input;
+    const { orgId } = context;
 
     const [existing] = await withOrg(orgId, async (tx) => {
-      return tx.select().from(blockedTime).where(eq(blockedTime.id, id)).limit(1)
-    })
+      return tx.select().from(blockedTime).where(eq(blockedTime.id, id)).limit(1);
+    });
 
     if (!existing) {
-      throw new ORPCError('NOT_FOUND', { message: 'Blocked time not found' })
+      throw new ORPCError("NOT_FOUND", { message: "Blocked time not found" });
     }
 
-    await verifyCalendarAccess(orgId, existing.calendarId)
+    await verifyCalendarAccess(orgId, existing.calendarId);
 
     const [updated] = await withOrg(orgId, async (tx) => {
       return tx
@@ -592,35 +574,33 @@ export const updateBlockedTime = authed
             data.recurringRule !== undefined ? data.recurringRule : existing.recurringRule,
         })
         .where(eq(blockedTime.id, id))
-        .returning()
-    })
+        .returning();
+    });
 
-    return updated
-  })
+    return updated;
+  });
 
 // Delete blocked time
-export const deleteBlockedTime = authed
-  .input(idInput)
-  .handler(async ({ input, context }) => {
-    const { id } = input
-    const { orgId } = context
+export const deleteBlockedTime = authed.input(idInput).handler(async ({ input, context }) => {
+  const { id } = input;
+  const { orgId } = context;
 
-    const [existing] = await withOrg(orgId, async (tx) => {
-      return tx.select().from(blockedTime).where(eq(blockedTime.id, id)).limit(1)
-    })
+  const [existing] = await withOrg(orgId, async (tx) => {
+    return tx.select().from(blockedTime).where(eq(blockedTime.id, id)).limit(1);
+  });
 
-    if (!existing) {
-      throw new ORPCError('NOT_FOUND', { message: 'Blocked time not found' })
-    }
+  if (!existing) {
+    throw new ORPCError("NOT_FOUND", { message: "Blocked time not found" });
+  }
 
-    await verifyCalendarAccess(orgId, existing.calendarId)
+  await verifyCalendarAccess(orgId, existing.calendarId);
 
-    await withOrg(orgId, async (tx) => {
-      return tx.delete(blockedTime).where(eq(blockedTime.id, id))
-    })
+  await withOrg(orgId, async (tx) => {
+    return tx.delete(blockedTime).where(eq(blockedTime.id, id));
+  });
 
-    return { success: true }
-  })
+  return { success: true };
+});
 
 // ============================================================================
 // SCHEDULING LIMITS
@@ -630,10 +610,10 @@ export const deleteBlockedTime = authed
 export const listSchedulingLimits = authed
   .input(calendarIdInput.merge(cursorPaginationInput))
   .handler(async ({ input, context }) => {
-    const { calendarId, cursor, limit } = input
-    const { orgId } = context
+    const { calendarId, cursor, limit } = input;
+    const { orgId } = context;
 
-    await verifyCalendarAccess(orgId, calendarId)
+    await verifyCalendarAccess(orgId, calendarId);
 
     const results = await withOrg(orgId, async (tx) => {
       return tx
@@ -642,54 +622,52 @@ export const listSchedulingLimits = authed
         .where(
           and(
             eq(schedulingLimits.calendarId, calendarId),
-            cursor ? gt(schedulingLimits.id, cursor) : undefined
-          )
+            cursor ? gt(schedulingLimits.id, cursor) : undefined,
+          ),
         )
         .limit(limit + 1)
-        .orderBy(schedulingLimits.id)
-    })
+        .orderBy(schedulingLimits.id);
+    });
 
-    const hasMore = results.length > limit
-    const items = hasMore ? results.slice(0, limit) : results
+    const hasMore = results.length > limit;
+    const items = hasMore ? results.slice(0, limit) : results;
 
     return {
       items,
-      nextCursor: hasMore ? items[items.length - 1]?.id ?? null : null,
+      nextCursor: hasMore ? (items[items.length - 1]?.id ?? null) : null,
       hasMore,
-    }
-  })
+    };
+  });
 
 // Get single scheduling limits entry
-export const getSchedulingLimits = authed
-  .input(idInput)
-  .handler(async ({ input, context }) => {
-    const { id } = input
-    const { orgId } = context
+export const getSchedulingLimits = authed.input(idInput).handler(async ({ input, context }) => {
+  const { id } = input;
+  const { orgId } = context;
 
-    const [limits] = await withOrg(orgId, async (tx) => {
-      return tx.select().from(schedulingLimits).where(eq(schedulingLimits.id, id)).limit(1)
-    })
+  const [limits] = await withOrg(orgId, async (tx) => {
+    return tx.select().from(schedulingLimits).where(eq(schedulingLimits.id, id)).limit(1);
+  });
 
-    if (!limits) {
-      throw new ORPCError('NOT_FOUND', { message: 'Scheduling limits not found' })
-    }
+  if (!limits) {
+    throw new ORPCError("NOT_FOUND", { message: "Scheduling limits not found" });
+  }
 
-    if (limits.calendarId) {
-      await verifyCalendarAccess(orgId, limits.calendarId)
-    }
+  if (limits.calendarId) {
+    await verifyCalendarAccess(orgId, limits.calendarId);
+  }
 
-    return limits
-  })
+  return limits;
+});
 
 // Create scheduling limits
 export const createSchedulingLimits = authed
   .input(z.object({ data: createSchedulingLimitsSchema }))
   .handler(async ({ input, context }) => {
-    const { data } = input
-    const { orgId } = context
+    const { data } = input;
+    const { orgId } = context;
 
     if (data.calendarId) {
-      await verifyCalendarAccess(orgId, data.calendarId)
+      await verifyCalendarAccess(orgId, data.calendarId);
     }
 
     const [limits] = await withOrg(orgId, async (tx) => {
@@ -704,29 +682,29 @@ export const createSchedulingLimits = authed
           maxPerDay: data.maxPerDay ?? null,
           maxPerWeek: data.maxPerWeek ?? null,
         })
-        .returning()
-    })
+        .returning();
+    });
 
-    return limits
-  })
+    return limits;
+  });
 
 // Update scheduling limits
 export const updateSchedulingLimits = authed
   .input(idInput.merge(z.object({ data: updateSchedulingLimitsSchema })))
   .handler(async ({ input, context }) => {
-    const { id, data } = input
-    const { orgId } = context
+    const { id, data } = input;
+    const { orgId } = context;
 
     const [existing] = await withOrg(orgId, async (tx) => {
-      return tx.select().from(schedulingLimits).where(eq(schedulingLimits.id, id)).limit(1)
-    })
+      return tx.select().from(schedulingLimits).where(eq(schedulingLimits.id, id)).limit(1);
+    });
 
     if (!existing) {
-      throw new ORPCError('NOT_FOUND', { message: 'Scheduling limits not found' })
+      throw new ORPCError("NOT_FOUND", { message: "Scheduling limits not found" });
     }
 
     if (existing.calendarId) {
-      await verifyCalendarAccess(orgId, existing.calendarId)
+      await verifyCalendarAccess(orgId, existing.calendarId);
     }
 
     const [updated] = await withOrg(orgId, async (tx) => {
@@ -742,37 +720,35 @@ export const updateSchedulingLimits = authed
           maxPerWeek: data.maxPerWeek !== undefined ? data.maxPerWeek : existing.maxPerWeek,
         })
         .where(eq(schedulingLimits.id, id))
-        .returning()
-    })
+        .returning();
+    });
 
-    return updated
-  })
+    return updated;
+  });
 
 // Delete scheduling limits
-export const deleteSchedulingLimits = authed
-  .input(idInput)
-  .handler(async ({ input, context }) => {
-    const { id } = input
-    const { orgId } = context
+export const deleteSchedulingLimits = authed.input(idInput).handler(async ({ input, context }) => {
+  const { id } = input;
+  const { orgId } = context;
 
-    const [existing] = await withOrg(orgId, async (tx) => {
-      return tx.select().from(schedulingLimits).where(eq(schedulingLimits.id, id)).limit(1)
-    })
+  const [existing] = await withOrg(orgId, async (tx) => {
+    return tx.select().from(schedulingLimits).where(eq(schedulingLimits.id, id)).limit(1);
+  });
 
-    if (!existing) {
-      throw new ORPCError('NOT_FOUND', { message: 'Scheduling limits not found' })
-    }
+  if (!existing) {
+    throw new ORPCError("NOT_FOUND", { message: "Scheduling limits not found" });
+  }
 
-    if (existing.calendarId) {
-      await verifyCalendarAccess(orgId, existing.calendarId)
-    }
+  if (existing.calendarId) {
+    await verifyCalendarAccess(orgId, existing.calendarId);
+  }
 
-    await withOrg(orgId, async (tx) => {
-      return tx.delete(schedulingLimits).where(eq(schedulingLimits.id, id))
-    })
+  await withOrg(orgId, async (tx) => {
+    return tx.delete(schedulingLimits).where(eq(schedulingLimits.id, id));
+  });
 
-    return { success: true }
-  })
+  return { success: true };
+});
 
 // ============================================================================
 // ROUTE EXPORTS
@@ -785,7 +761,7 @@ export const availabilityRulesRoutes = {
   update: updateRule,
   delete: deleteRule,
   setWeekly: setWeeklyAvailability,
-}
+};
 
 export const availabilityOverridesRoutes = {
   list: listOverrides,
@@ -793,7 +769,7 @@ export const availabilityOverridesRoutes = {
   create: createOverride,
   update: updateOverride,
   delete: deleteOverride,
-}
+};
 
 export const blockedTimeRoutes = {
   list: listBlockedTime,
@@ -801,7 +777,7 @@ export const blockedTimeRoutes = {
   create: createBlockedTime,
   update: updateBlockedTime,
   delete: deleteBlockedTime,
-}
+};
 
 export const schedulingLimitsRoutes = {
   list: listSchedulingLimits,
@@ -809,7 +785,7 @@ export const schedulingLimitsRoutes = {
   create: createSchedulingLimits,
   update: updateSchedulingLimits,
   delete: deleteSchedulingLimits,
-}
+};
 
 // ============================================================================
 // AVAILABILITY ENGINE ROUTES
@@ -819,32 +795,32 @@ export const schedulingLimitsRoutes = {
 export const getDates = authed
   .input(availabilityQuerySchema)
   .handler(async ({ input, context }) => {
-    const { orgId } = context
+    const { orgId } = context;
 
     // Verify all calendars belong to this org
     for (const calendarId of input.calendarIds) {
-      await verifyCalendarAccess(orgId, calendarId)
+      await verifyCalendarAccess(orgId, calendarId);
     }
 
-    const engine = new AvailabilityEngine(db)
-    const dates = await engine.getAvailableDates(input)
+    const engine = new AvailabilityEngine(db);
+    const dates = await engine.getAvailableDates(input);
 
-    return { dates }
-  })
+    return { dates };
+  });
 
 // Get available time slots
 export const getTimes = authed
   .input(availabilityQuerySchema)
   .handler(async ({ input, context }) => {
-    const { orgId } = context
+    const { orgId } = context;
 
     // Verify all calendars belong to this org
     for (const calendarId of input.calendarIds) {
-      await verifyCalendarAccess(orgId, calendarId)
+      await verifyCalendarAccess(orgId, calendarId);
     }
 
-    const engine = new AvailabilityEngine(db)
-    const slots = await engine.getAvailableSlots(input)
+    const engine = new AvailabilityEngine(db);
+    const slots = await engine.getAvailableSlots(input);
 
     // Transform Date objects to ISO strings for serialization
     return {
@@ -854,29 +830,34 @@ export const getTimes = authed
         available: slot.available,
         remainingCapacity: slot.remainingCapacity,
       })),
-    }
-  })
+    };
+  });
 
 // Check if a specific slot is available
 export const checkSlot = authed
   .input(availabilityCheckSchema)
   .handler(async ({ input, context }) => {
-    const { orgId } = context
-    const { appointmentTypeId, calendarId, startTime, timezone } = input
+    const { orgId } = context;
+    const { appointmentTypeId, calendarId, startTime, timezone } = input;
 
-    await verifyCalendarAccess(orgId, calendarId)
+    await verifyCalendarAccess(orgId, calendarId);
 
-    const engine = new AvailabilityEngine(db)
-    const result = await engine.checkSlot(appointmentTypeId, calendarId, new Date(startTime), timezone)
+    const engine = new AvailabilityEngine(db);
+    const result = await engine.checkSlot(
+      appointmentTypeId,
+      calendarId,
+      new Date(startTime),
+      timezone,
+    );
 
-    return result
-  })
+    return result;
+  });
 
 export const availabilityEngineRoutes = {
   dates: getDates,
   times: getTimes,
   check: checkSlot,
-}
+};
 
 export const availabilityRoutes = {
   rules: availabilityRulesRoutes,
@@ -884,4 +865,4 @@ export const availabilityRoutes = {
   blockedTime: blockedTimeRoutes,
   schedulingLimits: schedulingLimitsRoutes,
   engine: availabilityEngineRoutes,
-}
+};

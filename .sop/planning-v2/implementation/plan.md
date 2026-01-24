@@ -27,6 +27,7 @@
 **Objective:** Create reusable test utilities for route integration testing.
 
 **Guidance:**
+
 - Create `apps/api/src/test-utils/context.ts` with `createTestContext()` helper
 - Create `apps/api/src/test-utils/factories.ts` with test data factories
 - Create `apps/api/src/test-utils/setup.ts` for global test configuration
@@ -34,6 +35,7 @@
 - Ensure test context can be injected into route handlers
 
 **Files to create:**
+
 ```
 apps/api/src/test-utils/
 ├── context.ts      # createTestContext(orgId, userId, role)
@@ -55,6 +57,7 @@ apps/api/src/test-utils/
 **Objective:** Test locations, resources, and clients routes with full coverage.
 
 **Guidance:**
+
 - Create `locations.test.ts`, `resources.test.ts`, `clients.test.ts`
 - Test cases for each route:
   - List (empty, with data, pagination)
@@ -66,6 +69,7 @@ apps/api/src/test-utils/
 - Use PGLite for database
 
 **Tests:**
+
 - ~15-20 test cases per route file
 - Verify RLS isolation (can't see other org's data)
 
@@ -80,6 +84,7 @@ apps/api/src/test-utils/
 **Objective:** Create data access layer for locations, resources, clients.
 
 **Guidance:**
+
 - Create `apps/api/src/repositories/` directory
 - Create `base.ts` with shared query helpers (pagination, withOrg wrapper)
 - Create `locations.ts`, `resources.ts`, `clients.ts` repositories
@@ -87,6 +92,7 @@ apps/api/src/test-utils/
 - Repositories accept `db` or transaction as parameter for flexibility
 
 **Pattern:**
+
 ```typescript
 export class LocationRepository {
   constructor(private db: Database) {}
@@ -113,6 +119,7 @@ export class LocationRepository {
 **Objective:** Create business logic layer for locations, resources, clients.
 
 **Guidance:**
+
 - Create `apps/api/src/services/` directory (note: availability-engine already exists here)
 - Create `locations.ts`, `resources.ts`, `clients.ts` services
 - Services handle: validation, business rules, audit logging, event emission
@@ -120,6 +127,7 @@ export class LocationRepository {
 - Refactor routes to call services (thin handlers)
 
 **Files:**
+
 ```
 apps/api/src/services/
 ├── locations.ts
@@ -129,13 +137,12 @@ apps/api/src/services/
 ```
 
 **Refactored route example:**
+
 ```typescript
 // routes/locations.ts (after refactor)
-export const create = authed
-  .input(createLocationSchema)
-  .handler(async ({ input, context }) => {
-    return locationService.create(input, context)
-  })
+export const create = authed.input(createLocationSchema).handler(async ({ input, context }) => {
+  return locationService.create(input, context);
+});
 ```
 
 **Tests:** Existing route tests should still pass after refactor.
@@ -151,12 +158,14 @@ export const create = authed
 **Objective:** Test more complex CRUD routes with relationships.
 
 **Guidance:**
+
 - Create `calendars.test.ts`, `appointment-types.test.ts`
 - Test relationship management (calendar → location, appointment-type → calendars)
 - Test cascade behaviors
 - Expand test factories to handle related entities
 
 **Tests:**
+
 - Calendar CRUD with location reference
 - Appointment type CRUD with calendar and resource assignments
 - Join table operations (link/unlink calendars, resources)
@@ -172,6 +181,7 @@ export const create = authed
 **Objective:** Enable database-enforced non-overlapping appointments.
 
 **Guidance:**
+
 - Create migration `0003_exclusion_constraint.sql`
 - Enable `btree_gist` extension
 - Add exclusion constraint on appointments table
@@ -179,6 +189,7 @@ export const create = authed
 - Update migration runner if needed
 
 **Migration:**
+
 ```sql
 CREATE EXTENSION IF NOT EXISTS btree_gist;
 
@@ -194,6 +205,7 @@ CREATE INDEX idx_appointments_calendar_time
 ```
 
 **Tests:**
+
 - Verify constraint prevents overlapping inserts
 - Verify cancelled appointments don't block slots
 
@@ -208,6 +220,7 @@ CREATE INDEX idx_appointments_calendar_time
 **Objective:** Refactor the largest route file (784 lines) to clean architecture.
 
 **Guidance:**
+
 - Create `repositories/appointments.ts`
 - Create `services/appointments.ts`
 - Move business logic from route to service
@@ -217,6 +230,7 @@ CREATE INDEX idx_appointments_calendar_time
 - Keep route handlers thin (~150 lines total)
 
 **Key changes:**
+
 ```typescript
 // services/appointments.ts
 async create(input, context) {
@@ -245,6 +259,7 @@ async create(input, context) {
 **Objective:** Comprehensive testing of appointment lifecycle and concurrency.
 
 **Guidance:**
+
 - Create `appointments.test.ts`
 - Test full CRUD lifecycle
 - Test status transitions (scheduled → cancelled, no_show)
@@ -255,19 +270,20 @@ async create(input, context) {
   - Verify other gets SLOT_UNAVAILABLE (409)
 
 **Concurrent test pattern:**
+
 ```typescript
-it('handles concurrent bookings correctly', async () => {
+it("handles concurrent bookings correctly", async () => {
   const [result1, result2] = await Promise.all([
     appointmentService.create(sameSlotInput, ctx),
     appointmentService.create(sameSlotInput, ctx),
-  ])
+  ]);
 
-  const successes = [result1, result2].filter(r => !r.error)
-  const conflicts = [result1, result2].filter(r => r.error?.code === 'CONFLICT')
+  const successes = [result1, result2].filter((r) => !r.error);
+  const conflicts = [result1, result2].filter((r) => r.error?.code === "CONFLICT");
 
-  expect(successes).toHaveLength(1)
-  expect(conflicts).toHaveLength(1)
-})
+  expect(successes).toHaveLength(1);
+  expect(conflicts).toHaveLength(1);
+});
 ```
 
 **Tests:** ~25-30 test cases including edge cases.
@@ -283,6 +299,7 @@ it('handles concurrent bookings correctly', async () => {
 **Objective:** Reduce database round trips from 7+ to 2.
 
 **Guidance:**
+
 - Modify `loadAllConfigData()` to use single query with JOINs
 - Load: appointment type + calendars + rules + overrides + limits in one query
 - Keep separate query for existing appointments (different date filtering)
@@ -290,6 +307,7 @@ it('handles concurrent bookings correctly', async () => {
 - Keep slot generation logic in JavaScript
 
 **Query structure:**
+
 ```sql
 SELECT
   at.*,
@@ -320,6 +338,7 @@ GROUP BY at.id, sl.id
 **Objective:** Test availability query and check endpoints.
 
 **Guidance:**
+
 - Create/expand `availability.test.ts`
 - Test weekly rules CRUD
 - Test override CRUD
@@ -329,6 +348,7 @@ GROUP BY at.id, sl.id
 - Test `checkSlot` endpoint
 
 **Tests:**
+
 - Rules correctly affect slot availability
 - Overrides replace weekly rules
 - Blocked time removes slots
@@ -346,11 +366,13 @@ GROUP BY at.id, sl.id
 **Objective:** Enable stricter linting with plugins.
 
 **Guidance:**
+
 - Update `oxlintrc.json` with plugins and categories
 - Enable as warnings first to assess impact
 - Add typescript, react, import, unicorn plugins
 
 **New config:**
+
 ```json
 {
   "plugins": ["typescript", "react", "import", "unicorn"],
@@ -375,6 +397,7 @@ GROUP BY at.id, sl.id
 **Objective:** Address all linting errors and reduce warnings.
 
 **Guidance:**
+
 - Fix all errors first (correctness category)
 - Review and fix suspicious warnings
 - Review and fix perf warnings
@@ -394,6 +417,7 @@ GROUP BY at.id, sl.id
 **Objective:** Defense-in-depth for membership queries.
 
 **Guidance:**
+
 - Create migration `0004_user_rls.sql`
 - Add `current_user_id()` function
 - Add RLS policy to org_memberships
@@ -401,6 +425,7 @@ GROUP BY at.id, sl.id
 - Keep explicit membership check in auth middleware (hybrid approach)
 
 **Migration:**
+
 ```sql
 CREATE OR REPLACE FUNCTION current_user_id() RETURNS uuid AS $$
   SELECT nullif(current_setting('app.current_user_id', true), '')::uuid;
@@ -425,6 +450,7 @@ CREATE POLICY user_memberships ON org_memberships
 **Objective:** Add secure cookie settings.
 
 **Guidance:**
+
 - Update `apps/api/src/lib/auth.ts`
 - Add `advanced` configuration block
 - Set secure cookies for production
@@ -443,6 +469,7 @@ CREATE POLICY user_memberships ON org_memberships
 **Objective:** Complete route test coverage.
 
 **Guidance:**
+
 - Create `api-tokens.test.ts`
   - Token creation, listing, revocation
   - Token auth flow
@@ -461,17 +488,18 @@ CREATE POLICY user_memberships ON org_memberships
 
 ## Summary
 
-| Phase | Steps | Focus |
-|-------|-------|-------|
-| Testing Foundation | 1-2 | Infrastructure + simple routes |
-| Refactor | 3-5 | Repository + Service for simple entities |
-| Performance | 6-9 | Exclusion constraint + appointments refactor |
-| Availability | 9-10 | Query optimization + tests |
-| Quality | 11-12 | Linting enforcement |
-| Security | 13-14 | RLS + auth hardening |
-| Completion | 15 | Remaining test coverage |
+| Phase              | Steps | Focus                                        |
+| ------------------ | ----- | -------------------------------------------- |
+| Testing Foundation | 1-2   | Infrastructure + simple routes               |
+| Refactor           | 3-5   | Repository + Service for simple entities     |
+| Performance        | 6-9   | Exclusion constraint + appointments refactor |
+| Availability       | 9-10  | Query optimization + tests                   |
+| Quality            | 11-12 | Linting enforcement                          |
+| Security           | 13-14 | RLS + auth hardening                         |
+| Completion         | 15    | Remaining test coverage                      |
 
 **Estimated test files when complete:**
+
 - `locations.test.ts`
 - `resources.test.ts`
 - `clients.test.ts`

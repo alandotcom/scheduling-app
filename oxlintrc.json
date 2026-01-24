@@ -13,9 +13,5 @@
       "tsconfig": "./tsconfig.json"
     }
   },
-  "ignorePatterns": [
-    "node_modules",
-    "dist",
-    "*.d.ts"
-  ]
+  "ignorePatterns": ["node_modules", "dist", "*.d.ts"]
 }

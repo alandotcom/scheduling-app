@@ -26,6 +26,7 @@ packages/
 ### Database Schema
 
 Key entities:
+
 - **Organizations (orgs):** Multi-tenant isolation via row-level security (RLS)
 - **Users & Sessions:** BetterAuth-managed authentication
 - **Locations:** Physical or virtual appointment locations with timezones
@@ -51,32 +52,38 @@ Key entities:
 ### Setup
 
 1. Clone the repository:
+
    ```bash
    git clone <repo-url>
    cd scheduling-app
    ```
 
 2. Install dependencies:
+
    ```bash
    pnpm install
    ```
 
 3. Copy environment template:
+
    ```bash
    cp .env.example .env
    ```
 
 4. Start infrastructure:
+
    ```bash
    docker compose up -d
    ```
 
 5. Run database migrations:
+
    ```bash
    pnpm --filter @scheduling/db run migrate
    ```
 
 6. Start development servers:
+
    ```bash
    pnpm dev
    ```
@@ -114,17 +121,17 @@ pnpm --filter @scheduling/db run push       # Push schema to dev database
 
 The API uses oRPC with automatic OpenAPI generation. Key endpoint groups:
 
-| Group | Description |
-|-------|-------------|
-| `/v1/health` | Health check |
-| `/v1/locations` | Location CRUD |
-| `/v1/calendars` | Calendar CRUD with availability rules |
-| `/v1/resources` | Resource CRUD |
-| `/v1/appointmentTypes` | Appointment type CRUD |
-| `/v1/availability` | Availability queries (dates/times/check) |
-| `/v1/appointments` | Appointment booking, reschedule, cancel |
-| `/v1/apiTokens` | API token management (admin only) |
-| `/v1/audit` | Audit log queries (admin only) |
+| Group                  | Description                              |
+| ---------------------- | ---------------------------------------- |
+| `/v1/health`           | Health check                             |
+| `/v1/locations`        | Location CRUD                            |
+| `/v1/calendars`        | Calendar CRUD with availability rules    |
+| `/v1/resources`        | Resource CRUD                            |
+| `/v1/appointmentTypes` | Appointment type CRUD                    |
+| `/v1/availability`     | Availability queries (dates/times/check) |
+| `/v1/appointments`     | Appointment booking, reschedule, cancel  |
+| `/v1/apiTokens`        | API token management (admin only)        |
+| `/v1/audit`            | Audit log queries (admin only)           |
 
 ### Authentication
 
@@ -142,19 +149,20 @@ All org-scoped data is protected by PostgreSQL row-level security (RLS). The `X-
 ### Event System
 
 Domain events are emitted on mutations:
+
 - Written to `event_outbox` table for reliable delivery
 - Processed by BullMQ workers for webhook delivery
 - Audit events recorded for compliance tracking
 
 ## Environment Variables
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `DATABASE_URL` | Postgres connection string | `postgres://scheduling:scheduling@localhost:5433/scheduling` |
-| `VALKEY_HOST` | Valkey/Redis host | `localhost` |
-| `VALKEY_PORT` | Valkey/Redis port | `6380` |
-| `AUTH_SECRET` | BetterAuth secret (change in production) | `dev-secret-change-in-production` |
-| `PORT` | API server port | `3000` |
+| Variable       | Description                              | Default                                                      |
+| -------------- | ---------------------------------------- | ------------------------------------------------------------ |
+| `DATABASE_URL` | Postgres connection string               | `postgres://scheduling:scheduling@localhost:5433/scheduling` |
+| `VALKEY_HOST`  | Valkey/Redis host                        | `localhost`                                                  |
+| `VALKEY_PORT`  | Valkey/Redis port                        | `6380`                                                       |
+| `AUTH_SECRET`  | BetterAuth secret (change in production) | `dev-secret-change-in-production`                            |
+| `PORT`         | API server port                          | `3000`                                                       |
 
 ## License
 

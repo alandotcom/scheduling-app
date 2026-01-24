@@ -14,11 +14,12 @@
     "typecheck": "pnpm -r run typecheck"
   },
   "devDependencies": {
+    "oxfmt": "^0.26.0",
     "oxlint": "^0.16.0",
     "typescript": "^5.7.0"
   },
-  "packageManager": "pnpm@9.15.0",
   "engines": {
     "node": ">=22.0.0"
-  }
+  },
+  "packageManager": "pnpm@9.15.0"
 }

@@ -9,7 +9,7 @@ export {
   createUnauthenticatedContext,
   createTokenContext,
   type TestContextOptions,
-} from './context.js'
+} from "./context.js";
 
 // Factory functions
 export {
@@ -26,7 +26,7 @@ export {
   createBlockedTime,
   createSchedulingLimits,
   createTestFixture,
-} from './factories.js'
+} from "./factories.js";
 
 // Setup utilities
 export {
@@ -37,11 +37,7 @@ export {
   setTestOrgContext,
   clearTestOrgContext,
   type TestDatabase,
-} from './setup.js'
+} from "./setup.js";
 
 // Re-export from @scheduling/db/test-utils for convenience
-export {
-  seedTestOrg,
-  seedSecondTestOrg,
-  withTestOrgContext,
-} from '@scheduling/db/test-utils'
+export { seedTestOrg, seedSecondTestOrg, withTestOrgContext } from "@scheduling/db/test-utils";

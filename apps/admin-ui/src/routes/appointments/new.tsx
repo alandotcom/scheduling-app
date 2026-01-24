@@ -1,48 +1,46 @@
 // New appointment booking form with availability picker
 
-import { useState } from 'react'
-import { createFileRoute, Navigate, Link, useNavigate } from '@tanstack/react-router'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { ArrowLeft, Calendar } from 'lucide-react'
+import { useState } from "react";
+import { createFileRoute, Navigate, Link, useNavigate } from "@tanstack/react-router";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { ArrowLeft, Calendar } from "lucide-react";
 
-import { useAuth } from '@/contexts/auth'
-import { orpc } from '@/lib/query'
+import { useAuth } from "@/contexts/auth";
+import { orpc } from "@/lib/query";
 
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Textarea } from '@/components/ui/textarea'
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select'
-import { Separator } from '@/components/ui/separator'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+} from "@/components/ui/select";
+import { Separator } from "@/components/ui/separator";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 function NewAppointmentPage() {
-  const { isAuthenticated, isLoading: authLoading } = useAuth()
-  const queryClient = useQueryClient()
-  const navigate = useNavigate()
+  const { isAuthenticated, isLoading: authLoading } = useAuth();
+  const queryClient = useQueryClient();
+  const navigate = useNavigate();
 
-  const [_step, setStep] = useState<'select' | 'time' | 'confirm'>('select')
-  const [selectedTypeId, setSelectedTypeId] = useState<string>('')
-  const [selectedCalendarId, setSelectedCalendarId] = useState<string>('')
-  const [selectedDate, setSelectedDate] = useState<string>('')
-  const [selectedTime, setSelectedTime] = useState<string>('')
-  const [notes, setNotes] = useState<string>('')
-  const [timezone] = useState<string>(
-    Intl.DateTimeFormat().resolvedOptions().timeZone
-  )
+  const [_step, setStep] = useState<"select" | "time" | "confirm">("select");
+  const [selectedTypeId, setSelectedTypeId] = useState<string>("");
+  const [selectedCalendarId, setSelectedCalendarId] = useState<string>("");
+  const [selectedDate, setSelectedDate] = useState<string>("");
+  const [selectedTime, setSelectedTime] = useState<string>("");
+  const [notes, setNotes] = useState<string>("");
+  const [timezone] = useState<string>(Intl.DateTimeFormat().resolvedOptions().timeZone);
 
   // Fetch appointment types
   const { data: typesData } = useQuery(
     orpc.appointmentTypes.list.queryOptions({
       input: { limit: 100 },
-    })
-  )
+    }),
+  );
 
   // Fetch calendars linked to the selected type
   const { data: linkedCalendars, isLoading: calendarsLoading } = useQuery({
@@ -50,7 +48,7 @@ function NewAppointmentPage() {
       input: { appointmentTypeId: selectedTypeId },
     }),
     enabled: !!selectedTypeId,
-  })
+  });
 
   // Fetch available time slots
   const { data: slotsData, isLoading: slotsLoading } = useQuery({
@@ -64,57 +62,56 @@ function NewAppointmentPage() {
       },
     }),
     enabled: !!selectedTypeId && !!selectedCalendarId && !!selectedDate,
-  })
+  });
 
   // Create appointment mutation
   const createMutation = useMutation(
     orpc.appointments.create.mutationOptions({
       onSuccess: () => {
-        queryClient.invalidateQueries({ queryKey: ['appointments'] })
-        navigate({ to: '/appointments' })
+        queryClient.invalidateQueries({ queryKey: ["appointments"] });
+        navigate({ to: "/appointments" });
       },
-    })
-  )
+    }),
+  );
 
-  if (authLoading) return null
-  if (!isAuthenticated) return <Navigate to="/login" />
+  if (authLoading) return null;
+  if (!isAuthenticated) return <Navigate to="/login" />;
 
-  const appointmentTypes = typesData?.items ?? []
-  const calendars = linkedCalendars?.map((l) => l.calendar) ?? []
-  const availableSlots =
-    slotsData?.slots.filter((s) => s.available) ?? []
+  const appointmentTypes = typesData?.items ?? [];
+  const calendars = linkedCalendars?.map((l) => l.calendar) ?? [];
+  const availableSlots = slotsData?.slots.filter((s) => s.available) ?? [];
 
-  const selectedType = appointmentTypes.find((t) => t.id === selectedTypeId)
-  const selectedCalendar = calendars.find((c) => c.id === selectedCalendarId)
+  const selectedType = appointmentTypes.find((t) => t.id === selectedTypeId);
+  const selectedCalendar = calendars.find((c) => c.id === selectedCalendarId);
 
   const handleTypeChange = (typeId: string) => {
-    setSelectedTypeId(typeId)
-    setSelectedCalendarId('')
-    setSelectedDate('')
-    setSelectedTime('')
-    setStep('select')
-  }
+    setSelectedTypeId(typeId);
+    setSelectedCalendarId("");
+    setSelectedDate("");
+    setSelectedTime("");
+    setStep("select");
+  };
 
   const handleCalendarChange = (calendarId: string) => {
-    setSelectedCalendarId(calendarId)
-    setSelectedDate('')
-    setSelectedTime('')
-    setStep('select')
-  }
+    setSelectedCalendarId(calendarId);
+    setSelectedDate("");
+    setSelectedTime("");
+    setStep("select");
+  };
 
   const handleDateChange = (date: string) => {
-    setSelectedDate(date)
-    setSelectedTime('')
-    setStep('time')
-  }
+    setSelectedDate(date);
+    setSelectedTime("");
+    setStep("time");
+  };
 
   const handleTimeSelect = (startTime: string) => {
-    setSelectedTime(startTime)
-    setStep('confirm')
-  }
+    setSelectedTime(startTime);
+    setStep("confirm");
+  };
 
   const handleSubmit = () => {
-    if (!selectedTime) return
+    if (!selectedTime) return;
 
     createMutation.mutate({
       calendarId: selectedCalendarId,
@@ -122,30 +119,30 @@ function NewAppointmentPage() {
       startTime: new Date(selectedTime),
       timezone,
       notes: notes || undefined,
-    })
-  }
+    });
+  };
 
   const formatTime = (isoString: string) => {
-    const date = new Date(isoString)
-    return date.toLocaleTimeString('en-US', {
-      hour: 'numeric',
-      minute: '2-digit',
+    const date = new Date(isoString);
+    return date.toLocaleTimeString("en-US", {
+      hour: "numeric",
+      minute: "2-digit",
       hour12: true,
-    })
-  }
+    });
+  };
 
   const formatDateTime = (isoString: string) => {
-    const date = new Date(isoString)
-    return date.toLocaleString('en-US', {
-      weekday: 'long',
-      month: 'long',
-      day: 'numeric',
-      year: 'numeric',
-      hour: 'numeric',
-      minute: '2-digit',
+    const date = new Date(isoString);
+    return date.toLocaleString("en-US", {
+      weekday: "long",
+      month: "long",
+      day: "numeric",
+      year: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
       hour12: true,
-    })
-  }
+    });
+  };
 
   return (
     <div className="p-8">
@@ -204,10 +201,7 @@ function NewAppointmentPage() {
                     No calendars available for this appointment type.
                   </div>
                 ) : (
-                  <Select
-                    value={selectedCalendarId}
-                    onValueChange={handleCalendarChange}
-                  >
+                  <Select value={selectedCalendarId} onValueChange={handleCalendarChange}>
                     <SelectTrigger>
                       <SelectValue placeholder="Choose calendar" />
                     </SelectTrigger>
@@ -234,7 +228,7 @@ function NewAppointmentPage() {
                 <Input
                   type="date"
                   value={selectedDate}
-                  min={new Date().toISOString().split('T')[0]}
+                  min={new Date().toISOString().split("T")[0]}
                   onChange={(e) => handleDateChange(e.target.value)}
                 />
               </CardContent>
@@ -259,7 +253,7 @@ function NewAppointmentPage() {
                     {availableSlots.map((slot) => (
                       <Button
                         key={slot.start}
-                        variant={selectedTime === slot.start ? 'default' : 'outline'}
+                        variant={selectedTime === slot.start ? "default" : "outline"}
                         size="sm"
                         onClick={() => handleTimeSelect(slot.start)}
                       >
@@ -324,12 +318,12 @@ function NewAppointmentPage() {
                 className="w-full"
               >
                 <Calendar className="mr-2 h-4 w-4" />
-                {createMutation.isPending ? 'Booking...' : 'Book Appointment'}
+                {createMutation.isPending ? "Booking..." : "Book Appointment"}
               </Button>
 
               {createMutation.error && (
                 <p className="text-sm text-destructive">
-                  {(createMutation.error as Error).message ?? 'Failed to book appointment'}
+                  {(createMutation.error as Error).message ?? "Failed to book appointment"}
                 </p>
               )}
             </CardContent>
@@ -337,9 +331,9 @@ function NewAppointmentPage() {
         </div>
       </div>
     </div>
-  )
+  );
 }
 
-export const Route = createFileRoute('/appointments/new')({
+export const Route = createFileRoute("/appointments/new")({
   component: NewAppointmentPage,
-})
+});

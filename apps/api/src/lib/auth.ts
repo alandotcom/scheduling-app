@@ -1,14 +1,14 @@
 // BetterAuth configuration with Drizzle adapter
 
-import { betterAuth } from 'better-auth'
-import { drizzleAdapter } from 'better-auth/adapters/drizzle'
-import { db } from './db.js'
-import * as schema from '@scheduling/db/schema'
-import { config } from '../config.js'
+import { betterAuth } from "better-auth";
+import { drizzleAdapter } from "better-auth/adapters/drizzle";
+import { db } from "./db.js";
+import * as schema from "@scheduling/db/schema";
+import { config } from "../config.js";
 
 export const auth = betterAuth({
   database: drizzleAdapter(db, {
-    provider: 'pg',
+    provider: "pg",
     schema: {
       user: schema.users,
       session: schema.sessions,
@@ -26,6 +26,6 @@ export const auth = betterAuth({
     expiresIn: 60 * 60 * 24 * 7, // 7 days
     updateAge: 60 * 60 * 24, // Update session every 24 hours
   },
-})
+});
 
-export type Auth = typeof auth
+export type Auth = typeof auth;

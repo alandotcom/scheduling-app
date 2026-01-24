@@ -1,44 +1,44 @@
 // Login page
 
-import { createFileRoute, Navigate, useNavigate } from '@tanstack/react-router'
-import { useState } from 'react'
-import { useAuth } from '@/contexts/auth'
-import { Button } from '@/components/ui/button'
+import { createFileRoute, Navigate, useNavigate } from "@tanstack/react-router";
+import { useState } from "react";
+import { useAuth } from "@/contexts/auth";
+import { Button } from "@/components/ui/button";
 
 function LoginPage() {
-  const { isAuthenticated, isLoading, login } = useAuth()
-  const navigate = useNavigate()
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [error, setError] = useState<string | null>(null)
-  const [isSubmitting, setIsSubmitting] = useState(false)
+  const { isAuthenticated, isLoading, login } = useAuth();
+  const navigate = useNavigate();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   if (isLoading) {
     return (
       <div className="flex h-screen items-center justify-center">
         <div className="text-muted-foreground">Loading...</div>
       </div>
-    )
+    );
   }
 
   if (isAuthenticated) {
-    return <Navigate to="/" />
+    return <Navigate to="/" />;
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setError(null)
-    setIsSubmitting(true)
+    e.preventDefault();
+    setError(null);
+    setIsSubmitting(true);
 
     try {
-      await login(email, password)
-      void navigate({ to: '/' })
+      await login(email, password);
+      void navigate({ to: "/" });
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Login failed')
+      setError(err instanceof Error ? err.message : "Login failed");
     } finally {
-      setIsSubmitting(false)
+      setIsSubmitting(false);
     }
-  }
+  };
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background">
@@ -52,9 +52,7 @@ function LoginPage() {
 
         <form onSubmit={(e) => void handleSubmit(e)} className="space-y-4">
           {error && (
-            <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
-              {error}
-            </div>
+            <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">{error}</div>
           )}
 
           <div className="space-y-2">
@@ -88,14 +86,14 @@ function LoginPage() {
           </div>
 
           <Button type="submit" className="w-full" disabled={isSubmitting}>
-            {isSubmitting ? 'Signing in...' : 'Sign In'}
+            {isSubmitting ? "Signing in..." : "Sign In"}
           </Button>
         </form>
       </div>
     </div>
-  )
+  );
 }
 
-export const Route = createFileRoute('/login')({
+export const Route = createFileRoute("/login")({
   component: LoginPage,
-})
+});

@@ -1,55 +1,52 @@
 // Resource repository - data access layer for resources
 
-import { eq, gt, and } from 'drizzle-orm'
-import { resources } from '@scheduling/db/schema'
-import type { Database, PaginationInput, PaginatedResult } from './base.js'
-import { paginate, setOrgContext } from './base.js'
+import { eq, gt, and } from "drizzle-orm";
+import { resources } from "@scheduling/db/schema";
+import type { PaginationInput, PaginatedResult } from "./base.js";
+import type { DbClient } from "../lib/db.js";
+import { paginate, setOrgContext } from "./base.js";
 
 // Types inferred from schema
-export type Resource = typeof resources.$inferSelect
-export type ResourceInsert = typeof resources.$inferInsert
+export type Resource = typeof resources.$inferSelect;
+export type ResourceInsert = typeof resources.$inferInsert;
 
 export interface ResourceCreateInput {
-  name: string
-  locationId?: string | null | undefined
-  quantity?: number | undefined
+  name: string;
+  locationId?: string | null | undefined;
+  quantity?: number | undefined;
 }
 
 export interface ResourceUpdateInput {
-  name?: string | undefined
-  locationId?: string | null | undefined
-  quantity?: number | undefined
+  name?: string | undefined;
+  locationId?: string | null | undefined;
+  quantity?: number | undefined;
 }
 
 export interface ResourceListInput extends PaginationInput {
-  locationId?: string | null | undefined
+  locationId?: string | null | undefined;
 }
 
 export class ResourceRepository {
-  async findById(tx: Database, orgId: string, id: string): Promise<Resource | null> {
-    await setOrgContext(tx, orgId)
-    const [result] = await tx
-      .select()
-      .from(resources)
-      .where(eq(resources.id, id))
-      .limit(1)
-    return result ?? null
+  async findById(tx: DbClient, orgId: string, id: string): Promise<Resource | null> {
+    await setOrgContext(tx, orgId);
+    const [result] = await tx.select().from(resources).where(eq(resources.id, id)).limit(1);
+    return result ?? null;
   }
 
   async findMany(
-    tx: Database,
+    tx: DbClient,
     orgId: string,
-    input: ResourceListInput
+    input: ResourceListInput,
   ): Promise<PaginatedResult<Resource>> {
-    await setOrgContext(tx, orgId)
-    const { cursor, limit, locationId } = input
+    await setOrgContext(tx, orgId);
+    const { cursor, limit, locationId } = input;
 
-    let conditions = cursor ? gt(resources.id, cursor) : undefined
+    let conditions = cursor ? gt(resources.id, cursor) : undefined;
 
     if (locationId) {
       conditions = conditions
         ? and(conditions, eq(resources.locationId, locationId))
-        : eq(resources.locationId, locationId)
+        : eq(resources.locationId, locationId);
     }
 
     const results = await tx
@@ -57,17 +54,13 @@ export class ResourceRepository {
       .from(resources)
       .where(conditions)
       .limit(limit + 1)
-      .orderBy(resources.id)
+      .orderBy(resources.id);
 
-    return paginate(results, limit)
+    return paginate(results, limit);
   }
 
-  async create(
-    tx: Database,
-    orgId: string,
-    input: ResourceCreateInput
-  ): Promise<Resource> {
-    await setOrgContext(tx, orgId)
+  async create(tx: DbClient, orgId: string, input: ResourceCreateInput): Promise<Resource> {
+    await setOrgContext(tx, orgId);
     const [result] = await tx
       .insert(resources)
       .values({
@@ -76,17 +69,17 @@ export class ResourceRepository {
         locationId: input.locationId ?? null,
         quantity: input.quantity ?? 1,
       })
-      .returning()
-    return result!
+      .returning();
+    return result!;
   }
 
   async update(
-    tx: Database,
+    tx: DbClient,
     orgId: string,
     id: string,
-    input: ResourceUpdateInput
+    input: ResourceUpdateInput,
   ): Promise<Resource | null> {
-    await setOrgContext(tx, orgId)
+    await setOrgContext(tx, orgId);
     const [result] = await tx
       .update(resources)
       .set({
@@ -94,19 +87,19 @@ export class ResourceRepository {
         updatedAt: new Date(),
       })
       .where(eq(resources.id, id))
-      .returning()
-    return result ?? null
+      .returning();
+    return result ?? null;
   }
 
-  async delete(tx: Database, orgId: string, id: string): Promise<boolean> {
-    await setOrgContext(tx, orgId)
+  async delete(tx: DbClient, orgId: string, id: string): Promise<boolean> {
+    await setOrgContext(tx, orgId);
     const result = await tx
       .delete(resources)
       .where(eq(resources.id, id))
-      .returning({ id: resources.id })
-    return result.length > 0
+      .returning({ id: resources.id });
+    return result.length > 0;
   }
 }
 
 // Singleton instance
-export const resourceRepository = new ResourceRepository()
+export const resourceRepository = new ResourceRepository();
