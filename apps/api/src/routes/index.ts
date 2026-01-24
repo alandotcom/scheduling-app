@@ -7,6 +7,7 @@ import { resourceRoutes } from './resources.js'
 import { appointmentTypeRoutes } from './appointment-types.js'
 import { availabilityRoutes } from './availability.js'
 import { appointmentRoutes } from './appointments.js'
+import { clientRoutes } from './clients.js'
 import { apiTokenRoutes } from './api-tokens.js'
 import { auditRoutes } from './audit.js'
 
@@ -27,10 +28,9 @@ export const router = {
   appointmentTypes: appointmentTypeRoutes,
   availability: availabilityRoutes,
   appointments: appointmentRoutes,
+  clients: clientRoutes,
   apiTokens: apiTokenRoutes,
   audit: auditRoutes,
-  // Future routes:
-  // clients: clientRoutes,
 }
 
 // Export router type for the client

@@ -27,12 +27,18 @@ export type LocationEventType =
   | 'location.updated'
   | 'location.deleted'
 
+export type ClientEventType =
+  | 'client.created'
+  | 'client.updated'
+  | 'client.deleted'
+
 export type EventType =
   | AppointmentEventType
   | CalendarEventType
   | AppointmentTypeEventType
   | ResourceEventType
   | LocationEventType
+  | ClientEventType
 
 // Event payload structure
 export interface DomainEvent<T = unknown> {

@@ -128,6 +128,16 @@ export const events = {
 
   locationDeleted: <T>(orgId: string, payload: T, tx?: Database) =>
     emitEvent(orgId, 'location.deleted', payload, tx),
+
+  // Client events
+  clientCreated: <T>(orgId: string, payload: T, tx?: Database) =>
+    emitEvent(orgId, 'client.created', payload, tx),
+
+  clientUpdated: <T>(orgId: string, payload: T, tx?: Database) =>
+    emitEvent(orgId, 'client.updated', payload, tx),
+
+  clientDeleted: <T>(orgId: string, payload: T, tx?: Database) =>
+    emitEvent(orgId, 'client.deleted', payload, tx),
 }
 
 // Close the job queue (for graceful shutdown)
