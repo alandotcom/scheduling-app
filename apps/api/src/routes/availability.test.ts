@@ -43,6 +43,12 @@ describe('Availability Routes Module', () => {
     expect(availabilityRoutes.schedulingLimits.create).toBeDefined()
     expect(availabilityRoutes.schedulingLimits.update).toBeDefined()
     expect(availabilityRoutes.schedulingLimits.delete).toBeDefined()
+
+    // Verify availability engine routes
+    expect(availabilityRoutes.engine).toBeDefined()
+    expect(availabilityRoutes.engine.dates).toBeDefined()
+    expect(availabilityRoutes.engine.times).toBeDefined()
+    expect(availabilityRoutes.engine.check).toBeDefined()
   })
 
   test('main router includes availability routes', async () => {
@@ -55,5 +61,6 @@ describe('Availability Routes Module', () => {
     expect(router.availability.overrides).toBeDefined()
     expect(router.availability.blockedTime).toBeDefined()
     expect(router.availability.schedulingLimits).toBeDefined()
+    expect(router.availability.engine).toBeDefined()
   })
 })

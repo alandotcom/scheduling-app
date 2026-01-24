@@ -23,10 +23,13 @@ import {
   updateBlockedTimeSchema,
   createSchedulingLimitsSchema,
   updateSchedulingLimitsSchema,
+  availabilityQuerySchema,
+  availabilityCheckSchema,
 } from '@scheduling/dto'
 import { authed } from './base.js'
-import { withOrg } from '../lib/db.js'
+import { db, withOrg } from '../lib/db.js'
 import { ORPCError } from '../lib/orpc.js'
+import { AvailabilityEngine } from '../services/availability-engine/index.js'
 
 const calendarIdInput = z.object({ calendarId: z.string().uuid() })
 const idInput = z.object({ id: z.string().uuid() })
@@ -808,9 +811,77 @@ export const schedulingLimitsRoutes = {
   delete: deleteSchedulingLimits,
 }
 
+// ============================================================================
+// AVAILABILITY ENGINE ROUTES
+// ============================================================================
+
+// Get available dates
+export const getDates = authed
+  .input(availabilityQuerySchema)
+  .handler(async ({ input, context }) => {
+    const { orgId } = context
+
+    // Verify all calendars belong to this org
+    for (const calendarId of input.calendarIds) {
+      await verifyCalendarAccess(orgId, calendarId)
+    }
+
+    const engine = new AvailabilityEngine(db)
+    const dates = await engine.getAvailableDates(input)
+
+    return { dates }
+  })
+
+// Get available time slots
+export const getTimes = authed
+  .input(availabilityQuerySchema)
+  .handler(async ({ input, context }) => {
+    const { orgId } = context
+
+    // Verify all calendars belong to this org
+    for (const calendarId of input.calendarIds) {
+      await verifyCalendarAccess(orgId, calendarId)
+    }
+
+    const engine = new AvailabilityEngine(db)
+    const slots = await engine.getAvailableSlots(input)
+
+    // Transform Date objects to ISO strings for serialization
+    return {
+      slots: slots.map((slot) => ({
+        start: slot.start.toISOString(),
+        end: slot.end.toISOString(),
+        available: slot.available,
+        remainingCapacity: slot.remainingCapacity,
+      })),
+    }
+  })
+
+// Check if a specific slot is available
+export const checkSlot = authed
+  .input(availabilityCheckSchema)
+  .handler(async ({ input, context }) => {
+    const { orgId } = context
+    const { appointmentTypeId, calendarId, startTime, timezone } = input
+
+    await verifyCalendarAccess(orgId, calendarId)
+
+    const engine = new AvailabilityEngine(db)
+    const result = await engine.checkSlot(appointmentTypeId, calendarId, new Date(startTime), timezone)
+
+    return result
+  })
+
+export const availabilityEngineRoutes = {
+  dates: getDates,
+  times: getTimes,
+  check: checkSlot,
+}
+
 export const availabilityRoutes = {
   rules: availabilityRulesRoutes,
   overrides: availabilityOverridesRoutes,
   blockedTime: blockedTimeRoutes,
   schedulingLimits: schedulingLimitsRoutes,
+  engine: availabilityEngineRoutes,
 }
