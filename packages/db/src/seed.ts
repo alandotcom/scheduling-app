@@ -1,8 +1,8 @@
 // Seed script for development/demo database
 // Creates a demo org with admin user
 
-import { drizzle } from 'drizzle-orm/postgres-js'
-import postgres from 'postgres'
+import { drizzle } from 'drizzle-orm/bun-sql'
+import { SQL } from 'bun'
 import { orgs, users, orgMemberships, locations, calendars, appointmentTypes, accounts } from './schema/index.js'
 
 const databaseUrl = process.env['DATABASE_URL'] ?? 'postgres://scheduling:scheduling@localhost:5433/scheduling'
@@ -10,8 +10,8 @@ const databaseUrl = process.env['DATABASE_URL'] ?? 'postgres://scheduling:schedu
 async function seed() {
   console.log('Seeding database...')
 
-  const client = postgres(databaseUrl)
-  const db = drizzle(client)
+  const client = new SQL(databaseUrl)
+  const db = drizzle({ client })
 
   // Create demo org
   const [org] = await db.insert(orgs).values({
@@ -84,7 +84,7 @@ async function seed() {
   console.log('  Email: admin@example.com')
   console.log('  (Use BetterAuth sign-up flow to set password)')
 
-  await client.end()
+  client.close()
 }
 
 seed().catch((err) => {

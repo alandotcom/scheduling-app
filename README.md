@@ -9,7 +9,7 @@ apps/
   api/          → Hono + oRPC backend, BetterAuth for sessions
   admin-ui/     → React 19 + TanStack Router/Query frontend
 packages/
-  db/           → Drizzle ORM schema + PGLite test utilities
+  db/           → Drizzle ORM schema + Bun SQL
   dto/          → Shared Zod schemas for validation
 ```
 
@@ -18,9 +18,9 @@ packages/
 - **Runtime:** Bun
 - **API:** Hono 4.x + oRPC (REST + OpenAPI)
 - **Auth:** BetterAuth with Drizzle adapter, API tokens for server-to-server access
-- **Database:** Drizzle ORM + postgres.js, Postgres 18 with native `uuidv7()`
+- **Database:** Drizzle ORM + Bun SQL, Postgres 18 with native `uuidv7()`
 - **Job Queue:** BullMQ with Valkey/Redis for webhook delivery and event processing
-- **Testing:** PGLite for in-memory Postgres tests
+- **Testing:** Real Postgres via Docker
 - **Linting:** oxlint (Rust-based, strict rules)
 
 ### Database Schema

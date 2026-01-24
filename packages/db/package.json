@@ -19,8 +19,7 @@
     "seed": "bun run src/seed.ts"
   },
   "dependencies": {
-    "drizzle-orm": "^0.41.0",
-    "postgres": "^3.4.0"
+    "drizzle-orm": "^0.41.0"
   },
   "devDependencies": {
     "@types/bun": "^1.1.0",

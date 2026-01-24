@@ -5,7 +5,8 @@ export const config = {
     port: Number(process.env['PORT'] ?? 3000),
   },
   db: {
-    url: process.env['DATABASE_URL'] ?? 'postgres://scheduling:scheduling@localhost:5433/scheduling',
+    // Use TEST_DATABASE_URL in tests, otherwise DATABASE_URL
+    url: process.env['TEST_DATABASE_URL'] ?? process.env['DATABASE_URL'] ?? 'postgres://scheduling:scheduling@localhost:5433/scheduling',
   },
   auth: {
     secret: process.env['AUTH_SECRET'] ?? 'dev-secret-change-in-production',

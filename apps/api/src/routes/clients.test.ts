@@ -1,32 +1,399 @@
-// Tests for client routes - validates router registration
-// Actual handler tests should be done through HTTP API integration tests
+// Integration tests for client routes
+// Tests actual handler logic with database operations
 
-import { describe, test, expect } from 'bun:test'
+import { describe, test, expect, beforeAll, afterAll, beforeEach } from 'bun:test'
+import { call } from '@orpc/server'
+import {
+  createTestContext,
+  createOrg,
+  createClient,
+  createTestDb,
+  resetTestDb,
+  closeTestDb,
+  setTestOrgContext,
+} from '../test-utils/index.js'
+import * as clientRoutes from './clients.js'
+import { clients } from '@scheduling/db/schema'
+import type { BunSQLDatabase } from 'drizzle-orm/bun-sql'
+import type * as schema from '@scheduling/db/schema'
 
-describe('Client Routes Module', () => {
-  test('client routes module exists and exports correctly', async () => {
-    // Dynamically import to avoid circular dependency issues
-    const { clientRoutes } = await import('./clients.js')
+type Database = BunSQLDatabase<typeof schema>
 
-    // Verify all routes exist
-    expect(clientRoutes).toBeDefined()
-    expect(clientRoutes.list).toBeDefined()
-    expect(clientRoutes.get).toBeDefined()
-    expect(clientRoutes.create).toBeDefined()
-    expect(clientRoutes.update).toBeDefined()
-    expect(clientRoutes.remove).toBeDefined()
+describe('Client Routes', () => {
+  let db: Database
+
+  beforeAll(async () => {
+    db = await createTestDb() as Database
   })
 
-  test('main router includes client routes', async () => {
-    // This verifies the router is properly composed
-    const { router } = await import('./index.js')
+  afterAll(async () => {
+    await closeTestDb()
+  })
 
-    expect(router).toBeDefined()
-    expect(router.clients).toBeDefined()
-    expect(router.clients.list).toBeDefined()
-    expect(router.clients.get).toBeDefined()
-    expect(router.clients.create).toBeDefined()
-    expect(router.clients.update).toBeDefined()
-    expect(router.clients.remove).toBeDefined()
+  beforeEach(async () => {
+    await resetTestDb()
+  })
+
+  describe('list', () => {
+    test('returns empty list when no clients exist', async () => {
+      const { org, user } = await createOrg(db)
+      const ctx = createTestContext({ orgId: org.id, userId: user.id })
+
+      const result = await call(clientRoutes.list, { limit: 10 }, { context: ctx })
+
+      expect(result.items).toEqual([])
+      expect(result.hasMore).toBe(false)
+      expect(result.nextCursor).toBeNull()
+    })
+
+    test('returns clients for the org', async () => {
+      const { org, user } = await createOrg(db)
+      const ctx = createTestContext({ orgId: org.id, userId: user.id })
+
+      await createClient(db, org.id, { firstName: 'John', lastName: 'Doe' })
+      await createClient(db, org.id, { firstName: 'Jane', lastName: 'Smith' })
+
+      const result = await call(clientRoutes.list, { limit: 10 }, { context: ctx })
+
+      expect(result.items).toHaveLength(2)
+      expect(result.items.map((c) => c.firstName).sort()).toEqual(['Jane', 'John'])
+      expect(result.hasMore).toBe(false)
+    })
+
+    test('supports cursor pagination', async () => {
+      const { org, user } = await createOrg(db)
+      const ctx = createTestContext({ orgId: org.id, userId: user.id })
+
+      await createClient(db, org.id, { firstName: 'Client', lastName: '1' })
+      await createClient(db, org.id, { firstName: 'Client', lastName: '2' })
+      await createClient(db, org.id, { firstName: 'Client', lastName: '3' })
+
+      const first = await call(clientRoutes.list, { limit: 2 }, { context: ctx })
+
+      expect(first.items).toHaveLength(2)
+      expect(first.hasMore).toBe(true)
+      expect(first.nextCursor).toBeDefined()
+
+      const second = await call(clientRoutes.list, { limit: 2, cursor: first.nextCursor! }, { context: ctx })
+
+      expect(second.items).toHaveLength(1)
+      expect(second.hasMore).toBe(false)
+    })
+
+    test('filters by search term (firstName)', async () => {
+      const { org, user } = await createOrg(db)
+      const ctx = createTestContext({ orgId: org.id, userId: user.id })
+
+      await createClient(db, org.id, { firstName: 'John', lastName: 'Doe' })
+      await createClient(db, org.id, { firstName: 'Jane', lastName: 'Smith' })
+
+      const result = await call(clientRoutes.list, { limit: 10, search: 'John' }, { context: ctx })
+
+      expect(result.items).toHaveLength(1)
+      expect(result.items[0]!.firstName).toBe('John')
+    })
+
+    test('filters by search term (lastName)', async () => {
+      const { org, user } = await createOrg(db)
+      const ctx = createTestContext({ orgId: org.id, userId: user.id })
+
+      await createClient(db, org.id, { firstName: 'John', lastName: 'Doe' })
+      await createClient(db, org.id, { firstName: 'Jane', lastName: 'Smith' })
+
+      const result = await call(clientRoutes.list, { limit: 10, search: 'Smith' }, { context: ctx })
+
+      expect(result.items).toHaveLength(1)
+      expect(result.items[0]!.lastName).toBe('Smith')
+    })
+
+    test('filters by search term (email)', async () => {
+      const { org, user } = await createOrg(db)
+      const ctx = createTestContext({ orgId: org.id, userId: user.id })
+
+      await createClient(db, org.id, { firstName: 'John', lastName: 'Doe', email: 'john@example.com' })
+      await createClient(db, org.id, { firstName: 'Jane', lastName: 'Smith', email: 'jane@other.com' })
+
+      const result = await call(clientRoutes.list, { limit: 10, search: 'example.com' }, { context: ctx })
+
+      expect(result.items).toHaveLength(1)
+      expect(result.items[0]!.firstName).toBe('John')
+    })
+
+    test('search is case-insensitive', async () => {
+      const { org, user } = await createOrg(db)
+      const ctx = createTestContext({ orgId: org.id, userId: user.id })
+
+      await createClient(db, org.id, { firstName: 'John', lastName: 'Doe' })
+
+      const result = await call(clientRoutes.list, { limit: 10, search: 'JOHN' }, { context: ctx })
+
+      expect(result.items).toHaveLength(1)
+      expect(result.items[0]!.firstName).toBe('John')
+    })
+
+    test('does not return clients from other orgs (RLS)', async () => {
+      const { org: org1, user: user1 } = await createOrg(db, { name: 'Org 1' })
+      const { org: org2 } = await createOrg(db, { name: 'Org 2' })
+      const ctx1 = createTestContext({ orgId: org1.id, userId: user1.id })
+
+      await createClient(db, org1.id, { firstName: 'Org1', lastName: 'Client' })
+      await createClient(db, org2.id, { firstName: 'Org2', lastName: 'Client' })
+
+      const result = await call(clientRoutes.list, { limit: 10 }, { context: ctx1 })
+
+      expect(result.items).toHaveLength(1)
+      expect(result.items[0]!.firstName).toBe('Org1')
+    })
+  })
+
+  describe('get', () => {
+    test('returns client by id', async () => {
+      const { org, user } = await createOrg(db)
+      const ctx = createTestContext({ orgId: org.id, userId: user.id })
+      const client = await createClient(db, org.id, {
+        firstName: 'John',
+        lastName: 'Doe',
+        email: 'john@example.com',
+        phone: '555-1234',
+      })
+
+      const result = await call(clientRoutes.get, { id: client.id }, { context: ctx })
+
+      expect(result.id).toBe(client.id)
+      expect(result.firstName).toBe('John')
+      expect(result.lastName).toBe('Doe')
+      expect(result.email).toBe('john@example.com')
+      expect(result.phone).toBe('555-1234')
+    })
+
+    test('throws NOT_FOUND for non-existent client', async () => {
+      const { org, user } = await createOrg(db)
+      const ctx = createTestContext({ orgId: org.id, userId: user.id })
+
+      await expect(
+        call(clientRoutes.get, { id: '00000000-0000-0000-0000-000000000000' }, { context: ctx })
+      ).rejects.toMatchObject({
+        code: 'NOT_FOUND',
+      })
+    })
+
+    test('throws NOT_FOUND for client in different org (RLS)', async () => {
+      const { org: org1, user: user1 } = await createOrg(db, { name: 'Org 1' })
+      const { org: org2 } = await createOrg(db, { name: 'Org 2' })
+      const ctx1 = createTestContext({ orgId: org1.id, userId: user1.id })
+
+      const client = await createClient(db, org2.id, { firstName: 'Org2', lastName: 'Client' })
+
+      await expect(
+        call(clientRoutes.get, { id: client.id }, { context: ctx1 })
+      ).rejects.toMatchObject({
+        code: 'NOT_FOUND',
+      })
+    })
+  })
+
+  describe('create', () => {
+    test('creates a new client', async () => {
+      const { org, user } = await createOrg(db)
+      const ctx = createTestContext({ orgId: org.id, userId: user.id })
+
+      const result = await call(
+        clientRoutes.create,
+        { firstName: 'New', lastName: 'Client', email: 'new@example.com', phone: '555-5678' },
+        { context: ctx }
+      )
+
+      expect(result).toBeDefined()
+      expect(result!.firstName).toBe('New')
+      expect(result!.lastName).toBe('Client')
+      expect(result!.email).toBe('new@example.com')
+      expect(result!.phone).toBe('555-5678')
+      expect(result!.orgId).toBe(org.id)
+
+      // Verify in database
+      await setTestOrgContext(db, org.id)
+      const [dbClient] = await db.select().from(clients)
+      expect(dbClient!.firstName).toBe('New')
+    })
+
+    test('creates client without optional fields', async () => {
+      const { org, user } = await createOrg(db)
+      const ctx = createTestContext({ orgId: org.id, userId: user.id })
+
+      const result = await call(
+        clientRoutes.create,
+        { firstName: 'Minimal', lastName: 'Client' },
+        { context: ctx }
+      )
+
+      expect(result!.email).toBeNull()
+      expect(result!.phone).toBeNull()
+    })
+  })
+
+  describe('update', () => {
+    test('updates client firstName', async () => {
+      const { org, user } = await createOrg(db)
+      const ctx = createTestContext({ orgId: org.id, userId: user.id })
+      const client = await createClient(db, org.id, { firstName: 'Original', lastName: 'Client' })
+
+      const result = await call(
+        clientRoutes.update,
+        { id: client.id, data: { firstName: 'Updated' } },
+        { context: ctx }
+      )
+
+      expect(result!.firstName).toBe('Updated')
+    })
+
+    test('updates client lastName', async () => {
+      const { org, user } = await createOrg(db)
+      const ctx = createTestContext({ orgId: org.id, userId: user.id })
+      const client = await createClient(db, org.id, { firstName: 'Test', lastName: 'Original' })
+
+      const result = await call(
+        clientRoutes.update,
+        { id: client.id, data: { lastName: 'Updated' } },
+        { context: ctx }
+      )
+
+      expect(result!.lastName).toBe('Updated')
+    })
+
+    test('updates client email', async () => {
+      const { org, user } = await createOrg(db)
+      const ctx = createTestContext({ orgId: org.id, userId: user.id })
+      const client = await createClient(db, org.id, {
+        firstName: 'Test',
+        lastName: 'Client',
+        email: 'old@example.com',
+      })
+
+      const result = await call(
+        clientRoutes.update,
+        { id: client.id, data: { email: 'new@example.com' } },
+        { context: ctx }
+      )
+
+      expect(result!.email).toBe('new@example.com')
+    })
+
+    test('updates client phone', async () => {
+      const { org, user } = await createOrg(db)
+      const ctx = createTestContext({ orgId: org.id, userId: user.id })
+      const client = await createClient(db, org.id, {
+        firstName: 'Test',
+        lastName: 'Client',
+        phone: '555-0000',
+      })
+
+      const result = await call(
+        clientRoutes.update,
+        { id: client.id, data: { phone: '555-9999' } },
+        { context: ctx }
+      )
+
+      expect(result!.phone).toBe('555-9999')
+    })
+
+    test('throws NOT_FOUND for non-existent client', async () => {
+      const { org, user } = await createOrg(db)
+      const ctx = createTestContext({ orgId: org.id, userId: user.id })
+
+      await expect(
+        call(
+          clientRoutes.update,
+          { id: '00000000-0000-0000-0000-000000000000', data: { firstName: 'Updated' } },
+          { context: ctx }
+        )
+      ).rejects.toMatchObject({
+        code: 'NOT_FOUND',
+      })
+    })
+
+    test('throws NOT_FOUND for client in different org (RLS)', async () => {
+      const { org: org1, user: user1 } = await createOrg(db, { name: 'Org 1' })
+      const { org: org2 } = await createOrg(db, { name: 'Org 2' })
+      const ctx1 = createTestContext({ orgId: org1.id, userId: user1.id })
+
+      const client = await createClient(db, org2.id, { firstName: 'Org2', lastName: 'Client' })
+
+      await expect(
+        call(
+          clientRoutes.update,
+          { id: client.id, data: { firstName: 'Hacked!' } },
+          { context: ctx1 }
+        )
+      ).rejects.toMatchObject({
+        code: 'NOT_FOUND',
+      })
+    })
+  })
+
+  describe('remove', () => {
+    test('deletes a client', async () => {
+      const { org, user } = await createOrg(db)
+      const ctx = createTestContext({ orgId: org.id, userId: user.id })
+      const client = await createClient(db, org.id, { firstName: 'To', lastName: 'Delete' })
+
+      const result = await call(clientRoutes.remove, { id: client.id }, { context: ctx })
+
+      expect(result.success).toBe(true)
+
+      // Verify deleted from database
+      await setTestOrgContext(db, org.id)
+      const remaining = await db.select().from(clients)
+      expect(remaining).toHaveLength(0)
+    })
+
+    test('throws NOT_FOUND for non-existent client', async () => {
+      const { org, user } = await createOrg(db)
+      const ctx = createTestContext({ orgId: org.id, userId: user.id })
+
+      await expect(
+        call(clientRoutes.remove, { id: '00000000-0000-0000-0000-000000000000' }, { context: ctx })
+      ).rejects.toMatchObject({
+        code: 'NOT_FOUND',
+      })
+    })
+
+    test('throws NOT_FOUND for client in different org (RLS)', async () => {
+      const { org: org1, user: user1 } = await createOrg(db, { name: 'Org 1' })
+      const { org: org2 } = await createOrg(db, { name: 'Org 2' })
+      const ctx1 = createTestContext({ orgId: org1.id, userId: user1.id })
+
+      const client = await createClient(db, org2.id, { firstName: 'Org2', lastName: 'Client' })
+
+      await expect(
+        call(clientRoutes.remove, { id: client.id }, { context: ctx1 })
+      ).rejects.toMatchObject({
+        code: 'NOT_FOUND',
+      })
+    })
+  })
+
+  describe('Module Exports', () => {
+    test('client routes module exists and exports correctly', async () => {
+      const routes = await import('./clients.js')
+
+      expect(routes.clientRoutes).toBeDefined()
+      expect(routes.clientRoutes.list).toBeDefined()
+      expect(routes.clientRoutes.get).toBeDefined()
+      expect(routes.clientRoutes.create).toBeDefined()
+      expect(routes.clientRoutes.update).toBeDefined()
+      expect(routes.clientRoutes.remove).toBeDefined()
+    })
+
+    test('main router includes client routes', async () => {
+      const { router } = await import('./index.js')
+
+      expect(router).toBeDefined()
+      expect(router.clients).toBeDefined()
+      expect(router.clients.list).toBeDefined()
+      expect(router.clients.get).toBeDefined()
+      expect(router.clients.create).toBeDefined()
+      expect(router.clients.update).toBeDefined()
+      expect(router.clients.remove).toBeDefined()
+    })
   })
 })

@@ -29,6 +29,9 @@ import { setTestOrgContext, clearTestOrgContext } from '@scheduling/db/test-util
 
 type Database = BunSQLDatabase<typeof schema>
 
+// Counter to ensure unique emails within the same millisecond
+let orgCounter = 0
+
 /**
  * Create an organization with an admin user
  * Note: orgs, users, and org_memberships are NOT RLS-protected
@@ -41,8 +44,10 @@ export async function createOrg(
     name: options.name ?? 'Test Org',
   }).returning()
 
+  // Use full org ID to guarantee uniqueness (UUIDv7 first 8 chars can collide within same ms)
+  const uniqueId = `${org!.id.replace(/-/g, '').slice(0, 12)}-${++orgCounter}`
   const [user] = await db.insert(users).values({
-    email: options.email ?? `admin-${org!.id.slice(0, 8)}@example.com`,
+    email: options.email ?? `admin-${uniqueId}@example.com`,
     name: options.userName ?? 'Test Admin',
     emailVerified: true,
   }).returning()
