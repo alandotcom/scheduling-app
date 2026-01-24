@@ -4,6 +4,21 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+catalogs:
+  default:
+    '@types/bun':
+      specifier: ^1.3.6
+      version: 1.3.6
+    drizzle-orm:
+      specifier: ^0.45.1
+      version: 0.45.1
+    typescript:
+      specifier: ^5.9.3
+      version: 5.9.3
+    zod:
+      specifier: ^4.3.6
+      version: 4.3.6
+
 importers:
 
   .:
@@ -15,7 +30,7 @@ importers:
         specifier: ^1.41.0
         version: 1.41.0
       typescript:
-        specifier: ^5.9.3
+        specifier: 'catalog:'
         version: 5.9.3
 
   apps/admin-ui:
@@ -84,7 +99,7 @@ importers:
         specifier: ^3.4.0
         version: 3.4.0
       zod:
-        specifier: ^4.3.6
+        specifier: 'catalog:'
         version: 4.3.6
     devDependencies:
       '@orpc/server':
@@ -115,7 +130,7 @@ importers:
         specifier: ^4.1.18
         version: 4.1.18
       typescript:
-        specifier: ^5.9.3
+        specifier: 'catalog:'
         version: 5.9.3
       vite:
         specifier: ^7.3.1
@@ -142,7 +157,7 @@ importers:
         specifier: ^5.67.0
         version: 5.67.0
       drizzle-orm:
-        specifier: ^0.45.1
+        specifier: 'catalog:'
         version: 0.45.1(@electric-sql/pglite@0.2.17)(bun-types@1.3.6)(gel@2.2.0)(kysely@0.28.10)(postgres@3.4.8)
       hono:
         specifier: ^4.11.5
@@ -160,46 +175,46 @@ importers:
         specifier: ^0.0.2
         version: 0.0.2
       zod:
-        specifier: ^4.3.6
+        specifier: 'catalog:'
         version: 4.3.6
     devDependencies:
       '@types/bun':
-        specifier: ^1.3.6
+        specifier: 'catalog:'
         version: 1.3.6
       '@types/luxon':
         specifier: ^3.7.1
         version: 3.7.1
       typescript:
-        specifier: ^5.9.3
+        specifier: 'catalog:'
         version: 5.9.3
 
   packages/db:
     dependencies:
       drizzle-orm:
-        specifier: ^0.45.1
+        specifier: 'catalog:'
         version: 0.45.1(@electric-sql/pglite@0.2.17)(bun-types@1.3.6)(gel@2.2.0)(kysely@0.28.10)(postgres@3.4.8)
     devDependencies:
       '@types/bun':
-        specifier: ^1.3.6
+        specifier: 'catalog:'
         version: 1.3.6
       drizzle-kit:
         specifier: ^0.31.8
         version: 0.31.8
       typescript:
-        specifier: ^5.9.3
+        specifier: 'catalog:'
         version: 5.9.3
 
   packages/dto:
     dependencies:
       zod:
-        specifier: ^4.3.6
+        specifier: 'catalog:'
         version: 4.3.6
     devDependencies:
       '@types/bun':
-        specifier: ^1.3.6
+        specifier: 'catalog:'
         version: 1.3.6
       typescript:
-        specifier: ^5.9.3
+        specifier: 'catalog:'
         version: 5.9.3
 
 packages:
