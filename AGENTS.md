@@ -1,0 +1,1 @@
+- Prefer drizzle orm and/or kysely as database orm (with node pg adapter)
