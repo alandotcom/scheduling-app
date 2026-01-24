@@ -3,6 +3,7 @@
 import { createMiddleware } from "hono/factory";
 import { ORPCError } from "@orpc/server";
 import { z, ZodError } from "zod";
+import { ApplicationError } from "../errors/application-error.js";
 
 // Map error codes to HTTP status codes
 const errorStatusMap: Record<string, number> = {
@@ -28,11 +29,13 @@ const errorStatusMap: Record<string, number> = {
   INVALID_DATE_RANGE: 400,
 
   // Conflict (409)
+  CONFLICT: 409,
   SLOT_UNAVAILABLE: 409,
   RESOURCE_CONFLICT: 409,
   DUPLICATE_ENTRY: 409,
 
   // Business Logic (422)
+  UNPROCESSABLE_CONTENT: 422,
   BOOKING_IN_PAST: 422,
   EXCEEDS_CAPACITY: 422,
   OUTSIDE_NOTICE_WINDOW: 422,
@@ -43,6 +46,20 @@ export const errorHandler = createMiddleware(async (c, next) => {
   try {
     await next();
   } catch (error) {
+    if (error instanceof ApplicationError) {
+      const status = errorStatusMap[error.code] ?? 500;
+      return c.json(
+        {
+          error: {
+            code: error.code,
+            message: error.message,
+            details: error.details,
+          },
+        },
+        status as 400 | 401 | 403 | 404 | 409 | 422 | 500,
+      );
+    }
+
     if (error instanceof ORPCError) {
       const status = errorStatusMap[error.code] ?? 500;
       return c.json(

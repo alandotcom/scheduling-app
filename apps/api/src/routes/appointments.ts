@@ -24,7 +24,7 @@ import {
 } from "@scheduling/dto";
 import { authed } from "./base.js";
 import { db, withOrg } from "../lib/db.js";
-import { ORPCError } from "../lib/orpc.js";
+import { ApplicationError } from "../errors/application-error.js";
 import { AvailabilityEngine } from "../services/availability-engine/index.js";
 import { events } from "../services/jobs/emitter.js";
 import { recordAudit, toAuditSnapshot, createAuditContext } from "../services/audit.js";
@@ -66,7 +66,7 @@ async function verifyCalendarAccess(orgId: string, calendarId: string) {
     return tx.select().from(calendars).where(eq(calendars.id, calendarId)).limit(1);
   });
   if (!calendar) {
-    throw new ORPCError("NOT_FOUND", { message: "Calendar not found" });
+    throw new ApplicationError("Calendar not found", { code: "NOT_FOUND" });
   }
   return calendar;
 }
@@ -77,7 +77,7 @@ async function verifyClientAccess(orgId: string, clientId: string) {
     return tx.select().from(clients).where(eq(clients.id, clientId)).limit(1);
   });
   if (!client) {
-    throw new ORPCError("NOT_FOUND", { message: "Client not found" });
+    throw new ApplicationError("Client not found", { code: "NOT_FOUND" });
   }
   return client;
 }
@@ -96,7 +96,7 @@ async function verifyAppointmentTypeAndCalendar(
       .limit(1);
   });
   if (!appointmentType) {
-    throw new ORPCError("NOT_FOUND", { message: "Appointment type not found" });
+    throw new ApplicationError("Appointment type not found", { code: "NOT_FOUND" });
   }
 
   // Check if this appointment type is linked to this calendar
@@ -112,8 +112,8 @@ async function verifyAppointmentTypeAndCalendar(
     .limit(1);
 
   if (!link) {
-    throw new ORPCError("BAD_REQUEST", {
-      message: "Appointment type is not available on this calendar",
+    throw new ApplicationError("Appointment type is not available on this calendar", {
+      code: "BAD_REQUEST",
     });
   }
 
@@ -252,7 +252,7 @@ export const get = authed.input(idInput).handler(async ({ input, context }) => {
   });
 
   if (results.length === 0) {
-    throw new ORPCError("NOT_FOUND", { message: "Appointment not found" });
+    throw new ApplicationError("Appointment not found", { code: "NOT_FOUND" });
   }
 
   const row = results[0]!;
@@ -295,8 +295,8 @@ export const create = authed.input(createAppointmentSchema).handler(async ({ inp
 
   // Check if booking is in the past
   if (startAt < new Date()) {
-    throw new ORPCError("UNPROCESSABLE_CONTENT", {
-      message: "BOOKING_IN_PAST: Cannot book appointments in the past",
+    throw new ApplicationError("BOOKING_IN_PAST: Cannot book appointments in the past", {
+      code: "UNPROCESSABLE_CONTENT",
     });
   }
 
@@ -311,8 +311,8 @@ export const create = authed.input(createAppointmentSchema).handler(async ({ inp
 
   if (!availabilityCheck.available) {
     const errorCode = availabilityCheck.reason || "SLOT_UNAVAILABLE";
-    throw new ORPCError("CONFLICT", {
-      message: `${errorCode}: Time slot is not available`,
+    throw new ApplicationError(`${errorCode}: Time slot is not available`, {
+      code: "CONFLICT",
     });
   }
 
@@ -353,8 +353,8 @@ export const create = authed.input(createAppointmentSchema).handler(async ({ inp
           );
 
         if (overlappingAppointments.length >= capacity) {
-          throw new ORPCError("CONFLICT", {
-            message: "SLOT_UNAVAILABLE: Time slot is no longer available",
+          throw new ApplicationError("SLOT_UNAVAILABLE: Time slot is no longer available", {
+            code: "CONFLICT",
           });
         }
 
@@ -426,7 +426,7 @@ export const update = authed
     });
 
     if (!existing) {
-      throw new ORPCError("NOT_FOUND", { message: "Appointment not found" });
+      throw new ApplicationError("Appointment not found", { code: "NOT_FOUND" });
     }
 
     // Validate client if being updated
@@ -497,12 +497,12 @@ export const cancel = authed
     });
 
     if (!existing) {
-      throw new ORPCError("NOT_FOUND", { message: "Appointment not found" });
+      throw new ApplicationError("Appointment not found", { code: "NOT_FOUND" });
     }
 
     if (existing.status === "cancelled") {
-      throw new ORPCError("UNPROCESSABLE_CONTENT", {
-        message: "APPOINTMENT_ALREADY_CANCELLED: Appointment is already cancelled",
+      throw new ApplicationError("APPOINTMENT_ALREADY_CANCELLED: Appointment is already cancelled", {
+        code: "UNPROCESSABLE_CONTENT",
       });
     }
 
@@ -569,13 +569,16 @@ export const reschedule = authed
     });
 
     if (!existing) {
-      throw new ORPCError("NOT_FOUND", { message: "Appointment not found" });
+      throw new ApplicationError("Appointment not found", { code: "NOT_FOUND" });
     }
 
     if (existing.status === "cancelled") {
-      throw new ORPCError("UNPROCESSABLE_CONTENT", {
-        message: "APPOINTMENT_ALREADY_CANCELLED: Cannot reschedule a cancelled appointment",
-      });
+      throw new ApplicationError(
+        "APPOINTMENT_ALREADY_CANCELLED: Cannot reschedule a cancelled appointment",
+        {
+          code: "UNPROCESSABLE_CONTENT",
+        },
+      );
     }
 
     // Get appointment type for duration
@@ -588,7 +591,7 @@ export const reschedule = authed
     });
 
     if (!appointmentType) {
-      throw new ORPCError("NOT_FOUND", { message: "Appointment type not found" });
+      throw new ApplicationError("Appointment type not found", { code: "NOT_FOUND" });
     }
 
     // Parse new times
@@ -599,8 +602,8 @@ export const reschedule = authed
 
     // Check if new time is in the past
     if (newStartAt < new Date()) {
-      throw new ORPCError("UNPROCESSABLE_CONTENT", {
-        message: "BOOKING_IN_PAST: Cannot reschedule to a time in the past",
+      throw new ApplicationError("BOOKING_IN_PAST: Cannot reschedule to a time in the past", {
+        code: "UNPROCESSABLE_CONTENT",
       });
     }
 
@@ -617,8 +620,8 @@ export const reschedule = authed
     // We need to check if the only conflict is with itself
     if (!availabilityCheck.available && availabilityCheck.reason !== "SLOT_UNAVAILABLE") {
       const errorCode = availabilityCheck.reason || "SLOT_UNAVAILABLE";
-      throw new ORPCError("CONFLICT", {
-        message: `${errorCode}: New time slot is not available`,
+      throw new ApplicationError(`${errorCode}: New time slot is not available`, {
+        code: "CONFLICT",
       });
     }
 
@@ -664,8 +667,8 @@ export const reschedule = authed
             );
 
           if (overlappingAppointments.length >= capacity) {
-            throw new ORPCError("CONFLICT", {
-              message: "SLOT_UNAVAILABLE: New time slot is no longer available",
+            throw new ApplicationError("SLOT_UNAVAILABLE: New time slot is no longer available", {
+              code: "CONFLICT",
             });
           }
 
@@ -732,19 +735,25 @@ export const noShow = authed.input(idInput).handler(async ({ input, context }) =
   });
 
   if (!existing) {
-    throw new ORPCError("NOT_FOUND", { message: "Appointment not found" });
+    throw new ApplicationError("Appointment not found", { code: "NOT_FOUND" });
   }
 
   if (existing.status === "cancelled") {
-    throw new ORPCError("UNPROCESSABLE_CONTENT", {
-      message: "APPOINTMENT_ALREADY_CANCELLED: Cannot mark a cancelled appointment as no-show",
-    });
+    throw new ApplicationError(
+      "APPOINTMENT_ALREADY_CANCELLED: Cannot mark a cancelled appointment as no-show",
+      {
+        code: "UNPROCESSABLE_CONTENT",
+      },
+    );
   }
 
   if (existing.status === "no_show") {
-    throw new ORPCError("UNPROCESSABLE_CONTENT", {
-      message: "APPOINTMENT_ALREADY_NO_SHOW: Appointment is already marked as no-show",
-    });
+    throw new ApplicationError(
+      "APPOINTMENT_ALREADY_NO_SHOW: Appointment is already marked as no-show",
+      {
+        code: "UNPROCESSABLE_CONTENT",
+      },
+    );
   }
 
   // Update status to no_show

@@ -8,7 +8,7 @@ import type {
 } from "../repositories/locations.js";
 import type { PaginationInput, PaginatedResult } from "../repositories/base.js";
 import { withOrg } from "../lib/db.js";
-import { ORPCError } from "../lib/orpc.js";
+import { ApplicationError } from "../errors/application-error.js";
 import { events } from "./jobs/emitter.js";
 
 export interface ServiceContext {
@@ -26,7 +26,7 @@ export class LocationService {
       const location = await locationRepository.findById(tx, context.orgId, id);
 
       if (!location) {
-        throw new ORPCError("NOT_FOUND", { message: "Location not found" });
+        throw new ApplicationError("Location not found", { code: "NOT_FOUND" });
       }
 
       return location;
@@ -57,13 +57,13 @@ export class LocationService {
       const existing = await locationRepository.findById(tx, context.orgId, id);
 
       if (!existing) {
-        throw new ORPCError("NOT_FOUND", { message: "Location not found" });
+        throw new ApplicationError("Location not found", { code: "NOT_FOUND" });
       }
 
       const updated = await locationRepository.update(tx, context.orgId, id, data);
 
       if (!updated) {
-        throw new ORPCError("NOT_FOUND", { message: "Location not found" });
+        throw new ApplicationError("Location not found", { code: "NOT_FOUND" });
       }
 
       await events.locationUpdated(
@@ -89,7 +89,7 @@ export class LocationService {
       const existing = await locationRepository.findById(tx, context.orgId, id);
 
       if (!existing) {
-        throw new ORPCError("NOT_FOUND", { message: "Location not found" });
+        throw new ApplicationError("Location not found", { code: "NOT_FOUND" });
       }
 
       await locationRepository.delete(tx, context.orgId, id);

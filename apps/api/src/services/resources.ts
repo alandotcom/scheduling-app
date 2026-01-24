@@ -10,7 +10,7 @@ import type {
 } from "../repositories/resources.js";
 import type { PaginatedResult } from "../repositories/base.js";
 import { withOrg } from "../lib/db.js";
-import { ORPCError } from "../lib/orpc.js";
+import { ApplicationError } from "../errors/application-error.js";
 import { events } from "./jobs/emitter.js";
 import type { ServiceContext } from "./locations.js";
 
@@ -27,7 +27,7 @@ export class ResourceService {
       const resource = await resourceRepository.findById(tx, context.orgId, id);
 
       if (!resource) {
-        throw new ORPCError("NOT_FOUND", { message: "Resource not found" });
+        throw new ApplicationError("Resource not found", { code: "NOT_FOUND" });
       }
 
       return resource;
@@ -41,7 +41,7 @@ export class ResourceService {
         const location = await locationRepository.findById(tx, context.orgId, input.locationId);
 
         if (!location) {
-          throw new ORPCError("NOT_FOUND", { message: "Location not found" });
+          throw new ApplicationError("Location not found", { code: "NOT_FOUND" });
         }
       }
 
@@ -68,7 +68,7 @@ export class ResourceService {
       const existing = await resourceRepository.findById(tx, context.orgId, id);
 
       if (!existing) {
-        throw new ORPCError("NOT_FOUND", { message: "Resource not found" });
+        throw new ApplicationError("Resource not found", { code: "NOT_FOUND" });
       }
 
       // Validate location exists if being updated
@@ -76,14 +76,14 @@ export class ResourceService {
         const location = await locationRepository.findById(tx, context.orgId, data.locationId);
 
         if (!location) {
-          throw new ORPCError("NOT_FOUND", { message: "Location not found" });
+          throw new ApplicationError("Location not found", { code: "NOT_FOUND" });
         }
       }
 
       const updated = await resourceRepository.update(tx, context.orgId, id, data);
 
       if (!updated) {
-        throw new ORPCError("NOT_FOUND", { message: "Resource not found" });
+        throw new ApplicationError("Resource not found", { code: "NOT_FOUND" });
       }
 
       await events.resourceUpdated(
@@ -110,7 +110,7 @@ export class ResourceService {
       const existing = await resourceRepository.findById(tx, context.orgId, id);
 
       if (!existing) {
-        throw new ORPCError("NOT_FOUND", { message: "Resource not found" });
+        throw new ApplicationError("Resource not found", { code: "NOT_FOUND" });
       }
 
       await resourceRepository.delete(tx, context.orgId, id);

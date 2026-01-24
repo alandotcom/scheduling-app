@@ -13,7 +13,7 @@ import {
 } from "@scheduling/dto";
 import { adminOnly } from "./base.js";
 import { withOrg } from "../lib/db.js";
-import { ORPCError } from "../lib/orpc.js";
+import { ApplicationError } from "../errors/application-error.js";
 
 const idInput = z.object({ id: z.string().uuid() });
 
@@ -117,7 +117,7 @@ export const get = adminOnly.input(idInput).handler(async ({ input, context }) =
   });
 
   if (!token) {
-    throw new ORPCError("NOT_FOUND", { message: "API token not found" });
+    throw new ApplicationError("API token not found", { code: "NOT_FOUND" });
   }
 
   return token;
@@ -181,11 +181,11 @@ export const update = adminOnly
     });
 
     if (!existing) {
-      throw new ORPCError("NOT_FOUND", { message: "API token not found" });
+      throw new ApplicationError("API token not found", { code: "NOT_FOUND" });
     }
 
     if (existing.revokedAt) {
-      throw new ORPCError("BAD_REQUEST", { message: "Cannot update a revoked token" });
+      throw new ApplicationError("Cannot update a revoked token", { code: "BAD_REQUEST" });
     }
 
     const [updated] = await withOrg(orgId, async (tx) => {
@@ -228,11 +228,11 @@ export const revoke = adminOnly.input(idInput).handler(async ({ input, context }
   });
 
   if (!existing) {
-    throw new ORPCError("NOT_FOUND", { message: "API token not found" });
+    throw new ApplicationError("API token not found", { code: "NOT_FOUND" });
   }
 
   if (existing.revokedAt) {
-    throw new ORPCError("BAD_REQUEST", { message: "Token is already revoked" });
+    throw new ApplicationError("Token is already revoked", { code: "BAD_REQUEST" });
   }
 
   const [revoked] = await withOrg(orgId, async (tx) => {

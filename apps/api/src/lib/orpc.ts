@@ -1,6 +1,6 @@
 // oRPC instance setup with context type
 
-import { os, ORPCError } from "@orpc/server";
+import { os } from "@orpc/server";
 
 // Authentication method used for the request
 export type AuthMethod = "session" | "token" | null;
@@ -17,6 +17,3 @@ export interface Context {
 
 // Create the base oRPC instance with context type
 export const base = os.$context<Context>();
-
-// Re-export ORPCError for use in routes
-export { ORPCError };

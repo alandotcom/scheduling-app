@@ -19,7 +19,7 @@ import {
 } from "@scheduling/dto";
 import { authed } from "./base.js";
 import { withOrg } from "../lib/db.js";
-import { ORPCError } from "../lib/orpc.js";
+import { ApplicationError } from "../errors/application-error.js";
 import { events } from "../services/jobs/emitter.js";
 
 // List appointment types with cursor pagination
@@ -60,7 +60,7 @@ export const get = authed
     });
 
     if (!appointmentType) {
-      throw new ORPCError("NOT_FOUND", { message: "Appointment type not found" });
+      throw new ApplicationError("Appointment type not found", { code: "NOT_FOUND" });
     }
 
     return appointmentType;
@@ -118,7 +118,7 @@ export const update = authed
     });
 
     if (!existing) {
-      throw new ORPCError("NOT_FOUND", { message: "Appointment type not found" });
+      throw new ApplicationError("Appointment type not found", { code: "NOT_FOUND" });
     }
 
     const [updated] = await withOrg(orgId, async (tx) => {
@@ -161,7 +161,7 @@ export const remove = authed
     });
 
     if (!existing) {
-      throw new ORPCError("NOT_FOUND", { message: "Appointment type not found" });
+      throw new ApplicationError("Appointment type not found", { code: "NOT_FOUND" });
     }
 
     await withOrg(orgId, async (tx) => {
@@ -206,7 +206,7 @@ export const listCalendars = authed
     });
 
     if (!appointmentType) {
-      throw new ORPCError("NOT_FOUND", { message: "Appointment type not found" });
+      throw new ApplicationError("Appointment type not found", { code: "NOT_FOUND" });
     }
 
     const results = await withOrg(orgId, async (tx) => {
@@ -247,7 +247,7 @@ export const addCalendar = authed
     });
 
     if (!appointmentType) {
-      throw new ORPCError("NOT_FOUND", { message: "Appointment type not found" });
+      throw new ApplicationError("Appointment type not found", { code: "NOT_FOUND" });
     }
 
     // Verify calendar exists
@@ -256,7 +256,7 @@ export const addCalendar = authed
     });
 
     if (!calendar) {
-      throw new ORPCError("NOT_FOUND", { message: "Calendar not found" });
+      throw new ApplicationError("Calendar not found", { code: "NOT_FOUND" });
     }
 
     // Check for existing association
@@ -274,8 +274,8 @@ export const addCalendar = authed
     });
 
     if (existing) {
-      throw new ORPCError("CONFLICT", {
-        message: "Calendar already associated with appointment type",
+      throw new ApplicationError("Calendar already associated with appointment type", {
+        code: "CONFLICT",
       });
     }
 
@@ -319,7 +319,7 @@ export const removeCalendar = authed
     });
 
     if (!existing) {
-      throw new ORPCError("NOT_FOUND", { message: "Association not found" });
+      throw new ApplicationError("Association not found", { code: "NOT_FOUND" });
     }
 
     await withOrg(orgId, async (tx) => {
@@ -357,7 +357,7 @@ export const listResources = authed
     });
 
     if (!appointmentType) {
-      throw new ORPCError("NOT_FOUND", { message: "Appointment type not found" });
+      throw new ApplicationError("Appointment type not found", { code: "NOT_FOUND" });
     }
 
     const results = await withOrg(orgId, async (tx) => {
@@ -399,7 +399,7 @@ export const addResource = authed
     });
 
     if (!appointmentType) {
-      throw new ORPCError("NOT_FOUND", { message: "Appointment type not found" });
+      throw new ApplicationError("Appointment type not found", { code: "NOT_FOUND" });
     }
 
     // Verify resource exists
@@ -408,7 +408,7 @@ export const addResource = authed
     });
 
     if (!resource) {
-      throw new ORPCError("NOT_FOUND", { message: "Resource not found" });
+      throw new ApplicationError("Resource not found", { code: "NOT_FOUND" });
     }
 
     // Check for existing association
@@ -426,8 +426,8 @@ export const addResource = authed
     });
 
     if (existing) {
-      throw new ORPCError("CONFLICT", {
-        message: "Resource already associated with appointment type",
+      throw new ApplicationError("Resource already associated with appointment type", {
+        code: "CONFLICT",
       });
     }
 
@@ -473,7 +473,7 @@ export const updateResource = authed
     });
 
     if (!existing) {
-      throw new ORPCError("NOT_FOUND", { message: "Association not found" });
+      throw new ApplicationError("Association not found", { code: "NOT_FOUND" });
     }
 
     const [updated] = await withOrg(orgId, async (tx) => {
@@ -519,7 +519,7 @@ export const removeResource = authed
     });
 
     if (!existing) {
-      throw new ORPCError("NOT_FOUND", { message: "Association not found" });
+      throw new ApplicationError("Association not found", { code: "NOT_FOUND" });
     }
 
     await withOrg(orgId, async (tx) => {

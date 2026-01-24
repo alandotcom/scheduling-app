@@ -10,7 +10,7 @@ import {
 } from "@scheduling/dto";
 import { authed } from "./base.js";
 import { withOrg } from "../lib/db.js";
-import { ORPCError } from "../lib/orpc.js";
+import { ApplicationError } from "../errors/application-error.js";
 import { events } from "../services/jobs/emitter.js";
 
 // List calendars with cursor pagination and optional location filter
@@ -57,7 +57,7 @@ export const get = authed
     });
 
     if (!calendar) {
-      throw new ORPCError("NOT_FOUND", { message: "Calendar not found" });
+      throw new ApplicationError("Calendar not found", { code: "NOT_FOUND" });
     }
 
     return calendar;
@@ -74,7 +74,7 @@ export const create = authed.input(createCalendarSchema).handler(async ({ input,
     });
 
     if (!location) {
-      throw new ORPCError("NOT_FOUND", { message: "Location not found" });
+      throw new ApplicationError("Location not found", { code: "NOT_FOUND" });
     }
   }
 
@@ -119,7 +119,7 @@ export const update = authed
     });
 
     if (!existing) {
-      throw new ORPCError("NOT_FOUND", { message: "Calendar not found" });
+      throw new ApplicationError("Calendar not found", { code: "NOT_FOUND" });
     }
 
     // Validate location if being updated
@@ -129,7 +129,7 @@ export const update = authed
       });
 
       if (!location) {
-        throw new ORPCError("NOT_FOUND", { message: "Location not found" });
+        throw new ApplicationError("Location not found", { code: "NOT_FOUND" });
       }
     }
 
@@ -171,7 +171,7 @@ export const remove = authed
     });
 
     if (!existing) {
-      throw new ORPCError("NOT_FOUND", { message: "Calendar not found" });
+      throw new ApplicationError("Calendar not found", { code: "NOT_FOUND" });
     }
 
     await withOrg(orgId, async (tx) => {

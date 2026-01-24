@@ -28,7 +28,7 @@ import {
 } from "@scheduling/dto";
 import { authed } from "./base.js";
 import { db, withOrg } from "../lib/db.js";
-import { ORPCError } from "../lib/orpc.js";
+import { ApplicationError } from "../errors/application-error.js";
 import { AvailabilityEngine } from "../services/availability-engine/index.js";
 
 const calendarIdInput = z.object({ calendarId: z.string().uuid() });
@@ -44,7 +44,7 @@ async function verifyCalendarAccess(orgId: string, calendarId: string) {
     return tx.select().from(calendars).where(eq(calendars.id, calendarId)).limit(1);
   });
   if (!calendar) {
-    throw new ORPCError("NOT_FOUND", { message: "Calendar not found" });
+    throw new ApplicationError("Calendar not found", { code: "NOT_FOUND" });
   }
   return calendar;
 }
@@ -96,7 +96,7 @@ export const getRule = authed.input(idInput).handler(async ({ input, context }) 
   });
 
   if (!rule) {
-    throw new ORPCError("NOT_FOUND", { message: "Availability rule not found" });
+    throw new ApplicationError("Availability rule not found", { code: "NOT_FOUND" });
   }
 
   // Verify calendar access
@@ -130,9 +130,10 @@ export const createRule = authed
     for (const existing of existingRules) {
       // Check if time ranges overlap
       if (data.startTime < existing.endTime && data.endTime > existing.startTime) {
-        throw new ORPCError("CONFLICT", {
-          message: `Overlapping rule exists for weekday ${data.weekday}: ${existing.startTime}-${existing.endTime}`,
-        });
+        throw new ApplicationError(
+          `Overlapping rule exists for weekday ${data.weekday}: ${existing.startTime}-${existing.endTime}`,
+          { code: "CONFLICT" },
+        );
       }
     }
 
@@ -165,7 +166,7 @@ export const updateRule = authed
     });
 
     if (!existing) {
-      throw new ORPCError("NOT_FOUND", { message: "Availability rule not found" });
+      throw new ApplicationError("Availability rule not found", { code: "NOT_FOUND" });
     }
 
     await verifyCalendarAccess(orgId, existing.calendarId);
@@ -190,9 +191,10 @@ export const updateRule = authed
     for (const other of otherRules) {
       if (other.id === id) continue;
       if (newStartTime < other.endTime && newEndTime > other.startTime) {
-        throw new ORPCError("CONFLICT", {
-          message: `Overlapping rule exists for weekday ${newWeekday}: ${other.startTime}-${other.endTime}`,
-        });
+        throw new ApplicationError(
+          `Overlapping rule exists for weekday ${newWeekday}: ${other.startTime}-${other.endTime}`,
+          { code: "CONFLICT" },
+        );
       }
     }
 
@@ -223,7 +225,7 @@ export const deleteRule = authed.input(idInput).handler(async ({ input, context 
   });
 
   if (!existing) {
-    throw new ORPCError("NOT_FOUND", { message: "Availability rule not found" });
+    throw new ApplicationError("Availability rule not found", { code: "NOT_FOUND" });
   }
 
   await verifyCalendarAccess(orgId, existing.calendarId);
@@ -250,8 +252,8 @@ export const setWeeklyAvailability = authed
         const a = rules[i]!;
         const b = rules[j]!;
         if (a.weekday === b.weekday && a.startTime < b.endTime && a.endTime > b.startTime) {
-          throw new ORPCError("BAD_REQUEST", {
-            message: `Overlapping rules for weekday ${a.weekday}`,
+          throw new ApplicationError(`Overlapping rules for weekday ${a.weekday}`, {
+            code: "BAD_REQUEST",
           });
         }
       }
@@ -330,7 +332,7 @@ export const getOverride = authed.input(idInput).handler(async ({ input, context
   });
 
   if (!override) {
-    throw new ORPCError("NOT_FOUND", { message: "Availability override not found" });
+    throw new ApplicationError("Availability override not found", { code: "NOT_FOUND" });
   }
 
   await verifyCalendarAccess(orgId, override.calendarId);
@@ -362,8 +364,8 @@ export const createOverride = authed
     });
 
     if (existingOverride) {
-      throw new ORPCError("CONFLICT", {
-        message: `Override already exists for date ${data.date}`,
+      throw new ApplicationError(`Override already exists for date ${data.date}`, {
+        code: "CONFLICT",
       });
     }
 
@@ -401,7 +403,7 @@ export const updateOverride = authed
     });
 
     if (!existing) {
-      throw new ORPCError("NOT_FOUND", { message: "Availability override not found" });
+      throw new ApplicationError("Availability override not found", { code: "NOT_FOUND" });
     }
 
     await verifyCalendarAccess(orgId, existing.calendarId);
@@ -422,8 +424,8 @@ export const updateOverride = authed
       });
 
       if (conflicting) {
-        throw new ORPCError("CONFLICT", {
-          message: `Override already exists for date ${data.date}`,
+        throw new ApplicationError(`Override already exists for date ${data.date}`, {
+          code: "CONFLICT",
         });
       }
     }
@@ -456,7 +458,7 @@ export const deleteOverride = authed.input(idInput).handler(async ({ input, cont
   });
 
   if (!existing) {
-    throw new ORPCError("NOT_FOUND", { message: "Availability override not found" });
+    throw new ApplicationError("Availability override not found", { code: "NOT_FOUND" });
   }
 
   await verifyCalendarAccess(orgId, existing.calendarId);
@@ -515,7 +517,7 @@ export const getBlockedTime = authed.input(idInput).handler(async ({ input, cont
   });
 
   if (!block) {
-    throw new ORPCError("NOT_FOUND", { message: "Blocked time not found" });
+    throw new ApplicationError("Blocked time not found", { code: "NOT_FOUND" });
   }
 
   await verifyCalendarAccess(orgId, block.calendarId);
@@ -559,7 +561,7 @@ export const updateBlockedTime = authed
     });
 
     if (!existing) {
-      throw new ORPCError("NOT_FOUND", { message: "Blocked time not found" });
+      throw new ApplicationError("Blocked time not found", { code: "NOT_FOUND" });
     }
 
     await verifyCalendarAccess(orgId, existing.calendarId);
@@ -590,7 +592,7 @@ export const deleteBlockedTime = authed.input(idInput).handler(async ({ input, c
   });
 
   if (!existing) {
-    throw new ORPCError("NOT_FOUND", { message: "Blocked time not found" });
+    throw new ApplicationError("Blocked time not found", { code: "NOT_FOUND" });
   }
 
   await verifyCalendarAccess(orgId, existing.calendarId);
@@ -649,7 +651,7 @@ export const getSchedulingLimits = authed.input(idInput).handler(async ({ input,
   });
 
   if (!limits) {
-    throw new ORPCError("NOT_FOUND", { message: "Scheduling limits not found" });
+    throw new ApplicationError("Scheduling limits not found", { code: "NOT_FOUND" });
   }
 
   if (limits.calendarId) {
@@ -700,7 +702,7 @@ export const updateSchedulingLimits = authed
     });
 
     if (!existing) {
-      throw new ORPCError("NOT_FOUND", { message: "Scheduling limits not found" });
+      throw new ApplicationError("Scheduling limits not found", { code: "NOT_FOUND" });
     }
 
     if (existing.calendarId) {
@@ -736,7 +738,7 @@ export const deleteSchedulingLimits = authed.input(idInput).handler(async ({ inp
   });
 
   if (!existing) {
-    throw new ORPCError("NOT_FOUND", { message: "Scheduling limits not found" });
+    throw new ApplicationError("Scheduling limits not found", { code: "NOT_FOUND" });
   }
 
   if (existing.calendarId) {

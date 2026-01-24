@@ -9,7 +9,7 @@ import type {
 } from "../repositories/clients.js";
 import type { PaginatedResult } from "../repositories/base.js";
 import { withOrg } from "../lib/db.js";
-import { ORPCError } from "../lib/orpc.js";
+import { ApplicationError } from "../errors/application-error.js";
 import { events } from "./jobs/emitter.js";
 import type { ServiceContext } from "./locations.js";
 
@@ -23,7 +23,7 @@ export class ClientService {
       const client = await clientRepository.findById(tx, context.orgId, id);
 
       if (!client) {
-        throw new ORPCError("NOT_FOUND", { message: "Client not found" });
+        throw new ApplicationError("Client not found", { code: "NOT_FOUND" });
       }
 
       return client;
@@ -55,13 +55,13 @@ export class ClientService {
       const existing = await clientRepository.findById(tx, context.orgId, id);
 
       if (!existing) {
-        throw new ORPCError("NOT_FOUND", { message: "Client not found" });
+        throw new ApplicationError("Client not found", { code: "NOT_FOUND" });
       }
 
       const updated = await clientRepository.update(tx, context.orgId, id, data);
 
       if (!updated) {
-        throw new ORPCError("NOT_FOUND", { message: "Client not found" });
+        throw new ApplicationError("Client not found", { code: "NOT_FOUND" });
       }
 
       await events.clientUpdated(
@@ -89,7 +89,7 @@ export class ClientService {
       const existing = await clientRepository.findById(tx, context.orgId, id);
 
       if (!existing) {
-        throw new ORPCError("NOT_FOUND", { message: "Client not found" });
+        throw new ApplicationError("Client not found", { code: "NOT_FOUND" });
       }
 
       await clientRepository.delete(tx, context.orgId, id);
