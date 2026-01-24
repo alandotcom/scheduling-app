@@ -1,21 +1,49 @@
-// Configuration loaded from environment variables
+// Configuration loaded from environment variables with validation
 
-export const config = {
+import { envParse } from 'standardenv'
+import { z } from 'zod'
+
+export const config = envParse(process.env, {
   server: {
-    port: Number(process.env['PORT'] ?? 3000),
+    port: {
+      format: z.coerce.number(),
+      env: 'PORT',
+      default: 3000,
+    },
   },
   db: {
-    // Use TEST_DATABASE_URL in tests, otherwise DATABASE_URL
-    url: process.env['TEST_DATABASE_URL'] ?? process.env['DATABASE_URL'] ?? 'postgres://scheduling:scheduling@localhost:5433/scheduling',
+    url: {
+      format: z.string().url(),
+      env: 'DATABASE_URL',
+      default: 'postgres://scheduling:scheduling@localhost:5433/scheduling',
+    },
   },
   auth: {
-    secret: process.env['AUTH_SECRET'] ?? 'dev-secret-change-in-production',
-    baseUrl: process.env['AUTH_BASE_URL'] ?? `http://localhost:${process.env['PORT'] ?? 3000}`,
+    secret: {
+      format: z.string().min(1),
+      env: 'AUTH_SECRET',
+      default: 'dev-secret-change-in-production',
+    },
+    baseUrl: {
+      format: z.string().url(),
+      env: 'AUTH_BASE_URL',
+      optional: true,
+    },
   },
   valkey: {
-    host: process.env['VALKEY_HOST'] ?? 'localhost',
-    port: Number(process.env['VALKEY_PORT'] ?? 6380),
+    host: {
+      format: z.string(),
+      env: 'VALKEY_HOST',
+      default: 'localhost',
+    },
+    port: {
+      format: z.coerce.number(),
+      env: 'VALKEY_PORT',
+      default: 6380,
+    },
   },
-} as const
+})
+
+export const authBaseUrl = config.auth.baseUrl ?? `http://localhost:${config.server.port}`
 
 export type Config = typeof config

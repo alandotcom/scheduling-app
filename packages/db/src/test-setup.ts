@@ -13,9 +13,9 @@ const TEST_DB_NAME = 'scheduling_test'
 const APP_USER = 'scheduling_app'
 const APP_PASSWORD = 'scheduling'
 
-// Set TEST_DATABASE_URL for modules that need it (like apps/api/src/config.ts)
+// Override DATABASE_URL so all modules use the test database
 const TEST_DATABASE_URL = `postgres://${APP_USER}:${APP_PASSWORD}@localhost:5433/${TEST_DB_NAME}`
-process.env['TEST_DATABASE_URL'] = TEST_DATABASE_URL
+process.env['DATABASE_URL'] = TEST_DATABASE_URL
 
 async function setupTestDatabase() {
   // Connect as admin to main database

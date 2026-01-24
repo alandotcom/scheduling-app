@@ -8,9 +8,9 @@ import { SQL } from 'bun'
 import { sql } from 'drizzle-orm'
 import * as schema from './schema/index.js'
 
-// Use app user (not admin) for RLS enforcement in tests
+// Use DATABASE_URL which is set by test-setup.ts to point to test database
 const TEST_DATABASE_URL =
-  process.env['TEST_DATABASE_URL'] ??
+  process.env['DATABASE_URL'] ??
   'postgres://scheduling_app:scheduling@localhost:5433/scheduling_test'
 
 let testClient: SQL | null = null
