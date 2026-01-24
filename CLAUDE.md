@@ -20,6 +20,9 @@ pnpm lint             # Run oxlint
 pnpm format           # Auto-format with oxfmt
 pnpm typecheck        # Type-check all packages
 
+# After updating code
+pnpm format           # Always run formatting after code changes
+
 # Database (from packages/db)
 pnpm --filter @scheduling/db run generate   # Generate migration from schema changes
 pnpm --filter @scheduling/db run migrate    # Run pending migrations
