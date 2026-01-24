@@ -26,9 +26,9 @@ export const auditEventSchema = z.object({
   action: auditActionSchema,
   entityType: auditEntityTypeSchema,
   entityId: uuidSchema,
-  before: z.record(z.unknown()).nullable(),
-  after: z.record(z.unknown()).nullable(),
-  metadata: z.record(z.unknown()).nullable(),
+  before: z.record(z.string(), z.unknown()).nullable(),
+  after: z.record(z.string(), z.unknown()).nullable(),
+  metadata: z.record(z.string(), z.unknown()).nullable(),
   ...timestampsSchema.shape,
 })
 

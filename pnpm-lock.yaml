@@ -81,8 +81,8 @@ importers:
         specifier: ^2.5.0
         version: 2.6.0
       zod:
-        specifier: ^3.24.0
-        version: 3.25.76
+        specifier: ^4.0.0
+        version: 4.3.6
     devDependencies:
       '@orpc/server':
         specifier: ^1.0.0
@@ -150,15 +150,12 @@ importers:
       luxon:
         specifier: ^3.7.2
         version: 3.7.2
-      postgres:
-        specifier: ^3.4.0
-        version: 3.4.8
       rrule:
         specifier: ^2.8.1
         version: 2.8.1
       zod:
-        specifier: ^3.24.0
-        version: 3.25.76
+        specifier: ^4.0.0
+        version: 4.3.6
     devDependencies:
       '@types/bun':
         specifier: ^1.1.0
@@ -175,9 +172,6 @@ importers:
       drizzle-orm:
         specifier: ^0.41.0
         version: 0.41.0(@electric-sql/pglite@0.2.17)(bun-types@1.3.6)(gel@2.2.0)(kysely@0.28.10)(postgres@3.4.8)
-      postgres:
-        specifier: ^3.4.0
-        version: 3.4.8
     devDependencies:
       '@types/bun':
         specifier: ^1.1.0
@@ -192,8 +186,8 @@ importers:
   packages/dto:
     dependencies:
       zod:
-        specifier: ^3.24.0
-        version: 3.25.76
+        specifier: ^4.0.0
+        version: 4.3.6
     devDependencies:
       '@types/bun':
         specifier: ^1.1.0
@@ -3146,7 +3140,7 @@ snapshots:
       '@babel/helper-string-parser': 7.27.1
       '@babel/helper-validator-identifier': 7.28.5
 
-  '@better-auth/core@1.4.17(@better-auth/utils@0.3.0)(@better-fetch/fetch@1.1.21)(better-call@1.1.8(zod@3.25.76))(jose@6.1.3)(kysely@0.28.10)(nanostores@1.1.0)':
+  '@better-auth/core@1.4.17(@better-auth/utils@0.3.0)(@better-fetch/fetch@1.1.21)(better-call@1.1.8(zod@4.3.6))(jose@6.1.3)(kysely@0.28.10)(nanostores@1.1.0)':
     dependencies:
       '@better-auth/utils': 0.3.0
       '@better-fetch/fetch': 1.1.21
@@ -3157,9 +3151,9 @@ snapshots:
       nanostores: 1.1.0
       zod: 4.3.6
 
-  '@better-auth/telemetry@1.4.17(@better-auth/core@1.4.17(@better-auth/utils@0.3.0)(@better-fetch/fetch@1.1.21)(better-call@1.1.8(zod@3.25.76))(jose@6.1.3)(kysely@0.28.10)(nanostores@1.1.0))':
+  '@better-auth/telemetry@1.4.17(@better-auth/core@1.4.17(@better-auth/utils@0.3.0)(@better-fetch/fetch@1.1.21)(better-call@1.1.8(zod@4.3.6))(jose@6.1.3)(kysely@0.28.10)(nanostores@1.1.0))':
     dependencies:
-      '@better-auth/core': 1.4.17(@better-auth/utils@0.3.0)(@better-fetch/fetch@1.1.21)(better-call@1.1.8(zod@3.25.76))(jose@6.1.3)(kysely@0.28.10)(nanostores@1.1.0)
+      '@better-auth/core': 1.4.17(@better-auth/utils@0.3.0)(@better-fetch/fetch@1.1.21)(better-call@1.1.8(zod@4.3.6))(jose@6.1.3)(kysely@0.28.10)(nanostores@1.1.0)
       '@better-auth/utils': 0.3.0
       '@better-fetch/fetch': 1.1.21
 
@@ -4446,8 +4440,8 @@ snapshots:
 
   better-auth@1.4.17(drizzle-orm@0.41.0(@electric-sql/pglite@0.2.17)(bun-types@1.3.6)(gel@2.2.0)(kysely@0.28.10)(postgres@3.4.8))(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(vitest@2.1.9(@types/node@25.0.10)):
     dependencies:
-      '@better-auth/core': 1.4.17(@better-auth/utils@0.3.0)(@better-fetch/fetch@1.1.21)(better-call@1.1.8(zod@3.25.76))(jose@6.1.3)(kysely@0.28.10)(nanostores@1.1.0)
-      '@better-auth/telemetry': 1.4.17(@better-auth/core@1.4.17(@better-auth/utils@0.3.0)(@better-fetch/fetch@1.1.21)(better-call@1.1.8(zod@3.25.76))(jose@6.1.3)(kysely@0.28.10)(nanostores@1.1.0))
+      '@better-auth/core': 1.4.17(@better-auth/utils@0.3.0)(@better-fetch/fetch@1.1.21)(better-call@1.1.8(zod@4.3.6))(jose@6.1.3)(kysely@0.28.10)(nanostores@1.1.0)
+      '@better-auth/telemetry': 1.4.17(@better-auth/core@1.4.17(@better-auth/utils@0.3.0)(@better-fetch/fetch@1.1.21)(better-call@1.1.8(zod@4.3.6))(jose@6.1.3)(kysely@0.28.10)(nanostores@1.1.0))
       '@better-auth/utils': 0.3.0
       '@better-fetch/fetch': 1.1.21
       '@noble/ciphers': 2.1.1
@@ -5007,7 +5001,8 @@ snapshots:
       picocolors: 1.1.1
       source-map-js: 1.2.1
 
-  postgres@3.4.8: {}
+  postgres@3.4.8:
+    optional: true
 
   prettier@3.8.1: {}
 

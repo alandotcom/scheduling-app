@@ -2,7 +2,7 @@
 
 import { createMiddleware } from 'hono/factory'
 import { ORPCError } from '@orpc/server'
-import { ZodError } from 'zod'
+import { z, ZodError } from 'zod'
 
 // Map error codes to HTTP status codes
 const errorStatusMap: Record<string, number> = {
@@ -63,7 +63,7 @@ export const errorHandler = createMiddleware(async (c, next) => {
           error: {
             code: 'VALIDATION_ERROR',
             message: 'Request validation failed',
-            details: error.flatten(),
+            details: z.treeifyError(error),
           },
         },
         400

@@ -7,15 +7,15 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Plus, Pencil, Trash2 } from 'lucide-react'
 
-import { z } from 'zod'
+import { z } from 'zod/mini'
 import { useAuth } from '@/contexts/auth'
 import { orpc } from '@/lib/query'
 import { createResourceSchema } from '@scheduling/dto'
 import type { CreateResourceInput } from '@scheduling/dto'
 
 // Form schema with required quantity for better UX
-const resourceFormSchema = createResourceSchema.extend({
-  quantity: z.number().int().positive(),
+const resourceFormSchema = z.extend(createResourceSchema, {
+  quantity: z.number().check(z.int(), z.positive()),
 })
 
 import { Button } from '@/components/ui/button'

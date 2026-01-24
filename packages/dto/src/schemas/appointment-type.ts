@@ -10,7 +10,7 @@ export const appointmentTypeSchema = z.object({
   paddingBeforeMin: nonNegativeIntSchema.nullable(),
   paddingAfterMin: nonNegativeIntSchema.nullable(),
   capacity: positiveIntSchema.nullable(),
-  metadata: z.record(z.unknown()).nullable(),
+  metadata: z.record(z.string(), z.unknown()).nullable(),
   ...timestampsSchema.shape,
 })
 
@@ -21,7 +21,7 @@ export const createAppointmentTypeSchema = z.object({
   paddingBeforeMin: nonNegativeIntSchema.optional(),
   paddingAfterMin: nonNegativeIntSchema.optional(),
   capacity: positiveIntSchema.optional(),
-  metadata: z.record(z.unknown()).optional(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
 })
 
 // Update appointment type input
@@ -31,7 +31,7 @@ export const updateAppointmentTypeSchema = z.object({
   paddingBeforeMin: nonNegativeIntSchema.nullable().optional(),
   paddingAfterMin: nonNegativeIntSchema.nullable().optional(),
   capacity: positiveIntSchema.nullable().optional(),
-  metadata: z.record(z.unknown()).nullable().optional(),
+  metadata: z.record(z.string(), z.unknown()).nullable().optional(),
 })
 
 // List appointment types query
