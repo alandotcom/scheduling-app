@@ -15,7 +15,10 @@
     "@scheduling/db": "workspace:*",
     "@scheduling/dto": "workspace:*",
     "better-auth": "^1.2.0",
-    "hono": "^4.7.0"
+    "drizzle-orm": "^0.41.0",
+    "hono": "^4.7.0",
+    "postgres": "^3.4.0",
+    "zod": "^3.24.0"
   },
   "devDependencies": {
     "@types/bun": "^1.1.0",
