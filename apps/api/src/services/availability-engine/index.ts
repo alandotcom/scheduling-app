@@ -1,4 +1,4 @@
 // Availability engine exports
 
-export { AvailabilityEngine } from "./engine.js";
+export { AvailabilityService, availabilityService } from "./engine.js";
 export * from "./types.js";

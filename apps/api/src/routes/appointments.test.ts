@@ -1,0 +1,1314 @@
+// Integration tests for appointment routes
+// Tests actual handler logic with database operations
+
+import {
+  describe,
+  test,
+  expect,
+  beforeAll,
+  afterAll,
+  beforeEach,
+} from "bun:test";
+import { call } from "@orpc/server";
+import { DateTime } from "luxon";
+import {
+  createTestContext,
+  createOrg,
+  createCalendar,
+  createAppointmentType,
+  createClient,
+  createAppointment,
+  createAvailabilityRule,
+  createTestDb,
+  resetTestDb,
+  closeTestDb,
+  setTestOrgContext,
+} from "../test-utils/index.js";
+import * as appointmentRoutes from "./appointments.js";
+import { appointments, appointmentTypeCalendars } from "@scheduling/db/schema";
+import type { BunSQLDatabase } from "drizzle-orm/bun-sql/postgres";
+import type * as schema from "@scheduling/db/schema";
+import type { relations } from "@scheduling/db/relations";
+
+type Database = BunSQLDatabase<typeof schema, typeof relations>;
+
+describe("Appointment Routes", () => {
+  let db: Database;
+
+  beforeAll(async () => {
+    // Debug: Check what DATABASE_URL the service is using
+    const { config } = await import("../config.js");
+    console.log("DEBUG: Service DATABASE_URL:", config.db.url);
+    console.log("DEBUG: Env DATABASE_URL:", process.env["DATABASE_URL"]);
+
+    db = (await createTestDb()) as Database;
+  });
+
+  afterAll(async () => {
+    await closeTestDb();
+  });
+
+  beforeEach(async () => {
+    await resetTestDb();
+  });
+
+  // Helper to create a complete test fixture with availability
+  async function createFixtureWithAvailability() {
+    const { org, user } = await createOrg(db);
+    const calendar = await createCalendar(db, org.id, {
+      name: "Test Calendar",
+      timezone: "America/New_York",
+    });
+    const appointmentType = await createAppointmentType(db, org.id, {
+      name: "Consultation",
+      durationMin: 60,
+      calendarIds: [calendar.id],
+    });
+
+    // Add availability for all weekdays 9am-5pm
+    for (let weekday = 0; weekday < 7; weekday++) {
+      await createAvailabilityRule(db, calendar.id, {
+        weekday,
+        startTime: "09:00",
+        endTime: "17:00",
+      });
+    }
+
+    return { org, user, calendar, appointmentType };
+  }
+
+  // Helper to get a valid future start time during business hours
+  // Creates times in America/New_York timezone to match the test fixtures
+  function getFutureStartTime(
+    daysFromNow = 1,
+    hour = 10,
+    timezone = "America/New_York",
+  ): Date {
+    return DateTime.now()
+      .setZone(timezone)
+      .plus({ days: daysFromNow })
+      .set({ hour, minute: 0, second: 0, millisecond: 0 })
+      .toJSDate();
+  }
+
+  describe("list", () => {
+    test("returns empty list when no appointments exist", async () => {
+      const { org, user, calendar, appointmentType } =
+        await createFixtureWithAvailability();
+      const ctx = createTestContext({ orgId: org.id, userId: user.id });
+
+      const result = await call(
+        appointmentRoutes.list,
+        { limit: 10 },
+        { context: ctx },
+      );
+
+      expect(result.items).toEqual([]);
+      expect(result.hasMore).toBe(false);
+      expect(result.nextCursor).toBeNull();
+    });
+
+    test("returns appointments for the org", async () => {
+      const { org, user, calendar, appointmentType } =
+        await createFixtureWithAvailability();
+      const ctx = createTestContext({ orgId: org.id, userId: user.id });
+
+      const startAt1 = getFutureStartTime(1, 10);
+      const endAt1 = new Date(startAt1.getTime() + 60 * 60 * 1000);
+      const startAt2 = getFutureStartTime(2, 11);
+      const endAt2 = new Date(startAt2.getTime() + 60 * 60 * 1000);
+
+      await createAppointment(db, org.id, {
+        calendarId: calendar.id,
+        appointmentTypeId: appointmentType.id,
+        startAt: startAt1,
+        endAt: endAt1,
+      });
+      await createAppointment(db, org.id, {
+        calendarId: calendar.id,
+        appointmentTypeId: appointmentType.id,
+        startAt: startAt2,
+        endAt: endAt2,
+      });
+
+      const result = await call(
+        appointmentRoutes.list,
+        { limit: 10 },
+        { context: ctx },
+      );
+
+      expect(result.items).toHaveLength(2);
+      expect(result.hasMore).toBe(false);
+    });
+
+    test("supports cursor pagination", async () => {
+      const { org, user, calendar, appointmentType } =
+        await createFixtureWithAvailability();
+      const ctx = createTestContext({ orgId: org.id, userId: user.id });
+
+      // Create 3 appointments on different days
+      for (let i = 1; i <= 3; i++) {
+        const startAt = getFutureStartTime(i, 10);
+        const endAt = new Date(startAt.getTime() + 60 * 60 * 1000);
+        await createAppointment(db, org.id, {
+          calendarId: calendar.id,
+          appointmentTypeId: appointmentType.id,
+          startAt,
+          endAt,
+        });
+      }
+
+      const first = await call(
+        appointmentRoutes.list,
+        { limit: 2 },
+        { context: ctx },
+      );
+
+      expect(first.items).toHaveLength(2);
+      expect(first.hasMore).toBe(true);
+      expect(first.nextCursor).toBeDefined();
+
+      const second = await call(
+        appointmentRoutes.list,
+        { limit: 2, cursor: first.nextCursor! },
+        { context: ctx },
+      );
+
+      expect(second.items).toHaveLength(1);
+      expect(second.hasMore).toBe(false);
+    });
+
+    test("filters by calendarId", async () => {
+      const { org, user, appointmentType } =
+        await createFixtureWithAvailability();
+      const ctx = createTestContext({ orgId: org.id, userId: user.id });
+
+      const calendar2 = await createCalendar(db, org.id, {
+        name: "Calendar 2",
+      });
+      // Link appointment type to calendar2
+      await setTestOrgContext(db, org.id);
+      await db.insert(appointmentTypeCalendars).values({
+        appointmentTypeId: appointmentType.id,
+        calendarId: calendar2.id,
+      });
+
+      const startAt1 = getFutureStartTime(1, 10);
+      const endAt1 = new Date(startAt1.getTime() + 60 * 60 * 1000);
+      const startAt2 = getFutureStartTime(2, 10);
+      const endAt2 = new Date(startAt2.getTime() + 60 * 60 * 1000);
+
+      // Get the first calendar from fixture
+      const { calendar } = await createFixtureWithAvailability();
+
+      await createAppointment(db, org.id, {
+        calendarId: calendar.id,
+        appointmentTypeId: appointmentType.id,
+        startAt: startAt1,
+        endAt: endAt1,
+      });
+      await createAppointment(db, org.id, {
+        calendarId: calendar2.id,
+        appointmentTypeId: appointmentType.id,
+        startAt: startAt2,
+        endAt: endAt2,
+      });
+
+      const result = await call(
+        appointmentRoutes.list,
+        { limit: 10, calendarId: calendar2.id },
+        { context: ctx },
+      );
+
+      expect(result.items).toHaveLength(1);
+      expect(result.items[0]!.calendarId).toBe(calendar2.id);
+    });
+
+    test("filters by status", async () => {
+      const { org, user, calendar, appointmentType } =
+        await createFixtureWithAvailability();
+      const ctx = createTestContext({ orgId: org.id, userId: user.id });
+
+      const startAt1 = getFutureStartTime(1, 10);
+      const endAt1 = new Date(startAt1.getTime() + 60 * 60 * 1000);
+      const startAt2 = getFutureStartTime(2, 10);
+      const endAt2 = new Date(startAt2.getTime() + 60 * 60 * 1000);
+
+      await createAppointment(db, org.id, {
+        calendarId: calendar.id,
+        appointmentTypeId: appointmentType.id,
+        startAt: startAt1,
+        endAt: endAt1,
+        status: "scheduled",
+      });
+      await createAppointment(db, org.id, {
+        calendarId: calendar.id,
+        appointmentTypeId: appointmentType.id,
+        startAt: startAt2,
+        endAt: endAt2,
+        status: "cancelled",
+      });
+
+      const result = await call(
+        appointmentRoutes.list,
+        { limit: 10, status: "cancelled" },
+        { context: ctx },
+      );
+
+      expect(result.items).toHaveLength(1);
+      expect(result.items[0]!.status).toBe("cancelled");
+    });
+
+    test("filters by clientId", async () => {
+      const { org, user, calendar, appointmentType } =
+        await createFixtureWithAvailability();
+      const ctx = createTestContext({ orgId: org.id, userId: user.id });
+      const client = await createClient(db, org.id, {
+        firstName: "John",
+        lastName: "Doe",
+      });
+
+      const startAt1 = getFutureStartTime(1, 10);
+      const endAt1 = new Date(startAt1.getTime() + 60 * 60 * 1000);
+      const startAt2 = getFutureStartTime(2, 10);
+      const endAt2 = new Date(startAt2.getTime() + 60 * 60 * 1000);
+
+      await createAppointment(db, org.id, {
+        calendarId: calendar.id,
+        appointmentTypeId: appointmentType.id,
+        startAt: startAt1,
+        endAt: endAt1,
+        clientId: client.id,
+      });
+      await createAppointment(db, org.id, {
+        calendarId: calendar.id,
+        appointmentTypeId: appointmentType.id,
+        startAt: startAt2,
+        endAt: endAt2,
+      });
+
+      const result = await call(
+        appointmentRoutes.list,
+        { limit: 10, clientId: client.id },
+        { context: ctx },
+      );
+
+      expect(result.items).toHaveLength(1);
+      expect(result.items[0]!.clientId).toBe(client.id);
+    });
+
+    test("does not return appointments from other orgs (RLS)", async () => {
+      const {
+        org: org1,
+        user: user1,
+        calendar,
+        appointmentType,
+      } = await createFixtureWithAvailability();
+      const { org: org2 } = await createOrg(db, { name: "Org 2" });
+      const calendar2 = await createCalendar(db, org2.id, {
+        name: "Org 2 Calendar",
+      });
+      const appointmentType2 = await createAppointmentType(db, org2.id, {
+        name: "Org 2 Type",
+        calendarIds: [calendar2.id],
+      });
+
+      const ctx1 = createTestContext({ orgId: org1.id, userId: user1.id });
+
+      const startAt1 = getFutureStartTime(1, 10);
+      const endAt1 = new Date(startAt1.getTime() + 60 * 60 * 1000);
+      const startAt2 = getFutureStartTime(2, 10);
+      const endAt2 = new Date(startAt2.getTime() + 60 * 60 * 1000);
+
+      await createAppointment(db, org1.id, {
+        calendarId: calendar.id,
+        appointmentTypeId: appointmentType.id,
+        startAt: startAt1,
+        endAt: endAt1,
+      });
+      await createAppointment(db, org2.id, {
+        calendarId: calendar2.id,
+        appointmentTypeId: appointmentType2.id,
+        startAt: startAt2,
+        endAt: endAt2,
+      });
+
+      const result = await call(
+        appointmentRoutes.list,
+        { limit: 10 },
+        { context: ctx1 },
+      );
+
+      expect(result.items).toHaveLength(1);
+      expect(result.items[0]!.orgId).toBe(org1.id);
+    });
+  });
+
+  describe("get", () => {
+    test("returns appointment by id with relations", async () => {
+      const { org, user, calendar, appointmentType } =
+        await createFixtureWithAvailability();
+      const ctx = createTestContext({ orgId: org.id, userId: user.id });
+      const client = await createClient(db, org.id, {
+        firstName: "John",
+        lastName: "Doe",
+      });
+
+      const startAt = getFutureStartTime(1, 10);
+      const endAt = new Date(startAt.getTime() + 60 * 60 * 1000);
+      const appointment = await createAppointment(db, org.id, {
+        calendarId: calendar.id,
+        appointmentTypeId: appointmentType.id,
+        startAt,
+        endAt,
+        clientId: client.id,
+        notes: "Test notes",
+      });
+
+      const result = await call(
+        appointmentRoutes.get,
+        { id: appointment.id },
+        { context: ctx },
+      );
+
+      expect(result.id).toBe(appointment.id);
+      expect(result.status).toBe("scheduled");
+      expect(result.notes).toBe("Test notes");
+      expect(result.calendar?.name).toBe("Test Calendar");
+      expect(result.appointmentType?.name).toBe("Consultation");
+      expect(result.client?.firstName).toBe("John");
+    });
+
+    test("throws NOT_FOUND for non-existent appointment", async () => {
+      const { org, user } = await createOrg(db);
+      const ctx = createTestContext({ orgId: org.id, userId: user.id });
+
+      await expect(
+        call(
+          appointmentRoutes.get,
+          { id: "00000000-0000-0000-0000-000000000000" },
+          { context: ctx },
+        ),
+      ).rejects.toMatchObject({
+        code: "NOT_FOUND",
+      });
+    });
+
+    test("throws NOT_FOUND for appointment in different org (RLS)", async () => {
+      const { org: org1, user: user1 } = await createOrg(db, { name: "Org 1" });
+      const {
+        org: org2,
+        calendar,
+        appointmentType,
+      } = await (async () => {
+        const { org, user } = await createOrg(db, { name: "Org 2" });
+        const calendar = await createCalendar(db, org.id, {
+          name: "Org 2 Calendar",
+        });
+        const appointmentType = await createAppointmentType(db, org.id, {
+          name: "Org 2 Type",
+          calendarIds: [calendar.id],
+        });
+        return { org, user, calendar, appointmentType };
+      })();
+
+      const ctx1 = createTestContext({ orgId: org1.id, userId: user1.id });
+
+      const startAt = getFutureStartTime(1, 10);
+      const endAt = new Date(startAt.getTime() + 60 * 60 * 1000);
+      const appointment = await createAppointment(db, org2.id, {
+        calendarId: calendar.id,
+        appointmentTypeId: appointmentType.id,
+        startAt,
+        endAt,
+      });
+
+      await expect(
+        call(appointmentRoutes.get, { id: appointment.id }, { context: ctx1 }),
+      ).rejects.toMatchObject({
+        code: "NOT_FOUND",
+      });
+    });
+  });
+
+  describe("create", () => {
+    test("creates a new appointment with availability validation", async () => {
+      const { org, user, calendar, appointmentType } =
+        await createFixtureWithAvailability();
+      const ctx = createTestContext({ orgId: org.id, userId: user.id });
+
+      const startTime = getFutureStartTime(1, 10);
+
+      const result = await call(
+        appointmentRoutes.create,
+        {
+          calendarId: calendar.id,
+          appointmentTypeId: appointmentType.id,
+          startTime,
+          timezone: "America/New_York",
+        },
+        { context: ctx },
+      );
+
+      expect(result).toBeDefined();
+      expect(result!.calendarId).toBe(calendar.id);
+      expect(result!.appointmentTypeId).toBe(appointmentType.id);
+      expect(result!.status).toBe("scheduled");
+      expect(result!.orgId).toBe(org.id);
+
+      // Verify in database
+      await setTestOrgContext(db, org.id);
+      const [dbAppointment] = await db.select().from(appointments);
+      expect(dbAppointment!.calendarId).toBe(calendar.id);
+    });
+
+    test("creates appointment with client", async () => {
+      const { org, user, calendar, appointmentType } =
+        await createFixtureWithAvailability();
+      const ctx = createTestContext({ orgId: org.id, userId: user.id });
+      const client = await createClient(db, org.id, {
+        firstName: "John",
+        lastName: "Doe",
+      });
+
+      const startTime = getFutureStartTime(1, 10);
+
+      const result = await call(
+        appointmentRoutes.create,
+        {
+          calendarId: calendar.id,
+          appointmentTypeId: appointmentType.id,
+          startTime,
+          timezone: "America/New_York",
+          clientId: client.id,
+          notes: "Test appointment",
+        },
+        { context: ctx },
+      );
+
+      expect(result!.clientId).toBe(client.id);
+      expect(result!.notes).toBe("Test appointment");
+    });
+
+    test("throws NOT_FOUND for non-existent calendar", async () => {
+      const { org, user, appointmentType } =
+        await createFixtureWithAvailability();
+      const ctx = createTestContext({ orgId: org.id, userId: user.id });
+
+      const startTime = getFutureStartTime(1, 10);
+
+      await expect(
+        call(
+          appointmentRoutes.create,
+          {
+            calendarId: "00000000-0000-0000-0000-000000000000",
+            appointmentTypeId: appointmentType.id,
+            startTime,
+            timezone: "America/New_York",
+          },
+          { context: ctx },
+        ),
+      ).rejects.toMatchObject({
+        code: "NOT_FOUND",
+      });
+    });
+
+    test("throws NOT_FOUND for non-existent appointment type", async () => {
+      const { org, user, calendar } = await createFixtureWithAvailability();
+      const ctx = createTestContext({ orgId: org.id, userId: user.id });
+
+      const startTime = getFutureStartTime(1, 10);
+
+      await expect(
+        call(
+          appointmentRoutes.create,
+          {
+            calendarId: calendar.id,
+            appointmentTypeId: "00000000-0000-0000-0000-000000000000",
+            startTime,
+            timezone: "America/New_York",
+          },
+          { context: ctx },
+        ),
+      ).rejects.toMatchObject({
+        code: "NOT_FOUND",
+      });
+    });
+
+    test("throws NOT_FOUND for non-existent client", async () => {
+      const { org, user, calendar, appointmentType } =
+        await createFixtureWithAvailability();
+      const ctx = createTestContext({ orgId: org.id, userId: user.id });
+
+      const startTime = getFutureStartTime(1, 10);
+
+      await expect(
+        call(
+          appointmentRoutes.create,
+          {
+            calendarId: calendar.id,
+            appointmentTypeId: appointmentType.id,
+            startTime,
+            timezone: "America/New_York",
+            clientId: "00000000-0000-0000-0000-000000000000",
+          },
+          { context: ctx },
+        ),
+      ).rejects.toMatchObject({
+        code: "NOT_FOUND",
+      });
+    });
+
+    test("rejects booking in the past", async () => {
+      const { org, user, calendar, appointmentType } =
+        await createFixtureWithAvailability();
+      const ctx = createTestContext({ orgId: org.id, userId: user.id });
+
+      // Create a time in the past
+      const pastTime = new Date();
+      pastTime.setDate(pastTime.getDate() - 1);
+      pastTime.setHours(10, 0, 0, 0);
+
+      await expect(
+        call(
+          appointmentRoutes.create,
+          {
+            calendarId: calendar.id,
+            appointmentTypeId: appointmentType.id,
+            startTime: pastTime,
+            timezone: "America/New_York",
+          },
+          { context: ctx },
+        ),
+      ).rejects.toMatchObject({
+        code: "UNPROCESSABLE_CONTENT",
+      });
+    });
+
+    test("rejects booking outside availability window", async () => {
+      const { org, user, calendar, appointmentType } =
+        await createFixtureWithAvailability();
+      const ctx = createTestContext({ orgId: org.id, userId: user.id });
+
+      // Create time outside business hours (6 AM when availability is 9-5)
+      const startTime = getFutureStartTime(1, 6);
+
+      await expect(
+        call(
+          appointmentRoutes.create,
+          {
+            calendarId: calendar.id,
+            appointmentTypeId: appointmentType.id,
+            startTime,
+            timezone: "America/New_York",
+          },
+          { context: ctx },
+        ),
+      ).rejects.toMatchObject({
+        code: "CONFLICT",
+      });
+    });
+
+    test("rejects double booking - concurrent booking rejection via exclusion constraint", async () => {
+      const { org, user, calendar, appointmentType } =
+        await createFixtureWithAvailability();
+      const ctx = createTestContext({ orgId: org.id, userId: user.id });
+
+      const startTime = getFutureStartTime(1, 10);
+
+      // Create first appointment
+      await call(
+        appointmentRoutes.create,
+        {
+          calendarId: calendar.id,
+          appointmentTypeId: appointmentType.id,
+          startTime,
+          timezone: "America/New_York",
+        },
+        { context: ctx },
+      );
+
+      // Attempt to book same time slot
+      await expect(
+        call(
+          appointmentRoutes.create,
+          {
+            calendarId: calendar.id,
+            appointmentTypeId: appointmentType.id,
+            startTime,
+            timezone: "America/New_York",
+          },
+          { context: ctx },
+        ),
+      ).rejects.toMatchObject({
+        code: "CONFLICT",
+      });
+    });
+
+    test("rejects overlapping appointment times via exclusion constraint", async () => {
+      const { org, user, calendar, appointmentType } =
+        await createFixtureWithAvailability();
+      const ctx = createTestContext({ orgId: org.id, userId: user.id });
+
+      const startTime1 = getFutureStartTime(1, 10); // 10:00
+
+      // Create first appointment (60 min, ends at 11:00)
+      await call(
+        appointmentRoutes.create,
+        {
+          calendarId: calendar.id,
+          appointmentTypeId: appointmentType.id,
+          startTime: startTime1,
+          timezone: "America/New_York",
+        },
+        { context: ctx },
+      );
+
+      // Attempt to book overlapping slot (10:30, which overlaps with 10:00-11:00)
+      const overlappingStart = new Date(startTime1.getTime() + 30 * 60 * 1000);
+
+      await expect(
+        call(
+          appointmentRoutes.create,
+          {
+            calendarId: calendar.id,
+            appointmentTypeId: appointmentType.id,
+            startTime: overlappingStart,
+            timezone: "America/New_York",
+          },
+          { context: ctx },
+        ),
+      ).rejects.toMatchObject({
+        code: "CONFLICT",
+      });
+    });
+  });
+
+  describe("update", () => {
+    test("updates appointment notes", async () => {
+      const { org, user, calendar, appointmentType } =
+        await createFixtureWithAvailability();
+      const ctx = createTestContext({ orgId: org.id, userId: user.id });
+
+      const startAt = getFutureStartTime(1, 10);
+      const endAt = new Date(startAt.getTime() + 60 * 60 * 1000);
+      const appointment = await createAppointment(db, org.id, {
+        calendarId: calendar.id,
+        appointmentTypeId: appointmentType.id,
+        startAt,
+        endAt,
+        notes: "Original notes",
+      });
+
+      const result = await call(
+        appointmentRoutes.update,
+        { id: appointment.id, data: { notes: "Updated notes" } },
+        { context: ctx },
+      );
+
+      expect(result!.notes).toBe("Updated notes");
+    });
+
+    test("updates appointment client", async () => {
+      const { org, user, calendar, appointmentType } =
+        await createFixtureWithAvailability();
+      const ctx = createTestContext({ orgId: org.id, userId: user.id });
+      const client = await createClient(db, org.id, {
+        firstName: "John",
+        lastName: "Doe",
+      });
+
+      const startAt = getFutureStartTime(1, 10);
+      const endAt = new Date(startAt.getTime() + 60 * 60 * 1000);
+      const appointment = await createAppointment(db, org.id, {
+        calendarId: calendar.id,
+        appointmentTypeId: appointmentType.id,
+        startAt,
+        endAt,
+      });
+
+      const result = await call(
+        appointmentRoutes.update,
+        { id: appointment.id, data: { clientId: client.id } },
+        { context: ctx },
+      );
+
+      expect(result!.clientId).toBe(client.id);
+    });
+
+    test("clears appointment client by setting to null", async () => {
+      const { org, user, calendar, appointmentType } =
+        await createFixtureWithAvailability();
+      const ctx = createTestContext({ orgId: org.id, userId: user.id });
+      const client = await createClient(db, org.id, {
+        firstName: "John",
+        lastName: "Doe",
+      });
+
+      const startAt = getFutureStartTime(1, 10);
+      const endAt = new Date(startAt.getTime() + 60 * 60 * 1000);
+      const appointment = await createAppointment(db, org.id, {
+        calendarId: calendar.id,
+        appointmentTypeId: appointmentType.id,
+        startAt,
+        endAt,
+        clientId: client.id,
+      });
+
+      const result = await call(
+        appointmentRoutes.update,
+        { id: appointment.id, data: { clientId: null } },
+        { context: ctx },
+      );
+
+      expect(result!.clientId).toBeNull();
+    });
+
+    test("throws NOT_FOUND for non-existent appointment", async () => {
+      const { org, user } = await createOrg(db);
+      const ctx = createTestContext({ orgId: org.id, userId: user.id });
+
+      await expect(
+        call(
+          appointmentRoutes.update,
+          {
+            id: "00000000-0000-0000-0000-000000000000",
+            data: { notes: "Updated" },
+          },
+          { context: ctx },
+        ),
+      ).rejects.toMatchObject({
+        code: "NOT_FOUND",
+      });
+    });
+
+    test("throws NOT_FOUND for non-existent client", async () => {
+      const { org, user, calendar, appointmentType } =
+        await createFixtureWithAvailability();
+      const ctx = createTestContext({ orgId: org.id, userId: user.id });
+
+      const startAt = getFutureStartTime(1, 10);
+      const endAt = new Date(startAt.getTime() + 60 * 60 * 1000);
+      const appointment = await createAppointment(db, org.id, {
+        calendarId: calendar.id,
+        appointmentTypeId: appointmentType.id,
+        startAt,
+        endAt,
+      });
+
+      await expect(
+        call(
+          appointmentRoutes.update,
+          {
+            id: appointment.id,
+            data: { clientId: "00000000-0000-0000-0000-000000000000" },
+          },
+          { context: ctx },
+        ),
+      ).rejects.toMatchObject({
+        code: "NOT_FOUND",
+      });
+    });
+
+    test("throws NOT_FOUND for appointment in different org (RLS)", async () => {
+      const { org: org1, user: user1 } = await createOrg(db, { name: "Org 1" });
+      const { org: org2, user: user2 } = await createOrg(db, { name: "Org 2" });
+      const calendar = await createCalendar(db, org2.id, {
+        name: "Org 2 Calendar",
+      });
+      const appointmentType = await createAppointmentType(db, org2.id, {
+        name: "Org 2 Type",
+        calendarIds: [calendar.id],
+      });
+
+      const ctx1 = createTestContext({ orgId: org1.id, userId: user1.id });
+
+      const startAt = getFutureStartTime(1, 10);
+      const endAt = new Date(startAt.getTime() + 60 * 60 * 1000);
+      const appointment = await createAppointment(db, org2.id, {
+        calendarId: calendar.id,
+        appointmentTypeId: appointmentType.id,
+        startAt,
+        endAt,
+      });
+
+      await expect(
+        call(
+          appointmentRoutes.update,
+          { id: appointment.id, data: { notes: "Hacked!" } },
+          { context: ctx1 },
+        ),
+      ).rejects.toMatchObject({
+        code: "NOT_FOUND",
+      });
+    });
+  });
+
+  describe("cancel", () => {
+    test("cancels an appointment (scheduled -> cancelled)", async () => {
+      const { org, user, calendar, appointmentType } =
+        await createFixtureWithAvailability();
+      const ctx = createTestContext({ orgId: org.id, userId: user.id });
+
+      const startAt = getFutureStartTime(1, 10);
+      const endAt = new Date(startAt.getTime() + 60 * 60 * 1000);
+      const appointment = await createAppointment(db, org.id, {
+        calendarId: calendar.id,
+        appointmentTypeId: appointmentType.id,
+        startAt,
+        endAt,
+        status: "scheduled",
+      });
+
+      const result = await call(
+        appointmentRoutes.cancel,
+        { id: appointment.id },
+        { context: ctx },
+      );
+
+      expect(result!.status).toBe("cancelled");
+    });
+
+    test("cancels with reason appended to notes", async () => {
+      const { org, user, calendar, appointmentType } =
+        await createFixtureWithAvailability();
+      const ctx = createTestContext({ orgId: org.id, userId: user.id });
+
+      const startAt = getFutureStartTime(1, 10);
+      const endAt = new Date(startAt.getTime() + 60 * 60 * 1000);
+      const appointment = await createAppointment(db, org.id, {
+        calendarId: calendar.id,
+        appointmentTypeId: appointmentType.id,
+        startAt,
+        endAt,
+        notes: "Original notes",
+      });
+
+      const result = await call(
+        appointmentRoutes.cancel,
+        { id: appointment.id, data: { reason: "Client requested" } },
+        { context: ctx },
+      );
+
+      expect(result!.status).toBe("cancelled");
+      expect(result!.notes).toContain("Cancelled: Client requested");
+    });
+
+    test("throws error when cancelling already cancelled appointment", async () => {
+      const { org, user, calendar, appointmentType } =
+        await createFixtureWithAvailability();
+      const ctx = createTestContext({ orgId: org.id, userId: user.id });
+
+      const startAt = getFutureStartTime(1, 10);
+      const endAt = new Date(startAt.getTime() + 60 * 60 * 1000);
+      const appointment = await createAppointment(db, org.id, {
+        calendarId: calendar.id,
+        appointmentTypeId: appointmentType.id,
+        startAt,
+        endAt,
+        status: "cancelled",
+      });
+
+      await expect(
+        call(
+          appointmentRoutes.cancel,
+          { id: appointment.id },
+          { context: ctx },
+        ),
+      ).rejects.toMatchObject({
+        code: "UNPROCESSABLE_CONTENT",
+      });
+    });
+
+    test("throws NOT_FOUND for non-existent appointment", async () => {
+      const { org, user } = await createOrg(db);
+      const ctx = createTestContext({ orgId: org.id, userId: user.id });
+
+      await expect(
+        call(
+          appointmentRoutes.cancel,
+          { id: "00000000-0000-0000-0000-000000000000" },
+          { context: ctx },
+        ),
+      ).rejects.toMatchObject({
+        code: "NOT_FOUND",
+      });
+    });
+
+    test("throws NOT_FOUND for appointment in different org (RLS)", async () => {
+      const { org: org1, user: user1 } = await createOrg(db, { name: "Org 1" });
+      const { org: org2 } = await createOrg(db, { name: "Org 2" });
+      const calendar = await createCalendar(db, org2.id, {
+        name: "Org 2 Calendar",
+      });
+      const appointmentType = await createAppointmentType(db, org2.id, {
+        name: "Org 2 Type",
+        calendarIds: [calendar.id],
+      });
+
+      const ctx1 = createTestContext({ orgId: org1.id, userId: user1.id });
+
+      const startAt = getFutureStartTime(1, 10);
+      const endAt = new Date(startAt.getTime() + 60 * 60 * 1000);
+      const appointment = await createAppointment(db, org2.id, {
+        calendarId: calendar.id,
+        appointmentTypeId: appointmentType.id,
+        startAt,
+        endAt,
+      });
+
+      await expect(
+        call(
+          appointmentRoutes.cancel,
+          { id: appointment.id },
+          { context: ctx1 },
+        ),
+      ).rejects.toMatchObject({
+        code: "NOT_FOUND",
+      });
+    });
+  });
+
+  describe("reschedule", () => {
+    test("reschedules an appointment to a new valid time", async () => {
+      const { org, user, calendar, appointmentType } =
+        await createFixtureWithAvailability();
+      const ctx = createTestContext({ orgId: org.id, userId: user.id });
+
+      const originalStart = getFutureStartTime(1, 10);
+      const originalEnd = new Date(originalStart.getTime() + 60 * 60 * 1000);
+      const appointment = await createAppointment(db, org.id, {
+        calendarId: calendar.id,
+        appointmentTypeId: appointmentType.id,
+        startAt: originalStart,
+        endAt: originalEnd,
+      });
+
+      const newStartTime = getFutureStartTime(2, 14); // Different day, 2pm
+
+      const result = await call(
+        appointmentRoutes.reschedule,
+        {
+          id: appointment.id,
+          data: { newStartTime, timezone: "America/New_York" },
+        },
+        { context: ctx },
+      );
+
+      expect(result!.id).toBe(appointment.id);
+      expect(new Date(result!.startAt).getTime()).toBe(newStartTime.getTime());
+    });
+
+    test("rejects rescheduling to time in the past", async () => {
+      const { org, user, calendar, appointmentType } =
+        await createFixtureWithAvailability();
+      const ctx = createTestContext({ orgId: org.id, userId: user.id });
+
+      const originalStart = getFutureStartTime(1, 10);
+      const originalEnd = new Date(originalStart.getTime() + 60 * 60 * 1000);
+      const appointment = await createAppointment(db, org.id, {
+        calendarId: calendar.id,
+        appointmentTypeId: appointmentType.id,
+        startAt: originalStart,
+        endAt: originalEnd,
+      });
+
+      const pastTime = new Date();
+      pastTime.setDate(pastTime.getDate() - 1);
+
+      await expect(
+        call(
+          appointmentRoutes.reschedule,
+          {
+            id: appointment.id,
+            data: { newStartTime: pastTime, timezone: "America/New_York" },
+          },
+          { context: ctx },
+        ),
+      ).rejects.toMatchObject({
+        code: "UNPROCESSABLE_CONTENT",
+      });
+    });
+
+    test("rejects rescheduling cancelled appointment", async () => {
+      const { org, user, calendar, appointmentType } =
+        await createFixtureWithAvailability();
+      const ctx = createTestContext({ orgId: org.id, userId: user.id });
+
+      const originalStart = getFutureStartTime(1, 10);
+      const originalEnd = new Date(originalStart.getTime() + 60 * 60 * 1000);
+      const appointment = await createAppointment(db, org.id, {
+        calendarId: calendar.id,
+        appointmentTypeId: appointmentType.id,
+        startAt: originalStart,
+        endAt: originalEnd,
+        status: "cancelled",
+      });
+
+      const newStartTime = getFutureStartTime(2, 14);
+
+      await expect(
+        call(
+          appointmentRoutes.reschedule,
+          {
+            id: appointment.id,
+            data: { newStartTime, timezone: "America/New_York" },
+          },
+          { context: ctx },
+        ),
+      ).rejects.toMatchObject({
+        code: "UNPROCESSABLE_CONTENT",
+      });
+    });
+
+    test("rejects rescheduling to occupied slot via exclusion constraint", async () => {
+      const { org, user, calendar, appointmentType } =
+        await createFixtureWithAvailability();
+      const ctx = createTestContext({ orgId: org.id, userId: user.id });
+
+      const time1 = getFutureStartTime(1, 10);
+      const end1 = new Date(time1.getTime() + 60 * 60 * 1000);
+      const time2 = getFutureStartTime(1, 14);
+      const end2 = new Date(time2.getTime() + 60 * 60 * 1000);
+
+      const appointment1 = await createAppointment(db, org.id, {
+        calendarId: calendar.id,
+        appointmentTypeId: appointmentType.id,
+        startAt: time1,
+        endAt: end1,
+      });
+      await createAppointment(db, org.id, {
+        calendarId: calendar.id,
+        appointmentTypeId: appointmentType.id,
+        startAt: time2,
+        endAt: end2,
+      });
+
+      // Try to reschedule appointment1 to time2's slot
+      await expect(
+        call(
+          appointmentRoutes.reschedule,
+          {
+            id: appointment1.id,
+            data: { newStartTime: time2, timezone: "America/New_York" },
+          },
+          { context: ctx },
+        ),
+      ).rejects.toMatchObject({
+        code: "CONFLICT",
+      });
+    });
+
+    test("throws NOT_FOUND for non-existent appointment", async () => {
+      const { org, user } = await createOrg(db);
+      const ctx = createTestContext({ orgId: org.id, userId: user.id });
+
+      await expect(
+        call(
+          appointmentRoutes.reschedule,
+          {
+            id: "00000000-0000-0000-0000-000000000000",
+            data: { newStartTime: new Date(), timezone: "America/New_York" },
+          },
+          { context: ctx },
+        ),
+      ).rejects.toMatchObject({
+        code: "NOT_FOUND",
+      });
+    });
+
+    test("throws NOT_FOUND for appointment in different org (RLS)", async () => {
+      const { org: org1, user: user1 } = await createOrg(db, { name: "Org 1" });
+      const { org: org2 } = await createOrg(db, { name: "Org 2" });
+      const calendar = await createCalendar(db, org2.id, {
+        name: "Org 2 Calendar",
+      });
+      const appointmentType = await createAppointmentType(db, org2.id, {
+        name: "Org 2 Type",
+        calendarIds: [calendar.id],
+      });
+
+      const ctx1 = createTestContext({ orgId: org1.id, userId: user1.id });
+
+      const startAt = getFutureStartTime(1, 10);
+      const endAt = new Date(startAt.getTime() + 60 * 60 * 1000);
+      const appointment = await createAppointment(db, org2.id, {
+        calendarId: calendar.id,
+        appointmentTypeId: appointmentType.id,
+        startAt,
+        endAt,
+      });
+
+      await expect(
+        call(
+          appointmentRoutes.reschedule,
+          {
+            id: appointment.id,
+            data: {
+              newStartTime: getFutureStartTime(2),
+              timezone: "America/New_York",
+            },
+          },
+          { context: ctx1 },
+        ),
+      ).rejects.toMatchObject({
+        code: "NOT_FOUND",
+      });
+    });
+  });
+
+  describe("noShow", () => {
+    test("marks appointment as no-show (scheduled -> no_show)", async () => {
+      const { org, user, calendar, appointmentType } =
+        await createFixtureWithAvailability();
+      const ctx = createTestContext({ orgId: org.id, userId: user.id });
+
+      const startAt = getFutureStartTime(1, 10);
+      const endAt = new Date(startAt.getTime() + 60 * 60 * 1000);
+      const appointment = await createAppointment(db, org.id, {
+        calendarId: calendar.id,
+        appointmentTypeId: appointmentType.id,
+        startAt,
+        endAt,
+        status: "scheduled",
+      });
+
+      const result = await call(
+        appointmentRoutes.noShow,
+        { id: appointment.id },
+        { context: ctx },
+      );
+
+      expect(result!.status).toBe("no_show");
+    });
+
+    test("throws error when marking cancelled appointment as no-show", async () => {
+      const { org, user, calendar, appointmentType } =
+        await createFixtureWithAvailability();
+      const ctx = createTestContext({ orgId: org.id, userId: user.id });
+
+      const startAt = getFutureStartTime(1, 10);
+      const endAt = new Date(startAt.getTime() + 60 * 60 * 1000);
+      const appointment = await createAppointment(db, org.id, {
+        calendarId: calendar.id,
+        appointmentTypeId: appointmentType.id,
+        startAt,
+        endAt,
+        status: "cancelled",
+      });
+
+      await expect(
+        call(
+          appointmentRoutes.noShow,
+          { id: appointment.id },
+          { context: ctx },
+        ),
+      ).rejects.toMatchObject({
+        code: "UNPROCESSABLE_CONTENT",
+      });
+    });
+
+    test("throws error when marking already no-show appointment as no-show", async () => {
+      const { org, user, calendar, appointmentType } =
+        await createFixtureWithAvailability();
+      const ctx = createTestContext({ orgId: org.id, userId: user.id });
+
+      const startAt = getFutureStartTime(1, 10);
+      const endAt = new Date(startAt.getTime() + 60 * 60 * 1000);
+      const appointment = await createAppointment(db, org.id, {
+        calendarId: calendar.id,
+        appointmentTypeId: appointmentType.id,
+        startAt,
+        endAt,
+        status: "no_show",
+      });
+
+      await expect(
+        call(
+          appointmentRoutes.noShow,
+          { id: appointment.id },
+          { context: ctx },
+        ),
+      ).rejects.toMatchObject({
+        code: "UNPROCESSABLE_CONTENT",
+      });
+    });
+
+    test("throws NOT_FOUND for non-existent appointment", async () => {
+      const { org, user } = await createOrg(db);
+      const ctx = createTestContext({ orgId: org.id, userId: user.id });
+
+      await expect(
+        call(
+          appointmentRoutes.noShow,
+          { id: "00000000-0000-0000-0000-000000000000" },
+          { context: ctx },
+        ),
+      ).rejects.toMatchObject({
+        code: "NOT_FOUND",
+      });
+    });
+
+    test("throws NOT_FOUND for appointment in different org (RLS)", async () => {
+      const { org: org1, user: user1 } = await createOrg(db, { name: "Org 1" });
+      const { org: org2 } = await createOrg(db, { name: "Org 2" });
+      const calendar = await createCalendar(db, org2.id, {
+        name: "Org 2 Calendar",
+      });
+      const appointmentType = await createAppointmentType(db, org2.id, {
+        name: "Org 2 Type",
+        calendarIds: [calendar.id],
+      });
+
+      const ctx1 = createTestContext({ orgId: org1.id, userId: user1.id });
+
+      const startAt = getFutureStartTime(1, 10);
+      const endAt = new Date(startAt.getTime() + 60 * 60 * 1000);
+      const appointment = await createAppointment(db, org2.id, {
+        calendarId: calendar.id,
+        appointmentTypeId: appointmentType.id,
+        startAt,
+        endAt,
+      });
+
+      await expect(
+        call(
+          appointmentRoutes.noShow,
+          { id: appointment.id },
+          { context: ctx1 },
+        ),
+      ).rejects.toMatchObject({
+        code: "NOT_FOUND",
+      });
+    });
+  });
+
+  describe("Module Exports", () => {
+    test("appointment routes module exists and exports correctly", async () => {
+      const routes = await import("./appointments.js");
+
+      expect(routes.appointmentRoutes).toBeDefined();
+      expect(routes.appointmentRoutes.list).toBeDefined();
+      expect(routes.appointmentRoutes.get).toBeDefined();
+      expect(routes.appointmentRoutes.create).toBeDefined();
+      expect(routes.appointmentRoutes.update).toBeDefined();
+      expect(routes.appointmentRoutes.cancel).toBeDefined();
+      expect(routes.appointmentRoutes.reschedule).toBeDefined();
+      expect(routes.appointmentRoutes.noShow).toBeDefined();
+    });
+
+    test("main router includes appointment routes", async () => {
+      const { router } = await import("./index.js");
+
+      expect(router).toBeDefined();
+      expect(router.appointments).toBeDefined();
+      expect(router.appointments.list).toBeDefined();
+      expect(router.appointments.get).toBeDefined();
+      expect(router.appointments.create).toBeDefined();
+      expect(router.appointments.update).toBeDefined();
+      expect(router.appointments.cancel).toBeDefined();
+      expect(router.appointments.reschedule).toBeDefined();
+      expect(router.appointments.noShow).toBeDefined();
+    });
+  });
+});

@@ -8,9 +8,9 @@ import type {
   AppointmentWithRelations,
 } from "../repositories/appointments.js";
 import type { PaginatedResult } from "../repositories/base.js";
-import { db, withOrg } from "../lib/db.js";
+import { withOrg } from "../lib/db.js";
 import { ApplicationError } from "../errors/application-error.js";
-import { AvailabilityEngine } from "./availability-engine/index.js";
+import { availabilityService } from "./availability-engine/index.js";
 import { events } from "./jobs/emitter.js";
 import { recordAudit, toAuditSnapshot, createAuditContext } from "./audit.js";
 import type { ServiceContext } from "./locations.js";
@@ -155,13 +155,13 @@ export class AppointmentService {
       );
     }
 
-    // Check availability using the engine
-    const engine = new AvailabilityEngine(db);
-    const availabilityCheck = await engine.checkSlot(
+    // Check availability using the service
+    const availabilityCheck = await availabilityService.checkSlot(
       appointmentTypeId,
       calendarId,
       startAt,
       timezone,
+      { orgId, userId: context.userId },
     );
 
     if (!availabilityCheck.available) {
@@ -424,21 +424,19 @@ export class AppointmentService {
       );
     }
 
-    // Check availability for the new slot (engine will exclude this appointment)
-    const engine = new AvailabilityEngine(db);
-    const availabilityCheck = await engine.checkSlot(
+    // Check availability for the new slot
+    const availabilityCheck = await availabilityService.checkSlot(
       existing.appointmentTypeId,
       existing.calendarId,
       newStartAt,
       data.timezone,
+      { orgId, userId: context.userId },
     );
 
-    // The slot might show as unavailable because the current appointment occupies it
-    // We need to check if the only conflict is with itself
-    if (
-      !availabilityCheck.available &&
-      availabilityCheck.reason !== "SLOT_UNAVAILABLE"
-    ) {
+    // If slot is unavailable, throw an error
+    // SLOT_UNAVAILABLE means another appointment occupies the slot
+    // (the current appointment being rescheduled doesn't count since it's moving away)
+    if (!availabilityCheck.available) {
       const errorCode = availabilityCheck.reason || "SLOT_UNAVAILABLE";
       throw new ApplicationError(
         `${errorCode}: New time slot is not available`,

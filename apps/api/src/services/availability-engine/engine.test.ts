@@ -1,4 +1,4 @@
-// Tests for AvailabilityEngine
+// Tests for AvailabilityService
 
 import {
   describe,
@@ -31,18 +31,20 @@ import {
 import type { BunSQLDatabase } from "drizzle-orm/bun-sql/postgres";
 import type * as schema from "@scheduling/db/schema";
 import type { relations } from "@scheduling/db/relations";
-import { AvailabilityEngine } from "./engine.js";
+import { availabilityService } from "./engine.js";
+import type { ServiceContext } from "../locations.js";
 
-// Cast to the type the engine expects
+// Cast to the type the service expects
 type Database = BunSQLDatabase<typeof schema, typeof relations>;
 
-describe("AvailabilityEngine", () => {
+describe("AvailabilityService", () => {
   let db: Database;
   let org: { id: string; name: string };
+  let user: { id: string };
   let location: { id: string };
   let calendar: { id: string };
   let appointmentType: { id: string };
-  let engine: AvailabilityEngine;
+  let testContext: ServiceContext;
 
   beforeAll(async () => {
     db = (await createTestDb()) as Database;
@@ -56,6 +58,8 @@ describe("AvailabilityEngine", () => {
     await resetTestDb();
     const seed = await seedTestOrg(db as any);
     org = seed.org;
+    user = seed.user;
+    testContext = { orgId: org.id, userId: user.id };
 
     // Set org context for RLS-protected inserts
     await setTestOrgContext(db, org.id);
@@ -102,19 +106,20 @@ describe("AvailabilityEngine", () => {
       appointmentTypeId: appointmentType.id,
       calendarId: calendar.id,
     });
-
-    engine = new AvailabilityEngine(db as any);
   });
 
   describe("getAvailableSlots", () => {
     test("returns empty when no availability rules exist", async () => {
-      const slots = await engine.getAvailableSlots({
-        appointmentTypeId: appointmentType.id,
-        calendarIds: [calendar.id],
-        startDate: "2026-01-27", // Tuesday
-        endDate: "2026-01-27",
-        timezone: "America/New_York",
-      });
+      const slots = await availabilityService.getAvailableSlots(
+        {
+          appointmentTypeId: appointmentType.id,
+          calendarIds: [calendar.id],
+          startDate: "2026-01-27", // Tuesday
+          endDate: "2026-01-27",
+          timezone: "America/New_York",
+        },
+        testContext,
+      );
 
       expect(slots).toEqual([]);
     });
@@ -129,13 +134,16 @@ describe("AvailabilityEngine", () => {
         intervalMin: 30,
       });
 
-      const slots = await engine.getAvailableSlots({
-        appointmentTypeId: appointmentType.id,
-        calendarIds: [calendar.id],
-        startDate: "2026-01-27", // Tuesday
-        endDate: "2026-01-27",
-        timezone: "America/New_York",
-      });
+      const slots = await availabilityService.getAvailableSlots(
+        {
+          appointmentTypeId: appointmentType.id,
+          calendarIds: [calendar.id],
+          startDate: "2026-01-27", // Tuesday
+          endDate: "2026-01-27",
+          timezone: "America/New_York",
+        },
+        testContext,
+      );
 
       // With 60-min duration and 30-min intervals, we get slots at 9:00, 9:30, 10:00, 10:30, 11:00
       // (11:30 would end at 12:30, after the 12:00 end time)
@@ -161,13 +169,16 @@ describe("AvailabilityEngine", () => {
         isBlocked: true,
       });
 
-      const slots = await engine.getAvailableSlots({
-        appointmentTypeId: appointmentType.id,
-        calendarIds: [calendar.id],
-        startDate: "2026-01-27",
-        endDate: "2026-01-27",
-        timezone: "America/New_York",
-      });
+      const slots = await availabilityService.getAvailableSlots(
+        {
+          appointmentTypeId: appointmentType.id,
+          calendarIds: [calendar.id],
+          startDate: "2026-01-27",
+          endDate: "2026-01-27",
+          timezone: "America/New_York",
+        },
+        testContext,
+      );
 
       expect(slots).toEqual([]);
     });
@@ -192,13 +203,16 @@ describe("AvailabilityEngine", () => {
         intervalMin: 30,
       });
 
-      const slots = await engine.getAvailableSlots({
-        appointmentTypeId: appointmentType.id,
-        calendarIds: [calendar.id],
-        startDate: "2026-01-27",
-        endDate: "2026-01-27",
-        timezone: "America/New_York",
-      });
+      const slots = await availabilityService.getAvailableSlots(
+        {
+          appointmentTypeId: appointmentType.id,
+          calendarIds: [calendar.id],
+          startDate: "2026-01-27",
+          endDate: "2026-01-27",
+          timezone: "America/New_York",
+        },
+        testContext,
+      );
 
       // Should only have slots from 10:00-12:00 (10:00, 10:30, 11:00)
       expect(slots.length).toBe(3);
@@ -226,13 +240,16 @@ describe("AvailabilityEngine", () => {
         status: "scheduled",
       });
 
-      const slots = await engine.getAvailableSlots({
-        appointmentTypeId: appointmentType.id,
-        calendarIds: [calendar.id],
-        startDate: "2026-01-27",
-        endDate: "2026-01-27",
-        timezone: "America/New_York",
-      });
+      const slots = await availabilityService.getAvailableSlots(
+        {
+          appointmentTypeId: appointmentType.id,
+          calendarIds: [calendar.id],
+          startDate: "2026-01-27",
+          endDate: "2026-01-27",
+          timezone: "America/New_York",
+        },
+        testContext,
+      );
 
       // 3 slots: 9:00 (available), 10:00 (unavailable), 11:00 (available)
       expect(slots.length).toBe(3);
@@ -258,13 +275,16 @@ describe("AvailabilityEngine", () => {
         endAt: new Date("2026-01-27T18:00:00Z"), // 1pm EST
       });
 
-      const slots = await engine.getAvailableSlots({
-        appointmentTypeId: appointmentType.id,
-        calendarIds: [calendar.id],
-        startDate: "2026-01-27",
-        endDate: "2026-01-27",
-        timezone: "America/New_York",
-      });
+      const slots = await availabilityService.getAvailableSlots(
+        {
+          appointmentTypeId: appointmentType.id,
+          calendarIds: [calendar.id],
+          startDate: "2026-01-27",
+          endDate: "2026-01-27",
+          timezone: "America/New_York",
+        },
+        testContext,
+      );
 
       // Find the 12:00 slot
       const noonSlot = slots.find((s) => {
@@ -290,13 +310,16 @@ describe("AvailabilityEngine", () => {
         minNoticeHours: 24,
       });
 
-      const slots = await engine.getAvailableSlots({
-        appointmentTypeId: appointmentType.id,
-        calendarIds: [calendar.id],
-        startDate: "2026-01-27",
-        endDate: "2026-01-27",
-        timezone: "America/New_York",
-      });
+      const slots = await availabilityService.getAvailableSlots(
+        {
+          appointmentTypeId: appointmentType.id,
+          calendarIds: [calendar.id],
+          startDate: "2026-01-27",
+          endDate: "2026-01-27",
+          timezone: "America/New_York",
+        },
+        testContext,
+      );
 
       // All slots should be unavailable if within 24 hours (depending on current time)
       // Since we can't control "now", we just verify the filter runs
@@ -319,13 +342,16 @@ describe("AvailabilityEngine", () => {
       });
 
       // Query for a date far in the future
-      const slots = await engine.getAvailableSlots({
-        appointmentTypeId: appointmentType.id,
-        calendarIds: [calendar.id],
-        startDate: "2026-12-01", // ~11 months away
-        endDate: "2026-12-01",
-        timezone: "America/New_York",
-      });
+      const slots = await availabilityService.getAvailableSlots(
+        {
+          appointmentTypeId: appointmentType.id,
+          calendarIds: [calendar.id],
+          startDate: "2026-12-01", // ~11 months away
+          endDate: "2026-12-01",
+          timezone: "America/New_York",
+        },
+        testContext,
+      );
 
       // All slots should be unavailable (beyond max notice window)
       expect(slots.every((s) => !s.available)).toBe(true);
@@ -384,13 +410,16 @@ describe("AvailabilityEngine", () => {
         },
       ]);
 
-      const slots = await engine.getAvailableSlots({
-        appointmentTypeId: highCapAt!.id,
-        calendarIds: [calendar.id],
-        startDate: "2026-01-27",
-        endDate: "2026-01-27",
-        timezone: "America/New_York",
-      });
+      const slots = await availabilityService.getAvailableSlots(
+        {
+          appointmentTypeId: highCapAt!.id,
+          calendarIds: [calendar.id],
+          startDate: "2026-01-27",
+          endDate: "2026-01-27",
+          timezone: "America/New_York",
+        },
+        testContext,
+      );
 
       // All slots should be unavailable due to daily limit
       expect(slots.every((s) => !s.available)).toBe(true);
@@ -415,13 +444,16 @@ describe("AvailabilityEngine", () => {
         intervalMin: 60,
       });
 
-      const slots = await engine.getAvailableSlots({
-        appointmentTypeId: appointmentType.id,
-        calendarIds: [cal2!.id], // This calendar is not linked
-        startDate: "2026-01-27",
-        endDate: "2026-01-27",
-        timezone: "America/New_York",
-      });
+      const slots = await availabilityService.getAvailableSlots(
+        {
+          appointmentTypeId: appointmentType.id,
+          calendarIds: [cal2!.id], // This calendar is not linked
+          startDate: "2026-01-27",
+          endDate: "2026-01-27",
+          timezone: "America/New_York",
+        },
+        testContext,
+      );
 
       expect(slots).toEqual([]);
     });
@@ -448,13 +480,16 @@ describe("AvailabilityEngine", () => {
         },
       ]);
 
-      const dates = await engine.getAvailableDates({
-        appointmentTypeId: appointmentType.id,
-        calendarIds: [calendar.id],
-        startDate: "2026-01-27", // Tuesday
-        endDate: "2026-01-31", // Saturday
-        timezone: "America/New_York",
-      });
+      const dates = await availabilityService.getAvailableDates(
+        {
+          appointmentTypeId: appointmentType.id,
+          calendarIds: [calendar.id],
+          startDate: "2026-01-27", // Tuesday
+          endDate: "2026-01-31", // Saturday
+          timezone: "America/New_York",
+        },
+        testContext,
+      );
 
       // Should include Tuesday (27th) and Thursday (29th)
       expect(dates).toContain("2026-01-27");
@@ -474,11 +509,12 @@ describe("AvailabilityEngine", () => {
         intervalMin: 60,
       });
 
-      const result = await engine.checkSlot(
+      const result = await availabilityService.checkSlot(
         appointmentType.id,
         calendar.id,
         new Date("2026-01-27T14:00:00Z"), // 9am EST
         "America/New_York",
+        testContext,
       );
 
       expect(result.available).toBe(true);
@@ -487,11 +523,12 @@ describe("AvailabilityEngine", () => {
 
     test("returns unavailable with reason for invalid slot", async () => {
       // No availability rules - slot is invalid
-      const result = await engine.checkSlot(
+      const result = await availabilityService.checkSlot(
         appointmentType.id,
         calendar.id,
         new Date("2026-01-27T14:00:00Z"),
         "America/New_York",
+        testContext,
       );
 
       expect(result.available).toBe(false);
@@ -518,11 +555,12 @@ describe("AvailabilityEngine", () => {
         status: "scheduled",
       });
 
-      const result = await engine.checkSlot(
+      const result = await availabilityService.checkSlot(
         appointmentType.id,
         calendar.id,
         new Date("2026-01-27T14:00:00Z"),
         "America/New_York",
+        testContext,
       );
 
       expect(result.available).toBe(false);
@@ -578,13 +616,16 @@ describe("AvailabilityEngine", () => {
         },
       ]);
 
-      const slots = await engine.getAvailableSlots({
-        appointmentTypeId: groupAt!.id,
-        calendarIds: [calendar.id],
-        startDate: "2026-01-27",
-        endDate: "2026-01-27",
-        timezone: "America/New_York",
-      });
+      const slots = await availabilityService.getAvailableSlots(
+        {
+          appointmentTypeId: groupAt!.id,
+          calendarIds: [calendar.id],
+          startDate: "2026-01-27",
+          endDate: "2026-01-27",
+          timezone: "America/New_York",
+        },
+        testContext,
+      );
 
       // 9am slot should still be available with 1 remaining
       const nineAmSlot = slots.find(
@@ -633,13 +674,16 @@ describe("AvailabilityEngine", () => {
         status: "scheduled",
       });
 
-      const slots = await engine.getAvailableSlots({
-        appointmentTypeId: appointmentType.id,
-        calendarIds: [calendar.id],
-        startDate: "2026-01-27",
-        endDate: "2026-01-27",
-        timezone: "America/New_York",
-      });
+      const slots = await availabilityService.getAvailableSlots(
+        {
+          appointmentTypeId: appointmentType.id,
+          calendarIds: [calendar.id],
+          startDate: "2026-01-27",
+          endDate: "2026-01-27",
+          timezone: "America/New_York",
+        },
+        testContext,
+      );
 
       // 9am slot should be unavailable (resource exhausted)
       const nineAmSlot = slots.find(
@@ -689,13 +733,16 @@ describe("AvailabilityEngine", () => {
         status: "scheduled",
       });
 
-      const slots = await engine.getAvailableSlots({
-        appointmentTypeId: paddedAt!.id,
-        calendarIds: [calendar.id],
-        startDate: "2026-01-27",
-        endDate: "2026-01-27",
-        timezone: "America/New_York",
-      });
+      const slots = await availabilityService.getAvailableSlots(
+        {
+          appointmentTypeId: paddedAt!.id,
+          calendarIds: [calendar.id],
+          startDate: "2026-01-27",
+          endDate: "2026-01-27",
+          timezone: "America/New_York",
+        },
+        testContext,
+      );
 
       // 9:30-10:30 slot would overlap with padding, should be unavailable
       const _nineThirtySlot = slots.find((s) => {

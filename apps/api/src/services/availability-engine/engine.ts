@@ -1,20 +1,11 @@
-// AvailabilityEngine - generates available dates and time slots with full rule enforcement
+// AvailabilityService - generates available dates and time slots with full rule enforcement
 
 import { DateTime } from "luxon";
 import { RRule } from "rrule";
-import { eq, and, gte, lte, ne, inArray, or } from "drizzle-orm";
-import {
-  appointmentTypes,
-  appointmentTypeCalendars,
-  appointmentTypeResources,
-  availabilityRules,
-  availabilityOverrides,
-  blockedTime,
-  schedulingLimits,
-  appointments,
-  resources,
-} from "@scheduling/db/schema";
-import type { Database } from "../../lib/db.js";
+import { withOrg } from "../../lib/db.js";
+import type { DbClient } from "../../lib/db.js";
+import { availabilityRepository } from "../../repositories/availability.js";
+import type { ServiceContext } from "../locations.js";
 import type {
   AvailabilityQuery,
   TimeSlot,
@@ -28,77 +19,195 @@ import type {
   ResourceData,
 } from "./types.js";
 
-export class AvailabilityEngine {
-  constructor(private db: Database) {}
+// Pre-loaded data for slot computation
+interface AvailabilityData {
+  appointmentType: AppointmentTypeData;
+  validCalendarIds: string[];
+  limits: MergedSchedulingLimits;
+  rules: AvailabilityRule[];
+  overrides: AvailabilityOverride[];
+  blockedTimes: BlockedTimeEntry[];
+  existingAppointments: ExistingAppointment[];
+  resourceConstraints: ResourceConstraint[];
+  resourcesData: ResourceData[];
+}
 
+export class AvailabilityService {
   /**
    * Get available dates in the range
    */
-  async getAvailableDates(query: AvailabilityQuery): Promise<string[]> {
-    const dates: string[] = [];
-    const { startDate, endDate, timezone } = query;
+  async getAvailableDates(
+    query: AvailabilityQuery,
+    context: ServiceContext,
+  ): Promise<string[]> {
+    return withOrg(context.orgId, async (tx) => {
+      const { startDate, endDate, timezone } = query;
 
-    let current = DateTime.fromISO(startDate, { zone: timezone });
-    const end = DateTime.fromISO(endDate, { zone: timezone });
-
-    while (current <= end) {
-      const dateStr = current.toISODate()!;
-      const slots = await this.getAvailableSlots({
-        ...query,
-        startDate: dateStr,
-        endDate: dateStr,
-      });
-
-      if (slots.some((s) => s.available)) {
-        dates.push(dateStr);
+      // Load all data once for efficiency
+      const data = await this.loadAvailabilityData(tx, context.orgId, query);
+      if (!data) {
+        return [];
       }
 
-      current = current.plus({ days: 1 });
-    }
+      const dates: string[] = [];
+      let current = DateTime.fromISO(startDate, { zone: timezone });
+      const end = DateTime.fromISO(endDate, { zone: timezone });
 
-    return dates;
+      while (current <= end) {
+        const dateStr = current.toISODate()!;
+        const slots = this.computeSlotsForDate(data, dateStr, timezone);
+
+        if (slots.some((s) => s.available)) {
+          dates.push(dateStr);
+        }
+
+        current = current.plus({ days: 1 });
+      }
+
+      return dates;
+    });
   }
 
   /**
    * Get available time slots in the range
    */
-  async getAvailableSlots(query: AvailabilityQuery): Promise<TimeSlot[]> {
+  async getAvailableSlots(
+    query: AvailabilityQuery,
+    context: ServiceContext,
+  ): Promise<TimeSlot[]> {
+    return withOrg(context.orgId, async (tx) => {
+      const data = await this.loadAvailabilityData(tx, context.orgId, query);
+      if (!data) {
+        return [];
+      }
+
+      return this.computeSlots(
+        data,
+        query.startDate,
+        query.endDate,
+        query.timezone,
+      );
+    });
+  }
+
+  /**
+   * Check if a specific slot is available
+   */
+  async checkSlot(
+    appointmentTypeId: string,
+    calendarId: string,
+    startTime: Date,
+    timezone: string,
+    context: ServiceContext,
+  ): Promise<{ available: boolean; reason?: string }> {
+    return withOrg(context.orgId, async (tx) => {
+      const appointmentType = await availabilityRepository.loadAppointmentType(
+        tx,
+        context.orgId,
+        appointmentTypeId,
+      );
+      if (!appointmentType) {
+        return { available: false, reason: "APPOINTMENT_TYPE_NOT_FOUND" };
+      }
+
+      const endTime = DateTime.fromJSDate(startTime)
+        .plus({ minutes: appointmentType.durationMin })
+        .toJSDate();
+      const startDate = DateTime.fromJSDate(startTime, {
+        zone: timezone,
+      }).toISODate()!;
+
+      const query: AvailabilityQuery = {
+        appointmentTypeId,
+        calendarIds: [calendarId],
+        startDate,
+        endDate: startDate,
+        timezone,
+      };
+
+      const data = await this.loadAvailabilityData(tx, context.orgId, query);
+      if (!data) {
+        return { available: false, reason: "INVALID_CALENDAR" };
+      }
+
+      const slots = this.computeSlots(data, startDate, startDate, timezone);
+
+      const matchingSlot = slots.find(
+        (s) =>
+          s.start.getTime() === startTime.getTime() &&
+          s.end.getTime() === endTime.getTime(),
+      );
+
+      if (!matchingSlot) {
+        return { available: false, reason: "INVALID_SLOT_TIME" };
+      }
+
+      if (!matchingSlot.available) {
+        return { available: false, reason: "SLOT_UNAVAILABLE" };
+      }
+
+      return { available: true };
+    });
+  }
+
+  // ============================================================================
+  // Private data loading
+  // ============================================================================
+
+  private async loadAvailabilityData(
+    tx: DbClient,
+    orgId: string,
+    query: AvailabilityQuery,
+  ): Promise<AvailabilityData | null> {
     const { appointmentTypeId, calendarIds, startDate, endDate, timezone } =
       query;
 
     // 1. Load appointment type details
-    const appointmentType = await this.loadAppointmentType(appointmentTypeId);
+    const appointmentType = await availabilityRepository.loadAppointmentType(
+      tx,
+      orgId,
+      appointmentTypeId,
+    );
     if (!appointmentType) {
-      throw new Error(`Appointment type ${appointmentTypeId} not found`);
+      return null;
     }
 
-    const durationMin = appointmentType.durationMin;
-    const paddingBeforeMin = appointmentType.paddingBeforeMin ?? 0;
-    const paddingAfterMin = appointmentType.paddingAfterMin ?? 0;
-    const capacity = appointmentType.capacity ?? 1;
-
     // 2. Validate calendars are linked to this appointment type
-    const validCalendarIds = await this.getValidCalendars(
+    const validCalendarIds = await availabilityRepository.getValidCalendars(
+      tx,
+      orgId,
       appointmentTypeId,
       calendarIds,
     );
     if (validCalendarIds.length === 0) {
-      return []; // No valid calendars for this appointment type
+      return null;
     }
 
     // 3. Load scheduling limits
-    const limits = await this.loadSchedulingLimits(validCalendarIds);
+    const limits = await availabilityRepository.loadSchedulingLimits(
+      tx,
+      orgId,
+      validCalendarIds,
+    );
 
     // 4. Load availability rules for all calendars
-    const rules = await this.loadAvailabilityRules(validCalendarIds);
+    const rules = await availabilityRepository.loadAvailabilityRules(
+      tx,
+      orgId,
+      validCalendarIds,
+    );
 
     // 5. Load overrides and blocked time
-    const overrides = await this.loadOverrides(
+    const overrides = await availabilityRepository.loadOverrides(
+      tx,
+      orgId,
       validCalendarIds,
       startDate,
       endDate,
     );
-    const blockedTimes = await this.loadBlockedTimes(
+    const blockedTimes = await availabilityRepository.loadBlockedTimes(
+      tx,
+      orgId,
       validCalendarIds,
       startDate,
       endDate,
@@ -106,21 +215,69 @@ export class AvailabilityEngine {
     );
 
     // 6. Load existing appointments
-    const existingAppointments = await this.loadExistingAppointments(
-      validCalendarIds,
-      startDate,
-      endDate,
-      timezone,
-    );
+    const existingAppointments =
+      await availabilityRepository.loadExistingAppointments(
+        tx,
+        orgId,
+        validCalendarIds,
+        startDate,
+        endDate,
+        timezone,
+      );
 
     // 7. Load resource constraints
     const resourceConstraints =
-      await this.loadResourceConstraints(appointmentTypeId);
-    const resourcesData = await this.loadResourcesData(
+      await availabilityRepository.loadResourceConstraints(
+        tx,
+        orgId,
+        appointmentTypeId,
+      );
+    const resourcesData = await availabilityRepository.loadResourcesData(
+      tx,
+      orgId,
       resourceConstraints.map((r) => r.resourceId),
     );
 
-    // 8. Generate candidate slots
+    return {
+      appointmentType,
+      validCalendarIds,
+      limits,
+      rules,
+      overrides,
+      blockedTimes,
+      existingAppointments,
+      resourceConstraints,
+      resourcesData,
+    };
+  }
+
+  // ============================================================================
+  // Pure computation helpers (no DB access)
+  // ============================================================================
+
+  private computeSlots(
+    data: AvailabilityData,
+    startDate: string,
+    endDate: string,
+    timezone: string,
+  ): TimeSlot[] {
+    const {
+      appointmentType,
+      limits,
+      rules,
+      overrides,
+      blockedTimes,
+      existingAppointments,
+      resourceConstraints,
+      resourcesData,
+    } = data;
+
+    const durationMin = appointmentType.durationMin;
+    const paddingBeforeMin = appointmentType.paddingBeforeMin ?? 0;
+    const paddingAfterMin = appointmentType.paddingAfterMin ?? 0;
+    const capacity = appointmentType.capacity ?? 1;
+
+    // Generate candidate slots
     const candidateSlots = this.generateCandidateSlots(
       startDate,
       endDate,
@@ -130,7 +287,7 @@ export class AvailabilityEngine {
       durationMin,
     );
 
-    // 9. Apply filters
+    // Apply filters
     const now = DateTime.now();
     const slots: TimeSlot[] = [];
 
@@ -141,7 +298,7 @@ export class AvailabilityEngine {
       const slotStart = DateTime.fromJSDate(slot.start);
       const slotEnd = DateTime.fromJSDate(slot.end);
 
-      // 9a. Check min notice
+      // Check min notice
       if (available && limits.minNoticeHours != null) {
         const minNotice = now.plus({ hours: limits.minNoticeHours });
         if (slotStart < minNotice) {
@@ -149,7 +306,7 @@ export class AvailabilityEngine {
         }
       }
 
-      // 9b. Check max notice
+      // Check max notice
       if (available && limits.maxNoticeDays != null) {
         const maxNotice = now.plus({ days: limits.maxNoticeDays });
         if (slotStart > maxNotice) {
@@ -157,12 +314,12 @@ export class AvailabilityEngine {
         }
       }
 
-      // 9c. Cannot book in the past
+      // Cannot book in the past
       if (available && slotStart < now) {
         available = false;
       }
 
-      // 9d. Check blocked times (including recurring)
+      // Check blocked times (including recurring)
       if (available) {
         for (const blocked of blockedTimes) {
           if (this.isBlockedAt(slot.start, slot.end, blocked)) {
@@ -172,7 +329,7 @@ export class AvailabilityEngine {
         }
       }
 
-      // 9e. Check existing appointments (with padding)
+      // Check existing appointments (with padding)
       if (available) {
         const slotWithPadding = {
           start: slotStart.minus({ minutes: paddingBeforeMin }).toJSDate(),
@@ -197,22 +354,22 @@ export class AvailabilityEngine {
         }
       }
 
-      // 9f. Check resource capacity
+      // Check resource capacity
       if (available && resourceConstraints.length > 0) {
-        const resourceAvailable = await this.checkResourceCapacity(
+        const resourceAvailable = this.checkResourceCapacity(
           slot.start,
           slot.end,
           resourceConstraints,
           resourcesData,
           existingAppointments,
-          appointmentTypeId,
+          appointmentType.id,
         );
         if (!resourceAvailable) {
           available = false;
         }
       }
 
-      // 9g. Check daily limits
+      // Check daily limits
       if (available && limits.maxPerDay != null) {
         const dailyCount = existingAppointments.filter((a) =>
           DateTime.fromJSDate(a.startAt).hasSame(slotStart, "day"),
@@ -222,7 +379,7 @@ export class AvailabilityEngine {
         }
       }
 
-      // 9h. Check weekly limits
+      // Check weekly limits
       if (available && limits.maxPerWeek != null) {
         const weekStart = slotStart.startOf("week");
         const weekEnd = slotStart.endOf("week");
@@ -235,7 +392,7 @@ export class AvailabilityEngine {
         }
       }
 
-      // 9i. Check per-slot limits (maxPerSlot)
+      // Check per-slot limits (maxPerSlot)
       if (available && limits.maxPerSlot != null) {
         if (capacity - remainingCapacity >= limits.maxPerSlot) {
           available = false;
@@ -253,310 +410,12 @@ export class AvailabilityEngine {
     return slots;
   }
 
-  /**
-   * Check if a specific slot is available
-   */
-  async checkSlot(
-    appointmentTypeId: string,
-    calendarId: string,
-    startTime: Date,
+  private computeSlotsForDate(
+    data: AvailabilityData,
+    dateStr: string,
     timezone: string,
-  ): Promise<{ available: boolean; reason?: string }> {
-    const appointmentType = await this.loadAppointmentType(appointmentTypeId);
-    if (!appointmentType) {
-      return { available: false, reason: "APPOINTMENT_TYPE_NOT_FOUND" };
-    }
-
-    const endTime = DateTime.fromJSDate(startTime)
-      .plus({ minutes: appointmentType.durationMin })
-      .toJSDate();
-    const startDate = DateTime.fromJSDate(startTime, {
-      zone: timezone,
-    }).toISODate()!;
-
-    const slots = await this.getAvailableSlots({
-      appointmentTypeId,
-      calendarIds: [calendarId],
-      startDate,
-      endDate: startDate,
-      timezone,
-    });
-
-    const matchingSlot = slots.find(
-      (s) =>
-        s.start.getTime() === startTime.getTime() &&
-        s.end.getTime() === endTime.getTime(),
-    );
-
-    if (!matchingSlot) {
-      return { available: false, reason: "INVALID_SLOT_TIME" };
-    }
-
-    if (!matchingSlot.available) {
-      return { available: false, reason: "SLOT_UNAVAILABLE" };
-    }
-
-    return { available: true };
-  }
-
-  // ============================================================================
-  // Private helpers
-  // ============================================================================
-
-  private async loadAppointmentType(
-    id: string,
-  ): Promise<AppointmentTypeData | null> {
-    const result = await this.db
-      .select()
-      .from(appointmentTypes)
-      .where(eq(appointmentTypes.id, id))
-      .limit(1);
-
-    if (result.length === 0) return null;
-
-    const at = result[0]!;
-    return {
-      id: at.id,
-      name: at.name,
-      durationMin: at.durationMin,
-      paddingBeforeMin: at.paddingBeforeMin,
-      paddingAfterMin: at.paddingAfterMin,
-      capacity: at.capacity,
-    };
-  }
-
-  private async getValidCalendars(
-    appointmentTypeId: string,
-    requestedCalendarIds: string[],
-  ): Promise<string[]> {
-    // Get calendars linked to this appointment type
-    const links = await this.db
-      .select({ calendarId: appointmentTypeCalendars.calendarId })
-      .from(appointmentTypeCalendars)
-      .where(eq(appointmentTypeCalendars.appointmentTypeId, appointmentTypeId));
-
-    const linkedCalendarIds = new Set(links.map((l) => l.calendarId));
-
-    // Filter requested calendars to only those linked to this appointment type
-    return requestedCalendarIds.filter((id) => linkedCalendarIds.has(id));
-  }
-
-  private async loadSchedulingLimits(
-    calendarIds: string[],
-  ): Promise<MergedSchedulingLimits> {
-    // Load all limits for these calendars
-    const results = await this.db
-      .select()
-      .from(schedulingLimits)
-      .where(
-        or(
-          inArray(schedulingLimits.calendarId, calendarIds),
-          eq(schedulingLimits.calendarId, undefined as any),
-        ),
-      );
-
-    // Merge limits - use the most restrictive
-    const merged: MergedSchedulingLimits = {
-      minNoticeHours: null,
-      maxNoticeDays: null,
-      maxPerSlot: null,
-      maxPerDay: null,
-      maxPerWeek: null,
-    };
-
-    for (const limit of results) {
-      if (limit.minNoticeHours != null) {
-        merged.minNoticeHours =
-          merged.minNoticeHours == null
-            ? limit.minNoticeHours
-            : Math.max(merged.minNoticeHours, limit.minNoticeHours);
-      }
-      if (limit.maxNoticeDays != null) {
-        merged.maxNoticeDays =
-          merged.maxNoticeDays == null
-            ? limit.maxNoticeDays
-            : Math.min(merged.maxNoticeDays, limit.maxNoticeDays);
-      }
-      if (limit.maxPerSlot != null) {
-        merged.maxPerSlot =
-          merged.maxPerSlot == null
-            ? limit.maxPerSlot
-            : Math.min(merged.maxPerSlot, limit.maxPerSlot);
-      }
-      if (limit.maxPerDay != null) {
-        merged.maxPerDay =
-          merged.maxPerDay == null
-            ? limit.maxPerDay
-            : Math.min(merged.maxPerDay, limit.maxPerDay);
-      }
-      if (limit.maxPerWeek != null) {
-        merged.maxPerWeek =
-          merged.maxPerWeek == null
-            ? limit.maxPerWeek
-            : Math.min(merged.maxPerWeek, limit.maxPerWeek);
-      }
-    }
-
-    return merged;
-  }
-
-  private async loadAvailabilityRules(
-    calendarIds: string[],
-  ): Promise<AvailabilityRule[]> {
-    const results = await this.db
-      .select()
-      .from(availabilityRules)
-      .where(inArray(availabilityRules.calendarId, calendarIds));
-
-    return results.map((r) => ({
-      id: r.id,
-      calendarId: r.calendarId,
-      weekday: r.weekday,
-      startTime: r.startTime,
-      endTime: r.endTime,
-      intervalMin: r.intervalMin,
-      groupId: r.groupId,
-    }));
-  }
-
-  private async loadOverrides(
-    calendarIds: string[],
-    startDate: string,
-    endDate: string,
-  ): Promise<AvailabilityOverride[]> {
-    const results = await this.db
-      .select()
-      .from(availabilityOverrides)
-      .where(
-        and(
-          inArray(availabilityOverrides.calendarId, calendarIds),
-          gte(availabilityOverrides.date, startDate),
-          lte(availabilityOverrides.date, endDate),
-        ),
-      );
-
-    return results.map((o) => ({
-      id: o.id,
-      calendarId: o.calendarId,
-      date: o.date,
-      startTime: o.startTime,
-      endTime: o.endTime,
-      isBlocked: o.isBlocked,
-      intervalMin: o.intervalMin,
-      groupId: o.groupId,
-    }));
-  }
-
-  private async loadBlockedTimes(
-    calendarIds: string[],
-    startDate: string,
-    endDate: string,
-    timezone: string,
-  ): Promise<BlockedTimeEntry[]> {
-    // Convert dates to UTC for database query
-    const startDateTime = DateTime.fromISO(startDate, { zone: timezone })
-      .startOf("day")
-      .toUTC();
-    const endDateTime = DateTime.fromISO(endDate, { zone: timezone })
-      .endOf("day")
-      .toUTC();
-
-    const results = await this.db
-      .select()
-      .from(blockedTime)
-      .where(
-        and(
-          inArray(blockedTime.calendarId, calendarIds),
-          // Include blocked times that overlap with the range or have recurring rules
-          or(
-            and(
-              gte(blockedTime.startAt, startDateTime.toJSDate()),
-              lte(blockedTime.startAt, endDateTime.toJSDate()),
-            ),
-            and(
-              gte(blockedTime.endAt, startDateTime.toJSDate()),
-              lte(blockedTime.endAt, endDateTime.toJSDate()),
-            ),
-            // Include entries with recurring rules that might affect the range
-            ne(blockedTime.recurringRule, null as any),
-          ),
-        ),
-      );
-
-    return results.map((b) => ({
-      id: b.id,
-      calendarId: b.calendarId,
-      startAt: b.startAt,
-      endAt: b.endAt,
-      recurringRule: b.recurringRule,
-    }));
-  }
-
-  private async loadExistingAppointments(
-    calendarIds: string[],
-    startDate: string,
-    endDate: string,
-    timezone: string,
-  ): Promise<ExistingAppointment[]> {
-    // Convert dates to UTC for database query
-    const startDateTime = DateTime.fromISO(startDate, { zone: timezone })
-      .startOf("day")
-      .toUTC();
-    const endDateTime = DateTime.fromISO(endDate, { zone: timezone })
-      .endOf("day")
-      .toUTC();
-
-    const results = await this.db
-      .select()
-      .from(appointments)
-      .where(
-        and(
-          inArray(appointments.calendarId, calendarIds),
-          ne(appointments.status, "cancelled"),
-          gte(appointments.startAt, startDateTime.toJSDate()),
-          lte(appointments.startAt, endDateTime.toJSDate()),
-        ),
-      );
-
-    return results.map((a) => ({
-      id: a.id,
-      calendarId: a.calendarId,
-      appointmentTypeId: a.appointmentTypeId,
-      startAt: a.startAt,
-      endAt: a.endAt,
-      status: a.status,
-    }));
-  }
-
-  private async loadResourceConstraints(
-    appointmentTypeId: string,
-  ): Promise<ResourceConstraint[]> {
-    const results = await this.db
-      .select()
-      .from(appointmentTypeResources)
-      .where(eq(appointmentTypeResources.appointmentTypeId, appointmentTypeId));
-
-    return results.map((r) => ({
-      resourceId: r.resourceId,
-      quantityRequired: r.quantityRequired,
-    }));
-  }
-
-  private async loadResourcesData(
-    resourceIds: string[],
-  ): Promise<ResourceData[]> {
-    if (resourceIds.length === 0) return [];
-
-    const results = await this.db
-      .select()
-      .from(resources)
-      .where(inArray(resources.id, resourceIds));
-
-    return results.map((r) => ({
-      id: r.id,
-      name: r.name,
-      quantity: r.quantity,
-    }));
+  ): TimeSlot[] {
+    return this.computeSlots(data, dateStr, dateStr, timezone);
   }
 
   private generateCandidateSlots(
@@ -690,14 +549,14 @@ export class AvailabilityEngine {
     return a.start < b.end && b.start < a.end;
   }
 
-  private async checkResourceCapacity(
+  private checkResourceCapacity(
     start: Date,
     end: Date,
     resourceConstraints: ResourceConstraint[],
     resourcesData: ResourceData[],
     existingAppointments: ExistingAppointment[],
     appointmentTypeId: string,
-  ): Promise<boolean> {
+  ): boolean {
     // For each resource, check if adding this appointment would exceed capacity
     for (const constraint of resourceConstraints) {
       const resource = resourcesData.find(
@@ -729,3 +588,6 @@ export class AvailabilityEngine {
     return true;
   }
 }
+
+// Singleton instance
+export const availabilityService = new AvailabilityService();

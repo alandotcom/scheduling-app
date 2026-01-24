@@ -27,11 +27,11 @@ import {
   availabilityCheckSchema,
 } from "@scheduling/dto";
 import { authed } from "./base.js";
-import { db, withOrg } from "../lib/db.js";
+import { withOrg } from "../lib/db.js";
 import { ApplicationError } from "../errors/application-error.js";
-import { AvailabilityEngine } from "../services/availability-engine/index.js";
+import { availabilityService } from "../services/availability-engine/index.js";
 
-const calendarIdInput = z.object({ calendarId: z.string().uuid() });
+const calendarIdInput = z.object({ calendarId: z.uuid() });
 const idInput = z.object({ id: z.string().uuid() });
 const cursorPaginationInput = z.object({
   cursor: z.string().uuid().optional(),
@@ -929,15 +929,17 @@ export const schedulingLimitsRoutes = {
 export const getDates = authed
   .input(availabilityQuerySchema)
   .handler(async ({ input, context }) => {
-    const { orgId } = context;
+    const { orgId, userId } = context;
 
     // Verify all calendars belong to this org
     for (const calendarId of input.calendarIds) {
       await verifyCalendarAccess(orgId, calendarId);
     }
 
-    const engine = new AvailabilityEngine(db);
-    const dates = await engine.getAvailableDates(input);
+    const dates = await availabilityService.getAvailableDates(input, {
+      orgId,
+      userId: userId!,
+    });
 
     return { dates };
   });
@@ -946,15 +948,17 @@ export const getDates = authed
 export const getTimes = authed
   .input(availabilityQuerySchema)
   .handler(async ({ input, context }) => {
-    const { orgId } = context;
+    const { orgId, userId } = context;
 
     // Verify all calendars belong to this org
     for (const calendarId of input.calendarIds) {
       await verifyCalendarAccess(orgId, calendarId);
     }
 
-    const engine = new AvailabilityEngine(db);
-    const slots = await engine.getAvailableSlots(input);
+    const slots = await availabilityService.getAvailableSlots(input, {
+      orgId,
+      userId: userId!,
+    });
 
     // Transform Date objects to ISO strings for serialization
     return {
@@ -971,17 +975,17 @@ export const getTimes = authed
 export const checkSlot = authed
   .input(availabilityCheckSchema)
   .handler(async ({ input, context }) => {
-    const { orgId } = context;
+    const { orgId, userId } = context;
     const { appointmentTypeId, calendarId, startTime, timezone } = input;
 
     await verifyCalendarAccess(orgId, calendarId);
 
-    const engine = new AvailabilityEngine(db);
-    const result = await engine.checkSlot(
+    const result = await availabilityService.checkSlot(
       appointmentTypeId,
       calendarId,
       new Date(startTime),
       timezone,
+      { orgId, userId: userId! },
     );
 
     return result;
