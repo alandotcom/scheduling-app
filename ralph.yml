@@ -1,95 +1,93 @@
-# README-Driven Development
-# Pattern: Documentation-First
-# If you can't explain it simply, you don't understand it
+# Feature Development Preset
+#
+# Enhanced default workflow with integrated code review.
+# Planner → Builder → Reviewer cycle ensures quality.
 #
 # Usage:
-#   ralph run --config presets/documentation-first.yml --prompt "Build a CLI tool for file conversion"
+#   ralph run --config presets/feature.yml --prompt "Add user authentication"
 
 event_loop:
-  starting_event: "docs.start"  # Ralph publishes this after coordination
+  prompt_file: "PROMPT.md"
+  completion_promise: "LOOP_COMPLETE"
+  max_iterations: 100
+  max_runtime_seconds: 14400
+  checkpoint_interval: 5
+
+cli:
+  backend: "claude"
+
+core:
+  specs_dir: "./specs/"
 
 hats:
-  documenter:
-    name: "📝 Documenter"
-    description: "Writes documentation BEFORE any code exists."
-    triggers: ["docs.start", "docs.rejected"]
-    publishes: ["docs.ready"]
+  builder:
+    name: "Builder"
+    description: "Implements one task with backpressure. One task, one commit."
+    triggers: ["build.task"]
+    publishes: ["build.done", "build.blocked"]
+    default_publishes: "build.done"
     instructions: |
-      Write the documentation BEFORE any code exists.
+      ## BUILDER MODE
 
-      Include:
-      1. Problem Statement
-         - What problem does this solve?
-         - Who has this problem?
+      You're building, not planning. One task, then exit.
 
-      2. Solution Overview
-         - How does this solve it?
-         - What approach are we taking?
+      ### Process
+      1. **Pick ONE task.** Highest priority from task list.
+      2. **Implement.** Write the code. Follow existing patterns.
+      3. **Validate.** Run backpressure. Must pass.
+      4. **Commit.** One task, one commit.
+      5. **Exit.** Publish event with evidence.
 
-      3. Usage Guide
-         - How do you use it? (with runnable examples)
-         - What are the prerequisites?
+      ### Event Format
+      ```bash
+      ralph emit "build.done" "tests: pass, lint: pass, typecheck: pass"
+      ```
 
-      4. API Reference
-         - What are the inputs/outputs?
-         - What errors can occur?
+      ### Backpressure
+      ```bash
+      cargo check && cargo test && cargo clippy -- -D warnings
+      ```
 
-      5. Edge Cases
-         - What happens with unusual inputs?
-         - What are the limitations?
+      ### DON'T
+      - ❌ Decide what tasks to add
+      - ❌ Output the completion promise
+      - ❌ Skip tests
 
-      Write as if explaining to a new team member.
-      Every example must be runnable (no pseudocode).
+      ### STUCK?
+      ```bash
+      ralph emit "build.blocked" "what you tried and why it failed"
+      ```
 
   reviewer:
-    name: "🔎 Docs Reviewer"
-    description: "Reviews docs for completeness. Can someone implement from this?"
-    triggers: ["docs.ready"]
-    publishes: ["docs.approved", "docs.rejected"]
+    name: "Reviewer"
+    description: "Reviews implementation for quality. Does NOT modify code."
+    triggers: ["review.request"]
+    publishes: ["review.approved", "review.changes_requested"]
+    default_publishes: "review.approved"
     instructions: |
-      Review docs for completeness and clarity.
+      ## REVIEWER MODE
 
-      The test: Could someone implement this from the docs alone?
+      Review the most recent implementation for quality.
 
-      Checklist:
-      - [ ] Is the problem clearly stated?
-      - [ ] Are all examples runnable (not pseudocode)?
-      - [ ] Are edge cases documented?
-      - [ ] Is the API clear from examples?
-      - [ ] Are error conditions documented?
-      - [ ] Are limitations called out?
-      - [ ] Is there anything ambiguous?
+      ### Checklist
+      - [ ] **Correctness:** Does it match the spec/task requirements?
+      - [ ] **Tests:** Are there tests? Do they cover edge cases?
+      - [ ] **Patterns:** Does it follow existing codebase patterns?
+      - [ ] **Errors:** Is error handling appropriate?
+      - [ ] **Security:** Any obvious vulnerabilities?
 
-      If issues: publish docs.rejected with specific feedback
-      If solid: publish docs.approved
+      ### If Approved
+      ```bash
+      ralph emit "review.approved"
+      ```
+      Ralph will coordinate next steps.
 
-  implementer:
-    name: "⚙️ Implementer"
-    description: "Implements to match the documentation exactly."
-    triggers: ["docs.approved"]
-    publishes: ["implementation.done"]
-    instructions: |
-      Implement to match the documentation.
+      ### If Changes Needed
+      ```bash
+      ralph emit "review.changes_requested" "Issues: file:line - [specific issue]. Required: [what needs to change]"
+      ```
 
-      The docs are the spec. Follow them exactly.
-      - Every example in the docs should work
-      - Every edge case should be handled as documented
-      - Every error condition should occur as documented
-
-      Write tests that verify each documentation example.
-
-  verifier:
-    name: "✅ Docs Verifier"
-    description: "Verifies implementation matches documentation exactly."
-    triggers: ["implementation.done"]
-    publishes: ["task.complete"]
-    default_publishes: "task.complete"
-    instructions: |
-      Verify implementation matches documentation.
-
-      1. Run every example in the docs (copy-paste and run)
-      2. Verify every edge case behaves as documented
-      3. Confirm error messages match documentation
-      4. Update docs if any minor adjustments needed
-
-      LOOP_COMPLETE when all docs are accurate.
+      ### DON'T
+      - ❌ Make code changes yourself
+      - ❌ Be vague about what's wrong
+      - ❌ Block on style nitpicks

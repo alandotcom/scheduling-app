@@ -106,3 +106,126 @@ Should locations/resources be managed via admin-only REST endpoints in v1, and s
 ## A18
 Locations/resources managed via admin-only REST endpoints within /v1 (no separate /admin namespace).
 
+## Q19
+What is the monorepo structure and package organization?
+
+## A19
+pnpm monorepo with:
+- `apps/admin-ui` - React + TanStack Router admin UI
+- `apps/api` - Bun + Hono REST API
+- Shared DTO package for types shared between frontend and backend
+- tRPC types live in the DTO package for simplicity
+
+## Q20
+What ORM/database access layer should be used?
+
+## A20
+Drizzle v1 for migrations and DB access. For raw queries when needed, use the Bun SQL adapter directly.
+
+## Q21
+What testing infrastructure should be used?
+
+## A21
+- Vitest for testing (not bun:test)
+- PGLite for database tests instead of a real Postgres server
+
+## Q22
+What should the shared DTO/types package be named?
+
+## A22
+`packages/dto` for shared types between frontend and backend.
+
+## Q23
+Should tRPC be used for admin-ui ↔ api communication, with REST only for external/public API?
+
+## A23
+Use oRPC instead of tRPC (https://orpc.dev/docs/openapi/getting-started). This allows generating an OpenAPI spec for external consumers while keeping type-safe client-server communication.
+
+## Q24
+Where should the Drizzle schema live?
+
+## A24
+`packages/db` - separate package for Drizzle schema, migrations, and database access.
+
+## Q25
+What shared configs and linting/formatting tools should be used?
+
+## A25
+- oxlint and oxfmt with native TypeScript parser
+- Keep rules strict
+- Shared configs at monorepo root
+
+## Q26
+What dev workflow tooling should be used?
+
+## A26
+Plain pnpm scripts (no turbo or other build orchestrators).
+
+## Q27
+Should BetterAuth tables be part of the same Drizzle schema?
+
+## A27
+Yes, follow BetterAuth + Drizzle best practices for integration.
+
+## Q28
+What should be used for background job queues?
+
+## A28
+- Valkey instead of Redis (Redis-compatible)
+- Run in Docker container for local dev/testing via docker-compose
+- Ensure no port conflicts with existing host services
+
+## Q29
+How should environment configuration be managed?
+
+## A29
+- Shared .env file at monorepo root
+- Use standard-env (https://github.com/alandotcom/standard-env/) for parsing configuration
+
+## Q30
+How should the oRPC client integrate with the admin-ui?
+
+## A30
+Use `@orpc/tanstack-query` for type-safe data fetching with TanStack Query in the admin-ui.
+
+## Q31
+How should API versioning work with oRPC?
+
+## A31
+Use whatever works best for oRPC (likely route path prefixes in route definitions).
+
+## Q32
+Should we expose an OpenAPI spec endpoint?
+
+## A32
+Not yet.
+
+## Q33
+What styling/CSS approach for admin-ui?
+
+## A33
+shadcn/ui with Tailwind. Initialize with:
+```
+pnpm dlx shadcn@latest create --preset "https://ui.shadcn.com/init?base=base&style=nova&baseColor=neutral&theme=neutral&iconLibrary=hugeicons&font=inter&menuAccent=subtle&menuColor=default&radius=default&template=vite" --template vite
+```
+
+## Q34
+Should monorepo packages use scoped names?
+
+## A34
+Yes. Use `@scheduling/dto`, `@scheduling/db`, etc.
+
+## Q35
+How should dev startup work?
+
+## A35
+- Docker-compose runs separately (just once) to start Postgres and Valkey
+- `pnpm dev` at root runs api and admin-ui concurrently
+- Postgres database needed for development (PGLite only for tests)
+
+## Q36
+What ID format should be used for database records?
+
+## A36
+Postgres 18 native UUID7 columns (`uuidv7()`). UUID7 provides opaque identifiers with natural sort order - not for storing business timestamps, just for sortable IDs without auto-increment integers.
+

@@ -1,22 +1,65 @@
 # Objective
-Implement the v1 scheduling platform described in the detailed design.
+
+Implement the v1 scheduling platform as a pnpm monorepo with type-safe end-to-end architecture.
 
 # Key Requirements
-- API-first, multi-tenant (users can belong to multiple orgs) with Postgres RLS.
-- Bun + Hono backend, REST API under `/v1`.
-- Admin/staff auth via BetterAuth; API tokens for server-to-server access.
-- Core entities: appointments, appointment types, calendars, locations, resources, clients.
-- Availability engine: weekly hours, overrides, blocked time, min/max notice, start-time intervals, padding, appointment-type groups, resource constraints.
-- Admin/staff UI: React + TanStack Router; latest shadcn/ui with Base UI.
-- Webhook/event outbox architecture (no SMS/notifications in v1).
-- Use BullMQ behind a small abstraction for background jobs.
+
+**Architecture:**
+- pnpm monorepo: `apps/api`, `apps/admin-ui`, `packages/db`, `packages/dto`
+- Scoped package names: `@scheduling/db`, `@scheduling/dto`
+- Bun runtime for API server
+
+**API (apps/api):**
+- Hono + oRPC (not tRPC) for type-safe REST with OpenAPI generation
+- BetterAuth with Drizzle adapter for session auth
+- API tokens for server-to-server access (v1 extension)
+- Postgres 18 with RLS for multi-tenant isolation
+- BullMQ + Valkey for background jobs
+
+**Database (packages/db):**
+- Drizzle v1 for schema and migrations
+- Postgres 18 native UUID7 for all IDs (`uuidv7()`)
+- PGLite for testing (no Postgres server needed in tests)
+
+**Frontend (apps/admin-ui):**
+- React + TanStack Router
+- shadcn/ui nova style with Base UI
+- `@orpc/tanstack-query` for data fetching
+- Tailwind CSS
+
+**Tooling:**
+- Vitest for testing
+- oxlint + oxfmt (strict rules, native TS parser)
+- standard-env for configuration
+- Docker Compose for Postgres 18 + Valkey
+
+**Core Entities:**
+- Orgs, users, org memberships (admin/staff roles)
+- Locations, calendars (with timezones)
+- Appointment types (duration, padding, capacity)
+- Resources (quantity-based)
+- Clients, appointments
+- Availability rules, overrides, blocked time, scheduling limits
+
+**Availability Engine:**
+- Weekly hours, date overrides, blocked time (with RRULE)
+- Min/max notice, per-slot/day/week caps
+- Resource capacity constraints
+- Padding between appointments
 
 # Acceptance Criteria
-- CRUD endpoints for locations, calendars, resources, appointment types.
-- Availability endpoints mirror Acuity flow (dates/times/check) and enforce rules.
-- Appointment lifecycle: create/read/update/reschedule/cancel/no-show with conflict handling.
-- RLS verified: cross-org access blocked.
-- Admin UI allows managing the above entities.
+
+- [ ] Monorepo structure with working `pnpm dev` command
+- [ ] Docker Compose starts Postgres 18 + Valkey without port conflicts
+- [ ] CRUD endpoints for all entities via oRPC
+- [ ] RLS enforces org isolation (verified by tests)
+- [ ] Availability endpoints: dates/times/check with full rule enforcement
+- [ ] Appointment lifecycle with race condition handling
+- [ ] Admin UI for managing all entities
+- [ ] Tests pass using PGLite
 
 # Design Reference
-See `.sop/planning/design/detailed-design.md` for full design details and constraints.
+
+- `.sop/planning/design/detailed-design.md` - Architecture, schema, tech stack
+- `.sop/planning/design/implementation-details.md` - Code patterns for oRPC, auth, RLS, availability engine, testing
+- `.sop/planning/implementation/plan.md` - 15-step implementation checklist
