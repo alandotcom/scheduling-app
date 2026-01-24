@@ -11,6 +11,7 @@ import {
 import { authed } from './base.js'
 import { withOrg } from '../lib/db.js'
 import { ORPCError } from '../lib/orpc.js'
+import { events } from '../services/jobs/emitter.js'
 
 // List calendars with cursor pagination and optional location filter
 export const list = authed
@@ -97,6 +98,14 @@ export const create = authed
         .returning()
     })
 
+    // Emit calendar created event
+    await events.calendarCreated(orgId, {
+      calendarId: calendar!.id,
+      name: calendar!.name,
+      timezone: calendar!.timezone,
+      locationId: calendar!.locationId,
+    })
+
     return calendar
   })
 
@@ -147,6 +156,17 @@ export const update = authed
         .returning()
     })
 
+    // Emit calendar updated event
+    await events.calendarUpdated(orgId, {
+      calendarId: updated!.id,
+      changes: data,
+      previous: {
+        name: existing.name,
+        timezone: existing.timezone,
+        locationId: existing.locationId,
+      },
+    })
+
     return updated
   })
 
@@ -168,6 +188,14 @@ export const remove = authed
 
     await withOrg(orgId, async (tx) => {
       return tx.delete(calendars).where(eq(calendars.id, id))
+    })
+
+    // Emit calendar deleted event
+    await events.calendarDeleted(orgId, {
+      calendarId: id,
+      name: existing.name,
+      timezone: existing.timezone,
+      locationId: existing.locationId,
     })
 
     return { success: true }

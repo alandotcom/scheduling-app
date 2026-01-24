@@ -20,6 +20,7 @@ import {
 import { authed } from './base.js'
 import { withOrg } from '../lib/db.js'
 import { ORPCError } from '../lib/orpc.js'
+import { events } from '../services/jobs/emitter.js'
 
 // List appointment types with cursor pagination
 export const list = authed
@@ -90,6 +91,16 @@ export const create = authed
         .returning()
     })
 
+    // Emit appointment type created event
+    await events.appointmentTypeCreated(orgId, {
+      appointmentTypeId: appointmentType!.id,
+      name: appointmentType!.name,
+      durationMin: appointmentType!.durationMin,
+      paddingBeforeMin: appointmentType!.paddingBeforeMin,
+      paddingAfterMin: appointmentType!.paddingAfterMin,
+      capacity: appointmentType!.capacity,
+    })
+
     return appointmentType
   })
 
@@ -129,6 +140,19 @@ export const update = authed
         .returning()
     })
 
+    // Emit appointment type updated event
+    await events.appointmentTypeUpdated(orgId, {
+      appointmentTypeId: updated!.id,
+      changes: data,
+      previous: {
+        name: existing.name,
+        durationMin: existing.durationMin,
+        paddingBeforeMin: existing.paddingBeforeMin,
+        paddingAfterMin: existing.paddingAfterMin,
+        capacity: existing.capacity,
+      },
+    })
+
     return updated
   })
 
@@ -161,6 +185,13 @@ export const remove = authed
         .delete(appointmentTypeResources)
         .where(eq(appointmentTypeResources.appointmentTypeId, id))
       return tx.delete(appointmentTypes).where(eq(appointmentTypes.id, id))
+    })
+
+    // Emit appointment type deleted event
+    await events.appointmentTypeDeleted(orgId, {
+      appointmentTypeId: id,
+      name: existing.name,
+      durationMin: existing.durationMin,
     })
 
     return { success: true }

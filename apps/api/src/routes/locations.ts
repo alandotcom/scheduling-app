@@ -11,6 +11,7 @@ import {
 import { authed } from './base.js'
 import { withOrg } from '../lib/db.js'
 import { ORPCError } from '../lib/orpc.js'
+import { events } from '../services/jobs/emitter.js'
 
 // List locations with cursor pagination
 export const list = authed
@@ -75,6 +76,13 @@ export const create = authed
         .returning()
     })
 
+    // Emit location created event
+    await events.locationCreated(orgId, {
+      locationId: location!.id,
+      name: location!.name,
+      timezone: location!.timezone,
+    })
+
     return location
   })
 
@@ -110,6 +118,16 @@ export const update = authed
         .returning()
     })
 
+    // Emit location updated event
+    await events.locationUpdated(orgId, {
+      locationId: updated!.id,
+      changes: data,
+      previous: {
+        name: existing.name,
+        timezone: existing.timezone,
+      },
+    })
+
     return updated
   })
 
@@ -131,6 +149,13 @@ export const remove = authed
 
     await withOrg(orgId, async (tx) => {
       return tx.delete(locations).where(eq(locations.id, id))
+    })
+
+    // Emit location deleted event
+    await events.locationDeleted(orgId, {
+      locationId: id,
+      name: existing.name,
+      timezone: existing.timezone,
     })
 
     return { success: true }

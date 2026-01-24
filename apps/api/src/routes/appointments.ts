@@ -26,6 +26,7 @@ import { authed } from './base.js'
 import { db, withOrg } from '../lib/db.js'
 import { ORPCError } from '../lib/orpc.js'
 import { AvailabilityEngine } from '../services/availability-engine/index.js'
+import { events } from '../services/jobs/emitter.js'
 
 const idInput = z.object({ id: z.string().uuid() })
 
@@ -373,6 +374,18 @@ export const create = authed
       )
     })
 
+    // Emit appointment created event
+    await events.appointmentCreated(orgId, {
+      appointmentId: appointment.id,
+      calendarId: appointment.calendarId,
+      appointmentTypeId: appointment.appointmentTypeId,
+      clientId: appointment.clientId,
+      startAt: appointment.startAt.toISOString(),
+      endAt: appointment.endAt.toISOString(),
+      timezone: appointment.timezone,
+      status: appointment.status,
+    })
+
     return appointment
   })
 
@@ -425,6 +438,14 @@ export const update = authed
         .returning()
     })
 
+    // Emit appointment updated event
+    await events.appointmentUpdated(orgId, {
+      appointmentId: updated!.id,
+      changes: data,
+      previousClientId: existing.clientId,
+      previousNotes: existing.notes,
+    })
+
     return updated!
   })
 
@@ -464,6 +485,17 @@ export const cancel = authed
         })
         .where(eq(appointments.id, id))
         .returning()
+    })
+
+    // Emit appointment cancelled event
+    await events.appointmentCancelled(orgId, {
+      appointmentId: updated!.id,
+      calendarId: updated!.calendarId,
+      appointmentTypeId: updated!.appointmentTypeId,
+      clientId: updated!.clientId,
+      startAt: updated!.startAt.toISOString(),
+      endAt: updated!.endAt.toISOString(),
+      reason: data?.reason,
     })
 
     return updated!
@@ -599,6 +631,19 @@ export const reschedule = authed
       )
     })
 
+    // Emit appointment rescheduled event
+    await events.appointmentRescheduled(orgId, {
+      appointmentId: updated.id,
+      calendarId: updated.calendarId,
+      appointmentTypeId: updated.appointmentTypeId,
+      clientId: updated.clientId,
+      previousStartAt: existing.startAt.toISOString(),
+      previousEndAt: existing.endAt.toISOString(),
+      newStartAt: updated.startAt.toISOString(),
+      newEndAt: updated.endAt.toISOString(),
+      timezone: updated.timezone,
+    })
+
     return updated
   })
 
@@ -643,6 +688,16 @@ export const noShow = authed
         })
         .where(eq(appointments.id, id))
         .returning()
+    })
+
+    // Emit appointment no_show event
+    await events.appointmentNoShow(orgId, {
+      appointmentId: updated!.id,
+      calendarId: updated!.calendarId,
+      appointmentTypeId: updated!.appointmentTypeId,
+      clientId: updated!.clientId,
+      startAt: updated!.startAt.toISOString(),
+      endAt: updated!.endAt.toISOString(),
     })
 
     return updated!

@@ -11,6 +11,7 @@ import {
 import { authed } from './base.js'
 import { withOrg } from '../lib/db.js'
 import { ORPCError } from '../lib/orpc.js'
+import { events } from '../services/jobs/emitter.js'
 
 // List resources with cursor pagination and optional location filter
 export const list = authed
@@ -97,6 +98,14 @@ export const create = authed
         .returning()
     })
 
+    // Emit resource created event
+    await events.resourceCreated(orgId, {
+      resourceId: resource!.id,
+      name: resource!.name,
+      quantity: resource!.quantity,
+      locationId: resource!.locationId,
+    })
+
     return resource
   })
 
@@ -147,6 +156,17 @@ export const update = authed
         .returning()
     })
 
+    // Emit resource updated event
+    await events.resourceUpdated(orgId, {
+      resourceId: updated!.id,
+      changes: data,
+      previous: {
+        name: existing.name,
+        quantity: existing.quantity,
+        locationId: existing.locationId,
+      },
+    })
+
     return updated
   })
 
@@ -168,6 +188,14 @@ export const remove = authed
 
     await withOrg(orgId, async (tx) => {
       return tx.delete(resources).where(eq(resources.id, id))
+    })
+
+    // Emit resource deleted event
+    await events.resourceDeleted(orgId, {
+      resourceId: id,
+      name: existing.name,
+      quantity: existing.quantity,
+      locationId: existing.locationId,
     })
 
     return { success: true }
