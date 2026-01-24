@@ -9,7 +9,7 @@
     "build": "pnpm -r run build",
     "test": "pnpm -r run test",
     "lint": "oxlint .",
-    "format": "biome format .",
+    "format": "biome format . --write",
     "format:check": "biome check .",
     "typecheck": "pnpm -r run typecheck"
   },
