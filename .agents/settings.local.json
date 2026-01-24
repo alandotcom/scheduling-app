@@ -7,7 +7,12 @@
       "mcp__context7__query-docs",
       "WebFetch(domain:github.com)",
       "mcp__grep__searchGitHub",
-      "mcp__exa__get_code_context_exa"
+      "mcp__exa__get_code_context_exa",
+      "Bash(pnpm --filter @scheduling/db run test)",
+      "Bash(pnpm --filter @scheduling/db run typecheck:*)",
+      "Bash(pnpm lint:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)"
     ]
   },
   "enableAllProjectMcpServers": true,
