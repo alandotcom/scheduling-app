@@ -1,0 +1,30 @@
+{
+  "compilerOptions": {
+    "target": "ESNext",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "lib": ["ESNext", "DOM", "DOM.Iterable"],
+    "types": ["bun-types"],
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+    "noPropertyAccessFromIndexSignature": true,
+    "exactOptionalPropertyTypes": true,
+    "noFallthroughCasesInSwitch": true,
+    "verbatimModuleSyntax": true,
+    "paths": {
+      "@scheduling/db": ["./packages/db/src/index.ts"],
+      "@scheduling/db/*": ["./packages/db/src/*"],
+      "@scheduling/dto": ["./packages/dto/src/index.ts"],
+      "@scheduling/dto/*": ["./packages/dto/src/*"]
+    }
+  },
+  "exclude": ["node_modules", "dist"]
+}

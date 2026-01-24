@@ -1,0 +1,24 @@
+{
+  "name": "@scheduling/root",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "pnpm -r --parallel run dev",
+    "dev:api": "pnpm --filter @scheduling/api run dev",
+    "dev:admin": "pnpm --filter @scheduling/admin-ui run dev",
+    "build": "pnpm -r run build",
+    "test": "pnpm -r run test",
+    "lint": "oxlint .",
+    "format": "oxfmt .",
+    "format:check": "oxfmt --check .",
+    "typecheck": "pnpm -r run typecheck"
+  },
+  "devDependencies": {
+    "oxlint": "^0.16.0",
+    "typescript": "^5.7.0"
+  },
+  "packageManager": "pnpm@9.15.0",
+  "engines": {
+    "node": ">=22.0.0"
+  }
+}
