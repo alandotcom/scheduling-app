@@ -52,6 +52,10 @@ packages/
 - **Testing:** Real Postgres via Docker (test database auto-created on first test run)
 - **Linting:** oxlint (Rust-based, strict rules)
 
+## Dependencies
+
+Always use the latest versions of dependencies when adding new packages or updating existing ones. Check current versions before installing and prefer `pnpm add <package>@latest` to ensure you're not using outdated APIs or patterns.
+
 ## Database Schema Patterns
 
 - All tables have `org_id` for multi-tenancy
