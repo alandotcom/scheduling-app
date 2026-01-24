@@ -8,7 +8,7 @@ import {
   updateLocationSchema,
   listLocationsQuerySchema,
 } from '@scheduling/dto'
-import { authed } from './index.js'
+import { authed } from './base.js'
 import { withOrg } from '../lib/db.js'
 import { ORPCError } from '../lib/orpc.js'
 
