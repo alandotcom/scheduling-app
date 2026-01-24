@@ -7,6 +7,7 @@ import locations from "./routes/locations";
 import calendars from "./routes/calendars";
 import resources from "./routes/resources";
 import appointmentTypes from "./routes/appointment-types";
+import availability from "./routes/availability";
 
 const app = new Hono();
 
@@ -122,6 +123,7 @@ api.route("/locations", locations);
 api.route("/calendars", calendars);
 api.route("/resources", resources);
 api.route("/appointment-types", appointmentTypes);
+api.route("/availability", availability);
 
 app.route("/v1", api);
 
