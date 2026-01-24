@@ -5,7 +5,9 @@ export {
   sessions,
   accounts,
   verifications,
+  apiTokens,
   usersRelations,
   sessionsRelations,
   accountsRelations,
+  apiTokensRelations,
 } from './index.js'

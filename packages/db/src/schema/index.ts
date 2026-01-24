@@ -27,6 +27,7 @@ export const orgsRelations = relations(orgs, ({ many }) => ({
   clients: many(clients),
   appointments: many(appointments),
   eventOutbox: many(eventOutbox),
+  apiTokens: many(apiTokens),
 }))
 
 export const users = pgTable('users', {
@@ -42,6 +43,7 @@ export const usersRelations = relations(users, ({ many }) => ({
   memberships: many(orgMemberships),
   sessions: many(sessions),
   accounts: many(accounts),
+  apiTokens: many(apiTokens),
 }))
 
 export const orgMemberships = pgTable('org_memberships', {
@@ -382,3 +384,32 @@ export const verifications = pgTable('verifications', {
   expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
   ...timestamps,
 })
+
+// ============================================================================
+// API TOKENS
+// ============================================================================
+
+export const apiTokens = pgTable('api_tokens', {
+  id,
+  orgId: uuid('org_id').notNull().references(() => orgs.id),
+  userId: uuid('user_id').notNull().references(() => users.id), // Who created the token
+  name: text('name').notNull(), // Human-readable name for the token
+  tokenHash: text('token_hash').notNull().unique(), // SHA-256 hash of the token
+  tokenPrefix: text('token_prefix').notNull(), // First 8 chars for identification (e.g., "sk_live_")
+  scope: text('scope').notNull(), // 'admin' | 'staff'
+  lastUsedAt: timestamp('last_used_at', { withTimezone: true }),
+  expiresAt: timestamp('expires_at', { withTimezone: true }),
+  revokedAt: timestamp('revoked_at', { withTimezone: true }),
+  ...timestamps,
+})
+
+export const apiTokensRelations = relations(apiTokens, ({ one }) => ({
+  org: one(orgs, {
+    fields: [apiTokens.orgId],
+    references: [orgs.id],
+  }),
+  user: one(users, {
+    fields: [apiTokens.userId],
+    references: [users.id],
+  }),
+}))

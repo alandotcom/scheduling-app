@@ -7,9 +7,10 @@ import { resourceRoutes } from './resources.js'
 import { appointmentTypeRoutes } from './appointment-types.js'
 import { availabilityRoutes } from './availability.js'
 import { appointmentRoutes } from './appointments.js'
+import { apiTokenRoutes } from './api-tokens.js'
 
-// Re-export authed from base for backwards compatibility
-export { authed } from './base.js'
+// Re-export authed and adminOnly from base for backwards compatibility
+export { authed, adminOnly } from './base.js'
 
 // Health check procedure
 export const health = base.handler(async () => {
@@ -25,6 +26,7 @@ export const router = {
   appointmentTypes: appointmentTypeRoutes,
   availability: availabilityRoutes,
   appointments: appointmentRoutes,
+  apiTokens: apiTokenRoutes,
   // Future routes:
   // clients: clientRoutes,
 }

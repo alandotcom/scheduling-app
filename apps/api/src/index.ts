@@ -6,6 +6,7 @@ import { router } from './routes/index.js'
 import { auth } from './lib/auth.js'
 import { authMiddleware } from './middleware/auth.js'
 import { rlsMiddleware } from './middleware/rls.js'
+import { rateLimitMiddleware } from './middleware/rate-limit.js'
 import { errorHandler } from './middleware/error-handler.js'
 import { config } from './config.js'
 
@@ -22,8 +23,9 @@ app.on(['GET', 'POST'], '/api/auth/*', (c) => {
   return auth.handler(c.req.raw)
 })
 
-// Auth and RLS middleware for API routes
+// Auth, rate limiting, and RLS middleware for API routes
 app.use('/v1/*', authMiddleware)
+app.use('/v1/*', rateLimitMiddleware)
 app.use('/v1/*', rlsMiddleware)
 
 // oRPC handler
@@ -36,6 +38,8 @@ app.all('/v1/*', async (c) => {
       userId: c.get('userId'),
       orgId: c.get('orgId'),
       sessionId: c.get('sessionId'),
+      tokenId: c.get('tokenId'),
+      authMethod: c.get('authMethod'),
       role: c.get('role'),
     },
   })
