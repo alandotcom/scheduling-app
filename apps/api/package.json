@@ -3,6 +3,11 @@
   "version": "0.0.1",
   "private": true,
   "type": "module",
+  "exports": {
+    "./router-type": {
+      "types": "./src/router-type.ts"
+    }
+  },
   "scripts": {
     "dev": "bun --hot src/index.ts",
     "build": "bun build ./src/index.ts --outdir ./dist --target bun",

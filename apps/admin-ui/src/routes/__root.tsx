@@ -2,7 +2,7 @@
 
 import { createRootRoute, Link, Outlet } from '@tanstack/react-router'
 import { TanStackRouterDevtools } from '@tanstack/router-devtools'
-import { Calendar, Users, Clock, Settings, LogOut } from 'lucide-react'
+import { Calendar, Users, Clock, Settings, LogOut, MapPin, Package, Layers } from 'lucide-react'
 import { useAuth } from '@/contexts/auth'
 import { Button } from '@/components/ui/button'
 
@@ -50,6 +50,15 @@ function RootLayout() {
             </NavLink>
             <NavLink to="/calendars" icon={<Calendar className="h-4 w-4" />}>
               Calendars
+            </NavLink>
+            <NavLink to="/appointment-types" icon={<Layers className="h-4 w-4" />}>
+              Appointment Types
+            </NavLink>
+            <NavLink to="/locations" icon={<MapPin className="h-4 w-4" />}>
+              Locations
+            </NavLink>
+            <NavLink to="/resources" icon={<Package className="h-4 w-4" />}>
+              Resources
             </NavLink>
             <NavLink to="/clients" icon={<Users className="h-4 w-4" />}>
               Clients

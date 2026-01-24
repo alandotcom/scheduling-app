@@ -3,7 +3,6 @@ import { sql, relations } from 'drizzle-orm'
 
 // Common column helpers using Postgres 18 native uuidv7()
 const id = uuid('id').primaryKey().default(sql`uuidv7()`)
-const orgId = (table: typeof orgs) => uuid('org_id').notNull().references(() => table.id)
 const timestamps = {
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
