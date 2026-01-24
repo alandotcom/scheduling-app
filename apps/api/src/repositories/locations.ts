@@ -15,8 +15,8 @@ export interface LocationCreateInput {
 }
 
 export interface LocationUpdateInput {
-  name?: string
-  timezone?: string
+  name?: string | undefined
+  timezone?: string | undefined
 }
 
 export class LocationRepository {

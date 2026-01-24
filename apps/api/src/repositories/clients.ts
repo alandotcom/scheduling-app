@@ -12,19 +12,19 @@ export type ClientInsert = typeof clients.$inferInsert
 export interface ClientCreateInput {
   firstName: string
   lastName: string
-  email?: string | null
-  phone?: string | null
+  email?: string | null | undefined
+  phone?: string | null | undefined
 }
 
 export interface ClientUpdateInput {
-  firstName?: string
-  lastName?: string
-  email?: string | null
-  phone?: string | null
+  firstName?: string | undefined
+  lastName?: string | undefined
+  email?: string | null | undefined
+  phone?: string | null | undefined
 }
 
 export interface ClientListInput extends PaginationInput {
-  search?: string | null
+  search?: string | null | undefined
 }
 
 export class ClientRepository {

@@ -11,18 +11,18 @@ export type ResourceInsert = typeof resources.$inferInsert
 
 export interface ResourceCreateInput {
   name: string
-  locationId?: string | null
-  quantity?: number
+  locationId?: string | null | undefined
+  quantity?: number | undefined
 }
 
 export interface ResourceUpdateInput {
-  name?: string
-  locationId?: string | null
-  quantity?: number
+  name?: string | undefined
+  locationId?: string | null | undefined
+  quantity?: number | undefined
 }
 
 export interface ResourceListInput extends PaginationInput {
-  locationId?: string | null
+  locationId?: string | null | undefined
 }
 
 export class ResourceRepository {

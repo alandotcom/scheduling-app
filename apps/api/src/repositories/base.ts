@@ -8,7 +8,7 @@ export type Database = BunSQLDatabase<typeof schema>
 
 // Pagination input for cursor-based pagination
 export interface PaginationInput {
-  cursor?: string | null
+  cursor?: string | null | undefined
   limit: number
 }
 
