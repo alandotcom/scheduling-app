@@ -80,7 +80,9 @@ export async function closeTestDb(): Promise<void> {
  */
 export function getTestDb(): BunSQLDatabase<typeof schema> {
   if (!testDb) {
-    throw new Error("Test database not initialized. Call createTestDb() first.");
+    throw new Error(
+      "Test database not initialized. Call createTestDb() first.",
+    );
   }
   return testDb;
 }
@@ -152,13 +154,17 @@ export async function setTestOrgContext(
   db: BunSQLDatabase<typeof schema>,
   orgId: string,
 ): Promise<void> {
-  await db.execute(sql`SELECT set_config('app.current_org_id', ${orgId}, false)`);
+  await db.execute(
+    sql`SELECT set_config('app.current_org_id', ${orgId}, false)`,
+  );
 }
 
 /**
  * Clear the org context (queries will return no rows due to RLS)
  */
-export async function clearTestOrgContext(db: BunSQLDatabase<typeof schema>): Promise<void> {
+export async function clearTestOrgContext(
+  db: BunSQLDatabase<typeof schema>,
+): Promise<void> {
   await db.execute(sql`SELECT set_config('app.current_org_id', '', false)`);
 }
 

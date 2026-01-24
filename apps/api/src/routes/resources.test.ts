@@ -1,7 +1,14 @@
 // Integration tests for resource routes
 // Tests actual handler logic with database operations
 
-import { describe, test, expect, beforeAll, afterAll, beforeEach } from "bun:test";
+import {
+  describe,
+  test,
+  expect,
+  beforeAll,
+  afterAll,
+  beforeEach,
+} from "bun:test";
 import { call } from "@orpc/server";
 import {
   createTestContext,
@@ -40,7 +47,11 @@ describe("Resource Routes", () => {
       const { org, user } = await createOrg(db);
       const ctx = createTestContext({ orgId: org.id, userId: user.id });
 
-      const result = await call(resourceRoutes.list, { limit: 10 }, { context: ctx });
+      const result = await call(
+        resourceRoutes.list,
+        { limit: 10 },
+        { context: ctx },
+      );
 
       expect(result.items).toEqual([]);
       expect(result.hasMore).toBe(false);
@@ -54,10 +65,17 @@ describe("Resource Routes", () => {
       await createResource(db, org.id, { name: "Resource 1", quantity: 1 });
       await createResource(db, org.id, { name: "Resource 2", quantity: 5 });
 
-      const result = await call(resourceRoutes.list, { limit: 10 }, { context: ctx });
+      const result = await call(
+        resourceRoutes.list,
+        { limit: 10 },
+        { context: ctx },
+      );
 
       expect(result.items).toHaveLength(2);
-      expect(result.items.map((r) => r.name).sort()).toEqual(["Resource 1", "Resource 2"]);
+      expect(result.items.map((r) => r.name).sort()).toEqual([
+        "Resource 1",
+        "Resource 2",
+      ]);
       expect(result.hasMore).toBe(false);
     });
 
@@ -69,7 +87,11 @@ describe("Resource Routes", () => {
       await createResource(db, org.id, { name: "Resource 2" });
       await createResource(db, org.id, { name: "Resource 3" });
 
-      const first = await call(resourceRoutes.list, { limit: 2 }, { context: ctx });
+      const first = await call(
+        resourceRoutes.list,
+        { limit: 2 },
+        { context: ctx },
+      );
 
       expect(first.items).toHaveLength(2);
       expect(first.hasMore).toBe(true);
@@ -88,10 +110,15 @@ describe("Resource Routes", () => {
     test("filters by locationId", async () => {
       const { org, user } = await createOrg(db);
       const ctx = createTestContext({ orgId: org.id, userId: user.id });
-      const location = await createLocation(db, org.id, { name: "Test Location" });
+      const location = await createLocation(db, org.id, {
+        name: "Test Location",
+      });
 
       await createResource(db, org.id, { name: "Global Resource" });
-      await createResource(db, org.id, { name: "Location Resource", locationId: location.id });
+      await createResource(db, org.id, {
+        name: "Location Resource",
+        locationId: location.id,
+      });
 
       const result = await call(
         resourceRoutes.list,
@@ -111,7 +138,11 @@ describe("Resource Routes", () => {
       await createResource(db, org1.id, { name: "Org 1 Resource" });
       await createResource(db, org2.id, { name: "Org 2 Resource" });
 
-      const result = await call(resourceRoutes.list, { limit: 10 }, { context: ctx1 });
+      const result = await call(
+        resourceRoutes.list,
+        { limit: 10 },
+        { context: ctx1 },
+      );
 
       expect(result.items).toHaveLength(1);
       expect(result.items[0]!.name).toBe("Org 1 Resource");
@@ -127,7 +158,11 @@ describe("Resource Routes", () => {
         quantity: 3,
       });
 
-      const result = await call(resourceRoutes.get, { id: resource.id }, { context: ctx });
+      const result = await call(
+        resourceRoutes.get,
+        { id: resource.id },
+        { context: ctx },
+      );
 
       expect(result.id).toBe(resource.id);
       expect(result.name).toBe("Test Resource");
@@ -139,7 +174,11 @@ describe("Resource Routes", () => {
       const ctx = createTestContext({ orgId: org.id, userId: user.id });
 
       await expect(
-        call(resourceRoutes.get, { id: "00000000-0000-0000-0000-000000000000" }, { context: ctx }),
+        call(
+          resourceRoutes.get,
+          { id: "00000000-0000-0000-0000-000000000000" },
+          { context: ctx },
+        ),
       ).rejects.toMatchObject({
         code: "NOT_FOUND",
       });
@@ -150,7 +189,9 @@ describe("Resource Routes", () => {
       const { org: org2 } = await createOrg(db, { name: "Org 2" });
       const ctx1 = createTestContext({ orgId: org1.id, userId: user1.id });
 
-      const resource = await createResource(db, org2.id, { name: "Org 2 Resource" });
+      const resource = await createResource(db, org2.id, {
+        name: "Org 2 Resource",
+      });
 
       await expect(
         call(resourceRoutes.get, { id: resource.id }, { context: ctx1 }),
@@ -185,7 +226,9 @@ describe("Resource Routes", () => {
     test("creates resource with location", async () => {
       const { org, user } = await createOrg(db);
       const ctx = createTestContext({ orgId: org.id, userId: user.id });
-      const location = await createLocation(db, org.id, { name: "Test Location" });
+      const location = await createLocation(db, org.id, {
+        name: "Test Location",
+      });
 
       const result = await call(
         resourceRoutes.create,
@@ -203,7 +246,11 @@ describe("Resource Routes", () => {
       await expect(
         call(
           resourceRoutes.create,
-          { name: "Bad Resource", quantity: 1, locationId: "00000000-0000-0000-0000-000000000000" },
+          {
+            name: "Bad Resource",
+            quantity: 1,
+            locationId: "00000000-0000-0000-0000-000000000000",
+          },
           { context: ctx },
         ),
       ).rejects.toMatchObject({
@@ -229,7 +276,9 @@ describe("Resource Routes", () => {
     test("updates resource name", async () => {
       const { org, user } = await createOrg(db);
       const ctx = createTestContext({ orgId: org.id, userId: user.id });
-      const resource = await createResource(db, org.id, { name: "Original Name" });
+      const resource = await createResource(db, org.id, {
+        name: "Original Name",
+      });
 
       const result = await call(
         resourceRoutes.update,
@@ -258,7 +307,9 @@ describe("Resource Routes", () => {
       const { org, user } = await createOrg(db);
       const ctx = createTestContext({ orgId: org.id, userId: user.id });
       const resource = await createResource(db, org.id, { name: "Resource" });
-      const location = await createLocation(db, org.id, { name: "New Location" });
+      const location = await createLocation(db, org.id, {
+        name: "New Location",
+      });
 
       const result = await call(
         resourceRoutes.update,
@@ -276,7 +327,10 @@ describe("Resource Routes", () => {
       await expect(
         call(
           resourceRoutes.update,
-          { id: "00000000-0000-0000-0000-000000000000", data: { name: "Updated" } },
+          {
+            id: "00000000-0000-0000-0000-000000000000",
+            data: { name: "Updated" },
+          },
           { context: ctx },
         ),
       ).rejects.toMatchObject({
@@ -292,7 +346,10 @@ describe("Resource Routes", () => {
       await expect(
         call(
           resourceRoutes.update,
-          { id: resource.id, data: { locationId: "00000000-0000-0000-0000-000000000000" } },
+          {
+            id: resource.id,
+            data: { locationId: "00000000-0000-0000-0000-000000000000" },
+          },
           { context: ctx },
         ),
       ).rejects.toMatchObject({
@@ -305,7 +362,9 @@ describe("Resource Routes", () => {
       const { org: org2 } = await createOrg(db, { name: "Org 2" });
       const ctx1 = createTestContext({ orgId: org1.id, userId: user1.id });
 
-      const resource = await createResource(db, org2.id, { name: "Org 2 Resource" });
+      const resource = await createResource(db, org2.id, {
+        name: "Org 2 Resource",
+      });
 
       await expect(
         call(
@@ -325,7 +384,11 @@ describe("Resource Routes", () => {
       const ctx = createTestContext({ orgId: org.id, userId: user.id });
       const resource = await createResource(db, org.id, { name: "To Delete" });
 
-      const result = await call(resourceRoutes.remove, { id: resource.id }, { context: ctx });
+      const result = await call(
+        resourceRoutes.remove,
+        { id: resource.id },
+        { context: ctx },
+      );
 
       expect(result.success).toBe(true);
 
@@ -355,7 +418,9 @@ describe("Resource Routes", () => {
       const { org: org2 } = await createOrg(db, { name: "Org 2" });
       const ctx1 = createTestContext({ orgId: org1.id, userId: user1.id });
 
-      const resource = await createResource(db, org2.id, { name: "Org 2 Resource" });
+      const resource = await createResource(db, org2.id, {
+        name: "Org 2 Resource",
+      });
 
       await expect(
         call(resourceRoutes.remove, { id: resource.id }, { context: ctx1 }),

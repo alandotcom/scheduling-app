@@ -1,7 +1,12 @@
 // New appointment booking form with availability picker
 
 import { useState } from "react";
-import { createFileRoute, Navigate, Link, useNavigate } from "@tanstack/react-router";
+import {
+  createFileRoute,
+  Navigate,
+  Link,
+  useNavigate,
+} from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Calendar } from "lucide-react";
 
@@ -33,7 +38,9 @@ function NewAppointmentPage() {
   const [selectedDate, setSelectedDate] = useState<string>("");
   const [selectedTime, setSelectedTime] = useState<string>("");
   const [notes, setNotes] = useState<string>("");
-  const [timezone] = useState<string>(Intl.DateTimeFormat().resolvedOptions().timeZone);
+  const [timezone] = useState<string>(
+    Intl.DateTimeFormat().resolvedOptions().timeZone,
+  );
 
   // Fetch appointment types
   const { data: typesData } = useQuery(
@@ -169,7 +176,9 @@ function NewAppointmentPage() {
           {/* Step 1: Select Type */}
           <Card>
             <CardHeader>
-              <CardTitle className="text-lg">1. Select Appointment Type</CardTitle>
+              <CardTitle className="text-lg">
+                1. Select Appointment Type
+              </CardTitle>
             </CardHeader>
             <CardContent>
               <Select value={selectedTypeId} onValueChange={handleTypeChange}>
@@ -195,13 +204,18 @@ function NewAppointmentPage() {
               </CardHeader>
               <CardContent>
                 {calendarsLoading ? (
-                  <div className="text-muted-foreground">Loading calendars...</div>
+                  <div className="text-muted-foreground">
+                    Loading calendars...
+                  </div>
                 ) : calendars.length === 0 ? (
                   <div className="text-muted-foreground">
                     No calendars available for this appointment type.
                   </div>
                 ) : (
-                  <Select value={selectedCalendarId} onValueChange={handleCalendarChange}>
+                  <Select
+                    value={selectedCalendarId}
+                    onValueChange={handleCalendarChange}
+                  >
                     <SelectTrigger>
                       <SelectValue placeholder="Choose calendar" />
                     </SelectTrigger>
@@ -243,7 +257,9 @@ function NewAppointmentPage() {
               </CardHeader>
               <CardContent>
                 {slotsLoading ? (
-                  <div className="text-muted-foreground">Loading available times...</div>
+                  <div className="text-muted-foreground">
+                    Loading available times...
+                  </div>
                 ) : availableSlots.length === 0 ? (
                   <div className="text-muted-foreground">
                     No available times on this date. Please select another date.
@@ -253,7 +269,9 @@ function NewAppointmentPage() {
                     {availableSlots.map((slot) => (
                       <Button
                         key={slot.start}
-                        variant={selectedTime === slot.start ? "default" : "outline"}
+                        variant={
+                          selectedTime === slot.start ? "default" : "outline"
+                        }
                         size="sm"
                         onClick={() => handleTimeSelect(slot.start)}
                       >
@@ -276,7 +294,9 @@ function NewAppointmentPage() {
             <CardContent className="space-y-4">
               {selectedType && (
                 <div>
-                  <Label className="text-muted-foreground">Appointment Type</Label>
+                  <Label className="text-muted-foreground">
+                    Appointment Type
+                  </Label>
                   <p className="font-medium">
                     {selectedType.name} ({selectedType.durationMin} min)
                   </p>
@@ -323,7 +343,8 @@ function NewAppointmentPage() {
 
               {createMutation.error && (
                 <p className="text-sm text-destructive">
-                  {(createMutation.error as Error).message ?? "Failed to book appointment"}
+                  {(createMutation.error as Error).message ??
+                    "Failed to book appointment"}
                 </p>
               )}
             </CardContent>

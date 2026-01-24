@@ -70,7 +70,11 @@ function AppointmentsPage() {
           appointmentTypeId: filters.appointmentTypeId,
         }),
         ...(filters.status && {
-          status: filters.status as "scheduled" | "confirmed" | "cancelled" | "no_show",
+          status: filters.status as
+            | "scheduled"
+            | "confirmed"
+            | "cancelled"
+            | "no_show",
         }),
         ...(filters.startDate && { startDate: filters.startDate }),
         ...(filters.endDate && { endDate: filters.endDate }),
@@ -145,7 +149,9 @@ function AppointmentsPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold">Appointments</h1>
-          <p className="mt-1 text-muted-foreground">View and manage all appointments.</p>
+          <p className="mt-1 text-muted-foreground">
+            View and manage all appointments.
+          </p>
         </div>
         <Button asChild>
           <Link to="/appointments/new">
@@ -233,7 +239,9 @@ function AppointmentsPage() {
           <Input
             type="date"
             value={filters.startDate}
-            onChange={(e) => setFilters((f) => ({ ...f, startDate: e.target.value }))}
+            onChange={(e) =>
+              setFilters((f) => ({ ...f, startDate: e.target.value }))
+            }
           />
         </div>
         <div className="space-y-2">
@@ -241,7 +249,9 @@ function AppointmentsPage() {
           <Input
             type="date"
             value={filters.endDate}
-            onChange={(e) => setFilters((f) => ({ ...f, endDate: e.target.value }))}
+            onChange={(e) =>
+              setFilters((f) => ({ ...f, endDate: e.target.value }))
+            }
           />
         </div>
       </div>
@@ -251,10 +261,13 @@ function AppointmentsPage() {
         {isLoading ? (
           <div className="text-center text-muted-foreground">Loading...</div>
         ) : error ? (
-          <div className="text-center text-destructive">Error loading appointments</div>
+          <div className="text-center text-destructive">
+            Error loading appointments
+          </div>
         ) : !data?.items.length ? (
           <div className="rounded-lg border bg-card p-8 text-center text-muted-foreground">
-            No appointments found. Create your first appointment or adjust filters.
+            No appointments found. Create your first appointment or adjust
+            filters.
           </div>
         ) : (
           <div className="rounded-lg border">
@@ -275,7 +288,9 @@ function AppointmentsPage() {
                     <TableCell className="font-medium">
                       {formatDateTime(appointment.startAt)}
                     </TableCell>
-                    <TableCell>{appointment.appointmentType?.name ?? "-"}</TableCell>
+                    <TableCell>
+                      {appointment.appointmentType?.name ?? "-"}
+                    </TableCell>
                     <TableCell>{appointment.calendar?.name ?? "-"}</TableCell>
                     <TableCell>
                       {appointment.client
@@ -291,7 +306,8 @@ function AppointmentsPage() {
                       </Badge>
                     </TableCell>
                     <TableCell>
-                      {appointment.status === "scheduled" || appointment.status === "confirmed" ? (
+                      {appointment.status === "scheduled" ||
+                      appointment.status === "confirmed" ? (
                         <div className="flex gap-1">
                           <Button
                             variant="ghost"
@@ -323,12 +339,16 @@ function AppointmentsPage() {
       </div>
 
       {/* Cancel Confirmation */}
-      <AlertDialog open={!!cancellingId} onOpenChange={() => setCancellingId(null)}>
+      <AlertDialog
+        open={!!cancellingId}
+        onOpenChange={() => setCancellingId(null)}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Cancel Appointment</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to cancel this appointment? The client will be notified.
+              Are you sure you want to cancel this appointment? The client will
+              be notified.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -337,7 +357,9 @@ function AppointmentsPage() {
               onClick={handleCancel}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              {cancelMutation.isPending ? "Cancelling..." : "Cancel Appointment"}
+              {cancelMutation.isPending
+                ? "Cancelling..."
+                : "Cancel Appointment"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

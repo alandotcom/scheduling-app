@@ -8,7 +8,12 @@ import {
 } from "./common";
 
 // Appointment status enum
-export const appointmentStatusSchema = z.enum(["scheduled", "confirmed", "cancelled", "no_show"]);
+export const appointmentStatusSchema = z.enum([
+  "scheduled",
+  "confirmed",
+  "cancelled",
+  "no_show",
+]);
 
 // Base appointment schema
 export const appointmentSchema = z.object({
@@ -98,8 +103,12 @@ export type AppointmentStatus = z.infer<typeof appointmentStatusSchema>;
 export type Appointment = z.infer<typeof appointmentSchema>;
 export type CreateAppointmentInput = z.infer<typeof createAppointmentSchema>;
 export type UpdateAppointmentInput = z.infer<typeof updateAppointmentSchema>;
-export type RescheduleAppointmentInput = z.infer<typeof rescheduleAppointmentSchema>;
+export type RescheduleAppointmentInput = z.infer<
+  typeof rescheduleAppointmentSchema
+>;
 export type CancelAppointmentInput = z.infer<typeof cancelAppointmentSchema>;
 export type ListAppointmentsQuery = z.infer<typeof listAppointmentsQuerySchema>;
 export type AppointmentResponse = z.infer<typeof appointmentResponseSchema>;
-export type AppointmentWithRelations = z.infer<typeof appointmentWithRelationsSchema>;
+export type AppointmentWithRelations = z.infer<
+  typeof appointmentWithRelationsSchema
+>;

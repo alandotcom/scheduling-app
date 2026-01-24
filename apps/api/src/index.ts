@@ -48,7 +48,10 @@ app.all("/v1/*", async (c) => {
     return c.newResponse(response.body, response);
   }
 
-  return c.json({ error: { code: "NOT_FOUND", message: "Route not found" } }, 404);
+  return c.json(
+    { error: { code: "NOT_FOUND", message: "Route not found" } },
+    404,
+  );
 });
 
 // Export for Bun server

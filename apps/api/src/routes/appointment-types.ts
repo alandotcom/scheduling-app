@@ -56,11 +56,17 @@ export const get = authed
     const { orgId } = context;
 
     const [appointmentType] = await withOrg(orgId, async (tx) => {
-      return tx.select().from(appointmentTypes).where(eq(appointmentTypes.id, id)).limit(1);
+      return tx
+        .select()
+        .from(appointmentTypes)
+        .where(eq(appointmentTypes.id, id))
+        .limit(1);
     });
 
     if (!appointmentType) {
-      throw new ApplicationError("Appointment type not found", { code: "NOT_FOUND" });
+      throw new ApplicationError("Appointment type not found", {
+        code: "NOT_FOUND",
+      });
     }
 
     return appointmentType;
@@ -114,11 +120,17 @@ export const update = authed
 
     // Verify appointment type exists and belongs to org
     const [existing] = await withOrg(orgId, async (tx) => {
-      return tx.select().from(appointmentTypes).where(eq(appointmentTypes.id, id)).limit(1);
+      return tx
+        .select()
+        .from(appointmentTypes)
+        .where(eq(appointmentTypes.id, id))
+        .limit(1);
     });
 
     if (!existing) {
-      throw new ApplicationError("Appointment type not found", { code: "NOT_FOUND" });
+      throw new ApplicationError("Appointment type not found", {
+        code: "NOT_FOUND",
+      });
     }
 
     const [updated] = await withOrg(orgId, async (tx) => {
@@ -157,11 +169,17 @@ export const remove = authed
 
     // Verify appointment type exists and belongs to org
     const [existing] = await withOrg(orgId, async (tx) => {
-      return tx.select().from(appointmentTypes).where(eq(appointmentTypes.id, id)).limit(1);
+      return tx
+        .select()
+        .from(appointmentTypes)
+        .where(eq(appointmentTypes.id, id))
+        .limit(1);
     });
 
     if (!existing) {
-      throw new ApplicationError("Appointment type not found", { code: "NOT_FOUND" });
+      throw new ApplicationError("Appointment type not found", {
+        code: "NOT_FOUND",
+      });
     }
 
     await withOrg(orgId, async (tx) => {
@@ -206,7 +224,9 @@ export const listCalendars = authed
     });
 
     if (!appointmentType) {
-      throw new ApplicationError("Appointment type not found", { code: "NOT_FOUND" });
+      throw new ApplicationError("Appointment type not found", {
+        code: "NOT_FOUND",
+      });
     }
 
     const results = await withOrg(orgId, async (tx) => {
@@ -218,8 +238,13 @@ export const listCalendars = authed
           calendar: calendars,
         })
         .from(appointmentTypeCalendars)
-        .innerJoin(calendars, eq(appointmentTypeCalendars.calendarId, calendars.id))
-        .where(eq(appointmentTypeCalendars.appointmentTypeId, appointmentTypeId));
+        .innerJoin(
+          calendars,
+          eq(appointmentTypeCalendars.calendarId, calendars.id),
+        )
+        .where(
+          eq(appointmentTypeCalendars.appointmentTypeId, appointmentTypeId),
+        );
     });
 
     return results;
@@ -247,12 +272,18 @@ export const addCalendar = authed
     });
 
     if (!appointmentType) {
-      throw new ApplicationError("Appointment type not found", { code: "NOT_FOUND" });
+      throw new ApplicationError("Appointment type not found", {
+        code: "NOT_FOUND",
+      });
     }
 
     // Verify calendar exists
     const [calendar] = await withOrg(orgId, async (tx) => {
-      return tx.select().from(calendars).where(eq(calendars.id, data.calendarId)).limit(1);
+      return tx
+        .select()
+        .from(calendars)
+        .where(eq(calendars.id, data.calendarId))
+        .limit(1);
     });
 
     if (!calendar) {
@@ -274,9 +305,12 @@ export const addCalendar = authed
     });
 
     if (existing) {
-      throw new ApplicationError("Calendar already associated with appointment type", {
-        code: "CONFLICT",
-      });
+      throw new ApplicationError(
+        "Calendar already associated with appointment type",
+        {
+          code: "CONFLICT",
+        },
+      );
     }
 
     const [association] = await withOrg(orgId, async (tx) => {
@@ -319,7 +353,9 @@ export const removeCalendar = authed
     });
 
     if (!existing) {
-      throw new ApplicationError("Association not found", { code: "NOT_FOUND" });
+      throw new ApplicationError("Association not found", {
+        code: "NOT_FOUND",
+      });
     }
 
     await withOrg(orgId, async (tx) => {
@@ -357,7 +393,9 @@ export const listResources = authed
     });
 
     if (!appointmentType) {
-      throw new ApplicationError("Appointment type not found", { code: "NOT_FOUND" });
+      throw new ApplicationError("Appointment type not found", {
+        code: "NOT_FOUND",
+      });
     }
 
     const results = await withOrg(orgId, async (tx) => {
@@ -370,8 +408,13 @@ export const listResources = authed
           resource: resources,
         })
         .from(appointmentTypeResources)
-        .innerJoin(resources, eq(appointmentTypeResources.resourceId, resources.id))
-        .where(eq(appointmentTypeResources.appointmentTypeId, appointmentTypeId));
+        .innerJoin(
+          resources,
+          eq(appointmentTypeResources.resourceId, resources.id),
+        )
+        .where(
+          eq(appointmentTypeResources.appointmentTypeId, appointmentTypeId),
+        );
     });
 
     return results;
@@ -399,12 +442,18 @@ export const addResource = authed
     });
 
     if (!appointmentType) {
-      throw new ApplicationError("Appointment type not found", { code: "NOT_FOUND" });
+      throw new ApplicationError("Appointment type not found", {
+        code: "NOT_FOUND",
+      });
     }
 
     // Verify resource exists
     const [resource] = await withOrg(orgId, async (tx) => {
-      return tx.select().from(resources).where(eq(resources.id, data.resourceId)).limit(1);
+      return tx
+        .select()
+        .from(resources)
+        .where(eq(resources.id, data.resourceId))
+        .limit(1);
     });
 
     if (!resource) {
@@ -426,9 +475,12 @@ export const addResource = authed
     });
 
     if (existing) {
-      throw new ApplicationError("Resource already associated with appointment type", {
-        code: "CONFLICT",
-      });
+      throw new ApplicationError(
+        "Resource already associated with appointment type",
+        {
+          code: "CONFLICT",
+        },
+      );
     }
 
     const [association] = await withOrg(orgId, async (tx) => {
@@ -473,7 +525,9 @@ export const updateResource = authed
     });
 
     if (!existing) {
-      throw new ApplicationError("Association not found", { code: "NOT_FOUND" });
+      throw new ApplicationError("Association not found", {
+        code: "NOT_FOUND",
+      });
     }
 
     const [updated] = await withOrg(orgId, async (tx) => {
@@ -519,7 +573,9 @@ export const removeResource = authed
     });
 
     if (!existing) {
-      throw new ApplicationError("Association not found", { code: "NOT_FOUND" });
+      throw new ApplicationError("Association not found", {
+        code: "NOT_FOUND",
+      });
     }
 
     await withOrg(orgId, async (tx) => {

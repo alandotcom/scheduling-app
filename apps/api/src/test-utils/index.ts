@@ -40,4 +40,8 @@ export {
 } from "./setup.js";
 
 // Re-export from @scheduling/db/test-utils for convenience
-export { seedTestOrg, seedSecondTestOrg, withTestOrgContext } from "@scheduling/db/test-utils";
+export {
+  seedTestOrg,
+  seedSecondTestOrg,
+  withTestOrgContext,
+} from "@scheduling/db/test-utils";

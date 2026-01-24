@@ -80,7 +80,10 @@ export const createAvailabilityOverrideSchema = z
       if (data.startTime && data.endTime) return data.startTime < data.endTime;
       return true;
     },
-    { message: "startTime must be before endTime for non-blocked overrides", path: ["startTime"] },
+    {
+      message: "startTime must be before endTime for non-blocked overrides",
+      path: ["startTime"],
+    },
   );
 
 export const updateAvailabilityOverrideSchema = z.object({
@@ -195,24 +198,40 @@ export const availabilityCheckResultSchema = z.object({
 // ============================================================================
 
 export type AvailabilityRule = z.infer<typeof availabilityRuleSchema>;
-export type CreateAvailabilityRuleInput = z.infer<typeof createAvailabilityRuleSchema>;
-export type UpdateAvailabilityRuleInput = z.infer<typeof updateAvailabilityRuleSchema>;
-export type SetWeeklyAvailabilityInput = z.infer<typeof setWeeklyAvailabilitySchema>;
+export type CreateAvailabilityRuleInput = z.infer<
+  typeof createAvailabilityRuleSchema
+>;
+export type UpdateAvailabilityRuleInput = z.infer<
+  typeof updateAvailabilityRuleSchema
+>;
+export type SetWeeklyAvailabilityInput = z.infer<
+  typeof setWeeklyAvailabilitySchema
+>;
 
 export type AvailabilityOverride = z.infer<typeof availabilityOverrideSchema>;
-export type CreateAvailabilityOverrideInput = z.infer<typeof createAvailabilityOverrideSchema>;
-export type UpdateAvailabilityOverrideInput = z.infer<typeof updateAvailabilityOverrideSchema>;
+export type CreateAvailabilityOverrideInput = z.infer<
+  typeof createAvailabilityOverrideSchema
+>;
+export type UpdateAvailabilityOverrideInput = z.infer<
+  typeof updateAvailabilityOverrideSchema
+>;
 
 export type BlockedTime = z.infer<typeof blockedTimeSchema>;
 export type CreateBlockedTimeInput = z.infer<typeof createBlockedTimeSchema>;
 export type UpdateBlockedTimeInput = z.infer<typeof updateBlockedTimeSchema>;
 
 export type SchedulingLimits = z.infer<typeof schedulingLimitsSchema>;
-export type CreateSchedulingLimitsInput = z.infer<typeof createSchedulingLimitsSchema>;
-export type UpdateSchedulingLimitsInput = z.infer<typeof updateSchedulingLimitsSchema>;
+export type CreateSchedulingLimitsInput = z.infer<
+  typeof createSchedulingLimitsSchema
+>;
+export type UpdateSchedulingLimitsInput = z.infer<
+  typeof updateSchedulingLimitsSchema
+>;
 
 export type AvailabilityQuery = z.infer<typeof availabilityQuerySchema>;
 export type AvailableDate = z.infer<typeof availableDateSchema>;
 export type TimeSlot = z.infer<typeof timeSlotSchema>;
 export type AvailabilityCheck = z.infer<typeof availabilityCheckSchema>;
-export type AvailabilityCheckResult = z.infer<typeof availabilityCheckResultSchema>;
+export type AvailabilityCheckResult = z.infer<
+  typeof availabilityCheckResultSchema
+>;

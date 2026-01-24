@@ -1,7 +1,14 @@
 // Integration tests for location routes
 // Tests actual handler logic with database operations
 
-import { describe, test, expect, beforeAll, afterAll, beforeEach } from "bun:test";
+import {
+  describe,
+  test,
+  expect,
+  beforeAll,
+  afterAll,
+  beforeEach,
+} from "bun:test";
 import { call } from "@orpc/server";
 import {
   createTestContext,
@@ -39,7 +46,11 @@ describe("Location Routes", () => {
       const { org, user } = await createOrg(db);
       const ctx = createTestContext({ orgId: org.id, userId: user.id });
 
-      const result = await call(locationRoutes.list, { limit: 10 }, { context: ctx });
+      const result = await call(
+        locationRoutes.list,
+        { limit: 10 },
+        { context: ctx },
+      );
 
       expect(result.items).toEqual([]);
       expect(result.hasMore).toBe(false);
@@ -53,10 +64,17 @@ describe("Location Routes", () => {
       await createLocation(db, org.id, { name: "Location 1" });
       await createLocation(db, org.id, { name: "Location 2" });
 
-      const result = await call(locationRoutes.list, { limit: 10 }, { context: ctx });
+      const result = await call(
+        locationRoutes.list,
+        { limit: 10 },
+        { context: ctx },
+      );
 
       expect(result.items).toHaveLength(2);
-      expect(result.items.map((l) => l.name).sort()).toEqual(["Location 1", "Location 2"]);
+      expect(result.items.map((l) => l.name).sort()).toEqual([
+        "Location 1",
+        "Location 2",
+      ]);
       expect(result.hasMore).toBe(false);
     });
 
@@ -68,7 +86,11 @@ describe("Location Routes", () => {
       await createLocation(db, org.id, { name: "Location 2" });
       await createLocation(db, org.id, { name: "Location 3" });
 
-      const first = await call(locationRoutes.list, { limit: 2 }, { context: ctx });
+      const first = await call(
+        locationRoutes.list,
+        { limit: 2 },
+        { context: ctx },
+      );
 
       expect(first.items).toHaveLength(2);
       expect(first.hasMore).toBe(true);
@@ -92,7 +114,11 @@ describe("Location Routes", () => {
       await createLocation(db, org1.id, { name: "Org 1 Location" });
       await createLocation(db, org2.id, { name: "Org 2 Location" });
 
-      const result = await call(locationRoutes.list, { limit: 10 }, { context: ctx1 });
+      const result = await call(
+        locationRoutes.list,
+        { limit: 10 },
+        { context: ctx1 },
+      );
 
       expect(result.items).toHaveLength(1);
       expect(result.items[0]!.name).toBe("Org 1 Location");
@@ -108,7 +134,11 @@ describe("Location Routes", () => {
         timezone: "America/Chicago",
       });
 
-      const result = await call(locationRoutes.get, { id: location.id }, { context: ctx });
+      const result = await call(
+        locationRoutes.get,
+        { id: location.id },
+        { context: ctx },
+      );
 
       expect(result.id).toBe(location.id);
       expect(result.name).toBe("Test Location");
@@ -120,7 +150,11 @@ describe("Location Routes", () => {
       const ctx = createTestContext({ orgId: org.id, userId: user.id });
 
       await expect(
-        call(locationRoutes.get, { id: "00000000-0000-0000-0000-000000000000" }, { context: ctx }),
+        call(
+          locationRoutes.get,
+          { id: "00000000-0000-0000-0000-000000000000" },
+          { context: ctx },
+        ),
       ).rejects.toMatchObject({
         code: "NOT_FOUND",
       });
@@ -131,7 +165,9 @@ describe("Location Routes", () => {
       const { org: org2 } = await createOrg(db, { name: "Org 2" });
       const ctx1 = createTestContext({ orgId: org1.id, userId: user1.id });
 
-      const location = await createLocation(db, org2.id, { name: "Org 2 Location" });
+      const location = await createLocation(db, org2.id, {
+        name: "Org 2 Location",
+      });
 
       await expect(
         call(locationRoutes.get, { id: location.id }, { context: ctx1 }),
@@ -181,7 +217,9 @@ describe("Location Routes", () => {
     test("updates location name", async () => {
       const { org, user } = await createOrg(db);
       const ctx = createTestContext({ orgId: org.id, userId: user.id });
-      const location = await createLocation(db, org.id, { name: "Original Name" });
+      const location = await createLocation(db, org.id, {
+        name: "Original Name",
+      });
 
       const result = await call(
         locationRoutes.update,
@@ -195,7 +233,9 @@ describe("Location Routes", () => {
     test("updates location timezone", async () => {
       const { org, user } = await createOrg(db);
       const ctx = createTestContext({ orgId: org.id, userId: user.id });
-      const location = await createLocation(db, org.id, { timezone: "America/New_York" });
+      const location = await createLocation(db, org.id, {
+        timezone: "America/New_York",
+      });
 
       const result = await call(
         locationRoutes.update,
@@ -213,7 +253,10 @@ describe("Location Routes", () => {
       await expect(
         call(
           locationRoutes.update,
-          { id: "00000000-0000-0000-0000-000000000000", data: { name: "Updated" } },
+          {
+            id: "00000000-0000-0000-0000-000000000000",
+            data: { name: "Updated" },
+          },
           { context: ctx },
         ),
       ).rejects.toMatchObject({
@@ -226,7 +269,9 @@ describe("Location Routes", () => {
       const { org: org2 } = await createOrg(db, { name: "Org 2" });
       const ctx1 = createTestContext({ orgId: org1.id, userId: user1.id });
 
-      const location = await createLocation(db, org2.id, { name: "Org 2 Location" });
+      const location = await createLocation(db, org2.id, {
+        name: "Org 2 Location",
+      });
 
       await expect(
         call(
@@ -246,7 +291,11 @@ describe("Location Routes", () => {
       const ctx = createTestContext({ orgId: org.id, userId: user.id });
       const location = await createLocation(db, org.id, { name: "To Delete" });
 
-      const result = await call(locationRoutes.remove, { id: location.id }, { context: ctx });
+      const result = await call(
+        locationRoutes.remove,
+        { id: location.id },
+        { context: ctx },
+      );
 
       expect(result.success).toBe(true);
 
@@ -276,7 +325,9 @@ describe("Location Routes", () => {
       const { org: org2 } = await createOrg(db, { name: "Org 2" });
       const ctx1 = createTestContext({ orgId: org1.id, userId: user1.id });
 
-      const location = await createLocation(db, org2.id, { name: "Org 2 Location" });
+      const location = await createLocation(db, org2.id, {
+        name: "Org 2 Location",
+      });
 
       await expect(
         call(locationRoutes.remove, { id: location.id }, { context: ctx1 }),

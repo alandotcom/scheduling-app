@@ -63,7 +63,8 @@ export class AvailabilityEngine {
    * Get available time slots in the range
    */
   async getAvailableSlots(query: AvailabilityQuery): Promise<TimeSlot[]> {
-    const { appointmentTypeId, calendarIds, startDate, endDate, timezone } = query;
+    const { appointmentTypeId, calendarIds, startDate, endDate, timezone } =
+      query;
 
     // 1. Load appointment type details
     const appointmentType = await this.loadAppointmentType(appointmentTypeId);
@@ -77,7 +78,10 @@ export class AvailabilityEngine {
     const capacity = appointmentType.capacity ?? 1;
 
     // 2. Validate calendars are linked to this appointment type
-    const validCalendarIds = await this.getValidCalendars(appointmentTypeId, calendarIds);
+    const validCalendarIds = await this.getValidCalendars(
+      appointmentTypeId,
+      calendarIds,
+    );
     if (validCalendarIds.length === 0) {
       return []; // No valid calendars for this appointment type
     }
@@ -89,7 +93,11 @@ export class AvailabilityEngine {
     const rules = await this.loadAvailabilityRules(validCalendarIds);
 
     // 5. Load overrides and blocked time
-    const overrides = await this.loadOverrides(validCalendarIds, startDate, endDate);
+    const overrides = await this.loadOverrides(
+      validCalendarIds,
+      startDate,
+      endDate,
+    );
     const blockedTimes = await this.loadBlockedTimes(
       validCalendarIds,
       startDate,
@@ -106,7 +114,8 @@ export class AvailabilityEngine {
     );
 
     // 7. Load resource constraints
-    const resourceConstraints = await this.loadResourceConstraints(appointmentTypeId);
+    const resourceConstraints =
+      await this.loadResourceConstraints(appointmentTypeId);
     const resourcesData = await this.loadResourcesData(
       resourceConstraints.map((r) => r.resourceId),
     );
@@ -172,7 +181,12 @@ export class AvailabilityEngine {
 
         let overlappingCount = 0;
         for (const appt of existingAppointments) {
-          if (this.intervalsOverlap(slotWithPadding, { start: appt.startAt, end: appt.endAt })) {
+          if (
+            this.intervalsOverlap(slotWithPadding, {
+              start: appt.startAt,
+              end: appt.endAt,
+            })
+          ) {
             overlappingCount++;
           }
         }
@@ -256,7 +270,9 @@ export class AvailabilityEngine {
     const endTime = DateTime.fromJSDate(startTime)
       .plus({ minutes: appointmentType.durationMin })
       .toJSDate();
-    const startDate = DateTime.fromJSDate(startTime, { zone: timezone }).toISODate()!;
+    const startDate = DateTime.fromJSDate(startTime, {
+      zone: timezone,
+    }).toISODate()!;
 
     const slots = await this.getAvailableSlots({
       appointmentTypeId,
@@ -267,7 +283,9 @@ export class AvailabilityEngine {
     });
 
     const matchingSlot = slots.find(
-      (s) => s.start.getTime() === startTime.getTime() && s.end.getTime() === endTime.getTime(),
+      (s) =>
+        s.start.getTime() === startTime.getTime() &&
+        s.end.getTime() === endTime.getTime(),
     );
 
     if (!matchingSlot) {
@@ -285,7 +303,9 @@ export class AvailabilityEngine {
   // Private helpers
   // ============================================================================
 
-  private async loadAppointmentType(id: string): Promise<AppointmentTypeData | null> {
+  private async loadAppointmentType(
+    id: string,
+  ): Promise<AppointmentTypeData | null> {
     const result = await this.db
       .select()
       .from(appointmentTypes)
@@ -321,7 +341,9 @@ export class AvailabilityEngine {
     return requestedCalendarIds.filter((id) => linkedCalendarIds.has(id));
   }
 
-  private async loadSchedulingLimits(calendarIds: string[]): Promise<MergedSchedulingLimits> {
+  private async loadSchedulingLimits(
+    calendarIds: string[],
+  ): Promise<MergedSchedulingLimits> {
     // Load all limits for these calendars
     const results = await this.db
       .select()
@@ -363,7 +385,9 @@ export class AvailabilityEngine {
       }
       if (limit.maxPerDay != null) {
         merged.maxPerDay =
-          merged.maxPerDay == null ? limit.maxPerDay : Math.min(merged.maxPerDay, limit.maxPerDay);
+          merged.maxPerDay == null
+            ? limit.maxPerDay
+            : Math.min(merged.maxPerDay, limit.maxPerDay);
       }
       if (limit.maxPerWeek != null) {
         merged.maxPerWeek =
@@ -376,7 +400,9 @@ export class AvailabilityEngine {
     return merged;
   }
 
-  private async loadAvailabilityRules(calendarIds: string[]): Promise<AvailabilityRule[]> {
+  private async loadAvailabilityRules(
+    calendarIds: string[],
+  ): Promise<AvailabilityRule[]> {
     const results = await this.db
       .select()
       .from(availabilityRules)
@@ -428,8 +454,12 @@ export class AvailabilityEngine {
     timezone: string,
   ): Promise<BlockedTimeEntry[]> {
     // Convert dates to UTC for database query
-    const startDateTime = DateTime.fromISO(startDate, { zone: timezone }).startOf("day").toUTC();
-    const endDateTime = DateTime.fromISO(endDate, { zone: timezone }).endOf("day").toUTC();
+    const startDateTime = DateTime.fromISO(startDate, { zone: timezone })
+      .startOf("day")
+      .toUTC();
+    const endDateTime = DateTime.fromISO(endDate, { zone: timezone })
+      .endOf("day")
+      .toUTC();
 
     const results = await this.db
       .select()
@@ -469,8 +499,12 @@ export class AvailabilityEngine {
     timezone: string,
   ): Promise<ExistingAppointment[]> {
     // Convert dates to UTC for database query
-    const startDateTime = DateTime.fromISO(startDate, { zone: timezone }).startOf("day").toUTC();
-    const endDateTime = DateTime.fromISO(endDate, { zone: timezone }).endOf("day").toUTC();
+    const startDateTime = DateTime.fromISO(startDate, { zone: timezone })
+      .startOf("day")
+      .toUTC();
+    const endDateTime = DateTime.fromISO(endDate, { zone: timezone })
+      .endOf("day")
+      .toUTC();
 
     const results = await this.db
       .select()
@@ -494,7 +528,9 @@ export class AvailabilityEngine {
     }));
   }
 
-  private async loadResourceConstraints(appointmentTypeId: string): Promise<ResourceConstraint[]> {
+  private async loadResourceConstraints(
+    appointmentTypeId: string,
+  ): Promise<ResourceConstraint[]> {
     const results = await this.db
       .select()
       .from(appointmentTypeResources)
@@ -506,7 +542,9 @@ export class AvailabilityEngine {
     }));
   }
 
-  private async loadResourcesData(resourceIds: string[]): Promise<ResourceData[]> {
+  private async loadResourcesData(
+    resourceIds: string[],
+  ): Promise<ResourceData[]> {
     if (resourceIds.length === 0) return [];
 
     const results = await this.db
@@ -531,7 +569,9 @@ export class AvailabilityEngine {
   ): Array<{ start: Date; end: Date }> {
     const slots: Array<{ start: Date; end: Date }> = [];
 
-    let current = DateTime.fromISO(startDate, { zone: timezone }).startOf("day");
+    let current = DateTime.fromISO(startDate, { zone: timezone }).startOf(
+      "day",
+    );
     const end = DateTime.fromISO(endDate, { zone: timezone }).endOf("day");
 
     while (current <= end) {
@@ -595,7 +635,11 @@ export class AvailabilityEngine {
     return slots;
   }
 
-  private isBlockedAt(start: Date, end: Date, blocked: BlockedTimeEntry): boolean {
+  private isBlockedAt(
+    start: Date,
+    end: Date,
+    blocked: BlockedTimeEntry,
+  ): boolean {
     // Handle recurring blocked time
     if (blocked.recurringRule) {
       try {
@@ -606,7 +650,8 @@ export class AvailabilityEngine {
           true,
         );
 
-        const blockDuration = blocked.endAt.getTime() - blocked.startAt.getTime();
+        const blockDuration =
+          blocked.endAt.getTime() - blocked.startAt.getTime();
 
         for (const occurrence of occurrences) {
           const blockStart = DateTime.fromJSDate(occurrence);
@@ -632,10 +677,16 @@ export class AvailabilityEngine {
     }
 
     // Simple blocked time
-    return this.intervalsOverlap({ start, end }, { start: blocked.startAt, end: blocked.endAt });
+    return this.intervalsOverlap(
+      { start, end },
+      { start: blocked.startAt, end: blocked.endAt },
+    );
   }
 
-  private intervalsOverlap(a: { start: Date; end: Date }, b: { start: Date; end: Date }): boolean {
+  private intervalsOverlap(
+    a: { start: Date; end: Date },
+    b: { start: Date; end: Date },
+  ): boolean {
     return a.start < b.end && b.start < a.end;
   }
 
@@ -649,20 +700,26 @@ export class AvailabilityEngine {
   ): Promise<boolean> {
     // For each resource, check if adding this appointment would exceed capacity
     for (const constraint of resourceConstraints) {
-      const resource = resourcesData.find((r) => r.id === constraint.resourceId);
+      const resource = resourcesData.find(
+        (r) => r.id === constraint.resourceId,
+      );
       if (!resource) continue;
 
       // Count how much of this resource is already allocated during this time
       // We need to look at appointments that use this resource
       const overlappingAppointments = existingAppointments.filter((a) =>
-        this.intervalsOverlap({ start, end }, { start: a.startAt, end: a.endAt }),
+        this.intervalsOverlap(
+          { start, end },
+          { start: a.startAt, end: a.endAt },
+        ),
       );
 
       // For now, assume each appointment of this type uses the same resource requirements
       // A more complete implementation would track actual resource allocations per appointment
       const usedQuantity =
-        overlappingAppointments.filter((a) => a.appointmentTypeId === appointmentTypeId).length *
-        constraint.quantityRequired;
+        overlappingAppointments.filter(
+          (a) => a.appointmentTypeId === appointmentTypeId,
+        ).length * constraint.quantityRequired;
 
       if (usedQuantity + constraint.quantityRequired > resource.quantity) {
         return false;

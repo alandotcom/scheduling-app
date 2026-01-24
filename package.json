@@ -9,12 +9,12 @@
     "build": "pnpm -r run build",
     "test": "pnpm -r run test",
     "lint": "oxlint .",
-    "format": "oxfmt .",
-    "format:check": "oxfmt --check .",
+    "format": "biome format .",
+    "format:check": "biome format --check .",
     "typecheck": "pnpm -r run typecheck"
   },
   "devDependencies": {
-    "oxfmt": "^0.26.0",
+    "@biomejs/biome": "2.3.12",
     "oxlint": "^0.16.0",
     "typescript": "^5.7.0"
   },

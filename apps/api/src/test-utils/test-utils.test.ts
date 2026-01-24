@@ -3,7 +3,14 @@
 // This serves as both validation of the test infrastructure
 // and documentation of how to use the helpers.
 
-import { describe, test, expect, beforeAll, afterAll, beforeEach } from "bun:test";
+import {
+  describe,
+  test,
+  expect,
+  beforeAll,
+  afterAll,
+  beforeEach,
+} from "bun:test";
 import {
   createTestContext,
   createUnauthenticatedContext,

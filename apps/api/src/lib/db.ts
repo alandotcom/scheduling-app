@@ -14,14 +14,21 @@ export const db = drizzle({ client, schema });
 
 // Export types
 export type Database = BunSQLDatabase<typeof schema>;
-export type DbTransaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
+export type DbTransaction = Parameters<
+  Parameters<Database["transaction"]>[0]
+>[0];
 export type DbClient = Database | DbTransaction;
 
 // Helper to run queries with org context (RLS)
-export async function withOrg<T>(orgId: string, fn: (tx: DbClient) => Promise<T>): Promise<T> {
+export async function withOrg<T>(
+  orgId: string,
+  fn: (tx: DbClient) => Promise<T>,
+): Promise<T> {
   return db.transaction(async (tx) => {
     // set_config with true makes it local to the current transaction
-    await tx.execute(sql`SELECT set_config('app.current_org_id', ${orgId}, true)`);
+    await tx.execute(
+      sql`SELECT set_config('app.current_org_id', ${orgId}, true)`,
+    );
     return fn(tx);
   });
 }

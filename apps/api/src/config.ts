@@ -44,6 +44,7 @@ export const config = envParse(process.env, {
   },
 });
 
-export const authBaseUrl = config.auth.baseUrl ?? `http://localhost:${config.server.port}`;
+export const authBaseUrl =
+  config.auth.baseUrl ?? `http://localhost:${config.server.port}`;
 
 export type Config = typeof config;

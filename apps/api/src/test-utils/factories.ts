@@ -25,7 +25,10 @@ import {
   blockedTime,
   schedulingLimits,
 } from "@scheduling/db/schema";
-import { setTestOrgContext, clearTestOrgContext } from "@scheduling/db/test-utils";
+import {
+  setTestOrgContext,
+  clearTestOrgContext,
+} from "@scheduling/db/test-utils";
 
 type Database = BunSQLDatabase<typeof schema>;
 
@@ -231,7 +234,12 @@ export async function createResource(
 export async function createClient(
   db: Database,
   orgId: string,
-  options: { firstName?: string; lastName?: string; email?: string; phone?: string } = {},
+  options: {
+    firstName?: string;
+    lastName?: string;
+    email?: string;
+    phone?: string;
+  } = {},
 ) {
   await setTestOrgContext(db, orgId);
   try {

@@ -1,6 +1,13 @@
 // Tests for AvailabilityEngine
 
-import { describe, test, expect, beforeAll, afterAll, beforeEach } from "bun:test";
+import {
+  describe,
+  test,
+  expect,
+  beforeAll,
+  afterAll,
+  beforeEach,
+} from "bun:test";
 import {
   createTestDb,
   resetTestDb,
@@ -580,7 +587,9 @@ describe("AvailabilityEngine", () => {
       });
 
       // 9am slot should still be available with 1 remaining
-      const nineAmSlot = slots.find((s) => new Date(s.start).getUTCHours() === 14);
+      const nineAmSlot = slots.find(
+        (s) => new Date(s.start).getUTCHours() === 14,
+      );
       expect(nineAmSlot?.available).toBe(true);
       expect(nineAmSlot?.remainingCapacity).toBe(1);
     });
@@ -633,7 +642,9 @@ describe("AvailabilityEngine", () => {
       });
 
       // 9am slot should be unavailable (resource exhausted)
-      const nineAmSlot = slots.find((s) => new Date(s.start).getUTCHours() === 14);
+      const nineAmSlot = slots.find(
+        (s) => new Date(s.start).getUTCHours() === 14,
+      );
       expect(nineAmSlot?.available).toBe(false);
     });
   });

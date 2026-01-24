@@ -56,7 +56,8 @@ export const list = adminOnly
         conditions.push(isNull(apiTokens.revokedAt));
       }
 
-      const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+      const whereClause =
+        conditions.length > 0 ? and(...conditions) : undefined;
 
       return tx
         .select({
@@ -92,78 +93,82 @@ export const list = adminOnly
 // GET SINGLE API TOKEN
 // ============================================================================
 
-export const get = adminOnly.input(idInput).handler(async ({ input, context }) => {
-  const { id } = input;
-  const { orgId } = context;
+export const get = adminOnly
+  .input(idInput)
+  .handler(async ({ input, context }) => {
+    const { id } = input;
+    const { orgId } = context;
 
-  const [token] = await withOrg(orgId, async (tx) => {
-    return tx
-      .select({
-        id: apiTokens.id,
-        orgId: apiTokens.orgId,
-        userId: apiTokens.userId,
-        name: apiTokens.name,
-        scope: apiTokens.scope,
-        tokenPrefix: apiTokens.tokenPrefix,
-        lastUsedAt: apiTokens.lastUsedAt,
-        expiresAt: apiTokens.expiresAt,
-        revokedAt: apiTokens.revokedAt,
-        createdAt: apiTokens.createdAt,
-        updatedAt: apiTokens.updatedAt,
-      })
-      .from(apiTokens)
-      .where(eq(apiTokens.id, id))
-      .limit(1);
+    const [token] = await withOrg(orgId, async (tx) => {
+      return tx
+        .select({
+          id: apiTokens.id,
+          orgId: apiTokens.orgId,
+          userId: apiTokens.userId,
+          name: apiTokens.name,
+          scope: apiTokens.scope,
+          tokenPrefix: apiTokens.tokenPrefix,
+          lastUsedAt: apiTokens.lastUsedAt,
+          expiresAt: apiTokens.expiresAt,
+          revokedAt: apiTokens.revokedAt,
+          createdAt: apiTokens.createdAt,
+          updatedAt: apiTokens.updatedAt,
+        })
+        .from(apiTokens)
+        .where(eq(apiTokens.id, id))
+        .limit(1);
+    });
+
+    if (!token) {
+      throw new ApplicationError("API token not found", { code: "NOT_FOUND" });
+    }
+
+    return token;
   });
-
-  if (!token) {
-    throw new ApplicationError("API token not found", { code: "NOT_FOUND" });
-  }
-
-  return token;
-});
 
 // ============================================================================
 // CREATE API TOKEN
 // ============================================================================
 
-export const create = adminOnly.input(createApiTokenSchema).handler(async ({ input, context }) => {
-  const { name, scope, expiresAt } = input;
-  const { orgId, userId } = context;
+export const create = adminOnly
+  .input(createApiTokenSchema)
+  .handler(async ({ input, context }) => {
+    const { name, scope, expiresAt } = input;
+    const { orgId, userId } = context;
 
-  // Generate the token
-  const token = generateToken();
-  const tokenHash = hashToken(token);
-  const tokenPrefix = getTokenPrefix(token);
+    // Generate the token
+    const token = generateToken();
+    const tokenHash = hashToken(token);
+    const tokenPrefix = getTokenPrefix(token);
 
-  const [created] = await withOrg(orgId, async (tx) => {
-    return tx
-      .insert(apiTokens)
-      .values({
-        orgId,
-        userId,
-        name,
-        tokenHash,
-        tokenPrefix,
-        scope,
-        expiresAt: expiresAt ?? null,
-      })
-      .returning({
-        id: apiTokens.id,
-        name: apiTokens.name,
-        scope: apiTokens.scope,
-        tokenPrefix: apiTokens.tokenPrefix,
-        expiresAt: apiTokens.expiresAt,
-        createdAt: apiTokens.createdAt,
-      });
+    const [created] = await withOrg(orgId, async (tx) => {
+      return tx
+        .insert(apiTokens)
+        .values({
+          orgId,
+          userId,
+          name,
+          tokenHash,
+          tokenPrefix,
+          scope,
+          expiresAt: expiresAt ?? null,
+        })
+        .returning({
+          id: apiTokens.id,
+          name: apiTokens.name,
+          scope: apiTokens.scope,
+          tokenPrefix: apiTokens.tokenPrefix,
+          expiresAt: apiTokens.expiresAt,
+          createdAt: apiTokens.createdAt,
+        });
+    });
+
+    // Return the full token only once on creation
+    return {
+      ...created!,
+      token: `${tokenPrefix}${token}`, // Full token with prefix
+    };
   });
-
-  // Return the full token only once on creation
-  return {
-    ...created!,
-    token: `${tokenPrefix}${token}`, // Full token with prefix
-  };
-});
 
 // ============================================================================
 // UPDATE API TOKEN
@@ -185,7 +190,9 @@ export const update = adminOnly
     }
 
     if (existing.revokedAt) {
-      throw new ApplicationError("Cannot update a revoked token", { code: "BAD_REQUEST" });
+      throw new ApplicationError("Cannot update a revoked token", {
+        code: "BAD_REQUEST",
+      });
     }
 
     const [updated] = await withOrg(orgId, async (tx) => {
@@ -218,48 +225,52 @@ export const update = adminOnly
 // REVOKE API TOKEN
 // ============================================================================
 
-export const revoke = adminOnly.input(idInput).handler(async ({ input, context }) => {
-  const { id } = input;
-  const { orgId } = context;
+export const revoke = adminOnly
+  .input(idInput)
+  .handler(async ({ input, context }) => {
+    const { id } = input;
+    const { orgId } = context;
 
-  // Verify token exists and belongs to org
-  const [existing] = await withOrg(orgId, async (tx) => {
-    return tx.select().from(apiTokens).where(eq(apiTokens.id, id)).limit(1);
-  });
+    // Verify token exists and belongs to org
+    const [existing] = await withOrg(orgId, async (tx) => {
+      return tx.select().from(apiTokens).where(eq(apiTokens.id, id)).limit(1);
+    });
 
-  if (!existing) {
-    throw new ApplicationError("API token not found", { code: "NOT_FOUND" });
-  }
+    if (!existing) {
+      throw new ApplicationError("API token not found", { code: "NOT_FOUND" });
+    }
 
-  if (existing.revokedAt) {
-    throw new ApplicationError("Token is already revoked", { code: "BAD_REQUEST" });
-  }
-
-  const [revoked] = await withOrg(orgId, async (tx) => {
-    return tx
-      .update(apiTokens)
-      .set({
-        revokedAt: new Date(),
-        updatedAt: new Date(),
-      })
-      .where(eq(apiTokens.id, id))
-      .returning({
-        id: apiTokens.id,
-        orgId: apiTokens.orgId,
-        userId: apiTokens.userId,
-        name: apiTokens.name,
-        scope: apiTokens.scope,
-        tokenPrefix: apiTokens.tokenPrefix,
-        lastUsedAt: apiTokens.lastUsedAt,
-        expiresAt: apiTokens.expiresAt,
-        revokedAt: apiTokens.revokedAt,
-        createdAt: apiTokens.createdAt,
-        updatedAt: apiTokens.updatedAt,
+    if (existing.revokedAt) {
+      throw new ApplicationError("Token is already revoked", {
+        code: "BAD_REQUEST",
       });
-  });
+    }
 
-  return revoked!;
-});
+    const [revoked] = await withOrg(orgId, async (tx) => {
+      return tx
+        .update(apiTokens)
+        .set({
+          revokedAt: new Date(),
+          updatedAt: new Date(),
+        })
+        .where(eq(apiTokens.id, id))
+        .returning({
+          id: apiTokens.id,
+          orgId: apiTokens.orgId,
+          userId: apiTokens.userId,
+          name: apiTokens.name,
+          scope: apiTokens.scope,
+          tokenPrefix: apiTokens.tokenPrefix,
+          lastUsedAt: apiTokens.lastUsedAt,
+          expiresAt: apiTokens.expiresAt,
+          revokedAt: apiTokens.revokedAt,
+          createdAt: apiTokens.createdAt,
+          updatedAt: apiTokens.updatedAt,
+        });
+    });
+
+    return revoked!;
+  });
 
 // ============================================================================
 // ROUTE EXPORTS

@@ -14,7 +14,8 @@ import {
 } from "./schema/index.js";
 
 const databaseUrl =
-  process.env["DATABASE_URL"] ?? "postgres://scheduling:scheduling@localhost:5433/scheduling";
+  process.env["DATABASE_URL"] ??
+  "postgres://scheduling:scheduling@localhost:5433/scheduling";
 
 async function seed() {
   console.log("Seeding database...");

@@ -15,7 +15,9 @@ export const rlsMiddleware = createMiddleware(async (c, next) => {
   // Set the RLS context for this connection
   // Note: For full connection pooling safety, use SET LOCAL within transactions
   // or wrap queries with withOrg() helper from lib/db.ts
-  await db.execute(sql`SELECT set_config('app.current_org_id', ${orgId}, false)`);
+  await db.execute(
+    sql`SELECT set_config('app.current_org_id', ${orgId}, false)`,
+  );
 
   try {
     await next();

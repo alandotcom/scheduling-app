@@ -29,9 +29,17 @@ export interface ClientListInput extends PaginationInput {
 }
 
 export class ClientRepository {
-  async findById(tx: DbClient, orgId: string, id: string): Promise<Client | null> {
+  async findById(
+    tx: DbClient,
+    orgId: string,
+    id: string,
+  ): Promise<Client | null> {
     await setOrgContext(tx, orgId);
-    const [result] = await tx.select().from(clients).where(eq(clients.id, id)).limit(1);
+    const [result] = await tx
+      .select()
+      .from(clients)
+      .where(eq(clients.id, id))
+      .limit(1);
     return result ?? null;
   }
 
@@ -66,7 +74,11 @@ export class ClientRepository {
     return paginate(results, limit);
   }
 
-  async create(tx: DbClient, orgId: string, input: ClientCreateInput): Promise<Client> {
+  async create(
+    tx: DbClient,
+    orgId: string,
+    input: ClientCreateInput,
+  ): Promise<Client> {
     await setOrgContext(tx, orgId);
     const [result] = await tx
       .insert(clients)
@@ -101,7 +113,10 @@ export class ClientRepository {
 
   async delete(tx: DbClient, orgId: string, id: string): Promise<boolean> {
     await setOrgContext(tx, orgId);
-    const result = await tx.delete(clients).where(eq(clients.id, id)).returning({ id: clients.id });
+    const result = await tx
+      .delete(clients)
+      .where(eq(clients.id, id))
+      .returning({ id: clients.id });
     return result.length > 0;
   }
 }

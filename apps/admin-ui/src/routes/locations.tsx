@@ -66,7 +66,12 @@ interface LocationFormProps {
   isSubmitting: boolean;
 }
 
-function LocationForm({ defaultValues, onSubmit, onCancel, isSubmitting }: LocationFormProps) {
+function LocationForm({
+  defaultValues,
+  onSubmit,
+  onCancel,
+  isSubmitting,
+}: LocationFormProps) {
   const {
     register,
     handleSubmit,
@@ -84,8 +89,15 @@ function LocationForm({ defaultValues, onSubmit, onCancel, isSubmitting }: Locat
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
       <div className="space-y-2">
         <Label htmlFor="name">Name</Label>
-        <Input id="name" placeholder="Main Office" {...register("name")} disabled={isSubmitting} />
-        {errors.name && <p className="text-sm text-destructive">{errors.name.message}</p>}
+        <Input
+          id="name"
+          placeholder="Main Office"
+          {...register("name")}
+          disabled={isSubmitting}
+        />
+        {errors.name && (
+          <p className="text-sm text-destructive">{errors.name.message}</p>
+        )}
       </div>
       <div className="space-y-2">
         <Label htmlFor="timezone">Timezone</Label>
@@ -105,10 +117,17 @@ function LocationForm({ defaultValues, onSubmit, onCancel, isSubmitting }: Locat
             ))}
           </SelectContent>
         </Select>
-        {errors.timezone && <p className="text-sm text-destructive">{errors.timezone.message}</p>}
+        {errors.timezone && (
+          <p className="text-sm text-destructive">{errors.timezone.message}</p>
+        )}
       </div>
       <div className="flex justify-end gap-2 pt-4">
-        <Button type="button" variant="outline" onClick={onCancel} disabled={isSubmitting}>
+        <Button
+          type="button"
+          variant="outline"
+          onClick={onCancel}
+          disabled={isSubmitting}
+        >
           Cancel
         </Button>
         <Button type="submit" disabled={isSubmitting}>
@@ -129,7 +148,9 @@ function LocationsPage() {
     name: string;
     timezone: string;
   } | null>(null);
-  const [deletingLocationId, setDeletingLocationId] = useState<string | null>(null);
+  const [deletingLocationId, setDeletingLocationId] = useState<string | null>(
+    null,
+  );
 
   // Fetch locations
   const { data, isLoading, error } = useQuery(
@@ -238,7 +259,9 @@ function LocationsPage() {
         {isLoading ? (
           <div className="text-center text-muted-foreground">Loading...</div>
         ) : error ? (
-          <div className="text-center text-destructive">Error loading locations</div>
+          <div className="text-center text-destructive">
+            Error loading locations
+          </div>
         ) : !data?.items.length ? (
           <div className="rounded-lg border bg-card p-8 text-center text-muted-foreground">
             No locations yet. Create your first location to get started.
@@ -257,9 +280,13 @@ function LocationsPage() {
               <TableBody>
                 {data.items.map((location) => (
                   <TableRow key={location.id}>
-                    <TableCell className="font-medium">{location.name}</TableCell>
+                    <TableCell className="font-medium">
+                      {location.name}
+                    </TableCell>
                     <TableCell>{location.timezone}</TableCell>
-                    <TableCell>{new Date(location.createdAt).toLocaleDateString()}</TableCell>
+                    <TableCell>
+                      {new Date(location.createdAt).toLocaleDateString()}
+                    </TableCell>
                     <TableCell>
                       <div className="flex gap-1">
                         <Button
@@ -295,12 +322,16 @@ function LocationsPage() {
       </div>
 
       {/* Delete Confirmation */}
-      <AlertDialog open={!!deletingLocationId} onOpenChange={() => setDeletingLocationId(null)}>
+      <AlertDialog
+        open={!!deletingLocationId}
+        onOpenChange={() => setDeletingLocationId(null)}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Location</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete this location? This action cannot be undone.
+              Are you sure you want to delete this location? This action cannot
+              be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

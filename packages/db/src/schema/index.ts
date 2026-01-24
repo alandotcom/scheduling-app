@@ -11,12 +11,14 @@ import {
 import { sql, relations } from "drizzle-orm";
 
 // Common column helpers using Postgres 18 native uuidv7()
-const id = uuid("id")
-  .primaryKey()
-  .default(sql`uuidv7()`);
+const id = uuid("id").primaryKey().default(sql`uuidv7()`);
 const timestamps = {
-  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
 };
 
 // ============================================================================
@@ -71,7 +73,9 @@ export const orgMemberships = pgTable(
     role: text("role").notNull(), // 'admin' | 'staff'
     ...timestamps,
   },
-  (table) => [uniqueIndex("org_memberships_org_user_idx").on(table.orgId, table.userId)],
+  (table) => [
+    uniqueIndex("org_memberships_org_user_idx").on(table.orgId, table.userId),
+  ],
 );
 
 export const orgMembershipsRelations = relations(orgMemberships, ({ one }) => ({
@@ -146,15 +150,18 @@ export const appointmentTypes = pgTable("appointment_types", {
   ...timestamps,
 });
 
-export const appointmentTypesRelations = relations(appointmentTypes, ({ one, many }) => ({
-  org: one(orgs, {
-    fields: [appointmentTypes.orgId],
-    references: [orgs.id],
+export const appointmentTypesRelations = relations(
+  appointmentTypes,
+  ({ one, many }) => ({
+    org: one(orgs, {
+      fields: [appointmentTypes.orgId],
+      references: [orgs.id],
+    }),
+    appointmentTypeCalendars: many(appointmentTypeCalendars),
+    appointmentTypeResources: many(appointmentTypeResources),
+    appointments: many(appointments),
   }),
-  appointmentTypeCalendars: many(appointmentTypeCalendars),
-  appointmentTypeResources: many(appointmentTypeResources),
-  appointments: many(appointments),
-}));
+);
 
 export const appointmentTypeCalendars = pgTable(
   "appointment_type_calendars",
@@ -175,16 +182,19 @@ export const appointmentTypeCalendars = pgTable(
   ],
 );
 
-export const appointmentTypeCalendarsRelations = relations(appointmentTypeCalendars, ({ one }) => ({
-  appointmentType: one(appointmentTypes, {
-    fields: [appointmentTypeCalendars.appointmentTypeId],
-    references: [appointmentTypes.id],
+export const appointmentTypeCalendarsRelations = relations(
+  appointmentTypeCalendars,
+  ({ one }) => ({
+    appointmentType: one(appointmentTypes, {
+      fields: [appointmentTypeCalendars.appointmentTypeId],
+      references: [appointmentTypes.id],
+    }),
+    calendar: one(calendars, {
+      fields: [appointmentTypeCalendars.calendarId],
+      references: [calendars.id],
+    }),
   }),
-  calendar: one(calendars, {
-    fields: [appointmentTypeCalendars.calendarId],
-    references: [calendars.id],
-  }),
-}));
+);
 
 export const resources = pgTable("resources", {
   id,
@@ -229,16 +239,19 @@ export const appointmentTypeResources = pgTable(
   ],
 );
 
-export const appointmentTypeResourcesRelations = relations(appointmentTypeResources, ({ one }) => ({
-  appointmentType: one(appointmentTypes, {
-    fields: [appointmentTypeResources.appointmentTypeId],
-    references: [appointmentTypes.id],
+export const appointmentTypeResourcesRelations = relations(
+  appointmentTypeResources,
+  ({ one }) => ({
+    appointmentType: one(appointmentTypes, {
+      fields: [appointmentTypeResources.appointmentTypeId],
+      references: [appointmentTypes.id],
+    }),
+    resource: one(resources, {
+      fields: [appointmentTypeResources.resourceId],
+      references: [resources.id],
+    }),
   }),
-  resource: one(resources, {
-    fields: [appointmentTypeResources.resourceId],
-    references: [resources.id],
-  }),
-}));
+);
 
 export const clients = pgTable("clients", {
   id,
@@ -315,12 +328,15 @@ export const availabilityRules = pgTable("availability_rules", {
   groupId: uuid("group_id"),
 });
 
-export const availabilityRulesRelations = relations(availabilityRules, ({ one }) => ({
-  calendar: one(calendars, {
-    fields: [availabilityRules.calendarId],
-    references: [calendars.id],
+export const availabilityRulesRelations = relations(
+  availabilityRules,
+  ({ one }) => ({
+    calendar: one(calendars, {
+      fields: [availabilityRules.calendarId],
+      references: [calendars.id],
+    }),
   }),
-}));
+);
 
 export const availabilityOverrides = pgTable("availability_overrides", {
   id,
@@ -335,12 +351,15 @@ export const availabilityOverrides = pgTable("availability_overrides", {
   groupId: uuid("group_id"),
 });
 
-export const availabilityOverridesRelations = relations(availabilityOverrides, ({ one }) => ({
-  calendar: one(calendars, {
-    fields: [availabilityOverrides.calendarId],
-    references: [calendars.id],
+export const availabilityOverridesRelations = relations(
+  availabilityOverrides,
+  ({ one }) => ({
+    calendar: one(calendars, {
+      fields: [availabilityOverrides.calendarId],
+      references: [calendars.id],
+    }),
   }),
-}));
+);
 
 export const blockedTime = pgTable("blocked_time", {
   id,
@@ -370,12 +389,15 @@ export const schedulingLimits = pgTable("scheduling_limits", {
   maxPerWeek: integer("max_per_week"),
 });
 
-export const schedulingLimitsRelations = relations(schedulingLimits, ({ one }) => ({
-  calendar: one(calendars, {
-    fields: [schedulingLimits.calendarId],
-    references: [calendars.id],
+export const schedulingLimitsRelations = relations(
+  schedulingLimits,
+  ({ one }) => ({
+    calendar: one(calendars, {
+      fields: [schedulingLimits.calendarId],
+      references: [calendars.id],
+    }),
   }),
-}));
+);
 
 // ============================================================================
 // EVENT OUTBOX
@@ -432,8 +454,12 @@ export const accounts = pgTable("accounts", {
   providerAccountId: text("provider_account_id").notNull(),
   accessToken: text("access_token"),
   refreshToken: text("refresh_token"),
-  accessTokenExpiresAt: timestamp("access_token_expires_at", { withTimezone: true }),
-  refreshTokenExpiresAt: timestamp("refresh_token_expires_at", { withTimezone: true }),
+  accessTokenExpiresAt: timestamp("access_token_expires_at", {
+    withTimezone: true,
+  }),
+  refreshTokenExpiresAt: timestamp("refresh_token_expires_at", {
+    withTimezone: true,
+  }),
   scope: text("scope"),
   ...timestamps,
 });

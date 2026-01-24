@@ -17,7 +17,9 @@ function Dashboard() {
   return (
     <div className="p-8">
       <h1 className="text-2xl font-bold">Dashboard</h1>
-      <p className="mt-2 text-muted-foreground">Welcome to the scheduling admin dashboard.</p>
+      <p className="mt-2 text-muted-foreground">
+        Welcome to the scheduling admin dashboard.
+      </p>
 
       <div className="mt-8 grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <DashboardCard title="Today's Appointments" value="0" />

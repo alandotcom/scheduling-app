@@ -92,7 +92,8 @@ function AppointmentTypeResourcesPage() {
 
   // Filter out already linked resources
   const linkedIds = new Set(linkedResources?.map((r) => r.resourceId) ?? []);
-  const availableResources = allResources?.items.filter((r) => !linkedIds.has(r.id)) ?? [];
+  const availableResources =
+    allResources?.items.filter((r) => !linkedIds.has(r.id)) ?? [];
 
   const handleAdd = () => {
     if (!selectedResourceId) return;
@@ -145,7 +146,10 @@ function AppointmentTypeResourcesPage() {
       <div className="flex items-end gap-4">
         <div className="space-y-2">
           <Label>Resource</Label>
-          <Select value={selectedResourceId} onValueChange={setSelectedResourceId}>
+          <Select
+            value={selectedResourceId}
+            onValueChange={setSelectedResourceId}
+          >
             <SelectTrigger className="w-[300px]">
               <SelectValue placeholder="Select a resource to add" />
             </SelectTrigger>
@@ -171,10 +175,15 @@ function AppointmentTypeResourcesPage() {
             min={1}
             className="w-[100px]"
             value={quantityRequired}
-            onChange={(e) => setQuantityRequired(parseInt(e.target.value, 10) || 1)}
+            onChange={(e) =>
+              setQuantityRequired(parseInt(e.target.value, 10) || 1)
+            }
           />
         </div>
-        <Button onClick={handleAdd} disabled={!selectedResourceId || addMutation.isPending}>
+        <Button
+          onClick={handleAdd}
+          disabled={!selectedResourceId || addMutation.isPending}
+        >
           <Plus className="mr-2 h-4 w-4" />
           {addMutation.isPending ? "Adding..." : "Add Resource"}
         </Button>
@@ -186,8 +195,8 @@ function AppointmentTypeResourcesPage() {
           <div className="text-center text-muted-foreground">Loading...</div>
         ) : !linkedResources?.length ? (
           <div className="rounded-lg border bg-card p-8 text-center text-muted-foreground">
-            No resources linked yet. Add resources if this appointment type requires specific
-            equipment or rooms.
+            No resources linked yet. Add resources if this appointment type
+            requires specific equipment or rooms.
           </div>
         ) : (
           <div className="rounded-lg border">
@@ -203,7 +212,9 @@ function AppointmentTypeResourcesPage() {
               <TableBody>
                 {linkedResources.map((link) => (
                   <TableRow key={link.id}>
-                    <TableCell className="font-medium">{link.resource.name}</TableCell>
+                    <TableCell className="font-medium">
+                      {link.resource.name}
+                    </TableCell>
                     <TableCell>{link.resource.quantity}</TableCell>
                     <TableCell>
                       <Input

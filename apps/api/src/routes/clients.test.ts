@@ -1,7 +1,14 @@
 // Integration tests for client routes
 // Tests actual handler logic with database operations
 
-import { describe, test, expect, beforeAll, afterAll, beforeEach } from "bun:test";
+import {
+  describe,
+  test,
+  expect,
+  beforeAll,
+  afterAll,
+  beforeEach,
+} from "bun:test";
 import { call } from "@orpc/server";
 import {
   createTestContext,
@@ -39,7 +46,11 @@ describe("Client Routes", () => {
       const { org, user } = await createOrg(db);
       const ctx = createTestContext({ orgId: org.id, userId: user.id });
 
-      const result = await call(clientRoutes.list, { limit: 10 }, { context: ctx });
+      const result = await call(
+        clientRoutes.list,
+        { limit: 10 },
+        { context: ctx },
+      );
 
       expect(result.items).toEqual([]);
       expect(result.hasMore).toBe(false);
@@ -53,10 +64,17 @@ describe("Client Routes", () => {
       await createClient(db, org.id, { firstName: "John", lastName: "Doe" });
       await createClient(db, org.id, { firstName: "Jane", lastName: "Smith" });
 
-      const result = await call(clientRoutes.list, { limit: 10 }, { context: ctx });
+      const result = await call(
+        clientRoutes.list,
+        { limit: 10 },
+        { context: ctx },
+      );
 
       expect(result.items).toHaveLength(2);
-      expect(result.items.map((c) => c.firstName).sort()).toEqual(["Jane", "John"]);
+      expect(result.items.map((c) => c.firstName).sort()).toEqual([
+        "Jane",
+        "John",
+      ]);
       expect(result.hasMore).toBe(false);
     });
 
@@ -68,7 +86,11 @@ describe("Client Routes", () => {
       await createClient(db, org.id, { firstName: "Client", lastName: "2" });
       await createClient(db, org.id, { firstName: "Client", lastName: "3" });
 
-      const first = await call(clientRoutes.list, { limit: 2 }, { context: ctx });
+      const first = await call(
+        clientRoutes.list,
+        { limit: 2 },
+        { context: ctx },
+      );
 
       expect(first.items).toHaveLength(2);
       expect(first.hasMore).toBe(true);
@@ -91,7 +113,11 @@ describe("Client Routes", () => {
       await createClient(db, org.id, { firstName: "John", lastName: "Doe" });
       await createClient(db, org.id, { firstName: "Jane", lastName: "Smith" });
 
-      const result = await call(clientRoutes.list, { limit: 10, search: "John" }, { context: ctx });
+      const result = await call(
+        clientRoutes.list,
+        { limit: 10, search: "John" },
+        { context: ctx },
+      );
 
       expect(result.items).toHaveLength(1);
       expect(result.items[0]!.firstName).toBe("John");
@@ -145,7 +171,11 @@ describe("Client Routes", () => {
 
       await createClient(db, org.id, { firstName: "John", lastName: "Doe" });
 
-      const result = await call(clientRoutes.list, { limit: 10, search: "JOHN" }, { context: ctx });
+      const result = await call(
+        clientRoutes.list,
+        { limit: 10, search: "JOHN" },
+        { context: ctx },
+      );
 
       expect(result.items).toHaveLength(1);
       expect(result.items[0]!.firstName).toBe("John");
@@ -156,10 +186,20 @@ describe("Client Routes", () => {
       const { org: org2 } = await createOrg(db, { name: "Org 2" });
       const ctx1 = createTestContext({ orgId: org1.id, userId: user1.id });
 
-      await createClient(db, org1.id, { firstName: "Org1", lastName: "Client" });
-      await createClient(db, org2.id, { firstName: "Org2", lastName: "Client" });
+      await createClient(db, org1.id, {
+        firstName: "Org1",
+        lastName: "Client",
+      });
+      await createClient(db, org2.id, {
+        firstName: "Org2",
+        lastName: "Client",
+      });
 
-      const result = await call(clientRoutes.list, { limit: 10 }, { context: ctx1 });
+      const result = await call(
+        clientRoutes.list,
+        { limit: 10 },
+        { context: ctx1 },
+      );
 
       expect(result.items).toHaveLength(1);
       expect(result.items[0]!.firstName).toBe("Org1");
@@ -177,7 +217,11 @@ describe("Client Routes", () => {
         phone: "555-1234",
       });
 
-      const result = await call(clientRoutes.get, { id: client.id }, { context: ctx });
+      const result = await call(
+        clientRoutes.get,
+        { id: client.id },
+        { context: ctx },
+      );
 
       expect(result.id).toBe(client.id);
       expect(result.firstName).toBe("John");
@@ -191,7 +235,11 @@ describe("Client Routes", () => {
       const ctx = createTestContext({ orgId: org.id, userId: user.id });
 
       await expect(
-        call(clientRoutes.get, { id: "00000000-0000-0000-0000-000000000000" }, { context: ctx }),
+        call(
+          clientRoutes.get,
+          { id: "00000000-0000-0000-0000-000000000000" },
+          { context: ctx },
+        ),
       ).rejects.toMatchObject({
         code: "NOT_FOUND",
       });
@@ -202,7 +250,10 @@ describe("Client Routes", () => {
       const { org: org2 } = await createOrg(db, { name: "Org 2" });
       const ctx1 = createTestContext({ orgId: org1.id, userId: user1.id });
 
-      const client = await createClient(db, org2.id, { firstName: "Org2", lastName: "Client" });
+      const client = await createClient(db, org2.id, {
+        firstName: "Org2",
+        lastName: "Client",
+      });
 
       await expect(
         call(clientRoutes.get, { id: client.id }, { context: ctx1 }),
@@ -219,7 +270,12 @@ describe("Client Routes", () => {
 
       const result = await call(
         clientRoutes.create,
-        { firstName: "New", lastName: "Client", email: "new@example.com", phone: "555-5678" },
+        {
+          firstName: "New",
+          lastName: "Client",
+          email: "new@example.com",
+          phone: "555-5678",
+        },
         { context: ctx },
       );
 
@@ -255,7 +311,10 @@ describe("Client Routes", () => {
     test("updates client firstName", async () => {
       const { org, user } = await createOrg(db);
       const ctx = createTestContext({ orgId: org.id, userId: user.id });
-      const client = await createClient(db, org.id, { firstName: "Original", lastName: "Client" });
+      const client = await createClient(db, org.id, {
+        firstName: "Original",
+        lastName: "Client",
+      });
 
       const result = await call(
         clientRoutes.update,
@@ -269,7 +328,10 @@ describe("Client Routes", () => {
     test("updates client lastName", async () => {
       const { org, user } = await createOrg(db);
       const ctx = createTestContext({ orgId: org.id, userId: user.id });
-      const client = await createClient(db, org.id, { firstName: "Test", lastName: "Original" });
+      const client = await createClient(db, org.id, {
+        firstName: "Test",
+        lastName: "Original",
+      });
 
       const result = await call(
         clientRoutes.update,
@@ -323,7 +385,10 @@ describe("Client Routes", () => {
       await expect(
         call(
           clientRoutes.update,
-          { id: "00000000-0000-0000-0000-000000000000", data: { firstName: "Updated" } },
+          {
+            id: "00000000-0000-0000-0000-000000000000",
+            data: { firstName: "Updated" },
+          },
           { context: ctx },
         ),
       ).rejects.toMatchObject({
@@ -336,7 +401,10 @@ describe("Client Routes", () => {
       const { org: org2 } = await createOrg(db, { name: "Org 2" });
       const ctx1 = createTestContext({ orgId: org1.id, userId: user1.id });
 
-      const client = await createClient(db, org2.id, { firstName: "Org2", lastName: "Client" });
+      const client = await createClient(db, org2.id, {
+        firstName: "Org2",
+        lastName: "Client",
+      });
 
       await expect(
         call(
@@ -354,9 +422,16 @@ describe("Client Routes", () => {
     test("deletes a client", async () => {
       const { org, user } = await createOrg(db);
       const ctx = createTestContext({ orgId: org.id, userId: user.id });
-      const client = await createClient(db, org.id, { firstName: "To", lastName: "Delete" });
+      const client = await createClient(db, org.id, {
+        firstName: "To",
+        lastName: "Delete",
+      });
 
-      const result = await call(clientRoutes.remove, { id: client.id }, { context: ctx });
+      const result = await call(
+        clientRoutes.remove,
+        { id: client.id },
+        { context: ctx },
+      );
 
       expect(result.success).toBe(true);
 
@@ -371,7 +446,11 @@ describe("Client Routes", () => {
       const ctx = createTestContext({ orgId: org.id, userId: user.id });
 
       await expect(
-        call(clientRoutes.remove, { id: "00000000-0000-0000-0000-000000000000" }, { context: ctx }),
+        call(
+          clientRoutes.remove,
+          { id: "00000000-0000-0000-0000-000000000000" },
+          { context: ctx },
+        ),
       ).rejects.toMatchObject({
         code: "NOT_FOUND",
       });
@@ -382,7 +461,10 @@ describe("Client Routes", () => {
       const { org: org2 } = await createOrg(db, { name: "Org 2" });
       const ctx1 = createTestContext({ orgId: org1.id, userId: user1.id });
 
-      const client = await createClient(db, org2.id, { firstName: "Org2", lastName: "Client" });
+      const client = await createClient(db, org2.id, {
+        firstName: "Org2",
+        lastName: "Client",
+      });
 
       await expect(
         call(clientRoutes.remove, { id: client.id }, { context: ctx1 }),

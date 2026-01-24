@@ -31,6 +31,11 @@ export function paginate<T extends { id: string }>(
 }
 
 // Set org context for RLS within a transaction
-export async function setOrgContext(tx: DbClient, orgId: string): Promise<void> {
-  await tx.execute(sql`SELECT set_config('app.current_org_id', ${orgId}, true)`);
+export async function setOrgContext(
+  tx: DbClient,
+  orgId: string,
+): Promise<void> {
+  await tx.execute(
+    sql`SELECT set_config('app.current_org_id', ${orgId}, true)`,
+  );
 }

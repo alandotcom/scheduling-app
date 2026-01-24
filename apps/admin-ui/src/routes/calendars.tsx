@@ -105,7 +105,9 @@ function CalendarForm({
           {...register("name")}
           disabled={isSubmitting}
         />
-        {errors.name && <p className="text-sm text-destructive">{errors.name.message}</p>}
+        {errors.name && (
+          <p className="text-sm text-destructive">{errors.name.message}</p>
+        )}
       </div>
       <div className="space-y-2">
         <Label htmlFor="timezone">Timezone</Label>
@@ -125,13 +127,17 @@ function CalendarForm({
             ))}
           </SelectContent>
         </Select>
-        {errors.timezone && <p className="text-sm text-destructive">{errors.timezone.message}</p>}
+        {errors.timezone && (
+          <p className="text-sm text-destructive">{errors.timezone.message}</p>
+        )}
       </div>
       <div className="space-y-2">
         <Label htmlFor="locationId">Location (optional)</Label>
         <Select
           value={locationId ?? "none"}
-          onValueChange={(value) => setValue("locationId", value === "none" ? undefined : value)}
+          onValueChange={(value) =>
+            setValue("locationId", value === "none" ? undefined : value)
+          }
           disabled={isSubmitting}
         >
           <SelectTrigger>
@@ -148,7 +154,12 @@ function CalendarForm({
         </Select>
       </div>
       <div className="flex justify-end gap-2 pt-4">
-        <Button type="button" variant="outline" onClick={onCancel} disabled={isSubmitting}>
+        <Button
+          type="button"
+          variant="outline"
+          onClick={onCancel}
+          disabled={isSubmitting}
+        >
           Cancel
         </Button>
         <Button type="submit" disabled={isSubmitting}>
@@ -170,7 +181,9 @@ function CalendarsPage() {
     timezone: string;
     locationId?: string;
   } | null>(null);
-  const [deletingCalendarId, setDeletingCalendarId] = useState<string | null>(null);
+  const [deletingCalendarId, setDeletingCalendarId] = useState<string | null>(
+    null,
+  );
 
   // Fetch calendars
   const { data, isLoading, error } = useQuery(
@@ -249,7 +262,9 @@ function CalendarsPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold">Calendars</h1>
-          <p className="mt-1 text-muted-foreground">Manage calendars and their availability.</p>
+          <p className="mt-1 text-muted-foreground">
+            Manage calendars and their availability.
+          </p>
         </div>
         {!showCreateForm && !editingCalendar && (
           <Button onClick={() => setShowCreateForm(true)}>
@@ -295,7 +310,9 @@ function CalendarsPage() {
         {isLoading ? (
           <div className="text-center text-muted-foreground">Loading...</div>
         ) : error ? (
-          <div className="text-center text-destructive">Error loading calendars</div>
+          <div className="text-center text-destructive">
+            Error loading calendars
+          </div>
         ) : !data?.items.length ? (
           <div className="rounded-lg border bg-card p-8 text-center text-muted-foreground">
             No calendars yet. Create your first calendar to get started.
@@ -315,10 +332,16 @@ function CalendarsPage() {
               <TableBody>
                 {data.items.map((calendar) => (
                   <TableRow key={calendar.id}>
-                    <TableCell className="font-medium">{calendar.name}</TableCell>
+                    <TableCell className="font-medium">
+                      {calendar.name}
+                    </TableCell>
                     <TableCell>{calendar.timezone}</TableCell>
-                    <TableCell>{getLocationName(calendar.locationId)}</TableCell>
-                    <TableCell>{new Date(calendar.createdAt).toLocaleDateString()}</TableCell>
+                    <TableCell>
+                      {getLocationName(calendar.locationId)}
+                    </TableCell>
+                    <TableCell>
+                      {new Date(calendar.createdAt).toLocaleDateString()}
+                    </TableCell>
                     <TableCell>
                       <div className="flex gap-1">
                         <Button variant="ghost" size="icon" asChild>
@@ -363,12 +386,16 @@ function CalendarsPage() {
       </div>
 
       {/* Delete Confirmation */}
-      <AlertDialog open={!!deletingCalendarId} onOpenChange={() => setDeletingCalendarId(null)}>
+      <AlertDialog
+        open={!!deletingCalendarId}
+        onOpenChange={() => setDeletingCalendarId(null)}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Calendar</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete this calendar? This action cannot be undone.
+              Are you sure you want to delete this calendar? This action cannot
+              be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

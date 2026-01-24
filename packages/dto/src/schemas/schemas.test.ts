@@ -6,37 +6,28 @@ import {
   dateSchema,
   weekdaySchema,
   paginationSchema,
-
   // Org
   createOrgSchema,
   updateOrgSchema,
-
   // User
   createUserSchema,
   orgMembershipRoleSchema,
-
   // Location
   createLocationSchema,
-
   // Calendar
   createCalendarSchema,
-
   // Appointment Type
   createAppointmentTypeSchema,
   createAppointmentTypeResourceSchema,
-
   // Resource
   createResourceSchema,
-
   // Client
   createClientSchema,
-
   // Appointment
   appointmentStatusSchema,
   createAppointmentSchema,
   rescheduleAppointmentSchema,
   cancelAppointmentSchema,
-
   // Availability
   createAvailabilityRuleSchema,
   createAvailabilityOverrideSchema,
@@ -49,7 +40,9 @@ import {
 describe("Common schemas", () => {
   describe("uuidSchema", () => {
     test("accepts valid UUID", () => {
-      const result = uuidSchema.safeParse("550e8400-e29b-41d4-a716-446655440000");
+      const result = uuidSchema.safeParse(
+        "550e8400-e29b-41d4-a716-446655440000",
+      );
       expect(result.success).toBe(true);
     });
 

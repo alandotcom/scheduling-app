@@ -25,7 +25,9 @@ export const createApiTokenResponseSchema = z.object({
   createdAt: timestampSchema,
 });
 
-export type CreateApiTokenResponse = z.infer<typeof createApiTokenResponseSchema>;
+export type CreateApiTokenResponse = z.infer<
+  typeof createApiTokenResponseSchema
+>;
 
 // API token response (list/get - no full token)
 export const apiTokenResponseSchema = z.object({

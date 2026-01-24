@@ -65,7 +65,10 @@ export async function emitEvent<T>(
   } catch (error) {
     // Log error but don't fail the main operation
     // The outbox worker will pick up unprocessed events
-    console.error("Failed to enqueue event, will be picked up by outbox worker:", error);
+    console.error(
+      "Failed to enqueue event, will be picked up by outbox worker:",
+      error,
+    );
   }
 
   return eventId;

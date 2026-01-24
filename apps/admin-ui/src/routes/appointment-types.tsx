@@ -70,8 +70,15 @@ function AppointmentTypeForm({
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
       <div className="space-y-2">
         <Label htmlFor="name">Name</Label>
-        <Input id="name" placeholder="Consultation" {...register("name")} disabled={isSubmitting} />
-        {errors.name && <p className="text-sm text-destructive">{errors.name.message}</p>}
+        <Input
+          id="name"
+          placeholder="Consultation"
+          {...register("name")}
+          disabled={isSubmitting}
+        />
+        {errors.name && (
+          <p className="text-sm text-destructive">{errors.name.message}</p>
+        )}
       </div>
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
@@ -85,7 +92,9 @@ function AppointmentTypeForm({
             disabled={isSubmitting}
           />
           {errors.durationMin && (
-            <p className="text-sm text-destructive">{errors.durationMin.message}</p>
+            <p className="text-sm text-destructive">
+              {errors.durationMin.message}
+            </p>
           )}
         </div>
         <div className="space-y-2">
@@ -133,7 +142,12 @@ function AppointmentTypeForm({
         </div>
       </div>
       <div className="flex justify-end gap-2 pt-4">
-        <Button type="button" variant="outline" onClick={onCancel} disabled={isSubmitting}>
+        <Button
+          type="button"
+          variant="outline"
+          onClick={onCancel}
+          disabled={isSubmitting}
+        >
           Cancel
         </Button>
         <Button type="submit" disabled={isSubmitting}>
@@ -269,10 +283,13 @@ function AppointmentTypesPage() {
         {isLoading ? (
           <div className="text-center text-muted-foreground">Loading...</div>
         ) : error ? (
-          <div className="text-center text-destructive">Error loading appointment types</div>
+          <div className="text-center text-destructive">
+            Error loading appointment types
+          </div>
         ) : !data?.items.length ? (
           <div className="rounded-lg border bg-card p-8 text-center text-muted-foreground">
-            No appointment types yet. Create your first appointment type to get started.
+            No appointment types yet. Create your first appointment type to get
+            started.
           </div>
         ) : (
           <div className="rounded-lg border">
@@ -295,7 +312,8 @@ function AppointmentTypesPage() {
                     <TableCell>
                       {type.paddingBeforeMin || type.paddingAfterMin ? (
                         <span className="text-muted-foreground">
-                          {type.paddingBeforeMin ?? 0} / {type.paddingAfterMin ?? 0} min
+                          {type.paddingBeforeMin ?? 0} /{" "}
+                          {type.paddingAfterMin ?? 0} min
                         </span>
                       ) : (
                         <span className="text-muted-foreground">-</span>
@@ -304,7 +322,9 @@ function AppointmentTypesPage() {
                     <TableCell>
                       <Badge variant="secondary">{type.capacity ?? 1}</Badge>
                     </TableCell>
-                    <TableCell>{new Date(type.createdAt).toLocaleDateString()}</TableCell>
+                    <TableCell>
+                      {new Date(type.createdAt).toLocaleDateString()}
+                    </TableCell>
                     <TableCell>
                       <div className="flex gap-1">
                         <Button variant="ghost" size="icon" asChild>
@@ -331,8 +351,10 @@ function AppointmentTypesPage() {
                               id: type.id,
                               name: type.name,
                               durationMin: type.durationMin,
-                              paddingBeforeMin: type.paddingBeforeMin ?? undefined,
-                              paddingAfterMin: type.paddingAfterMin ?? undefined,
+                              paddingBeforeMin:
+                                type.paddingBeforeMin ?? undefined,
+                              paddingAfterMin:
+                                type.paddingAfterMin ?? undefined,
                               capacity: type.capacity ?? undefined,
                             })
                           }
@@ -359,12 +381,16 @@ function AppointmentTypesPage() {
       </div>
 
       {/* Delete Confirmation */}
-      <AlertDialog open={!!deletingTypeId} onOpenChange={() => setDeletingTypeId(null)}>
+      <AlertDialog
+        open={!!deletingTypeId}
+        onOpenChange={() => setDeletingTypeId(null)}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Appointment Type</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete this appointment type? This action cannot be undone.
+              Are you sure you want to delete this appointment type? This action
+              cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

@@ -19,7 +19,9 @@ export class ResourceService {
     input: ResourceListInput,
     context: ServiceContext,
   ): Promise<PaginatedResult<Resource>> {
-    return withOrg(context.orgId, (tx) => resourceRepository.findMany(tx, context.orgId, input));
+    return withOrg(context.orgId, (tx) =>
+      resourceRepository.findMany(tx, context.orgId, input),
+    );
   }
 
   async get(id: string, context: ServiceContext): Promise<Resource> {
@@ -34,18 +36,31 @@ export class ResourceService {
     });
   }
 
-  async create(input: ResourceCreateInput, context: ServiceContext): Promise<Resource> {
+  async create(
+    input: ResourceCreateInput,
+    context: ServiceContext,
+  ): Promise<Resource> {
     return withOrg(context.orgId, async (tx) => {
       // Validate location exists if provided
       if (input.locationId) {
-        const location = await locationRepository.findById(tx, context.orgId, input.locationId);
+        const location = await locationRepository.findById(
+          tx,
+          context.orgId,
+          input.locationId,
+        );
 
         if (!location) {
-          throw new ApplicationError("Location not found", { code: "NOT_FOUND" });
+          throw new ApplicationError("Location not found", {
+            code: "NOT_FOUND",
+          });
         }
       }
 
-      const resource = await resourceRepository.create(tx, context.orgId, input);
+      const resource = await resourceRepository.create(
+        tx,
+        context.orgId,
+        input,
+      );
 
       await events.resourceCreated(
         context.orgId,
@@ -62,7 +77,11 @@ export class ResourceService {
     });
   }
 
-  async update(id: string, data: ResourceUpdateInput, context: ServiceContext): Promise<Resource> {
+  async update(
+    id: string,
+    data: ResourceUpdateInput,
+    context: ServiceContext,
+  ): Promise<Resource> {
     return withOrg(context.orgId, async (tx) => {
       // Get existing for event payload
       const existing = await resourceRepository.findById(tx, context.orgId, id);
@@ -73,14 +92,25 @@ export class ResourceService {
 
       // Validate location exists if being updated
       if (data.locationId !== undefined && data.locationId !== null) {
-        const location = await locationRepository.findById(tx, context.orgId, data.locationId);
+        const location = await locationRepository.findById(
+          tx,
+          context.orgId,
+          data.locationId,
+        );
 
         if (!location) {
-          throw new ApplicationError("Location not found", { code: "NOT_FOUND" });
+          throw new ApplicationError("Location not found", {
+            code: "NOT_FOUND",
+          });
         }
       }
 
-      const updated = await resourceRepository.update(tx, context.orgId, id, data);
+      const updated = await resourceRepository.update(
+        tx,
+        context.orgId,
+        id,
+        data,
+      );
 
       if (!updated) {
         throw new ApplicationError("Resource not found", { code: "NOT_FOUND" });
@@ -104,7 +134,10 @@ export class ResourceService {
     });
   }
 
-  async delete(id: string, context: ServiceContext): Promise<{ success: true }> {
+  async delete(
+    id: string,
+    context: ServiceContext,
+  ): Promise<{ success: true }> {
     return withOrg(context.orgId, async (tx) => {
       // Get existing for event payload
       const existing = await resourceRepository.findById(tx, context.orgId, id);

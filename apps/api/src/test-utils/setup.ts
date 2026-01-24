@@ -17,7 +17,13 @@ import type * as schema from "@scheduling/db/schema";
 export type TestDatabase = BunSQLDatabase<typeof schema>;
 
 // Re-export db utilities for convenience
-export { createTestDb, resetTestDb, closeTestDb, setTestOrgContext, clearTestOrgContext };
+export {
+  createTestDb,
+  resetTestDb,
+  closeTestDb,
+  setTestOrgContext,
+  clearTestOrgContext,
+};
 
 /**
  * Setup helper that initializes the test database and provides
@@ -60,7 +66,9 @@ export function setupTestDb() {
      */
     getDb(): TestDatabase {
       if (!db) {
-        throw new Error("Test database not initialized. Call init() in beforeAll first.");
+        throw new Error(
+          "Test database not initialized. Call init() in beforeAll first.",
+        );
       }
       return db;
     },

@@ -1,5 +1,10 @@
 import { z } from "zod";
-import { uuidSchema, timestampsSchema, positiveIntSchema, nonNegativeIntSchema } from "./common";
+import {
+  uuidSchema,
+  timestampsSchema,
+  positiveIntSchema,
+  nonNegativeIntSchema,
+} from "./common";
 
 // Base appointment type schema
 export const appointmentTypeSchema = z.object({
@@ -73,15 +78,27 @@ export const appointmentTypeResponseSchema = appointmentTypeSchema;
 
 // Inferred types
 export type AppointmentType = z.infer<typeof appointmentTypeSchema>;
-export type CreateAppointmentTypeInput = z.infer<typeof createAppointmentTypeSchema>;
-export type UpdateAppointmentTypeInput = z.infer<typeof updateAppointmentTypeSchema>;
-export type ListAppointmentTypesQuery = z.infer<typeof listAppointmentTypesQuerySchema>;
-export type AppointmentTypeResponse = z.infer<typeof appointmentTypeResponseSchema>;
-export type AppointmentTypeCalendar = z.infer<typeof appointmentTypeCalendarSchema>;
+export type CreateAppointmentTypeInput = z.infer<
+  typeof createAppointmentTypeSchema
+>;
+export type UpdateAppointmentTypeInput = z.infer<
+  typeof updateAppointmentTypeSchema
+>;
+export type ListAppointmentTypesQuery = z.infer<
+  typeof listAppointmentTypesQuerySchema
+>;
+export type AppointmentTypeResponse = z.infer<
+  typeof appointmentTypeResponseSchema
+>;
+export type AppointmentTypeCalendar = z.infer<
+  typeof appointmentTypeCalendarSchema
+>;
 export type CreateAppointmentTypeCalendarInput = z.infer<
   typeof createAppointmentTypeCalendarSchema
 >;
-export type AppointmentTypeResource = z.infer<typeof appointmentTypeResourceSchema>;
+export type AppointmentTypeResource = z.infer<
+  typeof appointmentTypeResourceSchema
+>;
 export type CreateAppointmentTypeResourceInput = z.infer<
   typeof createAppointmentTypeResourceSchema
 >;

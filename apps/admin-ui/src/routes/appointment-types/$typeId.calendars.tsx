@@ -79,7 +79,8 @@ function AppointmentTypeCalendarsPage() {
 
   // Filter out already linked calendars
   const linkedIds = new Set(linkedCalendars?.map((c) => c.calendarId) ?? []);
-  const availableCalendars = allCalendars?.items.filter((c) => !linkedIds.has(c.id)) ?? [];
+  const availableCalendars =
+    allCalendars?.items.filter((c) => !linkedIds.has(c.id)) ?? [];
 
   const handleAdd = () => {
     if (!selectedCalendarId) return;
@@ -119,7 +120,10 @@ function AppointmentTypeCalendarsPage() {
 
       {/* Add Calendar */}
       <div className="flex gap-4">
-        <Select value={selectedCalendarId} onValueChange={setSelectedCalendarId}>
+        <Select
+          value={selectedCalendarId}
+          onValueChange={setSelectedCalendarId}
+        >
           <SelectTrigger className="w-[300px]">
             <SelectValue placeholder="Select a calendar to add" />
           </SelectTrigger>
@@ -137,7 +141,10 @@ function AppointmentTypeCalendarsPage() {
             )}
           </SelectContent>
         </Select>
-        <Button onClick={handleAdd} disabled={!selectedCalendarId || addMutation.isPending}>
+        <Button
+          onClick={handleAdd}
+          disabled={!selectedCalendarId || addMutation.isPending}
+        >
           <Plus className="mr-2 h-4 w-4" />
           {addMutation.isPending ? "Adding..." : "Add Calendar"}
         </Button>
@@ -149,7 +156,8 @@ function AppointmentTypeCalendarsPage() {
           <div className="text-center text-muted-foreground">Loading...</div>
         ) : !linkedCalendars?.length ? (
           <div className="rounded-lg border bg-card p-8 text-center text-muted-foreground">
-            No calendars linked yet. Add a calendar to make this appointment type available.
+            No calendars linked yet. Add a calendar to make this appointment
+            type available.
           </div>
         ) : (
           <div className="rounded-lg border">
@@ -164,7 +172,9 @@ function AppointmentTypeCalendarsPage() {
               <TableBody>
                 {linkedCalendars.map((link) => (
                   <TableRow key={link.id}>
-                    <TableCell className="font-medium">{link.calendar.name}</TableCell>
+                    <TableCell className="font-medium">
+                      {link.calendar.name}
+                    </TableCell>
                     <TableCell>{link.calendar.timezone}</TableCell>
                     <TableCell>
                       <Button

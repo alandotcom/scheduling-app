@@ -40,14 +40,20 @@ export const authMiddleware = createMiddleware(async (c, next) => {
     if (orgId) {
       // Verify user is member of this org
       const membership = await db.query.orgMemberships.findFirst({
-        where: and(eq(orgMemberships.userId, session.user.id), eq(orgMemberships.orgId, orgId)),
+        where: and(
+          eq(orgMemberships.userId, session.user.id),
+          eq(orgMemberships.orgId, orgId),
+        ),
       });
 
       if (membership) {
         c.set("orgId", orgId);
         c.set("role", membership.role as "admin" | "staff");
       } else {
-        return c.json({ error: { code: "FORBIDDEN", message: "Not a member of this org" } }, 403);
+        return c.json(
+          { error: { code: "FORBIDDEN", message: "Not a member of this org" } },
+          403,
+        );
       }
     } else {
       // Default to first org membership
@@ -74,13 +80,19 @@ export const authMiddleware = createMiddleware(async (c, next) => {
 
     // Find the token by hash
     const apiToken = await db.query.apiTokens.findFirst({
-      where: and(eq(apiTokens.tokenHash, tokenHash), isNull(apiTokens.revokedAt)),
+      where: and(
+        eq(apiTokens.tokenHash, tokenHash),
+        isNull(apiTokens.revokedAt),
+      ),
     });
 
     if (apiToken) {
       // Check if token is expired
       if (apiToken.expiresAt && apiToken.expiresAt < new Date()) {
-        return c.json({ error: { code: "UNAUTHORIZED", message: "API token has expired" } }, 401);
+        return c.json(
+          { error: { code: "UNAUTHORIZED", message: "API token has expired" } },
+          401,
+        );
       }
 
       // Update last used timestamp (non-blocking)
@@ -100,7 +112,10 @@ export const authMiddleware = createMiddleware(async (c, next) => {
     }
 
     // Invalid token
-    return c.json({ error: { code: "UNAUTHORIZED", message: "Invalid API token" } }, 401);
+    return c.json(
+      { error: { code: "UNAUTHORIZED", message: "Invalid API token" } },
+      401,
+    );
   }
 
   // For endpoints that allow unauthenticated access

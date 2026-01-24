@@ -2,7 +2,16 @@
 
 import { createRootRoute, Link, Outlet } from "@tanstack/react-router";
 import { TanStackRouterDevtools } from "@tanstack/router-devtools";
-import { Calendar, Users, Clock, Settings, LogOut, MapPin, Package, Layers } from "lucide-react";
+import {
+  Calendar,
+  Users,
+  Clock,
+  Settings,
+  LogOut,
+  MapPin,
+  Package,
+  Layers,
+} from "lucide-react";
 import { useAuth } from "@/contexts/auth";
 import { Button } from "@/components/ui/button";
 
@@ -48,7 +57,10 @@ function RootLayout() {
             <NavLink to="/calendars" icon={<Calendar className="h-4 w-4" />}>
               Calendars
             </NavLink>
-            <NavLink to="/appointment-types" icon={<Layers className="h-4 w-4" />}>
+            <NavLink
+              to="/appointment-types"
+              icon={<Layers className="h-4 w-4" />}
+            >
               Appointment Types
             </NavLink>
             <NavLink to="/locations" icon={<MapPin className="h-4 w-4" />}>
@@ -72,10 +84,19 @@ function RootLayout() {
                 {user?.name?.[0] ?? user?.email[0]?.toUpperCase() ?? "U"}
               </div>
               <div className="flex-1 overflow-hidden">
-                <div className="truncate text-sm font-medium">{user?.name ?? user?.email}</div>
-                <div className="truncate text-xs text-muted-foreground">{user?.email}</div>
+                <div className="truncate text-sm font-medium">
+                  {user?.name ?? user?.email}
+                </div>
+                <div className="truncate text-xs text-muted-foreground">
+                  {user?.email}
+                </div>
               </div>
-              <Button variant="ghost" size="icon" onClick={() => void logout()} title="Sign out">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => void logout()}
+                title="Sign out"
+              >
                 <LogOut className="h-4 w-4" />
               </Button>
             </div>

@@ -14,8 +14,13 @@ import { events } from "./jobs/emitter.js";
 import type { ServiceContext } from "./locations.js";
 
 export class ClientService {
-  async list(input: ClientListInput, context: ServiceContext): Promise<PaginatedResult<Client>> {
-    return withOrg(context.orgId, (tx) => clientRepository.findMany(tx, context.orgId, input));
+  async list(
+    input: ClientListInput,
+    context: ServiceContext,
+  ): Promise<PaginatedResult<Client>> {
+    return withOrg(context.orgId, (tx) =>
+      clientRepository.findMany(tx, context.orgId, input),
+    );
   }
 
   async get(id: string, context: ServiceContext): Promise<Client> {
@@ -30,7 +35,10 @@ export class ClientService {
     });
   }
 
-  async create(input: ClientCreateInput, context: ServiceContext): Promise<Client> {
+  async create(
+    input: ClientCreateInput,
+    context: ServiceContext,
+  ): Promise<Client> {
     return withOrg(context.orgId, async (tx) => {
       const client = await clientRepository.create(tx, context.orgId, input);
 
@@ -49,7 +57,11 @@ export class ClientService {
     });
   }
 
-  async update(id: string, data: ClientUpdateInput, context: ServiceContext): Promise<Client> {
+  async update(
+    id: string,
+    data: ClientUpdateInput,
+    context: ServiceContext,
+  ): Promise<Client> {
     return withOrg(context.orgId, async (tx) => {
       // Get existing for event payload
       const existing = await clientRepository.findById(tx, context.orgId, id);
@@ -58,7 +70,12 @@ export class ClientService {
         throw new ApplicationError("Client not found", { code: "NOT_FOUND" });
       }
 
-      const updated = await clientRepository.update(tx, context.orgId, id, data);
+      const updated = await clientRepository.update(
+        tx,
+        context.orgId,
+        id,
+        data,
+      );
 
       if (!updated) {
         throw new ApplicationError("Client not found", { code: "NOT_FOUND" });
@@ -83,7 +100,10 @@ export class ClientService {
     });
   }
 
-  async delete(id: string, context: ServiceContext): Promise<{ success: true }> {
+  async delete(
+    id: string,
+    context: ServiceContext,
+  ): Promise<{ success: true }> {
     return withOrg(context.orgId, async (tx) => {
       // Get existing for event payload
       const existing = await clientRepository.findById(tx, context.orgId, id);

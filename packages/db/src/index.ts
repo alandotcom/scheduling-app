@@ -9,7 +9,8 @@ export * from "./schema/index.js";
 
 // Get database URL from environment
 const databaseUrl =
-  process.env["DATABASE_URL"] ?? "postgres://scheduling:scheduling@localhost:5433/scheduling";
+  process.env["DATABASE_URL"] ??
+  "postgres://scheduling:scheduling@localhost:5433/scheduling";
 
 // Create Bun SQL client for queries
 const client = new SQL(databaseUrl);

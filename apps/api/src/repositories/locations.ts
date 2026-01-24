@@ -21,9 +21,17 @@ export interface LocationUpdateInput {
 }
 
 export class LocationRepository {
-  async findById(tx: DbClient, orgId: string, id: string): Promise<Location | null> {
+  async findById(
+    tx: DbClient,
+    orgId: string,
+    id: string,
+  ): Promise<Location | null> {
     await setOrgContext(tx, orgId);
-    const [result] = await tx.select().from(locations).where(eq(locations.id, id)).limit(1);
+    const [result] = await tx
+      .select()
+      .from(locations)
+      .where(eq(locations.id, id))
+      .limit(1);
     return result ?? null;
   }
 
@@ -45,7 +53,11 @@ export class LocationRepository {
     return paginate(results, limit);
   }
 
-  async create(tx: DbClient, orgId: string, input: LocationCreateInput): Promise<Location> {
+  async create(
+    tx: DbClient,
+    orgId: string,
+    input: LocationCreateInput,
+  ): Promise<Location> {
     await setOrgContext(tx, orgId);
     const [result] = await tx
       .insert(locations)

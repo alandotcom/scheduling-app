@@ -17,7 +17,7 @@ pnpm --filter @scheduling/db run test            # Run DB tests only
 
 # Code Quality
 pnpm lint             # Run oxlint
-pnpm format           # Auto-format with oxfmt
+pnpm format           # Auto-format with Biome (spaces, no tabs)
 pnpm typecheck        # Type-check all packages
 
 # After updating code
@@ -54,6 +54,7 @@ packages/
 - **Database:** Drizzle ORM + Bun SQL, Postgres 18 with native `uuidv7()`
 - **Testing:** Real Postgres via Docker (test database auto-created on first test run)
 - **Linting:** oxlint (Rust-based, strict rules)
+- **Formatting:** Biome (spaces, no tabs)
 
 ## Dependencies
 

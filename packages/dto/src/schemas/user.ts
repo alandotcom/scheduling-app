@@ -54,5 +54,9 @@ export type UpdateUserInput = z.infer<typeof updateUserSchema>;
 export type UserResponse = z.infer<typeof userResponseSchema>;
 export type OrgMembershipRole = z.infer<typeof orgMembershipRoleSchema>;
 export type OrgMembership = z.infer<typeof orgMembershipSchema>;
-export type CreateOrgMembershipInput = z.infer<typeof createOrgMembershipSchema>;
-export type UpdateOrgMembershipInput = z.infer<typeof updateOrgMembershipSchema>;
+export type CreateOrgMembershipInput = z.infer<
+  typeof createOrgMembershipSchema
+>;
+export type UpdateOrgMembershipInput = z.infer<
+  typeof updateOrgMembershipSchema
+>;

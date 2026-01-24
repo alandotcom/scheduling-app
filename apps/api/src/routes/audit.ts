@@ -18,7 +18,16 @@ const idInput = z.object({ id: z.string().uuid() });
 export const list = adminOnly
   .input(listAuditEventsQuerySchema)
   .handler(async ({ input, context }) => {
-    const { cursor, limit, entityType, entityId, actorId, action, startDate, endDate } = input;
+    const {
+      cursor,
+      limit,
+      entityType,
+      entityId,
+      actorId,
+      action,
+      startDate,
+      endDate,
+    } = input;
     const { orgId } = context;
 
     const results = await withOrg(orgId, async (tx) => {
@@ -46,7 +55,9 @@ export const list = adminOnly
       }
 
       if (startDate) {
-        const startDateTime = DateTime.fromISO(startDate).startOf("day").toJSDate();
+        const startDateTime = DateTime.fromISO(startDate)
+          .startOf("day")
+          .toJSDate();
         conditions.push(gte(auditEvents.createdAt, startDateTime));
       }
 
@@ -55,7 +66,8 @@ export const list = adminOnly
         conditions.push(lte(auditEvents.createdAt, endDateTime));
       }
 
-      const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+      const whereClause =
+        conditions.length > 0 ? and(...conditions) : undefined;
 
       return tx
         .select({
@@ -84,7 +96,9 @@ export const list = adminOnly
 
     return {
       items: transformedItems,
-      nextCursor: hasMore ? (items[items.length - 1]?.auditEvent.id ?? null) : null,
+      nextCursor: hasMore
+        ? (items[items.length - 1]?.auditEvent.id ?? null)
+        : null,
       hasMore,
     };
   });
@@ -93,36 +107,38 @@ export const list = adminOnly
 // GET SINGLE AUDIT EVENT
 // ============================================================================
 
-export const get = adminOnly.input(idInput).handler(async ({ input, context }) => {
-  const { id } = input;
-  const { orgId } = context;
+export const get = adminOnly
+  .input(idInput)
+  .handler(async ({ input, context }) => {
+    const { id } = input;
+    const { orgId } = context;
 
-  const results = await withOrg(orgId, async (tx) => {
-    return tx
-      .select({
-        auditEvent: auditEvents,
-        actor: {
-          id: users.id,
-          name: users.name,
-          email: users.email,
-        },
-      })
-      .from(auditEvents)
-      .leftJoin(users, eq(auditEvents.actorId, users.id))
-      .where(eq(auditEvents.id, id))
-      .limit(1);
+    const results = await withOrg(orgId, async (tx) => {
+      return tx
+        .select({
+          auditEvent: auditEvents,
+          actor: {
+            id: users.id,
+            name: users.name,
+            email: users.email,
+          },
+        })
+        .from(auditEvents)
+        .leftJoin(users, eq(auditEvents.actorId, users.id))
+        .where(eq(auditEvents.id, id))
+        .limit(1);
+    });
+
+    if (results.length === 0) {
+      return null;
+    }
+
+    const row = results[0]!;
+    return {
+      ...row.auditEvent,
+      actor: row.actor ?? undefined,
+    };
   });
-
-  if (results.length === 0) {
-    return null;
-  }
-
-  const row = results[0]!;
-  return {
-    ...row.auditEvent,
-    actor: row.actor ?? undefined,
-  };
-});
 
 // ============================================================================
 // ROUTE EXPORTS

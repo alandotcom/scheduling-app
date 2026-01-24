@@ -5,7 +5,13 @@ import { auditEvents } from "@scheduling/db/schema";
 import type { DbClient } from "../lib/db.js";
 import { withOrg } from "../lib/db.js";
 
-export type AuditAction = "create" | "update" | "delete" | "cancel" | "reschedule" | "no_show";
+export type AuditAction =
+  | "create"
+  | "update"
+  | "delete"
+  | "cancel"
+  | "reschedule"
+  | "no_show";
 export type AuditActorType = "user" | "api_token" | "system";
 export type AuditEntityType =
   | "appointment"

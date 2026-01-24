@@ -3,7 +3,14 @@
 // These tests verify RLS policies and context functions work correctly.
 // With real Postgres, RLS is enforced natively when org context is set.
 
-import { describe, test, expect, beforeAll, afterAll, beforeEach } from "bun:test";
+import {
+  describe,
+  test,
+  expect,
+  beforeAll,
+  afterAll,
+  beforeEach,
+} from "bun:test";
 import {
   createTestDb,
   resetTestDb,
@@ -14,7 +21,13 @@ import {
   clearTestOrgContext,
   withTestOrgContext,
 } from "./test-utils.js";
-import { locations, calendars, appointmentTypes, resources, clients } from "./schema/index.js";
+import {
+  locations,
+  calendars,
+  appointmentTypes,
+  resources,
+  clients,
+} from "./schema/index.js";
 import { eq, sql } from "drizzle-orm";
 import type { BunSQLDatabase } from "drizzle-orm/bun-sql";
 import type * as schema from "./schema/index.js";

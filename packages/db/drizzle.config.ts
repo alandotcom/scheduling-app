@@ -6,6 +6,7 @@ export default {
   dialect: "postgresql",
   dbCredentials: {
     url:
-      process.env["DATABASE_URL"] ?? "postgres://scheduling:scheduling@localhost:5433/scheduling",
+      process.env["DATABASE_URL"] ??
+      "postgres://scheduling:scheduling@localhost:5433/scheduling",
   },
 } satisfies Config;

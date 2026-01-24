@@ -27,9 +27,17 @@ export interface ResourceListInput extends PaginationInput {
 }
 
 export class ResourceRepository {
-  async findById(tx: DbClient, orgId: string, id: string): Promise<Resource | null> {
+  async findById(
+    tx: DbClient,
+    orgId: string,
+    id: string,
+  ): Promise<Resource | null> {
     await setOrgContext(tx, orgId);
-    const [result] = await tx.select().from(resources).where(eq(resources.id, id)).limit(1);
+    const [result] = await tx
+      .select()
+      .from(resources)
+      .where(eq(resources.id, id))
+      .limit(1);
     return result ?? null;
   }
 
@@ -59,7 +67,11 @@ export class ResourceRepository {
     return paginate(results, limit);
   }
 
-  async create(tx: DbClient, orgId: string, input: ResourceCreateInput): Promise<Resource> {
+  async create(
+    tx: DbClient,
+    orgId: string,
+    input: ResourceCreateInput,
+  ): Promise<Resource> {
     await setOrgContext(tx, orgId);
     const [result] = await tx
       .insert(resources)

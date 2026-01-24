@@ -97,7 +97,9 @@ function AvailabilityPage() {
   };
 
   const updateRule = (index: number, updates: Partial<WeeklyRule>) => {
-    setWeeklyRules((prev) => prev.map((rule, i) => (i === index ? { ...rule, ...updates } : rule)));
+    setWeeklyRules((prev) =>
+      prev.map((rule, i) => (i === index ? { ...rule, ...updates } : rule)),
+    );
     setHasChanges(true);
   };
 
@@ -128,12 +130,17 @@ function AvailabilityPage() {
           </Link>
         </Button>
         <div className="flex-1">
-          <h1 className="text-2xl font-bold">{calendar?.name ?? "Calendar"} - Availability</h1>
+          <h1 className="text-2xl font-bold">
+            {calendar?.name ?? "Calendar"} - Availability
+          </h1>
           <p className="mt-1 text-muted-foreground">
             Configure weekly availability hours for this calendar.
           </p>
         </div>
-        <Button onClick={handleSave} disabled={!hasChanges || setWeeklyMutation.isPending}>
+        <Button
+          onClick={handleSave}
+          disabled={!hasChanges || setWeeklyMutation.isPending}
+        >
           <Save className="mr-2 h-4 w-4" />
           {setWeeklyMutation.isPending ? "Saving..." : "Save Changes"}
         </Button>
@@ -157,13 +164,16 @@ function AvailabilityPage() {
             <CardContent>
               {weeklyRules.length === 0 ? (
                 <p className="text-center text-muted-foreground py-8">
-                  No availability configured. Add time blocks to set when this calendar is
-                  available.
+                  No availability configured. Add time blocks to set when this
+                  calendar is available.
                 </p>
               ) : (
                 <div className="space-y-4">
                   {weeklyRules.map((rule, index) => (
-                    <div key={index} className="flex items-end gap-4 rounded-lg border p-4">
+                    <div
+                      key={index}
+                      className="flex items-end gap-4 rounded-lg border p-4"
+                    >
                       <div className="flex-1 space-y-2">
                         <Label>Day</Label>
                         <Select
@@ -177,7 +187,10 @@ function AvailabilityPage() {
                           </SelectTrigger>
                           <SelectContent>
                             {WEEKDAYS.map((day) => (
-                              <SelectItem key={day.value} value={String(day.value)}>
+                              <SelectItem
+                                key={day.value}
+                                value={String(day.value)}
+                              >
                                 {day.label}
                               </SelectItem>
                             ))}
@@ -189,7 +202,9 @@ function AvailabilityPage() {
                         <Input
                           type="time"
                           value={rule.startTime}
-                          onChange={(e) => updateRule(index, { startTime: e.target.value })}
+                          onChange={(e) =>
+                            updateRule(index, { startTime: e.target.value })
+                          }
                         />
                       </div>
                       <div className="w-32 space-y-2">
@@ -197,7 +212,9 @@ function AvailabilityPage() {
                         <Input
                           type="time"
                           value={rule.endTime}
-                          onChange={(e) => updateRule(index, { endTime: e.target.value })}
+                          onChange={(e) =>
+                            updateRule(index, { endTime: e.target.value })
+                          }
                         />
                       </div>
                       <div className="w-28 space-y-2">
@@ -210,12 +227,18 @@ function AvailabilityPage() {
                           value={rule.intervalMin ?? ""}
                           onChange={(e) =>
                             updateRule(index, {
-                              intervalMin: e.target.value ? parseInt(e.target.value, 10) : null,
+                              intervalMin: e.target.value
+                                ? parseInt(e.target.value, 10)
+                                : null,
                             })
                           }
                         />
                       </div>
-                      <Button variant="ghost" size="icon" onClick={() => removeRule(index)}>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => removeRule(index)}
+                      >
                         <Trash2 className="h-4 w-4" />
                       </Button>
                     </div>
@@ -232,11 +255,15 @@ function AvailabilityPage() {
             </CardHeader>
             <CardContent>
               {weeklyRules.length === 0 ? (
-                <p className="text-muted-foreground">No availability configured.</p>
+                <p className="text-muted-foreground">
+                  No availability configured.
+                </p>
               ) : (
                 <div className="space-y-2">
                   {WEEKDAYS.map((day) => {
-                    const dayRules = weeklyRules.filter((r) => r.weekday === day.value);
+                    const dayRules = weeklyRules.filter(
+                      (r) => r.weekday === day.value,
+                    );
                     return (
                       <div key={day.value} className="flex gap-4">
                         <span className="w-24 font-medium">{day.label}</span>
@@ -244,7 +271,9 @@ function AvailabilityPage() {
                           <span className="text-muted-foreground">Closed</span>
                         ) : (
                           <span>
-                            {dayRules.map((r) => `${r.startTime} - ${r.endTime}`).join(", ")}
+                            {dayRules
+                              .map((r) => `${r.startTime} - ${r.endTime}`)
+                              .join(", ")}
                           </span>
                         )}
                       </div>

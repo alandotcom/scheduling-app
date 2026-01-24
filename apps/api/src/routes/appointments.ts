@@ -27,7 +27,11 @@ import { db, withOrg } from "../lib/db.js";
 import { ApplicationError } from "../errors/application-error.js";
 import { AvailabilityEngine } from "../services/availability-engine/index.js";
 import { events } from "../services/jobs/emitter.js";
-import { recordAudit, toAuditSnapshot, createAuditContext } from "../services/audit.js";
+import {
+  recordAudit,
+  toAuditSnapshot,
+  createAuditContext,
+} from "../services/audit.js";
 
 const idInput = z.object({ id: z.string().uuid() });
 
@@ -49,7 +53,9 @@ async function withRetry<T>(fn: () => Promise<T>): Promise<T> {
       if (error?.code === SERIALIZATION_FAILURE) {
         lastError = error;
         // Exponential backoff: 50ms, 100ms, 150ms
-        await new Promise((resolve) => setTimeout(resolve, BASE_DELAY_MS * (attempt + 1)));
+        await new Promise((resolve) =>
+          setTimeout(resolve, BASE_DELAY_MS * (attempt + 1)),
+        );
         continue;
       }
       // Not a serialization failure, don't retry
@@ -63,7 +69,11 @@ async function withRetry<T>(fn: () => Promise<T>): Promise<T> {
 // Helper to verify calendar belongs to org
 async function verifyCalendarAccess(orgId: string, calendarId: string) {
   const [calendar] = await withOrg(orgId, async (tx) => {
-    return tx.select().from(calendars).where(eq(calendars.id, calendarId)).limit(1);
+    return tx
+      .select()
+      .from(calendars)
+      .where(eq(calendars.id, calendarId))
+      .limit(1);
   });
   if (!calendar) {
     throw new ApplicationError("Calendar not found", { code: "NOT_FOUND" });
@@ -96,7 +106,9 @@ async function verifyAppointmentTypeAndCalendar(
       .limit(1);
   });
   if (!appointmentType) {
-    throw new ApplicationError("Appointment type not found", { code: "NOT_FOUND" });
+    throw new ApplicationError("Appointment type not found", {
+      code: "NOT_FOUND",
+    });
   }
 
   // Check if this appointment type is linked to this calendar
@@ -112,9 +124,12 @@ async function verifyAppointmentTypeAndCalendar(
     .limit(1);
 
   if (!link) {
-    throw new ApplicationError("Appointment type is not available on this calendar", {
-      code: "BAD_REQUEST",
-    });
+    throw new ApplicationError(
+      "Appointment type is not available on this calendar",
+      {
+        code: "BAD_REQUEST",
+      },
+    );
   }
 
   return appointmentType;
@@ -127,8 +142,16 @@ async function verifyAppointmentTypeAndCalendar(
 export const list = authed
   .input(listAppointmentsQuerySchema)
   .handler(async ({ input, context }) => {
-    const { cursor, limit, calendarId, appointmentTypeId, clientId, status, startDate, endDate } =
-      input;
+    const {
+      cursor,
+      limit,
+      calendarId,
+      appointmentTypeId,
+      clientId,
+      status,
+      startDate,
+      endDate,
+    } = input;
     const { orgId } = context;
 
     const results = await withOrg(orgId, async (tx) => {
@@ -156,7 +179,9 @@ export const list = authed
       }
 
       if (startDate) {
-        const startDateTime = DateTime.fromISO(startDate).startOf("day").toJSDate();
+        const startDateTime = DateTime.fromISO(startDate)
+          .startOf("day")
+          .toJSDate();
         conditions.push(gte(appointments.startAt, startDateTime));
       }
 
@@ -165,7 +190,8 @@ export const list = authed
         conditions.push(lte(appointments.startAt, endDateTime));
       }
 
-      const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+      const whereClause =
+        conditions.length > 0 ? and(...conditions) : undefined;
 
       return tx
         .select({
@@ -189,7 +215,10 @@ export const list = authed
         })
         .from(appointments)
         .leftJoin(calendars, eq(appointments.calendarId, calendars.id))
-        .leftJoin(appointmentTypes, eq(appointments.appointmentTypeId, appointmentTypes.id))
+        .leftJoin(
+          appointmentTypes,
+          eq(appointments.appointmentTypeId, appointmentTypes.id),
+        )
         .leftJoin(clients, eq(appointments.clientId, clients.id))
         .where(whereClause)
         .limit(limit + 1)
@@ -209,7 +238,9 @@ export const list = authed
 
     return {
       items: transformedItems,
-      nextCursor: hasMore ? (items[items.length - 1]?.appointment.id ?? null) : null,
+      nextCursor: hasMore
+        ? (items[items.length - 1]?.appointment.id ?? null)
+        : null,
       hasMore,
     };
   });
@@ -245,7 +276,10 @@ export const get = authed.input(idInput).handler(async ({ input, context }) => {
       })
       .from(appointments)
       .leftJoin(calendars, eq(appointments.calendarId, calendars.id))
-      .leftJoin(appointmentTypes, eq(appointments.appointmentTypeId, appointmentTypes.id))
+      .leftJoin(
+        appointmentTypes,
+        eq(appointments.appointmentTypeId, appointmentTypes.id),
+      )
       .leftJoin(clients, eq(appointments.clientId, clients.id))
       .where(eq(appointments.id, id))
       .limit(1);
@@ -268,147 +302,167 @@ export const get = authed.input(idInput).handler(async ({ input, context }) => {
 // CREATE APPOINTMENT
 // ============================================================================
 
-export const create = authed.input(createAppointmentSchema).handler(async ({ input, context }) => {
-  const { calendarId, appointmentTypeId, startTime, timezone, clientId, notes } = input;
-  const { orgId } = context;
+export const create = authed
+  .input(createAppointmentSchema)
+  .handler(async ({ input, context }) => {
+    const {
+      calendarId,
+      appointmentTypeId,
+      startTime,
+      timezone,
+      clientId,
+      notes,
+    } = input;
+    const { orgId } = context;
 
-  // Validate calendar access
-  await verifyCalendarAccess(orgId, calendarId);
+    // Validate calendar access
+    await verifyCalendarAccess(orgId, calendarId);
 
-  // Validate client if provided
-  if (clientId) {
-    await verifyClientAccess(orgId, clientId);
-  }
+    // Validate client if provided
+    if (clientId) {
+      await verifyClientAccess(orgId, clientId);
+    }
 
-  // Get and validate appointment type + calendar link
-  const appointmentType = await verifyAppointmentTypeAndCalendar(
-    orgId,
-    appointmentTypeId,
-    calendarId,
-  );
+    // Get and validate appointment type + calendar link
+    const appointmentType = await verifyAppointmentTypeAndCalendar(
+      orgId,
+      appointmentTypeId,
+      calendarId,
+    );
 
-  // Parse start time and calculate end time
-  const startAt = new Date(startTime);
-  const endAt = DateTime.fromJSDate(startAt)
-    .plus({ minutes: appointmentType.durationMin })
-    .toJSDate();
+    // Parse start time and calculate end time
+    const startAt = new Date(startTime);
+    const endAt = DateTime.fromJSDate(startAt)
+      .plus({ minutes: appointmentType.durationMin })
+      .toJSDate();
 
-  // Check if booking is in the past
-  if (startAt < new Date()) {
-    throw new ApplicationError("BOOKING_IN_PAST: Cannot book appointments in the past", {
-      code: "UNPROCESSABLE_CONTENT",
-    });
-  }
+    // Check if booking is in the past
+    if (startAt < new Date()) {
+      throw new ApplicationError(
+        "BOOKING_IN_PAST: Cannot book appointments in the past",
+        {
+          code: "UNPROCESSABLE_CONTENT",
+        },
+      );
+    }
 
-  // Check availability using the engine
-  const engine = new AvailabilityEngine(db);
-  const availabilityCheck = await engine.checkSlot(
-    appointmentTypeId,
-    calendarId,
-    startAt,
-    timezone,
-  );
+    // Check availability using the engine
+    const engine = new AvailabilityEngine(db);
+    const availabilityCheck = await engine.checkSlot(
+      appointmentTypeId,
+      calendarId,
+      startAt,
+      timezone,
+    );
 
-  if (!availabilityCheck.available) {
-    const errorCode = availabilityCheck.reason || "SLOT_UNAVAILABLE";
-    throw new ApplicationError(`${errorCode}: Time slot is not available`, {
-      code: "CONFLICT",
-    });
-  }
+    if (!availabilityCheck.available) {
+      const errorCode = availabilityCheck.reason || "SLOT_UNAVAILABLE";
+      throw new ApplicationError(`${errorCode}: Time slot is not available`, {
+        code: "CONFLICT",
+      });
+    }
 
-  // Create appointment with serializable transaction and locking
-  const appointment = await withRetry(async () => {
-    return db.transaction(
-      async (tx) => {
-        // Lock the calendar row to prevent concurrent bookings
-        await tx.execute(sql`SELECT id FROM calendars WHERE id = ${calendarId} FOR UPDATE`);
-
-        // Set org context for RLS
-        await tx.execute(sql`SET LOCAL app.current_org_id = ${orgId}`);
-
-        // Double-check for overlapping appointments (with padding consideration)
-        const paddingBeforeMin = appointmentType.paddingBeforeMin ?? 0;
-        const paddingAfterMin = appointmentType.paddingAfterMin ?? 0;
-        const capacity = appointmentType.capacity ?? 1;
-
-        const paddedStartAt = DateTime.fromJSDate(startAt)
-          .minus({ minutes: paddingBeforeMin })
-          .toJSDate();
-        const paddedEndAt = DateTime.fromJSDate(endAt)
-          .plus({ minutes: paddingAfterMin })
-          .toJSDate();
-
-        const overlappingAppointments = await tx
-          .select()
-          .from(appointments)
-          .where(
-            and(
-              eq(appointments.calendarId, calendarId),
-              ne(appointments.status, "cancelled"),
-              // Check for overlap: start < other_end AND end > other_start
-              or(
-                and(lte(appointments.startAt, paddedEndAt), gte(appointments.endAt, paddedStartAt)),
-              ),
-            ),
+    // Create appointment with serializable transaction and locking
+    const appointment = await withRetry(async () => {
+      return db.transaction(
+        async (tx) => {
+          // Lock the calendar row to prevent concurrent bookings
+          await tx.execute(
+            sql`SELECT id FROM calendars WHERE id = ${calendarId} FOR UPDATE`,
           );
 
-        if (overlappingAppointments.length >= capacity) {
-          throw new ApplicationError("SLOT_UNAVAILABLE: Time slot is no longer available", {
-            code: "CONFLICT",
-          });
-        }
+          // Set org context for RLS
+          await tx.execute(sql`SET LOCAL app.current_org_id = ${orgId}`);
 
-        // Insert the appointment
-        const [inserted] = await tx
-          .insert(appointments)
-          .values({
-            orgId,
-            calendarId,
-            appointmentTypeId,
-            clientId: clientId ?? null,
-            startAt,
-            endAt,
-            timezone,
-            status: "scheduled",
-            notes: notes ?? null,
-          })
-          .returning();
+          // Double-check for overlapping appointments (with padding consideration)
+          const paddingBeforeMin = appointmentType.paddingBeforeMin ?? 0;
+          const paddingAfterMin = appointmentType.paddingAfterMin ?? 0;
+          const capacity = appointmentType.capacity ?? 1;
 
-        return inserted!;
-      },
-      { isolationLevel: "serializable" },
-    );
+          const paddedStartAt = DateTime.fromJSDate(startAt)
+            .minus({ minutes: paddingBeforeMin })
+            .toJSDate();
+          const paddedEndAt = DateTime.fromJSDate(endAt)
+            .plus({ minutes: paddingAfterMin })
+            .toJSDate();
+
+          const overlappingAppointments = await tx
+            .select()
+            .from(appointments)
+            .where(
+              and(
+                eq(appointments.calendarId, calendarId),
+                ne(appointments.status, "cancelled"),
+                // Check for overlap: start < other_end AND end > other_start
+                or(
+                  and(
+                    lte(appointments.startAt, paddedEndAt),
+                    gte(appointments.endAt, paddedStartAt),
+                  ),
+                ),
+              ),
+            );
+
+          if (overlappingAppointments.length >= capacity) {
+            throw new ApplicationError(
+              "SLOT_UNAVAILABLE: Time slot is no longer available",
+              {
+                code: "CONFLICT",
+              },
+            );
+          }
+
+          // Insert the appointment
+          const [inserted] = await tx
+            .insert(appointments)
+            .values({
+              orgId,
+              calendarId,
+              appointmentTypeId,
+              clientId: clientId ?? null,
+              startAt,
+              endAt,
+              timezone,
+              status: "scheduled",
+              notes: notes ?? null,
+            })
+            .returning();
+
+          return inserted!;
+        },
+        { isolationLevel: "serializable" },
+      );
+    });
+
+    // Emit appointment created event
+    await events.appointmentCreated(orgId, {
+      appointmentId: appointment.id,
+      calendarId: appointment.calendarId,
+      appointmentTypeId: appointment.appointmentTypeId,
+      clientId: appointment.clientId,
+      startAt: appointment.startAt.toISOString(),
+      endAt: appointment.endAt.toISOString(),
+      timezone: appointment.timezone,
+      status: appointment.status,
+    });
+
+    // Record audit event
+    const authMethod =
+      context.authMethod === "token"
+        ? "api_token"
+        : context.authMethod === "session"
+          ? "session"
+          : "none";
+    await recordAudit(createAuditContext(orgId, context.userId, authMethod), {
+      action: "create",
+      entityType: "appointment",
+      entityId: appointment.id,
+      before: null,
+      after: toAuditSnapshot(appointment as unknown as Record<string, unknown>),
+    });
+
+    return appointment;
   });
-
-  // Emit appointment created event
-  await events.appointmentCreated(orgId, {
-    appointmentId: appointment.id,
-    calendarId: appointment.calendarId,
-    appointmentTypeId: appointment.appointmentTypeId,
-    clientId: appointment.clientId,
-    startAt: appointment.startAt.toISOString(),
-    endAt: appointment.endAt.toISOString(),
-    timezone: appointment.timezone,
-    status: appointment.status,
-  });
-
-  // Record audit event
-  const authMethod =
-    context.authMethod === "token"
-      ? "api_token"
-      : context.authMethod === "session"
-        ? "session"
-        : "none";
-  await recordAudit(createAuditContext(orgId, context.userId, authMethod), {
-    action: "create",
-    entityType: "appointment",
-    entityId: appointment.id,
-    before: null,
-    after: toAuditSnapshot(appointment as unknown as Record<string, unknown>),
-  });
-
-  return appointment;
-});
 
 // ============================================================================
 // UPDATE APPOINTMENT
@@ -422,11 +476,17 @@ export const update = authed
 
     // Get existing appointment
     const [existing] = await withOrg(orgId, async (tx) => {
-      return tx.select().from(appointments).where(eq(appointments.id, id)).limit(1);
+      return tx
+        .select()
+        .from(appointments)
+        .where(eq(appointments.id, id))
+        .limit(1);
     });
 
     if (!existing) {
-      throw new ApplicationError("Appointment not found", { code: "NOT_FOUND" });
+      throw new ApplicationError("Appointment not found", {
+        code: "NOT_FOUND",
+      });
     }
 
     // Validate client if being updated
@@ -452,7 +512,11 @@ export const update = authed
     }
 
     const [updated] = await withOrg(orgId, async (tx) => {
-      return tx.update(appointments).set(updateData).where(eq(appointments.id, id)).returning();
+      return tx
+        .update(appointments)
+        .set(updateData)
+        .where(eq(appointments.id, id))
+        .returning();
     });
 
     // Emit appointment updated event
@@ -493,17 +557,26 @@ export const cancel = authed
 
     // Get existing appointment
     const [existing] = await withOrg(orgId, async (tx) => {
-      return tx.select().from(appointments).where(eq(appointments.id, id)).limit(1);
+      return tx
+        .select()
+        .from(appointments)
+        .where(eq(appointments.id, id))
+        .limit(1);
     });
 
     if (!existing) {
-      throw new ApplicationError("Appointment not found", { code: "NOT_FOUND" });
+      throw new ApplicationError("Appointment not found", {
+        code: "NOT_FOUND",
+      });
     }
 
     if (existing.status === "cancelled") {
-      throw new ApplicationError("APPOINTMENT_ALREADY_CANCELLED: Appointment is already cancelled", {
-        code: "UNPROCESSABLE_CONTENT",
-      });
+      throw new ApplicationError(
+        "APPOINTMENT_ALREADY_CANCELLED: Appointment is already cancelled",
+        {
+          code: "UNPROCESSABLE_CONTENT",
+        },
+      );
     }
 
     // Update status to cancelled
@@ -540,7 +613,9 @@ export const cancel = authed
           ? "session"
           : "none";
     await recordAudit(
-      createAuditContext(orgId, context.userId, authMethod, { reason: data?.reason }),
+      createAuditContext(orgId, context.userId, authMethod, {
+        reason: data?.reason,
+      }),
       {
         action: "cancel",
         entityType: "appointment",
@@ -565,11 +640,17 @@ export const reschedule = authed
 
     // Get existing appointment
     const [existing] = await withOrg(orgId, async (tx) => {
-      return tx.select().from(appointments).where(eq(appointments.id, id)).limit(1);
+      return tx
+        .select()
+        .from(appointments)
+        .where(eq(appointments.id, id))
+        .limit(1);
     });
 
     if (!existing) {
-      throw new ApplicationError("Appointment not found", { code: "NOT_FOUND" });
+      throw new ApplicationError("Appointment not found", {
+        code: "NOT_FOUND",
+      });
     }
 
     if (existing.status === "cancelled") {
@@ -591,7 +672,9 @@ export const reschedule = authed
     });
 
     if (!appointmentType) {
-      throw new ApplicationError("Appointment type not found", { code: "NOT_FOUND" });
+      throw new ApplicationError("Appointment type not found", {
+        code: "NOT_FOUND",
+      });
     }
 
     // Parse new times
@@ -602,9 +685,12 @@ export const reschedule = authed
 
     // Check if new time is in the past
     if (newStartAt < new Date()) {
-      throw new ApplicationError("BOOKING_IN_PAST: Cannot reschedule to a time in the past", {
-        code: "UNPROCESSABLE_CONTENT",
-      });
+      throw new ApplicationError(
+        "BOOKING_IN_PAST: Cannot reschedule to a time in the past",
+        {
+          code: "UNPROCESSABLE_CONTENT",
+        },
+      );
     }
 
     // Check availability for the new slot
@@ -618,11 +704,17 @@ export const reschedule = authed
 
     // The slot might show as unavailable because the current appointment occupies it
     // We need to check if the only conflict is with itself
-    if (!availabilityCheck.available && availabilityCheck.reason !== "SLOT_UNAVAILABLE") {
+    if (
+      !availabilityCheck.available &&
+      availabilityCheck.reason !== "SLOT_UNAVAILABLE"
+    ) {
       const errorCode = availabilityCheck.reason || "SLOT_UNAVAILABLE";
-      throw new ApplicationError(`${errorCode}: New time slot is not available`, {
-        code: "CONFLICT",
-      });
+      throw new ApplicationError(
+        `${errorCode}: New time slot is not available`,
+        {
+          code: "CONFLICT",
+        },
+      );
     }
 
     // Reschedule with serializable transaction
@@ -667,9 +759,12 @@ export const reschedule = authed
             );
 
           if (overlappingAppointments.length >= capacity) {
-            throw new ApplicationError("SLOT_UNAVAILABLE: New time slot is no longer available", {
-              code: "CONFLICT",
-            });
+            throw new ApplicationError(
+              "SLOT_UNAVAILABLE: New time slot is no longer available",
+              {
+                code: "CONFLICT",
+              },
+            );
           }
 
           // Update the appointment
@@ -725,76 +820,84 @@ export const reschedule = authed
 // NO-SHOW APPOINTMENT
 // ============================================================================
 
-export const noShow = authed.input(idInput).handler(async ({ input, context }) => {
-  const { id } = input;
-  const { orgId } = context;
+export const noShow = authed
+  .input(idInput)
+  .handler(async ({ input, context }) => {
+    const { id } = input;
+    const { orgId } = context;
 
-  // Get existing appointment
-  const [existing] = await withOrg(orgId, async (tx) => {
-    return tx.select().from(appointments).where(eq(appointments.id, id)).limit(1);
+    // Get existing appointment
+    const [existing] = await withOrg(orgId, async (tx) => {
+      return tx
+        .select()
+        .from(appointments)
+        .where(eq(appointments.id, id))
+        .limit(1);
+    });
+
+    if (!existing) {
+      throw new ApplicationError("Appointment not found", {
+        code: "NOT_FOUND",
+      });
+    }
+
+    if (existing.status === "cancelled") {
+      throw new ApplicationError(
+        "APPOINTMENT_ALREADY_CANCELLED: Cannot mark a cancelled appointment as no-show",
+        {
+          code: "UNPROCESSABLE_CONTENT",
+        },
+      );
+    }
+
+    if (existing.status === "no_show") {
+      throw new ApplicationError(
+        "APPOINTMENT_ALREADY_NO_SHOW: Appointment is already marked as no-show",
+        {
+          code: "UNPROCESSABLE_CONTENT",
+        },
+      );
+    }
+
+    // Update status to no_show
+    const [updated] = await withOrg(orgId, async (tx) => {
+      return tx
+        .update(appointments)
+        .set({
+          status: "no_show",
+          updatedAt: new Date(),
+        })
+        .where(eq(appointments.id, id))
+        .returning();
+    });
+
+    // Emit appointment no_show event
+    await events.appointmentNoShow(orgId, {
+      appointmentId: updated!.id,
+      calendarId: updated!.calendarId,
+      appointmentTypeId: updated!.appointmentTypeId,
+      clientId: updated!.clientId,
+      startAt: updated!.startAt.toISOString(),
+      endAt: updated!.endAt.toISOString(),
+    });
+
+    // Record audit event
+    const authMethod =
+      context.authMethod === "token"
+        ? "api_token"
+        : context.authMethod === "session"
+          ? "session"
+          : "none";
+    await recordAudit(createAuditContext(orgId, context.userId, authMethod), {
+      action: "no_show",
+      entityType: "appointment",
+      entityId: updated!.id,
+      before: toAuditSnapshot(existing as unknown as Record<string, unknown>),
+      after: toAuditSnapshot(updated as unknown as Record<string, unknown>),
+    });
+
+    return updated!;
   });
-
-  if (!existing) {
-    throw new ApplicationError("Appointment not found", { code: "NOT_FOUND" });
-  }
-
-  if (existing.status === "cancelled") {
-    throw new ApplicationError(
-      "APPOINTMENT_ALREADY_CANCELLED: Cannot mark a cancelled appointment as no-show",
-      {
-        code: "UNPROCESSABLE_CONTENT",
-      },
-    );
-  }
-
-  if (existing.status === "no_show") {
-    throw new ApplicationError(
-      "APPOINTMENT_ALREADY_NO_SHOW: Appointment is already marked as no-show",
-      {
-        code: "UNPROCESSABLE_CONTENT",
-      },
-    );
-  }
-
-  // Update status to no_show
-  const [updated] = await withOrg(orgId, async (tx) => {
-    return tx
-      .update(appointments)
-      .set({
-        status: "no_show",
-        updatedAt: new Date(),
-      })
-      .where(eq(appointments.id, id))
-      .returning();
-  });
-
-  // Emit appointment no_show event
-  await events.appointmentNoShow(orgId, {
-    appointmentId: updated!.id,
-    calendarId: updated!.calendarId,
-    appointmentTypeId: updated!.appointmentTypeId,
-    clientId: updated!.clientId,
-    startAt: updated!.startAt.toISOString(),
-    endAt: updated!.endAt.toISOString(),
-  });
-
-  // Record audit event
-  const authMethod =
-    context.authMethod === "token"
-      ? "api_token"
-      : context.authMethod === "session"
-        ? "session"
-        : "none";
-  await recordAudit(createAuditContext(orgId, context.userId, authMethod), {
-    action: "no_show",
-    entityType: "appointment",
-    entityId: updated!.id,
-    before: toAuditSnapshot(existing as unknown as Record<string, unknown>),
-    after: toAuditSnapshot(updated as unknown as Record<string, unknown>),
-  });
-
-  return updated!;
-});
 
 // ============================================================================
 // ROUTE EXPORTS

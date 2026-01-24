@@ -14,36 +14,38 @@ import { ApplicationError } from "../errors/application-error.js";
 import { events } from "../services/jobs/emitter.js";
 
 // List calendars with cursor pagination and optional location filter
-export const list = authed.input(listCalendarsQuerySchema).handler(async ({ input, context }) => {
-  const { cursor, limit, locationId } = input;
-  const { orgId } = context;
+export const list = authed
+  .input(listCalendarsQuerySchema)
+  .handler(async ({ input, context }) => {
+    const { cursor, limit, locationId } = input;
+    const { orgId } = context;
 
-  const results = await withOrg(orgId, async (tx) => {
-    let conditions = cursor ? gt(calendars.id, cursor) : undefined;
+    const results = await withOrg(orgId, async (tx) => {
+      let conditions = cursor ? gt(calendars.id, cursor) : undefined;
 
-    if (locationId) {
-      conditions = conditions
-        ? and(conditions, eq(calendars.locationId, locationId))
-        : eq(calendars.locationId, locationId);
-    }
+      if (locationId) {
+        conditions = conditions
+          ? and(conditions, eq(calendars.locationId, locationId))
+          : eq(calendars.locationId, locationId);
+      }
 
-    return tx
-      .select()
-      .from(calendars)
-      .where(conditions)
-      .limit(limit + 1)
-      .orderBy(calendars.id);
+      return tx
+        .select()
+        .from(calendars)
+        .where(conditions)
+        .limit(limit + 1)
+        .orderBy(calendars.id);
+    });
+
+    const hasMore = results.length > limit;
+    const items = hasMore ? results.slice(0, limit) : results;
+
+    return {
+      items,
+      nextCursor: hasMore ? (items[items.length - 1]?.id ?? null) : null,
+      hasMore,
+    };
   });
-
-  const hasMore = results.length > limit;
-  const items = hasMore ? results.slice(0, limit) : results;
-
-  return {
-    items,
-    nextCursor: hasMore ? (items[items.length - 1]?.id ?? null) : null,
-    hasMore,
-  };
-});
 
 // Get single calendar by ID
 export const get = authed
@@ -64,42 +66,48 @@ export const get = authed
   });
 
 // Create calendar
-export const create = authed.input(createCalendarSchema).handler(async ({ input, context }) => {
-  const { orgId } = context;
+export const create = authed
+  .input(createCalendarSchema)
+  .handler(async ({ input, context }) => {
+    const { orgId } = context;
 
-  // Validate location if provided
-  if (input.locationId) {
-    const [location] = await withOrg(orgId, async (tx) => {
-      return tx.select().from(locations).where(eq(locations.id, input.locationId!)).limit(1);
+    // Validate location if provided
+    if (input.locationId) {
+      const [location] = await withOrg(orgId, async (tx) => {
+        return tx
+          .select()
+          .from(locations)
+          .where(eq(locations.id, input.locationId!))
+          .limit(1);
+      });
+
+      if (!location) {
+        throw new ApplicationError("Location not found", { code: "NOT_FOUND" });
+      }
+    }
+
+    const [calendar] = await withOrg(orgId, async (tx) => {
+      return tx
+        .insert(calendars)
+        .values({
+          orgId,
+          locationId: input.locationId ?? null,
+          name: input.name,
+          timezone: input.timezone,
+        })
+        .returning();
     });
 
-    if (!location) {
-      throw new ApplicationError("Location not found", { code: "NOT_FOUND" });
-    }
-  }
+    // Emit calendar created event
+    await events.calendarCreated(orgId, {
+      calendarId: calendar!.id,
+      name: calendar!.name,
+      timezone: calendar!.timezone,
+      locationId: calendar!.locationId,
+    });
 
-  const [calendar] = await withOrg(orgId, async (tx) => {
-    return tx
-      .insert(calendars)
-      .values({
-        orgId,
-        locationId: input.locationId ?? null,
-        name: input.name,
-        timezone: input.timezone,
-      })
-      .returning();
+    return calendar;
   });
-
-  // Emit calendar created event
-  await events.calendarCreated(orgId, {
-    calendarId: calendar!.id,
-    name: calendar!.name,
-    timezone: calendar!.timezone,
-    locationId: calendar!.locationId,
-  });
-
-  return calendar;
-});
 
 // Update calendar
 export const update = authed
@@ -125,7 +133,11 @@ export const update = authed
     // Validate location if being updated
     if (data.locationId !== undefined && data.locationId !== null) {
       const [location] = await withOrg(orgId, async (tx) => {
-        return tx.select().from(locations).where(eq(locations.id, data.locationId!)).limit(1);
+        return tx
+          .select()
+          .from(locations)
+          .where(eq(locations.id, data.locationId!))
+          .limit(1);
       });
 
       if (!location) {

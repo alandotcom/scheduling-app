@@ -1,17 +1,23 @@
 // oRPC routes for clients CRUD
 
 import { z } from "zod";
-import { createClientSchema, updateClientSchema, listClientsQuerySchema } from "@scheduling/dto";
+import {
+  createClientSchema,
+  updateClientSchema,
+  listClientsQuerySchema,
+} from "@scheduling/dto";
 import { authed } from "./base.js";
 import { clientService } from "../services/clients.js";
 
 // List clients with cursor pagination and optional search
-export const list = authed.input(listClientsQuerySchema).handler(async ({ input, context }) => {
-  return clientService.list(input, {
-    orgId: context.orgId,
-    userId: context.userId!,
+export const list = authed
+  .input(listClientsQuerySchema)
+  .handler(async ({ input, context }) => {
+    return clientService.list(input, {
+      orgId: context.orgId,
+      userId: context.userId!,
+    });
   });
-});
 
 // Get single client by ID
 export const get = authed
@@ -24,12 +30,14 @@ export const get = authed
   });
 
 // Create client
-export const create = authed.input(createClientSchema).handler(async ({ input, context }) => {
-  return clientService.create(input, {
-    orgId: context.orgId,
-    userId: context.userId!,
+export const create = authed
+  .input(createClientSchema)
+  .handler(async ({ input, context }) => {
+    return clientService.create(input, {
+      orgId: context.orgId,
+      userId: context.userId!,
+    });
   });
-});
 
 // Update client
 export const update = authed

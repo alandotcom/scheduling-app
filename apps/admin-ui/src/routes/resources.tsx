@@ -85,7 +85,9 @@ function ResourceForm({
           {...register("name")}
           disabled={isSubmitting}
         />
-        {errors.name && <p className="text-sm text-destructive">{errors.name.message}</p>}
+        {errors.name && (
+          <p className="text-sm text-destructive">{errors.name.message}</p>
+        )}
       </div>
       <div className="space-y-2">
         <Label htmlFor="quantity">Quantity</Label>
@@ -96,13 +98,17 @@ function ResourceForm({
           {...register("quantity", { valueAsNumber: true })}
           disabled={isSubmitting}
         />
-        {errors.quantity && <p className="text-sm text-destructive">{errors.quantity.message}</p>}
+        {errors.quantity && (
+          <p className="text-sm text-destructive">{errors.quantity.message}</p>
+        )}
       </div>
       <div className="space-y-2">
         <Label htmlFor="locationId">Location (optional)</Label>
         <Select
           value={locationId ?? "none"}
-          onValueChange={(value) => setValue("locationId", value === "none" ? undefined : value)}
+          onValueChange={(value) =>
+            setValue("locationId", value === "none" ? undefined : value)
+          }
           disabled={isSubmitting}
         >
           <SelectTrigger>
@@ -119,7 +125,12 @@ function ResourceForm({
         </Select>
       </div>
       <div className="flex justify-end gap-2 pt-4">
-        <Button type="button" variant="outline" onClick={onCancel} disabled={isSubmitting}>
+        <Button
+          type="button"
+          variant="outline"
+          onClick={onCancel}
+          disabled={isSubmitting}
+        >
           Cancel
         </Button>
         <Button type="submit" disabled={isSubmitting}>
@@ -141,7 +152,9 @@ function ResourcesPage() {
     quantity: number;
     locationId?: string;
   } | null>(null);
-  const [deletingResourceId, setDeletingResourceId] = useState<string | null>(null);
+  const [deletingResourceId, setDeletingResourceId] = useState<string | null>(
+    null,
+  );
 
   // Fetch resources
   const { data, isLoading, error } = useQuery(
@@ -268,7 +281,9 @@ function ResourcesPage() {
         {isLoading ? (
           <div className="text-center text-muted-foreground">Loading...</div>
         ) : error ? (
-          <div className="text-center text-destructive">Error loading resources</div>
+          <div className="text-center text-destructive">
+            Error loading resources
+          </div>
         ) : !data?.items.length ? (
           <div className="rounded-lg border bg-card p-8 text-center text-muted-foreground">
             No resources yet. Create your first resource to get started.
@@ -288,10 +303,16 @@ function ResourcesPage() {
               <TableBody>
                 {data.items.map((resource) => (
                   <TableRow key={resource.id}>
-                    <TableCell className="font-medium">{resource.name}</TableCell>
+                    <TableCell className="font-medium">
+                      {resource.name}
+                    </TableCell>
                     <TableCell>{resource.quantity}</TableCell>
-                    <TableCell>{getLocationName(resource.locationId)}</TableCell>
-                    <TableCell>{new Date(resource.createdAt).toLocaleDateString()}</TableCell>
+                    <TableCell>
+                      {getLocationName(resource.locationId)}
+                    </TableCell>
+                    <TableCell>
+                      {new Date(resource.createdAt).toLocaleDateString()}
+                    </TableCell>
                     <TableCell>
                       <div className="flex gap-1">
                         <Button
@@ -328,12 +349,16 @@ function ResourcesPage() {
       </div>
 
       {/* Delete Confirmation */}
-      <AlertDialog open={!!deletingResourceId} onOpenChange={() => setDeletingResourceId(null)}>
+      <AlertDialog
+        open={!!deletingResourceId}
+        onOpenChange={() => setDeletingResourceId(null)}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Resource</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete this resource? This action cannot be undone.
+              Are you sure you want to delete this resource? This action cannot
+              be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

@@ -10,12 +10,14 @@ import { authed } from "./base.js";
 import { resourceService } from "../services/resources.js";
 
 // List resources with cursor pagination and optional location filter
-export const list = authed.input(listResourcesQuerySchema).handler(async ({ input, context }) => {
-  return resourceService.list(input, {
-    orgId: context.orgId,
-    userId: context.userId!,
+export const list = authed
+  .input(listResourcesQuerySchema)
+  .handler(async ({ input, context }) => {
+    return resourceService.list(input, {
+      orgId: context.orgId,
+      userId: context.userId!,
+    });
   });
-});
 
 // Get single resource by ID
 export const get = authed
@@ -28,12 +30,14 @@ export const get = authed
   });
 
 // Create resource
-export const create = authed.input(createResourceSchema).handler(async ({ input, context }) => {
-  return resourceService.create(input, {
-    orgId: context.orgId,
-    userId: context.userId!,
+export const create = authed
+  .input(createResourceSchema)
+  .handler(async ({ input, context }) => {
+    return resourceService.create(input, {
+      orgId: context.orgId,
+      userId: context.userId!,
+    });
   });
-});
 
 // Update resource
 export const update = authed

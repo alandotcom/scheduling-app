@@ -23,7 +23,12 @@ async function processEvent(job: Job<DomainEvent>): Promise<void> {
     await db
       .update(eventOutbox)
       .set({ status: "processing" })
-      .where(and(eq(eventOutbox.orgId, event.orgId), eq(eventOutbox.type, event.type)));
+      .where(
+        and(
+          eq(eventOutbox.orgId, event.orgId),
+          eq(eventOutbox.type, event.type),
+        ),
+      );
 
     // TODO: Look up webhook subscriptions for this org and event type
     // For now, just log the event and mark as delivered
@@ -38,11 +43,19 @@ async function processEvent(job: Job<DomainEvent>): Promise<void> {
         status: "delivered",
         updatedAt: new Date(),
       })
-      .where(and(eq(eventOutbox.orgId, event.orgId), eq(eventOutbox.type, event.type)));
+      .where(
+        and(
+          eq(eventOutbox.orgId, event.orgId),
+          eq(eventOutbox.type, event.type),
+        ),
+      );
 
     console.log(`Event processed successfully: ${event.type} (${event.id})`);
   } catch (error) {
-    console.error(`Failed to process event: ${event.type} (${event.id})`, error);
+    console.error(
+      `Failed to process event: ${event.type} (${event.id})`,
+      error,
+    );
     throw error; // Let BullMQ handle retry
   }
 }
@@ -56,7 +69,9 @@ async function processWebhook(job: Job<WebhookDeliveryJob>): Promise<void> {
     return;
   }
 
-  console.log(`Delivering webhook for ${eventType} to ${webhookUrl} (attempt ${attemptNumber})`);
+  console.log(
+    `Delivering webhook for ${eventType} to ${webhookUrl} (attempt ${attemptNumber})`,
+  );
 
   try {
     const response = await fetch(webhookUrl, {
@@ -77,7 +92,9 @@ async function processWebhook(job: Job<WebhookDeliveryJob>): Promise<void> {
     });
 
     if (!response.ok) {
-      throw new Error(`Webhook delivery failed: ${response.status} ${response.statusText}`);
+      throw new Error(
+        `Webhook delivery failed: ${response.status} ${response.statusText}`,
+      );
     }
 
     console.log(`Webhook delivered successfully: ${eventId} to ${webhookUrl}`);
@@ -135,7 +152,12 @@ export async function processStaleOutboxEntries(): Promise<void> {
   const staleEntries = await db
     .select()
     .from(eventOutbox)
-    .where(and(eq(eventOutbox.status, "pending"), lte(eventOutbox.nextAttemptAt, staleThreshold)))
+    .where(
+      and(
+        eq(eventOutbox.status, "pending"),
+        lte(eventOutbox.nextAttemptAt, staleThreshold),
+      ),
+    )
     .limit(100);
 
   for (const entry of staleEntries) {

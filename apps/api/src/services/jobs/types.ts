@@ -7,18 +7,30 @@ export type AppointmentEventType =
   | "appointment.rescheduled"
   | "appointment.no_show";
 
-export type CalendarEventType = "calendar.created" | "calendar.updated" | "calendar.deleted";
+export type CalendarEventType =
+  | "calendar.created"
+  | "calendar.updated"
+  | "calendar.deleted";
 
 export type AppointmentTypeEventType =
   | "appointment_type.created"
   | "appointment_type.updated"
   | "appointment_type.deleted";
 
-export type ResourceEventType = "resource.created" | "resource.updated" | "resource.deleted";
+export type ResourceEventType =
+  | "resource.created"
+  | "resource.updated"
+  | "resource.deleted";
 
-export type LocationEventType = "location.created" | "location.updated" | "location.deleted";
+export type LocationEventType =
+  | "location.created"
+  | "location.updated"
+  | "location.deleted";
 
-export type ClientEventType = "client.created" | "client.updated" | "client.deleted";
+export type ClientEventType =
+  | "client.created"
+  | "client.updated"
+  | "client.deleted";
 
 export type EventType =
   | AppointmentEventType
