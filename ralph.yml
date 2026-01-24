@@ -1,88 +1,95 @@
-# Research Preset
-#
-# For deep exploration tasks: codebase analysis, architecture review,
-# technology evaluation, competitive analysis.
-#
-# Key behavior: NO code changes, NO commits. Pure information gathering.
+# README-Driven Development
+# Pattern: Documentation-First
+# If you can't explain it simply, you don't understand it
 #
 # Usage:
-#   ralph run --config presets/research.yml --prompt "Analyze the authentication flow"
+#   ralph run --config presets/documentation-first.yml --prompt "Build a CLI tool for file conversion"
 
 event_loop:
-  prompt_file: "PROMPT.md"
-  completion_promise: "RESEARCH_COMPLETE"
-  max_iterations: 20
-  max_runtime_seconds: 3600
-  starting_event: "research.start"  # Ralph publishes this after coordination
-
-cli:
-  backend: "codex"
-
-core:
-  scratchpad: ".agent/scratchpad.md"
-  specs_dir: "./specs/"
+  starting_event: "docs.start"  # Ralph publishes this after coordination
 
 hats:
-  researcher:
-    name: "Researcher"
-    description: "Gathers information and analyzes patterns. No code changes."
-    triggers: ["research.start", "research.followup"]
-    publishes: ["research.finding", "research.question"]
+  documenter:
+    name: "📝 Documenter"
+    description: "Writes documentation BEFORE any code exists."
+    triggers: ["docs.start", "docs.rejected"]
+    publishes: ["docs.ready"]
     instructions: |
-      ## RESEARCHER MODE
+      Write the documentation BEFORE any code exists.
 
-      You're researching, not implementing. Gather information, analyze patterns, synthesize insights.
+      Include:
+      1. Problem Statement
+         - What problem does this solve?
+         - Who has this problem?
 
-      ### Process
-      1. **Scope the question.** What exactly are we trying to learn?
-      2. **Search broadly.** Use grep, find, read files. Follow the trail.
-      3. **Document findings.** Update scratchpad with discoveries.
-      4. **Identify gaps.** What's still unclear? Publish `research.followup` if needed.
+      2. Solution Overview
+         - How does this solve it?
+         - What approach are we taking?
 
-      ### Scratchpad Format
-      ```markdown
-      # Research: [Topic]
+      3. Usage Guide
+         - How do you use it? (with runnable examples)
+         - What are the prerequisites?
 
-      ## Questions
-      - [ ] Primary question
-      - [ ] Secondary questions discovered
+      4. API Reference
+         - What are the inputs/outputs?
+         - What errors can occur?
 
-      ## Findings
-      ### [Area 1]
-      - Finding with file:line references
+      5. Edge Cases
+         - What happens with unusual inputs?
+         - What are the limitations?
 
-      ## Open Questions
-      - Things that need more investigation
+      Write as if explaining to a new team member.
+      Every example must be runnable (no pseudocode).
 
-      ## Summary
-      [Synthesized answer to the original question]
-      ```
-
-      ### DON'T
-      - ❌ Write or modify code
-      - ❌ Make commits
-      - ❌ Suggest implementations (unless asked)
-      - ❌ Make assumptions—verify with code search
-
-      ### DONE
-      When the original question is answered with evidence, output: RESEARCH_COMPLETE
-
-  synthesizer:
-    name: "Synthesizer"
-    description: "Reviews findings and creates coherent summary."
-    triggers: ["research.finding"]
-    publishes: ["research.followup", "synthesis.complete"]
+  reviewer:
+    name: "🔎 Docs Reviewer"
+    description: "Reviews docs for completeness. Can someone implement from this?"
+    triggers: ["docs.ready"]
+    publishes: ["docs.approved", "docs.rejected"]
     instructions: |
-      ## SYNTHESIZER MODE
+      Review docs for completeness and clarity.
 
-      Review findings and create coherent summary.
+      The test: Could someone implement this from the docs alone?
 
-      1. Read all findings in scratchpad
-      2. Identify patterns and connections
-      3. Note contradictions or gaps
-      4. If gaps exist, publish `research.followup`
-      5. If complete, update Summary section
+      Checklist:
+      - [ ] Is the problem clearly stated?
+      - [ ] Are all examples runnable (not pseudocode)?
+      - [ ] Are edge cases documented?
+      - [ ] Is the API clear from examples?
+      - [ ] Are error conditions documented?
+      - [ ] Are limitations called out?
+      - [ ] Is there anything ambiguous?
 
-      ### DON'T
-      - ❌ Do new research (that's researcher's job)
-      - ❌ Make code changes
+      If issues: publish docs.rejected with specific feedback
+      If solid: publish docs.approved
+
+  implementer:
+    name: "⚙️ Implementer"
+    description: "Implements to match the documentation exactly."
+    triggers: ["docs.approved"]
+    publishes: ["implementation.done"]
+    instructions: |
+      Implement to match the documentation.
+
+      The docs are the spec. Follow them exactly.
+      - Every example in the docs should work
+      - Every edge case should be handled as documented
+      - Every error condition should occur as documented
+
+      Write tests that verify each documentation example.
+
+  verifier:
+    name: "✅ Docs Verifier"
+    description: "Verifies implementation matches documentation exactly."
+    triggers: ["implementation.done"]
+    publishes: ["task.complete"]
+    default_publishes: "task.complete"
+    instructions: |
+      Verify implementation matches documentation.
+
+      1. Run every example in the docs (copy-paste and run)
+      2. Verify every edge case behaves as documented
+      3. Confirm error messages match documentation
+      4. Update docs if any minor adjustments needed
+
+      LOOP_COMPLETE when all docs are accurate.
