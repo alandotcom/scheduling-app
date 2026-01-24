@@ -2,8 +2,11 @@
 //
 // These factories build on the base seedTestOrg from @scheduling/db/test-utils
 // and add higher-level helpers for creating related entities.
+//
+// All factories that insert into RLS-protected tables automatically set
+// the org context before inserting.
 
-import type { PgliteDatabase } from 'drizzle-orm/pglite'
+import type { BunSQLDatabase } from 'drizzle-orm/bun-sql'
 import type * as schema from '@scheduling/db/schema'
 import {
   orgs,
@@ -22,11 +25,13 @@ import {
   blockedTime,
   schedulingLimits,
 } from '@scheduling/db/schema'
+import { setTestOrgContext, clearTestOrgContext } from '@scheduling/db/test-utils'
 
-type Database = PgliteDatabase<typeof schema>
+type Database = BunSQLDatabase<typeof schema>
 
 /**
  * Create an organization with an admin user
+ * Note: orgs, users, and org_memberships are NOT RLS-protected
  */
 export async function createOrg(
   db: Database,
@@ -53,6 +58,7 @@ export async function createOrg(
 
 /**
  * Add a user to an organization
+ * Note: users and org_memberships are NOT RLS-protected
  */
 export async function createOrgMember(
   db: Database,
@@ -75,42 +81,50 @@ export async function createOrgMember(
 }
 
 /**
- * Create a location
+ * Create a location (RLS-protected)
  */
 export async function createLocation(
   db: Database,
   orgId: string,
   options: { name?: string; timezone?: string } = {}
 ) {
-  const [location] = await db.insert(locations).values({
-    orgId,
-    name: options.name ?? 'Test Location',
-    timezone: options.timezone ?? 'America/New_York',
-  }).returning()
-
-  return location!
+  await setTestOrgContext(db, orgId)
+  try {
+    const [location] = await db.insert(locations).values({
+      orgId,
+      name: options.name ?? 'Test Location',
+      timezone: options.timezone ?? 'America/New_York',
+    }).returning()
+    return location!
+  } finally {
+    await clearTestOrgContext(db)
+  }
 }
 
 /**
- * Create a calendar
+ * Create a calendar (RLS-protected)
  */
 export async function createCalendar(
   db: Database,
   orgId: string,
   options: { locationId?: string; name?: string; timezone?: string } = {}
 ) {
-  const [calendar] = await db.insert(calendars).values({
-    orgId,
-    locationId: options.locationId ?? null,
-    name: options.name ?? 'Test Calendar',
-    timezone: options.timezone ?? 'America/New_York',
-  }).returning()
-
-  return calendar!
+  await setTestOrgContext(db, orgId)
+  try {
+    const [calendar] = await db.insert(calendars).values({
+      orgId,
+      locationId: options.locationId ?? null,
+      name: options.name ?? 'Test Calendar',
+      timezone: options.timezone ?? 'America/New_York',
+    }).returning()
+    return calendar!
+  } finally {
+    await clearTestOrgContext(db)
+  }
 }
 
 /**
- * Create an appointment type
+ * Create an appointment type (RLS-protected)
  */
 export async function createAppointmentType(
   db: Database,
@@ -125,78 +139,91 @@ export async function createAppointmentType(
     resourceIds?: Array<{ id: string; quantityRequired?: number }>
   } = {}
 ) {
-  const [appointmentType] = await db.insert(appointmentTypes).values({
-    orgId,
-    name: options.name ?? 'Test Appointment',
-    durationMin: options.durationMin ?? 60,
-    paddingBeforeMin: options.paddingBeforeMin ?? 0,
-    paddingAfterMin: options.paddingAfterMin ?? 0,
-    capacity: options.capacity ?? 1,
-  }).returning()
+  await setTestOrgContext(db, orgId)
+  try {
+    const [appointmentType] = await db.insert(appointmentTypes).values({
+      orgId,
+      name: options.name ?? 'Test Appointment',
+      durationMin: options.durationMin ?? 60,
+      paddingBeforeMin: options.paddingBeforeMin ?? 0,
+      paddingAfterMin: options.paddingAfterMin ?? 0,
+      capacity: options.capacity ?? 1,
+    }).returning()
 
-  // Link calendars if specified
-  if (options.calendarIds?.length) {
-    await db.insert(appointmentTypeCalendars).values(
-      options.calendarIds.map((calendarId) => ({
-        appointmentTypeId: appointmentType!.id,
-        calendarId,
-      }))
-    )
+    // Link calendars if specified
+    if (options.calendarIds?.length) {
+      await db.insert(appointmentTypeCalendars).values(
+        options.calendarIds.map((calendarId) => ({
+          appointmentTypeId: appointmentType!.id,
+          calendarId,
+        }))
+      )
+    }
+
+    // Link resources if specified
+    if (options.resourceIds?.length) {
+      await db.insert(appointmentTypeResources).values(
+        options.resourceIds.map((r) => ({
+          appointmentTypeId: appointmentType!.id,
+          resourceId: r.id,
+          quantityRequired: r.quantityRequired ?? 1,
+        }))
+      )
+    }
+
+    return appointmentType!
+  } finally {
+    await clearTestOrgContext(db)
   }
-
-  // Link resources if specified
-  if (options.resourceIds?.length) {
-    await db.insert(appointmentTypeResources).values(
-      options.resourceIds.map((r) => ({
-        appointmentTypeId: appointmentType!.id,
-        resourceId: r.id,
-        quantityRequired: r.quantityRequired ?? 1,
-      }))
-    )
-  }
-
-  return appointmentType!
 }
 
 /**
- * Create a resource
+ * Create a resource (RLS-protected)
  */
 export async function createResource(
   db: Database,
   orgId: string,
   options: { name?: string; quantity?: number; locationId?: string } = {}
 ) {
-  const [resource] = await db.insert(resources).values({
-    orgId,
-    name: options.name ?? 'Test Resource',
-    quantity: options.quantity ?? 1,
-    locationId: options.locationId ?? null,
-  }).returning()
-
-  return resource!
+  await setTestOrgContext(db, orgId)
+  try {
+    const [resource] = await db.insert(resources).values({
+      orgId,
+      name: options.name ?? 'Test Resource',
+      quantity: options.quantity ?? 1,
+      locationId: options.locationId ?? null,
+    }).returning()
+    return resource!
+  } finally {
+    await clearTestOrgContext(db)
+  }
 }
 
 /**
- * Create a client
+ * Create a client (RLS-protected)
  */
 export async function createClient(
   db: Database,
   orgId: string,
   options: { firstName?: string; lastName?: string; email?: string; phone?: string } = {}
 ) {
-  const [client] = await db.insert(clients).values({
-    orgId,
-    firstName: options.firstName ?? 'Test',
-    lastName: options.lastName ?? 'Client',
-    email: options.email ?? null,
-    phone: options.phone ?? null,
-  }).returning()
-
-  return client!
+  await setTestOrgContext(db, orgId)
+  try {
+    const [client] = await db.insert(clients).values({
+      orgId,
+      firstName: options.firstName ?? 'Test',
+      lastName: options.lastName ?? 'Client',
+      email: options.email ?? null,
+      phone: options.phone ?? null,
+    }).returning()
+    return client!
+  } finally {
+    await clearTestOrgContext(db)
+  }
 }
 
 /**
- * Create an appointment
+ * Create an appointment (RLS-protected)
  */
 export async function createAppointment(
   db: Database,
@@ -212,23 +239,28 @@ export async function createAppointment(
     notes?: string
   }
 ) {
-  const [appointment] = await db.insert(appointments).values({
-    orgId,
-    calendarId: options.calendarId,
-    appointmentTypeId: options.appointmentTypeId,
-    clientId: options.clientId ?? null,
-    startAt: options.startAt,
-    endAt: options.endAt,
-    timezone: options.timezone ?? 'America/New_York',
-    status: options.status ?? 'scheduled',
-    notes: options.notes ?? null,
-  }).returning()
-
-  return appointment!
+  await setTestOrgContext(db, orgId)
+  try {
+    const [appointment] = await db.insert(appointments).values({
+      orgId,
+      calendarId: options.calendarId,
+      appointmentTypeId: options.appointmentTypeId,
+      clientId: options.clientId ?? null,
+      startAt: options.startAt,
+      endAt: options.endAt,
+      timezone: options.timezone ?? 'America/New_York',
+      status: options.status ?? 'scheduled',
+      notes: options.notes ?? null,
+    }).returning()
+    return appointment!
+  } finally {
+    await clearTestOrgContext(db)
+  }
 }
 
 /**
  * Create an availability rule (weekly recurring)
+ * Note: availability_rules are NOT RLS-protected (calendar-scoped)
  */
 export async function createAvailabilityRule(
   db: Database,
@@ -255,6 +287,7 @@ export async function createAvailabilityRule(
 
 /**
  * Create an availability override (specific date)
+ * Note: availability_overrides are NOT RLS-protected (calendar-scoped)
  */
 export async function createAvailabilityOverride(
   db: Database,
@@ -283,6 +316,7 @@ export async function createAvailabilityOverride(
 
 /**
  * Create blocked time
+ * Note: blocked_time is NOT RLS-protected (calendar-scoped)
  */
 export async function createBlockedTime(
   db: Database,
@@ -305,6 +339,7 @@ export async function createBlockedTime(
 
 /**
  * Create scheduling limits
+ * Note: scheduling_limits is NOT RLS-protected (calendar-scoped)
  */
 export async function createSchedulingLimits(
   db: Database,
@@ -347,27 +382,41 @@ export async function createTestFixture(
 ) {
   const { org, user } = await createOrg(db, options.orgName ? { name: options.orgName } : undefined)
 
-  const location = await createLocation(db, org.id, {
-    name: options.locationName ?? 'Main Office',
-    timezone: options.timezone ?? 'America/New_York',
-  })
+  // Set org context for the remaining inserts
+  await setTestOrgContext(db, org.id)
+  try {
+    const [location] = await db.insert(locations).values({
+      orgId: org.id,
+      name: options.locationName ?? 'Main Office',
+      timezone: options.timezone ?? 'America/New_York',
+    }).returning()
 
-  const calendar = await createCalendar(db, org.id, {
-    locationId: location.id,
-    name: options.calendarName ?? 'Room 1',
-    timezone: options.timezone ?? 'America/New_York',
-  })
+    const [calendar] = await db.insert(calendars).values({
+      orgId: org.id,
+      locationId: location!.id,
+      name: options.calendarName ?? 'Room 1',
+      timezone: options.timezone ?? 'America/New_York',
+    }).returning()
 
-  const appointmentType = await createAppointmentType(db, org.id, {
-    name: options.appointmentTypeName ?? 'Consultation',
-    calendarIds: [calendar.id],
-  })
+    const [appointmentType] = await db.insert(appointmentTypes).values({
+      orgId: org.id,
+      name: options.appointmentTypeName ?? 'Consultation',
+      durationMin: 60,
+    }).returning()
 
-  return {
-    org,
-    user,
-    location,
-    calendar,
-    appointmentType,
+    await db.insert(appointmentTypeCalendars).values({
+      appointmentTypeId: appointmentType!.id,
+      calendarId: calendar!.id,
+    })
+
+    return {
+      org,
+      user,
+      location: location!,
+      calendar: calendar!,
+      appointmentType: appointmentType!,
+    }
+  } finally {
+    await clearTestOrgContext(db)
   }
 }

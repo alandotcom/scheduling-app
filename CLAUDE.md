@@ -35,7 +35,7 @@ apps/
   api/          → Hono + oRPC backend, BetterAuth for sessions
   admin-ui/     → React 19 + TanStack Router/Query frontend
 packages/
-  db/           → Drizzle ORM schema + PGLite test utilities
+  db/           → Drizzle ORM schema + test utilities
   dto/          → Shared Zod schemas for validation
 ```
 
@@ -48,8 +48,8 @@ packages/
 - **Runtime:** Bun (use `bun` not `node`, `bun test` not `jest`)
 - **API:** Hono 4.x + oRPC (generates REST + OpenAPI, not tRPC)
 - **Auth:** BetterAuth with Drizzle adapter
-- **Database:** Drizzle ORM + postgres.js, Postgres 18 with native `uuidv7()`
-- **Testing:** PGLite for in-memory Postgres tests (no Docker needed for tests)
+- **Database:** Drizzle ORM + Bun SQL, Postgres 18 with native `uuidv7()`
+- **Testing:** Real Postgres via Docker (test database auto-created on first test run)
 - **Linting:** oxlint (Rust-based, strict rules)
 
 ## Database Schema Patterns
@@ -72,21 +72,30 @@ export type CreateOrgInput = z.infer<typeof createOrgSchema>
 
 Common validators in `packages/dto/src/common.ts`: UUID, timestamp, timezone, time (HH:MM), date (YYYY-MM-DD), weekday (0-6).
 
-## Testing with PGLite
+## Testing with Real Postgres
+
+Tests use a real Postgres database (`scheduling_test`) with RLS enforced. The test database is automatically created on first test run via the preload script.
 
 ```typescript
-import { createTestDb, resetTestDb, closeTestDb, seedTestOrg } from '@scheduling/db/test-utils'
+import { createTestDb, resetTestDb, closeTestDb, seedTestOrg, setTestOrgContext } from '@scheduling/db/test-utils'
 
 // In test setup
 const db = await createTestDb()
-const { org, adminUser } = await seedTestOrg(db)
+const { org, user } = await seedTestOrg(db)
+
+// Set org context before inserting/querying RLS-protected tables
+await setTestOrgContext(db, org.id)
 
 // Between tests
-await resetTestDb(db)
+await resetTestDb()
 
 // Cleanup
-await closeTestDb(db)
+await closeTestDb()
 ```
+
+**RLS-Protected Tables:** `locations`, `calendars`, `appointment_types`, `resources`, `clients`, `appointments`, `event_outbox`, `api_tokens`
+
+Factory functions in `apps/api/src/test-utils/factories.ts` automatically set org context.
 
 ## Infrastructure
 

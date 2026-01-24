@@ -22,10 +22,10 @@ import {
   clearTestOrgContext,
 } from './index.js'
 import { locations } from '@scheduling/db/schema'
-import type { PgliteDatabase } from 'drizzle-orm/pglite'
+import type { BunSQLDatabase } from 'drizzle-orm/bun-sql'
 import type * as schema from '@scheduling/db/schema'
 
-type Database = PgliteDatabase<typeof schema>
+type Database = BunSQLDatabase<typeof schema>
 
 describe('Test Utilities', () => {
   let db: Database
@@ -201,14 +201,16 @@ describe('Test Utilities', () => {
       const { org } = await createOrg(db)
       await createLocation(db, org.id, { name: 'Test Location' })
 
-      // Verify data exists
+      // Verify data exists (need org context to see RLS-protected data)
+      await setTestOrgContext(db, org.id)
       const before = await db.select().from(locations)
       expect(before.length).toBe(1)
+      await clearTestOrgContext(db)
 
       // Reset simulates next test's beforeEach
       await resetTestDb()
 
-      // Data should be gone
+      // Data should be gone (no context needed for empty check)
       const after = await db.select().from(locations)
       expect(after.length).toBe(0)
     })

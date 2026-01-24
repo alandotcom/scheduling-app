@@ -44,11 +44,4 @@ export {
   seedTestOrg,
   seedSecondTestOrg,
   withTestOrgContext,
-  // RLS-aware utilities (for security tests)
-  createTestDbWithRLS,
-  resetTestDbWithRLS,
-  closeTestDbWithRLS,
-  seedAsSuperuser,
-  setRLSTestOrgContext,
-  clearRLSTestOrgContext,
 } from '@scheduling/db/test-utils'

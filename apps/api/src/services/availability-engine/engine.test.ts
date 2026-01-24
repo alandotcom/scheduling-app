@@ -1,7 +1,7 @@
 // Tests for AvailabilityEngine
 
 import { describe, test, expect, beforeAll, afterAll, beforeEach } from 'bun:test'
-import { createTestDb, resetTestDb, closeTestDb, seedTestOrg } from '@scheduling/db/test-utils'
+import { createTestDb, resetTestDb, closeTestDb, seedTestOrg, setTestOrgContext, clearTestOrgContext } from '@scheduling/db/test-utils'
 import {
   locations,
   calendars,
@@ -15,12 +15,12 @@ import {
   resources,
   appointmentTypeResources,
 } from '@scheduling/db/schema'
-import type { PgliteDatabase } from 'drizzle-orm/pglite'
+import type { BunSQLDatabase } from 'drizzle-orm/bun-sql'
 import type * as schema from '@scheduling/db/schema'
 import { AvailabilityEngine } from './engine.js'
 
 // Cast to the type the engine expects
-type Database = PgliteDatabase<typeof schema>
+type Database = BunSQLDatabase<typeof schema>
 
 describe('AvailabilityEngine', () => {
   let db: Database
@@ -42,6 +42,9 @@ describe('AvailabilityEngine', () => {
     await resetTestDb()
     const seed = await seedTestOrg(db as any)
     org = seed.org
+
+    // Set org context for RLS-protected inserts
+    await setTestOrgContext(db, org.id)
 
     // Create location
     const [loc] = await db.insert(locations).values({

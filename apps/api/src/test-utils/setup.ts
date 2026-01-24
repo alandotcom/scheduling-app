@@ -11,10 +11,10 @@ import {
   setTestOrgContext,
   clearTestOrgContext,
 } from '@scheduling/db/test-utils'
-import type { PgliteDatabase } from 'drizzle-orm/pglite'
+import type { BunSQLDatabase } from 'drizzle-orm/bun-sql'
 import type * as schema from '@scheduling/db/schema'
 
-export type TestDatabase = PgliteDatabase<typeof schema>
+export type TestDatabase = BunSQLDatabase<typeof schema>
 
 // Re-export db utilities for convenience
 export {
