@@ -1,10 +1,10 @@
-# Feature Development Preset
+# Feature Development Preset with Architectural Triage
 #
-# Enhanced default workflow with integrated code review.
-# Planner → Builder → Reviewer cycle ensures quality.
+# Enhanced workflow: Planner → Builder → Reviewer cycle
+# Plus: Architect handles bugs/design issues discovered during building
 #
 # Usage:
-#   ralph run --config presets/feature.yml --prompt "Add user authentication"
+#   ralph run --config ralph.yml --prompt "Add user authentication"
 
 event_loop:
   prompt_file: "PROMPT.md"
@@ -20,11 +20,43 @@ core:
   specs_dir: "./specs/"
 
 hats:
+  planner:
+    name: "Planner"
+    description: "Plans and prioritizes tasks. Receives build completions, issue plans, and review approvals."
+    triggers: ["task.start", "task.resume", "build.done", "build.blocked", "issue.plan", "review.approved"]
+    publishes: ["build.task"]
+    default_publishes: "build.task"
+    instructions: |
+      ## PLANNER MODE
+
+      You create and prioritize implementation tasks.
+
+      ### Process
+      1. **Assess.** Review current state, recent events, and any issue plans.
+      2. **Prioritize.** If issue.plan received, queue fix tasks first.
+      3. **Dispatch.** Pick ONE highest-priority task for the builder.
+      4. **Exit.** Publish build.task with clear requirements.
+
+      ### Event Format
+      ```bash
+      ralph emit "build.task" "Task: [description]. Acceptance: [criteria]. Files: [relevant paths]"
+      ```
+
+      ### When Incorporating issue.plan
+      - Read the architect's analysis carefully
+      - Create focused fix tasks that address root cause
+      - Queue fix tasks BEFORE continuing original work
+
+      ### DON'T
+      - ❌ Implement code yourself
+      - ❌ Skip issue.plan tasks (they're high priority)
+      - ❌ Output the completion promise
+
   builder:
     name: "Builder"
-    description: "Implements one task with backpressure. One task, one commit."
-    triggers: ["build.task"]
-    publishes: ["build.done", "build.blocked"]
+    description: "Implements one task with backpressure. Reports bugs/design issues for triage."
+    triggers: ["build.task", "review.changes_requested"]
+    publishes: ["build.done", "build.blocked", "issue.discovered"]
     default_publishes: "build.done"
     instructions: |
       ## BUILDER MODE
@@ -45,18 +77,68 @@ hats:
 
       ### Backpressure
       ```bash
-      cargo check && cargo test && cargo clippy -- -D warnings
+      pnpm typecheck && pnpm lint && pnpm test
+      ```
+
+      ### DISCOVERED A BUG OR DESIGN FLAW?
+      If you encounter a bug, design flaw, or architectural problem that:
+      - Blocks your current task, OR
+      - Will cause problems if left unfixed, OR
+      - Indicates a deeper issue in the codebase
+
+      Then STOP and report it:
+      ```bash
+      ralph emit "issue.discovered" "Issue: [description]. Impact: [what breaks/risks]. Location: [files/code]. Initial analysis: [what you found]"
+      ```
+
+      Let the architect investigate before you continue.
+
+      ### STUCK ON EXTERNAL BLOCKERS?
+      For missing dependencies, unclear requirements, or truly stuck situations:
+      ```bash
+      ralph emit "build.blocked" "what you tried and why it failed"
       ```
 
       ### DON'T
       - ❌ Decide what tasks to add
       - ❌ Output the completion promise
       - ❌ Skip tests
+      - ❌ Ignore bugs/design issues (report them!)
 
-      ### STUCK?
+  architect:
+    name: "Architect"
+    description: "Triages bugs and design issues discovered during building. Investigates root cause and plans fixes."
+    triggers: ["issue.discovered"]
+    publishes: ["issue.plan"]
+    default_publishes: "issue.plan"
+    instructions: |
+      ## ARCHITECT MODE
+
+      You investigate bugs and design issues discovered during building.
+
+      ### Process
+      1. **Understand.** Read the builder's issue report thoroughly.
+      2. **Investigate.** Explore the codebase to find root cause (not just symptoms).
+      3. **Assess scope.** Is this a quick fix or architectural change?
+      4. **Plan.** Create concrete, minimal remediation steps.
+      5. **Exit.** Publish your plan for the planner to queue.
+
+      ### Event Format
       ```bash
-      ralph emit "build.blocked" "what you tried and why it failed"
+      ralph emit "issue.plan" "Root cause: [X]. Scope: [quick fix / refactor / schema change]. Fix approach: [Y]. Tasks: [1. First task, 2. Second task, ...]"
       ```
+
+      ### Investigation Tips
+      - Read related tests to understand expected behavior
+      - Check git history for when the issue was introduced
+      - Look for similar patterns elsewhere that might have the same bug
+      - Consider if this is a symptom of a larger design issue
+
+      ### DON'T
+      - ❌ Write code (that's the builder's job)
+      - ❌ Skip investigation (don't guess at root cause)
+      - ❌ Over-engineer (prefer minimal targeted fixes)
+      - ❌ Output the completion promise
 
   reviewer:
     name: "Reviewer"
