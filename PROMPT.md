@@ -63,3 +63,75 @@ Implement the v1 scheduling platform as a pnpm monorepo with type-safe end-to-en
 - `.sop/planning/design/detailed-design.md` - Architecture, schema, tech stack
 - `.sop/planning/design/implementation-details.md` - Code patterns for oRPC, auth, RLS, availability engine, testing
 - `.sop/planning/implementation/plan.md` - 15-step implementation checklist
+
+---
+
+# Phase 2: v2 Hardening & Improvements
+
+## Objective
+
+Implement phase 2 improvements: testing, code refactoring, linting, performance optimization, and auth hardening. Follow the 15-step implementation plan.
+
+## Key Requirements
+
+- **Testing:** Full route integration test coverage using PGLite and test helpers that bypass auth
+- **Refactor:** Extract Repository + Service layers from heavy route files (appointments, availability, appointment-types)
+- **Linting:** Enable oxlint plugins (typescript, react, import, unicorn) with strict categories
+- **Performance:** Add Postgres exclusion constraint for appointments; optimize availability engine to 2 queries
+- **Auth:** Add RLS to org_memberships; harden Better Auth with secure cookie settings
+
+## Priority Order
+
+1. Testing
+2. Code Refactor
+3. Linting
+4. Performance
+5. Auth
+
+## v2 Acceptance Criteria
+
+- [ ] All API routes have integration tests
+- [ ] Route files are thin (<200 lines), business logic in services
+- [ ] `pnpm lint` passes with no errors
+- [ ] Concurrent booking test verifies exactly one booking succeeds
+- [ ] Availability engine makes ≤2 database round trips
+- [ ] Cookies have httpOnly, secure (production), sameSite attributes
+
+## v2 Design Reference
+
+- **Design:** `.sop/planning-v2/design/detailed-design.md`
+- **Plan:** `.sop/planning-v2/implementation/plan.md`
+- **Requirements:** `.sop/planning-v2/idea-honing.md`
+
+## Quick Reference
+
+### Test Infrastructure Pattern
+```typescript
+// apps/api/src/test-utils/context.ts
+export function createTestContext(orgId: string, userId: string, role = 'admin'): Context
+```
+
+### Repository Pattern
+```typescript
+// apps/api/src/repositories/appointments.ts
+export class AppointmentRepository {
+  findById(orgId: string, id: string): Promise<Appointment | null>
+  create(input: CreateAppointmentInput): Promise<Appointment>
+}
+```
+
+### Service Pattern
+```typescript
+// apps/api/src/services/appointments.ts
+export class AppointmentService {
+  constructor(repo: AppointmentRepository, engine: AvailabilityEngine, ...)
+  create(input, context): Promise<Appointment>  // catches 23P01 exclusion violation
+}
+```
+
+### Exclusion Constraint
+```sql
+ALTER TABLE appointments ADD CONSTRAINT no_overlapping_appointments
+  EXCLUDE USING gist (calendar_id WITH =, tstzrange(start_at, end_at, '[)') WITH &&)
+  WHERE (status != 'cancelled');
+```

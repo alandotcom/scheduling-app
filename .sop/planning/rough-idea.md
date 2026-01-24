@@ -1,1 +1,0 @@
-We are going to clone Acuity with backend and frontend. Build as a client and server. Use a Bun TypeScript server on the backend with Hono. Use tRPC to simplify sharing types for frontend and backend. First, focus on understanding Acuity. This repo is only an Acuity client SDK, but it has some preliminary work that will be helpful in research.
