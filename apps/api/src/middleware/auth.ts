@@ -3,8 +3,8 @@
 import { createMiddleware } from "hono/factory";
 import { auth } from "../lib/auth.js";
 import { db } from "../lib/db.js";
-import { orgMemberships, apiTokens } from "@scheduling/db/schema";
-import { eq, and, isNull } from "drizzle-orm";
+import { apiTokens } from "@scheduling/db/schema";
+import { eq } from "drizzle-orm";
 import { createHash } from "crypto";
 import type { AuthMethod } from "../lib/orpc.js";
 
@@ -40,10 +40,10 @@ export const authMiddleware = createMiddleware(async (c, next) => {
     if (orgId) {
       // Verify user is member of this org
       const membership = await db.query.orgMemberships.findFirst({
-        where: and(
-          eq(orgMemberships.userId, session.user.id),
-          eq(orgMemberships.orgId, orgId),
-        ),
+        where: {
+          userId: session.user.id,
+          orgId: orgId,
+        },
       });
 
       if (membership) {
@@ -58,7 +58,7 @@ export const authMiddleware = createMiddleware(async (c, next) => {
     } else {
       // Default to first org membership
       const membership = await db.query.orgMemberships.findFirst({
-        where: eq(orgMemberships.userId, session.user.id),
+        where: { userId: session.user.id },
       });
       if (membership) {
         c.set("orgId", membership.orgId);
@@ -80,10 +80,10 @@ export const authMiddleware = createMiddleware(async (c, next) => {
 
     // Find the token by hash
     const apiToken = await db.query.apiTokens.findFirst({
-      where: and(
-        eq(apiTokens.tokenHash, tokenHash),
-        isNull(apiTokens.revokedAt),
-      ),
+      where: {
+        tokenHash: tokenHash,
+        revokedAt: { isNull: true },
+      },
     });
 
     if (apiToken) {

@@ -22,10 +22,11 @@ import {
 } from "../test-utils/index.js";
 import * as calendarRoutes from "./calendars.js";
 import { calendars } from "@scheduling/db/schema";
-import type { BunSQLDatabase } from "drizzle-orm/bun-sql";
+import type { BunSQLDatabase } from "drizzle-orm/bun-sql/postgres";
 import type * as schema from "@scheduling/db/schema";
+import type { relations } from "@scheduling/db/relations";
 
-type Database = BunSQLDatabase<typeof schema>;
+type Database = BunSQLDatabase<typeof schema, typeof relations>;
 
 describe("Calendar Routes", () => {
   let db: Database;

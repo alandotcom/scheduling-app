@@ -1,0 +1,211 @@
+// Drizzle v1 relations using defineRelations (RQBv2)
+
+import { defineRelations } from "drizzle-orm";
+import * as schema from "./schema/index.js";
+
+export const relations = defineRelations(schema, (r) => ({
+  // Core tables
+  orgs: {
+    memberships: r.many.orgMemberships(),
+    locations: r.many.locations(),
+    calendars: r.many.calendars(),
+    appointmentTypes: r.many.appointmentTypes(),
+    resources: r.many.resources(),
+    clients: r.many.clients(),
+    appointments: r.many.appointments(),
+    eventOutbox: r.many.eventOutbox(),
+    apiTokens: r.many.apiTokens(),
+    auditEvents: r.many.auditEvents(),
+  },
+
+  users: {
+    memberships: r.many.orgMemberships(),
+    sessions: r.many.sessions(),
+    accounts: r.many.accounts(),
+    apiTokens: r.many.apiTokens(),
+  },
+
+  orgMemberships: {
+    org: r.one.orgs({
+      from: r.orgMemberships.orgId,
+      to: r.orgs.id,
+    }),
+    user: r.one.users({
+      from: r.orgMemberships.userId,
+      to: r.users.id,
+    }),
+  },
+
+  locations: {
+    org: r.one.orgs({
+      from: r.locations.orgId,
+      to: r.orgs.id,
+    }),
+    calendars: r.many.calendars(),
+    resources: r.many.resources(),
+  },
+
+  calendars: {
+    org: r.one.orgs({
+      from: r.calendars.orgId,
+      to: r.orgs.id,
+    }),
+    location: r.one.locations({
+      from: r.calendars.locationId,
+      to: r.locations.id,
+    }),
+    appointments: r.many.appointments(),
+    appointmentTypeCalendars: r.many.appointmentTypeCalendars(),
+    availabilityRules: r.many.availabilityRules(),
+    availabilityOverrides: r.many.availabilityOverrides(),
+    blockedTime: r.many.blockedTime(),
+    schedulingLimits: r.many.schedulingLimits(),
+  },
+
+  appointmentTypes: {
+    org: r.one.orgs({
+      from: r.appointmentTypes.orgId,
+      to: r.orgs.id,
+    }),
+    appointmentTypeCalendars: r.many.appointmentTypeCalendars(),
+    appointmentTypeResources: r.many.appointmentTypeResources(),
+    appointments: r.many.appointments(),
+  },
+
+  appointmentTypeCalendars: {
+    appointmentType: r.one.appointmentTypes({
+      from: r.appointmentTypeCalendars.appointmentTypeId,
+      to: r.appointmentTypes.id,
+    }),
+    calendar: r.one.calendars({
+      from: r.appointmentTypeCalendars.calendarId,
+      to: r.calendars.id,
+    }),
+  },
+
+  resources: {
+    org: r.one.orgs({
+      from: r.resources.orgId,
+      to: r.orgs.id,
+    }),
+    location: r.one.locations({
+      from: r.resources.locationId,
+      to: r.locations.id,
+    }),
+    appointmentTypeResources: r.many.appointmentTypeResources(),
+  },
+
+  appointmentTypeResources: {
+    appointmentType: r.one.appointmentTypes({
+      from: r.appointmentTypeResources.appointmentTypeId,
+      to: r.appointmentTypes.id,
+    }),
+    resource: r.one.resources({
+      from: r.appointmentTypeResources.resourceId,
+      to: r.resources.id,
+    }),
+  },
+
+  clients: {
+    org: r.one.orgs({
+      from: r.clients.orgId,
+      to: r.orgs.id,
+    }),
+    appointments: r.many.appointments(),
+  },
+
+  appointments: {
+    org: r.one.orgs({
+      from: r.appointments.orgId,
+      to: r.orgs.id,
+    }),
+    calendar: r.one.calendars({
+      from: r.appointments.calendarId,
+      to: r.calendars.id,
+    }),
+    appointmentType: r.one.appointmentTypes({
+      from: r.appointments.appointmentTypeId,
+      to: r.appointmentTypes.id,
+    }),
+    client: r.one.clients({
+      from: r.appointments.clientId,
+      to: r.clients.id,
+    }),
+  },
+
+  // Availability tables
+  availabilityRules: {
+    calendar: r.one.calendars({
+      from: r.availabilityRules.calendarId,
+      to: r.calendars.id,
+    }),
+  },
+
+  availabilityOverrides: {
+    calendar: r.one.calendars({
+      from: r.availabilityOverrides.calendarId,
+      to: r.calendars.id,
+    }),
+  },
+
+  blockedTime: {
+    calendar: r.one.calendars({
+      from: r.blockedTime.calendarId,
+      to: r.calendars.id,
+    }),
+  },
+
+  schedulingLimits: {
+    calendar: r.one.calendars({
+      from: r.schedulingLimits.calendarId,
+      to: r.calendars.id,
+    }),
+  },
+
+  // Event outbox
+  eventOutbox: {
+    org: r.one.orgs({
+      from: r.eventOutbox.orgId,
+      to: r.orgs.id,
+    }),
+  },
+
+  // Auth tables
+  sessions: {
+    user: r.one.users({
+      from: r.sessions.userId,
+      to: r.users.id,
+    }),
+  },
+
+  accounts: {
+    user: r.one.users({
+      from: r.accounts.userId,
+      to: r.users.id,
+    }),
+  },
+
+  // API tokens
+  apiTokens: {
+    org: r.one.orgs({
+      from: r.apiTokens.orgId,
+      to: r.orgs.id,
+    }),
+    user: r.one.users({
+      from: r.apiTokens.userId,
+      to: r.users.id,
+    }),
+  },
+
+  // Audit events
+  auditEvents: {
+    org: r.one.orgs({
+      from: r.auditEvents.orgId,
+      to: r.orgs.id,
+    }),
+    actor: r.one.users({
+      from: r.auditEvents.actorId,
+      to: r.users.id,
+    }),
+  },
+}));

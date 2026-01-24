@@ -8,7 +8,7 @@ import {
   jsonb,
   uniqueIndex,
 } from "drizzle-orm/pg-core";
-import { sql, relations } from "drizzle-orm";
+import { sql } from "drizzle-orm";
 
 // Common column helpers using Postgres 18 native uuidv7()
 const id = uuid("id").primaryKey().default(sql`uuidv7()`);
@@ -31,19 +31,6 @@ export const orgs = pgTable("orgs", {
   ...timestamps,
 });
 
-export const orgsRelations = relations(orgs, ({ many }) => ({
-  memberships: many(orgMemberships),
-  locations: many(locations),
-  calendars: many(calendars),
-  appointmentTypes: many(appointmentTypes),
-  resources: many(resources),
-  clients: many(clients),
-  appointments: many(appointments),
-  eventOutbox: many(eventOutbox),
-  apiTokens: many(apiTokens),
-  auditEvents: many(auditEvents),
-}));
-
 export const users = pgTable("users", {
   id,
   email: text("email").notNull().unique(),
@@ -52,13 +39,6 @@ export const users = pgTable("users", {
   image: text("image"),
   ...timestamps,
 });
-
-export const usersRelations = relations(users, ({ many }) => ({
-  memberships: many(orgMemberships),
-  sessions: many(sessions),
-  accounts: many(accounts),
-  apiTokens: many(apiTokens),
-}));
 
 export const orgMemberships = pgTable(
   "org_memberships",
@@ -78,17 +58,6 @@ export const orgMemberships = pgTable(
   ],
 );
 
-export const orgMembershipsRelations = relations(orgMemberships, ({ one }) => ({
-  org: one(orgs, {
-    fields: [orgMemberships.orgId],
-    references: [orgs.id],
-  }),
-  user: one(users, {
-    fields: [orgMemberships.userId],
-    references: [users.id],
-  }),
-}));
-
 export const locations = pgTable("locations", {
   id,
   orgId: uuid("org_id")
@@ -98,15 +67,6 @@ export const locations = pgTable("locations", {
   timezone: text("timezone").notNull(),
   ...timestamps,
 });
-
-export const locationsRelations = relations(locations, ({ one, many }) => ({
-  org: one(orgs, {
-    fields: [locations.orgId],
-    references: [orgs.id],
-  }),
-  calendars: many(calendars),
-  resources: many(resources),
-}));
 
 export const calendars = pgTable("calendars", {
   id,
@@ -118,23 +78,6 @@ export const calendars = pgTable("calendars", {
   timezone: text("timezone").notNull(),
   ...timestamps,
 });
-
-export const calendarsRelations = relations(calendars, ({ one, many }) => ({
-  org: one(orgs, {
-    fields: [calendars.orgId],
-    references: [orgs.id],
-  }),
-  location: one(locations, {
-    fields: [calendars.locationId],
-    references: [locations.id],
-  }),
-  appointments: many(appointments),
-  appointmentTypeCalendars: many(appointmentTypeCalendars),
-  availabilityRules: many(availabilityRules),
-  availabilityOverrides: many(availabilityOverrides),
-  blockedTime: many(blockedTime),
-  schedulingLimits: many(schedulingLimits),
-}));
 
 export const appointmentTypes = pgTable("appointment_types", {
   id,
@@ -149,19 +92,6 @@ export const appointmentTypes = pgTable("appointment_types", {
   metadata: jsonb("metadata"),
   ...timestamps,
 });
-
-export const appointmentTypesRelations = relations(
-  appointmentTypes,
-  ({ one, many }) => ({
-    org: one(orgs, {
-      fields: [appointmentTypes.orgId],
-      references: [orgs.id],
-    }),
-    appointmentTypeCalendars: many(appointmentTypeCalendars),
-    appointmentTypeResources: many(appointmentTypeResources),
-    appointments: many(appointments),
-  }),
-);
 
 export const appointmentTypeCalendars = pgTable(
   "appointment_type_calendars",
@@ -182,20 +112,6 @@ export const appointmentTypeCalendars = pgTable(
   ],
 );
 
-export const appointmentTypeCalendarsRelations = relations(
-  appointmentTypeCalendars,
-  ({ one }) => ({
-    appointmentType: one(appointmentTypes, {
-      fields: [appointmentTypeCalendars.appointmentTypeId],
-      references: [appointmentTypes.id],
-    }),
-    calendar: one(calendars, {
-      fields: [appointmentTypeCalendars.calendarId],
-      references: [calendars.id],
-    }),
-  }),
-);
-
 export const resources = pgTable("resources", {
   id,
   orgId: uuid("org_id")
@@ -206,18 +122,6 @@ export const resources = pgTable("resources", {
   quantity: integer("quantity").default(1).notNull(),
   ...timestamps,
 });
-
-export const resourcesRelations = relations(resources, ({ one, many }) => ({
-  org: one(orgs, {
-    fields: [resources.orgId],
-    references: [orgs.id],
-  }),
-  location: one(locations, {
-    fields: [resources.locationId],
-    references: [locations.id],
-  }),
-  appointmentTypeResources: many(appointmentTypeResources),
-}));
 
 export const appointmentTypeResources = pgTable(
   "appointment_type_resources",
@@ -239,20 +143,6 @@ export const appointmentTypeResources = pgTable(
   ],
 );
 
-export const appointmentTypeResourcesRelations = relations(
-  appointmentTypeResources,
-  ({ one }) => ({
-    appointmentType: one(appointmentTypes, {
-      fields: [appointmentTypeResources.appointmentTypeId],
-      references: [appointmentTypes.id],
-    }),
-    resource: one(resources, {
-      fields: [appointmentTypeResources.resourceId],
-      references: [resources.id],
-    }),
-  }),
-);
-
 export const clients = pgTable("clients", {
   id,
   orgId: uuid("org_id")
@@ -264,14 +154,6 @@ export const clients = pgTable("clients", {
   phone: text("phone"),
   ...timestamps,
 });
-
-export const clientsRelations = relations(clients, ({ one, many }) => ({
-  org: one(orgs, {
-    fields: [clients.orgId],
-    references: [orgs.id],
-  }),
-  appointments: many(appointments),
-}));
 
 export const appointments = pgTable("appointments", {
   id,
@@ -293,25 +175,6 @@ export const appointments = pgTable("appointments", {
   ...timestamps,
 });
 
-export const appointmentsRelations = relations(appointments, ({ one }) => ({
-  org: one(orgs, {
-    fields: [appointments.orgId],
-    references: [orgs.id],
-  }),
-  calendar: one(calendars, {
-    fields: [appointments.calendarId],
-    references: [calendars.id],
-  }),
-  appointmentType: one(appointmentTypes, {
-    fields: [appointments.appointmentTypeId],
-    references: [appointmentTypes.id],
-  }),
-  client: one(clients, {
-    fields: [appointments.clientId],
-    references: [clients.id],
-  }),
-}));
-
 // ============================================================================
 // AVAILABILITY TABLES
 // ============================================================================
@@ -328,16 +191,6 @@ export const availabilityRules = pgTable("availability_rules", {
   groupId: uuid("group_id"),
 });
 
-export const availabilityRulesRelations = relations(
-  availabilityRules,
-  ({ one }) => ({
-    calendar: one(calendars, {
-      fields: [availabilityRules.calendarId],
-      references: [calendars.id],
-    }),
-  }),
-);
-
 export const availabilityOverrides = pgTable("availability_overrides", {
   id,
   calendarId: uuid("calendar_id")
@@ -351,16 +204,6 @@ export const availabilityOverrides = pgTable("availability_overrides", {
   groupId: uuid("group_id"),
 });
 
-export const availabilityOverridesRelations = relations(
-  availabilityOverrides,
-  ({ one }) => ({
-    calendar: one(calendars, {
-      fields: [availabilityOverrides.calendarId],
-      references: [calendars.id],
-    }),
-  }),
-);
-
 export const blockedTime = pgTable("blocked_time", {
   id,
   calendarId: uuid("calendar_id")
@@ -370,13 +213,6 @@ export const blockedTime = pgTable("blocked_time", {
   endAt: timestamp("end_at", { withTimezone: true }).notNull(),
   recurringRule: text("recurring_rule"), // RRULE
 });
-
-export const blockedTimeRelations = relations(blockedTime, ({ one }) => ({
-  calendar: one(calendars, {
-    fields: [blockedTime.calendarId],
-    references: [calendars.id],
-  }),
-}));
 
 export const schedulingLimits = pgTable("scheduling_limits", {
   id,
@@ -388,16 +224,6 @@ export const schedulingLimits = pgTable("scheduling_limits", {
   maxPerDay: integer("max_per_day"),
   maxPerWeek: integer("max_per_week"),
 });
-
-export const schedulingLimitsRelations = relations(
-  schedulingLimits,
-  ({ one }) => ({
-    calendar: one(calendars, {
-      fields: [schedulingLimits.calendarId],
-      references: [calendars.id],
-    }),
-  }),
-);
 
 // ============================================================================
 // EVENT OUTBOX
@@ -415,13 +241,6 @@ export const eventOutbox = pgTable("event_outbox", {
   ...timestamps,
 });
 
-export const eventOutboxRelations = relations(eventOutbox, ({ one }) => ({
-  org: one(orgs, {
-    fields: [eventOutbox.orgId],
-    references: [orgs.id],
-  }),
-}));
-
 // ============================================================================
 // AUTH TABLES (BetterAuth)
 // ============================================================================
@@ -437,13 +256,6 @@ export const sessions = pgTable("sessions", {
   userAgent: text("user_agent"),
   ...timestamps,
 });
-
-export const sessionsRelations = relations(sessions, ({ one }) => ({
-  user: one(users, {
-    fields: [sessions.userId],
-    references: [users.id],
-  }),
-}));
 
 export const accounts = pgTable("accounts", {
   id,
@@ -463,13 +275,6 @@ export const accounts = pgTable("accounts", {
   scope: text("scope"),
   ...timestamps,
 });
-
-export const accountsRelations = relations(accounts, ({ one }) => ({
-  user: one(users, {
-    fields: [accounts.userId],
-    references: [users.id],
-  }),
-}));
 
 export const verifications = pgTable("verifications", {
   id,
@@ -501,17 +306,6 @@ export const apiTokens = pgTable("api_tokens", {
   ...timestamps,
 });
 
-export const apiTokensRelations = relations(apiTokens, ({ one }) => ({
-  org: one(orgs, {
-    fields: [apiTokens.orgId],
-    references: [orgs.id],
-  }),
-  user: one(users, {
-    fields: [apiTokens.userId],
-    references: [users.id],
-  }),
-}));
-
 // ============================================================================
 // AUDIT EVENTS
 // ============================================================================
@@ -531,14 +325,3 @@ export const auditEvents = pgTable("audit_events", {
   metadata: jsonb("metadata"), // Additional context (e.g., IP address, user agent, reason)
   ...timestamps,
 });
-
-export const auditEventsRelations = relations(auditEvents, ({ one }) => ({
-  org: one(orgs, {
-    fields: [auditEvents.orgId],
-    references: [orgs.id],
-  }),
-  actor: one(users, {
-    fields: [auditEvents.actorId],
-    references: [users.id],
-  }),
-}));

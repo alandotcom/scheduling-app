@@ -6,8 +6,9 @@
 // All factories that insert into RLS-protected tables automatically set
 // the org context before inserting.
 
-import type { BunSQLDatabase } from "drizzle-orm/bun-sql";
+import type { BunSQLDatabase } from "drizzle-orm/bun-sql/postgres";
 import type * as schema from "@scheduling/db/schema";
+import type { relations } from "@scheduling/db/relations";
 import {
   orgs,
   users,
@@ -30,7 +31,7 @@ import {
   clearTestOrgContext,
 } from "@scheduling/db/test-utils";
 
-type Database = BunSQLDatabase<typeof schema>;
+type Database = BunSQLDatabase<typeof schema, typeof relations>;
 
 // Counter to ensure unique emails within the same millisecond
 let orgCounter = 0;

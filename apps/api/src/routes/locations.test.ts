@@ -21,10 +21,11 @@ import {
 } from "../test-utils/index.js";
 import * as locationRoutes from "./locations.js";
 import { locations } from "@scheduling/db/schema";
-import type { BunSQLDatabase } from "drizzle-orm/bun-sql";
+import type { BunSQLDatabase } from "drizzle-orm/bun-sql/postgres";
 import type * as schema from "@scheduling/db/schema";
+import type { relations } from "@scheduling/db/relations";
 
-type Database = BunSQLDatabase<typeof schema>;
+type Database = BunSQLDatabase<typeof schema, typeof relations>;
 
 describe("Location Routes", () => {
   let db: Database;

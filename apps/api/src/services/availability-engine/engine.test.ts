@@ -14,7 +14,6 @@ import {
   closeTestDb,
   seedTestOrg,
   setTestOrgContext,
-  clearTestOrgContext,
 } from "@scheduling/db/test-utils";
 import {
   locations,
@@ -29,12 +28,13 @@ import {
   resources,
   appointmentTypeResources,
 } from "@scheduling/db/schema";
-import type { BunSQLDatabase } from "drizzle-orm/bun-sql";
+import type { BunSQLDatabase } from "drizzle-orm/bun-sql/postgres";
 import type * as schema from "@scheduling/db/schema";
+import type { relations } from "@scheduling/db/relations";
 import { AvailabilityEngine } from "./engine.js";
 
 // Cast to the type the engine expects
-type Database = BunSQLDatabase<typeof schema>;
+type Database = BunSQLDatabase<typeof schema, typeof relations>;
 
 describe("AvailabilityEngine", () => {
   let db: Database;

@@ -29,10 +29,11 @@ import {
   clearTestOrgContext,
 } from "./index.js";
 import { locations } from "@scheduling/db/schema";
-import type { BunSQLDatabase } from "drizzle-orm/bun-sql";
+import type { BunSQLDatabase } from "drizzle-orm/bun-sql/postgres";
 import type * as schema from "@scheduling/db/schema";
+import type { relations } from "@scheduling/db/relations";
 
-type Database = BunSQLDatabase<typeof schema>;
+type Database = BunSQLDatabase<typeof schema, typeof relations>;
 
 describe("Test Utilities", () => {
   let db: Database;

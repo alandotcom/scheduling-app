@@ -3,10 +3,12 @@
 // This uses the scheduling_test database for production-parity testing.
 // RLS is enforced natively by Postgres.
 
-import { drizzle, type BunSQLDatabase } from "drizzle-orm/bun-sql";
+import { drizzle } from "drizzle-orm/bun-sql";
+import type { BunSQLDatabase } from "drizzle-orm/bun-sql/postgres";
 import { SQL } from "bun";
 import { sql } from "drizzle-orm";
 import * as schema from "./schema/index.js";
+import { relations } from "./relations.js";
 
 // Use DATABASE_URL which is set by test-setup.ts to point to test database
 const TEST_DATABASE_URL =
@@ -14,16 +16,18 @@ const TEST_DATABASE_URL =
   "postgres://scheduling_app:scheduling@localhost:5433/scheduling_test";
 
 let testClient: SQL | null = null;
-let testDb: BunSQLDatabase<typeof schema> | null = null;
+let testDb: BunSQLDatabase<typeof schema, typeof relations> | null = null;
 
 /**
  * Create a test database connection using Bun SQL
  */
-export async function createTestDb(): Promise<BunSQLDatabase<typeof schema>> {
+export async function createTestDb(): Promise<
+  BunSQLDatabase<typeof schema, typeof relations>
+> {
   if (testDb) return testDb;
 
   testClient = new SQL(TEST_DATABASE_URL);
-  testDb = drizzle({ client: testClient, schema });
+  testDb = drizzle({ client: testClient, schema, relations });
 
   return testDb;
 }
@@ -78,7 +82,7 @@ export async function closeTestDb(): Promise<void> {
  * Get the current test database instance
  * Throws if createTestDb hasn't been called
  */
-export function getTestDb(): BunSQLDatabase<typeof schema> {
+export function getTestDb(): BunSQLDatabase<typeof schema, typeof relations> {
   if (!testDb) {
     throw new Error(
       "Test database not initialized. Call createTestDb() first.",
@@ -91,7 +95,9 @@ export function getTestDb(): BunSQLDatabase<typeof schema> {
  * Seed a test organization with a user
  * Useful for setting up basic test fixtures
  */
-export async function seedTestOrg(db: BunSQLDatabase<typeof schema>) {
+export async function seedTestOrg(
+  db: BunSQLDatabase<typeof schema, typeof relations>,
+) {
   const [org] = await db
     .insert(schema.orgs)
     .values({
@@ -120,7 +126,9 @@ export async function seedTestOrg(db: BunSQLDatabase<typeof schema>) {
 /**
  * Seed a second test organization for RLS isolation testing
  */
-export async function seedSecondTestOrg(db: BunSQLDatabase<typeof schema>) {
+export async function seedSecondTestOrg(
+  db: BunSQLDatabase<typeof schema, typeof relations>,
+) {
   const [org] = await db
     .insert(schema.orgs)
     .values({
@@ -151,7 +159,7 @@ export async function seedSecondTestOrg(db: BunSQLDatabase<typeof schema>) {
  * All subsequent queries will be filtered to this org
  */
 export async function setTestOrgContext(
-  db: BunSQLDatabase<typeof schema>,
+  db: BunSQLDatabase<typeof schema, typeof relations>,
   orgId: string,
 ): Promise<void> {
   await db.execute(
@@ -163,7 +171,7 @@ export async function setTestOrgContext(
  * Clear the org context (queries will return no rows due to RLS)
  */
 export async function clearTestOrgContext(
-  db: BunSQLDatabase<typeof schema>,
+  db: BunSQLDatabase<typeof schema, typeof relations>,
 ): Promise<void> {
   await db.execute(sql`SELECT set_config('app.current_org_id', '', false)`);
 }
@@ -172,7 +180,7 @@ export async function clearTestOrgContext(
  * Run a function with a specific org context set, then restore previous context
  */
 export async function withTestOrgContext<T>(
-  db: BunSQLDatabase<typeof schema>,
+  db: BunSQLDatabase<typeof schema, typeof relations>,
   orgId: string,
   fn: () => Promise<T>,
 ): Promise<T> {

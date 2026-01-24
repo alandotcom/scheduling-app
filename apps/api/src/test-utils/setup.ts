@@ -11,10 +11,11 @@ import {
   setTestOrgContext,
   clearTestOrgContext,
 } from "@scheduling/db/test-utils";
-import type { BunSQLDatabase } from "drizzle-orm/bun-sql";
+import type { BunSQLDatabase } from "drizzle-orm/bun-sql/postgres";
 import type * as schema from "@scheduling/db/schema";
+import type { relations } from "@scheduling/db/relations";
 
-export type TestDatabase = BunSQLDatabase<typeof schema>;
+export type TestDatabase = BunSQLDatabase<typeof schema, typeof relations>;
 
 // Re-export db utilities for convenience
 export {

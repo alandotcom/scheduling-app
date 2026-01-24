@@ -1,19 +1,21 @@
 // Database client setup with RLS helpers
 
-import { drizzle, type BunSQLDatabase } from "drizzle-orm/bun-sql";
+import { drizzle } from "drizzle-orm/bun-sql";
+import type { BunSQLDatabase } from "drizzle-orm/bun-sql/postgres";
 import { SQL } from "bun";
 import { sql } from "drizzle-orm";
 import * as schema from "@scheduling/db/schema";
+import { relations } from "@scheduling/db/relations";
 import { config } from "../config.js";
 
 // Create Bun SQL client
 const client = new SQL(config.db.url);
 
-// Create drizzle instance with schema for relational queries
-export const db = drizzle({ client, schema });
+// Create drizzle instance with schema and relations for relational queries
+export const db = drizzle({ client, schema, relations });
 
 // Export types
-export type Database = BunSQLDatabase<typeof schema>;
+export type Database = BunSQLDatabase<typeof schema, typeof relations>;
 export type DbTransaction = Parameters<
   Parameters<Database["transaction"]>[0]
 >[0];

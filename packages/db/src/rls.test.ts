@@ -29,10 +29,11 @@ import {
   clients,
 } from "./schema/index.js";
 import { eq, sql } from "drizzle-orm";
-import type { BunSQLDatabase } from "drizzle-orm/bun-sql";
+import type { BunSQLDatabase } from "drizzle-orm/bun-sql/postgres";
 import type * as schema from "./schema/index.js";
+import type { relations } from "./relations.js";
 
-let db: BunSQLDatabase<typeof schema>;
+let db: BunSQLDatabase<typeof schema, typeof relations>;
 
 beforeAll(async () => {
   db = await createTestDb();
@@ -174,7 +175,7 @@ describe("CRUD operations with org context", () => {
 
     // Can read it back
     const found = await db.query.locations.findFirst({
-      where: (loc, { eq }) => eq(loc.id, location!.id),
+      where: { id: location!.id },
     });
     expect(found).toBeDefined();
     expect(found!.name).toBe("Test Location");
@@ -224,7 +225,7 @@ describe("CRUD operations with org context", () => {
     await db.delete(locations).where(eq(locations.id, location!.id));
 
     const found = await db.query.locations.findFirst({
-      where: (loc, { eq }) => eq(loc.id, location!.id),
+      where: { id: location!.id },
     });
     expect(found).toBeUndefined();
 
