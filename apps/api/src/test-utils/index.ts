@@ -1,0 +1,54 @@
+// Test utilities barrel export
+//
+// Usage:
+//   import { createTestContext, createOrg, setupTestDb } from '../test-utils/index.js'
+
+// Context utilities
+export {
+  createTestContext,
+  createUnauthenticatedContext,
+  createTokenContext,
+  type TestContextOptions,
+} from './context.js'
+
+// Factory functions
+export {
+  createOrg,
+  createOrgMember,
+  createLocation,
+  createCalendar,
+  createAppointmentType,
+  createResource,
+  createClient,
+  createAppointment,
+  createAvailabilityRule,
+  createAvailabilityOverride,
+  createBlockedTime,
+  createSchedulingLimits,
+  createTestFixture,
+} from './factories.js'
+
+// Setup utilities
+export {
+  setupTestDb,
+  createTestDb,
+  resetTestDb,
+  closeTestDb,
+  setTestOrgContext,
+  clearTestOrgContext,
+  type TestDatabase,
+} from './setup.js'
+
+// Re-export from @scheduling/db/test-utils for convenience
+export {
+  seedTestOrg,
+  seedSecondTestOrg,
+  withTestOrgContext,
+  // RLS-aware utilities (for security tests)
+  createTestDbWithRLS,
+  resetTestDbWithRLS,
+  closeTestDbWithRLS,
+  seedAsSuperuser,
+  setRLSTestOrgContext,
+  clearRLSTestOrgContext,
+} from '@scheduling/db/test-utils'
