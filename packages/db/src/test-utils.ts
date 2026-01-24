@@ -2,6 +2,7 @@
 
 import { PGlite } from '@electric-sql/pglite'
 import { drizzle, type PgliteDatabase } from 'drizzle-orm/pglite'
+import { sql } from 'drizzle-orm'
 import * as schema from './schema/index.js'
 
 let testClient: PGlite | null = null
@@ -223,6 +224,48 @@ export async function createTestDb(): Promise<PgliteDatabase<typeof schema>> {
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
+
+    -- RLS helper function
+    CREATE OR REPLACE FUNCTION current_org_id() RETURNS uuid AS $$
+      SELECT nullif(current_setting('app.current_org_id', true), '')::uuid;
+    $$ LANGUAGE SQL STABLE;
+
+    -- Enable RLS on org-scoped tables
+    -- FORCE ROW LEVEL SECURITY ensures policies apply even to table owner (superuser in PGLite)
+    ALTER TABLE locations ENABLE ROW LEVEL SECURITY;
+    ALTER TABLE locations FORCE ROW LEVEL SECURITY;
+    CREATE POLICY org_isolation_locations ON locations
+      FOR ALL USING (org_id = current_org_id()) WITH CHECK (org_id = current_org_id());
+
+    ALTER TABLE calendars ENABLE ROW LEVEL SECURITY;
+    ALTER TABLE calendars FORCE ROW LEVEL SECURITY;
+    CREATE POLICY org_isolation_calendars ON calendars
+      FOR ALL USING (org_id = current_org_id()) WITH CHECK (org_id = current_org_id());
+
+    ALTER TABLE appointment_types ENABLE ROW LEVEL SECURITY;
+    ALTER TABLE appointment_types FORCE ROW LEVEL SECURITY;
+    CREATE POLICY org_isolation_appointment_types ON appointment_types
+      FOR ALL USING (org_id = current_org_id()) WITH CHECK (org_id = current_org_id());
+
+    ALTER TABLE resources ENABLE ROW LEVEL SECURITY;
+    ALTER TABLE resources FORCE ROW LEVEL SECURITY;
+    CREATE POLICY org_isolation_resources ON resources
+      FOR ALL USING (org_id = current_org_id()) WITH CHECK (org_id = current_org_id());
+
+    ALTER TABLE clients ENABLE ROW LEVEL SECURITY;
+    ALTER TABLE clients FORCE ROW LEVEL SECURITY;
+    CREATE POLICY org_isolation_clients ON clients
+      FOR ALL USING (org_id = current_org_id()) WITH CHECK (org_id = current_org_id());
+
+    ALTER TABLE appointments ENABLE ROW LEVEL SECURITY;
+    ALTER TABLE appointments FORCE ROW LEVEL SECURITY;
+    CREATE POLICY org_isolation_appointments ON appointments
+      FOR ALL USING (org_id = current_org_id()) WITH CHECK (org_id = current_org_id());
+
+    ALTER TABLE event_outbox ENABLE ROW LEVEL SECURITY;
+    ALTER TABLE event_outbox FORCE ROW LEVEL SECURITY;
+    CREATE POLICY org_isolation_event_outbox ON event_outbox
+      FOR ALL USING (org_id = current_org_id()) WITH CHECK (org_id = current_org_id());
   `)
 
   return testDb
@@ -306,4 +349,58 @@ export function getTestDb(): PgliteDatabase<typeof schema> {
     throw new Error('Test database not initialized. Call createTestDb() first.')
   }
   return testDb
+}
+
+/**
+ * Set the org context for RLS queries in tests
+ * All subsequent queries will be filtered to this org
+ */
+export async function setTestOrgContext(db: PgliteDatabase<typeof schema>, orgId: string): Promise<void> {
+  await db.execute(sql`SELECT set_config('app.current_org_id', ${orgId}, false)`)
+}
+
+/**
+ * Clear the org context (queries will return no rows due to RLS)
+ */
+export async function clearTestOrgContext(db: PgliteDatabase<typeof schema>): Promise<void> {
+  await db.execute(sql`SELECT set_config('app.current_org_id', '', false)`)
+}
+
+/**
+ * Run a function with a specific org context set, then restore previous context
+ */
+export async function withTestOrgContext<T>(
+  db: PgliteDatabase<typeof schema>,
+  orgId: string,
+  fn: () => Promise<T>
+): Promise<T> {
+  await setTestOrgContext(db, orgId)
+  try {
+    return await fn()
+  } finally {
+    await clearTestOrgContext(db)
+  }
+}
+
+/**
+ * Seed a second test organization for RLS isolation testing
+ */
+export async function seedSecondTestOrg(db: PgliteDatabase<typeof schema>) {
+  const [org] = await db.insert(schema.orgs).values({
+    name: 'Second Test Org',
+  }).returning()
+
+  const [user] = await db.insert(schema.users).values({
+    email: 'second@example.com',
+    name: 'Second User',
+    emailVerified: true,
+  }).returning()
+
+  await db.insert(schema.orgMemberships).values({
+    orgId: org!.id,
+    userId: user!.id,
+    role: 'admin',
+  })
+
+  return { org: org!, user: user! }
 }

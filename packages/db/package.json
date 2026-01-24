@@ -15,7 +15,8 @@
     "typecheck": "tsc --noEmit",
     "migrate": "drizzle-kit migrate",
     "generate": "drizzle-kit generate",
-    "push": "drizzle-kit push"
+    "push": "drizzle-kit push",
+    "seed": "bun run src/seed.ts"
   },
   "dependencies": {
     "drizzle-orm": "^0.41.0",
