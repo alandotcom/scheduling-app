@@ -117,6 +117,30 @@ pnpm --filter @scheduling/db run migrate    # Run pending migrations
 pnpm --filter @scheduling/db run push       # Push schema to dev database
 ```
 
+### Task Tracking with Beads
+
+This project uses [Beads](https://github.com/steveyegge/beads) for task tracking during development.
+
+```bash
+# View available tasks
+bd ready              # Show unblocked tasks ready for work
+bd list               # Show all tasks
+bd show <id>          # Get task details
+
+# Work on tasks
+bd close <id>         # Mark task complete
+bd create "Title" --description "Details"  # Create new task
+bd dep add <id> <blocker-id>               # Add dependency
+```
+
+**Execution loop** (for automated task processing):
+
+```bash
+while bd ready | grep -q "scheduling-app-"; do
+  claude "@PROMPT.md"
+done
+```
+
 ### API Endpoints
 
 The API uses oRPC with automatic OpenAPI generation. Key endpoint groups:

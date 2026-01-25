@@ -34,5 +34,7 @@ coverage/
 tmp/
 .tmp/
 .agents/settings.local.json
+.claude/settings.local.json
+.claude/*.local.md
 .ralph
 .agent

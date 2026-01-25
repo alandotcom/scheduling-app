@@ -1,0 +1,40 @@
+{
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/beads-stop-hook.sh",
+            "timeout": 30
+          }
+        ]
+      }
+    ]
+  },
+  "permissions": {
+    "allow": [
+      "Bash(pnpm:*)",
+      "Bash(bun:*)",
+      "Bash(bd:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(docker compose:*)",
+      "Bash(psql:*)",
+      "Bash(.claude/scripts/*:*)",
+      "Bash(rm -f .claude/beads-loop.local.md:*)",
+      "mcp__context7__resolve-library-id",
+      "mcp__context7__query-docs",
+      "mcp__exa__web_search_exa",
+      "mcp__exa__get_code_context_exa",
+      "mcp__grep__searchGitHub",
+      "WebSearch",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:orm.drizzle.team)",
+      "WebFetch(domain:zod.dev)"
+    ]
+  }
+}
