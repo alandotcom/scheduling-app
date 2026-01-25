@@ -255,7 +255,8 @@ function LocationsPage() {
           </div>
         ) : error ? (
           <div className="text-center text-destructive">
-            Error loading locations
+            <p>Error loading locations</p>
+            <p className="mt-1 text-sm">{error.message}</p>
           </div>
         ) : !data?.items.length ? (
           <div className="rounded-lg border bg-card p-8 text-center text-muted-foreground">

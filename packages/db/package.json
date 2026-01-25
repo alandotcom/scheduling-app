@@ -13,6 +13,7 @@
     "dev": "bun --watch src/index.ts",
     "build": "bun build ./src/index.ts --outdir ./dist",
     "test": "bun test",
+    "test:coverage": "bun test --coverage",
     "typecheck": "tsc --noEmit",
     "migrate": "drizzle-kit migrate",
     "generate": "drizzle-kit generate",

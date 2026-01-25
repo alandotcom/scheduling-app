@@ -19,9 +19,18 @@ export function getActiveOrg() {
   return activeOrgId;
 }
 
+// Construct the absolute URL for the RPC endpoint
+// Use window.location.origin in browser, fallback to localhost for SSR
+const getBaseUrl = () => {
+  if (typeof window !== "undefined") {
+    return `${window.location.origin}/v1`;
+  }
+  return "http://localhost:3000/v1";
+};
+
 // Create the RPC link with fetch configuration
 const link = new RPCLink({
-  url: "/v1",
+  url: getBaseUrl(),
   method: () => "POST", // Always use POST - server doesn't allow GET for procedures
   headers: () => {
     // Include org context if an org is explicitly selected
