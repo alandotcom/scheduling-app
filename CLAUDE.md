@@ -175,6 +175,55 @@ After completing each task:
 3. Fix any issues found, re-run checks if needed
 4. Close task and commit when all checks pass
 
+## Agent-Browser QA
+
+Use agent-browser for one-off UI verification during development. This is useful for testing login flows, form submissions, and verifying UI changes work correctly.
+
+### Basic Workflow
+
+```bash
+# Start the dev server first
+pnpm dev
+
+# Open the app and verify UI
+agent-browser open http://localhost:5173
+agent-browser snapshot -i        # Get interactive elements with refs
+agent-browser click @e1          # Click element by ref
+agent-browser fill @e2 "text"    # Fill input field
+agent-browser screenshot         # Capture current state
+agent-browser close              # Close when done
+```
+
+### Common Commands
+
+| Command | Description |
+|---------|-------------|
+| `open <url>` | Open a URL in the browser |
+| `snapshot -i` | Capture page with interactive element refs |
+| `click @ref` | Click an element by its ref |
+| `fill @ref "text"` | Type text into an input field |
+| `screenshot` | Take a screenshot of current state |
+| `close` | Close the browser session |
+
+### Login Flow Example
+
+```bash
+agent-browser open http://localhost:5173/login
+agent-browser snapshot -i
+agent-browser fill @e1 "test@example.com"   # Email field
+agent-browser fill @e2 "password123"         # Password field
+agent-browser click @e3                      # Login button
+agent-browser snapshot -i                    # Verify redirect/dashboard
+agent-browser close
+```
+
+### Tips
+
+- Always run `snapshot -i` after DOM changes to get fresh element refs
+- Use refs (`@e1`, `@e2`) instead of CSS selectors for reliability
+- Take screenshots at key steps for verification
+- Close the browser when done to free resources
+
 ## Execution Loop
 
 ```bash
