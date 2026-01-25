@@ -1,6 +1,5 @@
 // Locations management page with CRUD operations
 
-import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
@@ -10,6 +9,8 @@ import { Plus, Pencil, Trash2 } from "lucide-react";
 import { orpc } from "@/lib/query";
 import { createLocationSchema } from "@scheduling/dto";
 import type { CreateLocationInput } from "@scheduling/dto";
+import { useCrudState } from "@/hooks/use-crud-state";
+import { DeleteConfirmDialog } from "@/components/delete-confirm-dialog";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,16 +23,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 import {
   Select,
   SelectContent,
@@ -57,6 +48,12 @@ const TIMEZONES = [
   "Australia/Sydney",
   "UTC",
 ];
+
+interface LocationItem {
+  id: string;
+  name: string;
+  timezone: string;
+}
 
 interface LocationFormProps {
   defaultValues?: { name: string; timezone: string };
@@ -139,16 +136,7 @@ function LocationForm({
 
 function LocationsPage() {
   const queryClient = useQueryClient();
-
-  const [showCreateForm, setShowCreateForm] = useState(false);
-  const [editingLocation, setEditingLocation] = useState<{
-    id: string;
-    name: string;
-    timezone: string;
-  } | null>(null);
-  const [deletingLocationId, setDeletingLocationId] = useState<string | null>(
-    null,
-  );
+  const crud = useCrudState<LocationItem>();
 
   // Fetch locations
   const { data, isLoading, error } = useQuery(
@@ -162,7 +150,7 @@ function LocationsPage() {
     orpc.locations.create.mutationOptions({
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: orpc.locations.key() });
-        setShowCreateForm(false);
+        crud.closeCreate();
       },
     }),
   );
@@ -172,7 +160,7 @@ function LocationsPage() {
     orpc.locations.update.mutationOptions({
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: orpc.locations.key() });
-        setEditingLocation(null);
+        crud.closeEdit();
       },
     }),
   );
@@ -182,7 +170,7 @@ function LocationsPage() {
     orpc.locations.remove.mutationOptions({
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: orpc.locations.key() });
-        setDeletingLocationId(null);
+        crud.closeDelete();
       },
     }),
   );
@@ -192,16 +180,16 @@ function LocationsPage() {
   };
 
   const handleUpdate = (formData: CreateLocationInput) => {
-    if (!editingLocation) return;
+    if (!crud.editingItem) return;
     updateMutation.mutate({
-      id: editingLocation.id,
+      id: crud.editingItem.id,
       data: formData,
     });
   };
 
   const handleDelete = () => {
-    if (!deletingLocationId) return;
-    deleteMutation.mutate({ id: deletingLocationId });
+    if (!crud.deletingItemId) return;
+    deleteMutation.mutate({ id: crud.deletingItemId });
   };
 
   return (
@@ -213,8 +201,8 @@ function LocationsPage() {
             Manage physical locations for your calendars.
           </p>
         </div>
-        {!showCreateForm && !editingLocation && (
-          <Button onClick={() => setShowCreateForm(true)}>
+        {!crud.isFormOpen && (
+          <Button onClick={crud.openCreate}>
             <Plus className="mr-2 h-4 w-4" />
             Add Location
           </Button>
@@ -222,28 +210,28 @@ function LocationsPage() {
       </div>
 
       {/* Create Form */}
-      {showCreateForm && (
+      {crud.showCreateForm && (
         <div className="mt-6 rounded-lg border bg-card p-6">
           <h2 className="mb-4 text-lg font-semibold">New Location</h2>
           <LocationForm
             onSubmit={handleCreate}
-            onCancel={() => setShowCreateForm(false)}
+            onCancel={crud.closeCreate}
             isSubmitting={createMutation.isPending}
           />
         </div>
       )}
 
       {/* Edit Form */}
-      {editingLocation && (
+      {crud.editingItem && (
         <div className="mt-6 rounded-lg border bg-card p-6">
           <h2 className="mb-4 text-lg font-semibold">Edit Location</h2>
           <LocationForm
             defaultValues={{
-              name: editingLocation.name,
-              timezone: editingLocation.timezone,
+              name: crud.editingItem.name,
+              timezone: crud.editingItem.timezone,
             }}
             onSubmit={handleUpdate}
-            onCancel={() => setEditingLocation(null)}
+            onCancel={crud.closeEdit}
             isSubmitting={updateMutation.isPending}
           />
         </div>
@@ -288,21 +276,21 @@ function LocationsPage() {
                           variant="ghost"
                           size="icon"
                           onClick={() =>
-                            setEditingLocation({
+                            crud.openEdit({
                               id: location.id,
                               name: location.name,
                               timezone: location.timezone,
                             })
                           }
-                          disabled={showCreateForm || editingLocation !== null}
+                          disabled={crud.isFormOpen}
                         >
                           <Pencil className="h-4 w-4" />
                         </Button>
                         <Button
                           variant="ghost"
                           size="icon"
-                          onClick={() => setDeletingLocationId(location.id)}
-                          disabled={showCreateForm || editingLocation !== null}
+                          onClick={() => crud.openDelete(location.id)}
+                          disabled={crud.isFormOpen}
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>
@@ -317,29 +305,14 @@ function LocationsPage() {
       </div>
 
       {/* Delete Confirmation */}
-      <AlertDialog
-        open={!!deletingLocationId}
-        onOpenChange={() => setDeletingLocationId(null)}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete Location</AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to delete this location? This action cannot
-              be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleDelete}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              {deleteMutation.isPending ? "Deleting..." : "Delete"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <DeleteConfirmDialog
+        open={!!crud.deletingItemId}
+        onOpenChange={crud.closeDelete}
+        onConfirm={handleDelete}
+        title="Delete Location"
+        description="Are you sure you want to delete this location? This action cannot be undone."
+        isPending={deleteMutation.isPending}
+      />
     </div>
   );
 }
