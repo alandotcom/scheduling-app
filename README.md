@@ -117,35 +117,6 @@ pnpm --filter @scheduling/db run migrate    # Run pending migrations
 pnpm --filter @scheduling/db run push       # Push schema to dev database
 ```
 
-### Task Tracking with Beads
-
-This project uses [Beads](https://github.com/steveyegge/beads) for task tracking with a Ralph-style execution loop.
-
-```bash
-# View tasks
-bd ready              # Show unblocked tasks
-bd list               # Show all tasks
-bd show <id>          # Get task details
-
-# Work on tasks
-bd close <id>         # Mark complete
-bd create "Title" --description "..."      # Create task
-bd dep add <child> <blocker>               # Add dependency
-
-# Planning (creates epic with child tasks)
-/plan
-```
-
-**Automated execution** (Claude Code slash commands):
-
-```bash
-/beads-loop                      # Run until all tasks complete
-/beads-loop --max-iterations 20  # Stop after 20 iterations
-/cancel-beads                    # Force stop
-```
-
-The loop checks `bd ready` on each exit attempt - continues while tasks remain.
-
 ### API Endpoints
 
 The API uses oRPC with automatic OpenAPI generation. Key endpoint groups:
