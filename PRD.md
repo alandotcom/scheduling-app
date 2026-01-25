@@ -177,3 +177,54 @@ flowchart LR
 ### Alternative Approaches Considered
 - Pure tRPC API (rejected; need REST for external consumers)
 - Single‑tenant architecture (rejected; must support multi‑org)
+
+## Implementation Status
+
+### Database Schema: Complete
+All 21 tables implemented with RLS policies on 9 org-scoped tables. Using Postgres 18 native `uuidv7()` for sortable UUIDs.
+
+### API Layer: ~95% Complete
+
+#### Fully Implemented
+- **Core CRUD**: Appointments, Appointment Types, Calendars, Locations, Resources, Clients
+- **Availability System**: Weekly rules, per-date overrides, blocked time, scheduling limits
+- **Availability Engine**: `getAvailableDates`, `getAvailableSlots`, `checkSlot` with full rule enforcement
+- **API Tokens**: Admin token management with hashing, prefix, expiration
+- **Audit Logging**: Comprehensive audit trail with before/after snapshots
+- **Event Emission**: Domain events to outbox + BullMQ workers for processing
+- **Auth**: BetterAuth session auth + API token auth for server-to-server
+
+#### Not Yet Implemented
+- **Webhook Subscriptions API**: Events emit to outbox but no subscription management endpoints
+- **HMAC Webhook Signing**: Delivery worker exists but HMAC signing not implemented
+- **Appointment Type Groups API**: Schema supports `group_id` but no management endpoints
+
+### Admin UI: ~70% Complete
+
+#### Fully Implemented
+- **Authentication**: Login/logout, session management
+- **Navigation**: Sidebar with 8 sections
+- **Calendars**: CRUD + weekly availability hours editor
+- **Appointment Types**: CRUD + calendar linking + resource linking
+- **Locations**: CRUD with timezone
+- **Resources**: CRUD with quantity and location
+- **Appointments**: List with filters, create wizard with availability slot selection
+
+#### Not Yet Implemented
+- **Clients CRUD**: Placeholder only
+- **Dashboard Metrics**: Hardcoded "0" values, no real queries
+- **Appointment Edit/Reschedule**: Only list, create, cancel, no-show
+- **Availability Overrides UI**: Weekly rules only, no per-date overrides
+- **Blocked Time UI**: No UI to create/view blocked time
+- **Settings Page**: User profile, API tokens, org settings
+
+### Background Jobs: Complete
+- BullMQ with Valkey backend
+- Event processor worker (10 concurrent)
+- Webhook delivery worker (5 concurrent, 100/min rate limit)
+- Graceful shutdown and stale recovery
+
+### Testing: In Progress
+- RLS isolation tests complete
+- API tests for core CRUD entities
+- Availability engine unit tests needed

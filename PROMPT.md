@@ -7,18 +7,50 @@
 3. Complete ONE task following existing patterns
 4. Run backpressure: `pnpm typecheck && pnpm lint && pnpm test`
 5. If backpressure fails, fix issues and re-run until passing
-6. Run code review using the code-reviewer agent on your changes
-7. If review finds issues, fix them and re-run backpressure + review
-8. When all checks pass, run `bd close <id>` and commit changes (include .beads/issues.jsonl)
-9. If blocked, run `bd create "Blocker: ..." --blocks <id>` and exit
+6. Run `/senior-review` skill on your changes (entropy-reducing, favors simplification)
+7. Run code review using the code-reviewer agent on your changes
+8. If either review finds issues, fix them and re-run backpressure + reviews
+9. For UI features: run agent-browser QA to verify the feature works correctly
+10. When all checks pass, run `bd close <id>` and commit changes (include .beads/issues.jsonl)
+11. If blocked, run `bd create "Blocker: ..." --blocks <id>` and exit
 
 ## Code Review
 
-After backpressure passes, spawn a code-reviewer agent to review your changes:
+After backpressure passes, run TWO review steps:
+
+### Step 1: Senior Review (Skill)
+Run the `/senior-review` skill first:
+- Entropy-reducing review that favors deletion, consolidation, and simplification
+- Diff-anchored but context-aware
+- Focuses on avoiding over-engineering and unnecessary complexity
+
+### Step 2: Code Reviewer Agent
+Then spawn a code-reviewer agent:
 - Use the Task tool with `subagent_type: "code-reviewer"`
 - Prompt: "Review the staged changes for this task. Check for quality, security, and maintainability issues."
-- If the reviewer finds issues, fix them before proceeding
+- If either reviewer finds issues, fix them before proceeding
 - Re-run backpressure after any fixes
+
+## UI Feature QA
+
+After completing UI features, verify with agent-browser:
+```bash
+# Start the app
+pnpm dev
+
+# Basic verification workflow
+agent-browser open http://localhost:5173
+agent-browser snapshot -i        # Get interactive elements with refs
+agent-browser click @e1          # Click by ref
+agent-browser fill @e2 "text"    # Fill input
+agent-browser screenshot         # Capture current state
+
+# After DOM changes, re-snapshot to get fresh refs
+agent-browser snapshot -i
+
+# Close when done
+agent-browser close
+```
 
 ## Rules
 
