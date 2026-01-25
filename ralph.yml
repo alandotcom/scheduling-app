@@ -1,6 +1,6 @@
 # Ralph Orchestrator Configuration
 #
-# Hat-based workflow using Beads for task tracking:
+# Hat-based workflow using Ralph's built-in task tracking:
 # Coordinator -> Builder -> Reviewer -> Committer
 #
 # Usage:
@@ -8,12 +8,14 @@
 #   ralph run --max-iterations 1 # Run one iteration
 
 event_loop:
-  prompt_file: "CLAUDE.md"
   completion_promise: "LOOP_COMPLETE"
   max_iterations: 50
   max_runtime_seconds: 14400
   checkpoint_interval: 5
   starting_event: "loop.start"
+
+tasks:
+  enabled: true
 
 cli:
   backend: "claude"
@@ -24,7 +26,7 @@ core:
 hats:
   coordinator:
     name: "Coordinator"
-    description: "Selects next unblocked task from Beads or signals completion"
+    description: "Selects next unblocked task or signals completion"
     triggers: ["loop.start", "build.done", "build.blocked", "review.changes_requested", "commit.done"]
     publishes: ["build.task", "review.request", "LOOP_COMPLETE"]
     default_publishes: "build.task"
@@ -36,12 +38,12 @@ hats:
       ### On loop.start or commit.done
       Find the next unblocked task:
       ```bash
-      bd ready
+      ralph tools task ready
       ```
 
       If tasks exist, emit build.task:
       ```bash
-      ralph emit "build.task" "id: <beads-id>, title: <title>"
+      ralph emit "build.task" "id: <task-id>, title: <title>"
       ```
 
       If no tasks remain:
@@ -52,21 +54,21 @@ hats:
       ### On build.done
       Route to review:
       ```bash
-      ralph emit "review.request" "id: <beads-id>"
+      ralph emit "review.request" "id: <task-id>"
       ```
 
       ### On build.blocked
       Log the blocker and find next task:
       ```bash
-      bd create "Blocker: <description>" --blocks <blocked-id>
-      bd ready
+      ralph tools task add "Blocker: <description>" -p 1 --blocked-by <blocked-id>
+      ralph tools task ready
       ```
       Then emit build.task for next available, or LOOP_COMPLETE if none.
 
       ### On review.changes_requested
       Route back to builder:
       ```bash
-      ralph emit "build.task" "id: <beads-id>, changes: <requested changes>"
+      ralph emit "build.task" "id: <task-id>, changes: <requested changes>"
       ```
 
       ### DON'T
@@ -86,10 +88,9 @@ hats:
       Implement the task from the triggering event.
 
       ### Process
-      1. **Claim task:**
+      1. **Get task details:**
          ```bash
-         bd update <id> --status=in_progress
-         bd show <id>
+         ralph tools task show <id>
          ```
       2. **Implement** following existing patterns in codebase
       3. **Run backpressure:**
@@ -101,13 +102,13 @@ hats:
 
       ### Event Format
       ```bash
-      ralph emit "build.done" "id: <beads-id>, tests: pass, lint: pass, typecheck: pass"
+      ralph emit "build.done" "id: <task-id>, tests: pass, lint: pass, typecheck: pass"
       ```
 
       ### Backpressure Failed?
       Fix issues and re-run. If blocked:
       ```bash
-      ralph emit "build.blocked" "id: <beads-id>, reason: <what you tried and why it failed>"
+      ralph emit "build.blocked" "id: <task-id>, reason: <what you tried and why it failed>"
       ```
 
       ### DON'T
@@ -144,12 +145,12 @@ hats:
 
       ### If Approved
       ```bash
-      ralph emit "review.approved" "id: <beads-id>, notes: All checks pass"
+      ralph emit "review.approved" "id: <task-id>, notes: All checks pass"
       ```
 
       ### If Changes Needed
       ```bash
-      ralph emit "review.changes_requested" "id: <beads-id>, issues: [specific issues], required: [what needs to change]"
+      ralph emit "review.changes_requested" "id: <task-id>, issues: [specific issues], required: [what needs to change]"
       ```
 
       ### DON'T
@@ -159,7 +160,7 @@ hats:
 
   committer:
     name: "Committer"
-    description: "Closes task, commits changes, syncs beads"
+    description: "Closes task and commits changes"
     triggers: ["review.approved"]
     publishes: ["commit.done"]
     default_publishes: "commit.done"
@@ -171,15 +172,10 @@ hats:
       ### Process
       1. **Close the task:**
          ```bash
-         bd close <beads-id>
+         ralph tools task close <task-id>
          ```
 
-      2. **Sync beads:**
-         ```bash
-         bd sync --flush-only
-         ```
-
-      3. **Git commit:**
+      2. **Git commit:**
          ```bash
          git add -A
          git commit -m "$(cat <<'EOF'
@@ -187,16 +183,16 @@ hats:
 
          - <bullet point of what changed>
 
-         Closes: <beads-id>
+         Closes: <task-id>
 
          Co-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>
          EOF
          )"
          ```
 
-      4. **Emit commit.done:**
+      3. **Emit commit.done:**
          ```bash
-         ralph emit "commit.done" "id: <beads-id>, commit: <short-sha>"
+         ralph emit "commit.done" "id: <task-id>, commit: <short-sha>"
          ```
 
       ### DON'T
