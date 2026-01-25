@@ -2,9 +2,10 @@
 
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Trash2 } from "lucide-react";
+import { Add01Icon, Delete01Icon } from "@hugeicons/core-free-icons";
 
 import { orpc } from "@/lib/query";
+import { Icon } from "@/components/ui/icon";
 import { Breadcrumb } from "@/components/breadcrumb";
 
 import { Button } from "@/components/ui/button";
@@ -146,7 +147,7 @@ function AppointmentTypeCalendarsPage() {
           onClick={handleAdd}
           disabled={!selectedCalendarId || addMutation.isPending}
         >
-          <Plus className="mr-2 h-4 w-4" />
+          <Icon icon={Add01Icon} className="mr-2" />
           {addMutation.isPending ? "Adding..." : "Add Calendar"}
         </Button>
       </div>
@@ -184,7 +185,7 @@ function AppointmentTypeCalendarsPage() {
                         onClick={() => handleRemove(link.calendarId)}
                         disabled={removeMutation.isPending}
                       >
-                        <Trash2 className="h-4 w-4" />
+                        <Icon icon={Delete01Icon} />
                       </Button>
                     </TableCell>
                   </TableRow>

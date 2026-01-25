@@ -4,18 +4,19 @@ import { useState } from "react";
 import { createRootRoute, Link, Outlet } from "@tanstack/react-router";
 import { TanStackRouterDevtools } from "@tanstack/router-devtools";
 import {
-  Calendar,
-  Users,
-  Clock,
-  Settings,
-  LogOut,
-  MapPin,
-  Package,
-  Layers,
-  Menu,
-} from "lucide-react";
+  Calendar03Icon,
+  UserGroup02Icon,
+  Clock01Icon,
+  Settings01Icon,
+  Logout01Icon,
+  Location01Icon,
+  Package01Icon,
+  Layers01Icon,
+  Menu01Icon,
+} from "@hugeicons/core-free-icons";
 import { authClient } from "@/lib/auth-client";
 import { Button } from "@/components/ui/button";
+import { Icon } from "@/components/ui/icon";
 import {
   Sheet,
   SheetContent,
@@ -50,38 +51,18 @@ function RootLayout() {
   }
 
   const navItems = [
-    { to: "/", icon: <Calendar className="h-4 w-4" />, label: "Dashboard" },
-    {
-      to: "/appointments",
-      icon: <Clock className="h-4 w-4" />,
-      label: "Appointments",
-    },
-    {
-      to: "/calendars",
-      icon: <Calendar className="h-4 w-4" />,
-      label: "Calendars",
-    },
+    { to: "/", icon: Calendar03Icon, label: "Dashboard" },
+    { to: "/appointments", icon: Clock01Icon, label: "Appointments" },
+    { to: "/calendars", icon: Calendar03Icon, label: "Calendars" },
     {
       to: "/appointment-types",
-      icon: <Layers className="h-4 w-4" />,
+      icon: Layers01Icon,
       label: "Appointment Types",
     },
-    {
-      to: "/locations",
-      icon: <MapPin className="h-4 w-4" />,
-      label: "Locations",
-    },
-    {
-      to: "/resources",
-      icon: <Package className="h-4 w-4" />,
-      label: "Resources",
-    },
-    { to: "/clients", icon: <Users className="h-4 w-4" />, label: "Clients" },
-    {
-      to: "/settings",
-      icon: <Settings className="h-4 w-4" />,
-      label: "Settings",
-    },
+    { to: "/locations", icon: Location01Icon, label: "Locations" },
+    { to: "/resources", icon: Package01Icon, label: "Resources" },
+    { to: "/clients", icon: UserGroup02Icon, label: "Clients" },
+    { to: "/settings", icon: Settings01Icon, label: "Settings" },
   ];
 
   return (
@@ -126,7 +107,7 @@ function RootLayout() {
                 title="Sign out"
                 aria-label="Sign out"
               >
-                <LogOut className="h-4 w-4" />
+                <Icon icon={Logout01Icon} />
               </Button>
             </div>
           </div>
@@ -143,7 +124,7 @@ function RootLayout() {
             onClick={() => setMobileMenuOpen(true)}
             aria-label="Open navigation menu"
           >
-            <Menu className="h-5 w-5" />
+            <Icon icon={Menu01Icon} className="size-5" />
           </Button>
           <Link to="/" className="text-lg font-semibold">
             Scheduling
@@ -155,7 +136,7 @@ function RootLayout() {
             title="Sign out"
             aria-label="Sign out"
           >
-            <LogOut className="h-4 w-4" />
+            <Icon icon={Logout01Icon} />
           </Button>
         </header>
 
@@ -213,7 +194,7 @@ function NavLink({
   children,
 }: {
   to: string;
-  icon: React.ReactNode;
+  icon: React.ComponentProps<typeof Icon>["icon"];
   children: React.ReactNode;
 }) {
   return (
@@ -221,7 +202,7 @@ function NavLink({
       to={to}
       className="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground [&.active]:bg-accent [&.active]:text-accent-foreground"
     >
-      {icon}
+      <Icon icon={icon} />
       {children}
     </Link>
   );

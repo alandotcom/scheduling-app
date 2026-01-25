@@ -3,9 +3,10 @@
 import { useState } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Calendar } from "lucide-react";
+import { Calendar03Icon } from "@hugeicons/core-free-icons";
 
 import { orpc } from "@/lib/query";
+import { Icon } from "@/components/ui/icon";
 import { Breadcrumb } from "@/components/breadcrumb";
 
 import { Button } from "@/components/ui/button";
@@ -331,7 +332,7 @@ function NewAppointmentPage() {
                 disabled={!selectedTime || createMutation.isPending}
                 className="w-full"
               >
-                <Calendar className="mr-2 h-4 w-4" />
+                <Icon icon={Calendar03Icon} className="mr-2" />
                 {createMutation.isPending ? "Booking..." : "Book Appointment"}
               </Button>
 

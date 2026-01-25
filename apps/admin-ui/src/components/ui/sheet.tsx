@@ -6,7 +6,7 @@ import { Slot } from "@radix-ui/react-slot";
 
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { HugeiconsIcon } from "@hugeicons/react";
+import { Icon } from "@/components/ui/icon";
 import { Cancel01Icon } from "@hugeicons/core-free-icons";
 
 function Sheet({ ...props }: SheetPrimitive.Root.Props) {
@@ -89,7 +89,7 @@ function SheetContent({
               />
             }
           >
-            <HugeiconsIcon icon={Cancel01Icon} strokeWidth={2} />
+            <Icon icon={Cancel01Icon} />
             <span className="sr-only">Close</span>
           </SheetPrimitive.Close>
         )}

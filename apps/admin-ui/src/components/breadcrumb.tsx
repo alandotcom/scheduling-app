@@ -1,5 +1,6 @@
 import { Link } from "@tanstack/react-router";
-import { ChevronRight } from "lucide-react";
+import { ArrowRight01Icon } from "@hugeicons/core-free-icons";
+import { Icon } from "@/components/ui/icon";
 
 interface BreadcrumbItem {
   label: string;
@@ -16,9 +17,7 @@ export function Breadcrumb({ items }: BreadcrumbProps) {
       <ol className="flex items-center gap-1 text-sm text-muted-foreground">
         {items.map((item, index) => (
           <li key={item.label} className="flex items-center gap-1">
-            {index > 0 && (
-              <ChevronRight className="h-4 w-4" aria-hidden="true" />
-            )}
+            {index > 0 && <Icon icon={ArrowRight01Icon} aria-hidden="true" />}
             {item.to ? (
               <Link
                 to={item.to}

@@ -4,9 +4,14 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Plus, Pencil, Trash2 } from "lucide-react";
+import {
+  Add01Icon,
+  PencilEdit01Icon,
+  Delete01Icon,
+} from "@hugeicons/core-free-icons";
 
 import { z } from "zod/mini";
+import { Icon } from "@/components/ui/icon";
 import { toast } from "sonner";
 import { orpc } from "@/lib/query";
 import { createResourceSchema } from "@scheduling/dto";
@@ -245,7 +250,7 @@ function ResourcesPage() {
         </div>
         {!crud.isFormOpen && (
           <Button onClick={crud.openCreate}>
-            <Plus className="mr-2 h-4 w-4" />
+            <Icon icon={Add01Icon} className="mr-2" />
             Add Resource
           </Button>
         )}
@@ -341,7 +346,7 @@ function ResourcesPage() {
                           }
                           disabled={crud.isFormOpen}
                         >
-                          <Pencil className="h-4 w-4" />
+                          <Icon icon={PencilEdit01Icon} />
                         </Button>
                         <Button
                           variant="ghost"
@@ -350,7 +355,7 @@ function ResourcesPage() {
                           onClick={() => crud.openDelete(resource.id)}
                           disabled={crud.isFormOpen}
                         >
-                          <Trash2 className="h-4 w-4" />
+                          <Icon icon={Delete01Icon} />
                         </Button>
                       </div>
                     </TableCell>

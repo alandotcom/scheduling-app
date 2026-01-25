@@ -4,9 +4,14 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Plus, Pencil, Trash2 } from "lucide-react";
+import {
+  Add01Icon,
+  PencilEdit01Icon,
+  Delete01Icon,
+} from "@hugeicons/core-free-icons";
 
 import { toast } from "sonner";
+import { Icon } from "@/components/ui/icon";
 import { orpc } from "@/lib/query";
 import { TIMEZONES } from "@/lib/constants";
 import { createLocationSchema } from "@scheduling/dto";
@@ -204,7 +209,7 @@ function LocationsPage() {
         </div>
         {!crud.isFormOpen && (
           <Button onClick={crud.openCreate}>
-            <Plus className="mr-2 h-4 w-4" />
+            <Icon icon={Add01Icon} className="mr-2" />
             Add Location
           </Button>
         )}
@@ -292,7 +297,7 @@ function LocationsPage() {
                           }
                           disabled={crud.isFormOpen}
                         >
-                          <Pencil className="h-4 w-4" />
+                          <Icon icon={PencilEdit01Icon} />
                         </Button>
                         <Button
                           variant="ghost"
@@ -301,7 +306,7 @@ function LocationsPage() {
                           onClick={() => crud.openDelete(location.id)}
                           disabled={crud.isFormOpen}
                         >
-                          <Trash2 className="h-4 w-4" />
+                          <Icon icon={Delete01Icon} />
                         </Button>
                       </div>
                     </TableCell>

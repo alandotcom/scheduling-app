@@ -3,9 +3,14 @@
 import { useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, X, Clock } from "lucide-react";
+import {
+  Add01Icon,
+  Cancel01Icon,
+  Clock01Icon,
+} from "@hugeicons/core-free-icons";
 
 import { toast } from "sonner";
+import { Icon } from "@/components/ui/icon";
 import { orpc } from "@/lib/query";
 
 import { Button } from "@/components/ui/button";
@@ -159,7 +164,7 @@ function AppointmentsPage() {
         </div>
         <Button asChild>
           <Link to="/appointments/new">
-            <Plus className="mr-2 h-4 w-4" />
+            <Icon icon={Add01Icon} className="mr-2" />
             New Appointment
           </Link>
         </Button>
@@ -329,7 +334,7 @@ function AppointmentsPage() {
                             aria-label="Mark as no-show"
                             onClick={() => setNoShowId(appointment.id)}
                           >
-                            <Clock className="h-4 w-4" />
+                            <Icon icon={Clock01Icon} />
                           </Button>
                           <Button
                             variant="ghost"
@@ -338,7 +343,7 @@ function AppointmentsPage() {
                             aria-label="Cancel appointment"
                             onClick={() => setCancellingId(appointment.id)}
                           >
-                            <X className="h-4 w-4" />
+                            <Icon icon={Cancel01Icon} />
                           </Button>
                         </div>
                       ) : (

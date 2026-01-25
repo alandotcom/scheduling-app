@@ -4,9 +4,15 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Plus, Pencil, Trash2, Clock } from "lucide-react";
+import {
+  Add01Icon,
+  PencilEdit01Icon,
+  Delete01Icon,
+  Clock01Icon,
+} from "@hugeicons/core-free-icons";
 
 import { toast } from "sonner";
+import { Icon } from "@/components/ui/icon";
 import { orpc } from "@/lib/query";
 import { TIMEZONES } from "@/lib/constants";
 import { createCalendarSchema } from "@scheduling/dto";
@@ -253,7 +259,7 @@ function CalendarsPage() {
         </div>
         {!crud.isFormOpen && (
           <Button onClick={crud.openCreate}>
-            <Plus className="mr-2 h-4 w-4" />
+            <Icon icon={Add01Icon} className="mr-2" />
             Add Calendar
           </Button>
         )}
@@ -345,7 +351,7 @@ function CalendarsPage() {
                             to="/calendars/$calendarId/availability"
                             params={{ calendarId: calendar.id }}
                           >
-                            <Clock className="h-4 w-4" />
+                            <Icon icon={Clock01Icon} />
                           </Link>
                         </Button>
                         <Button
@@ -362,7 +368,7 @@ function CalendarsPage() {
                           }
                           disabled={crud.isFormOpen}
                         >
-                          <Pencil className="h-4 w-4" />
+                          <Icon icon={PencilEdit01Icon} />
                         </Button>
                         <Button
                           variant="ghost"
@@ -371,7 +377,7 @@ function CalendarsPage() {
                           onClick={() => crud.openDelete(calendar.id)}
                           disabled={crud.isFormOpen}
                         >
-                          <Trash2 className="h-4 w-4" />
+                          <Icon icon={Delete01Icon} />
                         </Button>
                       </div>
                     </TableCell>

@@ -4,9 +4,16 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Plus, Pencil, Trash2, Link2, Calendar } from "lucide-react";
+import {
+  Add01Icon,
+  PencilEdit01Icon,
+  Delete01Icon,
+  Link01Icon,
+  Calendar03Icon,
+} from "@hugeicons/core-free-icons";
 
 import { toast } from "sonner";
+import { Icon } from "@/components/ui/icon";
 import { orpc } from "@/lib/query";
 import { createAppointmentTypeSchema } from "@scheduling/dto";
 import type { CreateAppointmentTypeInput } from "@scheduling/dto";
@@ -252,7 +259,7 @@ function AppointmentTypesPage() {
         </div>
         {!crud.isFormOpen && (
           <Button onClick={crud.openCreate}>
-            <Plus className="mr-2 h-4 w-4" />
+            <Icon icon={Add01Icon} className="mr-2" />
             Add Appointment Type
           </Button>
         )}
@@ -354,7 +361,7 @@ function AppointmentTypesPage() {
                             to="/appointment-types/$typeId/calendars"
                             params={{ typeId: type.id }}
                           >
-                            <Calendar className="h-4 w-4" />
+                            <Icon icon={Calendar03Icon} />
                           </Link>
                         </Button>
                         <Button
@@ -367,7 +374,7 @@ function AppointmentTypesPage() {
                             to="/appointment-types/$typeId/resources"
                             params={{ typeId: type.id }}
                           >
-                            <Link2 className="h-4 w-4" />
+                            <Icon icon={Link01Icon} />
                           </Link>
                         </Button>
                         <Button
@@ -388,7 +395,7 @@ function AppointmentTypesPage() {
                           }
                           disabled={crud.isFormOpen}
                         >
-                          <Pencil className="h-4 w-4" />
+                          <Icon icon={PencilEdit01Icon} />
                         </Button>
                         <Button
                           variant="ghost"
@@ -397,7 +404,7 @@ function AppointmentTypesPage() {
                           onClick={() => crud.openDelete(type.id)}
                           disabled={crud.isFormOpen}
                         >
-                          <Trash2 className="h-4 w-4" />
+                          <Icon icon={Delete01Icon} />
                         </Button>
                       </div>
                     </TableCell>

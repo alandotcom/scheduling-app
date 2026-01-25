@@ -3,9 +3,14 @@
 import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Trash2, Save } from "lucide-react";
+import {
+  Add01Icon,
+  Delete01Icon,
+  FloppyDiskIcon,
+} from "@hugeicons/core-free-icons";
 
 import { orpc } from "@/lib/query";
+import { Icon } from "@/components/ui/icon";
 import { Breadcrumb } from "@/components/breadcrumb";
 
 import { Button } from "@/components/ui/button";
@@ -140,7 +145,7 @@ function AvailabilityPage() {
           onClick={handleSave}
           disabled={!hasChanges || setWeeklyMutation.isPending}
         >
-          <Save className="mr-2 h-4 w-4" />
+          <Icon icon={FloppyDiskIcon} className="mr-2" />
           {setWeeklyMutation.isPending ? "Saving..." : "Save Changes"}
         </Button>
       </div>
@@ -156,7 +161,7 @@ function AvailabilityPage() {
             <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle>Weekly Hours</CardTitle>
               <Button size="sm" onClick={addRule}>
-                <Plus className="mr-2 h-4 w-4" />
+                <Icon icon={Add01Icon} className="mr-2" />
                 Add Time Block
               </Button>
             </CardHeader>
@@ -239,7 +244,7 @@ function AvailabilityPage() {
                         size="icon"
                         onClick={() => removeRule(index)}
                       >
-                        <Trash2 className="h-4 w-4" />
+                        <Icon icon={Delete01Icon} />
                       </Button>
                     </div>
                   ))}
