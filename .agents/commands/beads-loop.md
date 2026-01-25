@@ -1,24 +1,28 @@
 ---
 description: "Start Beads task loop - iterate until all tasks complete"
 argument-hint: "[--max-iterations N] [--prompt-file PATH]"
-allowed-tools: ["Bash(.claude/scripts/setup-beads-loop.sh:*)"]
 ---
 
-Start the Beads loop by running:
+Start the Beads loop by running the external loop script:
 
 ```bash
-.claude/scripts/setup-beads-loop.sh $ARGUMENTS
+.agents/scripts/beads-loop.sh $ARGUMENTS
 ```
 
-See @PROMPT.md
+This script runs `claude` as a subprocess for each iteration, providing fresh context.
+Each iteration handles ONE task from `bd ready`, then exits so the next iteration starts clean.
 
-Then work through tasks from `bd ready`. For each task:
-1. Run `bd show <id>` to get details
-2. Complete the work following existing patterns
-3. Run backpressure: `pnpm typecheck && pnpm lint && pnpm test`
-4. Run code review using the code-reviewer agent
-5. Fix any issues found, re-run backpressure + review if needed
-6. Run `bd close <id>` when all checks pass
-7. Commit changes
+**How it works:**
+1. Script checks `bd ready` for available tasks
+2. If tasks exist, runs `claude --dangerously-skip-permissions "@PROMPT.md"`
+3. Claude picks ONE task, completes it, then exits
+4. Script loops back to step 1 with fresh context
+5. Stops when no tasks remain or max iterations reached
 
-When you exit, the loop checks `bd ready`. If tasks remain, you continue.
+**Options:**
+- `--max-iterations N` - Stop after N iterations (default: unlimited)
+- `--prompt-file PATH` - Use custom prompt file (default: PROMPT.md)
+
+**Stopping:**
+- Ctrl+C to interrupt
+- Loop auto-stops when `bd ready` returns no tasks

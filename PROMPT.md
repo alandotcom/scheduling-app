@@ -1,10 +1,12 @@
 # Task Execution Instructions
 
+**CRITICAL: Complete ONE task, then exit. Do not loop or continue to other tasks.**
+
 ## Workflow
 
 1. Run `bd ready` to find the next unblocked task
-2. Run `bd show <id>` to get full task details
-3. Complete ONE task following existing patterns
+2. Pick ONE task and run `bd show <id>` to get full task details
+3. Complete that ONE task following existing patterns
 4. Run backpressure: `pnpm typecheck && pnpm lint && pnpm test`
 5. If backpressure fails, fix issues and re-run until passing
 6. Run `/senior-review` skill on your changes (entropy-reducing, favors simplification)

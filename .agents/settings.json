@@ -11,8 +11,7 @@
       "Bash(git log:*)",
       "Bash(docker compose:*)",
       "Bash(psql:*)",
-      "Bash(.claude/scripts/*:*)",
-      "Bash(rm -f .claude/beads-loop.local.md:*)",
+      "Bash(.agents/scripts/*:*)",
       "mcp__context7__resolve-library-id",
       "mcp__context7__query-docs",
       "mcp__exa__web_search_exa",
@@ -22,19 +21,6 @@
       "WebFetch(domain:github.com)",
       "WebFetch(domain:orm.drizzle.team)",
       "WebFetch(domain:zod.dev)"
-    ]
-  },
-  "hooks": {
-    "Stop": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": ".claude/hooks/beads-stop-hook.sh",
-            "timeout": 30
-          }
-        ]
-      }
     ]
   },
   "enabledPlugins": {

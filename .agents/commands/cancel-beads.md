@@ -2,8 +2,10 @@
 description: "Cancel active Beads loop"
 ---
 
-Cancel the active Beads loop:
+The Beads loop now runs as an external script (`.agents/scripts/beads-loop.sh`).
 
-```bash
-rm -f .claude/beads-loop.local.md && echo "✅ Beads loop cancelled"
-```
+To stop the loop:
+- **Ctrl+C** in the terminal running the script
+- The loop stops automatically when all tasks are complete
+
+If you started the loop from inside a Claude session, exit the session to stop the script.
