@@ -7,28 +7,19 @@ import type {
   Location,
 } from "../repositories/locations.js";
 import type { PaginationInput, PaginatedResult } from "../repositories/base.js";
-import { withOrg } from "../lib/db.js";
+import { withRls } from "../lib/db.js";
 import { ApplicationError } from "../errors/application-error.js";
 import { events } from "./jobs/emitter.js";
-
-export interface ServiceContext {
-  orgId: string;
-  userId: string;
-}
+import { requireOrgId } from "../lib/request-context.js";
 
 export class LocationService {
-  async list(
-    input: PaginationInput,
-    context: ServiceContext,
-  ): Promise<PaginatedResult<Location>> {
-    return withOrg(context.orgId, (tx) =>
-      locationRepository.findMany(tx, context.orgId, input),
-    );
+  async list(input: PaginationInput): Promise<PaginatedResult<Location>> {
+    return withRls((tx) => locationRepository.findMany(tx, input));
   }
 
-  async get(id: string, context: ServiceContext): Promise<Location> {
-    return withOrg(context.orgId, async (tx) => {
-      const location = await locationRepository.findById(tx, context.orgId, id);
+  async get(id: string): Promise<Location> {
+    return withRls(async (tx) => {
+      const location = await locationRepository.findById(tx, id);
 
       if (!location) {
         throw new ApplicationError("Location not found", { code: "NOT_FOUND" });
@@ -38,19 +29,13 @@ export class LocationService {
     });
   }
 
-  async create(
-    input: LocationCreateInput,
-    context: ServiceContext,
-  ): Promise<Location> {
-    return withOrg(context.orgId, async (tx) => {
-      const location = await locationRepository.create(
-        tx,
-        context.orgId,
-        input,
-      );
+  async create(input: LocationCreateInput): Promise<Location> {
+    const orgId = requireOrgId(); // For event payload
+    return withRls(async (tx) => {
+      const location = await locationRepository.create(tx, input);
 
       await events.locationCreated(
-        context.orgId,
+        orgId,
         {
           locationId: location.id,
           name: location.name,
@@ -63,32 +48,24 @@ export class LocationService {
     });
   }
 
-  async update(
-    id: string,
-    data: LocationUpdateInput,
-    context: ServiceContext,
-  ): Promise<Location> {
-    return withOrg(context.orgId, async (tx) => {
+  async update(id: string, data: LocationUpdateInput): Promise<Location> {
+    const orgId = requireOrgId(); // For event payload
+    return withRls(async (tx) => {
       // Get existing for event payload
-      const existing = await locationRepository.findById(tx, context.orgId, id);
+      const existing = await locationRepository.findById(tx, id);
 
       if (!existing) {
         throw new ApplicationError("Location not found", { code: "NOT_FOUND" });
       }
 
-      const updated = await locationRepository.update(
-        tx,
-        context.orgId,
-        id,
-        data,
-      );
+      const updated = await locationRepository.update(tx, id, data);
 
       if (!updated) {
         throw new ApplicationError("Location not found", { code: "NOT_FOUND" });
       }
 
       await events.locationUpdated(
-        context.orgId,
+        orgId,
         {
           locationId: updated.id,
           changes: data,
@@ -104,22 +81,20 @@ export class LocationService {
     });
   }
 
-  async delete(
-    id: string,
-    context: ServiceContext,
-  ): Promise<{ success: true }> {
-    return withOrg(context.orgId, async (tx) => {
+  async delete(id: string): Promise<{ success: true }> {
+    const orgId = requireOrgId(); // For event payload
+    return withRls(async (tx) => {
       // Get existing for event payload
-      const existing = await locationRepository.findById(tx, context.orgId, id);
+      const existing = await locationRepository.findById(tx, id);
 
       if (!existing) {
         throw new ApplicationError("Location not found", { code: "NOT_FOUND" });
       }
 
-      await locationRepository.delete(tx, context.orgId, id);
+      await locationRepository.delete(tx, id);
 
       await events.locationDeleted(
-        context.orgId,
+        orgId,
         {
           locationId: id,
           name: existing.name,

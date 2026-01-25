@@ -9,18 +9,18 @@ import {
   listCalendarsQuerySchema,
 } from "@scheduling/dto";
 import { authed } from "./base.js";
-import { withOrg } from "../lib/db.js";
+import { withRls } from "../lib/db.js";
+import { requireOrgId } from "../lib/request-context.js";
 import { ApplicationError } from "../errors/application-error.js";
 import { events } from "../services/jobs/emitter.js";
 
 // List calendars with cursor pagination and optional location filter
 export const list = authed
   .input(listCalendarsQuerySchema)
-  .handler(async ({ input, context }) => {
+  .handler(async ({ input }) => {
     const { cursor, limit, locationId } = input;
-    const { orgId } = context;
 
-    const results = await withOrg(orgId, async (tx) => {
+    const results = await withRls(async (tx) => {
       let conditions = cursor ? gt(calendars.id, cursor) : undefined;
 
       if (locationId) {
@@ -50,11 +50,10 @@ export const list = authed
 // Get single calendar by ID
 export const get = authed
   .input(z.object({ id: z.string().uuid() }))
-  .handler(async ({ input, context }) => {
+  .handler(async ({ input }) => {
     const { id } = input;
-    const { orgId } = context;
 
-    const [calendar] = await withOrg(orgId, async (tx) => {
+    const [calendar] = await withRls(async (tx) => {
       return tx.select().from(calendars).where(eq(calendars.id, id)).limit(1);
     });
 
@@ -68,12 +67,12 @@ export const get = authed
 // Create calendar
 export const create = authed
   .input(createCalendarSchema)
-  .handler(async ({ input, context }) => {
-    const { orgId } = context;
+  .handler(async ({ input }) => {
+    const orgId = requireOrgId();
 
     // Validate location if provided
     if (input.locationId) {
-      const [location] = await withOrg(orgId, async (tx) => {
+      const [location] = await withRls(async (tx) => {
         return tx
           .select()
           .from(locations)
@@ -86,7 +85,7 @@ export const create = authed
       }
     }
 
-    const [calendar] = await withOrg(orgId, async (tx) => {
+    const [calendar] = await withRls(async (tx) => {
       return tx
         .insert(calendars)
         .values({
@@ -117,12 +116,12 @@ export const update = authed
       data: updateCalendarSchema,
     }),
   )
-  .handler(async ({ input, context }) => {
+  .handler(async ({ input }) => {
     const { id, data } = input;
-    const { orgId } = context;
+    const orgId = requireOrgId();
 
     // Verify calendar exists and belongs to org
-    const [existing] = await withOrg(orgId, async (tx) => {
+    const [existing] = await withRls(async (tx) => {
       return tx.select().from(calendars).where(eq(calendars.id, id)).limit(1);
     });
 
@@ -132,7 +131,7 @@ export const update = authed
 
     // Validate location if being updated
     if (data.locationId !== undefined && data.locationId !== null) {
-      const [location] = await withOrg(orgId, async (tx) => {
+      const [location] = await withRls(async (tx) => {
         return tx
           .select()
           .from(locations)
@@ -145,7 +144,7 @@ export const update = authed
       }
     }
 
-    const [updated] = await withOrg(orgId, async (tx) => {
+    const [updated] = await withRls(async (tx) => {
       return tx
         .update(calendars)
         .set({
@@ -173,12 +172,12 @@ export const update = authed
 // Delete calendar
 export const remove = authed
   .input(z.object({ id: z.string().uuid() }))
-  .handler(async ({ input, context }) => {
+  .handler(async ({ input }) => {
     const { id } = input;
-    const { orgId } = context;
+    const orgId = requireOrgId();
 
     // Verify calendar exists and belongs to org
-    const [existing] = await withOrg(orgId, async (tx) => {
+    const [existing] = await withRls(async (tx) => {
       return tx.select().from(calendars).where(eq(calendars.id, id)).limit(1);
     });
 
@@ -186,7 +185,7 @@ export const remove = authed
       throw new ApplicationError("Calendar not found", { code: "NOT_FOUND" });
     }
 
-    await withOrg(orgId, async (tx) => {
+    await withRls(async (tx) => {
       return tx.delete(calendars).where(eq(calendars.id, id));
     });
 

@@ -4,7 +4,8 @@ import { eq, gt } from "drizzle-orm";
 import { locations } from "@scheduling/db/schema";
 import type { PaginationInput, PaginatedResult } from "./base.js";
 import type { DbClient } from "../lib/db.js";
-import { paginate, setOrgContext } from "./base.js";
+import { paginate } from "./base.js";
+import { requireOrgId } from "../lib/request-context.js";
 
 // Types inferred from schema
 export type Location = typeof locations.$inferSelect;
@@ -21,12 +22,8 @@ export interface LocationUpdateInput {
 }
 
 export class LocationRepository {
-  async findById(
-    tx: DbClient,
-    orgId: string,
-    id: string,
-  ): Promise<Location | null> {
-    await setOrgContext(tx, orgId);
+  async findById(tx: DbClient, id: string): Promise<Location | null> {
+    // RLS already set by withRls() in service layer
     const [result] = await tx
       .select()
       .from(locations)
@@ -37,10 +34,9 @@ export class LocationRepository {
 
   async findMany(
     tx: DbClient,
-    orgId: string,
     input: PaginationInput,
   ): Promise<PaginatedResult<Location>> {
-    await setOrgContext(tx, orgId);
+    // RLS already set by withRls() in service layer
     const { cursor, limit } = input;
 
     const results = await tx
@@ -53,12 +49,9 @@ export class LocationRepository {
     return paginate(results, limit);
   }
 
-  async create(
-    tx: DbClient,
-    orgId: string,
-    input: LocationCreateInput,
-  ): Promise<Location> {
-    await setOrgContext(tx, orgId);
+  async create(tx: DbClient, input: LocationCreateInput): Promise<Location> {
+    // RLS already set by withRls() in service layer
+    const orgId = requireOrgId(); // Need explicit orgId for INSERT
     const [result] = await tx
       .insert(locations)
       .values({
@@ -72,11 +65,10 @@ export class LocationRepository {
 
   async update(
     tx: DbClient,
-    orgId: string,
     id: string,
     input: LocationUpdateInput,
   ): Promise<Location | null> {
-    await setOrgContext(tx, orgId);
+    // RLS already set by withRls() in service layer
     const [result] = await tx
       .update(locations)
       .set({
@@ -88,8 +80,8 @@ export class LocationRepository {
     return result ?? null;
   }
 
-  async delete(tx: DbClient, orgId: string, id: string): Promise<boolean> {
-    await setOrgContext(tx, orgId);
+  async delete(tx: DbClient, id: string): Promise<boolean> {
+    // RLS already set by withRls() in service layer
     const result = await tx
       .delete(locations)
       .where(eq(locations.id, id))

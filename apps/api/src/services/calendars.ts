@@ -9,10 +9,10 @@ import type {
   CalendarWithLocation,
 } from "../repositories/calendars.js";
 import type { PaginatedResult } from "../repositories/base.js";
-import { withOrg } from "../lib/db.js";
+import { withRls } from "../lib/db.js";
 import { ApplicationError } from "../errors/application-error.js";
 import { events } from "./jobs/emitter.js";
-import type { ServiceContext } from "./locations.js";
+import { requireOrgId } from "../lib/request-context.js";
 
 // Transform joined result to response format
 function toCalendarResponse(row: CalendarWithLocation) {
@@ -23,25 +23,13 @@ function toCalendarResponse(row: CalendarWithLocation) {
 }
 
 export class CalendarService {
-  async list(
-    input: CalendarListInput,
-    context: ServiceContext,
-  ): Promise<PaginatedResult<Calendar>> {
-    return withOrg(context.orgId, (tx) =>
-      calendarRepository.findMany(tx, context.orgId, input),
-    );
+  async list(input: CalendarListInput): Promise<PaginatedResult<Calendar>> {
+    return withRls((tx) => calendarRepository.findMany(tx, input));
   }
 
-  async get(
-    id: string,
-    context: ServiceContext,
-  ): Promise<ReturnType<typeof toCalendarResponse>> {
-    return withOrg(context.orgId, async (tx) => {
-      const result = await calendarRepository.findByIdWithLocation(
-        tx,
-        context.orgId,
-        id,
-      );
+  async get(id: string): Promise<ReturnType<typeof toCalendarResponse>> {
+    return withRls(async (tx) => {
+      const result = await calendarRepository.findByIdWithLocation(tx, id);
 
       if (!result) {
         throw new ApplicationError("Calendar not found", { code: "NOT_FOUND" });
@@ -51,24 +39,21 @@ export class CalendarService {
     });
   }
 
-  async create(
-    input: CalendarCreateInput,
-    context: ServiceContext,
-  ): Promise<Calendar> {
-    const { orgId } = context;
+  async create(input: CalendarCreateInput): Promise<Calendar> {
+    const orgId = requireOrgId();
 
     // Validate location if provided
     if (input.locationId) {
-      const locationExists = await withOrg(orgId, (tx) =>
-        calendarRepository.verifyLocationAccess(tx, orgId, input.locationId!),
+      const locationExists = await withRls((tx) =>
+        calendarRepository.verifyLocationAccess(tx, input.locationId!),
       );
       if (!locationExists) {
         throw new ApplicationError("Location not found", { code: "NOT_FOUND" });
       }
     }
 
-    return withOrg(orgId, async (tx) => {
-      const calendar = await calendarRepository.create(tx, orgId, input);
+    return withRls(async (tx) => {
+      const calendar = await calendarRepository.create(tx, input);
 
       await events.calendarCreated(
         orgId,
@@ -85,31 +70,27 @@ export class CalendarService {
     });
   }
 
-  async update(
-    id: string,
-    data: CalendarUpdateInput,
-    context: ServiceContext,
-  ): Promise<Calendar> {
-    const { orgId } = context;
+  async update(id: string, data: CalendarUpdateInput): Promise<Calendar> {
+    const orgId = requireOrgId();
 
     // Validate location if being updated
     if (data.locationId !== undefined && data.locationId !== null) {
-      const locationExists = await withOrg(orgId, (tx) =>
-        calendarRepository.verifyLocationAccess(tx, orgId, data.locationId!),
+      const locationExists = await withRls((tx) =>
+        calendarRepository.verifyLocationAccess(tx, data.locationId!),
       );
       if (!locationExists) {
         throw new ApplicationError("Location not found", { code: "NOT_FOUND" });
       }
     }
 
-    return withOrg(orgId, async (tx) => {
-      const existing = await calendarRepository.findById(tx, orgId, id);
+    return withRls(async (tx) => {
+      const existing = await calendarRepository.findById(tx, id);
 
       if (!existing) {
         throw new ApplicationError("Calendar not found", { code: "NOT_FOUND" });
       }
 
-      const updated = await calendarRepository.update(tx, orgId, id, data);
+      const updated = await calendarRepository.update(tx, id, data);
 
       if (!updated) {
         throw new ApplicationError("Calendar not found", { code: "NOT_FOUND" });
@@ -133,21 +114,20 @@ export class CalendarService {
     });
   }
 
-  async delete(
-    id: string,
-    context: ServiceContext,
-  ): Promise<{ success: true }> {
-    return withOrg(context.orgId, async (tx) => {
-      const existing = await calendarRepository.findById(tx, context.orgId, id);
+  async delete(id: string): Promise<{ success: true }> {
+    const orgId = requireOrgId();
+
+    return withRls(async (tx) => {
+      const existing = await calendarRepository.findById(tx, id);
 
       if (!existing) {
         throw new ApplicationError("Calendar not found", { code: "NOT_FOUND" });
       }
 
-      await calendarRepository.delete(tx, context.orgId, id);
+      await calendarRepository.delete(tx, id);
 
       await events.calendarDeleted(
-        context.orgId,
+        orgId,
         {
           calendarId: id,
           name: existing.name,

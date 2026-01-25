@@ -17,29 +17,19 @@ const idInput = z.object({ id: z.string().uuid() });
 export const list = authed
   .input(listAppointmentsQuerySchema)
   .handler(async ({ input, context }) => {
-    return appointmentService.list(input, {
-      orgId: context.orgId,
-      userId: context.userId!,
-    });
+    return appointmentService.list(input, { authMethod: context.authMethod });
   });
 
 // Get single appointment by ID
 export const get = authed.input(idInput).handler(async ({ input, context }) => {
-  return appointmentService.get(input.id, {
-    orgId: context.orgId,
-    userId: context.userId!,
-  });
+  return appointmentService.get(input.id, { authMethod: context.authMethod });
 });
 
 // Create appointment with availability check
 export const create = authed
   .input(createAppointmentSchema)
   .handler(async ({ input, context }) => {
-    return appointmentService.create(input, {
-      orgId: context.orgId,
-      userId: context.userId!,
-      authMethod: context.authMethod,
-    });
+    return appointmentService.create(input, { authMethod: context.authMethod });
   });
 
 // Update appointment details (notes, clientId only)
@@ -47,8 +37,6 @@ export const update = authed
   .input(idInput.merge(z.object({ data: updateAppointmentSchema })))
   .handler(async ({ input, context }) => {
     return appointmentService.update(input.id, input.data, {
-      orgId: context.orgId,
-      userId: context.userId!,
       authMethod: context.authMethod,
     });
   });
@@ -58,8 +46,6 @@ export const cancel = authed
   .input(idInput.merge(z.object({ data: cancelAppointmentSchema.optional() })))
   .handler(async ({ input, context }) => {
     return appointmentService.cancel(input.id, input.data, {
-      orgId: context.orgId,
-      userId: context.userId!,
       authMethod: context.authMethod,
     });
   });
@@ -69,8 +55,6 @@ export const reschedule = authed
   .input(idInput.merge(z.object({ data: rescheduleAppointmentSchema })))
   .handler(async ({ input, context }) => {
     return appointmentService.reschedule(input.id, input.data, {
-      orgId: context.orgId,
-      userId: context.userId!,
       authMethod: context.authMethod,
     });
   });
@@ -80,8 +64,6 @@ export const noShow = authed
   .input(idInput)
   .handler(async ({ input, context }) => {
     return appointmentService.noShow(input.id, {
-      orgId: context.orgId,
-      userId: context.userId!,
       authMethod: context.authMethod,
     });
   });

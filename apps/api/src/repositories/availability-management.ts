@@ -10,7 +10,7 @@ import {
 } from "@scheduling/db/schema";
 import type { PaginationInput, PaginatedResult } from "./base.js";
 import type { DbClient } from "../lib/db.js";
-import { paginate, setOrgContext } from "./base.js";
+import { paginate } from "./base.js";
 
 // Types inferred from schema
 export type AvailabilityRule = typeof availabilityRules.$inferSelect;
@@ -93,10 +93,9 @@ export class AvailabilityManagementRepository {
 
   async verifyCalendarAccess(
     tx: DbClient,
-    orgId: string,
     calendarId: string,
   ): Promise<boolean> {
-    await setOrgContext(tx, orgId);
+    // RLS already set by withRls() in service layer
     const [calendar] = await tx
       .select({ id: calendars.id })
       .from(calendars)
@@ -111,10 +110,9 @@ export class AvailabilityManagementRepository {
 
   async findRuleById(
     tx: DbClient,
-    orgId: string,
     id: string,
   ): Promise<AvailabilityRule | null> {
-    await setOrgContext(tx, orgId);
+    // RLS already set by withRls() in service layer
     const [result] = await tx
       .select()
       .from(availabilityRules)
@@ -125,11 +123,10 @@ export class AvailabilityManagementRepository {
 
   async findRulesByCalendar(
     tx: DbClient,
-    orgId: string,
     calendarId: string,
     input: PaginationInput,
   ): Promise<PaginatedResult<AvailabilityRule>> {
-    await setOrgContext(tx, orgId);
+    // RLS already set by withRls() in service layer
     const { cursor, limit } = input;
 
     const results = await tx
@@ -149,11 +146,10 @@ export class AvailabilityManagementRepository {
 
   async findRulesByWeekday(
     tx: DbClient,
-    orgId: string,
     calendarId: string,
     weekday: number,
   ): Promise<AvailabilityRule[]> {
-    await setOrgContext(tx, orgId);
+    // RLS already set by withRls() in service layer
     return tx
       .select()
       .from(availabilityRules)
@@ -167,11 +163,10 @@ export class AvailabilityManagementRepository {
 
   async createRule(
     tx: DbClient,
-    orgId: string,
     calendarId: string,
     input: RuleCreateInput,
   ): Promise<AvailabilityRule> {
-    await setOrgContext(tx, orgId);
+    // RLS already set by withRls() in service layer
     const [result] = await tx
       .insert(availabilityRules)
       .values({
@@ -188,11 +183,10 @@ export class AvailabilityManagementRepository {
 
   async updateRule(
     tx: DbClient,
-    orgId: string,
     id: string,
     input: RuleUpdateInput,
   ): Promise<AvailabilityRule | null> {
-    await setOrgContext(tx, orgId);
+    // RLS already set by withRls() in service layer
     const [result] = await tx
       .update(availabilityRules)
       .set(input)
@@ -201,8 +195,8 @@ export class AvailabilityManagementRepository {
     return result ?? null;
   }
 
-  async deleteRule(tx: DbClient, orgId: string, id: string): Promise<boolean> {
-    await setOrgContext(tx, orgId);
+  async deleteRule(tx: DbClient, id: string): Promise<boolean> {
+    // RLS already set by withRls() in service layer
     const result = await tx
       .delete(availabilityRules)
       .where(eq(availabilityRules.id, id))
@@ -210,12 +204,8 @@ export class AvailabilityManagementRepository {
     return result.length > 0;
   }
 
-  async deleteRulesByCalendar(
-    tx: DbClient,
-    orgId: string,
-    calendarId: string,
-  ): Promise<void> {
-    await setOrgContext(tx, orgId);
+  async deleteRulesByCalendar(tx: DbClient, calendarId: string): Promise<void> {
+    // RLS already set by withRls() in service layer
     await tx
       .delete(availabilityRules)
       .where(eq(availabilityRules.calendarId, calendarId));
@@ -223,12 +213,11 @@ export class AvailabilityManagementRepository {
 
   async createRulesBatch(
     tx: DbClient,
-    orgId: string,
     calendarId: string,
     rules: RuleCreateInput[],
   ): Promise<AvailabilityRule[]> {
     if (rules.length === 0) return [];
-    await setOrgContext(tx, orgId);
+    // RLS already set by withRls() in service layer
     return tx
       .insert(availabilityRules)
       .values(
@@ -250,10 +239,9 @@ export class AvailabilityManagementRepository {
 
   async findOverrideById(
     tx: DbClient,
-    orgId: string,
     id: string,
   ): Promise<AvailabilityOverride | null> {
-    await setOrgContext(tx, orgId);
+    // RLS already set by withRls() in service layer
     const [result] = await tx
       .select()
       .from(availabilityOverrides)
@@ -264,11 +252,10 @@ export class AvailabilityManagementRepository {
 
   async findOverridesByCalendar(
     tx: DbClient,
-    orgId: string,
     calendarId: string,
     input: PaginationInput,
   ): Promise<PaginatedResult<AvailabilityOverride>> {
-    await setOrgContext(tx, orgId);
+    // RLS already set by withRls() in service layer
     const { cursor, limit } = input;
 
     const results = await tx
@@ -288,11 +275,10 @@ export class AvailabilityManagementRepository {
 
   async findOverrideByDate(
     tx: DbClient,
-    orgId: string,
     calendarId: string,
     date: string,
   ): Promise<AvailabilityOverride | null> {
-    await setOrgContext(tx, orgId);
+    // RLS already set by withRls() in service layer
     const [result] = await tx
       .select()
       .from(availabilityOverrides)
@@ -308,11 +294,10 @@ export class AvailabilityManagementRepository {
 
   async createOverride(
     tx: DbClient,
-    orgId: string,
     calendarId: string,
     input: OverrideCreateInput,
   ): Promise<AvailabilityOverride> {
-    await setOrgContext(tx, orgId);
+    // RLS already set by withRls() in service layer
     const [result] = await tx
       .insert(availabilityOverrides)
       .values({
@@ -330,11 +315,10 @@ export class AvailabilityManagementRepository {
 
   async updateOverride(
     tx: DbClient,
-    orgId: string,
     id: string,
     input: OverrideUpdateInput,
   ): Promise<AvailabilityOverride | null> {
-    await setOrgContext(tx, orgId);
+    // RLS already set by withRls() in service layer
     const [result] = await tx
       .update(availabilityOverrides)
       .set(input)
@@ -343,12 +327,8 @@ export class AvailabilityManagementRepository {
     return result ?? null;
   }
 
-  async deleteOverride(
-    tx: DbClient,
-    orgId: string,
-    id: string,
-  ): Promise<boolean> {
-    await setOrgContext(tx, orgId);
+  async deleteOverride(tx: DbClient, id: string): Promise<boolean> {
+    // RLS already set by withRls() in service layer
     const result = await tx
       .delete(availabilityOverrides)
       .where(eq(availabilityOverrides.id, id))
@@ -362,10 +342,9 @@ export class AvailabilityManagementRepository {
 
   async findBlockedTimeById(
     tx: DbClient,
-    orgId: string,
     id: string,
   ): Promise<BlockedTime | null> {
-    await setOrgContext(tx, orgId);
+    // RLS already set by withRls() in service layer
     const [result] = await tx
       .select()
       .from(blockedTime)
@@ -376,11 +355,10 @@ export class AvailabilityManagementRepository {
 
   async findBlockedTimeByCalendar(
     tx: DbClient,
-    orgId: string,
     calendarId: string,
     input: PaginationInput,
   ): Promise<PaginatedResult<BlockedTime>> {
-    await setOrgContext(tx, orgId);
+    // RLS already set by withRls() in service layer
     const { cursor, limit } = input;
 
     const results = await tx
@@ -400,11 +378,10 @@ export class AvailabilityManagementRepository {
 
   async createBlockedTime(
     tx: DbClient,
-    orgId: string,
     calendarId: string,
     input: BlockedTimeCreateInput,
   ): Promise<BlockedTime> {
-    await setOrgContext(tx, orgId);
+    // RLS already set by withRls() in service layer
     const [result] = await tx
       .insert(blockedTime)
       .values({
@@ -419,11 +396,10 @@ export class AvailabilityManagementRepository {
 
   async updateBlockedTime(
     tx: DbClient,
-    orgId: string,
     id: string,
     input: BlockedTimeUpdateInput,
   ): Promise<BlockedTime | null> {
-    await setOrgContext(tx, orgId);
+    // RLS already set by withRls() in service layer
     const [result] = await tx
       .update(blockedTime)
       .set(input)
@@ -432,12 +408,8 @@ export class AvailabilityManagementRepository {
     return result ?? null;
   }
 
-  async deleteBlockedTime(
-    tx: DbClient,
-    orgId: string,
-    id: string,
-  ): Promise<boolean> {
-    await setOrgContext(tx, orgId);
+  async deleteBlockedTime(tx: DbClient, id: string): Promise<boolean> {
+    // RLS already set by withRls() in service layer
     const result = await tx
       .delete(blockedTime)
       .where(eq(blockedTime.id, id))
@@ -451,10 +423,9 @@ export class AvailabilityManagementRepository {
 
   async findLimitsById(
     tx: DbClient,
-    orgId: string,
     id: string,
   ): Promise<SchedulingLimits | null> {
-    await setOrgContext(tx, orgId);
+    // RLS already set by withRls() in service layer
     const [result] = await tx
       .select()
       .from(schedulingLimits)
@@ -465,11 +436,10 @@ export class AvailabilityManagementRepository {
 
   async findLimitsByCalendar(
     tx: DbClient,
-    orgId: string,
     calendarId: string,
     input: PaginationInput,
   ): Promise<PaginatedResult<SchedulingLimits>> {
-    await setOrgContext(tx, orgId);
+    // RLS already set by withRls() in service layer
     const { cursor, limit } = input;
 
     const results = await tx
@@ -489,10 +459,9 @@ export class AvailabilityManagementRepository {
 
   async createLimits(
     tx: DbClient,
-    orgId: string,
     input: LimitsCreateInput,
   ): Promise<SchedulingLimits> {
-    await setOrgContext(tx, orgId);
+    // RLS already set by withRls() in service layer
     const [result] = await tx
       .insert(schedulingLimits)
       .values({
@@ -510,11 +479,10 @@ export class AvailabilityManagementRepository {
 
   async updateLimits(
     tx: DbClient,
-    orgId: string,
     id: string,
     input: LimitsUpdateInput,
   ): Promise<SchedulingLimits | null> {
-    await setOrgContext(tx, orgId);
+    // RLS already set by withRls() in service layer
     const [result] = await tx
       .update(schedulingLimits)
       .set(input)
@@ -523,12 +491,8 @@ export class AvailabilityManagementRepository {
     return result ?? null;
   }
 
-  async deleteLimits(
-    tx: DbClient,
-    orgId: string,
-    id: string,
-  ): Promise<boolean> {
-    await setOrgContext(tx, orgId);
+  async deleteLimits(tx: DbClient, id: string): Promise<boolean> {
+    // RLS already set by withRls() in service layer
     const result = await tx
       .delete(schedulingLimits)
       .where(eq(schedulingLimits.id, id))

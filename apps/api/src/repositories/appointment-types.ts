@@ -10,7 +10,8 @@ import {
 } from "@scheduling/db/schema";
 import type { PaginationInput, PaginatedResult } from "./base.js";
 import type { DbClient } from "../lib/db.js";
-import { paginate, setOrgContext } from "./base.js";
+import { paginate } from "./base.js";
+import { requireOrgId } from "../lib/request-context.js";
 
 // Types inferred from schema
 export type AppointmentType = typeof appointmentTypes.$inferSelect;
@@ -53,12 +54,8 @@ export interface AppointmentTypeWithLinks {
 }
 
 export class AppointmentTypeRepository {
-  async findById(
-    tx: DbClient,
-    orgId: string,
-    id: string,
-  ): Promise<AppointmentType | null> {
-    await setOrgContext(tx, orgId);
+  // RLS already set by withRls() in service layer
+  async findById(tx: DbClient, id: string): Promise<AppointmentType | null> {
     const [result] = await tx
       .select()
       .from(appointmentTypes)
@@ -67,13 +64,11 @@ export class AppointmentTypeRepository {
     return result ?? null;
   }
 
+  // RLS already set by withRls() in service layer
   async findByIdWithLinks(
     tx: DbClient,
-    orgId: string,
     id: string,
   ): Promise<AppointmentTypeWithLinks | null> {
-    await setOrgContext(tx, orgId);
-
     // Get the appointment type
     const [appointmentType] = await tx
       .select()
@@ -120,12 +115,11 @@ export class AppointmentTypeRepository {
     };
   }
 
+  // RLS already set by withRls() in service layer
   async findMany(
     tx: DbClient,
-    orgId: string,
     input: PaginationInput,
   ): Promise<PaginatedResult<AppointmentType>> {
-    await setOrgContext(tx, orgId);
     const { cursor, limit } = input;
 
     const results = await tx
@@ -138,12 +132,12 @@ export class AppointmentTypeRepository {
     return paginate(results, limit);
   }
 
+  // RLS already set by withRls() in service layer
   async create(
     tx: DbClient,
-    orgId: string,
     input: AppointmentTypeCreateInput,
   ): Promise<AppointmentType> {
-    await setOrgContext(tx, orgId);
+    const orgId = requireOrgId();
     const [result] = await tx
       .insert(appointmentTypes)
       .values({
@@ -159,13 +153,12 @@ export class AppointmentTypeRepository {
     return result!;
   }
 
+  // RLS already set by withRls() in service layer
   async update(
     tx: DbClient,
-    orgId: string,
     id: string,
     input: AppointmentTypeUpdateInput,
   ): Promise<AppointmentType | null> {
-    await setOrgContext(tx, orgId);
     const [result] = await tx
       .update(appointmentTypes)
       .set({
@@ -177,8 +170,8 @@ export class AppointmentTypeRepository {
     return result ?? null;
   }
 
-  async delete(tx: DbClient, orgId: string, id: string): Promise<boolean> {
-    await setOrgContext(tx, orgId);
+  // RLS already set by withRls() in service layer
+  async delete(tx: DbClient, id: string): Promise<boolean> {
     const result = await tx
       .delete(appointmentTypes)
       .where(eq(appointmentTypes.id, id))
@@ -247,13 +240,12 @@ export class AppointmentTypeRepository {
     return result.length > 0;
   }
 
+  // RLS already set by withRls() in service layer
   // Get calendars linked to an appointment type
   async getLinkedCalendars(
     tx: DbClient,
-    orgId: string,
     appointmentTypeId: string,
   ): Promise<LinkedCalendar[]> {
-    await setOrgContext(tx, orgId);
     return tx
       .select({
         id: calendars.id,
@@ -268,13 +260,12 @@ export class AppointmentTypeRepository {
       .where(eq(appointmentTypeCalendars.appointmentTypeId, appointmentTypeId));
   }
 
+  // RLS already set by withRls() in service layer
   // Get resources linked to an appointment type
   async getLinkedResources(
     tx: DbClient,
-    orgId: string,
     appointmentTypeId: string,
   ): Promise<LinkedResource[]> {
-    await setOrgContext(tx, orgId);
     return tx
       .select({
         id: resources.id,
@@ -289,13 +280,12 @@ export class AppointmentTypeRepository {
       .where(eq(appointmentTypeResources.appointmentTypeId, appointmentTypeId));
   }
 
+  // RLS already set by withRls() in service layer
   // Verify a calendar exists and belongs to org
   async verifyCalendarAccess(
     tx: DbClient,
-    orgId: string,
     calendarId: string,
   ): Promise<boolean> {
-    await setOrgContext(tx, orgId);
     const [calendar] = await tx
       .select({ id: calendars.id })
       .from(calendars)
@@ -304,13 +294,12 @@ export class AppointmentTypeRepository {
     return !!calendar;
   }
 
+  // RLS already set by withRls() in service layer
   // Verify a resource exists and belongs to org
   async verifyResourceAccess(
     tx: DbClient,
-    orgId: string,
     resourceId: string,
   ): Promise<boolean> {
-    await setOrgContext(tx, orgId);
     const [resource] = await tx
       .select({ id: resources.id })
       .from(resources)

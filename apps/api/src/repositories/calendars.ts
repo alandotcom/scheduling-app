@@ -4,7 +4,8 @@ import { eq, gt } from "drizzle-orm";
 import { calendars, locations } from "@scheduling/db/schema";
 import type { PaginationInput, PaginatedResult } from "./base.js";
 import type { DbClient } from "../lib/db.js";
-import { paginate, setOrgContext } from "./base.js";
+import { paginate } from "./base.js";
+import { requireOrgId } from "../lib/request-context.js";
 
 // Types inferred from schema
 export type Calendar = typeof calendars.$inferSelect;
@@ -36,12 +37,8 @@ export interface CalendarWithLocation {
 }
 
 export class CalendarRepository {
-  async findById(
-    tx: DbClient,
-    orgId: string,
-    id: string,
-  ): Promise<Calendar | null> {
-    await setOrgContext(tx, orgId);
+  async findById(tx: DbClient, id: string): Promise<Calendar | null> {
+    // RLS already set by withRls() in service layer
     const [result] = await tx
       .select()
       .from(calendars)
@@ -52,10 +49,9 @@ export class CalendarRepository {
 
   async findByIdWithLocation(
     tx: DbClient,
-    orgId: string,
     id: string,
   ): Promise<CalendarWithLocation | null> {
-    await setOrgContext(tx, orgId);
+    // RLS already set by withRls() in service layer
     const results = await tx
       .select({
         calendar: calendars,
@@ -74,10 +70,9 @@ export class CalendarRepository {
 
   async findMany(
     tx: DbClient,
-    orgId: string,
     input: CalendarListInput,
   ): Promise<PaginatedResult<Calendar>> {
-    await setOrgContext(tx, orgId);
+    // RLS already set by withRls() in service layer
     const { cursor, limit, locationId } = input;
 
     let query = tx.select().from(calendars).$dynamic();
@@ -94,12 +89,9 @@ export class CalendarRepository {
     return paginate(results, limit);
   }
 
-  async create(
-    tx: DbClient,
-    orgId: string,
-    input: CalendarCreateInput,
-  ): Promise<Calendar> {
-    await setOrgContext(tx, orgId);
+  async create(tx: DbClient, input: CalendarCreateInput): Promise<Calendar> {
+    // RLS already set by withRls() in service layer
+    const orgId = requireOrgId(); // Need explicit orgId for INSERT
     const [result] = await tx
       .insert(calendars)
       .values({
@@ -114,11 +106,10 @@ export class CalendarRepository {
 
   async update(
     tx: DbClient,
-    orgId: string,
     id: string,
     input: CalendarUpdateInput,
   ): Promise<Calendar | null> {
-    await setOrgContext(tx, orgId);
+    // RLS already set by withRls() in service layer
     const [result] = await tx
       .update(calendars)
       .set({
@@ -130,8 +121,8 @@ export class CalendarRepository {
     return result ?? null;
   }
 
-  async delete(tx: DbClient, orgId: string, id: string): Promise<boolean> {
-    await setOrgContext(tx, orgId);
+  async delete(tx: DbClient, id: string): Promise<boolean> {
+    // RLS already set by withRls() in service layer
     const result = await tx
       .delete(calendars)
       .where(eq(calendars.id, id))
@@ -141,10 +132,9 @@ export class CalendarRepository {
 
   async verifyLocationAccess(
     tx: DbClient,
-    orgId: string,
     locationId: string,
   ): Promise<boolean> {
-    await setOrgContext(tx, orgId);
+    // RLS already set by withRls() in service layer
     const [location] = await tx
       .select({ id: locations.id })
       .from(locations)

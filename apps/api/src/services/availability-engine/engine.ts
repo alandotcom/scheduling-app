@@ -2,11 +2,10 @@
 
 import { DateTime } from "luxon";
 import { RRule } from "rrule";
-import { withOrg } from "../../lib/db.js";
+import { withRls } from "../../lib/db.js";
 import type { DbClient } from "../../lib/db.js";
 import { ApplicationError } from "../../errors/application-error.js";
 import { availabilityRepository } from "../../repositories/availability.js";
-import type { ServiceContext } from "../locations.js";
 import type {
   AvailabilityQuery,
   TimeSlot,
@@ -37,15 +36,12 @@ export class AvailabilityService {
   /**
    * Get available dates in the range
    */
-  async getAvailableDates(
-    query: AvailabilityQuery,
-    context: ServiceContext,
-  ): Promise<string[]> {
-    return withOrg(context.orgId, async (tx) => {
+  async getAvailableDates(query: AvailabilityQuery): Promise<string[]> {
+    return withRls(async (tx) => {
       const { startDate, endDate, timezone } = query;
 
       // Load all data once for efficiency
-      const data = await this.loadAvailabilityData(tx, context.orgId, query, {
+      const data = await this.loadAvailabilityData(tx, query, {
         requireAllCalendars: true,
       });
       if (!data) {
@@ -74,12 +70,9 @@ export class AvailabilityService {
   /**
    * Get available time slots in the range
    */
-  async getAvailableSlots(
-    query: AvailabilityQuery,
-    context: ServiceContext,
-  ): Promise<TimeSlot[]> {
-    return withOrg(context.orgId, async (tx) => {
-      const data = await this.loadAvailabilityData(tx, context.orgId, query, {
+  async getAvailableSlots(query: AvailabilityQuery): Promise<TimeSlot[]> {
+    return withRls(async (tx) => {
+      const data = await this.loadAvailabilityData(tx, query, {
         requireAllCalendars: true,
       });
       if (!data) {
@@ -103,12 +96,10 @@ export class AvailabilityService {
     calendarId: string,
     startTime: Date,
     timezone: string,
-    context: ServiceContext,
   ): Promise<{ available: boolean; reason?: string }> {
-    return withOrg(context.orgId, async (tx) => {
+    return withRls(async (tx) => {
       const appointmentType = await availabilityRepository.loadAppointmentType(
         tx,
-        context.orgId,
         appointmentTypeId,
       );
       if (!appointmentType) {
@@ -130,7 +121,7 @@ export class AvailabilityService {
         timezone,
       };
 
-      const data = await this.loadAvailabilityData(tx, context.orgId, query);
+      const data = await this.loadAvailabilityData(tx, query);
       if (!data) {
         return { available: false, reason: "INVALID_CALENDAR" };
       }
@@ -161,7 +152,6 @@ export class AvailabilityService {
 
   private async loadAvailabilityData(
     tx: DbClient,
-    orgId: string,
     query: AvailabilityQuery,
     options?: { requireAllCalendars?: boolean },
   ): Promise<AvailabilityData | null> {
@@ -171,7 +161,6 @@ export class AvailabilityService {
     // 1. Load appointment type details
     const appointmentType = await availabilityRepository.loadAppointmentType(
       tx,
-      orgId,
       appointmentTypeId,
     );
     if (!appointmentType) {
@@ -182,7 +171,6 @@ export class AvailabilityService {
     const uniqueCalendarIds = Array.from(new Set(calendarIds));
     const validCalendarIds = await availabilityRepository.getValidCalendars(
       tx,
-      orgId,
       appointmentTypeId,
       uniqueCalendarIds,
     );
@@ -199,28 +187,24 @@ export class AvailabilityService {
     // 3. Load scheduling limits
     const limits = await availabilityRepository.loadSchedulingLimits(
       tx,
-      orgId,
       validCalendarIds,
     );
 
     // 4. Load availability rules for all calendars
     const rules = await availabilityRepository.loadAvailabilityRules(
       tx,
-      orgId,
       validCalendarIds,
     );
 
     // 5. Load overrides and blocked time
     const overrides = await availabilityRepository.loadOverrides(
       tx,
-      orgId,
       validCalendarIds,
       startDate,
       endDate,
     );
     const blockedTimes = await availabilityRepository.loadBlockedTimes(
       tx,
-      orgId,
       validCalendarIds,
       startDate,
       endDate,
@@ -231,7 +215,6 @@ export class AvailabilityService {
     const existingAppointments =
       await availabilityRepository.loadExistingAppointments(
         tx,
-        orgId,
         validCalendarIds,
         startDate,
         endDate,
@@ -242,12 +225,10 @@ export class AvailabilityService {
     const resourceConstraints =
       await availabilityRepository.loadResourceConstraints(
         tx,
-        orgId,
         appointmentTypeId,
       );
     const resourcesData = await availabilityRepository.loadResourcesData(
       tx,
-      orgId,
       resourceConstraints.map((r) => r.resourceId),
     );
 

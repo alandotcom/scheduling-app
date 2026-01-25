@@ -35,47 +35,38 @@ const cursorPaginationInput = z.object({
 
 export const listRules = authed
   .input(calendarIdInput.merge(cursorPaginationInput))
-  .handler(({ input, context }) =>
-    availabilityManagementService.listRules(input.calendarId, input, context),
+  .handler(({ input }) =>
+    availabilityManagementService.listRules(input.calendarId, input),
   );
 
 export const getRule = authed
   .input(idInput)
-  .handler(({ input, context }) =>
-    availabilityManagementService.getRule(input.id, context),
-  );
+  .handler(({ input }) => availabilityManagementService.getRule(input.id));
 
 export const createRule = authed
   .input(
     calendarIdInput.merge(z.object({ data: createAvailabilityRuleSchema })),
   )
-  .handler(({ input, context }) =>
-    availabilityManagementService.createRule(
-      input.calendarId,
-      input.data,
-      context,
-    ),
+  .handler(({ input }) =>
+    availabilityManagementService.createRule(input.calendarId, input.data),
   );
 
 export const updateRule = authed
   .input(idInput.merge(z.object({ data: updateAvailabilityRuleSchema })))
-  .handler(({ input, context }) =>
-    availabilityManagementService.updateRule(input.id, input.data, context),
+  .handler(({ input }) =>
+    availabilityManagementService.updateRule(input.id, input.data),
   );
 
 export const deleteRule = authed
   .input(idInput)
-  .handler(({ input, context }) =>
-    availabilityManagementService.deleteRule(input.id, context),
-  );
+  .handler(({ input }) => availabilityManagementService.deleteRule(input.id));
 
 export const setWeeklyAvailability = authed
   .input(calendarIdInput.merge(setWeeklyAvailabilitySchema))
-  .handler(({ input, context }) =>
+  .handler(({ input }) =>
     availabilityManagementService.setWeeklyAvailability(
       input.calendarId,
       input.rules,
-      context,
     ),
   );
 
@@ -85,42 +76,32 @@ export const setWeeklyAvailability = authed
 
 export const listOverrides = authed
   .input(calendarIdInput.merge(cursorPaginationInput))
-  .handler(({ input, context }) =>
-    availabilityManagementService.listOverrides(
-      input.calendarId,
-      input,
-      context,
-    ),
+  .handler(({ input }) =>
+    availabilityManagementService.listOverrides(input.calendarId, input),
   );
 
 export const getOverride = authed
   .input(idInput)
-  .handler(({ input, context }) =>
-    availabilityManagementService.getOverride(input.id, context),
-  );
+  .handler(({ input }) => availabilityManagementService.getOverride(input.id));
 
 export const createOverride = authed
   .input(
     calendarIdInput.merge(z.object({ data: createAvailabilityOverrideSchema })),
   )
-  .handler(({ input, context }) =>
-    availabilityManagementService.createOverride(
-      input.calendarId,
-      input.data,
-      context,
-    ),
+  .handler(({ input }) =>
+    availabilityManagementService.createOverride(input.calendarId, input.data),
   );
 
 export const updateOverride = authed
   .input(idInput.merge(z.object({ data: updateAvailabilityOverrideSchema })))
-  .handler(({ input, context }) =>
-    availabilityManagementService.updateOverride(input.id, input.data, context),
+  .handler(({ input }) =>
+    availabilityManagementService.updateOverride(input.id, input.data),
   );
 
 export const deleteOverride = authed
   .input(idInput)
-  .handler(({ input, context }) =>
-    availabilityManagementService.deleteOverride(input.id, context),
+  .handler(({ input }) =>
+    availabilityManagementService.deleteOverride(input.id),
   );
 
 // ============================================================================
@@ -129,52 +110,40 @@ export const deleteOverride = authed
 
 export const listBlockedTime = authed
   .input(calendarIdInput.merge(cursorPaginationInput))
-  .handler(({ input, context }) =>
-    availabilityManagementService.listBlockedTime(
-      input.calendarId,
-      input,
-      context,
-    ),
+  .handler(({ input }) =>
+    availabilityManagementService.listBlockedTime(input.calendarId, input),
   );
 
 export const getBlockedTime = authed
   .input(idInput)
-  .handler(({ input, context }) =>
-    availabilityManagementService.getBlockedTime(input.id, context),
+  .handler(({ input }) =>
+    availabilityManagementService.getBlockedTime(input.id),
   );
 
 export const createBlockedTime = authed
   .input(calendarIdInput.merge(z.object({ data: createBlockedTimeSchema })))
-  .handler(({ input, context }) =>
-    availabilityManagementService.createBlockedTime(
-      input.calendarId,
-      {
-        startAt: new Date(input.data.startAt),
-        endAt: new Date(input.data.endAt),
-        recurringRule: input.data.recurringRule,
-      },
-      context,
-    ),
+  .handler(({ input }) =>
+    availabilityManagementService.createBlockedTime(input.calendarId, {
+      startAt: new Date(input.data.startAt),
+      endAt: new Date(input.data.endAt),
+      recurringRule: input.data.recurringRule,
+    }),
   );
 
 export const updateBlockedTime = authed
   .input(idInput.merge(z.object({ data: updateBlockedTimeSchema })))
-  .handler(({ input, context }) =>
-    availabilityManagementService.updateBlockedTime(
-      input.id,
-      {
-        startAt: input.data.startAt ? new Date(input.data.startAt) : undefined,
-        endAt: input.data.endAt ? new Date(input.data.endAt) : undefined,
-        recurringRule: input.data.recurringRule,
-      },
-      context,
-    ),
+  .handler(({ input }) =>
+    availabilityManagementService.updateBlockedTime(input.id, {
+      startAt: input.data.startAt ? new Date(input.data.startAt) : undefined,
+      endAt: input.data.endAt ? new Date(input.data.endAt) : undefined,
+      recurringRule: input.data.recurringRule,
+    }),
   );
 
 export const deleteBlockedTime = authed
   .input(idInput)
-  .handler(({ input, context }) =>
-    availabilityManagementService.deleteBlockedTime(input.id, context),
+  .handler(({ input }) =>
+    availabilityManagementService.deleteBlockedTime(input.id),
   );
 
 // ============================================================================
@@ -183,33 +152,29 @@ export const deleteBlockedTime = authed
 
 export const listSchedulingLimits = authed
   .input(calendarIdInput.merge(cursorPaginationInput))
-  .handler(({ input, context }) =>
-    availabilityManagementService.listLimits(input.calendarId, input, context),
+  .handler(({ input }) =>
+    availabilityManagementService.listLimits(input.calendarId, input),
   );
 
 export const getSchedulingLimits = authed
   .input(idInput)
-  .handler(({ input, context }) =>
-    availabilityManagementService.getLimits(input.id, context),
-  );
+  .handler(({ input }) => availabilityManagementService.getLimits(input.id));
 
 export const createSchedulingLimits = authed
   .input(z.object({ data: createSchedulingLimitsSchema }))
-  .handler(({ input, context }) =>
-    availabilityManagementService.createLimits(input.data, context),
+  .handler(({ input }) =>
+    availabilityManagementService.createLimits(input.data),
   );
 
 export const updateSchedulingLimits = authed
   .input(idInput.merge(z.object({ data: updateSchedulingLimitsSchema })))
-  .handler(({ input, context }) =>
-    availabilityManagementService.updateLimits(input.id, input.data, context),
+  .handler(({ input }) =>
+    availabilityManagementService.updateLimits(input.id, input.data),
   );
 
 export const deleteSchedulingLimits = authed
   .input(idInput)
-  .handler(({ input, context }) =>
-    availabilityManagementService.deleteLimits(input.id, context),
-  );
+  .handler(({ input }) => availabilityManagementService.deleteLimits(input.id));
 
 // ============================================================================
 // ROUTE EXPORTS
@@ -254,21 +219,15 @@ export const schedulingLimitsRoutes = {
 
 export const getDates = authed
   .input(availabilityQuerySchema)
-  .handler(async ({ input, context }) => {
-    const dates = await availabilityService.getAvailableDates(input, {
-      orgId: context.orgId,
-      userId: context.userId!,
-    });
+  .handler(async ({ input }) => {
+    const dates = await availabilityService.getAvailableDates(input);
     return { dates };
   });
 
 export const getTimes = authed
   .input(availabilityQuerySchema)
-  .handler(async ({ input, context }) => {
-    const slots = await availabilityService.getAvailableSlots(input, {
-      orgId: context.orgId,
-      userId: context.userId!,
-    });
+  .handler(async ({ input }) => {
+    const slots = await availabilityService.getAvailableSlots(input);
     return {
       slots: slots.map((slot) => ({
         start: slot.start.toISOString(),
@@ -281,13 +240,12 @@ export const getTimes = authed
 
 export const checkSlot = authed
   .input(availabilityCheckSchema)
-  .handler(({ input, context }) =>
+  .handler(({ input }) =>
     availabilityService.checkSlot(
       input.appointmentTypeId,
       input.calendarId,
       new Date(input.startTime),
       input.timezone,
-      { orgId: context.orgId, userId: context.userId! },
     ),
   );
 

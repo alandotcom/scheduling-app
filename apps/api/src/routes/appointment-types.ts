@@ -18,18 +18,18 @@ import {
   updateAppointmentTypeResourceSchema,
 } from "@scheduling/dto";
 import { authed } from "./base.js";
-import { withOrg } from "../lib/db.js";
+import { withRls } from "../lib/db.js";
+import { requireOrgId } from "../lib/request-context.js";
 import { ApplicationError } from "../errors/application-error.js";
 import { events } from "../services/jobs/emitter.js";
 
 // List appointment types with cursor pagination
 export const list = authed
   .input(listAppointmentTypesQuerySchema)
-  .handler(async ({ input, context }) => {
+  .handler(async ({ input }) => {
     const { cursor, limit } = input;
-    const { orgId } = context;
 
-    const results = await withOrg(orgId, async (tx) => {
+    const results = await withRls(async (tx) => {
       return tx
         .select()
         .from(appointmentTypes)
@@ -51,11 +51,10 @@ export const list = authed
 // Get single appointment type by ID
 export const get = authed
   .input(z.object({ id: z.string().uuid() }))
-  .handler(async ({ input, context }) => {
+  .handler(async ({ input }) => {
     const { id } = input;
-    const { orgId } = context;
 
-    const [appointmentType] = await withOrg(orgId, async (tx) => {
+    const [appointmentType] = await withRls(async (tx) => {
       return tx
         .select()
         .from(appointmentTypes)
@@ -75,10 +74,10 @@ export const get = authed
 // Create appointment type
 export const create = authed
   .input(createAppointmentTypeSchema)
-  .handler(async ({ input, context }) => {
-    const { orgId } = context;
+  .handler(async ({ input }) => {
+    const orgId = requireOrgId();
 
-    const [appointmentType] = await withOrg(orgId, async (tx) => {
+    const [appointmentType] = await withRls(async (tx) => {
       return tx
         .insert(appointmentTypes)
         .values({
@@ -114,12 +113,12 @@ export const update = authed
       data: updateAppointmentTypeSchema,
     }),
   )
-  .handler(async ({ input, context }) => {
+  .handler(async ({ input }) => {
     const { id, data } = input;
-    const { orgId } = context;
+    const orgId = requireOrgId();
 
     // Verify appointment type exists and belongs to org
-    const [existing] = await withOrg(orgId, async (tx) => {
+    const [existing] = await withRls(async (tx) => {
       return tx
         .select()
         .from(appointmentTypes)
@@ -133,7 +132,7 @@ export const update = authed
       });
     }
 
-    const [updated] = await withOrg(orgId, async (tx) => {
+    const [updated] = await withRls(async (tx) => {
       return tx
         .update(appointmentTypes)
         .set({
@@ -163,12 +162,12 @@ export const update = authed
 // Delete appointment type
 export const remove = authed
   .input(z.object({ id: z.string().uuid() }))
-  .handler(async ({ input, context }) => {
+  .handler(async ({ input }) => {
     const { id } = input;
-    const { orgId } = context;
+    const orgId = requireOrgId();
 
     // Verify appointment type exists and belongs to org
-    const [existing] = await withOrg(orgId, async (tx) => {
+    const [existing] = await withRls(async (tx) => {
       return tx
         .select()
         .from(appointmentTypes)
@@ -182,7 +181,7 @@ export const remove = authed
       });
     }
 
-    await withOrg(orgId, async (tx) => {
+    await withRls(async (tx) => {
       // Delete associated calendars and resources first
       await tx
         .delete(appointmentTypeCalendars)
@@ -210,12 +209,11 @@ export const remove = authed
 // List calendars for an appointment type
 export const listCalendars = authed
   .input(z.object({ appointmentTypeId: z.string().uuid() }))
-  .handler(async ({ input, context }) => {
+  .handler(async ({ input }) => {
     const { appointmentTypeId } = input;
-    const { orgId } = context;
 
     // Verify appointment type exists
-    const [appointmentType] = await withOrg(orgId, async (tx) => {
+    const [appointmentType] = await withRls(async (tx) => {
       return tx
         .select()
         .from(appointmentTypes)
@@ -229,7 +227,7 @@ export const listCalendars = authed
       });
     }
 
-    const results = await withOrg(orgId, async (tx) => {
+    const results = await withRls(async (tx) => {
       return tx
         .select({
           id: appointmentTypeCalendars.id,
@@ -258,12 +256,11 @@ export const addCalendar = authed
       data: createAppointmentTypeCalendarSchema,
     }),
   )
-  .handler(async ({ input, context }) => {
+  .handler(async ({ input }) => {
     const { appointmentTypeId, data } = input;
-    const { orgId } = context;
 
     // Verify appointment type exists
-    const [appointmentType] = await withOrg(orgId, async (tx) => {
+    const [appointmentType] = await withRls(async (tx) => {
       return tx
         .select()
         .from(appointmentTypes)
@@ -278,7 +275,7 @@ export const addCalendar = authed
     }
 
     // Verify calendar exists
-    const [calendar] = await withOrg(orgId, async (tx) => {
+    const [calendar] = await withRls(async (tx) => {
       return tx
         .select()
         .from(calendars)
@@ -291,7 +288,7 @@ export const addCalendar = authed
     }
 
     // Check for existing association
-    const [existing] = await withOrg(orgId, async (tx) => {
+    const [existing] = await withRls(async (tx) => {
       return tx
         .select()
         .from(appointmentTypeCalendars)
@@ -313,7 +310,7 @@ export const addCalendar = authed
       );
     }
 
-    const [association] = await withOrg(orgId, async (tx) => {
+    const [association] = await withRls(async (tx) => {
       return tx
         .insert(appointmentTypeCalendars)
         .values({
@@ -334,12 +331,11 @@ export const removeCalendar = authed
       calendarId: z.string().uuid(),
     }),
   )
-  .handler(async ({ input, context }) => {
+  .handler(async ({ input }) => {
     const { appointmentTypeId, calendarId } = input;
-    const { orgId } = context;
 
     // Verify association exists
-    const [existing] = await withOrg(orgId, async (tx) => {
+    const [existing] = await withRls(async (tx) => {
       return tx
         .select()
         .from(appointmentTypeCalendars)
@@ -358,7 +354,7 @@ export const removeCalendar = authed
       });
     }
 
-    await withOrg(orgId, async (tx) => {
+    await withRls(async (tx) => {
       return tx
         .delete(appointmentTypeCalendars)
         .where(
@@ -379,12 +375,11 @@ export const removeCalendar = authed
 // List resources for an appointment type
 export const listResources = authed
   .input(z.object({ appointmentTypeId: z.string().uuid() }))
-  .handler(async ({ input, context }) => {
+  .handler(async ({ input }) => {
     const { appointmentTypeId } = input;
-    const { orgId } = context;
 
     // Verify appointment type exists
-    const [appointmentType] = await withOrg(orgId, async (tx) => {
+    const [appointmentType] = await withRls(async (tx) => {
       return tx
         .select()
         .from(appointmentTypes)
@@ -398,7 +393,7 @@ export const listResources = authed
       });
     }
 
-    const results = await withOrg(orgId, async (tx) => {
+    const results = await withRls(async (tx) => {
       return tx
         .select({
           id: appointmentTypeResources.id,
@@ -428,12 +423,11 @@ export const addResource = authed
       data: createAppointmentTypeResourceSchema,
     }),
   )
-  .handler(async ({ input, context }) => {
+  .handler(async ({ input }) => {
     const { appointmentTypeId, data } = input;
-    const { orgId } = context;
 
     // Verify appointment type exists
-    const [appointmentType] = await withOrg(orgId, async (tx) => {
+    const [appointmentType] = await withRls(async (tx) => {
       return tx
         .select()
         .from(appointmentTypes)
@@ -448,7 +442,7 @@ export const addResource = authed
     }
 
     // Verify resource exists
-    const [resource] = await withOrg(orgId, async (tx) => {
+    const [resource] = await withRls(async (tx) => {
       return tx
         .select()
         .from(resources)
@@ -461,7 +455,7 @@ export const addResource = authed
     }
 
     // Check for existing association
-    const [existing] = await withOrg(orgId, async (tx) => {
+    const [existing] = await withRls(async (tx) => {
       return tx
         .select()
         .from(appointmentTypeResources)
@@ -483,7 +477,7 @@ export const addResource = authed
       );
     }
 
-    const [association] = await withOrg(orgId, async (tx) => {
+    const [association] = await withRls(async (tx) => {
       return tx
         .insert(appointmentTypeResources)
         .values({
@@ -506,12 +500,11 @@ export const updateResource = authed
       data: updateAppointmentTypeResourceSchema,
     }),
   )
-  .handler(async ({ input, context }) => {
+  .handler(async ({ input }) => {
     const { appointmentTypeId, resourceId, data } = input;
-    const { orgId } = context;
 
     // Verify association exists
-    const [existing] = await withOrg(orgId, async (tx) => {
+    const [existing] = await withRls(async (tx) => {
       return tx
         .select()
         .from(appointmentTypeResources)
@@ -530,7 +523,7 @@ export const updateResource = authed
       });
     }
 
-    const [updated] = await withOrg(orgId, async (tx) => {
+    const [updated] = await withRls(async (tx) => {
       return tx
         .update(appointmentTypeResources)
         .set(data)
@@ -554,12 +547,11 @@ export const removeResource = authed
       resourceId: z.string().uuid(),
     }),
   )
-  .handler(async ({ input, context }) => {
+  .handler(async ({ input }) => {
     const { appointmentTypeId, resourceId } = input;
-    const { orgId } = context;
 
     // Verify association exists
-    const [existing] = await withOrg(orgId, async (tx) => {
+    const [existing] = await withRls(async (tx) => {
       return tx
         .select()
         .from(appointmentTypeResources)
@@ -578,7 +570,7 @@ export const removeResource = authed
       });
     }
 
-    await withOrg(orgId, async (tx) => {
+    await withRls(async (tx) => {
       return tx
         .delete(appointmentTypeResources)
         .where(

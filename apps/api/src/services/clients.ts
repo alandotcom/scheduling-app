@@ -8,24 +8,19 @@ import type {
   ClientListInput,
 } from "../repositories/clients.js";
 import type { PaginatedResult } from "../repositories/base.js";
-import { withOrg } from "../lib/db.js";
+import { withRls } from "../lib/db.js";
 import { ApplicationError } from "../errors/application-error.js";
 import { events } from "./jobs/emitter.js";
-import type { ServiceContext } from "./locations.js";
+import { requireOrgId } from "../lib/request-context.js";
 
 export class ClientService {
-  async list(
-    input: ClientListInput,
-    context: ServiceContext,
-  ): Promise<PaginatedResult<Client>> {
-    return withOrg(context.orgId, (tx) =>
-      clientRepository.findMany(tx, context.orgId, input),
-    );
+  async list(input: ClientListInput): Promise<PaginatedResult<Client>> {
+    return withRls((tx) => clientRepository.findMany(tx, input));
   }
 
-  async get(id: string, context: ServiceContext): Promise<Client> {
-    return withOrg(context.orgId, async (tx) => {
-      const client = await clientRepository.findById(tx, context.orgId, id);
+  async get(id: string): Promise<Client> {
+    return withRls(async (tx) => {
+      const client = await clientRepository.findById(tx, id);
 
       if (!client) {
         throw new ApplicationError("Client not found", { code: "NOT_FOUND" });
@@ -35,15 +30,13 @@ export class ClientService {
     });
   }
 
-  async create(
-    input: ClientCreateInput,
-    context: ServiceContext,
-  ): Promise<Client> {
-    return withOrg(context.orgId, async (tx) => {
-      const client = await clientRepository.create(tx, context.orgId, input);
+  async create(input: ClientCreateInput): Promise<Client> {
+    const orgId = requireOrgId();
+    return withRls(async (tx) => {
+      const client = await clientRepository.create(tx, input);
 
       await events.clientCreated(
-        context.orgId,
+        orgId,
         {
           clientId: client.id,
           firstName: client.firstName,
@@ -57,32 +50,24 @@ export class ClientService {
     });
   }
 
-  async update(
-    id: string,
-    data: ClientUpdateInput,
-    context: ServiceContext,
-  ): Promise<Client> {
-    return withOrg(context.orgId, async (tx) => {
+  async update(id: string, data: ClientUpdateInput): Promise<Client> {
+    const orgId = requireOrgId();
+    return withRls(async (tx) => {
       // Get existing for event payload
-      const existing = await clientRepository.findById(tx, context.orgId, id);
+      const existing = await clientRepository.findById(tx, id);
 
       if (!existing) {
         throw new ApplicationError("Client not found", { code: "NOT_FOUND" });
       }
 
-      const updated = await clientRepository.update(
-        tx,
-        context.orgId,
-        id,
-        data,
-      );
+      const updated = await clientRepository.update(tx, id, data);
 
       if (!updated) {
         throw new ApplicationError("Client not found", { code: "NOT_FOUND" });
       }
 
       await events.clientUpdated(
-        context.orgId,
+        orgId,
         {
           clientId: updated.id,
           changes: data,
@@ -100,22 +85,20 @@ export class ClientService {
     });
   }
 
-  async delete(
-    id: string,
-    context: ServiceContext,
-  ): Promise<{ success: true }> {
-    return withOrg(context.orgId, async (tx) => {
+  async delete(id: string): Promise<{ success: true }> {
+    const orgId = requireOrgId();
+    return withRls(async (tx) => {
       // Get existing for event payload
-      const existing = await clientRepository.findById(tx, context.orgId, id);
+      const existing = await clientRepository.findById(tx, id);
 
       if (!existing) {
         throw new ApplicationError("Client not found", { code: "NOT_FOUND" });
       }
 
-      await clientRepository.delete(tx, context.orgId, id);
+      await clientRepository.delete(tx, id);
 
       await events.clientDeleted(
-        context.orgId,
+        orgId,
         {
           clientId: id,
           firstName: existing.firstName,

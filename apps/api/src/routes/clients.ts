@@ -12,31 +12,22 @@ import { clientService } from "../services/clients.js";
 // List clients with cursor pagination and optional search
 export const list = authed
   .input(listClientsQuerySchema)
-  .handler(async ({ input, context }) => {
-    return clientService.list(input, {
-      orgId: context.orgId,
-      userId: context.userId!,
-    });
+  .handler(async ({ input }) => {
+    return clientService.list(input);
   });
 
 // Get single client by ID
 export const get = authed
   .input(z.object({ id: z.string().uuid() }))
-  .handler(async ({ input, context }) => {
-    return clientService.get(input.id, {
-      orgId: context.orgId,
-      userId: context.userId!,
-    });
+  .handler(async ({ input }) => {
+    return clientService.get(input.id);
   });
 
 // Create client
 export const create = authed
   .input(createClientSchema)
-  .handler(async ({ input, context }) => {
-    return clientService.create(input, {
-      orgId: context.orgId,
-      userId: context.userId!,
-    });
+  .handler(async ({ input }) => {
+    return clientService.create(input);
   });
 
 // Update client
@@ -47,21 +38,15 @@ export const update = authed
       data: updateClientSchema,
     }),
   )
-  .handler(async ({ input, context }) => {
-    return clientService.update(input.id, input.data, {
-      orgId: context.orgId,
-      userId: context.userId!,
-    });
+  .handler(async ({ input }) => {
+    return clientService.update(input.id, input.data);
   });
 
 // Delete client
 export const remove = authed
   .input(z.object({ id: z.string().uuid() }))
-  .handler(async ({ input, context }) => {
-    return clientService.delete(input.id, {
-      orgId: context.orgId,
-      userId: context.userId!,
-    });
+  .handler(async ({ input }) => {
+    return clientService.delete(input.id);
   });
 
 // Export as route object
