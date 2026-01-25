@@ -5,6 +5,9 @@
 
 set -euo pipefail
 
+# Trap Ctrl+C to exit the entire script
+trap 'echo ""; echo "🛑 Interrupted by user"; exit 130' INT
+
 MAX_ITERATIONS=0
 PROMPT_FILE="PROMPT.md"
 ITERATION=0
