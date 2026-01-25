@@ -6,7 +6,7 @@ A multi-tenant appointment scheduling platform (Acuity-style) built with modern 
 
 ```
 apps/
-  api/          → Hono + oRPC backend, BetterAuth for sessions
+  api/          → Hono backend with oRPC (UI) + OpenAPI (M2M), BetterAuth
   admin-ui/     → React 19 + TanStack Router/Query frontend
 packages/
   db/           → Drizzle ORM schema + Bun SQL
@@ -119,19 +119,26 @@ pnpm --filter @scheduling/db run push       # Push schema to dev database
 
 ### API Endpoints
 
-The API uses oRPC with automatic OpenAPI generation. Key endpoint groups:
+The API exposes two transports:
 
-| Group                  | Description                              |
-| ---------------------- | ---------------------------------------- |
-| `/v1/health`           | Health check                             |
-| `/v1/locations`        | Location CRUD                            |
-| `/v1/calendars`        | Calendar CRUD with availability rules    |
-| `/v1/resources`        | Resource CRUD                            |
-| `/v1/appointmentTypes` | Appointment type CRUD                    |
-| `/v1/availability`     | Availability queries (dates/times/check) |
-| `/v1/appointments`     | Appointment booking, reschedule, cancel  |
-| `/v1/apiTokens`        | API token management (admin only)        |
-| `/v1/audit`            | Audit log queries (admin only)           |
+| Transport    | Base Path    | Purpose              | Auth      |
+| ------------ | ------------ | -------------------- | --------- |
+| oRPC         | `/v1/*`      | Admin UI (type-safe) | Session   |
+| OpenAPI/REST | `/api/v1/*`  | M2M integrations     | API Token |
+
+**UI Endpoints (`/v1/*`)** - Full admin features:
+
+- `locations`, `calendars`, `resources`, `appointmentTypes`
+- `availability` (rules, overrides, blocked time, scheduling limits, queries)
+- `appointments`, `clients`
+- `apiTokens`, `audit` (admin only)
+
+**API Endpoints (`/api/v1/*`)** - External integrations:
+
+- `locations`, `calendars`, `resources`, `appointmentTypes`
+- `appointments`, `clients`
+- `availability` (query-only: dates, times, check)
+- Excludes: `apiTokens`, `audit`, availability management
 
 ### Authentication
 
