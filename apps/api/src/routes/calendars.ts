@@ -11,6 +11,7 @@ import { calendarService } from "../services/calendars.js";
 
 // List calendars with cursor pagination and optional location filter
 export const list = authed
+  .route({ method: "GET", path: "/calendars" })
   .input(listCalendarsQuerySchema)
   .handler(async ({ input, context }) => {
     return calendarService.list(input, {
@@ -21,6 +22,7 @@ export const list = authed
 
 // Get single calendar by ID
 export const get = authed
+  .route({ method: "GET", path: "/calendars/{id}" })
   .input(z.object({ id: z.string().uuid() }))
   .handler(async ({ input, context }) => {
     return calendarService.get(input.id, {
@@ -31,6 +33,7 @@ export const get = authed
 
 // Create calendar
 export const create = authed
+  .route({ method: "POST", path: "/calendars", successStatus: 201 })
   .input(createCalendarSchema)
   .handler(async ({ input, context }) => {
     return calendarService.create(input, {
@@ -41,6 +44,7 @@ export const create = authed
 
 // Update calendar
 export const update = authed
+  .route({ method: "PATCH", path: "/calendars/{id}" })
   .input(
     z.object({
       id: z.string().uuid(),
@@ -56,6 +60,7 @@ export const update = authed
 
 // Delete calendar
 export const remove = authed
+  .route({ method: "DELETE", path: "/calendars/{id}" })
   .input(z.object({ id: z.string().uuid() }))
   .handler(async ({ input, context }) => {
     return calendarService.delete(input.id, {

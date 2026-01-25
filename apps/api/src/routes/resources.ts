@@ -11,6 +11,7 @@ import { resourceService } from "../services/resources.js";
 
 // List resources with cursor pagination and optional location filter
 export const list = authed
+  .route({ method: "GET", path: "/resources" })
   .input(listResourcesQuerySchema)
   .handler(async ({ input, context }) => {
     return resourceService.list(input, {
@@ -21,6 +22,7 @@ export const list = authed
 
 // Get single resource by ID
 export const get = authed
+  .route({ method: "GET", path: "/resources/{id}" })
   .input(z.object({ id: z.string().uuid() }))
   .handler(async ({ input, context }) => {
     return resourceService.get(input.id, {
@@ -31,6 +33,7 @@ export const get = authed
 
 // Create resource
 export const create = authed
+  .route({ method: "POST", path: "/resources", successStatus: 201 })
   .input(createResourceSchema)
   .handler(async ({ input, context }) => {
     return resourceService.create(input, {
@@ -41,6 +44,7 @@ export const create = authed
 
 // Update resource
 export const update = authed
+  .route({ method: "PATCH", path: "/resources/{id}" })
   .input(
     z.object({
       id: z.string().uuid(),
@@ -56,6 +60,7 @@ export const update = authed
 
 // Delete resource
 export const remove = authed
+  .route({ method: "DELETE", path: "/resources/{id}" })
   .input(z.object({ id: z.string().uuid() }))
   .handler(async ({ input, context }) => {
     return resourceService.delete(input.id, {

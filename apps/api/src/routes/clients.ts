@@ -11,6 +11,7 @@ import { clientService } from "../services/clients.js";
 
 // List clients with cursor pagination and optional search
 export const list = authed
+  .route({ method: "GET", path: "/clients" })
   .input(listClientsQuerySchema)
   .handler(async ({ input, context }) => {
     return clientService.list(input, {
@@ -21,6 +22,7 @@ export const list = authed
 
 // Get single client by ID
 export const get = authed
+  .route({ method: "GET", path: "/clients/{id}" })
   .input(z.object({ id: z.string().uuid() }))
   .handler(async ({ input, context }) => {
     return clientService.get(input.id, {
@@ -31,6 +33,7 @@ export const get = authed
 
 // Create client
 export const create = authed
+  .route({ method: "POST", path: "/clients", successStatus: 201 })
   .input(createClientSchema)
   .handler(async ({ input, context }) => {
     return clientService.create(input, {
@@ -41,6 +44,7 @@ export const create = authed
 
 // Update client
 export const update = authed
+  .route({ method: "PATCH", path: "/clients/{id}" })
   .input(
     z.object({
       id: z.string().uuid(),
@@ -56,6 +60,7 @@ export const update = authed
 
 // Delete client
 export const remove = authed
+  .route({ method: "DELETE", path: "/clients/{id}" })
   .input(z.object({ id: z.string().uuid() }))
   .handler(async ({ input, context }) => {
     return clientService.delete(input.id, {

@@ -253,6 +253,7 @@ export const schedulingLimitsRoutes = {
 // ============================================================================
 
 export const getDates = authed
+  .route({ method: "GET", path: "/availability/dates" })
   .input(availabilityQuerySchema)
   .handler(async ({ input, context }) => {
     const dates = await availabilityService.getAvailableDates(input, {
@@ -263,6 +264,7 @@ export const getDates = authed
   });
 
 export const getTimes = authed
+  .route({ method: "GET", path: "/availability/times" })
   .input(availabilityQuerySchema)
   .handler(async ({ input, context }) => {
     const slots = await availabilityService.getAvailableSlots(input, {
@@ -280,6 +282,7 @@ export const getTimes = authed
   });
 
 export const checkSlot = authed
+  .route({ method: "GET", path: "/availability/check" })
   .input(availabilityCheckSchema)
   .handler(({ input, context }) =>
     availabilityService.checkSlot(

@@ -15,6 +15,7 @@ const idInput = z.object({ id: z.string().uuid() });
 
 // List appointments with cursor pagination and filters
 export const list = authed
+  .route({ method: "GET", path: "/appointments" })
   .input(listAppointmentsQuerySchema)
   .handler(async ({ input, context }) => {
     return appointmentService.list(input, {
@@ -24,15 +25,19 @@ export const list = authed
   });
 
 // Get single appointment by ID
-export const get = authed.input(idInput).handler(async ({ input, context }) => {
-  return appointmentService.get(input.id, {
-    orgId: context.orgId,
-    userId: context.userId!,
+export const get = authed
+  .route({ method: "GET", path: "/appointments/{id}" })
+  .input(idInput)
+  .handler(async ({ input, context }) => {
+    return appointmentService.get(input.id, {
+      orgId: context.orgId,
+      userId: context.userId!,
+    });
   });
-});
 
 // Create appointment with availability check
 export const create = authed
+  .route({ method: "POST", path: "/appointments", successStatus: 201 })
   .input(createAppointmentSchema)
   .handler(async ({ input, context }) => {
     return appointmentService.create(input, {
@@ -44,6 +49,7 @@ export const create = authed
 
 // Update appointment details (notes, clientId only)
 export const update = authed
+  .route({ method: "PATCH", path: "/appointments/{id}" })
   .input(idInput.merge(z.object({ data: updateAppointmentSchema })))
   .handler(async ({ input, context }) => {
     return appointmentService.update(input.id, input.data, {
@@ -55,6 +61,7 @@ export const update = authed
 
 // Cancel appointment
 export const cancel = authed
+  .route({ method: "DELETE", path: "/appointments/{id}" })
   .input(idInput.merge(z.object({ data: cancelAppointmentSchema.optional() })))
   .handler(async ({ input, context }) => {
     return appointmentService.cancel(input.id, input.data, {
@@ -66,6 +73,7 @@ export const cancel = authed
 
 // Reschedule appointment to new time
 export const reschedule = authed
+  .route({ method: "POST", path: "/appointments/{id}/reschedule" })
   .input(idInput.merge(z.object({ data: rescheduleAppointmentSchema })))
   .handler(async ({ input, context }) => {
     return appointmentService.reschedule(input.id, input.data, {
@@ -77,6 +85,7 @@ export const reschedule = authed
 
 // Mark appointment as no-show
 export const noShow = authed
+  .route({ method: "POST", path: "/appointments/{id}/no-show" })
   .input(idInput)
   .handler(async ({ input, context }) => {
     return appointmentService.noShow(input.id, {

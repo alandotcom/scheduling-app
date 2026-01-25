@@ -1,8 +1,11 @@
 // @scheduling/api - Hono + oRPC API server with BetterAuth
+// Dual transport: oRPC for UI (type-safe), OpenAPI for M2M (REST)
 
 import { Hono } from "hono";
 import { RPCHandler } from "@orpc/server/fetch";
-import { router } from "./routes/index.js";
+import { OpenAPIHandler } from "@orpc/openapi/fetch";
+import { uiRouter, apiRouter } from "./routes/index.js";
+import { openAPIGenerator } from "./lib/orpc.js";
 import { auth } from "./lib/auth.js";
 import { authMiddleware } from "./middleware/auth.js";
 import { rlsMiddleware } from "./middleware/rls.js";
@@ -17,23 +20,78 @@ app.use("*", errorHandler);
 
 // Health check (no auth required)
 app.get("/v1/health", (c) => c.json({ status: "ok" }));
+app.get("/api/v1/health", (c) => c.json({ status: "ok" }));
 
 // BetterAuth routes
 app.on(["GET", "POST"], "/api/auth/*", (c) => {
   return auth.handler(c.req.raw);
 });
 
-// Auth and RLS middleware for API routes
+// ============================================================================
+// oRPC HANDLER (Admin UI) - /v1/*
+// Type-safe RPC protocol for internal admin UI
+// ============================================================================
+
+// Auth and RLS middleware for oRPC routes
 app.use("/v1/*", authMiddleware);
 // app.use("/v1/*", rateLimitMiddleware); // Disabled for dev
 app.use("/v1/*", rlsMiddleware);
 
-// oRPC handler
-const rpcHandler = new RPCHandler(router);
+// oRPC handler for UI
+const rpcHandler = new RPCHandler(uiRouter);
 
 app.all("/v1/*", async (c) => {
   const { matched, response } = await rpcHandler.handle(c.req.raw, {
     prefix: "/v1",
+    context: {
+      userId: c.get("userId"),
+      orgId: c.get("orgId"),
+      sessionId: c.get("sessionId"),
+      tokenId: c.get("tokenId"),
+      authMethod: c.get("authMethod"),
+      role: c.get("role"),
+    },
+  });
+
+  if (matched) {
+    return c.newResponse(response.body, response);
+  }
+
+  return c.json(
+    { error: { code: "NOT_FOUND", message: "Route not found" } },
+    404,
+  );
+});
+
+// ============================================================================
+// OPENAPI HANDLER (M2M API) - /api/v1/*
+// REST/OpenAPI protocol for external M2M integrations
+// ============================================================================
+
+// OpenAPI spec endpoint (no auth required)
+app.get("/api/v1/openapi.json", async (c) => {
+  const spec = await openAPIGenerator.generate(apiRouter, {
+    info: {
+      title: "Scheduling API",
+      version: "1.0.0",
+      description: "REST API for appointment scheduling integrations",
+    },
+    servers: [{ url: "/api/v1" }],
+  });
+  return c.json(spec);
+});
+
+// Auth and RLS middleware for OpenAPI routes
+app.use("/api/v1/*", authMiddleware);
+// app.use("/api/v1/*", rateLimitMiddleware); // Disabled for dev
+app.use("/api/v1/*", rlsMiddleware);
+
+// OpenAPI handler for M2M API
+const openAPIHandler = new OpenAPIHandler(apiRouter);
+
+app.all("/api/v1/*", async (c) => {
+  const { matched, response } = await openAPIHandler.handle(c.req.raw, {
+    prefix: "/api/v1",
     context: {
       userId: c.get("userId"),
       orgId: c.get("orgId"),

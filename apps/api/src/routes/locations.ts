@@ -11,6 +11,7 @@ import { locationService } from "../services/locations.js";
 
 // List locations with cursor pagination
 export const list = authed
+  .route({ method: "GET", path: "/locations" })
   .input(listLocationsQuerySchema)
   .handler(async ({ input, context }) => {
     return locationService.list(input, {
@@ -21,6 +22,7 @@ export const list = authed
 
 // Get single location by ID
 export const get = authed
+  .route({ method: "GET", path: "/locations/{id}" })
   .input(z.object({ id: z.string().uuid() }))
   .handler(async ({ input, context }) => {
     return locationService.get(input.id, {
@@ -31,6 +33,7 @@ export const get = authed
 
 // Create location
 export const create = authed
+  .route({ method: "POST", path: "/locations", successStatus: 201 })
   .input(createLocationSchema)
   .handler(async ({ input, context }) => {
     return locationService.create(input, {
@@ -41,6 +44,7 @@ export const create = authed
 
 // Update location
 export const update = authed
+  .route({ method: "PATCH", path: "/locations/{id}" })
   .input(
     z.object({
       id: z.string().uuid(),
@@ -56,6 +60,7 @@ export const update = authed
 
 // Delete location
 export const remove = authed
+  .route({ method: "DELETE", path: "/locations/{id}" })
   .input(z.object({ id: z.string().uuid() }))
   .handler(async ({ input, context }) => {
     return locationService.delete(input.id, {

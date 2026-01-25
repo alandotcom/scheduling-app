@@ -1,10 +1,12 @@
 // oRPC router composition
+// Separate routers for UI (oRPC) and M2M API (OpenAPI)
 
 import { base } from "../lib/orpc.js";
 import { locationRoutes } from "./locations.js";
 import { calendarRoutes } from "./calendars.js";
 import { resourceRoutes } from "./resources.js";
 import { appointmentTypeRoutes } from "./appointment-types.js";
+import { availabilityEngineRoutes } from "./availability.js";
 import { availabilityRoutes } from "./availability.js";
 import { appointmentRoutes } from "./appointments.js";
 import { clientRoutes } from "./clients.js";
@@ -15,12 +17,17 @@ import { auditRoutes } from "./audit.js";
 export { authed, adminOnly } from "./base.js";
 
 // Health check procedure
-export const health = base.handler(async () => {
-  return { status: "ok" as const };
-});
+export const health = base
+  .route({ method: "GET", path: "/health" })
+  .handler(async () => {
+    return { status: "ok" as const };
+  });
 
-// Main router
-export const router = {
+// ============================================================================
+// UI ROUTER (oRPC) - All routes including internal admin routes
+// Used by admin UI via type-safe oRPC client at /v1/*
+// ============================================================================
+export const uiRouter = {
   health,
   locations: locationRoutes,
   calendars: calendarRoutes,
@@ -33,5 +40,26 @@ export const router = {
   audit: auditRoutes,
 };
 
-// Export router type for the client
-export type Router = typeof router;
+// ============================================================================
+// API ROUTER (OpenAPI) - Public routes for M2M integrations
+// Excludes internal routes: apiTokens, audit
+// Used by external clients via REST at /api/v1/*
+// ============================================================================
+export const apiRouter = {
+  health,
+  locations: locationRoutes,
+  calendars: calendarRoutes,
+  resources: resourceRoutes,
+  appointmentTypes: appointmentTypeRoutes,
+  availability: availabilityEngineRoutes,
+  appointments: appointmentRoutes,
+  clients: clientRoutes,
+};
+
+// Legacy export for backwards compatibility (points to UI router)
+export const router = uiRouter;
+
+// Export router types
+export type UIRouter = typeof uiRouter;
+export type APIRouter = typeof apiRouter;
+export type Router = UIRouter;

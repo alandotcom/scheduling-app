@@ -17,7 +17,9 @@
     "seed": "bun src/scripts/seed.ts"
   },
   "dependencies": {
+    "@orpc/openapi": "^1.13.4",
     "@orpc/server": "^1.13.4",
+    "@orpc/zod": "^1.13.4",
     "@scheduling/db": "workspace:*",
     "@scheduling/dto": "workspace:*",
     "better-auth": "^1.4.17",

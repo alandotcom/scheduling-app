@@ -14,6 +14,7 @@ import { appointmentTypeService } from "../services/appointment-types.js";
 
 // List appointment types with cursor pagination
 export const list = authed
+  .route({ method: "GET", path: "/appointment-types" })
   .input(listAppointmentTypesQuerySchema)
   .handler(async ({ input, context }) => {
     return appointmentTypeService.list(input, {
@@ -24,6 +25,7 @@ export const list = authed
 
 // Get single appointment type by ID (with linked calendars/resources)
 export const get = authed
+  .route({ method: "GET", path: "/appointment-types/{id}" })
   .input(z.object({ id: z.string().uuid() }))
   .handler(async ({ input, context }) => {
     return appointmentTypeService.get(input.id, {
@@ -34,6 +36,7 @@ export const get = authed
 
 // Create appointment type
 export const create = authed
+  .route({ method: "POST", path: "/appointment-types", successStatus: 201 })
   .input(createAppointmentTypeSchema)
   .handler(async ({ input, context }) => {
     return appointmentTypeService.create(input, {
@@ -44,6 +47,7 @@ export const create = authed
 
 // Update appointment type
 export const update = authed
+  .route({ method: "PATCH", path: "/appointment-types/{id}" })
   .input(
     z.object({
       id: z.string().uuid(),
@@ -59,6 +63,7 @@ export const update = authed
 
 // Delete appointment type
 export const remove = authed
+  .route({ method: "DELETE", path: "/appointment-types/{id}" })
   .input(z.object({ id: z.string().uuid() }))
   .handler(async ({ input, context }) => {
     return appointmentTypeService.delete(input.id, {
@@ -73,6 +78,10 @@ export const remove = authed
 
 // List calendars for an appointment type
 export const listCalendars = authed
+  .route({
+    method: "GET",
+    path: "/appointment-types/{appointmentTypeId}/calendars",
+  })
   .input(z.object({ appointmentTypeId: z.string().uuid() }))
   .handler(async ({ input, context }) => {
     return appointmentTypeService.listCalendars(input.appointmentTypeId, {
@@ -83,6 +92,11 @@ export const listCalendars = authed
 
 // Add calendar to appointment type
 export const addCalendar = authed
+  .route({
+    method: "POST",
+    path: "/appointment-types/{appointmentTypeId}/calendars",
+    successStatus: 201,
+  })
   .input(
     z.object({
       appointmentTypeId: z.string().uuid(),
@@ -102,6 +116,10 @@ export const addCalendar = authed
 
 // Remove calendar from appointment type
 export const removeCalendar = authed
+  .route({
+    method: "DELETE",
+    path: "/appointment-types/{appointmentTypeId}/calendars/{calendarId}",
+  })
   .input(
     z.object({
       appointmentTypeId: z.string().uuid(),
@@ -125,6 +143,10 @@ export const removeCalendar = authed
 
 // List resources for an appointment type
 export const listResources = authed
+  .route({
+    method: "GET",
+    path: "/appointment-types/{appointmentTypeId}/resources",
+  })
   .input(z.object({ appointmentTypeId: z.string().uuid() }))
   .handler(async ({ input, context }) => {
     return appointmentTypeService.listResources(input.appointmentTypeId, {
@@ -135,6 +157,11 @@ export const listResources = authed
 
 // Add resource to appointment type
 export const addResource = authed
+  .route({
+    method: "POST",
+    path: "/appointment-types/{appointmentTypeId}/resources",
+    successStatus: 201,
+  })
   .input(
     z.object({
       appointmentTypeId: z.string().uuid(),
@@ -157,6 +184,10 @@ export const addResource = authed
 
 // Update resource association (quantity)
 export const updateResource = authed
+  .route({
+    method: "PATCH",
+    path: "/appointment-types/{appointmentTypeId}/resources/{resourceId}",
+  })
   .input(
     z.object({
       appointmentTypeId: z.string().uuid(),
@@ -183,6 +214,10 @@ export const updateResource = authed
 
 // Remove resource from appointment type
 export const removeResource = authed
+  .route({
+    method: "DELETE",
+    path: "/appointment-types/{appointmentTypeId}/resources/{resourceId}",
+  })
   .input(
     z.object({
       appointmentTypeId: z.string().uuid(),
