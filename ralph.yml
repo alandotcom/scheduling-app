@@ -1,76 +1,83 @@
 # Ralph Orchestrator Configuration
 #
-# Hat-based workflow: Coordinator -> Builder -> Reviewer -> Closer
-# Each hat handles a specific phase of task execution.
+# Hat-based workflow using Beads for task tracking:
+# Coordinator -> Builder -> Reviewer -> Committer
 #
 # Usage:
 #   ralph run                    # Run until all tasks complete
 #   ralph run --max-iterations 1 # Run one iteration
 
 event_loop:
-  prompt_file: "PROMPT.md"
+  prompt_file: "CLAUDE.md"
   completion_promise: "LOOP_COMPLETE"
   max_iterations: 50
   max_runtime_seconds: 14400
   checkpoint_interval: 5
-  starting_event: "task.ready"
+  starting_event: "loop.start"
 
 cli:
   backend: "claude"
 
 core:
-  scratchpad: ".agent/scratchpad.md"
-
-memories:
-  enabled: true
-  path: ".agent/memories.md"
-
-tasks:
-  enabled: true
-  path: ".agent/tasks.jsonl"
+  specs_dir: "./specs/"
 
 hats:
   coordinator:
     name: "Coordinator"
-    description: "Selects next unblocked task or signals completion"
-    triggers: ["task.ready", "review.rejected"]
-    publishes: ["build.start", "LOOP_COMPLETE"]
-    default_publishes: "build.start"
+    description: "Selects next unblocked task from Beads or signals completion"
+    triggers: ["loop.start", "build.done", "build.blocked", "review.changes_requested", "commit.done"]
+    publishes: ["build.task", "review.request", "LOOP_COMPLETE"]
+    default_publishes: "build.task"
     instructions: |
       ## COORDINATOR MODE
 
-      Select the next task to work on.
+      Select the next task or route events.
 
-      ### Process
-      1. Read `.agent/tasks.jsonl` to find tasks
-      2. Find ONE unblocked task (status: pending, no blockedBy with pending tasks)
-      3. If no tasks remain, emit LOOP_COMPLETE
-      4. Otherwise emit build.start with task details
-
-      ### Finding Tasks
+      ### On loop.start or commit.done
+      Find the next unblocked task:
       ```bash
-      cat .agent/tasks.jsonl | jq -s '.[] | select(.status == "pending")'
+      bd ready
       ```
 
-      ### Event Format
+      If tasks exist, emit build.task:
       ```bash
-      ralph emit "build.start" "task_id: <id>, title: <title>"
+      ralph emit "build.task" "id: <beads-id>, title: <title>"
       ```
 
-      ### No Tasks Left?
+      If no tasks remain:
       ```bash
       ralph emit "LOOP_COMPLETE" "All tasks completed"
       ```
 
+      ### On build.done
+      Route to review:
+      ```bash
+      ralph emit "review.request" "id: <beads-id>"
+      ```
+
+      ### On build.blocked
+      Log the blocker and find next task:
+      ```bash
+      bd create "Blocker: <description>" --blocks <blocked-id>
+      bd ready
+      ```
+      Then emit build.task for next available, or LOOP_COMPLETE if none.
+
+      ### On review.changes_requested
+      Route back to builder:
+      ```bash
+      ralph emit "build.task" "id: <beads-id>, changes: <requested changes>"
+      ```
+
       ### DON'T
       - Don't implement tasks yourself
-      - Don't create new tasks
-      - Don't modify task status
+      - Don't modify code
+      - Don't skip the routing logic
 
   builder:
     name: "Builder"
-    description: "Implements one task with backpressure. One task, one commit."
-    triggers: ["build.start"]
+    description: "Implements one task with backpressure. One task, one iteration."
+    triggers: ["build.task"]
     publishes: ["build.done", "build.blocked"]
     default_publishes: "build.done"
     instructions: |
@@ -79,36 +86,41 @@ hats:
       Implement the task from the triggering event.
 
       ### Process
-      1. **Read task details** from `.agent/tasks.jsonl`
+      1. **Claim task:**
+         ```bash
+         bd update <id> --status=in_progress
+         bd show <id>
+         ```
       2. **Implement** following existing patterns in codebase
       3. **Run backpressure:**
          ```bash
-         pnpm typecheck && pnpm lint && pnpm test
+         pnpm format && pnpm typecheck && pnpm lint && pnpm test
          ```
       4. **For UI features:** verify with agent-browser
       5. **Emit build.done** with evidence when passing
 
       ### Event Format
       ```bash
-      ralph emit "build.done" "tests: pass, lint: pass, typecheck: pass"
+      ralph emit "build.done" "id: <beads-id>, tests: pass, lint: pass, typecheck: pass"
       ```
 
       ### Backpressure Failed?
       Fix issues and re-run. If blocked:
       ```bash
-      ralph emit "build.blocked" "what you tried and why it failed"
+      ralph emit "build.blocked" "id: <beads-id>, reason: <what you tried and why it failed>"
       ```
 
       ### DON'T
       - Don't decide what tasks to add
       - Don't skip tests
       - Don't emit completion promise directly
+      - Don't close tasks (Committer does that)
 
   reviewer:
     name: "Reviewer"
     description: "Reviews implementation quality. Does NOT modify code."
-    triggers: ["build.done"]
-    publishes: ["review.approved", "review.rejected"]
+    triggers: ["review.request"]
+    publishes: ["review.approved", "review.changes_requested"]
     default_publishes: "review.approved"
     instructions: |
       ## REVIEWER MODE
@@ -132,12 +144,12 @@ hats:
 
       ### If Approved
       ```bash
-      ralph emit "review.approved" "All checks pass"
+      ralph emit "review.approved" "id: <beads-id>, notes: All checks pass"
       ```
 
       ### If Changes Needed
       ```bash
-      ralph emit "review.rejected" "Issues: [specific issues]. Required: [what needs to change]"
+      ralph emit "review.changes_requested" "id: <beads-id>, issues: [specific issues], required: [what needs to change]"
       ```
 
       ### DON'T
@@ -145,37 +157,49 @@ hats:
       - Don't be vague about issues
       - Don't block on style nitpicks
 
-  closer:
-    name: "Closer"
-    description: "Marks task complete, commits, documents learnings"
+  committer:
+    name: "Committer"
+    description: "Closes task, commits changes, syncs beads"
     triggers: ["review.approved"]
-    publishes: ["task.ready"]
-    default_publishes: "task.ready"
+    publishes: ["commit.done"]
+    default_publishes: "commit.done"
     instructions: |
-      ## CLOSER MODE
+      ## COMMITTER MODE
 
       Finalize the completed task.
 
       ### Process
-      1. **Update task status** in `.agent/tasks.jsonl`:
-         - Set status to "completed"
-         - Add completedAt timestamp
-      2. **Git commit** with descriptive message:
+      1. **Close the task:**
+         ```bash
+         bd close <beads-id>
+         ```
+
+      2. **Sync beads:**
+         ```bash
+         bd sync --flush-only
+         ```
+
+      3. **Git commit:**
          ```bash
          git add -A
-         git commit -m "feat/fix/refactor: <description>
+         git commit -m "$(cat <<'EOF'
+         feat/fix/refactor: <short description>
 
-         Closes: <task_id>"
+         - <bullet point of what changed>
+
+         Closes: <beads-id>
+
+         Co-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>
+         EOF
+         )"
          ```
-      3. **Document learnings** in `.agent/memories.md` if significant
-      4. **Emit task.ready** for next iteration
 
-      ### Event Format
-      ```bash
-      ralph emit "task.ready" "Completed: <task_id>"
-      ```
+      4. **Emit commit.done:**
+         ```bash
+         ralph emit "commit.done" "id: <beads-id>, commit: <short-sha>"
+         ```
 
       ### DON'T
       - Don't skip the commit
-      - Don't forget to update task status
+      - Don't forget to close the task
       - Don't push to remote (that's session completion)
