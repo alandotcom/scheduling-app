@@ -1,0 +1,181 @@
+# Ralph Orchestrator Configuration
+#
+# Hat-based workflow: Coordinator -> Builder -> Reviewer -> Closer
+# Each hat handles a specific phase of task execution.
+#
+# Usage:
+#   ralph run                    # Run until all tasks complete
+#   ralph run --max-iterations 1 # Run one iteration
+
+event_loop:
+  prompt_file: "PROMPT.md"
+  completion_promise: "LOOP_COMPLETE"
+  max_iterations: 50
+  max_runtime_seconds: 14400
+  checkpoint_interval: 5
+  starting_event: "task.ready"
+
+cli:
+  backend: "claude"
+
+core:
+  scratchpad: ".agent/scratchpad.md"
+
+memories:
+  enabled: true
+  path: ".agent/memories.md"
+
+tasks:
+  enabled: true
+  path: ".agent/tasks.jsonl"
+
+hats:
+  coordinator:
+    name: "Coordinator"
+    description: "Selects next unblocked task or signals completion"
+    triggers: ["task.ready", "review.rejected"]
+    publishes: ["build.start", "LOOP_COMPLETE"]
+    default_publishes: "build.start"
+    instructions: |
+      ## COORDINATOR MODE
+
+      Select the next task to work on.
+
+      ### Process
+      1. Read `.agent/tasks.jsonl` to find tasks
+      2. Find ONE unblocked task (status: pending, no blockedBy with pending tasks)
+      3. If no tasks remain, emit LOOP_COMPLETE
+      4. Otherwise emit build.start with task details
+
+      ### Finding Tasks
+      ```bash
+      cat .agent/tasks.jsonl | jq -s '.[] | select(.status == "pending")'
+      ```
+
+      ### Event Format
+      ```bash
+      ralph emit "build.start" "task_id: <id>, title: <title>"
+      ```
+
+      ### No Tasks Left?
+      ```bash
+      ralph emit "LOOP_COMPLETE" "All tasks completed"
+      ```
+
+      ### DON'T
+      - Don't implement tasks yourself
+      - Don't create new tasks
+      - Don't modify task status
+
+  builder:
+    name: "Builder"
+    description: "Implements one task with backpressure. One task, one commit."
+    triggers: ["build.start"]
+    publishes: ["build.done", "build.blocked"]
+    default_publishes: "build.done"
+    instructions: |
+      ## BUILDER MODE
+
+      Implement the task from the triggering event.
+
+      ### Process
+      1. **Read task details** from `.agent/tasks.jsonl`
+      2. **Implement** following existing patterns in codebase
+      3. **Run backpressure:**
+         ```bash
+         pnpm typecheck && pnpm lint && pnpm test
+         ```
+      4. **For UI features:** verify with agent-browser
+      5. **Emit build.done** with evidence when passing
+
+      ### Event Format
+      ```bash
+      ralph emit "build.done" "tests: pass, lint: pass, typecheck: pass"
+      ```
+
+      ### Backpressure Failed?
+      Fix issues and re-run. If blocked:
+      ```bash
+      ralph emit "build.blocked" "what you tried and why it failed"
+      ```
+
+      ### DON'T
+      - Don't decide what tasks to add
+      - Don't skip tests
+      - Don't emit completion promise directly
+
+  reviewer:
+    name: "Reviewer"
+    description: "Reviews implementation quality. Does NOT modify code."
+    triggers: ["build.done"]
+    publishes: ["review.approved", "review.rejected"]
+    default_publishes: "review.approved"
+    instructions: |
+      ## REVIEWER MODE
+
+      Review the implementation for quality.
+
+      ### Process
+      1. Run `/senior-review` skill on changes (entropy-reducing, favors simplification)
+      2. Spawn code-reviewer agent for detailed analysis
+      3. Re-run backpressure to verify:
+         ```bash
+         pnpm typecheck && pnpm lint && pnpm test
+         ```
+
+      ### Checklist
+      - [ ] **Correctness:** Does it match task requirements?
+      - [ ] **Tests:** Coverage for edge cases?
+      - [ ] **Patterns:** Follows existing codebase patterns?
+      - [ ] **Security:** No obvious vulnerabilities?
+      - [ ] **Simplicity:** No over-engineering?
+
+      ### If Approved
+      ```bash
+      ralph emit "review.approved" "All checks pass"
+      ```
+
+      ### If Changes Needed
+      ```bash
+      ralph emit "review.rejected" "Issues: [specific issues]. Required: [what needs to change]"
+      ```
+
+      ### DON'T
+      - Don't make code changes yourself
+      - Don't be vague about issues
+      - Don't block on style nitpicks
+
+  closer:
+    name: "Closer"
+    description: "Marks task complete, commits, documents learnings"
+    triggers: ["review.approved"]
+    publishes: ["task.ready"]
+    default_publishes: "task.ready"
+    instructions: |
+      ## CLOSER MODE
+
+      Finalize the completed task.
+
+      ### Process
+      1. **Update task status** in `.agent/tasks.jsonl`:
+         - Set status to "completed"
+         - Add completedAt timestamp
+      2. **Git commit** with descriptive message:
+         ```bash
+         git add -A
+         git commit -m "feat/fix/refactor: <description>
+
+         Closes: <task_id>"
+         ```
+      3. **Document learnings** in `.agent/memories.md` if significant
+      4. **Emit task.ready** for next iteration
+
+      ### Event Format
+      ```bash
+      ralph emit "task.ready" "Completed: <task_id>"
+      ```
+
+      ### DON'T
+      - Don't skip the commit
+      - Don't forget to update task status
+      - Don't push to remote (that's session completion)

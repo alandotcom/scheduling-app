@@ -1,6 +1,8 @@
 # Task Execution Instructions
 
-**CRITICAL: Complete ONE task, then exit. Do not loop or continue to other tasks.**
+**CRITICAL: Complete ONE task, then EXIT the session. Do not loop or continue to other tasks.**
+
+**HOW TO EXIT: After your final commit, you MUST end your response. Do not ask follow-up questions or wait for input. The session will terminate automatically when you stop responding.**
 
 ## Workflow
 
