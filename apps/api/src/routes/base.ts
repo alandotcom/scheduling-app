@@ -1,6 +1,6 @@
 // Base oRPC procedures shared across routes
 
-import { ApplicationError } from "../errors/application-error.js";
+import { ORPCError } from "@orpc/server";
 import { base } from "../lib/orpc.js";
 import type { Context, AuthMethod } from "../lib/orpc.js";
 
@@ -9,8 +9,8 @@ import type { Context, AuthMethod } from "../lib/orpc.js";
 export const authed = base.use(async (opts) => {
   const context = opts.context as Context;
   if (!context.userId || !context.orgId) {
-    throw new ApplicationError("Authentication required", {
-      code: "UNAUTHORIZED",
+    throw new ORPCError("UNAUTHORIZED", {
+      message: "Authentication required",
     });
   }
   // Narrow the context types for downstream handlers
@@ -30,8 +30,8 @@ export const authed = base.use(async (opts) => {
 // Validates that the authenticated user has admin role
 export const adminOnly = authed.use(async (opts) => {
   if (opts.context.role !== "admin") {
-    throw new ApplicationError("Admin access required", {
-      code: "FORBIDDEN",
+    throw new ORPCError("FORBIDDEN", {
+      message: "Admin access required",
     });
   }
   return opts.next();
