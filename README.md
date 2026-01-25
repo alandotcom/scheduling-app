@@ -119,27 +119,32 @@ pnpm --filter @scheduling/db run push       # Push schema to dev database
 
 ### Task Tracking with Beads
 
-This project uses [Beads](https://github.com/steveyegge/beads) for task tracking during development.
+This project uses [Beads](https://github.com/steveyegge/beads) for task tracking with a Ralph-style execution loop.
 
 ```bash
-# View available tasks
-bd ready              # Show unblocked tasks ready for work
+# View tasks
+bd ready              # Show unblocked tasks
 bd list               # Show all tasks
 bd show <id>          # Get task details
 
 # Work on tasks
-bd close <id>         # Mark task complete
-bd create "Title" --description "Details"  # Create new task
-bd dep add <id> <blocker-id>               # Add dependency
+bd close <id>         # Mark complete
+bd create "Title" --description "..."      # Create task
+bd dep add <child> <blocker>               # Add dependency
+
+# Planning (creates epic with child tasks)
+/plan
 ```
 
-**Execution loop** (for automated task processing):
+**Automated execution** (Claude Code slash commands):
 
 ```bash
-while bd ready | grep -q "scheduling-app-"; do
-  claude "@PROMPT.md"
-done
+/beads-loop                      # Run until all tasks complete
+/beads-loop --max-iterations 20  # Stop after 20 iterations
+/cancel-beads                    # Force stop
 ```
+
+The loop checks `bd ready` on each exit attempt - continues while tasks remain.
 
 ### API Endpoints
 
