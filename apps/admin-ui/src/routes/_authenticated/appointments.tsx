@@ -1,11 +1,10 @@
 // Appointments list page with filters and status management
 
 import { useState } from "react";
-import { createFileRoute, Navigate, Link } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Plus, X, Clock } from "lucide-react";
 
-import { useAuth } from "@/contexts/auth";
 import { orpc } from "@/lib/query";
 
 import { Button } from "@/components/ui/button";
@@ -46,7 +45,6 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 function AppointmentsPage() {
-  const { isAuthenticated, isLoading: authLoading } = useAuth();
   const queryClient = useQueryClient();
 
   const [filters, setFilters] = useState({
@@ -100,7 +98,7 @@ function AppointmentsPage() {
   const cancelMutation = useMutation(
     orpc.appointments.cancel.mutationOptions({
       onSuccess: () => {
-        queryClient.invalidateQueries({ queryKey: ["appointments"] });
+        queryClient.invalidateQueries({ queryKey: orpc.appointments.key() });
         setCancellingId(null);
       },
     }),
@@ -110,14 +108,11 @@ function AppointmentsPage() {
   const noShowMutation = useMutation(
     orpc.appointments.noShow.mutationOptions({
       onSuccess: () => {
-        queryClient.invalidateQueries({ queryKey: ["appointments"] });
+        queryClient.invalidateQueries({ queryKey: orpc.appointments.key() });
         setNoShowId(null);
       },
     }),
   );
-
-  if (authLoading) return null;
-  if (!isAuthenticated) return <Navigate to="/login" />;
 
   const calendars = calendarsData?.items ?? [];
   const appointmentTypes = typesData?.items ?? [];
@@ -389,6 +384,6 @@ function AppointmentsPage() {
   );
 }
 
-export const Route = createFileRoute("/appointments")({
+export const Route = createFileRoute("/_authenticated/appointments")({
   component: AppointmentsPage,
 });

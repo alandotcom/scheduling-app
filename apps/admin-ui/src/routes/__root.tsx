@@ -12,11 +12,13 @@ import {
   Package,
   Layers,
 } from "lucide-react";
-import { useAuth } from "@/contexts/auth";
+import { authClient } from "@/lib/auth-client";
 import { Button } from "@/components/ui/button";
 
 function RootLayout() {
-  const { user, isAuthenticated, logout, isLoading } = useAuth();
+  const { data: session, isPending: isLoading } = authClient.useSession();
+  const user = session?.user;
+  const isAuthenticated = !!session;
 
   if (isLoading) {
     return (
@@ -94,7 +96,7 @@ function RootLayout() {
               <Button
                 variant="ghost"
                 size="icon"
-                onClick={() => void logout()}
+                onClick={() => void authClient.signOut()}
                 title="Sign out"
               >
                 <LogOut className="h-4 w-4" />

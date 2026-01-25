@@ -1,16 +1,21 @@
-// Locations management page with CRUD operations
+// Resources management page with CRUD operations
 
 import { useState } from "react";
-import { createFileRoute, Navigate } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Plus, Pencil, Trash2 } from "lucide-react";
 
-import { useAuth } from "@/contexts/auth";
+import { z } from "zod/mini";
 import { orpc } from "@/lib/query";
-import { createLocationSchema } from "@scheduling/dto";
-import type { CreateLocationInput } from "@scheduling/dto";
+import { createResourceSchema } from "@scheduling/dto";
+import type { CreateResourceInput } from "@scheduling/dto";
+
+// Form schema with required quantity for better UX
+const resourceFormSchema = z.extend(createResourceSchema, {
+  quantity: z.number().check(z.int(), z.positive()),
+});
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -41,49 +46,33 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-// Common timezones
-const TIMEZONES = [
-  "America/New_York",
-  "America/Chicago",
-  "America/Denver",
-  "America/Los_Angeles",
-  "America/Phoenix",
-  "America/Anchorage",
-  "Pacific/Honolulu",
-  "Europe/London",
-  "Europe/Paris",
-  "Europe/Berlin",
-  "Asia/Tokyo",
-  "Asia/Shanghai",
-  "Australia/Sydney",
-  "UTC",
-];
-
-interface LocationFormProps {
-  defaultValues?: { name: string; timezone: string };
-  onSubmit: (data: CreateLocationInput) => void;
+interface ResourceFormProps {
+  defaultValues?: { name: string; quantity: number; locationId?: string };
+  locations: Array<{ id: string; name: string }>;
+  onSubmit: (data: CreateResourceInput) => void;
   onCancel: () => void;
   isSubmitting: boolean;
 }
 
-function LocationForm({
+function ResourceForm({
   defaultValues,
+  locations,
   onSubmit,
   onCancel,
   isSubmitting,
-}: LocationFormProps) {
+}: ResourceFormProps) {
   const {
     register,
     handleSubmit,
     setValue,
     watch,
     formState: { errors },
-  } = useForm<CreateLocationInput>({
-    resolver: zodResolver(createLocationSchema),
-    defaultValues: defaultValues ?? { name: "", timezone: "America/New_York" },
+  } = useForm<CreateResourceInput>({
+    resolver: zodResolver(resourceFormSchema),
+    defaultValues: defaultValues ?? { name: "", quantity: 1 },
   });
 
-  const timezone = watch("timezone");
+  const locationId = watch("locationId");
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
@@ -91,7 +80,7 @@ function LocationForm({
         <Label htmlFor="name">Name</Label>
         <Input
           id="name"
-          placeholder="Main Office"
+          placeholder="Meeting Room A"
           {...register("name")}
           disabled={isSubmitting}
         />
@@ -100,26 +89,40 @@ function LocationForm({
         )}
       </div>
       <div className="space-y-2">
-        <Label htmlFor="timezone">Timezone</Label>
+        <Label htmlFor="quantity">Quantity</Label>
+        <Input
+          id="quantity"
+          type="number"
+          min={1}
+          {...register("quantity", { valueAsNumber: true })}
+          disabled={isSubmitting}
+        />
+        {errors.quantity && (
+          <p className="text-sm text-destructive">{errors.quantity.message}</p>
+        )}
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor="locationId">Location (optional)</Label>
         <Select
-          value={timezone}
-          onValueChange={(value) => value && setValue("timezone", value)}
+          value={locationId ?? "none"}
+          onValueChange={(value) =>
+            value &&
+            setValue("locationId", value === "none" ? undefined : value)
+          }
           disabled={isSubmitting}
         >
           <SelectTrigger>
-            <SelectValue placeholder="Select timezone" />
+            <SelectValue placeholder="Select location" />
           </SelectTrigger>
           <SelectContent>
-            {TIMEZONES.map((tz) => (
-              <SelectItem key={tz} value={tz}>
-                {tz}
+            <SelectItem value="none">No location</SelectItem>
+            {locations.map((loc) => (
+              <SelectItem key={loc.id} value={loc.id}>
+                {loc.name}
               </SelectItem>
             ))}
           </SelectContent>
         </Select>
-        {errors.timezone && (
-          <p className="text-sm text-destructive">{errors.timezone.message}</p>
-        )}
       </div>
       <div className="flex justify-end gap-2 pt-4">
         <Button
@@ -138,22 +141,29 @@ function LocationForm({
   );
 }
 
-function LocationsPage() {
-  const { isAuthenticated, isLoading: authLoading } = useAuth();
+function ResourcesPage() {
   const queryClient = useQueryClient();
 
   const [showCreateForm, setShowCreateForm] = useState(false);
-  const [editingLocation, setEditingLocation] = useState<{
+  const [editingResource, setEditingResource] = useState<{
     id: string;
     name: string;
-    timezone: string;
+    quantity: number;
+    locationId?: string;
   } | null>(null);
-  const [deletingLocationId, setDeletingLocationId] = useState<string | null>(
+  const [deletingResourceId, setDeletingResourceId] = useState<string | null>(
     null,
   );
 
-  // Fetch locations
+  // Fetch resources
   const { data, isLoading, error } = useQuery(
+    orpc.resources.list.queryOptions({
+      input: { limit: 100 },
+    }),
+  );
+
+  // Fetch locations for the dropdown
+  const { data: locationsData } = useQuery(
     orpc.locations.list.queryOptions({
       input: { limit: 100 },
     }),
@@ -161,9 +171,9 @@ function LocationsPage() {
 
   // Create mutation
   const createMutation = useMutation(
-    orpc.locations.create.mutationOptions({
+    orpc.resources.create.mutationOptions({
       onSuccess: () => {
-        queryClient.invalidateQueries({ queryKey: ["locations"] });
+        queryClient.invalidateQueries({ queryKey: orpc.resources.key() });
         setShowCreateForm(false);
       },
     }),
@@ -171,57 +181,62 @@ function LocationsPage() {
 
   // Update mutation
   const updateMutation = useMutation(
-    orpc.locations.update.mutationOptions({
+    orpc.resources.update.mutationOptions({
       onSuccess: () => {
-        queryClient.invalidateQueries({ queryKey: ["locations"] });
-        setEditingLocation(null);
+        queryClient.invalidateQueries({ queryKey: orpc.resources.key() });
+        setEditingResource(null);
       },
     }),
   );
 
   // Delete mutation
   const deleteMutation = useMutation(
-    orpc.locations.remove.mutationOptions({
+    orpc.resources.remove.mutationOptions({
       onSuccess: () => {
-        queryClient.invalidateQueries({ queryKey: ["locations"] });
-        setDeletingLocationId(null);
+        queryClient.invalidateQueries({ queryKey: orpc.resources.key() });
+        setDeletingResourceId(null);
       },
     }),
   );
 
-  if (authLoading) return null;
-  if (!isAuthenticated) return <Navigate to="/login" />;
+  const locations = locationsData?.items ?? [];
 
-  const handleCreate = (formData: CreateLocationInput) => {
+  const handleCreate = (formData: CreateResourceInput) => {
     createMutation.mutate(formData);
   };
 
-  const handleUpdate = (formData: CreateLocationInput) => {
-    if (!editingLocation) return;
+  const handleUpdate = (formData: CreateResourceInput) => {
+    if (!editingResource) return;
     updateMutation.mutate({
-      id: editingLocation.id,
+      id: editingResource.id,
       data: formData,
     });
   };
 
   const handleDelete = () => {
-    if (!deletingLocationId) return;
-    deleteMutation.mutate({ id: deletingLocationId });
+    if (!deletingResourceId) return;
+    deleteMutation.mutate({ id: deletingResourceId });
+  };
+
+  const getLocationName = (locationId: string | null) => {
+    if (!locationId) return "-";
+    const location = locations.find((l) => l.id === locationId);
+    return location?.name ?? "-";
   };
 
   return (
     <div className="p-8">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Locations</h1>
+          <h1 className="text-2xl font-bold">Resources</h1>
           <p className="mt-1 text-muted-foreground">
-            Manage physical locations for your calendars.
+            Manage resources like rooms, equipment, or staff.
           </p>
         </div>
-        {!showCreateForm && !editingLocation && (
+        {!showCreateForm && !editingResource && (
           <Button onClick={() => setShowCreateForm(true)}>
             <Plus className="mr-2 h-4 w-4" />
-            Add Location
+            Add Resource
           </Button>
         )}
       </div>
@@ -229,8 +244,9 @@ function LocationsPage() {
       {/* Create Form */}
       {showCreateForm && (
         <div className="mt-6 rounded-lg border bg-card p-6">
-          <h2 className="mb-4 text-lg font-semibold">New Location</h2>
-          <LocationForm
+          <h2 className="mb-4 text-lg font-semibold">New Resource</h2>
+          <ResourceForm
+            locations={locations}
             onSubmit={handleCreate}
             onCancel={() => setShowCreateForm(false)}
             isSubmitting={createMutation.isPending}
@@ -239,32 +255,34 @@ function LocationsPage() {
       )}
 
       {/* Edit Form */}
-      {editingLocation && (
+      {editingResource && (
         <div className="mt-6 rounded-lg border bg-card p-6">
-          <h2 className="mb-4 text-lg font-semibold">Edit Location</h2>
-          <LocationForm
+          <h2 className="mb-4 text-lg font-semibold">Edit Resource</h2>
+          <ResourceForm
             defaultValues={{
-              name: editingLocation.name,
-              timezone: editingLocation.timezone,
+              name: editingResource.name,
+              quantity: editingResource.quantity,
+              locationId: editingResource.locationId,
             }}
+            locations={locations}
             onSubmit={handleUpdate}
-            onCancel={() => setEditingLocation(null)}
+            onCancel={() => setEditingResource(null)}
             isSubmitting={updateMutation.isPending}
           />
         </div>
       )}
 
-      {/* Locations Table */}
+      {/* Resources Table */}
       <div className="mt-6">
         {isLoading ? (
           <div className="text-center text-muted-foreground">Loading...</div>
         ) : error ? (
           <div className="text-center text-destructive">
-            Error loading locations
+            Error loading resources
           </div>
         ) : !data?.items.length ? (
           <div className="rounded-lg border bg-card p-8 text-center text-muted-foreground">
-            No locations yet. Create your first location to get started.
+            No resources yet. Create your first resource to get started.
           </div>
         ) : (
           <div className="rounded-lg border">
@@ -272,20 +290,24 @@ function LocationsPage() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Name</TableHead>
-                  <TableHead>Timezone</TableHead>
+                  <TableHead>Quantity</TableHead>
+                  <TableHead>Location</TableHead>
                   <TableHead>Created</TableHead>
                   <TableHead className="w-[100px]">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {data.items.map((location) => (
-                  <TableRow key={location.id}>
+                {data.items.map((resource) => (
+                  <TableRow key={resource.id}>
                     <TableCell className="font-medium">
-                      {location.name}
+                      {resource.name}
                     </TableCell>
-                    <TableCell>{location.timezone}</TableCell>
+                    <TableCell>{resource.quantity}</TableCell>
                     <TableCell>
-                      {new Date(location.createdAt).toLocaleDateString()}
+                      {getLocationName(resource.locationId)}
+                    </TableCell>
+                    <TableCell>
+                      {new Date(resource.createdAt).toLocaleDateString()}
                     </TableCell>
                     <TableCell>
                       <div className="flex gap-1">
@@ -293,21 +315,22 @@ function LocationsPage() {
                           variant="ghost"
                           size="icon"
                           onClick={() =>
-                            setEditingLocation({
-                              id: location.id,
-                              name: location.name,
-                              timezone: location.timezone,
+                            setEditingResource({
+                              id: resource.id,
+                              name: resource.name,
+                              quantity: resource.quantity,
+                              locationId: resource.locationId ?? undefined,
                             })
                           }
-                          disabled={showCreateForm || editingLocation !== null}
+                          disabled={showCreateForm || editingResource !== null}
                         >
                           <Pencil className="h-4 w-4" />
                         </Button>
                         <Button
                           variant="ghost"
                           size="icon"
-                          onClick={() => setDeletingLocationId(location.id)}
-                          disabled={showCreateForm || editingLocation !== null}
+                          onClick={() => setDeletingResourceId(resource.id)}
+                          disabled={showCreateForm || editingResource !== null}
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>
@@ -323,14 +346,14 @@ function LocationsPage() {
 
       {/* Delete Confirmation */}
       <AlertDialog
-        open={!!deletingLocationId}
-        onOpenChange={() => setDeletingLocationId(null)}
+        open={!!deletingResourceId}
+        onOpenChange={() => setDeletingResourceId(null)}
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete Location</AlertDialogTitle>
+            <AlertDialogTitle>Delete Resource</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete this location? This action cannot
+              Are you sure you want to delete this resource? This action cannot
               be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -349,6 +372,6 @@ function LocationsPage() {
   );
 }
 
-export const Route = createFileRoute("/locations")({
-  component: LocationsPage,
+export const Route = createFileRoute("/_authenticated/resources")({
+  component: ResourcesPage,
 });

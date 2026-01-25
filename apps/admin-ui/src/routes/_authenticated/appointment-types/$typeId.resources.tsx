@@ -1,11 +1,10 @@
 // Link resources to appointment type with quantity requirements
 
 import { useState } from "react";
-import { createFileRoute, Navigate, Link } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Plus, Trash2 } from "lucide-react";
 
-import { useAuth } from "@/contexts/auth";
 import { orpc } from "@/lib/query";
 
 import { Button } from "@/components/ui/button";
@@ -30,7 +29,6 @@ import {
 
 function AppointmentTypeResourcesPage() {
   const { typeId } = Route.useParams();
-  const { isAuthenticated, isLoading: authLoading } = useAuth();
   const queryClient = useQueryClient();
   const [selectedResourceId, setSelectedResourceId] = useState<string>("");
   const [quantityRequired, setQuantityRequired] = useState<number>(1);
@@ -60,7 +58,9 @@ function AppointmentTypeResourcesPage() {
   const addMutation = useMutation(
     orpc.appointmentTypes.resources.add.mutationOptions({
       onSuccess: () => {
-        queryClient.invalidateQueries({ queryKey: ["appointmentTypes"] });
+        queryClient.invalidateQueries({
+          queryKey: orpc.appointmentTypes.key(),
+        });
         setSelectedResourceId("");
         setQuantityRequired(1);
       },
@@ -71,7 +71,9 @@ function AppointmentTypeResourcesPage() {
   const updateMutation = useMutation(
     orpc.appointmentTypes.resources.update.mutationOptions({
       onSuccess: () => {
-        queryClient.invalidateQueries({ queryKey: ["appointmentTypes"] });
+        queryClient.invalidateQueries({
+          queryKey: orpc.appointmentTypes.key(),
+        });
       },
     }),
   );
@@ -80,13 +82,12 @@ function AppointmentTypeResourcesPage() {
   const removeMutation = useMutation(
     orpc.appointmentTypes.resources.remove.mutationOptions({
       onSuccess: () => {
-        queryClient.invalidateQueries({ queryKey: ["appointmentTypes"] });
+        queryClient.invalidateQueries({
+          queryKey: orpc.appointmentTypes.key(),
+        });
       },
     }),
   );
-
-  if (authLoading) return null;
-  if (!isAuthenticated) return <Navigate to="/login" />;
 
   const isLoading = typeLoading || linkedLoading;
 
@@ -253,6 +254,8 @@ function AppointmentTypeResourcesPage() {
   );
 }
 
-export const Route = createFileRoute("/appointment-types/$typeId/resources")({
+export const Route = createFileRoute(
+  "/_authenticated/appointment-types/$typeId/resources",
+)({
   component: AppointmentTypeResourcesPage,
 });

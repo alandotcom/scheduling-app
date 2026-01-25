@@ -2,11 +2,11 @@
 
 import { createFileRoute, Navigate, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
-import { useAuth } from "@/contexts/auth";
+import { authClient } from "@/lib/auth-client";
 import { Button } from "@/components/ui/button";
 
 function LoginPage() {
-  const { isAuthenticated, isLoading, login } = useAuth();
+  const { data: session, isPending: isLoading } = authClient.useSession();
   const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -21,7 +21,7 @@ function LoginPage() {
     );
   }
 
-  if (isAuthenticated) {
+  if (session) {
     return <Navigate to="/" />;
   }
 
@@ -31,7 +31,10 @@ function LoginPage() {
     setIsSubmitting(true);
 
     try {
-      await login(email, password);
+      const result = await authClient.signIn.email({ email, password });
+      if (result.error) {
+        throw new Error(result.error.message ?? "Login failed");
+      }
       void navigate({ to: "/" });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Login failed");

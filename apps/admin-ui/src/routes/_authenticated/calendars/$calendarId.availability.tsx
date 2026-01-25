@@ -1,11 +1,10 @@
 // Calendar availability editor - manage weekly hours and overrides
 
 import { useState } from "react";
-import { createFileRoute, Navigate, Link } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Plus, Trash2, Save } from "lucide-react";
 
-import { useAuth } from "@/contexts/auth";
 import { orpc } from "@/lib/query";
 
 import { Button } from "@/components/ui/button";
@@ -40,7 +39,6 @@ interface WeeklyRule {
 
 function AvailabilityPage() {
   const { calendarId } = Route.useParams();
-  const { isAuthenticated, isLoading: authLoading } = useAuth();
   const queryClient = useQueryClient();
 
   const [weeklyRules, setWeeklyRules] = useState<WeeklyRule[]>([]);
@@ -77,14 +75,11 @@ function AvailabilityPage() {
   const setWeeklyMutation = useMutation(
     orpc.availability.rules.setWeekly.mutationOptions({
       onSuccess: () => {
-        queryClient.invalidateQueries({ queryKey: ["availability"] });
+        queryClient.invalidateQueries({ queryKey: orpc.availability.key() });
         setHasChanges(false);
       },
     }),
   );
-
-  if (authLoading) return null;
-  if (!isAuthenticated) return <Navigate to="/login" />;
 
   const isLoading = calendarLoading || rulesLoading;
 
@@ -290,6 +285,8 @@ function AvailabilityPage() {
   );
 }
 
-export const Route = createFileRoute("/calendars/$calendarId/availability")({
+export const Route = createFileRoute(
+  "/_authenticated/calendars/$calendarId/availability",
+)({
   component: AvailabilityPage,
 });

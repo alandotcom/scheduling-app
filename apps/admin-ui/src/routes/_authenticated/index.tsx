@@ -1,19 +1,8 @@
 // Dashboard / Home page
 
-import { createFileRoute, Navigate } from "@tanstack/react-router";
-import { useAuth } from "@/contexts/auth";
+import { createFileRoute } from "@tanstack/react-router";
 
 function Dashboard() {
-  const { isAuthenticated, isLoading } = useAuth();
-
-  if (isLoading) {
-    return null;
-  }
-
-  if (!isAuthenticated) {
-    return <Navigate to="/login" />;
-  }
-
   return (
     <div className="p-8">
       <h1 className="text-2xl font-bold">Dashboard</h1>
@@ -40,6 +29,6 @@ function DashboardCard({ title, value }: { title: string; value: string }) {
   );
 }
 
-export const Route = createFileRoute("/")({
+export const Route = createFileRoute("/_authenticated/")({
   component: Dashboard,
 });

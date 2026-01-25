@@ -1,16 +1,10 @@
 // New appointment booking form with availability picker
 
 import { useState } from "react";
-import {
-  createFileRoute,
-  Navigate,
-  Link,
-  useNavigate,
-} from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Calendar } from "lucide-react";
 
-import { useAuth } from "@/contexts/auth";
 import { orpc } from "@/lib/query";
 
 import { Button } from "@/components/ui/button";
@@ -28,7 +22,6 @@ import { Separator } from "@/components/ui/separator";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 function NewAppointmentPage() {
-  const { isAuthenticated, isLoading: authLoading } = useAuth();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
 
@@ -75,14 +68,11 @@ function NewAppointmentPage() {
   const createMutation = useMutation(
     orpc.appointments.create.mutationOptions({
       onSuccess: () => {
-        queryClient.invalidateQueries({ queryKey: ["appointments"] });
+        queryClient.invalidateQueries({ queryKey: orpc.appointments.key() });
         navigate({ to: "/appointments" });
       },
     }),
   );
-
-  if (authLoading) return null;
-  if (!isAuthenticated) return <Navigate to="/login" />;
 
   const appointmentTypes = typesData?.items ?? [];
   const calendars = linkedCalendars?.map((l) => l.calendar) ?? [];
@@ -358,6 +348,6 @@ function NewAppointmentPage() {
   );
 }
 
-export const Route = createFileRoute("/appointments/new")({
+export const Route = createFileRoute("/_authenticated/appointments/new")({
   component: NewAppointmentPage,
 });

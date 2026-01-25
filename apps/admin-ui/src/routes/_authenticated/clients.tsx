@@ -1,14 +1,8 @@
 // Clients management page - stub for future implementation
 
-import { createFileRoute, Navigate } from "@tanstack/react-router";
-import { useAuth } from "@/contexts/auth";
+import { createFileRoute } from "@tanstack/react-router";
 
 function ClientsPage() {
-  const { isAuthenticated, isLoading } = useAuth();
-
-  if (isLoading) return null;
-  if (!isAuthenticated) return <Navigate to="/login" />;
-
   return (
     <div className="p-8">
       <h1 className="text-2xl font-bold">Clients</h1>
@@ -22,6 +16,6 @@ function ClientsPage() {
   );
 }
 
-export const Route = createFileRoute("/clients")({
+export const Route = createFileRoute("/_authenticated/clients")({
   component: ClientsPage,
 });

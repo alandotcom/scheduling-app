@@ -1,10 +1,9 @@
 // Link calendars to appointment type
 
-import { createFileRoute, Navigate, Link } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Plus, Trash2 } from "lucide-react";
 
-import { useAuth } from "@/contexts/auth";
 import { orpc } from "@/lib/query";
 
 import { Button } from "@/components/ui/button";
@@ -28,7 +27,6 @@ import { useState } from "react";
 
 function AppointmentTypeCalendarsPage() {
   const { typeId } = Route.useParams();
-  const { isAuthenticated, isLoading: authLoading } = useAuth();
   const queryClient = useQueryClient();
   const [selectedCalendarId, setSelectedCalendarId] = useState<string>("");
 
@@ -57,7 +55,9 @@ function AppointmentTypeCalendarsPage() {
   const addMutation = useMutation(
     orpc.appointmentTypes.calendars.add.mutationOptions({
       onSuccess: () => {
-        queryClient.invalidateQueries({ queryKey: ["appointmentTypes"] });
+        queryClient.invalidateQueries({
+          queryKey: orpc.appointmentTypes.key(),
+        });
         setSelectedCalendarId("");
       },
     }),
@@ -67,13 +67,12 @@ function AppointmentTypeCalendarsPage() {
   const removeMutation = useMutation(
     orpc.appointmentTypes.calendars.remove.mutationOptions({
       onSuccess: () => {
-        queryClient.invalidateQueries({ queryKey: ["appointmentTypes"] });
+        queryClient.invalidateQueries({
+          queryKey: orpc.appointmentTypes.key(),
+        });
       },
     }),
   );
-
-  if (authLoading) return null;
-  if (!isAuthenticated) return <Navigate to="/login" />;
 
   const isLoading = typeLoading || linkedLoading;
 
@@ -197,6 +196,8 @@ function AppointmentTypeCalendarsPage() {
   );
 }
 
-export const Route = createFileRoute("/appointment-types/$typeId/calendars")({
+export const Route = createFileRoute(
+  "/_authenticated/appointment-types/$typeId/calendars",
+)({
   component: AppointmentTypeCalendarsPage,
 });

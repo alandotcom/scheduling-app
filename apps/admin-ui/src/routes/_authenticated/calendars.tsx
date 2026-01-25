@@ -1,22 +1,15 @@
-// Resources management page with CRUD operations
+// Calendars management page with CRUD operations
 
 import { useState } from "react";
-import { createFileRoute, Navigate } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Plus, Pencil, Trash2 } from "lucide-react";
+import { Plus, Pencil, Trash2, Clock } from "lucide-react";
 
-import { z } from "zod/mini";
-import { useAuth } from "@/contexts/auth";
 import { orpc } from "@/lib/query";
-import { createResourceSchema } from "@scheduling/dto";
-import type { CreateResourceInput } from "@scheduling/dto";
-
-// Form schema with required quantity for better UX
-const resourceFormSchema = z.extend(createResourceSchema, {
-  quantity: z.number().check(z.int(), z.positive()),
-});
+import { createCalendarSchema } from "@scheduling/dto";
+import type { CreateCalendarInput } from "@scheduling/dto";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -47,32 +40,58 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-interface ResourceFormProps {
-  defaultValues?: { name: string; quantity: number; locationId?: string };
+// Common timezones
+const TIMEZONES = [
+  "America/New_York",
+  "America/Chicago",
+  "America/Denver",
+  "America/Los_Angeles",
+  "America/Phoenix",
+  "America/Anchorage",
+  "Pacific/Honolulu",
+  "Europe/London",
+  "Europe/Paris",
+  "Europe/Berlin",
+  "Asia/Tokyo",
+  "Asia/Shanghai",
+  "Australia/Sydney",
+  "UTC",
+];
+
+interface CalendarFormProps {
+  defaultValues?: {
+    name: string;
+    timezone: string;
+    locationId?: string;
+  };
   locations: Array<{ id: string; name: string }>;
-  onSubmit: (data: CreateResourceInput) => void;
+  onSubmit: (data: CreateCalendarInput) => void;
   onCancel: () => void;
   isSubmitting: boolean;
 }
 
-function ResourceForm({
+function CalendarForm({
   defaultValues,
   locations,
   onSubmit,
   onCancel,
   isSubmitting,
-}: ResourceFormProps) {
+}: CalendarFormProps) {
   const {
     register,
     handleSubmit,
     setValue,
     watch,
     formState: { errors },
-  } = useForm<CreateResourceInput>({
-    resolver: zodResolver(resourceFormSchema),
-    defaultValues: defaultValues ?? { name: "", quantity: 1 },
+  } = useForm<CreateCalendarInput>({
+    resolver: zodResolver(createCalendarSchema),
+    defaultValues: defaultValues ?? {
+      name: "",
+      timezone: "America/New_York",
+    },
   });
 
+  const timezone = watch("timezone");
   const locationId = watch("locationId");
 
   return (
@@ -81,7 +100,7 @@ function ResourceForm({
         <Label htmlFor="name">Name</Label>
         <Input
           id="name"
-          placeholder="Meeting Room A"
+          placeholder="Dr. Smith's Calendar"
           {...register("name")}
           disabled={isSubmitting}
         />
@@ -90,16 +109,25 @@ function ResourceForm({
         )}
       </div>
       <div className="space-y-2">
-        <Label htmlFor="quantity">Quantity</Label>
-        <Input
-          id="quantity"
-          type="number"
-          min={1}
-          {...register("quantity", { valueAsNumber: true })}
+        <Label htmlFor="timezone">Timezone</Label>
+        <Select
+          value={timezone}
+          onValueChange={(value) => value && setValue("timezone", value)}
           disabled={isSubmitting}
-        />
-        {errors.quantity && (
-          <p className="text-sm text-destructive">{errors.quantity.message}</p>
+        >
+          <SelectTrigger>
+            <SelectValue placeholder="Select timezone" />
+          </SelectTrigger>
+          <SelectContent>
+            {TIMEZONES.map((tz) => (
+              <SelectItem key={tz} value={tz}>
+                {tz}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        {errors.timezone && (
+          <p className="text-sm text-destructive">{errors.timezone.message}</p>
         )}
       </div>
       <div className="space-y-2">
@@ -142,24 +170,23 @@ function ResourceForm({
   );
 }
 
-function ResourcesPage() {
-  const { isAuthenticated, isLoading: authLoading } = useAuth();
+function CalendarsPage() {
   const queryClient = useQueryClient();
 
   const [showCreateForm, setShowCreateForm] = useState(false);
-  const [editingResource, setEditingResource] = useState<{
+  const [editingCalendar, setEditingCalendar] = useState<{
     id: string;
     name: string;
-    quantity: number;
+    timezone: string;
     locationId?: string;
   } | null>(null);
-  const [deletingResourceId, setDeletingResourceId] = useState<string | null>(
+  const [deletingCalendarId, setDeletingCalendarId] = useState<string | null>(
     null,
   );
 
-  // Fetch resources
+  // Fetch calendars
   const { data, isLoading, error } = useQuery(
-    orpc.resources.list.queryOptions({
+    orpc.calendars.list.queryOptions({
       input: { limit: 100 },
     }),
   );
@@ -173,9 +200,9 @@ function ResourcesPage() {
 
   // Create mutation
   const createMutation = useMutation(
-    orpc.resources.create.mutationOptions({
+    orpc.calendars.create.mutationOptions({
       onSuccess: () => {
-        queryClient.invalidateQueries({ queryKey: ["resources"] });
+        queryClient.invalidateQueries({ queryKey: orpc.calendars.key() });
         setShowCreateForm(false);
       },
     }),
@@ -183,44 +210,41 @@ function ResourcesPage() {
 
   // Update mutation
   const updateMutation = useMutation(
-    orpc.resources.update.mutationOptions({
+    orpc.calendars.update.mutationOptions({
       onSuccess: () => {
-        queryClient.invalidateQueries({ queryKey: ["resources"] });
-        setEditingResource(null);
+        queryClient.invalidateQueries({ queryKey: orpc.calendars.key() });
+        setEditingCalendar(null);
       },
     }),
   );
 
   // Delete mutation
   const deleteMutation = useMutation(
-    orpc.resources.remove.mutationOptions({
+    orpc.calendars.remove.mutationOptions({
       onSuccess: () => {
-        queryClient.invalidateQueries({ queryKey: ["resources"] });
-        setDeletingResourceId(null);
+        queryClient.invalidateQueries({ queryKey: orpc.calendars.key() });
+        setDeletingCalendarId(null);
       },
     }),
   );
 
-  if (authLoading) return null;
-  if (!isAuthenticated) return <Navigate to="/login" />;
-
   const locations = locationsData?.items ?? [];
 
-  const handleCreate = (formData: CreateResourceInput) => {
+  const handleCreate = (formData: CreateCalendarInput) => {
     createMutation.mutate(formData);
   };
 
-  const handleUpdate = (formData: CreateResourceInput) => {
-    if (!editingResource) return;
+  const handleUpdate = (formData: CreateCalendarInput) => {
+    if (!editingCalendar) return;
     updateMutation.mutate({
-      id: editingResource.id,
+      id: editingCalendar.id,
       data: formData,
     });
   };
 
   const handleDelete = () => {
-    if (!deletingResourceId) return;
-    deleteMutation.mutate({ id: deletingResourceId });
+    if (!deletingCalendarId) return;
+    deleteMutation.mutate({ id: deletingCalendarId });
   };
 
   const getLocationName = (locationId: string | null) => {
@@ -233,15 +257,15 @@ function ResourcesPage() {
     <div className="p-8">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Resources</h1>
+          <h1 className="text-2xl font-bold">Calendars</h1>
           <p className="mt-1 text-muted-foreground">
-            Manage resources like rooms, equipment, or staff.
+            Manage calendars and their availability.
           </p>
         </div>
-        {!showCreateForm && !editingResource && (
+        {!showCreateForm && !editingCalendar && (
           <Button onClick={() => setShowCreateForm(true)}>
             <Plus className="mr-2 h-4 w-4" />
-            Add Resource
+            Add Calendar
           </Button>
         )}
       </div>
@@ -249,8 +273,8 @@ function ResourcesPage() {
       {/* Create Form */}
       {showCreateForm && (
         <div className="mt-6 rounded-lg border bg-card p-6">
-          <h2 className="mb-4 text-lg font-semibold">New Resource</h2>
-          <ResourceForm
+          <h2 className="mb-4 text-lg font-semibold">New Calendar</h2>
+          <CalendarForm
             locations={locations}
             onSubmit={handleCreate}
             onCancel={() => setShowCreateForm(false)}
@@ -260,34 +284,34 @@ function ResourcesPage() {
       )}
 
       {/* Edit Form */}
-      {editingResource && (
+      {editingCalendar && (
         <div className="mt-6 rounded-lg border bg-card p-6">
-          <h2 className="mb-4 text-lg font-semibold">Edit Resource</h2>
-          <ResourceForm
+          <h2 className="mb-4 text-lg font-semibold">Edit Calendar</h2>
+          <CalendarForm
             defaultValues={{
-              name: editingResource.name,
-              quantity: editingResource.quantity,
-              locationId: editingResource.locationId,
+              name: editingCalendar.name,
+              timezone: editingCalendar.timezone,
+              locationId: editingCalendar.locationId,
             }}
             locations={locations}
             onSubmit={handleUpdate}
-            onCancel={() => setEditingResource(null)}
+            onCancel={() => setEditingCalendar(null)}
             isSubmitting={updateMutation.isPending}
           />
         </div>
       )}
 
-      {/* Resources Table */}
+      {/* Calendars Table */}
       <div className="mt-6">
         {isLoading ? (
           <div className="text-center text-muted-foreground">Loading...</div>
         ) : error ? (
           <div className="text-center text-destructive">
-            Error loading resources
+            Error loading calendars
           </div>
         ) : !data?.items.length ? (
           <div className="rounded-lg border bg-card p-8 text-center text-muted-foreground">
-            No resources yet. Create your first resource to get started.
+            No calendars yet. Create your first calendar to get started.
           </div>
         ) : (
           <div className="rounded-lg border">
@@ -295,47 +319,55 @@ function ResourcesPage() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Name</TableHead>
-                  <TableHead>Quantity</TableHead>
+                  <TableHead>Timezone</TableHead>
                   <TableHead>Location</TableHead>
                   <TableHead>Created</TableHead>
-                  <TableHead className="w-[100px]">Actions</TableHead>
+                  <TableHead className="w-[150px]">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {data.items.map((resource) => (
-                  <TableRow key={resource.id}>
+                {data.items.map((calendar) => (
+                  <TableRow key={calendar.id}>
                     <TableCell className="font-medium">
-                      {resource.name}
+                      {calendar.name}
                     </TableCell>
-                    <TableCell>{resource.quantity}</TableCell>
+                    <TableCell>{calendar.timezone}</TableCell>
                     <TableCell>
-                      {getLocationName(resource.locationId)}
+                      {getLocationName(calendar.locationId)}
                     </TableCell>
                     <TableCell>
-                      {new Date(resource.createdAt).toLocaleDateString()}
+                      {new Date(calendar.createdAt).toLocaleDateString()}
                     </TableCell>
                     <TableCell>
                       <div className="flex gap-1">
+                        <Button variant="ghost" size="icon" asChild>
+                          <Link
+                            to="/calendars/$calendarId/availability"
+                            params={{ calendarId: calendar.id }}
+                          >
+                            <Clock className="h-4 w-4" />
+                          </Link>
+                        </Button>
                         <Button
                           variant="ghost"
                           size="icon"
                           onClick={() =>
-                            setEditingResource({
-                              id: resource.id,
-                              name: resource.name,
-                              quantity: resource.quantity,
-                              locationId: resource.locationId ?? undefined,
+                            setEditingCalendar({
+                              id: calendar.id,
+                              name: calendar.name,
+                              timezone: calendar.timezone,
+                              locationId: calendar.locationId ?? undefined,
                             })
                           }
-                          disabled={showCreateForm || editingResource !== null}
+                          disabled={showCreateForm || editingCalendar !== null}
                         >
                           <Pencil className="h-4 w-4" />
                         </Button>
                         <Button
                           variant="ghost"
                           size="icon"
-                          onClick={() => setDeletingResourceId(resource.id)}
-                          disabled={showCreateForm || editingResource !== null}
+                          onClick={() => setDeletingCalendarId(calendar.id)}
+                          disabled={showCreateForm || editingCalendar !== null}
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>
@@ -351,14 +383,14 @@ function ResourcesPage() {
 
       {/* Delete Confirmation */}
       <AlertDialog
-        open={!!deletingResourceId}
-        onOpenChange={() => setDeletingResourceId(null)}
+        open={!!deletingCalendarId}
+        onOpenChange={() => setDeletingCalendarId(null)}
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete Resource</AlertDialogTitle>
+            <AlertDialogTitle>Delete Calendar</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete this resource? This action cannot
+              Are you sure you want to delete this calendar? This action cannot
               be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -377,6 +409,6 @@ function ResourcesPage() {
   );
 }
 
-export const Route = createFileRoute("/resources")({
-  component: ResourcesPage,
+export const Route = createFileRoute("/_authenticated/calendars")({
+  component: CalendarsPage,
 });

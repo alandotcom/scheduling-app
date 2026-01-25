@@ -1,13 +1,12 @@
 // Appointment Types management page with CRUD operations
 
 import { useState } from "react";
-import { createFileRoute, Navigate, Link } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Plus, Pencil, Trash2, Link2, Calendar } from "lucide-react";
 
-import { useAuth } from "@/contexts/auth";
 import { orpc } from "@/lib/query";
 import { createAppointmentTypeSchema } from "@scheduling/dto";
 import type { CreateAppointmentTypeInput } from "@scheduling/dto";
@@ -159,7 +158,6 @@ function AppointmentTypeForm({
 }
 
 function AppointmentTypesPage() {
-  const { isAuthenticated, isLoading: authLoading } = useAuth();
   const queryClient = useQueryClient();
 
   const [showCreateForm, setShowCreateForm] = useState(false);
@@ -184,7 +182,9 @@ function AppointmentTypesPage() {
   const createMutation = useMutation(
     orpc.appointmentTypes.create.mutationOptions({
       onSuccess: () => {
-        queryClient.invalidateQueries({ queryKey: ["appointmentTypes"] });
+        queryClient.invalidateQueries({
+          queryKey: orpc.appointmentTypes.key(),
+        });
         setShowCreateForm(false);
       },
     }),
@@ -194,7 +194,9 @@ function AppointmentTypesPage() {
   const updateMutation = useMutation(
     orpc.appointmentTypes.update.mutationOptions({
       onSuccess: () => {
-        queryClient.invalidateQueries({ queryKey: ["appointmentTypes"] });
+        queryClient.invalidateQueries({
+          queryKey: orpc.appointmentTypes.key(),
+        });
         setEditingType(null);
       },
     }),
@@ -204,14 +206,13 @@ function AppointmentTypesPage() {
   const deleteMutation = useMutation(
     orpc.appointmentTypes.remove.mutationOptions({
       onSuccess: () => {
-        queryClient.invalidateQueries({ queryKey: ["appointmentTypes"] });
+        queryClient.invalidateQueries({
+          queryKey: orpc.appointmentTypes.key(),
+        });
         setDeletingTypeId(null);
       },
     }),
   );
-
-  if (authLoading) return null;
-  if (!isAuthenticated) return <Navigate to="/login" />;
 
   const handleCreate = (formData: CreateAppointmentTypeInput) => {
     createMutation.mutate(formData);
@@ -408,6 +409,6 @@ function AppointmentTypesPage() {
   );
 }
 
-export const Route = createFileRoute("/appointment-types")({
+export const Route = createFileRoute("/_authenticated/appointment-types")({
   component: AppointmentTypesPage,
 });
