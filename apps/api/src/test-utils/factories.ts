@@ -29,6 +29,8 @@ import {
 import {
   setTestOrgContext,
   clearTestOrgContext,
+  setTestUserContext,
+  clearTestUserContext,
 } from "@scheduling/db/test-utils";
 
 type Database = BunSQLDatabase<typeof schema, typeof relations>;
@@ -38,7 +40,7 @@ let orgCounter = 0;
 
 /**
  * Create an organization with an admin user
- * Note: orgs, users, and org_memberships are NOT RLS-protected
+ * Note: orgs and users are NOT RLS-protected, but org_memberships IS RLS-protected
  */
 export async function createOrg(
   db: Database,
@@ -62,18 +64,24 @@ export async function createOrg(
     })
     .returning();
 
-  await db.insert(orgMemberships).values({
-    orgId: org!.id,
-    userId: user!.id,
-    role: "admin",
-  });
+  // Set user context for RLS before inserting org_membership
+  await setTestUserContext(db, user!.id);
+  try {
+    await db.insert(orgMemberships).values({
+      orgId: org!.id,
+      userId: user!.id,
+      role: "admin",
+    });
+  } finally {
+    await clearTestUserContext(db);
+  }
 
   return { org: org!, user: user! };
 }
 
 /**
  * Add a user to an organization
- * Note: users and org_memberships are NOT RLS-protected
+ * Note: users is NOT RLS-protected, but org_memberships IS RLS-protected
  */
 export async function createOrgMember(
   db: Database,
@@ -89,11 +97,17 @@ export async function createOrgMember(
     })
     .returning();
 
-  await db.insert(orgMemberships).values({
-    orgId,
-    userId: user!.id,
-    role: options.role ?? "staff",
-  });
+  // Set user context for RLS before inserting org_membership
+  await setTestUserContext(db, user!.id);
+  try {
+    await db.insert(orgMemberships).values({
+      orgId,
+      userId: user!.id,
+      role: options.role ?? "staff",
+    });
+  } finally {
+    await clearTestUserContext(db);
+  }
 
   return user!;
 }

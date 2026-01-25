@@ -114,11 +114,19 @@ export async function seedTestOrg(
     })
     .returning();
 
+  // Set user context for RLS before inserting org_membership
+  await db.execute(
+    sql`SELECT set_config('app.current_user_id', ${user!.id}, false)`,
+  );
+
   await db.insert(schema.orgMemberships).values({
     orgId: org!.id,
     userId: user!.id,
     role: "admin",
   });
+
+  // Clear user context after seeding
+  await db.execute(sql`SELECT set_config('app.current_user_id', '', false)`);
 
   return { org: org!, user: user! };
 }
@@ -145,11 +153,19 @@ export async function seedSecondTestOrg(
     })
     .returning();
 
+  // Set user context for RLS before inserting org_membership
+  await db.execute(
+    sql`SELECT set_config('app.current_user_id', ${user!.id}, false)`,
+  );
+
   await db.insert(schema.orgMemberships).values({
     orgId: org!.id,
     userId: user!.id,
     role: "admin",
   });
+
+  // Clear user context after seeding
+  await db.execute(sql`SELECT set_config('app.current_user_id', '', false)`);
 
   return { org: org!, user: user! };
 }
@@ -168,12 +184,60 @@ export async function setTestOrgContext(
 }
 
 /**
+ * Set the user context for RLS queries in tests
+ * Required for tables like org_memberships that use user-based RLS
+ */
+export async function setTestUserContext(
+  db: BunSQLDatabase<typeof schema, typeof relations>,
+  userId: string,
+): Promise<void> {
+  await db.execute(
+    sql`SELECT set_config('app.current_user_id', ${userId}, false)`,
+  );
+}
+
+/**
+ * Set both org and user context for RLS queries in tests
+ */
+export async function setTestContext(
+  db: BunSQLDatabase<typeof schema, typeof relations>,
+  orgId: string,
+  userId: string,
+): Promise<void> {
+  await Promise.all([
+    db.execute(sql`SELECT set_config('app.current_org_id', ${orgId}, false)`),
+    db.execute(sql`SELECT set_config('app.current_user_id', ${userId}, false)`),
+  ]);
+}
+
+/**
  * Clear the org context (queries will return no rows due to RLS)
  */
 export async function clearTestOrgContext(
   db: BunSQLDatabase<typeof schema, typeof relations>,
 ): Promise<void> {
   await db.execute(sql`SELECT set_config('app.current_org_id', '', false)`);
+}
+
+/**
+ * Clear the user context
+ */
+export async function clearTestUserContext(
+  db: BunSQLDatabase<typeof schema, typeof relations>,
+): Promise<void> {
+  await db.execute(sql`SELECT set_config('app.current_user_id', '', false)`);
+}
+
+/**
+ * Clear both org and user context
+ */
+export async function clearTestContext(
+  db: BunSQLDatabase<typeof schema, typeof relations>,
+): Promise<void> {
+  await Promise.all([
+    db.execute(sql`SELECT set_config('app.current_org_id', '', false)`),
+    db.execute(sql`SELECT set_config('app.current_user_id', '', false)`),
+  ]);
 }
 
 /**
@@ -189,5 +253,22 @@ export async function withTestOrgContext<T>(
     return await fn();
   } finally {
     await clearTestOrgContext(db);
+  }
+}
+
+/**
+ * Run a function with both org and user context set, then restore previous context
+ */
+export async function withTestContext<T>(
+  db: BunSQLDatabase<typeof schema, typeof relations>,
+  orgId: string,
+  userId: string,
+  fn: () => Promise<T>,
+): Promise<T> {
+  await setTestContext(db, orgId, userId);
+  try {
+    return await fn();
+  } finally {
+    await clearTestContext(db);
   }
 }

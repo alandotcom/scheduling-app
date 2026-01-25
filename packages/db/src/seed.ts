@@ -2,6 +2,7 @@
 // Creates a demo org with admin user
 
 import { drizzle } from "drizzle-orm/bun-sql";
+import { sql } from "drizzle-orm";
 import { SQL } from "bun";
 import {
   orgs,
@@ -55,6 +56,11 @@ async function seed() {
   });
   console.log("Created credential account for admin");
 
+  // Set user context for RLS before inserting org_membership
+  await db.execute(
+    sql`SELECT set_config('app.current_user_id', ${adminUser!.id}, false)`,
+  );
+
   // Create org membership
   await db.insert(orgMemberships).values({
     orgId: org!.id,
@@ -62,6 +68,12 @@ async function seed() {
     role: "admin",
   });
   console.log("Created org membership for admin");
+
+  // Clear user context, set org context for remaining RLS-protected tables
+  await db.execute(sql`SELECT set_config('app.current_user_id', '', false)`);
+  await db.execute(
+    sql`SELECT set_config('app.current_org_id', ${org!.id}, false)`,
+  );
 
   // Create a demo location
   const [location] = await db
@@ -103,6 +115,9 @@ async function seed() {
       .returning();
     console.log(`Created appointment type: ${apptType!.name}`);
   }
+
+  // Clear org context
+  await db.execute(sql`SELECT set_config('app.current_org_id', '', false)`);
 
   console.log("\nSeed completed successfully!");
   console.log("\nDemo credentials:");

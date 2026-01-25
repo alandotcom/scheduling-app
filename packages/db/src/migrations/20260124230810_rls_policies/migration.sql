@@ -61,7 +61,7 @@ CREATE POLICY org_isolation_event_outbox ON event_outbox
 -- Note: Tables without org_id don't need RLS:
 -- - orgs (root table)
 -- - users (shared across orgs, filtered via org_memberships)
--- - org_memberships (controls user-org relationships)
 -- - sessions, accounts, verifications (BetterAuth tables)
 -- - availability_rules, availability_overrides, blocked_time, scheduling_limits
 --   (these are scoped via calendar_id, which is already org-scoped)
+-- Note: org_memberships has RLS added in a later migration (20260125000002)
