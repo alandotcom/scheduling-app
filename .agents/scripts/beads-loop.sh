@@ -79,8 +79,14 @@ if [[ ! -d ".beads" ]]; then
   exit 1
 fi
 
-# Get issue prefix
-ISSUE_PREFIX=$(bd info --json 2>/dev/null | jq -r '.issue_prefix // "bd-"' || echo "bd-")
+# Get issue prefix by extracting from first issue in list
+# Format: "○ scheduling-app-xxx" or "● scheduling-app-xxx"
+ISSUE_PREFIX=$(bd list 2>/dev/null | grep -oE '[a-z]+-[a-z]+-[a-z0-9]+' | head -1 | sed 's/-[^-]*$//' || echo "")
+if [[ -z "$ISSUE_PREFIX" ]]; then
+  echo "❌ Error: Could not determine issue prefix from bd list" >&2
+  exit 1
+fi
+ISSUE_PREFIX="${ISSUE_PREFIX}-"
 
 # Verify prompt file exists
 if [[ ! -f "$PROMPT_FILE" ]]; then
