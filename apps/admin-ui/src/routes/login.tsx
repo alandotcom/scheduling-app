@@ -2,21 +2,45 @@
 
 import { createFileRoute, Navigate, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod/mini";
 import { authClient } from "@/lib/auth-client";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+
+const loginSchema = z.object({
+  email: z.string().check(z.email("Please enter a valid email address")),
+  password: z.string().check(z.minLength(1, "Password is required")),
+});
+
+type LoginInput = z.infer<typeof loginSchema>;
 
 function LoginPage() {
   const { data: session, isPending: isLoading } = authClient.useSession();
   const navigate = useNavigate();
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [serverError, setServerError] = useState<string | null>(null);
+
+  const {
+    register,
+    handleSubmit,
+    formState: { errors, isSubmitting },
+  } = useForm<LoginInput>({
+    resolver: zodResolver(loginSchema),
+    mode: "onBlur",
+    defaultValues: {
+      email: "",
+      password: "",
+    },
+  });
 
   if (isLoading) {
     return (
       <div className="flex h-screen items-center justify-center">
-        <div className="text-muted-foreground">Loading...</div>
+        <div className="text-muted-foreground" role="status" aria-live="polite">
+          Loading...
+        </div>
       </div>
     );
   }
@@ -25,21 +49,20 @@ function LoginPage() {
     return <Navigate to="/" />;
   }
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
-    setIsSubmitting(true);
+  const onSubmit = async (data: LoginInput) => {
+    setServerError(null);
 
     try {
-      const result = await authClient.signIn.email({ email, password });
+      const result = await authClient.signIn.email({
+        email: data.email,
+        password: data.password,
+      });
       if (result.error) {
         throw new Error(result.error.message ?? "Login failed");
       }
       void navigate({ to: "/" });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Login failed");
-    } finally {
-      setIsSubmitting(false);
+      setServerError(err instanceof Error ? err.message : "Login failed");
     }
   };
 
@@ -53,41 +76,51 @@ function LoginPage() {
           </p>
         </div>
 
-        <form onSubmit={(e) => void handleSubmit(e)} className="space-y-4">
-          {error && (
-            <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
-              {error}
+        <form
+          onSubmit={(e) => void handleSubmit(onSubmit)(e)}
+          className="space-y-4"
+        >
+          {serverError && (
+            <div
+              className="rounded-md bg-destructive/10 p-3 text-sm text-destructive"
+              role="alert"
+            >
+              {serverError}
             </div>
           )}
 
           <div className="space-y-2">
-            <label htmlFor="email" className="text-sm font-medium">
-              Email
-            </label>
-            <input
+            <Label htmlFor="email">Email</Label>
+            <Input
               id="email"
               type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               placeholder="admin@example.com"
+              aria-describedby={errors.email ? "email-error" : undefined}
+              aria-invalid={!!errors.email}
+              {...register("email")}
             />
+            {errors.email && (
+              <p id="email-error" className="text-sm text-destructive">
+                {errors.email.message}
+              </p>
+            )}
           </div>
 
           <div className="space-y-2">
-            <label htmlFor="password" className="text-sm font-medium">
-              Password
-            </label>
-            <input
+            <Label htmlFor="password">Password</Label>
+            <Input
               id="password"
               type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               placeholder="Enter your password"
+              aria-describedby={errors.password ? "password-error" : undefined}
+              aria-invalid={!!errors.password}
+              {...register("password")}
             />
+            {errors.password && (
+              <p id="password-error" className="text-sm text-destructive">
+                {errors.password.message}
+              </p>
+            )}
           </div>
 
           <Button type="submit" className="w-full" disabled={isSubmitting}>

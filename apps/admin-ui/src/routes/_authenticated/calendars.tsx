@@ -1,15 +1,18 @@
 // Calendars management page with CRUD operations
 
-import { useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Plus, Pencil, Trash2, Clock } from "lucide-react";
 
+import { toast } from "sonner";
 import { orpc } from "@/lib/query";
+import { TIMEZONES } from "@/lib/constants";
 import { createCalendarSchema } from "@scheduling/dto";
 import type { CreateCalendarInput } from "@scheduling/dto";
+import { useCrudState } from "@/hooks/use-crud-state";
+import { DeleteConfirmDialog } from "@/components/delete-confirm-dialog";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -23,16 +26,6 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-import {
   Select,
   SelectContent,
   SelectItem,
@@ -40,23 +33,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-// Common timezones
-const TIMEZONES = [
-  "America/New_York",
-  "America/Chicago",
-  "America/Denver",
-  "America/Los_Angeles",
-  "America/Phoenix",
-  "America/Anchorage",
-  "Pacific/Honolulu",
-  "Europe/London",
-  "Europe/Paris",
-  "Europe/Berlin",
-  "Asia/Tokyo",
-  "Asia/Shanghai",
-  "Australia/Sydney",
-  "UTC",
-];
+interface CalendarItem {
+  id: string;
+  name: string;
+  timezone: string;
+  locationId?: string;
+}
 
 interface CalendarFormProps {
   defaultValues?: {
@@ -85,6 +67,7 @@ function CalendarForm({
     formState: { errors },
   } = useForm<CreateCalendarInput>({
     resolver: zodResolver(createCalendarSchema),
+    mode: "onBlur",
     defaultValues: defaultValues ?? {
       name: "",
       timezone: "America/New_York",
@@ -101,11 +84,15 @@ function CalendarForm({
         <Input
           id="name"
           placeholder="Dr. Smith's Calendar"
+          aria-describedby={errors.name ? "name-error" : undefined}
+          aria-invalid={!!errors.name}
           {...register("name")}
           disabled={isSubmitting}
         />
         {errors.name && (
-          <p className="text-sm text-destructive">{errors.name.message}</p>
+          <p id="name-error" className="text-sm text-destructive">
+            {errors.name.message}
+          </p>
         )}
       </div>
       <div className="space-y-2">
@@ -172,17 +159,7 @@ function CalendarForm({
 
 function CalendarsPage() {
   const queryClient = useQueryClient();
-
-  const [showCreateForm, setShowCreateForm] = useState(false);
-  const [editingCalendar, setEditingCalendar] = useState<{
-    id: string;
-    name: string;
-    timezone: string;
-    locationId?: string;
-  } | null>(null);
-  const [deletingCalendarId, setDeletingCalendarId] = useState<string | null>(
-    null,
-  );
+  const crud = useCrudState<CalendarItem>();
 
   // Fetch calendars
   const { data, isLoading, error } = useQuery(
@@ -203,7 +180,11 @@ function CalendarsPage() {
     orpc.calendars.create.mutationOptions({
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: orpc.calendars.key() });
-        setShowCreateForm(false);
+        crud.closeCreate();
+        toast.success("Calendar created successfully");
+      },
+      onError: (error) => {
+        toast.error(error.message || "Failed to create calendar");
       },
     }),
   );
@@ -213,7 +194,11 @@ function CalendarsPage() {
     orpc.calendars.update.mutationOptions({
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: orpc.calendars.key() });
-        setEditingCalendar(null);
+        crud.closeEdit();
+        toast.success("Calendar updated successfully");
+      },
+      onError: (error) => {
+        toast.error(error.message || "Failed to update calendar");
       },
     }),
   );
@@ -223,7 +208,11 @@ function CalendarsPage() {
     orpc.calendars.remove.mutationOptions({
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: orpc.calendars.key() });
-        setDeletingCalendarId(null);
+        crud.closeDelete();
+        toast.success("Calendar deleted successfully");
+      },
+      onError: (error) => {
+        toast.error(error.message || "Failed to delete calendar");
       },
     }),
   );
@@ -235,16 +224,16 @@ function CalendarsPage() {
   };
 
   const handleUpdate = (formData: CreateCalendarInput) => {
-    if (!editingCalendar) return;
+    if (!crud.editingItem) return;
     updateMutation.mutate({
-      id: editingCalendar.id,
+      id: crud.editingItem.id,
       data: formData,
     });
   };
 
   const handleDelete = () => {
-    if (!deletingCalendarId) return;
-    deleteMutation.mutate({ id: deletingCalendarId });
+    if (!crud.deletingItemId) return;
+    deleteMutation.mutate({ id: crud.deletingItemId });
   };
 
   const getLocationName = (locationId: string | null) => {
@@ -262,8 +251,8 @@ function CalendarsPage() {
             Manage calendars and their availability.
           </p>
         </div>
-        {!showCreateForm && !editingCalendar && (
-          <Button onClick={() => setShowCreateForm(true)}>
+        {!crud.isFormOpen && (
+          <Button onClick={crud.openCreate}>
             <Plus className="mr-2 h-4 w-4" />
             Add Calendar
           </Button>
@@ -271,31 +260,31 @@ function CalendarsPage() {
       </div>
 
       {/* Create Form */}
-      {showCreateForm && (
+      {crud.showCreateForm && (
         <div className="mt-6 rounded-lg border bg-card p-6">
           <h2 className="mb-4 text-lg font-semibold">New Calendar</h2>
           <CalendarForm
             locations={locations}
             onSubmit={handleCreate}
-            onCancel={() => setShowCreateForm(false)}
+            onCancel={crud.closeCreate}
             isSubmitting={createMutation.isPending}
           />
         </div>
       )}
 
       {/* Edit Form */}
-      {editingCalendar && (
+      {crud.editingItem && (
         <div className="mt-6 rounded-lg border bg-card p-6">
           <h2 className="mb-4 text-lg font-semibold">Edit Calendar</h2>
           <CalendarForm
             defaultValues={{
-              name: editingCalendar.name,
-              timezone: editingCalendar.timezone,
-              locationId: editingCalendar.locationId,
+              name: crud.editingItem.name,
+              timezone: crud.editingItem.timezone,
+              locationId: crud.editingItem.locationId,
             }}
             locations={locations}
             onSubmit={handleUpdate}
-            onCancel={() => setEditingCalendar(null)}
+            onCancel={crud.closeEdit}
             isSubmitting={updateMutation.isPending}
           />
         </div>
@@ -304,7 +293,13 @@ function CalendarsPage() {
       {/* Calendars Table */}
       <div className="mt-6">
         {isLoading ? (
-          <div className="text-center text-muted-foreground">Loading...</div>
+          <div
+            className="text-center text-muted-foreground"
+            role="status"
+            aria-live="polite"
+          >
+            Loading...
+          </div>
         ) : error ? (
           <div className="text-center text-destructive">
             Error loading calendars
@@ -340,7 +335,12 @@ function CalendarsPage() {
                     </TableCell>
                     <TableCell>
                       <div className="flex gap-1">
-                        <Button variant="ghost" size="icon" asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          asChild
+                          aria-label="Manage availability"
+                        >
                           <Link
                             to="/calendars/$calendarId/availability"
                             params={{ calendarId: calendar.id }}
@@ -351,23 +351,25 @@ function CalendarsPage() {
                         <Button
                           variant="ghost"
                           size="icon"
+                          aria-label="Edit calendar"
                           onClick={() =>
-                            setEditingCalendar({
+                            crud.openEdit({
                               id: calendar.id,
                               name: calendar.name,
                               timezone: calendar.timezone,
                               locationId: calendar.locationId ?? undefined,
                             })
                           }
-                          disabled={showCreateForm || editingCalendar !== null}
+                          disabled={crud.isFormOpen}
                         >
                           <Pencil className="h-4 w-4" />
                         </Button>
                         <Button
                           variant="ghost"
                           size="icon"
-                          onClick={() => setDeletingCalendarId(calendar.id)}
-                          disabled={showCreateForm || editingCalendar !== null}
+                          aria-label="Delete calendar"
+                          onClick={() => crud.openDelete(calendar.id)}
+                          disabled={crud.isFormOpen}
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>
@@ -382,29 +384,14 @@ function CalendarsPage() {
       </div>
 
       {/* Delete Confirmation */}
-      <AlertDialog
-        open={!!deletingCalendarId}
-        onOpenChange={() => setDeletingCalendarId(null)}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete Calendar</AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to delete this calendar? This action cannot
-              be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleDelete}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              {deleteMutation.isPending ? "Deleting..." : "Delete"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <DeleteConfirmDialog
+        open={!!crud.deletingItemId}
+        onOpenChange={crud.closeDelete}
+        onConfirm={handleDelete}
+        title="Delete Calendar"
+        description="Are you sure you want to delete this calendar? This action cannot be undone."
+        isPending={deleteMutation.isPending}
+      />
     </div>
   );
 }

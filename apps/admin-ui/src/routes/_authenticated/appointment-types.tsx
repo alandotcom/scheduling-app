@@ -1,15 +1,17 @@
 // Appointment Types management page with CRUD operations
 
-import { useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Plus, Pencil, Trash2, Link2, Calendar } from "lucide-react";
 
+import { toast } from "sonner";
 import { orpc } from "@/lib/query";
 import { createAppointmentTypeSchema } from "@scheduling/dto";
 import type { CreateAppointmentTypeInput } from "@scheduling/dto";
+import { useCrudState } from "@/hooks/use-crud-state";
+import { DeleteConfirmDialog } from "@/components/delete-confirm-dialog";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,17 +24,16 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
+
+interface AppointmentTypeItem {
+  id: string;
+  name: string;
+  durationMin: number;
+  paddingBeforeMin?: number;
+  paddingAfterMin?: number;
+  capacity?: number;
+}
 
 interface AppointmentTypeFormProps {
   defaultValues?: {
@@ -59,6 +60,7 @@ function AppointmentTypeForm({
     formState: { errors },
   } = useForm<CreateAppointmentTypeInput>({
     resolver: zodResolver(createAppointmentTypeSchema),
+    mode: "onBlur",
     defaultValues: defaultValues ?? {
       name: "",
       durationMin: 30,
@@ -72,14 +74,18 @@ function AppointmentTypeForm({
         <Input
           id="name"
           placeholder="Consultation"
+          aria-describedby={errors.name ? "name-error" : undefined}
+          aria-invalid={!!errors.name}
           {...register("name")}
           disabled={isSubmitting}
         />
         {errors.name && (
-          <p className="text-sm text-destructive">{errors.name.message}</p>
+          <p id="name-error" className="text-sm text-destructive">
+            {errors.name.message}
+          </p>
         )}
       </div>
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div className="space-y-2">
           <Label htmlFor="durationMin">Duration (minutes)</Label>
           <Input
@@ -87,11 +93,13 @@ function AppointmentTypeForm({
             type="number"
             min={5}
             step={5}
+            aria-describedby={errors.durationMin ? "duration-error" : undefined}
+            aria-invalid={!!errors.durationMin}
             {...register("durationMin", { valueAsNumber: true })}
             disabled={isSubmitting}
           />
           {errors.durationMin && (
-            <p className="text-sm text-destructive">
+            <p id="duration-error" className="text-sm text-destructive">
               {errors.durationMin.message}
             </p>
           )}
@@ -110,7 +118,7 @@ function AppointmentTypeForm({
           />
         </div>
       </div>
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div className="space-y-2">
           <Label htmlFor="paddingBeforeMin">Padding Before (min)</Label>
           <Input
@@ -159,17 +167,7 @@ function AppointmentTypeForm({
 
 function AppointmentTypesPage() {
   const queryClient = useQueryClient();
-
-  const [showCreateForm, setShowCreateForm] = useState(false);
-  const [editingType, setEditingType] = useState<{
-    id: string;
-    name: string;
-    durationMin: number;
-    paddingBeforeMin?: number;
-    paddingAfterMin?: number;
-    capacity?: number;
-  } | null>(null);
-  const [deletingTypeId, setDeletingTypeId] = useState<string | null>(null);
+  const crud = useCrudState<AppointmentTypeItem>();
 
   // Fetch appointment types
   const { data, isLoading, error } = useQuery(
@@ -185,7 +183,11 @@ function AppointmentTypesPage() {
         queryClient.invalidateQueries({
           queryKey: orpc.appointmentTypes.key(),
         });
-        setShowCreateForm(false);
+        crud.closeCreate();
+        toast.success("Appointment type created successfully");
+      },
+      onError: (error) => {
+        toast.error(error.message || "Failed to create appointment type");
       },
     }),
   );
@@ -197,7 +199,11 @@ function AppointmentTypesPage() {
         queryClient.invalidateQueries({
           queryKey: orpc.appointmentTypes.key(),
         });
-        setEditingType(null);
+        crud.closeEdit();
+        toast.success("Appointment type updated successfully");
+      },
+      onError: (error) => {
+        toast.error(error.message || "Failed to update appointment type");
       },
     }),
   );
@@ -209,7 +215,11 @@ function AppointmentTypesPage() {
         queryClient.invalidateQueries({
           queryKey: orpc.appointmentTypes.key(),
         });
-        setDeletingTypeId(null);
+        crud.closeDelete();
+        toast.success("Appointment type deleted successfully");
+      },
+      onError: (error) => {
+        toast.error(error.message || "Failed to delete appointment type");
       },
     }),
   );
@@ -219,16 +229,16 @@ function AppointmentTypesPage() {
   };
 
   const handleUpdate = (formData: CreateAppointmentTypeInput) => {
-    if (!editingType) return;
+    if (!crud.editingItem) return;
     updateMutation.mutate({
-      id: editingType.id,
+      id: crud.editingItem.id,
       data: formData,
     });
   };
 
   const handleDelete = () => {
-    if (!deletingTypeId) return;
-    deleteMutation.mutate({ id: deletingTypeId });
+    if (!crud.deletingItemId) return;
+    deleteMutation.mutate({ id: crud.deletingItemId });
   };
 
   return (
@@ -240,8 +250,8 @@ function AppointmentTypesPage() {
             Configure the types of appointments that can be booked.
           </p>
         </div>
-        {!showCreateForm && !editingType && (
-          <Button onClick={() => setShowCreateForm(true)}>
+        {!crud.isFormOpen && (
+          <Button onClick={crud.openCreate}>
             <Plus className="mr-2 h-4 w-4" />
             Add Appointment Type
           </Button>
@@ -249,31 +259,31 @@ function AppointmentTypesPage() {
       </div>
 
       {/* Create Form */}
-      {showCreateForm && (
+      {crud.showCreateForm && (
         <div className="mt-6 rounded-lg border bg-card p-6">
           <h2 className="mb-4 text-lg font-semibold">New Appointment Type</h2>
           <AppointmentTypeForm
             onSubmit={handleCreate}
-            onCancel={() => setShowCreateForm(false)}
+            onCancel={crud.closeCreate}
             isSubmitting={createMutation.isPending}
           />
         </div>
       )}
 
       {/* Edit Form */}
-      {editingType && (
+      {crud.editingItem && (
         <div className="mt-6 rounded-lg border bg-card p-6">
           <h2 className="mb-4 text-lg font-semibold">Edit Appointment Type</h2>
           <AppointmentTypeForm
             defaultValues={{
-              name: editingType.name,
-              durationMin: editingType.durationMin,
-              paddingBeforeMin: editingType.paddingBeforeMin,
-              paddingAfterMin: editingType.paddingAfterMin,
-              capacity: editingType.capacity,
+              name: crud.editingItem.name,
+              durationMin: crud.editingItem.durationMin,
+              paddingBeforeMin: crud.editingItem.paddingBeforeMin,
+              paddingAfterMin: crud.editingItem.paddingAfterMin,
+              capacity: crud.editingItem.capacity,
             }}
             onSubmit={handleUpdate}
-            onCancel={() => setEditingType(null)}
+            onCancel={crud.closeEdit}
             isSubmitting={updateMutation.isPending}
           />
         </div>
@@ -282,7 +292,13 @@ function AppointmentTypesPage() {
       {/* Appointment Types Table */}
       <div className="mt-6">
         {isLoading ? (
-          <div className="text-center text-muted-foreground">Loading...</div>
+          <div
+            className="text-center text-muted-foreground"
+            role="status"
+            aria-live="polite"
+          >
+            Loading...
+          </div>
         ) : error ? (
           <div className="text-center text-destructive">
             Error loading appointment types
@@ -328,7 +344,12 @@ function AppointmentTypesPage() {
                     </TableCell>
                     <TableCell>
                       <div className="flex gap-1">
-                        <Button variant="ghost" size="icon" asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          asChild
+                          aria-label="Manage calendars"
+                        >
                           <Link
                             to="/appointment-types/$typeId/calendars"
                             params={{ typeId: type.id }}
@@ -336,7 +357,12 @@ function AppointmentTypesPage() {
                             <Calendar className="h-4 w-4" />
                           </Link>
                         </Button>
-                        <Button variant="ghost" size="icon" asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          asChild
+                          aria-label="Manage resources"
+                        >
                           <Link
                             to="/appointment-types/$typeId/resources"
                             params={{ typeId: type.id }}
@@ -347,8 +373,9 @@ function AppointmentTypesPage() {
                         <Button
                           variant="ghost"
                           size="icon"
+                          aria-label="Edit appointment type"
                           onClick={() =>
-                            setEditingType({
+                            crud.openEdit({
                               id: type.id,
                               name: type.name,
                               durationMin: type.durationMin,
@@ -359,15 +386,16 @@ function AppointmentTypesPage() {
                               capacity: type.capacity ?? undefined,
                             })
                           }
-                          disabled={showCreateForm || editingType !== null}
+                          disabled={crud.isFormOpen}
                         >
                           <Pencil className="h-4 w-4" />
                         </Button>
                         <Button
                           variant="ghost"
                           size="icon"
-                          onClick={() => setDeletingTypeId(type.id)}
-                          disabled={showCreateForm || editingType !== null}
+                          aria-label="Delete appointment type"
+                          onClick={() => crud.openDelete(type.id)}
+                          disabled={crud.isFormOpen}
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>
@@ -382,29 +410,14 @@ function AppointmentTypesPage() {
       </div>
 
       {/* Delete Confirmation */}
-      <AlertDialog
-        open={!!deletingTypeId}
-        onOpenChange={() => setDeletingTypeId(null)}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete Appointment Type</AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to delete this appointment type? This action
-              cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleDelete}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              {deleteMutation.isPending ? "Deleting..." : "Delete"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <DeleteConfirmDialog
+        open={!!crud.deletingItemId}
+        onOpenChange={crud.closeDelete}
+        onConfirm={handleDelete}
+        title="Delete Appointment Type"
+        description="Are you sure you want to delete this appointment type? This action cannot be undone."
+        isPending={deleteMutation.isPending}
+      />
     </div>
   );
 }

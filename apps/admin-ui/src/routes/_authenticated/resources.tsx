@@ -1,6 +1,5 @@
 // Resources management page with CRUD operations
 
-import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
@@ -8,9 +7,12 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { Plus, Pencil, Trash2 } from "lucide-react";
 
 import { z } from "zod/mini";
+import { toast } from "sonner";
 import { orpc } from "@/lib/query";
 import { createResourceSchema } from "@scheduling/dto";
 import type { CreateResourceInput } from "@scheduling/dto";
+import { useCrudState } from "@/hooks/use-crud-state";
+import { DeleteConfirmDialog } from "@/components/delete-confirm-dialog";
 
 // Form schema with required quantity for better UX
 const resourceFormSchema = z.extend(createResourceSchema, {
@@ -29,22 +31,19 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+
+interface ResourceItem {
+  id: string;
+  name: string;
+  quantity: number;
+  locationId?: string;
+}
 
 interface ResourceFormProps {
   defaultValues?: { name: string; quantity: number; locationId?: string };
@@ -69,6 +68,7 @@ function ResourceForm({
     formState: { errors },
   } = useForm<CreateResourceInput>({
     resolver: zodResolver(resourceFormSchema),
+    mode: "onBlur",
     defaultValues: defaultValues ?? { name: "", quantity: 1 },
   });
 
@@ -81,11 +81,15 @@ function ResourceForm({
         <Input
           id="name"
           placeholder="Meeting Room A"
+          aria-describedby={errors.name ? "name-error" : undefined}
+          aria-invalid={!!errors.name}
           {...register("name")}
           disabled={isSubmitting}
         />
         {errors.name && (
-          <p className="text-sm text-destructive">{errors.name.message}</p>
+          <p id="name-error" className="text-sm text-destructive">
+            {errors.name.message}
+          </p>
         )}
       </div>
       <div className="space-y-2">
@@ -94,11 +98,15 @@ function ResourceForm({
           id="quantity"
           type="number"
           min={1}
+          aria-describedby={errors.quantity ? "quantity-error" : undefined}
+          aria-invalid={!!errors.quantity}
           {...register("quantity", { valueAsNumber: true })}
           disabled={isSubmitting}
         />
         {errors.quantity && (
-          <p className="text-sm text-destructive">{errors.quantity.message}</p>
+          <p id="quantity-error" className="text-sm text-destructive">
+            {errors.quantity.message}
+          </p>
         )}
       </div>
       <div className="space-y-2">
@@ -143,17 +151,7 @@ function ResourceForm({
 
 function ResourcesPage() {
   const queryClient = useQueryClient();
-
-  const [showCreateForm, setShowCreateForm] = useState(false);
-  const [editingResource, setEditingResource] = useState<{
-    id: string;
-    name: string;
-    quantity: number;
-    locationId?: string;
-  } | null>(null);
-  const [deletingResourceId, setDeletingResourceId] = useState<string | null>(
-    null,
-  );
+  const crud = useCrudState<ResourceItem>();
 
   // Fetch resources
   const { data, isLoading, error } = useQuery(
@@ -174,7 +172,11 @@ function ResourcesPage() {
     orpc.resources.create.mutationOptions({
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: orpc.resources.key() });
-        setShowCreateForm(false);
+        crud.closeCreate();
+        toast.success("Resource created successfully");
+      },
+      onError: (error) => {
+        toast.error(error.message || "Failed to create resource");
       },
     }),
   );
@@ -184,7 +186,11 @@ function ResourcesPage() {
     orpc.resources.update.mutationOptions({
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: orpc.resources.key() });
-        setEditingResource(null);
+        crud.closeEdit();
+        toast.success("Resource updated successfully");
+      },
+      onError: (error) => {
+        toast.error(error.message || "Failed to update resource");
       },
     }),
   );
@@ -194,7 +200,11 @@ function ResourcesPage() {
     orpc.resources.remove.mutationOptions({
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: orpc.resources.key() });
-        setDeletingResourceId(null);
+        crud.closeDelete();
+        toast.success("Resource deleted successfully");
+      },
+      onError: (error) => {
+        toast.error(error.message || "Failed to delete resource");
       },
     }),
   );
@@ -206,16 +216,16 @@ function ResourcesPage() {
   };
 
   const handleUpdate = (formData: CreateResourceInput) => {
-    if (!editingResource) return;
+    if (!crud.editingItem) return;
     updateMutation.mutate({
-      id: editingResource.id,
+      id: crud.editingItem.id,
       data: formData,
     });
   };
 
   const handleDelete = () => {
-    if (!deletingResourceId) return;
-    deleteMutation.mutate({ id: deletingResourceId });
+    if (!crud.deletingItemId) return;
+    deleteMutation.mutate({ id: crud.deletingItemId });
   };
 
   const getLocationName = (locationId: string | null) => {
@@ -233,8 +243,8 @@ function ResourcesPage() {
             Manage resources like rooms, equipment, or staff.
           </p>
         </div>
-        {!showCreateForm && !editingResource && (
-          <Button onClick={() => setShowCreateForm(true)}>
+        {!crud.isFormOpen && (
+          <Button onClick={crud.openCreate}>
             <Plus className="mr-2 h-4 w-4" />
             Add Resource
           </Button>
@@ -242,31 +252,31 @@ function ResourcesPage() {
       </div>
 
       {/* Create Form */}
-      {showCreateForm && (
+      {crud.showCreateForm && (
         <div className="mt-6 rounded-lg border bg-card p-6">
           <h2 className="mb-4 text-lg font-semibold">New Resource</h2>
           <ResourceForm
             locations={locations}
             onSubmit={handleCreate}
-            onCancel={() => setShowCreateForm(false)}
+            onCancel={crud.closeCreate}
             isSubmitting={createMutation.isPending}
           />
         </div>
       )}
 
       {/* Edit Form */}
-      {editingResource && (
+      {crud.editingItem && (
         <div className="mt-6 rounded-lg border bg-card p-6">
           <h2 className="mb-4 text-lg font-semibold">Edit Resource</h2>
           <ResourceForm
             defaultValues={{
-              name: editingResource.name,
-              quantity: editingResource.quantity,
-              locationId: editingResource.locationId,
+              name: crud.editingItem.name,
+              quantity: crud.editingItem.quantity,
+              locationId: crud.editingItem.locationId,
             }}
             locations={locations}
             onSubmit={handleUpdate}
-            onCancel={() => setEditingResource(null)}
+            onCancel={crud.closeEdit}
             isSubmitting={updateMutation.isPending}
           />
         </div>
@@ -275,7 +285,13 @@ function ResourcesPage() {
       {/* Resources Table */}
       <div className="mt-6">
         {isLoading ? (
-          <div className="text-center text-muted-foreground">Loading...</div>
+          <div
+            className="text-center text-muted-foreground"
+            role="status"
+            aria-live="polite"
+          >
+            Loading...
+          </div>
         ) : error ? (
           <div className="text-center text-destructive">
             Error loading resources
@@ -314,23 +330,25 @@ function ResourcesPage() {
                         <Button
                           variant="ghost"
                           size="icon"
+                          aria-label="Edit resource"
                           onClick={() =>
-                            setEditingResource({
+                            crud.openEdit({
                               id: resource.id,
                               name: resource.name,
                               quantity: resource.quantity,
                               locationId: resource.locationId ?? undefined,
                             })
                           }
-                          disabled={showCreateForm || editingResource !== null}
+                          disabled={crud.isFormOpen}
                         >
                           <Pencil className="h-4 w-4" />
                         </Button>
                         <Button
                           variant="ghost"
                           size="icon"
-                          onClick={() => setDeletingResourceId(resource.id)}
-                          disabled={showCreateForm || editingResource !== null}
+                          aria-label="Delete resource"
+                          onClick={() => crud.openDelete(resource.id)}
+                          disabled={crud.isFormOpen}
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>
@@ -345,29 +363,14 @@ function ResourcesPage() {
       </div>
 
       {/* Delete Confirmation */}
-      <AlertDialog
-        open={!!deletingResourceId}
-        onOpenChange={() => setDeletingResourceId(null)}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete Resource</AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to delete this resource? This action cannot
-              be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleDelete}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              {deleteMutation.isPending ? "Deleting..." : "Delete"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <DeleteConfirmDialog
+        open={!!crud.deletingItemId}
+        onOpenChange={crud.closeDelete}
+        onConfirm={handleDelete}
+        title="Delete Resource"
+        description="Are you sure you want to delete this resource? This action cannot be undone."
+        isPending={deleteMutation.isPending}
+      />
     </div>
   );
 }

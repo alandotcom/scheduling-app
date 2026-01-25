@@ -1,10 +1,11 @@
 // Link calendars to appointment type
 
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Plus, Trash2 } from "lucide-react";
+import { Plus, Trash2 } from "lucide-react";
 
 import { orpc } from "@/lib/query";
+import { Breadcrumb } from "@/components/breadcrumb";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -98,21 +99,22 @@ function AppointmentTypeCalendarsPage() {
 
   return (
     <div className="p-8">
+      <Breadcrumb
+        items={[
+          { label: "Appointment Types", to: "/appointment-types" },
+          { label: appointmentType?.name ?? "..." },
+          { label: "Calendars" },
+        ]}
+      />
+
       {/* Header */}
-      <div className="flex items-center gap-4">
-        <Button variant="ghost" size="icon" asChild>
-          <Link to="/appointment-types">
-            <ArrowLeft className="h-4 w-4" />
-          </Link>
-        </Button>
-        <div>
-          <h1 className="text-2xl font-bold">
-            {appointmentType?.name ?? "Appointment Type"} - Calendars
-          </h1>
-          <p className="mt-1 text-muted-foreground">
-            Select which calendars can offer this appointment type.
-          </p>
-        </div>
+      <div>
+        <h1 className="text-2xl font-bold">
+          {appointmentType?.name ?? "Appointment Type"} - Calendars
+        </h1>
+        <p className="mt-1 text-muted-foreground">
+          Select which calendars can offer this appointment type.
+        </p>
       </div>
 
       <Separator className="my-6" />

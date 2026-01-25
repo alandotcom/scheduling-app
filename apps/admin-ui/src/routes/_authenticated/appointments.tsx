@@ -5,6 +5,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Plus, X, Clock } from "lucide-react";
 
+import { toast } from "sonner";
 import { orpc } from "@/lib/query";
 
 import { Button } from "@/components/ui/button";
@@ -100,6 +101,10 @@ function AppointmentsPage() {
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: orpc.appointments.key() });
         setCancellingId(null);
+        toast.success("Appointment cancelled");
+      },
+      onError: (error) => {
+        toast.error(error.message || "Failed to cancel appointment");
       },
     }),
   );
@@ -110,6 +115,10 @@ function AppointmentsPage() {
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: orpc.appointments.key() });
         setNoShowId(null);
+        toast.success("Appointment marked as no-show");
+      },
+      onError: (error) => {
+        toast.error(error.message || "Failed to mark as no-show");
       },
     }),
   );
@@ -157,7 +166,7 @@ function AppointmentsPage() {
       </div>
 
       {/* Filters */}
-      <div className="mt-6 grid grid-cols-5 gap-4 rounded-lg border bg-card p-4">
+      <div className="mt-6 grid grid-cols-1 gap-4 rounded-lg border bg-card p-4 sm:grid-cols-2 lg:grid-cols-5">
         <div className="space-y-2">
           <Label>Calendar</Label>
           <Select
@@ -257,7 +266,13 @@ function AppointmentsPage() {
       {/* Appointments Table */}
       <div className="mt-6">
         {isLoading ? (
-          <div className="text-center text-muted-foreground">Loading...</div>
+          <div
+            className="text-center text-muted-foreground"
+            role="status"
+            aria-live="polite"
+          >
+            Loading...
+          </div>
         ) : error ? (
           <div className="text-center text-destructive">
             Error loading appointments
@@ -311,6 +326,7 @@ function AppointmentsPage() {
                             variant="ghost"
                             size="icon"
                             title="Mark as no-show"
+                            aria-label="Mark as no-show"
                             onClick={() => setNoShowId(appointment.id)}
                           >
                             <Clock className="h-4 w-4" />
@@ -318,7 +334,8 @@ function AppointmentsPage() {
                           <Button
                             variant="ghost"
                             size="icon"
-                            title="Cancel"
+                            title="Cancel appointment"
+                            aria-label="Cancel appointment"
                             onClick={() => setCancellingId(appointment.id)}
                           >
                             <X className="h-4 w-4" />

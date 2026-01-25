@@ -6,7 +6,9 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Plus, Pencil, Trash2 } from "lucide-react";
 
+import { toast } from "sonner";
 import { orpc } from "@/lib/query";
+import { TIMEZONES } from "@/lib/constants";
 import { createLocationSchema } from "@scheduling/dto";
 import type { CreateLocationInput } from "@scheduling/dto";
 import { useCrudState } from "@/hooks/use-crud-state";
@@ -30,24 +32,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-
-// Common timezones
-const TIMEZONES = [
-  "America/New_York",
-  "America/Chicago",
-  "America/Denver",
-  "America/Los_Angeles",
-  "America/Phoenix",
-  "America/Anchorage",
-  "Pacific/Honolulu",
-  "Europe/London",
-  "Europe/Paris",
-  "Europe/Berlin",
-  "Asia/Tokyo",
-  "Asia/Shanghai",
-  "Australia/Sydney",
-  "UTC",
-];
 
 interface LocationItem {
   id: string;
@@ -76,6 +60,7 @@ function LocationForm({
     formState: { errors },
   } = useForm<CreateLocationInput>({
     resolver: zodResolver(createLocationSchema),
+    mode: "onBlur",
     defaultValues: defaultValues ?? { name: "", timezone: "America/New_York" },
   });
 
@@ -88,11 +73,15 @@ function LocationForm({
         <Input
           id="name"
           placeholder="Main Office"
+          aria-describedby={errors.name ? "name-error" : undefined}
+          aria-invalid={!!errors.name}
           {...register("name")}
           disabled={isSubmitting}
         />
         {errors.name && (
-          <p className="text-sm text-destructive">{errors.name.message}</p>
+          <p id="name-error" className="text-sm text-destructive">
+            {errors.name.message}
+          </p>
         )}
       </div>
       <div className="space-y-2">
@@ -151,6 +140,10 @@ function LocationsPage() {
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: orpc.locations.key() });
         crud.closeCreate();
+        toast.success("Location created successfully");
+      },
+      onError: (error) => {
+        toast.error(error.message || "Failed to create location");
       },
     }),
   );
@@ -161,6 +154,10 @@ function LocationsPage() {
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: orpc.locations.key() });
         crud.closeEdit();
+        toast.success("Location updated successfully");
+      },
+      onError: (error) => {
+        toast.error(error.message || "Failed to update location");
       },
     }),
   );
@@ -171,6 +168,10 @@ function LocationsPage() {
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: orpc.locations.key() });
         crud.closeDelete();
+        toast.success("Location deleted successfully");
+      },
+      onError: (error) => {
+        toast.error(error.message || "Failed to delete location");
       },
     }),
   );
@@ -240,7 +241,13 @@ function LocationsPage() {
       {/* Locations Table */}
       <div className="mt-6">
         {isLoading ? (
-          <div className="text-center text-muted-foreground">Loading...</div>
+          <div
+            className="text-center text-muted-foreground"
+            role="status"
+            aria-live="polite"
+          >
+            Loading...
+          </div>
         ) : error ? (
           <div className="text-center text-destructive">
             Error loading locations
@@ -275,6 +282,7 @@ function LocationsPage() {
                         <Button
                           variant="ghost"
                           size="icon"
+                          aria-label="Edit location"
                           onClick={() =>
                             crud.openEdit({
                               id: location.id,
@@ -289,6 +297,7 @@ function LocationsPage() {
                         <Button
                           variant="ghost"
                           size="icon"
+                          aria-label="Delete location"
                           onClick={() => crud.openDelete(location.id)}
                           disabled={crud.isFormOpen}
                         >

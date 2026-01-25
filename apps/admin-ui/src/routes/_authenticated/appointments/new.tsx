@@ -1,11 +1,12 @@
 // New appointment booking form with availability picker
 
 import { useState } from "react";
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Calendar } from "lucide-react";
+import { Calendar } from "lucide-react";
 
 import { orpc } from "@/lib/query";
+import { Breadcrumb } from "@/components/breadcrumb";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -143,19 +144,19 @@ function NewAppointmentPage() {
 
   return (
     <div className="p-8">
+      <Breadcrumb
+        items={[
+          { label: "Appointments", to: "/appointments" },
+          { label: "New Appointment" },
+        ]}
+      />
+
       {/* Header */}
-      <div className="flex items-center gap-4">
-        <Button variant="ghost" size="icon" asChild>
-          <Link to="/appointments">
-            <ArrowLeft className="h-4 w-4" />
-          </Link>
-        </Button>
-        <div>
-          <h1 className="text-2xl font-bold">New Appointment</h1>
-          <p className="mt-1 text-muted-foreground">
-            Book a new appointment by selecting type, calendar, and time.
-          </p>
-        </div>
+      <div>
+        <h1 className="text-2xl font-bold">New Appointment</h1>
+        <p className="mt-1 text-muted-foreground">
+          Book a new appointment by selecting type, calendar, and time.
+        </p>
       </div>
 
       <Separator className="my-6" />
