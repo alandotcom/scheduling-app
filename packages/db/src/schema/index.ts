@@ -262,10 +262,11 @@ export const accounts = pgTable("accounts", {
   userId: uuid("user_id")
     .notNull()
     .references(() => users.id, { onDelete: "cascade" }),
+  accountId: text("account_id").notNull(), // BetterAuth: provider's account ID
   providerId: text("provider_id").notNull(),
-  providerAccountId: text("provider_account_id").notNull(),
   accessToken: text("access_token"),
   refreshToken: text("refresh_token"),
+  idToken: text("id_token"),
   accessTokenExpiresAt: timestamp("access_token_expires_at", {
     withTimezone: true,
   }),
@@ -273,6 +274,7 @@ export const accounts = pgTable("accounts", {
     withTimezone: true,
   }),
   scope: text("scope"),
+  password: text("password"), // Hashed password for credential auth
   ...timestamps,
 });
 

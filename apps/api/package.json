@@ -13,7 +13,8 @@
     "build": "bun build ./src/index.ts --outdir ./dist --target bun",
     "start": "bun dist/index.js",
     "test": "bun test",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "seed": "bun src/scripts/seed.ts"
   },
   "dependencies": {
     "@orpc/server": "^1.13.4",

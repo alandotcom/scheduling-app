@@ -26,6 +26,11 @@ export const auth = betterAuth({
     expiresIn: 60 * 60 * 24 * 7, // 7 days
     updateAge: 60 * 60 * 24, // Update session every 24 hours
   },
+  advanced: {
+    database: {
+      generateId: () => Bun.randomUUIDv7(), // Generate UUIDv7 to match our schema
+    },
+  },
 });
 
 export type Auth = typeof auth;
