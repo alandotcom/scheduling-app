@@ -6,6 +6,7 @@
     "dev": "pnpm -r --parallel run dev",
     "dev:api": "pnpm --filter @scheduling/api run dev",
     "dev:admin": "pnpm --filter @scheduling/admin-ui run dev",
+    "db:migrate": "pnpm --filter @scheduling/db run migrate",
     "build": "pnpm -r run build",
     "test": "pnpm -r run test",
     "lint": "oxlint .",

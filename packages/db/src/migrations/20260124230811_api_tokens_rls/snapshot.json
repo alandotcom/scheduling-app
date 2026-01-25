@@ -2,9 +2,7 @@
   "version": "8",
   "dialect": "postgres",
   "id": "5b529e32-59b1-4b1e-b639-61eafab2955c",
-  "prevIds": [
-    "00000000-0000-0000-0000-000000000000"
-  ],
+  "prevIds": ["00000000-0000-0000-0000-000000000000"],
   "ddl": [
     {
       "isRlsEnabled": false,
@@ -2285,14 +2283,10 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "user_id"
-      ],
+      "columns": ["user_id"],
       "schemaTo": "public",
       "tableTo": "users",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "NO ACTION",
       "onDelete": "CASCADE",
       "name": "accounts_user_id_users_id_fkey",
@@ -2302,14 +2296,10 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "org_id"
-      ],
+      "columns": ["org_id"],
       "schemaTo": "public",
       "tableTo": "orgs",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "NO ACTION",
       "onDelete": "NO ACTION",
       "name": "api_tokens_org_id_orgs_id_fkey",
@@ -2319,14 +2309,10 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "user_id"
-      ],
+      "columns": ["user_id"],
       "schemaTo": "public",
       "tableTo": "users",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "NO ACTION",
       "onDelete": "NO ACTION",
       "name": "api_tokens_user_id_users_id_fkey",
@@ -2336,14 +2322,10 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "appointment_type_id"
-      ],
+      "columns": ["appointment_type_id"],
       "schemaTo": "public",
       "tableTo": "appointment_types",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "NO ACTION",
       "onDelete": "NO ACTION",
       "name": "appointment_type_calendars_gHcf7toxCUtt_fkey",
@@ -2353,14 +2335,10 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "calendar_id"
-      ],
+      "columns": ["calendar_id"],
       "schemaTo": "public",
       "tableTo": "calendars",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "NO ACTION",
       "onDelete": "NO ACTION",
       "name": "appointment_type_calendars_calendar_id_calendars_id_fkey",
@@ -2370,14 +2348,10 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "appointment_type_id"
-      ],
+      "columns": ["appointment_type_id"],
       "schemaTo": "public",
       "tableTo": "appointment_types",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "NO ACTION",
       "onDelete": "NO ACTION",
       "name": "appointment_type_resources_6XPhdSeLmkCN_fkey",
@@ -2387,14 +2361,10 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "resource_id"
-      ],
+      "columns": ["resource_id"],
       "schemaTo": "public",
       "tableTo": "resources",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "NO ACTION",
       "onDelete": "NO ACTION",
       "name": "appointment_type_resources_resource_id_resources_id_fkey",
@@ -2404,14 +2374,10 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "org_id"
-      ],
+      "columns": ["org_id"],
       "schemaTo": "public",
       "tableTo": "orgs",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "NO ACTION",
       "onDelete": "NO ACTION",
       "name": "appointment_types_org_id_orgs_id_fkey",
@@ -2421,14 +2387,10 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "org_id"
-      ],
+      "columns": ["org_id"],
       "schemaTo": "public",
       "tableTo": "orgs",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "NO ACTION",
       "onDelete": "NO ACTION",
       "name": "appointments_org_id_orgs_id_fkey",
@@ -2438,14 +2400,10 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "calendar_id"
-      ],
+      "columns": ["calendar_id"],
       "schemaTo": "public",
       "tableTo": "calendars",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "NO ACTION",
       "onDelete": "NO ACTION",
       "name": "appointments_calendar_id_calendars_id_fkey",
@@ -2455,14 +2413,10 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "appointment_type_id"
-      ],
+      "columns": ["appointment_type_id"],
       "schemaTo": "public",
       "tableTo": "appointment_types",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "NO ACTION",
       "onDelete": "NO ACTION",
       "name": "appointments_appointment_type_id_appointment_types_id_fkey",
@@ -2472,14 +2426,10 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "client_id"
-      ],
+      "columns": ["client_id"],
       "schemaTo": "public",
       "tableTo": "clients",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "NO ACTION",
       "onDelete": "NO ACTION",
       "name": "appointments_client_id_clients_id_fkey",
@@ -2489,14 +2439,10 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "org_id"
-      ],
+      "columns": ["org_id"],
       "schemaTo": "public",
       "tableTo": "orgs",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "NO ACTION",
       "onDelete": "NO ACTION",
       "name": "audit_events_org_id_orgs_id_fkey",
@@ -2506,14 +2452,10 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "actor_id"
-      ],
+      "columns": ["actor_id"],
       "schemaTo": "public",
       "tableTo": "users",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "NO ACTION",
       "onDelete": "NO ACTION",
       "name": "audit_events_actor_id_users_id_fkey",
@@ -2523,14 +2465,10 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "calendar_id"
-      ],
+      "columns": ["calendar_id"],
       "schemaTo": "public",
       "tableTo": "calendars",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "NO ACTION",
       "onDelete": "NO ACTION",
       "name": "availability_overrides_calendar_id_calendars_id_fkey",
@@ -2540,14 +2478,10 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "calendar_id"
-      ],
+      "columns": ["calendar_id"],
       "schemaTo": "public",
       "tableTo": "calendars",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "NO ACTION",
       "onDelete": "NO ACTION",
       "name": "availability_rules_calendar_id_calendars_id_fkey",
@@ -2557,14 +2491,10 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "calendar_id"
-      ],
+      "columns": ["calendar_id"],
       "schemaTo": "public",
       "tableTo": "calendars",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "NO ACTION",
       "onDelete": "NO ACTION",
       "name": "blocked_time_calendar_id_calendars_id_fkey",
@@ -2574,14 +2504,10 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "org_id"
-      ],
+      "columns": ["org_id"],
       "schemaTo": "public",
       "tableTo": "orgs",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "NO ACTION",
       "onDelete": "NO ACTION",
       "name": "calendars_org_id_orgs_id_fkey",
@@ -2591,14 +2517,10 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "location_id"
-      ],
+      "columns": ["location_id"],
       "schemaTo": "public",
       "tableTo": "locations",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "NO ACTION",
       "onDelete": "NO ACTION",
       "name": "calendars_location_id_locations_id_fkey",
@@ -2608,14 +2530,10 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "org_id"
-      ],
+      "columns": ["org_id"],
       "schemaTo": "public",
       "tableTo": "orgs",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "NO ACTION",
       "onDelete": "NO ACTION",
       "name": "clients_org_id_orgs_id_fkey",
@@ -2625,14 +2543,10 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "org_id"
-      ],
+      "columns": ["org_id"],
       "schemaTo": "public",
       "tableTo": "orgs",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "NO ACTION",
       "onDelete": "NO ACTION",
       "name": "event_outbox_org_id_orgs_id_fkey",
@@ -2642,14 +2556,10 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "org_id"
-      ],
+      "columns": ["org_id"],
       "schemaTo": "public",
       "tableTo": "orgs",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "NO ACTION",
       "onDelete": "NO ACTION",
       "name": "locations_org_id_orgs_id_fkey",
@@ -2659,14 +2569,10 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "org_id"
-      ],
+      "columns": ["org_id"],
       "schemaTo": "public",
       "tableTo": "orgs",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "NO ACTION",
       "onDelete": "NO ACTION",
       "name": "org_memberships_org_id_orgs_id_fkey",
@@ -2676,14 +2582,10 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "user_id"
-      ],
+      "columns": ["user_id"],
       "schemaTo": "public",
       "tableTo": "users",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "NO ACTION",
       "onDelete": "NO ACTION",
       "name": "org_memberships_user_id_users_id_fkey",
@@ -2693,14 +2595,10 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "org_id"
-      ],
+      "columns": ["org_id"],
       "schemaTo": "public",
       "tableTo": "orgs",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "NO ACTION",
       "onDelete": "NO ACTION",
       "name": "resources_org_id_orgs_id_fkey",
@@ -2710,14 +2608,10 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "location_id"
-      ],
+      "columns": ["location_id"],
       "schemaTo": "public",
       "tableTo": "locations",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "NO ACTION",
       "onDelete": "NO ACTION",
       "name": "resources_location_id_locations_id_fkey",
@@ -2727,14 +2621,10 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "calendar_id"
-      ],
+      "columns": ["calendar_id"],
       "schemaTo": "public",
       "tableTo": "calendars",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "NO ACTION",
       "onDelete": "NO ACTION",
       "name": "scheduling_limits_calendar_id_calendars_id_fkey",
@@ -2744,14 +2634,10 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "user_id"
-      ],
+      "columns": ["user_id"],
       "schemaTo": "public",
       "tableTo": "users",
-      "columnsTo": [
-        "id"
-      ],
+      "columnsTo": ["id"],
       "onUpdate": "NO ACTION",
       "onDelete": "CASCADE",
       "name": "sessions_user_id_users_id_fkey",
@@ -2760,9 +2646,7 @@
       "table": "sessions"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "accounts_pkey",
       "schema": "public",
@@ -2770,9 +2654,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "api_tokens_pkey",
       "schema": "public",
@@ -2780,9 +2662,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "appointment_type_calendars_pkey",
       "schema": "public",
@@ -2790,9 +2670,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "appointment_type_resources_pkey",
       "schema": "public",
@@ -2800,9 +2678,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "appointment_types_pkey",
       "schema": "public",
@@ -2810,9 +2686,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "appointments_pkey",
       "schema": "public",
@@ -2820,9 +2694,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "audit_events_pkey",
       "schema": "public",
@@ -2830,9 +2702,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "availability_overrides_pkey",
       "schema": "public",
@@ -2840,9 +2710,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "availability_rules_pkey",
       "schema": "public",
@@ -2850,9 +2718,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "blocked_time_pkey",
       "schema": "public",
@@ -2860,9 +2726,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "calendars_pkey",
       "schema": "public",
@@ -2870,9 +2734,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "clients_pkey",
       "schema": "public",
@@ -2880,9 +2742,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "event_outbox_pkey",
       "schema": "public",
@@ -2890,9 +2750,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "locations_pkey",
       "schema": "public",
@@ -2900,9 +2758,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "org_memberships_pkey",
       "schema": "public",
@@ -2910,9 +2766,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "orgs_pkey",
       "schema": "public",
@@ -2920,9 +2774,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "resources_pkey",
       "schema": "public",
@@ -2930,9 +2782,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "scheduling_limits_pkey",
       "schema": "public",
@@ -2940,9 +2790,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "sessions_pkey",
       "schema": "public",
@@ -2950,9 +2798,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "users_pkey",
       "schema": "public",
@@ -2960,9 +2806,7 @@
       "entityType": "pks"
     },
     {
-      "columns": [
-        "id"
-      ],
+      "columns": ["id"],
       "nameExplicit": false,
       "name": "verifications_pkey",
       "schema": "public",
@@ -2971,9 +2815,7 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "token_hash"
-      ],
+      "columns": ["token_hash"],
       "nullsNotDistinct": false,
       "name": "api_tokens_token_hash_key",
       "schema": "public",
@@ -2982,9 +2824,7 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "token"
-      ],
+      "columns": ["token"],
       "nullsNotDistinct": false,
       "name": "sessions_token_key",
       "schema": "public",
@@ -2993,9 +2833,7 @@
     },
     {
       "nameExplicit": false,
-      "columns": [
-        "email"
-      ],
+      "columns": ["email"],
       "nullsNotDistinct": false,
       "name": "users_email_key",
       "schema": "public",

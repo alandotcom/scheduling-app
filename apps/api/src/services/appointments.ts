@@ -18,6 +18,32 @@ import type { ServiceContext } from "./locations.js";
 // PostgreSQL exclusion constraint violation code
 const EXCLUSION_CONSTRAINT_VIOLATION = "23P01";
 
+// Helper to check if an error is an exclusion constraint violation
+// Drizzle wraps Postgres errors in error.cause, and Bun's PostgresError uses errno for the code
+function isExclusionConstraintViolation(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+
+  // Check direct code property
+  if ("code" in error && error.code === EXCLUSION_CONSTRAINT_VIOLATION) {
+    return true;
+  }
+
+  // Check cause (Drizzle wraps Postgres errors)
+  if ("cause" in error && error.cause && typeof error.cause === "object") {
+    const cause = error.cause as Record<string, unknown>;
+    // Bun's PostgresError uses errno for the Postgres error code
+    if (cause["errno"] === EXCLUSION_CONSTRAINT_VIOLATION) {
+      return true;
+    }
+    // Also check cause.code for compatibility
+    if (cause["code"] === EXCLUSION_CONSTRAINT_VIOLATION) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 // Extended service context with auth method for audit
 export interface AppointmentServiceContext extends ServiceContext {
   authMethod: "session" | "token" | null;
@@ -188,12 +214,7 @@ export class AppointmentService {
       );
     } catch (error: unknown) {
       // Check for exclusion constraint violation (23P01)
-      if (
-        error &&
-        typeof error === "object" &&
-        "code" in error &&
-        error.code === EXCLUSION_CONSTRAINT_VIOLATION
-      ) {
+      if (isExclusionConstraintViolation(error)) {
         throw new ApplicationError(
           "SLOT_UNAVAILABLE: Time slot is no longer available",
           { code: "CONFLICT" },
@@ -498,12 +519,7 @@ export class AppointmentService {
       });
     } catch (error: unknown) {
       // Check for exclusion constraint violation (23P01)
-      if (
-        error &&
-        typeof error === "object" &&
-        "code" in error &&
-        error.code === EXCLUSION_CONSTRAINT_VIOLATION
-      ) {
+      if (isExclusionConstraintViolation(error)) {
         throw new ApplicationError(
           "SLOT_UNAVAILABLE: New time slot is no longer available",
           { code: "CONFLICT" },

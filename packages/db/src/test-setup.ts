@@ -55,32 +55,25 @@ async function setupTestDatabase() {
   const testDbAdmin = new SQL(testDbAdminUrl);
 
   try {
-    // Check if migrations have been run
-    const tableCheck = await testDbAdmin.unsafe(`
-      SELECT 1 FROM information_schema.tables
-      WHERE table_schema = 'public' AND table_name = 'orgs'
-    `);
-
-    if (tableCheck.length === 0) {
-      console.log("Running migrations on test database...");
-      const proc = Bun.spawn(
-        [
-          "pnpm",
-          "exec",
-          "drizzle-kit",
-          "migrate",
-          "--config=drizzle.test.config.ts",
-        ],
-        {
-          cwd: import.meta.dir + "/..",
-          stdout: "inherit",
-          stderr: "inherit",
-        },
-      );
-      await proc.exited;
-      if (proc.exitCode !== 0) {
-        throw new Error("Failed to run migrations on test database");
-      }
+    // Always run migrations to ensure schema is up to date
+    // drizzle-kit migrate is idempotent - only applies pending migrations
+    const proc = Bun.spawn(
+      [
+        "pnpm",
+        "exec",
+        "drizzle-kit",
+        "migrate",
+        "--config=drizzle.test.config.ts",
+      ],
+      {
+        cwd: import.meta.dir + "/..",
+        stdout: "inherit",
+        stderr: "inherit",
+      },
+    );
+    await proc.exited;
+    if (proc.exitCode !== 0) {
+      throw new Error("Failed to run migrations on test database");
     }
 
     // Grant permissions to app user on test database

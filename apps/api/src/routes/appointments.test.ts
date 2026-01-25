@@ -16,6 +16,7 @@ import {
   createOrg,
   createCalendar,
   createAppointmentType,
+  createResource,
   createClient,
   createAppointment,
   createAvailabilityRule,
@@ -93,8 +94,7 @@ describe("Appointment Routes", () => {
 
   describe("list", () => {
     test("returns empty list when no appointments exist", async () => {
-      const { org, user, calendar, appointmentType } =
-        await createFixtureWithAvailability();
+      const { org, user } = await createFixtureWithAvailability();
       const ctx = createTestContext({ orgId: org.id, userId: user.id });
 
       const result = await call(
@@ -682,6 +682,216 @@ describe("Appointment Routes", () => {
         code: "CONFLICT",
       });
     });
+
+    test("concurrent booking - exactly one succeeds when two parallel requests race for same slot", async () => {
+      const { org, user, calendar, appointmentType } =
+        await createFixtureWithAvailability();
+      const ctx = createTestContext({ orgId: org.id, userId: user.id });
+
+      const startTime = getFutureStartTime(1, 10);
+
+      // Fire two concurrent requests for the exact same time slot
+      const request1 = call(
+        appointmentRoutes.create,
+        {
+          calendarId: calendar.id,
+          appointmentTypeId: appointmentType.id,
+          startTime,
+          timezone: "America/New_York",
+        },
+        { context: ctx },
+      );
+
+      const request2 = call(
+        appointmentRoutes.create,
+        {
+          calendarId: calendar.id,
+          appointmentTypeId: appointmentType.id,
+          startTime,
+          timezone: "America/New_York",
+        },
+        { context: ctx },
+      );
+
+      // Wait for both to complete
+      const results = await Promise.allSettled([request1, request2]);
+
+      // Exactly one should succeed, exactly one should fail with CONFLICT
+      const successes = results.filter((r) => r.status === "fulfilled");
+      const failures = results.filter((r) => r.status === "rejected");
+
+      expect(successes).toHaveLength(1);
+      expect(failures).toHaveLength(1);
+
+      // The failure should be a CONFLICT error
+      const failedResult = failures[0] as PromiseRejectedResult;
+      expect(failedResult.reason).toMatchObject({
+        code: "CONFLICT",
+      });
+
+      // Verify only one appointment exists in the database
+      await setTestOrgContext(db, org.id);
+      const dbAppointments = await db.select().from(appointments);
+      expect(dbAppointments).toHaveLength(1);
+    });
+
+    test("rejects cross-type booking when resource capacity exceeded", async () => {
+      const { org, user } = await createOrg(db);
+      const ctx = createTestContext({ orgId: org.id, userId: user.id });
+
+      const calendar = await createCalendar(db, org.id, {
+        name: "Test Calendar",
+        timezone: "America/New_York",
+      });
+
+      // Create a resource with quantity=1 (e.g., "Conference Room")
+      const resource = await createResource(db, org.id, {
+        name: "Conference Room",
+        quantity: 1,
+      });
+
+      // Create two appointment types that both require this resource
+      const appointmentTypeA = await createAppointmentType(db, org.id, {
+        name: "Type A",
+        durationMin: 60,
+        capacity: 10, // High calendar capacity - not the limiting factor
+        calendarIds: [calendar.id],
+        resourceIds: [{ id: resource.id, quantityRequired: 1 }],
+      });
+
+      const appointmentTypeB = await createAppointmentType(db, org.id, {
+        name: "Type B",
+        durationMin: 60,
+        capacity: 10, // High calendar capacity - not the limiting factor
+        calendarIds: [calendar.id],
+        resourceIds: [{ id: resource.id, quantityRequired: 1 }],
+      });
+
+      // Add availability
+      for (let weekday = 0; weekday < 7; weekday++) {
+        await createAvailabilityRule(db, calendar.id, {
+          weekday,
+          startTime: "09:00",
+          endTime: "17:00",
+        });
+      }
+
+      const startTime = getFutureStartTime(1, 10);
+
+      // Book type A at 2pm → succeeds
+      await call(
+        appointmentRoutes.create,
+        {
+          calendarId: calendar.id,
+          appointmentTypeId: appointmentTypeA.id,
+          startTime,
+          timezone: "America/New_York",
+        },
+        { context: ctx },
+      );
+
+      // Book type B at same time → should fail with resource capacity error
+      await expect(
+        call(
+          appointmentRoutes.create,
+          {
+            calendarId: calendar.id,
+            appointmentTypeId: appointmentTypeB.id,
+            startTime,
+            timezone: "America/New_York",
+          },
+          { context: ctx },
+        ),
+      ).rejects.toMatchObject({
+        code: "CONFLICT",
+      });
+    });
+
+    test("allows booking when resource has sufficient capacity", async () => {
+      const { org, user } = await createOrg(db);
+      const ctx = createTestContext({ orgId: org.id, userId: user.id });
+
+      const calendar = await createCalendar(db, org.id, {
+        name: "Test Calendar",
+        timezone: "America/New_York",
+      });
+
+      // Create a resource with quantity=2 (e.g., "2 Conference Rooms")
+      const resource = await createResource(db, org.id, {
+        name: "Conference Rooms",
+        quantity: 2,
+      });
+
+      // Create two appointment types that each require 1 of this resource
+      const appointmentTypeA = await createAppointmentType(db, org.id, {
+        name: "Type A",
+        durationMin: 60,
+        capacity: 10,
+        calendarIds: [calendar.id],
+        resourceIds: [{ id: resource.id, quantityRequired: 1 }],
+      });
+
+      const appointmentTypeB = await createAppointmentType(db, org.id, {
+        name: "Type B",
+        durationMin: 60,
+        capacity: 10,
+        calendarIds: [calendar.id],
+        resourceIds: [{ id: resource.id, quantityRequired: 1 }],
+      });
+
+      // Add availability
+      for (let weekday = 0; weekday < 7; weekday++) {
+        await createAvailabilityRule(db, calendar.id, {
+          weekday,
+          startTime: "09:00",
+          endTime: "17:00",
+        });
+      }
+
+      const startTime = getFutureStartTime(1, 10);
+
+      // Book type A → succeeds
+      const result1 = await call(
+        appointmentRoutes.create,
+        {
+          calendarId: calendar.id,
+          appointmentTypeId: appointmentTypeA.id,
+          startTime,
+          timezone: "America/New_York",
+        },
+        { context: ctx },
+      );
+      expect(result1).toBeDefined();
+
+      // Book type B at same time → should also succeed (2 rooms available)
+      const result2 = await call(
+        appointmentRoutes.create,
+        {
+          calendarId: calendar.id,
+          appointmentTypeId: appointmentTypeB.id,
+          startTime,
+          timezone: "America/New_York",
+        },
+        { context: ctx },
+      );
+      expect(result2).toBeDefined();
+
+      // Third booking → should fail
+      await expect(
+        call(
+          appointmentRoutes.create,
+          {
+            calendarId: calendar.id,
+            appointmentTypeId: appointmentTypeA.id,
+            startTime,
+            timezone: "America/New_York",
+          },
+          { context: ctx },
+        ),
+      ).rejects.toMatchObject({
+        code: "CONFLICT",
+      });
+    });
   });
 
   describe("update", () => {
@@ -812,7 +1022,7 @@ describe("Appointment Routes", () => {
 
     test("throws NOT_FOUND for appointment in different org (RLS)", async () => {
       const { org: org1, user: user1 } = await createOrg(db, { name: "Org 1" });
-      const { org: org2, user: user2 } = await createOrg(db, { name: "Org 2" });
+      const { org: org2 } = await createOrg(db, { name: "Org 2" });
       const calendar = await createCalendar(db, org2.id, {
         name: "Org 2 Calendar",
       });
