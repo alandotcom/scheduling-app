@@ -11,8 +11,10 @@
 7. Run code review using the code-reviewer agent on your changes
 8. If either review finds issues, fix them and re-run backpressure + reviews
 9. For UI features: run agent-browser QA to verify the feature works correctly
-10. When all checks pass, run `bd close <id>` and commit changes (include .beads/issues.jsonl)
-11. If blocked, run `bd create "Blocker: ..." --blocks <id>` and exit
+10. When all checks pass, run `bd close <id>`
+11. Git commit with descriptive message (see Git Commits section below)
+12. Document significant learnings in `.agents/memories/` (see Knowledge Capture section below)
+13. If blocked, run `bd create "Blocker: ..." --blocks <id>` and exit
 
 ## Code Review
 
@@ -70,4 +72,53 @@ pnpm typecheck    # Type-check all packages
 pnpm lint         # Run oxlint
 pnpm test         # Run all tests
 pnpm format       # Format code (always run after changes)
+```
+
+## Git Commits
+
+After closing a task, commit your changes:
+
+```bash
+git add -A
+git commit -m "$(cat <<'EOF'
+feat/fix/refactor: <short description>
+
+- <bullet point of what changed>
+- <another bullet point if needed>
+
+Closes: <beads-id>
+EOF
+)"
+```
+
+Include `.beads/issues.jsonl` in every commit to track task state.
+
+## Knowledge Capture
+
+After completing a task, document significant learnings:
+
+**When to capture:**
+- Unexpected library behavior or gotchas
+- Performance insights or optimizations discovered
+- Bug patterns and their solutions
+- Configuration quirks or workarounds
+- Integration patterns that worked well
+
+**Where to write:**
+`.agents/memories/<topic>/<learning>.md`
+
+**Example topics:** `drizzle/`, `better-auth/`, `hono/`, `tanstack-router/`, `postgres/`, `testing/`
+
+**Format:**
+```markdown
+# <Title>
+
+## Context
+<When this applies>
+
+## Learning
+<What was discovered>
+
+## Example
+<Code or steps if applicable>
 ```

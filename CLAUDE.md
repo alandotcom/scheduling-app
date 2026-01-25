@@ -81,6 +81,23 @@ export type CreateOrgInput = z.infer<typeof createOrgSchema>;
 
 Common validators in `packages/dto/src/common.ts`: UUID, timestamp, timezone, time (HH:MM), date (YYYY-MM-DD), weekday (0-6).
 
+## Agent Memories
+
+Accumulated knowledge from development sessions is stored in `.agents/memories/`.
+
+Structure:
+```
+.agents/memories/
+  drizzle/           → ORM patterns, migrations, gotchas
+  better-auth/       → Auth integration learnings
+  hono/              → API framework patterns
+  tanstack-router/   → Router/query patterns
+  postgres/          → Database optimizations, RLS notes
+  testing/           → Test patterns, mocking strategies
+```
+
+Check these files for relevant context before implementing features in that area.
+
 ## Testing with Real Postgres
 
 Tests use a real Postgres database (`scheduling_test`) with RLS enforced. The test database is automatically created on first test run via the preload script.

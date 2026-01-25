@@ -10,6 +10,8 @@ Start the Beads loop by running:
 .claude/scripts/setup-beads-loop.sh $ARGUMENTS
 ```
 
+See @PROMPT.md
+
 Then work through tasks from `bd ready`. For each task:
 1. Run `bd show <id>` to get details
 2. Complete the work following existing patterns
