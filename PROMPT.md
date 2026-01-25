@@ -6,7 +6,7 @@
 2. Run `bd show <id>` to get full task details
 3. Complete ONE task following existing patterns
 4. Run backpressure: `pnpm typecheck && pnpm lint && pnpm test`
-5. If passing, run `bd close <id>` and commit changes
+5. If passing, run `bd close <id>` and commit changes (include .beads/issues.jsonl)
 6. If blocked, run `bd create "Blocker: ..." --blocks <id>` and exit
 
 ## Rules
@@ -16,6 +16,7 @@
 - Run all backpressure checks before closing
 - Create blocker tasks if you encounter issues
 - Commit after each completed task
+- Always include .beads/issues.jsonl in commits (tracks task state)
 
 ## Backpressure Commands
 
