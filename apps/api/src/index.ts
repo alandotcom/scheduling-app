@@ -6,7 +6,7 @@ import { router } from "./routes/index.js";
 import { auth } from "./lib/auth.js";
 import { authMiddleware } from "./middleware/auth.js";
 import { rlsMiddleware } from "./middleware/rls.js";
-import { rateLimitMiddleware } from "./middleware/rate-limit.js";
+// import { rateLimitMiddleware } from "./middleware/rate-limit.js"; // Disabled for dev
 import { errorHandler } from "./middleware/error-handler.js";
 import { config } from "./config.js";
 
@@ -23,9 +23,9 @@ app.on(["GET", "POST"], "/api/auth/*", (c) => {
   return auth.handler(c.req.raw);
 });
 
-// Auth, rate limiting, and RLS middleware for API routes
+// Auth and RLS middleware for API routes
 app.use("/v1/*", authMiddleware);
-app.use("/v1/*", rateLimitMiddleware);
+// app.use("/v1/*", rateLimitMiddleware); // Disabled for dev
 app.use("/v1/*", rlsMiddleware);
 
 // oRPC handler

@@ -14,8 +14,15 @@ function getRedis(): Redis {
       host: config.valkey.host,
       port: config.valkey.port,
       maxRetriesPerRequest: 3,
-      lazyConnect: true,
-      enableOfflineQueue: false,
+      retryStrategy: (times) => {
+        // Stop retrying after 3 attempts
+        if (times > 3) return null;
+        return Math.min(times * 100, 1000);
+      },
+    });
+    // Handle connection errors gracefully
+    redis.on("error", (err) => {
+      console.error("Redis connection error:", err.message);
     });
   }
   return redis;

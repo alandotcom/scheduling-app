@@ -8,6 +8,7 @@ import { RPCLink } from "@orpc/client/fetch";
 // Create the RPC link with fetch configuration
 const link = new RPCLink({
   url: "/v1",
+  method: () => "POST", // Always use POST - server doesn't allow GET for procedures
   fetch: (request, init) => {
     return globalThis.fetch(request, {
       ...init,

@@ -18,6 +18,7 @@ export const auth = betterAuth({
   }),
   secret: config.auth.secret,
   baseURL: config.auth.baseUrl,
+  trustedOrigins: ["http://localhost:5173"], // Frontend dev server
   emailAndPassword: {
     enabled: true,
     requireEmailVerification: false, // Enable in production
