@@ -3,14 +3,15 @@ description: "Start Beads task loop - iterate until all tasks complete"
 argument-hint: "[--max-iterations N] [--prompt-file PATH]"
 ---
 
-Start the Beads loop by running the external loop script:
+**IMPORTANT: Run this from your terminal shell, not from within Claude Code.**
+
+Exit Claude Code first, then run from your terminal:
 
 ```bash
-.agents/scripts/beads-loop.sh $ARGUMENTS
+.agents/scripts/beads-loop.sh --max-iterations 2
 ```
 
-This script runs `claude` as a subprocess for each iteration, providing fresh context.
-Each iteration handles ONE task from `bd ready`, then exits so the next iteration starts clean.
+This script spawns fresh Claude instances for each iteration - it cannot run nested inside Claude.
 
 **How it works:**
 1. Script checks `bd ready` for available tasks
