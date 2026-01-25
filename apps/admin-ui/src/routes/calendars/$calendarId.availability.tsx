@@ -179,6 +179,7 @@ function AvailabilityPage() {
                         <Select
                           value={String(rule.weekday)}
                           onValueChange={(value) =>
+                            value &&
                             updateRule(index, { weekday: parseInt(value, 10) })
                           }
                         >

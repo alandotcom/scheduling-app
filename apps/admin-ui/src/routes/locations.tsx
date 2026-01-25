@@ -103,7 +103,7 @@ function LocationForm({
         <Label htmlFor="timezone">Timezone</Label>
         <Select
           value={timezone}
-          onValueChange={(value) => setValue("timezone", value)}
+          onValueChange={(value) => value && setValue("timezone", value)}
           disabled={isSubmitting}
         >
           <SelectTrigger>

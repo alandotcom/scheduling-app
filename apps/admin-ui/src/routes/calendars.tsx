@@ -113,7 +113,7 @@ function CalendarForm({
         <Label htmlFor="timezone">Timezone</Label>
         <Select
           value={timezone}
-          onValueChange={(value) => setValue("timezone", value)}
+          onValueChange={(value) => value && setValue("timezone", value)}
           disabled={isSubmitting}
         >
           <SelectTrigger>
@@ -136,6 +136,7 @@ function CalendarForm({
         <Select
           value={locationId ?? "none"}
           onValueChange={(value) =>
+            value &&
             setValue("locationId", value === "none" ? undefined : value)
           }
           disabled={isSubmitting}

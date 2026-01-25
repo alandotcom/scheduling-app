@@ -107,6 +107,7 @@ function ResourceForm({
         <Select
           value={locationId ?? "none"}
           onValueChange={(value) =>
+            value &&
             setValue("locationId", value === "none" ? undefined : value)
           }
           disabled={isSubmitting}

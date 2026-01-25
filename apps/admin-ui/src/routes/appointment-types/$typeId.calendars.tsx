@@ -122,7 +122,7 @@ function AppointmentTypeCalendarsPage() {
       <div className="flex gap-4">
         <Select
           value={selectedCalendarId}
-          onValueChange={setSelectedCalendarId}
+          onValueChange={(v) => v && setSelectedCalendarId(v)}
         >
           <SelectTrigger className="w-[300px]">
             <SelectValue placeholder="Select a calendar to add" />

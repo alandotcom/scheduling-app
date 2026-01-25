@@ -168,6 +168,7 @@ function AppointmentsPage() {
           <Select
             value={filters.calendarId || "all"}
             onValueChange={(value) =>
+              value &&
               setFilters((f) => ({
                 ...f,
                 calendarId: value === "all" ? "" : value,
@@ -192,6 +193,7 @@ function AppointmentsPage() {
           <Select
             value={filters.appointmentTypeId || "all"}
             onValueChange={(value) =>
+              value &&
               setFilters((f) => ({
                 ...f,
                 appointmentTypeId: value === "all" ? "" : value,
@@ -216,6 +218,7 @@ function AppointmentsPage() {
           <Select
             value={filters.status || "all"}
             onValueChange={(value) =>
+              value &&
               setFilters((f) => ({
                 ...f,
                 status: value === "all" ? "" : value,

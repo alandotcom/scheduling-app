@@ -148,7 +148,7 @@ function AppointmentTypeResourcesPage() {
           <Label>Resource</Label>
           <Select
             value={selectedResourceId}
-            onValueChange={setSelectedResourceId}
+            onValueChange={(v) => v && setSelectedResourceId(v)}
           >
             <SelectTrigger className="w-[300px]">
               <SelectValue placeholder="Select a resource to add" />

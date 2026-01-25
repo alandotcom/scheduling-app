@@ -181,7 +181,10 @@ function NewAppointmentPage() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <Select value={selectedTypeId} onValueChange={handleTypeChange}>
+              <Select
+                value={selectedTypeId}
+                onValueChange={(v) => v && handleTypeChange(v)}
+              >
                 <SelectTrigger>
                   <SelectValue placeholder="Choose appointment type" />
                 </SelectTrigger>
@@ -214,7 +217,7 @@ function NewAppointmentPage() {
                 ) : (
                   <Select
                     value={selectedCalendarId}
-                    onValueChange={handleCalendarChange}
+                    onValueChange={(v) => v && handleCalendarChange(v)}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Choose calendar" />
