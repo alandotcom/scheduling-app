@@ -7,6 +7,7 @@ import {
   integer,
   boolean,
   jsonb,
+  index,
   uniqueIndex,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
@@ -232,7 +233,10 @@ export const appointments = pgTable.withRLS(
     notes: text("notes"),
     ...timestamps,
   },
-  () => [
+  (table) => [
+    index("appointments_calendar_start_at_idx")
+      .on(table.calendarId, table.startAt)
+      .where(sql`${table.status} <> 'cancelled'`),
     pgPolicy("org_isolation_appointments", {
       for: "all",
       using: sql`org_id = current_org_id()`,
@@ -245,40 +249,66 @@ export const appointments = pgTable.withRLS(
 // AVAILABILITY TABLES
 // ============================================================================
 
-export const availabilityRules = pgTable("availability_rules", {
-  id,
-  calendarId: uuid("calendar_id")
-    .notNull()
-    .references(() => calendars.id),
-  weekday: integer("weekday").notNull(), // 0-6
-  startTime: text("start_time").notNull(), // HH:MM
-  endTime: text("end_time").notNull(),
-  intervalMin: integer("interval_min"),
-  groupId: uuid("group_id"),
-});
+export const availabilityRules = pgTable(
+  "availability_rules",
+  {
+    id,
+    calendarId: uuid("calendar_id")
+      .notNull()
+      .references(() => calendars.id),
+    weekday: integer("weekday").notNull(), // 0-6
+    startTime: text("start_time").notNull(), // HH:MM
+    endTime: text("end_time").notNull(),
+    intervalMin: integer("interval_min"),
+    groupId: uuid("group_id"),
+  },
+  (table) => [index("availability_rules_calendar_idx").on(table.calendarId)],
+);
 
-export const availabilityOverrides = pgTable("availability_overrides", {
-  id,
-  calendarId: uuid("calendar_id")
-    .notNull()
-    .references(() => calendars.id),
-  date: text("date").notNull(), // YYYY-MM-DD
-  startTime: text("start_time"),
-  endTime: text("end_time"),
-  isBlocked: boolean("is_blocked").default(false),
-  intervalMin: integer("interval_min"),
-  groupId: uuid("group_id"),
-});
+export const availabilityOverrides = pgTable(
+  "availability_overrides",
+  {
+    id,
+    calendarId: uuid("calendar_id")
+      .notNull()
+      .references(() => calendars.id),
+    date: text("date").notNull(), // YYYY-MM-DD
+    startTime: text("start_time"),
+    endTime: text("end_time"),
+    isBlocked: boolean("is_blocked").default(false),
+    intervalMin: integer("interval_min"),
+    groupId: uuid("group_id"),
+  },
+  (table) => [
+    index("availability_overrides_calendar_date_idx").on(
+      table.calendarId,
+      table.date,
+    ),
+  ],
+);
 
-export const blockedTime = pgTable("blocked_time", {
-  id,
-  calendarId: uuid("calendar_id")
-    .notNull()
-    .references(() => calendars.id),
-  startAt: timestamp("start_at", { withTimezone: true }).notNull(),
-  endAt: timestamp("end_at", { withTimezone: true }).notNull(),
-  recurringRule: text("recurring_rule"), // RRULE
-});
+export const blockedTime = pgTable(
+  "blocked_time",
+  {
+    id,
+    calendarId: uuid("calendar_id")
+      .notNull()
+      .references(() => calendars.id),
+    startAt: timestamp("start_at", { withTimezone: true }).notNull(),
+    endAt: timestamp("end_at", { withTimezone: true }).notNull(),
+    recurringRule: text("recurring_rule"), // RRULE
+  },
+  (table) => [
+    index("blocked_time_calendar_start_idx").on(
+      table.calendarId,
+      table.startAt,
+    ),
+    index("blocked_time_calendar_end_idx").on(table.calendarId, table.endAt),
+    index("blocked_time_calendar_recurring_idx")
+      .on(table.calendarId)
+      .where(sql`${table.recurringRule} is not null`),
+  ],
+);
 
 export const schedulingLimits = pgTable("scheduling_limits", {
   id,
@@ -398,18 +428,22 @@ export const apiTokens = pgTable.withRLS(
 // AUDIT EVENTS
 // ============================================================================
 
-export const auditEvents = pgTable("audit_events", {
-  id,
-  orgId: uuid("org_id")
-    .notNull()
-    .references(() => orgs.id),
-  actorId: uuid("actor_id").references(() => users.id), // Who performed the action (null for system actions)
-  actorType: text("actor_type").notNull(), // 'user' | 'api_token' | 'system'
-  action: text("action").notNull(), // 'create' | 'update' | 'delete' | 'cancel' | 'reschedule' | 'no_show'
-  entityType: text("entity_type").notNull(), // 'appointment' | 'calendar' | 'location' | 'resource' | 'appointment_type' | 'client'
-  entityId: uuid("entity_id").notNull(),
-  before: jsonb("before"), // Snapshot of entity before change (null for create)
-  after: jsonb("after"), // Snapshot of entity after change (null for delete)
-  metadata: jsonb("metadata"), // Additional context (e.g., IP address, user agent, reason)
-  ...timestamps,
-});
+export const auditEvents = pgTable(
+  "audit_events",
+  {
+    id,
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => orgs.id),
+    actorId: uuid("actor_id").references(() => users.id), // Who performed the action (null for system actions)
+    actorType: text("actor_type").notNull(), // 'user' | 'api_token' | 'system'
+    action: text("action").notNull(), // 'create' | 'update' | 'delete' | 'cancel' | 'reschedule' | 'no_show'
+    entityType: text("entity_type").notNull(), // 'appointment' | 'calendar' | 'location' | 'resource' | 'appointment_type' | 'client'
+    entityId: uuid("entity_id").notNull(),
+    before: jsonb("before"), // Snapshot of entity before change (null for create)
+    after: jsonb("after"), // Snapshot of entity after change (null for delete)
+    metadata: jsonb("metadata"), // Additional context (e.g., IP address, user agent, reason)
+    ...timestamps,
+  },
+  (table) => [index("audit_events_action_id_idx").on(table.action, table.id)],
+);

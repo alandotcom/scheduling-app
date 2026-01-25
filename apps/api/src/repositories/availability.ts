@@ -200,6 +200,7 @@ export class AvailabilityRepository {
     endDate: string,
     timezone: string,
   ): Promise<BlockedTimeEntry[]> {
+    if (calendarIds.length === 0) return [];
     await setOrgContext(tx, orgId);
     // Convert dates to UTC for database query
     const startDateTime = DateTime.fromISO(startDate, { zone: timezone })
@@ -209,29 +210,50 @@ export class AvailabilityRepository {
       .endOf("day")
       .toUTC();
 
-    const results = await tx
+    const startAtResults = await tx
       .select()
       .from(blockedTime)
       .where(
         and(
           inArray(blockedTime.calendarId, calendarIds),
-          // Include blocked times that overlap with the range or have recurring rules
-          or(
-            and(
-              gte(blockedTime.startAt, startDateTime.toJSDate()),
-              lte(blockedTime.startAt, endDateTime.toJSDate()),
-            ),
-            and(
-              gte(blockedTime.endAt, startDateTime.toJSDate()),
-              lte(blockedTime.endAt, endDateTime.toJSDate()),
-            ),
-            // Include entries with recurring rules that might affect the range
-            ne(blockedTime.recurringRule, null as any),
-          ),
+          gte(blockedTime.startAt, startDateTime.toJSDate()),
+          lte(blockedTime.startAt, endDateTime.toJSDate()),
         ),
       );
 
-    return results.map((b) => ({
+    const endAtResults = await tx
+      .select()
+      .from(blockedTime)
+      .where(
+        and(
+          inArray(blockedTime.calendarId, calendarIds),
+          gte(blockedTime.endAt, startDateTime.toJSDate()),
+          lte(blockedTime.endAt, endDateTime.toJSDate()),
+        ),
+      );
+
+    const recurringResults = await tx
+      .select()
+      .from(blockedTime)
+      .where(
+        and(
+          inArray(blockedTime.calendarId, calendarIds),
+          ne(blockedTime.recurringRule, null as any),
+        ),
+      );
+
+    const mergedById = new Map<string, typeof blockedTime.$inferSelect>();
+    for (const row of startAtResults) {
+      mergedById.set(row.id, row);
+    }
+    for (const row of endAtResults) {
+      mergedById.set(row.id, row);
+    }
+    for (const row of recurringResults) {
+      mergedById.set(row.id, row);
+    }
+
+    return Array.from(mergedById.values()).map((b) => ({
       id: b.id,
       calendarId: b.calendarId,
       startAt: b.startAt,
