@@ -8,7 +8,6 @@ export {
   createTestContext,
   createUnauthenticatedContext,
   createTokenContext,
-  call,
   type TestContextOptions,
 } from "./context.js";
 

@@ -12,22 +12,31 @@ import { resourceService } from "../services/resources.js";
 // List resources with cursor pagination and optional location filter
 export const list = authed
   .input(listResourcesQuerySchema)
-  .handler(async ({ input }) => {
-    return resourceService.list(input);
+  .handler(async ({ input, context }) => {
+    return resourceService.list(input, {
+      orgId: context.orgId,
+      userId: context.userId!,
+    });
   });
 
 // Get single resource by ID
 export const get = authed
   .input(z.object({ id: z.string().uuid() }))
-  .handler(async ({ input }) => {
-    return resourceService.get(input.id);
+  .handler(async ({ input, context }) => {
+    return resourceService.get(input.id, {
+      orgId: context.orgId,
+      userId: context.userId!,
+    });
   });
 
 // Create resource
 export const create = authed
   .input(createResourceSchema)
-  .handler(async ({ input }) => {
-    return resourceService.create(input);
+  .handler(async ({ input, context }) => {
+    return resourceService.create(input, {
+      orgId: context.orgId,
+      userId: context.userId!,
+    });
   });
 
 // Update resource
@@ -38,15 +47,21 @@ export const update = authed
       data: updateResourceSchema,
     }),
   )
-  .handler(async ({ input }) => {
-    return resourceService.update(input.id, input.data);
+  .handler(async ({ input, context }) => {
+    return resourceService.update(input.id, input.data, {
+      orgId: context.orgId,
+      userId: context.userId!,
+    });
   });
 
 // Delete resource
 export const remove = authed
   .input(z.object({ id: z.string().uuid() }))
-  .handler(async ({ input }) => {
-    return resourceService.delete(input.id);
+  .handler(async ({ input, context }) => {
+    return resourceService.delete(input.id, {
+      orgId: context.orgId,
+      userId: context.userId!,
+    });
   });
 
 // Export as route object

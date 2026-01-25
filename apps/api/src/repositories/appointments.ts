@@ -10,7 +10,7 @@ import {
 } from "@scheduling/db/schema";
 import type { PaginationInput, PaginatedResult } from "./base.js";
 import type { DbClient } from "../lib/db.js";
-import { requireOrgId } from "../lib/request-context.js";
+import { setOrgContext } from "./base.js";
 
 // Types inferred from schema
 export type Appointment = typeof appointments.$inferSelect;
@@ -78,8 +78,12 @@ export interface AppointmentTypeData {
 }
 
 export class AppointmentRepository {
-  async findById(tx: DbClient, id: string): Promise<Appointment | null> {
-    // RLS already set by withRls() in service layer
+  async findById(
+    tx: DbClient,
+    orgId: string,
+    id: string,
+  ): Promise<Appointment | null> {
+    await setOrgContext(tx, orgId);
     const [result] = await tx
       .select()
       .from(appointments)
@@ -90,9 +94,10 @@ export class AppointmentRepository {
 
   async findByIdWithRelations(
     tx: DbClient,
+    orgId: string,
     id: string,
   ): Promise<AppointmentWithRelations | null> {
-    // RLS already set by withRls() in service layer
+    await setOrgContext(tx, orgId);
     const results = await tx
       .select({
         appointment: appointments,
@@ -127,9 +132,10 @@ export class AppointmentRepository {
 
   async findMany(
     tx: DbClient,
+    orgId: string,
     input: AppointmentListInput,
   ): Promise<PaginatedResult<AppointmentWithRelations>> {
-    // RLS already set by withRls() in service layer
+    await setOrgContext(tx, orgId);
     const {
       cursor,
       limit,
@@ -227,10 +233,10 @@ export class AppointmentRepository {
 
   async create(
     tx: DbClient,
+    orgId: string,
     input: AppointmentCreateInput,
   ): Promise<Appointment> {
-    // RLS already set by withRls() in service layer
-    const orgId = requireOrgId();
+    await setOrgContext(tx, orgId);
     const [result] = await tx
       .insert(appointments)
       .values({
@@ -250,10 +256,11 @@ export class AppointmentRepository {
 
   async update(
     tx: DbClient,
+    orgId: string,
     id: string,
     input: AppointmentUpdateInput,
   ): Promise<Appointment | null> {
-    // RLS already set by withRls() in service layer
+    await setOrgContext(tx, orgId);
     const updateData: Record<string, unknown> = {
       updatedAt: new Date(),
     };
@@ -276,11 +283,12 @@ export class AppointmentRepository {
 
   async updateStatus(
     tx: DbClient,
+    orgId: string,
     id: string,
     status: string,
     notes?: string | null,
   ): Promise<Appointment | null> {
-    // RLS already set by withRls() in service layer
+    await setOrgContext(tx, orgId);
     const updateData: Record<string, unknown> = {
       status,
       updatedAt: new Date(),
@@ -300,10 +308,11 @@ export class AppointmentRepository {
 
   async reschedule(
     tx: DbClient,
+    orgId: string,
     id: string,
     input: AppointmentRescheduleInput,
   ): Promise<Appointment | null> {
-    // RLS already set by withRls() in service layer
+    await setOrgContext(tx, orgId);
     const [result] = await tx
       .update(appointments)
       .set({
@@ -320,9 +329,10 @@ export class AppointmentRepository {
   // Verify calendar exists and belongs to org
   async verifyCalendarAccess(
     tx: DbClient,
+    orgId: string,
     calendarId: string,
   ): Promise<boolean> {
-    // RLS already set by withRls() in service layer
+    await setOrgContext(tx, orgId);
     const [calendar] = await tx
       .select({ id: calendars.id })
       .from(calendars)
@@ -332,8 +342,12 @@ export class AppointmentRepository {
   }
 
   // Verify client exists and belongs to org
-  async verifyClientAccess(tx: DbClient, clientId: string): Promise<boolean> {
-    // RLS already set by withRls() in service layer
+  async verifyClientAccess(
+    tx: DbClient,
+    orgId: string,
+    clientId: string,
+  ): Promise<boolean> {
+    await setOrgContext(tx, orgId);
     const [client] = await tx
       .select({ id: clients.id })
       .from(clients)
@@ -345,10 +359,11 @@ export class AppointmentRepository {
   // Get appointment type with calendar link verification
   async getAppointmentTypeForCalendar(
     tx: DbClient,
+    orgId: string,
     appointmentTypeId: string,
     calendarId: string,
   ): Promise<AppointmentTypeData | null> {
-    // RLS already set by withRls() in service layer
+    await setOrgContext(tx, orgId);
 
     // First verify the appointment type exists
     const [appointmentType] = await tx
@@ -390,9 +405,10 @@ export class AppointmentRepository {
   // Get appointment type by ID (without calendar check)
   async getAppointmentType(
     tx: DbClient,
+    orgId: string,
     appointmentTypeId: string,
   ): Promise<AppointmentTypeData | null> {
-    // RLS already set by withRls() in service layer
+    await setOrgContext(tx, orgId);
     const [result] = await tx
       .select()
       .from(appointmentTypes)
@@ -416,12 +432,13 @@ export class AppointmentRepository {
   // Count overlapping appointments for capacity check
   async countOverlappingAppointments(
     tx: DbClient,
+    orgId: string,
     calendarId: string,
     startAt: Date,
     endAt: Date,
     excludeAppointmentId?: string,
   ): Promise<number> {
-    // RLS already set by withRls() in service layer
+    await setOrgContext(tx, orgId);
 
     const conditions = [
       eq(appointments.calendarId, calendarId),

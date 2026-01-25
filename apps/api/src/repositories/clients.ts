@@ -4,8 +4,7 @@ import { eq, gt, or, ilike } from "drizzle-orm";
 import { clients } from "@scheduling/db/schema";
 import type { PaginationInput, PaginatedResult } from "./base.js";
 import type { DbClient } from "../lib/db.js";
-import { paginate } from "./base.js";
-import { requireOrgId } from "../lib/request-context.js";
+import { paginate, setOrgContext } from "./base.js";
 
 // Types inferred from schema
 export type Client = typeof clients.$inferSelect;
@@ -30,8 +29,12 @@ export interface ClientListInput extends PaginationInput {
 }
 
 export class ClientRepository {
-  async findById(tx: DbClient, id: string): Promise<Client | null> {
-    // RLS already set by withRls() in service layer
+  async findById(
+    tx: DbClient,
+    orgId: string,
+    id: string,
+  ): Promise<Client | null> {
+    await setOrgContext(tx, orgId);
     const [result] = await tx
       .select()
       .from(clients)
@@ -42,9 +45,10 @@ export class ClientRepository {
 
   async findMany(
     tx: DbClient,
+    orgId: string,
     input: ClientListInput,
   ): Promise<PaginatedResult<Client>> {
-    // RLS already set by withRls() in service layer
+    await setOrgContext(tx, orgId);
     const { cursor, limit, search } = input;
 
     let query = tx.select().from(clients).$dynamic();
@@ -70,9 +74,12 @@ export class ClientRepository {
     return paginate(results, limit);
   }
 
-  async create(tx: DbClient, input: ClientCreateInput): Promise<Client> {
-    // RLS already set by withRls() in service layer
-    const orgId = requireOrgId(); // Need explicit orgId for INSERT
+  async create(
+    tx: DbClient,
+    orgId: string,
+    input: ClientCreateInput,
+  ): Promise<Client> {
+    await setOrgContext(tx, orgId);
     const [result] = await tx
       .insert(clients)
       .values({
@@ -88,10 +95,11 @@ export class ClientRepository {
 
   async update(
     tx: DbClient,
+    orgId: string,
     id: string,
     input: ClientUpdateInput,
   ): Promise<Client | null> {
-    // RLS already set by withRls() in service layer
+    await setOrgContext(tx, orgId);
     const [result] = await tx
       .update(clients)
       .set({
@@ -103,8 +111,8 @@ export class ClientRepository {
     return result ?? null;
   }
 
-  async delete(tx: DbClient, id: string): Promise<boolean> {
-    // RLS already set by withRls() in service layer
+  async delete(tx: DbClient, orgId: string, id: string): Promise<boolean> {
+    await setOrgContext(tx, orgId);
     const result = await tx
       .delete(clients)
       .where(eq(clients.id, id))

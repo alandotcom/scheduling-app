@@ -9,9 +9,9 @@ import {
   afterAll,
   beforeEach,
 } from "bun:test";
+import { call } from "@orpc/server";
 import { DateTime } from "luxon";
 import {
-  call,
   createTestContext,
   createOrg,
   createCalendar,

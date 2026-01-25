@@ -12,22 +12,31 @@ import { locationService } from "../services/locations.js";
 // List locations with cursor pagination
 export const list = authed
   .input(listLocationsQuerySchema)
-  .handler(async ({ input }) => {
-    return locationService.list(input);
+  .handler(async ({ input, context }) => {
+    return locationService.list(input, {
+      orgId: context.orgId,
+      userId: context.userId!,
+    });
   });
 
 // Get single location by ID
 export const get = authed
   .input(z.object({ id: z.string().uuid() }))
-  .handler(async ({ input }) => {
-    return locationService.get(input.id);
+  .handler(async ({ input, context }) => {
+    return locationService.get(input.id, {
+      orgId: context.orgId,
+      userId: context.userId!,
+    });
   });
 
 // Create location
 export const create = authed
   .input(createLocationSchema)
-  .handler(async ({ input }) => {
-    return locationService.create(input);
+  .handler(async ({ input, context }) => {
+    return locationService.create(input, {
+      orgId: context.orgId,
+      userId: context.userId!,
+    });
   });
 
 // Update location
@@ -38,15 +47,21 @@ export const update = authed
       data: updateLocationSchema,
     }),
   )
-  .handler(async ({ input }) => {
-    return locationService.update(input.id, input.data);
+  .handler(async ({ input, context }) => {
+    return locationService.update(input.id, input.data, {
+      orgId: context.orgId,
+      userId: context.userId!,
+    });
   });
 
 // Delete location
 export const remove = authed
   .input(z.object({ id: z.string().uuid() }))
-  .handler(async ({ input }) => {
-    return locationService.delete(input.id);
+  .handler(async ({ input, context }) => {
+    return locationService.delete(input.id, {
+      orgId: context.orgId,
+      userId: context.userId!,
+    });
   });
 
 // Export as route object

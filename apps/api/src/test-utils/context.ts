@@ -4,8 +4,6 @@
 // bypassing HTTP/auth middleware while still testing actual handler logic.
 
 import type { Context, AuthMethod } from "../lib/orpc.js";
-import { call as orpcCall } from "@orpc/server";
-import { runWithContext, type RequestContext } from "../lib/request-context.js";
 
 /**
  * Options for creating a test context
@@ -71,62 +69,3 @@ export function createTokenContext(
     authMethod: "token",
   };
 }
-
-/**
- * Convert oRPC Context to RequestContext for AsyncLocalStorage
- */
-function toRequestContext(ctx: Context): RequestContext {
-  return {
-    orgId: ctx.orgId,
-    userId: ctx.userId,
-    sessionId: ctx.sessionId,
-    tokenId: ctx.tokenId,
-    authMethod: ctx.authMethod,
-    role: ctx.role,
-  };
-}
-
-/**
- * Run a function with AsyncLocalStorage context set up.
- * Use this to wrap test code that needs org/user context.
- *
- * @example
- * ```ts
- * const ctx = createTestContext({ orgId: org.id, userId: user.id })
- * const result = await withTestContext(ctx, () => someService.doSomething())
- * ```
- */
-export function withTestContext<T>(ctx: Context, fn: () => T): T {
-  const requestContext = toRequestContext(ctx);
-  return runWithContext(requestContext, fn);
-}
-
-/**
- * Wrapped oRPC call that sets up AsyncLocalStorage context.
- *
- * This is a typed wrapper around oRPC's call that ensures the
- * AsyncLocalStorage context is set for services using requireOrgId/etc.
- *
- * Uses the same signature as oRPC's call function to preserve type inference.
- */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export const call: typeof orpcCall = ((
-  procedure: any,
-  input: any,
-  ...rest: any[]
-) => {
-  // Extract context from options (rest[0] if provided)
-  const options = rest[0] as { context?: Context } | undefined;
-  const ctx = options?.context;
-
-  if (ctx) {
-    const requestContext = toRequestContext(ctx);
-    return runWithContext(requestContext, () =>
-      orpcCall(procedure, input, ...rest),
-    );
-  }
-
-  // No context provided, call directly
-  return orpcCall(procedure, input, ...rest);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-}) as any;

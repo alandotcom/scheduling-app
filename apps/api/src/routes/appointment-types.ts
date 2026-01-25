@@ -1,14 +1,6 @@
-// oRPC routes for appointment types CRUD with join table routes
+// oRPC routes for appointment types CRUD with calendar/resource associations
 
 import { z } from "zod";
-import { eq, gt, and } from "drizzle-orm";
-import {
-  appointmentTypes,
-  appointmentTypeCalendars,
-  appointmentTypeResources,
-  calendars,
-  resources,
-} from "@scheduling/db/schema";
 import {
   createAppointmentTypeSchema,
   updateAppointmentTypeSchema,
@@ -18,91 +10,36 @@ import {
   updateAppointmentTypeResourceSchema,
 } from "@scheduling/dto";
 import { authed } from "./base.js";
-import { withRls } from "../lib/db.js";
-import { requireOrgId } from "../lib/request-context.js";
-import { ApplicationError } from "../errors/application-error.js";
-import { events } from "../services/jobs/emitter.js";
+import { appointmentTypeService } from "../services/appointment-types.js";
 
 // List appointment types with cursor pagination
 export const list = authed
   .input(listAppointmentTypesQuerySchema)
-  .handler(async ({ input }) => {
-    const { cursor, limit } = input;
-
-    const results = await withRls(async (tx) => {
-      return tx
-        .select()
-        .from(appointmentTypes)
-        .where(cursor ? gt(appointmentTypes.id, cursor) : undefined)
-        .limit(limit + 1)
-        .orderBy(appointmentTypes.id);
+  .handler(async ({ input, context }) => {
+    return appointmentTypeService.list(input, {
+      orgId: context.orgId,
+      userId: context.userId!,
     });
-
-    const hasMore = results.length > limit;
-    const items = hasMore ? results.slice(0, limit) : results;
-
-    return {
-      items,
-      nextCursor: hasMore ? (items[items.length - 1]?.id ?? null) : null,
-      hasMore,
-    };
   });
 
-// Get single appointment type by ID
+// Get single appointment type by ID (with linked calendars/resources)
 export const get = authed
   .input(z.object({ id: z.string().uuid() }))
-  .handler(async ({ input }) => {
-    const { id } = input;
-
-    const [appointmentType] = await withRls(async (tx) => {
-      return tx
-        .select()
-        .from(appointmentTypes)
-        .where(eq(appointmentTypes.id, id))
-        .limit(1);
+  .handler(async ({ input, context }) => {
+    return appointmentTypeService.get(input.id, {
+      orgId: context.orgId,
+      userId: context.userId!,
     });
-
-    if (!appointmentType) {
-      throw new ApplicationError("Appointment type not found", {
-        code: "NOT_FOUND",
-      });
-    }
-
-    return appointmentType;
   });
 
 // Create appointment type
 export const create = authed
   .input(createAppointmentTypeSchema)
-  .handler(async ({ input }) => {
-    const orgId = requireOrgId();
-
-    const [appointmentType] = await withRls(async (tx) => {
-      return tx
-        .insert(appointmentTypes)
-        .values({
-          orgId,
-          name: input.name,
-          durationMin: input.durationMin,
-          paddingBeforeMin: input.paddingBeforeMin ?? null,
-          paddingAfterMin: input.paddingAfterMin ?? null,
-          capacity: input.capacity ?? null,
-          metadata: input.metadata ?? null,
-        })
-        .returning();
+  .handler(async ({ input, context }) => {
+    return appointmentTypeService.create(input, {
+      orgId: context.orgId,
+      userId: context.userId!,
     });
-
-    // Emit appointment type created event
-    await events.appointmentTypeCreated(orgId, {
-      appointmentTypeId: appointmentType!.id,
-      name: appointmentType!.name,
-      durationMin: appointmentType!.durationMin,
-      paddingBeforeMin: appointmentType!.paddingBeforeMin,
-      paddingAfterMin: appointmentType!.paddingAfterMin,
-      capacity: appointmentType!.capacity,
-    });
-
-    return appointmentType;
   });
 
 // Update appointment type
@@ -113,93 +50,21 @@ export const update = authed
       data: updateAppointmentTypeSchema,
     }),
   )
-  .handler(async ({ input }) => {
-    const { id, data } = input;
-    const orgId = requireOrgId();
-
-    // Verify appointment type exists and belongs to org
-    const [existing] = await withRls(async (tx) => {
-      return tx
-        .select()
-        .from(appointmentTypes)
-        .where(eq(appointmentTypes.id, id))
-        .limit(1);
+  .handler(async ({ input, context }) => {
+    return appointmentTypeService.update(input.id, input.data, {
+      orgId: context.orgId,
+      userId: context.userId!,
     });
-
-    if (!existing) {
-      throw new ApplicationError("Appointment type not found", {
-        code: "NOT_FOUND",
-      });
-    }
-
-    const [updated] = await withRls(async (tx) => {
-      return tx
-        .update(appointmentTypes)
-        .set({
-          ...data,
-          updatedAt: new Date(),
-        })
-        .where(eq(appointmentTypes.id, id))
-        .returning();
-    });
-
-    // Emit appointment type updated event
-    await events.appointmentTypeUpdated(orgId, {
-      appointmentTypeId: updated!.id,
-      changes: data,
-      previous: {
-        name: existing.name,
-        durationMin: existing.durationMin,
-        paddingBeforeMin: existing.paddingBeforeMin,
-        paddingAfterMin: existing.paddingAfterMin,
-        capacity: existing.capacity,
-      },
-    });
-
-    return updated;
   });
 
 // Delete appointment type
 export const remove = authed
   .input(z.object({ id: z.string().uuid() }))
-  .handler(async ({ input }) => {
-    const { id } = input;
-    const orgId = requireOrgId();
-
-    // Verify appointment type exists and belongs to org
-    const [existing] = await withRls(async (tx) => {
-      return tx
-        .select()
-        .from(appointmentTypes)
-        .where(eq(appointmentTypes.id, id))
-        .limit(1);
+  .handler(async ({ input, context }) => {
+    return appointmentTypeService.delete(input.id, {
+      orgId: context.orgId,
+      userId: context.userId!,
     });
-
-    if (!existing) {
-      throw new ApplicationError("Appointment type not found", {
-        code: "NOT_FOUND",
-      });
-    }
-
-    await withRls(async (tx) => {
-      // Delete associated calendars and resources first
-      await tx
-        .delete(appointmentTypeCalendars)
-        .where(eq(appointmentTypeCalendars.appointmentTypeId, id));
-      await tx
-        .delete(appointmentTypeResources)
-        .where(eq(appointmentTypeResources.appointmentTypeId, id));
-      return tx.delete(appointmentTypes).where(eq(appointmentTypes.id, id));
-    });
-
-    // Emit appointment type deleted event
-    await events.appointmentTypeDeleted(orgId, {
-      appointmentTypeId: id,
-      name: existing.name,
-      durationMin: existing.durationMin,
-    });
-
-    return { success: true };
   });
 
 // ============================================================================
@@ -209,43 +74,11 @@ export const remove = authed
 // List calendars for an appointment type
 export const listCalendars = authed
   .input(z.object({ appointmentTypeId: z.string().uuid() }))
-  .handler(async ({ input }) => {
-    const { appointmentTypeId } = input;
-
-    // Verify appointment type exists
-    const [appointmentType] = await withRls(async (tx) => {
-      return tx
-        .select()
-        .from(appointmentTypes)
-        .where(eq(appointmentTypes.id, appointmentTypeId))
-        .limit(1);
+  .handler(async ({ input, context }) => {
+    return appointmentTypeService.listCalendars(input.appointmentTypeId, {
+      orgId: context.orgId,
+      userId: context.userId!,
     });
-
-    if (!appointmentType) {
-      throw new ApplicationError("Appointment type not found", {
-        code: "NOT_FOUND",
-      });
-    }
-
-    const results = await withRls(async (tx) => {
-      return tx
-        .select({
-          id: appointmentTypeCalendars.id,
-          appointmentTypeId: appointmentTypeCalendars.appointmentTypeId,
-          calendarId: appointmentTypeCalendars.calendarId,
-          calendar: calendars,
-        })
-        .from(appointmentTypeCalendars)
-        .innerJoin(
-          calendars,
-          eq(appointmentTypeCalendars.calendarId, calendars.id),
-        )
-        .where(
-          eq(appointmentTypeCalendars.appointmentTypeId, appointmentTypeId),
-        );
-    });
-
-    return results;
   });
 
 // Add calendar to appointment type
@@ -256,71 +89,15 @@ export const addCalendar = authed
       data: createAppointmentTypeCalendarSchema,
     }),
   )
-  .handler(async ({ input }) => {
-    const { appointmentTypeId, data } = input;
-
-    // Verify appointment type exists
-    const [appointmentType] = await withRls(async (tx) => {
-      return tx
-        .select()
-        .from(appointmentTypes)
-        .where(eq(appointmentTypes.id, appointmentTypeId))
-        .limit(1);
-    });
-
-    if (!appointmentType) {
-      throw new ApplicationError("Appointment type not found", {
-        code: "NOT_FOUND",
-      });
-    }
-
-    // Verify calendar exists
-    const [calendar] = await withRls(async (tx) => {
-      return tx
-        .select()
-        .from(calendars)
-        .where(eq(calendars.id, data.calendarId))
-        .limit(1);
-    });
-
-    if (!calendar) {
-      throw new ApplicationError("Calendar not found", { code: "NOT_FOUND" });
-    }
-
-    // Check for existing association
-    const [existing] = await withRls(async (tx) => {
-      return tx
-        .select()
-        .from(appointmentTypeCalendars)
-        .where(
-          and(
-            eq(appointmentTypeCalendars.appointmentTypeId, appointmentTypeId),
-            eq(appointmentTypeCalendars.calendarId, data.calendarId),
-          ),
-        )
-        .limit(1);
-    });
-
-    if (existing) {
-      throw new ApplicationError(
-        "Calendar already associated with appointment type",
-        {
-          code: "CONFLICT",
-        },
-      );
-    }
-
-    const [association] = await withRls(async (tx) => {
-      return tx
-        .insert(appointmentTypeCalendars)
-        .values({
-          appointmentTypeId,
-          calendarId: data.calendarId,
-        })
-        .returning();
-    });
-
-    return association;
+  .handler(async ({ input, context }) => {
+    return appointmentTypeService.linkCalendar(
+      input.appointmentTypeId,
+      { calendarId: input.data.calendarId },
+      {
+        orgId: context.orgId,
+        userId: context.userId!,
+      },
+    );
   });
 
 // Remove calendar from appointment type
@@ -331,41 +108,15 @@ export const removeCalendar = authed
       calendarId: z.string().uuid(),
     }),
   )
-  .handler(async ({ input }) => {
-    const { appointmentTypeId, calendarId } = input;
-
-    // Verify association exists
-    const [existing] = await withRls(async (tx) => {
-      return tx
-        .select()
-        .from(appointmentTypeCalendars)
-        .where(
-          and(
-            eq(appointmentTypeCalendars.appointmentTypeId, appointmentTypeId),
-            eq(appointmentTypeCalendars.calendarId, calendarId),
-          ),
-        )
-        .limit(1);
-    });
-
-    if (!existing) {
-      throw new ApplicationError("Association not found", {
-        code: "NOT_FOUND",
-      });
-    }
-
-    await withRls(async (tx) => {
-      return tx
-        .delete(appointmentTypeCalendars)
-        .where(
-          and(
-            eq(appointmentTypeCalendars.appointmentTypeId, appointmentTypeId),
-            eq(appointmentTypeCalendars.calendarId, calendarId),
-          ),
-        );
-    });
-
-    return { success: true };
+  .handler(async ({ input, context }) => {
+    return appointmentTypeService.unlinkCalendar(
+      input.appointmentTypeId,
+      { calendarId: input.calendarId },
+      {
+        orgId: context.orgId,
+        userId: context.userId!,
+      },
+    );
   });
 
 // ============================================================================
@@ -375,44 +126,11 @@ export const removeCalendar = authed
 // List resources for an appointment type
 export const listResources = authed
   .input(z.object({ appointmentTypeId: z.string().uuid() }))
-  .handler(async ({ input }) => {
-    const { appointmentTypeId } = input;
-
-    // Verify appointment type exists
-    const [appointmentType] = await withRls(async (tx) => {
-      return tx
-        .select()
-        .from(appointmentTypes)
-        .where(eq(appointmentTypes.id, appointmentTypeId))
-        .limit(1);
+  .handler(async ({ input, context }) => {
+    return appointmentTypeService.listResources(input.appointmentTypeId, {
+      orgId: context.orgId,
+      userId: context.userId!,
     });
-
-    if (!appointmentType) {
-      throw new ApplicationError("Appointment type not found", {
-        code: "NOT_FOUND",
-      });
-    }
-
-    const results = await withRls(async (tx) => {
-      return tx
-        .select({
-          id: appointmentTypeResources.id,
-          appointmentTypeId: appointmentTypeResources.appointmentTypeId,
-          resourceId: appointmentTypeResources.resourceId,
-          quantityRequired: appointmentTypeResources.quantityRequired,
-          resource: resources,
-        })
-        .from(appointmentTypeResources)
-        .innerJoin(
-          resources,
-          eq(appointmentTypeResources.resourceId, resources.id),
-        )
-        .where(
-          eq(appointmentTypeResources.appointmentTypeId, appointmentTypeId),
-        );
-    });
-
-    return results;
   });
 
 // Add resource to appointment type
@@ -423,72 +141,18 @@ export const addResource = authed
       data: createAppointmentTypeResourceSchema,
     }),
   )
-  .handler(async ({ input }) => {
-    const { appointmentTypeId, data } = input;
-
-    // Verify appointment type exists
-    const [appointmentType] = await withRls(async (tx) => {
-      return tx
-        .select()
-        .from(appointmentTypes)
-        .where(eq(appointmentTypes.id, appointmentTypeId))
-        .limit(1);
-    });
-
-    if (!appointmentType) {
-      throw new ApplicationError("Appointment type not found", {
-        code: "NOT_FOUND",
-      });
-    }
-
-    // Verify resource exists
-    const [resource] = await withRls(async (tx) => {
-      return tx
-        .select()
-        .from(resources)
-        .where(eq(resources.id, data.resourceId))
-        .limit(1);
-    });
-
-    if (!resource) {
-      throw new ApplicationError("Resource not found", { code: "NOT_FOUND" });
-    }
-
-    // Check for existing association
-    const [existing] = await withRls(async (tx) => {
-      return tx
-        .select()
-        .from(appointmentTypeResources)
-        .where(
-          and(
-            eq(appointmentTypeResources.appointmentTypeId, appointmentTypeId),
-            eq(appointmentTypeResources.resourceId, data.resourceId),
-          ),
-        )
-        .limit(1);
-    });
-
-    if (existing) {
-      throw new ApplicationError(
-        "Resource already associated with appointment type",
-        {
-          code: "CONFLICT",
-        },
-      );
-    }
-
-    const [association] = await withRls(async (tx) => {
-      return tx
-        .insert(appointmentTypeResources)
-        .values({
-          appointmentTypeId,
-          resourceId: data.resourceId,
-          quantityRequired: data.quantityRequired,
-        })
-        .returning();
-    });
-
-    return association;
+  .handler(async ({ input, context }) => {
+    return appointmentTypeService.linkResource(
+      input.appointmentTypeId,
+      {
+        resourceId: input.data.resourceId,
+        quantityRequired: input.data.quantityRequired,
+      },
+      {
+        orgId: context.orgId,
+        userId: context.userId!,
+      },
+    );
   });
 
 // Update resource association (quantity)
@@ -497,46 +161,24 @@ export const updateResource = authed
     z.object({
       appointmentTypeId: z.string().uuid(),
       resourceId: z.string().uuid(),
-      data: updateAppointmentTypeResourceSchema,
+      data: updateAppointmentTypeResourceSchema.refine(
+        (data) => data.quantityRequired !== undefined,
+        { message: "quantityRequired is required for update" },
+      ),
     }),
   )
-  .handler(async ({ input }) => {
-    const { appointmentTypeId, resourceId, data } = input;
-
-    // Verify association exists
-    const [existing] = await withRls(async (tx) => {
-      return tx
-        .select()
-        .from(appointmentTypeResources)
-        .where(
-          and(
-            eq(appointmentTypeResources.appointmentTypeId, appointmentTypeId),
-            eq(appointmentTypeResources.resourceId, resourceId),
-          ),
-        )
-        .limit(1);
-    });
-
-    if (!existing) {
-      throw new ApplicationError("Association not found", {
-        code: "NOT_FOUND",
-      });
-    }
-
-    const [updated] = await withRls(async (tx) => {
-      return tx
-        .update(appointmentTypeResources)
-        .set(data)
-        .where(
-          and(
-            eq(appointmentTypeResources.appointmentTypeId, appointmentTypeId),
-            eq(appointmentTypeResources.resourceId, resourceId),
-          ),
-        )
-        .returning();
-    });
-
-    return updated;
+  .handler(async ({ input, context }) => {
+    return appointmentTypeService.updateResource(
+      input.appointmentTypeId,
+      {
+        resourceId: input.resourceId,
+        quantityRequired: input.data.quantityRequired!,
+      },
+      {
+        orgId: context.orgId,
+        userId: context.userId!,
+      },
+    );
   });
 
 // Remove resource from appointment type
@@ -547,41 +189,15 @@ export const removeResource = authed
       resourceId: z.string().uuid(),
     }),
   )
-  .handler(async ({ input }) => {
-    const { appointmentTypeId, resourceId } = input;
-
-    // Verify association exists
-    const [existing] = await withRls(async (tx) => {
-      return tx
-        .select()
-        .from(appointmentTypeResources)
-        .where(
-          and(
-            eq(appointmentTypeResources.appointmentTypeId, appointmentTypeId),
-            eq(appointmentTypeResources.resourceId, resourceId),
-          ),
-        )
-        .limit(1);
-    });
-
-    if (!existing) {
-      throw new ApplicationError("Association not found", {
-        code: "NOT_FOUND",
-      });
-    }
-
-    await withRls(async (tx) => {
-      return tx
-        .delete(appointmentTypeResources)
-        .where(
-          and(
-            eq(appointmentTypeResources.appointmentTypeId, appointmentTypeId),
-            eq(appointmentTypeResources.resourceId, resourceId),
-          ),
-        );
-    });
-
-    return { success: true };
+  .handler(async ({ input, context }) => {
+    return appointmentTypeService.unlinkResource(
+      input.appointmentTypeId,
+      { resourceId: input.resourceId },
+      {
+        orgId: context.orgId,
+        userId: context.userId!,
+      },
+    );
   });
 
 // Export as route object

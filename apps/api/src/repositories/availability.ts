@@ -15,6 +15,7 @@ import {
   resources,
 } from "@scheduling/db/schema";
 import type { DbClient } from "../lib/db.js";
+import { setOrgContext } from "./base.js";
 import type {
   AppointmentTypeData,
   AvailabilityRule,
@@ -27,11 +28,12 @@ import type {
 } from "../services/availability-engine/types.js";
 
 export class AvailabilityRepository {
-  // RLS already set by withRls() in service layer
   async loadAppointmentType(
     tx: DbClient,
+    orgId: string,
     id: string,
   ): Promise<AppointmentTypeData | null> {
+    await setOrgContext(tx, orgId);
     const result = await tx
       .select()
       .from(appointmentTypes)
@@ -51,9 +53,9 @@ export class AvailabilityRepository {
     };
   }
 
-  // RLS already set by withRls() in service layer
   async getValidCalendars(
     tx: DbClient,
+    orgId: string,
     appointmentTypeId: string,
     requestedCalendarIds: string[],
   ): Promise<string[]> {
@@ -61,6 +63,7 @@ export class AvailabilityRepository {
     if (uniqueCalendarIds.length === 0) {
       return [];
     }
+    await setOrgContext(tx, orgId);
     const links = await tx
       .select({ calendarId: appointmentTypeCalendars.calendarId })
       .from(appointmentTypeCalendars)
@@ -74,11 +77,12 @@ export class AvailabilityRepository {
     return links.map((link) => link.calendarId);
   }
 
-  // RLS already set by withRls() in service layer
   async loadSchedulingLimits(
     tx: DbClient,
+    orgId: string,
     calendarIds: string[],
   ): Promise<MergedSchedulingLimits> {
+    await setOrgContext(tx, orgId);
     // Load all limits for these calendars
     const results = await tx
       .select()
@@ -135,11 +139,12 @@ export class AvailabilityRepository {
     return merged;
   }
 
-  // RLS already set by withRls() in service layer
   async loadAvailabilityRules(
     tx: DbClient,
+    orgId: string,
     calendarIds: string[],
   ): Promise<AvailabilityRule[]> {
+    await setOrgContext(tx, orgId);
     const results = await tx
       .select()
       .from(availabilityRules)
@@ -156,13 +161,14 @@ export class AvailabilityRepository {
     }));
   }
 
-  // RLS already set by withRls() in service layer
   async loadOverrides(
     tx: DbClient,
+    orgId: string,
     calendarIds: string[],
     startDate: string,
     endDate: string,
   ): Promise<AvailabilityOverride[]> {
+    await setOrgContext(tx, orgId);
     const results = await tx
       .select()
       .from(availabilityOverrides)
@@ -186,14 +192,15 @@ export class AvailabilityRepository {
     }));
   }
 
-  // RLS already set by withRls() in service layer
   async loadBlockedTimes(
     tx: DbClient,
+    orgId: string,
     calendarIds: string[],
     startDate: string,
     endDate: string,
     timezone: string,
   ): Promise<BlockedTimeEntry[]> {
+    await setOrgContext(tx, orgId);
     // Convert dates to UTC for database query
     const startDateTime = DateTime.fromISO(startDate, { zone: timezone })
       .startOf("day")
@@ -233,14 +240,15 @@ export class AvailabilityRepository {
     }));
   }
 
-  // RLS already set by withRls() in service layer
   async loadExistingAppointments(
     tx: DbClient,
+    orgId: string,
     calendarIds: string[],
     startDate: string,
     endDate: string,
     timezone: string,
   ): Promise<ExistingAppointment[]> {
+    await setOrgContext(tx, orgId);
     // Convert dates to UTC for database query
     const startDateTime = DateTime.fromISO(startDate, { zone: timezone })
       .startOf("day")
@@ -271,11 +279,12 @@ export class AvailabilityRepository {
     }));
   }
 
-  // RLS already set by withRls() in service layer
   async loadResourceConstraints(
     tx: DbClient,
+    orgId: string,
     appointmentTypeId: string,
   ): Promise<ResourceConstraint[]> {
+    await setOrgContext(tx, orgId);
     const results = await tx
       .select()
       .from(appointmentTypeResources)
@@ -287,13 +296,14 @@ export class AvailabilityRepository {
     }));
   }
 
-  // RLS already set by withRls() in service layer
   async loadResourcesData(
     tx: DbClient,
+    orgId: string,
     resourceIds: string[],
   ): Promise<ResourceData[]> {
     if (resourceIds.length === 0) return [];
 
+    await setOrgContext(tx, orgId);
     const results = await tx
       .select()
       .from(resources)

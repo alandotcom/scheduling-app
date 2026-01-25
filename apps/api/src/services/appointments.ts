@@ -8,12 +8,12 @@ import type {
   AppointmentWithRelations,
 } from "../repositories/appointments.js";
 import type { PaginatedResult } from "../repositories/base.js";
-import { withRls } from "../lib/db.js";
+import { withOrg } from "../lib/db.js";
 import { ApplicationError } from "../errors/application-error.js";
 import { availabilityService } from "./availability-engine/index.js";
 import { events } from "./jobs/emitter.js";
 import { recordAudit, toAuditSnapshot, createAuditContext } from "./audit.js";
-import { requireOrgId, requireUserId } from "../lib/request-context.js";
+import type { ServiceContext } from "./locations.js";
 
 // PostgreSQL exclusion constraint violation code
 const EXCLUSION_CONSTRAINT_VIOLATION = "23P01";
@@ -44,8 +44,8 @@ function isExclusionConstraintViolation(error: unknown): boolean {
   return false;
 }
 
-// Extended service context with auth method for audit (orgId/userId come from AsyncLocalStorage)
-export interface AppointmentServiceContext {
+// Extended service context with auth method for audit
+export interface AppointmentServiceContext extends ServiceContext {
   authMethod: "session" | "token" | null;
 }
 
@@ -85,10 +85,10 @@ function toAppointmentResponse(row: AppointmentWithRelations) {
 export class AppointmentService {
   async list(
     input: AppointmentListInput,
-    _context: AppointmentServiceContext,
+    context: ServiceContext,
   ): Promise<PaginatedResult<ReturnType<typeof toAppointmentResponse>>> {
-    const result = await withRls((tx) =>
-      appointmentRepository.findMany(tx, input),
+    const result = await withOrg(context.orgId, (tx) =>
+      appointmentRepository.findMany(tx, context.orgId, input),
     );
 
     return {
@@ -100,10 +100,14 @@ export class AppointmentService {
 
   async get(
     id: string,
-    _context: AppointmentServiceContext,
+    context: ServiceContext,
   ): Promise<ReturnType<typeof toAppointmentResponse>> {
-    return withRls(async (tx) => {
-      const result = await appointmentRepository.findByIdWithRelations(tx, id);
+    return withOrg(context.orgId, async (tx) => {
+      const result = await appointmentRepository.findByIdWithRelations(
+        tx,
+        context.orgId,
+        id,
+      );
 
       if (!result) {
         throw new ApplicationError("Appointment not found", {
@@ -127,12 +131,11 @@ export class AppointmentService {
       clientId,
       notes,
     } = input;
-    const orgId = requireOrgId();
-    const userId = requireUserId();
+    const { orgId } = context;
 
     // Validate calendar access
-    const calendarExists = await withRls((tx) =>
-      appointmentRepository.verifyCalendarAccess(tx, calendarId),
+    const calendarExists = await withOrg(orgId, (tx) =>
+      appointmentRepository.verifyCalendarAccess(tx, orgId, calendarId),
     );
     if (!calendarExists) {
       throw new ApplicationError("Calendar not found", { code: "NOT_FOUND" });
@@ -140,8 +143,8 @@ export class AppointmentService {
 
     // Validate client if provided
     if (clientId) {
-      const clientExists = await withRls((tx) =>
-        appointmentRepository.verifyClientAccess(tx, clientId),
+      const clientExists = await withOrg(orgId, (tx) =>
+        appointmentRepository.verifyClientAccess(tx, orgId, clientId),
       );
       if (!clientExists) {
         throw new ApplicationError("Client not found", { code: "NOT_FOUND" });
@@ -149,9 +152,10 @@ export class AppointmentService {
     }
 
     // Get and validate appointment type + calendar link
-    const appointmentType = await withRls((tx) =>
+    const appointmentType = await withOrg(orgId, (tx) =>
       appointmentRepository.getAppointmentTypeForCalendar(
         tx,
+        orgId,
         appointmentTypeId,
         calendarId,
       ),
@@ -183,6 +187,7 @@ export class AppointmentService {
       calendarId,
       startAt,
       timezone,
+      { orgId, userId: context.userId },
     );
 
     if (!availabilityCheck.available) {
@@ -195,8 +200,8 @@ export class AppointmentService {
     // Create appointment - DB exclusion constraint handles race conditions
     let appointment: Appointment;
     try {
-      appointment = await withRls((tx) =>
-        appointmentRepository.create(tx, {
+      appointment = await withOrg(orgId, (tx) =>
+        appointmentRepository.create(tx, orgId, {
           calendarId,
           appointmentTypeId,
           clientId: clientId ?? null,
@@ -232,7 +237,7 @@ export class AppointmentService {
 
     // Record audit event
     const authMethod = this.mapAuthMethod(context.authMethod);
-    await recordAudit(createAuditContext(orgId, userId, authMethod), {
+    await recordAudit(createAuditContext(orgId, context.userId, authMethod), {
       action: "create",
       entityType: "appointment",
       entityId: appointment.id,
@@ -248,12 +253,11 @@ export class AppointmentService {
     data: UpdateAppointmentInput,
     context: AppointmentServiceContext,
   ): Promise<Appointment> {
-    const orgId = requireOrgId();
-    const userId = requireUserId();
+    const { orgId } = context;
 
-    return withRls(async (tx) => {
+    return withOrg(orgId, async (tx) => {
       // Get existing appointment
-      const existing = await appointmentRepository.findById(tx, id);
+      const existing = await appointmentRepository.findById(tx, orgId, id);
       if (!existing) {
         throw new ApplicationError("Appointment not found", {
           code: "NOT_FOUND",
@@ -264,6 +268,7 @@ export class AppointmentService {
       if (data.clientId !== undefined && data.clientId !== null) {
         const clientExists = await appointmentRepository.verifyClientAccess(
           tx,
+          orgId,
           data.clientId,
         );
         if (!clientExists) {
@@ -271,7 +276,7 @@ export class AppointmentService {
         }
       }
 
-      const updated = await appointmentRepository.update(tx, id, data);
+      const updated = await appointmentRepository.update(tx, orgId, id, data);
       if (!updated) {
         throw new ApplicationError("Appointment not found", {
           code: "NOT_FOUND",
@@ -293,7 +298,7 @@ export class AppointmentService {
       // Record audit event
       const authMethod = this.mapAuthMethod(context.authMethod);
       await recordAudit(
-        createAuditContext(orgId, userId, authMethod),
+        createAuditContext(orgId, context.userId, authMethod),
         {
           action: "update",
           entityType: "appointment",
@@ -315,12 +320,11 @@ export class AppointmentService {
     data: CancelAppointmentInput | undefined,
     context: AppointmentServiceContext,
   ): Promise<Appointment> {
-    const orgId = requireOrgId();
-    const userId = requireUserId();
+    const { orgId } = context;
 
-    return withRls(async (tx) => {
+    return withOrg(orgId, async (tx) => {
       // Get existing appointment
-      const existing = await appointmentRepository.findById(tx, id);
+      const existing = await appointmentRepository.findById(tx, orgId, id);
       if (!existing) {
         throw new ApplicationError("Appointment not found", {
           code: "NOT_FOUND",
@@ -341,6 +345,7 @@ export class AppointmentService {
 
       const updated = await appointmentRepository.updateStatus(
         tx,
+        orgId,
         id,
         "cancelled",
         updatedNotes,
@@ -369,7 +374,7 @@ export class AppointmentService {
       // Record audit event
       const authMethod = this.mapAuthMethod(context.authMethod);
       await recordAudit(
-        createAuditContext(orgId, userId, authMethod, {
+        createAuditContext(orgId, context.userId, authMethod, {
           reason: data?.reason,
         }),
         {
@@ -393,12 +398,11 @@ export class AppointmentService {
     data: RescheduleAppointmentInput,
     context: AppointmentServiceContext,
   ): Promise<Appointment> {
-    const orgId = requireOrgId();
-    const userId = requireUserId();
+    const { orgId } = context;
 
     // Get existing appointment first (outside transaction for validation)
-    const existing = await withRls((tx) =>
-      appointmentRepository.findById(tx, id),
+    const existing = await withOrg(orgId, (tx) =>
+      appointmentRepository.findById(tx, orgId, id),
     );
     if (!existing) {
       throw new ApplicationError("Appointment not found", {
@@ -414,8 +418,12 @@ export class AppointmentService {
     }
 
     // Get appointment type for duration
-    const appointmentType = await withRls((tx) =>
-      appointmentRepository.getAppointmentType(tx, existing.appointmentTypeId),
+    const appointmentType = await withOrg(orgId, (tx) =>
+      appointmentRepository.getAppointmentType(
+        tx,
+        orgId,
+        existing.appointmentTypeId,
+      ),
     );
     if (!appointmentType) {
       throw new ApplicationError("Appointment type not found", {
@@ -443,6 +451,7 @@ export class AppointmentService {
       existing.calendarId,
       newStartAt,
       data.timezone,
+      { orgId, userId: context.userId },
     );
 
     // If slot is unavailable, throw an error
@@ -459,8 +468,8 @@ export class AppointmentService {
     // Perform reschedule - DB exclusion constraint handles race conditions
     let updated: Appointment;
     try {
-      updated = await withRls(async (tx) => {
-        const result = await appointmentRepository.reschedule(tx, id, {
+      updated = await withOrg(orgId, async (tx) => {
+        const result = await appointmentRepository.reschedule(tx, orgId, id, {
           startAt: newStartAt,
           endAt: newEndAt,
           timezone: data.timezone,
@@ -491,7 +500,7 @@ export class AppointmentService {
         // Record audit event within transaction
         const authMethod = this.mapAuthMethod(context.authMethod);
         await recordAudit(
-          createAuditContext(orgId, userId, authMethod),
+          createAuditContext(orgId, context.userId, authMethod),
           {
             action: "reschedule",
             entityType: "appointment",
@@ -526,12 +535,11 @@ export class AppointmentService {
     id: string,
     context: AppointmentServiceContext,
   ): Promise<Appointment> {
-    const orgId = requireOrgId();
-    const userId = requireUserId();
+    const { orgId } = context;
 
-    return withRls(async (tx) => {
+    return withOrg(orgId, async (tx) => {
       // Get existing appointment
-      const existing = await appointmentRepository.findById(tx, id);
+      const existing = await appointmentRepository.findById(tx, orgId, id);
       if (!existing) {
         throw new ApplicationError("Appointment not found", {
           code: "NOT_FOUND",
@@ -554,6 +562,7 @@ export class AppointmentService {
 
       const updated = await appointmentRepository.updateStatus(
         tx,
+        orgId,
         id,
         "no_show",
       );
@@ -580,7 +589,7 @@ export class AppointmentService {
       // Record audit event
       const authMethod = this.mapAuthMethod(context.authMethod);
       await recordAudit(
-        createAuditContext(orgId, userId, authMethod),
+        createAuditContext(orgId, context.userId, authMethod),
         {
           action: "no_show",
           entityType: "appointment",

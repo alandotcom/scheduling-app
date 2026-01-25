@@ -16,8 +16,9 @@ import type {
   LimitsUpdateInput,
 } from "../repositories/availability-management.js";
 import type { PaginationInput, PaginatedResult } from "../repositories/base.js";
-import { withRls } from "../lib/db.js";
+import { withOrg } from "../lib/db.js";
 import { ApplicationError } from "../errors/application-error.js";
+import type { ServiceContext } from "./locations.js";
 
 // Helper to check time range overlap
 function hasOverlap(
@@ -34,9 +35,16 @@ export class AvailabilityManagementService {
   // SHARED HELPERS
   // ============================================================================
 
-  private async ensureCalendarAccess(calendarId: string): Promise<void> {
-    const exists = await withRls((tx) =>
-      availabilityManagementRepository.verifyCalendarAccess(tx, calendarId),
+  private async ensureCalendarAccess(
+    orgId: string,
+    calendarId: string,
+  ): Promise<void> {
+    const exists = await withOrg(orgId, (tx) =>
+      availabilityManagementRepository.verifyCalendarAccess(
+        tx,
+        orgId,
+        calendarId,
+      ),
     );
     if (!exists) {
       throw new ApplicationError("Calendar not found", { code: "NOT_FOUND" });
@@ -50,26 +58,35 @@ export class AvailabilityManagementService {
   async listRules(
     calendarId: string,
     input: PaginationInput,
+    context: ServiceContext,
   ): Promise<PaginatedResult<AvailabilityRule>> {
-    await this.ensureCalendarAccess(calendarId);
-    return withRls((tx) =>
+    await this.ensureCalendarAccess(context.orgId, calendarId);
+    return withOrg(context.orgId, (tx) =>
       availabilityManagementRepository.findRulesByCalendar(
         tx,
+        context.orgId,
         calendarId,
         input,
       ),
     );
   }
 
-  async getRule(id: string): Promise<AvailabilityRule> {
-    return withRls(async (tx) => {
-      const rule = await availabilityManagementRepository.findRuleById(tx, id);
+  async getRule(
+    id: string,
+    context: ServiceContext,
+  ): Promise<AvailabilityRule> {
+    return withOrg(context.orgId, async (tx) => {
+      const rule = await availabilityManagementRepository.findRuleById(
+        tx,
+        context.orgId,
+        id,
+      );
       if (!rule) {
         throw new ApplicationError("Availability rule not found", {
           code: "NOT_FOUND",
         });
       }
-      await this.ensureCalendarAccess(rule.calendarId);
+      await this.ensureCalendarAccess(context.orgId, rule.calendarId);
       return rule;
     });
   }
@@ -77,14 +94,16 @@ export class AvailabilityManagementService {
   async createRule(
     calendarId: string,
     input: RuleCreateInput,
+    context: ServiceContext,
   ): Promise<AvailabilityRule> {
-    await this.ensureCalendarAccess(calendarId);
+    await this.ensureCalendarAccess(context.orgId, calendarId);
 
-    return withRls(async (tx) => {
+    return withOrg(context.orgId, async (tx) => {
       // Check for overlapping rules
       const existing =
         await availabilityManagementRepository.findRulesByWeekday(
           tx,
+          context.orgId,
           calendarId,
           input.weekday,
         );
@@ -105,17 +124,24 @@ export class AvailabilityManagementService {
         }
       }
 
-      return availabilityManagementRepository.createRule(tx, calendarId, input);
+      return availabilityManagementRepository.createRule(
+        tx,
+        context.orgId,
+        calendarId,
+        input,
+      );
     });
   }
 
   async updateRule(
     id: string,
     input: RuleUpdateInput,
+    context: ServiceContext,
   ): Promise<AvailabilityRule> {
-    return withRls(async (tx) => {
+    return withOrg(context.orgId, async (tx) => {
       const existing = await availabilityManagementRepository.findRuleById(
         tx,
+        context.orgId,
         id,
       );
       if (!existing) {
@@ -124,7 +150,7 @@ export class AvailabilityManagementService {
         });
       }
 
-      await this.ensureCalendarAccess(existing.calendarId);
+      await this.ensureCalendarAccess(context.orgId, existing.calendarId);
 
       // Check for overlaps with new values
       const newWeekday = input.weekday ?? existing.weekday;
@@ -133,6 +159,7 @@ export class AvailabilityManagementService {
 
       const others = await availabilityManagementRepository.findRulesByWeekday(
         tx,
+        context.orgId,
         existing.calendarId,
         newWeekday,
       );
@@ -151,6 +178,7 @@ export class AvailabilityManagementService {
 
       const updated = await availabilityManagementRepository.updateRule(
         tx,
+        context.orgId,
         id,
         {
           weekday: input.weekday ?? existing.weekday,
@@ -168,10 +196,14 @@ export class AvailabilityManagementService {
     });
   }
 
-  async deleteRule(id: string): Promise<{ success: true }> {
-    return withRls(async (tx) => {
+  async deleteRule(
+    id: string,
+    context: ServiceContext,
+  ): Promise<{ success: true }> {
+    return withOrg(context.orgId, async (tx) => {
       const existing = await availabilityManagementRepository.findRuleById(
         tx,
+        context.orgId,
         id,
       );
       if (!existing) {
@@ -179,8 +211,8 @@ export class AvailabilityManagementService {
           code: "NOT_FOUND",
         });
       }
-      await this.ensureCalendarAccess(existing.calendarId);
-      await availabilityManagementRepository.deleteRule(tx, id);
+      await this.ensureCalendarAccess(context.orgId, existing.calendarId);
+      await availabilityManagementRepository.deleteRule(tx, context.orgId, id);
       return { success: true };
     });
   }
@@ -188,8 +220,9 @@ export class AvailabilityManagementService {
   async setWeeklyAvailability(
     calendarId: string,
     rules: RuleCreateInput[],
+    context: ServiceContext,
   ): Promise<{ rules: AvailabilityRule[] }> {
-    await this.ensureCalendarAccess(calendarId);
+    await this.ensureCalendarAccess(context.orgId, calendarId);
 
     // Validate no overlaps within the new rules
     for (let i = 0; i < rules.length; i++) {
@@ -208,13 +241,15 @@ export class AvailabilityManagementService {
       }
     }
 
-    return withRls(async (tx) => {
+    return withOrg(context.orgId, async (tx) => {
       await availabilityManagementRepository.deleteRulesByCalendar(
         tx,
+        context.orgId,
         calendarId,
       );
       const inserted = await availabilityManagementRepository.createRulesBatch(
         tx,
+        context.orgId,
         calendarId,
         rules,
       );
@@ -229,21 +264,27 @@ export class AvailabilityManagementService {
   async listOverrides(
     calendarId: string,
     input: PaginationInput,
+    context: ServiceContext,
   ): Promise<PaginatedResult<AvailabilityOverride>> {
-    await this.ensureCalendarAccess(calendarId);
-    return withRls((tx) =>
+    await this.ensureCalendarAccess(context.orgId, calendarId);
+    return withOrg(context.orgId, (tx) =>
       availabilityManagementRepository.findOverridesByCalendar(
         tx,
+        context.orgId,
         calendarId,
         input,
       ),
     );
   }
 
-  async getOverride(id: string): Promise<AvailabilityOverride> {
-    return withRls(async (tx) => {
+  async getOverride(
+    id: string,
+    context: ServiceContext,
+  ): Promise<AvailabilityOverride> {
+    return withOrg(context.orgId, async (tx) => {
       const override = await availabilityManagementRepository.findOverrideById(
         tx,
+        context.orgId,
         id,
       );
       if (!override) {
@@ -251,7 +292,7 @@ export class AvailabilityManagementService {
           code: "NOT_FOUND",
         });
       }
-      await this.ensureCalendarAccess(override.calendarId);
+      await this.ensureCalendarAccess(context.orgId, override.calendarId);
       return override;
     });
   }
@@ -259,13 +300,15 @@ export class AvailabilityManagementService {
   async createOverride(
     calendarId: string,
     input: OverrideCreateInput,
+    context: ServiceContext,
   ): Promise<AvailabilityOverride> {
-    await this.ensureCalendarAccess(calendarId);
+    await this.ensureCalendarAccess(context.orgId, calendarId);
 
-    return withRls(async (tx) => {
+    return withOrg(context.orgId, async (tx) => {
       const existing =
         await availabilityManagementRepository.findOverrideByDate(
           tx,
+          context.orgId,
           calendarId,
           input.date,
         );
@@ -277,6 +320,7 @@ export class AvailabilityManagementService {
       }
       return availabilityManagementRepository.createOverride(
         tx,
+        context.orgId,
         calendarId,
         input,
       );
@@ -286,10 +330,12 @@ export class AvailabilityManagementService {
   async updateOverride(
     id: string,
     input: OverrideUpdateInput,
+    context: ServiceContext,
   ): Promise<AvailabilityOverride> {
-    return withRls(async (tx) => {
+    return withOrg(context.orgId, async (tx) => {
       const existing = await availabilityManagementRepository.findOverrideById(
         tx,
+        context.orgId,
         id,
       );
       if (!existing) {
@@ -297,13 +343,14 @@ export class AvailabilityManagementService {
           code: "NOT_FOUND",
         });
       }
-      await this.ensureCalendarAccess(existing.calendarId);
+      await this.ensureCalendarAccess(context.orgId, existing.calendarId);
 
       // Check for date conflicts if changing date
       if (input.date && input.date !== existing.date) {
         const conflicting =
           await availabilityManagementRepository.findOverrideByDate(
             tx,
+            context.orgId,
             existing.calendarId,
             input.date,
           );
@@ -317,6 +364,7 @@ export class AvailabilityManagementService {
 
       const updated = await availabilityManagementRepository.updateOverride(
         tx,
+        context.orgId,
         id,
         {
           date: input.date ?? existing.date,
@@ -339,10 +387,14 @@ export class AvailabilityManagementService {
     });
   }
 
-  async deleteOverride(id: string): Promise<{ success: true }> {
-    return withRls(async (tx) => {
+  async deleteOverride(
+    id: string,
+    context: ServiceContext,
+  ): Promise<{ success: true }> {
+    return withOrg(context.orgId, async (tx) => {
       const existing = await availabilityManagementRepository.findOverrideById(
         tx,
+        context.orgId,
         id,
       );
       if (!existing) {
@@ -350,8 +402,12 @@ export class AvailabilityManagementService {
           code: "NOT_FOUND",
         });
       }
-      await this.ensureCalendarAccess(existing.calendarId);
-      await availabilityManagementRepository.deleteOverride(tx, id);
+      await this.ensureCalendarAccess(context.orgId, existing.calendarId);
+      await availabilityManagementRepository.deleteOverride(
+        tx,
+        context.orgId,
+        id,
+      );
       return { success: true };
     });
   }
@@ -363,21 +419,27 @@ export class AvailabilityManagementService {
   async listBlockedTime(
     calendarId: string,
     input: PaginationInput,
+    context: ServiceContext,
   ): Promise<PaginatedResult<BlockedTime>> {
-    await this.ensureCalendarAccess(calendarId);
-    return withRls((tx) =>
+    await this.ensureCalendarAccess(context.orgId, calendarId);
+    return withOrg(context.orgId, (tx) =>
       availabilityManagementRepository.findBlockedTimeByCalendar(
         tx,
+        context.orgId,
         calendarId,
         input,
       ),
     );
   }
 
-  async getBlockedTime(id: string): Promise<BlockedTime> {
-    return withRls(async (tx) => {
+  async getBlockedTime(
+    id: string,
+    context: ServiceContext,
+  ): Promise<BlockedTime> {
+    return withOrg(context.orgId, async (tx) => {
       const block = await availabilityManagementRepository.findBlockedTimeById(
         tx,
+        context.orgId,
         id,
       );
       if (!block) {
@@ -385,7 +447,7 @@ export class AvailabilityManagementService {
           code: "NOT_FOUND",
         });
       }
-      await this.ensureCalendarAccess(block.calendarId);
+      await this.ensureCalendarAccess(context.orgId, block.calendarId);
       return block;
     });
   }
@@ -393,29 +455,41 @@ export class AvailabilityManagementService {
   async createBlockedTime(
     calendarId: string,
     input: BlockedTimeCreateInput,
+    context: ServiceContext,
   ): Promise<BlockedTime> {
-    await this.ensureCalendarAccess(calendarId);
-    return withRls((tx) =>
-      availabilityManagementRepository.createBlockedTime(tx, calendarId, input),
+    await this.ensureCalendarAccess(context.orgId, calendarId);
+    return withOrg(context.orgId, (tx) =>
+      availabilityManagementRepository.createBlockedTime(
+        tx,
+        context.orgId,
+        calendarId,
+        input,
+      ),
     );
   }
 
   async updateBlockedTime(
     id: string,
     input: BlockedTimeUpdateInput,
+    context: ServiceContext,
   ): Promise<BlockedTime> {
-    return withRls(async (tx) => {
+    return withOrg(context.orgId, async (tx) => {
       const existing =
-        await availabilityManagementRepository.findBlockedTimeById(tx, id);
+        await availabilityManagementRepository.findBlockedTimeById(
+          tx,
+          context.orgId,
+          id,
+        );
       if (!existing) {
         throw new ApplicationError("Blocked time not found", {
           code: "NOT_FOUND",
         });
       }
-      await this.ensureCalendarAccess(existing.calendarId);
+      await this.ensureCalendarAccess(context.orgId, existing.calendarId);
 
       const updated = await availabilityManagementRepository.updateBlockedTime(
         tx,
+        context.orgId,
         id,
         {
           startAt: input.startAt ?? existing.startAt,
@@ -430,17 +504,28 @@ export class AvailabilityManagementService {
     });
   }
 
-  async deleteBlockedTime(id: string): Promise<{ success: true }> {
-    return withRls(async (tx) => {
+  async deleteBlockedTime(
+    id: string,
+    context: ServiceContext,
+  ): Promise<{ success: true }> {
+    return withOrg(context.orgId, async (tx) => {
       const existing =
-        await availabilityManagementRepository.findBlockedTimeById(tx, id);
+        await availabilityManagementRepository.findBlockedTimeById(
+          tx,
+          context.orgId,
+          id,
+        );
       if (!existing) {
         throw new ApplicationError("Blocked time not found", {
           code: "NOT_FOUND",
         });
       }
-      await this.ensureCalendarAccess(existing.calendarId);
-      await availabilityManagementRepository.deleteBlockedTime(tx, id);
+      await this.ensureCalendarAccess(context.orgId, existing.calendarId);
+      await availabilityManagementRepository.deleteBlockedTime(
+        tx,
+        context.orgId,
+        id,
+      );
       return { success: true };
     });
   }
@@ -452,21 +537,27 @@ export class AvailabilityManagementService {
   async listLimits(
     calendarId: string,
     input: PaginationInput,
+    context: ServiceContext,
   ): Promise<PaginatedResult<SchedulingLimits>> {
-    await this.ensureCalendarAccess(calendarId);
-    return withRls((tx) =>
+    await this.ensureCalendarAccess(context.orgId, calendarId);
+    return withOrg(context.orgId, (tx) =>
       availabilityManagementRepository.findLimitsByCalendar(
         tx,
+        context.orgId,
         calendarId,
         input,
       ),
     );
   }
 
-  async getLimits(id: string): Promise<SchedulingLimits> {
-    return withRls(async (tx) => {
+  async getLimits(
+    id: string,
+    context: ServiceContext,
+  ): Promise<SchedulingLimits> {
+    return withOrg(context.orgId, async (tx) => {
       const limits = await availabilityManagementRepository.findLimitsById(
         tx,
+        context.orgId,
         id,
       );
       if (!limits) {
@@ -475,28 +566,33 @@ export class AvailabilityManagementService {
         });
       }
       if (limits.calendarId) {
-        await this.ensureCalendarAccess(limits.calendarId);
+        await this.ensureCalendarAccess(context.orgId, limits.calendarId);
       }
       return limits;
     });
   }
 
-  async createLimits(input: LimitsCreateInput): Promise<SchedulingLimits> {
+  async createLimits(
+    input: LimitsCreateInput,
+    context: ServiceContext,
+  ): Promise<SchedulingLimits> {
     if (input.calendarId) {
-      await this.ensureCalendarAccess(input.calendarId);
+      await this.ensureCalendarAccess(context.orgId, input.calendarId);
     }
-    return withRls((tx) =>
-      availabilityManagementRepository.createLimits(tx, input),
+    return withOrg(context.orgId, (tx) =>
+      availabilityManagementRepository.createLimits(tx, context.orgId, input),
     );
   }
 
   async updateLimits(
     id: string,
     input: LimitsUpdateInput,
+    context: ServiceContext,
   ): Promise<SchedulingLimits> {
-    return withRls(async (tx) => {
+    return withOrg(context.orgId, async (tx) => {
       const existing = await availabilityManagementRepository.findLimitsById(
         tx,
+        context.orgId,
         id,
       );
       if (!existing) {
@@ -505,11 +601,12 @@ export class AvailabilityManagementService {
         });
       }
       if (existing.calendarId) {
-        await this.ensureCalendarAccess(existing.calendarId);
+        await this.ensureCalendarAccess(context.orgId, existing.calendarId);
       }
 
       const updated = await availabilityManagementRepository.updateLimits(
         tx,
+        context.orgId,
         id,
         {
           minNoticeHours:
@@ -538,10 +635,14 @@ export class AvailabilityManagementService {
     });
   }
 
-  async deleteLimits(id: string): Promise<{ success: true }> {
-    return withRls(async (tx) => {
+  async deleteLimits(
+    id: string,
+    context: ServiceContext,
+  ): Promise<{ success: true }> {
+    return withOrg(context.orgId, async (tx) => {
       const existing = await availabilityManagementRepository.findLimitsById(
         tx,
+        context.orgId,
         id,
       );
       if (!existing) {
@@ -550,9 +651,13 @@ export class AvailabilityManagementService {
         });
       }
       if (existing.calendarId) {
-        await this.ensureCalendarAccess(existing.calendarId);
+        await this.ensureCalendarAccess(context.orgId, existing.calendarId);
       }
-      await availabilityManagementRepository.deleteLimits(tx, id);
+      await availabilityManagementRepository.deleteLimits(
+        tx,
+        context.orgId,
+        id,
+      );
       return { success: true };
     });
   }

@@ -7,7 +7,6 @@ import { apiTokens } from "@scheduling/db/schema";
 import { eq, sql } from "drizzle-orm";
 import { createHash } from "crypto";
 import type { AuthMethod } from "../lib/orpc.js";
-import { runWithContext, type RequestContext } from "../lib/request-context.js";
 
 declare module "hono" {
   interface ContextVariableMap {
@@ -84,17 +83,7 @@ export const authMiddleware = createMiddleware(async (c, next) => {
       );
     }
 
-    // Build context for AsyncLocalStorage
-    const reqCtx: RequestContext = {
-      userId: c.get("userId"),
-      orgId: c.get("orgId"),
-      sessionId: c.get("sessionId"),
-      tokenId: c.get("tokenId"),
-      authMethod: c.get("authMethod"),
-      role: c.get("role"),
-    };
-
-    return runWithContext(reqCtx, () => next());
+    return next();
   }
 
   // Try API token auth
@@ -133,17 +122,7 @@ export const authMiddleware = createMiddleware(async (c, next) => {
       c.set("authMethod", "token");
       c.set("role", apiToken.scope as "admin" | "staff");
 
-      // Build context for AsyncLocalStorage
-      const reqCtx: RequestContext = {
-        userId: apiToken.userId,
-        orgId: apiToken.orgId,
-        sessionId: null,
-        tokenId: apiToken.id,
-        authMethod: "token",
-        role: apiToken.scope as "admin" | "staff",
-      };
-
-      return runWithContext(reqCtx, () => next());
+      return next();
     }
 
     // Invalid token
@@ -161,15 +140,5 @@ export const authMiddleware = createMiddleware(async (c, next) => {
   c.set("authMethod", null);
   c.set("role", null);
 
-  // Build context for AsyncLocalStorage (unauthenticated)
-  const reqCtx: RequestContext = {
-    userId: null,
-    orgId: null,
-    sessionId: null,
-    tokenId: null,
-    authMethod: null,
-    role: null,
-  };
-
-  return runWithContext(reqCtx, () => next());
+  return next();
 });
