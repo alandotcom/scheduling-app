@@ -1,7 +1,15 @@
--- Drop existing constraints (from either migration that may have been applied)
+-- Custom Functions Migration
+-- Contains trigger functions that cannot be defined in Drizzle schema
+-- Note: current_org_id() and current_user_id() are created in the initial migration
+
+-- ============================================================================
+-- APPOINTMENT CAPACITY TRIGGER
+-- ============================================================================
+
+-- Drop existing constraints (from any previous migration that may have been applied)
 ALTER TABLE appointments DROP CONSTRAINT IF EXISTS no_overlapping_appointments;
 
--- Create trigger function
+-- Create trigger function for capacity checking
 CREATE OR REPLACE FUNCTION check_appointment_capacity()
 RETURNS TRIGGER AS $$
 DECLARE
@@ -99,7 +107,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- Create triggers
+-- Create triggers for capacity checking
 CREATE TRIGGER check_appointment_capacity_insert
   BEFORE INSERT ON appointments
   FOR EACH ROW

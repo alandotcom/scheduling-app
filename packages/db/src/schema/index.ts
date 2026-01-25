@@ -1,5 +1,6 @@
 import {
   pgTable,
+  pgPolicy,
   uuid,
   text,
   timestamp,
@@ -40,7 +41,7 @@ export const users = pgTable("users", {
   ...timestamps,
 });
 
-export const orgMemberships = pgTable(
+export const orgMemberships = pgTable.withRLS(
   "org_memberships",
   {
     id,
@@ -55,43 +56,78 @@ export const orgMemberships = pgTable(
   },
   (table) => [
     uniqueIndex("org_memberships_org_user_idx").on(table.orgId, table.userId),
+    pgPolicy("user_org_memberships", {
+      for: "all",
+      using: sql`org_id = current_org_id() OR user_id = current_user_id()`,
+      withCheck: sql`org_id = current_org_id() OR user_id = current_user_id()`,
+    }),
   ],
 );
 
-export const locations = pgTable("locations", {
-  id,
-  orgId: uuid("org_id")
-    .notNull()
-    .references(() => orgs.id),
-  name: text("name").notNull(),
-  timezone: text("timezone").notNull(),
-  ...timestamps,
-});
+export const locations = pgTable.withRLS(
+  "locations",
+  {
+    id,
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => orgs.id),
+    name: text("name").notNull(),
+    timezone: text("timezone").notNull(),
+    ...timestamps,
+  },
+  () => [
+    pgPolicy("org_isolation_locations", {
+      for: "all",
+      using: sql`org_id = current_org_id()`,
+      withCheck: sql`org_id = current_org_id()`,
+    }),
+  ],
+);
 
-export const calendars = pgTable("calendars", {
-  id,
-  orgId: uuid("org_id")
-    .notNull()
-    .references(() => orgs.id),
-  locationId: uuid("location_id").references(() => locations.id),
-  name: text("name").notNull(),
-  timezone: text("timezone").notNull(),
-  ...timestamps,
-});
+export const calendars = pgTable.withRLS(
+  "calendars",
+  {
+    id,
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => orgs.id),
+    locationId: uuid("location_id").references(() => locations.id),
+    name: text("name").notNull(),
+    timezone: text("timezone").notNull(),
+    ...timestamps,
+  },
+  () => [
+    pgPolicy("org_isolation_calendars", {
+      for: "all",
+      using: sql`org_id = current_org_id()`,
+      withCheck: sql`org_id = current_org_id()`,
+    }),
+  ],
+);
 
-export const appointmentTypes = pgTable("appointment_types", {
-  id,
-  orgId: uuid("org_id")
-    .notNull()
-    .references(() => orgs.id),
-  name: text("name").notNull(),
-  durationMin: integer("duration_min").notNull(),
-  paddingBeforeMin: integer("padding_before_min").default(0),
-  paddingAfterMin: integer("padding_after_min").default(0),
-  capacity: integer("capacity").default(1),
-  metadata: jsonb("metadata"),
-  ...timestamps,
-});
+export const appointmentTypes = pgTable.withRLS(
+  "appointment_types",
+  {
+    id,
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => orgs.id),
+    name: text("name").notNull(),
+    durationMin: integer("duration_min").notNull(),
+    paddingBeforeMin: integer("padding_before_min").default(0),
+    paddingAfterMin: integer("padding_after_min").default(0),
+    capacity: integer("capacity").default(1),
+    metadata: jsonb("metadata"),
+    ...timestamps,
+  },
+  () => [
+    pgPolicy("org_isolation_appointment_types", {
+      for: "all",
+      using: sql`org_id = current_org_id()`,
+      withCheck: sql`org_id = current_org_id()`,
+    }),
+  ],
+);
 
 export const appointmentTypeCalendars = pgTable(
   "appointment_type_calendars",
@@ -112,16 +148,26 @@ export const appointmentTypeCalendars = pgTable(
   ],
 );
 
-export const resources = pgTable("resources", {
-  id,
-  orgId: uuid("org_id")
-    .notNull()
-    .references(() => orgs.id),
-  locationId: uuid("location_id").references(() => locations.id),
-  name: text("name").notNull(),
-  quantity: integer("quantity").default(1).notNull(),
-  ...timestamps,
-});
+export const resources = pgTable.withRLS(
+  "resources",
+  {
+    id,
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => orgs.id),
+    locationId: uuid("location_id").references(() => locations.id),
+    name: text("name").notNull(),
+    quantity: integer("quantity").default(1).notNull(),
+    ...timestamps,
+  },
+  () => [
+    pgPolicy("org_isolation_resources", {
+      for: "all",
+      using: sql`org_id = current_org_id()`,
+      withCheck: sql`org_id = current_org_id()`,
+    }),
+  ],
+);
 
 export const appointmentTypeResources = pgTable(
   "appointment_type_resources",
@@ -143,37 +189,57 @@ export const appointmentTypeResources = pgTable(
   ],
 );
 
-export const clients = pgTable("clients", {
-  id,
-  orgId: uuid("org_id")
-    .notNull()
-    .references(() => orgs.id),
-  firstName: text("first_name").notNull(),
-  lastName: text("last_name").notNull(),
-  email: text("email"),
-  phone: text("phone"),
-  ...timestamps,
-});
+export const clients = pgTable.withRLS(
+  "clients",
+  {
+    id,
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => orgs.id),
+    firstName: text("first_name").notNull(),
+    lastName: text("last_name").notNull(),
+    email: text("email"),
+    phone: text("phone"),
+    ...timestamps,
+  },
+  () => [
+    pgPolicy("org_isolation_clients", {
+      for: "all",
+      using: sql`org_id = current_org_id()`,
+      withCheck: sql`org_id = current_org_id()`,
+    }),
+  ],
+);
 
-export const appointments = pgTable("appointments", {
-  id,
-  orgId: uuid("org_id")
-    .notNull()
-    .references(() => orgs.id),
-  calendarId: uuid("calendar_id")
-    .notNull()
-    .references(() => calendars.id),
-  appointmentTypeId: uuid("appointment_type_id")
-    .notNull()
-    .references(() => appointmentTypes.id),
-  clientId: uuid("client_id").references(() => clients.id),
-  startAt: timestamp("start_at", { withTimezone: true }).notNull(),
-  endAt: timestamp("end_at", { withTimezone: true }).notNull(),
-  timezone: text("timezone").notNull(),
-  status: text("status").notNull(), // 'scheduled' | 'confirmed' | 'cancelled' | 'no_show'
-  notes: text("notes"),
-  ...timestamps,
-});
+export const appointments = pgTable.withRLS(
+  "appointments",
+  {
+    id,
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => orgs.id),
+    calendarId: uuid("calendar_id")
+      .notNull()
+      .references(() => calendars.id),
+    appointmentTypeId: uuid("appointment_type_id")
+      .notNull()
+      .references(() => appointmentTypes.id),
+    clientId: uuid("client_id").references(() => clients.id),
+    startAt: timestamp("start_at", { withTimezone: true }).notNull(),
+    endAt: timestamp("end_at", { withTimezone: true }).notNull(),
+    timezone: text("timezone").notNull(),
+    status: text("status").notNull(), // 'scheduled' | 'confirmed' | 'cancelled' | 'no_show'
+    notes: text("notes"),
+    ...timestamps,
+  },
+  () => [
+    pgPolicy("org_isolation_appointments", {
+      for: "all",
+      using: sql`org_id = current_org_id()`,
+      withCheck: sql`org_id = current_org_id()`,
+    }),
+  ],
+);
 
 // ============================================================================
 // AVAILABILITY TABLES
@@ -229,17 +295,27 @@ export const schedulingLimits = pgTable("scheduling_limits", {
 // EVENT OUTBOX
 // ============================================================================
 
-export const eventOutbox = pgTable("event_outbox", {
-  id,
-  orgId: uuid("org_id")
-    .notNull()
-    .references(() => orgs.id),
-  type: text("type").notNull(),
-  payload: jsonb("payload").notNull(),
-  status: text("status").notNull(), // 'pending' | 'delivered' | 'failed'
-  nextAttemptAt: timestamp("next_attempt_at", { withTimezone: true }),
-  ...timestamps,
-});
+export const eventOutbox = pgTable.withRLS(
+  "event_outbox",
+  {
+    id,
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => orgs.id),
+    type: text("type").notNull(),
+    payload: jsonb("payload").notNull(),
+    status: text("status").notNull(), // 'pending' | 'delivered' | 'failed'
+    nextAttemptAt: timestamp("next_attempt_at", { withTimezone: true }),
+    ...timestamps,
+  },
+  () => [
+    pgPolicy("org_isolation_event_outbox", {
+      for: "all",
+      using: sql`org_id = current_org_id()`,
+      withCheck: sql`org_id = current_org_id()`,
+    }),
+  ],
+);
 
 // ============================================================================
 // AUTH TABLES (BetterAuth)
@@ -290,23 +366,33 @@ export const verifications = pgTable("verifications", {
 // API TOKENS
 // ============================================================================
 
-export const apiTokens = pgTable("api_tokens", {
-  id,
-  orgId: uuid("org_id")
-    .notNull()
-    .references(() => orgs.id),
-  userId: uuid("user_id")
-    .notNull()
-    .references(() => users.id), // Who created the token
-  name: text("name").notNull(), // Human-readable name for the token
-  tokenHash: text("token_hash").notNull().unique(), // SHA-256 hash of the token
-  tokenPrefix: text("token_prefix").notNull(), // First 8 chars for identification (e.g., "sk_live_")
-  scope: text("scope").notNull(), // 'admin' | 'staff'
-  lastUsedAt: timestamp("last_used_at", { withTimezone: true }),
-  expiresAt: timestamp("expires_at", { withTimezone: true }),
-  revokedAt: timestamp("revoked_at", { withTimezone: true }),
-  ...timestamps,
-});
+export const apiTokens = pgTable.withRLS(
+  "api_tokens",
+  {
+    id,
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => orgs.id),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id), // Who created the token
+    name: text("name").notNull(), // Human-readable name for the token
+    tokenHash: text("token_hash").notNull().unique(), // SHA-256 hash of the token
+    tokenPrefix: text("token_prefix").notNull(), // First 8 chars for identification (e.g., "sk_live_")
+    scope: text("scope").notNull(), // 'admin' | 'staff'
+    lastUsedAt: timestamp("last_used_at", { withTimezone: true }),
+    expiresAt: timestamp("expires_at", { withTimezone: true }),
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+    ...timestamps,
+  },
+  () => [
+    pgPolicy("org_isolation_api_tokens", {
+      for: "all",
+      using: sql`org_id = current_org_id()`,
+      withCheck: sql`org_id = current_org_id()`,
+    }),
+  ],
+);
 
 // ============================================================================
 // AUDIT EVENTS

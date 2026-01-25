@@ -1,13 +1,24 @@
+-- Helper functions for RLS policies (must be created before policies)
+CREATE OR REPLACE FUNCTION current_org_id() RETURNS uuid AS $$
+  SELECT nullif(current_setting('app.current_org_id', true), '')::uuid;
+$$ LANGUAGE SQL STABLE;
+--> statement-breakpoint
+CREATE OR REPLACE FUNCTION current_user_id() RETURNS uuid AS $$
+  SELECT nullif(current_setting('app.current_user_id', true), '')::uuid;
+$$ LANGUAGE SQL STABLE;
+--> statement-breakpoint
 CREATE TABLE "accounts" (
 	"id" uuid PRIMARY KEY DEFAULT uuidv7(),
 	"user_id" uuid NOT NULL,
+	"account_id" text NOT NULL,
 	"provider_id" text NOT NULL,
-	"provider_account_id" text NOT NULL,
 	"access_token" text,
 	"refresh_token" text,
+	"id_token" text,
 	"access_token_expires_at" timestamp with time zone,
 	"refresh_token_expires_at" timestamp with time zone,
 	"scope" text,
+	"password" text,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
@@ -27,6 +38,7 @@ CREATE TABLE "api_tokens" (
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
+ALTER TABLE "api_tokens" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
 CREATE TABLE "appointment_type_calendars" (
 	"id" uuid PRIMARY KEY DEFAULT uuidv7(),
 	"appointment_type_id" uuid NOT NULL,
@@ -53,6 +65,7 @@ CREATE TABLE "appointment_types" (
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
+ALTER TABLE "appointment_types" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
 CREATE TABLE "appointments" (
 	"id" uuid PRIMARY KEY DEFAULT uuidv7(),
 	"org_id" uuid NOT NULL,
@@ -68,6 +81,7 @@ CREATE TABLE "appointments" (
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
+ALTER TABLE "appointments" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
 CREATE TABLE "audit_events" (
 	"id" uuid PRIMARY KEY DEFAULT uuidv7(),
 	"org_id" uuid NOT NULL,
@@ -122,6 +136,7 @@ CREATE TABLE "calendars" (
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
+ALTER TABLE "calendars" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
 CREATE TABLE "clients" (
 	"id" uuid PRIMARY KEY DEFAULT uuidv7(),
 	"org_id" uuid NOT NULL,
@@ -133,6 +148,7 @@ CREATE TABLE "clients" (
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
+ALTER TABLE "clients" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
 CREATE TABLE "event_outbox" (
 	"id" uuid PRIMARY KEY DEFAULT uuidv7(),
 	"org_id" uuid NOT NULL,
@@ -144,6 +160,7 @@ CREATE TABLE "event_outbox" (
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
+ALTER TABLE "event_outbox" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
 CREATE TABLE "locations" (
 	"id" uuid PRIMARY KEY DEFAULT uuidv7(),
 	"org_id" uuid NOT NULL,
@@ -153,6 +170,7 @@ CREATE TABLE "locations" (
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
+ALTER TABLE "locations" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
 CREATE TABLE "org_memberships" (
 	"id" uuid PRIMARY KEY DEFAULT uuidv7(),
 	"org_id" uuid NOT NULL,
@@ -162,6 +180,7 @@ CREATE TABLE "org_memberships" (
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
+ALTER TABLE "org_memberships" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
 CREATE TABLE "orgs" (
 	"id" uuid PRIMARY KEY DEFAULT uuidv7(),
 	"name" text NOT NULL,
@@ -179,6 +198,7 @@ CREATE TABLE "resources" (
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
+ALTER TABLE "resources" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
 CREATE TABLE "scheduling_limits" (
 	"id" uuid PRIMARY KEY DEFAULT uuidv7(),
 	"calendar_id" uuid,
@@ -250,4 +270,13 @@ ALTER TABLE "org_memberships" ADD CONSTRAINT "org_memberships_user_id_users_id_f
 ALTER TABLE "resources" ADD CONSTRAINT "resources_org_id_orgs_id_fkey" FOREIGN KEY ("org_id") REFERENCES "orgs"("id");--> statement-breakpoint
 ALTER TABLE "resources" ADD CONSTRAINT "resources_location_id_locations_id_fkey" FOREIGN KEY ("location_id") REFERENCES "locations"("id");--> statement-breakpoint
 ALTER TABLE "scheduling_limits" ADD CONSTRAINT "scheduling_limits_calendar_id_calendars_id_fkey" FOREIGN KEY ("calendar_id") REFERENCES "calendars"("id");--> statement-breakpoint
-ALTER TABLE "sessions" ADD CONSTRAINT "sessions_user_id_users_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE;
+ALTER TABLE "sessions" ADD CONSTRAINT "sessions_user_id_users_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE;--> statement-breakpoint
+CREATE POLICY "org_isolation_api_tokens" ON "api_tokens" AS PERMISSIVE FOR ALL TO public USING (org_id = current_org_id()) WITH CHECK (org_id = current_org_id());--> statement-breakpoint
+CREATE POLICY "org_isolation_appointment_types" ON "appointment_types" AS PERMISSIVE FOR ALL TO public USING (org_id = current_org_id()) WITH CHECK (org_id = current_org_id());--> statement-breakpoint
+CREATE POLICY "org_isolation_appointments" ON "appointments" AS PERMISSIVE FOR ALL TO public USING (org_id = current_org_id()) WITH CHECK (org_id = current_org_id());--> statement-breakpoint
+CREATE POLICY "org_isolation_calendars" ON "calendars" AS PERMISSIVE FOR ALL TO public USING (org_id = current_org_id()) WITH CHECK (org_id = current_org_id());--> statement-breakpoint
+CREATE POLICY "org_isolation_clients" ON "clients" AS PERMISSIVE FOR ALL TO public USING (org_id = current_org_id()) WITH CHECK (org_id = current_org_id());--> statement-breakpoint
+CREATE POLICY "org_isolation_event_outbox" ON "event_outbox" AS PERMISSIVE FOR ALL TO public USING (org_id = current_org_id()) WITH CHECK (org_id = current_org_id());--> statement-breakpoint
+CREATE POLICY "org_isolation_locations" ON "locations" AS PERMISSIVE FOR ALL TO public USING (org_id = current_org_id()) WITH CHECK (org_id = current_org_id());--> statement-breakpoint
+CREATE POLICY "user_org_memberships" ON "org_memberships" AS PERMISSIVE FOR ALL TO public USING (org_id = current_org_id() OR user_id = current_user_id()) WITH CHECK (org_id = current_org_id() OR user_id = current_user_id());--> statement-breakpoint
+CREATE POLICY "org_isolation_resources" ON "resources" AS PERMISSIVE FOR ALL TO public USING (org_id = current_org_id()) WITH CHECK (org_id = current_org_id());

@@ -1,7 +1,7 @@
 {
   "version": "8",
   "dialect": "postgres",
-  "id": "5b529e32-59b1-4b1e-b639-61eafab2955c",
+  "id": "3680cf54-54cd-43d3-a687-001b7867f830",
   "prevIds": ["00000000-0000-0000-0000-000000000000"],
   "ddl": [
     {
@@ -11,7 +11,7 @@
       "schema": "public"
     },
     {
-      "isRlsEnabled": false,
+      "isRlsEnabled": true,
       "name": "api_tokens",
       "entityType": "tables",
       "schema": "public"
@@ -29,13 +29,13 @@
       "schema": "public"
     },
     {
-      "isRlsEnabled": false,
+      "isRlsEnabled": true,
       "name": "appointment_types",
       "entityType": "tables",
       "schema": "public"
     },
     {
-      "isRlsEnabled": false,
+      "isRlsEnabled": true,
       "name": "appointments",
       "entityType": "tables",
       "schema": "public"
@@ -65,31 +65,31 @@
       "schema": "public"
     },
     {
-      "isRlsEnabled": false,
+      "isRlsEnabled": true,
       "name": "calendars",
       "entityType": "tables",
       "schema": "public"
     },
     {
-      "isRlsEnabled": false,
+      "isRlsEnabled": true,
       "name": "clients",
       "entityType": "tables",
       "schema": "public"
     },
     {
-      "isRlsEnabled": false,
+      "isRlsEnabled": true,
       "name": "event_outbox",
       "entityType": "tables",
       "schema": "public"
     },
     {
-      "isRlsEnabled": false,
+      "isRlsEnabled": true,
       "name": "locations",
       "entityType": "tables",
       "schema": "public"
     },
     {
-      "isRlsEnabled": false,
+      "isRlsEnabled": true,
       "name": "org_memberships",
       "entityType": "tables",
       "schema": "public"
@@ -101,7 +101,7 @@
       "schema": "public"
     },
     {
-      "isRlsEnabled": false,
+      "isRlsEnabled": true,
       "name": "resources",
       "entityType": "tables",
       "schema": "public"
@@ -164,7 +164,7 @@
       "default": null,
       "generated": null,
       "identity": null,
-      "name": "provider_id",
+      "name": "account_id",
       "entityType": "columns",
       "schema": "public",
       "table": "accounts"
@@ -177,7 +177,7 @@
       "default": null,
       "generated": null,
       "identity": null,
-      "name": "provider_account_id",
+      "name": "provider_id",
       "entityType": "columns",
       "schema": "public",
       "table": "accounts"
@@ -204,6 +204,19 @@
       "generated": null,
       "identity": null,
       "name": "refresh_token",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "accounts"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "id_token",
       "entityType": "columns",
       "schema": "public",
       "table": "accounts"
@@ -243,6 +256,19 @@
       "generated": null,
       "identity": null,
       "name": "scope",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "accounts"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "password",
       "entityType": "columns",
       "schema": "public",
       "table": "accounts"
@@ -2839,6 +2865,105 @@
       "schema": "public",
       "table": "users",
       "entityType": "uniques"
+    },
+    {
+      "as": "PERMISSIVE",
+      "for": "ALL",
+      "roles": ["public"],
+      "using": "org_id = current_org_id()",
+      "withCheck": "org_id = current_org_id()",
+      "name": "org_isolation_api_tokens",
+      "entityType": "policies",
+      "schema": "public",
+      "table": "api_tokens"
+    },
+    {
+      "as": "PERMISSIVE",
+      "for": "ALL",
+      "roles": ["public"],
+      "using": "org_id = current_org_id()",
+      "withCheck": "org_id = current_org_id()",
+      "name": "org_isolation_appointment_types",
+      "entityType": "policies",
+      "schema": "public",
+      "table": "appointment_types"
+    },
+    {
+      "as": "PERMISSIVE",
+      "for": "ALL",
+      "roles": ["public"],
+      "using": "org_id = current_org_id()",
+      "withCheck": "org_id = current_org_id()",
+      "name": "org_isolation_appointments",
+      "entityType": "policies",
+      "schema": "public",
+      "table": "appointments"
+    },
+    {
+      "as": "PERMISSIVE",
+      "for": "ALL",
+      "roles": ["public"],
+      "using": "org_id = current_org_id()",
+      "withCheck": "org_id = current_org_id()",
+      "name": "org_isolation_calendars",
+      "entityType": "policies",
+      "schema": "public",
+      "table": "calendars"
+    },
+    {
+      "as": "PERMISSIVE",
+      "for": "ALL",
+      "roles": ["public"],
+      "using": "org_id = current_org_id()",
+      "withCheck": "org_id = current_org_id()",
+      "name": "org_isolation_clients",
+      "entityType": "policies",
+      "schema": "public",
+      "table": "clients"
+    },
+    {
+      "as": "PERMISSIVE",
+      "for": "ALL",
+      "roles": ["public"],
+      "using": "org_id = current_org_id()",
+      "withCheck": "org_id = current_org_id()",
+      "name": "org_isolation_event_outbox",
+      "entityType": "policies",
+      "schema": "public",
+      "table": "event_outbox"
+    },
+    {
+      "as": "PERMISSIVE",
+      "for": "ALL",
+      "roles": ["public"],
+      "using": "org_id = current_org_id()",
+      "withCheck": "org_id = current_org_id()",
+      "name": "org_isolation_locations",
+      "entityType": "policies",
+      "schema": "public",
+      "table": "locations"
+    },
+    {
+      "as": "PERMISSIVE",
+      "for": "ALL",
+      "roles": ["public"],
+      "using": "org_id = current_org_id() OR user_id = current_user_id()",
+      "withCheck": "org_id = current_org_id() OR user_id = current_user_id()",
+      "name": "user_org_memberships",
+      "entityType": "policies",
+      "schema": "public",
+      "table": "org_memberships"
+    },
+    {
+      "as": "PERMISSIVE",
+      "for": "ALL",
+      "roles": ["public"],
+      "using": "org_id = current_org_id()",
+      "withCheck": "org_id = current_org_id()",
+      "name": "org_isolation_resources",
+      "entityType": "policies",
+      "schema": "public",
+      "table": "resources"
     }
   ],
   "renames": []
