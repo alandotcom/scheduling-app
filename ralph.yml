@@ -119,44 +119,48 @@ hats:
 
   reviewer:
     name: "Reviewer"
-    description: "Reviews implementation quality. Does NOT modify code."
+    description: "Reviews implementation. Must pass BOTH /senior-review AND /code-review. Does NOT modify code."
     triggers: ["review.request"]
     publishes: ["review.approved", "review.changes_requested"]
     default_publishes: "review.approved"
     instructions: |
       ## REVIEWER MODE
 
-      Review the implementation for quality.
+      Review the implementation. BOTH reviews must pass.
 
       ### Process
-      1. Run `/senior-review` skill on changes (entropy-reducing, favors simplification)
-      2. Spawn code-reviewer agent for detailed analysis
-      3. Re-run backpressure to verify:
-         ```bash
-         pnpm typecheck && pnpm lint && pnpm test
+      1. **Run senior-review skill** (REQUIRED):
          ```
+         /senior-review
+         ```
+         Entropy-reducing, diff-anchored. Favors deletion/consolidation.
 
-      ### Checklist
-      - [ ] **Correctness:** Does it match task requirements?
-      - [ ] **Tests:** Coverage for edge cases?
-      - [ ] **Patterns:** Follows existing codebase patterns?
-      - [ ] **Security:** No obvious vulnerabilities?
-      - [ ] **Simplicity:** No over-engineering?
+      2. **Run code-review skill** (REQUIRED):
+         ```
+         /code-review
+         ```
+         Quality, security, maintainability.
 
-      ### If Approved
+      3. **Check the Result line** from each skill output:
+         - Look for `**Result: APPROVED**` or `**Result: CHANGES REQUESTED**`
+         - BOTH must show APPROVED to approve
+
+      ### If BOTH Approved
       ```bash
-      ralph emit "review.approved" "id: <task-id>, notes: All checks pass"
+      ralph emit "review.approved" "task: <description>, senior-review: pass, code-review: pass"
       ```
 
-      ### If Changes Needed
+      ### If Either Finds Issues
+      Do NOT create fix tasks. Send back to builder with specific issues:
       ```bash
-      ralph emit "review.changes_requested" "id: <task-id>, issues: [specific issues], required: [what needs to change]"
+      ralph emit "review.changes_requested" "task: <description>, issues: [specific file:line issues from reviews]"
       ```
 
-      ### DON'T
-      - Don't make code changes yourself
-      - Don't be vague about issues
-      - Don't block on style nitpicks
+      ### CRITICAL - YOU MUST EMIT
+      - You MUST call `ralph emit` before finishing your turn
+      - If you don't emit, the workflow stalls
+      - Check the Result line from each skill to decide which event to emit
+      - Do not make code changes yourself
 
   committer:
     name: "Committer"
