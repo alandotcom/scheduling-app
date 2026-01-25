@@ -4,6 +4,7 @@ import { DateTime } from "luxon";
 import { RRule } from "rrule";
 import { withOrg } from "../../lib/db.js";
 import type { DbClient } from "../../lib/db.js";
+import { ApplicationError } from "../../errors/application-error.js";
 import { availabilityRepository } from "../../repositories/availability.js";
 import type { ServiceContext } from "../locations.js";
 import type {
@@ -44,7 +45,9 @@ export class AvailabilityService {
       const { startDate, endDate, timezone } = query;
 
       // Load all data once for efficiency
-      const data = await this.loadAvailabilityData(tx, context.orgId, query);
+      const data = await this.loadAvailabilityData(tx, context.orgId, query, {
+        requireAllCalendars: true,
+      });
       if (!data) {
         return [];
       }
@@ -76,7 +79,9 @@ export class AvailabilityService {
     context: ServiceContext,
   ): Promise<TimeSlot[]> {
     return withOrg(context.orgId, async (tx) => {
-      const data = await this.loadAvailabilityData(tx, context.orgId, query);
+      const data = await this.loadAvailabilityData(tx, context.orgId, query, {
+        requireAllCalendars: true,
+      });
       if (!data) {
         return [];
       }
@@ -158,6 +163,7 @@ export class AvailabilityService {
     tx: DbClient,
     orgId: string,
     query: AvailabilityQuery,
+    options?: { requireAllCalendars?: boolean },
   ): Promise<AvailabilityData | null> {
     const { appointmentTypeId, calendarIds, startDate, endDate, timezone } =
       query;
@@ -173,12 +179,19 @@ export class AvailabilityService {
     }
 
     // 2. Validate calendars are linked to this appointment type
+    const uniqueCalendarIds = Array.from(new Set(calendarIds));
     const validCalendarIds = await availabilityRepository.getValidCalendars(
       tx,
       orgId,
       appointmentTypeId,
-      calendarIds,
+      uniqueCalendarIds,
     );
+    if (
+      options?.requireAllCalendars &&
+      validCalendarIds.length !== uniqueCalendarIds.length
+    ) {
+      throw new ApplicationError("Calendar not found", { code: "NOT_FOUND" });
+    }
     if (validCalendarIds.length === 0) {
       return null;
     }

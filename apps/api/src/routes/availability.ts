@@ -46,9 +46,15 @@ export const getRule = authed
   );
 
 export const createRule = authed
-  .input(calendarIdInput.merge(z.object({ data: createAvailabilityRuleSchema })))
+  .input(
+    calendarIdInput.merge(z.object({ data: createAvailabilityRuleSchema })),
+  )
   .handler(({ input, context }) =>
-    availabilityManagementService.createRule(input.calendarId, input.data, context),
+    availabilityManagementService.createRule(
+      input.calendarId,
+      input.data,
+      context,
+    ),
   );
 
 export const updateRule = authed
@@ -80,7 +86,11 @@ export const setWeeklyAvailability = authed
 export const listOverrides = authed
   .input(calendarIdInput.merge(cursorPaginationInput))
   .handler(({ input, context }) =>
-    availabilityManagementService.listOverrides(input.calendarId, input, context),
+    availabilityManagementService.listOverrides(
+      input.calendarId,
+      input,
+      context,
+    ),
   );
 
 export const getOverride = authed
@@ -90,9 +100,15 @@ export const getOverride = authed
   );
 
 export const createOverride = authed
-  .input(calendarIdInput.merge(z.object({ data: createAvailabilityOverrideSchema })))
+  .input(
+    calendarIdInput.merge(z.object({ data: createAvailabilityOverrideSchema })),
+  )
   .handler(({ input, context }) =>
-    availabilityManagementService.createOverride(input.calendarId, input.data, context),
+    availabilityManagementService.createOverride(
+      input.calendarId,
+      input.data,
+      context,
+    ),
   );
 
 export const updateOverride = authed
@@ -114,7 +130,11 @@ export const deleteOverride = authed
 export const listBlockedTime = authed
   .input(calendarIdInput.merge(cursorPaginationInput))
   .handler(({ input, context }) =>
-    availabilityManagementService.listBlockedTime(input.calendarId, input, context),
+    availabilityManagementService.listBlockedTime(
+      input.calendarId,
+      input,
+      context,
+    ),
   );
 
 export const getBlockedTime = authed

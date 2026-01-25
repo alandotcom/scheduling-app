@@ -164,15 +164,16 @@ Use Beads for task tracking during execution:
 ```bash
 bd ready              # Find next unblocked task
 bd show <id>          # Get task details
-bd close <id>         # Mark complete after backpressure passes
+bd close <id>         # Mark complete after all checks pass
 bd create "..." --blocks <id>  # Report blockers
 bd list               # See all tasks
 ```
 
-After completing each task, run backpressure:
-```bash
-pnpm typecheck && pnpm lint && pnpm test
-```
+After completing each task:
+1. Run backpressure: `pnpm typecheck && pnpm lint && pnpm test`
+2. Run code review using the code-reviewer agent
+3. Fix any issues found, re-run checks if needed
+4. Close task and commit when all checks pass
 
 ## Execution Loop
 

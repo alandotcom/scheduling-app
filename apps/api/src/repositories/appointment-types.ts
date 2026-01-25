@@ -93,7 +93,10 @@ export class AppointmentTypeRepository {
         timezone: calendars.timezone,
       })
       .from(appointmentTypeCalendars)
-      .innerJoin(calendars, eq(appointmentTypeCalendars.calendarId, calendars.id))
+      .innerJoin(
+        calendars,
+        eq(appointmentTypeCalendars.calendarId, calendars.id),
+      )
       .where(eq(appointmentTypeCalendars.appointmentTypeId, id));
 
     // Get linked resources
@@ -104,7 +107,10 @@ export class AppointmentTypeRepository {
         quantityRequired: appointmentTypeResources.quantityRequired,
       })
       .from(appointmentTypeResources)
-      .innerJoin(resources, eq(appointmentTypeResources.resourceId, resources.id))
+      .innerJoin(
+        resources,
+        eq(appointmentTypeResources.resourceId, resources.id),
+      )
       .where(eq(appointmentTypeResources.appointmentTypeId, id));
 
     return {
@@ -255,7 +261,10 @@ export class AppointmentTypeRepository {
         timezone: calendars.timezone,
       })
       .from(appointmentTypeCalendars)
-      .innerJoin(calendars, eq(appointmentTypeCalendars.calendarId, calendars.id))
+      .innerJoin(
+        calendars,
+        eq(appointmentTypeCalendars.calendarId, calendars.id),
+      )
       .where(eq(appointmentTypeCalendars.appointmentTypeId, appointmentTypeId));
   }
 
@@ -273,7 +282,10 @@ export class AppointmentTypeRepository {
         quantityRequired: appointmentTypeResources.quantityRequired,
       })
       .from(appointmentTypeResources)
-      .innerJoin(resources, eq(appointmentTypeResources.resourceId, resources.id))
+      .innerJoin(
+        resources,
+        eq(appointmentTypeResources.resourceId, resources.id),
+      )
       .where(eq(appointmentTypeResources.appointmentTypeId, appointmentTypeId));
   }
 

@@ -425,7 +425,7 @@ describe("AvailabilityService", () => {
       expect(slots.every((s) => !s.available)).toBe(true);
     });
 
-    test("returns empty for unlinked calendars", async () => {
+    test("throws NOT_FOUND when any requested calendar is unlinked", async () => {
       // Create another calendar NOT linked to the appointment type
       const [cal2] = await db
         .insert(calendars)
@@ -436,26 +436,18 @@ describe("AvailabilityService", () => {
         })
         .returning();
 
-      await db.insert(availabilityRules).values({
-        calendarId: cal2!.id,
-        weekday: 2,
-        startTime: "09:00",
-        endTime: "17:00",
-        intervalMin: 60,
-      });
-
-      const slots = await availabilityService.getAvailableSlots(
-        {
-          appointmentTypeId: appointmentType.id,
-          calendarIds: [cal2!.id], // This calendar is not linked
-          startDate: "2026-01-27",
-          endDate: "2026-01-27",
-          timezone: "America/New_York",
-        },
-        testContext,
-      );
-
-      expect(slots).toEqual([]);
+      await expect(
+        availabilityService.getAvailableSlots(
+          {
+            appointmentTypeId: appointmentType.id,
+            calendarIds: [calendar.id, cal2!.id],
+            startDate: "2026-01-27",
+            endDate: "2026-01-27",
+            timezone: "America/New_York",
+          },
+          testContext,
+        ),
+      ).rejects.toMatchObject({ code: "NOT_FOUND" });
     });
   });
 

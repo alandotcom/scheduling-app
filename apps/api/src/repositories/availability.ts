@@ -59,17 +59,22 @@ export class AvailabilityRepository {
     appointmentTypeId: string,
     requestedCalendarIds: string[],
   ): Promise<string[]> {
+    const uniqueCalendarIds = Array.from(new Set(requestedCalendarIds));
+    if (uniqueCalendarIds.length === 0) {
+      return [];
+    }
     await setOrgContext(tx, orgId);
-    // Get calendars linked to this appointment type
     const links = await tx
       .select({ calendarId: appointmentTypeCalendars.calendarId })
       .from(appointmentTypeCalendars)
-      .where(eq(appointmentTypeCalendars.appointmentTypeId, appointmentTypeId));
+      .where(
+        and(
+          eq(appointmentTypeCalendars.appointmentTypeId, appointmentTypeId),
+          inArray(appointmentTypeCalendars.calendarId, uniqueCalendarIds),
+        ),
+      );
 
-    const linkedCalendarIds = new Set(links.map((l) => l.calendarId));
-
-    // Filter requested calendars to only those linked to this appointment type
-    return requestedCalendarIds.filter((id) => linkedCalendarIds.has(id));
+    return links.map((link) => link.calendarId);
   }
 
   async loadSchedulingLimits(

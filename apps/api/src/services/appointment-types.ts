@@ -201,7 +201,11 @@ export class AppointmentTypeService {
 
     // Verify calendar exists and belongs to org
     const calendarExists = await withOrg(orgId, (tx) =>
-      appointmentTypeRepository.verifyCalendarAccess(tx, orgId, input.calendarId),
+      appointmentTypeRepository.verifyCalendarAccess(
+        tx,
+        orgId,
+        input.calendarId,
+      ),
     );
     if (!calendarExists) {
       throw new ApplicationError("Calendar not found", { code: "NOT_FOUND" });
@@ -263,7 +267,11 @@ export class AppointmentTypeService {
 
     // Verify resource exists and belongs to org
     const resourceExists = await withOrg(orgId, (tx) =>
-      appointmentTypeRepository.verifyResourceAccess(tx, orgId, input.resourceId),
+      appointmentTypeRepository.verifyResourceAccess(
+        tx,
+        orgId,
+        input.resourceId,
+      ),
     );
     if (!resourceExists) {
       throw new ApplicationError("Resource not found", { code: "NOT_FOUND" });
