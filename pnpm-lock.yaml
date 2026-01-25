@@ -22,6 +22,13 @@ catalogs:
 importers:
 
   .:
+    dependencies:
+      '@logtape/logtape':
+        specifier: ^2.0.2
+        version: 2.0.2
+      '@logtape/pretty':
+        specifier: ^2.0.2
+        version: 2.0.2(@logtape/logtape@2.0.2)
     devDependencies:
       '@biomejs/biome':
         specifier: 2.3.12
@@ -50,6 +57,9 @@ importers:
       '@hugeicons/react':
         specifier: ^1.1.4
         version: 1.1.4(react@19.2.3)
+      '@logtape/logtape':
+        specifier: ^2.0.2
+        version: 2.0.2
       '@orpc/client':
         specifier: ^1.13.4
         version: 1.13.4
@@ -144,6 +154,12 @@ importers:
 
   apps/api:
     dependencies:
+      '@logtape/logtape':
+        specifier: ^2.0.2
+        version: 2.0.2
+      '@logtape/pretty':
+        specifier: ^2.0.2
+        version: 2.0.2(@logtape/logtape@2.0.2)
       '@orpc/openapi':
         specifier: ^1.13.4
         version: 1.13.4
@@ -1120,6 +1136,14 @@ packages:
   '@js-temporal/polyfill@0.5.1':
     resolution: {integrity: sha512-hloP58zRVCRSpgDxmqCWJNlizAlUgJFqG2ypq79DCvyv9tHjRYMDOcPFjzfl/A1/YxDvRCZz8wvZvmapQnKwFQ==}
     engines: {node: '>=12'}
+
+  '@logtape/logtape@2.0.2':
+    resolution: {integrity: sha512-cveUBLbCMFkvkLycP/2vNWvywl47JcJbazHIju94/QNGboZ/jyYAgZIm0ZXezAOx3eIz8OG1EOZ5CuQP3+2FQg==}
+
+  '@logtape/pretty@2.0.2':
+    resolution: {integrity: sha512-WMKoHuaEZvJgDeciIM/OL+joDDlheuoSpkfJOuKncdim7eV6GfIh0BUxLt0Td4JJsljzt5dAttxaX0kXqE0N9Q==}
+    peerDependencies:
+      '@logtape/logtape': ^2.0.2
 
   '@modelcontextprotocol/sdk@1.25.3':
     resolution: {integrity: sha512-vsAMBMERybvYgKbg/l4L1rhS7VXV1c0CtyJg72vwxONVX0l4ZfKVAnZEWTQixJGTzKnELjQ59e4NbdFDALRiAQ==}
@@ -4535,6 +4559,12 @@ snapshots:
   '@js-temporal/polyfill@0.5.1':
     dependencies:
       jsbi: 4.3.2
+
+  '@logtape/logtape@2.0.2': {}
+
+  '@logtape/pretty@2.0.2(@logtape/logtape@2.0.2)':
+    dependencies:
+      '@logtape/logtape': 2.0.2
 
   '@modelcontextprotocol/sdk@1.25.3(hono@4.11.5)(zod@3.25.76)':
     dependencies:

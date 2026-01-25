@@ -1,5 +1,19 @@
 // Main entry point for the admin UI
 
+import { configure, getConsoleSink } from "@logtape/logtape";
+
+await configure({
+  sinks: { console: getConsoleSink() },
+  loggers: [
+    { category: ["logtape", "meta"], sinks: ["console"], lowestLevel: "warning" },
+    {
+      category: [],
+      sinks: ["console"],
+      lowestLevel: import.meta.env.DEV ? "debug" : "warning",
+    },
+  ],
+});
+
 import { StrictMode, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { RouterProvider, createRouter } from "@tanstack/react-router";

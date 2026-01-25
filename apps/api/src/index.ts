@@ -1,6 +1,34 @@
 // @scheduling/api - Hono + oRPC API server with BetterAuth
 // Dual transport: oRPC for UI (type-safe), OpenAPI for M2M (REST)
 
+import {
+  configure,
+  getConsoleSink,
+  getLogger,
+  getAnsiColorFormatter,
+} from "@logtape/logtape";
+
+const isDev = process.env.NODE_ENV !== "production";
+
+await configure({
+  sinks: {
+    console: getConsoleSink({
+      formatter: getAnsiColorFormatter({ timestamp: "time" }),
+    }),
+  },
+  loggers: [
+    {
+      category: ["logtape", "meta"],
+      sinks: ["console"],
+      lowestLevel: "warning",
+    },
+    { category: ["db"], sinks: ["console"], lowestLevel: "info" },
+    { category: [], sinks: ["console"], lowestLevel: isDev ? "debug" : "info" },
+  ],
+});
+
+const logger = getLogger(["api"]);
+
 import { Hono } from "hono";
 import { RPCHandler } from "@orpc/server/fetch";
 import { OpenAPIHandler } from "@orpc/openapi/fetch";
@@ -11,12 +39,14 @@ import { authMiddleware } from "./middleware/auth.js";
 import { rlsMiddleware } from "./middleware/rls.js";
 // import { rateLimitMiddleware } from "./middleware/rate-limit.js"; // Disabled for dev
 import { errorHandler } from "./middleware/error-handler.js";
+import { requestLogger } from "./middleware/request-logger.js";
 import { config } from "./config.js";
 
 const app = new Hono();
 
 // Global error handler
 app.use("*", errorHandler);
+app.use("*", requestLogger);
 
 // Health check (no auth required)
 app.get("/v1/health", (c) => c.json({ status: "ok" }));
@@ -118,4 +148,4 @@ export default {
   fetch: app.fetch,
 };
 
-console.log(`Server running on port ${config.server.port}`);
+void logger.info`Server running on port ${config.server.port}`;

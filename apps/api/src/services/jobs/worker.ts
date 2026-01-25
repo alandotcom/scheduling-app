@@ -3,10 +3,13 @@
 
 import type { Job, Worker } from "bullmq";
 import { eq, and, lte } from "drizzle-orm";
+import { getLogger } from "@logtape/logtape";
 import { eventOutbox } from "@scheduling/db/schema";
 import { db } from "../../lib/db.js";
 import type { DomainEvent, WebhookDeliveryJob } from "./types.js";
 import { createEventWorker, createWebhookWorker } from "./queue.js";
+
+const logger = getLogger(["jobs"]);
 
 // Workers (lazily initialized)
 let eventWorker: Worker<DomainEvent> | null = null;
@@ -16,7 +19,7 @@ let webhookWorker: Worker<WebhookDeliveryJob> | null = null;
 async function processEvent(job: Job<DomainEvent>): Promise<void> {
   const event = job.data;
 
-  console.log(`Processing event: ${event.type} (${event.id})`);
+  void logger.info`Processing event: ${event.type} (${event.id})`;
 
   try {
     // Update outbox status to processing
@@ -50,12 +53,9 @@ async function processEvent(job: Job<DomainEvent>): Promise<void> {
         ),
       );
 
-    console.log(`Event processed successfully: ${event.type} (${event.id})`);
+    void logger.info`Event processed successfully: ${event.type} (${event.id})`;
   } catch (error) {
-    console.error(
-      `Failed to process event: ${event.type} (${event.id})`,
-      error,
-    );
+    void logger.error`Failed to process event: ${event.type} (${event.id}): ${error}`;
     throw error; // Let BullMQ handle retry
   }
 }
@@ -65,13 +65,11 @@ async function processWebhook(job: Job<WebhookDeliveryJob>): Promise<void> {
   const { eventId, eventType, webhookUrl, payload, attemptNumber } = job.data;
 
   if (!webhookUrl) {
-    console.log(`No webhook URL for event ${eventId}, skipping delivery`);
+    void logger.info`No webhook URL for event ${eventId}, skipping delivery`;
     return;
   }
 
-  console.log(
-    `Delivering webhook for ${eventType} to ${webhookUrl} (attempt ${attemptNumber})`,
-  );
+  void logger.info`Delivering webhook for ${eventType} to ${webhookUrl} (attempt ${attemptNumber})`;
 
   try {
     const response = await fetch(webhookUrl, {
@@ -97,9 +95,9 @@ async function processWebhook(job: Job<WebhookDeliveryJob>): Promise<void> {
       );
     }
 
-    console.log(`Webhook delivered successfully: ${eventId} to ${webhookUrl}`);
+    void logger.info`Webhook delivered successfully: ${eventId} to ${webhookUrl}`;
   } catch (error) {
-    console.error(`Webhook delivery failed for ${eventId}:`, error);
+    void logger.error`Webhook delivery failed for ${eventId}: ${error}`;
     throw error; // Let BullMQ handle retry
   }
 }
@@ -109,23 +107,23 @@ export function startWorkers(): void {
   if (!eventWorker) {
     eventWorker = createEventWorker(processEvent);
     eventWorker.on("completed", (job) => {
-      console.log(`Event job completed: ${job.id}`);
+      void logger.info`Event job completed: ${job.id}`;
     });
     eventWorker.on("failed", (job, error) => {
-      console.error(`Event job failed: ${job?.id}`, error.message);
+      void logger.error`Event job failed: ${job?.id}: ${error.message}`;
     });
-    console.log("Event worker started");
+    void logger.info`Event worker started`;
   }
 
   if (!webhookWorker) {
     webhookWorker = createWebhookWorker(processWebhook);
     webhookWorker.on("completed", (job) => {
-      console.log(`Webhook job completed: ${job.id}`);
+      void logger.info`Webhook job completed: ${job.id}`;
     });
     webhookWorker.on("failed", (job, error) => {
-      console.error(`Webhook job failed: ${job?.id}`, error.message);
+      void logger.error`Webhook job failed: ${job?.id}: ${error.message}`;
     });
-    console.log("Webhook worker started");
+    void logger.info`Webhook worker started`;
   }
 }
 
@@ -134,13 +132,13 @@ export async function stopWorkers(): Promise<void> {
   if (eventWorker) {
     await eventWorker.close();
     eventWorker = null;
-    console.log("Event worker stopped");
+    void logger.info`Event worker stopped`;
   }
 
   if (webhookWorker) {
     await webhookWorker.close();
     webhookWorker = null;
-    console.log("Webhook worker stopped");
+    void logger.info`Webhook worker stopped`;
   }
 }
 
@@ -183,7 +181,7 @@ export async function processStaleOutboxEntries(): Promise<void> {
         })
         .where(eq(eventOutbox.id, entry.id));
     } catch (error) {
-      console.error(`Failed to re-enqueue stale entry ${entry.id}:`, error);
+      void logger.error`Failed to re-enqueue stale entry ${entry.id}: ${error}`;
     }
   }
 }

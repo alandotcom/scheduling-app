@@ -3,7 +3,10 @@
 import { createMiddleware } from "hono/factory";
 import { ORPCError } from "@orpc/server";
 import { z, ZodError } from "zod";
+import { getLogger } from "@logtape/logtape";
 import { ApplicationError } from "../errors/application-error.js";
+
+const logger = getLogger(["api", "error"]);
 
 // Map error codes to HTTP status codes
 const errorStatusMap: Record<string, number> = {
@@ -87,7 +90,7 @@ export const errorHandler = createMiddleware(async (c, next) => {
       );
     }
 
-    console.error("Unhandled error:", error);
+    void logger.error`Unhandled error: ${error}`;
     return c.json(
       {
         error: {

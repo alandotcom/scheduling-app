@@ -4,15 +4,28 @@ import { drizzle } from "drizzle-orm/bun-sql";
 import type { BunSQLDatabase } from "drizzle-orm/bun-sql/postgres";
 import { SQL } from "bun";
 import { sql } from "drizzle-orm";
+import { getLogger } from "@logtape/logtape";
 import * as schema from "@scheduling/db/schema";
 import { relations } from "@scheduling/db/relations";
 import { config } from "../config.js";
+
+const logger = getLogger(["db"]);
+const isDev = process.env.NODE_ENV !== "production";
 
 // Create Bun SQL client
 const client = new SQL(config.db.url);
 
 // Create drizzle instance with schema and relations for relational queries
-export const db = drizzle({ client, schema, relations });
+export const db = drizzle({
+  client,
+  schema,
+  relations,
+  logger: isDev
+    ? {
+        logQuery: (query: string) => logger.debug`${query.slice(0, 300)}`,
+      }
+    : false,
+});
 
 // Export types
 export type Database = BunSQLDatabase<typeof schema, typeof relations>;

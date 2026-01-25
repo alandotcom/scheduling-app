@@ -7,9 +7,10 @@
     "dev:api": "pnpm --filter @scheduling/api run dev",
     "dev:admin": "pnpm --filter @scheduling/admin-ui run dev",
     "db:migrate": "pnpm --filter @scheduling/db run migrate",
-    "db:seed": "pnpm --filter @scheduling/db run seed",
+    "db:seed": " pnpm --filter @scheduling/api run seed",
     "build": "pnpm -r run build",
     "test": "pnpm -r run test",
+    "test:coverage": "pnpm -r --workspace-concurrency=1 --stream run test:coverage",
     "lint": "oxlint .",
     "format": "biome format . --write",
     "format:check": "biome check .",
@@ -23,5 +24,9 @@
   "engines": {
     "node": ">=22.0.0"
   },
-  "packageManager": "pnpm@10.28.1"
+  "packageManager": "pnpm@10.28.1",
+  "dependencies": {
+    "@logtape/logtape": "^2.0.2",
+    "@logtape/pretty": "^2.0.2"
+  }
 }

@@ -13,10 +13,13 @@
     "build": "bun build ./src/index.ts --outdir ./dist --target bun",
     "start": "bun dist/index.js",
     "test": "bun test",
+    "test:coverage": "bun test --coverage",
     "typecheck": "tsc --noEmit",
     "seed": "bun src/scripts/seed.ts"
   },
   "dependencies": {
+    "@logtape/logtape": "^2.0.2",
+    "@logtape/pretty": "^2.0.2",
     "@orpc/openapi": "^1.13.4",
     "@orpc/server": "^1.13.4",
     "@orpc/zod": "^1.13.4",

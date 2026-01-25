@@ -4,6 +4,9 @@ import type { Router } from "@scheduling/api/router-type";
 import type { RouterClient } from "@orpc/server";
 import { createORPCClient } from "@orpc/client";
 import { RPCLink } from "@orpc/client/fetch";
+import { getLogger } from "@logtape/logtape";
+
+const logger = getLogger(["ui", "api"]);
 
 // Store for the active org ID (can be set by org switcher UI)
 let activeOrgId: string | null = null;
@@ -25,11 +28,20 @@ const link = new RPCLink({
     // If not set, API middleware will default to user's first org
     return activeOrgId ? { "X-Org-Id": activeOrgId } : {};
   },
-  fetch: (request, init) => {
-    return globalThis.fetch(request, {
-      ...init,
-      credentials: "include", // Include cookies for session auth
-    });
+  fetch: async (request, init) => {
+    try {
+      const response = await globalThis.fetch(request, {
+        ...init,
+        credentials: "include", // Include cookies for session auth
+      });
+      if (!response.ok) {
+        void logger.warn`API error: ${response.status}`;
+      }
+      return response;
+    } catch (error) {
+      void logger.error`API request failed: ${error}`;
+      throw error;
+    }
   },
 });
 
