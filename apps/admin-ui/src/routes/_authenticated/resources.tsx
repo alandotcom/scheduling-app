@@ -1,5 +1,6 @@
-// Resources management page with CRUD operations
+// Resources management page with drawer and context menus
 
+import { useState, useCallback } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
@@ -8,6 +9,7 @@ import {
   Add01Icon,
   PencilEdit01Icon,
   Delete01Icon,
+  ViewIcon,
 } from "@hugeicons/core-free-icons";
 
 import { z } from "zod/mini";
@@ -18,6 +20,8 @@ import { createResourceSchema } from "@scheduling/dto";
 import type { CreateResourceInput } from "@scheduling/dto";
 import { useCrudState } from "@/hooks/use-crud-state";
 import { DeleteConfirmDialog } from "@/components/delete-confirm-dialog";
+import { ContextMenu, type ContextMenuItem } from "@/components/context-menu";
+import { ResourceDrawer } from "@/components/resource-drawer";
 
 // Form schema with required quantity for better UX
 const resourceFormSchema = z.extend(createResourceSchema, {
@@ -47,7 +51,8 @@ interface ResourceItem {
   id: string;
   name: string;
   quantity: number;
-  locationId?: string;
+  locationId?: string | null;
+  createdAt: string | Date;
 }
 
 interface ResourceFormProps {
@@ -161,6 +166,12 @@ function ResourcesPage() {
   const queryClient = useQueryClient();
   const crud = useCrudState<ResourceItem>();
 
+  // Drawer state
+  const [selectedResource, setSelectedResource] = useState<ResourceItem | null>(
+    null,
+  );
+  const [drawerOpen, setDrawerOpen] = useState(false);
+
   // Fetch resources
   const { data, isLoading, error } = useQuery(
     orpc.resources.list.queryOptions({
@@ -236,24 +247,59 @@ function ResourcesPage() {
     deleteMutation.mutate({ id: crud.deletingItemId });
   };
 
-  const getLocationName = (locationId: string | null) => {
+  const getLocationName = (locationId: string | null | undefined) => {
     if (!locationId) return "-";
     const location = locations.find((l) => l.id === locationId);
     return location?.name ?? "-";
   };
 
+  const openDrawer = useCallback((resource: ResourceItem) => {
+    setSelectedResource(resource);
+    setDrawerOpen(true);
+  }, []);
+
+  const getContextMenuItems = useCallback(
+    (resource: ResourceItem): ContextMenuItem[] => [
+      {
+        label: "View Details",
+        icon: ViewIcon,
+        onClick: () => openDrawer(resource),
+      },
+      {
+        label: "Edit",
+        icon: PencilEdit01Icon,
+        onClick: () =>
+          crud.openEdit({
+            id: resource.id,
+            name: resource.name,
+            quantity: resource.quantity,
+            locationId: resource.locationId ?? undefined,
+            createdAt: resource.createdAt,
+          }),
+      },
+      {
+        label: "Delete",
+        icon: Delete01Icon,
+        onClick: () => crud.openDelete(resource.id),
+        variant: "destructive",
+        separator: true,
+      },
+    ],
+    [openDrawer, crud],
+  );
+
   return (
-    <div className="p-10">
+    <div className="p-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-semibold tracking-tight">Resources</h1>
-          <p className="mt-2 text-muted-foreground">
-            Manage resources like rooms, equipment, or staff.
+          <h1 className="text-2xl font-semibold tracking-tight">Resources</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Manage resources like rooms, equipment, or staff
           </p>
         </div>
         {!crud.isFormOpen && (
           <Button onClick={crud.openCreate}>
-            <Icon icon={Add01Icon} className="mr-2" />
+            <Icon icon={Add01Icon} data-icon="inline-start" />
             Add Resource
           </Button>
         )}
@@ -261,7 +307,7 @@ function ResourcesPage() {
 
       {/* Create Form */}
       {crud.showCreateForm && (
-        <div className="mt-8 rounded-xl border border-border/50 bg-card p-6 shadow-sm">
+        <div className="mt-6 rounded-xl border border-border/50 bg-card p-6 shadow-sm">
           <h2 className="mb-5 text-lg font-semibold tracking-tight">
             New Resource
           </h2>
@@ -276,7 +322,7 @@ function ResourcesPage() {
 
       {/* Edit Form */}
       {crud.editingItem && (
-        <div className="mt-8 rounded-xl border border-border/50 bg-card p-6 shadow-sm">
+        <div className="mt-6 rounded-xl border border-border/50 bg-card p-6 shadow-sm">
           <h2 className="mb-5 text-lg font-semibold tracking-tight">
             Edit Resource
           </h2>
@@ -284,7 +330,7 @@ function ResourcesPage() {
             defaultValues={{
               name: crud.editingItem.name,
               quantity: crud.editingItem.quantity,
-              locationId: crud.editingItem.locationId,
+              locationId: crud.editingItem.locationId ?? undefined,
             }}
             locations={locations}
             onSubmit={handleUpdate}
@@ -295,17 +341,17 @@ function ResourcesPage() {
       )}
 
       {/* Resources Table */}
-      <div className="mt-8">
+      <div className="mt-6">
         {isLoading ? (
           <div
-            className="text-center text-muted-foreground"
+            className="text-center text-muted-foreground py-10"
             role="status"
             aria-live="polite"
           >
             Loading...
           </div>
         ) : error ? (
-          <div className="text-center text-destructive">
+          <div className="text-center text-destructive py-10">
             Error loading resources
           </div>
         ) : !data?.items.length ? (
@@ -321,58 +367,46 @@ function ResourcesPage() {
                   <TableHead>Quantity</TableHead>
                   <TableHead>Location</TableHead>
                   <TableHead>Created</TableHead>
-                  <TableHead className="w-[100px]">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {data.items.map((resource) => (
-                  <TableRow key={resource.id}>
-                    <TableCell className="font-medium">
-                      {resource.name}
-                    </TableCell>
-                    <TableCell>{resource.quantity}</TableCell>
-                    <TableCell>
-                      {getLocationName(resource.locationId)}
-                    </TableCell>
-                    <TableCell>
-                      {new Date(resource.createdAt).toLocaleDateString()}
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex gap-1">
-                        <Button
-                          variant="ghost"
-                          size="icon-sm"
-                          aria-label="Edit resource"
-                          onClick={() =>
-                            crud.openEdit({
-                              id: resource.id,
-                              name: resource.name,
-                              quantity: resource.quantity,
-                              locationId: resource.locationId ?? undefined,
-                            })
-                          }
-                          disabled={crud.isFormOpen}
-                        >
-                          <Icon icon={PencilEdit01Icon} />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon-sm"
-                          aria-label="Delete resource"
-                          onClick={() => crud.openDelete(resource.id)}
-                          disabled={crud.isFormOpen}
-                        >
-                          <Icon icon={Delete01Icon} />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
+                  <ContextMenu
+                    key={resource.id}
+                    items={getContextMenuItems(resource as ResourceItem)}
+                  >
+                    <TableRow
+                      className="cursor-pointer hover:bg-muted/50 transition-colors"
+                      onClick={() => openDrawer(resource as ResourceItem)}
+                    >
+                      <TableCell className="font-medium">
+                        {resource.name}
+                      </TableCell>
+                      <TableCell>{resource.quantity}</TableCell>
+                      <TableCell>
+                        {getLocationName(resource.locationId)}
+                      </TableCell>
+                      <TableCell>
+                        {new Date(resource.createdAt).toLocaleDateString()}
+                      </TableCell>
+                    </TableRow>
+                  </ContextMenu>
                 ))}
               </TableBody>
             </Table>
           </div>
         )}
       </div>
+
+      {/* Resource Drawer */}
+      <ResourceDrawer
+        resource={selectedResource}
+        open={drawerOpen}
+        onOpenChange={(open) => {
+          setDrawerOpen(open);
+          if (!open) setSelectedResource(null);
+        }}
+      />
 
       {/* Delete Confirmation */}
       <DeleteConfirmDialog

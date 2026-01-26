@@ -1,12 +1,15 @@
-// Appointments list page with filters and status management
+// Appointments list page with filters, clickable rows, and context menus
 
-import { useState } from "react";
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { useState, useCallback } from "react";
+import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Add01Icon,
   Cancel01Icon,
   Clock01Icon,
+  CheckmarkCircle01Icon,
+  TimeScheduleIcon,
+  ViewIcon,
 } from "@hugeicons/core-free-icons";
 
 import { toast } from "sonner";
@@ -15,7 +18,6 @@ import { orpc } from "@/lib/query";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -42,6 +44,32 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  FilterPopover,
+  FilterField,
+  ActiveFilters,
+} from "@/components/filter-popover";
+import { ContextMenu, type ContextMenuItem } from "@/components/context-menu";
+import { AppointmentDrawer } from "@/components/appointment-drawer";
+import { AppointmentModal } from "@/components/appointment-modal";
+import { useKeyboardShortcuts } from "@/hooks/use-keyboard-shortcuts";
+
+type AppointmentWithRelations = {
+  id: string;
+  startAt: string | Date;
+  endAt: string | Date;
+  timezone: string;
+  status: "scheduled" | "confirmed" | "cancelled" | "no_show";
+  notes: string | null;
+  calendar?: { id: string; name: string; timezone: string } | null;
+  appointmentType?: { id: string; name: string; durationMin: number } | null;
+  client?: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    email: string | null;
+  } | null;
+};
 
 function AppointmentsPage() {
   const queryClient = useQueryClient();
@@ -56,6 +84,25 @@ function AppointmentsPage() {
 
   const [cancellingId, setCancellingId] = useState<string | null>(null);
   const [noShowId, setNoShowId] = useState<string | null>(null);
+
+  // Drawer state
+  const [selectedAppointment, setSelectedAppointment] =
+    useState<AppointmentWithRelations | null>(null);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+
+  // Modal state
+  const [modalOpen, setModalOpen] = useState(false);
+
+  // Keyboard shortcut for new appointment
+  useKeyboardShortcuts({
+    shortcuts: [
+      {
+        key: ["meta+n", "ctrl+n"],
+        action: () => setModalOpen(true),
+        description: "New appointment",
+      },
+    ],
+  });
 
   // Fetch appointments with filters
   const { data, isLoading, error } = useQuery(
@@ -129,12 +176,18 @@ function AppointmentsPage() {
     (t) => t.id === filters.appointmentTypeId,
   );
 
-  const formatDateTime = (dateString: string | Date) => {
+  const formatDateTime = (dateString: string | Date, includeDate = true) => {
     const date = new Date(dateString);
-    return date.toLocaleString("en-US", {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
+    if (includeDate) {
+      return date.toLocaleString("en-US", {
+        month: "short",
+        day: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
+        hour12: true,
+      });
+    }
+    return date.toLocaleTimeString("en-US", {
       hour: "numeric",
       minute: "2-digit",
       hour12: true,
@@ -166,148 +219,262 @@ function AppointmentsPage() {
     }
   };
 
+  const openDrawer = useCallback((appointment: AppointmentWithRelations) => {
+    setSelectedAppointment(appointment);
+    setDrawerOpen(true);
+  }, []);
+
+  const getContextMenuItems = useCallback(
+    (appointment: AppointmentWithRelations): ContextMenuItem[] => {
+      const items: ContextMenuItem[] = [
+        {
+          label: "View Details",
+          icon: ViewIcon,
+          onClick: () => openDrawer(appointment),
+        },
+      ];
+
+      if (
+        appointment.status === "scheduled" ||
+        appointment.status === "confirmed"
+      ) {
+        if (appointment.status === "scheduled") {
+          items.push({
+            label: "Confirm",
+            icon: CheckmarkCircle01Icon,
+            onClick: () => {
+              // Confirm logic would go here
+              toast.info("Confirm feature coming soon");
+            },
+          });
+        }
+
+        items.push({
+          label: "Reschedule",
+          icon: TimeScheduleIcon,
+          onClick: () => {
+            toast.info("Reschedule feature coming soon");
+          },
+        });
+
+        items.push({
+          label: "Mark No-Show",
+          icon: Clock01Icon,
+          onClick: () => setNoShowId(appointment.id),
+        });
+
+        items.push({
+          label: "Cancel",
+          icon: Cancel01Icon,
+          onClick: () => setCancellingId(appointment.id),
+          variant: "destructive",
+          separator: true,
+        });
+      }
+
+      return items;
+    },
+    [openDrawer],
+  );
+
+  // Calculate active filter count
+  const activeFilterCount = [
+    filters.calendarId,
+    filters.appointmentTypeId,
+    filters.status,
+    filters.startDate,
+    filters.endDate,
+  ].filter(Boolean).length;
+
+  // Build active filters display
+  const activeFilters = [
+    filters.calendarId && {
+      label: "Calendar",
+      value: selectedCalendar?.name ?? "Unknown",
+      onRemove: () => setFilters((f) => ({ ...f, calendarId: "" })),
+    },
+    filters.appointmentTypeId && {
+      label: "Type",
+      value: selectedType?.name ?? "Unknown",
+      onRemove: () => setFilters((f) => ({ ...f, appointmentTypeId: "" })),
+    },
+    filters.status && {
+      label: "Status",
+      value: filters.status.replace("_", " "),
+      onRemove: () => setFilters((f) => ({ ...f, status: "" })),
+    },
+    filters.startDate && {
+      label: "From",
+      value: filters.startDate,
+      onRemove: () => setFilters((f) => ({ ...f, startDate: "" })),
+    },
+    filters.endDate && {
+      label: "To",
+      value: filters.endDate,
+      onRemove: () => setFilters((f) => ({ ...f, endDate: "" })),
+    },
+  ].filter(Boolean) as Array<{
+    label: string;
+    value: string;
+    onRemove: () => void;
+  }>;
+
+  const clearAllFilters = () => {
+    setFilters({
+      calendarId: "",
+      appointmentTypeId: "",
+      status: "",
+      startDate: "",
+      endDate: "",
+    });
+  };
+
   return (
-    <div className="p-10">
+    <div className="p-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-semibold tracking-tight">
+          <h1 className="text-2xl font-semibold tracking-tight">
             Appointments
           </h1>
-          <p className="mt-2 text-muted-foreground">
-            View and manage all appointments.
+          <p className="mt-1 text-sm text-muted-foreground">
+            View and manage all appointments
           </p>
         </div>
-        <Button asChild>
-          <Link to="/appointments/new">
-            <Icon icon={Add01Icon} className="mr-2" />
-            New Appointment
-          </Link>
+        <Button onClick={() => setModalOpen(true)}>
+          <Icon icon={Add01Icon} data-icon="inline-start" />
+          New Appointment
         </Button>
       </div>
 
       {/* Filters */}
-      <div className="mt-8 grid grid-cols-1 gap-5 rounded-xl border border-border/50 bg-card p-6 shadow-sm sm:grid-cols-2 lg:grid-cols-5">
-        <div className="space-y-2.5">
-          <Label>Calendar</Label>
-          <Select
-            value={filters.calendarId || "all"}
-            onValueChange={(value) =>
-              value &&
-              setFilters((f) => ({
-                ...f,
-                calendarId: value === "all" ? "" : value,
-              }))
-            }
-          >
-            <SelectTrigger className="w-full">
-              <SelectValue placeholder="All calendars">
-                {selectedCalendar?.name ?? "All calendars"}
-              </SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All calendars</SelectItem>
-              {calendars.map((cal) => (
-                <SelectItem key={cal.id} value={cal.id}>
-                  {cal.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="space-y-2.5">
-          <Label>Type</Label>
-          <Select
-            value={filters.appointmentTypeId || "all"}
-            onValueChange={(value) =>
-              value &&
-              setFilters((f) => ({
-                ...f,
-                appointmentTypeId: value === "all" ? "" : value,
-              }))
-            }
-          >
-            <SelectTrigger className="w-full">
-              <SelectValue placeholder="All types">
-                {selectedType?.name ?? "All types"}
-              </SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All types</SelectItem>
-              {appointmentTypes.map((type) => (
-                <SelectItem key={type.id} value={type.id}>
-                  {type.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="space-y-2.5">
-          <Label>Status</Label>
-          <Select
-            value={filters.status || "all"}
-            onValueChange={(value) =>
-              value &&
-              setFilters((f) => ({
-                ...f,
-                status: value === "all" ? "" : value,
-              }))
-            }
-          >
-            <SelectTrigger className="w-full">
-              <SelectValue placeholder="All statuses">
-                {filters.status
-                  ? ({
-                      scheduled: "Scheduled",
-                      confirmed: "Confirmed",
-                      cancelled: "Cancelled",
-                      no_show: "No Show",
-                    }[filters.status] ?? "All statuses")
-                  : "All statuses"}
-              </SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All statuses</SelectItem>
-              <SelectItem value="scheduled">Scheduled</SelectItem>
-              <SelectItem value="confirmed">Confirmed</SelectItem>
-              <SelectItem value="cancelled">Cancelled</SelectItem>
-              <SelectItem value="no_show">No Show</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="space-y-2.5">
-          <Label>From Date</Label>
-          <Input
-            type="date"
-            value={filters.startDate}
-            onChange={(e) =>
-              setFilters((f) => ({ ...f, startDate: e.target.value }))
-            }
-          />
-        </div>
-        <div className="space-y-2.5">
-          <Label>To Date</Label>
-          <Input
-            type="date"
-            value={filters.endDate}
-            onChange={(e) =>
-              setFilters((f) => ({ ...f, endDate: e.target.value }))
-            }
-          />
-        </div>
+      <div className="mt-6 flex items-center gap-4">
+        <FilterPopover
+          activeFilterCount={activeFilterCount}
+          onClear={clearAllFilters}
+        >
+          <FilterField label="Calendar">
+            <Select
+              value={filters.calendarId || "all"}
+              onValueChange={(value) =>
+                value &&
+                setFilters((f) => ({
+                  ...f,
+                  calendarId: value === "all" ? "" : value,
+                }))
+              }
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="All calendars">
+                  {selectedCalendar?.name ?? "All calendars"}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All calendars</SelectItem>
+                {calendars.map((cal) => (
+                  <SelectItem key={cal.id} value={cal.id}>
+                    {cal.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </FilterField>
+
+          <FilterField label="Type">
+            <Select
+              value={filters.appointmentTypeId || "all"}
+              onValueChange={(value) =>
+                value &&
+                setFilters((f) => ({
+                  ...f,
+                  appointmentTypeId: value === "all" ? "" : value,
+                }))
+              }
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="All types">
+                  {selectedType?.name ?? "All types"}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All types</SelectItem>
+                {appointmentTypes.map((type) => (
+                  <SelectItem key={type.id} value={type.id}>
+                    {type.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </FilterField>
+
+          <FilterField label="Status">
+            <Select
+              value={filters.status || "all"}
+              onValueChange={(value) =>
+                value &&
+                setFilters((f) => ({
+                  ...f,
+                  status: value === "all" ? "" : value,
+                }))
+              }
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="All statuses">
+                  {filters.status
+                    ? ({
+                        scheduled: "Scheduled",
+                        confirmed: "Confirmed",
+                        cancelled: "Cancelled",
+                        no_show: "No Show",
+                      }[filters.status] ?? "All statuses")
+                    : "All statuses"}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All statuses</SelectItem>
+                <SelectItem value="scheduled">Scheduled</SelectItem>
+                <SelectItem value="confirmed">Confirmed</SelectItem>
+                <SelectItem value="cancelled">Cancelled</SelectItem>
+                <SelectItem value="no_show">No Show</SelectItem>
+              </SelectContent>
+            </Select>
+          </FilterField>
+
+          <FilterField label="From Date">
+            <Input
+              type="date"
+              value={filters.startDate}
+              onChange={(e) =>
+                setFilters((f) => ({ ...f, startDate: e.target.value }))
+              }
+            />
+          </FilterField>
+
+          <FilterField label="To Date">
+            <Input
+              type="date"
+              value={filters.endDate}
+              onChange={(e) =>
+                setFilters((f) => ({ ...f, endDate: e.target.value }))
+              }
+            />
+          </FilterField>
+        </FilterPopover>
+
+        {activeFilters.length > 0 && <ActiveFilters filters={activeFilters} />}
       </div>
 
       {/* Appointments Table */}
-      <div className="mt-8">
+      <div className="mt-6">
         {isLoading ? (
           <div
-            className="text-center text-muted-foreground"
+            className="text-center text-muted-foreground py-10"
             role="status"
             aria-live="polite"
           >
             Loading...
           </div>
         ) : error ? (
-          <div className="text-center text-destructive">
+          <div className="text-center text-destructive py-10">
             Error loading appointments
           </div>
         ) : !data?.items.length ? (
@@ -325,63 +492,65 @@ function AppointmentsPage() {
                   <TableHead>Calendar</TableHead>
                   <TableHead>Client</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead className="w-[150px]">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {data.items.map((appointment) => (
-                  <TableRow key={appointment.id}>
-                    <TableCell className="font-medium">
-                      {formatDateTime(appointment.startAt)}
-                    </TableCell>
-                    <TableCell>
-                      {appointment.appointmentType?.name ?? "-"}
-                    </TableCell>
-                    <TableCell>{appointment.calendar?.name ?? "-"}</TableCell>
-                    <TableCell>
-                      {appointment.client
-                        ? `${appointment.client.firstName} ${appointment.client.lastName}`
-                        : "-"}
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant={getStatusVariant(appointment.status)}>
-                        {appointment.status.replace("_", " ")}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      {appointment.status === "scheduled" ||
-                      appointment.status === "confirmed" ? (
-                        <div className="flex gap-1">
-                          <Button
-                            variant="ghost"
-                            size="icon-sm"
-                            title="Mark as no-show"
-                            aria-label="Mark as no-show"
-                            onClick={() => setNoShowId(appointment.id)}
-                          >
-                            <Icon icon={Clock01Icon} />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon-sm"
-                            title="Cancel appointment"
-                            aria-label="Cancel appointment"
-                            onClick={() => setCancellingId(appointment.id)}
-                          >
-                            <Icon icon={Cancel01Icon} />
-                          </Button>
-                        </div>
-                      ) : (
-                        <span className="text-muted-foreground text-sm">-</span>
-                      )}
-                    </TableCell>
-                  </TableRow>
+                  <ContextMenu
+                    key={appointment.id}
+                    items={getContextMenuItems(
+                      appointment as AppointmentWithRelations,
+                    )}
+                  >
+                    <TableRow
+                      className="cursor-pointer hover:bg-muted/50 transition-colors"
+                      onClick={() =>
+                        openDrawer(appointment as AppointmentWithRelations)
+                      }
+                    >
+                      <TableCell className="font-medium">
+                        <div>{formatDateTime(appointment.startAt)}</div>
+                        {appointment.appointmentType?.durationMin && (
+                          <div className="text-xs text-muted-foreground">
+                            {appointment.appointmentType.durationMin} min
+                          </div>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {appointment.appointmentType?.name ?? "-"}
+                      </TableCell>
+                      <TableCell>{appointment.calendar?.name ?? "-"}</TableCell>
+                      <TableCell>
+                        {appointment.client
+                          ? `${appointment.client.firstName} ${appointment.client.lastName}`
+                          : "-"}
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant={getStatusVariant(appointment.status)}>
+                          {appointment.status.replace("_", " ")}
+                        </Badge>
+                      </TableCell>
+                    </TableRow>
+                  </ContextMenu>
                 ))}
               </TableBody>
             </Table>
           </div>
         )}
       </div>
+
+      {/* Appointment Drawer */}
+      <AppointmentDrawer
+        appointment={selectedAppointment}
+        open={drawerOpen}
+        onOpenChange={(open) => {
+          setDrawerOpen(open);
+          if (!open) setSelectedAppointment(null);
+        }}
+      />
+
+      {/* Appointment Modal */}
+      <AppointmentModal open={modalOpen} onOpenChange={setModalOpen} />
 
       {/* Cancel Confirmation */}
       <AlertDialog

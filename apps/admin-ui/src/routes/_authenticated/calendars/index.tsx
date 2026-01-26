@@ -1,6 +1,7 @@
-// Calendars management page with CRUD operations
+// Calendars management page with drawer and context menus
 
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { useState, useCallback } from "react";
+import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -9,6 +10,7 @@ import {
   PencilEdit01Icon,
   Delete01Icon,
   Clock01Icon,
+  ViewIcon,
 } from "@hugeicons/core-free-icons";
 
 import { toast } from "sonner";
@@ -19,6 +21,8 @@ import { createCalendarSchema } from "@scheduling/dto";
 import type { CreateCalendarInput } from "@scheduling/dto";
 import { useCrudState } from "@/hooks/use-crud-state";
 import { DeleteConfirmDialog } from "@/components/delete-confirm-dialog";
+import { ContextMenu, type ContextMenuItem } from "@/components/context-menu";
+import { CalendarDrawer } from "@/components/calendar-drawer";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -43,7 +47,8 @@ interface CalendarItem {
   id: string;
   name: string;
   timezone: string;
-  locationId?: string;
+  locationId?: string | null;
+  createdAt: string | Date;
 }
 
 interface CalendarFormProps {
@@ -170,6 +175,12 @@ function CalendarsPage() {
   const queryClient = useQueryClient();
   const crud = useCrudState<CalendarItem>();
 
+  // Drawer state
+  const [selectedCalendar, setSelectedCalendar] = useState<CalendarItem | null>(
+    null,
+  );
+  const [drawerOpen, setDrawerOpen] = useState(false);
+
   // Fetch calendars
   const { data, isLoading, error } = useQuery(
     orpc.calendars.list.queryOptions({
@@ -245,24 +256,67 @@ function CalendarsPage() {
     deleteMutation.mutate({ id: crud.deletingItemId });
   };
 
-  const getLocationName = (locationId: string | null) => {
+  const getLocationName = (locationId: string | null | undefined) => {
     if (!locationId) return "-";
     const location = locations.find((l) => l.id === locationId);
     return location?.name ?? "-";
   };
 
+  const openDrawer = useCallback((calendar: CalendarItem) => {
+    setSelectedCalendar(calendar);
+    setDrawerOpen(true);
+  }, []);
+
+  const getContextMenuItems = useCallback(
+    (calendar: CalendarItem): ContextMenuItem[] => [
+      {
+        label: "View Details",
+        icon: ViewIcon,
+        onClick: () => openDrawer(calendar),
+      },
+      {
+        label: "Manage Availability",
+        icon: Clock01Icon,
+        onClick: () => {
+          // This would navigate, but for context menu we'll use the drawer
+          openDrawer(calendar);
+        },
+      },
+      {
+        label: "Edit",
+        icon: PencilEdit01Icon,
+        onClick: () =>
+          crud.openEdit({
+            id: calendar.id,
+            name: calendar.name,
+            timezone: calendar.timezone,
+            locationId: calendar.locationId ?? undefined,
+            createdAt: calendar.createdAt,
+          }),
+      },
+      {
+        label: "Delete",
+        icon: Delete01Icon,
+        onClick: () => crud.openDelete(calendar.id),
+        variant: "destructive",
+        separator: true,
+      },
+    ],
+    [openDrawer, crud],
+  );
+
   return (
-    <div className="p-10">
+    <div className="p-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-semibold tracking-tight">Calendars</h1>
-          <p className="mt-2 text-muted-foreground">
-            Manage calendars and their availability.
+          <h1 className="text-2xl font-semibold tracking-tight">Calendars</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Manage calendars and their availability
           </p>
         </div>
         {!crud.isFormOpen && (
           <Button onClick={crud.openCreate}>
-            <Icon icon={Add01Icon} className="mr-2" />
+            <Icon icon={Add01Icon} data-icon="inline-start" />
             Add Calendar
           </Button>
         )}
@@ -270,7 +324,7 @@ function CalendarsPage() {
 
       {/* Create Form */}
       {crud.showCreateForm && (
-        <div className="mt-8 rounded-xl border border-border/50 bg-card p-6 shadow-sm">
+        <div className="mt-6 rounded-xl border border-border/50 bg-card p-6 shadow-sm">
           <h2 className="mb-5 text-lg font-semibold tracking-tight">
             New Calendar
           </h2>
@@ -285,7 +339,7 @@ function CalendarsPage() {
 
       {/* Edit Form */}
       {crud.editingItem && (
-        <div className="mt-8 rounded-xl border border-border/50 bg-card p-6 shadow-sm">
+        <div className="mt-6 rounded-xl border border-border/50 bg-card p-6 shadow-sm">
           <h2 className="mb-5 text-lg font-semibold tracking-tight">
             Edit Calendar
           </h2>
@@ -293,7 +347,7 @@ function CalendarsPage() {
             defaultValues={{
               name: crud.editingItem.name,
               timezone: crud.editingItem.timezone,
-              locationId: crud.editingItem.locationId,
+              locationId: crud.editingItem.locationId ?? undefined,
             }}
             locations={locations}
             onSubmit={handleUpdate}
@@ -304,17 +358,17 @@ function CalendarsPage() {
       )}
 
       {/* Calendars Table */}
-      <div className="mt-8">
+      <div className="mt-6">
         {isLoading ? (
           <div
-            className="text-center text-muted-foreground"
+            className="text-center text-muted-foreground py-10"
             role="status"
             aria-live="polite"
           >
             Loading...
           </div>
         ) : error ? (
-          <div className="text-center text-destructive">
+          <div className="text-center text-destructive py-10">
             Error loading calendars
           </div>
         ) : !data?.items.length ? (
@@ -330,71 +384,46 @@ function CalendarsPage() {
                   <TableHead>Timezone</TableHead>
                   <TableHead>Location</TableHead>
                   <TableHead>Created</TableHead>
-                  <TableHead className="w-[150px]">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {data.items.map((calendar) => (
-                  <TableRow key={calendar.id}>
-                    <TableCell className="font-medium">
-                      {calendar.name}
-                    </TableCell>
-                    <TableCell>{calendar.timezone}</TableCell>
-                    <TableCell>
-                      {getLocationName(calendar.locationId)}
-                    </TableCell>
-                    <TableCell>
-                      {new Date(calendar.createdAt).toLocaleDateString()}
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex gap-1">
-                        <Button
-                          variant="ghost"
-                          size="icon-sm"
-                          asChild
-                          aria-label="Manage availability"
-                        >
-                          <Link
-                            to="/calendars/$calendarId/availability"
-                            params={{ calendarId: calendar.id }}
-                          >
-                            <Icon icon={Clock01Icon} />
-                          </Link>
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon-sm"
-                          aria-label="Edit calendar"
-                          onClick={() =>
-                            crud.openEdit({
-                              id: calendar.id,
-                              name: calendar.name,
-                              timezone: calendar.timezone,
-                              locationId: calendar.locationId ?? undefined,
-                            })
-                          }
-                          disabled={crud.isFormOpen}
-                        >
-                          <Icon icon={PencilEdit01Icon} />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon-sm"
-                          aria-label="Delete calendar"
-                          onClick={() => crud.openDelete(calendar.id)}
-                          disabled={crud.isFormOpen}
-                        >
-                          <Icon icon={Delete01Icon} />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
+                  <ContextMenu
+                    key={calendar.id}
+                    items={getContextMenuItems(calendar as CalendarItem)}
+                  >
+                    <TableRow
+                      className="cursor-pointer hover:bg-muted/50 transition-colors"
+                      onClick={() => openDrawer(calendar as CalendarItem)}
+                    >
+                      <TableCell className="font-medium">
+                        {calendar.name}
+                      </TableCell>
+                      <TableCell>{calendar.timezone}</TableCell>
+                      <TableCell>
+                        {getLocationName(calendar.locationId)}
+                      </TableCell>
+                      <TableCell>
+                        {new Date(calendar.createdAt).toLocaleDateString()}
+                      </TableCell>
+                    </TableRow>
+                  </ContextMenu>
                 ))}
               </TableBody>
             </Table>
           </div>
         )}
       </div>
+
+      {/* Calendar Drawer */}
+      <CalendarDrawer
+        calendar={selectedCalendar}
+        open={drawerOpen}
+        onOpenChange={(open) => {
+          setDrawerOpen(open);
+          if (!open) setSelectedCalendar(null);
+        }}
+      />
 
       {/* Delete Confirmation */}
       <DeleteConfirmDialog

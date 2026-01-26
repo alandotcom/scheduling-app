@@ -1,5 +1,6 @@
-// Locations management page with CRUD operations
+// Locations management page with drawer and context menus
 
+import { useState, useCallback } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
@@ -8,6 +9,7 @@ import {
   Add01Icon,
   PencilEdit01Icon,
   Delete01Icon,
+  ViewIcon,
 } from "@hugeicons/core-free-icons";
 
 import { toast } from "sonner";
@@ -18,6 +20,8 @@ import { createLocationSchema } from "@scheduling/dto";
 import type { CreateLocationInput } from "@scheduling/dto";
 import { useCrudState } from "@/hooks/use-crud-state";
 import { DeleteConfirmDialog } from "@/components/delete-confirm-dialog";
+import { ContextMenu, type ContextMenuItem } from "@/components/context-menu";
+import { LocationDrawer } from "@/components/location-drawer";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -42,6 +46,7 @@ interface LocationItem {
   id: string;
   name: string;
   timezone: string;
+  createdAt: string | Date;
 }
 
 interface LocationFormProps {
@@ -132,6 +137,12 @@ function LocationsPage() {
   const queryClient = useQueryClient();
   const crud = useCrudState<LocationItem>();
 
+  // Drawer state
+  const [selectedLocation, setSelectedLocation] = useState<LocationItem | null>(
+    null,
+  );
+  const [drawerOpen, setDrawerOpen] = useState(false);
+
   // Fetch locations
   const { data, isLoading, error } = useQuery(
     orpc.locations.list.queryOptions({
@@ -198,18 +209,52 @@ function LocationsPage() {
     deleteMutation.mutate({ id: crud.deletingItemId });
   };
 
+  const openDrawer = useCallback((location: LocationItem) => {
+    setSelectedLocation(location);
+    setDrawerOpen(true);
+  }, []);
+
+  const getContextMenuItems = useCallback(
+    (location: LocationItem): ContextMenuItem[] => [
+      {
+        label: "View Details",
+        icon: ViewIcon,
+        onClick: () => openDrawer(location),
+      },
+      {
+        label: "Edit",
+        icon: PencilEdit01Icon,
+        onClick: () =>
+          crud.openEdit({
+            id: location.id,
+            name: location.name,
+            timezone: location.timezone,
+            createdAt: location.createdAt,
+          }),
+      },
+      {
+        label: "Delete",
+        icon: Delete01Icon,
+        onClick: () => crud.openDelete(location.id),
+        variant: "destructive",
+        separator: true,
+      },
+    ],
+    [openDrawer, crud],
+  );
+
   return (
-    <div className="p-10">
+    <div className="p-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-semibold tracking-tight">Locations</h1>
-          <p className="mt-2 text-muted-foreground">
-            Manage physical locations for your calendars.
+          <h1 className="text-2xl font-semibold tracking-tight">Locations</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Manage physical locations for your calendars
           </p>
         </div>
         {!crud.isFormOpen && (
           <Button onClick={crud.openCreate}>
-            <Icon icon={Add01Icon} className="mr-2" />
+            <Icon icon={Add01Icon} data-icon="inline-start" />
             Add Location
           </Button>
         )}
@@ -217,7 +262,7 @@ function LocationsPage() {
 
       {/* Create Form */}
       {crud.showCreateForm && (
-        <div className="mt-8 rounded-xl border border-border/50 bg-card p-6 shadow-sm">
+        <div className="mt-6 rounded-xl border border-border/50 bg-card p-6 shadow-sm">
           <h2 className="mb-5 text-lg font-semibold tracking-tight">
             New Location
           </h2>
@@ -231,7 +276,7 @@ function LocationsPage() {
 
       {/* Edit Form */}
       {crud.editingItem && (
-        <div className="mt-8 rounded-xl border border-border/50 bg-card p-6 shadow-sm">
+        <div className="mt-6 rounded-xl border border-border/50 bg-card p-6 shadow-sm">
           <h2 className="mb-5 text-lg font-semibold tracking-tight">
             Edit Location
           </h2>
@@ -248,19 +293,18 @@ function LocationsPage() {
       )}
 
       {/* Locations Table */}
-      <div className="mt-8">
+      <div className="mt-6">
         {isLoading ? (
           <div
-            className="text-center text-muted-foreground"
+            className="text-center text-muted-foreground py-10"
             role="status"
             aria-live="polite"
           >
             Loading...
           </div>
         ) : error ? (
-          <div className="text-center text-destructive">
-            <p>Error loading locations</p>
-            <p className="mt-1 text-sm">{error.message}</p>
+          <div className="text-center text-destructive py-10">
+            Error loading locations
           </div>
         ) : !data?.items.length ? (
           <div className="rounded-xl border border-border/50 bg-card p-10 text-center text-muted-foreground shadow-sm">
@@ -274,54 +318,43 @@ function LocationsPage() {
                   <TableHead>Name</TableHead>
                   <TableHead>Timezone</TableHead>
                   <TableHead>Created</TableHead>
-                  <TableHead className="w-[100px]">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {data.items.map((location) => (
-                  <TableRow key={location.id}>
-                    <TableCell className="font-medium">
-                      {location.name}
-                    </TableCell>
-                    <TableCell>{location.timezone}</TableCell>
-                    <TableCell>
-                      {new Date(location.createdAt).toLocaleDateString()}
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex gap-1">
-                        <Button
-                          variant="ghost"
-                          size="icon-sm"
-                          aria-label="Edit location"
-                          onClick={() =>
-                            crud.openEdit({
-                              id: location.id,
-                              name: location.name,
-                              timezone: location.timezone,
-                            })
-                          }
-                          disabled={crud.isFormOpen}
-                        >
-                          <Icon icon={PencilEdit01Icon} />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon-sm"
-                          aria-label="Delete location"
-                          onClick={() => crud.openDelete(location.id)}
-                          disabled={crud.isFormOpen}
-                        >
-                          <Icon icon={Delete01Icon} />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
+                  <ContextMenu
+                    key={location.id}
+                    items={getContextMenuItems(location as LocationItem)}
+                  >
+                    <TableRow
+                      className="cursor-pointer hover:bg-muted/50 transition-colors"
+                      onClick={() => openDrawer(location as LocationItem)}
+                    >
+                      <TableCell className="font-medium">
+                        {location.name}
+                      </TableCell>
+                      <TableCell>{location.timezone}</TableCell>
+                      <TableCell>
+                        {new Date(location.createdAt).toLocaleDateString()}
+                      </TableCell>
+                    </TableRow>
+                  </ContextMenu>
                 ))}
               </TableBody>
             </Table>
           </div>
         )}
       </div>
+
+      {/* Location Drawer */}
+      <LocationDrawer
+        location={selectedLocation}
+        open={drawerOpen}
+        onOpenChange={(open) => {
+          setDrawerOpen(open);
+          if (!open) setSelectedLocation(null);
+        }}
+      />
 
       {/* Delete Confirmation */}
       <DeleteConfirmDialog

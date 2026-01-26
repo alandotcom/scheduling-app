@@ -25,12 +25,17 @@ import {
   SheetClose,
 } from "@/components/ui/sheet";
 import { Toaster } from "sonner";
+import { CommandPalette } from "@/components/command-palette";
+import { useNavigationShortcuts } from "@/hooks/use-keyboard-shortcuts";
 
 function RootLayout() {
   const { data: session, isPending: isLoading } = authClient.useSession();
   const user = session?.user;
   const isAuthenticated = !!session;
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  // Enable keyboard navigation shortcuts when authenticated
+  useNavigationShortcuts();
 
   if (isLoading) {
     return (
@@ -181,6 +186,9 @@ function RootLayout() {
 
       {/* Toast notifications */}
       <Toaster richColors position="top-right" />
+
+      {/* Command palette (Cmd+K) */}
+      <CommandPalette />
 
       {/* Dev tools - only in development */}
       <TanStackRouterDevtools position="bottom-right" />
