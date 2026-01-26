@@ -16,6 +16,7 @@ event_loop:
 
 cli:
   backend: "codex"
+  prompt_mode: "arg"
 
 # Core behaviors (always injected into prompts)
 core:
