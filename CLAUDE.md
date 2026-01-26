@@ -189,11 +189,3 @@ agent-browser close
 - Take screenshots at key steps for verification
 - Close the browser when done to free resources
 
-## Execution Loop
-
-```bash
-# Run tasks until none remain
-while bd ready | grep -q "scheduling-app-"; do
-  claude "@PROMPT.md"
-done
-```
