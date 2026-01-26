@@ -1,5 +1,10 @@
 import { z } from "zod";
-import { uuidSchema, timestampsSchema } from "./common";
+import {
+  uuidSchema,
+  timestampsSchema,
+  timestampSchema,
+  nonNegativeIntSchema,
+} from "./common";
 
 // Base client schema
 export const clientSchema = z.object({
@@ -38,9 +43,22 @@ export const listClientsQuerySchema = z.object({
 // Response types
 export const clientResponseSchema = clientSchema;
 
+// Client history summary
+export const clientHistorySummarySchema = z.object({
+  clientId: uuidSchema,
+  totalAppointments: nonNegativeIntSchema,
+  upcomingAppointments: nonNegativeIntSchema,
+  pastAppointments: nonNegativeIntSchema,
+  cancelledAppointments: nonNegativeIntSchema,
+  noShowAppointments: nonNegativeIntSchema,
+  lastAppointmentAt: timestampSchema.nullable(),
+  nextAppointmentAt: timestampSchema.nullable(),
+});
+
 // Inferred types
 export type Client = z.infer<typeof clientSchema>;
 export type CreateClientInput = z.infer<typeof createClientSchema>;
 export type UpdateClientInput = z.infer<typeof updateClientSchema>;
 export type ListClientsQuery = z.infer<typeof listClientsQuerySchema>;
 export type ClientResponse = z.infer<typeof clientResponseSchema>;
+export type ClientHistorySummary = z.infer<typeof clientHistorySummarySchema>;

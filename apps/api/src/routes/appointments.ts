@@ -7,6 +7,8 @@ import {
   rescheduleAppointmentSchema,
   cancelAppointmentSchema,
   listAppointmentsQuerySchema,
+  appointmentTimeRangeQuerySchema,
+  appointmentTimeRangeResponseSchema,
 } from "@scheduling/dto";
 import { authed } from "./base.js";
 import { appointmentService } from "../services/appointments.js";
@@ -22,6 +24,30 @@ export const list = authed
       orgId: context.orgId,
       userId: context.userId!,
     });
+  });
+
+// List appointments for schedule view (time-range)
+export const range = authed
+  .route({ method: "GET", path: "/appointments/range" })
+  .input(appointmentTimeRangeQuerySchema)
+  .handler(async ({ input, context }) => {
+    const result = await appointmentService.listRange(
+      {
+        startAt: input.startAt,
+        endAt: input.endAt,
+        calendarId: input.calendarId ?? null,
+        appointmentTypeId: input.appointmentTypeId ?? null,
+        clientId: input.clientId ?? null,
+        status: input.status ?? null,
+        cursor: input.cursor ?? null,
+        limit: input.limit,
+      },
+      {
+        orgId: context.orgId,
+        userId: context.userId!,
+      },
+    );
+    return appointmentTimeRangeResponseSchema.parse(result);
   });
 
 // Get single appointment by ID
@@ -98,6 +124,7 @@ export const noShow = authed
 // Route exports
 export const appointmentRoutes = {
   list,
+  range,
   get,
   create,
   update,

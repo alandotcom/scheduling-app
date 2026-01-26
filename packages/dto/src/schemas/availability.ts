@@ -194,6 +194,43 @@ export const availabilityCheckResultSchema = z.object({
 });
 
 // ============================================================================
+// AVAILABILITY FEED (Merged rules + overrides + blocked time)
+// ============================================================================
+
+export const availabilityFeedItemTypeSchema = z.enum([
+  "working_hours",
+  "override_open",
+  "override_closed",
+  "blocked_time",
+]);
+
+export const availabilityFeedItemSchema = z.object({
+  type: availabilityFeedItemTypeSchema,
+  startAt: timestampSchema,
+  endAt: timestampSchema,
+  calendarId: uuidSchema,
+  label: z.string().nullable().optional(),
+  reason: z.string().nullable().optional(),
+  sourceId: uuidSchema.nullable(),
+});
+
+export const availabilityFeedQuerySchema = z
+  .object({
+    calendarIds: z.array(uuidSchema).min(1),
+    startAt: timestampSchema,
+    endAt: timestampSchema,
+    timezone: timezoneSchema,
+  })
+  .refine((data) => data.startAt < data.endAt, {
+    message: "startAt must be before endAt",
+    path: ["startAt"],
+  });
+
+export const availabilityFeedResponseSchema = z.object({
+  items: z.array(availabilityFeedItemSchema),
+});
+
+// ============================================================================
 // INFERRED TYPES
 // ============================================================================
 
@@ -234,4 +271,12 @@ export type TimeSlot = z.infer<typeof timeSlotSchema>;
 export type AvailabilityCheck = z.infer<typeof availabilityCheckSchema>;
 export type AvailabilityCheckResult = z.infer<
   typeof availabilityCheckResultSchema
+>;
+export type AvailabilityFeedItemType = z.infer<
+  typeof availabilityFeedItemTypeSchema
+>;
+export type AvailabilityFeedItem = z.infer<typeof availabilityFeedItemSchema>;
+export type AvailabilityFeedQuery = z.infer<typeof availabilityFeedQuerySchema>;
+export type AvailabilityFeedResponse = z.infer<
+  typeof availabilityFeedResponseSchema
 >;

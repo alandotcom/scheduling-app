@@ -7,6 +7,7 @@ import type { DbClient } from "../../lib/db.js";
 import { ApplicationError } from "../../errors/application-error.js";
 import { availabilityRepository } from "../../repositories/availability.js";
 import type { ServiceContext } from "../locations.js";
+import type { AppointmentConflict } from "@scheduling/dto";
 import type {
   AvailabilityQuery,
   TimeSlot,
@@ -152,6 +153,265 @@ export class AvailabilityService {
       }
 
       return { available: true };
+    });
+  }
+
+  /**
+   * Check a specific slot and return structured conflict metadata.
+   */
+  async checkSlotDetailed(
+    appointmentTypeId: string,
+    calendarId: string,
+    startTime: Date,
+    timezone: string,
+    context: ServiceContext,
+    options?: { excludeAppointmentId?: string },
+  ): Promise<{ available: boolean; conflicts: AppointmentConflict[] }> {
+    return withOrg(context.orgId, async (tx) => {
+      const makeConflict = (
+        conflictType: AppointmentConflict["conflictType"],
+        message: string,
+        conflictingIds: string[] = [],
+      ): AppointmentConflict => ({
+        conflictType,
+        message,
+        canOverride: false,
+        conflictingIds,
+      });
+
+      const appointmentType = await availabilityRepository.loadAppointmentType(
+        tx,
+        context.orgId,
+        appointmentTypeId,
+      );
+      if (!appointmentType) {
+        return {
+          available: false,
+          conflicts: [
+            makeConflict(
+              "unavailable",
+              "Appointment type not found for this slot",
+            ),
+          ],
+        };
+      }
+
+      const endTime = DateTime.fromJSDate(startTime)
+        .plus({ minutes: appointmentType.durationMin })
+        .toJSDate();
+      const startDate = DateTime.fromJSDate(startTime, {
+        zone: timezone,
+      }).toISODate();
+
+      if (!startDate) {
+        return {
+          available: false,
+          conflicts: [
+            makeConflict("unavailable", "Invalid date for the requested slot"),
+          ],
+        };
+      }
+
+      const query: AvailabilityQuery = {
+        appointmentTypeId,
+        calendarIds: [calendarId],
+        startDate,
+        endDate: startDate,
+        timezone,
+      };
+
+      const data = await this.loadAvailabilityData(tx, context.orgId, query);
+      if (!data) {
+        return {
+          available: false,
+          conflicts: [
+            makeConflict("unavailable", "Calendar not available for this slot"),
+          ],
+        };
+      }
+
+      const candidateSlots = this.generateCandidateSlots(
+        startDate,
+        startDate,
+        timezone,
+        data.rules,
+        data.overrides,
+        appointmentType.durationMin,
+      );
+      const matchesCandidate = candidateSlots.some(
+        (slot) =>
+          slot.start.getTime() === startTime.getTime() &&
+          slot.end.getTime() === endTime.getTime(),
+      );
+
+      if (!matchesCandidate) {
+        return {
+          available: false,
+          conflicts: [
+            makeConflict(
+              "unavailable",
+              "Outside availability window for this calendar",
+            ),
+          ],
+        };
+      }
+
+      const slotStart = DateTime.fromJSDate(startTime);
+      const now = DateTime.now();
+
+      if (data.limits.minNoticeHours != null) {
+        const minNotice = now.plus({ hours: data.limits.minNoticeHours });
+        if (slotStart < minNotice) {
+          return {
+            available: false,
+            conflicts: [
+              makeConflict(
+                "unavailable",
+                "Not enough notice to book this slot",
+              ),
+            ],
+          };
+        }
+      }
+
+      if (data.limits.maxNoticeDays != null) {
+        const maxNotice = now.plus({ days: data.limits.maxNoticeDays });
+        if (slotStart > maxNotice) {
+          return {
+            available: false,
+            conflicts: [
+              makeConflict(
+                "unavailable",
+                "Slot is beyond the advance booking window",
+              ),
+            ],
+          };
+        }
+      }
+
+      if (slotStart < now) {
+        return {
+          available: false,
+          conflicts: [
+            makeConflict("unavailable", "Cannot book a slot in the past"),
+          ],
+        };
+      }
+
+      for (const blocked of data.blockedTimes) {
+        if (this.isBlockedAt(startTime, endTime, blocked)) {
+          return {
+            available: false,
+            conflicts: [makeConflict("unavailable", "This time is blocked")],
+          };
+        }
+      }
+
+      const existingAppointments = data.existingAppointments.filter(
+        (appt) => appt.id !== options?.excludeAppointmentId,
+      );
+      const slotWithPadding = {
+        start: DateTime.fromJSDate(startTime)
+          .minus({ minutes: appointmentType.paddingBeforeMin ?? 0 })
+          .toJSDate(),
+        end: DateTime.fromJSDate(endTime)
+          .plus({ minutes: appointmentType.paddingAfterMin ?? 0 })
+          .toJSDate(),
+      };
+      const overlappingAppointments = existingAppointments.filter((appt) =>
+        this.intervalsOverlap(slotWithPadding, {
+          start: appt.startAt,
+          end: appt.endAt,
+        }),
+      );
+      const capacity = appointmentType.capacity ?? 1;
+      const remainingCapacity = capacity - overlappingAppointments.length;
+
+      if (remainingCapacity <= 0) {
+        const conflictType = capacity > 1 ? "capacity" : ("overlap" as const);
+        return {
+          available: false,
+          conflicts: [
+            makeConflict(
+              conflictType,
+              capacity > 1
+                ? "Slot has reached capacity"
+                : "Slot overlaps another appointment",
+              overlappingAppointments.map((appt) => appt.id),
+            ),
+          ],
+        };
+      }
+
+      if (data.resourceConstraints.length > 0) {
+        const resourceAvailable = this.checkResourceCapacity(
+          startTime,
+          endTime,
+          data.resourceConstraints,
+          data.resourcesData,
+          existingAppointments,
+          appointmentType.id,
+        );
+        if (!resourceAvailable) {
+          return {
+            available: false,
+            conflicts: [
+              makeConflict(
+                "resource_unavailable",
+                "Required resources are unavailable for this slot",
+              ),
+            ],
+          };
+        }
+      }
+
+      if (data.limits.maxPerDay != null) {
+        const dailyCount = existingAppointments.filter((a) =>
+          DateTime.fromJSDate(a.startAt).hasSame(slotStart, "day"),
+        ).length;
+        if (dailyCount >= data.limits.maxPerDay) {
+          return {
+            available: false,
+            conflicts: [
+              makeConflict(
+                "unavailable",
+                "Daily booking limit has been reached",
+              ),
+            ],
+          };
+        }
+      }
+
+      if (data.limits.maxPerWeek != null) {
+        const weekStart = slotStart.startOf("week");
+        const weekEnd = slotStart.endOf("week");
+        const weeklyCount = existingAppointments.filter((a) => {
+          const apptStart = DateTime.fromJSDate(a.startAt);
+          return apptStart >= weekStart && apptStart <= weekEnd;
+        }).length;
+        if (weeklyCount >= data.limits.maxPerWeek) {
+          return {
+            available: false,
+            conflicts: [
+              makeConflict(
+                "unavailable",
+                "Weekly booking limit has been reached",
+              ),
+            ],
+          };
+        }
+      }
+
+      if (data.limits.maxPerSlot != null) {
+        if (capacity - remainingCapacity >= data.limits.maxPerSlot) {
+          return {
+            available: false,
+            conflicts: [makeConflict("capacity", "Slot has reached capacity")],
+          };
+        }
+      }
+
+      return { available: true, conflicts: [] };
     });
   }
 

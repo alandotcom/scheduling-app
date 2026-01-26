@@ -12,6 +12,7 @@ import { withOrg } from "../lib/db.js";
 import { ApplicationError } from "../errors/application-error.js";
 import { events } from "./jobs/emitter.js";
 import type { ServiceContext } from "./locations.js";
+import type { ClientHistorySummary } from "@scheduling/dto";
 
 export class ClientService {
   async list(
@@ -126,6 +127,30 @@ export class ClientService {
       );
 
       return { success: true };
+    });
+  }
+
+  async historySummary(
+    id: string,
+    context: ServiceContext,
+  ): Promise<ClientHistorySummary> {
+    return withOrg(context.orgId, async (tx) => {
+      const client = await clientRepository.findById(tx, context.orgId, id);
+
+      if (!client) {
+        throw new ApplicationError("Client not found", { code: "NOT_FOUND" });
+      }
+
+      const summary = await clientRepository.getHistorySummary(
+        tx,
+        context.orgId,
+        id,
+      );
+
+      return {
+        clientId: id,
+        ...summary,
+      };
     });
   }
 }

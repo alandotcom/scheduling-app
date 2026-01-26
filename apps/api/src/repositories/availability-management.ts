@@ -1,6 +1,6 @@
 // Availability management repository - CRUD for rules, overrides, blocked time, limits
 
-import { eq, and, gt } from "drizzle-orm";
+import { eq, and, gt, gte, lte, lt, inArray } from "drizzle-orm";
 import {
   availabilityRules,
   availabilityOverrides,
@@ -147,6 +147,20 @@ export class AvailabilityManagementRepository {
     return paginate(results, limit);
   }
 
+  async findRulesByCalendarIds(
+    tx: DbClient,
+    orgId: string,
+    calendarIds: string[],
+  ): Promise<AvailabilityRule[]> {
+    if (calendarIds.length === 0) return [];
+    await setOrgContext(tx, orgId);
+    return tx
+      .select()
+      .from(availabilityRules)
+      .where(inArray(availabilityRules.calendarId, calendarIds))
+      .orderBy(availabilityRules.weekday, availabilityRules.startTime);
+  }
+
   async findRulesByWeekday(
     tx: DbClient,
     orgId: string,
@@ -286,6 +300,28 @@ export class AvailabilityManagementRepository {
     return paginate(results, limit);
   }
 
+  async findOverridesByCalendarIdsInRange(
+    tx: DbClient,
+    orgId: string,
+    calendarIds: string[],
+    startDate: string,
+    endDate: string,
+  ): Promise<AvailabilityOverride[]> {
+    if (calendarIds.length === 0) return [];
+    await setOrgContext(tx, orgId);
+    return tx
+      .select()
+      .from(availabilityOverrides)
+      .where(
+        and(
+          inArray(availabilityOverrides.calendarId, calendarIds),
+          gte(availabilityOverrides.date, startDate),
+          lte(availabilityOverrides.date, endDate),
+        ),
+      )
+      .orderBy(availabilityOverrides.date);
+  }
+
   async findOverrideByDate(
     tx: DbClient,
     orgId: string,
@@ -396,6 +432,28 @@ export class AvailabilityManagementRepository {
       .orderBy(blockedTime.startAt);
 
     return paginate(results, limit);
+  }
+
+  async findBlockedTimeByCalendarIdsInRange(
+    tx: DbClient,
+    orgId: string,
+    calendarIds: string[],
+    startAt: Date,
+    endAt: Date,
+  ): Promise<BlockedTime[]> {
+    if (calendarIds.length === 0) return [];
+    await setOrgContext(tx, orgId);
+    return tx
+      .select()
+      .from(blockedTime)
+      .where(
+        and(
+          inArray(blockedTime.calendarId, calendarIds),
+          lt(blockedTime.startAt, endAt),
+          gt(blockedTime.endAt, startAt),
+        ),
+      )
+      .orderBy(blockedTime.startAt);
   }
 
   async createBlockedTime(

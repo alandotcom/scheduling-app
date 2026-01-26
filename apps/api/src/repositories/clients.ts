@@ -1,7 +1,7 @@
 // Client repository - data access layer for clients
 
-import { eq, gt, or, ilike } from "drizzle-orm";
-import { clients } from "@scheduling/db/schema";
+import { eq, gt, or, ilike, sql } from "drizzle-orm";
+import { clients, appointments } from "@scheduling/db/schema";
 import type { PaginationInput, PaginatedResult } from "./base.js";
 import type { DbClient } from "../lib/db.js";
 import { paginate, setOrgContext } from "./base.js";
@@ -118,6 +118,48 @@ export class ClientRepository {
       .where(eq(clients.id, id))
       .returning({ id: clients.id });
     return result.length > 0;
+  }
+
+  async getHistorySummary(
+    tx: DbClient,
+    orgId: string,
+    clientId: string,
+  ): Promise<{
+    totalAppointments: number;
+    upcomingAppointments: number;
+    pastAppointments: number;
+    cancelledAppointments: number;
+    noShowAppointments: number;
+    lastAppointmentAt: Date | null;
+    nextAppointmentAt: Date | null;
+  }> {
+    await setOrgContext(tx, orgId);
+    const now = new Date();
+
+    const [summary] = await tx
+      .select({
+        totalAppointments: sql<number>`count(*)::int`,
+        upcomingAppointments: sql<number>`(count(*) filter (where ${appointments.startAt} > ${now} and ${appointments.status} <> 'cancelled'))::int`,
+        pastAppointments: sql<number>`(count(*) filter (where ${appointments.startAt} <= ${now}))::int`,
+        cancelledAppointments: sql<number>`(count(*) filter (where ${appointments.status} = 'cancelled'))::int`,
+        noShowAppointments: sql<number>`(count(*) filter (where ${appointments.status} = 'no_show'))::int`,
+        lastAppointmentAt: sql<Date | null>`max(${appointments.startAt}) filter (where ${appointments.startAt} <= ${now} and ${appointments.status} <> 'cancelled')`,
+        nextAppointmentAt: sql<Date | null>`min(${appointments.startAt}) filter (where ${appointments.startAt} > ${now} and ${appointments.status} <> 'cancelled')`,
+      })
+      .from(appointments)
+      .where(eq(appointments.clientId, clientId));
+
+    return (
+      summary ?? {
+        totalAppointments: 0,
+        upcomingAppointments: 0,
+        pastAppointments: 0,
+        cancelledAppointments: 0,
+        noShowAppointments: 0,
+        lastAppointmentAt: null,
+        nextAppointmentAt: null,
+      }
+    );
   }
 }
 

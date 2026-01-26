@@ -1,5 +1,6 @@
 // Availability management service - business logic for rules, overrides, blocked time, limits
 
+import { DateTime } from "luxon";
 import { availabilityManagementRepository } from "../repositories/availability-management.js";
 import type {
   AvailabilityRule,
@@ -19,6 +20,10 @@ import type { PaginationInput, PaginatedResult } from "../repositories/base.js";
 import { withOrg } from "../lib/db.js";
 import { ApplicationError } from "../errors/application-error.js";
 import type { ServiceContext } from "./locations.js";
+import type {
+  AvailabilityFeedItem,
+  AvailabilityFeedQuery,
+} from "@scheduling/dto";
 
 // Helper to check time range overlap
 function hasOverlap(
@@ -660,6 +665,168 @@ export class AvailabilityManagementService {
       );
       return { success: true };
     });
+  }
+
+  // ============================================================================
+  // AVAILABILITY FEED (Schedule shading)
+  // ============================================================================
+
+  async getAvailabilityFeed(
+    input: AvailabilityFeedQuery,
+    context: ServiceContext,
+  ): Promise<{ items: AvailabilityFeedItem[] }> {
+    const { calendarIds, startAt, endAt, timezone } = input;
+
+    await Promise.all(
+      calendarIds.map((calendarId) =>
+        this.ensureCalendarAccess(context.orgId, calendarId),
+      ),
+    );
+
+    const rangeStart = DateTime.fromJSDate(startAt, { zone: timezone });
+    const rangeEnd = DateTime.fromJSDate(endAt, { zone: timezone });
+    const rangeStartMillis = rangeStart.toMillis();
+    const rangeEndMillis = rangeEnd.toMillis();
+    const startDate = rangeStart.toISODate();
+    const endDate = rangeEnd.toISODate();
+
+    if (!startDate || !endDate) {
+      throw new ApplicationError("Invalid date range", {
+        code: "INVALID_DATE_RANGE",
+      });
+    }
+
+    const [rules, overrides, blocked] = await withOrg(
+      context.orgId,
+      async (tx) => {
+        const [rulesResult, overridesResult, blockedResult] = await Promise.all(
+          [
+            availabilityManagementRepository.findRulesByCalendarIds(
+              tx,
+              context.orgId,
+              calendarIds,
+            ),
+            availabilityManagementRepository.findOverridesByCalendarIdsInRange(
+              tx,
+              context.orgId,
+              calendarIds,
+              startDate,
+              endDate,
+            ),
+            availabilityManagementRepository.findBlockedTimeByCalendarIdsInRange(
+              tx,
+              context.orgId,
+              calendarIds,
+              startAt,
+              endAt,
+            ),
+          ],
+        );
+
+        return [rulesResult, overridesResult, blockedResult] as const;
+      },
+    );
+
+    const items: AvailabilityFeedItem[] = [];
+
+    const parseTime = (time: string) => {
+      const [hour, minute] = time.split(":").map(Number);
+      return { hour: hour ?? 0, minute: minute ?? 0 };
+    };
+
+    const dayStart = rangeStart.startOf("day");
+    const dayEnd = rangeEnd.startOf("day");
+
+    for (const rule of rules) {
+      for (
+        let cursor = dayStart;
+        cursor.toMillis() <= dayEnd.toMillis();
+        cursor = cursor.plus({ days: 1 })
+      ) {
+        const weekday = cursor.weekday % 7;
+        if (weekday !== rule.weekday) continue;
+
+        const { hour: startHour, minute: startMinute } = parseTime(
+          rule.startTime,
+        );
+        const { hour: endHour, minute: endMinute } = parseTime(rule.endTime);
+
+        const start = cursor.set({
+          hour: startHour,
+          minute: startMinute,
+          second: 0,
+          millisecond: 0,
+        });
+        const end = cursor.set({
+          hour: endHour,
+          minute: endMinute,
+          second: 0,
+          millisecond: 0,
+        });
+
+        if (end.toMillis() <= start.toMillis()) continue;
+        if (
+          end.toMillis() <= rangeStartMillis ||
+          start.toMillis() >= rangeEndMillis
+        ) {
+          continue;
+        }
+
+        items.push({
+          type: "working_hours",
+          startAt: start.toJSDate(),
+          endAt: end.toJSDate(),
+          calendarId: rule.calendarId,
+          label: "Working hours",
+          reason: null,
+          sourceId: rule.id,
+        });
+      }
+    }
+
+    for (const override of overrides) {
+      const day = DateTime.fromISO(override.date, { zone: timezone });
+      const start = override.startTime
+        ? day.set(parseTime(override.startTime))
+        : day.startOf("day");
+      const end = override.endTime
+        ? day.set(parseTime(override.endTime))
+        : day.endOf("day");
+
+      if (end.toMillis() <= start.toMillis()) continue;
+      if (
+        end.toMillis() <= rangeStartMillis ||
+        start.toMillis() >= rangeEndMillis
+      ) {
+        continue;
+      }
+
+      items.push({
+        type: override.isBlocked ? "override_closed" : "override_open",
+        startAt: start.toJSDate(),
+        endAt: end.toJSDate(),
+        calendarId: override.calendarId,
+        label: override.isBlocked ? "Override (closed)" : "Override (open)",
+        reason: null,
+        sourceId: override.id,
+      });
+    }
+
+    for (const block of blocked) {
+      items.push({
+        type: "blocked_time",
+        startAt: block.startAt,
+        endAt: block.endAt,
+        calendarId: block.calendarId,
+        label: "Blocked time",
+        reason: null,
+        sourceId: block.id,
+      });
+    }
+
+    items.sort((a, b) => a.startAt.getTime() - b.startAt.getTime());
+
+    return { items };
   }
 }
 

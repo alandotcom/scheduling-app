@@ -8,6 +8,7 @@ import type {
   AppointmentWithRelations,
 } from "../repositories/appointments.js";
 import type { PaginatedResult } from "../repositories/base.js";
+import type { AppointmentScheduleEvent } from "@scheduling/dto";
 import { withOrg } from "../lib/db.js";
 import { ApplicationError } from "../errors/application-error.js";
 import { availabilityService } from "./availability-engine/index.js";
@@ -72,6 +73,17 @@ export interface CancelAppointmentInput {
   reason?: string | null | undefined;
 }
 
+export interface AppointmentRangeInput {
+  startAt: Date;
+  endAt: Date;
+  calendarId?: string | null | undefined;
+  appointmentTypeId?: string | null | undefined;
+  clientId?: string | null | undefined;
+  status?: string | null | undefined;
+  cursor?: string | null | undefined;
+  limit: number;
+}
+
 // Transform joined result to response format
 function toAppointmentResponse(row: AppointmentWithRelations) {
   return {
@@ -79,6 +91,28 @@ function toAppointmentResponse(row: AppointmentWithRelations) {
     calendar: row.calendar ?? undefined,
     appointmentType: row.appointmentType ?? undefined,
     client: row.client ?? undefined,
+  };
+}
+
+function toAppointmentScheduleEvent(
+  row: ReturnType<typeof toAppointmentResponse>,
+  locationName: string | null,
+  resourceSummary: string | null,
+): AppointmentScheduleEvent {
+  return {
+    id: row.id,
+    status: row.status as AppointmentScheduleEvent["status"],
+    startAt: row.startAt,
+    endAt: row.endAt,
+    calendarId: row.calendarId,
+    calendarColor: null,
+    clientName: row.client
+      ? `${row.client.firstName} ${row.client.lastName}`.trim()
+      : null,
+    appointmentTypeName: row.appointmentType?.name ?? null,
+    locationName,
+    hasNotes: !!row.notes,
+    resourceSummary,
   };
 }
 
@@ -93,6 +127,65 @@ export class AppointmentService {
 
     return {
       items: result.items.map(toAppointmentResponse),
+      nextCursor: result.nextCursor,
+      hasMore: result.hasMore,
+    };
+  }
+
+  async listRange(
+    input: AppointmentRangeInput,
+    context: ServiceContext,
+  ): Promise<{
+    items: AppointmentScheduleEvent[];
+    nextCursor: string | null;
+    hasMore: boolean;
+  }> {
+    const result = await this.list(
+      {
+        calendarId: input.calendarId,
+        appointmentTypeId: input.appointmentTypeId,
+        clientId: input.clientId,
+        status: input.status,
+        startAt: input.startAt,
+        endAt: input.endAt,
+        cursor: input.cursor ?? undefined,
+        limit: input.limit,
+      },
+      context,
+    );
+
+    const calendarIds = Array.from(
+      new Set(result.items.map((item) => item.calendarId)),
+    );
+    const appointmentTypeIds = Array.from(
+      new Set(result.items.map((item) => item.appointmentTypeId)),
+    );
+
+    const [locationNames, resourceSummaries] = await withOrg(
+      context.orgId,
+      async (tx) =>
+        Promise.all([
+          appointmentRepository.getLocationNamesByCalendarIds(
+            tx,
+            context.orgId,
+            calendarIds,
+          ),
+          appointmentRepository.getResourceSummariesByAppointmentTypeIds(
+            tx,
+            context.orgId,
+            appointmentTypeIds,
+          ),
+        ]),
+    );
+
+    return {
+      items: result.items.map((item) =>
+        toAppointmentScheduleEvent(
+          item,
+          locationNames.get(item.calendarId) ?? null,
+          resourceSummaries.get(item.appointmentTypeId) ?? null,
+        ),
+      ),
       nextCursor: result.nextCursor,
       hasMore: result.hasMore,
     };
@@ -182,7 +275,7 @@ export class AppointmentService {
     }
 
     // Check availability using the service
-    const availabilityCheck = await availabilityService.checkSlot(
+    const availabilityCheck = await availabilityService.checkSlotDetailed(
       appointmentTypeId,
       calendarId,
       startAt,
@@ -191,9 +284,13 @@ export class AppointmentService {
     );
 
     if (!availabilityCheck.available) {
-      const errorCode = availabilityCheck.reason || "SLOT_UNAVAILABLE";
-      throw new ApplicationError(`${errorCode}: Time slot is not available`, {
+      const conflictMessage =
+        availabilityCheck.conflicts[0]?.message ?? "Time slot is not available";
+      throw new ApplicationError(`SLOT_UNAVAILABLE: ${conflictMessage}`, {
         code: "CONFLICT",
+        details: {
+          conflicts: availabilityCheck.conflicts,
+        },
       });
     }
 
@@ -446,23 +543,28 @@ export class AppointmentService {
     }
 
     // Check availability for the new slot
-    const availabilityCheck = await availabilityService.checkSlot(
+    const availabilityCheck = await availabilityService.checkSlotDetailed(
       existing.appointmentTypeId,
       existing.calendarId,
       newStartAt,
       data.timezone,
       { orgId, userId: context.userId },
+      { excludeAppointmentId: existing.id },
     );
 
     // If slot is unavailable, throw an error
     // SLOT_UNAVAILABLE means another appointment occupies the slot
     // (the current appointment being rescheduled doesn't count since it's moving away)
     if (!availabilityCheck.available) {
-      const errorCode = availabilityCheck.reason || "SLOT_UNAVAILABLE";
-      throw new ApplicationError(
-        `${errorCode}: New time slot is not available`,
-        { code: "CONFLICT" },
-      );
+      const conflictMessage =
+        availabilityCheck.conflicts[0]?.message ??
+        "New time slot is not available";
+      throw new ApplicationError(`SLOT_UNAVAILABLE: ${conflictMessage}`, {
+        code: "CONFLICT",
+        details: {
+          conflicts: availabilityCheck.conflicts,
+        },
+      });
     }
 
     // Perform reschedule - DB exclusion constraint handles race conditions

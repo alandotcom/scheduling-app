@@ -1,12 +1,15 @@
 // Appointment repository - data access layer for appointments
 
-import { eq, gt, gte, lte, ne, and, or } from "drizzle-orm";
+import { eq, gt, gte, lte, lt, ne, and, or, inArray } from "drizzle-orm";
 import {
   appointments,
   calendars,
+  locations,
   appointmentTypes,
   clients,
   appointmentTypeCalendars,
+  appointmentTypeResources,
+  resources,
 } from "@scheduling/db/schema";
 import type { PaginationInput, PaginatedResult } from "./base.js";
 import type { DbClient } from "../lib/db.js";
@@ -45,6 +48,8 @@ export interface AppointmentListInput extends PaginationInput {
   status?: string | null | undefined;
   startDate?: string | null | undefined;
   endDate?: string | null | undefined;
+  startAt?: Date | null | undefined;
+  endAt?: Date | null | undefined;
 }
 
 // Joined appointment type for list/get results
@@ -145,6 +150,8 @@ export class AppointmentRepository {
       status,
       startDate,
       endDate,
+      startAt,
+      endAt,
     } = input;
 
     // Build conditions array
@@ -170,20 +177,30 @@ export class AppointmentRepository {
       conditions.push(eq(appointments.status, status));
     }
 
-    if (startDate) {
-      const [year, month, day] = startDate.split("-").map(Number);
-      const startDateTime = new Date(
-        Date.UTC(year!, month! - 1, day!, 0, 0, 0),
-      );
-      conditions.push(gte(appointments.startAt, startDateTime));
-    }
+    if (startAt && endAt) {
+      // Overlap predicate to include appointments intersecting the range
+      conditions.push(lt(appointments.startAt, endAt));
+      conditions.push(gt(appointments.endAt, startAt));
+    } else {
+      if (startAt) {
+        conditions.push(gte(appointments.startAt, startAt));
+      } else if (startDate) {
+        const [year, month, day] = startDate.split("-").map(Number);
+        const startDateTime = new Date(
+          Date.UTC(year!, month! - 1, day!, 0, 0, 0),
+        );
+        conditions.push(gte(appointments.startAt, startDateTime));
+      }
 
-    if (endDate) {
-      const [year, month, day] = endDate.split("-").map(Number);
-      const endDateTime = new Date(
-        Date.UTC(year!, month! - 1, day!, 23, 59, 59, 999),
-      );
-      conditions.push(lte(appointments.startAt, endDateTime));
+      if (endAt) {
+        conditions.push(lte(appointments.startAt, endAt));
+      } else if (endDate) {
+        const [year, month, day] = endDate.split("-").map(Number);
+        const endDateTime = new Date(
+          Date.UTC(year!, month! - 1, day!, 23, 59, 59, 999),
+        );
+        conditions.push(lte(appointments.startAt, endDateTime));
+      }
     }
 
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
@@ -229,6 +246,76 @@ export class AppointmentRepository {
         : null,
       hasMore,
     };
+  }
+
+  async getLocationNamesByCalendarIds(
+    tx: DbClient,
+    orgId: string,
+    calendarIds: string[],
+  ): Promise<Map<string, string | null>> {
+    if (calendarIds.length === 0) return new Map();
+
+    await setOrgContext(tx, orgId);
+    const results = await tx
+      .select({
+        calendarId: calendars.id,
+        locationName: locations.name,
+      })
+      .from(calendars)
+      .leftJoin(locations, eq(calendars.locationId, locations.id))
+      .where(inArray(calendars.id, calendarIds));
+
+    const map = new Map<string, string | null>();
+    for (const row of results) {
+      map.set(row.calendarId, row.locationName ?? null);
+    }
+    return map;
+  }
+
+  async getResourceSummariesByAppointmentTypeIds(
+    tx: DbClient,
+    orgId: string,
+    appointmentTypeIds: string[],
+  ): Promise<Map<string, string | null>> {
+    if (appointmentTypeIds.length === 0) return new Map();
+
+    await setOrgContext(tx, orgId);
+    const results = await tx
+      .select({
+        appointmentTypeId: appointmentTypeResources.appointmentTypeId,
+        resourceName: resources.name,
+        quantityRequired: appointmentTypeResources.quantityRequired,
+      })
+      .from(appointmentTypeResources)
+      .innerJoin(
+        resources,
+        eq(appointmentTypeResources.resourceId, resources.id),
+      )
+      .where(
+        inArray(appointmentTypeResources.appointmentTypeId, appointmentTypeIds),
+      );
+
+    const grouped = new Map<
+      string,
+      Array<{ name: string; quantity: number }>
+    >();
+    for (const row of results) {
+      const list = grouped.get(row.appointmentTypeId) ?? [];
+      list.push({ name: row.resourceName, quantity: row.quantityRequired });
+      grouped.set(row.appointmentTypeId, list);
+    }
+
+    const summaries = new Map<string, string | null>();
+    for (const [appointmentTypeId, list] of grouped.entries()) {
+      const summary = list
+        .map((item) =>
+          item.quantity > 1 ? `${item.quantity}x ${item.name}` : item.name,
+        )
+        .join(", ");
+      summaries.set(appointmentTypeId, summary.length > 0 ? summary : null);
+    }
+
+    return summaries;
   }
 
   async create(

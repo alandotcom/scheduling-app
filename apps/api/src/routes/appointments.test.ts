@@ -344,6 +344,79 @@ describe("Appointment Routes", () => {
     });
   });
 
+  describe("range", () => {
+    test("returns empty list when no appointments exist", async () => {
+      const { org, user } = await createFixtureWithAvailability();
+      const ctx = createTestContext({ orgId: org.id, userId: user.id });
+
+      const rangeStart = getFutureStartTime(1, 8);
+      const rangeEnd = getFutureStartTime(4, 8);
+
+      const result = await call(
+        appointmentRoutes.range,
+        {
+          startAt: rangeStart,
+          endAt: rangeEnd,
+          limit: 10,
+        },
+        { context: ctx },
+      );
+
+      expect(result.items).toEqual([]);
+      expect(result.hasMore).toBe(false);
+      expect(result.nextCursor).toBeNull();
+    });
+
+    test("supports cursor pagination", async () => {
+      const { org, user, calendar, appointmentType } =
+        await createFixtureWithAvailability();
+      const ctx = createTestContext({ orgId: org.id, userId: user.id });
+
+      for (let i = 1; i <= 3; i++) {
+        const startAt = getFutureStartTime(i, 10 + i);
+        const endAt = new Date(startAt.getTime() + 60 * 60 * 1000);
+        await createAppointment(db, org.id, {
+          calendarId: calendar.id,
+          appointmentTypeId: appointmentType.id,
+          startAt,
+          endAt,
+        });
+      }
+
+      const rangeStart = getFutureStartTime(1, 8);
+      const rangeEnd = getFutureStartTime(4, 8);
+
+      const first = await call(
+        appointmentRoutes.range,
+        {
+          startAt: rangeStart,
+          endAt: rangeEnd,
+          limit: 2,
+        },
+        { context: ctx },
+      );
+
+      expect(first.items).toHaveLength(2);
+      expect(first.hasMore).toBe(true);
+      expect(first.nextCursor).toBeDefined();
+
+      const second = await call(
+        appointmentRoutes.range,
+        {
+          startAt: rangeStart,
+          endAt: rangeEnd,
+          limit: 2,
+          cursor: first.nextCursor!,
+        },
+        { context: ctx },
+      );
+
+      expect(second.items).toHaveLength(1);
+      expect(second.hasMore).toBe(false);
+      expect(second.nextCursor).toBeNull();
+    });
+  });
+
   describe("get", () => {
     test("returns appointment by id with relations", async () => {
       const { org, user, calendar, appointmentType } =

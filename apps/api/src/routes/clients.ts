@@ -5,6 +5,7 @@ import {
   createClientSchema,
   updateClientSchema,
   listClientsQuerySchema,
+  clientHistorySummarySchema,
 } from "@scheduling/dto";
 import { authed } from "./base.js";
 import { clientService } from "../services/clients.js";
@@ -69,6 +70,18 @@ export const remove = authed
     });
   });
 
+// Client history summary
+export const historySummary = authed
+  .route({ method: "GET", path: "/clients/{id}/history-summary" })
+  .input(z.object({ id: z.string().uuid() }))
+  .handler(async ({ input, context }) => {
+    const result = await clientService.historySummary(input.id, {
+      orgId: context.orgId,
+      userId: context.userId!,
+    });
+    return clientHistorySummarySchema.parse(result);
+  });
+
 // Export as route object
 export const clientRoutes = {
   list,
@@ -76,4 +89,5 @@ export const clientRoutes = {
   create,
   update,
   remove,
+  historySummary,
 };

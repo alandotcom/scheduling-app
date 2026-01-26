@@ -17,6 +17,8 @@ import {
   updateSchedulingLimitsSchema,
   availabilityQuerySchema,
   availabilityCheckSchema,
+  availabilityFeedQuerySchema,
+  availabilityFeedResponseSchema,
 } from "@scheduling/dto";
 import { authed } from "./base.js";
 import { availabilityManagementService } from "../services/availability-management.js";
@@ -212,6 +214,24 @@ export const deleteSchedulingLimits = authed
   );
 
 // ============================================================================
+// AVAILABILITY FEED (Schedule shading)
+// ============================================================================
+
+export const feed = authed
+  .route({ method: "GET", path: "/availability/feed" })
+  .input(availabilityFeedQuerySchema)
+  .handler(async ({ input, context }) => {
+    const result = await availabilityManagementService.getAvailabilityFeed(
+      input,
+      {
+        orgId: context.orgId,
+        userId: context.userId!,
+      },
+    );
+    return availabilityFeedResponseSchema.parse(result);
+  });
+
+// ============================================================================
 // ROUTE EXPORTS
 // ============================================================================
 
@@ -305,5 +325,6 @@ export const availabilityRoutes = {
   overrides: availabilityOverridesRoutes,
   blockedTime: blockedTimeRoutes,
   schedulingLimits: schedulingLimitsRoutes,
+  feed,
   engine: availabilityEngineRoutes,
 };

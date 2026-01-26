@@ -10,10 +10,14 @@ import {
   beforeEach,
 } from "bun:test";
 import { call } from "@orpc/server";
+import { DateTime } from "luxon";
 import {
   createTestContext,
   createOrg,
+  createCalendar,
+  createAppointmentType,
   createClient,
+  createAppointment,
   createTestDb,
   resetTestDb,
   closeTestDb,
@@ -204,6 +208,109 @@ describe("Client Routes", () => {
 
       expect(result.items).toHaveLength(1);
       expect(result.items[0]!.firstName).toBe("Org1");
+    });
+  });
+
+  describe("historySummary", () => {
+    test("returns counts as numbers with expected totals", async () => {
+      const { org, user } = await createOrg(db);
+      const ctx = createTestContext({ orgId: org.id, userId: user.id });
+
+      const calendar = await createCalendar(db, org.id, {
+        name: "History Calendar",
+        timezone: "America/New_York",
+      });
+      const appointmentType = await createAppointmentType(db, org.id, {
+        name: "History Type",
+        durationMin: 60,
+        calendarIds: [calendar.id],
+      });
+      const client = await createClient(db, org.id, {
+        firstName: "History",
+        lastName: "Client",
+      });
+
+      const now = DateTime.now().set({ second: 0, millisecond: 0 });
+      const pastScheduledStart = now
+        .minus({ days: 2 })
+        .set({ hour: 9, minute: 0 })
+        .toJSDate();
+      const pastScheduledEnd = new Date(
+        pastScheduledStart.getTime() + 60 * 60 * 1000,
+      );
+      const pastNoShowStart = now
+        .minus({ days: 1 })
+        .set({ hour: 10, minute: 0 })
+        .toJSDate();
+      const pastNoShowEnd = new Date(
+        pastNoShowStart.getTime() + 60 * 60 * 1000,
+      );
+      const futureScheduledStart = now
+        .plus({ days: 2 })
+        .set({ hour: 11, minute: 0 })
+        .toJSDate();
+      const futureScheduledEnd = new Date(
+        futureScheduledStart.getTime() + 60 * 60 * 1000,
+      );
+      const futureCancelledStart = now
+        .plus({ days: 1 })
+        .set({ hour: 12, minute: 0 })
+        .toJSDate();
+      const futureCancelledEnd = new Date(
+        futureCancelledStart.getTime() + 60 * 60 * 1000,
+      );
+
+      await createAppointment(db, org.id, {
+        calendarId: calendar.id,
+        appointmentTypeId: appointmentType.id,
+        clientId: client.id,
+        startAt: pastScheduledStart,
+        endAt: pastScheduledEnd,
+        status: "scheduled",
+      });
+      await createAppointment(db, org.id, {
+        calendarId: calendar.id,
+        appointmentTypeId: appointmentType.id,
+        clientId: client.id,
+        startAt: pastNoShowStart,
+        endAt: pastNoShowEnd,
+        status: "no_show",
+      });
+      await createAppointment(db, org.id, {
+        calendarId: calendar.id,
+        appointmentTypeId: appointmentType.id,
+        clientId: client.id,
+        startAt: futureScheduledStart,
+        endAt: futureScheduledEnd,
+        status: "scheduled",
+      });
+      await createAppointment(db, org.id, {
+        calendarId: calendar.id,
+        appointmentTypeId: appointmentType.id,
+        clientId: client.id,
+        startAt: futureCancelledStart,
+        endAt: futureCancelledEnd,
+        status: "cancelled",
+      });
+
+      const result = await call(
+        clientRoutes.historySummary,
+        { id: client.id },
+        { context: ctx },
+      );
+
+      expect(result.totalAppointments).toBe(4);
+      expect(result.upcomingAppointments).toBe(1);
+      expect(result.pastAppointments).toBe(2);
+      expect(result.cancelledAppointments).toBe(1);
+      expect(result.noShowAppointments).toBe(1);
+      expect(typeof result.totalAppointments).toBe("number");
+      expect(result.lastAppointmentAt?.toISOString()).toBe(
+        pastNoShowStart.toISOString(),
+      );
+      expect(result.nextAppointmentAt?.toISOString()).toBe(
+        futureScheduledStart.toISOString(),
+      );
     });
   });
 
