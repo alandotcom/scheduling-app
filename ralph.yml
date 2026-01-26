@@ -12,7 +12,7 @@ event_loop:
   max_iterations: 100
   max_runtime_seconds: 14400
   checkpoint_interval: 5
-  starting_event: "loop.start"
+  starting_event: "build.start"    # Ralph publishes this after coordination
 
 cli:
   backend: "codex"
