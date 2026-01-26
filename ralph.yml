@@ -18,7 +18,7 @@ tasks:
   enabled: true
 
 cli:
-  backend: "claude"
+  backend: "opencode"
 
 core:
   specs_dir: "./specs/"
@@ -135,11 +135,12 @@ hats:
          ```
          Entropy-reducing, diff-anchored. Favors deletion/consolidation.
 
-      2. **Run code-review skill** (REQUIRED):
-         ```
-         /code-review
-         ```
+      2. **Run UI design review** (REQUIRED):
+
          Quality, security, maintainability.
+          Use relevant skills to ensure we are building a performant, intuitive UI
+          with React and web best practices
+
 
       3. **Check the Result line** from each skill output:
          - Look for `**Result: APPROVED**` or `**Result: CHANGES REQUESTED**`
