@@ -131,6 +131,11 @@ function AppointmentsPage() {
   const calendars = calendarsData?.items ?? [];
   const appointmentTypes = typesData?.items ?? [];
 
+  const selectedCalendar = calendars.find((c) => c.id === filters.calendarId);
+  const selectedType = appointmentTypes.find(
+    (t) => t.id === filters.appointmentTypeId,
+  );
+
   const formatDateTime = (dateString: string | Date) => {
     const date = new Date(dateString);
     return date.toLocaleString("en-US", {
@@ -185,7 +190,9 @@ function AppointmentsPage() {
             }
           >
             <SelectTrigger>
-              <SelectValue placeholder="All calendars" />
+              <SelectValue placeholder="All calendars">
+                {selectedCalendar?.name ?? "All calendars"}
+              </SelectValue>
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All calendars</SelectItem>
@@ -210,7 +217,9 @@ function AppointmentsPage() {
             }
           >
             <SelectTrigger>
-              <SelectValue placeholder="All types" />
+              <SelectValue placeholder="All types">
+                {selectedType?.name ?? "All types"}
+              </SelectValue>
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All types</SelectItem>
@@ -235,7 +244,16 @@ function AppointmentsPage() {
             }
           >
             <SelectTrigger>
-              <SelectValue placeholder="All statuses" />
+              <SelectValue placeholder="All statuses">
+                {filters.status
+                  ? ({
+                      scheduled: "Scheduled",
+                      confirmed: "Confirmed",
+                      cancelled: "Cancelled",
+                      no_show: "No Show",
+                    }[filters.status] ?? "All statuses")
+                  : "All statuses"}
+              </SelectValue>
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All statuses</SelectItem>
@@ -406,6 +424,6 @@ function AppointmentsPage() {
   );
 }
 
-export const Route = createFileRoute("/_authenticated/appointments")({
+export const Route = createFileRoute("/_authenticated/appointments/")({
   component: AppointmentsPage,
 });

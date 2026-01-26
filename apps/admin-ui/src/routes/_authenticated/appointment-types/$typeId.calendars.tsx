@@ -82,6 +82,9 @@ function AppointmentTypeCalendarsPage() {
   const linkedIds = new Set(linkedCalendars?.map((c) => c.calendarId) ?? []);
   const availableCalendars =
     allCalendars?.items.filter((c) => !linkedIds.has(c.id)) ?? [];
+  const selectedCalendar = availableCalendars.find(
+    (c) => c.id === selectedCalendarId,
+  );
 
   const handleAdd = () => {
     if (!selectedCalendarId) return;
@@ -127,7 +130,9 @@ function AppointmentTypeCalendarsPage() {
           onValueChange={(v) => v && setSelectedCalendarId(v)}
         >
           <SelectTrigger className="w-[300px]">
-            <SelectValue placeholder="Select a calendar to add" />
+            <SelectValue placeholder="Select a calendar to add">
+              {selectedCalendar?.name}
+            </SelectValue>
           </SelectTrigger>
           <SelectContent>
             {availableCalendars.length === 0 ? (

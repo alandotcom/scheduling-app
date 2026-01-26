@@ -48,6 +48,10 @@ const link = new RPCLink({
       }
       return response;
     } catch (error) {
+      // Don't log AbortError - these are expected when React Query cancels requests
+      if (error instanceof Error && error.name === "AbortError") {
+        throw error;
+      }
       void logger.error`API request failed: ${error}`;
       throw error;
     }

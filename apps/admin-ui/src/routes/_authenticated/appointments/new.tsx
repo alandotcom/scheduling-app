@@ -178,7 +178,11 @@ function NewAppointmentPage() {
                 onValueChange={(v) => v && handleTypeChange(v)}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Choose appointment type" />
+                  <SelectValue placeholder="Choose appointment type">
+                    {selectedType
+                      ? `${selectedType.name} (${selectedType.durationMin} min)`
+                      : null}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   {appointmentTypes.map((type) => (
@@ -212,7 +216,9 @@ function NewAppointmentPage() {
                     onValueChange={(v) => v && handleCalendarChange(v)}
                   >
                     <SelectTrigger>
-                      <SelectValue placeholder="Choose calendar" />
+                      <SelectValue placeholder="Choose calendar">
+                        {selectedCalendar?.name}
+                      </SelectValue>
                     </SelectTrigger>
                     <SelectContent>
                       {calendars.map((cal) => (

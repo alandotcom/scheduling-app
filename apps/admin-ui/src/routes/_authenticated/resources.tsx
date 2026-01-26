@@ -78,6 +78,7 @@ function ResourceForm({
   });
 
   const locationId = watch("locationId");
+  const selectedLocation = locations.find((l) => l.id === locationId);
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
@@ -125,7 +126,9 @@ function ResourceForm({
           disabled={isSubmitting}
         >
           <SelectTrigger>
-            <SelectValue placeholder="Select location" />
+            <SelectValue placeholder="Select location">
+              {selectedLocation?.name ?? (locationId ? null : "No location")}
+            </SelectValue>
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="none">No location</SelectItem>

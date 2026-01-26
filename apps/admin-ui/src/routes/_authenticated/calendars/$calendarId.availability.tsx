@@ -1,6 +1,6 @@
 // Calendar availability editor - manage weekly hours and overrides
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
@@ -58,24 +58,24 @@ function AvailabilityPage() {
   );
 
   // Fetch availability rules
-  const { isLoading: rulesLoading } = useQuery({
-    ...orpc.availability.rules.list.queryOptions({
+  const { data: rulesData, isLoading: rulesLoading } = useQuery(
+    orpc.availability.rules.list.queryOptions({
       input: { calendarId, limit: 100 },
     }),
-    select: (data) => {
-      // Initialize form state with fetched data
-      if (data?.items && !hasChanges) {
-        const rules = data.items.map((r) => ({
-          weekday: r.weekday,
-          startTime: r.startTime,
-          endTime: r.endTime,
-          intervalMin: r.intervalMin,
-        }));
-        setWeeklyRules(rules);
-      }
-      return data;
-    },
-  });
+  );
+
+  // Initialize form state when data is fetched
+  useEffect(() => {
+    if (rulesData?.items && !hasChanges) {
+      const rules = rulesData.items.map((r) => ({
+        weekday: r.weekday,
+        startTime: r.startTime,
+        endTime: r.endTime,
+        intervalMin: r.intervalMin,
+      }));
+      setWeeklyRules(rules);
+    }
+  }, [rulesData, hasChanges]);
 
   // Set weekly availability mutation
   const setWeeklyMutation = useMutation(
@@ -188,7 +188,10 @@ function AvailabilityPage() {
                           }
                         >
                           <SelectTrigger>
-                            <SelectValue />
+                            <SelectValue>
+                              {WEEKDAYS.find((d) => d.value === rule.weekday)
+                                ?.label ?? "Select day"}
+                            </SelectValue>
                           </SelectTrigger>
                           <SelectContent>
                             {WEEKDAYS.map((day) => (

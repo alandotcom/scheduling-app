@@ -429,6 +429,6 @@ function AppointmentTypesPage() {
   );
 }
 
-export const Route = createFileRoute("/_authenticated/appointment-types")({
+export const Route = createFileRoute("/_authenticated/appointment-types/")({
   component: AppointmentTypesPage,
 });

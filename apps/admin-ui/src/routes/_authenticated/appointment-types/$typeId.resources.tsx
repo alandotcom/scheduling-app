@@ -97,6 +97,9 @@ function AppointmentTypeResourcesPage() {
   const linkedIds = new Set(linkedResources?.map((r) => r.resourceId) ?? []);
   const availableResources =
     allResources?.items.filter((r) => !linkedIds.has(r.id)) ?? [];
+  const selectedResource = availableResources.find(
+    (r) => r.id === selectedResourceId,
+  );
 
   const handleAdd = () => {
     if (!selectedResourceId) return;
@@ -155,7 +158,11 @@ function AppointmentTypeResourcesPage() {
             onValueChange={(v) => v && setSelectedResourceId(v)}
           >
             <SelectTrigger className="w-[300px]">
-              <SelectValue placeholder="Select a resource to add" />
+              <SelectValue placeholder="Select a resource to add">
+                {selectedResource
+                  ? `${selectedResource.name} (Qty: ${selectedResource.quantity})`
+                  : null}
+              </SelectValue>
             </SelectTrigger>
             <SelectContent>
               {availableResources.length === 0 ? (
