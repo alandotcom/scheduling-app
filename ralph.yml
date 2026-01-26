@@ -9,7 +9,7 @@
 
 event_loop:
   completion_promise: "LOOP_COMPLETE"
-  max_iterations: 50
+  max_iterations: 100
   max_runtime_seconds: 14400
   checkpoint_interval: 5
   starting_event: "loop.start"
@@ -97,7 +97,7 @@ hats:
          ```bash
          pnpm format && pnpm typecheck && pnpm lint && pnpm test
          ```
-      4. **For UI features:** verify with agent-browser
+      4. **For UI features:** verify with agent-browser. The dev servers are already running.
       5. **Emit build.done** with evidence when passing
 
       ### Event Format
