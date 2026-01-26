@@ -30,6 +30,7 @@ interface AvailabilityData {
   overrides: AvailabilityOverride[];
   blockedTimes: BlockedTimeEntry[];
   existingAppointments: ExistingAppointment[];
+  resourceConstraintsByAppointmentTypeId: Map<string, ResourceConstraint[]>;
   resourceConstraints: ResourceConstraint[];
   resourcesData: ResourceData[];
 }
@@ -350,7 +351,7 @@ export class AvailabilityService {
           data.resourceConstraints,
           data.resourcesData,
           existingAppointments,
-          appointmentType.id,
+          data.resourceConstraintsByAppointmentTypeId,
         );
         if (!resourceAvailable) {
           return {
@@ -499,12 +500,18 @@ export class AvailabilityService {
       );
 
     // 7. Load resource constraints
-    const resourceConstraints =
-      await availabilityRepository.loadResourceConstraints(
+    const appointmentTypeIds = new Set(
+      existingAppointments.map((appointment) => appointment.appointmentTypeId),
+    );
+    appointmentTypeIds.add(appointmentTypeId);
+    const resourceConstraintsByAppointmentTypeId =
+      await availabilityRepository.loadResourceConstraintsByAppointmentTypeIds(
         tx,
         orgId,
-        appointmentTypeId,
+        Array.from(appointmentTypeIds),
       );
+    const resourceConstraints =
+      resourceConstraintsByAppointmentTypeId.get(appointmentTypeId) ?? [];
     const resourcesData = await availabilityRepository.loadResourcesData(
       tx,
       orgId,
@@ -519,6 +526,7 @@ export class AvailabilityService {
       overrides,
       blockedTimes,
       existingAppointments,
+      resourceConstraintsByAppointmentTypeId,
       resourceConstraints,
       resourcesData,
     };
@@ -541,6 +549,7 @@ export class AvailabilityService {
       overrides,
       blockedTimes,
       existingAppointments,
+      resourceConstraintsByAppointmentTypeId,
       resourceConstraints,
       resourcesData,
     } = data;
@@ -635,7 +644,7 @@ export class AvailabilityService {
           resourceConstraints,
           resourcesData,
           existingAppointments,
-          appointmentType.id,
+          resourceConstraintsByAppointmentTypeId,
         );
         if (!resourceAvailable) {
           available = false;
@@ -721,29 +730,38 @@ export class AvailabilityService {
         continue;
       }
 
-      // Get hours for this day (override or regular rule)
-      let dayStart: string | undefined;
-      let dayEnd: string | undefined;
-      let interval: number;
+      // Get hours for this day (override or regular rules)
+      const dayRules = rules
+        .filter((r) => r.weekday === weekday)
+        .sort((a, b) => a.startTime.localeCompare(b.startTime));
+      const ruleWindows:
+        | Array<{
+            startTime: string;
+            endTime: string;
+            intervalMin: number | null;
+          }>
+        | AvailabilityRule[] =
+        override && override.startTime && override.endTime
+          ? [
+              {
+                startTime: override.startTime,
+                endTime: override.endTime,
+                intervalMin: override.intervalMin,
+              },
+            ]
+          : dayRules;
 
-      if (override && override.startTime && override.endTime) {
-        dayStart = override.startTime;
-        dayEnd = override.endTime;
-        interval = override.intervalMin ?? 15;
-      } else {
-        // Find all rules for this weekday and use the first one
-        // In a more complete implementation, we might merge multiple rules
-        const rule = rules.find((r) => r.weekday === weekday);
-        if (!rule) {
-          current = current.plus({ days: 1 });
-          continue;
-        }
-        dayStart = rule.startTime;
-        dayEnd = rule.endTime;
-        interval = rule.intervalMin ?? 15;
+      if (ruleWindows.length === 0) {
+        current = current.plus({ days: 1 });
+        continue;
       }
 
-      if (dayStart && dayEnd) {
+      const seenSlots = new Set<string>();
+      for (const rule of ruleWindows) {
+        const dayStart = rule.startTime;
+        const dayEnd = rule.endTime;
+        const interval = rule.intervalMin ?? 15;
+
         // Generate slots for this day
         const [startHour, startMin] = dayStart.split(":").map(Number);
         const [endHour, endMin] = dayEnd.split(":").map(Number);
@@ -753,10 +771,14 @@ export class AvailabilityService {
 
         while (slotStart.plus({ minutes: durationMin }) <= dayEndTime) {
           const slotEnd = slotStart.plus({ minutes: durationMin });
-          slots.push({
-            start: slotStart.toJSDate(),
-            end: slotEnd.toJSDate(),
-          });
+          const slotKey = `${slotStart.toMillis()}-${slotEnd.toMillis()}`;
+          if (!seenSlots.has(slotKey)) {
+            slots.push({
+              start: slotStart.toJSDate(),
+              end: slotEnd.toJSDate(),
+            });
+            seenSlots.add(slotKey);
+          }
           slotStart = slotStart.plus({ minutes: interval });
         }
       }
@@ -828,7 +850,7 @@ export class AvailabilityService {
     resourceConstraints: ResourceConstraint[],
     resourcesData: ResourceData[],
     existingAppointments: ExistingAppointment[],
-    appointmentTypeId: string,
+    resourceConstraintsByAppointmentTypeId: Map<string, ResourceConstraint[]>,
   ): boolean {
     // For each resource, check if adding this appointment would exceed capacity
     for (const constraint of resourceConstraints) {
@@ -846,12 +868,20 @@ export class AvailabilityService {
         ),
       );
 
-      // For now, assume each appointment of this type uses the same resource requirements
-      // A more complete implementation would track actual resource allocations per appointment
-      const usedQuantity =
-        overlappingAppointments.filter(
-          (a) => a.appointmentTypeId === appointmentTypeId,
-        ).length * constraint.quantityRequired;
+      let usedQuantity = 0;
+      for (const appointment of overlappingAppointments) {
+        const appointmentConstraints =
+          resourceConstraintsByAppointmentTypeId.get(
+            appointment.appointmentTypeId,
+          ) ?? [];
+        const matchingConstraint = appointmentConstraints.find(
+          (appointmentConstraint) =>
+            appointmentConstraint.resourceId === constraint.resourceId,
+        );
+        if (matchingConstraint) {
+          usedQuantity += matchingConstraint.quantityRequired;
+        }
+      }
 
       if (usedQuantity + constraint.quantityRequired > resource.quantity) {
         return false;

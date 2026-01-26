@@ -1,7 +1,18 @@
 // Availability repository - data access layer for availability engine
 // Handles appointment types, rules, overrides, blocked times, limits, and appointments
 
-import { eq, and, gte, lte, ne, inArray, or } from "drizzle-orm";
+import {
+  eq,
+  and,
+  gte,
+  lte,
+  ne,
+  inArray,
+  or,
+  lt,
+  gt,
+  isNull,
+} from "drizzle-orm";
 import { DateTime } from "luxon";
 import {
   appointmentTypes,
@@ -90,7 +101,7 @@ export class AvailabilityRepository {
       .where(
         or(
           inArray(schedulingLimits.calendarId, calendarIds),
-          eq(schedulingLimits.calendarId, undefined as any),
+          isNull(schedulingLimits.calendarId),
         ),
       );
 
@@ -209,26 +220,17 @@ export class AvailabilityRepository {
     const endDateTime = DateTime.fromISO(endDate, { zone: timezone })
       .endOf("day")
       .toUTC();
+    const rangeStart = startDateTime.toJSDate();
+    const rangeEnd = endDateTime.toJSDate();
 
-    const startAtResults = await tx
+    const overlappingResults = await tx
       .select()
       .from(blockedTime)
       .where(
         and(
           inArray(blockedTime.calendarId, calendarIds),
-          gte(blockedTime.startAt, startDateTime.toJSDate()),
-          lte(blockedTime.startAt, endDateTime.toJSDate()),
-        ),
-      );
-
-    const endAtResults = await tx
-      .select()
-      .from(blockedTime)
-      .where(
-        and(
-          inArray(blockedTime.calendarId, calendarIds),
-          gte(blockedTime.endAt, startDateTime.toJSDate()),
-          lte(blockedTime.endAt, endDateTime.toJSDate()),
+          lt(blockedTime.startAt, rangeEnd),
+          gt(blockedTime.endAt, rangeStart),
         ),
       );
 
@@ -243,10 +245,7 @@ export class AvailabilityRepository {
       );
 
     const mergedById = new Map<string, typeof blockedTime.$inferSelect>();
-    for (const row of startAtResults) {
-      mergedById.set(row.id, row);
-    }
-    for (const row of endAtResults) {
+    for (const row of overlappingResults) {
       mergedById.set(row.id, row);
     }
     for (const row of recurringResults) {
@@ -278,6 +277,8 @@ export class AvailabilityRepository {
     const endDateTime = DateTime.fromISO(endDate, { zone: timezone })
       .endOf("day")
       .toUTC();
+    const rangeStart = startDateTime.toJSDate();
+    const rangeEnd = endDateTime.toJSDate();
 
     const results = await tx
       .select()
@@ -286,8 +287,8 @@ export class AvailabilityRepository {
         and(
           inArray(appointments.calendarId, calendarIds),
           ne(appointments.status, "cancelled"),
-          gte(appointments.startAt, startDateTime.toJSDate()),
-          lte(appointments.startAt, endDateTime.toJSDate()),
+          lt(appointments.startAt, rangeEnd),
+          gt(appointments.endAt, rangeStart),
         ),
       );
 
@@ -316,6 +317,38 @@ export class AvailabilityRepository {
       resourceId: r.resourceId,
       quantityRequired: r.quantityRequired,
     }));
+  }
+
+  async loadResourceConstraintsByAppointmentTypeIds(
+    tx: DbClient,
+    orgId: string,
+    appointmentTypeIds: string[],
+  ): Promise<Map<string, ResourceConstraint[]>> {
+    const uniqueAppointmentTypeIds = Array.from(new Set(appointmentTypeIds));
+    if (uniqueAppointmentTypeIds.length === 0) return new Map();
+
+    await setOrgContext(tx, orgId);
+    const results = await tx
+      .select()
+      .from(appointmentTypeResources)
+      .where(
+        inArray(
+          appointmentTypeResources.appointmentTypeId,
+          uniqueAppointmentTypeIds,
+        ),
+      );
+
+    const map = new Map<string, ResourceConstraint[]>();
+    for (const row of results) {
+      const list = map.get(row.appointmentTypeId) ?? [];
+      list.push({
+        resourceId: row.resourceId,
+        quantityRequired: row.quantityRequired,
+      });
+      map.set(row.appointmentTypeId, list);
+    }
+
+    return map;
   }
 
   async loadResourcesData(

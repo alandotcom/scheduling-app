@@ -152,6 +152,42 @@ describe("AvailabilityService", () => {
       expect(slots.every((s) => s.remainingCapacity === 1)).toBe(true);
     });
 
+    test("combines multiple rules for the same weekday", async () => {
+      await db.insert(availabilityRules).values([
+        {
+          calendarId: calendar.id,
+          weekday: 2,
+          startTime: "09:00",
+          endTime: "11:00",
+          intervalMin: 60,
+        },
+        {
+          calendarId: calendar.id,
+          weekday: 2,
+          startTime: "14:00",
+          endTime: "16:00",
+          intervalMin: 60,
+        },
+      ]);
+
+      const slots = await availabilityService.getAvailableSlots(
+        {
+          appointmentTypeId: appointmentType.id,
+          calendarIds: [calendar.id],
+          startDate: "2026-01-27",
+          endDate: "2026-01-27",
+          timezone: "America/New_York",
+        },
+        testContext,
+      );
+
+      const hours = slots
+        .map((s) => new Date(s.start).getUTCHours())
+        .sort((a, b) => a - b);
+
+      expect(hours).toEqual([14, 15, 19, 20]);
+    });
+
     test("respects blocked day override", async () => {
       // Add availability rule for Monday
       await db.insert(availabilityRules).values({
@@ -259,6 +295,43 @@ describe("AvailabilityService", () => {
       expect(slots[2]!.available).toBe(true);
     });
 
+    test("treats overlapping appointments as unavailable", async () => {
+      await db.insert(availabilityRules).values({
+        calendarId: calendar.id,
+        weekday: 2,
+        startTime: "09:00",
+        endTime: "12:00",
+        intervalMin: 60,
+      });
+
+      await db.insert(appointments).values({
+        orgId: org.id,
+        calendarId: calendar.id,
+        appointmentTypeId: appointmentType.id,
+        startAt: new Date("2026-01-27T04:30:00Z"),
+        endAt: new Date("2026-01-27T15:30:00Z"),
+        timezone: "America/New_York",
+        status: "scheduled",
+      });
+
+      const slots = await availabilityService.getAvailableSlots(
+        {
+          appointmentTypeId: appointmentType.id,
+          calendarIds: [calendar.id],
+          startDate: "2026-01-27",
+          endDate: "2026-01-27",
+          timezone: "America/New_York",
+        },
+        testContext,
+      );
+
+      const nineAmSlot = slots.find(
+        (s) => new Date(s.start).getUTCHours() === 14,
+      );
+
+      expect(nineAmSlot?.available).toBe(false);
+    });
+
     test("handles blocked time ranges", async () => {
       await db.insert(availabilityRules).values({
         calendarId: calendar.id,
@@ -293,6 +366,39 @@ describe("AvailabilityService", () => {
       });
 
       expect(noonSlot?.available).toBe(false);
+    });
+
+    test("handles blocked time spanning the range", async () => {
+      await db.insert(availabilityRules).values({
+        calendarId: calendar.id,
+        weekday: 2,
+        startTime: "09:00",
+        endTime: "17:00",
+        intervalMin: 60,
+      });
+
+      await db.insert(blockedTime).values({
+        calendarId: calendar.id,
+        startAt: new Date("2026-01-27T03:00:00Z"),
+        endAt: new Date("2026-01-28T06:00:00Z"),
+      });
+
+      const slots = await availabilityService.getAvailableSlots(
+        {
+          appointmentTypeId: appointmentType.id,
+          calendarIds: [calendar.id],
+          startDate: "2026-01-27",
+          endDate: "2026-01-27",
+          timezone: "America/New_York",
+        },
+        testContext,
+      );
+
+      const nineAmSlot = slots.find(
+        (s) => new Date(s.start).getUTCHours() === 14,
+      );
+
+      expect(nineAmSlot?.available).toBe(false);
     });
 
     test("respects min notice hours", async () => {
@@ -681,6 +787,79 @@ describe("AvailabilityService", () => {
       const nineAmSlot = slots.find(
         (s) => new Date(s.start).getUTCHours() === 14,
       );
+      expect(nineAmSlot?.available).toBe(false);
+    });
+
+    test("counts overlapping appointments from other types", async () => {
+      const [resource] = await db
+        .insert(resources)
+        .values({
+          orgId: org.id,
+          name: "Shared Room",
+          quantity: 1,
+        })
+        .returning();
+
+      await db.insert(appointmentTypeResources).values({
+        appointmentTypeId: appointmentType.id,
+        resourceId: resource!.id,
+        quantityRequired: 1,
+      });
+
+      const [otherType] = await db
+        .insert(appointmentTypes)
+        .values({
+          orgId: org.id,
+          name: "Follow-up",
+          durationMin: 60,
+          capacity: 1,
+        })
+        .returning();
+
+      await db.insert(appointmentTypeCalendars).values({
+        appointmentTypeId: otherType!.id,
+        calendarId: calendar.id,
+      });
+
+      await db.insert(appointmentTypeResources).values({
+        appointmentTypeId: otherType!.id,
+        resourceId: resource!.id,
+        quantityRequired: 1,
+      });
+
+      await db.insert(availabilityRules).values({
+        calendarId: calendar.id,
+        weekday: 2,
+        startTime: "09:00",
+        endTime: "12:00",
+        intervalMin: 60,
+      });
+
+      await db.insert(appointments).values({
+        orgId: org.id,
+        calendarId: calendar.id,
+        appointmentTypeId: otherType!.id,
+        startAt: new Date("2026-01-27T14:00:00Z"),
+        endAt: new Date("2026-01-27T15:00:00Z"),
+        timezone: "America/New_York",
+        status: "scheduled",
+      });
+
+      const slots = await availabilityService.getAvailableSlots(
+        {
+          appointmentTypeId: appointmentType.id,
+          calendarIds: [calendar.id],
+          startDate: "2026-01-27",
+          endDate: "2026-01-27",
+          timezone: "America/New_York",
+        },
+        testContext,
+      );
+
+      const nineAmSlot = slots.find(
+        (s) => new Date(s.start).getUTCHours() === 14,
+      );
+
       expect(nineAmSlot?.available).toBe(false);
     });
   });
