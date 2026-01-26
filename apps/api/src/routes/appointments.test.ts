@@ -14,6 +14,7 @@ import { DateTime } from "luxon";
 import {
   createTestContext,
   createOrg,
+  createLocation,
   createCalendar,
   createAppointmentType,
   createResource,
@@ -167,6 +168,7 @@ describe("Appointment Routes", () => {
       expect(first.items).toHaveLength(2);
       expect(first.hasMore).toBe(true);
       expect(first.nextCursor).toBeDefined();
+      expect(first.nextCursor).toBe(first.items[1]?.id ?? null);
 
       const second = await call(
         appointmentRoutes.list,
@@ -414,6 +416,77 @@ describe("Appointment Routes", () => {
       expect(second.items).toHaveLength(1);
       expect(second.hasMore).toBe(false);
       expect(second.nextCursor).toBeNull();
+    });
+
+    test("returns schedule event metadata", async () => {
+      const { org, user } = await createOrg(db);
+      const ctx = createTestContext({ orgId: org.id, userId: user.id });
+
+      const location = await createLocation(db, org.id, {
+        name: "Main Office",
+      });
+      const calendar = await createCalendar(db, org.id, {
+        name: "Range Calendar",
+        timezone: "America/New_York",
+        locationId: location.id,
+      });
+      const resource = await createResource(db, org.id, {
+        name: "Exam Room",
+        quantity: 2,
+      });
+      const appointmentType = await createAppointmentType(db, org.id, {
+        name: "Range Type",
+        durationMin: 60,
+        calendarIds: [calendar.id],
+        resourceIds: [{ id: resource.id, quantityRequired: 2 }],
+      });
+
+      for (let weekday = 0; weekday < 7; weekday++) {
+        await createAvailabilityRule(db, calendar.id, {
+          weekday,
+          startTime: "09:00",
+          endTime: "17:00",
+        });
+      }
+
+      const client = await createClient(db, org.id, {
+        firstName: "Range",
+        lastName: "Client",
+      });
+
+      const startAt = getFutureStartTime(1, 10);
+      const endAt = new Date(startAt.getTime() + 60 * 60 * 1000);
+      const appointment = await createAppointment(db, org.id, {
+        calendarId: calendar.id,
+        appointmentTypeId: appointmentType.id,
+        clientId: client.id,
+        startAt,
+        endAt,
+        notes: "Has notes",
+      });
+
+      const result = await call(
+        appointmentRoutes.range,
+        {
+          startAt: getFutureStartTime(1, 8),
+          endAt: getFutureStartTime(1, 20),
+          limit: 10,
+        },
+        { context: ctx },
+      );
+
+      expect(result.items).toHaveLength(1);
+      expect(result.hasMore).toBe(false);
+      expect(result.nextCursor).toBeNull();
+
+      const item = result.items[0]!;
+      expect(item.id).toBe(appointment.id);
+      expect(item.calendarId).toBe(calendar.id);
+      expect(item.clientName).toBe("Range Client");
+      expect(item.appointmentTypeName).toBe("Range Type");
+      expect(item.locationName).toBe("Main Office");
+      expect(item.hasNotes).toBe(true);
+      expect(item.resourceSummary).toBe("2x Exam Room");
     });
   });
 
@@ -964,6 +1037,58 @@ describe("Appointment Routes", () => {
       ).rejects.toMatchObject({
         code: "CONFLICT",
       });
+    });
+
+    test("returns conflict metadata for overlapping slot", async () => {
+      const { org, user, calendar, appointmentType } =
+        await createFixtureWithAvailability();
+      const ctx = createTestContext({ orgId: org.id, userId: user.id });
+
+      const startTime = getFutureStartTime(1, 10);
+      const endAt = new Date(startTime.getTime() + 60 * 60 * 1000);
+      const existing = await createAppointment(db, org.id, {
+        calendarId: calendar.id,
+        appointmentTypeId: appointmentType.id,
+        startAt: startTime,
+        endAt,
+      });
+
+      try {
+        await call(
+          appointmentRoutes.create,
+          {
+            calendarId: calendar.id,
+            appointmentTypeId: appointmentType.id,
+            startTime,
+            timezone: "America/New_York",
+          },
+          { context: ctx },
+        );
+        throw new Error("Expected slot conflict");
+      } catch (error) {
+        const err = error as {
+          code?: string;
+          data?: { conflicts?: Array<unknown> };
+          cause?: { details?: { conflicts?: Array<unknown> } };
+        };
+
+        expect(err.code).toBe("CONFLICT");
+        const conflicts =
+          err.data?.conflicts ?? err.cause?.details?.conflicts ?? [];
+        expect(conflicts.length).toBeGreaterThan(0);
+
+        const conflict = (conflicts[0] ?? {}) as {
+          conflictType?: string;
+          canOverride?: boolean;
+          conflictingIds?: string[];
+          message?: string;
+        };
+
+        expect(conflict.conflictType).toBe("overlap");
+        expect(conflict.canOverride).toBe(false);
+        expect(conflict.conflictingIds ?? []).toContain(existing.id);
+        expect(typeof conflict.message).toBe("string");
+      }
     });
   });
 

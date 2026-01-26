@@ -305,12 +305,44 @@ describe("Client Routes", () => {
       expect(result.cancelledAppointments).toBe(1);
       expect(result.noShowAppointments).toBe(1);
       expect(typeof result.totalAppointments).toBe("number");
+      expect(typeof result.upcomingAppointments).toBe("number");
+      expect(typeof result.pastAppointments).toBe("number");
+      expect(typeof result.cancelledAppointments).toBe("number");
+      expect(typeof result.noShowAppointments).toBe("number");
       expect(result.lastAppointmentAt?.toISOString()).toBe(
         pastNoShowStart.toISOString(),
       );
       expect(result.nextAppointmentAt?.toISOString()).toBe(
         futureScheduledStart.toISOString(),
       );
+    });
+
+    test("returns zero counts when client has no appointments", async () => {
+      const { org, user } = await createOrg(db);
+      const ctx = createTestContext({ orgId: org.id, userId: user.id });
+      const client = await createClient(db, org.id, {
+        firstName: "Empty",
+        lastName: "History",
+      });
+
+      const result = await call(
+        clientRoutes.historySummary,
+        { id: client.id },
+        { context: ctx },
+      );
+
+      expect(result.totalAppointments).toBe(0);
+      expect(result.upcomingAppointments).toBe(0);
+      expect(result.pastAppointments).toBe(0);
+      expect(result.cancelledAppointments).toBe(0);
+      expect(result.noShowAppointments).toBe(0);
+      expect(typeof result.totalAppointments).toBe("number");
+      expect(typeof result.upcomingAppointments).toBe("number");
+      expect(typeof result.pastAppointments).toBe("number");
+      expect(typeof result.cancelledAppointments).toBe("number");
+      expect(typeof result.noShowAppointments).toBe("number");
+      expect(result.lastAppointmentAt).toBeNull();
+      expect(result.nextAppointmentAt).toBeNull();
     });
   });
 
