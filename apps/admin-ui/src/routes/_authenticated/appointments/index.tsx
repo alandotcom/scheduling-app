@@ -43,13 +43,6 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
-const STATUS_COLORS: Record<string, string> = {
-  scheduled: "bg-blue-100 text-blue-800",
-  confirmed: "bg-green-100 text-green-800",
-  cancelled: "bg-red-100 text-red-800",
-  no_show: "bg-gray-100 text-gray-800",
-};
-
 function AppointmentsPage() {
   const queryClient = useQueryClient();
 
@@ -158,12 +151,29 @@ function AppointmentsPage() {
     noShowMutation.mutate({ id: noShowId });
   };
 
+  const getStatusVariant = (status: string) => {
+    switch (status) {
+      case "scheduled":
+        return "secondary";
+      case "confirmed":
+        return "success";
+      case "cancelled":
+        return "destructive";
+      case "no_show":
+        return "warning";
+      default:
+        return "secondary";
+    }
+  };
+
   return (
-    <div className="p-8">
+    <div className="p-10">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Appointments</h1>
-          <p className="mt-1 text-muted-foreground">
+          <h1 className="text-3xl font-semibold tracking-tight">
+            Appointments
+          </h1>
+          <p className="mt-2 text-muted-foreground">
             View and manage all appointments.
           </p>
         </div>
@@ -176,8 +186,8 @@ function AppointmentsPage() {
       </div>
 
       {/* Filters */}
-      <div className="mt-6 grid grid-cols-1 gap-4 rounded-lg border bg-card p-4 sm:grid-cols-2 lg:grid-cols-5">
-        <div className="space-y-2">
+      <div className="mt-8 grid grid-cols-1 gap-5 rounded-xl border border-border/50 bg-card p-6 shadow-sm sm:grid-cols-2 lg:grid-cols-5">
+        <div className="space-y-2.5">
           <Label>Calendar</Label>
           <Select
             value={filters.calendarId || "all"}
@@ -189,7 +199,7 @@ function AppointmentsPage() {
               }))
             }
           >
-            <SelectTrigger>
+            <SelectTrigger className="w-full">
               <SelectValue placeholder="All calendars">
                 {selectedCalendar?.name ?? "All calendars"}
               </SelectValue>
@@ -204,7 +214,7 @@ function AppointmentsPage() {
             </SelectContent>
           </Select>
         </div>
-        <div className="space-y-2">
+        <div className="space-y-2.5">
           <Label>Type</Label>
           <Select
             value={filters.appointmentTypeId || "all"}
@@ -216,7 +226,7 @@ function AppointmentsPage() {
               }))
             }
           >
-            <SelectTrigger>
+            <SelectTrigger className="w-full">
               <SelectValue placeholder="All types">
                 {selectedType?.name ?? "All types"}
               </SelectValue>
@@ -231,7 +241,7 @@ function AppointmentsPage() {
             </SelectContent>
           </Select>
         </div>
-        <div className="space-y-2">
+        <div className="space-y-2.5">
           <Label>Status</Label>
           <Select
             value={filters.status || "all"}
@@ -243,7 +253,7 @@ function AppointmentsPage() {
               }))
             }
           >
-            <SelectTrigger>
+            <SelectTrigger className="w-full">
               <SelectValue placeholder="All statuses">
                 {filters.status
                   ? ({
@@ -264,7 +274,7 @@ function AppointmentsPage() {
             </SelectContent>
           </Select>
         </div>
-        <div className="space-y-2">
+        <div className="space-y-2.5">
           <Label>From Date</Label>
           <Input
             type="date"
@@ -274,7 +284,7 @@ function AppointmentsPage() {
             }
           />
         </div>
-        <div className="space-y-2">
+        <div className="space-y-2.5">
           <Label>To Date</Label>
           <Input
             type="date"
@@ -287,7 +297,7 @@ function AppointmentsPage() {
       </div>
 
       {/* Appointments Table */}
-      <div className="mt-6">
+      <div className="mt-8">
         {isLoading ? (
           <div
             className="text-center text-muted-foreground"
@@ -301,12 +311,12 @@ function AppointmentsPage() {
             Error loading appointments
           </div>
         ) : !data?.items.length ? (
-          <div className="rounded-lg border bg-card p-8 text-center text-muted-foreground">
+          <div className="rounded-xl border border-border/50 bg-card p-10 text-center text-muted-foreground shadow-sm">
             No appointments found. Create your first appointment or adjust
             filters.
           </div>
         ) : (
-          <div className="rounded-lg border">
+          <div className="rounded-xl border border-border/50 overflow-hidden shadow-sm">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -334,10 +344,7 @@ function AppointmentsPage() {
                         : "-"}
                     </TableCell>
                     <TableCell>
-                      <Badge
-                        className={STATUS_COLORS[appointment.status] ?? ""}
-                        variant="secondary"
-                      >
+                      <Badge variant={getStatusVariant(appointment.status)}>
                         {appointment.status.replace("_", " ")}
                       </Badge>
                     </TableCell>
@@ -347,7 +354,7 @@ function AppointmentsPage() {
                         <div className="flex gap-1">
                           <Button
                             variant="ghost"
-                            size="icon"
+                            size="icon-sm"
                             title="Mark as no-show"
                             aria-label="Mark as no-show"
                             onClick={() => setNoShowId(appointment.id)}
@@ -356,7 +363,7 @@ function AppointmentsPage() {
                           </Button>
                           <Button
                             variant="ghost"
-                            size="icon"
+                            size="icon-sm"
                             title="Cancel appointment"
                             aria-label="Cancel appointment"
                             onClick={() => setCancellingId(appointment.id)}

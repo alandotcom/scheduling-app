@@ -72,8 +72,8 @@ function LocationForm({
   const timezone = watch("timezone");
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-      <div className="space-y-2">
+    <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
+      <div className="space-y-2.5">
         <Label htmlFor="name">Name</Label>
         <Input
           id="name"
@@ -89,7 +89,7 @@ function LocationForm({
           </p>
         )}
       </div>
-      <div className="space-y-2">
+      <div className="space-y-2.5">
         <Label htmlFor="timezone">Timezone</Label>
         <Select
           value={timezone}
@@ -111,7 +111,7 @@ function LocationForm({
           <p className="text-sm text-destructive">{errors.timezone.message}</p>
         )}
       </div>
-      <div className="flex justify-end gap-2 pt-4">
+      <div className="flex justify-end gap-3 pt-4">
         <Button
           type="button"
           variant="outline"
@@ -199,11 +199,11 @@ function LocationsPage() {
   };
 
   return (
-    <div className="p-8">
+    <div className="p-10">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Locations</h1>
-          <p className="mt-1 text-muted-foreground">
+          <h1 className="text-3xl font-semibold tracking-tight">Locations</h1>
+          <p className="mt-2 text-muted-foreground">
             Manage physical locations for your calendars.
           </p>
         </div>
@@ -217,8 +217,10 @@ function LocationsPage() {
 
       {/* Create Form */}
       {crud.showCreateForm && (
-        <div className="mt-6 rounded-lg border bg-card p-6">
-          <h2 className="mb-4 text-lg font-semibold">New Location</h2>
+        <div className="mt-8 rounded-xl border border-border/50 bg-card p-6 shadow-sm">
+          <h2 className="mb-5 text-lg font-semibold tracking-tight">
+            New Location
+          </h2>
           <LocationForm
             onSubmit={handleCreate}
             onCancel={crud.closeCreate}
@@ -229,8 +231,10 @@ function LocationsPage() {
 
       {/* Edit Form */}
       {crud.editingItem && (
-        <div className="mt-6 rounded-lg border bg-card p-6">
-          <h2 className="mb-4 text-lg font-semibold">Edit Location</h2>
+        <div className="mt-8 rounded-xl border border-border/50 bg-card p-6 shadow-sm">
+          <h2 className="mb-5 text-lg font-semibold tracking-tight">
+            Edit Location
+          </h2>
           <LocationForm
             defaultValues={{
               name: crud.editingItem.name,
@@ -244,7 +248,7 @@ function LocationsPage() {
       )}
 
       {/* Locations Table */}
-      <div className="mt-6">
+      <div className="mt-8">
         {isLoading ? (
           <div
             className="text-center text-muted-foreground"
@@ -259,11 +263,11 @@ function LocationsPage() {
             <p className="mt-1 text-sm">{error.message}</p>
           </div>
         ) : !data?.items.length ? (
-          <div className="rounded-lg border bg-card p-8 text-center text-muted-foreground">
+          <div className="rounded-xl border border-border/50 bg-card p-10 text-center text-muted-foreground shadow-sm">
             No locations yet. Create your first location to get started.
           </div>
         ) : (
-          <div className="rounded-lg border">
+          <div className="rounded-xl border border-border/50 overflow-hidden shadow-sm">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -287,7 +291,7 @@ function LocationsPage() {
                       <div className="flex gap-1">
                         <Button
                           variant="ghost"
-                          size="icon"
+                          size="icon-sm"
                           aria-label="Edit location"
                           onClick={() =>
                             crud.openEdit({
@@ -302,7 +306,7 @@ function LocationsPage() {
                         </Button>
                         <Button
                           variant="ghost"
-                          size="icon"
+                          size="icon-sm"
                           aria-label="Delete location"
                           onClick={() => crud.openDelete(location.id)}
                           disabled={crud.isFormOpen}

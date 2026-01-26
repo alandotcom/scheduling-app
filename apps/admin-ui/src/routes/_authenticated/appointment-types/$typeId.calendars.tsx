@@ -102,7 +102,7 @@ function AppointmentTypeCalendarsPage() {
   };
 
   return (
-    <div className="p-8">
+    <div className="p-10">
       <Breadcrumb
         items={[
           { label: "Appointment Types", to: "/appointment-types" },
@@ -113,15 +113,15 @@ function AppointmentTypeCalendarsPage() {
 
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold">
+        <h1 className="text-3xl font-semibold tracking-tight">
           {appointmentType?.name ?? "Appointment Type"} - Calendars
         </h1>
-        <p className="mt-1 text-muted-foreground">
+        <p className="mt-2 text-muted-foreground">
           Select which calendars can offer this appointment type.
         </p>
       </div>
 
-      <Separator className="my-6" />
+      <Separator className="my-8" />
 
       {/* Add Calendar */}
       <div className="flex gap-4">
@@ -158,16 +158,16 @@ function AppointmentTypeCalendarsPage() {
       </div>
 
       {/* Linked Calendars */}
-      <div className="mt-6">
+      <div className="mt-8">
         {isLoading ? (
           <div className="text-center text-muted-foreground">Loading...</div>
         ) : !linkedCalendars?.length ? (
-          <div className="rounded-lg border bg-card p-8 text-center text-muted-foreground">
+          <div className="rounded-xl border border-border/50 bg-card p-10 text-center text-muted-foreground shadow-sm">
             No calendars linked yet. Add a calendar to make this appointment
             type available.
           </div>
         ) : (
-          <div className="rounded-lg border">
+          <div className="rounded-xl border border-border/50 overflow-hidden shadow-sm">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -186,7 +186,7 @@ function AppointmentTypeCalendarsPage() {
                     <TableCell>
                       <Button
                         variant="ghost"
-                        size="icon"
+                        size="icon-sm"
                         onClick={() => handleRemove(link.calendarId)}
                         disabled={removeMutation.isPending}
                       >

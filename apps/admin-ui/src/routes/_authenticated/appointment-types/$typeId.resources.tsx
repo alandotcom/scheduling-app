@@ -128,7 +128,7 @@ function AppointmentTypeResourcesPage() {
   };
 
   return (
-    <div className="p-8">
+    <div className="p-10">
       <Breadcrumb
         items={[
           { label: "Appointment Types", to: "/appointment-types" },
@@ -139,19 +139,19 @@ function AppointmentTypeResourcesPage() {
 
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold">
+        <h1 className="text-3xl font-semibold tracking-tight">
           {appointmentType?.name ?? "Appointment Type"} - Resources
         </h1>
-        <p className="mt-1 text-muted-foreground">
+        <p className="mt-2 text-muted-foreground">
           Configure which resources are required for this appointment type.
         </p>
       </div>
 
-      <Separator className="my-6" />
+      <Separator className="my-8" />
 
       {/* Add Resource */}
       <div className="flex items-end gap-4">
-        <div className="space-y-2">
+        <div className="space-y-2.5">
           <Label>Resource</Label>
           <Select
             value={selectedResourceId}
@@ -179,7 +179,7 @@ function AppointmentTypeResourcesPage() {
             </SelectContent>
           </Select>
         </div>
-        <div className="space-y-2">
+        <div className="space-y-2.5">
           <Label>Quantity Required</Label>
           <Input
             type="number"
@@ -201,16 +201,16 @@ function AppointmentTypeResourcesPage() {
       </div>
 
       {/* Linked Resources */}
-      <div className="mt-6">
+      <div className="mt-8">
         {isLoading ? (
           <div className="text-center text-muted-foreground">Loading...</div>
         ) : !linkedResources?.length ? (
-          <div className="rounded-lg border bg-card p-8 text-center text-muted-foreground">
+          <div className="rounded-xl border border-border/50 bg-card p-10 text-center text-muted-foreground shadow-sm">
             No resources linked yet. Add resources if this appointment type
             requires specific equipment or rooms.
           </div>
         ) : (
-          <div className="rounded-lg border">
+          <div className="rounded-xl border border-border/50 overflow-hidden shadow-sm">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -246,7 +246,7 @@ function AppointmentTypeResourcesPage() {
                     <TableCell>
                       <Button
                         variant="ghost"
-                        size="icon"
+                        size="icon-sm"
                         onClick={() => handleRemove(link.resourceId)}
                         disabled={removeMutation.isPending}
                       >

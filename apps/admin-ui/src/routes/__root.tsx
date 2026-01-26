@@ -68,17 +68,17 @@ function RootLayout() {
   return (
     <div className="flex min-h-screen">
       {/* Desktop Sidebar - hidden on mobile */}
-      <aside className="hidden w-64 border-r bg-card md:block">
+      <aside className="hidden w-64 border-r border-border/50 bg-sidebar md:block">
         <div className="flex h-full flex-col">
           {/* Logo */}
-          <div className="flex h-16 items-center border-b px-6">
-            <Link to="/" className="text-lg font-semibold">
+          <div className="flex h-16 items-center border-b border-border/50 px-6">
+            <Link to="/" className="text-lg font-semibold tracking-tight">
               Scheduling
             </Link>
           </div>
 
           {/* Navigation */}
-          <nav className="flex-1 space-y-1 p-4">
+          <nav className="flex-1 space-y-1 p-5">
             {navItems.map((item) => (
               <NavLink key={item.to} to={item.to} icon={item.icon}>
                 {item.label}
@@ -87,9 +87,9 @@ function RootLayout() {
           </nav>
 
           {/* User section */}
-          <div className="border-t p-4">
+          <div className="border-t border-border/50 p-5">
             <div className="flex items-center gap-3">
-              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-primary-foreground">
+              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary text-sm font-medium text-primary-foreground">
                 {user?.name?.[0] ?? user?.email[0]?.toUpperCase() ?? "U"}
               </div>
               <div className="flex-1 overflow-hidden">
@@ -102,7 +102,7 @@ function RootLayout() {
               </div>
               <Button
                 variant="ghost"
-                size="icon"
+                size="icon-sm"
                 onClick={() => void authClient.signOut()}
                 title="Sign out"
                 aria-label="Sign out"
@@ -117,7 +117,7 @@ function RootLayout() {
       {/* Mobile Header + Main Content */}
       <div className="flex flex-1 flex-col">
         {/* Mobile Header - visible only on mobile */}
-        <header className="flex h-16 items-center justify-between border-b bg-card px-4 md:hidden">
+        <header className="flex h-16 items-center justify-between border-b border-border/50 bg-sidebar px-5 md:hidden">
           <Button
             variant="ghost"
             size="icon"
@@ -126,7 +126,7 @@ function RootLayout() {
           >
             <Icon icon={Menu01Icon} className="size-5" />
           </Button>
-          <Link to="/" className="text-lg font-semibold">
+          <Link to="/" className="text-lg font-semibold tracking-tight">
             Scheduling
           </Link>
           <Button
@@ -149,10 +149,10 @@ function RootLayout() {
       {/* Mobile Navigation Sheet */}
       <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
         <SheetContent side="left" className="w-64 p-0">
-          <SheetHeader className="border-b px-6 py-4">
+          <SheetHeader className="border-b border-border/50 px-6 py-5">
             <SheetTitle>Scheduling</SheetTitle>
           </SheetHeader>
-          <nav className="flex-1 space-y-1 p-4">
+          <nav className="flex-1 space-y-1 p-5">
             {navItems.map((item) => (
               <SheetClose key={item.to} asChild>
                 <NavLink to={item.to} icon={item.icon}>
@@ -161,9 +161,9 @@ function RootLayout() {
               </SheetClose>
             ))}
           </nav>
-          <div className="border-t p-4">
+          <div className="border-t border-border/50 p-5">
             <div className="flex items-center gap-3">
-              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-primary-foreground">
+              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary text-sm font-medium text-primary-foreground">
                 {user?.name?.[0] ?? user?.email[0]?.toUpperCase() ?? "U"}
               </div>
               <div className="flex-1 overflow-hidden">
@@ -200,7 +200,7 @@ function NavLink({
   return (
     <Link
       to={to}
-      className="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground [&.active]:bg-accent [&.active]:text-accent-foreground"
+      className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-muted-foreground transition-all duration-150 hover:bg-accent hover:text-accent-foreground [&.active]:bg-accent [&.active]:text-accent-foreground"
     >
       <Icon icon={icon} />
       {children}

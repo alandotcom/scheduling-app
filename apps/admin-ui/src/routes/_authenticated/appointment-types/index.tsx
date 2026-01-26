@@ -75,8 +75,8 @@ function AppointmentTypeForm({
   });
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-      <div className="space-y-2">
+    <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
+      <div className="space-y-2.5">
         <Label htmlFor="name">Name</Label>
         <Input
           id="name"
@@ -92,8 +92,8 @@ function AppointmentTypeForm({
           </p>
         )}
       </div>
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <div className="space-y-2">
+      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+        <div className="space-y-2.5">
           <Label htmlFor="durationMin">Duration (minutes)</Label>
           <Input
             id="durationMin"
@@ -111,7 +111,7 @@ function AppointmentTypeForm({
             </p>
           )}
         </div>
-        <div className="space-y-2">
+        <div className="space-y-2.5">
           <Label htmlFor="capacity">Capacity (optional)</Label>
           <Input
             id="capacity"
@@ -125,8 +125,8 @@ function AppointmentTypeForm({
           />
         </div>
       </div>
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <div className="space-y-2">
+      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+        <div className="space-y-2.5">
           <Label htmlFor="paddingBeforeMin">Padding Before (min)</Label>
           <Input
             id="paddingBeforeMin"
@@ -140,7 +140,7 @@ function AppointmentTypeForm({
             disabled={isSubmitting}
           />
         </div>
-        <div className="space-y-2">
+        <div className="space-y-2.5">
           <Label htmlFor="paddingAfterMin">Padding After (min)</Label>
           <Input
             id="paddingAfterMin"
@@ -155,7 +155,7 @@ function AppointmentTypeForm({
           />
         </div>
       </div>
-      <div className="flex justify-end gap-2 pt-4">
+      <div className="flex justify-end gap-3 pt-4">
         <Button
           type="button"
           variant="outline"
@@ -249,11 +249,13 @@ function AppointmentTypesPage() {
   };
 
   return (
-    <div className="p-8">
+    <div className="p-10">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Appointment Types</h1>
-          <p className="mt-1 text-muted-foreground">
+          <h1 className="text-3xl font-semibold tracking-tight">
+            Appointment Types
+          </h1>
+          <p className="mt-2 text-muted-foreground">
             Configure the types of appointments that can be booked.
           </p>
         </div>
@@ -267,8 +269,10 @@ function AppointmentTypesPage() {
 
       {/* Create Form */}
       {crud.showCreateForm && (
-        <div className="mt-6 rounded-lg border bg-card p-6">
-          <h2 className="mb-4 text-lg font-semibold">New Appointment Type</h2>
+        <div className="mt-8 rounded-xl border border-border/50 bg-card p-6 shadow-sm">
+          <h2 className="mb-5 text-lg font-semibold tracking-tight">
+            New Appointment Type
+          </h2>
           <AppointmentTypeForm
             onSubmit={handleCreate}
             onCancel={crud.closeCreate}
@@ -279,8 +283,10 @@ function AppointmentTypesPage() {
 
       {/* Edit Form */}
       {crud.editingItem && (
-        <div className="mt-6 rounded-lg border bg-card p-6">
-          <h2 className="mb-4 text-lg font-semibold">Edit Appointment Type</h2>
+        <div className="mt-8 rounded-xl border border-border/50 bg-card p-6 shadow-sm">
+          <h2 className="mb-5 text-lg font-semibold tracking-tight">
+            Edit Appointment Type
+          </h2>
           <AppointmentTypeForm
             defaultValues={{
               name: crud.editingItem.name,
@@ -297,7 +303,7 @@ function AppointmentTypesPage() {
       )}
 
       {/* Appointment Types Table */}
-      <div className="mt-6">
+      <div className="mt-8">
         {isLoading ? (
           <div
             className="text-center text-muted-foreground"
@@ -311,12 +317,12 @@ function AppointmentTypesPage() {
             Error loading appointment types
           </div>
         ) : !data?.items.length ? (
-          <div className="rounded-lg border bg-card p-8 text-center text-muted-foreground">
+          <div className="rounded-xl border border-border/50 bg-card p-10 text-center text-muted-foreground shadow-sm">
             No appointment types yet. Create your first appointment type to get
             started.
           </div>
         ) : (
-          <div className="rounded-lg border">
+          <div className="rounded-xl border border-border/50 overflow-hidden shadow-sm">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -353,7 +359,7 @@ function AppointmentTypesPage() {
                       <div className="flex gap-1">
                         <Button
                           variant="ghost"
-                          size="icon"
+                          size="icon-sm"
                           asChild
                           aria-label="Manage calendars"
                         >
@@ -366,7 +372,7 @@ function AppointmentTypesPage() {
                         </Button>
                         <Button
                           variant="ghost"
-                          size="icon"
+                          size="icon-sm"
                           asChild
                           aria-label="Manage resources"
                         >
@@ -379,7 +385,7 @@ function AppointmentTypesPage() {
                         </Button>
                         <Button
                           variant="ghost"
-                          size="icon"
+                          size="icon-sm"
                           aria-label="Edit appointment type"
                           onClick={() =>
                             crud.openEdit({
@@ -399,7 +405,7 @@ function AppointmentTypesPage() {
                         </Button>
                         <Button
                           variant="ghost"
-                          size="icon"
+                          size="icon-sm"
                           aria-label="Delete appointment type"
                           onClick={() => crud.openDelete(type.id)}
                           disabled={crud.isFormOpen}

@@ -81,8 +81,8 @@ function ResourceForm({
   const selectedLocation = locations.find((l) => l.id === locationId);
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-      <div className="space-y-2">
+    <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
+      <div className="space-y-2.5">
         <Label htmlFor="name">Name</Label>
         <Input
           id="name"
@@ -98,7 +98,7 @@ function ResourceForm({
           </p>
         )}
       </div>
-      <div className="space-y-2">
+      <div className="space-y-2.5">
         <Label htmlFor="quantity">Quantity</Label>
         <Input
           id="quantity"
@@ -115,7 +115,7 @@ function ResourceForm({
           </p>
         )}
       </div>
-      <div className="space-y-2">
+      <div className="space-y-2.5">
         <Label htmlFor="locationId">Location (optional)</Label>
         <Select
           value={locationId ?? "none"}
@@ -125,7 +125,7 @@ function ResourceForm({
           }
           disabled={isSubmitting}
         >
-          <SelectTrigger>
+          <SelectTrigger className="w-full">
             <SelectValue placeholder="Select location">
               {selectedLocation?.name ?? (locationId ? null : "No location")}
             </SelectValue>
@@ -140,7 +140,7 @@ function ResourceForm({
           </SelectContent>
         </Select>
       </div>
-      <div className="flex justify-end gap-2 pt-4">
+      <div className="flex justify-end gap-3 pt-4">
         <Button
           type="button"
           variant="outline"
@@ -243,11 +243,11 @@ function ResourcesPage() {
   };
 
   return (
-    <div className="p-8">
+    <div className="p-10">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Resources</h1>
-          <p className="mt-1 text-muted-foreground">
+          <h1 className="text-3xl font-semibold tracking-tight">Resources</h1>
+          <p className="mt-2 text-muted-foreground">
             Manage resources like rooms, equipment, or staff.
           </p>
         </div>
@@ -261,8 +261,10 @@ function ResourcesPage() {
 
       {/* Create Form */}
       {crud.showCreateForm && (
-        <div className="mt-6 rounded-lg border bg-card p-6">
-          <h2 className="mb-4 text-lg font-semibold">New Resource</h2>
+        <div className="mt-8 rounded-xl border border-border/50 bg-card p-6 shadow-sm">
+          <h2 className="mb-5 text-lg font-semibold tracking-tight">
+            New Resource
+          </h2>
           <ResourceForm
             locations={locations}
             onSubmit={handleCreate}
@@ -274,8 +276,10 @@ function ResourcesPage() {
 
       {/* Edit Form */}
       {crud.editingItem && (
-        <div className="mt-6 rounded-lg border bg-card p-6">
-          <h2 className="mb-4 text-lg font-semibold">Edit Resource</h2>
+        <div className="mt-8 rounded-xl border border-border/50 bg-card p-6 shadow-sm">
+          <h2 className="mb-5 text-lg font-semibold tracking-tight">
+            Edit Resource
+          </h2>
           <ResourceForm
             defaultValues={{
               name: crud.editingItem.name,
@@ -291,7 +295,7 @@ function ResourcesPage() {
       )}
 
       {/* Resources Table */}
-      <div className="mt-6">
+      <div className="mt-8">
         {isLoading ? (
           <div
             className="text-center text-muted-foreground"
@@ -305,11 +309,11 @@ function ResourcesPage() {
             Error loading resources
           </div>
         ) : !data?.items.length ? (
-          <div className="rounded-lg border bg-card p-8 text-center text-muted-foreground">
+          <div className="rounded-xl border border-border/50 bg-card p-10 text-center text-muted-foreground shadow-sm">
             No resources yet. Create your first resource to get started.
           </div>
         ) : (
-          <div className="rounded-lg border">
+          <div className="rounded-xl border border-border/50 overflow-hidden shadow-sm">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -337,7 +341,7 @@ function ResourcesPage() {
                       <div className="flex gap-1">
                         <Button
                           variant="ghost"
-                          size="icon"
+                          size="icon-sm"
                           aria-label="Edit resource"
                           onClick={() =>
                             crud.openEdit({
@@ -353,7 +357,7 @@ function ResourcesPage() {
                         </Button>
                         <Button
                           variant="ghost"
-                          size="icon"
+                          size="icon-sm"
                           aria-label="Delete resource"
                           onClick={() => crud.openDelete(resource.id)}
                           disabled={crud.isFormOpen}

@@ -144,7 +144,7 @@ function NewAppointmentPage() {
   };
 
   return (
-    <div className="p-8">
+    <div className="p-10">
       <Breadcrumb
         items={[
           { label: "Appointments", to: "/appointments" },
@@ -154,15 +154,17 @@ function NewAppointmentPage() {
 
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold">New Appointment</h1>
-        <p className="mt-1 text-muted-foreground">
+        <h1 className="text-3xl font-semibold tracking-tight">
+          New Appointment
+        </h1>
+        <p className="mt-2 text-muted-foreground">
           Book a new appointment by selecting type, calendar, and time.
         </p>
       </div>
 
-      <Separator className="my-6" />
+      <Separator className="my-8" />
 
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="grid gap-8 lg:grid-cols-2">
         {/* Selection Form */}
         <div className="space-y-6">
           {/* Step 1: Select Type */}
@@ -177,7 +179,7 @@ function NewAppointmentPage() {
                 value={selectedTypeId}
                 onValueChange={(v) => v && handleTypeChange(v)}
               >
-                <SelectTrigger>
+                <SelectTrigger className="w-full">
                   <SelectValue placeholder="Choose appointment type">
                     {selectedType
                       ? `${selectedType.name} (${selectedType.durationMin} min)`
@@ -215,7 +217,7 @@ function NewAppointmentPage() {
                     value={selectedCalendarId}
                     onValueChange={(v) => v && handleCalendarChange(v)}
                   >
-                    <SelectTrigger>
+                    <SelectTrigger className="w-full">
                       <SelectValue placeholder="Choose calendar">
                         {selectedCalendar?.name}
                       </SelectValue>
@@ -292,7 +294,7 @@ function NewAppointmentPage() {
             <CardHeader>
               <CardTitle className="text-lg">Booking Summary</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-5">
               {selectedType && (
                 <div>
                   <Label className="text-muted-foreground">
@@ -327,7 +329,7 @@ function NewAppointmentPage() {
                   placeholder="Any additional notes..."
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
-                  className="mt-1"
+                  className="mt-2"
                 />
               </div>
 

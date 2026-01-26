@@ -85,8 +85,8 @@ function CalendarForm({
   const selectedLocation = locations.find((l) => l.id === locationId);
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-      <div className="space-y-2">
+    <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
+      <div className="space-y-2.5">
         <Label htmlFor="name">Name</Label>
         <Input
           id="name"
@@ -102,7 +102,7 @@ function CalendarForm({
           </p>
         )}
       </div>
-      <div className="space-y-2">
+      <div className="space-y-2.5">
         <Label htmlFor="timezone">Timezone</Label>
         <Select
           value={timezone}
@@ -124,7 +124,7 @@ function CalendarForm({
           <p className="text-sm text-destructive">{errors.timezone.message}</p>
         )}
       </div>
-      <div className="space-y-2">
+      <div className="space-y-2.5">
         <Label htmlFor="locationId">Location (optional)</Label>
         <Select
           value={locationId ?? "none"}
@@ -149,7 +149,7 @@ function CalendarForm({
           </SelectContent>
         </Select>
       </div>
-      <div className="flex justify-end gap-2 pt-4">
+      <div className="flex justify-end gap-3 pt-4">
         <Button
           type="button"
           variant="outline"
@@ -252,11 +252,11 @@ function CalendarsPage() {
   };
 
   return (
-    <div className="p-8">
+    <div className="p-10">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Calendars</h1>
-          <p className="mt-1 text-muted-foreground">
+          <h1 className="text-3xl font-semibold tracking-tight">Calendars</h1>
+          <p className="mt-2 text-muted-foreground">
             Manage calendars and their availability.
           </p>
         </div>
@@ -270,8 +270,10 @@ function CalendarsPage() {
 
       {/* Create Form */}
       {crud.showCreateForm && (
-        <div className="mt-6 rounded-lg border bg-card p-6">
-          <h2 className="mb-4 text-lg font-semibold">New Calendar</h2>
+        <div className="mt-8 rounded-xl border border-border/50 bg-card p-6 shadow-sm">
+          <h2 className="mb-5 text-lg font-semibold tracking-tight">
+            New Calendar
+          </h2>
           <CalendarForm
             locations={locations}
             onSubmit={handleCreate}
@@ -283,8 +285,10 @@ function CalendarsPage() {
 
       {/* Edit Form */}
       {crud.editingItem && (
-        <div className="mt-6 rounded-lg border bg-card p-6">
-          <h2 className="mb-4 text-lg font-semibold">Edit Calendar</h2>
+        <div className="mt-8 rounded-xl border border-border/50 bg-card p-6 shadow-sm">
+          <h2 className="mb-5 text-lg font-semibold tracking-tight">
+            Edit Calendar
+          </h2>
           <CalendarForm
             defaultValues={{
               name: crud.editingItem.name,
@@ -300,7 +304,7 @@ function CalendarsPage() {
       )}
 
       {/* Calendars Table */}
-      <div className="mt-6">
+      <div className="mt-8">
         {isLoading ? (
           <div
             className="text-center text-muted-foreground"
@@ -314,11 +318,11 @@ function CalendarsPage() {
             Error loading calendars
           </div>
         ) : !data?.items.length ? (
-          <div className="rounded-lg border bg-card p-8 text-center text-muted-foreground">
+          <div className="rounded-xl border border-border/50 bg-card p-10 text-center text-muted-foreground shadow-sm">
             No calendars yet. Create your first calendar to get started.
           </div>
         ) : (
-          <div className="rounded-lg border">
+          <div className="rounded-xl border border-border/50 overflow-hidden shadow-sm">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -346,7 +350,7 @@ function CalendarsPage() {
                       <div className="flex gap-1">
                         <Button
                           variant="ghost"
-                          size="icon"
+                          size="icon-sm"
                           asChild
                           aria-label="Manage availability"
                         >
@@ -359,7 +363,7 @@ function CalendarsPage() {
                         </Button>
                         <Button
                           variant="ghost"
-                          size="icon"
+                          size="icon-sm"
                           aria-label="Edit calendar"
                           onClick={() =>
                             crud.openEdit({
@@ -375,7 +379,7 @@ function CalendarsPage() {
                         </Button>
                         <Button
                           variant="ghost"
-                          size="icon"
+                          size="icon-sm"
                           aria-label="Delete calendar"
                           onClick={() => crud.openDelete(calendar.id)}
                           disabled={crud.isFormOpen}

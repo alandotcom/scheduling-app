@@ -4,13 +4,13 @@ import { createFileRoute } from "@tanstack/react-router";
 
 function Dashboard() {
   return (
-    <div className="p-8">
-      <h1 className="text-2xl font-bold">Dashboard</h1>
-      <p className="mt-2 text-muted-foreground">
+    <div className="p-10">
+      <h1 className="text-3xl font-semibold tracking-tight">Dashboard</h1>
+      <p className="mt-3 text-muted-foreground">
         Welcome to the scheduling admin dashboard.
       </p>
 
-      <div className="mt-8 grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="mt-10 grid gap-6 md:grid-cols-2 lg:grid-cols-4">
         <DashboardCard title="Today's Appointments" value="0" />
         <DashboardCard title="This Week" value="0" />
         <DashboardCard title="Total Clients" value="0" />
@@ -22,9 +22,11 @@ function Dashboard() {
 
 function DashboardCard({ title, value }: { title: string; value: string }) {
   return (
-    <div className="rounded-lg border bg-card p-6">
-      <div className="text-sm font-medium text-muted-foreground">{title}</div>
-      <div className="mt-2 text-3xl font-bold">{value}</div>
+    <div className="rounded-xl border border-border/50 bg-card p-6 shadow-sm transition-shadow hover:shadow-md">
+      <div className="text-sm font-medium tracking-wide text-muted-foreground">
+        {title}
+      </div>
+      <div className="mt-3 text-4xl font-semibold tracking-tight">{value}</div>
     </div>
   );
 }

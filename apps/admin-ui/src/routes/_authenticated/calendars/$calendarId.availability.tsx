@@ -122,7 +122,7 @@ function AvailabilityPage() {
   };
 
   return (
-    <div className="p-8">
+    <div className="p-10">
       <Breadcrumb
         items={[
           { label: "Calendars", to: "/calendars" },
@@ -134,10 +134,10 @@ function AvailabilityPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">
+          <h1 className="text-3xl font-semibold tracking-tight">
             {calendar?.name ?? "Calendar"} - Availability
           </h1>
-          <p className="mt-1 text-muted-foreground">
+          <p className="mt-2 text-muted-foreground">
             Configure weekly availability hours for this calendar.
           </p>
         </div>
@@ -150,12 +150,12 @@ function AvailabilityPage() {
         </Button>
       </div>
 
-      <Separator className="my-6" />
+      <Separator className="my-8" />
 
       {isLoading ? (
         <div className="text-center text-muted-foreground">Loading...</div>
       ) : (
-        <div className="space-y-6">
+        <div className="space-y-8">
           {/* Weekly Hours */}
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
@@ -167,7 +167,7 @@ function AvailabilityPage() {
             </CardHeader>
             <CardContent>
               {weeklyRules.length === 0 ? (
-                <p className="text-center text-muted-foreground py-8">
+                <p className="text-center text-muted-foreground py-10">
                   No availability configured. Add time blocks to set when this
                   calendar is available.
                 </p>
@@ -176,9 +176,9 @@ function AvailabilityPage() {
                   {weeklyRules.map((rule, index) => (
                     <div
                       key={index}
-                      className="flex items-end gap-4 rounded-lg border p-4"
+                      className="flex items-end gap-4 rounded-xl border border-border/50 p-4"
                     >
-                      <div className="flex-1 space-y-2">
+                      <div className="flex-1 space-y-2.5">
                         <Label>Day</Label>
                         <Select
                           value={String(rule.weekday)}
@@ -187,7 +187,7 @@ function AvailabilityPage() {
                             updateRule(index, { weekday: parseInt(value, 10) })
                           }
                         >
-                          <SelectTrigger>
+                          <SelectTrigger className="w-full">
                             <SelectValue>
                               {WEEKDAYS.find((d) => d.value === rule.weekday)
                                 ?.label ?? "Select day"}
@@ -205,7 +205,7 @@ function AvailabilityPage() {
                           </SelectContent>
                         </Select>
                       </div>
-                      <div className="w-32 space-y-2">
+                      <div className="w-32 space-y-2.5">
                         <Label>Start</Label>
                         <Input
                           type="time"
@@ -215,7 +215,7 @@ function AvailabilityPage() {
                           }
                         />
                       </div>
-                      <div className="w-32 space-y-2">
+                      <div className="w-32 space-y-2.5">
                         <Label>End</Label>
                         <Input
                           type="time"
@@ -225,7 +225,7 @@ function AvailabilityPage() {
                           }
                         />
                       </div>
-                      <div className="w-28 space-y-2">
+                      <div className="w-28 space-y-2.5">
                         <Label>Interval (min)</Label>
                         <Input
                           type="number"
@@ -244,7 +244,7 @@ function AvailabilityPage() {
                       </div>
                       <Button
                         variant="ghost"
-                        size="icon"
+                        size="icon-sm"
                         onClick={() => removeRule(index)}
                       >
                         <Icon icon={Delete01Icon} />
