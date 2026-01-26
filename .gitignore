@@ -42,3 +42,7 @@ tmp/
 .claude/*.local.md
 .ralph
 .agent
+
+# Beads
+/.beads/export-state/
+/.beads/beads.db*
