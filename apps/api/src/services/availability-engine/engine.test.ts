@@ -7,6 +7,7 @@ import {
   beforeAll,
   afterAll,
   beforeEach,
+  setSystemTime,
 } from "bun:test";
 import {
   createTestDb,
@@ -48,9 +49,11 @@ describe("AvailabilityService", () => {
 
   beforeAll(async () => {
     db = (await createTestDb()) as Database;
+    setSystemTime(new Date("2026-01-20T15:00:00.000Z"));
   });
 
   afterAll(async () => {
+    setSystemTime();
     await closeTestDb();
   });
 
