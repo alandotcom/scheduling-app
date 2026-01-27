@@ -187,6 +187,10 @@ export const appointmentTypeResources = pgTable(
       table.appointmentTypeId,
       table.resourceId,
     ),
+    index("appointment_type_resources_resource_idx").on(
+      table.resourceId,
+      table.appointmentTypeId,
+    ),
   ],
 );
 
@@ -236,6 +240,13 @@ export const appointments = pgTable.withRLS(
   (table) => [
     index("appointments_calendar_start_at_idx")
       .on(table.calendarId, table.startAt)
+      .where(sql`${table.status} <> 'cancelled'`),
+    index("appointments_calendar_range_gist_idx")
+      .using(
+        "gist",
+        table.calendarId,
+        sql`tstzrange(${table.startAt}, ${table.endAt}, '[)')`,
+      )
       .where(sql`${table.status} <> 'cancelled'`),
     pgPolicy("org_isolation_appointments", {
       for: "all",
@@ -304,6 +315,11 @@ export const blockedTime = pgTable(
       table.startAt,
     ),
     index("blocked_time_calendar_end_idx").on(table.calendarId, table.endAt),
+    index("blocked_time_calendar_range_gist_idx").using(
+      "gist",
+      table.calendarId,
+      sql`tstzrange(${table.startAt}, ${table.endAt}, '[)')`,
+    ),
     index("blocked_time_calendar_recurring_idx")
       .on(table.calendarId)
       .where(sql`${table.recurringRule} is not null`),

@@ -1,6 +1,6 @@
 // Availability management repository - CRUD for rules, overrides, blocked time, limits
 
-import { eq, and, gt, gte, lte, lt, inArray } from "drizzle-orm";
+import { eq, and, gt, gte, lte, inArray, sql } from "drizzle-orm";
 import {
   availabilityRules,
   availabilityOverrides,
@@ -449,8 +449,7 @@ export class AvailabilityManagementRepository {
       .where(
         and(
           inArray(blockedTime.calendarId, calendarIds),
-          lt(blockedTime.startAt, endAt),
-          gt(blockedTime.endAt, startAt),
+          sql`tstzrange(${blockedTime.startAt}, ${blockedTime.endAt}, '[)') && tstzrange(${startAt}, ${endAt}, '[)')`,
         ),
       )
       .orderBy(blockedTime.startAt);

@@ -1039,6 +1039,158 @@ describe("Appointment Routes", () => {
       });
     });
 
+    test("allows bookings in different locations with location-scoped resources", async () => {
+      const { org, user } = await createOrg(db);
+      const ctx = createTestContext({ orgId: org.id, userId: user.id });
+
+      const locationA = await createLocation(db, org.id, {
+        name: "Location A",
+      });
+      const locationB = await createLocation(db, org.id, {
+        name: "Location B",
+      });
+
+      const calendarA = await createCalendar(db, org.id, {
+        locationId: locationA.id,
+        name: "Calendar A",
+        timezone: "America/New_York",
+      });
+      const calendarB = await createCalendar(db, org.id, {
+        locationId: locationB.id,
+        name: "Calendar B",
+        timezone: "America/New_York",
+      });
+
+      const resourceA = await createResource(db, org.id, {
+        name: "Room A",
+        quantity: 1,
+        locationId: locationA.id,
+      });
+      const resourceB = await createResource(db, org.id, {
+        name: "Room B",
+        quantity: 1,
+        locationId: locationB.id,
+      });
+
+      const appointmentType = await createAppointmentType(db, org.id, {
+        name: "Multi-site Visit",
+        durationMin: 60,
+        capacity: 10,
+        calendarIds: [calendarA.id, calendarB.id],
+        resourceIds: [
+          { id: resourceA.id, quantityRequired: 1 },
+          { id: resourceB.id, quantityRequired: 1 },
+        ],
+      });
+
+      for (const calendar of [calendarA, calendarB]) {
+        for (let weekday = 0; weekday < 7; weekday++) {
+          await createAvailabilityRule(db, calendar.id, {
+            weekday,
+            startTime: "09:00",
+            endTime: "17:00",
+          });
+        }
+      }
+
+      const startTime = getFutureStartTime(1, 10);
+
+      const resultA = await call(
+        appointmentRoutes.create,
+        {
+          calendarId: calendarA.id,
+          appointmentTypeId: appointmentType.id,
+          startTime,
+          timezone: "America/New_York",
+        },
+        { context: ctx },
+      );
+      expect(resultA).toBeDefined();
+
+      const resultB = await call(
+        appointmentRoutes.create,
+        {
+          calendarId: calendarB.id,
+          appointmentTypeId: appointmentType.id,
+          startTime,
+          timezone: "America/New_York",
+        },
+        { context: ctx },
+      );
+      expect(resultB).toBeDefined();
+    });
+
+    test("rejects resource conflicts across calendars in the same location", async () => {
+      const { org, user } = await createOrg(db);
+      const ctx = createTestContext({ orgId: org.id, userId: user.id });
+
+      const location = await createLocation(db, org.id, {
+        name: "Main Location",
+      });
+      const calendarA = await createCalendar(db, org.id, {
+        locationId: location.id,
+        name: "Calendar A",
+        timezone: "America/New_York",
+      });
+      const calendarB = await createCalendar(db, org.id, {
+        locationId: location.id,
+        name: "Calendar B",
+        timezone: "America/New_York",
+      });
+
+      const resource = await createResource(db, org.id, {
+        name: "Shared Room",
+        quantity: 1,
+        locationId: location.id,
+      });
+
+      const appointmentType = await createAppointmentType(db, org.id, {
+        name: "Shared Resource Visit",
+        durationMin: 60,
+        capacity: 10,
+        calendarIds: [calendarA.id, calendarB.id],
+        resourceIds: [{ id: resource.id, quantityRequired: 1 }],
+      });
+
+      for (const calendar of [calendarA, calendarB]) {
+        for (let weekday = 0; weekday < 7; weekday++) {
+          await createAvailabilityRule(db, calendar.id, {
+            weekday,
+            startTime: "09:00",
+            endTime: "17:00",
+          });
+        }
+      }
+
+      const startTime = getFutureStartTime(1, 10);
+
+      await call(
+        appointmentRoutes.create,
+        {
+          calendarId: calendarA.id,
+          appointmentTypeId: appointmentType.id,
+          startTime,
+          timezone: "America/New_York",
+        },
+        { context: ctx },
+      );
+
+      await expect(
+        call(
+          appointmentRoutes.create,
+          {
+            calendarId: calendarB.id,
+            appointmentTypeId: appointmentType.id,
+            startTime,
+            timezone: "America/New_York",
+          },
+          { context: ctx },
+        ),
+      ).rejects.toMatchObject({
+        code: "CONFLICT",
+      });
+    });
+
     test("returns conflict metadata for overlapping slot", async () => {
       const { org, user, calendar, appointmentType } =
         await createFixtureWithAvailability();

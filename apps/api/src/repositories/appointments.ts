@@ -1,6 +1,6 @@
 // Appointment repository - data access layer for appointments
 
-import { eq, gt, gte, lte, lt, ne, and, or, inArray } from "drizzle-orm";
+import { eq, gt, gte, lte, lt, ne, and, inArray, sql } from "drizzle-orm";
 import {
   appointments,
   calendars,
@@ -530,9 +530,7 @@ export class AppointmentRepository {
     const conditions = [
       eq(appointments.calendarId, calendarId),
       ne(appointments.status, "cancelled"),
-      or(
-        and(lte(appointments.startAt, endAt), gte(appointments.endAt, startAt)),
-      ),
+      sql`tstzrange(${appointments.startAt}, ${appointments.endAt}, '[)') && tstzrange(${startAt}, ${endAt}, '[)')`,
     ].filter(Boolean);
 
     if (excludeAppointmentId) {

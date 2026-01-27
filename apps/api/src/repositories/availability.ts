@@ -1,18 +1,7 @@
 // Availability repository - data access layer for availability engine
 // Handles appointment types, rules, overrides, blocked times, limits, and appointments
 
-import {
-  eq,
-  and,
-  gte,
-  lte,
-  ne,
-  inArray,
-  or,
-  lt,
-  gt,
-  isNull,
-} from "drizzle-orm";
+import { eq, and, gte, lte, ne, inArray, or, isNull, sql } from "drizzle-orm";
 import { DateTime } from "luxon";
 import {
   appointmentTypes,
@@ -229,8 +218,7 @@ export class AvailabilityRepository {
       .where(
         and(
           inArray(blockedTime.calendarId, calendarIds),
-          lt(blockedTime.startAt, rangeEnd),
-          gt(blockedTime.endAt, rangeStart),
+          sql`tstzrange(${blockedTime.startAt}, ${blockedTime.endAt}, '[)') && tstzrange(${rangeStart}, ${rangeEnd}, '[)')`,
         ),
       );
 
@@ -287,8 +275,7 @@ export class AvailabilityRepository {
         and(
           inArray(appointments.calendarId, calendarIds),
           ne(appointments.status, "cancelled"),
-          lt(appointments.startAt, rangeEnd),
-          gt(appointments.endAt, rangeStart),
+          sql`tstzrange(${appointments.startAt}, ${appointments.endAt}, '[)') && tstzrange(${rangeStart}, ${rangeEnd}, '[)')`,
         ),
       );
 
