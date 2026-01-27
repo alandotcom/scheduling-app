@@ -7,12 +7,9 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
-    "test": "vitest run",
-    "test:coverage": "vitest run --coverage",
-    "typecheck": "tsc --noEmit",
-    "e2e": "playwright test",
-    "e2e:ui": "playwright test --ui",
-    "e2e:debug": "playwright test --debug"
+    "test": "bun test",
+    "test:coverage": "bun test --coverage",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@base-ui/react": "^1.1.0",
@@ -43,20 +40,18 @@
     "zod": "catalog:"
   },
   "devDependencies": {
+    "@happy-dom/global-registrator": "^20.3.9",
     "@orpc/server": "^1.13.4",
-    "@playwright/test": "^1.58.0",
     "@tailwindcss/vite": "^4.1.18",
     "@tanstack/router-devtools": "^1.157.4",
     "@tanstack/router-plugin": "^1.157.4",
     "@types/react": "^19.2.9",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^5.1.2",
-    "@vitest/coverage-v8": "^4.0.18",
     "cmdk": "^1.1.1",
     "react-hotkeys-hook": "^5.2.3",
     "tailwindcss": "^4.1.18",
     "typescript": "catalog:",
-    "vite": "^7.3.1",
-    "vitest": "^4.0.18"
+    "vite": "^7.3.1"
   }
 }
