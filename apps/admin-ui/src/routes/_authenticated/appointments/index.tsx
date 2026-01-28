@@ -600,6 +600,48 @@ function AppointmentsPage() {
   );
 }
 
+interface AppointmentsSearchParams {
+  selected?: string;
+  tab?: "details";
+  view?: "list" | "schedule";
+  date?: string;
+  calendarId?: string;
+  clientId?: string;
+  appointmentTypeId?: string;
+  status?: string;
+}
+
 export const Route = createFileRoute("/_authenticated/appointments/")({
+  validateSearch: (
+    search: Record<string, unknown>,
+  ): AppointmentsSearchParams => {
+    return {
+      selected:
+        typeof search.selected === "string" ? search.selected : undefined,
+      tab:
+        typeof search.tab === "string" && search.tab === "details"
+          ? "details"
+          : undefined,
+      view:
+        typeof search.view === "string" &&
+        (search.view === "list" || search.view === "schedule")
+          ? search.view
+          : undefined,
+      date:
+        typeof search.date === "string" &&
+        /^\d{4}-\d{2}-\d{2}$/.test(search.date)
+          ? search.date
+          : undefined,
+      calendarId:
+        typeof search.calendarId === "string" ? search.calendarId : undefined,
+      clientId:
+        typeof search.clientId === "string" ? search.clientId : undefined,
+      appointmentTypeId:
+        typeof search.appointmentTypeId === "string"
+          ? search.appointmentTypeId
+          : undefined,
+      status: typeof search.status === "string" ? search.status : undefined,
+    };
+  },
   component: AppointmentsPage,
 });

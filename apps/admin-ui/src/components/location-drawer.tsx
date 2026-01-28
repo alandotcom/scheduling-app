@@ -247,7 +247,7 @@ export function LocationDrawer({
                     Resources at This Location
                   </h3>
                   <Button variant="ghost" size="sm" asChild>
-                    <Link to="/resources">
+                    <Link to="/resources" search={{}}>
                       View all
                       <Icon icon={ArrowRight02Icon} data-icon="inline-end" />
                     </Link>

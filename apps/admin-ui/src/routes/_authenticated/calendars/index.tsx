@@ -893,7 +893,9 @@ function CalendarsPage() {
 }
 
 export const Route = createFileRoute("/_authenticated/calendars/")({
-  validateSearch: (search: Record<string, unknown>): { selected?: string; tab?: DetailTabValue } => {
+  validateSearch: (
+    search: Record<string, unknown>,
+  ): { selected?: string; tab?: DetailTabValue } => {
     const selected =
       typeof search.selected === "string" ? search.selected : undefined;
     const rawTab = typeof search.tab === "string" ? search.tab : "";

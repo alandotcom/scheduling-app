@@ -421,6 +421,18 @@ function ResourcesPage() {
   );
 }
 
+interface ResourcesSearchParams {
+  selected?: string;
+  tab?: "details";
+}
+
 export const Route = createFileRoute("/_authenticated/resources")({
+  validateSearch: (search: Record<string, unknown>): ResourcesSearchParams => ({
+    selected: typeof search.selected === "string" ? search.selected : undefined,
+    tab:
+      typeof search.tab === "string" && search.tab === "details"
+        ? "details"
+        : undefined,
+  }),
   component: ResourcesPage,
 });

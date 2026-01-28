@@ -629,6 +629,23 @@ function AppointmentTypesPage() {
   );
 }
 
+interface AppointmentTypesSearchParams {
+  selected?: string;
+  tab?: "details" | "calendars" | "resources";
+}
+
 export const Route = createFileRoute("/_authenticated/appointment-types/")({
+  validateSearch: (
+    search: Record<string, unknown>,
+  ): AppointmentTypesSearchParams => ({
+    selected: typeof search.selected === "string" ? search.selected : undefined,
+    tab:
+      typeof search.tab === "string" &&
+      (search.tab === "details" ||
+        search.tab === "calendars" ||
+        search.tab === "resources")
+        ? search.tab
+        : undefined,
+  }),
   component: AppointmentTypesPage,
 });

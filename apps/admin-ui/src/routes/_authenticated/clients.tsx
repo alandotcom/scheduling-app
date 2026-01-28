@@ -456,6 +456,19 @@ function ClientsPage() {
   );
 }
 
+interface ClientsSearchParams {
+  selected?: string;
+  tab?: "details" | "history";
+}
+
 export const Route = createFileRoute("/_authenticated/clients")({
+  validateSearch: (search: Record<string, unknown>): ClientsSearchParams => ({
+    selected: typeof search.selected === "string" ? search.selected : undefined,
+    tab:
+      typeof search.tab === "string" &&
+      (search.tab === "details" || search.tab === "history")
+        ? search.tab
+        : undefined,
+  }),
   component: ClientsPage,
 });

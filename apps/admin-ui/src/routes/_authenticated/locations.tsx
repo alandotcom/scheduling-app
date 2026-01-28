@@ -369,6 +369,21 @@ function LocationsPage() {
   );
 }
 
+interface LocationsSearchParams {
+  selected?: string;
+  tab?: "details" | "calendars" | "resources";
+}
+
 export const Route = createFileRoute("/_authenticated/locations")({
+  validateSearch: (search: Record<string, unknown>): LocationsSearchParams => ({
+    selected: typeof search.selected === "string" ? search.selected : undefined,
+    tab:
+      typeof search.tab === "string" &&
+      (search.tab === "details" ||
+        search.tab === "calendars" ||
+        search.tab === "resources")
+        ? search.tab
+        : undefined,
+  }),
   component: LocationsPage,
 });

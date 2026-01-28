@@ -107,7 +107,9 @@ export function CommandPalette({ onCreateAppointment }: CommandPaletteProps) {
               </CommandItem>
               <CommandItem
                 onSelect={() =>
-                  runCommand(() => void navigate({ to: "/appointments" }))
+                  runCommand(
+                    () => void navigate({ to: "/appointments", search: {} }),
+                  )
                 }
                 icon={Clock01Icon}
                 shortcut="g a"
@@ -116,7 +118,9 @@ export function CommandPalette({ onCreateAppointment }: CommandPaletteProps) {
               </CommandItem>
               <CommandItem
                 onSelect={() =>
-                  runCommand(() => void navigate({ to: "/calendars", search: {} }))
+                  runCommand(
+                    () => void navigate({ to: "/calendars", search: {} }),
+                  )
                 }
                 icon={Calendar03Icon}
                 shortcut="g c"
@@ -125,7 +129,10 @@ export function CommandPalette({ onCreateAppointment }: CommandPaletteProps) {
               </CommandItem>
               <CommandItem
                 onSelect={() =>
-                  runCommand(() => void navigate({ to: "/appointment-types" }))
+                  runCommand(
+                    () =>
+                      void navigate({ to: "/appointment-types", search: {} }),
+                  )
                 }
                 icon={Layers01Icon}
                 shortcut="g t"
@@ -134,7 +141,9 @@ export function CommandPalette({ onCreateAppointment }: CommandPaletteProps) {
               </CommandItem>
               <CommandItem
                 onSelect={() =>
-                  runCommand(() => void navigate({ to: "/locations" }))
+                  runCommand(
+                    () => void navigate({ to: "/locations", search: {} }),
+                  )
                 }
                 icon={Location01Icon}
                 shortcut="g l"
@@ -143,7 +152,9 @@ export function CommandPalette({ onCreateAppointment }: CommandPaletteProps) {
               </CommandItem>
               <CommandItem
                 onSelect={() =>
-                  runCommand(() => void navigate({ to: "/resources" }))
+                  runCommand(
+                    () => void navigate({ to: "/resources", search: {} }),
+                  )
                 }
                 icon={Package01Icon}
                 shortcut="g r"
@@ -152,7 +163,9 @@ export function CommandPalette({ onCreateAppointment }: CommandPaletteProps) {
               </CommandItem>
               <CommandItem
                 onSelect={() =>
-                  runCommand(() => void navigate({ to: "/clients" }))
+                  runCommand(
+                    () => void navigate({ to: "/clients", search: {} }),
+                  )
                 }
                 icon={UserGroup02Icon}
                 shortcut="g u"

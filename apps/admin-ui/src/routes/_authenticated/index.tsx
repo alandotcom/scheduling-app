@@ -157,7 +157,7 @@ function Dashboard() {
               Today's Schedule
             </h2>
             <Button variant="ghost" size="sm" asChild>
-              <Link to="/appointments">
+              <Link to="/appointments" search={{}}>
                 View all
                 <Icon icon={ArrowRight02Icon} data-icon="inline-end" />
               </Link>
@@ -187,6 +187,7 @@ function Dashboard() {
                 <Link
                   key={apt.id}
                   to="/appointments"
+                  search={{}}
                   className="flex items-center justify-between px-4 py-3 hover:bg-muted/50 transition-colors"
                 >
                   <div className="flex items-center gap-3">

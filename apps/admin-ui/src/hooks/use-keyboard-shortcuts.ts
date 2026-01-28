@@ -99,7 +99,7 @@ export function useNavigationShortcuts() {
     },
     {
       key: "g a",
-      action: () => void navigate({ to: "/appointments" }),
+      action: () => void navigate({ to: "/appointments", search: {} }),
       description: "Go to Appointments",
     },
     {
@@ -109,22 +109,22 @@ export function useNavigationShortcuts() {
     },
     {
       key: "g t",
-      action: () => void navigate({ to: "/appointment-types" }),
+      action: () => void navigate({ to: "/appointment-types", search: {} }),
       description: "Go to Appointment Types",
     },
     {
       key: "g l",
-      action: () => void navigate({ to: "/locations" }),
+      action: () => void navigate({ to: "/locations", search: {} }),
       description: "Go to Locations",
     },
     {
       key: "g r",
-      action: () => void navigate({ to: "/resources" }),
+      action: () => void navigate({ to: "/resources", search: {} }),
       description: "Go to Resources",
     },
     {
       key: "g u",
-      action: () => void navigate({ to: "/clients" }),
+      action: () => void navigate({ to: "/clients", search: {} }),
       description: "Go to Clients",
     },
     {
@@ -180,4 +180,137 @@ export function useListNavigation<T>({
   useKeyboardShortcuts({ shortcuts, enabled });
 
   return { moveUp, moveDown, openSelected };
+}
+
+// Focus zone IDs for keyboard navigation
+export const FOCUS_ZONES = {
+  LIST: "focus-zone-list",
+  DETAIL: "focus-zone-detail",
+  FILTER: "focus-zone-filter",
+} as const;
+
+export type FocusZone = (typeof FOCUS_ZONES)[keyof typeof FOCUS_ZONES];
+
+/**
+ * Focus a specific zone by ID.
+ * Looks for the first focusable element within the zone.
+ */
+function focusZone(zoneId: string): boolean {
+  const zone = document.getElementById(zoneId);
+  if (!zone) return false;
+
+  // Find the first focusable element in the zone
+  const focusable = zone.querySelector<HTMLElement>(
+    'input:not([disabled]), button:not([disabled]), [tabindex]:not([tabindex="-1"]), a[href], textarea:not([disabled]), select:not([disabled])',
+  );
+
+  if (focusable) {
+    focusable.focus();
+    return true;
+  }
+
+  // If no focusable element, try to focus the zone itself if it's focusable
+  if (zone.tabIndex >= 0) {
+    zone.focus();
+    return true;
+  }
+
+  return false;
+}
+
+interface UseFocusZonesOptions {
+  /** Called when Escape is pressed - typically clears selection */
+  onEscape?: () => void;
+  /** Whether the detail panel is open */
+  detailOpen?: boolean;
+  /** Whether shortcuts are enabled */
+  enabled?: boolean;
+}
+
+/**
+ * Focus zone keyboard shortcuts for list/detail pages.
+ *
+ * - Cmd/Ctrl+L: Focus list panel
+ * - Cmd/Ctrl+D: Focus detail panel
+ * - Cmd/Ctrl+F: Focus filter/search input
+ * - Escape: Close detail panel or blur current focus
+ *
+ * @example
+ * ```tsx
+ * useFocusZones({
+ *   onEscape: clearDetails,
+ *   detailOpen,
+ * });
+ *
+ * // In JSX:
+ * <ListPanel id={FOCUS_ZONES.LIST}>...</ListPanel>
+ * <DetailPanel id={FOCUS_ZONES.DETAIL}>...</DetailPanel>
+ * <Input id={FOCUS_ZONES.FILTER} />
+ * ```
+ */
+export function useFocusZones({
+  onEscape,
+  detailOpen = false,
+  enabled = true,
+}: UseFocusZonesOptions = {}) {
+  const focusList = useCallback(() => {
+    focusZone(FOCUS_ZONES.LIST);
+  }, []);
+
+  const focusDetail = useCallback(() => {
+    if (detailOpen) {
+      focusZone(FOCUS_ZONES.DETAIL);
+    }
+  }, [detailOpen]);
+
+  const focusFilter = useCallback(() => {
+    focusZone(FOCUS_ZONES.FILTER);
+  }, []);
+
+  const handleEscape = useCallback(() => {
+    const activeElement = document.activeElement as HTMLElement | null;
+
+    // If in an input, blur it first
+    if (
+      activeElement?.tagName === "INPUT" ||
+      activeElement?.tagName === "TEXTAREA"
+    ) {
+      activeElement.blur();
+      return;
+    }
+
+    // Otherwise, call the escape handler (typically closes detail panel)
+    onEscape?.();
+  }, [onEscape]);
+
+  const shortcuts: ShortcutConfig[] = [
+    {
+      key: ["meta+l", "ctrl+l"],
+      action: focusList,
+      description: "Focus list",
+      ignoreInputs: false,
+    },
+    {
+      key: ["meta+d", "ctrl+d"],
+      action: focusDetail,
+      description: "Focus detail panel",
+      ignoreInputs: false,
+    },
+    {
+      key: ["meta+f", "ctrl+f"],
+      action: focusFilter,
+      description: "Focus filter/search",
+      ignoreInputs: false,
+    },
+    {
+      key: "escape",
+      action: handleEscape,
+      description: "Close/blur",
+      ignoreInputs: false,
+    },
+  ];
+
+  useKeyboardShortcuts({ shortcuts, enabled });
+
+  return { focusList, focusDetail, focusFilter };
 }
