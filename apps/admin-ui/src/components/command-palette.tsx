@@ -116,7 +116,7 @@ export function CommandPalette({ onCreateAppointment }: CommandPaletteProps) {
               </CommandItem>
               <CommandItem
                 onSelect={() =>
-                  runCommand(() => void navigate({ to: "/calendars" }))
+                  runCommand(() => void navigate({ to: "/calendars", search: {} }))
                 }
                 icon={Calendar03Icon}
                 shortcut="g c"

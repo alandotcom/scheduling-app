@@ -207,7 +207,7 @@ export function LocationDrawer({
                     Calendars Using This Location
                   </h3>
                   <Button variant="ghost" size="sm" asChild>
-                    <Link to="/calendars">
+                    <Link to="/calendars" search={{}}>
                       View all
                       <Icon icon={ArrowRight02Icon} data-icon="inline-end" />
                     </Link>

@@ -139,6 +139,20 @@ Environment variables in `.env`:
 - `VALKEY_HOST=localhost`, `VALKEY_PORT=6380`
 - `AUTH_SECRET`, `PORT=3000`
 
+## Test User & Seed Data
+
+Run `pnpm db:seed` to populate the database with demo data. This is idempotent and safe to run multiple times.
+
+**Test credentials:**
+- Email: `admin@example.com`
+- Password: `password123`
+
+**Seeded data:**
+- Org: "Acme Scheduling"
+- Location: "Main Office" (America/New_York)
+- Calendar: "Dr. Smith"
+- Appointment types: Initial Consultation (60 min), Follow-up Visit (30 min), Quick Check-in (15 min)
+
 
 ## Agent-Browser QA
 

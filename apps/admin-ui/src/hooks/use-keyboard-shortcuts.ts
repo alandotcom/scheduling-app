@@ -104,7 +104,7 @@ export function useNavigationShortcuts() {
     },
     {
       key: "g c",
-      action: () => void navigate({ to: "/calendars" }),
+      action: () => void navigate({ to: "/calendars", search: {} }),
       description: "Go to Calendars",
     },
     {
