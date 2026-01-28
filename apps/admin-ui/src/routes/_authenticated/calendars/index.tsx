@@ -24,6 +24,11 @@ import { TIMEZONES } from "@/lib/constants";
 import { createCalendarSchema } from "@scheduling/dto";
 import type { CreateCalendarInput } from "@scheduling/dto";
 import { useCrudState } from "@/hooks/use-crud-state";
+import {
+  useFocusZones,
+  useListNavigation,
+  FOCUS_ZONES,
+} from "@/hooks/use-keyboard-shortcuts";
 import { DeleteConfirmDialog } from "@/components/delete-confirm-dialog";
 import { ContextMenu, type ContextMenuItem } from "@/components/context-menu";
 import {
@@ -199,6 +204,18 @@ function CalendarsPage() {
   const activeTab: DetailTabValue = tab ?? "details";
   const detailOpen = !!selectedId;
 
+  // Fetch calendars (moved up for keyboard navigation)
+  const { data, isLoading, error } = useQuery(
+    orpc.calendars.list.queryOptions({
+      input: { limit: 100 },
+    }),
+  );
+
+  const calendars = data?.items ?? [];
+  const selectedIndex = selectedId
+    ? calendars.findIndex((c) => c.id === selectedId)
+    : -1;
+
   const openDetails = useCallback(
     (calendarId: string, tab: DetailTabValue = "details") => {
       navigate({
@@ -235,12 +252,27 @@ function CalendarsPage() {
     [navigate, selectedId],
   );
 
-  // Fetch calendars
-  const { data, isLoading, error } = useQuery(
-    orpc.calendars.list.queryOptions({
-      input: { limit: 100 },
-    }),
-  );
+  // Keyboard shortcuts for focus zones (Cmd+L, Cmd+D, Escape)
+  useFocusZones({
+    onEscape: clearDetails,
+    detailOpen,
+  });
+
+  // Keyboard shortcuts for list navigation (j/k/arrows, Enter)
+  useListNavigation({
+    items: calendars,
+    selectedIndex,
+    onSelect: (index) => {
+      const calendar = calendars[index];
+      if (calendar) {
+        openDetails(calendar.id, "details");
+      }
+    },
+    onOpen: (calendar) => {
+      openDetails(calendar.id, "details");
+    },
+    enabled: !crud.isFormOpen, // Disable when editing
+  });
 
   // Fetch locations for the dropdown
   const { data: locationsData } = useQuery(
@@ -459,7 +491,7 @@ function CalendarsPage() {
       </div>
 
       <SplitPaneLayout className="mt-6 min-h-[600px]">
-        <ListPanel className="flex flex-col gap-6">
+        <ListPanel id={FOCUS_ZONES.LIST} className="flex flex-col gap-6">
           {/* Create Form */}
           {crud.showCreateForm && (
             <div className="rounded-xl border border-border/50 bg-card p-6 shadow-sm">
@@ -565,6 +597,7 @@ function CalendarsPage() {
 
         {/* NOTE: Split-pane detail panel replaces CalendarDrawer for list/detail UX. */}
         <DetailPanel
+          id={FOCUS_ZONES.DETAIL}
           open={detailOpen}
           onOpenChange={(open) => {
             if (!open) clearDetails();
