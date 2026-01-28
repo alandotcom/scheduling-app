@@ -29,6 +29,7 @@ import {
   useListNavigation,
   FOCUS_ZONES,
 } from "@/hooks/use-keyboard-shortcuts";
+import { useValidateSelection } from "@/hooks/use-selection-search-params";
 import { DeleteConfirmDialog } from "@/components/delete-confirm-dialog";
 import { ContextMenu, type ContextMenuItem } from "@/components/context-menu";
 import {
@@ -369,11 +370,8 @@ function CalendarsPage() {
     });
   }, [detailForm, selectedCalendar]);
 
-  useEffect(() => {
-    if (!selectedId || !data?.items) return;
-    const exists = data.items.some((calendar) => calendar.id === selectedId);
-    if (!exists) clearDetails();
-  }, [clearDetails, data?.items, selectedId]);
+  // Clear selection if item no longer exists (e.g., after deletion)
+  useValidateSelection(data?.items, selectedId, clearDetails);
 
   const handleCreate = (formData: CreateCalendarInput) => {
     createMutation.mutate(formData);
