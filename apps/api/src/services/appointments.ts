@@ -6,6 +6,7 @@ import type {
   Appointment,
   AppointmentListInput,
   AppointmentWithRelations,
+  AppointmentStatus,
 } from "../repositories/appointments.js";
 import type { PaginatedResult } from "../repositories/base.js";
 import type { AppointmentScheduleEvent } from "@scheduling/dto";
@@ -79,7 +80,7 @@ export interface AppointmentRangeInput {
   calendarId?: string | null | undefined;
   appointmentTypeId?: string | null | undefined;
   clientId?: string | null | undefined;
-  status?: string | null | undefined;
+  status?: AppointmentStatus | null | undefined;
   cursor?: string | null | undefined;
   limit: number;
 }

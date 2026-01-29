@@ -287,7 +287,7 @@ export async function createAppointment(
     endAt: Date;
     clientId?: string;
     timezone?: string;
-    status?: "scheduled" | "confirmed" | "cancelled" | "no_show" | "completed";
+    status?: "scheduled" | "confirmed" | "cancelled" | "no_show";
     notes?: string;
   },
 ) {

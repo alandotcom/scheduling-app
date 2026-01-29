@@ -1,23 +1,14 @@
-// Appointments list page with filters, clickable rows, and context menus
+// Appointments page with split-pane layout and list/schedule toggle
 
-import { useState, useCallback } from "react";
-import { createFileRoute } from "@tanstack/react-router";
+import { useState, useCallback, useMemo } from "react";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import {
-  Add01Icon,
-  Cancel01Icon,
-  Clock01Icon,
-  CheckmarkCircle01Icon,
-  TimeScheduleIcon,
-  ViewIcon,
-} from "@hugeicons/core-free-icons";
-
+import { Add01Icon } from "@hugeicons/core-free-icons";
 import { toast } from "sonner";
+
 import { Icon } from "@/components/ui/icon";
 import { orpc } from "@/lib/query";
-
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -25,15 +16,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -49,63 +31,212 @@ import {
   FilterField,
   ActiveFilters,
 } from "@/components/filter-popover";
-import { ContextMenu, type ContextMenuItem } from "@/components/context-menu";
-import { AppointmentDrawer } from "@/components/appointment-drawer";
+import {
+  DetailPanel,
+  ListPanel,
+  SplitPaneLayout,
+} from "@/components/split-pane";
 import { AppointmentModal } from "@/components/appointment-modal";
-import { useKeyboardShortcuts } from "@/hooks/use-keyboard-shortcuts";
+import {
+  useKeyboardShortcuts,
+  useFocusZones,
+  useListNavigation,
+  FOCUS_ZONES,
+} from "@/hooks/use-keyboard-shortcuts";
+import { useValidateSelection } from "@/hooks/use-selection-search-params";
+import {
+  useScheduleAppointments,
+  getWeekStart,
+  formatDateParam,
+  parseDateParam,
+} from "@/hooks/use-schedule-appointments";
+import {
+  ViewToggle,
+  AppointmentsList,
+  AppointmentDetail,
+  ScheduleGrid,
+  type AppointmentListItem,
+  type AppointmentDetailData,
+} from "@/components/appointments";
 
-type AppointmentWithRelations = {
-  id: string;
-  startAt: string | Date;
-  endAt: string | Date;
-  timezone: string;
-  status: "scheduled" | "confirmed" | "cancelled" | "no_show";
-  notes: string | null;
-  calendar?: { id: string; name: string; timezone: string } | null;
-  appointmentType?: { id: string; name: string; durationMin: number } | null;
-  client?: {
-    id: string;
-    firstName: string;
-    lastName: string;
-    email: string | null;
-  } | null;
-};
+type ViewMode = "list" | "schedule";
+type DetailTabValue = "details" | "client";
+
+const isDetailTab = (value: string): value is DetailTabValue =>
+  value === "details" || value === "client";
 
 function AppointmentsPage() {
   const queryClient = useQueryClient();
+  const navigate = useNavigate({ from: Route.fullPath });
+  const {
+    selected,
+    tab,
+    view = "list",
+    date,
+    calendarId: urlCalendarId,
+    appointmentTypeId: urlAppointmentTypeId,
+    status: urlStatus,
+  } = Route.useSearch();
 
-  const [filters, setFilters] = useState({
-    calendarId: "",
-    appointmentTypeId: "",
-    status: "",
-    startDate: "",
-    endDate: "",
-  });
+  const selectedId = selected ?? null;
+  const activeTab: DetailTabValue = tab && isDetailTab(tab) ? tab : "details";
+  const detailOpen = !!selectedId;
+  const currentView: ViewMode = view;
 
+  // Parse date param for schedule view or default to current week
+  const weekStart = useMemo(() => {
+    if (date) {
+      const parsed = parseDateParam(date);
+      return getWeekStart(parsed);
+    }
+    return getWeekStart(new Date());
+  }, [date]);
+
+  // Confirmation dialogs
   const [cancellingId, setCancellingId] = useState<string | null>(null);
   const [noShowId, setNoShowId] = useState<string | null>(null);
-
-  // Drawer state
-  const [selectedAppointment, setSelectedAppointment] =
-    useState<AppointmentWithRelations | null>(null);
-  const [drawerOpen, setDrawerOpen] = useState(false);
-
-  // Modal state
   const [modalOpen, setModalOpen] = useState(false);
 
-  // Keyboard shortcut for new appointment
-  useKeyboardShortcuts({
-    shortcuts: [
-      {
-        key: ["meta+n", "ctrl+n"],
-        action: () => setModalOpen(true),
-        description: "New appointment",
-      },
-    ],
-  });
+  // Filters from URL
+  const filters = useMemo(
+    () => ({
+      calendarId: urlCalendarId ?? "",
+      appointmentTypeId: urlAppointmentTypeId ?? "",
+      status: urlStatus ?? "",
+    }),
+    [urlCalendarId, urlAppointmentTypeId, urlStatus],
+  );
 
-  // Fetch appointments with filters
-  const { data, isLoading, error } = useQuery(
+  // Navigation callbacks
+  const openDetails = useCallback(
+    (appointmentId: string, detailTab: DetailTabValue = "details") => {
+      navigate({
+        search: (prev) => ({
+          ...prev,
+          selected: appointmentId,
+          tab: detailTab,
+        }),
+      });
+    },
+    [navigate],
+  );
+
+  const clearDetails = useCallback(() => {
+    navigate({
+      search: (prev) => ({
+        ...prev,
+        selected: undefined,
+        tab: undefined,
+      }),
+    });
+  }, [navigate]);
+
+  const setActiveTab = useCallback(
+    (value: string) => {
+      if (!selectedId || !isDetailTab(value)) return;
+      navigate({
+        search: (prev) => ({
+          ...prev,
+          tab: value,
+        }),
+      });
+    },
+    [navigate, selectedId],
+  );
+
+  const setView = useCallback(
+    (newView: ViewMode) => {
+      navigate({
+        search: (prev) => ({
+          ...prev,
+          view: newView,
+          // Set date to current week start when switching to schedule
+          date:
+            newView === "schedule" && !prev.date
+              ? formatDateParam(getWeekStart(new Date()))
+              : prev.date,
+        }),
+      });
+    },
+    [navigate],
+  );
+
+  const setFilters = useCallback(
+    (newFilters: Partial<typeof filters>) => {
+      navigate({
+        search: (prev) => ({
+          ...prev,
+          calendarId: newFilters.calendarId ?? prev.calendarId,
+          appointmentTypeId:
+            newFilters.appointmentTypeId ?? prev.appointmentTypeId,
+          status: newFilters.status ?? prev.status,
+        }),
+      });
+    },
+    [navigate],
+  );
+
+  const clearFilter = useCallback(
+    (filterKey: keyof typeof filters) => {
+      navigate({
+        search: (prev) => ({
+          ...prev,
+          [filterKey]: undefined,
+        }),
+      });
+    },
+    [navigate],
+  );
+
+  const clearAllFilters = useCallback(() => {
+    navigate({
+      search: (prev) => ({
+        ...prev,
+        calendarId: undefined,
+        appointmentTypeId: undefined,
+        status: undefined,
+      }),
+    });
+  }, [navigate]);
+
+  // Week navigation for schedule view
+  const goToPreviousWeek = useCallback(() => {
+    const newStart = new Date(weekStart);
+    newStart.setDate(weekStart.getDate() - 7);
+    navigate({
+      search: (prev) => ({
+        ...prev,
+        date: formatDateParam(newStart),
+      }),
+    });
+  }, [navigate, weekStart]);
+
+  const goToNextWeek = useCallback(() => {
+    const newStart = new Date(weekStart);
+    newStart.setDate(weekStart.getDate() + 7);
+    navigate({
+      search: (prev) => ({
+        ...prev,
+        date: formatDateParam(newStart),
+      }),
+    });
+  }, [navigate, weekStart]);
+
+  const goToToday = useCallback(() => {
+    navigate({
+      search: (prev) => ({
+        ...prev,
+        date: formatDateParam(getWeekStart(new Date())),
+      }),
+    });
+  }, [navigate]);
+
+  // Fetch appointments for list view
+  const {
+    data: listData,
+    isLoading: listLoading,
+    error: listError,
+  } = useQuery(
     orpc.appointments.list.queryOptions({
       input: {
         limit: 50,
@@ -120,11 +251,21 @@ function AppointmentsPage() {
             | "cancelled"
             | "no_show",
         }),
-        ...(filters.startDate && { startDate: filters.startDate }),
-        ...(filters.endDate && { endDate: filters.endDate }),
       },
     }),
   );
+
+  // Fetch appointments for schedule view
+  const { appointments: scheduleAppointments, isLoading: scheduleLoading } =
+    useScheduleAppointments({
+      weekStart,
+      filters: {
+        calendarId: filters.calendarId || undefined,
+        appointmentTypeId: filters.appointmentTypeId || undefined,
+        status: filters.status || undefined,
+      },
+      enabled: currentView === "schedule",
+    });
 
   // Fetch calendars for filter
   const { data: calendarsData } = useQuery(
@@ -170,29 +311,104 @@ function AppointmentsPage() {
 
   const calendars = calendarsData?.items ?? [];
   const appointmentTypes = typesData?.items ?? [];
+  const listAppointments = (listData?.items ?? []) as AppointmentListItem[];
 
   const selectedCalendar = calendars.find((c) => c.id === filters.calendarId);
   const selectedType = appointmentTypes.find(
     (t) => t.id === filters.appointmentTypeId,
   );
 
-  const formatDateTime = (dateString: string | Date, includeDate = true) => {
-    const date = new Date(dateString);
-    if (includeDate) {
-      return date.toLocaleString("en-US", {
-        month: "short",
-        day: "numeric",
-        hour: "numeric",
-        minute: "2-digit",
-        hour12: true,
-      });
+  // Find selected appointment for detail panel
+  const selectedAppointment = useMemo(() => {
+    if (!selectedId) return null;
+
+    // Check list data first
+    const fromList = listAppointments.find((a) => a.id === selectedId);
+    if (fromList) return fromList as AppointmentDetailData;
+
+    // Then check schedule data
+    const fromSchedule = scheduleAppointments.find((a) => a.id === selectedId);
+    if (fromSchedule) return fromSchedule as unknown as AppointmentDetailData;
+
+    return null;
+  }, [selectedId, listAppointments, scheduleAppointments]);
+
+  // Validate selection
+  const allAppointments = useMemo(() => {
+    const ids = new Set<string>();
+    const result: Array<{ id: string }> = [];
+
+    for (const apt of listAppointments) {
+      if (!ids.has(apt.id)) {
+        ids.add(apt.id);
+        result.push({ id: apt.id });
+      }
     }
-    return date.toLocaleTimeString("en-US", {
-      hour: "numeric",
-      minute: "2-digit",
-      hour12: true,
-    });
-  };
+
+    for (const apt of scheduleAppointments) {
+      if (!ids.has(apt.id)) {
+        ids.add(apt.id);
+        result.push({ id: apt.id });
+      }
+    }
+
+    return result;
+  }, [listAppointments, scheduleAppointments]);
+
+  useValidateSelection(allAppointments, selectedId, clearDetails);
+
+  // Keyboard navigation for list
+  const selectedIndex = selectedId
+    ? listAppointments.findIndex((a) => a.id === selectedId)
+    : -1;
+
+  useListNavigation({
+    items: listAppointments,
+    selectedIndex,
+    onSelect: (index) => {
+      const apt = listAppointments[index];
+      if (apt) openDetails(apt.id, "details");
+    },
+    onOpen: (apt) => openDetails(apt.id, "details"),
+    enabled: currentView === "list",
+  });
+
+  // Focus zones
+  useFocusZones({
+    onEscape: clearDetails,
+    detailOpen,
+  });
+
+  // Keyboard shortcuts
+  useKeyboardShortcuts({
+    shortcuts: [
+      {
+        key: ["meta+n", "ctrl+n"],
+        action: () => setModalOpen(true),
+        description: "New appointment",
+      },
+      {
+        key: "v",
+        action: () => setView(currentView === "list" ? "schedule" : "list"),
+        description: "Toggle view",
+      },
+      {
+        key: "[",
+        action: goToPreviousWeek,
+        description: "Previous week",
+      },
+      {
+        key: "]",
+        action: goToNextWeek,
+        description: "Next week",
+      },
+      {
+        key: "t",
+        action: goToToday,
+        description: "Go to today",
+      },
+    ],
+  });
 
   const handleCancel = () => {
     if (!cancellingId) return;
@@ -204,114 +420,28 @@ function AppointmentsPage() {
     noShowMutation.mutate({ id: noShowId });
   };
 
-  const getStatusVariant = (status: string) => {
-    switch (status) {
-      case "scheduled":
-        return "secondary";
-      case "confirmed":
-        return "success";
-      case "cancelled":
-        return "destructive";
-      case "no_show":
-        return "warning";
-      default:
-        return "secondary";
-    }
-  };
-
-  const openDrawer = useCallback((appointment: AppointmentWithRelations) => {
-    setSelectedAppointment(appointment);
-    setDrawerOpen(true);
-  }, []);
-
-  const getContextMenuItems = useCallback(
-    (appointment: AppointmentWithRelations): ContextMenuItem[] => {
-      const items: ContextMenuItem[] = [
-        {
-          label: "View Details",
-          icon: ViewIcon,
-          onClick: () => openDrawer(appointment),
-        },
-      ];
-
-      if (
-        appointment.status === "scheduled" ||
-        appointment.status === "confirmed"
-      ) {
-        if (appointment.status === "scheduled") {
-          items.push({
-            label: "Confirm",
-            icon: CheckmarkCircle01Icon,
-            onClick: () => {
-              // Confirm logic would go here
-              toast.info("Confirm feature coming soon");
-            },
-          });
-        }
-
-        items.push({
-          label: "Reschedule",
-          icon: TimeScheduleIcon,
-          onClick: () => {
-            toast.info("Reschedule feature coming soon");
-          },
-        });
-
-        items.push({
-          label: "Mark No-Show",
-          icon: Clock01Icon,
-          onClick: () => setNoShowId(appointment.id),
-        });
-
-        items.push({
-          label: "Cancel",
-          icon: Cancel01Icon,
-          onClick: () => setCancellingId(appointment.id),
-          variant: "destructive",
-          separator: true,
-        });
-      }
-
-      return items;
-    },
-    [openDrawer],
-  );
-
-  // Calculate active filter count
+  // Active filter count and display
   const activeFilterCount = [
     filters.calendarId,
     filters.appointmentTypeId,
     filters.status,
-    filters.startDate,
-    filters.endDate,
   ].filter(Boolean).length;
 
-  // Build active filters display
-  const activeFilters = [
+  const activeFiltersDisplay = [
     filters.calendarId && {
       label: "Calendar",
       value: selectedCalendar?.name ?? "Unknown",
-      onRemove: () => setFilters((f) => ({ ...f, calendarId: "" })),
+      onRemove: () => clearFilter("calendarId"),
     },
     filters.appointmentTypeId && {
       label: "Type",
       value: selectedType?.name ?? "Unknown",
-      onRemove: () => setFilters((f) => ({ ...f, appointmentTypeId: "" })),
+      onRemove: () => clearFilter("appointmentTypeId"),
     },
     filters.status && {
       label: "Status",
       value: filters.status.replace("_", " "),
-      onRemove: () => setFilters((f) => ({ ...f, status: "" })),
-    },
-    filters.startDate && {
-      label: "From",
-      value: filters.startDate,
-      onRemove: () => setFilters((f) => ({ ...f, startDate: "" })),
-    },
-    filters.endDate && {
-      label: "To",
-      value: filters.endDate,
-      onRemove: () => setFilters((f) => ({ ...f, endDate: "" })),
+      onRemove: () => clearFilter("status"),
     },
   ].filter(Boolean) as Array<{
     label: string;
@@ -319,15 +449,19 @@ function AppointmentsPage() {
     onRemove: () => void;
   }>;
 
-  const clearAllFilters = () => {
-    setFilters({
-      calendarId: "",
-      appointmentTypeId: "",
-      status: "",
-      startDate: "",
-      endDate: "",
-    });
-  };
+  const handleSelectAppointment = useCallback(
+    (appointment: AppointmentListItem) => {
+      openDetails(appointment.id, "details");
+    },
+    [openDetails],
+  );
+
+  const handleSelectScheduleAppointment = useCallback(
+    (id: string) => {
+      openDetails(id, "details");
+    },
+    [openDetails],
+  );
 
   return (
     <div className="p-6">
@@ -340,10 +474,13 @@ function AppointmentsPage() {
             View and manage all appointments
           </p>
         </div>
-        <Button onClick={() => setModalOpen(true)}>
-          <Icon icon={Add01Icon} data-icon="inline-start" />
-          New Appointment
-        </Button>
+        <div className="flex items-center gap-3">
+          <ViewToggle view={currentView} onViewChange={setView} />
+          <Button onClick={() => setModalOpen(true)}>
+            <Icon icon={Add01Icon} data-icon="inline-start" />
+            New Appointment
+          </Button>
+        </div>
       </div>
 
       {/* Filters */}
@@ -357,10 +494,7 @@ function AppointmentsPage() {
               value={filters.calendarId || "all"}
               onValueChange={(value) =>
                 value &&
-                setFilters((f) => ({
-                  ...f,
-                  calendarId: value === "all" ? "" : value,
-                }))
+                setFilters({ calendarId: value === "all" ? "" : value })
               }
             >
               <SelectTrigger className="w-full">
@@ -384,10 +518,7 @@ function AppointmentsPage() {
               value={filters.appointmentTypeId || "all"}
               onValueChange={(value) =>
                 value &&
-                setFilters((f) => ({
-                  ...f,
-                  appointmentTypeId: value === "all" ? "" : value,
-                }))
+                setFilters({ appointmentTypeId: value === "all" ? "" : value })
               }
             >
               <SelectTrigger className="w-full">
@@ -410,11 +541,7 @@ function AppointmentsPage() {
             <Select
               value={filters.status || "all"}
               onValueChange={(value) =>
-                value &&
-                setFilters((f) => ({
-                  ...f,
-                  status: value === "all" ? "" : value,
-                }))
+                value && setFilters({ status: value === "all" ? "" : value })
               }
             >
               <SelectTrigger className="w-full">
@@ -438,116 +565,72 @@ function AppointmentsPage() {
               </SelectContent>
             </Select>
           </FilterField>
-
-          <FilterField label="From Date">
-            <Input
-              type="date"
-              value={filters.startDate}
-              onChange={(e) =>
-                setFilters((f) => ({ ...f, startDate: e.target.value }))
-              }
-            />
-          </FilterField>
-
-          <FilterField label="To Date">
-            <Input
-              type="date"
-              value={filters.endDate}
-              onChange={(e) =>
-                setFilters((f) => ({ ...f, endDate: e.target.value }))
-              }
-            />
-          </FilterField>
         </FilterPopover>
 
-        {activeFilters.length > 0 && <ActiveFilters filters={activeFilters} />}
-      </div>
-
-      {/* Appointments Table */}
-      <div className="mt-6">
-        {isLoading ? (
-          <div
-            className="text-center text-muted-foreground py-10"
-            role="status"
-            aria-live="polite"
-          >
-            Loading...
-          </div>
-        ) : error ? (
-          <div className="text-center text-destructive py-10">
-            Error loading appointments
-          </div>
-        ) : !data?.items.length ? (
-          <div className="rounded-xl border border-border/50 bg-card p-10 text-center text-muted-foreground shadow-sm">
-            No appointments found. Create your first appointment or adjust
-            filters.
-          </div>
-        ) : (
-          <div className="rounded-xl border border-border/50 overflow-hidden shadow-sm">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Date/Time</TableHead>
-                  <TableHead>Type</TableHead>
-                  <TableHead>Calendar</TableHead>
-                  <TableHead>Client</TableHead>
-                  <TableHead>Status</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {data.items.map((appointment) => (
-                  <ContextMenu
-                    key={appointment.id}
-                    items={getContextMenuItems(
-                      appointment as AppointmentWithRelations,
-                    )}
-                  >
-                    <TableRow
-                      className="cursor-pointer hover:bg-muted/50 transition-colors"
-                      onClick={() =>
-                        openDrawer(appointment as AppointmentWithRelations)
-                      }
-                    >
-                      <TableCell className="font-medium">
-                        <div>{formatDateTime(appointment.startAt)}</div>
-                        {appointment.appointmentType?.durationMin && (
-                          <div className="text-xs text-muted-foreground">
-                            {appointment.appointmentType.durationMin} min
-                          </div>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        {appointment.appointmentType?.name ?? "-"}
-                      </TableCell>
-                      <TableCell>{appointment.calendar?.name ?? "-"}</TableCell>
-                      <TableCell>
-                        {appointment.client
-                          ? `${appointment.client.firstName} ${appointment.client.lastName}`
-                          : "-"}
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant={getStatusVariant(appointment.status)}>
-                          {appointment.status.replace("_", " ")}
-                        </Badge>
-                      </TableCell>
-                    </TableRow>
-                  </ContextMenu>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
+        {activeFiltersDisplay.length > 0 && (
+          <ActiveFilters filters={activeFiltersDisplay} />
         )}
       </div>
 
-      {/* Appointment Drawer */}
-      <AppointmentDrawer
-        appointment={selectedAppointment}
-        open={drawerOpen}
-        onOpenChange={(open) => {
-          setDrawerOpen(open);
-          if (!open) setSelectedAppointment(null);
-        }}
-      />
+      {/* Main Content */}
+      <SplitPaneLayout className="mt-6 min-h-[600px]">
+        <ListPanel id={FOCUS_ZONES.LIST} className="flex flex-col">
+          {currentView === "list" ? (
+            <AppointmentsList
+              appointments={listAppointments}
+              selectedId={selectedId}
+              onSelect={handleSelectAppointment}
+              onCancel={setCancellingId}
+              onNoShow={setNoShowId}
+              isLoading={listLoading}
+            />
+          ) : (
+            <div className="rounded-xl border border-border/50 overflow-hidden shadow-sm flex-1">
+              <ScheduleGrid
+                appointments={scheduleAppointments}
+                weekStart={weekStart}
+                selectedId={selectedId}
+                onSelectAppointment={handleSelectScheduleAppointment}
+                onPreviousWeek={goToPreviousWeek}
+                onNextWeek={goToNextWeek}
+                onToday={goToToday}
+                isLoading={scheduleLoading}
+              />
+            </div>
+          )}
+
+          {listError && currentView === "list" && (
+            <div className="text-center text-destructive py-10">
+              Error loading appointments
+            </div>
+          )}
+        </ListPanel>
+
+        <DetailPanel
+          id={FOCUS_ZONES.DETAIL}
+          open={detailOpen}
+          onOpenChange={(open) => {
+            if (!open) clearDetails();
+          }}
+          sheetTitle={
+            selectedAppointment?.appointmentType?.name ?? "Appointment details"
+          }
+          sheetDescription={
+            selectedAppointment
+              ? `${new Date(selectedAppointment.startAt).toLocaleDateString()}`
+              : undefined
+          }
+          bodyClassName="p-0"
+        >
+          {detailOpen && (
+            <AppointmentDetail
+              appointment={selectedAppointment}
+              activeTab={activeTab}
+              onTabChange={setActiveTab}
+            />
+          )}
+        </DetailPanel>
+      </SplitPaneLayout>
 
       {/* Appointment Modal */}
       <AppointmentModal open={modalOpen} onOpenChange={setModalOpen} />
@@ -602,7 +685,7 @@ function AppointmentsPage() {
 
 interface AppointmentsSearchParams {
   selected?: string;
-  tab?: "details";
+  tab?: string;
   view?: "list" | "schedule";
   date?: string;
   calendarId?: string;
@@ -618,10 +701,7 @@ export const Route = createFileRoute("/_authenticated/appointments/")({
     return {
       selected:
         typeof search.selected === "string" ? search.selected : undefined,
-      tab:
-        typeof search.tab === "string" && search.tab === "details"
-          ? "details"
-          : undefined,
+      tab: typeof search.tab === "string" ? search.tab : undefined,
       view:
         typeof search.view === "string" &&
         (search.view === "list" || search.view === "schedule")

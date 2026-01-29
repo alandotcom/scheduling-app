@@ -9,6 +9,8 @@ import {
   listAppointmentsQuerySchema,
   appointmentTimeRangeQuerySchema,
   appointmentTimeRangeResponseSchema,
+  appointmentListResponseSchema,
+  appointmentWithRelationsSchema,
 } from "@scheduling/dto";
 import { authed } from "./base.js";
 import { appointmentService } from "../services/appointments.js";
@@ -19,6 +21,7 @@ const idInput = z.object({ id: z.string().uuid() });
 export const list = authed
   .route({ method: "GET", path: "/appointments" })
   .input(listAppointmentsQuerySchema)
+  .output(appointmentListResponseSchema)
   .handler(async ({ input, context }) => {
     return appointmentService.list(input, {
       orgId: context.orgId,
@@ -54,6 +57,7 @@ export const range = authed
 export const get = authed
   .route({ method: "GET", path: "/appointments/{id}" })
   .input(idInput)
+  .output(appointmentWithRelationsSchema)
   .handler(async ({ input, context }) => {
     return appointmentService.get(input.id, {
       orgId: context.orgId,

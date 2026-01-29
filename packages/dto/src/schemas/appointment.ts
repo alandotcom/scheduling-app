@@ -151,6 +151,13 @@ export const appointmentWithRelationsSchema = appointmentSchema.extend({
     .nullable(),
 });
 
+// List appointments response
+export const appointmentListResponseSchema = z.object({
+  items: z.array(appointmentWithRelationsSchema),
+  nextCursor: uuidSchema.nullable(),
+  hasMore: z.boolean(),
+});
+
 // Inferred types
 export type AppointmentStatus = z.infer<typeof appointmentStatusSchema>;
 export type Appointment = z.infer<typeof appointmentSchema>;
@@ -177,4 +184,7 @@ export type AppointmentConflict = z.infer<typeof appointmentConflictSchema>;
 export type AppointmentResponse = z.infer<typeof appointmentResponseSchema>;
 export type AppointmentWithRelations = z.infer<
   typeof appointmentWithRelationsSchema
+>;
+export type AppointmentListResponse = z.infer<
+  typeof appointmentListResponseSchema
 >;

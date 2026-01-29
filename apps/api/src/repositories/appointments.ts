@@ -10,6 +10,7 @@ import {
   appointmentTypeCalendars,
   appointmentTypeResources,
   resources,
+  appointmentStatusEnum,
 } from "@scheduling/db/schema";
 import type { PaginationInput, PaginatedResult } from "./base.js";
 import type { DbClient } from "../lib/db.js";
@@ -18,6 +19,8 @@ import { setOrgContext } from "./base.js";
 // Types inferred from schema
 export type Appointment = typeof appointments.$inferSelect;
 export type AppointmentInsert = typeof appointments.$inferInsert;
+export type AppointmentStatus =
+  (typeof appointmentStatusEnum.enumValues)[number];
 
 export interface AppointmentCreateInput {
   calendarId: string;
@@ -26,7 +29,7 @@ export interface AppointmentCreateInput {
   startAt: Date;
   endAt: Date;
   timezone: string;
-  status: string;
+  status: AppointmentStatus;
   notes?: string | null | undefined;
 }
 
@@ -45,7 +48,7 @@ export interface AppointmentListInput extends PaginationInput {
   calendarId?: string | null | undefined;
   appointmentTypeId?: string | null | undefined;
   clientId?: string | null | undefined;
-  status?: string | null | undefined;
+  status?: AppointmentStatus | null | undefined;
   startDate?: string | null | undefined;
   endDate?: string | null | undefined;
   startAt?: Date | null | undefined;

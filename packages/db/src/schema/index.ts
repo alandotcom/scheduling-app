@@ -1,6 +1,7 @@
 import {
   pgTable,
   pgPolicy,
+  pgEnum,
   uuid,
   text,
   timestamp,
@@ -11,6 +12,17 @@ import {
   uniqueIndex,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
+
+// ============================================================================
+// ENUMS
+// ============================================================================
+
+export const appointmentStatusEnum = pgEnum("appointment_status", [
+  "scheduled",
+  "confirmed",
+  "cancelled",
+  "no_show",
+]);
 
 // Common column helpers using Postgres 18 native uuidv7()
 const id = uuid("id").primaryKey().default(sql`uuidv7()`);
@@ -233,7 +245,7 @@ export const appointments = pgTable.withRLS(
     startAt: timestamp("start_at", { withTimezone: true }).notNull(),
     endAt: timestamp("end_at", { withTimezone: true }).notNull(),
     timezone: text("timezone").notNull(),
-    status: text("status").notNull(), // 'scheduled' | 'confirmed' | 'cancelled' | 'no_show'
+    status: appointmentStatusEnum("status").notNull(),
     notes: text("notes"),
     ...timestamps,
   },

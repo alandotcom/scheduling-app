@@ -345,7 +345,7 @@ export function ClientDrawer({
                             </div>
                             <Badge
                               variant={
-                                apt.status === "completed"
+                                apt.status === "confirmed"
                                   ? "success"
                                   : apt.status === "cancelled" ||
                                       apt.status === "no_show"

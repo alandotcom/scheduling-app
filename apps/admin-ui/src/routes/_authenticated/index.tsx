@@ -82,9 +82,9 @@ function Dashboard() {
     (a, b) => new Date(a.startAt).getTime() - new Date(b.startAt).getTime(),
   );
 
-  // Get pending appointments (not yet confirmed)
+  // Get scheduled appointments (not yet confirmed)
   const pendingAppointments =
-    weekAppointments?.items.filter((apt) => apt.status === "pending") ?? [];
+    weekAppointments?.items.filter((apt) => apt.status === "scheduled") ?? [];
 
   // Get no-shows from this week
   const noShows =
