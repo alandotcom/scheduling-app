@@ -14,17 +14,14 @@ export interface ScheduleAppointment {
   id: string;
   startAt: Date;
   endAt: Date;
-  timezone: string;
+  calendarId: string;
+  calendarColor?: string | null;
   status: "scheduled" | "confirmed" | "cancelled" | "no_show";
-  notes: string | null;
-  calendar?: { id: string; name: string; timezone: string } | null;
-  appointmentType?: { id: string; name: string; durationMin: number } | null;
-  client?: {
-    id: string;
-    firstName: string;
-    lastName: string;
-    email: string | null;
-  } | null;
+  clientName: string | null;
+  appointmentTypeName: string | null;
+  locationName: string | null;
+  hasNotes: boolean;
+  resourceSummary: string | null;
 }
 
 interface UseScheduleAppointmentsOptions {
@@ -73,7 +70,7 @@ export function useScheduleAppointments({
   );
 
   const { data, isLoading, error, refetch } = useQuery({
-    ...orpc.appointments.list.queryOptions({ input }),
+    ...orpc.appointments.range.queryOptions({ input }),
     enabled,
   });
 
@@ -84,12 +81,14 @@ export function useScheduleAppointments({
       id: item.id,
       startAt: new Date(item.startAt),
       endAt: new Date(item.endAt),
-      timezone: item.timezone,
+      calendarId: item.calendarId,
+      calendarColor: item.calendarColor,
       status: item.status,
-      notes: item.notes,
-      calendar: item.calendar ?? null,
-      appointmentType: item.appointmentType ?? null,
-      client: item.client ?? null,
+      clientName: item.clientName,
+      appointmentTypeName: item.appointmentTypeName,
+      locationName: item.locationName,
+      hasNotes: item.hasNotes,
+      resourceSummary: item.resourceSummary,
     }));
   }, [data?.items]);
 

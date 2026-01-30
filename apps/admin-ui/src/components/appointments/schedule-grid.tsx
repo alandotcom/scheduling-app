@@ -237,10 +237,6 @@ export function ScheduleGrid({
 
                     if (height <= 0) return null;
 
-                    const clientName = apt.client
-                      ? `${apt.client.firstName} ${apt.client.lastName}`
-                      : null;
-
                     return (
                       <ScheduleEvent
                         key={apt.id}
@@ -248,8 +244,8 @@ export function ScheduleGrid({
                         startAt={startDate}
                         endAt={endDate}
                         status={apt.status}
-                        clientName={clientName}
-                        appointmentTypeName={apt.appointmentType?.name}
+                        clientName={apt.clientName}
+                        appointmentTypeName={apt.appointmentTypeName}
                         isSelected={apt.id === selectedId}
                         onClick={() => onSelectAppointment(apt.id)}
                         top={top}
