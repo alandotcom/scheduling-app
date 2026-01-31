@@ -1,6 +1,6 @@
 // Appointment Types management page with clickable rows and context menus
 
-import { useCallback, useMemo } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
@@ -18,7 +18,6 @@ import { Icon } from "@/components/ui/icon";
 import { orpc } from "@/lib/query";
 import { createAppointmentTypeSchema } from "@scheduling/dto";
 import type { CreateAppointmentTypeInput } from "@scheduling/dto";
-import { useCrudState } from "@/hooks/use-crud-state";
 import { useAppointmentTypeMutations } from "@/hooks/use-appointment-type-mutations";
 import { DeleteConfirmDialog } from "@/components/delete-confirm-dialog";
 import { ContextMenu, type ContextMenuItem } from "@/components/context-menu";
@@ -189,14 +188,21 @@ function AppointmentTypeForm({
 }
 
 function AppointmentTypesPage() {
-  const crud = useCrudState<AppointmentTypeItem>();
-
-  // URL-driven drawer state
+  // URL-driven state for all UI modes
   const navigate = useNavigate({ from: Route.fullPath });
-  const { selected, tab } = Route.useSearch();
+  const { mode, id, selected, tab } = Route.useSearch();
+
+  // Derived state from URL
+  const isCreating = mode === "create";
+  const editingId = mode === "edit" ? id : null;
+
+  // Drawer state from URL
   const selectedId = selected ?? null;
   const activeTab: DetailTabValue = tab ?? "details";
   const drawerOpen = !!selectedId;
+
+  // Delete uses local state (modal confirmation doesn't need URL persistence)
+  const [deletingItemId, setDeletingItemId] = useState<string | null>(null);
 
   // Fetch appointment types
   const { data, isLoading, error } = useQuery(
@@ -214,42 +220,62 @@ function AppointmentTypesPage() {
     [data?.items, selectedId],
   );
 
-  // Navigation helpers for URL-driven drawer state
+  // Derive editing item from data
+  const editingItem = useMemo(
+    () =>
+      editingId
+        ? ((data?.items.find((t) => t.id === editingId) as
+            | AppointmentTypeItem
+            | undefined) ?? null)
+        : null,
+    [data?.items, editingId],
+  );
+
+  // URL navigation helpers
+  const openCreate = useCallback(() => {
+    navigate({ search: { mode: "create" } });
+  }, [navigate]);
+
+  const closeCreate = useCallback(() => {
+    navigate({ search: {} });
+  }, [navigate]);
+
+  const openEdit = useCallback(
+    (typeId: string) => {
+      navigate({ search: { mode: "edit", id: typeId } });
+    },
+    [navigate],
+  );
+
+  const closeEdit = useCallback(() => {
+    navigate({ search: {} });
+  }, [navigate]);
+
   const openDetails = useCallback(
     (typeId: string, newTab: DetailTabValue = "details") => {
       navigate({
-        search: (prev) => ({
-          ...prev,
-          selected: typeId,
-          tab: newTab,
-        }),
+        search: { selected: typeId, tab: newTab },
       });
     },
     [navigate],
   );
 
   const closeDetails = useCallback(() => {
-    navigate({
-      search: () => ({
-        selected: undefined,
-        tab: undefined,
-      }),
-    });
+    navigate({ search: {} });
   }, [navigate]);
 
   const setActiveTabUrl = useCallback(
     (value: string) => {
       if (!selectedId || !isDetailTab(value)) return;
       navigate({
-        search: (prev) => ({
-          ...prev,
-          selected: selectedId,
-          tab: value,
-        }),
+        search: { selected: selectedId, tab: value },
       });
     },
     [navigate, selectedId],
   );
+
+  // Computed state
+  const isFormOpen = isCreating || !!editingItem;
 
   // All mutations via custom hook
   const {
@@ -262,10 +288,10 @@ function AppointmentTypesPage() {
     updateResourceMutation,
     removeResourceMutation,
   } = useAppointmentTypeMutations({
-    onCreateSuccess: crud.closeCreate,
-    onUpdateSuccess: crud.closeEdit,
+    onCreateSuccess: closeCreate,
+    onUpdateSuccess: closeEdit,
     onDeleteSuccess: () => {
-      crud.closeDelete();
+      setDeletingItemId(null);
       closeDetails();
     },
   });
@@ -275,16 +301,16 @@ function AppointmentTypesPage() {
   };
 
   const handleUpdate = (formData: CreateAppointmentTypeInput) => {
-    if (!crud.editingItem) return;
+    if (!editingItem) return;
     updateMutation.mutate({
-      id: crud.editingItem.id,
+      id: editingItem.id,
       data: formData,
     });
   };
 
   const handleDelete = () => {
-    if (!crud.deletingItemId) return;
-    deleteMutation.mutate({ id: crud.deletingItemId });
+    if (!deletingItemId) return;
+    deleteMutation.mutate({ id: deletingItemId });
   };
 
   // Handlers for tab components
@@ -364,26 +390,17 @@ function AppointmentTypesPage() {
       {
         label: "Edit",
         icon: PencilEdit01Icon,
-        onClick: () =>
-          crud.openEdit({
-            id: type.id,
-            name: type.name,
-            durationMin: type.durationMin,
-            paddingBeforeMin: type.paddingBeforeMin ?? undefined,
-            paddingAfterMin: type.paddingAfterMin ?? undefined,
-            capacity: type.capacity ?? undefined,
-            createdAt: type.createdAt,
-          }),
+        onClick: () => openEdit(type.id),
       },
       {
         label: "Delete",
         icon: Delete01Icon,
-        onClick: () => crud.openDelete(type.id),
+        onClick: () => setDeletingItemId(type.id),
         variant: "destructive",
         separator: true,
       },
     ],
-    [openDetails, crud],
+    [openDetails, openEdit],
   );
 
   return (
@@ -397,8 +414,8 @@ function AppointmentTypesPage() {
             Configure the types of appointments that can be booked
           </p>
         </div>
-        {!crud.isFormOpen && (
-          <Button onClick={crud.openCreate}>
+        {!isFormOpen && (
+          <Button onClick={openCreate}>
             <Icon icon={Add01Icon} data-icon="inline-start" />
             Add Type
           </Button>
@@ -406,35 +423,35 @@ function AppointmentTypesPage() {
       </div>
 
       {/* Create Form */}
-      {crud.showCreateForm && (
+      {isCreating && (
         <div className="mt-6 rounded-xl border border-border/50 bg-card p-6 shadow-sm">
           <h2 className="mb-5 text-lg font-semibold tracking-tight">
             New Appointment Type
           </h2>
           <AppointmentTypeForm
             onSubmit={handleCreate}
-            onCancel={crud.closeCreate}
+            onCancel={closeCreate}
             isSubmitting={createMutation.isPending}
           />
         </div>
       )}
 
       {/* Edit Form */}
-      {crud.editingItem && (
+      {editingItem && (
         <div className="mt-6 rounded-xl border border-border/50 bg-card p-6 shadow-sm">
           <h2 className="mb-5 text-lg font-semibold tracking-tight">
             Edit Appointment Type
           </h2>
           <AppointmentTypeForm
             defaultValues={{
-              name: crud.editingItem.name,
-              durationMin: crud.editingItem.durationMin,
-              paddingBeforeMin: crud.editingItem.paddingBeforeMin ?? undefined,
-              paddingAfterMin: crud.editingItem.paddingAfterMin ?? undefined,
-              capacity: crud.editingItem.capacity ?? undefined,
+              name: editingItem.name,
+              durationMin: editingItem.durationMin,
+              paddingBeforeMin: editingItem.paddingBeforeMin ?? undefined,
+              paddingAfterMin: editingItem.paddingAfterMin ?? undefined,
+              capacity: editingItem.capacity ?? undefined,
             }}
             onSubmit={handleUpdate}
-            onCancel={crud.closeEdit}
+            onCancel={closeEdit}
             isSubmitting={updateMutation.isPending}
           />
         </div>
@@ -584,17 +601,7 @@ function AppointmentTypesPage() {
               size="sm"
               onClick={() => {
                 if (selectedType) {
-                  crud.openEdit({
-                    id: selectedType.id,
-                    name: selectedType.name,
-                    durationMin: selectedType.durationMin,
-                    paddingBeforeMin:
-                      selectedType.paddingBeforeMin ?? undefined,
-                    paddingAfterMin: selectedType.paddingAfterMin ?? undefined,
-                    capacity: selectedType.capacity ?? undefined,
-                    createdAt: selectedType.createdAt,
-                  });
-                  closeDetails();
+                  openEdit(selectedType.id);
                 }
               }}
             >
@@ -606,7 +613,7 @@ function AppointmentTypesPage() {
               size="sm"
               onClick={() => {
                 if (selectedType) {
-                  crud.openDelete(selectedType.id);
+                  setDeletingItemId(selectedType.id);
                   closeDetails();
                 }
               }}
@@ -620,8 +627,10 @@ function AppointmentTypesPage() {
 
       {/* Delete Confirmation */}
       <DeleteConfirmDialog
-        open={!!crud.deletingItemId}
-        onOpenChange={crud.closeDelete}
+        open={!!deletingItemId}
+        onOpenChange={(open) => {
+          if (!open) setDeletingItemId(null);
+        }}
         onConfirm={handleDelete}
         title="Delete Appointment Type"
         description="Are you sure you want to delete this appointment type? This action cannot be undone."
@@ -632,19 +641,31 @@ function AppointmentTypesPage() {
 }
 
 type DetailTabValue = "details" | "calendars" | "resources";
+type ModeValue = "create" | "edit";
 
 const isDetailTab = (value: string): value is DetailTabValue =>
   value === "details" || value === "calendars" || value === "resources";
 
+const isMode = (value: string): value is ModeValue =>
+  value === "create" || value === "edit";
+
+interface SearchParams {
+  mode?: ModeValue;
+  id?: string;
+  selected?: string;
+  tab?: DetailTabValue;
+}
+
 export const Route = createFileRoute("/_authenticated/appointment-types/")({
-  validateSearch: (
-    search: Record<string, unknown>,
-  ): { selected?: string; tab?: DetailTabValue } => {
+  validateSearch: (search: Record<string, unknown>): SearchParams => {
+    const rawMode = typeof search.mode === "string" ? search.mode : "";
+    const mode = isMode(rawMode) ? rawMode : undefined;
+    const id = typeof search.id === "string" ? search.id : undefined;
     const selected =
       typeof search.selected === "string" ? search.selected : undefined;
     const rawTab = typeof search.tab === "string" ? search.tab : "";
     const tab = isDetailTab(rawTab) ? rawTab : undefined;
-    return { selected, tab };
+    return { mode, id, selected, tab };
   },
   component: AppointmentTypesPage,
 });

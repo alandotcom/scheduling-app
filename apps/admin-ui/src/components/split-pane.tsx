@@ -8,6 +8,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
+import { TabsContext, useTabs } from "@/components/drawer";
 
 function useMediaQuery(query: string) {
   const [matches, setMatches] = React.useState(() => {
@@ -145,38 +146,38 @@ export function DetailTabs({
   children,
   className,
 }: DetailTabsProps) {
+  const contextValue = React.useMemo(
+    () => ({ value, onValueChange }),
+    [value, onValueChange],
+  );
+
   return (
-    <div
-      className={cn("flex gap-1 border-b border-border/50 px-6", className)}
-      role="tablist"
-    >
-      {React.Children.map(children, (child) => {
-        if (React.isValidElement<DetailTabProps>(child)) {
-          return React.cloneElement(child, {
-            isActive: child.props.value === value,
-            onClick: () => onValueChange(child.props.value),
-          });
-        }
-        return child;
-      })}
-    </div>
+    <TabsContext.Provider value={contextValue}>
+      <div
+        className={cn("flex gap-1 border-b border-border/50 px-6", className)}
+        role="tablist"
+      >
+        {children}
+      </div>
+    </TabsContext.Provider>
   );
 }
 
 interface DetailTabProps {
   value: string;
   children: React.ReactNode;
-  isActive?: boolean;
-  onClick?: () => void;
 }
 
-export function DetailTab({ children, isActive, onClick }: DetailTabProps) {
+export function DetailTab({ value, children }: DetailTabProps) {
+  const { value: activeValue, onValueChange } = useTabs();
+  const isActive = value === activeValue;
+
   return (
     <button
       type="button"
       role="tab"
       aria-selected={isActive}
-      onClick={onClick}
+      onClick={() => onValueChange(value)}
       className={cn(
         "relative px-3 py-2.5 text-sm font-medium transition-colors",
         "hover:text-foreground",

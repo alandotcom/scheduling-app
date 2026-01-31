@@ -160,6 +160,22 @@ export function DrawerFooter({ children, className }: DrawerFooterProps) {
   );
 }
 
+// Tabs context for DrawerTabs (shared with split-pane.tsx)
+interface TabsContextValue {
+  value: string;
+  onValueChange: (value: string) => void;
+}
+
+export const TabsContext = React.createContext<TabsContextValue | null>(null);
+
+export function useTabs() {
+  const ctx = React.useContext(TabsContext);
+  if (!ctx) {
+    throw new Error("Tab must be used within Tabs");
+  }
+  return ctx;
+}
+
 // Tabs within drawer
 interface DrawerTabsProps {
   value: string;
@@ -174,38 +190,38 @@ export function DrawerTabs({
   children,
   className,
 }: DrawerTabsProps) {
+  const contextValue = React.useMemo(
+    () => ({ value, onValueChange }),
+    [value, onValueChange],
+  );
+
   return (
-    <div
-      className={cn("flex gap-1 border-b border-border/50 px-6", className)}
-      role="tablist"
-    >
-      {React.Children.map(children, (child) => {
-        if (React.isValidElement<DrawerTabProps>(child)) {
-          return React.cloneElement(child, {
-            isActive: child.props.value === value,
-            onClick: () => onValueChange(child.props.value),
-          });
-        }
-        return child;
-      })}
-    </div>
+    <TabsContext.Provider value={contextValue}>
+      <div
+        className={cn("flex gap-1 border-b border-border/50 px-6", className)}
+        role="tablist"
+      >
+        {children}
+      </div>
+    </TabsContext.Provider>
   );
 }
 
 interface DrawerTabProps {
   value: string;
   children: React.ReactNode;
-  isActive?: boolean;
-  onClick?: () => void;
 }
 
-export function DrawerTab({ children, isActive, onClick }: DrawerTabProps) {
+export function DrawerTab({ value, children }: DrawerTabProps) {
+  const { value: activeValue, onValueChange } = useTabs();
+  const isActive = value === activeValue;
+
   return (
     <button
       type="button"
       role="tab"
       aria-selected={isActive}
-      onClick={onClick}
+      onClick={() => onValueChange(value)}
       className={cn(
         "relative px-3 py-2.5 text-sm font-medium transition-colors",
         "hover:text-foreground",
