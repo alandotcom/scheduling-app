@@ -1,6 +1,6 @@
 // Calendars management page with drawer and context menus
 
-import { useCallback, useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
@@ -8,8 +8,6 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import {
   Add01Icon,
   ArrowRight02Icon,
-  Calendar03Icon,
-  CheckmarkCircle01Icon,
   PencilEdit01Icon,
   Delete01Icon,
   Clock01Icon,
@@ -59,6 +57,13 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
+import {
+  AvailabilitySubTabs,
+  WeeklyScheduleEditor,
+  DateOverridesEditor,
+  BlockedTimeEditor,
+  type AvailabilitySubTabType,
+} from "@/components/availability";
 
 interface CalendarItem {
   id: string;
@@ -84,8 +89,6 @@ type DetailTabValue = "details" | "availability" | "appointments";
 
 const isDetailTab = (value: string): value is DetailTabValue =>
   value === "details" || value === "availability" || value === "appointments";
-
-const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 function CalendarForm({
   defaultValues,
@@ -204,6 +207,8 @@ function CalendarsPage() {
   const selectedId = selected ?? null;
   const activeTab: DetailTabValue = tab ?? "details";
   const detailOpen = !!selectedId;
+  const [availabilitySubTab, setAvailabilitySubTab] =
+    useState<AvailabilitySubTabType>("weekly");
 
   // Fetch calendars (moved up for keyboard navigation)
   const { data, isLoading, error } = useQuery(
@@ -282,13 +287,6 @@ function CalendarsPage() {
     }),
   );
 
-  const { data: availabilityData } = useQuery({
-    ...orpc.availability.rules.list.queryOptions({
-      input: { calendarId: selectedId ?? "", limit: 100 },
-    }),
-    enabled: !!selectedId,
-  });
-
   const { data: appointmentsData } = useQuery({
     ...orpc.appointments.list.queryOptions({
       input: {
@@ -347,7 +345,6 @@ function CalendarsPage() {
   );
 
   const locations = locationsData?.items ?? [];
-  const availabilityRules = availabilityData?.items ?? [];
   const appointments = appointmentsData?.items ?? [];
   const selectedCalendar =
     data?.items.find((calendar) => calendar.id === selectedId) ?? null;
@@ -413,17 +410,6 @@ function CalendarsPage() {
   const selectedDetailLocation = locations.find(
     (location) => location.id === detailLocationId,
   );
-
-  const weekdayAvailability = WEEKDAYS.map((day, index) => {
-    const rules = availabilityRules.filter((rule) => rule.weekday === index);
-    if (rules.length === 0)
-      return { day, available: false, times: [] as string[] };
-    return {
-      day,
-      available: true,
-      times: rules.map((rule) => `${rule.startTime}-${rule.endTime}`),
-    };
-  });
 
   const formatDateTime = (dateString: string | Date) => {
     const date = new Date(dateString);
@@ -627,32 +613,21 @@ function CalendarsPage() {
                       .join(" · ")}
                   </p>
                 </div>
-                <div className="flex items-center gap-2">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() =>
-                      crud.openEdit({
-                        id: selectedCalendar.id,
-                        name: selectedCalendar.name,
-                        timezone: selectedCalendar.timezone,
-                        locationId: selectedCalendar.locationId ?? undefined,
-                        createdAt: selectedCalendar.createdAt,
-                      })
-                    }
-                  >
-                    Edit
-                  </Button>
-                  <Button size="sm" asChild>
-                    <Link
-                      to="/calendars/$calendarId/availability"
-                      params={{ calendarId: selectedCalendar.id }}
-                    >
-                      Manage Availability
-                      <Icon icon={ArrowRight02Icon} data-icon="inline-end" />
-                    </Link>
-                  </Button>
-                </div>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() =>
+                    crud.openEdit({
+                      id: selectedCalendar.id,
+                      name: selectedCalendar.name,
+                      timezone: selectedCalendar.timezone,
+                      locationId: selectedCalendar.locationId ?? undefined,
+                      createdAt: selectedCalendar.createdAt,
+                    })
+                  }
+                >
+                  Edit
+                </Button>
               </div>
 
               <DetailTabs
@@ -764,88 +739,30 @@ function CalendarsPage() {
                 )}
 
                 {activeTab === "availability" && (
-                  <div className="space-y-6">
-                    <div>
-                      <div className="flex items-center justify-between mb-3">
-                        <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
-                          Weekly Hours
-                        </h3>
-                        <Button variant="ghost" size="sm" asChild>
-                          <Link
-                            to="/calendars/$calendarId/availability"
-                            params={{ calendarId: selectedCalendar.id }}
-                          >
-                            Edit
-                            <Icon
-                              icon={ArrowRight02Icon}
-                              data-icon="inline-end"
-                            />
-                          </Link>
-                        </Button>
-                      </div>
-                      <div className="rounded-lg border border-border/50 divide-y divide-border/50">
-                        {weekdayAvailability.map((day) => (
-                          <div
-                            key={day.day}
-                            className="flex items-center justify-between px-4 py-2.5"
-                          >
-                            <span className="text-sm font-medium w-12">
-                              {day.day}
-                            </span>
-                            {day.available ? (
-                              <div className="flex items-center gap-2 text-sm">
-                                <Icon
-                                  icon={CheckmarkCircle01Icon}
-                                  className="text-green-600 size-4"
-                                />
-                                <span>{day.times.join(", ")}</span>
-                              </div>
-                            ) : (
-                              <span className="text-sm text-muted-foreground">
-                                Unavailable
-                              </span>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
+                  <div className="space-y-4">
+                    <AvailabilitySubTabs
+                      value={availabilitySubTab}
+                      onChange={setAvailabilitySubTab}
+                    />
 
-                    <div className="space-y-2">
-                      <Button
-                        variant="outline"
-                        className="w-full justify-between"
-                        asChild
-                      >
-                        <Link
-                          to="/calendars/$calendarId/availability"
-                          params={{ calendarId: selectedCalendar.id }}
-                          search={{ tab: "overrides" }}
-                        >
-                          <div className="flex items-center gap-2">
-                            <Icon icon={Calendar03Icon} />
-                            <span>Date Overrides</span>
-                          </div>
-                          <Icon icon={ArrowRight02Icon} />
-                        </Link>
-                      </Button>
-                      <Button
-                        variant="outline"
-                        className="w-full justify-between"
-                        asChild
-                      >
-                        <Link
-                          to="/calendars/$calendarId/availability"
-                          params={{ calendarId: selectedCalendar.id }}
-                          search={{ tab: "blocked" }}
-                        >
-                          <div className="flex items-center gap-2">
-                            <Icon icon={Clock01Icon} />
-                            <span>Blocked Time</span>
-                          </div>
-                          <Icon icon={ArrowRight02Icon} />
-                        </Link>
-                      </Button>
-                    </div>
+                    {availabilitySubTab === "weekly" && (
+                      <WeeklyScheduleEditor
+                        calendarId={selectedCalendar.id}
+                        compact
+                      />
+                    )}
+                    {availabilitySubTab === "overrides" && (
+                      <DateOverridesEditor
+                        calendarId={selectedCalendar.id}
+                        compact
+                      />
+                    )}
+                    {availabilitySubTab === "blocked" && (
+                      <BlockedTimeEditor
+                        calendarId={selectedCalendar.id}
+                        compact
+                      />
+                    )}
                   </div>
                 )}
 
