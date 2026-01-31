@@ -95,16 +95,9 @@ export function CommandPalette({ onCreateAppointment }: CommandPaletteProps) {
               )}
             </Command.Group>
 
-            {/* Navigation */}
-            <Command.Group heading="Navigation" className="px-2 py-1.5">
-              <CommandGroupHeading>Navigation</CommandGroupHeading>
-              <CommandItem
-                onSelect={() => runCommand(() => void navigate({ to: "/" }))}
-                icon={Calendar03Icon}
-                shortcut="g d"
-              >
-                Go to Dashboard
-              </CommandItem>
+            {/* Work */}
+            <Command.Group heading="Work" className="px-2 py-1.5">
+              <CommandGroupHeading>Work</CommandGroupHeading>
               <CommandItem
                 onSelect={() =>
                   runCommand(
@@ -116,6 +109,27 @@ export function CommandPalette({ onCreateAppointment }: CommandPaletteProps) {
               >
                 Go to Appointments
               </CommandItem>
+            </Command.Group>
+
+            {/* People */}
+            <Command.Group heading="People" className="px-2 py-1.5">
+              <CommandGroupHeading>People</CommandGroupHeading>
+              <CommandItem
+                onSelect={() =>
+                  runCommand(
+                    () => void navigate({ to: "/clients", search: {} }),
+                  )
+                }
+                icon={UserGroup02Icon}
+                shortcut="g u"
+              >
+                Go to Clients
+              </CommandItem>
+            </Command.Group>
+
+            {/* Setup */}
+            <Command.Group heading="Setup" className="px-2 py-1.5">
+              <CommandGroupHeading>Setup</CommandGroupHeading>
               <CommandItem
                 onSelect={() =>
                   runCommand(
@@ -142,17 +156,6 @@ export function CommandPalette({ onCreateAppointment }: CommandPaletteProps) {
               <CommandItem
                 onSelect={() =>
                   runCommand(
-                    () => void navigate({ to: "/locations", search: {} }),
-                  )
-                }
-                icon={Location01Icon}
-                shortcut="g l"
-              >
-                Go to Locations
-              </CommandItem>
-              <CommandItem
-                onSelect={() =>
-                  runCommand(
                     () => void navigate({ to: "/resources", search: {} }),
                   )
                 }
@@ -164,14 +167,19 @@ export function CommandPalette({ onCreateAppointment }: CommandPaletteProps) {
               <CommandItem
                 onSelect={() =>
                   runCommand(
-                    () => void navigate({ to: "/clients", search: {} }),
+                    () => void navigate({ to: "/locations", search: {} }),
                   )
                 }
-                icon={UserGroup02Icon}
-                shortcut="g u"
+                icon={Location01Icon}
+                shortcut="g l"
               >
-                Go to Clients
+                Go to Locations
               </CommandItem>
+            </Command.Group>
+
+            {/* System */}
+            <Command.Group heading="System" className="px-2 py-1.5">
+              <CommandGroupHeading>System</CommandGroupHeading>
               <CommandItem
                 onSelect={() =>
                   runCommand(() => void navigate({ to: "/settings" }))

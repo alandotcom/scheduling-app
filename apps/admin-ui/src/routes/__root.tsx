@@ -55,19 +55,34 @@ function RootLayout() {
     );
   }
 
-  const navItems = [
-    { to: "/", icon: Calendar03Icon, label: "Dashboard" },
-    { to: "/appointments", icon: Clock01Icon, label: "Appointments" },
-    { to: "/calendars", icon: Calendar03Icon, label: "Calendars" },
+  const navGroups = [
     {
-      to: "/appointment-types",
-      icon: Layers01Icon,
-      label: "Appointment Types",
+      label: "WORK",
+      items: [
+        { to: "/appointments", icon: Clock01Icon, label: "Appointments" },
+      ],
     },
-    { to: "/locations", icon: Location01Icon, label: "Locations" },
-    { to: "/resources", icon: Package01Icon, label: "Resources" },
-    { to: "/clients", icon: UserGroup02Icon, label: "Clients" },
-    { to: "/settings", icon: Settings01Icon, label: "Settings" },
+    {
+      label: "PEOPLE",
+      items: [{ to: "/clients", icon: UserGroup02Icon, label: "Clients" }],
+    },
+    {
+      label: "SETUP",
+      items: [
+        { to: "/calendars", icon: Calendar03Icon, label: "Calendars" },
+        {
+          to: "/appointment-types",
+          icon: Layers01Icon,
+          label: "Appointment Types",
+        },
+        { to: "/resources", icon: Package01Icon, label: "Resources" },
+        { to: "/locations", icon: Location01Icon, label: "Locations" },
+      ],
+    },
+    {
+      label: "SYSTEM",
+      items: [{ to: "/settings", icon: Settings01Icon, label: "Settings" }],
+    },
   ];
 
   return (
@@ -83,11 +98,15 @@ function RootLayout() {
           </div>
 
           {/* Navigation */}
-          <nav className="flex-1 space-y-1 p-5">
-            {navItems.map((item) => (
-              <NavLink key={item.to} to={item.to} icon={item.icon}>
-                {item.label}
-              </NavLink>
+          <nav className="flex-1 space-y-6 p-5">
+            {navGroups.map((group) => (
+              <NavGroup key={group.label} label={group.label}>
+                {group.items.map((item) => (
+                  <NavLink key={item.to} to={item.to} icon={item.icon}>
+                    {item.label}
+                  </NavLink>
+                ))}
+              </NavGroup>
             ))}
           </nav>
 
@@ -157,13 +176,17 @@ function RootLayout() {
           <SheetHeader className="border-b border-border/50 px-6 py-5">
             <SheetTitle>Scheduling</SheetTitle>
           </SheetHeader>
-          <nav className="flex-1 space-y-1 p-5">
-            {navItems.map((item) => (
-              <SheetClose key={item.to} asChild>
-                <NavLink to={item.to} icon={item.icon}>
-                  {item.label}
-                </NavLink>
-              </SheetClose>
+          <nav className="flex-1 space-y-6 p-5">
+            {navGroups.map((group) => (
+              <NavGroup key={group.label} label={group.label}>
+                {group.items.map((item) => (
+                  <SheetClose key={item.to} asChild>
+                    <NavLink to={item.to} icon={item.icon}>
+                      {item.label}
+                    </NavLink>
+                  </SheetClose>
+                ))}
+              </NavGroup>
             ))}
           </nav>
           <div className="border-t border-border/50 p-5">
@@ -192,6 +215,23 @@ function RootLayout() {
 
       {/* Dev tools - only in development */}
       <TanStackRouterDevtools position="bottom-right" />
+    </div>
+  );
+}
+
+function NavGroup({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="space-y-1">
+      <div className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">
+        {label}
+      </div>
+      {children}
     </div>
   );
 }
