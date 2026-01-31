@@ -6,12 +6,12 @@ import {
   Delete01Icon,
   FloppyDiskIcon,
   Calendar03Icon,
-  Tick02Icon,
 } from "@hugeicons/core-free-icons";
 
 import { orpc } from "@/lib/query";
 import { Icon } from "@/components/ui/icon";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -21,41 +21,6 @@ import { formatDate, formatDisplayDate } from "./utils";
 interface DateOverridesEditorProps {
   calendarId: string;
   compact?: boolean;
-}
-
-function Checkbox({
-  checked,
-  onChange,
-  label,
-}: {
-  checked: boolean;
-  onChange: (checked: boolean) => void;
-  label?: string;
-}) {
-  return (
-    <button
-      type="button"
-      role="checkbox"
-      aria-checked={checked}
-      onClick={() => onChange(!checked)}
-      className="flex items-center gap-2 group"
-    >
-      <div
-        className={`size-5 rounded border-2 flex items-center justify-center transition-all duration-200 ${
-          checked
-            ? "bg-primary border-primary"
-            : "border-border group-hover:border-primary/50"
-        }`}
-      >
-        {checked && (
-          <Icon icon={Tick02Icon} className="size-3 text-primary-foreground" />
-        )}
-      </div>
-      {label && (
-        <span className="text-sm font-medium text-foreground">{label}</span>
-      )}
-    </button>
-  );
 }
 
 export function DateOverridesEditor({
