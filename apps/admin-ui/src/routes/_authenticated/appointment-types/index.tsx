@@ -1,7 +1,7 @@
 // Appointment Types management page with clickable rows and context menus
 
 import { useState, useCallback } from "react";
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -36,6 +36,13 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Table,
   TableBody,
@@ -197,6 +204,11 @@ function AppointmentTypesPage() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("details");
 
+  // Calendar/Resource linking state
+  const [selectedCalendarId, setSelectedCalendarId] = useState<string>("");
+  const [selectedResourceId, setSelectedResourceId] = useState<string>("");
+  const [quantityRequired, setQuantityRequired] = useState<number>(1);
+
   // Fetch appointment types
   const { data, isLoading, error } = useQuery(
     orpc.appointmentTypes.list.queryOptions({
@@ -218,6 +230,22 @@ function AppointmentTypesPage() {
       input: { appointmentTypeId: selectedType?.id ?? "" },
     }),
     enabled: !!selectedType?.id && drawerOpen,
+  });
+
+  // Fetch all calendars for dropdown
+  const { data: allCalendarsData } = useQuery({
+    ...orpc.calendars.list.queryOptions({
+      input: { limit: 100 },
+    }),
+    enabled: !!selectedType?.id && drawerOpen && activeTab === "calendars",
+  });
+
+  // Fetch all resources for dropdown
+  const { data: allResourcesData } = useQuery({
+    ...orpc.resources.list.queryOptions({
+      input: { limit: 100 },
+    }),
+    enabled: !!selectedType?.id && drawerOpen && activeTab === "resources",
   });
 
   // Create mutation
@@ -269,8 +297,101 @@ function AppointmentTypesPage() {
     }),
   );
 
+  // Add calendar mutation
+  const addCalendarMutation = useMutation(
+    orpc.appointmentTypes.calendars.add.mutationOptions({
+      onSuccess: () => {
+        queryClient.invalidateQueries({
+          queryKey: orpc.appointmentTypes.key(),
+        });
+        setSelectedCalendarId("");
+        toast.success("Calendar linked successfully");
+      },
+      onError: (error) => {
+        toast.error(error.message || "Failed to link calendar");
+      },
+    }),
+  );
+
+  // Remove calendar mutation
+  const removeCalendarMutation = useMutation(
+    orpc.appointmentTypes.calendars.remove.mutationOptions({
+      onSuccess: () => {
+        queryClient.invalidateQueries({
+          queryKey: orpc.appointmentTypes.key(),
+        });
+        toast.success("Calendar unlinked successfully");
+      },
+      onError: (error) => {
+        toast.error(error.message || "Failed to unlink calendar");
+      },
+    }),
+  );
+
+  // Add resource mutation
+  const addResourceMutation = useMutation(
+    orpc.appointmentTypes.resources.add.mutationOptions({
+      onSuccess: () => {
+        queryClient.invalidateQueries({
+          queryKey: orpc.appointmentTypes.key(),
+        });
+        setSelectedResourceId("");
+        setQuantityRequired(1);
+        toast.success("Resource linked successfully");
+      },
+      onError: (error) => {
+        toast.error(error.message || "Failed to link resource");
+      },
+    }),
+  );
+
+  // Update resource mutation
+  const updateResourceMutation = useMutation(
+    orpc.appointmentTypes.resources.update.mutationOptions({
+      onSuccess: () => {
+        queryClient.invalidateQueries({
+          queryKey: orpc.appointmentTypes.key(),
+        });
+      },
+      onError: (error) => {
+        toast.error(error.message || "Failed to update resource");
+      },
+    }),
+  );
+
+  // Remove resource mutation
+  const removeResourceMutation = useMutation(
+    orpc.appointmentTypes.resources.remove.mutationOptions({
+      onSuccess: () => {
+        queryClient.invalidateQueries({
+          queryKey: orpc.appointmentTypes.key(),
+        });
+        toast.success("Resource unlinked successfully");
+      },
+      onError: (error) => {
+        toast.error(error.message || "Failed to unlink resource");
+      },
+    }),
+  );
+
   const linkedCalendars = linkedCalendarsData ?? [];
   const requiredResources = requiredResourcesData ?? [];
+
+  // Filter available calendars (exclude already linked)
+  const linkedCalendarIds = new Set(linkedCalendars.map((c) => c.calendarId));
+  const availableCalendars =
+    allCalendarsData?.items.filter((c) => !linkedCalendarIds.has(c.id)) ?? [];
+  const selectedCalendar = availableCalendars.find(
+    (c) => c.id === selectedCalendarId,
+  );
+
+  // Filter available resources (exclude already linked)
+  const linkedResourceIds = new Set(requiredResources.map((r) => r.resourceId));
+  const availableResources =
+    allResourcesData?.items.filter((r) => !linkedResourceIds.has(r.id)) ?? [];
+  const selectedResource = availableResources.find(
+    (r) => r.id === selectedResourceId,
+  );
 
   const handleCreate = (formData: CreateAppointmentTypeInput) => {
     createMutation.mutate(formData);
@@ -287,6 +408,53 @@ function AppointmentTypesPage() {
   const handleDelete = () => {
     if (!crud.deletingItemId) return;
     deleteMutation.mutate({ id: crud.deletingItemId });
+  };
+
+  const handleAddCalendar = () => {
+    if (!selectedCalendarId || !selectedType) return;
+    addCalendarMutation.mutate({
+      appointmentTypeId: selectedType.id,
+      data: { calendarId: selectedCalendarId },
+    });
+  };
+
+  const handleRemoveCalendar = (calendarId: string) => {
+    if (!selectedType) return;
+    removeCalendarMutation.mutate({
+      appointmentTypeId: selectedType.id,
+      calendarId,
+    });
+  };
+
+  const handleAddResource = () => {
+    if (!selectedResourceId || !selectedType) return;
+    addResourceMutation.mutate({
+      appointmentTypeId: selectedType.id,
+      data: {
+        resourceId: selectedResourceId,
+        quantityRequired,
+      },
+    });
+  };
+
+  const handleUpdateResourceQuantity = (
+    resourceId: string,
+    newQuantity: number,
+  ) => {
+    if (!selectedType) return;
+    updateResourceMutation.mutate({
+      appointmentTypeId: selectedType.id,
+      resourceId,
+      data: { quantityRequired: newQuantity },
+    });
+  };
+
+  const handleRemoveResource = (resourceId: string) => {
+    if (!selectedType) return;
+    removeResourceMutation.mutate({
+      appointmentTypeId: selectedType.id,
+      resourceId,
+    });
   };
 
   const openDrawer = useCallback((type: AppointmentTypeItem) => {
@@ -511,30 +679,82 @@ function AppointmentTypesPage() {
 
             {activeTab === "calendars" && selectedType && (
               <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-medium">Linked Calendars</h3>
-                  <Button variant="ghost" size="sm" asChild>
-                    <Link
-                      to="/appointment-types/$typeId/calendars"
-                      params={{ typeId: selectedType.id }}
-                    >
-                      Manage
-                    </Link>
+                <div className="flex items-center gap-3">
+                  <Select
+                    value={selectedCalendarId}
+                    onValueChange={(v) => v && setSelectedCalendarId(v)}
+                  >
+                    <SelectTrigger className="flex-1">
+                      <SelectValue placeholder="Select a calendar to add">
+                        {selectedCalendar?.name}
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      {availableCalendars.length === 0 ? (
+                        <SelectItem value="none" disabled>
+                          No available calendars
+                        </SelectItem>
+                      ) : (
+                        availableCalendars.map((calendar) => (
+                          <SelectItem key={calendar.id} value={calendar.id}>
+                            {calendar.name}
+                          </SelectItem>
+                        ))
+                      )}
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    size="sm"
+                    onClick={handleAddCalendar}
+                    disabled={
+                      !selectedCalendarId || addCalendarMutation.isPending
+                    }
+                  >
+                    <Icon icon={Add01Icon} data-icon="inline-start" />
+                    {addCalendarMutation.isPending ? "Adding..." : "Add"}
                   </Button>
                 </div>
+
                 {linkedCalendars.length === 0 ? (
                   <p className="text-sm text-muted-foreground">
-                    No calendars linked yet
+                    No calendars linked yet. Add a calendar to make this
+                    appointment type available.
                   </p>
                 ) : (
-                  <div className="rounded-lg border border-border/50 divide-y divide-border/50">
-                    {linkedCalendars.map((link) => (
-                      <div key={link.calendarId} className="px-4 py-2.5">
-                        <span className="font-medium">
-                          {link.calendar.name}
-                        </span>
-                      </div>
-                    ))}
+                  <div className="rounded-lg border border-border/50 overflow-hidden">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Calendar</TableHead>
+                          <TableHead>Timezone</TableHead>
+                          <TableHead className="w-[60px]" />
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {linkedCalendars.map((link) => (
+                          <TableRow key={link.calendarId}>
+                            <TableCell className="font-medium">
+                              {link.calendar.name}
+                            </TableCell>
+                            <TableCell className="text-muted-foreground">
+                              {link.calendar.timezone}
+                            </TableCell>
+                            <TableCell>
+                              <Button
+                                variant="ghost"
+                                size="icon-sm"
+                                onClick={() =>
+                                  handleRemoveCalendar(link.calendarId)
+                                }
+                                disabled={removeCalendarMutation.isPending}
+                              >
+                                <Icon icon={Delete01Icon} />
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
                   </div>
                 )}
               </div>
@@ -542,34 +762,117 @@ function AppointmentTypesPage() {
 
             {activeTab === "resources" && selectedType && (
               <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-medium">Required Resources</h3>
-                  <Button variant="ghost" size="sm" asChild>
-                    <Link
-                      to="/appointment-types/$typeId/resources"
-                      params={{ typeId: selectedType.id }}
-                    >
-                      Manage
-                    </Link>
+                <div className="flex items-center gap-3">
+                  <Select
+                    value={selectedResourceId}
+                    onValueChange={(v) => v && setSelectedResourceId(v)}
+                  >
+                    <SelectTrigger className="flex-1">
+                      <SelectValue placeholder="Select a resource to add">
+                        {selectedResource
+                          ? `${selectedResource.name} (Qty: ${selectedResource.quantity})`
+                          : null}
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      {availableResources.length === 0 ? (
+                        <SelectItem value="none" disabled>
+                          No available resources
+                        </SelectItem>
+                      ) : (
+                        availableResources.map((resource) => (
+                          <SelectItem key={resource.id} value={resource.id}>
+                            {resource.name} (Qty: {resource.quantity})
+                          </SelectItem>
+                        ))
+                      )}
+                    </SelectContent>
+                  </Select>
+                  <Input
+                    type="number"
+                    min={1}
+                    className="w-[80px]"
+                    value={quantityRequired}
+                    onChange={(e) =>
+                      setQuantityRequired(parseInt(e.target.value, 10) || 1)
+                    }
+                    placeholder="Qty"
+                  />
+                  <Button
+                    size="sm"
+                    onClick={handleAddResource}
+                    disabled={
+                      !selectedResourceId || addResourceMutation.isPending
+                    }
+                  >
+                    <Icon icon={Add01Icon} data-icon="inline-start" />
+                    {addResourceMutation.isPending ? "Adding..." : "Add"}
                   </Button>
                 </div>
+
                 {requiredResources.length === 0 ? (
                   <p className="text-sm text-muted-foreground">
-                    No resources required
+                    No resources required. Add resources if this appointment
+                    type requires specific equipment or rooms.
                   </p>
                 ) : (
-                  <div className="rounded-lg border border-border/50 divide-y divide-border/50">
-                    {requiredResources.map((req) => (
-                      <div
-                        key={req.resourceId}
-                        className="px-4 py-2.5 flex items-center justify-between"
-                      >
-                        <span className="font-medium">{req.resource.name}</span>
-                        <Badge variant="secondary">
-                          Qty: {req.quantityRequired}
-                        </Badge>
-                      </div>
-                    ))}
+                  <div className="rounded-lg border border-border/50 overflow-hidden">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Resource</TableHead>
+                          <TableHead>Available</TableHead>
+                          <TableHead>Required</TableHead>
+                          <TableHead className="w-[60px]" />
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {requiredResources.map((req) => (
+                          <TableRow key={req.resourceId}>
+                            <TableCell className="font-medium">
+                              {req.resource.name}
+                            </TableCell>
+                            <TableCell className="text-muted-foreground">
+                              {req.resource.quantity}
+                            </TableCell>
+                            <TableCell>
+                              <Input
+                                type="number"
+                                min={1}
+                                max={req.resource.quantity}
+                                className="w-[70px] h-8"
+                                value={req.quantityRequired}
+                                onChange={(e) => {
+                                  const newQty = parseInt(e.target.value, 10);
+                                  if (
+                                    newQty >= 1 &&
+                                    newQty <= req.resource.quantity
+                                  ) {
+                                    handleUpdateResourceQuantity(
+                                      req.resourceId,
+                                      newQty,
+                                    );
+                                  }
+                                }}
+                                disabled={updateResourceMutation.isPending}
+                              />
+                            </TableCell>
+                            <TableCell>
+                              <Button
+                                variant="ghost"
+                                size="icon-sm"
+                                onClick={() =>
+                                  handleRemoveResource(req.resourceId)
+                                }
+                                disabled={removeResourceMutation.isPending}
+                              >
+                                <Icon icon={Delete01Icon} />
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
                   </div>
                 )}
               </div>
