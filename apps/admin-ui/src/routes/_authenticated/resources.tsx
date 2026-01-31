@@ -24,7 +24,7 @@ import { ContextMenu, type ContextMenuItem } from "@/components/context-menu";
 import { ResourceDrawer } from "@/components/resource-drawer";
 
 // Form schema with required quantity for better UX
-const resourceFormSchema = z.extend(createResourceSchema, {
+export const resourceFormSchema = z.extend(createResourceSchema, {
   quantity: z.number().check(z.int(), z.positive()),
 });
 
@@ -437,16 +437,11 @@ function ResourcesPage() {
 
 interface ResourcesSearchParams {
   selected?: string;
-  tab?: "details";
 }
 
 export const Route = createFileRoute("/_authenticated/resources")({
   validateSearch: (search: Record<string, unknown>): ResourcesSearchParams => ({
     selected: typeof search.selected === "string" ? search.selected : undefined,
-    tab:
-      typeof search.tab === "string" && search.tab === "details"
-        ? "details"
-        : undefined,
   }),
   component: ResourcesPage,
 });

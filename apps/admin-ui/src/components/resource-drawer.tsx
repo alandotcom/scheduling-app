@@ -4,12 +4,11 @@ import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod/mini";
 import { toast } from "sonner";
 
 import { orpc } from "@/lib/query";
-import { createResourceSchema } from "@scheduling/dto";
 import type { CreateResourceInput } from "@scheduling/dto";
+import { resourceFormSchema } from "@/routes/_authenticated/resources";
 import {
   Drawer,
   DrawerContent,
@@ -29,11 +28,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { DeleteConfirmDialog } from "@/components/delete-confirm-dialog";
-
-// Form schema with required quantity for better UX
-const resourceFormSchema = z.extend(createResourceSchema, {
-  quantity: z.number().check(z.int(), z.positive()),
-});
 
 interface ResourceDrawerProps {
   resource: {
@@ -79,9 +73,9 @@ export function ResourceDrawer({
   const deleteMutation = useMutation(
     orpc.resources.remove.mutationOptions({
       onSuccess: () => {
-        queryClient.invalidateQueries({ queryKey: orpc.resources.key() });
         setShowDeleteDialog(false);
         onClose();
+        queryClient.invalidateQueries({ queryKey: orpc.resources.key() });
         toast.success("Resource deleted");
       },
       onError: (error) => {

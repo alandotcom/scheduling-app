@@ -61,12 +61,14 @@ export function ClientDrawer({
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
   // Fetch appointments for this client
-  const { data: appointmentsData } = useQuery({
-    ...orpc.appointments.list.queryOptions({
-      input: { clientId: client?.id ?? "", limit: 20 },
-    }),
-    enabled: !!client?.id && activeTab === "history",
-  });
+  const { data: appointmentsData, isLoading: isLoadingAppointments } = useQuery(
+    {
+      ...orpc.appointments.list.queryOptions({
+        input: { clientId: client?.id ?? "", limit: 20 },
+      }),
+      enabled: !!client?.id && activeTab === "history",
+    },
+  );
 
   // Update mutation
   const updateMutation = useMutation(
@@ -85,9 +87,9 @@ export function ClientDrawer({
   const deleteMutation = useMutation(
     orpc.clients.remove.mutationOptions({
       onSuccess: () => {
-        queryClient.invalidateQueries({ queryKey: orpc.clients.key() });
         setShowDeleteDialog(false);
         onClose();
+        queryClient.invalidateQueries({ queryKey: orpc.clients.key() });
         toast.success("Client deleted");
       },
       onError: (error) => {
@@ -277,106 +279,120 @@ export function ClientDrawer({
 
             {activeTab === "history" && (
               <div className="space-y-6">
-                {/* Upcoming Appointments */}
-                {upcomingAppointments.length > 0 && (
-                  <div>
-                    <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wider mb-3">
-                      Upcoming
-                    </h3>
-                    <div className="rounded-lg border border-border/50 divide-y divide-border/50">
-                      {upcomingAppointments.map((apt) => (
-                        <div key={apt.id} className="px-4 py-3">
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <div className="font-medium">
-                                {formatDateTime(apt.startAt)}
-                              </div>
-                              <div className="text-sm text-muted-foreground">
-                                {apt.appointmentType?.name}
-                                {apt.calendar && ` - ${apt.calendar.name}`}
+                {isLoadingAppointments ? (
+                  <div className="text-center text-muted-foreground py-6">
+                    Loading appointments...
+                  </div>
+                ) : (
+                  <>
+                    {/* Upcoming Appointments */}
+                    {upcomingAppointments.length > 0 && (
+                      <div>
+                        <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wider mb-3">
+                          Upcoming
+                        </h3>
+                        <div className="rounded-lg border border-border/50 divide-y divide-border/50">
+                          {upcomingAppointments.map((apt) => (
+                            <div key={apt.id} className="px-4 py-3">
+                              <div className="flex items-center justify-between">
+                                <div>
+                                  <div className="font-medium">
+                                    {formatDateTime(apt.startAt)}
+                                  </div>
+                                  <div className="text-sm text-muted-foreground">
+                                    {apt.appointmentType?.name}
+                                    {apt.calendar && ` - ${apt.calendar.name}`}
+                                  </div>
+                                </div>
+                                <Badge
+                                  variant={
+                                    apt.status === "confirmed"
+                                      ? "success"
+                                      : "secondary"
+                                  }
+                                >
+                                  {apt.status}
+                                </Badge>
                               </div>
                             </div>
-                            <Badge
-                              variant={
-                                apt.status === "confirmed"
-                                  ? "success"
-                                  : "secondary"
-                              }
-                            >
-                              {apt.status}
-                            </Badge>
-                          </div>
+                          ))}
                         </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
+                      </div>
+                    )}
 
-                {/* Past Appointments */}
-                <div>
-                  <div className="flex items-center justify-between mb-3">
-                    <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
-                      Past Appointments
-                    </h3>
-                    <Button variant="ghost" size="sm" asChild>
-                      <Link to="/appointments" search={{ clientId: client.id }}>
-                        View all
-                        <Icon icon={ArrowRight02Icon} data-icon="inline-end" />
-                      </Link>
-                    </Button>
-                  </div>
+                    {/* Past Appointments */}
+                    <div>
+                      <div className="flex items-center justify-between mb-3">
+                        <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
+                          Past Appointments
+                        </h3>
+                        <Button variant="ghost" size="sm" asChild>
+                          <Link
+                            to="/appointments"
+                            search={{ clientId: client.id }}
+                          >
+                            View all
+                            <Icon
+                              icon={ArrowRight02Icon}
+                              data-icon="inline-end"
+                            />
+                          </Link>
+                        </Button>
+                      </div>
 
-                  {pastAppointments.length === 0 ? (
-                    <div className="rounded-lg border border-border/50 p-6 text-center text-sm text-muted-foreground">
-                      No past appointments
-                    </div>
-                  ) : (
-                    <div className="rounded-lg border border-border/50 divide-y divide-border/50">
-                      {pastAppointments.slice(0, 5).map((apt) => (
-                        <div key={apt.id} className="px-4 py-3">
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                              {getStatusIcon(apt.status)}
-                              <div>
-                                <div className="font-medium">
-                                  {formatDateTime(apt.startAt)}
+                      {pastAppointments.length === 0 ? (
+                        <div className="rounded-lg border border-border/50 p-6 text-center text-sm text-muted-foreground">
+                          No past appointments
+                        </div>
+                      ) : (
+                        <div className="rounded-lg border border-border/50 divide-y divide-border/50">
+                          {pastAppointments.slice(0, 5).map((apt) => (
+                            <div key={apt.id} className="px-4 py-3">
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                  {getStatusIcon(apt.status)}
+                                  <div>
+                                    <div className="font-medium">
+                                      {formatDateTime(apt.startAt)}
+                                    </div>
+                                    <div className="text-sm text-muted-foreground">
+                                      {apt.appointmentType?.name}
+                                    </div>
+                                  </div>
                                 </div>
-                                <div className="text-sm text-muted-foreground">
-                                  {apt.appointmentType?.name}
-                                </div>
+                                <Badge
+                                  variant={
+                                    apt.status === "confirmed"
+                                      ? "success"
+                                      : apt.status === "cancelled" ||
+                                          apt.status === "no_show"
+                                        ? "destructive"
+                                        : "secondary"
+                                  }
+                                >
+                                  {apt.status === "no_show"
+                                    ? "No Show"
+                                    : apt.status}
+                                </Badge>
                               </div>
                             </div>
-                            <Badge
-                              variant={
-                                apt.status === "confirmed"
-                                  ? "success"
-                                  : apt.status === "cancelled" ||
-                                      apt.status === "no_show"
-                                    ? "destructive"
-                                    : "secondary"
-                              }
-                            >
-                              {apt.status === "no_show"
-                                ? "No Show"
-                                : apt.status}
-                            </Badge>
-                          </div>
+                          ))}
                         </div>
-                      ))}
+                      )}
                     </div>
-                  )}
-                </div>
 
-                {/* Quick Book Button */}
-                {onBookAppointment && (
-                  <Button
-                    className="w-full"
-                    variant="outline"
-                    onClick={() => onBookAppointment(client.id)}
-                  >
-                    <Icon icon={Calendar03Icon} data-icon="inline-start" />
-                    Book New Appointment
-                  </Button>
+                    {/* Quick Book Button */}
+                    {onBookAppointment && (
+                      <Button
+                        className="w-full"
+                        variant="outline"
+                        onClick={() => onBookAppointment(client.id)}
+                      >
+                        <Icon icon={Calendar03Icon} data-icon="inline-start" />
+                        Book New Appointment
+                      </Button>
+                    )}
+                  </>
                 )}
               </div>
             )}

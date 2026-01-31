@@ -92,9 +92,9 @@ export function LocationDrawer({
   const deleteMutation = useMutation(
     orpc.locations.remove.mutationOptions({
       onSuccess: () => {
-        queryClient.invalidateQueries({ queryKey: orpc.locations.key() });
         setShowDeleteDialog(false);
         onClose();
+        queryClient.invalidateQueries({ queryKey: orpc.locations.key() });
         toast.success("Location deleted");
       },
       onError: (error) => {
