@@ -5,6 +5,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Add01Icon } from "@hugeicons/core-free-icons";
 import { toast } from "sonner";
+import type { AppointmentWithRelations } from "@scheduling/dto";
 
 import { Icon } from "@/components/ui/icon";
 import { orpc } from "@/lib/query";
@@ -55,8 +56,6 @@ import {
   AppointmentsList,
   AppointmentDetail,
   ScheduleGrid,
-  type AppointmentListItem,
-  type AppointmentDetailData,
 } from "@/components/appointments";
 
 type ViewMode = "list" | "schedule";
@@ -311,51 +310,55 @@ function AppointmentsPage() {
 
   const calendars = calendarsData?.items ?? [];
   const appointmentTypes = typesData?.items ?? [];
-  const listAppointments = (listData?.items ?? []) as AppointmentListItem[];
+  const listAppointments = listData?.items ?? [];
 
   const selectedCalendar = calendars.find((c) => c.id === filters.calendarId);
   const selectedType = appointmentTypes.find(
     (t) => t.id === filters.appointmentTypeId,
   );
 
-  // Find selected appointment for detail panel
-  const selectedAppointment = useMemo(() => {
+  // Check if selected appointment is in list data (full relations available)
+  const selectedInList = useMemo(
+    () =>
+      selectedId ? listAppointments.find((a) => a.id === selectedId) : null,
+    [selectedId, listAppointments],
+  );
+
+  // Check if selected appointment exists in schedule data (we'll need to fetch full details)
+  const selectedInSchedule = useMemo(
+    () =>
+      selectedId && !selectedInList
+        ? scheduleAppointments.find((a) => a.id === selectedId)
+        : null,
+    [selectedId, selectedInList, scheduleAppointments],
+  );
+
+  // Fetch full appointment data when selected from schedule view
+  // (schedule data has flattened fields, but detail panel needs nested relations)
+  const { data: fetchedAppointment, isLoading: isFetchingAppointment } =
+    useQuery({
+      ...orpc.appointments.get.queryOptions({ input: { id: selectedId! } }),
+      enabled: !!selectedInSchedule && !!selectedId,
+    });
+
+  // Use list data if available, otherwise use fetched data
+  const selectedAppointment: AppointmentWithRelations | null = useMemo(() => {
     if (!selectedId) return null;
-
-    // Check list data first
-    const fromList = listAppointments.find((a) => a.id === selectedId);
-    if (fromList) return fromList as AppointmentDetailData;
-
-    // Then check schedule data
-    const fromSchedule = scheduleAppointments.find((a) => a.id === selectedId);
-    if (fromSchedule) return fromSchedule as unknown as AppointmentDetailData;
-
+    if (selectedInList) return selectedInList;
+    if (fetchedAppointment) return fetchedAppointment;
     return null;
-  }, [selectedId, listAppointments, scheduleAppointments]);
+  }, [selectedId, selectedInList, fetchedAppointment]);
 
-  // Validate selection
-  const allAppointments = useMemo(() => {
-    const ids = new Set<string>();
-    const result: Array<{ id: string }> = [];
-
-    for (const apt of listAppointments) {
-      if (!ids.has(apt.id)) {
-        ids.add(apt.id);
-        result.push({ id: apt.id });
-      }
-    }
-
+  // Build set of appointment IDs for selection validation
+  const appointmentIds = useMemo(() => {
+    const ids = new Set(listAppointments.map((a) => a.id));
     for (const apt of scheduleAppointments) {
-      if (!ids.has(apt.id)) {
-        ids.add(apt.id);
-        result.push({ id: apt.id });
-      }
+      ids.add(apt.id);
     }
-
-    return result;
+    return ids;
   }, [listAppointments, scheduleAppointments]);
 
-  useValidateSelection(allAppointments, selectedId, clearDetails);
+  useValidateSelection(appointmentIds, selectedId, clearDetails);
 
   // Keyboard navigation for list
   const selectedIndex = selectedId
@@ -450,7 +453,7 @@ function AppointmentsPage() {
   }>;
 
   const handleSelectAppointment = useCallback(
-    (appointment: AppointmentListItem) => {
+    (appointment: AppointmentWithRelations) => {
       openDetails(appointment.id, "details");
     },
     [openDetails],
@@ -627,6 +630,7 @@ function AppointmentsPage() {
               appointment={selectedAppointment}
               activeTab={activeTab}
               onTabChange={setActiveTab}
+              isLoading={!!selectedInSchedule && isFetchingAppointment}
             />
           )}
         </DetailPanel>

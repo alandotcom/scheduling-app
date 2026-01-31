@@ -3,7 +3,6 @@
 import { cn } from "@/lib/utils";
 
 interface ScheduleEventProps {
-  id: string;
   startAt: Date;
   endAt: Date;
   status: "scheduled" | "confirmed" | "cancelled" | "no_show";

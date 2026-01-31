@@ -7,6 +7,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
+import type { AppointmentWithRelations } from "@scheduling/dto";
 import {
   ArrowRight02Icon,
   Calendar03Icon,
@@ -36,29 +37,13 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
-export interface AppointmentDetailData {
-  id: string;
-  startAt: string | Date;
-  endAt: string | Date;
-  timezone: string;
-  status: "scheduled" | "confirmed" | "cancelled" | "no_show";
-  notes: string | null;
-  calendar?: { id: string; name: string; timezone: string } | null;
-  appointmentType?: { id: string; name: string; durationMin: number } | null;
-  client?: {
-    id: string;
-    firstName: string;
-    lastName: string;
-    email: string | null;
-  } | null;
-}
-
 type DetailTabValue = "details" | "client";
 
 interface AppointmentDetailProps {
-  appointment: AppointmentDetailData | null;
+  appointment: AppointmentWithRelations | null;
   activeTab: DetailTabValue;
   onTabChange: (tab: DetailTabValue) => void;
+  isLoading?: boolean;
 }
 
 const notesSchema = z.object({
@@ -105,6 +90,7 @@ export function AppointmentDetail({
   appointment,
   activeTab,
   onTabChange,
+  isLoading,
 }: AppointmentDetailProps) {
   const queryClient = useQueryClient();
   const [editingNotes, setEditingNotes] = useState(false);
@@ -159,7 +145,7 @@ export function AppointmentDetail({
     }),
   );
 
-  if (!appointment) {
+  if (isLoading || !appointment) {
     return (
       <div className="flex h-full items-center justify-center p-8 text-sm text-muted-foreground">
         Loading appointment...

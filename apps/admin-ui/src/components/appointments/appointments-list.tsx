@@ -1,5 +1,6 @@
 // Appointments list table component
 
+import type { AppointmentWithRelations } from "@scheduling/dto";
 import {
   Cancel01Icon,
   CheckmarkCircle01Icon,
@@ -20,27 +21,10 @@ import {
 import { ContextMenu, type ContextMenuItem } from "@/components/context-menu";
 import { cn } from "@/lib/utils";
 
-export interface AppointmentListItem {
-  id: string;
-  startAt: string | Date;
-  endAt: string | Date;
-  timezone: string;
-  status: "scheduled" | "confirmed" | "cancelled" | "no_show";
-  notes: string | null;
-  calendar?: { id: string; name: string; timezone: string } | null;
-  appointmentType?: { id: string; name: string; durationMin: number } | null;
-  client?: {
-    id: string;
-    firstName: string;
-    lastName: string;
-    email: string | null;
-  } | null;
-}
-
 interface AppointmentsListProps {
-  appointments: AppointmentListItem[];
+  appointments: AppointmentWithRelations[];
   selectedId: string | null;
-  onSelect: (appointment: AppointmentListItem) => void;
+  onSelect: (appointment: AppointmentWithRelations) => void;
   onCancel: (id: string) => void;
   onNoShow: (id: string) => void;
   isLoading?: boolean;
@@ -81,7 +65,7 @@ export function AppointmentsList({
   isLoading,
 }: AppointmentsListProps) {
   const getContextMenuItems = (
-    appointment: AppointmentListItem,
+    appointment: AppointmentWithRelations,
   ): ContextMenuItem[] => {
     const items: ContextMenuItem[] = [
       {

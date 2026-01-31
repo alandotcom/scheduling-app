@@ -240,7 +240,6 @@ export function ScheduleGrid({
                     return (
                       <ScheduleEvent
                         key={apt.id}
-                        id={apt.id}
                         startAt={startDate}
                         endAt={endDate}
                         status={apt.status}
