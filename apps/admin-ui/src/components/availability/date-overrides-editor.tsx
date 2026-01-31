@@ -8,6 +8,8 @@ import {
   Calendar03Icon,
 } from "@hugeicons/core-free-icons";
 
+import { toast } from "sonner";
+
 import { orpc } from "@/lib/query";
 import { Icon } from "@/components/ui/icon";
 import { Button } from "@/components/ui/button";
@@ -62,6 +64,9 @@ export function DateOverridesEditor({
         setEditingOverride(null);
         setSelectedDate(null);
       },
+      onError: (error) => {
+        toast.error(error.message || "Failed to create date override");
+      },
     }),
   );
 
@@ -74,6 +79,9 @@ export function DateOverridesEditor({
         setEditingOverride(null);
         setSelectedDate(null);
       },
+      onError: (error) => {
+        toast.error(error.message || "Failed to update date override");
+      },
     }),
   );
 
@@ -83,6 +91,9 @@ export function DateOverridesEditor({
         queryClient.invalidateQueries({
           queryKey: orpc.availability.overrides.key(),
         });
+      },
+      onError: (error) => {
+        toast.error(error.message || "Failed to delete date override");
       },
     }),
   );

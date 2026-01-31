@@ -8,6 +8,8 @@ import {
   FloppyDiskIcon,
 } from "@hugeicons/core-free-icons";
 
+import { toast } from "sonner";
+
 import { orpc } from "@/lib/query";
 import { Icon } from "@/components/ui/icon";
 import { Button } from "@/components/ui/button";
@@ -75,6 +77,9 @@ export function BlockedTimeEditor({
         setEditingBlock(null);
         setShowForm(false);
       },
+      onError: (error) => {
+        toast.error(error.message || "Failed to create blocked time");
+      },
     }),
   );
 
@@ -87,6 +92,9 @@ export function BlockedTimeEditor({
         setEditingBlock(null);
         setShowForm(false);
       },
+      onError: (error) => {
+        toast.error(error.message || "Failed to update blocked time");
+      },
     }),
   );
 
@@ -96,6 +104,9 @@ export function BlockedTimeEditor({
         queryClient.invalidateQueries({
           queryKey: orpc.availability.blockedTime.key(),
         });
+      },
+      onError: (error) => {
+        toast.error(error.message || "Failed to delete blocked time");
       },
     }),
   );
