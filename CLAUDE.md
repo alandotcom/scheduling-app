@@ -56,6 +56,24 @@ packages/
 - **Linting:** oxlint (Rust-based, strict rules)
 - **Formatting:** Biome (spaces, no tabs)
 
+## Claude Code Skills
+
+Use these skills (`/skill-name`) when working in relevant areas:
+
+| Skill | Trigger |
+|-------|---------|
+| `/tanstack-start` | TanStack Router, Query, loaders, actions |
+| `/vercel-react-best-practices` | React components, performance, Next.js patterns |
+| `/better-auth-best-practices` | Authentication, sessions, auth routes |
+| `/supabase-postgres-best-practices` | SQL queries, schema design, migrations |
+| `/base-ui` | Adding accessible, unstyled UI components |
+| `/frontend-design` | Building pages, layouts, visual design |
+| `/web-design-guidelines` | UI reviews, accessibility audits, UX checks |
+
+**UI/UX Reference Docs:** Before making UI changes to admin-ui, review:
+- `apps/admin-ui/UI-UX-DIRECTIVES.md` — Component standards, interaction patterns, page requirements
+- `apps/admin-ui/UX-NAV-REDESIGN.md` — Split-pane layout spec, journey maps, keyboard model
+
 ## Dependencies
 
 Always use the latest versions of dependencies when adding new packages or updating existing ones. Check current versions before installing and prefer `pnpm add <package>@latest` to ensure you're not using outdated APIs or patterns.
