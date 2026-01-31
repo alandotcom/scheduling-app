@@ -1,6 +1,6 @@
 // Resource detail drawer
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -44,13 +44,13 @@ interface ResourceDrawerProps {
     createdAt: string | Date;
   } | null;
   open: boolean;
-  onOpenChange: (open: boolean) => void;
+  onClose: () => void;
 }
 
 export function ResourceDrawer({
   resource,
   open,
-  onOpenChange,
+  onClose,
 }: ResourceDrawerProps) {
   const queryClient = useQueryClient();
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
@@ -81,7 +81,7 @@ export function ResourceDrawer({
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: orpc.resources.key() });
         setShowDeleteDialog(false);
-        onOpenChange(false);
+        onClose();
         toast.success("Resource deleted");
       },
       onError: (error) => {
@@ -103,7 +103,7 @@ export function ResourceDrawer({
   });
 
   // Reset form when resource changes
-  useState(() => {
+  useEffect(() => {
     if (resource) {
       form.reset({
         name: resource.name,
@@ -111,7 +111,7 @@ export function ResourceDrawer({
         locationId: resource.locationId ?? undefined,
       });
     }
-  });
+  }, [resource, form]);
 
   if (!resource) return null;
 
@@ -128,9 +128,9 @@ export function ResourceDrawer({
 
   return (
     <>
-      <Drawer open={open} onOpenChange={onOpenChange}>
+      <Drawer open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
         <DrawerContent width="md">
-          <DrawerHeader onClose={() => onOpenChange(false)}>
+          <DrawerHeader onClose={onClose}>
             <DrawerTitle>{resource.name}</DrawerTitle>
           </DrawerHeader>
 

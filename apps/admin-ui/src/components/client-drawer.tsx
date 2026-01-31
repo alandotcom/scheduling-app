@@ -1,6 +1,6 @@
 // Client detail drawer with appointment history
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -43,18 +43,21 @@ interface ClientDrawerProps {
     createdAt: string | Date;
   } | null;
   open: boolean;
-  onOpenChange: (open: boolean) => void;
+  onClose: () => void;
+  activeTab: "details" | "history";
+  onTabChange: (tab: string) => void;
   onBookAppointment?: (clientId: string) => void;
 }
 
 export function ClientDrawer({
   client,
   open,
-  onOpenChange,
+  onClose,
+  activeTab,
+  onTabChange,
   onBookAppointment,
 }: ClientDrawerProps) {
   const queryClient = useQueryClient();
-  const [activeTab, setActiveTab] = useState("details");
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
   // Fetch appointments for this client
@@ -84,7 +87,7 @@ export function ClientDrawer({
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: orpc.clients.key() });
         setShowDeleteDialog(false);
-        onOpenChange(false);
+        onClose();
         toast.success("Client deleted");
       },
       onError: (error) => {
@@ -116,7 +119,7 @@ export function ClientDrawer({
   });
 
   // Reset form when client changes
-  useState(() => {
+  useEffect(() => {
     if (client) {
       form.reset({
         firstName: client.firstName,
@@ -125,7 +128,7 @@ export function ClientDrawer({
         phone: client.phone ?? undefined,
       });
     }
-  });
+  }, [client, form]);
 
   if (!client) return null;
 
@@ -172,15 +175,15 @@ export function ClientDrawer({
 
   return (
     <>
-      <Drawer open={open} onOpenChange={onOpenChange}>
+      <Drawer open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
         <DrawerContent width="md">
-          <DrawerHeader onClose={() => onOpenChange(false)}>
+          <DrawerHeader onClose={onClose}>
             <DrawerTitle>
               {client.firstName} {client.lastName}
             </DrawerTitle>
           </DrawerHeader>
 
-          <DrawerTabs value={activeTab} onValueChange={setActiveTab}>
+          <DrawerTabs value={activeTab} onValueChange={onTabChange}>
             <DrawerTab value="details">Details</DrawerTab>
             <DrawerTab value="history">
               Appointments ({appointments.length})

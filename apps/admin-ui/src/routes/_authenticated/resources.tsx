@@ -1,7 +1,7 @@
 // Resources management page with drawer and context menus
 
-import { useState, useCallback } from "react";
-import { createFileRoute } from "@tanstack/react-router";
+import { useCallback, useMemo } from "react";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -166,11 +166,12 @@ function ResourcesPage() {
   const queryClient = useQueryClient();
   const crud = useCrudState<ResourceItem>();
 
-  // Drawer state
-  const [selectedResource, setSelectedResource] = useState<ResourceItem | null>(
-    null,
-  );
-  const [drawerOpen, setDrawerOpen] = useState(false);
+  // URL-driven drawer state
+  const navigate = useNavigate({ from: Route.fullPath });
+  const { selected } = Route.useSearch();
+
+  const selectedId = selected ?? null;
+  const drawerOpen = !!selectedId;
 
   // Fetch resources
   const { data, isLoading, error } = useQuery(
@@ -230,6 +231,27 @@ function ResourcesPage() {
 
   const locations = locationsData?.items ?? [];
 
+  // Derive selected resource from data
+  const selectedResource = useMemo(
+    () =>
+      (data?.items.find((r) => r.id === selectedId) as
+        | ResourceItem
+        | undefined) ?? null,
+    [data?.items, selectedId],
+  );
+
+  // URL navigation helpers
+  const openDrawer = useCallback(
+    (id: string) => {
+      navigate({ search: { selected: id } });
+    },
+    [navigate],
+  );
+
+  const closeDrawer = useCallback(() => {
+    navigate({ search: {} });
+  }, [navigate]);
+
   const handleCreate = (formData: CreateResourceInput) => {
     createMutation.mutate(formData);
   };
@@ -253,17 +275,12 @@ function ResourcesPage() {
     return location?.name ?? "-";
   };
 
-  const openDrawer = useCallback((resource: ResourceItem) => {
-    setSelectedResource(resource);
-    setDrawerOpen(true);
-  }, []);
-
   const getContextMenuItems = useCallback(
     (resource: ResourceItem): ContextMenuItem[] => [
       {
         label: "View Details",
         icon: ViewIcon,
-        onClick: () => openDrawer(resource),
+        onClick: () => openDrawer(resource.id),
       },
       {
         label: "Edit",
@@ -377,7 +394,7 @@ function ResourcesPage() {
                   >
                     <TableRow
                       className="cursor-pointer hover:bg-muted/50 transition-colors"
-                      onClick={() => openDrawer(resource as ResourceItem)}
+                      onClick={() => openDrawer(resource.id)}
                     >
                       <TableCell className="font-medium">
                         {resource.name}
@@ -402,10 +419,7 @@ function ResourcesPage() {
       <ResourceDrawer
         resource={selectedResource}
         open={drawerOpen}
-        onOpenChange={(open) => {
-          setDrawerOpen(open);
-          if (!open) setSelectedResource(null);
-        }}
+        onClose={closeDrawer}
       />
 
       {/* Delete Confirmation */}

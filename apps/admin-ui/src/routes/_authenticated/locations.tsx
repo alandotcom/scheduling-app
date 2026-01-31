@@ -1,7 +1,7 @@
 // Locations management page with drawer and context menus
 
-import { useState, useCallback } from "react";
-import { createFileRoute } from "@tanstack/react-router";
+import { useCallback, useMemo } from "react";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -133,15 +133,22 @@ function LocationForm({
   );
 }
 
+type LocationTabValue = "details" | "calendars" | "resources";
+
+const isLocationTab = (value: string): value is LocationTabValue =>
+  value === "details" || value === "calendars" || value === "resources";
+
 function LocationsPage() {
   const queryClient = useQueryClient();
   const crud = useCrudState<LocationItem>();
 
-  // Drawer state
-  const [selectedLocation, setSelectedLocation] = useState<LocationItem | null>(
-    null,
-  );
-  const [drawerOpen, setDrawerOpen] = useState(false);
+  // URL-driven drawer state
+  const navigate = useNavigate({ from: Route.fullPath });
+  const { selected, tab } = Route.useSearch();
+
+  const selectedId = selected ?? null;
+  const activeTab: LocationTabValue = tab ?? "details";
+  const drawerOpen = !!selectedId;
 
   // Fetch locations
   const { data, isLoading, error } = useQuery(
@@ -209,17 +216,41 @@ function LocationsPage() {
     deleteMutation.mutate({ id: crud.deletingItemId });
   };
 
-  const openDrawer = useCallback((location: LocationItem) => {
-    setSelectedLocation(location);
-    setDrawerOpen(true);
-  }, []);
+  // Derive selected location from data
+  const selectedLocation = useMemo(
+    () =>
+      (data?.items.find((l) => l.id === selectedId) as
+        | LocationItem
+        | undefined) ?? null,
+    [data?.items, selectedId],
+  );
+
+  // URL navigation helpers
+  const openDrawer = useCallback(
+    (id: string, newTab: LocationTabValue = "details") => {
+      navigate({ search: { selected: id, tab: newTab } });
+    },
+    [navigate],
+  );
+
+  const closeDrawer = useCallback(() => {
+    navigate({ search: {} });
+  }, [navigate]);
+
+  const setActiveTabUrl = useCallback(
+    (value: string) => {
+      if (!selectedId || !isLocationTab(value)) return;
+      navigate({ search: { selected: selectedId, tab: value } });
+    },
+    [navigate, selectedId],
+  );
 
   const getContextMenuItems = useCallback(
     (location: LocationItem): ContextMenuItem[] => [
       {
         label: "View Details",
         icon: ViewIcon,
-        onClick: () => openDrawer(location),
+        onClick: () => openDrawer(location.id, "details"),
       },
       {
         label: "Edit",
@@ -328,7 +359,7 @@ function LocationsPage() {
                   >
                     <TableRow
                       className="cursor-pointer hover:bg-muted/50 transition-colors"
-                      onClick={() => openDrawer(location as LocationItem)}
+                      onClick={() => openDrawer(location.id)}
                     >
                       <TableCell className="font-medium">
                         {location.name}
@@ -350,10 +381,9 @@ function LocationsPage() {
       <LocationDrawer
         location={selectedLocation}
         open={drawerOpen}
-        onOpenChange={(open) => {
-          setDrawerOpen(open);
-          if (!open) setSelectedLocation(null);
-        }}
+        onClose={closeDrawer}
+        activeTab={activeTab}
+        onTabChange={setActiveTabUrl}
       />
 
       {/* Delete Confirmation */}

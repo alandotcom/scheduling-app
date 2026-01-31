@@ -1,7 +1,7 @@
 // Clients management page with drawer and context menus
 
-import { useState, useCallback } from "react";
-import { createFileRoute } from "@tanstack/react-router";
+import { useState, useCallback, useMemo } from "react";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -166,6 +166,11 @@ function ClientForm({
   );
 }
 
+type ClientTabValue = "details" | "history";
+
+const isClientTab = (value: string): value is ClientTabValue =>
+  value === "details" || value === "history";
+
 function ClientsPage() {
   const queryClient = useQueryClient();
   const crud = useCrudState<ClientItem>();
@@ -173,9 +178,13 @@ function ClientsPage() {
   // Search state
   const [search, setSearch] = useState("");
 
-  // Drawer state
-  const [selectedClient, setSelectedClient] = useState<ClientItem | null>(null);
-  const [drawerOpen, setDrawerOpen] = useState(false);
+  // URL-driven drawer state
+  const navigate = useNavigate({ from: Route.fullPath });
+  const { selected, tab } = Route.useSearch();
+
+  const selectedId = selected ?? null;
+  const activeTab: ClientTabValue = tab ?? "details";
+  const drawerOpen = !!selectedId;
 
   // Appointment modal state
   const [appointmentModalOpen, setAppointmentModalOpen] = useState(false);
@@ -246,23 +255,50 @@ function ClientsPage() {
     deleteMutation.mutate({ id: crud.deletingItemId });
   };
 
-  const openDrawer = useCallback((client: ClientItem) => {
-    setSelectedClient(client);
-    setDrawerOpen(true);
-  }, []);
+  // Derive selected client from data
+  const selectedClient = useMemo(
+    () =>
+      (data?.items.find((c) => c.id === selectedId) as
+        | ClientItem
+        | undefined) ?? null,
+    [data?.items, selectedId],
+  );
 
-  const handleBookAppointment = useCallback((_clientId: string) => {
-    // TODO: Pre-fill client in appointment modal when client search is improved
-    setAppointmentModalOpen(true);
-    setDrawerOpen(false);
-  }, []);
+  // URL navigation helpers
+  const openDrawer = useCallback(
+    (id: string, newTab: ClientTabValue = "details") => {
+      navigate({ search: { selected: id, tab: newTab } });
+    },
+    [navigate],
+  );
+
+  const closeDrawer = useCallback(() => {
+    navigate({ search: {} });
+  }, [navigate]);
+
+  const setActiveTabUrl = useCallback(
+    (value: string) => {
+      if (!selectedId || !isClientTab(value)) return;
+      navigate({ search: { selected: selectedId, tab: value } });
+    },
+    [navigate, selectedId],
+  );
+
+  const handleBookAppointment = useCallback(
+    (_clientId: string) => {
+      // TODO: Pre-fill client in appointment modal when client search is improved
+      setAppointmentModalOpen(true);
+      closeDrawer();
+    },
+    [closeDrawer],
+  );
 
   const getContextMenuItems = useCallback(
     (client: ClientItem): ContextMenuItem[] => [
       {
         label: "View Details",
         icon: ViewIcon,
-        onClick: () => openDrawer(client),
+        onClick: () => openDrawer(client.id, "details"),
       },
       {
         label: "Book Appointment",
@@ -399,7 +435,7 @@ function ClientsPage() {
                   >
                     <TableRow
                       className="cursor-pointer hover:bg-muted/50 transition-colors"
-                      onClick={() => openDrawer(client as ClientItem)}
+                      onClick={() => openDrawer(client.id)}
                     >
                       <TableCell className="font-medium">
                         {client.firstName} {client.lastName}
@@ -430,10 +466,9 @@ function ClientsPage() {
       <ClientDrawer
         client={selectedClient}
         open={drawerOpen}
-        onOpenChange={(open) => {
-          setDrawerOpen(open);
-          if (!open) setSelectedClient(null);
-        }}
+        onClose={closeDrawer}
+        activeTab={activeTab}
+        onTabChange={setActiveTabUrl}
         onBookAppointment={handleBookAppointment}
       />
 

@@ -1,6 +1,6 @@
 // Location detail drawer with relationships
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -44,16 +44,19 @@ interface LocationDrawerProps {
     createdAt: string | Date;
   } | null;
   open: boolean;
-  onOpenChange: (open: boolean) => void;
+  onClose: () => void;
+  activeTab: "details" | "calendars" | "resources";
+  onTabChange: (tab: string) => void;
 }
 
 export function LocationDrawer({
   location,
   open,
-  onOpenChange,
+  onClose,
+  activeTab,
+  onTabChange,
 }: LocationDrawerProps) {
   const queryClient = useQueryClient();
-  const [activeTab, setActiveTab] = useState("details");
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
   // Fetch calendars at this location
@@ -91,7 +94,7 @@ export function LocationDrawer({
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: orpc.locations.key() });
         setShowDeleteDialog(false);
-        onOpenChange(false);
+        onClose();
         toast.success("Location deleted");
       },
       onError: (error) => {
@@ -116,14 +119,14 @@ export function LocationDrawer({
   });
 
   // Reset form when location changes
-  useState(() => {
+  useEffect(() => {
     if (location) {
       form.reset({
         name: location.name,
         timezone: location.timezone,
       });
     }
-  });
+  }, [location, form]);
 
   if (!location) return null;
 
@@ -136,13 +139,13 @@ export function LocationDrawer({
 
   return (
     <>
-      <Drawer open={open} onOpenChange={onOpenChange}>
+      <Drawer open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
         <DrawerContent width="md">
-          <DrawerHeader onClose={() => onOpenChange(false)}>
+          <DrawerHeader onClose={onClose}>
             <DrawerTitle>{location.name}</DrawerTitle>
           </DrawerHeader>
 
-          <DrawerTabs value={activeTab} onValueChange={setActiveTab}>
+          <DrawerTabs value={activeTab} onValueChange={onTabChange}>
             <DrawerTab value="details">Details</DrawerTab>
             <DrawerTab value="calendars">
               Calendars ({calendarsAtLocation.length})
