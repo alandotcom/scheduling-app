@@ -1,35 +1,110 @@
 // Availability editor utility functions
 
+import { DateTime } from "luxon";
+
+/**
+ * Format a Date object as YYYY-MM-DD string.
+ * Note: Uses browser local timezone. For timezone-aware formatting,
+ * use formatDateInTimezone instead.
+ */
 export function formatDate(date: Date): string {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
+  const dt = DateTime.fromJSDate(date);
+  return dt.toISODate() ?? "";
 }
 
+/**
+ * Format a Date object as HH:mm time string.
+ * Note: Uses browser local timezone. For timezone-aware formatting,
+ * use formatTimeInTimezone instead.
+ */
 export function formatTime(date: Date): string {
-  return date.toTimeString().slice(0, 5);
+  const dt = DateTime.fromJSDate(date);
+  return dt.toFormat("HH:mm");
 }
 
-export function formatDisplayDate(dateStr: string): string {
-  const date = new Date(dateStr + "T00:00:00");
-  return date.toLocaleDateString("en-US", {
+/**
+ * Format an ISO date string for display.
+ * @param dateStr - Date string in YYYY-MM-DD format
+ * @param timezone - Optional IANA timezone (defaults to browser local)
+ */
+export function formatDisplayDate(dateStr: string, timezone?: string): string {
+  const dt = timezone
+    ? DateTime.fromISO(dateStr, { zone: timezone })
+    : DateTime.fromISO(dateStr);
+  return dt.toLocaleString({
     month: "short",
     day: "numeric",
     year: "numeric",
   });
 }
 
-export function formatDisplayDateTime(dateOrString: Date | string): string {
-  const date =
-    dateOrString instanceof Date ? dateOrString : new Date(dateOrString);
-  return date.toLocaleDateString("en-US", {
+/**
+ * Format a Date or ISO string for display with date and time.
+ * @param dateOrString - Date object or ISO string
+ * @param timezone - Optional IANA timezone (defaults to browser local)
+ */
+export function formatDisplayDateTime(
+  dateOrString: Date | string,
+  timezone?: string,
+): string {
+  const dt =
+    dateOrString instanceof Date
+      ? DateTime.fromJSDate(dateOrString)
+      : timezone
+        ? DateTime.fromISO(dateOrString, { zone: timezone })
+        : DateTime.fromISO(dateOrString);
+
+  const zonedDt = timezone ? dt.setZone(timezone) : dt;
+  return zonedDt.toLocaleString({
     month: "short",
     day: "numeric",
     year: "numeric",
     hour: "numeric",
     minute: "2-digit",
   });
+}
+
+/**
+ * Parse a date and time string in a specific timezone and return ISO string.
+ * This is the key function for fixing timezone bugs in availability editors.
+ * @param dateStr - Date string in YYYY-MM-DD format
+ * @param timeStr - Time string in HH:mm format
+ * @param timezone - IANA timezone string (e.g., "America/New_York")
+ */
+export function parseInTimezone(
+  dateStr: string,
+  timeStr: string,
+  timezone: string,
+): string {
+  const dt = DateTime.fromISO(`${dateStr}T${timeStr}`, { zone: timezone });
+  return dt.toISO() ?? "";
+}
+
+/**
+ * Parse a datetime (Date object or ISO string) in a specific timezone and extract date/time parts.
+ * @param dateOrString - Date object or ISO datetime string
+ * @param timezone - IANA timezone to interpret the time in
+ */
+export function parseISOInTimezone(
+  dateOrString: Date | string,
+  timezone: string,
+): { date: string; time: string } {
+  const dt =
+    dateOrString instanceof Date
+      ? DateTime.fromJSDate(dateOrString).setZone(timezone)
+      : DateTime.fromISO(dateOrString, { zone: timezone });
+  return {
+    date: dt.toISODate() ?? "",
+    time: dt.toFormat("HH:mm"),
+  };
+}
+
+/**
+ * Get "tomorrow" in a specific timezone as a YYYY-MM-DD string.
+ */
+export function getTomorrowInTimezone(timezone: string): string {
+  const dt = DateTime.now().setZone(timezone).plus({ days: 1 }).startOf("day");
+  return dt.toISODate() ?? "";
 }
 
 export function getMonthDays(year: number, month: number): Date[] {

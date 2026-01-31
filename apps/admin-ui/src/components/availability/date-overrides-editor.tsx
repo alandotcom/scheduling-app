@@ -20,11 +20,13 @@ import { formatDate, formatDisplayDate } from "./utils";
 
 interface DateOverridesEditorProps {
   calendarId: string;
+  timezone: string;
   compact?: boolean;
 }
 
 export function DateOverridesEditor({
   calendarId,
+  timezone,
   compact = false,
 }: DateOverridesEditorProps) {
   const queryClient = useQueryClient();
@@ -165,7 +167,7 @@ export function DateOverridesEditor({
           <div className="rounded-lg border border-border/50 bg-card p-4 space-y-3">
             <h4 className="text-sm font-medium">
               {editingOverride.id ? "Edit Override" : "Add Override"} -{" "}
-              {formatDisplayDate(editingOverride.date)}
+              {formatDisplayDate(editingOverride.date, timezone)}
             </h4>
 
             <Checkbox
@@ -267,7 +269,7 @@ export function DateOverridesEditor({
                   >
                     <div>
                       <span className="font-medium">
-                        {formatDisplayDate(override.date)}
+                        {formatDisplayDate(override.date, timezone)}
                       </span>
                       <span className="text-muted-foreground ml-2">
                         {override.isBlocked
@@ -326,7 +328,7 @@ export function DateOverridesEditor({
             <CardHeader>
               <CardTitle className="text-lg">
                 {editingOverride.id ? "Edit Override" : "Add Override"} -{" "}
-                {formatDisplayDate(editingOverride.date)}
+                {formatDisplayDate(editingOverride.date, timezone)}
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -437,7 +439,7 @@ export function DateOverridesEditor({
                     >
                       <div>
                         <span className="font-medium">
-                          {formatDisplayDate(override.date)}
+                          {formatDisplayDate(override.date, timezone)}
                         </span>
                         <span className="text-muted-foreground ml-2">
                           {override.isBlocked

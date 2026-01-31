@@ -23,21 +23,24 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { RECURRENCE_OPTIONS } from "./constants";
 import {
-  formatDate,
-  formatTime,
   formatDisplayDateTime,
   rruleToLabel,
   recurrenceToRrule,
   rruleToRecurrence,
+  parseInTimezone,
+  parseISOInTimezone,
+  getTomorrowInTimezone,
 } from "./utils";
 
 interface BlockedTimeEditorProps {
   calendarId: string;
+  timezone: string;
   compact?: boolean;
 }
 
 export function BlockedTimeEditor({
   calendarId,
+  timezone,
   compact = false,
 }: BlockedTimeEditorProps) {
   const queryClient = useQueryClient();
@@ -98,15 +101,13 @@ export function BlockedTimeEditor({
   );
 
   const handleAddNew = () => {
-    const now = new Date();
-    const tomorrow = new Date(now);
-    tomorrow.setDate(tomorrow.getDate() + 1);
+    const tomorrow = getTomorrowInTimezone(timezone);
 
     setEditingBlock({
       title: "",
-      startDate: formatDate(tomorrow),
+      startDate: tomorrow,
       startTime: "09:00",
-      endDate: formatDate(tomorrow),
+      endDate: tomorrow,
       endTime: "17:00",
       allDay: false,
       recurrence: "none",
@@ -115,16 +116,16 @@ export function BlockedTimeEditor({
   };
 
   const handleEdit = (block: (typeof blockedTimes)[0]) => {
-    const startAt = new Date(block.startAt);
-    const endAt = new Date(block.endAt);
+    const startParts = parseISOInTimezone(block.startAt, timezone);
+    const endParts = parseISOInTimezone(block.endAt, timezone);
 
     setEditingBlock({
       id: block.id,
       title: "",
-      startDate: formatDate(startAt),
-      startTime: formatTime(startAt),
-      endDate: formatDate(endAt),
-      endTime: formatTime(endAt),
+      startDate: startParts.date,
+      startTime: startParts.time,
+      endDate: endParts.date,
+      endTime: endParts.time,
       allDay: false,
       recurrence: rruleToRecurrence(block.recurringRule),
     });
@@ -134,12 +135,17 @@ export function BlockedTimeEditor({
   const handleSave = () => {
     if (!editingBlock) return;
 
-    const startAt = new Date(
-      `${editingBlock.startDate}T${editingBlock.startTime}:00`,
-    ).toISOString();
-    const endAt = new Date(
-      `${editingBlock.endDate}T${editingBlock.endTime}:00`,
-    ).toISOString();
+    // Parse dates/times in the calendar's timezone, then convert to ISO for API
+    const startAt = parseInTimezone(
+      editingBlock.startDate,
+      editingBlock.startTime,
+      timezone,
+    );
+    const endAt = parseInTimezone(
+      editingBlock.endDate,
+      editingBlock.endTime,
+      timezone,
+    );
     const recurringRule = recurrenceToRrule(editingBlock.recurrence);
 
     const data = {
@@ -329,8 +335,8 @@ export function BlockedTimeEditor({
                   >
                     <div>
                       <div className="font-medium">
-                        {formatDisplayDateTime(block.startAt)} -{" "}
-                        {formatDisplayDateTime(block.endAt)}
+                        {formatDisplayDateTime(block.startAt, timezone)} -{" "}
+                        {formatDisplayDateTime(block.endAt, timezone)}
                       </div>
                       <div className="text-xs text-muted-foreground">
                         {rruleToLabel(block.recurringRule)}
@@ -521,8 +527,8 @@ export function BlockedTimeEditor({
                   >
                     <div>
                       <div className="font-medium">
-                        {formatDisplayDateTime(block.startAt)} -{" "}
-                        {formatDisplayDateTime(block.endAt)}
+                        {formatDisplayDateTime(block.startAt, timezone)} -{" "}
+                        {formatDisplayDateTime(block.endAt, timezone)}
                       </div>
                       <div className="text-sm text-muted-foreground">
                         {rruleToLabel(block.recurringRule)}

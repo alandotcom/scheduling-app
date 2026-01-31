@@ -24,11 +24,13 @@ import {
 
 interface WeeklyScheduleEditorProps {
   calendarId: string;
+  timezone: string;
   compact?: boolean;
 }
 
 export function WeeklyScheduleEditor({
   calendarId,
+  timezone: _timezone,
   compact = false,
 }: WeeklyScheduleEditorProps) {
   const queryClient = useQueryClient();

@@ -748,18 +748,21 @@ function CalendarsPage() {
                     {availabilitySubTab === "weekly" && (
                       <WeeklyScheduleEditor
                         calendarId={selectedCalendar.id}
+                        timezone={selectedCalendar.timezone}
                         compact
                       />
                     )}
                     {availabilitySubTab === "overrides" && (
                       <DateOverridesEditor
                         calendarId={selectedCalendar.id}
+                        timezone={selectedCalendar.timezone}
                         compact
                       />
                     )}
                     {availabilitySubTab === "blocked" && (
                       <BlockedTimeEditor
                         calendarId={selectedCalendar.id}
+                        timezone={selectedCalendar.timezone}
                         compact
                       />
                     )}
