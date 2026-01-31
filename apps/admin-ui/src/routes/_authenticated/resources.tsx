@@ -47,14 +47,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-interface ResourceItem {
-  id: string;
-  name: string;
-  quantity: number;
-  locationId?: string | null;
-  createdAt: string | Date;
-}
-
 interface ResourceFormProps {
   defaultValues?: { name: string; quantity: number; locationId?: string };
   locations: Array<{ id: string; name: string }>;
@@ -164,7 +156,6 @@ function ResourceForm({
 
 function ResourcesPage() {
   const queryClient = useQueryClient();
-  const crud = useCrudState<ResourceItem>();
 
   // URL-driven drawer state
   const navigate = useNavigate({ from: Route.fullPath });
@@ -179,6 +170,11 @@ function ResourcesPage() {
       input: { limit: 100 },
     }),
   );
+
+  // Infer item type from query result
+  type ResourceItem = NonNullable<typeof data>["items"][number];
+
+  const crud = useCrudState<ResourceItem>();
 
   // Fetch locations for the dropdown
   const { data: locationsData } = useQuery(
@@ -233,10 +229,7 @@ function ResourcesPage() {
 
   // Derive selected resource from data
   const selectedResource = useMemo(
-    () =>
-      (data?.items.find((r) => r.id === selectedId) as
-        | ResourceItem
-        | undefined) ?? null,
+    () => data?.items.find((r) => r.id === selectedId) ?? null,
     [data?.items, selectedId],
   );
 
@@ -285,14 +278,7 @@ function ResourcesPage() {
       {
         label: "Edit",
         icon: PencilEdit01Icon,
-        onClick: () =>
-          crud.openEdit({
-            id: resource.id,
-            name: resource.name,
-            quantity: resource.quantity,
-            locationId: resource.locationId ?? undefined,
-            createdAt: resource.createdAt,
-          }),
+        onClick: () => crud.openEdit(resource),
       },
       {
         label: "Delete",
@@ -390,7 +376,7 @@ function ResourcesPage() {
                 {data.items.map((resource) => (
                   <ContextMenu
                     key={resource.id}
-                    items={getContextMenuItems(resource as ResourceItem)}
+                    items={getContextMenuItems(resource)}
                   >
                     <TableRow
                       className="cursor-pointer hover:bg-muted/50 transition-colors"

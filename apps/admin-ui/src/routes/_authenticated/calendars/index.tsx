@@ -65,14 +65,6 @@ import {
   type AvailabilitySubTabType,
 } from "@/components/availability";
 
-interface CalendarItem {
-  id: string;
-  name: string;
-  timezone: string;
-  locationId?: string | null;
-  createdAt: string | Date;
-}
-
 interface CalendarFormProps {
   defaultValues?: {
     name: string;
@@ -200,7 +192,6 @@ function CalendarForm({
 
 function CalendarsPage() {
   const queryClient = useQueryClient();
-  const crud = useCrudState<CalendarItem>();
 
   const navigate = useNavigate({ from: Route.fullPath });
   const { selected, tab } = Route.useSearch();
@@ -216,6 +207,11 @@ function CalendarsPage() {
       input: { limit: 100 },
     }),
   );
+
+  // Infer item type from query result
+  type CalendarItem = NonNullable<typeof data>["items"][number];
+
+  const crud = useCrudState<CalendarItem>();
 
   const calendars = data?.items ?? [];
   const selectedIndex = selectedId
@@ -437,14 +433,7 @@ function CalendarsPage() {
       {
         label: "Edit",
         icon: PencilEdit01Icon,
-        onClick: () =>
-          crud.openEdit({
-            id: calendar.id,
-            name: calendar.name,
-            timezone: calendar.timezone,
-            locationId: calendar.locationId ?? undefined,
-            createdAt: calendar.createdAt,
-          }),
+        onClick: () => crud.openEdit(calendar),
       },
       {
         label: "Delete",
@@ -546,7 +535,7 @@ function CalendarsPage() {
                       return (
                         <ContextMenu
                           key={calendar.id}
-                          items={getContextMenuItems(calendar as CalendarItem)}
+                          items={getContextMenuItems(calendar)}
                         >
                           <TableRow
                             className={cn(
@@ -616,15 +605,7 @@ function CalendarsPage() {
                 <Button
                   size="sm"
                   variant="outline"
-                  onClick={() =>
-                    crud.openEdit({
-                      id: selectedCalendar.id,
-                      name: selectedCalendar.name,
-                      timezone: selectedCalendar.timezone,
-                      locationId: selectedCalendar.locationId ?? undefined,
-                      createdAt: selectedCalendar.createdAt,
-                    })
-                  }
+                  onClick={() => crud.openEdit(selectedCalendar)}
                 >
                   Edit
                 </Button>

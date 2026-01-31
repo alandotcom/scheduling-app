@@ -42,13 +42,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-interface LocationItem {
-  id: string;
-  name: string;
-  timezone: string;
-  createdAt: string | Date;
-}
-
 interface LocationFormProps {
   defaultValues?: { name: string; timezone: string };
   onSubmit: (data: CreateLocationInput) => void;
@@ -140,7 +133,6 @@ const isLocationTab = (value: string): value is LocationTabValue =>
 
 function LocationsPage() {
   const queryClient = useQueryClient();
-  const crud = useCrudState<LocationItem>();
 
   // URL-driven drawer state
   const navigate = useNavigate({ from: Route.fullPath });
@@ -156,6 +148,11 @@ function LocationsPage() {
       input: { limit: 100 },
     }),
   );
+
+  // Infer item type from query result
+  type LocationItem = NonNullable<typeof data>["items"][number];
+
+  const crud = useCrudState<LocationItem>();
 
   // Create mutation
   const createMutation = useMutation(
@@ -218,10 +215,7 @@ function LocationsPage() {
 
   // Derive selected location from data
   const selectedLocation = useMemo(
-    () =>
-      (data?.items.find((l) => l.id === selectedId) as
-        | LocationItem
-        | undefined) ?? null,
+    () => data?.items.find((l) => l.id === selectedId) ?? null,
     [data?.items, selectedId],
   );
 
@@ -255,13 +249,7 @@ function LocationsPage() {
       {
         label: "Edit",
         icon: PencilEdit01Icon,
-        onClick: () =>
-          crud.openEdit({
-            id: location.id,
-            name: location.name,
-            timezone: location.timezone,
-            createdAt: location.createdAt,
-          }),
+        onClick: () => crud.openEdit(location),
       },
       {
         label: "Delete",
@@ -355,7 +343,7 @@ function LocationsPage() {
                 {data.items.map((location) => (
                   <ContextMenu
                     key={location.id}
-                    items={getContextMenuItems(location as LocationItem)}
+                    items={getContextMenuItems(location)}
                   >
                     <TableRow
                       className="cursor-pointer hover:bg-muted/50 transition-colors"

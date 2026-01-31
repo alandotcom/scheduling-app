@@ -340,7 +340,7 @@ export class AppointmentService {
       entityType: "appointment",
       entityId: appointment.id,
       before: null,
-      after: toAuditSnapshot(appointment as unknown as Record<string, unknown>),
+      after: toAuditSnapshot(appointment),
     });
 
     return appointment;
@@ -401,10 +401,8 @@ export class AppointmentService {
           action: "update",
           entityType: "appointment",
           entityId: updated.id,
-          before: toAuditSnapshot(
-            existing as unknown as Record<string, unknown>,
-          ),
-          after: toAuditSnapshot(updated as unknown as Record<string, unknown>),
+          before: toAuditSnapshot(existing),
+          after: toAuditSnapshot(updated),
         },
         tx,
       );
@@ -479,10 +477,8 @@ export class AppointmentService {
           action: "cancel",
           entityType: "appointment",
           entityId: updated.id,
-          before: toAuditSnapshot(
-            existing as unknown as Record<string, unknown>,
-          ),
-          after: toAuditSnapshot(updated as unknown as Record<string, unknown>),
+          before: toAuditSnapshot(existing),
+          after: toAuditSnapshot(updated),
         },
         tx,
       );
@@ -608,12 +604,8 @@ export class AppointmentService {
             action: "reschedule",
             entityType: "appointment",
             entityId: result.id,
-            before: toAuditSnapshot(
-              existing as unknown as Record<string, unknown>,
-            ),
-            after: toAuditSnapshot(
-              result as unknown as Record<string, unknown>,
-            ),
+            before: toAuditSnapshot(existing),
+            after: toAuditSnapshot(result),
           },
           tx,
         );
@@ -697,10 +689,8 @@ export class AppointmentService {
           action: "no_show",
           entityType: "appointment",
           entityId: updated.id,
-          before: toAuditSnapshot(
-            existing as unknown as Record<string, unknown>,
-          ),
-          after: toAuditSnapshot(updated as unknown as Record<string, unknown>),
+          before: toAuditSnapshot(existing),
+          after: toAuditSnapshot(updated),
         },
         tx,
       );

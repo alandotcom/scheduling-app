@@ -37,15 +37,6 @@ import {
   TableRow,
 } from "@/components/ui/table";
 
-interface ClientItem {
-  id: string;
-  firstName: string;
-  lastName: string;
-  email?: string | null;
-  phone?: string | null;
-  createdAt: string | Date;
-}
-
 interface ClientFormProps {
   defaultValues?: {
     firstName: string;
@@ -173,7 +164,6 @@ const isClientTab = (value: string): value is ClientTabValue =>
 
 function ClientsPage() {
   const queryClient = useQueryClient();
-  const crud = useCrudState<ClientItem>();
 
   // Search state
   const [search, setSearch] = useState("");
@@ -195,6 +185,11 @@ function ClientsPage() {
       input: { search: search || undefined, limit: 100 },
     }),
   );
+
+  // Infer item type from query result
+  type ClientItem = NonNullable<typeof data>["items"][number];
+
+  const crud = useCrudState<ClientItem>();
 
   // Create mutation
   const createMutation = useMutation(
@@ -257,10 +252,7 @@ function ClientsPage() {
 
   // Derive selected client from data
   const selectedClient = useMemo(
-    () =>
-      (data?.items.find((c) => c.id === selectedId) as
-        | ClientItem
-        | undefined) ?? null,
+    () => data?.items.find((c) => c.id === selectedId) ?? null,
     [data?.items, selectedId],
   );
 
@@ -308,15 +300,7 @@ function ClientsPage() {
       {
         label: "Edit",
         icon: PencilEdit01Icon,
-        onClick: () =>
-          crud.openEdit({
-            id: client.id,
-            firstName: client.firstName,
-            lastName: client.lastName,
-            email: client.email ?? undefined,
-            phone: client.phone ?? undefined,
-            createdAt: client.createdAt,
-          }),
+        onClick: () => crud.openEdit(client),
         separator: true,
       },
       {
@@ -431,7 +415,7 @@ function ClientsPage() {
                 {data.items.map((client) => (
                   <ContextMenu
                     key={client.id}
-                    items={getContextMenuItems(client as ClientItem)}
+                    items={getContextMenuItems(client)}
                   >
                     <TableRow
                       className="cursor-pointer hover:bg-muted/50 transition-colors"

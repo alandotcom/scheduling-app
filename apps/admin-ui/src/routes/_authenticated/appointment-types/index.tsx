@@ -47,16 +47,6 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 
-interface AppointmentTypeItem {
-  id: string;
-  name: string;
-  durationMin: number;
-  paddingBeforeMin?: number | null;
-  paddingAfterMin?: number | null;
-  capacity?: number | null;
-  createdAt: string | Date;
-}
-
 interface AppointmentTypeFormProps {
   defaultValues?: {
     name: string;
@@ -211,23 +201,19 @@ function AppointmentTypesPage() {
     }),
   );
 
+  // Infer item type from query result
+  type AppointmentTypeItem = NonNullable<typeof data>["items"][number];
+
   // Derive selected type from data
   const selectedType = useMemo(
-    () =>
-      (data?.items.find((t) => t.id === selectedId) as
-        | AppointmentTypeItem
-        | undefined) ?? null,
+    () => data?.items.find((t) => t.id === selectedId) ?? null,
     [data?.items, selectedId],
   );
 
   // Derive editing item from data
   const editingItem = useMemo(
     () =>
-      editingId
-        ? ((data?.items.find((t) => t.id === editingId) as
-            | AppointmentTypeItem
-            | undefined) ?? null)
-        : null,
+      editingId ? (data?.items.find((t) => t.id === editingId) ?? null) : null,
     [data?.items, editingId],
   );
 
@@ -490,10 +476,7 @@ function AppointmentTypesPage() {
               </TableHeader>
               <TableBody>
                 {data.items.map((type) => (
-                  <ContextMenu
-                    key={type.id}
-                    items={getContextMenuItems(type as AppointmentTypeItem)}
-                  >
+                  <ContextMenu key={type.id} items={getContextMenuItems(type)}>
                     <TableRow
                       className="cursor-pointer hover:bg-muted/50 transition-colors"
                       onClick={() => openDetails(type.id, "details")}

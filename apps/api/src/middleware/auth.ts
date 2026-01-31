@@ -54,7 +54,7 @@ export const authMiddleware = createMiddleware(async (c, next) => {
 
         if (membership) {
           c.set("orgId", orgId);
-          c.set("role", membership.role as "admin" | "staff");
+          c.set("role", membership.role);
         } else {
           return c.json(
             {
@@ -70,7 +70,7 @@ export const authMiddleware = createMiddleware(async (c, next) => {
         });
         if (membership) {
           c.set("orgId", membership.orgId);
-          c.set("role", membership.role as "admin" | "staff");
+          c.set("role", membership.role);
         } else {
           c.set("orgId", null);
           c.set("role", null);
@@ -120,7 +120,7 @@ export const authMiddleware = createMiddleware(async (c, next) => {
       c.set("sessionId", null);
       c.set("tokenId", apiToken.id);
       c.set("authMethod", "token");
-      c.set("role", apiToken.scope as "admin" | "staff");
+      c.set("role", apiToken.scope);
 
       return next();
     }

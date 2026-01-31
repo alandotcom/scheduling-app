@@ -24,6 +24,8 @@ export const appointmentStatusEnum = pgEnum("appointment_status", [
   "no_show",
 ]);
 
+export const orgRoleEnum = pgEnum("org_role", ["admin", "staff"]);
+
 // Common column helpers using Postgres 18 native uuidv7()
 const id = uuid("id").primaryKey().default(sql`uuidv7()`);
 const timestamps = {
@@ -64,7 +66,7 @@ export const orgMemberships = pgTable.withRLS(
     userId: uuid("user_id")
       .notNull()
       .references(() => users.id),
-    role: text("role").notNull(), // 'admin' | 'staff'
+    role: orgRoleEnum("role").notNull(),
     ...timestamps,
   },
   (table) => [
@@ -437,7 +439,7 @@ export const apiTokens = pgTable.withRLS(
     name: text("name").notNull(), // Human-readable name for the token
     tokenHash: text("token_hash").notNull().unique(), // SHA-256 hash of the token
     tokenPrefix: text("token_prefix").notNull(), // First 8 chars for identification (e.g., "sk_live_")
-    scope: text("scope").notNull(), // 'admin' | 'staff'
+    scope: orgRoleEnum("scope").notNull(),
     lastUsedAt: timestamp("last_used_at", { withTimezone: true }),
     expiresAt: timestamp("expires_at", { withTimezone: true }),
     revokedAt: timestamp("revoked_at", { withTimezone: true }),

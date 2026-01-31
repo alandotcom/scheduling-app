@@ -73,7 +73,7 @@ export async function recordAudit(
  * Convert a database row to a serializable snapshot for audit logging
  * Converts Date objects to ISO strings
  */
-export function toAuditSnapshot<T extends Record<string, unknown>>(
+export function toAuditSnapshot<T extends object>(
   entity: T | null | undefined,
 ): Record<string, unknown> | null {
   if (!entity) return null;
