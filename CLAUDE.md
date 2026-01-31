@@ -29,6 +29,20 @@ pnpm --filter @scheduling/db run migrate    # Run pending migrations
 pnpm --filter @scheduling/db run push       # Push schema to dev database
 ```
 
+## Starting Dev Servers
+
+**IMPORTANT:** Before starting a dev server, ALWAYS check if one is already running:
+
+```bash
+# Check for running Vite (admin-ui) or Bun (api) processes
+ps aux | grep -E "(vite|bun.*src/index)" | grep -v grep
+
+# If stale processes exist, kill them first
+kill <pid>   # or: pkill -f "vite.*admin-ui"
+```
+
+Multiple dev server instances cause race conditions (e.g., TanStack Router's `routeTree.gen.ts` gets corrupted when multiple Vite instances try to regenerate it simultaneously).
+
 ## Architecture
 
 This is a pnpm monorepo for an appointment scheduling platform (Acuity-style).
