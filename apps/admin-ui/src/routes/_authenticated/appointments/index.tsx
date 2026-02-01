@@ -468,20 +468,21 @@ function AppointmentsPage() {
 
   return (
     <div className="p-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">
+      <div className="flex items-center justify-between gap-4">
+        <div className="min-w-0 flex-1">
+          <h1 className="truncate text-2xl font-semibold tracking-tight">
             Appointments
           </h1>
-          <p className="mt-1 text-sm text-muted-foreground">
+          <p className="mt-1 truncate text-sm text-muted-foreground">
             View and manage all appointments
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex shrink-0 items-center gap-3">
           <ViewToggle view={currentView} onViewChange={setView} />
           <Button onClick={() => setModalOpen(true)}>
             <Icon icon={Add01Icon} data-icon="inline-start" />
-            New Appointment
+            <span className="hidden sm:inline">New Appointment</span>
+            <span className="sm:hidden">New</span>
           </Button>
         </div>
       </div>

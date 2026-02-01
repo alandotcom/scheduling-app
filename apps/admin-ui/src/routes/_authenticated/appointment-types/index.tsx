@@ -391,19 +391,20 @@ function AppointmentTypesPage() {
 
   return (
     <div className="p-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">
+      <div className="flex items-center justify-between gap-4">
+        <div className="min-w-0 flex-1">
+          <h1 className="truncate text-2xl font-semibold tracking-tight">
             Appointment Types
           </h1>
-          <p className="mt-1 text-sm text-muted-foreground">
+          <p className="mt-1 truncate text-sm text-muted-foreground">
             Configure the types of appointments that can be booked
           </p>
         </div>
         {!isFormOpen && (
-          <Button onClick={openCreate}>
+          <Button className="shrink-0" onClick={openCreate}>
             <Icon icon={Add01Icon} data-icon="inline-start" />
-            Add Type
+            <span className="hidden sm:inline">Add Type</span>
+            <span className="sm:hidden">Add</span>
           </Button>
         )}
       </div>

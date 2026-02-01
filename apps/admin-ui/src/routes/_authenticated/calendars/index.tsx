@@ -448,17 +448,20 @@ function CalendarsPage() {
 
   return (
     <div className="p-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Calendars</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
+      <div className="flex items-center justify-between gap-4">
+        <div className="min-w-0 flex-1">
+          <h1 className="truncate text-2xl font-semibold tracking-tight">
+            Calendars
+          </h1>
+          <p className="mt-1 truncate text-sm text-muted-foreground">
             Manage calendars and their availability
           </p>
         </div>
         {!crud.isFormOpen && (
-          <Button onClick={crud.openCreate}>
+          <Button className="shrink-0" onClick={crud.openCreate}>
             <Icon icon={Add01Icon} data-icon="inline-start" />
-            Add Calendar
+            <span className="hidden sm:inline">Add Calendar</span>
+            <span className="sm:hidden">Add</span>
           </Button>
         )}
       </div>

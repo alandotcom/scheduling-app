@@ -210,12 +210,18 @@ export function AppointmentDetail({
                   </span>
                 </div>
                 <div className="flex items-center gap-2 text-sm mt-2">
-                  <Icon icon={Clock01Icon} className="text-muted-foreground" />
-                  <span>
+                  <Icon
+                    icon={Clock01Icon}
+                    className="text-muted-foreground shrink-0"
+                  />
+                  <span className="shrink-0">
                     {formatTime(appointment.startAt)} -{" "}
                     {formatTime(appointment.endAt)}
                   </span>
-                  <span className="text-muted-foreground">
+                  <span
+                    className="text-muted-foreground truncate"
+                    title={appointment.timezone}
+                  >
                     ({appointment.timezone})
                   </span>
                 </div>

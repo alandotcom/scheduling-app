@@ -11,20 +11,19 @@ import { cn } from "@/lib/utils";
 import { TabsContext, useTabs } from "@/components/drawer";
 
 function useMediaQuery(query: string) {
-  const [matches, setMatches] = React.useState(() => {
-    if (typeof window === "undefined") return false;
-    return window.matchMedia(query).matches;
-  });
+  // Initialize with null to detect SSR/hydration state
+  const [matches, setMatches] = React.useState<boolean | null>(null);
 
   React.useEffect(() => {
     const media = window.matchMedia(query);
+    setMatches(media.matches);
     const handleChange = () => setMatches(media.matches);
-    handleChange();
     media.addEventListener("change", handleChange);
     return () => media.removeEventListener("change", handleChange);
   }, [query]);
 
-  return matches;
+  // Return false during SSR/initial render to avoid flash
+  return matches ?? false;
 }
 
 interface SplitPaneLayoutProps extends React.ComponentProps<"div"> {
