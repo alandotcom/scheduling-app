@@ -82,9 +82,9 @@ export function CommandPalette({ onCreateAppointment }: CommandPaletteProps) {
             </Command.Empty>
 
             {/* Quick Actions */}
-            <Command.Group heading="Quick Actions" className="px-2 py-1.5">
-              <CommandGroupHeading>Quick Actions</CommandGroupHeading>
-              {onCreateAppointment && (
+            {onCreateAppointment && (
+              <Command.Group className="px-2 py-1.5">
+                <CommandGroupHeading>Quick Actions</CommandGroupHeading>
                 <CommandItem
                   onSelect={() => runCommand(onCreateAppointment)}
                   icon={Add01Icon}
@@ -92,11 +92,11 @@ export function CommandPalette({ onCreateAppointment }: CommandPaletteProps) {
                 >
                   Create Appointment
                 </CommandItem>
-              )}
-            </Command.Group>
+              </Command.Group>
+            )}
 
             {/* Work */}
-            <Command.Group heading="Work" className="px-2 py-1.5">
+            <Command.Group className="px-2 py-1.5">
               <CommandGroupHeading>Work</CommandGroupHeading>
               <CommandItem
                 onSelect={() =>
@@ -112,7 +112,7 @@ export function CommandPalette({ onCreateAppointment }: CommandPaletteProps) {
             </Command.Group>
 
             {/* People */}
-            <Command.Group heading="People" className="px-2 py-1.5">
+            <Command.Group className="px-2 py-1.5">
               <CommandGroupHeading>People</CommandGroupHeading>
               <CommandItem
                 onSelect={() =>
@@ -128,7 +128,7 @@ export function CommandPalette({ onCreateAppointment }: CommandPaletteProps) {
             </Command.Group>
 
             {/* Setup */}
-            <Command.Group heading="Setup" className="px-2 py-1.5">
+            <Command.Group className="px-2 py-1.5">
               <CommandGroupHeading>Setup</CommandGroupHeading>
               <CommandItem
                 onSelect={() =>
@@ -178,11 +178,13 @@ export function CommandPalette({ onCreateAppointment }: CommandPaletteProps) {
             </Command.Group>
 
             {/* System */}
-            <Command.Group heading="System" className="px-2 py-1.5">
+            <Command.Group className="px-2 py-1.5">
               <CommandGroupHeading>System</CommandGroupHeading>
               <CommandItem
                 onSelect={() =>
-                  runCommand(() => void navigate({ to: "/settings" }))
+                  runCommand(
+                    () => void navigate({ to: "/settings", search: {} }),
+                  )
                 }
                 icon={Settings01Icon}
                 shortcut="g s"

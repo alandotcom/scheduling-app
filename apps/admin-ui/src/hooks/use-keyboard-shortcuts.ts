@@ -129,7 +129,7 @@ export function useNavigationShortcuts() {
     },
     {
       key: "g s",
-      action: () => void navigate({ to: "/settings" }),
+      action: () => void navigate({ to: "/settings", search: {} }),
       description: "Go to Settings",
     },
   ];
