@@ -2,6 +2,7 @@
 // Separate routers for UI (oRPC) and M2M API (OpenAPI)
 
 import { base } from "../lib/orpc.js";
+import { orgRoutes } from "./orgs.js";
 import { locationRoutes } from "./locations.js";
 import { calendarRoutes } from "./calendars.js";
 import { resourceRoutes } from "./resources.js";
@@ -29,6 +30,7 @@ export const health = base
 // ============================================================================
 export const uiRouter = {
   health,
+  org: orgRoutes,
   locations: locationRoutes,
   calendars: calendarRoutes,
   resources: resourceRoutes,

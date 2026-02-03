@@ -44,6 +44,16 @@ const timestamps = {
 export const orgs = pgTable("orgs", {
   id,
   name: text("name").notNull(),
+  // Organization settings
+  defaultTimezone: text("default_timezone").default("America/New_York"),
+  defaultBusinessHoursStart: text("default_business_hours_start").default(
+    "09:00",
+  ),
+  defaultBusinessHoursEnd: text("default_business_hours_end").default("17:00"),
+  defaultBusinessDays: jsonb("default_business_days")
+    .$type<number[]>()
+    .default([1, 2, 3, 4, 5]),
+  notificationsEnabled: boolean("notifications_enabled").default(true),
   ...timestamps,
 });
 
