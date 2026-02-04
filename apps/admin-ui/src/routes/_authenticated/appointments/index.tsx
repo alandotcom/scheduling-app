@@ -59,10 +59,10 @@ import {
 } from "@/components/appointments";
 
 type ViewMode = "list" | "schedule";
-type DetailTabValue = "details" | "client";
+type DetailTabValue = "details" | "client" | "history";
 
 const isDetailTab = (value: string): value is DetailTabValue =>
-  value === "details" || value === "client";
+  value === "details" || value === "client" || value === "history";
 
 function AppointmentsPage() {
   const queryClient = useQueryClient();

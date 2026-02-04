@@ -36,8 +36,10 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { RescheduleDialog } from "./reschedule-dialog";
+import { AppointmentHistory } from "./appointment-history";
 
-type DetailTabValue = "details" | "client";
+type DetailTabValue = "details" | "client" | "history";
 
 interface AppointmentDetailProps {
   appointment: AppointmentWithRelations | null;
@@ -192,6 +194,7 @@ export function AppointmentDetail({
         >
           <DetailTab value="details">Details</DetailTab>
           <DetailTab value="client">Client</DetailTab>
+          <DetailTab value="history">History</DetailTab>
         </DetailTabs>
 
         {/* Tab Content */}
@@ -402,6 +405,10 @@ export function AppointmentDetail({
               )}
             </div>
           )}
+
+          {activeTab === "history" && (
+            <AppointmentHistory appointmentId={appointment.id} />
+          )}
         </div>
       </div>
 
@@ -450,23 +457,11 @@ export function AppointmentDetail({
       </AlertDialog>
 
       {/* Reschedule Dialog */}
-      <AlertDialog
+      <RescheduleDialog
+        appointment={appointment}
         open={showRescheduleDialog}
         onOpenChange={setShowRescheduleDialog}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Reschedule Appointment</AlertDialogTitle>
-            <AlertDialogDescription>
-              Select a new date and time for this appointment.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction disabled>Coming Soon</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      />
     </>
   );
 }
