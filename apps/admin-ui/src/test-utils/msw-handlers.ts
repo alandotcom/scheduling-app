@@ -28,6 +28,40 @@ interface AppointmentTypeFixture {
   updatedAt: string;
 }
 
+interface LocationFixture {
+  id: string;
+  name: string;
+  timezone: string;
+  orgId: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface AvailabilityRuleFixture {
+  id: string;
+  calendarId: string;
+  weekday: number;
+  startTime: string;
+  endTime: string;
+}
+
+interface DateOverrideFixture {
+  id: string;
+  calendarId: string;
+  date: string;
+  isBlocked: boolean;
+  startTime: string | null;
+  endTime: string | null;
+}
+
+interface BlockedTimeFixture {
+  id: string;
+  calendarId: string;
+  startAt: string;
+  endAt: string;
+  recurringRule: string | null;
+}
+
 // Counter for unique IDs
 let idCounter = 1;
 
@@ -69,6 +103,64 @@ export function createAppointmentTypeFixture(
     isActive: true,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
+    ...overrides,
+  };
+}
+
+export function createLocationFixture(
+  overrides: Partial<LocationFixture> = {},
+): LocationFixture {
+  const id = overrides.id ?? nextId();
+  return {
+    id,
+    name: `Location ${id}`,
+    timezone: "America/New_York",
+    orgId: "test-org-id",
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    ...overrides,
+  };
+}
+
+export function createAvailabilityRuleFixture(
+  overrides: Partial<AvailabilityRuleFixture> = {},
+): AvailabilityRuleFixture {
+  const id = overrides.id ?? nextId();
+  return {
+    id,
+    calendarId: "test-calendar-id",
+    weekday: 1,
+    startTime: "09:00",
+    endTime: "17:00",
+    ...overrides,
+  };
+}
+
+export function createDateOverrideFixture(
+  overrides: Partial<DateOverrideFixture> = {},
+): DateOverrideFixture {
+  const id = overrides.id ?? nextId();
+  return {
+    id,
+    calendarId: "test-calendar-id",
+    date: "2026-02-10",
+    isBlocked: false,
+    startTime: "10:00",
+    endTime: "14:00",
+    ...overrides,
+  };
+}
+
+export function createBlockedTimeFixture(
+  overrides: Partial<BlockedTimeFixture> = {},
+): BlockedTimeFixture {
+  const id = overrides.id ?? nextId();
+  return {
+    id,
+    calendarId: "test-calendar-id",
+    startAt: "2026-02-10T14:00:00.000Z",
+    endAt: "2026-02-10T15:00:00.000Z",
+    recurringRule: null,
     ...overrides,
   };
 }
@@ -143,6 +235,10 @@ let mockAppointments: AppointmentWithRelations[] = [];
 let mockScheduleEvents: AppointmentScheduleEvent[] = [];
 let mockCalendars: CalendarFixture[] = [];
 let mockAppointmentTypes: AppointmentTypeFixture[] = [];
+let mockLocations: LocationFixture[] = [];
+let mockAvailabilityRules: AvailabilityRuleFixture[] = [];
+let mockDateOverrides: DateOverrideFixture[] = [];
+let mockBlockedTimes: BlockedTimeFixture[] = [];
 
 export function setMockAppointments(appointments: AppointmentWithRelations[]) {
   mockAppointments = appointments;
@@ -160,11 +256,31 @@ export function setMockAppointmentTypes(types: AppointmentTypeFixture[]) {
   mockAppointmentTypes = types;
 }
 
+export function setMockLocations(locations: LocationFixture[]) {
+  mockLocations = locations;
+}
+
+export function setMockAvailabilityRules(rules: AvailabilityRuleFixture[]) {
+  mockAvailabilityRules = rules;
+}
+
+export function setMockDateOverrides(overrides: DateOverrideFixture[]) {
+  mockDateOverrides = overrides;
+}
+
+export function setMockBlockedTimes(blockedTimes: BlockedTimeFixture[]) {
+  mockBlockedTimes = blockedTimes;
+}
+
 export function resetMockData() {
   mockAppointments = [];
   mockScheduleEvents = [];
   mockCalendars = [];
   mockAppointmentTypes = [];
+  mockLocations = [];
+  mockAvailabilityRules = [];
+  mockDateOverrides = [];
+  mockBlockedTimes = [];
   resetIdCounter();
 }
 
@@ -237,6 +353,42 @@ export const handlers = [
   http.post("*/v1/appointmentTypes.list", () => {
     return HttpResponse.json({
       items: mockAppointmentTypes,
+      nextCursor: null,
+      hasMore: false,
+    });
+  }),
+
+  // List locations
+  http.post("*/v1/locations.list", () => {
+    return HttpResponse.json({
+      items: mockLocations,
+      nextCursor: null,
+      hasMore: false,
+    });
+  }),
+
+  // Availability rules
+  http.post("*/v1/availability.rules.list", () => {
+    return HttpResponse.json({
+      items: mockAvailabilityRules,
+      nextCursor: null,
+      hasMore: false,
+    });
+  }),
+
+  // Date overrides
+  http.post("*/v1/availability.overrides.list", () => {
+    return HttpResponse.json({
+      items: mockDateOverrides,
+      nextCursor: null,
+      hasMore: false,
+    });
+  }),
+
+  // Blocked time
+  http.post("*/v1/availability.blockedTime.list", () => {
+    return HttpResponse.json({
+      items: mockBlockedTimes,
       nextCursor: null,
       hasMore: false,
     });

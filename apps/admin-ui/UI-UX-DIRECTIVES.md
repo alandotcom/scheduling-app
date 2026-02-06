@@ -354,11 +354,9 @@ toast.error(error.message || "Failed to create item");
 - [ ] Show appointment count badge in list
 - [ ] Show next appointment preview in list
 - [ ] Availability indicator (green = set up, red = needs config)
-- [ ] Weekly hours editor directly in drawer (not just summary)
-- [ ] Date override management in drawer
-- [ ] Blocked time management in drawer
-
-**Current problem:** Availability editing still requires navigating to `/calendars/$id/availability`. Should be fully editable in drawer.
+- [x] Weekly hours editor directly in drawer/detail panel
+- [x] Date override management in drawer/detail panel
+- [x] Blocked time management in drawer/detail panel
 
 **List columns to add:**
 - "12 appointments this week" badge
@@ -520,10 +518,10 @@ toast.error(error.message || "Failed to create item");
    - Add "Select all" in header
    - Show bulk action toolbar when items selected
 
-4. **Move Availability Editing to Drawer**
-   - Weekly hours editor component
-   - Date override list with add/edit/delete
-   - Blocked time list with add/edit/delete
+4. **Move Availability Editing to Drawer** ✅ Completed
+   - Weekly hours editor in calendar detail panel
+   - Date override management in calendar detail panel
+   - Blocked time management in calendar detail panel
 
 ### Medium Priority
 
@@ -578,10 +576,6 @@ toast.error(error.message || "Failed to create item");
 1. **Form Reset on Drawer Open**
    - Drawers use `useState` for form reset, should use `useEffect`
    - Form values may not update when switching between items
-
-2. **Availability Page Still Separate**
-   - Should be merged into calendar drawer
-   - Current `/calendars/$id/availability` route should be deprecated
 
 ### Minor
 
@@ -651,7 +645,6 @@ toast.error(error.message || "Failed to create item");
 | Route | Replacement |
 |-------|-------------|
 | `_authenticated/appointments/new.tsx` | `appointment-modal.tsx` |
-| `_authenticated/calendars/$calendarId/availability.tsx` | Should merge into `calendar-drawer.tsx` |
 | `_authenticated/appointment-types/$typeId/calendars.tsx` | Should merge into drawer |
 | `_authenticated/appointment-types/$typeId/resources.tsx` | Should merge into drawer |
 
