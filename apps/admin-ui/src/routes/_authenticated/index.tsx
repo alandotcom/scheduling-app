@@ -268,9 +268,13 @@ function DashboardCard({ title, value, subtitle, href }: DashboardCardProps) {
       to={href}
       className="rounded-xl border border-border bg-card p-5 transition-all hover:border-foreground/15 hover:shadow-sm"
     >
-      <div className="text-xs font-medium uppercase tracking-wider text-muted-foreground">{title}</div>
+      <div className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+        {title}
+      </div>
       <div className="mt-2 flex items-baseline gap-2">
-        <span className="text-3xl font-semibold tracking-tight tabular-nums">{value}</span>
+        <span className="text-3xl font-semibold tracking-tight tabular-nums">
+          {value}
+        </span>
         <span className="text-sm text-muted-foreground">{subtitle}</span>
       </div>
     </Link>

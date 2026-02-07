@@ -51,13 +51,7 @@ export function WorkbenchLayout({
   ...props
 }: WorkbenchLayoutProps) {
   return (
-    <div
-      className={cn(
-        "flex flex-1 min-w-0 flex-col",
-        className,
-      )}
-      {...props}
-    >
+    <div className={cn("flex flex-1 min-w-0 flex-col", className)} {...props}>
       {children}
     </div>
   );

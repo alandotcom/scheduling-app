@@ -172,7 +172,10 @@ function SettingsForm({ org }: SettingsFormProps) {
         Configure organization and application settings.
       </p>
 
-      <form onSubmit={handleSubmit(onSubmit)} className="mt-8 flex flex-col gap-6">
+      <form
+        onSubmit={handleSubmit(onSubmit)}
+        className="mt-8 flex flex-col gap-6"
+      >
         {/* Timezone Section */}
         <Card>
           <CardHeader>

@@ -55,7 +55,11 @@ function RootLayout() {
       <div className="flex h-screen items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-3">
           <div className="h-8 w-8 animate-spin rounded-full border-2 border-muted-foreground/20 border-t-foreground" />
-          <span className="text-sm text-muted-foreground" role="status" aria-live="polite">
+          <span
+            className="text-sm text-muted-foreground"
+            role="status"
+            aria-live="polite"
+          >
             Loading...
           </span>
         </div>
@@ -116,15 +120,13 @@ function RootLayout() {
         )}
       >
         {/* Logo area */}
-        <div className={cn(
-          "flex h-14 items-center border-b border-sidebar-border shrink-0",
-          sidebarCollapsed ? "justify-center px-2" : "px-5",
-        )}>
-          <Link
-            to="/"
-            preload="intent"
-            className="flex items-center gap-2.5"
-          >
+        <div
+          className={cn(
+            "flex h-14 items-center border-b border-sidebar-border shrink-0",
+            sidebarCollapsed ? "justify-center px-2" : "px-5",
+          )}
+        >
+          <Link to="/" preload="intent" className="flex items-center gap-2.5">
             <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground text-sm font-bold">
               S
             </div>
@@ -137,7 +139,12 @@ function RootLayout() {
         </div>
 
         {/* Navigation */}
-        <nav className={cn("flex-1 overflow-y-auto py-3", sidebarCollapsed ? "px-2" : "px-3")}>
+        <nav
+          className={cn(
+            "flex-1 overflow-y-auto py-3",
+            sidebarCollapsed ? "px-2" : "px-3",
+          )}
+        >
           <div className="flex flex-col gap-0.5">
             {navItems.map((item) => (
               <SidebarLink
@@ -153,7 +160,12 @@ function RootLayout() {
         </nav>
 
         {/* Bottom section */}
-        <div className={cn("border-t border-sidebar-border py-3", sidebarCollapsed ? "px-2" : "px-3")}>
+        <div
+          className={cn(
+            "border-t border-sidebar-border py-3",
+            sidebarCollapsed ? "px-2" : "px-3",
+          )}
+        >
           {bottomNavItems.map((item) => (
             <SidebarLink
               key={item.to}
@@ -175,7 +187,9 @@ function RootLayout() {
               sidebarCollapsed && "justify-center",
             )}
             title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-            aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+            aria-label={
+              sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"
+            }
           >
             <svg
               width="16"
@@ -199,10 +213,12 @@ function RootLayout() {
           </button>
 
           {/* User avatar */}
-          <div className={cn(
-            "mt-3 flex items-center gap-3 rounded-lg px-3 py-2",
-            sidebarCollapsed && "justify-center px-0",
-          )}>
+          <div
+            className={cn(
+              "mt-3 flex items-center gap-3 rounded-lg px-3 py-2",
+              sidebarCollapsed && "justify-center px-0",
+            )}
+          >
             <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-sidebar-accent text-xs font-semibold text-sidebar-accent-foreground">
               {user?.name?.[0] ?? user?.email[0]?.toUpperCase() ?? "U"}
             </div>
@@ -269,7 +285,7 @@ function RootLayout() {
             <Icon icon={Search01Icon} className="size-3.5" />
             <span>Search...</span>
             <kbd className="ml-4 rounded border border-border bg-background px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
-              {'K'}
+              {"K"}
             </kbd>
           </button>
 
@@ -306,10 +322,17 @@ function RootLayout() {
                 <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground text-sm font-bold">
                   S
                 </div>
-                <SheetTitle className="text-sidebar-primary text-sm font-semibold">Scheduling</SheetTitle>
+                <SheetTitle className="text-sidebar-primary text-sm font-semibold">
+                  Scheduling
+                </SheetTitle>
               </div>
               <SheetClose asChild>
-                <Button variant="ghost" size="icon-sm" aria-label="Close menu" className="text-sidebar-foreground/50 hover:text-sidebar-accent-foreground hover:bg-sidebar-accent">
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label="Close menu"
+                  className="text-sidebar-foreground/50 hover:text-sidebar-accent-foreground hover:bg-sidebar-accent"
+                >
                   <Icon icon={Cancel01Icon} />
                 </Button>
               </SheetClose>
