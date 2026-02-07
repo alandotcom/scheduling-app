@@ -1,5 +1,10 @@
 import { z } from "zod";
-import { uuidSchema, timestampsSchema, timezoneSchema } from "./common";
+import {
+  uuidSchema,
+  timestampsSchema,
+  timezoneSchema,
+  nonNegativeIntSchema,
+} from "./common";
 
 // Base calendar schema
 export const calendarSchema = z.object({
@@ -34,6 +39,11 @@ export const listCalendarsQuerySchema = z.object({
 
 // Response types
 export const calendarResponseSchema = calendarSchema;
+export const calendarListItemSchema = calendarSchema.extend({
+  relationshipCounts: z.object({
+    appointmentsThisWeek: nonNegativeIntSchema,
+  }),
+});
 
 // Inferred types
 export type Calendar = z.infer<typeof calendarSchema>;
@@ -41,3 +51,4 @@ export type CreateCalendarInput = z.infer<typeof createCalendarSchema>;
 export type UpdateCalendarInput = z.infer<typeof updateCalendarSchema>;
 export type ListCalendarsQuery = z.infer<typeof listCalendarsQuerySchema>;
 export type CalendarResponse = z.infer<typeof calendarResponseSchema>;
+export type CalendarListItem = z.infer<typeof calendarListItemSchema>;

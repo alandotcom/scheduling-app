@@ -1,7 +1,7 @@
 // Location repository - data access layer for locations
 
-import { eq, gt } from "drizzle-orm";
-import { locations } from "@scheduling/db/schema";
+import { eq, gt, inArray, sql } from "drizzle-orm";
+import { calendars, locations, resources } from "@scheduling/db/schema";
 import type { PaginationInput, PaginatedResult } from "./base.js";
 import type { DbClient } from "../lib/db.js";
 import { paginate, setOrgContext } from "./base.js";
@@ -9,6 +9,12 @@ import { paginate, setOrgContext } from "./base.js";
 // Types inferred from schema
 export type Location = typeof locations.$inferSelect;
 export type LocationInsert = typeof locations.$inferInsert;
+export type LocationWithRelationshipCounts = Location & {
+  relationshipCounts: {
+    calendars: number;
+    resources: number;
+  };
+};
 
 export interface LocationCreateInput {
   name: string;
@@ -39,7 +45,7 @@ export class LocationRepository {
     tx: DbClient,
     orgId: string,
     input: PaginationInput,
-  ): Promise<PaginatedResult<Location>> {
+  ): Promise<PaginatedResult<LocationWithRelationshipCounts>> {
     await setOrgContext(tx, orgId);
     const { cursor, limit } = input;
 
@@ -50,7 +56,59 @@ export class LocationRepository {
       .limit(limit + 1)
       .orderBy(locations.id);
 
-    return paginate(results, limit);
+    const paginated = paginate(results, limit);
+
+    if (paginated.items.length === 0) {
+      return {
+        ...paginated,
+        items: [],
+      };
+    }
+
+    const locationIds = paginated.items.map((location) => location.id);
+    const [calendarCounts, resourceCounts] = await Promise.all([
+      tx
+        .select({
+          locationId: calendars.locationId,
+          calendars: sql<number>`count(*)::int`,
+        })
+        .from(calendars)
+        .where(inArray(calendars.locationId, locationIds))
+        .groupBy(calendars.locationId),
+      tx
+        .select({
+          locationId: resources.locationId,
+          resources: sql<number>`count(*)::int`,
+        })
+        .from(resources)
+        .where(inArray(resources.locationId, locationIds))
+        .groupBy(resources.locationId),
+    ]);
+
+    const calendarCountByLocationId = new Map<string, number>();
+    for (const row of calendarCounts) {
+      if (row.locationId) {
+        calendarCountByLocationId.set(row.locationId, row.calendars);
+      }
+    }
+
+    const resourceCountByLocationId = new Map<string, number>();
+    for (const row of resourceCounts) {
+      if (row.locationId) {
+        resourceCountByLocationId.set(row.locationId, row.resources);
+      }
+    }
+
+    return {
+      ...paginated,
+      items: paginated.items.map((location) => ({
+        ...location,
+        relationshipCounts: {
+          calendars: calendarCountByLocationId.get(location.id) ?? 0,
+          resources: resourceCountByLocationId.get(location.id) ?? 0,
+        },
+      })),
+    };
   }
 
   async create(

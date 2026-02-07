@@ -5,6 +5,7 @@ import type {
   AppointmentTypeCreateInput,
   AppointmentTypeUpdateInput,
   AppointmentType,
+  AppointmentTypeWithRelationshipCounts,
   AppointmentTypeWithLinks,
   CalendarAssociation,
   ResourceAssociation,
@@ -52,7 +53,7 @@ export class AppointmentTypeService {
   async list(
     input: PaginationInput,
     context: ServiceContext,
-  ): Promise<PaginatedResult<AppointmentType>> {
+  ): Promise<PaginatedResult<AppointmentTypeWithRelationshipCounts>> {
     return withOrg(context.orgId, (tx) =>
       appointmentTypeRepository.findMany(tx, context.orgId, input),
     );

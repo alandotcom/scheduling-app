@@ -209,6 +209,73 @@ describe("Client Routes", () => {
       expect(result.items).toHaveLength(1);
       expect(result.items[0]!.firstName).toBe("Org1");
     });
+
+    test("includes relationship appointment counts excluding cancelled", async () => {
+      const { org, user } = await createOrg(db);
+      const ctx = createTestContext({ orgId: org.id, userId: user.id });
+      const calendar = await createCalendar(db, org.id, {
+        name: "Count Calendar",
+      });
+      const appointmentType = await createAppointmentType(db, org.id, {
+        name: "Count Type",
+        calendarIds: [calendar.id],
+      });
+      const countedClient = await createClient(db, org.id, {
+        firstName: "Counted",
+        lastName: "Client",
+      });
+      const emptyClient = await createClient(db, org.id, {
+        firstName: "Empty",
+        lastName: "Client",
+      });
+
+      const base = DateTime.now()
+        .set({ second: 0, millisecond: 0 })
+        .plus({ days: 1 });
+
+      const firstStart = base.toJSDate();
+      const secondStart = base.plus({ hours: 2 }).toJSDate();
+      const cancelledStart = base.plus({ hours: 4 }).toJSDate();
+
+      await createAppointment(db, org.id, {
+        calendarId: calendar.id,
+        appointmentTypeId: appointmentType.id,
+        clientId: countedClient.id,
+        startAt: firstStart,
+        endAt: new Date(firstStart.getTime() + 30 * 60 * 1000),
+        status: "scheduled",
+      });
+      await createAppointment(db, org.id, {
+        calendarId: calendar.id,
+        appointmentTypeId: appointmentType.id,
+        clientId: countedClient.id,
+        startAt: secondStart,
+        endAt: new Date(secondStart.getTime() + 30 * 60 * 1000),
+        status: "confirmed",
+      });
+      await createAppointment(db, org.id, {
+        calendarId: calendar.id,
+        appointmentTypeId: appointmentType.id,
+        clientId: countedClient.id,
+        startAt: cancelledStart,
+        endAt: new Date(cancelledStart.getTime() + 30 * 60 * 1000),
+        status: "cancelled",
+      });
+
+      const result = await call(
+        clientRoutes.list,
+        { limit: 10 },
+        { context: ctx },
+      );
+
+      const counted = result.items.find(
+        (client) => client.id === countedClient.id,
+      );
+      const empty = result.items.find((client) => client.id === emptyClient.id);
+
+      expect(counted?.relationshipCounts.appointments).toBe(2);
+      expect(empty?.relationshipCounts.appointments).toBe(0);
+    });
   });
 
   describe("historySummary", () => {

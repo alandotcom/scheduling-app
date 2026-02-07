@@ -16,6 +16,7 @@ import {
   createCalendar,
   createResource,
   createAppointmentType,
+  createAppointment,
   createTestDb,
   resetTestDb,
   closeTestDb,
@@ -125,6 +126,77 @@ describe("Appointment Type Routes", () => {
 
       expect(result.items).toHaveLength(1);
       expect(result.items[0]!.name).toBe("Org 1 Type");
+    });
+
+    test("includes relationship counts for calendars, resources, and appointments", async () => {
+      const { org, user } = await createOrg(db);
+      const ctx = createTestContext({ orgId: org.id, userId: user.id });
+      const calendarOne = await createCalendar(db, org.id, {
+        name: "Calendar One",
+      });
+      const calendarTwo = await createCalendar(db, org.id, {
+        name: "Calendar Two",
+      });
+      const resourceOne = await createResource(db, org.id, {
+        name: "Resource One",
+      });
+      const resourceTwo = await createResource(db, org.id, {
+        name: "Resource Two",
+        quantity: 5,
+      });
+      const counted = await createAppointmentType(db, org.id, {
+        name: "Counted Type",
+        calendarIds: [calendarOne.id, calendarTwo.id],
+        resourceIds: [
+          { id: resourceOne.id, quantityRequired: 1 },
+          { id: resourceTwo.id, quantityRequired: 2 },
+        ],
+      });
+      const zero = await createAppointmentType(db, org.id, {
+        name: "Zero Type",
+      });
+
+      const start = new Date();
+      const second = new Date(start.getTime() + 2 * 60 * 60 * 1000);
+      const cancelled = new Date(start.getTime() + 4 * 60 * 60 * 1000);
+
+      await createAppointment(db, org.id, {
+        calendarId: calendarOne.id,
+        appointmentTypeId: counted.id,
+        startAt: start,
+        endAt: new Date(start.getTime() + 30 * 60 * 1000),
+        status: "scheduled",
+      });
+      await createAppointment(db, org.id, {
+        calendarId: calendarTwo.id,
+        appointmentTypeId: counted.id,
+        startAt: second,
+        endAt: new Date(second.getTime() + 30 * 60 * 1000),
+        status: "confirmed",
+      });
+      await createAppointment(db, org.id, {
+        calendarId: calendarTwo.id,
+        appointmentTypeId: counted.id,
+        startAt: cancelled,
+        endAt: new Date(cancelled.getTime() + 30 * 60 * 1000),
+        status: "cancelled",
+      });
+
+      const result = await call(
+        appointmentTypeRoutes.list,
+        { limit: 10 },
+        { context: ctx },
+      );
+
+      const countedItem = result.items.find((item) => item.id === counted.id);
+      const zeroItem = result.items.find((item) => item.id === zero.id);
+
+      expect(countedItem?.relationshipCounts.calendars).toBe(2);
+      expect(countedItem?.relationshipCounts.resources).toBe(2);
+      expect(countedItem?.relationshipCounts.appointments).toBe(2);
+      expect(zeroItem?.relationshipCounts.calendars).toBe(0);
+      expect(zeroItem?.relationshipCounts.resources).toBe(0);
+      expect(zeroItem?.relationshipCounts.appointments).toBe(0);
     });
   });
 

@@ -1,7 +1,8 @@
 // Calendar repository - data access layer for calendars
 
-import { eq, gt } from "drizzle-orm";
-import { calendars, locations } from "@scheduling/db/schema";
+import { and, eq, gt, gte, inArray, lt, ne, sql } from "drizzle-orm";
+import { DateTime } from "luxon";
+import { appointments, calendars, locations } from "@scheduling/db/schema";
 import type { PaginationInput, PaginatedResult } from "./base.js";
 import type { DbClient } from "../lib/db.js";
 import { paginate, setOrgContext } from "./base.js";
@@ -9,6 +10,11 @@ import { paginate, setOrgContext } from "./base.js";
 // Types inferred from schema
 export type Calendar = typeof calendars.$inferSelect;
 export type CalendarInsert = typeof calendars.$inferInsert;
+export type CalendarWithRelationshipCounts = Calendar & {
+  relationshipCounts: {
+    appointmentsThisWeek: number;
+  };
+};
 
 export interface CalendarCreateInput {
   name: string;
@@ -76,7 +82,7 @@ export class CalendarRepository {
     tx: DbClient,
     orgId: string,
     input: CalendarListInput,
-  ): Promise<PaginatedResult<Calendar>> {
+  ): Promise<PaginatedResult<CalendarWithRelationshipCounts>> {
     await setOrgContext(tx, orgId);
     const { cursor, limit, locationId } = input;
 
@@ -91,7 +97,66 @@ export class CalendarRepository {
     }
 
     const results = await query.limit(limit + 1).orderBy(calendars.id);
-    return paginate(results, limit);
+    const paginated = paginate(results, limit);
+
+    if (paginated.items.length === 0) {
+      return {
+        ...paginated,
+        items: [],
+      };
+    }
+
+    const calendarIdsByTimezone = new Map<string, string[]>();
+    for (const calendar of paginated.items) {
+      const ids = calendarIdsByTimezone.get(calendar.timezone);
+      if (ids) {
+        ids.push(calendar.id);
+      } else {
+        calendarIdsByTimezone.set(calendar.timezone, [calendar.id]);
+      }
+    }
+
+    const appointmentCountGroups = await Promise.all(
+      Array.from(calendarIdsByTimezone.entries()).map(([timezone, ids]) => {
+        const startOfWeek = DateTime.now().setZone(timezone).startOf("week");
+        const endOfWeek = startOfWeek.plus({ weeks: 1 });
+        const startOfWeekUtc = startOfWeek.toUTC().toJSDate();
+        const endOfWeekUtc = endOfWeek.toUTC().toJSDate();
+
+        return tx
+          .select({
+            calendarId: appointments.calendarId,
+            appointmentsThisWeek: sql<number>`count(*)::int`,
+          })
+          .from(appointments)
+          .where(
+            and(
+              inArray(appointments.calendarId, ids),
+              ne(appointments.status, "cancelled"),
+              gte(appointments.startAt, startOfWeekUtc),
+              lt(appointments.startAt, endOfWeekUtc),
+            ),
+          )
+          .groupBy(appointments.calendarId);
+      }),
+    );
+
+    const countByCalendarId = new Map<string, number>();
+    for (const group of appointmentCountGroups) {
+      for (const row of group) {
+        countByCalendarId.set(row.calendarId, row.appointmentsThisWeek);
+      }
+    }
+
+    return {
+      ...paginated,
+      items: paginated.items.map((calendar) => ({
+        ...calendar,
+        relationshipCounts: {
+          appointmentsThisWeek: countByCalendarId.get(calendar.id) ?? 0,
+        },
+      })),
+    };
   }
 
   async create(

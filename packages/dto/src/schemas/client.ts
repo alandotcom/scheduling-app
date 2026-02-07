@@ -42,6 +42,11 @@ export const listClientsQuerySchema = z.object({
 
 // Response types
 export const clientResponseSchema = clientSchema;
+export const clientListItemSchema = clientSchema.extend({
+  relationshipCounts: z.object({
+    appointments: nonNegativeIntSchema,
+  }),
+});
 
 // Client history summary
 export const clientHistorySummarySchema = z.object({
@@ -61,4 +66,5 @@ export type CreateClientInput = z.infer<typeof createClientSchema>;
 export type UpdateClientInput = z.infer<typeof updateClientSchema>;
 export type ListClientsQuery = z.infer<typeof listClientsQuerySchema>;
 export type ClientResponse = z.infer<typeof clientResponseSchema>;
+export type ClientListItem = z.infer<typeof clientListItemSchema>;
 export type ClientHistorySummary = z.infer<typeof clientHistorySummarySchema>;

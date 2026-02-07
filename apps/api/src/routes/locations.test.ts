@@ -14,6 +14,8 @@ import {
   createTestContext,
   createOrg,
   createLocation,
+  createCalendar,
+  createResource,
   createTestDb,
   resetTestDb,
   closeTestDb,
@@ -123,6 +125,49 @@ describe("Location Routes", () => {
 
       expect(result.items).toHaveLength(1);
       expect(result.items[0]!.name).toBe("Org 1 Location");
+    });
+
+    test("includes relationship counts for calendars and resources", async () => {
+      const { org, user } = await createOrg(db);
+      const ctx = createTestContext({ orgId: org.id, userId: user.id });
+      const countedLocation = await createLocation(db, org.id, {
+        name: "Counted Location",
+      });
+      const zeroLocation = await createLocation(db, org.id, {
+        name: "Zero Location",
+      });
+
+      await createCalendar(db, org.id, {
+        name: "Counted Calendar",
+        locationId: countedLocation.id,
+      });
+      await createResource(db, org.id, {
+        name: "Counted Resource",
+        locationId: countedLocation.id,
+      });
+      await createResource(db, org.id, {
+        name: "Zero Location Resource",
+        locationId: zeroLocation.id,
+      });
+      await createCalendar(db, org.id, {
+        name: "Global Calendar",
+      });
+
+      const result = await call(
+        locationRoutes.list,
+        { limit: 10 },
+        { context: ctx },
+      );
+
+      const counted = result.items.find(
+        (item) => item.id === countedLocation.id,
+      );
+      const zero = result.items.find((item) => item.id === zeroLocation.id);
+
+      expect(counted?.relationshipCounts.calendars).toBe(1);
+      expect(counted?.relationshipCounts.resources).toBe(1);
+      expect(zero?.relationshipCounts.calendars).toBe(0);
+      expect(zero?.relationshipCounts.resources).toBe(1);
     });
   });
 

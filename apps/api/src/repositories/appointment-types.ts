@@ -1,7 +1,8 @@
 // Appointment type repository - data access layer for appointment types
 
-import { eq, gt, and } from "drizzle-orm";
+import { and, eq, gt, inArray, ne, sql } from "drizzle-orm";
 import {
+  appointments,
   appointmentTypes,
   appointmentTypeCalendars,
   appointmentTypeResources,
@@ -15,6 +16,13 @@ import { paginate, setOrgContext } from "./base.js";
 // Types inferred from schema
 export type AppointmentType = typeof appointmentTypes.$inferSelect;
 export type AppointmentTypeInsert = typeof appointmentTypes.$inferInsert;
+export type AppointmentTypeWithRelationshipCounts = AppointmentType & {
+  relationshipCounts: {
+    calendars: number;
+    resources: number;
+    appointments: number;
+  };
+};
 
 export interface AppointmentTypeCreateInput {
   name: string;
@@ -171,7 +179,7 @@ export class AppointmentTypeRepository {
     tx: DbClient,
     orgId: string,
     input: PaginationInput,
-  ): Promise<PaginatedResult<AppointmentType>> {
+  ): Promise<PaginatedResult<AppointmentTypeWithRelationshipCounts>> {
     await setOrgContext(tx, orgId);
     const { cursor, limit } = input;
 
@@ -182,7 +190,88 @@ export class AppointmentTypeRepository {
       .limit(limit + 1)
       .orderBy(appointmentTypes.id);
 
-    return paginate(results, limit);
+    const paginated = paginate(results, limit);
+
+    if (paginated.items.length === 0) {
+      return {
+        ...paginated,
+        items: [],
+      };
+    }
+
+    const appointmentTypeIds = paginated.items.map(
+      (appointmentType) => appointmentType.id,
+    );
+
+    const [calendarCounts, resourceCounts, appointmentCounts] =
+      await Promise.all([
+        tx
+          .select({
+            appointmentTypeId: appointmentTypeCalendars.appointmentTypeId,
+            calendars: sql<number>`count(*)::int`,
+          })
+          .from(appointmentTypeCalendars)
+          .where(
+            inArray(
+              appointmentTypeCalendars.appointmentTypeId,
+              appointmentTypeIds,
+            ),
+          )
+          .groupBy(appointmentTypeCalendars.appointmentTypeId),
+        tx
+          .select({
+            appointmentTypeId: appointmentTypeResources.appointmentTypeId,
+            resources: sql<number>`count(*)::int`,
+          })
+          .from(appointmentTypeResources)
+          .where(
+            inArray(
+              appointmentTypeResources.appointmentTypeId,
+              appointmentTypeIds,
+            ),
+          )
+          .groupBy(appointmentTypeResources.appointmentTypeId),
+        tx
+          .select({
+            appointmentTypeId: appointments.appointmentTypeId,
+            appointments: sql<number>`count(*)::int`,
+          })
+          .from(appointments)
+          .where(
+            and(
+              inArray(appointments.appointmentTypeId, appointmentTypeIds),
+              ne(appointments.status, "cancelled"),
+            ),
+          )
+          .groupBy(appointments.appointmentTypeId),
+      ]);
+
+    const calendarCountById = new Map<string, number>();
+    for (const row of calendarCounts) {
+      calendarCountById.set(row.appointmentTypeId, row.calendars);
+    }
+
+    const resourceCountById = new Map<string, number>();
+    for (const row of resourceCounts) {
+      resourceCountById.set(row.appointmentTypeId, row.resources);
+    }
+
+    const appointmentCountById = new Map<string, number>();
+    for (const row of appointmentCounts) {
+      appointmentCountById.set(row.appointmentTypeId, row.appointments);
+    }
+
+    return {
+      ...paginated,
+      items: paginated.items.map((appointmentType) => ({
+        ...appointmentType,
+        relationshipCounts: {
+          calendars: calendarCountById.get(appointmentType.id) ?? 0,
+          resources: resourceCountById.get(appointmentType.id) ?? 0,
+          appointments: appointmentCountById.get(appointmentType.id) ?? 0,
+        },
+      })),
+    };
   }
 
   async create(

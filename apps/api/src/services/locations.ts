@@ -5,6 +5,7 @@ import type {
   LocationCreateInput,
   LocationUpdateInput,
   Location,
+  LocationWithRelationshipCounts,
 } from "../repositories/locations.js";
 import type { PaginationInput, PaginatedResult } from "../repositories/base.js";
 import { withOrg } from "../lib/db.js";
@@ -20,7 +21,7 @@ export class LocationService {
   async list(
     input: PaginationInput,
     context: ServiceContext,
-  ): Promise<PaginatedResult<Location>> {
+  ): Promise<PaginatedResult<LocationWithRelationshipCounts>> {
     return withOrg(context.orgId, (tx) =>
       locationRepository.findMany(tx, context.orgId, input),
     );

@@ -22,6 +22,7 @@ import { useCrudState } from "@/hooks/use-crud-state";
 import { DeleteConfirmDialog } from "@/components/delete-confirm-dialog";
 import { ContextMenu, type ContextMenuItem } from "@/components/context-menu";
 import { LocationDrawer } from "@/components/location-drawer";
+import { RelationshipCountBadge } from "@/components/relationship-count-badge";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -339,6 +340,7 @@ function LocationsPage() {
                 <TableRow>
                   <TableHead>Name</TableHead>
                   <TableHead>Timezone</TableHead>
+                  <TableHead>Relationships</TableHead>
                   <TableHead>Created</TableHead>
                 </TableRow>
               </TableHeader>
@@ -356,6 +358,18 @@ function LocationsPage() {
                         {location.name}
                       </TableCell>
                       <TableCell>{location.timezone}</TableCell>
+                      <TableCell>
+                        <div className="flex flex-wrap gap-1">
+                          <RelationshipCountBadge
+                            count={location.relationshipCounts?.calendars ?? 0}
+                            singular="calendar"
+                          />
+                          <RelationshipCountBadge
+                            count={location.relationshipCounts?.resources ?? 0}
+                            singular="resource"
+                          />
+                        </div>
+                      </TableCell>
                       <TableCell>
                         {new Date(location.createdAt).toLocaleDateString()}
                       </TableCell>

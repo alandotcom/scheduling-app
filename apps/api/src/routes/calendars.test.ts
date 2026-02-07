@@ -10,11 +10,14 @@ import {
   beforeEach,
 } from "bun:test";
 import { call } from "@orpc/server";
+import { DateTime } from "luxon";
 import {
   createTestContext,
   createOrg,
   createLocation,
   createCalendar,
+  createAppointmentType,
+  createAppointment,
   createTestDb,
   resetTestDb,
   closeTestDb,
@@ -147,6 +150,70 @@ describe("Calendar Routes", () => {
 
       expect(result.items).toHaveLength(1);
       expect(result.items[0]!.name).toBe("Org 1 Calendar");
+    });
+
+    test("includes this-week relationship counts excluding cancelled", async () => {
+      const { org, user } = await createOrg(db);
+      const ctx = createTestContext({ orgId: org.id, userId: user.id });
+      const calendar = await createCalendar(db, org.id, {
+        name: "Count Calendar",
+        timezone: "America/New_York",
+      });
+      const zeroCalendar = await createCalendar(db, org.id, {
+        name: "Zero Calendar",
+        timezone: "America/New_York",
+      });
+      const appointmentType = await createAppointmentType(db, org.id, {
+        name: "Count Type",
+      });
+
+      const now = DateTime.now().setZone("America/New_York");
+      const startOfWeek = now.startOf("week");
+      const inWeekStart = startOfWeek.plus({ days: 1, hours: 10 });
+      const inWeekStartTwo = startOfWeek.plus({ days: 2, hours: 11 });
+      const outOfWeekStart = startOfWeek.minus({ days: 1 }).plus({ hours: 9 });
+      const cancelledInWeekStart = startOfWeek.plus({ days: 3, hours: 9 });
+
+      await createAppointment(db, org.id, {
+        calendarId: calendar.id,
+        appointmentTypeId: appointmentType.id,
+        startAt: inWeekStart.toJSDate(),
+        endAt: inWeekStart.plus({ minutes: 30 }).toJSDate(),
+        status: "scheduled",
+      });
+      await createAppointment(db, org.id, {
+        calendarId: calendar.id,
+        appointmentTypeId: appointmentType.id,
+        startAt: inWeekStartTwo.toJSDate(),
+        endAt: inWeekStartTwo.plus({ minutes: 30 }).toJSDate(),
+        status: "confirmed",
+      });
+      await createAppointment(db, org.id, {
+        calendarId: calendar.id,
+        appointmentTypeId: appointmentType.id,
+        startAt: outOfWeekStart.toJSDate(),
+        endAt: outOfWeekStart.plus({ minutes: 30 }).toJSDate(),
+        status: "scheduled",
+      });
+      await createAppointment(db, org.id, {
+        calendarId: calendar.id,
+        appointmentTypeId: appointmentType.id,
+        startAt: cancelledInWeekStart.toJSDate(),
+        endAt: cancelledInWeekStart.plus({ minutes: 30 }).toJSDate(),
+        status: "cancelled",
+      });
+
+      const result = await call(
+        calendarRoutes.list,
+        { limit: 10 },
+        { context: ctx },
+      );
+
+      const counted = result.items.find((item) => item.id === calendar.id);
+      const zero = result.items.find((item) => item.id === zeroCalendar.id);
+
+      expect(counted?.relationshipCounts.appointmentsThisWeek).toBe(2);
+      expect(zero?.relationshipCounts.appointmentsThisWeek).toBe(0);
     });
   });
 

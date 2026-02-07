@@ -7,6 +7,7 @@ import type {
   Calendar,
   CalendarListInput,
   CalendarWithLocation,
+  CalendarWithRelationshipCounts,
 } from "../repositories/calendars.js";
 import type { PaginatedResult } from "../repositories/base.js";
 import { withOrg } from "../lib/db.js";
@@ -26,7 +27,7 @@ export class CalendarService {
   async list(
     input: CalendarListInput,
     context: ServiceContext,
-  ): Promise<PaginatedResult<Calendar>> {
+  ): Promise<PaginatedResult<CalendarWithRelationshipCounts>> {
     return withOrg(context.orgId, (tx) =>
       calendarRepository.findMany(tx, context.orgId, input),
     );

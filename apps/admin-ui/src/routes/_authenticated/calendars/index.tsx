@@ -37,6 +37,7 @@ import {
   ListPanel,
   SplitPaneLayout,
 } from "@/components/split-pane";
+import { RelationshipCountBadge } from "@/components/relationship-count-badge";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -529,6 +530,7 @@ function CalendarsPage() {
                       <TableHead>Name</TableHead>
                       <TableHead>Timezone</TableHead>
                       <TableHead>Location</TableHead>
+                      <TableHead>This Week</TableHead>
                       <TableHead>Created</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -554,6 +556,15 @@ function CalendarsPage() {
                             <TableCell>{calendar.timezone}</TableCell>
                             <TableCell>
                               {getLocationName(calendar.locationId)}
+                            </TableCell>
+                            <TableCell>
+                              <RelationshipCountBadge
+                                count={
+                                  calendar.relationshipCounts
+                                    ?.appointmentsThisWeek ?? 0
+                                }
+                                singular="appointment"
+                              />
                             </TableCell>
                             <TableCell>
                               {new Date(

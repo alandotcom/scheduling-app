@@ -21,6 +21,7 @@ import type { CreateAppointmentTypeInput } from "@scheduling/dto";
 import { useAppointmentTypeMutations } from "@/hooks/use-appointment-type-mutations";
 import { DeleteConfirmDialog } from "@/components/delete-confirm-dialog";
 import { ContextMenu, type ContextMenuItem } from "@/components/context-menu";
+import { RelationshipCountBadge } from "@/components/relationship-count-badge";
 import { CalendarsTab } from "./-components/calendars-tab";
 import { ResourcesTab } from "./-components/resources-tab";
 import {
@@ -472,6 +473,7 @@ function AppointmentTypesPage() {
                   <TableHead>Duration</TableHead>
                   <TableHead>Padding</TableHead>
                   <TableHead>Capacity</TableHead>
+                  <TableHead>Relationships</TableHead>
                   <TableHead>Created</TableHead>
                 </TableRow>
               </TableHeader>
@@ -496,6 +498,22 @@ function AppointmentTypesPage() {
                       </TableCell>
                       <TableCell>
                         <Badge variant="secondary">{type.capacity ?? 1}</Badge>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex flex-wrap gap-1">
+                          <RelationshipCountBadge
+                            count={type.relationshipCounts?.calendars ?? 0}
+                            singular="calendar"
+                          />
+                          <RelationshipCountBadge
+                            count={type.relationshipCounts?.resources ?? 0}
+                            singular="resource"
+                          />
+                          <RelationshipCountBadge
+                            count={type.relationshipCounts?.appointments ?? 0}
+                            singular="appointment"
+                          />
+                        </div>
                       </TableCell>
                       <TableCell>
                         {new Date(type.createdAt).toLocaleDateString()}

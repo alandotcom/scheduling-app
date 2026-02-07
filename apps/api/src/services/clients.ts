@@ -6,6 +6,7 @@ import type {
   ClientUpdateInput,
   Client,
   ClientListInput,
+  ClientWithRelationshipCounts,
 } from "../repositories/clients.js";
 import type { PaginatedResult } from "../repositories/base.js";
 import { withOrg } from "../lib/db.js";
@@ -18,7 +19,7 @@ export class ClientService {
   async list(
     input: ClientListInput,
     context: ServiceContext,
-  ): Promise<PaginatedResult<Client>> {
+  ): Promise<PaginatedResult<ClientWithRelationshipCounts>> {
     return withOrg(context.orgId, (tx) =>
       clientRepository.findMany(tx, context.orgId, input),
     );

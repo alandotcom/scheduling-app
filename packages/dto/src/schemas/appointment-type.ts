@@ -75,6 +75,13 @@ export const updateAppointmentTypeResourceSchema = z.object({
 
 // Response types
 export const appointmentTypeResponseSchema = appointmentTypeSchema;
+export const appointmentTypeListItemSchema = appointmentTypeSchema.extend({
+  relationshipCounts: z.object({
+    calendars: nonNegativeIntSchema,
+    resources: nonNegativeIntSchema,
+    appointments: nonNegativeIntSchema,
+  }),
+});
 
 // Inferred types
 export type AppointmentType = z.infer<typeof appointmentTypeSchema>;
@@ -89,6 +96,9 @@ export type ListAppointmentTypesQuery = z.infer<
 >;
 export type AppointmentTypeResponse = z.infer<
   typeof appointmentTypeResponseSchema
+>;
+export type AppointmentTypeListItem = z.infer<
+  typeof appointmentTypeListItemSchema
 >;
 export type AppointmentTypeCalendar = z.infer<
   typeof appointmentTypeCalendarSchema

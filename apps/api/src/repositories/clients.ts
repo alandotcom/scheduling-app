@@ -1,6 +1,6 @@
 // Client repository - data access layer for clients
 
-import { eq, gt, or, ilike, sql } from "drizzle-orm";
+import { and, eq, gt, ilike, inArray, ne, or, sql } from "drizzle-orm";
 import { clients, appointments } from "@scheduling/db/schema";
 import type { PaginationInput, PaginatedResult } from "./base.js";
 import type { DbClient } from "../lib/db.js";
@@ -9,6 +9,11 @@ import { paginate, setOrgContext } from "./base.js";
 // Types inferred from schema
 export type Client = typeof clients.$inferSelect;
 export type ClientInsert = typeof clients.$inferInsert;
+export type ClientWithRelationshipCounts = Client & {
+  relationshipCounts: {
+    appointments: number;
+  };
+};
 
 export interface ClientCreateInput {
   firstName: string;
@@ -47,7 +52,7 @@ export class ClientRepository {
     tx: DbClient,
     orgId: string,
     input: ClientListInput,
-  ): Promise<PaginatedResult<Client>> {
+  ): Promise<PaginatedResult<ClientWithRelationshipCounts>> {
     await setOrgContext(tx, orgId);
     const { cursor, limit, search } = input;
 
@@ -71,7 +76,46 @@ export class ClientRepository {
     }
 
     const results = await query.limit(limit + 1).orderBy(clients.id);
-    return paginate(results, limit);
+    const paginated = paginate(results, limit);
+
+    if (paginated.items.length === 0) {
+      return {
+        ...paginated,
+        items: [],
+      };
+    }
+
+    const clientIds = paginated.items.map((client) => client.id);
+    const appointmentCounts = await tx
+      .select({
+        clientId: appointments.clientId,
+        appointments: sql<number>`count(*)::int`,
+      })
+      .from(appointments)
+      .where(
+        and(
+          inArray(appointments.clientId, clientIds),
+          ne(appointments.status, "cancelled"),
+        ),
+      )
+      .groupBy(appointments.clientId);
+
+    const countByClientId = new Map<string, number>();
+    for (const row of appointmentCounts) {
+      if (row.clientId) {
+        countByClientId.set(row.clientId, row.appointments);
+      }
+    }
+
+    return {
+      ...paginated,
+      items: paginated.items.map((client) => ({
+        ...client,
+        relationshipCounts: {
+          appointments: countByClientId.get(client.id) ?? 0,
+        },
+      })),
+    };
   }
 
   async create(

@@ -14,6 +14,9 @@ interface CalendarFixture {
   orgId: string;
   locationId: string;
   isActive: boolean;
+  relationshipCounts: {
+    appointmentsThisWeek: number;
+  };
   createdAt: string;
   updatedAt: string;
 }
@@ -24,6 +27,11 @@ interface AppointmentTypeFixture {
   durationMin: number;
   orgId: string;
   isActive: boolean;
+  relationshipCounts: {
+    calendars: number;
+    resources: number;
+    appointments: number;
+  };
   createdAt: string;
   updatedAt: string;
 }
@@ -33,6 +41,10 @@ interface LocationFixture {
   name: string;
   timezone: string;
   orgId: string;
+  relationshipCounts: {
+    calendars: number;
+    resources: number;
+  };
   createdAt: string;
   updatedAt: string;
 }
@@ -85,6 +97,9 @@ export function createCalendarFixture(
     orgId: "test-org-id",
     locationId: "test-location-id",
     isActive: true,
+    relationshipCounts: {
+      appointmentsThisWeek: 0,
+    },
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
     ...overrides,
@@ -101,6 +116,11 @@ export function createAppointmentTypeFixture(
     durationMin: 30,
     orgId: "test-org-id",
     isActive: true,
+    relationshipCounts: {
+      calendars: 0,
+      resources: 0,
+      appointments: 0,
+    },
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
     ...overrides,
@@ -116,6 +136,10 @@ export function createLocationFixture(
     name: `Location ${id}`,
     timezone: "America/New_York",
     orgId: "test-org-id",
+    relationshipCounts: {
+      calendars: 0,
+      resources: 0,
+    },
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
     ...overrides,

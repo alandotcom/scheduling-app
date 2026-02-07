@@ -24,6 +24,7 @@ import { DeleteConfirmDialog } from "@/components/delete-confirm-dialog";
 import { ContextMenu, type ContextMenuItem } from "@/components/context-menu";
 import { ClientDrawer } from "@/components/client-drawer";
 import { AppointmentModal } from "@/components/appointment-modal";
+import { RelationshipCountBadge } from "@/components/relationship-count-badge";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -421,6 +422,7 @@ function ClientsPage() {
                   <TableHead>Name</TableHead>
                   <TableHead>Email</TableHead>
                   <TableHead>Phone</TableHead>
+                  <TableHead>Appointments</TableHead>
                   <TableHead>Created</TableHead>
                 </TableRow>
               </TableHeader>
@@ -446,6 +448,12 @@ function ClientsPage() {
                         {client.phone || (
                           <span className="text-muted-foreground">-</span>
                         )}
+                      </TableCell>
+                      <TableCell>
+                        <RelationshipCountBadge
+                          count={client.relationshipCounts?.appointments ?? 0}
+                          singular="appointment"
+                        />
                       </TableCell>
                       <TableCell>
                         {new Date(client.createdAt).toLocaleDateString()}

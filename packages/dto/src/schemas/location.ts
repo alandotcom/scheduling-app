@@ -1,5 +1,10 @@
 import { z } from "zod";
-import { uuidSchema, timestampsSchema, timezoneSchema } from "./common";
+import {
+  uuidSchema,
+  timestampsSchema,
+  timezoneSchema,
+  nonNegativeIntSchema,
+} from "./common";
 
 // Base location schema
 export const locationSchema = z.object({
@@ -30,6 +35,12 @@ export const listLocationsQuerySchema = z.object({
 
 // Response types
 export const locationResponseSchema = locationSchema;
+export const locationListItemSchema = locationSchema.extend({
+  relationshipCounts: z.object({
+    calendars: nonNegativeIntSchema,
+    resources: nonNegativeIntSchema,
+  }),
+});
 
 // Inferred types
 export type Location = z.infer<typeof locationSchema>;
@@ -37,3 +48,4 @@ export type CreateLocationInput = z.infer<typeof createLocationSchema>;
 export type UpdateLocationInput = z.infer<typeof updateLocationSchema>;
 export type ListLocationsQuery = z.infer<typeof listLocationsQuerySchema>;
 export type LocationResponse = z.infer<typeof locationResponseSchema>;
+export type LocationListItem = z.infer<typeof locationListItemSchema>;
