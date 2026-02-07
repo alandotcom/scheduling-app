@@ -101,7 +101,7 @@ export function ContextMenu({ children, items }: ContextMenuProps) {
         <div
           ref={menuRef}
           className={cn(
-            "fixed z-50 min-w-48 overflow-hidden rounded-lg border border-border/50 bg-background p-1 shadow-lg",
+            "fixed z-50 min-w-48 overflow-hidden rounded-lg border border-border bg-background p-1 shadow-lg",
             "animate-in fade-in-0 zoom-in-95 duration-150",
           )}
           style={{ top: adjustedPosition.y, left: adjustedPosition.x }}

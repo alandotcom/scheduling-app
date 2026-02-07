@@ -170,7 +170,7 @@ export function AppointmentDetail({
     <>
       <div className="flex h-full flex-col">
         {/* Header */}
-        <div className="flex flex-wrap items-start justify-between gap-4 border-b border-border/50 px-6 py-5">
+        <div className="flex flex-wrap items-start justify-between gap-4 border-b border-border px-6 py-5">
           <div>
             <div className="flex items-center gap-2">
               <h2 className="text-lg font-semibold tracking-tight">
@@ -201,7 +201,7 @@ export function AppointmentDetail({
           {activeTab === "details" && (
             <div className="space-y-6">
               {/* Date/Time Card */}
-              <div className="rounded-lg border border-border/50 bg-muted/30 p-4">
+              <div className="rounded-lg border border-border bg-muted/30 p-4">
                 <div className="flex items-center gap-2 text-sm">
                   <Icon
                     icon={Calendar03Icon}
@@ -301,7 +301,7 @@ export function AppointmentDetail({
                     </div>
                   </form>
                 ) : (
-                  <div className="mt-2 rounded-lg border border-border/50 p-3 text-sm">
+                  <div className="mt-2 rounded-lg border border-border p-3 text-sm">
                     {appointment.notes || (
                       <span className="text-muted-foreground italic">
                         No notes
@@ -313,7 +313,7 @@ export function AppointmentDetail({
 
               {/* Actions */}
               {isActionable && (
-                <div className="border-t border-border/50 pt-4">
+                <div className="border-t border-border pt-4">
                   <div className="flex flex-wrap gap-2">
                     <Button
                       variant="outline"
@@ -364,7 +364,7 @@ export function AppointmentDetail({
             <div className="space-y-6">
               {appointment.client ? (
                 <>
-                  <div className="rounded-lg border border-border/50 p-4">
+                  <div className="rounded-lg border border-border p-4">
                     <div className="flex items-center gap-2">
                       <Icon
                         icon={UserCircle02Icon}
@@ -398,7 +398,7 @@ export function AppointmentDetail({
                   </Button>
                 </>
               ) : (
-                <div className="rounded-lg border border-border/50 p-6 text-center text-sm text-muted-foreground">
+                <div className="rounded-lg border border-border p-6 text-center text-sm text-muted-foreground">
                   No client associated with this appointment
                 </div>
               )}

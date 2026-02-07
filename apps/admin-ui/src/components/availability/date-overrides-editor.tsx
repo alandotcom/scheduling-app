@@ -169,7 +169,7 @@ function DateOverridesEditorBody({
     return (
       <div className="space-y-4">
         {/* Calendar */}
-        <div className="rounded-lg border border-border/50 bg-card p-4">
+        <div className="rounded-lg border border-border bg-card p-4">
           <div className="flex items-center gap-2 mb-3">
             <Icon icon={Calendar03Icon} className="text-muted-foreground" />
             <span className="text-sm font-medium">Select Date</span>
@@ -187,7 +187,7 @@ function DateOverridesEditorBody({
 
         {/* Override Form */}
         {editingOverride && (
-          <div className="rounded-lg border border-border/50 bg-card p-4 space-y-3">
+          <div className="rounded-lg border border-border bg-card p-4 space-y-3">
             <h4 className="text-sm font-medium">
               {editingOverride.id ? "Edit Override" : "Add Override"} -{" "}
               {formatDisplayDate(editingOverride.date, timezone)}
@@ -265,7 +265,7 @@ function DateOverridesEditorBody({
         )}
 
         {/* Overrides List */}
-        <div className="rounded-lg border border-border/50 bg-card p-4">
+        <div className="rounded-lg border border-border bg-card p-4">
           <h4 className="text-sm font-medium mb-3">Upcoming Overrides</h4>
           {overrides.length === 0 ? (
             <p className="text-sm text-muted-foreground">

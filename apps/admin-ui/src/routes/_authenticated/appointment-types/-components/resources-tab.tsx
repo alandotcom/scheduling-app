@@ -165,7 +165,7 @@ export function ResourcesTab({
           specific equipment or rooms.
         </p>
       ) : (
-        <div className="rounded-lg border border-border/50 overflow-hidden">
+        <div className="rounded-lg border border-border overflow-hidden">
           <Table>
             <TableHeader>
               <TableRow>

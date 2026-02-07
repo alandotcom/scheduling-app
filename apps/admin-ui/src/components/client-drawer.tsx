@@ -290,7 +290,7 @@ export function ClientDrawer({
                         <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wider mb-3">
                           Upcoming
                         </h3>
-                        <div className="rounded-lg border border-border/50 divide-y divide-border/50">
+                        <div className="rounded-lg border border-border divide-y divide-border/50">
                           {upcomingAppointments.map((apt) => (
                             <div key={apt.id} className="px-4 py-3">
                               <div className="flex items-center justify-between">
@@ -340,11 +340,11 @@ export function ClientDrawer({
                       </div>
 
                       {pastAppointments.length === 0 ? (
-                        <div className="rounded-lg border border-border/50 p-6 text-center text-sm text-muted-foreground">
+                        <div className="rounded-lg border border-border p-6 text-center text-sm text-muted-foreground">
                           No past appointments
                         </div>
                       ) : (
-                        <div className="rounded-lg border border-border/50 divide-y divide-border/50">
+                        <div className="rounded-lg border border-border divide-y divide-border/50">
                           {pastAppointments.slice(0, 5).map((apt) => (
                             <div key={apt.id} className="px-4 py-3">
                               <div className="flex items-center justify-between">

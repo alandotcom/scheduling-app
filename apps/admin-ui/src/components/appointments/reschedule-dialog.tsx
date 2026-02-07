@@ -119,7 +119,7 @@ export function RescheduleDialog({
         <DialogPrimitive.Popup
           className={cn(
             "fixed left-1/2 top-1/2 z-50 w-full max-w-2xl -translate-x-1/2 -translate-y-1/2",
-            "rounded-xl border border-border/50 bg-background shadow-xl",
+            "rounded-xl border border-border bg-background shadow-xl",
             "data-open:animate-in data-closed:animate-out",
             "data-closed:fade-out-0 data-open:fade-in-0",
             "data-closed:zoom-out-95 data-open:zoom-in-95",
@@ -128,7 +128,7 @@ export function RescheduleDialog({
           )}
         >
           {/* Header */}
-          <div className="flex items-center justify-between border-b border-border/50 px-6 py-4">
+          <div className="flex items-center justify-between border-b border-border px-6 py-4">
             <DialogPrimitive.Title className="text-lg font-medium">
               Reschedule Appointment
             </DialogPrimitive.Title>
@@ -143,7 +143,7 @@ export function RescheduleDialog({
           {/* Content */}
           <div className="flex-1 overflow-y-auto p-6">
             {/* Current Time */}
-            <div className="mb-6 rounded-lg border border-border/50 bg-muted/30 p-4">
+            <div className="mb-6 rounded-lg border border-border bg-muted/30 p-4">
               <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
                 Current Time
               </div>
@@ -280,7 +280,7 @@ export function RescheduleDialog({
           </div>
 
           {/* Footer */}
-          <div className="flex items-center justify-end gap-2 border-t border-border/50 px-6 py-4">
+          <div className="flex items-center justify-end gap-2 border-t border-border px-6 py-4">
             <Button variant="ghost" onClick={() => handleOpenChange(false)}>
               Cancel
             </Button>

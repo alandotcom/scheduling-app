@@ -231,7 +231,7 @@ export function AppointmentModal({
         <DialogPrimitive.Popup
           className={cn(
             "fixed left-1/2 top-1/2 z-50 w-full max-w-2xl -translate-x-1/2 -translate-y-1/2",
-            "rounded-xl border border-border/50 bg-background shadow-xl",
+            "rounded-xl border border-border bg-background shadow-xl",
             "data-open:animate-in data-closed:animate-out",
             "data-closed:fade-out-0 data-open:fade-in-0",
             "data-closed:zoom-out-95 data-open:zoom-in-95",
@@ -240,7 +240,7 @@ export function AppointmentModal({
           )}
         >
           {/* Header */}
-          <div className="flex items-center justify-between border-b border-border/50 px-6 py-4">
+          <div className="flex items-center justify-between border-b border-border px-6 py-4">
             <DialogPrimitive.Title className="text-lg font-medium">
               New Appointment
             </DialogPrimitive.Title>
@@ -443,7 +443,7 @@ export function AppointmentModal({
                   onChange={(e) => setClientSearch(e.target.value)}
                 />
                 {clients.length > 0 && (
-                  <div className="rounded-md border border-border/50 divide-y divide-border/50">
+                  <div className="rounded-md border border-border divide-y divide-border/50">
                     {clients.map((client) => (
                       <button
                         key={client.id}
@@ -501,7 +501,7 @@ export function AppointmentModal({
           </div>
 
           {/* Footer */}
-          <div className="flex items-center justify-between border-t border-border/50 px-6 py-4">
+          <div className="flex items-center justify-between border-t border-border px-6 py-4">
             <div className="text-sm text-muted-foreground">
               {selectedTime && (
                 <span className="flex items-center gap-2">

@@ -98,7 +98,7 @@ export function ScheduleGrid({
   return (
     <div className="flex flex-col h-full">
       {/* Header with navigation */}
-      <div className="flex items-center justify-between border-b border-border/50 px-4 py-3">
+      <div className="flex items-center justify-between border-b border-border px-4 py-3">
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm" onClick={onPreviousWeek}>
             <Icon icon={ArrowLeft02Icon} className="size-4" />
@@ -125,7 +125,7 @@ export function ScheduleGrid({
       <div className="flex-1 overflow-auto">
         <div className="min-w-[800px]">
           {/* Day headers */}
-          <div className="flex border-b border-border/50 bg-muted/30 sticky top-0 z-10">
+          <div className="flex border-b border-border bg-muted/30 sticky top-0 z-10">
             <div className="w-16 shrink-0" />
             {weekDays.map((day, index) => (
               <div

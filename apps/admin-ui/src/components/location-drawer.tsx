@@ -235,11 +235,11 @@ export function LocationDrawer({
                 </div>
 
                 {calendarsAtLocation.length === 0 ? (
-                  <div className="rounded-lg border border-border/50 p-6 text-center text-sm text-muted-foreground">
+                  <div className="rounded-lg border border-border p-6 text-center text-sm text-muted-foreground">
                     No calendars assigned to this location
                   </div>
                 ) : (
-                  <div className="rounded-lg border border-border/50 divide-y divide-border/50">
+                  <div className="rounded-lg border border-border divide-y divide-border/50">
                     {calendarsAtLocation.map((calendar) => (
                       <div
                         key={calendar.id}
@@ -275,11 +275,11 @@ export function LocationDrawer({
                 </div>
 
                 {resourcesAtLocation.length === 0 ? (
-                  <div className="rounded-lg border border-border/50 p-6 text-center text-sm text-muted-foreground">
+                  <div className="rounded-lg border border-border p-6 text-center text-sm text-muted-foreground">
                     No resources at this location
                   </div>
                 ) : (
-                  <div className="rounded-lg border border-border/50 divide-y divide-border/50">
+                  <div className="rounded-lg border border-border divide-y divide-border/50">
                     {resourcesAtLocation.map((resource) => (
                       <div
                         key={resource.id}

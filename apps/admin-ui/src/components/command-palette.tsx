@@ -69,9 +69,9 @@ export function CommandPalette({ onCreateAppointment }: CommandPaletteProps) {
 
       {/* Dialog */}
       <div className="fixed left-1/2 top-1/2 z-50 w-full max-w-lg -translate-x-1/2 -translate-y-1/2 p-4">
-        <div className="overflow-hidden rounded-xl border border-border/50 bg-background shadow-2xl">
+        <div className="overflow-hidden rounded-xl border border-border bg-background shadow-2xl">
           {/* Search input */}
-          <div className="flex items-center border-b border-border/50 px-4">
+          <div className="flex items-center border-b border-border px-4">
             <Icon icon={Search01Icon} className="mr-3 text-muted-foreground" />
             <Command.Input
               placeholder="Type a command or search..."
