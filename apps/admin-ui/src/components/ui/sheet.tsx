@@ -5,9 +5,6 @@ import { Dialog as SheetPrimitive } from "@base-ui/react/dialog";
 import { Slot } from "@radix-ui/react-slot";
 
 import { cn } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
-import { Icon } from "@/components/ui/icon";
-import { Cancel01Icon } from "@hugeicons/core-free-icons";
 
 function Sheet({ ...props }: SheetPrimitive.Root.Props) {
   return <SheetPrimitive.Root data-slot="sheet" {...props} />;
@@ -59,11 +56,9 @@ function SheetContent({
   className,
   children,
   side = "right",
-  showCloseButton = true,
   ...props
 }: SheetPrimitive.Popup.Props & {
   side?: "top" | "right" | "bottom" | "left";
-  showCloseButton?: boolean;
 }) {
   return (
     <SheetPortal>
@@ -78,21 +73,6 @@ function SheetContent({
         {...props}
       >
         {children}
-        {showCloseButton && (
-          <SheetPrimitive.Close
-            data-slot="sheet-close"
-            render={
-              <Button
-                variant="ghost"
-                className="absolute top-4 right-4"
-                size="icon-sm"
-              />
-            }
-          >
-            <Icon icon={Cancel01Icon} />
-            <span className="sr-only">Close</span>
-          </SheetPrimitive.Close>
-        )}
       </SheetPrimitive.Popup>
     </SheetPortal>
   );

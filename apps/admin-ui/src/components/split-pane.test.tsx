@@ -110,6 +110,8 @@ describe("split-pane components", () => {
     const sheet = document.querySelector('[data-slot="sheet-content"]');
     expect(sheet).not.toBeNull();
     expect(sheet?.textContent).toContain("Detail content");
+    const closeButton = document.querySelector('[data-slot="sheet-close"]');
+    expect(closeButton).not.toBeNull();
   });
 
   test("marks the active tab", () => {

@@ -1,6 +1,6 @@
 // Global command palette (Cmd+K)
 
-import { useEffect, useState, useCallback } from "react";
+import { useState, useCallback } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { Command } from "cmdk";
 import {
@@ -16,6 +16,7 @@ import {
 } from "@hugeicons/core-free-icons";
 import { cn } from "@/lib/utils";
 import { Icon } from "@/components/ui/icon";
+import { useKeyboardShortcuts } from "@/hooks/use-keyboard-shortcuts";
 
 interface CommandPaletteProps {
   onCreateAppointment?: () => void;
@@ -25,18 +26,16 @@ export function CommandPalette({ onCreateAppointment }: CommandPaletteProps) {
   const [open, setOpen] = useState(false);
   const navigate = useNavigate();
 
-  // Toggle on Cmd+K or Ctrl+K
-  useEffect(() => {
-    const down = (e: KeyboardEvent) => {
-      if (e.key === "k" && (e.metaKey || e.ctrlKey)) {
-        e.preventDefault();
-        setOpen((o) => !o);
-      }
-    };
-
-    document.addEventListener("keydown", down);
-    return () => document.removeEventListener("keydown", down);
-  }, []);
+  useKeyboardShortcuts({
+    shortcuts: [
+      {
+        key: ["meta+k", "ctrl+k"],
+        action: () => setOpen((isOpen) => !isOpen),
+        description: "Toggle command menu",
+        ignoreInputs: false,
+      },
+    ],
+  });
 
   const runCommand = useCallback((command: () => void) => {
     setOpen(false);

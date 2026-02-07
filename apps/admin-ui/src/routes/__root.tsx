@@ -13,6 +13,7 @@ import {
   Package01Icon,
   Layers01Icon,
   Menu01Icon,
+  Cancel01Icon,
 } from "@hugeicons/core-free-icons";
 import { authClient } from "@/lib/auth-client";
 import { Button } from "@/components/ui/button";
@@ -35,7 +36,7 @@ function RootLayout() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   // Enable keyboard navigation shortcuts when authenticated
-  useNavigationShortcuts();
+  useNavigationShortcuts(isAuthenticated);
 
   if (isLoading) {
     return (
@@ -174,7 +175,14 @@ function RootLayout() {
       <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
         <SheetContent side="left" className="w-64 p-0">
           <SheetHeader className="border-b border-border/50 px-6 py-5">
-            <SheetTitle>Scheduling</SheetTitle>
+            <div className="flex items-center justify-between">
+              <SheetTitle>Scheduling</SheetTitle>
+              <SheetClose asChild>
+                <Button variant="ghost" size="icon-sm" aria-label="Close menu">
+                  <Icon icon={Cancel01Icon} />
+                </Button>
+              </SheetClose>
+            </div>
           </SheetHeader>
           <nav className="flex-1 space-y-6 p-5">
             {navGroups.map((group) => (

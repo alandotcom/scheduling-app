@@ -13,6 +13,7 @@ import { appointmentRoutes } from "./appointments.js";
 import { clientRoutes } from "./clients.js";
 import { apiTokenRoutes } from "./api-tokens.js";
 import { auditRoutes } from "./audit.js";
+import { dashboardRoutes } from "./dashboard.js";
 
 // Re-export authed and adminOnly from base for backwards compatibility
 export { authed, adminOnly } from "./base.js";
@@ -30,6 +31,7 @@ export const health = base
 // ============================================================================
 export const uiRouter = {
   health,
+  dashboard: dashboardRoutes,
   org: orgRoutes,
   locations: locationRoutes,
   calendars: calendarRoutes,

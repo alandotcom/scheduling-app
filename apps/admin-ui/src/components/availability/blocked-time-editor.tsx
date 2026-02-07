@@ -37,14 +37,25 @@ import {
 interface BlockedTimeEditorProps {
   calendarId: string;
   timezone: string;
-  compact?: boolean;
 }
 
-export function BlockedTimeEditor({
+interface BlockedTimeEditorBodyProps extends BlockedTimeEditorProps {
+  compact: boolean;
+}
+
+export function BlockedTimeEditor(props: BlockedTimeEditorProps) {
+  return <BlockedTimeEditorBody {...props} compact={false} />;
+}
+
+export function CompactBlockedTimeEditor(props: BlockedTimeEditorProps) {
+  return <BlockedTimeEditorBody {...props} compact />;
+}
+
+function BlockedTimeEditorBody({
   calendarId,
   timezone,
-  compact = false,
-}: BlockedTimeEditorProps) {
+  compact,
+}: BlockedTimeEditorBodyProps) {
   const queryClient = useQueryClient();
   const [showForm, setShowForm] = useState(false);
   const [editingBlock, setEditingBlock] = useState<{

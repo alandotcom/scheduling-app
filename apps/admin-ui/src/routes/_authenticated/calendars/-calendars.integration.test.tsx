@@ -5,13 +5,11 @@ import { act, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { waitFor } from "@testing-library/dom";
-import {
-  AvailabilitySubTabs,
-  BlockedTimeEditor,
-  DateOverridesEditor,
-  WeeklyScheduleEditor,
-  type AvailabilitySubTabType,
-} from "@/components/availability";
+import { AvailabilitySubTabs } from "@/components/availability/availability-sub-tabs";
+import { CompactBlockedTimeEditor } from "@/components/availability/blocked-time-editor";
+import { CompactDateOverridesEditor } from "@/components/availability/date-overrides-editor";
+import { CompactWeeklyScheduleEditor } from "@/components/availability/weekly-schedule-editor";
+import type { AvailabilitySubTabType } from "@/components/availability/constants";
 import {
   createAvailabilityRuleFixture,
   createTestQueryClient,
@@ -37,25 +35,19 @@ function AvailabilityHarness({
     <div>
       <AvailabilitySubTabs value={tab} onChange={setTab} />
       {tab === "weekly" && (
-        <WeeklyScheduleEditor
+        <CompactWeeklyScheduleEditor
           calendarId={calendarId}
           timezone={timezone}
-          compact
         />
       )}
       {tab === "overrides" && (
-        <DateOverridesEditor
+        <CompactDateOverridesEditor
           calendarId={calendarId}
           timezone={timezone}
-          compact
         />
       )}
       {tab === "blocked" && (
-        <BlockedTimeEditor
-          calendarId={calendarId}
-          timezone={timezone}
-          compact
-        />
+        <CompactBlockedTimeEditor calendarId={calendarId} timezone={timezone} />
       )}
     </div>
   );

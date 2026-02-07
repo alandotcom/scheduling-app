@@ -18,77 +18,147 @@ interface UseKeyboardShortcutsOptions {
   enabled?: boolean;
 }
 
+interface ShortcutRegistration {
+  shortcutsRef: { current: ShortcutConfig[] };
+  sequence: string[];
+  timeoutRef: { current: ReturnType<typeof setTimeout> | null };
+}
+
+const registrations = new Set<ShortcutRegistration>();
+let isListenerAttached = false;
+
+function normalizeKey(event: KeyboardEvent) {
+  let key = event.key.toLowerCase();
+  if (event.metaKey) key = `meta+${key}`;
+  if (event.ctrlKey) key = `ctrl+${key}`;
+  if (event.altKey) key = `alt+${key}`;
+  if (event.shiftKey && key.length === 1) key = `shift+${key}`;
+  return key;
+}
+
+function isTypingInInput(target: EventTarget | null) {
+  if (!(target instanceof HTMLElement)) return false;
+  return (
+    target.tagName === "INPUT" ||
+    target.tagName === "TEXTAREA" ||
+    target.isContentEditable
+  );
+}
+
+function resetRegistrationSequence(registration: ShortcutRegistration) {
+  registration.sequence = [];
+  if (registration.timeoutRef.current) {
+    clearTimeout(registration.timeoutRef.current);
+    registration.timeoutRef.current = null;
+  }
+}
+
+function scheduleSequenceReset(registration: ShortcutRegistration) {
+  if (registration.timeoutRef.current) {
+    clearTimeout(registration.timeoutRef.current);
+  }
+
+  registration.timeoutRef.current = setTimeout(() => {
+    registration.sequence = [];
+  }, 1000);
+}
+
+function onDocumentKeyDown(event: KeyboardEvent) {
+  const key = normalizeKey(event);
+  const isInput = isTypingInInput(event.target);
+  const orderedRegistrations = Array.from(registrations).reverse();
+
+  for (const registration of orderedRegistrations) {
+    registration.sequence.push(key);
+    if (registration.sequence.length > 8) {
+      registration.sequence.shift();
+    }
+    scheduleSequenceReset(registration);
+
+    const shortcuts = registration.shortcutsRef.current ?? [];
+    const sequence = registration.sequence.join(" ");
+
+    for (const shortcut of shortcuts) {
+      if (shortcut.ignoreInputs !== false && isInput) continue;
+
+      const keys = Array.isArray(shortcut.key) ? shortcut.key : [shortcut.key];
+      const matched = keys.some((entry) => {
+        const normalized = entry.toLowerCase();
+        return normalized === key || normalized === sequence;
+      });
+
+      if (matched) {
+        event.preventDefault();
+        shortcut.action();
+        resetRegistrationSequence(registration);
+        return;
+      }
+    }
+  }
+}
+
+function ensureGlobalListener() {
+  if (isListenerAttached || typeof document === "undefined") return;
+  document.addEventListener("keydown", onDocumentKeyDown);
+  isListenerAttached = true;
+}
+
+function teardownGlobalListener() {
+  if (!isListenerAttached || registrations.size > 0) return;
+  document.removeEventListener("keydown", onDocumentKeyDown);
+  isListenerAttached = false;
+}
+
+function registerShortcuts(registration: ShortcutRegistration) {
+  registrations.add(registration);
+  ensureGlobalListener();
+}
+
+function unregisterShortcuts(registration: ShortcutRegistration) {
+  resetRegistrationSequence(registration);
+  registrations.delete(registration);
+  teardownGlobalListener();
+}
+
 export function useKeyboardShortcuts({
   shortcuts,
   enabled = true,
 }: UseKeyboardShortcutsOptions) {
-  const sequenceRef = useRef<string[]>([]);
-  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const shortcutsRef = useRef(shortcuts);
+  const registrationRef = useRef<ShortcutRegistration | null>(null);
 
   useEffect(() => {
-    if (!enabled) return;
+    shortcutsRef.current = shortcuts;
+  }, [shortcuts]);
 
-    const handleKeyDown = (e: KeyboardEvent) => {
-      // Skip if typing in an input
-      const target = e.target as HTMLElement;
-      const isInput =
-        target.tagName === "INPUT" ||
-        target.tagName === "TEXTAREA" ||
-        target.isContentEditable;
-
-      // Clear sequence timeout
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current);
+  useEffect(() => {
+    if (!enabled) {
+      if (registrationRef.current) {
+        unregisterShortcuts(registrationRef.current);
+        registrationRef.current = null;
       }
+      return;
+    }
 
-      // Reset sequence after delay
-      timeoutRef.current = setTimeout(() => {
-        sequenceRef.current = [];
-      }, 1000);
-
-      // Build key string
-      let key = e.key.toLowerCase();
-      if (e.metaKey) key = `meta+${key}`;
-      if (e.ctrlKey) key = `ctrl+${key}`;
-      if (e.altKey) key = `alt+${key}`;
-      if (e.shiftKey && key.length === 1) key = `shift+${key}`;
-
-      // Add to sequence
-      sequenceRef.current.push(key);
-
-      // Check shortcuts
-      for (const shortcut of shortcuts) {
-        if (shortcut.ignoreInputs !== false && isInput) continue;
-
-        const keys = Array.isArray(shortcut.key)
-          ? shortcut.key
-          : [shortcut.key];
-
-        // Check if sequence matches
-        const sequence = sequenceRef.current.join(" ");
-        for (const k of keys) {
-          if (sequence === k.toLowerCase() || key === k.toLowerCase()) {
-            e.preventDefault();
-            shortcut.action();
-            sequenceRef.current = [];
-            return;
-          }
-        }
-      }
+    const registration: ShortcutRegistration = {
+      shortcutsRef,
+      sequence: [],
+      timeoutRef: { current: null },
     };
+    registrationRef.current = registration;
+    registerShortcuts(registration);
 
-    document.addEventListener("keydown", handleKeyDown);
     return () => {
-      document.removeEventListener("keydown", handleKeyDown);
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current);
+      if (registrationRef.current) {
+        unregisterShortcuts(registrationRef.current);
+        registrationRef.current = null;
       }
     };
-  }, [shortcuts, enabled]);
+  }, [enabled]);
 }
 
 // Pre-built navigation shortcuts
-export function useNavigationShortcuts() {
+export function useNavigationShortcuts(enabled = true) {
   const navigate = useNavigate();
 
   const shortcuts: ShortcutConfig[] = [
@@ -134,7 +204,7 @@ export function useNavigationShortcuts() {
     },
   ];
 
-  useKeyboardShortcuts({ shortcuts });
+  useKeyboardShortcuts({ shortcuts, enabled });
 }
 
 // List navigation hook

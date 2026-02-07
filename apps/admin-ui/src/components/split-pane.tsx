@@ -2,13 +2,17 @@ import * as React from "react";
 
 import {
   Sheet,
+  SheetClose,
   SheetContent,
   SheetDescription,
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
+import { Button } from "@/components/ui/button";
+import { Icon } from "@/components/ui/icon";
+import { Cancel01Icon } from "@hugeicons/core-free-icons";
 import { cn } from "@/lib/utils";
-import { TabsContext, useTabs } from "@/components/drawer";
+import { TabsContext, useTabs } from "@/components/ui/tabs-context";
 
 function useMediaQuery(query: string) {
   // Initialize with null to detect SSR/hydration state
@@ -114,6 +118,16 @@ export function DetailPanel({
                 )}
               </SheetHeader>
             )}
+            <SheetClose asChild>
+              <Button
+                variant="ghost"
+                className="absolute top-4 right-4"
+                size="icon-sm"
+                aria-label="Close details"
+              >
+                <Icon icon={Cancel01Icon} />
+              </Button>
+            </SheetClose>
             <div className={cn("flex-1 overflow-y-auto", bodyClassName)}>
               {children}
             </div>

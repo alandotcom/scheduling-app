@@ -6,6 +6,7 @@ import { Cancel01Icon } from "@hugeicons/core-free-icons";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
+import { TabsContext, useTabs } from "@/components/ui/tabs-context";
 
 interface DrawerProps {
   open: boolean;
@@ -158,22 +159,6 @@ export function DrawerFooter({ children, className }: DrawerFooterProps) {
       {children}
     </div>
   );
-}
-
-// Tabs context for DrawerTabs (shared with split-pane.tsx)
-interface TabsContextValue {
-  value: string;
-  onValueChange: (value: string) => void;
-}
-
-export const TabsContext = React.createContext<TabsContextValue | null>(null);
-
-export function useTabs() {
-  const ctx = React.useContext(TabsContext);
-  if (!ctx) {
-    throw new Error("Tab must be used within Tabs");
-  }
-  return ctx;
 }
 
 // Tabs within drawer

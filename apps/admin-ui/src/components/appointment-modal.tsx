@@ -70,18 +70,19 @@ export function AppointmentModal({
   });
 
   // Fetch appointment types
-  const { data: typesData } = useQuery(
-    orpc.appointmentTypes.list.queryOptions({
+  const { data: typesData } = useQuery({
+    ...orpc.appointmentTypes.list.queryOptions({
       input: { limit: 100 },
     }),
-  );
+    enabled: open,
+  });
 
   // Fetch calendars linked to the selected type
   const { data: linkedCalendars, isLoading: calendarsLoading } = useQuery({
     ...orpc.appointmentTypes.calendars.list.queryOptions({
       input: { appointmentTypeId: selectedTypeId },
     }),
-    enabled: !!selectedTypeId,
+    enabled: open && !!selectedTypeId,
   });
 
   // Fetch clients for search
@@ -89,7 +90,7 @@ export function AppointmentModal({
     ...orpc.clients.list.queryOptions({
       input: { search: clientSearch, limit: 10 },
     }),
-    enabled: clientSearch.length >= 2,
+    enabled: open && clientSearch.length >= 2,
   });
 
   // Fetch available time slots for selected date
@@ -104,7 +105,8 @@ export function AppointmentModal({
         timezone,
       },
     }),
-    enabled: !!selectedTypeId && !!selectedCalendarId && !!selectedDateStr,
+    enabled:
+      open && !!selectedTypeId && !!selectedCalendarId && !!selectedDateStr,
   });
 
   // Create appointment mutation

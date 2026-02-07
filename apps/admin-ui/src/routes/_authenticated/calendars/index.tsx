@@ -58,13 +58,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
-import {
-  AvailabilitySubTabs,
-  WeeklyScheduleEditor,
-  DateOverridesEditor,
-  BlockedTimeEditor,
-  type AvailabilitySubTabType,
-} from "@/components/availability";
+import { AvailabilitySubTabs } from "@/components/availability/availability-sub-tabs";
+import { CompactWeeklyScheduleEditor } from "@/components/availability/weekly-schedule-editor";
+import { CompactDateOverridesEditor } from "@/components/availability/date-overrides-editor";
+import { CompactBlockedTimeEditor } from "@/components/availability/blocked-time-editor";
+import type { AvailabilitySubTabType } from "@/components/availability/constants";
 
 interface CalendarFormProps {
   defaultValues?: {
@@ -741,24 +739,21 @@ function CalendarsPage() {
                     />
 
                     {availabilitySubTab === "weekly" && (
-                      <WeeklyScheduleEditor
+                      <CompactWeeklyScheduleEditor
                         calendarId={selectedCalendar.id}
                         timezone={selectedCalendar.timezone}
-                        compact
                       />
                     )}
                     {availabilitySubTab === "overrides" && (
-                      <DateOverridesEditor
+                      <CompactDateOverridesEditor
                         calendarId={selectedCalendar.id}
                         timezone={selectedCalendar.timezone}
-                        compact
                       />
                     )}
                     {availabilitySubTab === "blocked" && (
-                      <BlockedTimeEditor
+                      <CompactBlockedTimeEditor
                         calendarId={selectedCalendar.id}
                         timezone={selectedCalendar.timezone}
-                        compact
                       />
                     )}
                   </div>

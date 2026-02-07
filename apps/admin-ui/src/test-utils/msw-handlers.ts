@@ -2,6 +2,7 @@
 
 import { http, HttpResponse } from "msw";
 import type {
+  DashboardSummary,
   AppointmentWithRelations,
   AppointmentScheduleEvent,
 } from "@scheduling/dto";
@@ -263,6 +264,14 @@ let mockLocations: LocationFixture[] = [];
 let mockAvailabilityRules: AvailabilityRuleFixture[] = [];
 let mockDateOverrides: DateOverrideFixture[] = [];
 let mockBlockedTimes: BlockedTimeFixture[] = [];
+let mockDashboardSummary: DashboardSummary = {
+  todayAppointments: 0,
+  weekAppointments: 0,
+  clients: 0,
+  calendars: 0,
+  pendingAppointments: 0,
+  noShows: 0,
+};
 
 export function setMockAppointments(appointments: AppointmentWithRelations[]) {
   mockAppointments = appointments;
@@ -296,6 +305,10 @@ export function setMockBlockedTimes(blockedTimes: BlockedTimeFixture[]) {
   mockBlockedTimes = blockedTimes;
 }
 
+export function setMockDashboardSummary(summary: DashboardSummary) {
+  mockDashboardSummary = summary;
+}
+
 export function resetMockData() {
   mockAppointments = [];
   mockScheduleEvents = [];
@@ -305,11 +318,23 @@ export function resetMockData() {
   mockAvailabilityRules = [];
   mockDateOverrides = [];
   mockBlockedTimes = [];
+  mockDashboardSummary = {
+    todayAppointments: 0,
+    weekAppointments: 0,
+    clients: 0,
+    calendars: 0,
+    pendingAppointments: 0,
+    noShows: 0,
+  };
   resetIdCounter();
 }
 
 // MSW handlers
 export const handlers = [
+  http.post("*/v1/dashboard.summary", () => {
+    return HttpResponse.json(mockDashboardSummary);
+  }),
+
   // List appointments
   http.post("*/v1/appointments.list", () => {
     return HttpResponse.json({

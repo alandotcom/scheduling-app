@@ -51,12 +51,10 @@ import {
   formatDateParam,
   parseDateParam,
 } from "@/hooks/use-schedule-appointments";
-import {
-  ViewToggle,
-  AppointmentsList,
-  AppointmentDetail,
-  ScheduleGrid,
-} from "@/components/appointments";
+import { ViewToggle } from "@/components/appointments/view-toggle";
+import { AppointmentsList } from "@/components/appointments/appointments-list";
+import { AppointmentDetail } from "@/components/appointments/appointment-detail";
+import { ScheduleGrid } from "@/components/appointments/schedule-grid";
 
 type ViewMode = "list" | "schedule";
 type DetailTabValue = "details" | "client" | "history";

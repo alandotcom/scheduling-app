@@ -40,8 +40,10 @@ describe("API vs UI Router", () => {
 
     expect(uiRouterAny.apiTokens).toBeDefined();
     expect(uiRouterAny.audit).toBeDefined();
+    expect(uiRouterAny.dashboard).toBeDefined();
     expect(apiRouterAny.apiTokens).toBeUndefined();
     expect(apiRouterAny.audit).toBeUndefined();
+    expect(apiRouterAny.dashboard).toBeUndefined();
   });
 
   test("apiRouter exposes only availability engine routes", async () => {

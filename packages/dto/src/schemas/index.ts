@@ -13,3 +13,4 @@ export * from "./appointment";
 export * from "./availability";
 export * from "./api-token";
 export * from "./audit";
+export * from "./dashboard";

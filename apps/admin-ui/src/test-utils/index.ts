@@ -27,6 +27,7 @@ export {
   setMockAvailabilityRules,
   setMockDateOverrides,
   setMockBlockedTimes,
+  setMockDashboardSummary,
   resetMockData,
   resetIdCounter,
 } from "./msw-handlers";

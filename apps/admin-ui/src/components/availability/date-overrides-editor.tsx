@@ -23,14 +23,25 @@ import { formatDate, formatDisplayDate } from "./utils";
 interface DateOverridesEditorProps {
   calendarId: string;
   timezone: string;
-  compact?: boolean;
 }
 
-export function DateOverridesEditor({
+interface DateOverridesEditorBodyProps extends DateOverridesEditorProps {
+  compact: boolean;
+}
+
+export function DateOverridesEditor(props: DateOverridesEditorProps) {
+  return <DateOverridesEditorBody {...props} compact={false} />;
+}
+
+export function CompactDateOverridesEditor(props: DateOverridesEditorProps) {
+  return <DateOverridesEditorBody {...props} compact />;
+}
+
+function DateOverridesEditorBody({
   calendarId,
   timezone,
-  compact = false,
-}: DateOverridesEditorProps) {
+  compact,
+}: DateOverridesEditorBodyProps) {
   const queryClient = useQueryClient();
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [editingOverride, setEditingOverride] = useState<{

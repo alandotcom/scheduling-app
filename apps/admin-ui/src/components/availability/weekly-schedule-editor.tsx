@@ -27,14 +27,25 @@ import {
 interface WeeklyScheduleEditorProps {
   calendarId: string;
   timezone: string;
-  compact?: boolean;
 }
 
-export function WeeklyScheduleEditor({
+interface WeeklyScheduleEditorBodyProps extends WeeklyScheduleEditorProps {
+  compact: boolean;
+}
+
+export function WeeklyScheduleEditor(props: WeeklyScheduleEditorProps) {
+  return <WeeklyScheduleEditorBody {...props} compact={false} />;
+}
+
+export function CompactWeeklyScheduleEditor(props: WeeklyScheduleEditorProps) {
+  return <WeeklyScheduleEditorBody {...props} compact />;
+}
+
+function WeeklyScheduleEditorBody({
   calendarId,
   timezone: _timezone,
-  compact = false,
-}: WeeklyScheduleEditorProps) {
+  compact,
+}: WeeklyScheduleEditorBodyProps) {
   const queryClient = useQueryClient();
 
   const [schedule, setSchedule] = useState<WeeklySchedule>(

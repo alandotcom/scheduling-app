@@ -4,6 +4,10 @@ import { useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import type { IconSvgElement } from "@hugeicons/react";
+import type {
+  AppointmentWithRelations,
+  DashboardSummary,
+} from "@scheduling/dto";
 import {
   Calendar03Icon,
   Add01Icon,
@@ -20,7 +24,31 @@ import { Badge } from "@/components/ui/badge";
 import { Icon } from "@/components/ui/icon";
 import { AppointmentModal } from "@/components/appointment-modal";
 
-function Dashboard() {
+export function getDashboardStats(summary: DashboardSummary | undefined) {
+  return {
+    todayCount: summary?.todayAppointments ?? 0,
+    weekCount: summary?.weekAppointments ?? 0,
+    clientCount: summary?.clients ?? 0,
+    calendarCount: summary?.calendars ?? 0,
+  };
+}
+
+export function getAttentionCounts(summary: DashboardSummary | undefined) {
+  return {
+    pendingAppointments: summary?.pendingAppointments ?? 0,
+    noShows: summary?.noShows ?? 0,
+  };
+}
+
+export function getSortedTodayAppointments(
+  appointments: AppointmentWithRelations[] | undefined,
+) {
+  return (appointments ?? []).toSorted(
+    (a, b) => new Date(a.startAt).getTime() - new Date(b.startAt).getTime(),
+  );
+}
+
+export function Dashboard() {
   const [appointmentModalOpen, setAppointmentModalOpen] = useState(false);
 
   // Get today's date boundaries
@@ -28,14 +56,10 @@ function Dashboard() {
   today.setHours(0, 0, 0, 0);
   const todayStr = today.toISOString().split("T")[0];
 
-  // Get week boundaries
-  const startOfWeek = new Date(today);
-  startOfWeek.setDate(today.getDate() - today.getDay());
-  const endOfWeek = new Date(startOfWeek);
-  endOfWeek.setDate(startOfWeek.getDate() + 6);
-  const endOfWeekStr = endOfWeek.toISOString().split("T")[0];
+  // Fetch dashboard summary metrics
+  const { data: summary } = useQuery(orpc.dashboard.summary.queryOptions());
 
-  // Fetch today's appointments
+  // Fetch today's appointments for schedule list
   const { data: todayAppointments } = useQuery(
     orpc.appointments.list.queryOptions({
       input: {
@@ -46,49 +70,9 @@ function Dashboard() {
     }),
   );
 
-  // Fetch this week's appointments
-  const { data: weekAppointments } = useQuery(
-    orpc.appointments.list.queryOptions({
-      input: {
-        startDate: todayStr,
-        endDate: endOfWeekStr,
-        limit: 100,
-      },
-    }),
-  );
-
-  // Fetch all clients
-  const { data: clients } = useQuery(
-    orpc.clients.list.queryOptions({
-      input: { limit: 1 },
-    }),
-  );
-
-  // Fetch calendars
-  const { data: calendars } = useQuery(
-    orpc.calendars.list.queryOptions({
-      input: { limit: 100 },
-    }),
-  );
-
-  // Calculate stats
-  const todayCount = todayAppointments?.items.length ?? 0;
-  const weekCount = weekAppointments?.items.length ?? 0;
-  const clientCount = clients?.items.length ?? 0;
-  const calendarCount = calendars?.items.length ?? 0;
-
-  // Get today's appointments sorted by time
-  const todayItems = (todayAppointments?.items ?? []).sort(
-    (a, b) => new Date(a.startAt).getTime() - new Date(b.startAt).getTime(),
-  );
-
-  // Get scheduled appointments (not yet confirmed)
-  const pendingAppointments =
-    weekAppointments?.items.filter((apt) => apt.status === "scheduled") ?? [];
-
-  // Get no-shows from this week
-  const noShows =
-    weekAppointments?.items.filter((apt) => apt.status === "no_show") ?? [];
+  const { todayCount, weekCount, clientCount, calendarCount } =
+    getDashboardStats(summary);
+  const todayItems = getSortedTodayAppointments(todayAppointments?.items);
 
   const formatTime = (dateString: string | Date) => {
     const date = new Date(dateString);
@@ -99,7 +83,8 @@ function Dashboard() {
     });
   };
 
-  const hasAlerts = pendingAppointments.length > 0 || noShows.length > 0;
+  const { pendingAppointments, noShows } = getAttentionCounts(summary);
+  const hasAlerts = pendingAppointments > 0 || noShows > 0;
 
   return (
     <div className="p-6">
@@ -240,18 +225,18 @@ function Dashboard() {
             </div>
           ) : (
             <div className="space-y-3">
-              {pendingAppointments.length > 0 && (
+              {pendingAppointments > 0 && (
                 <AlertCard
                   icon={Clock01Icon}
-                  title={`${pendingAppointments.length} appointment${pendingAppointments.length === 1 ? "" : "s"} pending confirmation`}
+                  title={`${pendingAppointments} appointment${pendingAppointments === 1 ? "" : "s"} pending confirmation`}
                   href="/appointments"
                   variant="warning"
                 />
               )}
-              {noShows.length > 0 && (
+              {noShows > 0 && (
                 <AlertCard
                   icon={Alert02Icon}
-                  title={`${noShows.length} no-show${noShows.length === 1 ? "" : "s"} this week`}
+                  title={`${noShows} no-show${noShows === 1 ? "" : "s"} this week`}
                   href="/appointments"
                   variant="destructive"
                 />
