@@ -28,7 +28,7 @@
     "better-auth": "^1.4.17",
     "bullmq": "^5.67.0",
     "drizzle-orm": "catalog:",
-    "hono": "^4.11.5",
+    "hono": "^4.11.7",
     "ioredis": "^5.9.2",
     "luxon": "^3.7.2",
     "rrule": "^2.8.1",
