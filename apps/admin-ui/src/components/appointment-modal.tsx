@@ -1,6 +1,6 @@
 // Appointment booking modal with availability calendar
 
-import { useState, useMemo } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
 import {
@@ -31,6 +31,8 @@ interface AppointmentModalProps {
   onOpenChange: (open: boolean) => void;
   defaultCalendarId?: string;
   defaultTypeId?: string;
+  defaultClientId?: string;
+  defaultClientName?: string;
 }
 
 export function AppointmentModal({
@@ -38,6 +40,8 @@ export function AppointmentModal({
   onOpenChange,
   defaultCalendarId,
   defaultTypeId,
+  defaultClientId,
+  defaultClientName,
 }: AppointmentModalProps) {
   const queryClient = useQueryClient();
   const [selectedTypeId, setSelectedTypeId] = useState(defaultTypeId ?? "");
@@ -47,9 +51,17 @@ export function AppointmentModal({
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [selectedTime, setSelectedTime] = useState<string>("");
   const [notes, setNotes] = useState("");
-  const [clientSearch, setClientSearch] = useState("");
-  const [selectedClientId, setSelectedClientId] = useState<string>("");
+  const [clientSearch, setClientSearch] = useState(defaultClientName ?? "");
+  const [selectedClientId, setSelectedClientId] = useState<string>(
+    defaultClientId ?? "",
+  );
   const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+
+  useEffect(() => {
+    if (!open) return;
+    setClientSearch(defaultClientName ?? "");
+    setSelectedClientId(defaultClientId ?? "");
+  }, [open, defaultClientId, defaultClientName]);
 
   // Current month for calendar
   const [viewMonth, setViewMonth] = useState(() => {
@@ -116,8 +128,6 @@ export function AppointmentModal({
 
   const selectedType = appointmentTypes.find((t) => t.id === selectedTypeId);
   const selectedCalendar = calendars.find((c) => c.id === selectedCalendarId);
-  const selectedClient = clients.find((c) => c.id === selectedClientId);
-
   // Generate calendar days
   const calendarDays = useMemo(() => {
     const year = viewMonth.getFullYear();
@@ -507,7 +517,7 @@ export function AppointmentModal({
                     ))}
                   </div>
                 )}
-                {selectedClient && selectedClientId && (
+                {selectedClientId && (
                   <Button
                     variant="ghost"
                     size="xs"

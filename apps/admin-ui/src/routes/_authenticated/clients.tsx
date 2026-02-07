@@ -178,6 +178,8 @@ function ClientsPage() {
 
   // Appointment modal state
   const [appointmentModalOpen, setAppointmentModalOpen] = useState(false);
+  const [appointmentModalClientPrefill, setAppointmentModalClientPrefill] =
+    useState<{ id: string; name: string } | null>(null);
 
   // Fetch clients
   const { data, isLoading, error } = useQuery(
@@ -277,12 +279,20 @@ function ClientsPage() {
   );
 
   const handleBookAppointment = useCallback(
-    (_clientId: string) => {
-      // TODO: Pre-fill client in appointment modal when client search is improved
+    (clientId: string) => {
+      const client = data?.items.find((item) => item.id === clientId);
+      setAppointmentModalClientPrefill(
+        client
+          ? {
+              id: client.id,
+              name: `${client.firstName} ${client.lastName}`,
+            }
+          : null,
+      );
       setAppointmentModalOpen(true);
       closeDrawer();
     },
-    [closeDrawer],
+    [closeDrawer, data?.items],
   );
 
   const getContextMenuItems = useCallback(
@@ -462,7 +472,14 @@ function ClientsPage() {
       {/* Appointment Modal */}
       <AppointmentModal
         open={appointmentModalOpen}
-        onOpenChange={setAppointmentModalOpen}
+        onOpenChange={(nextOpen) => {
+          setAppointmentModalOpen(nextOpen);
+          if (!nextOpen) {
+            setAppointmentModalClientPrefill(null);
+          }
+        }}
+        defaultClientId={appointmentModalClientPrefill?.id}
+        defaultClientName={appointmentModalClientPrefill?.name}
       />
 
       {/* Delete Confirmation */}
