@@ -8,6 +8,7 @@ import { toast } from "sonner";
 
 import { orpc } from "@/lib/query";
 import { TIMEZONES } from "@/lib/constants";
+import { resolveSelectValueLabel } from "@/lib/select-value-label";
 import { updateOrgSettingsSchema } from "@scheduling/dto";
 import type { UpdateOrgSettingsInput } from "@scheduling/dto";
 
@@ -188,24 +189,36 @@ function SettingsForm({ org }: SettingsFormProps) {
               <Controller
                 name="defaultTimezone"
                 control={control}
-                render={({ field }) => (
-                  <Select
-                    value={field.value}
-                    onValueChange={field.onChange}
-                    disabled={updateMutation.isPending}
-                  >
-                    <SelectTrigger id="timezone">
-                      <SelectValue placeholder="Select timezone" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {TIMEZONES.map((tz) => (
-                        <SelectItem key={tz} value={tz}>
-                          {tz}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )}
+                render={({ field }) => {
+                  const timezoneSelectLabel = resolveSelectValueLabel({
+                    value: field.value,
+                    options: TIMEZONES,
+                    getOptionValue: (tz) => tz,
+                    getOptionLabel: (tz) => tz,
+                    unknownLabel: "Unknown timezone",
+                  });
+
+                  return (
+                    <Select
+                      value={field.value}
+                      onValueChange={field.onChange}
+                      disabled={updateMutation.isPending}
+                    >
+                      <SelectTrigger id="timezone">
+                        <SelectValue placeholder="Select timezone">
+                          {timezoneSelectLabel}
+                        </SelectValue>
+                      </SelectTrigger>
+                      <SelectContent>
+                        {TIMEZONES.map((tz) => (
+                          <SelectItem key={tz} value={tz}>
+                            {tz}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  );
+                }}
               />
               {errors.defaultTimezone && (
                 <p className="mt-2 text-sm text-destructive">

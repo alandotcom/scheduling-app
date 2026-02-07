@@ -12,6 +12,7 @@ import {
 import { toast } from "sonner";
 
 import { orpc } from "@/lib/query";
+import { resolveSelectValueLabel } from "@/lib/select-value-label";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
@@ -128,8 +129,20 @@ export function AppointmentModal({
   const clients = clientsData?.items ?? [];
   const availableSlots = slotsData?.slots.filter((s) => s.available) ?? [];
 
-  const selectedType = appointmentTypes.find((t) => t.id === selectedTypeId);
-  const selectedCalendar = calendars.find((c) => c.id === selectedCalendarId);
+  const appointmentTypeSelectLabel = resolveSelectValueLabel({
+    value: selectedTypeId,
+    options: appointmentTypes,
+    getOptionValue: (type) => type.id,
+    getOptionLabel: (type) => `${type.name} (${type.durationMin} min)`,
+    unknownLabel: "Unknown appointment type",
+  });
+  const calendarSelectLabel = resolveSelectValueLabel({
+    value: selectedCalendarId,
+    options: calendars,
+    getOptionValue: (calendar) => calendar.id,
+    getOptionLabel: (calendar) => calendar.name,
+    unknownLabel: "Unknown calendar",
+  });
   // Generate calendar days
   const calendarDays = useMemo(() => {
     const year = viewMonth.getFullYear();
@@ -309,9 +322,7 @@ export function AppointmentModal({
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Select type">
-                      {selectedType
-                        ? `${selectedType.name} (${selectedType.durationMin} min)`
-                        : null}
+                      {appointmentTypeSelectLabel}
                     </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
@@ -337,7 +348,7 @@ export function AppointmentModal({
                         calendarsLoading ? "Loading..." : "Select calendar"
                       }
                     >
-                      {selectedCalendar?.name}
+                      {calendarSelectLabel}
                     </SelectValue>
                   </SelectTrigger>
                   <SelectContent>

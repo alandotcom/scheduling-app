@@ -11,6 +11,7 @@ import {
 import { toast } from "sonner";
 
 import { orpc } from "@/lib/query";
+import { resolveSelectValueLabel } from "@/lib/select-value-label";
 import { Icon } from "@/components/ui/icon";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -289,9 +290,14 @@ function BlockedTimeEditorBody({
               >
                 <SelectTrigger>
                   <SelectValue>
-                    {RECURRENCE_OPTIONS.find(
-                      (o) => o.value === editingBlock.recurrence,
-                    )?.label ?? "Does not repeat"}
+                    {resolveSelectValueLabel({
+                      value: editingBlock.recurrence,
+                      options: RECURRENCE_OPTIONS,
+                      getOptionValue: (option) => option.value,
+                      getOptionLabel: (option) => option.label,
+                      noneLabel: "Does not repeat",
+                      unknownLabel: "Unknown recurrence",
+                    })}
                   </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
@@ -479,9 +485,14 @@ function BlockedTimeEditorBody({
               >
                 <SelectTrigger>
                   <SelectValue>
-                    {RECURRENCE_OPTIONS.find(
-                      (o) => o.value === editingBlock.recurrence,
-                    )?.label ?? "Does not repeat"}
+                    {resolveSelectValueLabel({
+                      value: editingBlock.recurrence,
+                      options: RECURRENCE_OPTIONS,
+                      getOptionValue: (option) => option.value,
+                      getOptionLabel: (option) => option.label,
+                      noneLabel: "Does not repeat",
+                      unknownLabel: "Unknown recurrence",
+                    })}
                   </SelectValue>
                 </SelectTrigger>
                 <SelectContent>

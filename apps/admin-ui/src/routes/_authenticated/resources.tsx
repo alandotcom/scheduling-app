@@ -16,6 +16,7 @@ import { z } from "zod/mini";
 import { Icon } from "@/components/ui/icon";
 import { toast } from "sonner";
 import { orpc } from "@/lib/query";
+import { resolveSelectValueLabel } from "@/lib/select-value-label";
 import { createResourceSchema } from "@scheduling/dto";
 import type { CreateResourceInput } from "@scheduling/dto";
 import { useCrudState } from "@/hooks/use-crud-state";
@@ -55,7 +56,7 @@ interface ResourceFormProps {
   isSubmitting: boolean;
 }
 
-function ResourceForm({
+export function ResourceForm({
   defaultValues,
   locations,
   onSubmit,
@@ -75,7 +76,14 @@ function ResourceForm({
   });
 
   const locationId = watch("locationId");
-  const selectedLocation = locations.find((l) => l.id === locationId);
+  const locationSelectLabel = resolveSelectValueLabel({
+    value: locationId ?? "none",
+    options: locations,
+    getOptionValue: (location) => location.id,
+    getOptionLabel: (location) => location.name,
+    noneLabel: "No location",
+    unknownLabel: "Unknown location",
+  });
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
@@ -124,7 +132,7 @@ function ResourceForm({
         >
           <SelectTrigger className="w-full">
             <SelectValue placeholder="Select location">
-              {selectedLocation?.name ?? (locationId ? null : "No location")}
+              {locationSelectLabel}
             </SelectValue>
           </SelectTrigger>
           <SelectContent>

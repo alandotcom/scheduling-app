@@ -7,6 +7,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
 
 import { orpc } from "@/lib/query";
+import { resolveSelectValueLabel } from "@/lib/select-value-label";
 import type { CreateResourceInput } from "@scheduling/dto";
 import { resourceFormSchema } from "@/routes/_authenticated/resources";
 import {
@@ -121,9 +122,15 @@ export function ResourceDrawer({
     });
   };
 
-  const selectedLocation = locations.find(
-    (l) => l.id === form.watch("locationId"),
-  );
+  const locationId = form.watch("locationId");
+  const locationSelectLabel = resolveSelectValueLabel({
+    value: locationId ?? "none",
+    options: locations,
+    getOptionValue: (location) => location.id,
+    getOptionLabel: (location) => location.name,
+    noneLabel: "No location",
+    unknownLabel: "Unknown location",
+  });
 
   return (
     <>
@@ -171,7 +178,7 @@ export function ResourceDrawer({
               <div className="space-y-2">
                 <Label>Location (optional)</Label>
                 <Select
-                  value={form.watch("locationId") ?? "none"}
+                  value={locationId ?? "none"}
                   onValueChange={(v) =>
                     v &&
                     form.setValue("locationId", v === "none" ? undefined : v)
@@ -179,9 +186,7 @@ export function ResourceDrawer({
                   disabled={updateMutation.isPending}
                 >
                   <SelectTrigger>
-                    <SelectValue>
-                      {selectedLocation?.name ?? "No location"}
-                    </SelectValue>
+                    <SelectValue>{locationSelectLabel}</SelectValue>
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="none">No location</SelectItem>

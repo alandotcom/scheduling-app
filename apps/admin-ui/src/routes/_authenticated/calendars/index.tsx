@@ -19,6 +19,7 @@ import { Badge } from "@/components/ui/badge";
 import { Icon } from "@/components/ui/icon";
 import { orpc } from "@/lib/query";
 import { TIMEZONES } from "@/lib/constants";
+import { resolveSelectValueLabel } from "@/lib/select-value-label";
 import { createCalendarSchema } from "@scheduling/dto";
 import type { CreateCalendarInput } from "@scheduling/dto";
 import { useCrudState } from "@/hooks/use-crud-state";
@@ -105,7 +106,21 @@ function CalendarForm({
 
   const timezone = watch("timezone");
   const locationId = watch("locationId");
-  const selectedLocation = locations.find((l) => l.id === locationId);
+  const timezoneSelectLabel = resolveSelectValueLabel({
+    value: timezone,
+    options: TIMEZONES,
+    getOptionValue: (tz) => tz,
+    getOptionLabel: (tz) => tz,
+    unknownLabel: "Unknown timezone",
+  });
+  const locationSelectLabel = resolveSelectValueLabel({
+    value: locationId ?? "none",
+    options: locations,
+    getOptionValue: (location) => location.id,
+    getOptionLabel: (location) => location.name,
+    noneLabel: "No location",
+    unknownLabel: "Unknown location",
+  });
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
@@ -133,7 +148,9 @@ function CalendarForm({
           disabled={isSubmitting}
         >
           <SelectTrigger>
-            <SelectValue placeholder="Select timezone" />
+            <SelectValue placeholder="Select timezone">
+              {timezoneSelectLabel}
+            </SelectValue>
           </SelectTrigger>
           <SelectContent>
             {TIMEZONES.map((tz) => (
@@ -159,7 +176,7 @@ function CalendarForm({
         >
           <SelectTrigger>
             <SelectValue placeholder="Select location">
-              {selectedLocation?.name ?? (locationId ? null : "No location")}
+              {locationSelectLabel}
             </SelectValue>
           </SelectTrigger>
           <SelectContent>
@@ -402,9 +419,21 @@ function CalendarsPage() {
 
   const detailTimezone = detailForm.watch("timezone");
   const detailLocationId = detailForm.watch("locationId");
-  const selectedDetailLocation = locations.find(
-    (location) => location.id === detailLocationId,
-  );
+  const detailTimezoneSelectLabel = resolveSelectValueLabel({
+    value: detailTimezone,
+    options: TIMEZONES,
+    getOptionValue: (tz) => tz,
+    getOptionLabel: (tz) => tz,
+    unknownLabel: "Unknown timezone",
+  });
+  const detailLocationSelectLabel = resolveSelectValueLabel({
+    value: detailLocationId ?? "none",
+    options: locations,
+    getOptionValue: (location) => location.id,
+    getOptionLabel: (location) => location.name,
+    noneLabel: "No location",
+    unknownLabel: "Unknown location",
+  });
 
   const formatDateTime = (dateString: string | Date) => {
     const date = new Date(dateString);
@@ -662,7 +691,9 @@ function CalendarsPage() {
                         disabled={updateMutation.isPending}
                       >
                         <SelectTrigger>
-                          <SelectValue />
+                          <SelectValue placeholder="Select timezone">
+                            {detailTimezoneSelectLabel}
+                          </SelectValue>
                         </SelectTrigger>
                         <SelectContent>
                           {TIMEZONES.map((tz) => (
@@ -693,9 +724,7 @@ function CalendarsPage() {
                         disabled={updateMutation.isPending}
                       >
                         <SelectTrigger>
-                          <SelectValue>
-                            {selectedDetailLocation?.name ?? "No location"}
-                          </SelectValue>
+                          <SelectValue>{detailLocationSelectLabel}</SelectValue>
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="none">No location</SelectItem>

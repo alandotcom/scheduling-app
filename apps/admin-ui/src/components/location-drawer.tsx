@@ -10,6 +10,7 @@ import { toast } from "sonner";
 
 import { orpc } from "@/lib/query";
 import { TIMEZONES } from "@/lib/constants";
+import { resolveSelectValueLabel } from "@/lib/select-value-label";
 import { createLocationSchema } from "@scheduling/dto";
 import type { CreateLocationInput } from "@scheduling/dto";
 import {
@@ -135,6 +136,15 @@ export function LocationDrawer({
 
   if (!location) return null;
 
+  const timezone = form.watch("timezone");
+  const timezoneSelectLabel = resolveSelectValueLabel({
+    value: timezone,
+    options: TIMEZONES,
+    getOptionValue: (tz) => tz,
+    getOptionLabel: (tz) => tz,
+    unknownLabel: "Unknown timezone",
+  });
+
   const handleSave = (data: CreateLocationInput) => {
     updateMutation.mutate({
       id: location.id,
@@ -183,12 +193,14 @@ export function LocationDrawer({
                 <div className="space-y-2">
                   <Label>Timezone</Label>
                   <Select
-                    value={form.watch("timezone")}
+                    value={timezone}
                     onValueChange={(v) => v && form.setValue("timezone", v)}
                     disabled={updateMutation.isPending}
                   >
                     <SelectTrigger>
-                      <SelectValue />
+                      <SelectValue placeholder="Select timezone">
+                        {timezoneSelectLabel}
+                      </SelectValue>
                     </SelectTrigger>
                     <SelectContent>
                       {TIMEZONES.map((tz) => (

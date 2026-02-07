@@ -7,6 +7,7 @@ import { Add01Icon, Delete01Icon } from "@hugeicons/core-free-icons";
 import { Icon } from "@/components/ui/icon";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { resolveSelectValueLabel } from "@/lib/select-value-label";
 import {
   Select,
   SelectContent,
@@ -68,15 +69,24 @@ export function ResourcesTab({
   const requiredResources = requiredResourcesData ?? [];
 
   // Memoize derived state
-  const { availableResources, selectedResource } = useMemo(() => {
+  const availableResources = useMemo(() => {
     const linkedResourceIds = new Set(
       requiredResources.map((r) => r.resourceId),
     );
-    const available =
-      allResourcesData?.items.filter((r) => !linkedResourceIds.has(r.id)) ?? [];
-    const selected = available.find((r) => r.id === selectedResourceId);
-    return { availableResources: available, selectedResource: selected };
-  }, [requiredResources, allResourcesData?.items, selectedResourceId]);
+    return (
+      allResourcesData?.items.filter(
+        (resource) => !linkedResourceIds.has(resource.id),
+      ) ?? []
+    );
+  }, [requiredResources, allResourcesData?.items]);
+  const selectedResourceLabel = resolveSelectValueLabel({
+    value: selectedResourceId,
+    options: availableResources,
+    getOptionValue: (resource) => resource.id,
+    getOptionLabel: (resource) =>
+      `${resource.name} (Qty: ${resource.quantity})`,
+    unknownLabel: "Unknown resource",
+  });
 
   const handleAdd = () => {
     if (!selectedResourceId) return;
@@ -112,9 +122,7 @@ export function ResourcesTab({
         >
           <SelectTrigger className="flex-1">
             <SelectValue placeholder="Select a resource to add">
-              {selectedResource
-                ? `${selectedResource.name} (Qty: ${selectedResource.quantity})`
-                : null}
+              {selectedResourceLabel}
             </SelectValue>
           </SelectTrigger>
           <SelectContent>

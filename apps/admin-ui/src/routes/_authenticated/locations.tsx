@@ -16,6 +16,7 @@ import { toast } from "sonner";
 import { Icon } from "@/components/ui/icon";
 import { orpc } from "@/lib/query";
 import { TIMEZONES } from "@/lib/constants";
+import { resolveSelectValueLabel } from "@/lib/select-value-label";
 import { createLocationSchema } from "@scheduling/dto";
 import type { CreateLocationInput } from "@scheduling/dto";
 import { useCrudState } from "@/hooks/use-crud-state";
@@ -69,6 +70,13 @@ function LocationForm({
   });
 
   const timezone = watch("timezone");
+  const timezoneSelectLabel = resolveSelectValueLabel({
+    value: timezone,
+    options: TIMEZONES,
+    getOptionValue: (tz) => tz,
+    getOptionLabel: (tz) => tz,
+    unknownLabel: "Unknown timezone",
+  });
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
@@ -96,7 +104,9 @@ function LocationForm({
           disabled={isSubmitting}
         >
           <SelectTrigger>
-            <SelectValue placeholder="Select timezone" />
+            <SelectValue placeholder="Select timezone">
+              {timezoneSelectLabel}
+            </SelectValue>
           </SelectTrigger>
           <SelectContent>
             {TIMEZONES.map((tz) => (

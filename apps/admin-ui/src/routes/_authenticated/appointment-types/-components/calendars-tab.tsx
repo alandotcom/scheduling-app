@@ -6,6 +6,7 @@ import { Add01Icon, Delete01Icon } from "@hugeicons/core-free-icons";
 
 import { Icon } from "@/components/ui/icon";
 import { Button } from "@/components/ui/button";
+import { resolveSelectValueLabel } from "@/lib/select-value-label";
 import {
   Select,
   SelectContent,
@@ -59,13 +60,21 @@ export function CalendarsTab({
   const linkedCalendars = linkedCalendarsData ?? [];
 
   // Memoize derived state
-  const { availableCalendars, selectedCalendar } = useMemo(() => {
+  const availableCalendars = useMemo(() => {
     const linkedCalendarIds = new Set(linkedCalendars.map((c) => c.calendarId));
-    const available =
-      allCalendarsData?.items.filter((c) => !linkedCalendarIds.has(c.id)) ?? [];
-    const selected = available.find((c) => c.id === selectedCalendarId);
-    return { availableCalendars: available, selectedCalendar: selected };
-  }, [linkedCalendars, allCalendarsData?.items, selectedCalendarId]);
+    return (
+      allCalendarsData?.items.filter(
+        (calendar) => !linkedCalendarIds.has(calendar.id),
+      ) ?? []
+    );
+  }, [linkedCalendars, allCalendarsData?.items]);
+  const selectedCalendarLabel = resolveSelectValueLabel({
+    value: selectedCalendarId,
+    options: availableCalendars,
+    getOptionValue: (calendar) => calendar.id,
+    getOptionLabel: (calendar) => calendar.name,
+    unknownLabel: "Unknown calendar",
+  });
 
   const handleAdd = () => {
     if (!selectedCalendarId) return;
@@ -82,7 +91,7 @@ export function CalendarsTab({
         >
           <SelectTrigger className="flex-1">
             <SelectValue placeholder="Select a calendar to add">
-              {selectedCalendar?.name}
+              {selectedCalendarLabel}
             </SelectValue>
           </SelectTrigger>
           <SelectContent>

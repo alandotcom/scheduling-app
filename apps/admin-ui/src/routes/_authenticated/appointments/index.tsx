@@ -9,6 +9,7 @@ import type { AppointmentWithRelations } from "@scheduling/dto";
 
 import { Icon } from "@/components/ui/icon";
 import { orpc } from "@/lib/query";
+import { resolveSelectValueLabel } from "@/lib/select-value-label";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -58,6 +59,12 @@ import { ScheduleGrid } from "@/components/appointments/schedule-grid";
 
 type ViewMode = "list" | "schedule";
 type DetailTabValue = "details" | "client" | "history";
+const STATUS_FILTER_OPTIONS = [
+  { value: "scheduled", label: "Scheduled" },
+  { value: "confirmed", label: "Confirmed" },
+  { value: "cancelled", label: "Cancelled" },
+  { value: "no_show", label: "No Show" },
+] as const;
 
 const isDetailTab = (value: string): value is DetailTabValue =>
   value === "details" || value === "client" || value === "history";
@@ -314,6 +321,33 @@ function AppointmentsPage() {
   const selectedType = appointmentTypes.find(
     (t) => t.id === filters.appointmentTypeId,
   );
+  const calendarFilterLabel = resolveSelectValueLabel({
+    value: filters.calendarId || "all",
+    options: calendars,
+    getOptionValue: (calendar) => calendar.id,
+    getOptionLabel: (calendar) => calendar.name,
+    noneValue: "all",
+    noneLabel: "All calendars",
+    unknownLabel: "Unknown calendar",
+  });
+  const typeFilterLabel = resolveSelectValueLabel({
+    value: filters.appointmentTypeId || "all",
+    options: appointmentTypes,
+    getOptionValue: (type) => type.id,
+    getOptionLabel: (type) => type.name,
+    noneValue: "all",
+    noneLabel: "All types",
+    unknownLabel: "Unknown appointment type",
+  });
+  const statusFilterLabel = resolveSelectValueLabel({
+    value: filters.status || "all",
+    options: STATUS_FILTER_OPTIONS,
+    getOptionValue: (status) => status.value,
+    getOptionLabel: (status) => status.label,
+    noneValue: "all",
+    noneLabel: "All statuses",
+    unknownLabel: "Unknown status",
+  });
 
   // Check if selected appointment is in list data (full relations available)
   const selectedInList = useMemo(
@@ -501,7 +535,7 @@ function AppointmentsPage() {
             >
               <SelectTrigger className="w-full">
                 <SelectValue placeholder="All calendars">
-                  {selectedCalendar?.name ?? "All calendars"}
+                  {calendarFilterLabel}
                 </SelectValue>
               </SelectTrigger>
               <SelectContent>
@@ -525,7 +559,7 @@ function AppointmentsPage() {
             >
               <SelectTrigger className="w-full">
                 <SelectValue placeholder="All types">
-                  {selectedType?.name ?? "All types"}
+                  {typeFilterLabel}
                 </SelectValue>
               </SelectTrigger>
               <SelectContent>
@@ -548,14 +582,7 @@ function AppointmentsPage() {
             >
               <SelectTrigger className="w-full">
                 <SelectValue placeholder="All statuses">
-                  {filters.status
-                    ? ({
-                        scheduled: "Scheduled",
-                        confirmed: "Confirmed",
-                        cancelled: "Cancelled",
-                        no_show: "No Show",
-                      }[filters.status] ?? "All statuses")
-                    : "All statuses"}
+                  {statusFilterLabel}
                 </SelectValue>
               </SelectTrigger>
               <SelectContent>
