@@ -1,6 +1,7 @@
 // Calendars management page with drawer and context menus
 
 import { useCallback, useEffect, useState } from "react";
+import { DateTime } from "luxon";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
@@ -18,6 +19,11 @@ import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Icon } from "@/components/ui/icon";
 import { getQueryClient, orpc } from "@/lib/query";
+import {
+  formatDateISO,
+  formatDisplayDate,
+  formatDisplayDateTime,
+} from "@/lib/date-utils";
 import { TIMEZONES } from "@/lib/constants";
 import { resolveSelectValueLabel } from "@/lib/select-value-label";
 import { createCalendarSchema } from "@scheduling/dto";
@@ -305,7 +311,7 @@ function CalendarsPage() {
       input: {
         calendarId: selectedId ?? "",
         limit: 5,
-        startDate: new Date().toISOString().split("T")[0],
+        startDate: formatDateISO(DateTime.now()),
       },
     }),
     enabled: !!selectedId && activeTab === "appointments",
@@ -435,17 +441,6 @@ function CalendarsPage() {
     noneLabel: "No location",
     unknownLabel: "Unknown location",
   });
-
-  const formatDateTime = (dateString: string | Date) => {
-    const date = new Date(dateString);
-    return date.toLocaleString("en-US", {
-      month: "short",
-      day: "numeric",
-      hour: "numeric",
-      minute: "2-digit",
-      hour12: true,
-    });
-  };
 
   const getContextMenuItems = useCallback(
     (calendar: CalendarItem): ContextMenuItem[] => [
@@ -602,9 +597,7 @@ function CalendarsPage() {
                               />
                             </TableCell>
                             <TableCell>
-                              {new Date(
-                                calendar.createdAt,
-                              ).toLocaleDateString()}
+                              {formatDisplayDate(calendar.createdAt)}
                             </TableCell>
                           </TableRow>
                         </ContextMenu>
@@ -828,7 +821,7 @@ function CalendarsPage() {
                             <div className="flex items-center justify-between">
                               <div>
                                 <div className="text-sm font-medium">
-                                  {formatDateTime(apt.startAt)}
+                                  {formatDisplayDateTime(apt.startAt)}
                                 </div>
                                 <div className="text-xs text-muted-foreground">
                                   {apt.appointmentType?.name}

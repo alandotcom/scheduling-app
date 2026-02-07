@@ -1,8 +1,15 @@
 // Hook for fetching appointments for schedule view
 
 import { useMemo } from "react";
+import { DateTime } from "luxon";
 import { useQuery } from "@tanstack/react-query";
 import { orpc } from "@/lib/query";
+import {
+  formatDateISO,
+  getWeekStart as getWeekStartLuxon,
+  parseDateParam as parseDateParamLuxon,
+  parseISO,
+} from "@/lib/date-utils";
 
 interface ScheduleFilters {
   calendarId?: string;
@@ -12,8 +19,8 @@ interface ScheduleFilters {
 
 export interface ScheduleAppointment {
   id: string;
-  startAt: Date;
-  endAt: Date;
+  startAt: DateTime;
+  endAt: DateTime;
   calendarId: string;
   calendarColor?: string | null;
   status: "scheduled" | "confirmed" | "cancelled" | "no_show";
@@ -25,7 +32,7 @@ export interface ScheduleAppointment {
 }
 
 interface UseScheduleAppointmentsOptions {
-  weekStart: Date;
+  weekStart: DateTime;
   filters?: ScheduleFilters;
   enabled?: boolean;
 }
@@ -36,18 +43,14 @@ export function useScheduleAppointments({
   enabled = true,
 }: UseScheduleAppointmentsOptions) {
   // Calculate week end (Sunday to Saturday)
-  const weekEnd = useMemo(() => {
-    const end = new Date(weekStart);
-    end.setDate(weekStart.getDate() + 7);
-    return end;
-  }, [weekStart]);
+  const weekEnd = useMemo(() => weekStart.plus({ days: 7 }), [weekStart]);
 
   // Build query input
   const input = useMemo(
     () => ({
       limit: 200, // Should be enough for a week
-      startAt: weekStart.toISOString(),
-      endAt: weekEnd.toISOString(),
+      startAt: weekStart.toISO() ?? "",
+      endAt: weekEnd.toISO() ?? "",
       ...(filters.calendarId && { calendarId: filters.calendarId }),
       ...(filters.appointmentTypeId && {
         appointmentTypeId: filters.appointmentTypeId,
@@ -79,8 +82,8 @@ export function useScheduleAppointments({
 
     return data.items.map((item) => ({
       id: item.id,
-      startAt: new Date(item.startAt),
-      endAt: new Date(item.endAt),
+      startAt: parseISO(item.startAt),
+      endAt: parseISO(item.endAt),
       calendarId: item.calendarId,
       calendarColor: item.calendarColor,
       status: item.status,
@@ -102,21 +105,12 @@ export function useScheduleAppointments({
 }
 
 // Helper to get the start of the week (Sunday) for a given date
-export function getWeekStart(date: Date): Date {
-  const d = new Date(date);
-  const day = d.getDay();
-  d.setDate(d.getDate() - day);
-  d.setHours(0, 0, 0, 0);
-  return d;
-}
+export const getWeekStart = getWeekStartLuxon;
 
 // Helper to format a date as YYYY-MM-DD
-export function formatDateParam(date: Date): string {
-  return date.toISOString().split("T")[0]!;
+export function formatDateParam(date: DateTime): string {
+  return formatDateISO(date);
 }
 
 // Helper to parse a YYYY-MM-DD string to Date
-export function parseDateParam(dateStr: string): Date {
-  const [year, month, day] = dateStr.split("-").map(Number);
-  return new Date(year!, month! - 1, day!);
-}
+export const parseDateParam = parseDateParamLuxon;

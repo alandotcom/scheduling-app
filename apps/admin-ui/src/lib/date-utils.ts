@@ -1,27 +1,36 @@
-// Timezone-aware date utility functions using Luxon
-
 import { DateTime } from "luxon";
 
-/**
- * Format a DateTime as ISO date string (YYYY-MM-DD)
- */
+type DateInput = DateTime | Date | string;
+
+function normalizeDateTime(input: DateInput, timezone?: string): DateTime {
+  if (DateTime.isDateTime(input)) {
+    return timezone ? input.setZone(timezone) : input;
+  }
+  if (input instanceof Date) {
+    const dt = DateTime.fromJSDate(input);
+    return timezone ? dt.setZone(timezone) : dt;
+  }
+
+  const parsed = timezone
+    ? DateTime.fromISO(input, { zone: timezone })
+    : DateTime.fromISO(input, { setZone: true });
+  return parsed;
+}
+
 export function formatDateISO(dt: DateTime): string {
   return dt.toISODate() ?? "";
 }
 
-/**
- * Format a DateTime as HH:mm time string
- */
 export function formatTimeHHMM(dt: DateTime): string {
   return dt.toFormat("HH:mm");
 }
 
-/**
- * Format an ISO date string for display in a specific timezone.
- * Returns format like "Jan 15, 2025"
- */
-export function formatDisplayDate(dateStr: string, timezone: string): string {
-  const dt = DateTime.fromISO(dateStr, { zone: timezone });
+export function formatDisplayDate(
+  dateOrString: DateInput,
+  timezone?: string,
+): string {
+  const dt = normalizeDateTime(dateOrString, timezone);
+  if (!dt.isValid) return "";
   return dt.toLocaleString({
     month: "short",
     day: "numeric",
@@ -29,18 +38,12 @@ export function formatDisplayDate(dateStr: string, timezone: string): string {
   });
 }
 
-/**
- * Format a DateTime or ISO string for display with date and time.
- * Returns format like "Jan 15, 2025, 2:30 PM"
- */
 export function formatDisplayDateTime(
-  dtOrString: DateTime | string,
-  timezone: string,
+  dtOrString: DateInput,
+  timezone?: string,
 ): string {
-  const dt =
-    typeof dtOrString === "string"
-      ? DateTime.fromISO(dtOrString, { zone: timezone })
-      : dtOrString.setZone(timezone);
+  const dt = normalizeDateTime(dtOrString, timezone);
+  if (!dt.isValid) return "";
   return dt.toLocaleString({
     month: "short",
     day: "numeric",
@@ -50,10 +53,80 @@ export function formatDisplayDateTime(
   });
 }
 
-/**
- * Parse a date string (YYYY-MM-DD) and time string (HH:mm) into a DateTime
- * in the specified timezone.
- */
+export function formatDateWithWeekday(
+  dtOrString: DateInput,
+  timezone?: string,
+): string {
+  const dt = normalizeDateTime(dtOrString, timezone);
+  if (!dt.isValid) return "";
+  return dt.toLocaleString({
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
+export function formatTimeDisplay(
+  dtOrString: DateInput,
+  timezone?: string,
+): string {
+  const dt = normalizeDateTime(dtOrString, timezone);
+  if (!dt.isValid) return "";
+  return dt.toLocaleString(DateTime.TIME_SIMPLE);
+}
+
+export function getWeekStart(date: DateInput): DateTime {
+  const dt = normalizeDateTime(date).startOf("day");
+  const daysFromSunday = dt.weekday % 7;
+  return dt.minus({ days: daysFromSunday }).startOf("day");
+}
+
+export function getWeekDays(weekStart: DateTime): DateTime[] {
+  const start = weekStart.startOf("day");
+  return Array.from({ length: 7 }, (_, i) => start.plus({ days: i }));
+}
+
+export function formatWeekRange(weekStart: DateTime): string {
+  const start = weekStart.startOf("day");
+  const end = start.plus({ days: 6 });
+
+  if (start.year !== end.year) {
+    return `${start.toFormat("MMM d, yyyy")} - ${end.toFormat("MMM d, yyyy")}`;
+  }
+  if (start.month === end.month) {
+    return `${start.toFormat("MMM d")} - ${end.toFormat("d")}, ${start.year}`;
+  }
+  return `${start.toFormat("MMM d")} - ${end.toFormat("MMM d")}, ${start.year}`;
+}
+
+export function getMonthDays(year: number, month: number): DateTime[] {
+  const monthStart = DateTime.local(year, month + 1, 1).startOf("day");
+  const startPadding = monthStart.weekday % 7;
+  const gridStart = monthStart.minus({ days: startPadding });
+  return Array.from({ length: 42 }, (_, i) => gridStart.plus({ days: i }));
+}
+
+export function isSameDay(dt1: DateTime, dt2: DateTime): boolean {
+  return dt1.hasSame(dt2, "day");
+}
+
+export function isToday(dt: DateTime): boolean {
+  return dt.hasSame(DateTime.now(), "day");
+}
+
+export function isPast(dt: DateTime): boolean {
+  return dt < DateTime.now();
+}
+
+export function parseDateParam(str: string): DateTime {
+  return DateTime.fromISO(str).startOf("day");
+}
+
+export function parseISO(value: DateInput, timezone?: string): DateTime {
+  return normalizeDateTime(value, timezone);
+}
+
 export function parseInTimezone(
   dateStr: string,
   timeStr: string,
@@ -62,69 +135,56 @@ export function parseInTimezone(
   return DateTime.fromISO(`${dateStr}T${timeStr}`, { zone: timezone });
 }
 
-/**
- * Convert a DateTime to an ISO string (for API calls)
- */
 export function toISOString(dt: DateTime): string {
   return dt.toISO() ?? "";
 }
 
-/**
- * Get "tomorrow" in a specific timezone
- */
 export function getTomorrowInTimezone(timezone: string): DateTime {
   return DateTime.now().setZone(timezone).plus({ days: 1 }).startOf("day");
 }
 
-/**
- * Parse an ISO datetime string in a specific timezone and extract date/time components
- */
 export function parseISOInTimezone(
-  isoString: string,
+  isoString: DateInput,
   timezone: string,
 ): { date: string; time: string } {
-  const dt = DateTime.fromISO(isoString, { zone: timezone });
+  const dt = normalizeDateTime(isoString).setZone(timezone);
   return {
     date: formatDateISO(dt),
     time: formatTimeHHMM(dt),
   };
 }
 
-/**
- * Format a date as relative time (e.g., "2 hours ago", "3 days ago")
- */
-export function formatRelativeTime(dateString: string | Date): string {
-  const date =
-    typeof dateString === "string" ? new Date(dateString) : dateString;
-  const now = new Date();
-  const diffMs = now.getTime() - date.getTime();
-  const diffMins = Math.floor(diffMs / 60000);
-  const diffHours = Math.floor(diffMs / 3600000);
-  const diffDays = Math.floor(diffMs / 86400000);
-
-  if (diffMins < 1) return "Just now";
-  if (diffMins < 60)
-    return `${diffMins} minute${diffMins !== 1 ? "s" : ""} ago`;
-  if (diffHours < 24)
-    return `${diffHours} hour${diffHours !== 1 ? "s" : ""} ago`;
-  if (diffDays < 7) return `${diffDays} day${diffDays !== 1 ? "s" : ""} ago`;
-
-  return date.toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: date.getFullYear() !== now.getFullYear() ? "numeric" : undefined,
-  });
+export function getUserTimezone(): string {
+  return Intl.DateTimeFormat().resolvedOptions().timeZone;
 }
 
-/**
- * Format a time for display (e.g., "2:30 PM")
- */
-export function formatTimeDisplay(dateOrString: Date | string): string {
-  const date =
-    typeof dateOrString === "string" ? new Date(dateOrString) : dateOrString;
-  return date.toLocaleTimeString("en-US", {
-    hour: "numeric",
-    minute: "2-digit",
-    hour12: true,
+export function toJSDate(dt: DateTime): Date {
+  return dt.toJSDate();
+}
+
+export function fromJSDate(date: Date): DateTime {
+  return DateTime.fromJSDate(date);
+}
+
+export function formatRelativeTime(dateOrString: DateInput): string {
+  const dt = normalizeDateTime(dateOrString);
+  if (!dt.isValid) return "";
+
+  const now = DateTime.now();
+  const diffInSeconds = Math.abs(now.diff(dt, "seconds").seconds);
+
+  if (diffInSeconds < 60) {
+    return "Just now";
+  }
+
+  const relative = dt.toRelative({ base: now });
+  if (relative && diffInSeconds < 7 * 24 * 60 * 60) {
+    return relative;
+  }
+
+  return dt.toLocaleString({
+    month: "short",
+    day: "numeric",
+    year: dt.year !== now.year ? "numeric" : undefined,
   });
 }

@@ -16,6 +16,7 @@ import {
 
 import { Icon } from "@/components/ui/icon";
 import { getQueryClient, orpc } from "@/lib/query";
+import { formatDisplayDate } from "@/lib/date-utils";
 import { createAppointmentTypeSchema } from "@scheduling/dto";
 import type { CreateAppointmentTypeInput } from "@scheduling/dto";
 import { useAppointmentTypeMutations } from "@/hooks/use-appointment-type-mutations";
@@ -561,7 +562,7 @@ function AppointmentTypesPage() {
                             </div>
                           </TableCell>
                           <TableCell>
-                            {new Date(type.createdAt).toLocaleDateString()}
+                            {formatDisplayDate(type.createdAt)}
                           </TableCell>
                         </TableRow>
                       </ContextMenu>

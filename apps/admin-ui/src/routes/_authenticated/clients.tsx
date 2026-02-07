@@ -17,6 +17,7 @@ import {
 import { toast } from "sonner";
 import { Icon } from "@/components/ui/icon";
 import { getQueryClient, orpc } from "@/lib/query";
+import { formatDisplayDate, formatDisplayDateTime } from "@/lib/date-utils";
 import { createClientSchema } from "@scheduling/dto";
 import type { CreateClientInput } from "@scheduling/dto";
 import { useCrudState } from "@/hooks/use-crud-state";
@@ -512,7 +513,7 @@ function ClientsPage() {
                           />
                         </TableCell>
                         <TableCell>
-                          {new Date(client.createdAt).toLocaleDateString()}
+                          {formatDisplayDate(client.createdAt)}
                         </TableCell>
                       </TableRow>
                     </ContextMenu>
@@ -605,9 +606,7 @@ function ClientsPage() {
                         Created
                       </span>
                       <span className="text-sm font-medium">
-                        {new Date(
-                          selectedClient.createdAt,
-                        ).toLocaleDateString()}
+                        {formatDisplayDate(selectedClient.createdAt)}
                       </span>
                     </div>
                   </div>
@@ -623,7 +622,7 @@ function ClientsPage() {
                         className="rounded-lg border border-border/50 px-4 py-3"
                       >
                         <div className="text-sm font-medium">
-                          {new Date(appointment.startAt).toLocaleString()}
+                          {formatDisplayDateTime(appointment.startAt)}
                         </div>
                         <div className="text-xs text-muted-foreground">
                           {appointment.appointmentType?.name ?? "Appointment"}

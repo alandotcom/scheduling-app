@@ -39,6 +39,7 @@ import {
 import { RescheduleDialog } from "./reschedule-dialog";
 import { AppointmentHistory } from "./appointment-history";
 import { useResetFormOnOpen } from "@/hooks/use-reset-form-on-open";
+import { formatDateWithWeekday, formatTimeDisplay } from "@/lib/date-utils";
 
 type DetailTabValue = "details" | "client" | "history";
 
@@ -54,25 +55,6 @@ const notesSchema = z.object({
 });
 
 type NotesFormData = z.infer<typeof notesSchema>;
-
-function formatDate(dateString: string | Date) {
-  const date = new Date(dateString);
-  return date.toLocaleDateString("en-US", {
-    weekday: "short",
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
-}
-
-function formatTime(dateString: string | Date) {
-  const date = new Date(dateString);
-  return date.toLocaleTimeString("en-US", {
-    hour: "numeric",
-    minute: "2-digit",
-    hour12: true,
-  });
-}
 
 function getStatusBadge(status: string) {
   switch (status) {
@@ -197,9 +179,9 @@ export function AppointmentDetail({
               {getStatusBadge(appointment.status)}
             </div>
             <p className="mt-1 text-sm text-muted-foreground">
-              {formatDate(appointment.startAt)} ·{" "}
-              {formatTime(appointment.startAt)} -{" "}
-              {formatTime(appointment.endAt)}
+              {formatDateWithWeekday(appointment.startAt)} ·{" "}
+              {formatTimeDisplay(appointment.startAt)} -{" "}
+              {formatTimeDisplay(appointment.endAt)}
             </p>
           </div>
         </div>
@@ -226,7 +208,7 @@ export function AppointmentDetail({
                     className="text-muted-foreground"
                   />
                   <span className="font-medium">
-                    {formatDate(appointment.startAt)}
+                    {formatDateWithWeekday(appointment.startAt)}
                   </span>
                 </div>
                 <div className="flex items-center gap-2 text-sm mt-2">
@@ -235,8 +217,8 @@ export function AppointmentDetail({
                     className="text-muted-foreground shrink-0"
                   />
                   <span className="shrink-0">
-                    {formatTime(appointment.startAt)} -{" "}
-                    {formatTime(appointment.endAt)}
+                    {formatTimeDisplay(appointment.startAt)} -{" "}
+                    {formatTimeDisplay(appointment.endAt)}
                   </span>
                   <span
                     className="text-muted-foreground truncate"

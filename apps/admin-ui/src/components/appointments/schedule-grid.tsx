@@ -1,6 +1,7 @@
 // Schedule grid component for week view
 
 import { useMemo } from "react";
+import { DateTime } from "luxon";
 import {
   ArrowLeft02Icon,
   ArrowRight02Icon,
@@ -11,10 +12,11 @@ import { Icon } from "@/components/ui/icon";
 import { Button } from "@/components/ui/button";
 import { ScheduleEvent } from "./schedule-event";
 import type { ScheduleAppointment } from "@/hooks/use-schedule-appointments";
+import { formatWeekRange, getWeekDays, isToday } from "@/lib/date-utils";
 
 interface ScheduleGridProps {
   appointments: ScheduleAppointment[];
-  weekStart: Date;
+  weekStart: DateTime;
   selectedId: string | null;
   onSelectAppointment: (id: string) => void;
   onPreviousWeek: () => void;
@@ -31,51 +33,16 @@ const TOTAL_HOURS = END_HOUR - START_HOUR;
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
-function getWeekDays(weekStart: Date): Date[] {
-  const days: Date[] = [];
-  for (let i = 0; i < 7; i++) {
-    const day = new Date(weekStart);
-    day.setDate(weekStart.getDate() + i);
-    days.push(day);
-  }
-  return days;
-}
-
-function formatDateHeader(date: Date): string {
-  return date.toLocaleDateString("en-US", {
+function formatDateHeader(date: DateTime): string {
+  return date.toLocaleString({
     month: "short",
     day: "numeric",
   });
 }
 
-function formatWeekRange(weekStart: Date): string {
-  const weekEnd = new Date(weekStart);
-  weekEnd.setDate(weekStart.getDate() + 6);
-
-  const startMonth = weekStart.toLocaleDateString("en-US", { month: "short" });
-  const endMonth = weekEnd.toLocaleDateString("en-US", { month: "short" });
-  const startDay = weekStart.getDate();
-  const endDay = weekEnd.getDate();
-  const year = weekStart.getFullYear();
-
-  if (startMonth === endMonth) {
-    return `${startMonth} ${startDay} - ${endDay}, ${year}`;
-  }
-  return `${startMonth} ${startDay} - ${endMonth} ${endDay}, ${year}`;
-}
-
-function isToday(date: Date): boolean {
-  const today = new Date();
-  return (
-    date.getFullYear() === today.getFullYear() &&
-    date.getMonth() === today.getMonth() &&
-    date.getDate() === today.getDate()
-  );
-}
-
-function getEventPosition(startAt: Date, endAt: Date) {
-  const startHour = startAt.getHours() + startAt.getMinutes() / 60;
-  const endHour = endAt.getHours() + endAt.getMinutes() / 60;
+function getEventPosition(startAt: DateTime, endAt: DateTime) {
+  const startHour = startAt.hour + startAt.minute / 60;
+  const endHour = endAt.hour + endAt.minute / 60;
 
   // Clamp to visible range
   const visibleStart = Math.max(startHour, START_HOUR);
@@ -89,7 +56,7 @@ function getEventPosition(startAt: Date, endAt: Date) {
 
 function getAppointmentsByDay(
   appointments: ScheduleAppointment[],
-  weekDays: Date[],
+  weekDays: DateTime[],
 ): Map<number, ScheduleAppointment[]> {
   const byDay = new Map<number, ScheduleAppointment[]>();
 
@@ -98,12 +65,8 @@ function getAppointmentsByDay(
   }
 
   for (const apt of appointments) {
-    const startDate = new Date(apt.startAt);
-    const dayIndex = weekDays.findIndex(
-      (day) =>
-        day.getFullYear() === startDate.getFullYear() &&
-        day.getMonth() === startDate.getMonth() &&
-        day.getDate() === startDate.getDate(),
+    const dayIndex = weekDays.findIndex((day) =>
+      apt.startAt.hasSame(day, "day"),
     );
 
     if (dayIndex >= 0) {
@@ -172,7 +135,7 @@ export function ScheduleGrid({
                 }`}
               >
                 <div className="text-xs text-muted-foreground">
-                  {WEEKDAYS[day.getDay()]}
+                  {WEEKDAYS[day.weekday % 7]}
                 </div>
                 <div
                   className={`text-sm font-medium ${
@@ -228,11 +191,9 @@ export function ScheduleGrid({
 
                   {/* Appointments */}
                   {dayAppointments.map((apt) => {
-                    const startDate = new Date(apt.startAt);
-                    const endDate = new Date(apt.endAt);
                     const { top, height } = getEventPosition(
-                      startDate,
-                      endDate,
+                      apt.startAt,
+                      apt.endAt,
                     );
 
                     if (height <= 0) return null;
@@ -240,8 +201,8 @@ export function ScheduleGrid({
                     return (
                       <ScheduleEvent
                         key={apt.id}
-                        startAt={startDate}
-                        endAt={endDate}
+                        startAt={apt.startAt}
+                        endAt={apt.endAt}
                         status={apt.status}
                         clientName={apt.clientName}
                         appointmentTypeName={apt.appointmentTypeName}

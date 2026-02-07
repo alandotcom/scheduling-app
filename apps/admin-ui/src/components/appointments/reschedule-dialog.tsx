@@ -16,10 +16,14 @@ import type { AppointmentWithRelations } from "@scheduling/dto";
 
 import { orpc } from "@/lib/query";
 import { cn } from "@/lib/utils";
-import { formatTimeDisplay } from "@/lib/date-utils";
+import {
+  formatDateISO,
+  formatDateWithWeekday,
+  formatTimeDisplay,
+  getMonthDays,
+} from "@/lib/date-utils";
 import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
-import { getMonthDays } from "@/components/availability/utils";
 
 interface RescheduleDialogProps {
   appointment: AppointmentWithRelations;
@@ -33,19 +37,17 @@ export function RescheduleDialog({
   onOpenChange,
 }: RescheduleDialogProps) {
   const queryClient = useQueryClient();
-  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [selectedDate, setSelectedDate] = useState<DateTime | null>(null);
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
-  const [viewMonth, setViewMonth] = useState(() => {
-    const now = new Date();
-    return new Date(now.getFullYear(), now.getMonth(), 1);
-  });
+  const [viewMonth, setViewMonth] = useState(() =>
+    DateTime.now().startOf("month"),
+  );
 
   // Reset state when dialog opens/closes
   const handleOpenChange = (isOpen: boolean) => {
     if (isOpen) {
       // Reset to current month when opening
-      const now = new Date();
-      setViewMonth(new Date(now.getFullYear(), now.getMonth(), 1));
+      setViewMonth(DateTime.now().startOf("month"));
     }
     if (!isOpen) {
       setSelectedDate(null);
@@ -70,9 +72,7 @@ export function RescheduleDialog({
   );
 
   // Format date string using Luxon to avoid timezone issues
-  const selectedDateStr = selectedDate
-    ? DateTime.fromJSDate(selectedDate).toISODate()
-    : "";
+  const selectedDateStr = selectedDate ? formatDateISO(selectedDate) : "";
 
   // Available time slots query
   const { data: slotsData, isLoading: slotsLoading } = useQuery({
@@ -92,38 +92,18 @@ export function RescheduleDialog({
 
   // Calendar days using shared utility
   const calendarDays = useMemo(() => {
-    const year = viewMonth.getFullYear();
-    const month = viewMonth.getMonth();
+    const year = viewMonth.year;
+    const month = viewMonth.month - 1;
     const days = getMonthDays(year, month);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    const today = DateTime.now().startOf("day");
 
     return days.map((date) => ({
       date,
-      isCurrentMonth: date.getMonth() === month,
-      isToday: date.toDateString() === today.toDateString(),
+      isCurrentMonth: date.month === month + 1,
+      isToday: date.hasSame(today, "day"),
       isPast: date < today,
     }));
   }, [viewMonth]);
-
-  const formatDate = (dateString: string | Date) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString("en-US", {
-      weekday: "short",
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-    });
-  };
-
-  const formatTime = (dateString: string | Date) => {
-    const date = new Date(dateString);
-    return date.toLocaleTimeString("en-US", {
-      hour: "numeric",
-      minute: "2-digit",
-      hour12: true,
-    });
-  };
 
   return (
     <DialogPrimitive.Root open={open} onOpenChange={handleOpenChange}>
@@ -170,12 +150,12 @@ export function RescheduleDialog({
               <div className="flex items-center gap-2 text-sm">
                 <Icon icon={Calendar03Icon} className="text-muted-foreground" />
                 <span className="font-medium">
-                  {formatDate(appointment.startAt)}
+                  {formatDateWithWeekday(appointment.startAt)}
                 </span>
                 <span className="text-muted-foreground">·</span>
                 <span>
-                  {formatTime(appointment.startAt)} -{" "}
-                  {formatTime(appointment.endAt)}
+                  {formatTimeDisplay(appointment.startAt)} -{" "}
+                  {formatTimeDisplay(appointment.endAt)}
                 </span>
               </div>
             </div>
@@ -186,7 +166,7 @@ export function RescheduleDialog({
               <div>
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="font-medium">
-                    {viewMonth.toLocaleDateString("en-US", {
+                    {viewMonth.toLocaleString({
                       month: "long",
                       year: "numeric",
                     })}
@@ -196,13 +176,7 @@ export function RescheduleDialog({
                       variant="ghost"
                       size="icon-sm"
                       onClick={() =>
-                        setViewMonth(
-                          new Date(
-                            viewMonth.getFullYear(),
-                            viewMonth.getMonth() - 1,
-                            1,
-                          ),
-                        )
+                        setViewMonth((prev) => prev.minus({ months: 1 }))
                       }
                     >
                       <Icon icon={ArrowLeft02Icon} className="size-4" />
@@ -211,13 +185,7 @@ export function RescheduleDialog({
                       variant="ghost"
                       size="icon-sm"
                       onClick={() =>
-                        setViewMonth(
-                          new Date(
-                            viewMonth.getFullYear(),
-                            viewMonth.getMonth() + 1,
-                            1,
-                          ),
-                        )
+                        setViewMonth((prev) => prev.plus({ months: 1 }))
                       }
                     >
                       <Icon icon={ArrowRight02Icon} className="size-4" />
@@ -235,7 +203,7 @@ export function RescheduleDialog({
                   ))}
                   {calendarDays.map((day, i) => {
                     const isSelected =
-                      selectedDate?.toDateString() === day.date.toDateString();
+                      selectedDate && day.date.hasSame(selectedDate, "day");
                     return (
                       <button
                         key={i}
@@ -259,7 +227,7 @@ export function RescheduleDialog({
                             "hover:bg-muted",
                         )}
                       >
-                        {day.date.getDate()}
+                        {day.date.day}
                       </button>
                     );
                   })}
@@ -270,7 +238,7 @@ export function RescheduleDialog({
               <div>
                 <h3 className="font-medium mb-4">
                   {selectedDate
-                    ? selectedDate.toLocaleDateString("en-US", {
+                    ? selectedDate.toLocaleString({
                         weekday: "short",
                         month: "short",
                         day: "numeric",
@@ -322,7 +290,9 @@ export function RescheduleDialog({
                   rescheduleMutation.mutate({
                     id: appointment.id,
                     data: {
-                      newStartTime: new Date(selectedTime),
+                      newStartTime: DateTime.fromISO(selectedTime, {
+                        setZone: true,
+                      }).toJSDate(),
                       timezone: appointment.timezone,
                     },
                   });

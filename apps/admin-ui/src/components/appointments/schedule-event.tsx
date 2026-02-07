@@ -1,10 +1,12 @@
 // Schedule event block component for the schedule grid
 
+import { DateTime } from "luxon";
+import { formatTimeDisplay } from "@/lib/date-utils";
 import { cn } from "@/lib/utils";
 
 interface ScheduleEventProps {
-  startAt: Date;
-  endAt: Date;
+  startAt: DateTime;
+  endAt: DateTime;
   status: "scheduled" | "confirmed" | "cancelled" | "no_show";
   clientName?: string | null;
   appointmentTypeName?: string | null;
@@ -29,14 +31,6 @@ const STATUS_COLORS_SELECTED = {
   cancelled: "bg-gray-200 border-gray-400 text-gray-600 ring-2 ring-gray-500",
   no_show: "bg-amber-200 border-amber-400 text-amber-900 ring-2 ring-amber-500",
 };
-
-function formatTime(date: Date) {
-  return date.toLocaleTimeString("en-US", {
-    hour: "numeric",
-    minute: "2-digit",
-    hour12: true,
-  });
-}
 
 export function ScheduleEvent({
   startAt,
@@ -76,7 +70,7 @@ export function ScheduleEvent({
     >
       {isCompact ? (
         <div className="truncate font-medium">
-          {formatTime(startAt)}{" "}
+          {formatTimeDisplay(startAt)}{" "}
           {clientName || appointmentTypeName || "Appointment"}
         </div>
       ) : (
@@ -88,7 +82,7 @@ export function ScheduleEvent({
             {appointmentTypeName || "Appointment"}
           </div>
           <div className="truncate text-[10px] opacity-70">
-            {formatTime(startAt)} - {formatTime(endAt)}
+            {formatTimeDisplay(startAt)} - {formatTimeDisplay(endAt)}
           </div>
         </>
       )}

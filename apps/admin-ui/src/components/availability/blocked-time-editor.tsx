@@ -1,6 +1,7 @@
 // Blocked time editor - self-contained component for managing blocked time periods
 
 import { useState } from "react";
+import { DateTime } from "luxon";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Add01Icon,
@@ -78,6 +79,10 @@ function BlockedTimeEditorBody({
   );
 
   const blockedTimes = blockedData?.items ?? [];
+  const toDateTime = (value: string | Date) =>
+    typeof value === "string"
+      ? DateTime.fromISO(value, { setZone: true })
+      : DateTime.fromJSDate(value);
 
   // Mutations
   const createMutation = useMutation(
@@ -352,8 +357,8 @@ function BlockedTimeEditorBody({
               {blockedTimes
                 .sort(
                   (a, b) =>
-                    new Date(a.startAt).getTime() -
-                    new Date(b.startAt).getTime(),
+                    toDateTime(a.startAt).toMillis() -
+                    toDateTime(b.startAt).toMillis(),
                 )
                 .map((block) => (
                   <div
@@ -549,8 +554,8 @@ function BlockedTimeEditorBody({
               {blockedTimes
                 .sort(
                   (a, b) =>
-                    new Date(a.startAt).getTime() -
-                    new Date(b.startAt).getTime(),
+                    toDateTime(a.startAt).toMillis() -
+                    toDateTime(b.startAt).toMillis(),
                 )
                 .map((block) => (
                   <div

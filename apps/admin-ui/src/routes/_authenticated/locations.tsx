@@ -15,6 +15,7 @@ import {
 import { toast } from "sonner";
 import { Icon } from "@/components/ui/icon";
 import { getQueryClient, orpc } from "@/lib/query";
+import { formatDisplayDate } from "@/lib/date-utils";
 import { TIMEZONES } from "@/lib/constants";
 import { resolveSelectValueLabel } from "@/lib/select-value-label";
 import { createLocationSchema } from "@scheduling/dto";
@@ -453,7 +454,7 @@ function LocationsPage() {
                           </div>
                         </TableCell>
                         <TableCell>
-                          {new Date(location.createdAt).toLocaleDateString()}
+                          {formatDisplayDate(location.createdAt)}
                         </TableCell>
                       </TableRow>
                     </ContextMenu>

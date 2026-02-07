@@ -1,6 +1,7 @@
 // Appointment history/audit log component
 
 import { useQuery } from "@tanstack/react-query";
+import { DateTime } from "luxon";
 import {
   Calendar03Icon,
   Cancel01Icon,
@@ -10,7 +11,7 @@ import {
 } from "@hugeicons/core-free-icons";
 
 import { orpc } from "@/lib/query";
-import { formatRelativeTime } from "@/lib/date-utils";
+import { formatDisplayDateTime, formatRelativeTime } from "@/lib/date-utils";
 import { Icon } from "@/components/ui/icon";
 
 interface AppointmentHistoryProps {
@@ -162,20 +163,12 @@ function MaybeRescheduleChange({
 
   if (!oldStart || !newStart) return null;
 
-  const oldDate = new Date(oldStart);
-  const newDate = new Date(newStart);
-
-  const formatDateTime = (date: Date) =>
-    date.toLocaleDateString("en-US", {
-      month: "short",
-      day: "numeric",
-      hour: "numeric",
-      minute: "2-digit",
-    });
+  const oldDate = DateTime.fromISO(oldStart, { setZone: true });
+  const newDate = DateTime.fromISO(newStart, { setZone: true });
 
   return (
     <div className="mt-1 text-xs text-muted-foreground">
-      {formatDateTime(oldDate)} → {formatDateTime(newDate)}
+      {formatDisplayDateTime(oldDate)} → {formatDisplayDateTime(newDate)}
     </div>
   );
 }

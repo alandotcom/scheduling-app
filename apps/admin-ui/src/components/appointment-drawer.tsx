@@ -40,6 +40,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { formatDateWithWeekday, formatTimeDisplay } from "@/lib/date-utils";
 
 interface AppointmentDrawerProps {
   appointment: {
@@ -141,25 +142,6 @@ export function AppointmentDrawer({
 
   if (!appointment) return null;
 
-  const formatDate = (dateString: string | Date) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString("en-US", {
-      weekday: "short",
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-    });
-  };
-
-  const formatTime = (dateString: string | Date) => {
-    const date = new Date(dateString);
-    return date.toLocaleTimeString("en-US", {
-      hour: "numeric",
-      minute: "2-digit",
-      hour12: true,
-    });
-  };
-
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "scheduled":
@@ -224,14 +206,14 @@ export function AppointmentDrawer({
               <div className="flex items-center gap-2 text-sm">
                 <Icon icon={Calendar03Icon} className="text-muted-foreground" />
                 <span className="font-medium">
-                  {formatDate(appointment.startAt)}
+                  {formatDateWithWeekday(appointment.startAt)}
                 </span>
               </div>
               <div className="flex items-center gap-2 text-sm mt-2">
                 <Icon icon={Clock01Icon} className="text-muted-foreground" />
                 <span>
-                  {formatTime(appointment.startAt)} -{" "}
-                  {formatTime(appointment.endAt)}
+                  {formatTimeDisplay(appointment.startAt)} -{" "}
+                  {formatTimeDisplay(appointment.endAt)}
                 </span>
                 <span className="text-muted-foreground">
                   ({appointment.timezone})

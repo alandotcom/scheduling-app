@@ -16,6 +16,7 @@ import { z } from "zod/mini";
 import { Icon } from "@/components/ui/icon";
 import { toast } from "sonner";
 import { getQueryClient, orpc } from "@/lib/query";
+import { formatDisplayDate } from "@/lib/date-utils";
 import { resolveSelectValueLabel } from "@/lib/select-value-label";
 import { createResourceSchema } from "@scheduling/dto";
 import type { CreateResourceInput } from "@scheduling/dto";
@@ -444,7 +445,7 @@ function ResourcesPage() {
                           {getLocationName(resource.locationId)}
                         </TableCell>
                         <TableCell>
-                          {new Date(resource.createdAt).toLocaleDateString()}
+                          {formatDisplayDate(resource.createdAt)}
                         </TableCell>
                       </TableRow>
                     </ContextMenu>
@@ -518,9 +519,7 @@ function ResourcesPage() {
                       Created
                     </span>
                     <span className="text-sm font-medium">
-                      {new Date(
-                        selectedResource.createdAt,
-                      ).toLocaleDateString()}
+                      {formatDisplayDate(selectedResource.createdAt)}
                     </span>
                   </div>
                 </div>

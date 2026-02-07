@@ -1,6 +1,7 @@
 // Appointment booking modal with availability calendar
 
 import { useEffect, useState, useMemo } from "react";
+import { DateTime } from "luxon";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
 import {
@@ -12,6 +13,12 @@ import {
 import { toast } from "sonner";
 
 import { orpc } from "@/lib/query";
+import {
+  formatDateISO,
+  formatDisplayDateTime,
+  formatTimeDisplay,
+  getMonthDays,
+} from "@/lib/date-utils";
 import { resolveSelectValueLabel } from "@/lib/select-value-label";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -49,7 +56,7 @@ export function AppointmentModal({
   const [selectedCalendarId, setSelectedCalendarId] = useState(
     defaultCalendarId ?? "",
   );
-  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [selectedDate, setSelectedDate] = useState<DateTime | null>(null);
   const [selectedTime, setSelectedTime] = useState<string>("");
   const [notes, setNotes] = useState("");
   const [clientSearch, setClientSearch] = useState(defaultClientName ?? "");
@@ -66,8 +73,7 @@ export function AppointmentModal({
 
   // Current month for calendar
   const [viewMonth, setViewMonth] = useState(() => {
-    const now = new Date();
-    return new Date(now.getFullYear(), now.getMonth(), 1);
+    return DateTime.now().startOf("month");
   });
 
   // Fetch appointment types
@@ -95,7 +101,7 @@ export function AppointmentModal({
   });
 
   // Fetch available time slots for selected date
-  const selectedDateStr = selectedDate?.toISOString().split("T")[0] ?? "";
+  const selectedDateStr = selectedDate ? formatDateISO(selectedDate) : "";
   const { data: slotsData, isLoading: slotsLoading } = useQuery({
     ...orpc.availability.engine.times.queryOptions({
       input: {
@@ -145,56 +151,17 @@ export function AppointmentModal({
   });
   // Generate calendar days
   const calendarDays = useMemo(() => {
-    const year = viewMonth.getFullYear();
-    const month = viewMonth.getMonth();
-    const firstDay = new Date(year, month, 1);
-    const lastDay = new Date(year, month + 1, 0);
-    const startPadding = firstDay.getDay();
-    const days: Array<{
-      date: Date;
-      isCurrentMonth: boolean;
-      isToday: boolean;
-      isPast: boolean;
-    }> = [];
+    const year = viewMonth.year;
+    const month = viewMonth.month - 1;
+    const days = getMonthDays(year, month);
+    const today = DateTime.now().startOf("day");
 
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    // Previous month padding
-    for (let i = startPadding - 1; i >= 0; i--) {
-      const date = new Date(year, month, -i);
-      days.push({
-        date,
-        isCurrentMonth: false,
-        isToday: false,
-        isPast: date < today,
-      });
-    }
-
-    // Current month
-    for (let day = 1; day <= lastDay.getDate(); day++) {
-      const date = new Date(year, month, day);
-      days.push({
-        date,
-        isCurrentMonth: true,
-        isToday: date.toDateString() === today.toDateString(),
-        isPast: date < today,
-      });
-    }
-
-    // Next month padding
-    const remaining = 42 - days.length;
-    for (let i = 1; i <= remaining; i++) {
-      const date = new Date(year, month + 1, i);
-      days.push({
-        date,
-        isCurrentMonth: false,
-        isToday: false,
-        isPast: false,
-      });
-    }
-
-    return days;
+    return days.map((date) => ({
+      date,
+      isCurrentMonth: date.month === month + 1,
+      isToday: date.hasSame(today, "day"),
+      isPast: date < today,
+    }));
   }, [viewMonth]);
 
   const handleClose = () => {
@@ -221,7 +188,7 @@ export function AppointmentModal({
     setSelectedTime("");
   };
 
-  const handleDateSelect = (date: Date) => {
+  const handleDateSelect = (date: DateTime) => {
     setSelectedDate(date);
     setSelectedTime("");
   };
@@ -232,7 +199,7 @@ export function AppointmentModal({
     createMutation.mutate({
       calendarId: selectedCalendarId,
       appointmentTypeId: selectedTypeId,
-      startTime: new Date(selectedTime),
+      startTime: DateTime.fromISO(selectedTime, { setZone: true }).toJSDate(),
       timezone,
       notes: notes || undefined,
       clientId: selectedClientId || undefined,
@@ -240,25 +207,12 @@ export function AppointmentModal({
   };
 
   const formatTime = (isoString: string) => {
-    const date = new Date(isoString);
-    return date.toLocaleTimeString("en-US", {
-      hour: "numeric",
-      minute: "2-digit",
-      hour12: true,
-    });
+    return formatTimeDisplay(isoString);
   };
 
   const formatSelectedDateTime = () => {
     if (!selectedTime) return "";
-    const date = new Date(selectedTime);
-    return date.toLocaleString("en-US", {
-      weekday: "short",
-      month: "short",
-      day: "numeric",
-      hour: "numeric",
-      minute: "2-digit",
-      hour12: true,
-    });
+    return formatDisplayDateTime(selectedTime);
   };
 
   const canBook = selectedTypeId && selectedCalendarId && selectedTime;
@@ -369,7 +323,7 @@ export function AppointmentModal({
                 <div>
                   <div className="flex items-center justify-between mb-4">
                     <h3 className="font-medium">
-                      {viewMonth.toLocaleDateString("en-US", {
+                      {viewMonth.toLocaleString({
                         month: "long",
                         year: "numeric",
                       })}
@@ -379,13 +333,7 @@ export function AppointmentModal({
                         variant="ghost"
                         size="icon-sm"
                         onClick={() =>
-                          setViewMonth(
-                            new Date(
-                              viewMonth.getFullYear(),
-                              viewMonth.getMonth() - 1,
-                              1,
-                            ),
-                          )
+                          setViewMonth((prev) => prev.minus({ months: 1 }))
                         }
                       >
                         <Icon icon={ArrowLeft02Icon} className="size-4" />
@@ -394,13 +342,7 @@ export function AppointmentModal({
                         variant="ghost"
                         size="icon-sm"
                         onClick={() =>
-                          setViewMonth(
-                            new Date(
-                              viewMonth.getFullYear(),
-                              viewMonth.getMonth() + 1,
-                              1,
-                            ),
-                          )
+                          setViewMonth((prev) => prev.plus({ months: 1 }))
                         }
                       >
                         <Icon icon={ArrowRight02Icon} className="size-4" />
@@ -418,8 +360,7 @@ export function AppointmentModal({
                     ))}
                     {calendarDays.map((day, i) => {
                       const isSelected =
-                        selectedDate?.toDateString() ===
-                        day.date.toDateString();
+                        selectedDate && day.date.hasSame(selectedDate, "day");
                       return (
                         <button
                           key={i}
@@ -440,7 +381,7 @@ export function AppointmentModal({
                               "hover:bg-muted",
                           )}
                         >
-                          {day.date.getDate()}
+                          {day.date.day}
                         </button>
                       );
                     })}
@@ -451,7 +392,7 @@ export function AppointmentModal({
                 <div>
                   <h3 className="font-medium mb-4">
                     {selectedDate
-                      ? selectedDate.toLocaleDateString("en-US", {
+                      ? selectedDate.toLocaleString({
                           weekday: "short",
                           month: "short",
                           day: "numeric",

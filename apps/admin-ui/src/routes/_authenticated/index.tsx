@@ -1,6 +1,7 @@
 // Dashboard / Home page with real data
 
 import { useState } from "react";
+import { DateTime } from "luxon";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import type { IconSvgElement } from "@hugeicons/react";
@@ -18,6 +19,7 @@ import {
 } from "@hugeicons/core-free-icons";
 
 import { orpc } from "@/lib/query";
+import { formatTimeDisplay } from "@/lib/date-utils";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -43,8 +45,14 @@ export function getAttentionCounts(summary: DashboardSummary | undefined) {
 export function getSortedTodayAppointments(
   appointments: AppointmentWithRelations[] | undefined,
 ) {
+  const toMillis = (value: string | Date) =>
+    (typeof value === "string"
+      ? DateTime.fromISO(value, { setZone: true })
+      : DateTime.fromJSDate(value)
+    ).toMillis();
+
   return (appointments ?? []).toSorted(
-    (a, b) => new Date(a.startAt).getTime() - new Date(b.startAt).getTime(),
+    (a, b) => toMillis(a.startAt) - toMillis(b.startAt),
   );
 }
 
@@ -52,9 +60,8 @@ export function Dashboard() {
   const [appointmentModalOpen, setAppointmentModalOpen] = useState(false);
 
   // Get today's date boundaries
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const todayStr = today.toISOString().split("T")[0];
+  const today = DateTime.now().startOf("day");
+  const todayStr = today.toISODate() ?? "";
 
   // Fetch dashboard summary metrics
   const { data: summary } = useQuery(orpc.dashboard.summary.queryOptions());
@@ -74,15 +81,6 @@ export function Dashboard() {
     getDashboardStats(summary);
   const todayItems = getSortedTodayAppointments(todayAppointments?.items);
 
-  const formatTime = (dateString: string | Date) => {
-    const date = new Date(dateString);
-    return date.toLocaleTimeString("en-US", {
-      hour: "numeric",
-      minute: "2-digit",
-      hour12: true,
-    });
-  };
-
   const { pendingAppointments, noShows } = getAttentionCounts(summary);
   const hasAlerts = pendingAppointments > 0 || noShows > 0;
 
@@ -92,7 +90,7 @@ export function Dashboard() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            {today.toLocaleDateString("en-US", {
+            {today.toLocaleString({
               weekday: "long",
               month: "long",
               day: "numeric",
@@ -177,7 +175,7 @@ export function Dashboard() {
                 >
                   <div className="flex items-center gap-3">
                     <div className="text-sm font-medium w-20">
-                      {formatTime(apt.startAt)}
+                      {formatTimeDisplay(apt.startAt)}
                     </div>
                     <div>
                       <div className="font-medium">

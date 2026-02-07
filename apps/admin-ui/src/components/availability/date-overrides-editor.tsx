@@ -1,6 +1,7 @@
 // Date overrides editor - self-contained component for managing date-specific availability
 
 import { useState, useMemo } from "react";
+import { DateTime } from "luxon";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Delete01Icon,
@@ -43,7 +44,7 @@ function DateOverridesEditorBody({
   compact,
 }: DateOverridesEditorBodyProps) {
   const queryClient = useQueryClient();
-  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [selectedDate, setSelectedDate] = useState<DateTime | null>(null);
   const [editingOverride, setEditingOverride] = useState<{
     id?: string;
     date: string;
@@ -109,7 +110,7 @@ function DateOverridesEditorBody({
     }),
   );
 
-  const handleDateSelect = (date: Date) => {
+  const handleDateSelect = (date: DateTime) => {
     setSelectedDate(date);
     const dateStr = formatDate(date);
     const existing = overrides.find((o) => o.date === dateStr);
@@ -279,7 +280,7 @@ function DateOverridesEditorBody({
                     key={override.id}
                     className="flex items-center justify-between py-1.5 px-2 rounded-md bg-muted/30 hover:bg-muted/50 transition-colors cursor-pointer text-sm"
                     onClick={() => {
-                      setSelectedDate(new Date(override.date + "T00:00:00"));
+                      setSelectedDate(DateTime.fromISO(override.date));
                       setEditingOverride({
                         id: override.id,
                         date: override.date,
@@ -449,7 +450,7 @@ function DateOverridesEditorBody({
                       key={override.id}
                       className="flex items-center justify-between py-2 px-3 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors cursor-pointer"
                       onClick={() => {
-                        setSelectedDate(new Date(override.date + "T00:00:00"));
+                        setSelectedDate(DateTime.fromISO(override.date));
                         setEditingOverride({
                           id: override.id,
                           date: override.date,

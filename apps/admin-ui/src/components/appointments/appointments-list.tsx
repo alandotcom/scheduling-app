@@ -19,6 +19,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { ContextMenu, type ContextMenuItem } from "@/components/context-menu";
+import { formatDisplayDateTime } from "@/lib/date-utils";
 import { cn } from "@/lib/utils";
 
 interface AppointmentsListProps {
@@ -28,17 +29,6 @@ interface AppointmentsListProps {
   onCancel: (id: string) => void;
   onNoShow: (id: string) => void;
   isLoading?: boolean;
-}
-
-function formatDateTime(dateString: string | Date) {
-  const date = new Date(dateString);
-  return date.toLocaleString("en-US", {
-    month: "short",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-    hour12: true,
-  });
 }
 
 function getStatusVariant(status: string) {
@@ -164,7 +154,7 @@ export function AppointmentsList({
                   onClick={() => onSelect(appointment)}
                 >
                   <TableCell className="font-medium">
-                    <div>{formatDateTime(appointment.startAt)}</div>
+                    <div>{formatDisplayDateTime(appointment.startAt)}</div>
                     {appointment.appointmentType?.durationMin && (
                       <div className="text-xs text-muted-foreground">
                         {appointment.appointmentType.durationMin} min

@@ -1,6 +1,7 @@
 // Appointments page with split-pane layout and list/schedule toggle
 
 import { useState, useCallback, useMemo } from "react";
+import { DateTime } from "luxon";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Add01Icon } from "@hugeicons/core-free-icons";
@@ -9,6 +10,7 @@ import type { AppointmentWithRelations } from "@scheduling/dto";
 
 import { Icon } from "@/components/ui/icon";
 import { getQueryClient, orpc } from "@/lib/query";
+import { formatDisplayDate } from "@/lib/date-utils";
 import { resolveSelectValueLabel } from "@/lib/select-value-label";
 import { Button } from "@/components/ui/button";
 import {
@@ -93,7 +95,7 @@ function AppointmentsPage() {
       const parsed = parseDateParam(date);
       return getWeekStart(parsed);
     }
-    return getWeekStart(new Date());
+    return getWeekStart(DateTime.now());
   }, [date]);
 
   // Confirmation dialogs
@@ -157,7 +159,7 @@ function AppointmentsPage() {
           // Set date to current week start when switching to schedule
           date:
             newView === "schedule" && !prev.date
-              ? formatDateParam(getWeekStart(new Date()))
+              ? formatDateParam(getWeekStart(DateTime.now()))
               : prev.date,
         }),
       });
@@ -205,8 +207,7 @@ function AppointmentsPage() {
 
   // Week navigation for schedule view
   const goToPreviousWeek = useCallback(() => {
-    const newStart = new Date(weekStart);
-    newStart.setDate(weekStart.getDate() - 7);
+    const newStart = weekStart.minus({ days: 7 });
     navigate({
       search: (prev) => ({
         ...prev,
@@ -216,8 +217,7 @@ function AppointmentsPage() {
   }, [navigate, weekStart]);
 
   const goToNextWeek = useCallback(() => {
-    const newStart = new Date(weekStart);
-    newStart.setDate(weekStart.getDate() + 7);
+    const newStart = weekStart.plus({ days: 7 });
     navigate({
       search: (prev) => ({
         ...prev,
@@ -230,7 +230,7 @@ function AppointmentsPage() {
     navigate({
       search: (prev) => ({
         ...prev,
-        date: formatDateParam(getWeekStart(new Date())),
+        date: formatDateParam(getWeekStart(DateTime.now())),
       }),
     });
   }, [navigate]);
@@ -650,7 +650,7 @@ function AppointmentsPage() {
           }
           sheetDescription={
             selectedAppointment
-              ? `${new Date(selectedAppointment.startAt).toLocaleDateString()}`
+              ? formatDisplayDate(selectedAppointment.startAt)
               : undefined
           }
           bodyClassName="p-0"

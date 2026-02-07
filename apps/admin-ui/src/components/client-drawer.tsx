@@ -1,6 +1,7 @@
 // Client detail drawer with appointment history
 
 import { useState } from "react";
+import { DateTime } from "luxon";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -33,6 +34,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { DeleteConfirmDialog } from "@/components/delete-confirm-dialog";
 import { useResetFormOnOpen } from "@/hooks/use-reset-form-on-open";
+import { formatDisplayDateTime } from "@/lib/date-utils";
 
 interface ClientDrawerProps {
   client: {
@@ -100,14 +102,18 @@ export function ClientDrawer({
   );
 
   const appointments = appointmentsData?.items ?? [];
-  const now = new Date();
+  const now = DateTime.now();
+  const toDateTime = (value: string | Date) =>
+    typeof value === "string"
+      ? DateTime.fromISO(value, { setZone: true })
+      : DateTime.fromJSDate(value);
 
   // Separate upcoming and past appointments
   const upcomingAppointments = appointments.filter(
-    (apt) => new Date(apt.startAt) >= now && apt.status !== "cancelled",
+    (apt) => toDateTime(apt.startAt) >= now && apt.status !== "cancelled",
   );
   const pastAppointments = appointments.filter(
-    (apt) => new Date(apt.startAt) < now || apt.status === "cancelled",
+    (apt) => toDateTime(apt.startAt) < now || apt.status === "cancelled",
   );
 
   // Form for details tab
@@ -143,18 +149,6 @@ export function ClientDrawer({
     updateMutation.mutate({
       id: client.id,
       data,
-    });
-  };
-
-  const formatDateTime = (dateString: string | Date) => {
-    const date = new Date(dateString);
-    return date.toLocaleString("en-US", {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-      hour: "numeric",
-      minute: "2-digit",
-      hour12: true,
     });
   };
 
@@ -302,7 +296,7 @@ export function ClientDrawer({
                               <div className="flex items-center justify-between">
                                 <div>
                                   <div className="font-medium">
-                                    {formatDateTime(apt.startAt)}
+                                    {formatDisplayDateTime(apt.startAt)}
                                   </div>
                                   <div className="text-sm text-muted-foreground">
                                     {apt.appointmentType?.name}
@@ -358,7 +352,7 @@ export function ClientDrawer({
                                   {getStatusIcon(apt.status)}
                                   <div>
                                     <div className="font-medium">
-                                      {formatDateTime(apt.startAt)}
+                                      {formatDisplayDateTime(apt.startAt)}
                                     </div>
                                     <div className="text-sm text-muted-foreground">
                                       {apt.appointmentType?.name}

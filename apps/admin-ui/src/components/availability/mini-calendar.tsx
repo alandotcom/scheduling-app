@@ -1,6 +1,7 @@
 // Mini calendar component for date selection
 
 import { useState, useMemo } from "react";
+import { DateTime } from "luxon";
 import { ArrowLeft01Icon, ArrowRight01Icon } from "@hugeicons/core-free-icons";
 
 import { Button } from "@/components/ui/button";
@@ -8,8 +9,8 @@ import { Icon } from "@/components/ui/icon";
 import { formatDate, getMonthDays } from "./utils";
 
 interface MiniCalendarProps {
-  selectedDate: Date | null;
-  onSelectDate: (date: Date) => void;
+  selectedDate: DateTime | null;
+  onSelectDate: (date: DateTime) => void;
   markedDates: Set<string>;
 }
 
@@ -18,17 +19,17 @@ export function MiniCalendar({
   onSelectDate,
   markedDates,
 }: MiniCalendarProps) {
-  const [viewDate, setViewDate] = useState(() => new Date());
+  const [viewDate, setViewDate] = useState(() => DateTime.now());
 
-  const year = viewDate.getFullYear();
-  const month = viewDate.getMonth();
+  const year = viewDate.year;
+  const month = viewDate.month - 1;
   const days = useMemo(() => getMonthDays(year, month), [year, month]);
-  const today = formatDate(new Date());
+  const today = formatDate(DateTime.now());
 
-  const prevMonth = () => setViewDate(new Date(year, month - 1, 1));
-  const nextMonth = () => setViewDate(new Date(year, month + 1, 1));
+  const prevMonth = () => setViewDate((prev) => prev.minus({ months: 1 }));
+  const nextMonth = () => setViewDate((prev) => prev.plus({ months: 1 }));
 
-  const monthName = viewDate.toLocaleDateString("en-US", {
+  const monthName = viewDate.toLocaleString({
     month: "long",
     year: "numeric",
   });
@@ -62,7 +63,7 @@ export function MiniCalendar({
       <div className="grid grid-cols-7 gap-1">
         {days.map((date, i) => {
           const dateStr = formatDate(date);
-          const isCurrentMonth = date.getMonth() === month;
+          const isCurrentMonth = date.month === month + 1;
           const isSelected =
             selectedDate && formatDate(selectedDate) === dateStr;
           const isMarked = markedDates.has(dateStr);
@@ -81,7 +82,7 @@ export function MiniCalendar({
                 ${isToday && !isSelected ? "ring-1 ring-primary" : ""}
               `}
             >
-              {date.getDate()}
+              {date.day}
               {isMarked && !isSelected && (
                 <div className="absolute bottom-1 left-1/2 -translate-x-1/2 size-1 rounded-full bg-primary" />
               )}
