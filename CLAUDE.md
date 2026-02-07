@@ -168,6 +168,7 @@ Docker Compose provides Postgres 18 (port 5433) and Valkey/Redis (port 6380). St
 Environment variables in `.env`:
 
 - `DATABASE_URL=postgres://scheduling:scheduling@localhost:5433/scheduling`
+- `REDIS_URL=redis://localhost:6380` (optional, overrides host/port)
 - `VALKEY_HOST=localhost`, `VALKEY_PORT=6380`
 - `AUTH_SECRET`, `PORT=3000`
 

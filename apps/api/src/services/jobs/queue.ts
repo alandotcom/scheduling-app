@@ -1,7 +1,7 @@
 // BullMQ queue setup with Valkey connection
 
 import { Queue, Worker, type Job, type ConnectionOptions } from "bullmq";
-import { config } from "../../config.js";
+import { getValkeyRedisOptions } from "../../lib/redis.js";
 import type { DomainEvent, JobQueue, WebhookDeliveryJob } from "./types.js";
 
 // Queue names
@@ -12,8 +12,7 @@ export const QUEUE_NAMES = {
 
 // BullMQ connection options for Valkey
 const connectionOptions: ConnectionOptions = {
-  host: config.valkey.host,
-  port: config.valkey.port,
+  ...getValkeyRedisOptions(),
   maxRetriesPerRequest: null,
 };
 

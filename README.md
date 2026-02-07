@@ -166,6 +166,7 @@ Domain events are emitted on mutations:
 | Variable       | Description                              | Default                                                      |
 | -------------- | ---------------------------------------- | ------------------------------------------------------------ |
 | `DATABASE_URL` | Postgres connection string               | `postgres://scheduling:scheduling@localhost:5433/scheduling` |
+| `REDIS_URL`    | Redis/Valkey URL (overrides host/port)   | _(unset)_                                                    |
 | `VALKEY_HOST`  | Valkey/Redis host                        | `localhost`                                                  |
 | `VALKEY_PORT`  | Valkey/Redis port                        | `6380`                                                       |
 | `AUTH_SECRET`  | BetterAuth secret (change in production) | `dev-secret-change-in-production`                            |

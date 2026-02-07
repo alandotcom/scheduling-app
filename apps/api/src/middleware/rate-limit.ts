@@ -3,23 +3,23 @@
 
 import { createMiddleware } from "hono/factory";
 import { Redis } from "ioredis";
-import { config } from "../config.js";
+import { getValkeyRedisOptions } from "../lib/redis.js";
 
 // Lazy-initialize Redis client
 let redis: Redis | null = null;
 
 function getRedis(): Redis {
   if (!redis) {
-    redis = new Redis({
-      host: config.valkey.host,
-      port: config.valkey.port,
-      maxRetriesPerRequest: 3,
-      retryStrategy: (times) => {
-        // Stop retrying after 3 attempts
-        if (times > 3) return null;
-        return Math.min(times * 100, 1000);
-      },
-    });
+    redis = new Redis(
+      getValkeyRedisOptions({
+        maxRetriesPerRequest: 3,
+        retryStrategy: (times) => {
+          // Stop retrying after 3 attempts
+          if (times > 3) return null;
+          return Math.min(times * 100, 1000);
+        },
+      }),
+    );
     // Handle connection errors gracefully
     redis.on("error", (err) => {
       console.error("Redis connection error:", err.message);

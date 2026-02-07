@@ -3,6 +3,14 @@
 import { envParse } from "standardenv";
 import { z } from "zod";
 
+const redisUrlSchema = z
+  .string()
+  .url()
+  .refine((value) => {
+    const protocol = new URL(value).protocol;
+    return protocol === "redis:" || protocol === "rediss:";
+  }, "REDIS_URL must use redis:// or rediss://");
+
 export const config = envParse(process.env, {
   server: {
     port: {
@@ -31,6 +39,11 @@ export const config = envParse(process.env, {
     },
   },
   valkey: {
+    url: {
+      format: redisUrlSchema,
+      env: "REDIS_URL",
+      optional: true,
+    },
     host: {
       format: z.string(),
       env: "VALKEY_HOST",
