@@ -178,53 +178,64 @@ flowchart LR
 - Pure tRPC API (rejected; need REST for external consumers)
 - Single‑tenant architecture (rejected; must support multi‑org)
 
-## Implementation Status
+## Implementation Status (as of February 7, 2026)
 
 ### Database Schema: Complete
-All 21 tables implemented with RLS policies on 9 org-scoped tables. Using Postgres 18 native `uuidv7()` for sortable UUIDs.
+All core scheduling tables are implemented with Postgres 18 `uuidv7()` IDs. `group_id` columns exist on availability/scheduling-limit records for future appointment-type grouping features.
 
-### API Layer: ~95% Complete
+### API Layer: ~90% Complete
 
 #### Fully Implemented
 - **Core CRUD**: Appointments, Appointment Types, Calendars, Locations, Resources, Clients
-- **Availability System**: Weekly rules, per-date overrides, blocked time, scheduling limits
-- **Availability Engine**: `getAvailableDates`, `getAvailableSlots`, `checkSlot` with full rule enforcement
+- **Availability Management**: Weekly rules, per-date overrides, blocked time, scheduling limits
+- **Availability Engine**: `getAvailableDates`, `getAvailableSlots`, `checkSlot` with rule/resource/capacity enforcement
+- **Dashboard Summary API**: Real metrics (appointments, clients, calendars, attention counts)
 - **API Tokens**: Admin token management with hashing, prefix, expiration
-- **Audit Logging**: Comprehensive audit trail with before/after snapshots
-- **Event Emission**: Domain events to outbox + BullMQ workers for processing
+- **Audit Logging**: Entity audit trail with before/after snapshots
+- **Event Emission**: Domain events written to outbox and queued through BullMQ
 - **Auth**: BetterAuth session auth + API token auth for server-to-server
 
-#### Not Yet Implemented
-- **Webhook Subscriptions API**: Events emit to outbox but no subscription management endpoints
-- **HMAC Webhook Signing**: Delivery worker exists but HMAC signing not implemented
-- **Appointment Type Groups API**: Schema supports `group_id` but no management endpoints
+#### Partially Implemented
+- **Appointment editing workflow**: Rescheduling is implemented; update is intentionally narrow (notes/client fields). No dedicated confirm endpoint/workflow.
 
-### Admin UI: ~70% Complete
+#### Not Yet Implemented
+- **Webhook Subscriptions API**: Events emit to outbox but there are no subscription management endpoints
+- **HMAC Webhook Signing**: Webhook delivery exists but request signing is not implemented
+- **Appointment Type Groups API**: Schema has `group_id`, but there are no group-management endpoints
+
+### Admin UI: ~85% Complete
 
 #### Fully Implemented
-- **Authentication**: Login/logout, session management
-- **Navigation**: Sidebar with 8 sections
-- **Calendars**: CRUD + weekly availability hours editor
+- **Authentication**: Login/logout and session flow
+- **Navigation**: Authenticated app shell and section routing
+- **Calendars**: CRUD + weekly availability editor + date overrides + blocked time
 - **Appointment Types**: CRUD + calendar linking + resource linking
 - **Locations**: CRUD with timezone
 - **Resources**: CRUD with quantity and location
-- **Appointments**: List with filters, create wizard with availability slot selection
+- **Clients**: CRUD (list/create/edit/delete) with detail panel
+- **Dashboard**: Live summary metrics and today's schedule data
+- **Appointments**: List/schedule views, filters, create flow, reschedule, cancel, no-show
+- **Settings**: Organization settings (timezone, business hours/days, notifications)
+
+#### Partially Implemented
+- **Settings scope**: Org settings are implemented, but user profile and API token management UI are not yet present
+
+### Background Jobs: Partially Implemented
+
+#### Implemented
+- BullMQ with Valkey backend
+- Event processor worker
+- Webhook delivery worker with retries/rate limit
+- Graceful shutdown and stale outbox recovery
 
 #### Not Yet Implemented
-- **Clients CRUD**: Placeholder only
-- **Dashboard Metrics**: Hardcoded "0" values, no real queries
-- **Appointment Edit/Reschedule**: Only list, create, cancel, no-show
-- **Availability Overrides UI**: Weekly rules only, no per-date overrides
-- **Blocked Time UI**: No UI to create/view blocked time
-- **Settings Page**: User profile, API tokens, org settings
-
-### Background Jobs: Complete
-- BullMQ with Valkey backend
-- Event processor worker (10 concurrent)
-- Webhook delivery worker (5 concurrent, 100/min rate limit)
-- Graceful shutdown and stale recovery
+- **Webhook subscription fan-out** in worker processing
+- **HMAC webhook signature generation**
+- **Audit log compaction job**
+- **Availability cache refresh job**
 
 ### Testing: In Progress
-- RLS isolation tests complete
-- API tests for core CRUD entities
-- Availability engine unit tests needed
+- RLS isolation tests are implemented
+- API tests cover core CRUD and availability routes
+- Availability engine unit tests are implemented
+- Webhook subscription/signing and remaining background job behaviors still need dedicated tests
