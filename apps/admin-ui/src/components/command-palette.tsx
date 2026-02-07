@@ -1,7 +1,7 @@
 // Global command palette (Cmd+K)
 
 import { useState, useCallback } from "react";
-import { useNavigate } from "@tanstack/react-router";
+import { useNavigate, useRouter } from "@tanstack/react-router";
 import { Command } from "cmdk";
 import {
   Calendar03Icon,
@@ -25,6 +25,7 @@ interface CommandPaletteProps {
 export function CommandPalette({ onCreateAppointment }: CommandPaletteProps) {
   const [open, setOpen] = useState(false);
   const navigate = useNavigate();
+  const router = useRouter();
 
   useKeyboardShortcuts({
     shortcuts: [
@@ -41,6 +42,13 @@ export function CommandPalette({ onCreateAppointment }: CommandPaletteProps) {
     setOpen(false);
     command();
   }, []);
+
+  const preloadRoute = useCallback(
+    (to: string) => {
+      void router.preloadRoute({ to });
+    },
+    [router],
+  );
 
   return (
     <Command.Dialog
@@ -103,6 +111,7 @@ export function CommandPalette({ onCreateAppointment }: CommandPaletteProps) {
                     () => void navigate({ to: "/appointments", search: {} }),
                   )
                 }
+                onHighlight={() => preloadRoute("/appointments")}
                 icon={Clock01Icon}
                 shortcut="g a"
               >
@@ -119,8 +128,9 @@ export function CommandPalette({ onCreateAppointment }: CommandPaletteProps) {
                     () => void navigate({ to: "/clients", search: {} }),
                   )
                 }
+                onHighlight={() => preloadRoute("/clients")}
                 icon={UserGroup02Icon}
-                shortcut="g u"
+                shortcut="g p"
               >
                 Go to Clients
               </CommandItem>
@@ -135,6 +145,7 @@ export function CommandPalette({ onCreateAppointment }: CommandPaletteProps) {
                     () => void navigate({ to: "/calendars", search: {} }),
                   )
                 }
+                onHighlight={() => preloadRoute("/calendars")}
                 icon={Calendar03Icon}
                 shortcut="g c"
               >
@@ -147,6 +158,7 @@ export function CommandPalette({ onCreateAppointment }: CommandPaletteProps) {
                       void navigate({ to: "/appointment-types", search: {} }),
                   )
                 }
+                onHighlight={() => preloadRoute("/appointment-types")}
                 icon={Layers01Icon}
                 shortcut="g t"
               >
@@ -158,6 +170,7 @@ export function CommandPalette({ onCreateAppointment }: CommandPaletteProps) {
                     () => void navigate({ to: "/resources", search: {} }),
                   )
                 }
+                onHighlight={() => preloadRoute("/resources")}
                 icon={Package01Icon}
                 shortcut="g r"
               >
@@ -169,6 +182,7 @@ export function CommandPalette({ onCreateAppointment }: CommandPaletteProps) {
                     () => void navigate({ to: "/locations", search: {} }),
                   )
                 }
+                onHighlight={() => preloadRoute("/locations")}
                 icon={Location01Icon}
                 shortcut="g l"
               >
@@ -185,6 +199,7 @@ export function CommandPalette({ onCreateAppointment }: CommandPaletteProps) {
                     () => void navigate({ to: "/settings", search: {} }),
                   )
                 }
+                onHighlight={() => preloadRoute("/settings")}
                 icon={Settings01Icon}
                 shortcut="g s"
               >
@@ -211,13 +226,22 @@ interface CommandItemProps {
   icon: React.ComponentProps<typeof Icon>["icon"];
   shortcut?: string;
   onSelect: () => void;
+  onHighlight?: () => void;
 }
 
-function CommandItem({ children, icon, shortcut, onSelect }: CommandItemProps) {
+function CommandItem({
+  children,
+  icon,
+  shortcut,
+  onSelect,
+  onHighlight,
+}: CommandItemProps) {
   return (
     <Command.Item
       onSelect={onSelect}
-      className="relative flex cursor-pointer select-none items-center gap-3 rounded-lg px-3 py-2.5 text-sm outline-none data-[selected=true]:bg-accent data-[selected=true]:text-accent-foreground"
+      onMouseEnter={onHighlight}
+      onFocus={onHighlight}
+      className="relative flex cursor-pointer select-none items-center gap-3 rounded-lg px-3 py-2.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/70 data-[selected=true]:bg-accent data-[selected=true]:text-accent-foreground"
     >
       <Icon icon={icon} className="text-muted-foreground" />
       <span className="flex-1">{children}</span>

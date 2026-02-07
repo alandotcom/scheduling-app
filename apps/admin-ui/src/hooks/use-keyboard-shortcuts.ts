@@ -1,7 +1,7 @@
 // Keyboard shortcuts hook for navigation and actions
 
 import { useEffect, useCallback, useRef } from "react";
-import { useNavigate } from "@tanstack/react-router";
+import { useNavigate, useRouter } from "@tanstack/react-router";
 
 type KeySequence = string | string[];
 
@@ -160,46 +160,61 @@ export function useKeyboardShortcuts({
 // Pre-built navigation shortcuts
 export function useNavigationShortcuts(enabled = true) {
   const navigate = useNavigate();
+  const router = useRouter();
+
+  const preloadAndNavigate = useCallback(
+    (to: string) => {
+      void router.preloadRoute({ to });
+      void navigate({ to, search: {} });
+    },
+    [navigate, router],
+  );
 
   const shortcuts: ShortcutConfig[] = [
     {
       key: "g d",
-      action: () => void navigate({ to: "/" }),
+      action: () => preloadAndNavigate("/"),
       description: "Go to Dashboard",
     },
     {
       key: "g a",
-      action: () => void navigate({ to: "/appointments", search: {} }),
+      action: () => preloadAndNavigate("/appointments"),
       description: "Go to Appointments",
     },
     {
       key: "g c",
-      action: () => void navigate({ to: "/calendars", search: {} }),
+      action: () => preloadAndNavigate("/calendars"),
       description: "Go to Calendars",
     },
     {
       key: "g t",
-      action: () => void navigate({ to: "/appointment-types", search: {} }),
+      action: () => preloadAndNavigate("/appointment-types"),
       description: "Go to Appointment Types",
     },
     {
       key: "g l",
-      action: () => void navigate({ to: "/locations", search: {} }),
+      action: () => preloadAndNavigate("/locations"),
       description: "Go to Locations",
     },
     {
       key: "g r",
-      action: () => void navigate({ to: "/resources", search: {} }),
+      action: () => preloadAndNavigate("/resources"),
       description: "Go to Resources",
     },
     {
+      key: "g p",
+      action: () => preloadAndNavigate("/clients"),
+      description: "Go to Clients",
+    },
+    // Legacy alias kept for one release cycle.
+    {
       key: "g u",
-      action: () => void navigate({ to: "/clients", search: {} }),
+      action: () => preloadAndNavigate("/clients"),
       description: "Go to Clients",
     },
     {
       key: "g s",
-      action: () => void navigate({ to: "/settings", search: {} }),
+      action: () => preloadAndNavigate("/settings"),
       description: "Go to Settings",
     },
   ];

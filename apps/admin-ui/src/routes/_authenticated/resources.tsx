@@ -15,14 +15,24 @@ import {
 import { z } from "zod/mini";
 import { Icon } from "@/components/ui/icon";
 import { toast } from "sonner";
-import { orpc } from "@/lib/query";
+import { getQueryClient, orpc } from "@/lib/query";
 import { resolveSelectValueLabel } from "@/lib/select-value-label";
 import { createResourceSchema } from "@scheduling/dto";
 import type { CreateResourceInput } from "@scheduling/dto";
 import { useCrudState } from "@/hooks/use-crud-state";
 import { DeleteConfirmDialog } from "@/components/delete-confirm-dialog";
 import { ContextMenu, type ContextMenuItem } from "@/components/context-menu";
-import { ResourceDrawer } from "@/components/resource-drawer";
+import {
+  DetailPanel,
+  ListPanel,
+  WorkbenchLayout,
+} from "@/components/workbench";
+import {
+  FOCUS_ZONES,
+  useFocusZones,
+  useListNavigation,
+} from "@/hooks/use-keyboard-shortcuts";
+import { useValidateSelection } from "@/hooks/use-selection-search-params";
 
 // Form schema with required quantity for better UX
 export const resourceFormSchema = z.extend(createResourceSchema, {
@@ -173,11 +183,12 @@ function ResourcesPage() {
   const drawerOpen = !!selectedId;
 
   // Fetch resources
-  const { data, isLoading, error } = useQuery(
-    orpc.resources.list.queryOptions({
+  const { data, isLoading, error } = useQuery({
+    ...orpc.resources.list.queryOptions({
       input: { limit: 100 },
     }),
-  );
+    placeholderData: (previous) => previous,
+  });
 
   // Infer item type from query result
   type ResourceItem = NonNullable<typeof data>["items"][number];
@@ -185,11 +196,12 @@ function ResourcesPage() {
   const crud = useCrudState<ResourceItem>();
 
   // Fetch locations for the dropdown
-  const { data: locationsData } = useQuery(
-    orpc.locations.list.queryOptions({
+  const { data: locationsData } = useQuery({
+    ...orpc.locations.list.queryOptions({
       input: { limit: 100 },
     }),
-  );
+    placeholderData: (previous) => previous,
+  });
 
   // Create mutation
   const createMutation = useMutation(
@@ -252,6 +264,29 @@ function ResourcesPage() {
   const closeDrawer = useCallback(() => {
     navigate({ search: {} });
   }, [navigate]);
+
+  const resources = data?.items ?? [];
+  const selectedIndex = selectedId
+    ? resources.findIndex((resource) => resource.id === selectedId)
+    : -1;
+
+  useValidateSelection(data?.items, selectedId, closeDrawer);
+
+  useListNavigation({
+    items: resources,
+    selectedIndex,
+    onSelect: (index) => {
+      const resource = resources[index];
+      if (resource) openDrawer(resource.id);
+    },
+    onOpen: (resource) => openDrawer(resource.id),
+    enabled: !crud.isFormOpen,
+  });
+
+  useFocusZones({
+    onEscape: closeDrawer,
+    detailOpen: drawerOpen,
+  });
 
   const handleCreate = (formData: CreateResourceInput) => {
     createMutation.mutate(formData);
@@ -354,70 +389,146 @@ function ResourcesPage() {
         </div>
       )}
 
-      {/* Resources Table */}
-      <div className="mt-6">
-        {isLoading ? (
-          <div
-            className="text-center text-muted-foreground py-10"
-            role="status"
-            aria-live="polite"
-          >
-            Loading...
-          </div>
-        ) : error ? (
-          <div className="text-center text-destructive py-10">
-            Error loading resources
-          </div>
-        ) : !data?.items.length ? (
-          <div className="rounded-xl border border-border/50 bg-card p-10 text-center text-muted-foreground shadow-sm">
-            No resources yet. Create your first resource to get started.
-          </div>
-        ) : (
-          <div className="rounded-xl border border-border/50 overflow-hidden shadow-sm">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Quantity</TableHead>
-                  <TableHead>Location</TableHead>
-                  <TableHead>Created</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {data.items.map((resource) => (
-                  <ContextMenu
-                    key={resource.id}
-                    items={getContextMenuItems(resource)}
-                  >
-                    <TableRow
-                      className="cursor-pointer hover:bg-muted/50 transition-colors"
-                      onClick={() => openDrawer(resource.id)}
+      <WorkbenchLayout className="mt-6 min-h-[600px]">
+        <ListPanel id={FOCUS_ZONES.LIST}>
+          {isLoading ? (
+            <div
+              className="py-10 text-center text-muted-foreground"
+              role="status"
+              aria-live="polite"
+            >
+              Loading...
+            </div>
+          ) : error ? (
+            <div className="py-10 text-center text-destructive">
+              Error loading resources
+            </div>
+          ) : !data?.items.length ? (
+            <div className="rounded-xl border border-border/50 bg-card p-10 text-center text-muted-foreground shadow-sm">
+              No resources yet. Create your first resource to get started.
+            </div>
+          ) : (
+            <div className="overflow-hidden rounded-xl border border-border/50 shadow-sm">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Name</TableHead>
+                    <TableHead>Quantity</TableHead>
+                    <TableHead>Location</TableHead>
+                    <TableHead>Created</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {data.items.map((resource) => (
+                    <ContextMenu
+                      key={resource.id}
+                      items={getContextMenuItems(resource)}
                     >
-                      <TableCell className="font-medium">
-                        {resource.name}
-                      </TableCell>
-                      <TableCell>{resource.quantity}</TableCell>
-                      <TableCell>
-                        {getLocationName(resource.locationId)}
-                      </TableCell>
-                      <TableCell>
-                        {new Date(resource.createdAt).toLocaleDateString()}
-                      </TableCell>
-                    </TableRow>
-                  </ContextMenu>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-        )}
-      </div>
+                      <TableRow
+                        className="cursor-pointer transition-colors hover:bg-muted/50"
+                        tabIndex={0}
+                        aria-selected={resource.id === selectedId}
+                        onClick={() => openDrawer(resource.id)}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter" || event.key === " ") {
+                            event.preventDefault();
+                            openDrawer(resource.id);
+                          }
+                        }}
+                      >
+                        <TableCell className="font-medium">
+                          {resource.name}
+                        </TableCell>
+                        <TableCell>{resource.quantity}</TableCell>
+                        <TableCell>
+                          {getLocationName(resource.locationId)}
+                        </TableCell>
+                        <TableCell>
+                          {new Date(resource.createdAt).toLocaleDateString()}
+                        </TableCell>
+                      </TableRow>
+                    </ContextMenu>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </ListPanel>
 
-      {/* Resource Drawer */}
-      <ResourceDrawer
-        resource={selectedResource}
-        open={drawerOpen}
-        onClose={closeDrawer}
-      />
+        <DetailPanel
+          id={FOCUS_ZONES.DETAIL}
+          open={drawerOpen}
+          storageKey="resources"
+          onOpenChange={(open) => {
+            if (!open) closeDrawer();
+          }}
+          sheetTitle={selectedResource?.name ?? "Resource Details"}
+          bodyClassName="p-0"
+        >
+          {selectedResource ? (
+            <div className="flex h-full flex-col">
+              <div className="flex flex-wrap items-start justify-between gap-4 border-b border-border/50 px-6 py-5">
+                <div>
+                  <h2 className="text-lg font-semibold tracking-tight">
+                    {selectedResource.name}
+                  </h2>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    {getLocationName(selectedResource.locationId)}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => crud.openEdit(selectedResource)}
+                  >
+                    <Icon icon={PencilEdit01Icon} data-icon="inline-start" />
+                    Edit
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    onClick={() => crud.openDelete(selectedResource.id)}
+                  >
+                    <Icon icon={Delete01Icon} data-icon="inline-start" />
+                    Delete
+                  </Button>
+                </div>
+              </div>
+              <div className="flex-1 overflow-y-auto px-6 py-4">
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-muted-foreground">
+                      Quantity
+                    </span>
+                    <span className="text-sm font-medium">
+                      {selectedResource.quantity}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-muted-foreground">
+                      Location
+                    </span>
+                    <span className="text-sm font-medium">
+                      {getLocationName(selectedResource.locationId)}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-muted-foreground">
+                      Created
+                    </span>
+                    <span className="text-sm font-medium">
+                      {new Date(
+                        selectedResource.createdAt,
+                      ).toLocaleDateString()}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : null}
+        </DetailPanel>
+      </WorkbenchLayout>
 
       {/* Delete Confirmation */}
       <DeleteConfirmDialog
@@ -440,5 +551,16 @@ export const Route = createFileRoute("/_authenticated/resources")({
   validateSearch: (search: Record<string, unknown>): ResourcesSearchParams => ({
     selected: typeof search.selected === "string" ? search.selected : undefined,
   }),
+  loader: async () => {
+    const queryClient = getQueryClient();
+    await Promise.all([
+      queryClient.ensureQueryData(
+        orpc.resources.list.queryOptions({ input: { limit: 100 } }),
+      ),
+      queryClient.ensureQueryData(
+        orpc.locations.list.queryOptions({ input: { limit: 100 } }),
+      ),
+    ]);
+  },
   component: ResourcesPage,
 });

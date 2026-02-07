@@ -15,7 +15,7 @@ import {
 } from "@hugeicons/core-free-icons";
 
 import { Icon } from "@/components/ui/icon";
-import { orpc } from "@/lib/query";
+import { getQueryClient, orpc } from "@/lib/query";
 import { createAppointmentTypeSchema } from "@scheduling/dto";
 import type { CreateAppointmentTypeInput } from "@scheduling/dto";
 import { useAppointmentTypeMutations } from "@/hooks/use-appointment-type-mutations";
@@ -25,15 +25,18 @@ import { RelationshipCountBadge } from "@/components/relationship-count-badge";
 import { CalendarsTab } from "./-components/calendars-tab";
 import { ResourcesTab } from "./-components/resources-tab";
 import {
-  Drawer,
-  DrawerContent,
-  DrawerHeader,
-  DrawerTitle,
-  DrawerBody,
-  DrawerTabs,
-  DrawerTab,
-  DrawerFooter,
-} from "@/components/drawer";
+  DetailPanel,
+  DetailTab,
+  DetailTabs,
+  ListPanel,
+  WorkbenchLayout,
+} from "@/components/workbench";
+import {
+  FOCUS_ZONES,
+  useFocusZones,
+  useListNavigation,
+} from "@/hooks/use-keyboard-shortcuts";
+import { useValidateSelection } from "@/hooks/use-selection-search-params";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -196,11 +199,12 @@ function AppointmentTypesPage() {
   const [deletingItemId, setDeletingItemId] = useState<string | null>(null);
 
   // Fetch appointment types
-  const { data, isLoading, error } = useQuery(
-    orpc.appointmentTypes.list.queryOptions({
+  const { data, isLoading, error } = useQuery({
+    ...orpc.appointmentTypes.list.queryOptions({
       input: { limit: 100 },
     }),
-  );
+    placeholderData: (previous) => previous,
+  });
 
   // Infer item type from query result
   type AppointmentTypeItem = NonNullable<typeof data>["items"][number];
@@ -263,6 +267,28 @@ function AppointmentTypesPage() {
 
   // Computed state
   const isFormOpen = isCreating || !!editingItem;
+  const appointmentTypes = data?.items ?? [];
+  const selectedIndex = selectedId
+    ? appointmentTypes.findIndex((item) => item.id === selectedId)
+    : -1;
+
+  useValidateSelection(data?.items, selectedId, closeDetails);
+
+  useListNavigation({
+    items: appointmentTypes,
+    selectedIndex,
+    onSelect: (index) => {
+      const item = appointmentTypes[index];
+      if (item) openDetails(item.id, "details");
+    },
+    onOpen: (item) => openDetails(item.id, "details"),
+    enabled: !isFormOpen,
+  });
+
+  useFocusZones({
+    onEscape: closeDetails,
+    detailOpen: drawerOpen,
+  });
 
   // All mutations via custom hook
   const {
@@ -410,222 +436,244 @@ function AppointmentTypesPage() {
         )}
       </div>
 
-      {/* Create Form */}
-      {isCreating && (
-        <div className="mt-6 rounded-xl border border-border/50 bg-card p-6 shadow-sm">
-          <h2 className="mb-5 text-lg font-semibold tracking-tight">
-            New Appointment Type
-          </h2>
-          <AppointmentTypeForm
-            onSubmit={handleCreate}
-            onCancel={closeCreate}
-            isSubmitting={createMutation.isPending}
-          />
-        </div>
-      )}
+      <WorkbenchLayout className="mt-6 min-h-[600px]">
+        <ListPanel id={FOCUS_ZONES.LIST} className="flex flex-col gap-6">
+          {/* Create Form */}
+          {isCreating && (
+            <div className="rounded-xl border border-border/50 bg-card p-6 shadow-sm">
+              <h2 className="mb-5 text-lg font-semibold tracking-tight">
+                New Appointment Type
+              </h2>
+              <AppointmentTypeForm
+                onSubmit={handleCreate}
+                onCancel={closeCreate}
+                isSubmitting={createMutation.isPending}
+              />
+            </div>
+          )}
 
-      {/* Edit Form */}
-      {editingItem && (
-        <div className="mt-6 rounded-xl border border-border/50 bg-card p-6 shadow-sm">
-          <h2 className="mb-5 text-lg font-semibold tracking-tight">
-            Edit Appointment Type
-          </h2>
-          <AppointmentTypeForm
-            defaultValues={{
-              name: editingItem.name,
-              durationMin: editingItem.durationMin,
-              paddingBeforeMin: editingItem.paddingBeforeMin ?? undefined,
-              paddingAfterMin: editingItem.paddingAfterMin ?? undefined,
-              capacity: editingItem.capacity ?? undefined,
-            }}
-            onSubmit={handleUpdate}
-            onCancel={closeEdit}
-            isSubmitting={updateMutation.isPending}
-          />
-        </div>
-      )}
+          {/* Edit Form */}
+          {editingItem && (
+            <div className="rounded-xl border border-border/50 bg-card p-6 shadow-sm">
+              <h2 className="mb-5 text-lg font-semibold tracking-tight">
+                Edit Appointment Type
+              </h2>
+              <AppointmentTypeForm
+                defaultValues={{
+                  name: editingItem.name,
+                  durationMin: editingItem.durationMin,
+                  paddingBeforeMin: editingItem.paddingBeforeMin ?? undefined,
+                  paddingAfterMin: editingItem.paddingAfterMin ?? undefined,
+                  capacity: editingItem.capacity ?? undefined,
+                }}
+                onSubmit={handleUpdate}
+                onCancel={closeEdit}
+                isSubmitting={updateMutation.isPending}
+              />
+            </div>
+          )}
 
-      {/* Appointment Types Table */}
-      <div className="mt-6">
-        {isLoading ? (
-          <div
-            className="text-center text-muted-foreground py-10"
-            role="status"
-            aria-live="polite"
-          >
-            Loading...
-          </div>
-        ) : error ? (
-          <div className="text-center text-destructive py-10">
-            Error loading appointment types
-          </div>
-        ) : !data?.items.length ? (
-          <div className="rounded-xl border border-border/50 bg-card p-10 text-center text-muted-foreground shadow-sm">
-            No appointment types yet. Create your first appointment type to get
-            started.
-          </div>
-        ) : (
-          <div className="rounded-xl border border-border/50 overflow-hidden shadow-sm">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Duration</TableHead>
-                  <TableHead>Padding</TableHead>
-                  <TableHead>Capacity</TableHead>
-                  <TableHead>Relationships</TableHead>
-                  <TableHead>Created</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {data.items.map((type) => (
-                  <ContextMenu key={type.id} items={getContextMenuItems(type)}>
-                    <TableRow
-                      className="cursor-pointer hover:bg-muted/50 transition-colors"
-                      onClick={() => openDetails(type.id, "details")}
-                    >
-                      <TableCell className="font-medium">{type.name}</TableCell>
-                      <TableCell>{type.durationMin} min</TableCell>
-                      <TableCell>
-                        {type.paddingBeforeMin || type.paddingAfterMin ? (
-                          <span className="text-muted-foreground">
-                            {type.paddingBeforeMin ?? 0} /{" "}
-                            {type.paddingAfterMin ?? 0} min
-                          </span>
-                        ) : (
-                          <span className="text-muted-foreground">-</span>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="secondary">{type.capacity ?? 1}</Badge>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex flex-wrap gap-1">
-                          <RelationshipCountBadge
-                            count={type.relationshipCounts?.calendars ?? 0}
-                            singular="calendar"
-                          />
-                          <RelationshipCountBadge
-                            count={type.relationshipCounts?.resources ?? 0}
-                            singular="resource"
-                          />
-                          <RelationshipCountBadge
-                            count={type.relationshipCounts?.appointments ?? 0}
-                            singular="appointment"
-                          />
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        {new Date(type.createdAt).toLocaleDateString()}
-                      </TableCell>
+          {/* Appointment Types Table */}
+          <div>
+            {isLoading ? (
+              <div
+                className="py-10 text-center text-muted-foreground"
+                role="status"
+                aria-live="polite"
+              >
+                Loading...
+              </div>
+            ) : error ? (
+              <div className="py-10 text-center text-destructive">
+                Error loading appointment types
+              </div>
+            ) : !data?.items.length ? (
+              <div className="rounded-xl border border-border/50 bg-card p-10 text-center text-muted-foreground shadow-sm">
+                No appointment types yet. Create your first appointment type to
+                get started.
+              </div>
+            ) : (
+              <div className="overflow-hidden rounded-xl border border-border/50 shadow-sm">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Name</TableHead>
+                      <TableHead>Duration</TableHead>
+                      <TableHead>Padding</TableHead>
+                      <TableHead>Capacity</TableHead>
+                      <TableHead>Relationships</TableHead>
+                      <TableHead>Created</TableHead>
                     </TableRow>
-                  </ContextMenu>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-        )}
-      </div>
-
-      {/* Drawer */}
-      <Drawer
-        open={drawerOpen}
-        onOpenChange={(open) => {
-          if (!open) closeDetails();
-        }}
-      >
-        <DrawerContent width="md">
-          <DrawerHeader onClose={closeDetails}>
-            <DrawerTitle>{selectedType?.name}</DrawerTitle>
-          </DrawerHeader>
-
-          <DrawerTabs value={activeTab} onValueChange={setActiveTabUrl}>
-            <DrawerTab value="details">Details</DrawerTab>
-            <DrawerTab value="calendars">Calendars</DrawerTab>
-            <DrawerTab value="resources">Resources</DrawerTab>
-          </DrawerTabs>
-
-          <DrawerBody>
-            {activeTab === "details" && selectedType && (
-              <div className="space-y-4">
-                <div>
-                  <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                    Duration
-                  </Label>
-                  <p className="mt-1 font-medium">
-                    {selectedType.durationMin} minutes
-                  </p>
-                </div>
-                <div>
-                  <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                    Padding
-                  </Label>
-                  <p className="mt-1">
-                    {selectedType.paddingBeforeMin ?? 0} min before,{" "}
-                    {selectedType.paddingAfterMin ?? 0} min after
-                  </p>
-                </div>
-                <div>
-                  <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                    Capacity
-                  </Label>
-                  <p className="mt-1">{selectedType.capacity ?? 1} per slot</p>
-                </div>
+                  </TableHeader>
+                  <TableBody>
+                    {data.items.map((type) => (
+                      <ContextMenu
+                        key={type.id}
+                        items={getContextMenuItems(type)}
+                      >
+                        <TableRow
+                          className="cursor-pointer transition-colors hover:bg-muted/50"
+                          tabIndex={0}
+                          aria-selected={type.id === selectedId}
+                          onClick={() => openDetails(type.id, "details")}
+                          onKeyDown={(event) => {
+                            if (event.key === "Enter" || event.key === " ") {
+                              event.preventDefault();
+                              openDetails(type.id, "details");
+                            }
+                          }}
+                        >
+                          <TableCell className="font-medium">
+                            {type.name}
+                          </TableCell>
+                          <TableCell>{type.durationMin} min</TableCell>
+                          <TableCell>
+                            {type.paddingBeforeMin || type.paddingAfterMin ? (
+                              <span className="text-muted-foreground">
+                                {type.paddingBeforeMin ?? 0} /{" "}
+                                {type.paddingAfterMin ?? 0} min
+                              </span>
+                            ) : (
+                              <span className="text-muted-foreground">-</span>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="secondary">
+                              {type.capacity ?? 1}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex flex-wrap gap-1">
+                              <RelationshipCountBadge
+                                count={type.relationshipCounts?.calendars ?? 0}
+                                singular="calendar"
+                              />
+                              <RelationshipCountBadge
+                                count={type.relationshipCounts?.resources ?? 0}
+                                singular="resource"
+                              />
+                              <RelationshipCountBadge
+                                count={
+                                  type.relationshipCounts?.appointments ?? 0
+                                }
+                                singular="appointment"
+                              />
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            {new Date(type.createdAt).toLocaleDateString()}
+                          </TableCell>
+                        </TableRow>
+                      </ContextMenu>
+                    ))}
+                  </TableBody>
+                </Table>
               </div>
             )}
+          </div>
+        </ListPanel>
 
-            {activeTab === "calendars" && selectedType && (
-              <CalendarsTab
-                appointmentTypeId={selectedType.id}
-                onAddCalendar={handleAddCalendar}
-                onRemoveCalendar={handleRemoveCalendar}
-                isAddPending={addCalendarMutation.isPending}
-                isRemovePending={removeCalendarMutation.isPending}
-              />
-            )}
+        <DetailPanel
+          id={FOCUS_ZONES.DETAIL}
+          open={drawerOpen}
+          storageKey="appointment-types"
+          onOpenChange={(open) => {
+            if (!open) closeDetails();
+          }}
+          sheetTitle={selectedType?.name ?? "Appointment Type Details"}
+          bodyClassName="p-0"
+        >
+          {selectedType ? (
+            <div className="flex h-full flex-col">
+              <div className="flex flex-wrap items-start justify-between gap-4 border-b border-border/50 px-6 py-5">
+                <div>
+                  <h2 className="text-lg font-semibold tracking-tight">
+                    {selectedType.name}
+                  </h2>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => openEdit(selectedType.id)}
+                  >
+                    <Icon icon={PencilEdit01Icon} data-icon="inline-start" />
+                    Edit
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={() => setDeletingItemId(selectedType.id)}
+                  >
+                    <Icon icon={Delete01Icon} data-icon="inline-start" />
+                    Delete
+                  </Button>
+                </div>
+              </div>
 
-            {activeTab === "resources" && selectedType && (
-              <ResourcesTab
-                appointmentTypeId={selectedType.id}
-                onAddResource={handleAddResource}
-                onUpdateQuantity={handleUpdateResourceQuantity}
-                onRemoveResource={handleRemoveResource}
-                isAddPending={addResourceMutation.isPending}
-                isUpdatePending={updateResourceMutation.isPending}
-                isRemovePending={removeResourceMutation.isPending}
-              />
-            )}
-          </DrawerBody>
+              <DetailTabs value={activeTab} onValueChange={setActiveTabUrl}>
+                <DetailTab value="details">Details</DetailTab>
+                <DetailTab value="calendars">Calendars</DetailTab>
+                <DetailTab value="resources">Resources</DetailTab>
+              </DetailTabs>
 
-          <DrawerFooter>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                if (selectedType) {
-                  openEdit(selectedType.id);
-                }
-              }}
-            >
-              <Icon icon={PencilEdit01Icon} data-icon="inline-start" />
-              Edit
-            </Button>
-            <Button
-              variant="destructive"
-              size="sm"
-              onClick={() => {
-                if (selectedType) {
-                  setDeletingItemId(selectedType.id);
-                  closeDetails();
-                }
-              }}
-            >
-              <Icon icon={Delete01Icon} data-icon="inline-start" />
-              Delete
-            </Button>
-          </DrawerFooter>
-        </DrawerContent>
-      </Drawer>
+              <div className="flex-1 overflow-y-auto px-6 py-4">
+                {activeTab === "details" && (
+                  <div className="space-y-4">
+                    <div>
+                      <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                        Duration
+                      </Label>
+                      <p className="mt-1 font-medium">
+                        {selectedType.durationMin} minutes
+                      </p>
+                    </div>
+                    <div>
+                      <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                        Padding
+                      </Label>
+                      <p className="mt-1">
+                        {selectedType.paddingBeforeMin ?? 0} min before,{" "}
+                        {selectedType.paddingAfterMin ?? 0} min after
+                      </p>
+                    </div>
+                    <div>
+                      <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                        Capacity
+                      </Label>
+                      <p className="mt-1">
+                        {selectedType.capacity ?? 1} per slot
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {activeTab === "calendars" && (
+                  <CalendarsTab
+                    appointmentTypeId={selectedType.id}
+                    onAddCalendar={handleAddCalendar}
+                    onRemoveCalendar={handleRemoveCalendar}
+                    isAddPending={addCalendarMutation.isPending}
+                    isRemovePending={removeCalendarMutation.isPending}
+                  />
+                )}
+
+                {activeTab === "resources" && (
+                  <ResourcesTab
+                    appointmentTypeId={selectedType.id}
+                    onAddResource={handleAddResource}
+                    onUpdateQuantity={handleUpdateResourceQuantity}
+                    onRemoveResource={handleRemoveResource}
+                    isAddPending={addResourceMutation.isPending}
+                    isUpdatePending={updateResourceMutation.isPending}
+                    isRemovePending={removeResourceMutation.isPending}
+                  />
+                )}
+              </div>
+            </div>
+          ) : null}
+        </DetailPanel>
+      </WorkbenchLayout>
 
       {/* Delete Confirmation */}
       <DeleteConfirmDialog
@@ -668,6 +716,14 @@ export const Route = createFileRoute("/_authenticated/appointment-types/")({
     const rawTab = typeof search.tab === "string" ? search.tab : "";
     const tab = isDetailTab(rawTab) ? rawTab : undefined;
     return { mode, id, selected, tab };
+  },
+  loader: async () => {
+    const queryClient = getQueryClient();
+    await queryClient.ensureQueryData(
+      orpc.appointmentTypes.list.queryOptions({
+        input: { limit: 100 },
+      }),
+    );
   },
   component: AppointmentTypesPage,
 });

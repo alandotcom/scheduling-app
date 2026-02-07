@@ -25,12 +25,20 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 
 import { routeTree } from "./routeTree.gen";
-import { createQueryClient } from "./lib/query";
+import { getQueryClient } from "./lib/query";
 
 import "./index.css";
 
 // Create a new router instance
-const router = createRouter({ routeTree });
+const router = createRouter({
+  routeTree,
+  defaultPreload: "intent",
+  defaultPreloadDelay: 80,
+  defaultPreloadStaleTime: 45_000,
+  defaultPendingMs: 700,
+  defaultPendingMinMs: 200,
+  defaultViewTransition: true,
+});
 
 // Register the router instance for type safety
 declare module "@tanstack/react-router" {
@@ -40,13 +48,15 @@ declare module "@tanstack/react-router" {
 }
 
 function App() {
-  const [queryClient] = useState(() => createQueryClient());
+  const [queryClient] = useState(() => getQueryClient());
 
   return (
     <StrictMode>
       <QueryClientProvider client={queryClient}>
         <RouterProvider router={router} />
-        <ReactQueryDevtools initialIsOpen={false} />
+        {import.meta.env.DEV ? (
+          <ReactQueryDevtools initialIsOpen={false} />
+        ) : null}
       </QueryClientProvider>
     </StrictMode>
   );

@@ -8,7 +8,7 @@ import { toast } from "sonner";
 import type { AppointmentWithRelations } from "@scheduling/dto";
 
 import { Icon } from "@/components/ui/icon";
-import { orpc } from "@/lib/query";
+import { getQueryClient, orpc } from "@/lib/query";
 import { resolveSelectValueLabel } from "@/lib/select-value-label";
 import { Button } from "@/components/ui/button";
 import {
@@ -36,8 +36,8 @@ import {
 import {
   DetailPanel,
   ListPanel,
-  SplitPaneLayout,
-} from "@/components/split-pane";
+  WorkbenchLayout,
+} from "@/components/workbench";
 import { AppointmentModal } from "@/components/appointment-modal";
 import {
   useKeyboardShortcuts,
@@ -240,8 +240,8 @@ function AppointmentsPage() {
     data: listData,
     isLoading: listLoading,
     error: listError,
-  } = useQuery(
-    orpc.appointments.list.queryOptions({
+  } = useQuery({
+    ...orpc.appointments.list.queryOptions({
       input: {
         limit: 50,
         ...(filters.calendarId && { calendarId: filters.calendarId }),
@@ -257,7 +257,8 @@ function AppointmentsPage() {
         }),
       },
     }),
-  );
+    placeholderData: (previous) => previous,
+  });
 
   // Fetch appointments for schedule view
   const { appointments: scheduleAppointments, isLoading: scheduleLoading } =
@@ -272,18 +273,20 @@ function AppointmentsPage() {
     });
 
   // Fetch calendars for filter
-  const { data: calendarsData } = useQuery(
-    orpc.calendars.list.queryOptions({
+  const { data: calendarsData } = useQuery({
+    ...orpc.calendars.list.queryOptions({
       input: { limit: 100 },
     }),
-  );
+    placeholderData: (previous) => previous,
+  });
 
   // Fetch appointment types for filter
-  const { data: typesData } = useQuery(
-    orpc.appointmentTypes.list.queryOptions({
+  const { data: typesData } = useQuery({
+    ...orpc.appointmentTypes.list.queryOptions({
       input: { limit: 100 },
     }),
-  );
+    placeholderData: (previous) => previous,
+  });
 
   // Cancel mutation
   const cancelMutation = useMutation(
@@ -602,7 +605,7 @@ function AppointmentsPage() {
       </div>
 
       {/* Main Content */}
-      <SplitPaneLayout className="mt-6 min-h-[600px]">
+      <WorkbenchLayout className="mt-6 min-h-[600px]">
         <ListPanel id={FOCUS_ZONES.LIST} className="flex flex-col">
           {currentView === "list" ? (
             <AppointmentsList
@@ -638,6 +641,7 @@ function AppointmentsPage() {
         <DetailPanel
           id={FOCUS_ZONES.DETAIL}
           open={detailOpen}
+          storageKey="appointments"
           onOpenChange={(open) => {
             if (!open) clearDetails();
           }}
@@ -660,7 +664,7 @@ function AppointmentsPage() {
             />
           )}
         </DetailPanel>
-      </SplitPaneLayout>
+      </WorkbenchLayout>
 
       {/* Appointment Modal */}
       <AppointmentModal open={modalOpen} onOpenChange={setModalOpen} />
@@ -752,6 +756,26 @@ export const Route = createFileRoute("/_authenticated/appointments/")({
           : undefined,
       status: typeof search.status === "string" ? search.status : undefined,
     };
+  },
+  loader: async () => {
+    const queryClient = getQueryClient();
+    await Promise.all([
+      queryClient.ensureQueryData(
+        orpc.appointments.list.queryOptions({
+          input: { limit: 50 },
+        }),
+      ),
+      queryClient.ensureQueryData(
+        orpc.calendars.list.queryOptions({
+          input: { limit: 100 },
+        }),
+      ),
+      queryClient.ensureQueryData(
+        orpc.appointmentTypes.list.queryOptions({
+          input: { limit: 100 },
+        }),
+      ),
+    ]);
   },
   component: AppointmentsPage,
 });

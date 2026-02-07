@@ -1,7 +1,13 @@
 // Root route layout with navigation shell
 
 import { useState } from "react";
-import { createRootRoute, Link, Outlet } from "@tanstack/react-router";
+import {
+  createRootRoute,
+  Link,
+  Navigate,
+  Outlet,
+  useLocation,
+} from "@tanstack/react-router";
 import { TanStackRouterDevtools } from "@tanstack/router-devtools";
 import {
   Calendar03Icon,
@@ -28,17 +34,20 @@ import {
 import { Toaster } from "sonner";
 import { CommandPalette } from "@/components/command-palette";
 import { useNavigationShortcuts } from "@/hooks/use-keyboard-shortcuts";
+import { cn } from "@/lib/utils";
 
 function RootLayout() {
   const { data: session, isPending: isLoading } = authClient.useSession();
+  const location = useLocation();
   const user = session?.user;
   const isAuthenticated = !!session;
+  const isInitialAuthCheck = isLoading && session === undefined;
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   // Enable keyboard navigation shortcuts when authenticated
   useNavigationShortcuts(isAuthenticated);
 
-  if (isLoading) {
+  if (isInitialAuthCheck) {
     return (
       <div className="flex h-screen items-center justify-center">
         <div className="text-muted-foreground" role="status" aria-live="polite">
@@ -48,9 +57,19 @@ function RootLayout() {
     );
   }
 
+  if (!isAuthenticated && location.pathname !== "/login") {
+    return (
+      <Navigate to="/login" search={{ redirect: location.href }} replace />
+    );
+  }
+
+  if (isAuthenticated && location.pathname === "/login") {
+    return <Navigate to="/" replace />;
+  }
+
   if (!isAuthenticated) {
     return (
-      <div className="flex min-h-screen flex-col">
+      <div className="flex min-h-[100dvh] flex-col">
         <Outlet />
       </div>
     );
@@ -87,23 +106,35 @@ function RootLayout() {
   ];
 
   return (
-    <div className="flex min-h-screen">
-      {/* Desktop Sidebar - hidden on mobile */}
-      <aside className="hidden w-64 border-r border-border/50 bg-sidebar md:block">
+    <div className="flex min-h-[100dvh] overflow-x-hidden">
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-[60] focus:rounded-md focus:bg-background focus:px-3 focus:py-2 focus:text-sm focus:font-medium focus:ring-2 focus:ring-ring"
+      >
+        Skip to Main Content
+      </a>
+
+      {/* Desktop Sidebar */}
+      <aside className="hidden border-r border-border/50 bg-sidebar lg:block lg:w-20 xl:w-64">
         <div className="flex h-full flex-col">
           {/* Logo */}
-          <div className="flex h-16 items-center border-b border-border/50 px-6">
-            <Link to="/" className="text-lg font-semibold tracking-tight">
-              Scheduling
+          <div className="flex h-16 items-center border-b border-border/50 px-3 xl:px-6">
+            <Link
+              to="/"
+              preload="intent"
+              className="mx-auto text-lg font-semibold tracking-tight xl:mx-0"
+            >
+              <span className="xl:hidden">S</span>
+              <span className="hidden xl:inline">Scheduling</span>
             </Link>
           </div>
 
           {/* Navigation */}
-          <nav className="flex-1 space-y-6 p-5">
+          <nav className="flex-1 space-y-6 p-3 xl:p-5">
             {navGroups.map((group) => (
-              <NavGroup key={group.label} label={group.label}>
+              <NavGroup key={group.label} label={group.label} compact>
                 {group.items.map((item) => (
-                  <NavLink key={item.to} to={item.to} icon={item.icon}>
+                  <NavLink key={item.to} to={item.to} icon={item.icon} compact>
                     {item.label}
                   </NavLink>
                 ))}
@@ -112,12 +143,12 @@ function RootLayout() {
           </nav>
 
           {/* User section */}
-          <div className="border-t border-border/50 p-5">
-            <div className="flex items-center gap-3">
+          <div className="border-t border-border/50 p-3 xl:p-5">
+            <div className="flex items-center justify-center gap-3 xl:justify-start">
               <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary text-sm font-medium text-primary-foreground">
                 {user?.name?.[0] ?? user?.email[0]?.toUpperCase() ?? "U"}
               </div>
-              <div className="flex-1 overflow-hidden">
+              <div className="hidden flex-1 overflow-hidden xl:block">
                 <div className="truncate text-sm font-medium">
                   {user?.name ?? user?.email}
                 </div>
@@ -140,9 +171,9 @@ function RootLayout() {
       </aside>
 
       {/* Mobile Header + Main Content */}
-      <div className="flex flex-1 flex-col">
-        {/* Mobile Header - visible only on mobile */}
-        <header className="flex h-16 items-center justify-between border-b border-border/50 bg-sidebar px-5 md:hidden">
+      <div className="flex min-w-0 flex-1 flex-col">
+        {/* Mobile Header */}
+        <header className="flex h-16 items-center justify-between border-b border-border/50 bg-sidebar px-5 lg:hidden">
           <Button
             variant="ghost"
             size="icon"
@@ -151,7 +182,11 @@ function RootLayout() {
           >
             <Icon icon={Menu01Icon} className="size-5" />
           </Button>
-          <Link to="/" className="text-lg font-semibold tracking-tight">
+          <Link
+            to="/"
+            preload="intent"
+            className="text-lg font-semibold tracking-tight"
+          >
             Scheduling
           </Link>
           <Button
@@ -166,14 +201,17 @@ function RootLayout() {
         </header>
 
         {/* Main content */}
-        <main className="flex-1">
+        <main id="main-content" className="flex-1 min-w-0">
           <Outlet />
         </main>
       </div>
 
       {/* Mobile Navigation Sheet */}
       <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
-        <SheetContent side="left" className="w-64 p-0">
+        <SheetContent
+          side="left"
+          className="w-64 p-0 touch-manipulation overscroll-contain"
+        >
           <SheetHeader className="border-b border-border/50 px-6 py-5">
             <div className="flex items-center justify-between">
               <SheetTitle>Scheduling</SheetTitle>
@@ -222,21 +260,30 @@ function RootLayout() {
       <CommandPalette />
 
       {/* Dev tools - only in development */}
-      <TanStackRouterDevtools position="bottom-right" />
+      {import.meta.env.DEV ? (
+        <TanStackRouterDevtools position="bottom-right" />
+      ) : null}
     </div>
   );
 }
 
 function NavGroup({
   label,
+  compact = false,
   children,
 }: {
   label: string;
+  compact?: boolean;
   children: React.ReactNode;
 }) {
   return (
     <div className="space-y-1">
-      <div className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">
+      <div
+        className={cn(
+          "px-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60",
+          compact && "lg:hidden xl:block",
+        )}
+      >
         {label}
       </div>
       {children}
@@ -247,19 +294,28 @@ function NavGroup({
 function NavLink({
   to,
   icon,
+  compact = false,
   children,
 }: {
   to: string;
   icon: React.ComponentProps<typeof Icon>["icon"];
+  compact?: boolean;
   children: React.ReactNode;
 }) {
   return (
     <Link
       to={to}
-      className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-muted-foreground transition-all duration-150 hover:bg-accent hover:text-accent-foreground [&.active]:bg-accent [&.active]:text-accent-foreground"
+      preload="intent"
+      className={cn(
+        "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-muted-foreground",
+        "transition-colors duration-150 hover:bg-accent hover:text-accent-foreground",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70",
+        "[&.active]:bg-accent [&.active]:text-accent-foreground",
+        compact && "justify-center xl:justify-start",
+      )}
     >
       <Icon icon={icon} />
-      {children}
+      <span className={cn(compact && "hidden xl:inline")}>{children}</span>
     </Link>
   );
 }

@@ -16,19 +16,32 @@ import {
 
 import { toast } from "sonner";
 import { Icon } from "@/components/ui/icon";
-import { orpc } from "@/lib/query";
+import { getQueryClient, orpc } from "@/lib/query";
 import { createClientSchema } from "@scheduling/dto";
 import type { CreateClientInput } from "@scheduling/dto";
 import { useCrudState } from "@/hooks/use-crud-state";
 import { DeleteConfirmDialog } from "@/components/delete-confirm-dialog";
 import { ContextMenu, type ContextMenuItem } from "@/components/context-menu";
-import { ClientDrawer } from "@/components/client-drawer";
 import { AppointmentModal } from "@/components/appointment-modal";
 import { RelationshipCountBadge } from "@/components/relationship-count-badge";
+import {
+  DetailPanel,
+  DetailTab,
+  DetailTabs,
+  ListPanel,
+  WorkbenchLayout,
+} from "@/components/workbench";
+import {
+  FOCUS_ZONES,
+  useFocusZones,
+  useListNavigation,
+} from "@/hooks/use-keyboard-shortcuts";
+import { useValidateSelection } from "@/hooks/use-selection-search-params";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
 import {
   Table,
   TableBody,
@@ -183,11 +196,12 @@ function ClientsPage() {
     useState<{ id: string; name: string } | null>(null);
 
   // Fetch clients
-  const { data, isLoading, error } = useQuery(
-    orpc.clients.list.queryOptions({
+  const { data, isLoading, error } = useQuery({
+    ...orpc.clients.list.queryOptions({
       input: { search: search || undefined, limit: 100 },
     }),
-  );
+    placeholderData: (previous) => previous,
+  });
 
   // Infer item type from query result
   type ClientItem = NonNullable<typeof data>["items"][number];
@@ -258,6 +272,10 @@ function ClientsPage() {
     () => data?.items.find((c) => c.id === selectedId) ?? null,
     [data?.items, selectedId],
   );
+  const clients = data?.items ?? [];
+  const selectedIndex = selectedId
+    ? clients.findIndex((client) => client.id === selectedId)
+    : -1;
 
   // URL navigation helpers
   const openDrawer = useCallback(
@@ -277,6 +295,36 @@ function ClientsPage() {
       navigate({ search: { selected: selectedId, tab: value } });
     },
     [navigate, selectedId],
+  );
+
+  useValidateSelection(data?.items, selectedId, closeDrawer);
+
+  useListNavigation({
+    items: clients,
+    selectedIndex,
+    onSelect: (index) => {
+      const client = clients[index];
+      if (client) openDrawer(client.id, "details");
+    },
+    onOpen: (client) => openDrawer(client.id, "details"),
+    enabled: !crud.isFormOpen,
+  });
+
+  useFocusZones({
+    onEscape: closeDrawer,
+    detailOpen: drawerOpen,
+  });
+
+  const { data: appointmentsData, isLoading: isLoadingAppointments } = useQuery(
+    {
+      ...orpc.appointments.list.queryOptions({
+        input: {
+          clientId: selectedClient?.id ?? "",
+          limit: 20,
+        },
+      }),
+      enabled: !!selectedClient?.id && activeTab === "history",
+    },
   );
 
   const handleBookAppointment = useCallback(
@@ -394,88 +442,206 @@ function ClientsPage() {
         </div>
       )}
 
-      {/* Clients Table */}
-      <div className="mt-6">
-        {isLoading ? (
-          <div
-            className="text-center text-muted-foreground py-10"
-            role="status"
-            aria-live="polite"
-          >
-            Loading...
-          </div>
-        ) : error ? (
-          <div className="text-center text-destructive py-10">
-            Error loading clients
-          </div>
-        ) : !data?.items.length ? (
-          <div className="rounded-xl border border-border/50 bg-card p-10 text-center text-muted-foreground shadow-sm">
-            {search
-              ? "No clients found matching your search."
-              : "No clients yet. Create your first client to get started."}
-          </div>
-        ) : (
-          <div className="rounded-xl border border-border/50 overflow-hidden shadow-sm">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Email</TableHead>
-                  <TableHead>Phone</TableHead>
-                  <TableHead>Appointments</TableHead>
-                  <TableHead>Created</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {data.items.map((client) => (
-                  <ContextMenu
-                    key={client.id}
-                    items={getContextMenuItems(client)}
-                  >
-                    <TableRow
-                      className="cursor-pointer hover:bg-muted/50 transition-colors"
-                      onClick={() => openDrawer(client.id)}
+      <WorkbenchLayout className="mt-6 min-h-[600px]">
+        <ListPanel id={FOCUS_ZONES.LIST}>
+          {isLoading ? (
+            <div
+              className="py-10 text-center text-muted-foreground"
+              role="status"
+              aria-live="polite"
+            >
+              Loading...
+            </div>
+          ) : error ? (
+            <div className="py-10 text-center text-destructive">
+              Error loading clients
+            </div>
+          ) : !data?.items.length ? (
+            <div className="rounded-xl border border-border/50 bg-card p-10 text-center text-muted-foreground shadow-sm">
+              {search
+                ? "No clients found matching your search."
+                : "No clients yet. Create your first client to get started."}
+            </div>
+          ) : (
+            <div className="overflow-hidden rounded-xl border border-border/50 shadow-sm">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Name</TableHead>
+                    <TableHead>Email</TableHead>
+                    <TableHead>Phone</TableHead>
+                    <TableHead>Appointments</TableHead>
+                    <TableHead>Created</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {data.items.map((client) => (
+                    <ContextMenu
+                      key={client.id}
+                      items={getContextMenuItems(client)}
                     >
-                      <TableCell className="font-medium">
-                        {client.firstName} {client.lastName}
-                      </TableCell>
-                      <TableCell>
-                        {client.email || (
-                          <span className="text-muted-foreground">-</span>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        {client.phone || (
-                          <span className="text-muted-foreground">-</span>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        <RelationshipCountBadge
-                          count={client.relationshipCounts?.appointments ?? 0}
-                          singular="appointment"
-                        />
-                      </TableCell>
-                      <TableCell>
-                        {new Date(client.createdAt).toLocaleDateString()}
-                      </TableCell>
-                    </TableRow>
-                  </ContextMenu>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-        )}
-      </div>
+                      <TableRow
+                        className="cursor-pointer transition-colors hover:bg-muted/50"
+                        tabIndex={0}
+                        aria-selected={client.id === selectedId}
+                        onClick={() => openDrawer(client.id)}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter" || event.key === " ") {
+                            event.preventDefault();
+                            openDrawer(client.id);
+                          }
+                        }}
+                      >
+                        <TableCell className="font-medium">
+                          {client.firstName} {client.lastName}
+                        </TableCell>
+                        <TableCell>
+                          {client.email || (
+                            <span className="text-muted-foreground">-</span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {client.phone || (
+                            <span className="text-muted-foreground">-</span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <RelationshipCountBadge
+                            count={client.relationshipCounts?.appointments ?? 0}
+                            singular="appointment"
+                          />
+                        </TableCell>
+                        <TableCell>
+                          {new Date(client.createdAt).toLocaleDateString()}
+                        </TableCell>
+                      </TableRow>
+                    </ContextMenu>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </ListPanel>
 
-      {/* Client Drawer */}
-      <ClientDrawer
-        client={selectedClient}
-        open={drawerOpen}
-        onClose={closeDrawer}
-        activeTab={activeTab}
-        onTabChange={setActiveTabUrl}
-        onBookAppointment={handleBookAppointment}
-      />
+        <DetailPanel
+          id={FOCUS_ZONES.DETAIL}
+          open={drawerOpen}
+          storageKey="clients"
+          onOpenChange={(open) => {
+            if (!open) closeDrawer();
+          }}
+          sheetTitle={
+            selectedClient
+              ? `${selectedClient.firstName} ${selectedClient.lastName}`
+              : "Client Details"
+          }
+          bodyClassName="p-0"
+        >
+          {selectedClient ? (
+            <div className="flex h-full flex-col">
+              <div className="flex flex-wrap items-start justify-between gap-4 border-b border-border/50 px-6 py-5">
+                <div>
+                  <h2 className="text-lg font-semibold tracking-tight">
+                    {selectedClient.firstName} {selectedClient.lastName}
+                  </h2>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    {selectedClient.email || "No email"}
+                    {selectedClient.phone ? ` · ${selectedClient.phone}` : ""}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => crud.openEdit(selectedClient)}
+                  >
+                    <Icon icon={PencilEdit01Icon} data-icon="inline-start" />
+                    Edit
+                  </Button>
+                  <Button
+                    size="sm"
+                    onClick={() => handleBookAppointment(selectedClient.id)}
+                  >
+                    <Icon icon={Calendar03Icon} data-icon="inline-start" />
+                    Book
+                  </Button>
+                </div>
+              </div>
+
+              <DetailTabs value={activeTab} onValueChange={setActiveTabUrl}>
+                <DetailTab value="details">Details</DetailTab>
+                <DetailTab value="history">History</DetailTab>
+              </DetailTabs>
+
+              <div className="flex-1 overflow-y-auto px-6 py-4">
+                {activeTab === "details" ? (
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-muted-foreground">
+                        Email
+                      </span>
+                      <span className="text-sm font-medium">
+                        {selectedClient.email || "Not set"}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-muted-foreground">
+                        Phone
+                      </span>
+                      <span className="text-sm font-medium">
+                        {selectedClient.phone || "Not set"}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-muted-foreground">
+                        Appointments
+                      </span>
+                      <Badge variant="secondary">
+                        {selectedClient.relationshipCounts?.appointments ?? 0}
+                      </Badge>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-muted-foreground">
+                        Created
+                      </span>
+                      <span className="text-sm font-medium">
+                        {new Date(
+                          selectedClient.createdAt,
+                        ).toLocaleDateString()}
+                      </span>
+                    </div>
+                  </div>
+                ) : isLoadingAppointments ? (
+                  <div className="py-8 text-center text-muted-foreground">
+                    Loading…
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {(appointmentsData?.items ?? []).map((appointment) => (
+                      <div
+                        key={appointment.id}
+                        className="rounded-lg border border-border/50 px-4 py-3"
+                      >
+                        <div className="text-sm font-medium">
+                          {new Date(appointment.startAt).toLocaleString()}
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          {appointment.appointmentType?.name ?? "Appointment"}
+                        </div>
+                      </div>
+                    ))}
+                    {(appointmentsData?.items ?? []).length === 0 ? (
+                      <div className="rounded-lg border border-border/50 p-6 text-center text-sm text-muted-foreground">
+                        No appointment history yet.
+                      </div>
+                    ) : null}
+                  </div>
+                )}
+              </div>
+            </div>
+          ) : null}
+        </DetailPanel>
+      </WorkbenchLayout>
 
       {/* Appointment Modal */}
       <AppointmentModal
@@ -517,5 +683,13 @@ export const Route = createFileRoute("/_authenticated/clients")({
         ? search.tab
         : undefined,
   }),
+  loader: async () => {
+    const queryClient = getQueryClient();
+    await queryClient.ensureQueryData(
+      orpc.clients.list.queryOptions({
+        input: { limit: 100 },
+      }),
+    );
+  },
   component: ClientsPage,
 });

@@ -17,7 +17,7 @@ import {
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Icon } from "@/components/ui/icon";
-import { orpc } from "@/lib/query";
+import { getQueryClient, orpc } from "@/lib/query";
 import { TIMEZONES } from "@/lib/constants";
 import { resolveSelectValueLabel } from "@/lib/select-value-label";
 import { createCalendarSchema } from "@scheduling/dto";
@@ -36,8 +36,8 @@ import {
   DetailTab,
   DetailTabs,
   ListPanel,
-  SplitPaneLayout,
-} from "@/components/split-pane";
+  WorkbenchLayout,
+} from "@/components/workbench";
 import { RelationshipCountBadge } from "@/components/relationship-count-badge";
 
 import { Button } from "@/components/ui/button";
@@ -218,11 +218,12 @@ function CalendarsPage() {
     useState<AvailabilitySubTabType>("weekly");
 
   // Fetch calendars (moved up for keyboard navigation)
-  const { data, isLoading, error } = useQuery(
-    orpc.calendars.list.queryOptions({
+  const { data, isLoading, error } = useQuery({
+    ...orpc.calendars.list.queryOptions({
       input: { limit: 100 },
     }),
-  );
+    placeholderData: (previous) => previous,
+  });
 
   // Infer item type from query result
   type CalendarItem = NonNullable<typeof data>["items"][number];
@@ -494,7 +495,7 @@ function CalendarsPage() {
         )}
       </div>
 
-      <SplitPaneLayout className="mt-6 min-h-[600px]">
+      <WorkbenchLayout className="mt-6 min-h-[600px]">
         <ListPanel id={FOCUS_ZONES.LIST} className="flex flex-col gap-6">
           {/* Create Form */}
           {crud.showCreateForm && (
@@ -574,8 +575,15 @@ function CalendarsPage() {
                               "cursor-pointer transition-colors hover:bg-muted/50",
                               isSelected && "bg-muted/60",
                             )}
+                            tabIndex={0}
                             aria-selected={isSelected}
                             onClick={() => openDetails(calendar.id, "details")}
+                            onKeyDown={(event) => {
+                              if (event.key === "Enter" || event.key === " ") {
+                                event.preventDefault();
+                                openDetails(calendar.id, "details");
+                              }
+                            }}
                           >
                             <TableCell className="font-medium">
                               {calendar.name}
@@ -613,6 +621,7 @@ function CalendarsPage() {
         <DetailPanel
           id={FOCUS_ZONES.DETAIL}
           open={detailOpen}
+          storageKey="calendars"
           onOpenChange={(open) => {
             if (!open) clearDetails();
           }}
@@ -847,7 +856,7 @@ function CalendarsPage() {
             </div>
           ) : null}
         </DetailPanel>
-      </SplitPaneLayout>
+      </WorkbenchLayout>
 
       {/* Delete Confirmation */}
       <DeleteConfirmDialog
@@ -871,6 +880,17 @@ export const Route = createFileRoute("/_authenticated/calendars/")({
     const rawTab = typeof search.tab === "string" ? search.tab : "";
     const tab = isDetailTab(rawTab) ? rawTab : undefined;
     return { selected, tab };
+  },
+  loader: async () => {
+    const queryClient = getQueryClient();
+    await Promise.all([
+      queryClient.ensureQueryData(
+        orpc.calendars.list.queryOptions({ input: { limit: 100 } }),
+      ),
+      queryClient.ensureQueryData(
+        orpc.locations.list.queryOptions({ input: { limit: 100 } }),
+      ),
+    ]);
   },
   component: CalendarsPage,
 });

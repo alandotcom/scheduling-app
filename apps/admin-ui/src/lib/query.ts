@@ -16,5 +16,14 @@ export function createQueryClient() {
   });
 }
 
+let sharedQueryClient: QueryClient | null = null;
+
+export function getQueryClient() {
+  if (!sharedQueryClient) {
+    sharedQueryClient = createQueryClient();
+  }
+  return sharedQueryClient;
+}
+
 // Create oRPC query utilities for TanStack Query integration
 export const orpc = createTanstackQueryUtils(api);

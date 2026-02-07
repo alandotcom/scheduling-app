@@ -14,7 +14,7 @@ import {
 
 import { toast } from "sonner";
 import { Icon } from "@/components/ui/icon";
-import { orpc } from "@/lib/query";
+import { getQueryClient, orpc } from "@/lib/query";
 import { TIMEZONES } from "@/lib/constants";
 import { resolveSelectValueLabel } from "@/lib/select-value-label";
 import { createLocationSchema } from "@scheduling/dto";
@@ -22,12 +22,25 @@ import type { CreateLocationInput } from "@scheduling/dto";
 import { useCrudState } from "@/hooks/use-crud-state";
 import { DeleteConfirmDialog } from "@/components/delete-confirm-dialog";
 import { ContextMenu, type ContextMenuItem } from "@/components/context-menu";
-import { LocationDrawer } from "@/components/location-drawer";
 import { RelationshipCountBadge } from "@/components/relationship-count-badge";
+import {
+  DetailPanel,
+  DetailTab,
+  DetailTabs,
+  ListPanel,
+  WorkbenchLayout,
+} from "@/components/workbench";
+import {
+  FOCUS_ZONES,
+  useFocusZones,
+  useListNavigation,
+} from "@/hooks/use-keyboard-shortcuts";
+import { useValidateSelection } from "@/hooks/use-selection-search-params";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
 import {
   Table,
   TableBody,
@@ -154,11 +167,12 @@ function LocationsPage() {
   const drawerOpen = !!selectedId;
 
   // Fetch locations
-  const { data, isLoading, error } = useQuery(
-    orpc.locations.list.queryOptions({
+  const { data, isLoading, error } = useQuery({
+    ...orpc.locations.list.queryOptions({
       input: { limit: 100 },
     }),
-  );
+    placeholderData: (previous) => previous,
+  });
 
   // Infer item type from query result
   type LocationItem = NonNullable<typeof data>["items"][number];
@@ -250,6 +264,52 @@ function LocationsPage() {
     [navigate, selectedId],
   );
 
+  const locations = data?.items ?? [];
+  const selectedIndex = selectedId
+    ? locations.findIndex((location) => location.id === selectedId)
+    : -1;
+
+  useValidateSelection(data?.items, selectedId, closeDrawer);
+
+  useListNavigation({
+    items: locations,
+    selectedIndex,
+    onSelect: (index) => {
+      const location = locations[index];
+      if (location) openDrawer(location.id, "details");
+    },
+    onOpen: (location) => openDrawer(location.id, "details"),
+    enabled: !crud.isFormOpen,
+  });
+
+  useFocusZones({
+    onEscape: closeDrawer,
+    detailOpen: drawerOpen,
+  });
+
+  const { data: calendarsData } = useQuery({
+    ...orpc.calendars.list.queryOptions({
+      input: { limit: 100 },
+    }),
+    enabled: !!selectedLocation?.id && activeTab === "calendars",
+  });
+
+  const { data: resourcesData } = useQuery({
+    ...orpc.resources.list.queryOptions({
+      input: { limit: 100 },
+    }),
+    enabled: !!selectedLocation?.id && activeTab === "resources",
+  });
+
+  const calendarsAtLocation =
+    calendarsData?.items.filter(
+      (item) => item.locationId === selectedLocation?.id,
+    ) ?? [];
+  const resourcesAtLocation =
+    resourcesData?.items.filter(
+      (item) => item.locationId === selectedLocation?.id,
+    ) ?? [];
+
   const getContextMenuItems = useCallback(
     (location: LocationItem): ContextMenuItem[] => [
       {
@@ -325,81 +385,213 @@ function LocationsPage() {
         </div>
       )}
 
-      {/* Locations Table */}
-      <div className="mt-6">
-        {isLoading ? (
-          <div
-            className="text-center text-muted-foreground py-10"
-            role="status"
-            aria-live="polite"
-          >
-            Loading...
-          </div>
-        ) : error ? (
-          <div className="text-center text-destructive py-10">
-            Error loading locations
-          </div>
-        ) : !data?.items.length ? (
-          <div className="rounded-xl border border-border/50 bg-card p-10 text-center text-muted-foreground shadow-sm">
-            No locations yet. Create your first location to get started.
-          </div>
-        ) : (
-          <div className="rounded-xl border border-border/50 overflow-hidden shadow-sm">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Timezone</TableHead>
-                  <TableHead>Relationships</TableHead>
-                  <TableHead>Created</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {data.items.map((location) => (
-                  <ContextMenu
-                    key={location.id}
-                    items={getContextMenuItems(location)}
-                  >
-                    <TableRow
-                      className="cursor-pointer hover:bg-muted/50 transition-colors"
-                      onClick={() => openDrawer(location.id)}
+      <WorkbenchLayout className="mt-6 min-h-[600px]">
+        <ListPanel id={FOCUS_ZONES.LIST}>
+          {isLoading ? (
+            <div
+              className="py-10 text-center text-muted-foreground"
+              role="status"
+              aria-live="polite"
+            >
+              Loading...
+            </div>
+          ) : error ? (
+            <div className="py-10 text-center text-destructive">
+              Error loading locations
+            </div>
+          ) : !data?.items.length ? (
+            <div className="rounded-xl border border-border/50 bg-card p-10 text-center text-muted-foreground shadow-sm">
+              No locations yet. Create your first location to get started.
+            </div>
+          ) : (
+            <div className="overflow-hidden rounded-xl border border-border/50 shadow-sm">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Name</TableHead>
+                    <TableHead>Timezone</TableHead>
+                    <TableHead>Relationships</TableHead>
+                    <TableHead>Created</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {data.items.map((location) => (
+                    <ContextMenu
+                      key={location.id}
+                      items={getContextMenuItems(location)}
                     >
-                      <TableCell className="font-medium">
-                        {location.name}
-                      </TableCell>
-                      <TableCell>{location.timezone}</TableCell>
-                      <TableCell>
-                        <div className="flex flex-wrap gap-1">
-                          <RelationshipCountBadge
-                            count={location.relationshipCounts?.calendars ?? 0}
-                            singular="calendar"
-                          />
-                          <RelationshipCountBadge
-                            count={location.relationshipCounts?.resources ?? 0}
-                            singular="resource"
-                          />
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        {new Date(location.createdAt).toLocaleDateString()}
-                      </TableCell>
-                    </TableRow>
-                  </ContextMenu>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-        )}
-      </div>
+                      <TableRow
+                        className="cursor-pointer transition-colors hover:bg-muted/50"
+                        tabIndex={0}
+                        aria-selected={location.id === selectedId}
+                        onClick={() => openDrawer(location.id)}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter" || event.key === " ") {
+                            event.preventDefault();
+                            openDrawer(location.id);
+                          }
+                        }}
+                      >
+                        <TableCell className="font-medium">
+                          {location.name}
+                        </TableCell>
+                        <TableCell>{location.timezone}</TableCell>
+                        <TableCell>
+                          <div className="flex flex-wrap gap-1">
+                            <RelationshipCountBadge
+                              count={
+                                location.relationshipCounts?.calendars ?? 0
+                              }
+                              singular="calendar"
+                            />
+                            <RelationshipCountBadge
+                              count={
+                                location.relationshipCounts?.resources ?? 0
+                              }
+                              singular="resource"
+                            />
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          {new Date(location.createdAt).toLocaleDateString()}
+                        </TableCell>
+                      </TableRow>
+                    </ContextMenu>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </ListPanel>
 
-      {/* Location Drawer */}
-      <LocationDrawer
-        location={selectedLocation}
-        open={drawerOpen}
-        onClose={closeDrawer}
-        activeTab={activeTab}
-        onTabChange={setActiveTabUrl}
-      />
+        <DetailPanel
+          id={FOCUS_ZONES.DETAIL}
+          open={drawerOpen}
+          storageKey="locations"
+          onOpenChange={(open) => {
+            if (!open) closeDrawer();
+          }}
+          sheetTitle={selectedLocation?.name ?? "Location Details"}
+          sheetDescription={selectedLocation?.timezone}
+          bodyClassName="p-0"
+        >
+          {selectedLocation ? (
+            <div className="flex h-full flex-col">
+              <div className="flex flex-wrap items-start justify-between gap-4 border-b border-border/50 px-6 py-5">
+                <div>
+                  <h2 className="text-lg font-semibold tracking-tight">
+                    {selectedLocation.name}
+                  </h2>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    {selectedLocation.timezone}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => crud.openEdit(selectedLocation)}
+                  >
+                    <Icon icon={PencilEdit01Icon} data-icon="inline-start" />
+                    Edit
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    onClick={() => crud.openDelete(selectedLocation.id)}
+                  >
+                    <Icon icon={Delete01Icon} data-icon="inline-start" />
+                    Delete
+                  </Button>
+                </div>
+              </div>
+
+              <DetailTabs value={activeTab} onValueChange={setActiveTabUrl}>
+                <DetailTab value="details">Details</DetailTab>
+                <DetailTab value="calendars">Calendars</DetailTab>
+                <DetailTab value="resources">Resources</DetailTab>
+              </DetailTabs>
+
+              <div className="flex-1 overflow-y-auto px-6 py-4">
+                {activeTab === "details" ? (
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-muted-foreground">
+                        Timezone
+                      </span>
+                      <span className="text-sm font-medium">
+                        {selectedLocation.timezone}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-muted-foreground">
+                        Calendars
+                      </span>
+                      <Badge variant="secondary">
+                        {selectedLocation.relationshipCounts?.calendars ?? 0}
+                      </Badge>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-muted-foreground">
+                        Resources
+                      </span>
+                      <Badge variant="secondary">
+                        {selectedLocation.relationshipCounts?.resources ?? 0}
+                      </Badge>
+                    </div>
+                  </div>
+                ) : null}
+
+                {activeTab === "calendars" ? (
+                  <div className="space-y-2">
+                    {calendarsAtLocation.map((calendar) => (
+                      <div
+                        key={calendar.id}
+                        className="rounded-lg border border-border/50 px-4 py-3"
+                      >
+                        <div className="text-sm font-medium">
+                          {calendar.name}
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          {calendar.timezone}
+                        </div>
+                      </div>
+                    ))}
+                    {calendarsAtLocation.length === 0 ? (
+                      <div className="rounded-lg border border-border/50 p-6 text-center text-sm text-muted-foreground">
+                        No calendars are assigned to this location.
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
+
+                {activeTab === "resources" ? (
+                  <div className="space-y-2">
+                    {resourcesAtLocation.map((resource) => (
+                      <div
+                        key={resource.id}
+                        className="rounded-lg border border-border/50 px-4 py-3"
+                      >
+                        <div className="text-sm font-medium">
+                          {resource.name}
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          Qty: {resource.quantity}
+                        </div>
+                      </div>
+                    ))}
+                    {resourcesAtLocation.length === 0 ? (
+                      <div className="rounded-lg border border-border/50 p-6 text-center text-sm text-muted-foreground">
+                        No resources are assigned to this location.
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
+              </div>
+            </div>
+          ) : null}
+        </DetailPanel>
+      </WorkbenchLayout>
 
       {/* Delete Confirmation */}
       <DeleteConfirmDialog
@@ -430,5 +622,13 @@ export const Route = createFileRoute("/_authenticated/locations")({
         ? search.tab
         : undefined,
   }),
+  loader: async () => {
+    const queryClient = getQueryClient();
+    await queryClient.ensureQueryData(
+      orpc.locations.list.queryOptions({
+        input: { limit: 100 },
+      }),
+    );
+  },
   component: LocationsPage,
 });
