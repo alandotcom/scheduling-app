@@ -35,9 +35,9 @@ const router = createRouter({
   defaultPreload: "intent",
   defaultPreloadDelay: 80,
   defaultPreloadStaleTime: 45_000,
-  defaultPendingMs: 700,
-  defaultPendingMinMs: 200,
-  defaultViewTransition: true,
+  defaultPendingMs: 220,
+  defaultPendingMinMs: 80,
+  defaultViewTransition: false,
 });
 
 // Register the router instance for type safety
