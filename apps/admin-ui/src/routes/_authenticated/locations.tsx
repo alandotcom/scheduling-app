@@ -335,7 +335,7 @@ function LocationsPage() {
   );
 
   return (
-    <div className="p-6">
+    <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
       <div className="flex items-center justify-between gap-4">
         <div className="min-w-0 flex-1">
           <h1 className="truncate text-2xl font-semibold tracking-tight">
@@ -356,7 +356,7 @@ function LocationsPage() {
 
       {/* Create Form */}
       {crud.showCreateForm && (
-        <div className="mt-6 rounded-xl border border-border/50 bg-card p-6 shadow-sm">
+        <div className="mt-6 rounded-xl border border-border bg-card p-6 shadow-sm">
           <h2 className="mb-5 text-lg font-semibold tracking-tight">
             New Location
           </h2>
@@ -370,7 +370,7 @@ function LocationsPage() {
 
       {/* Edit Form */}
       {crud.editingItem && (
-        <div className="mt-6 rounded-xl border border-border/50 bg-card p-6 shadow-sm">
+        <div className="mt-6 rounded-xl border border-border bg-card p-6 shadow-sm">
           <h2 className="mb-5 text-lg font-semibold tracking-tight">
             Edit Location
           </h2>
@@ -401,11 +401,11 @@ function LocationsPage() {
               Error loading locations
             </div>
           ) : !data?.items.length ? (
-            <div className="rounded-xl border border-border/50 bg-card p-10 text-center text-muted-foreground shadow-sm">
+            <div className="rounded-xl border border-border bg-card p-10 text-center text-muted-foreground shadow-sm">
               No locations yet. Create your first location to get started.
             </div>
           ) : (
-            <div className="overflow-hidden rounded-xl border border-border/50 shadow-sm">
+            <div className="overflow-hidden rounded-xl border border-border shadow-sm">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -478,7 +478,7 @@ function LocationsPage() {
         >
           {selectedLocation ? (
             <div className="flex h-full flex-col">
-              <div className="flex flex-wrap items-start justify-between gap-4 border-b border-border/50 px-6 py-5">
+              <div className="flex flex-wrap items-start justify-between gap-4 border-b border-border px-6 py-5">
                 <div>
                   <h2 className="text-lg font-semibold tracking-tight">
                     {selectedLocation.name}
@@ -548,7 +548,7 @@ function LocationsPage() {
                     {calendarsAtLocation.map((calendar) => (
                       <div
                         key={calendar.id}
-                        className="rounded-lg border border-border/50 px-4 py-3"
+                        className="rounded-lg border border-border px-4 py-3"
                       >
                         <div className="text-sm font-medium">
                           {calendar.name}
@@ -559,7 +559,7 @@ function LocationsPage() {
                       </div>
                     ))}
                     {calendarsAtLocation.length === 0 ? (
-                      <div className="rounded-lg border border-border/50 p-6 text-center text-sm text-muted-foreground">
+                      <div className="rounded-lg border border-border p-6 text-center text-sm text-muted-foreground">
                         No calendars are assigned to this location.
                       </div>
                     ) : null}
@@ -571,7 +571,7 @@ function LocationsPage() {
                     {resourcesAtLocation.map((resource) => (
                       <div
                         key={resource.id}
-                        className="rounded-lg border border-border/50 px-4 py-3"
+                        className="rounded-lg border border-border px-4 py-3"
                       >
                         <div className="text-sm font-medium">
                           {resource.name}
@@ -582,7 +582,7 @@ function LocationsPage() {
                       </div>
                     ))}
                     {resourcesAtLocation.length === 0 ? (
-                      <div className="rounded-lg border border-border/50 p-6 text-center text-sm text-muted-foreground">
+                      <div className="rounded-lg border border-border p-6 text-center text-sm text-muted-foreground">
                         No resources are assigned to this location.
                       </div>
                     ) : null}

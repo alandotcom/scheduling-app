@@ -14,13 +14,9 @@ import { Cancel01Icon } from "@hugeicons/core-free-icons";
 import { cn } from "@/lib/utils";
 import { TabsContext, useTabs } from "@/components/ui/tabs-context";
 
-export type DetailMode = "docked" | "overlay" | "fullscreen";
+export type DetailMode = "overlay" | "fullscreen";
 
-const DOCKED_BREAKPOINT = "(min-width: 1280px)";
 const OVERLAY_BREAKPOINT = "(min-width: 768px)";
-const DEFAULT_DETAIL_WIDTH = 440;
-const MIN_DETAIL_WIDTH = 360;
-const MAX_DETAIL_WIDTH = 640;
 
 function useMediaQuery(query: string) {
   const [matches, setMatches] = React.useState<boolean>(() => {
@@ -39,42 +35,8 @@ function useMediaQuery(query: string) {
   return matches;
 }
 
-function clampWidth(width: number) {
-  return Math.max(MIN_DETAIL_WIDTH, Math.min(MAX_DETAIL_WIDTH, width));
-}
-
-function usePersistedDetailWidth(storageKey?: string) {
-  const key = storageKey ? `workbench:${storageKey}:detail-width` : null;
-  const [width, setWidth] = React.useState(DEFAULT_DETAIL_WIDTH);
-
-  React.useEffect(() => {
-    if (!key) return;
-    const raw = window.localStorage.getItem(key);
-    if (!raw) return;
-    const parsed = Number(raw);
-    if (!Number.isNaN(parsed)) {
-      setWidth(clampWidth(parsed));
-    }
-  }, [key]);
-
-  const setPersistedWidth = React.useCallback(
-    (next: number) => {
-      const clamped = clampWidth(next);
-      setWidth(clamped);
-      if (key) {
-        window.localStorage.setItem(key, String(clamped));
-      }
-    },
-    [key],
-  );
-
-  return [width, setPersistedWidth] as const;
-}
-
 export function useDetailMode(): DetailMode {
-  const isDocked = useMediaQuery(DOCKED_BREAKPOINT);
   const isOverlay = useMediaQuery(OVERLAY_BREAKPOINT);
-  if (isDocked) return "docked";
   if (isOverlay) return "overlay";
   return "fullscreen";
 }
@@ -91,7 +53,7 @@ export function WorkbenchLayout({
   return (
     <div
       className={cn(
-        "flex flex-1 min-w-0 flex-col gap-4 xl:flex-row",
+        "flex flex-1 min-w-0 flex-col",
         className,
       )}
       {...props}
@@ -130,77 +92,11 @@ export function DetailPanel({
   onOpenChange,
   sheetTitle,
   sheetDescription,
-  emptyState,
   mobileClassName,
   bodyClassName,
-  storageKey,
   children,
-  className,
-  ...props
 }: DetailPanelProps) {
   const detailMode = useDetailMode();
-  const isDocked = detailMode === "docked";
-  const [detailWidth, setDetailWidth] = usePersistedDetailWidth(storageKey);
-  const [isDragging, setIsDragging] = React.useState(false);
-  const startXRef = React.useRef(0);
-  const startWidthRef = React.useRef(detailWidth);
-  const panelRef = React.useRef<HTMLElement | null>(null);
-
-  const panelContent = open ? children : (emptyState ?? <DetailEmptyState />);
-
-  React.useEffect(() => {
-    if (!isDragging || !isDocked) return;
-
-    const onPointerMove = (event: PointerEvent) => {
-      const delta = startXRef.current - event.clientX;
-      setDetailWidth(startWidthRef.current + delta);
-    };
-
-    const onPointerUp = () => {
-      setIsDragging(false);
-    };
-
-    window.addEventListener("pointermove", onPointerMove);
-    window.addEventListener("pointerup", onPointerUp, { once: true });
-
-    return () => {
-      window.removeEventListener("pointermove", onPointerMove);
-      window.removeEventListener("pointerup", onPointerUp);
-    };
-  }, [isDocked, isDragging, setDetailWidth]);
-
-  if (isDocked) {
-    return (
-      <aside
-        ref={panelRef}
-        className={cn(
-          "relative hidden xl:flex xl:min-w-[360px] xl:max-w-[640px]",
-          "flex-col overflow-hidden rounded-xl border border-border/50 bg-card shadow-sm",
-          className,
-        )}
-        style={{ width: `${detailWidth}px` }}
-        {...props}
-      >
-        {open ? (
-          <button
-            type="button"
-            aria-label="Resize detail panel"
-            className={cn(
-              "absolute inset-y-0 -left-1 z-10 w-2 cursor-col-resize touch-none",
-              "hover:bg-border/60 focus-visible:bg-border/80",
-            )}
-            onPointerDown={(event) => {
-              event.preventDefault();
-              startXRef.current = event.clientX;
-              startWidthRef.current = detailWidth;
-              setIsDragging(true);
-            }}
-          />
-        ) : null}
-        {panelContent}
-      </aside>
-    );
-  }
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -209,13 +105,13 @@ export function DetailPanel({
         className={cn(
           "p-0 touch-manipulation overflow-y-auto overscroll-contain",
           detailMode === "overlay"
-            ? "w-[min(92vw,640px)]"
+            ? "w-[min(92vw,560px)]"
             : "w-screen max-w-none",
           mobileClassName,
         )}
       >
         {(sheetTitle || sheetDescription) && (
-          <SheetHeader className="border-b border-border/50 px-6 py-4">
+          <SheetHeader className="border-b border-border px-6 py-4">
             {sheetTitle && <SheetTitle>{sheetTitle}</SheetTitle>}
             {sheetDescription && (
               <SheetDescription>{sheetDescription}</SheetDescription>
@@ -240,14 +136,6 @@ export function DetailPanel({
   );
 }
 
-function DetailEmptyState() {
-  return (
-    <div className="flex h-full items-center justify-center p-8 text-sm text-muted-foreground">
-      Select an item to see details.
-    </div>
-  );
-}
-
 interface DetailTabsProps {
   value: string;
   onValueChange: (value: string) => void;
@@ -269,7 +157,7 @@ export function DetailTabs({
   return (
     <TabsContext.Provider value={contextValue}>
       <div
-        className={cn("flex gap-1 border-b border-border/50 px-6", className)}
+        className={cn("flex gap-1 border-b border-border px-6", className)}
         role="tablist"
       >
         {children}

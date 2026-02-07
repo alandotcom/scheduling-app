@@ -65,9 +65,9 @@ function SettingsPage() {
   // Show loading state while fetching
   if (isLoading) {
     return (
-      <div className="p-10">
-        <h1 className="text-3xl font-semibold tracking-tight">Settings</h1>
-        <p className="mt-3 text-muted-foreground">
+      <div className="mx-auto max-w-4xl px-4 py-6 sm:px-6 lg:px-8">
+        <h1 className="text-2xl font-semibold tracking-tight">Settings</h1>
+        <p className="mt-1 text-sm text-muted-foreground">
           Configure organization and application settings.
         </p>
         <div
@@ -83,9 +83,9 @@ function SettingsPage() {
 
   if (error) {
     return (
-      <div className="p-10">
-        <h1 className="text-3xl font-semibold tracking-tight">Settings</h1>
-        <p className="mt-3 text-muted-foreground">
+      <div className="mx-auto max-w-4xl px-4 py-6 sm:px-6 lg:px-8">
+        <h1 className="text-2xl font-semibold tracking-tight">Settings</h1>
+        <p className="mt-1 text-sm text-muted-foreground">
           Configure organization and application settings.
         </p>
         <div className="mt-10 text-center text-destructive">
@@ -166,13 +166,13 @@ function SettingsForm({ org }: SettingsFormProps) {
   };
 
   return (
-    <div className="p-10">
-      <h1 className="text-3xl font-semibold tracking-tight">Settings</h1>
-      <p className="mt-3 text-muted-foreground">
+    <div className="mx-auto max-w-4xl px-4 py-6 sm:px-6 lg:px-8">
+      <h1 className="text-2xl font-semibold tracking-tight">Settings</h1>
+      <p className="mt-1 text-sm text-muted-foreground">
         Configure organization and application settings.
       </p>
 
-      <form onSubmit={handleSubmit(onSubmit)} className="mt-8 space-y-6">
+      <form onSubmit={handleSubmit(onSubmit)} className="mt-8 flex flex-col gap-6">
         {/* Timezone Section */}
         <Card>
           <CardHeader>

@@ -1,4 +1,4 @@
-// Root route layout with navigation shell
+// Root route layout with modern navigation shell
 
 import { useState } from "react";
 import {
@@ -20,6 +20,8 @@ import {
   Layers01Icon,
   Menu01Icon,
   Cancel01Icon,
+  Home01Icon,
+  Search01Icon,
 } from "@hugeicons/core-free-icons";
 import { authClient } from "@/lib/auth-client";
 import { Button } from "@/components/ui/button";
@@ -43,15 +45,19 @@ function RootLayout() {
   const isAuthenticated = !!session;
   const isInitialAuthCheck = isLoading && session === undefined;
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   // Enable keyboard navigation shortcuts when authenticated
   useNavigationShortcuts(isAuthenticated);
 
   if (isInitialAuthCheck) {
     return (
-      <div className="flex h-screen items-center justify-center">
-        <div className="text-muted-foreground" role="status" aria-live="polite">
-          Loading...
+      <div className="flex h-screen items-center justify-center bg-background">
+        <div className="flex flex-col items-center gap-3">
+          <div className="h-8 w-8 animate-spin rounded-full border-2 border-muted-foreground/20 border-t-foreground" />
+          <span className="text-sm text-muted-foreground" role="status" aria-live="polite">
+            Loading...
+          </span>
         </div>
       </div>
     );
@@ -75,38 +81,26 @@ function RootLayout() {
     );
   }
 
-  const navGroups = [
+  const navItems = [
+    { to: "/", icon: Home01Icon, label: "Dashboard" },
+    { to: "/appointments", icon: Clock01Icon, label: "Appointments" },
+    { to: "/clients", icon: UserGroup02Icon, label: "Clients" },
+    { to: "/calendars", icon: Calendar03Icon, label: "Calendars" },
     {
-      label: "WORK",
-      items: [
-        { to: "/appointments", icon: Clock01Icon, label: "Appointments" },
-      ],
+      to: "/appointment-types",
+      icon: Layers01Icon,
+      label: "Appt Types",
     },
-    {
-      label: "PEOPLE",
-      items: [{ to: "/clients", icon: UserGroup02Icon, label: "Clients" }],
-    },
-    {
-      label: "SETUP",
-      items: [
-        { to: "/calendars", icon: Calendar03Icon, label: "Calendars" },
-        {
-          to: "/appointment-types",
-          icon: Layers01Icon,
-          label: "Appointment Types",
-        },
-        { to: "/resources", icon: Package01Icon, label: "Resources" },
-        { to: "/locations", icon: Location01Icon, label: "Locations" },
-      ],
-    },
-    {
-      label: "SYSTEM",
-      items: [{ to: "/settings", icon: Settings01Icon, label: "Settings" }],
-    },
+    { to: "/resources", icon: Package01Icon, label: "Resources" },
+    { to: "/locations", icon: Location01Icon, label: "Locations" },
+  ];
+
+  const bottomNavItems = [
+    { to: "/settings", icon: Settings01Icon, label: "Settings" },
   ];
 
   return (
-    <div className="flex min-h-[100dvh] overflow-x-hidden">
+    <div className="flex h-[100dvh] overflow-hidden">
       <a
         href="#main-content"
         className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-[60] focus:rounded-md focus:bg-background focus:px-3 focus:py-2 focus:text-sm focus:font-medium focus:ring-2 focus:ring-ring"
@@ -115,93 +109,187 @@ function RootLayout() {
       </a>
 
       {/* Desktop Sidebar */}
-      <aside className="hidden border-r border-border/50 bg-sidebar lg:block lg:w-20 xl:w-64">
-        <div className="flex h-full flex-col">
-          {/* Logo */}
-          <div className="flex h-16 items-center border-b border-border/50 px-3 xl:px-6">
-            <Link
-              to="/"
-              preload="intent"
-              className="mx-auto text-lg font-semibold tracking-tight xl:mx-0"
-            >
-              <span className="xl:hidden">S</span>
-              <span className="hidden xl:inline">Scheduling</span>
-            </Link>
-          </div>
+      <aside
+        className={cn(
+          "hidden flex-col bg-sidebar text-sidebar-foreground lg:flex transition-all duration-200 ease-out",
+          sidebarCollapsed ? "w-[68px]" : "w-60",
+        )}
+      >
+        {/* Logo area */}
+        <div className={cn(
+          "flex h-14 items-center border-b border-sidebar-border shrink-0",
+          sidebarCollapsed ? "justify-center px-2" : "px-5",
+        )}>
+          <Link
+            to="/"
+            preload="intent"
+            className="flex items-center gap-2.5"
+          >
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground text-sm font-bold">
+              S
+            </div>
+            {!sidebarCollapsed && (
+              <span className="text-sm font-semibold tracking-tight text-sidebar-primary">
+                Scheduling
+              </span>
+            )}
+          </Link>
+        </div>
 
-          {/* Navigation */}
-          <nav className="flex-1 space-y-6 p-3 xl:p-5">
-            {navGroups.map((group) => (
-              <NavGroup key={group.label} label={group.label} compact>
-                {group.items.map((item) => (
-                  <NavLink key={item.to} to={item.to} icon={item.icon} compact>
-                    {item.label}
-                  </NavLink>
-                ))}
-              </NavGroup>
+        {/* Navigation */}
+        <nav className={cn("flex-1 overflow-y-auto py-3", sidebarCollapsed ? "px-2" : "px-3")}>
+          <div className="flex flex-col gap-0.5">
+            {navItems.map((item) => (
+              <SidebarLink
+                key={item.to}
+                to={item.to}
+                icon={item.icon}
+                collapsed={sidebarCollapsed}
+              >
+                {item.label}
+              </SidebarLink>
             ))}
-          </nav>
+          </div>
+        </nav>
 
-          {/* User section */}
-          <div className="border-t border-border/50 p-3 xl:p-5">
-            <div className="flex items-center justify-center gap-3 xl:justify-start">
-              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary text-sm font-medium text-primary-foreground">
-                {user?.name?.[0] ?? user?.email[0]?.toUpperCase() ?? "U"}
-              </div>
-              <div className="hidden flex-1 overflow-hidden xl:block">
-                <div className="truncate text-sm font-medium">
+        {/* Bottom section */}
+        <div className={cn("border-t border-sidebar-border py-3", sidebarCollapsed ? "px-2" : "px-3")}>
+          {bottomNavItems.map((item) => (
+            <SidebarLink
+              key={item.to}
+              to={item.to}
+              icon={item.icon}
+              collapsed={sidebarCollapsed}
+            >
+              {item.label}
+            </SidebarLink>
+          ))}
+
+          {/* Collapse toggle */}
+          <button
+            type="button"
+            onClick={() => setSidebarCollapsed((prev) => !prev)}
+            className={cn(
+              "mt-2 flex w-full items-center gap-3 rounded-lg px-3 py-2 text-xs font-medium text-sidebar-foreground/50",
+              "transition-colors duration-150 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+              sidebarCollapsed && "justify-center",
+            )}
+            title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+            aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+          >
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 16 16"
+              fill="none"
+              className={cn(
+                "shrink-0 transition-transform duration-200",
+                sidebarCollapsed && "rotate-180",
+              )}
+            >
+              <path
+                d="M10 12L6 8L10 4"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+            {!sidebarCollapsed && <span>Collapse</span>}
+          </button>
+
+          {/* User avatar */}
+          <div className={cn(
+            "mt-3 flex items-center gap-3 rounded-lg px-3 py-2",
+            sidebarCollapsed && "justify-center px-0",
+          )}>
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-sidebar-accent text-xs font-semibold text-sidebar-accent-foreground">
+              {user?.name?.[0] ?? user?.email[0]?.toUpperCase() ?? "U"}
+            </div>
+            {!sidebarCollapsed && (
+              <div className="flex-1 min-w-0">
+                <div className="truncate text-xs font-medium text-sidebar-primary">
                   {user?.name ?? user?.email}
                 </div>
-                <div className="truncate text-xs text-muted-foreground">
+                <div className="truncate text-[11px] text-sidebar-foreground/50">
                   {user?.email}
                 </div>
               </div>
+            )}
+            {!sidebarCollapsed && (
               <Button
                 variant="ghost"
-                size="icon-sm"
+                size="icon-xs"
                 onClick={() => void authClient.signOut()}
                 title="Sign out"
                 aria-label="Sign out"
+                className="text-sidebar-foreground/50 hover:text-sidebar-accent-foreground hover:bg-sidebar-accent shrink-0"
               >
                 <Icon icon={Logout01Icon} />
               </Button>
-            </div>
+            )}
           </div>
         </div>
       </aside>
 
-      {/* Mobile Header + Main Content */}
-      <div className="flex min-w-0 flex-1 flex-col">
-        {/* Mobile Header */}
-        <header className="flex h-16 items-center justify-between border-b border-border/50 bg-sidebar px-5 lg:hidden">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => setMobileMenuOpen(true)}
-            aria-label="Open navigation menu"
+      {/* Main content area */}
+      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+        {/* Top header bar */}
+        <header className="flex h-14 items-center justify-between border-b border-border bg-card px-4 shrink-0 lg:px-6">
+          {/* Mobile menu button */}
+          <div className="flex items-center gap-3">
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              onClick={() => setMobileMenuOpen(true)}
+              aria-label="Open navigation menu"
+              className="lg:hidden"
+            >
+              <Icon icon={Menu01Icon} className="size-5" />
+            </Button>
+            <Link
+              to="/"
+              preload="intent"
+              className="text-base font-semibold tracking-tight lg:hidden"
+            >
+              Scheduling
+            </Link>
+          </div>
+
+          {/* Search trigger */}
+          <button
+            type="button"
+            onClick={() => {
+              document.dispatchEvent(
+                new KeyboardEvent("keydown", { key: "k", metaKey: true }),
+              );
+            }}
+            className="hidden items-center gap-2 rounded-lg border border-border bg-muted/50 px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-muted md:flex"
           >
-            <Icon icon={Menu01Icon} className="size-5" />
-          </Button>
-          <Link
-            to="/"
-            preload="intent"
-            className="text-lg font-semibold tracking-tight"
-          >
-            Scheduling
-          </Link>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => void authClient.signOut()}
-            title="Sign out"
-            aria-label="Sign out"
-          >
-            <Icon icon={Logout01Icon} />
-          </Button>
+            <Icon icon={Search01Icon} className="size-3.5" />
+            <span>Search...</span>
+            <kbd className="ml-4 rounded border border-border bg-background px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+              {'K'}
+            </kbd>
+          </button>
+
+          {/* Right side */}
+          <div className="flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              onClick={() => void authClient.signOut()}
+              title="Sign out"
+              aria-label="Sign out"
+              className="lg:hidden"
+            >
+              <Icon icon={Logout01Icon} />
+            </Button>
+          </div>
         </header>
 
-        {/* Main content */}
-        <main id="main-content" className="flex-1 min-w-0">
+        {/* Page content */}
+        <main id="main-content" className="flex-1 min-w-0 overflow-y-auto">
           <Outlet />
         </main>
       </div>
@@ -210,41 +298,53 @@ function RootLayout() {
       <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
         <SheetContent
           side="left"
-          className="w-64 p-0 touch-manipulation overscroll-contain"
+          className="w-72 p-0 touch-manipulation overscroll-contain bg-sidebar text-sidebar-foreground"
         >
-          <SheetHeader className="border-b border-border/50 px-6 py-5">
+          <SheetHeader className="border-b border-sidebar-border px-5 py-4">
             <div className="flex items-center justify-between">
-              <SheetTitle>Scheduling</SheetTitle>
+              <div className="flex items-center gap-2.5">
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground text-sm font-bold">
+                  S
+                </div>
+                <SheetTitle className="text-sidebar-primary text-sm font-semibold">Scheduling</SheetTitle>
+              </div>
               <SheetClose asChild>
-                <Button variant="ghost" size="icon-sm" aria-label="Close menu">
+                <Button variant="ghost" size="icon-sm" aria-label="Close menu" className="text-sidebar-foreground/50 hover:text-sidebar-accent-foreground hover:bg-sidebar-accent">
                   <Icon icon={Cancel01Icon} />
                 </Button>
               </SheetClose>
             </div>
           </SheetHeader>
-          <nav className="flex-1 space-y-6 p-5">
-            {navGroups.map((group) => (
-              <NavGroup key={group.label} label={group.label}>
-                {group.items.map((item) => (
-                  <SheetClose key={item.to} asChild>
-                    <NavLink to={item.to} icon={item.icon}>
-                      {item.label}
-                    </NavLink>
-                  </SheetClose>
-                ))}
-              </NavGroup>
-            ))}
+          <nav className="flex-1 px-3 py-3">
+            <div className="flex flex-col gap-0.5">
+              {navItems.map((item) => (
+                <SheetClose key={item.to} asChild>
+                  <SidebarLink to={item.to} icon={item.icon}>
+                    {item.label}
+                  </SidebarLink>
+                </SheetClose>
+              ))}
+            </div>
+            <div className="mt-4 border-t border-sidebar-border pt-4">
+              {bottomNavItems.map((item) => (
+                <SheetClose key={item.to} asChild>
+                  <SidebarLink to={item.to} icon={item.icon}>
+                    {item.label}
+                  </SidebarLink>
+                </SheetClose>
+              ))}
+            </div>
           </nav>
-          <div className="border-t border-border/50 p-5">
+          <div className="border-t border-sidebar-border p-4">
             <div className="flex items-center gap-3">
-              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary text-sm font-medium text-primary-foreground">
+              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-sidebar-accent text-xs font-semibold text-sidebar-accent-foreground">
                 {user?.name?.[0] ?? user?.email[0]?.toUpperCase() ?? "U"}
               </div>
               <div className="flex-1 overflow-hidden">
-                <div className="truncate text-sm font-medium">
+                <div className="truncate text-xs font-medium text-sidebar-primary">
                   {user?.name ?? user?.email}
                 </div>
-                <div className="truncate text-xs text-muted-foreground">
+                <div className="truncate text-[11px] text-sidebar-foreground/50">
                   {user?.email}
                 </div>
               </div>
@@ -267,55 +367,32 @@ function RootLayout() {
   );
 }
 
-function NavGroup({
-  label,
-  compact = false,
-  children,
-}: {
-  label: string;
-  compact?: boolean;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="space-y-1">
-      <div
-        className={cn(
-          "px-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60",
-          compact && "lg:hidden xl:block",
-        )}
-      >
-        {label}
-      </div>
-      {children}
-    </div>
-  );
-}
-
-function NavLink({
+function SidebarLink({
   to,
   icon,
-  compact = false,
+  collapsed = false,
   children,
 }: {
   to: string;
   icon: React.ComponentProps<typeof Icon>["icon"];
-  compact?: boolean;
+  collapsed?: boolean;
   children: React.ReactNode;
 }) {
   return (
     <Link
       to={to}
       preload="intent"
+      activeOptions={{ exact: to === "/" }}
       className={cn(
-        "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-muted-foreground",
-        "transition-colors duration-150 hover:bg-accent hover:text-accent-foreground",
-        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70",
-        "[&.active]:bg-accent [&.active]:text-accent-foreground",
-        compact && "justify-center xl:justify-start",
+        "flex items-center gap-3 rounded-lg px-3 py-2 text-[13px] font-medium text-sidebar-foreground/70",
+        "transition-colors duration-150 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring",
+        "[&.active]:bg-sidebar-accent [&.active]:text-sidebar-accent-foreground",
+        collapsed && "justify-center px-2",
       )}
     >
-      <Icon icon={icon} />
-      <span className={cn(compact && "hidden xl:inline")}>{children}</span>
+      <Icon icon={icon} className="size-4 shrink-0" />
+      {!collapsed && <span>{children}</span>}
     </Link>
   );
 }

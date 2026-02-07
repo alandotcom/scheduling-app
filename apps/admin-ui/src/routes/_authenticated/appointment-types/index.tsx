@@ -418,7 +418,7 @@ function AppointmentTypesPage() {
   );
 
   return (
-    <div className="p-6">
+    <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
       <div className="flex items-center justify-between gap-4">
         <div className="min-w-0 flex-1">
           <h1 className="truncate text-2xl font-semibold tracking-tight">
@@ -441,7 +441,7 @@ function AppointmentTypesPage() {
         <ListPanel id={FOCUS_ZONES.LIST} className="flex flex-col gap-6">
           {/* Create Form */}
           {isCreating && (
-            <div className="rounded-xl border border-border/50 bg-card p-6 shadow-sm">
+            <div className="rounded-xl border border-border bg-card p-6 shadow-sm">
               <h2 className="mb-5 text-lg font-semibold tracking-tight">
                 New Appointment Type
               </h2>
@@ -455,7 +455,7 @@ function AppointmentTypesPage() {
 
           {/* Edit Form */}
           {editingItem && (
-            <div className="rounded-xl border border-border/50 bg-card p-6 shadow-sm">
+            <div className="rounded-xl border border-border bg-card p-6 shadow-sm">
               <h2 className="mb-5 text-lg font-semibold tracking-tight">
                 Edit Appointment Type
               </h2>
@@ -489,12 +489,12 @@ function AppointmentTypesPage() {
                 Error loading appointment types
               </div>
             ) : !data?.items.length ? (
-              <div className="rounded-xl border border-border/50 bg-card p-10 text-center text-muted-foreground shadow-sm">
+              <div className="rounded-xl border border-border bg-card p-10 text-center text-muted-foreground shadow-sm">
                 No appointment types yet. Create your first appointment type to
                 get started.
               </div>
             ) : (
-              <div className="overflow-hidden rounded-xl border border-border/50 shadow-sm">
+              <div className="overflow-hidden rounded-xl border border-border shadow-sm">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -586,7 +586,7 @@ function AppointmentTypesPage() {
         >
           {selectedType ? (
             <div className="flex h-full flex-col">
-              <div className="flex flex-wrap items-start justify-between gap-4 border-b border-border/50 px-6 py-5">
+              <div className="flex flex-wrap items-start justify-between gap-4 border-b border-border px-6 py-5">
                 <div>
                   <h2 className="text-lg font-semibold tracking-tight">
                     {selectedType.name}
