@@ -38,6 +38,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { RescheduleDialog } from "./reschedule-dialog";
 import { AppointmentHistory } from "./appointment-history";
+import { useResetFormOnOpen } from "@/hooks/use-reset-form-on-open";
 
 type DetailTabValue = "details" | "client" | "history";
 
@@ -103,6 +104,22 @@ export function AppointmentDetail({
   const notesForm = useForm<NotesFormData>({
     resolver: zodResolver(notesSchema),
     defaultValues: { notes: appointment?.notes ?? "" },
+  });
+
+  useResetFormOnOpen({
+    open: !!appointment && !isLoading,
+    entityKey: appointment?.id,
+    values: appointment
+      ? {
+          notes: appointment.notes ?? "",
+        }
+      : null,
+    reset: (values) => {
+      notesForm.reset(values);
+    },
+    onReset: () => {
+      setEditingNotes(false);
+    },
   });
 
   // Update notes mutation

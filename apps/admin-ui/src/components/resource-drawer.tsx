@@ -1,6 +1,6 @@
 // Resource detail drawer
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -28,6 +28,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { DeleteConfirmDialog } from "@/components/delete-confirm-dialog";
+import { useResetFormOnOpen } from "@/hooks/use-reset-form-on-open";
 
 interface ResourceDrawerProps {
   resource: {
@@ -96,16 +97,20 @@ export function ResourceDrawer({
     },
   });
 
-  // Reset form when resource changes
-  useEffect(() => {
-    if (resource) {
-      form.reset({
-        name: resource.name,
-        quantity: resource.quantity,
-        locationId: resource.locationId ?? undefined,
-      });
-    }
-  }, [resource, form]);
+  useResetFormOnOpen({
+    open,
+    entityKey: resource?.id,
+    values: resource
+      ? {
+          name: resource.name,
+          quantity: resource.quantity,
+          locationId: resource.locationId ?? undefined,
+        }
+      : null,
+    reset: (values) => {
+      form.reset(values);
+    },
+  });
 
   if (!resource) return null;
 

@@ -1,6 +1,6 @@
 // Location detail drawer with relationships
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -35,6 +35,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { DeleteConfirmDialog } from "@/components/delete-confirm-dialog";
+import { useResetFormOnOpen } from "@/hooks/use-reset-form-on-open";
 
 interface LocationDrawerProps {
   location: {
@@ -118,15 +119,19 @@ export function LocationDrawer({
     },
   });
 
-  // Reset form when location changes
-  useEffect(() => {
-    if (location) {
-      form.reset({
-        name: location.name,
-        timezone: location.timezone,
-      });
-    }
-  }, [location, form]);
+  useResetFormOnOpen({
+    open,
+    entityKey: location?.id,
+    values: location
+      ? {
+          name: location.name,
+          timezone: location.timezone,
+        }
+      : null,
+    reset: (values) => {
+      form.reset(values);
+    },
+  });
 
   if (!location) return null;
 

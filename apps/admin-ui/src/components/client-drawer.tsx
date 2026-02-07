@@ -1,6 +1,6 @@
 // Client detail drawer with appointment history
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -32,6 +32,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { DeleteConfirmDialog } from "@/components/delete-confirm-dialog";
+import { useResetFormOnOpen } from "@/hooks/use-reset-form-on-open";
 
 interface ClientDrawerProps {
   client: {
@@ -120,17 +121,21 @@ export function ClientDrawer({
     },
   });
 
-  // Reset form when client changes
-  useEffect(() => {
-    if (client) {
-      form.reset({
-        firstName: client.firstName,
-        lastName: client.lastName,
-        email: client.email ?? undefined,
-        phone: client.phone ?? undefined,
-      });
-    }
-  }, [client, form]);
+  useResetFormOnOpen({
+    open,
+    entityKey: client?.id,
+    values: client
+      ? {
+          firstName: client.firstName,
+          lastName: client.lastName,
+          email: client.email ?? undefined,
+          phone: client.phone ?? undefined,
+        }
+      : null,
+    reset: (values) => {
+      form.reset(values);
+    },
+  });
 
   if (!client) return null;
 
