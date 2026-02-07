@@ -108,8 +108,8 @@ function SplitPaneDemoPage() {
 
       <SplitPaneLayout className="mt-6 min-h-[600px]">
         <ListPanel className="flex flex-col gap-4">
-          <div className="rounded-xl border border-border/50 bg-card shadow-sm">
-            <div className="flex items-center gap-3 border-b border-border/50 p-4">
+          <div className="rounded-xl border border-border bg-card shadow-sm">
+            <div className="flex items-center gap-3 border-b border-border p-4">
               <Input
                 placeholder="Search calendars"
                 value={query}
@@ -176,7 +176,7 @@ function SplitPaneDemoPage() {
           bodyClassName="p-0"
         >
           <div className="flex h-full flex-col">
-            <div className="flex flex-wrap items-start justify-between gap-4 border-b border-border/50 px-6 py-5">
+            <div className="flex flex-wrap items-start justify-between gap-4 border-b border-border px-6 py-5">
               <div>
                 <div className="flex items-center gap-2">
                   <h2 className="text-lg font-semibold tracking-tight">
@@ -237,7 +237,7 @@ function SplitPaneDemoPage() {
                     </div>
                   </div>
                   <Separator />
-                  <div className="rounded-lg border border-border/50 bg-muted/30 p-4">
+                  <div className="rounded-lg border border-border bg-muted/30 p-4">
                     <div className="text-sm font-medium">Highlights</div>
                     <p className="mt-1 text-sm text-muted-foreground">
                       Low-latency selection and inline actions keep work in
@@ -270,7 +270,7 @@ function SplitPaneDemoPage() {
                   </div>
                   <Separator />
                   <div className="text-sm font-medium">Overrides</div>
-                  <div className="rounded-lg border border-border/50 bg-muted/30 p-4 text-sm text-muted-foreground">
+                  <div className="rounded-lg border border-border bg-muted/30 p-4 text-sm text-muted-foreground">
                     No overrides scheduled in the next 30 days.
                   </div>
                 </div>

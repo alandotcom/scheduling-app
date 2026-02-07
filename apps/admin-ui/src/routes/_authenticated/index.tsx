@@ -85,8 +85,8 @@ export function Dashboard() {
   const hasAlerts = pendingAppointments > 0 || noShows > 0;
 
   return (
-    <div className="p-6">
-      <div className="flex items-center justify-between">
+    <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+      <div className="flex items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
           <p className="mt-1 text-sm text-muted-foreground">
@@ -100,7 +100,8 @@ export function Dashboard() {
         </div>
         <Button onClick={() => setAppointmentModalOpen(true)}>
           <Icon icon={Add01Icon} data-icon="inline-start" />
-          New Appointment
+          <span className="hidden sm:inline">New Appointment</span>
+          <span className="sm:hidden">New</span>
         </Button>
       </div>
 
@@ -137,7 +138,7 @@ export function Dashboard() {
         <div>
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-semibold tracking-tight">
-              Today's Schedule
+              {"Today's Schedule"}
             </h2>
             <Button variant="ghost" size="sm" asChild>
               <Link to="/appointments" search={{}}>
@@ -147,16 +148,17 @@ export function Dashboard() {
             </Button>
           </div>
           {todayItems.length === 0 ? (
-            <div className="rounded-xl border border-border/50 bg-card p-8 text-center shadow-sm">
+            <div className="rounded-xl border border-border bg-card p-8 text-center">
               <Icon
                 icon={Calendar03Icon}
-                className="mx-auto size-10 text-muted-foreground/50"
+                className="mx-auto size-10 text-muted-foreground/40"
               />
-              <p className="mt-3 text-muted-foreground">
+              <p className="mt-3 text-sm text-muted-foreground">
                 No appointments scheduled for today
               </p>
               <Button
                 variant="outline"
+                size="sm"
                 className="mt-4"
                 onClick={() => setAppointmentModalOpen(true)}
               >
@@ -165,7 +167,7 @@ export function Dashboard() {
               </Button>
             </div>
           ) : (
-            <div className="rounded-xl border border-border/50 overflow-hidden shadow-sm divide-y divide-border/50">
+            <div className="rounded-xl border border-border bg-card overflow-hidden divide-y divide-border">
               {todayItems.map((apt) => (
                 <Link
                   key={apt.id}
@@ -174,16 +176,16 @@ export function Dashboard() {
                   className="flex items-center justify-between px-4 py-3 hover:bg-muted/50 transition-colors"
                 >
                   <div className="flex items-center gap-3">
-                    <div className="text-sm font-medium w-20">
+                    <div className="text-sm font-medium tabular-nums w-20 text-muted-foreground">
                       {formatTimeDisplay(apt.startAt)}
                     </div>
                     <div>
-                      <div className="font-medium">
+                      <div className="text-sm font-medium">
                         {apt.client
                           ? `${apt.client.firstName} ${apt.client.lastName}`
                           : "No client"}
                       </div>
-                      <div className="text-sm text-muted-foreground">
+                      <div className="text-xs text-muted-foreground">
                         {apt.appointmentType?.name}
                         {apt.calendar && ` - ${apt.calendar.name}`}
                       </div>
@@ -212,17 +214,17 @@ export function Dashboard() {
             Needs Attention
           </h2>
           {!hasAlerts ? (
-            <div className="rounded-xl border border-border/50 bg-card p-8 text-center shadow-sm">
+            <div className="rounded-xl border border-border bg-card p-8 text-center">
               <Icon
                 icon={CheckmarkCircle01Icon}
-                className="mx-auto size-10 text-green-500/50"
+                className="mx-auto size-10 text-muted-foreground/30"
               />
-              <p className="mt-3 text-muted-foreground">
+              <p className="mt-3 text-sm text-muted-foreground">
                 Everything looks good! No items need attention.
               </p>
             </div>
           ) : (
-            <div className="space-y-3">
+            <div className="flex flex-col gap-3">
               {pendingAppointments > 0 && (
                 <AlertCard
                   icon={Clock01Icon}
@@ -264,11 +266,15 @@ function DashboardCard({ title, value, subtitle, href }: DashboardCardProps) {
   return (
     <Link
       to={href}
-      className="rounded-xl border border-border/50 bg-card p-5 shadow-sm transition-all hover:shadow-md hover:border-border"
+      className="rounded-xl border border-border bg-card p-5 transition-all hover:border-foreground/15 hover:shadow-sm"
     >
-      <div className="text-sm font-medium text-muted-foreground">{title}</div>
+      <div className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+        {title}
+      </div>
       <div className="mt-2 flex items-baseline gap-2">
-        <span className="text-3xl font-semibold tracking-tight">{value}</span>
+        <span className="text-3xl font-semibold tracking-tight tabular-nums">
+          {value}
+        </span>
         <span className="text-sm text-muted-foreground">{subtitle}</span>
       </div>
     </Link>

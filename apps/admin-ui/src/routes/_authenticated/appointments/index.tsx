@@ -502,7 +502,7 @@ function AppointmentsPage() {
   );
 
   return (
-    <div className="p-6">
+    <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
       <div className="flex items-center justify-between gap-4">
         <div className="min-w-0 flex-1">
           <h1 className="truncate text-2xl font-semibold tracking-tight">
@@ -617,7 +617,7 @@ function AppointmentsPage() {
               isLoading={listLoading}
             />
           ) : (
-            <div className="rounded-xl border border-border/50 overflow-hidden shadow-sm flex-1">
+            <div className="rounded-xl border border-border overflow-hidden shadow-sm flex-1">
               <ScheduleGrid
                 appointments={scheduleAppointments}
                 weekStart={weekStart}

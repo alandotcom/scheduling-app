@@ -11,7 +11,7 @@ interface ViewToggleProps {
 
 export function ViewToggle({ view, onViewChange }: ViewToggleProps) {
   return (
-    <div className="inline-flex items-center rounded-lg border border-border/50 bg-muted/30 p-0.5">
+    <div className="inline-flex items-center rounded-lg border border-border bg-muted/30 p-0.5">
       <button
         type="button"
         onClick={() => onViewChange("list")}

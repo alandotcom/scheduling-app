@@ -280,7 +280,7 @@ function WeeklyScheduleEditorBody({
           return (
             <div
               key={day.value}
-              className="rounded-lg border border-border/50 bg-card overflow-hidden"
+              className="rounded-lg border border-border bg-card overflow-hidden"
             >
               {/* Day Header */}
               <div className="flex items-center justify-between px-3 py-2 bg-muted/30">

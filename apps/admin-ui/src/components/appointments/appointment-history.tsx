@@ -39,7 +39,7 @@ export function AppointmentHistory({ appointmentId }: AppointmentHistoryProps) {
 
   if (events.length === 0) {
     return (
-      <div className="rounded-lg border border-border/50 p-6 text-center text-sm text-muted-foreground">
+      <div className="rounded-lg border border-border p-6 text-center text-sm text-muted-foreground">
         No history available
       </div>
     );

@@ -202,7 +202,7 @@ export function AppointmentDrawer({
             </div>
 
             {/* Date/Time Card */}
-            <div className="rounded-lg border border-border/50 bg-muted/30 p-4 mb-6">
+            <div className="rounded-lg border border-border bg-muted/30 p-4 mb-6">
               <div className="flex items-center gap-2 text-sm">
                 <Icon icon={Calendar03Icon} className="text-muted-foreground" />
                 <span className="font-medium">
@@ -227,7 +227,7 @@ export function AppointmentDrawer({
                 <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
                   Client
                 </Label>
-                <div className="mt-2 rounded-lg border border-border/50 p-4">
+                <div className="mt-2 rounded-lg border border-border p-4">
                   <div className="flex items-center gap-2">
                     <Icon
                       icon={UserCircle02Icon}
@@ -304,7 +304,7 @@ export function AppointmentDrawer({
                   </div>
                 </form>
               ) : (
-                <div className="mt-2 rounded-lg border border-border/50 p-3 text-sm">
+                <div className="mt-2 rounded-lg border border-border p-3 text-sm">
                   {appointment.notes || (
                     <span className="text-muted-foreground italic">
                       No notes

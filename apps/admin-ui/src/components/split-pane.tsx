@@ -8,5 +8,5 @@ export {
   DetailTabs,
   DetailTab,
   useDetailMode,
-  type DetailMode,
 } from "@/components/workbench";
+export type { DetailMode } from "@/components/workbench";

@@ -69,7 +69,7 @@ afterEach(() => {
 });
 
 describe("split-pane components", () => {
-  test("renders list and detail panels on desktop", () => {
+  test("renders list panel and detail sheet on desktop", () => {
     setMatchMedia({ docked: true, overlay: true });
 
     render(
@@ -84,12 +84,12 @@ describe("split-pane components", () => {
     expect(document.querySelector("section")?.textContent).toContain(
       "List content",
     );
-    expect(document.querySelector("aside")?.textContent).toContain(
-      "Detail content",
-    );
+    const sheet = document.querySelector('[data-slot="sheet-content"]');
+    expect(sheet).not.toBeNull();
+    expect(sheet?.textContent).toContain("Detail content");
   });
 
-  test("shows the default empty state when closed", () => {
+  test("does not render sheet content when closed", () => {
     setMatchMedia({ docked: true, overlay: true });
 
     render(
@@ -98,9 +98,8 @@ describe("split-pane components", () => {
       </DetailPanel>,
     );
 
-    expect(document.querySelector("aside")?.textContent).toContain(
-      "Select an item",
-    );
+    const sheet = document.querySelector('[data-slot="sheet-content"]');
+    expect(sheet).toBeNull();
   });
 
   test("renders sheet content on mobile", () => {
@@ -134,10 +133,10 @@ describe("split-pane components", () => {
     );
 
     const sheet = document.querySelector('[data-slot="sheet-content"]');
-    expect(sheet?.className).toContain("w-[min(92vw,640px)]");
+    expect(sheet?.className).toContain("w-[min(92vw,560px)]");
   });
 
-  test("loads persisted docked panel width", () => {
+  test("uses overlay sizing even when persisted width exists", () => {
     setMatchMedia({ docked: true, overlay: true });
     window.localStorage.setItem("workbench:appointments:detail-width", "520");
 
@@ -147,8 +146,8 @@ describe("split-pane components", () => {
       </DetailPanel>,
     );
 
-    const aside = document.querySelector("aside") as HTMLElement | null;
-    expect(aside?.style.width).toBe("520px");
+    const sheet = document.querySelector('[data-slot="sheet-content"]');
+    expect(sheet?.className).toContain("w-[min(92vw,560px)]");
   });
 
   test("marks the active tab", () => {

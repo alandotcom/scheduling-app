@@ -471,7 +471,7 @@ function CalendarsPage() {
   );
 
   return (
-    <div className="p-6">
+    <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
       <div className="flex items-center justify-between gap-4">
         <div className="min-w-0 flex-1">
           <h1 className="truncate text-2xl font-semibold tracking-tight">
@@ -494,7 +494,7 @@ function CalendarsPage() {
         <ListPanel id={FOCUS_ZONES.LIST} className="flex flex-col gap-6">
           {/* Create Form */}
           {crud.showCreateForm && (
-            <div className="rounded-xl border border-border/50 bg-card p-6 shadow-sm">
+            <div className="rounded-xl border border-border bg-card p-6 shadow-sm">
               <h2 className="mb-5 text-lg font-semibold tracking-tight">
                 New Calendar
               </h2>
@@ -509,7 +509,7 @@ function CalendarsPage() {
 
           {/* Edit Form */}
           {crud.editingItem && (
-            <div className="rounded-xl border border-border/50 bg-card p-6 shadow-sm">
+            <div className="rounded-xl border border-border bg-card p-6 shadow-sm">
               <h2 className="mb-5 text-lg font-semibold tracking-tight">
                 Edit Calendar
               </h2>
@@ -542,11 +542,11 @@ function CalendarsPage() {
                 Error loading calendars
               </div>
             ) : !data?.items.length ? (
-              <div className="rounded-xl border border-border/50 bg-card p-10 text-center text-muted-foreground shadow-sm">
+              <div className="rounded-xl border border-border bg-card p-10 text-center text-muted-foreground shadow-sm">
                 No calendars yet. Create your first calendar to get started.
               </div>
             ) : (
-              <div className="rounded-xl border border-border/50 overflow-hidden shadow-sm">
+              <div className="rounded-xl border border-border overflow-hidden shadow-sm">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -634,7 +634,7 @@ function CalendarsPage() {
             </div>
           ) : selectedCalendar ? (
             <div className="flex h-full flex-col">
-              <div className="flex flex-wrap items-start justify-between gap-4 border-b border-border/50 px-6 py-5">
+              <div className="flex flex-wrap items-start justify-between gap-4 border-b border-border px-6 py-5">
                 <div>
                   <h2 className="text-lg font-semibold tracking-tight">
                     {selectedCalendar.name}
@@ -747,7 +747,7 @@ function CalendarsPage() {
                       </Button>
                     </div>
 
-                    <div className="mt-6 border-t border-border/50 pt-4">
+                    <div className="mt-6 border-t border-border pt-4">
                       <Button
                         type="button"
                         variant="ghost"
@@ -811,11 +811,11 @@ function CalendarsPage() {
                     </div>
 
                     {appointments.length === 0 ? (
-                      <div className="rounded-lg border border-border/50 p-6 text-center text-sm text-muted-foreground">
+                      <div className="rounded-lg border border-border p-6 text-center text-sm text-muted-foreground">
                         No upcoming appointments
                       </div>
                     ) : (
-                      <div className="rounded-lg border border-border/50 divide-y divide-border/50">
+                      <div className="rounded-lg border border-border divide-y divide-border/50">
                         {appointments.map((apt) => (
                           <div key={apt.id} className="px-4 py-3">
                             <div className="flex items-center justify-between">

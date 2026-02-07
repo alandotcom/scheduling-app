@@ -221,7 +221,7 @@ function BlockedTimeEditorBody({
 
         {/* Add/Edit Form */}
         {showForm && editingBlock && (
-          <div className="rounded-lg border border-border/50 bg-card p-4 space-y-3">
+          <div className="rounded-lg border border-border bg-card p-4 space-y-3">
             <h4 className="text-sm font-medium">
               {editingBlock.id ? "Edit Block" : "Add Blocked Time"}
             </h4>
@@ -347,7 +347,7 @@ function BlockedTimeEditorBody({
         )}
 
         {/* Blocked Time List */}
-        <div className="rounded-lg border border-border/50 bg-card p-4">
+        <div className="rounded-lg border border-border bg-card p-4">
           {blockedTimes.length === 0 ? (
             <p className="text-sm text-muted-foreground text-center py-4">
               No blocked time configured.
@@ -363,7 +363,7 @@ function BlockedTimeEditorBody({
                 .map((block) => (
                   <div
                     key={block.id}
-                    className="flex items-center justify-between p-2 rounded-md border border-border/50 bg-muted/20 hover:bg-muted/40 transition-colors cursor-pointer text-sm"
+                    className="flex items-center justify-between p-2 rounded-md border border-border bg-muted/20 hover:bg-muted/40 transition-colors cursor-pointer text-sm"
                     onClick={() => handleEdit(block)}
                   >
                     <div>
@@ -560,7 +560,7 @@ function BlockedTimeEditorBody({
                 .map((block) => (
                   <div
                     key={block.id}
-                    className="flex items-center justify-between p-4 rounded-xl border border-border/50 bg-card hover:bg-muted/30 transition-colors cursor-pointer"
+                    className="flex items-center justify-between p-4 rounded-xl border border-border bg-card hover:bg-muted/30 transition-colors cursor-pointer"
                     onClick={() => handleEdit(block)}
                   >
                     <div>

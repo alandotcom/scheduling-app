@@ -119,14 +119,14 @@ export function AppointmentsList({
 
   if (appointments.length === 0) {
     return (
-      <div className="rounded-xl border border-border/50 bg-card p-10 text-center text-muted-foreground shadow-sm">
+      <div className="rounded-xl border border-border bg-card p-10 text-center text-muted-foreground shadow-sm">
         No appointments found. Create your first appointment or adjust filters.
       </div>
     );
   }
 
   return (
-    <div className="rounded-xl border border-border/50 overflow-hidden shadow-sm">
+    <div className="rounded-xl border border-border overflow-hidden shadow-sm">
       <Table>
         <TableHeader>
           <TableRow>

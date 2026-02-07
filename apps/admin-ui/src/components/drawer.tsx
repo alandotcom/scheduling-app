@@ -52,7 +52,7 @@ export function DrawerContent({
       />
       <DialogPrimitive.Popup
         className={cn(
-          "fixed inset-y-0 right-0 z-50 h-full border-l border-border/50 bg-background shadow-xl",
+          "fixed inset-y-0 right-0 z-50 h-full border-l border-border bg-background shadow-xl",
           "data-open:animate-in data-closed:animate-out",
           "data-closed:slide-out-to-right-10 data-open:slide-in-from-right-10",
           "data-closed:fade-out-0 data-open:fade-in-0",
@@ -82,7 +82,7 @@ export function DrawerHeader({
   return (
     <div
       className={cn(
-        "flex items-center justify-between border-b border-border/50 px-6 py-4",
+        "flex items-center justify-between border-b border-border px-6 py-4",
         className,
       )}
     >
@@ -152,7 +152,7 @@ export function DrawerFooter({ children, className }: DrawerFooterProps) {
   return (
     <div
       className={cn(
-        "flex items-center gap-3 border-t border-border/50 px-6 py-4",
+        "flex items-center gap-3 border-t border-border px-6 py-4",
         className,
       )}
     >
@@ -183,7 +183,7 @@ export function DrawerTabs({
   return (
     <TabsContext.Provider value={contextValue}>
       <div
-        className={cn("flex gap-1 border-b border-border/50 px-6", className)}
+        className={cn("flex gap-1 border-b border-border px-6", className)}
         role="tablist"
       >
         {children}

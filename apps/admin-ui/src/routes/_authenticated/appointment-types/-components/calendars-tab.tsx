@@ -124,7 +124,7 @@ export function CalendarsTab({
           available.
         </p>
       ) : (
-        <div className="rounded-lg border border-border/50 overflow-hidden">
+        <div className="rounded-lg border border-border overflow-hidden">
           <Table>
             <TableHeader>
               <TableRow>
