@@ -239,3 +239,21 @@ All core scheduling tables are implemented with Postgres 18 `uuidv7()` IDs. `gro
 - API tests cover core CRUD and availability routes
 - Availability engine unit tests are implemented
 - Webhook subscription/signing and remaining background job behaviors still need dedicated tests
+
+### Next Milestones
+1. **Implement webhook subscriptions end-to-end**
+   - Add `webhook_subscriptions` schema + migration (org-scoped, event filters, secret, status)
+   - Add CRUD endpoints for subscription management
+   - Update event worker to fan out outbox events to matching subscriptions
+2. **Add HMAC-signed webhook delivery**
+   - Sign raw payload with per-subscription secret
+   - Include signature + timestamp headers and verification docs for consumers
+   - Add retry/error classification for 4xx vs 5xx responses
+3. **Ship appointment type groups API**
+   - Define group entity/schema and org-scoped routes
+   - Wire `group_id` flows across availability rules, overrides, and scheduling limits
+   - Add API and service tests for group-aware slot calculations
+4. **Finish remaining background jobs**
+   - Implement audit-log compaction worker/job
+   - Implement availability cache refresh worker/job (or remove from scope if not needed)
+   - Add operational metrics and runbook notes for all workers
