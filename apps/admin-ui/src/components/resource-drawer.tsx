@@ -1,6 +1,6 @@
 // Resource detail drawer
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -21,6 +21,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { ShortcutBadge } from "@/components/ui/shortcut-badge";
 import {
   Select,
   SelectContent,
@@ -30,6 +31,7 @@ import {
 } from "@/components/ui/select";
 import { DeleteConfirmDialog } from "@/components/delete-confirm-dialog";
 import { useResetFormOnOpen } from "@/hooks/use-reset-form-on-open";
+import { useSubmitShortcut } from "@/hooks/use-submit-shortcut";
 
 interface ResourceDrawerProps {
   resource: {
@@ -50,6 +52,7 @@ export function ResourceDrawer({
 }: ResourceDrawerProps) {
   const queryClient = useQueryClient();
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const formRef = useRef<HTMLFormElement>(null);
 
   // Fetch locations for dropdown
   const { data: locationsData } = useQuery(
@@ -122,6 +125,11 @@ export function ResourceDrawer({
     });
   };
 
+  useSubmitShortcut({
+    enabled: open && !updateMutation.isPending,
+    onSubmit: () => formRef.current?.requestSubmit(),
+  });
+
   const locationId = form.watch("locationId");
   const locationSelectLabel = resolveSelectValueLabel({
     value: locationId ?? "none",
@@ -142,6 +150,7 @@ export function ResourceDrawer({
 
           <DrawerBody>
             <form
+              ref={formRef}
               onSubmit={form.handleSubmit(handleSave)}
               className="space-y-5"
             >
@@ -202,6 +211,10 @@ export function ResourceDrawer({
               <div className="flex gap-2 pt-4">
                 <Button type="submit" disabled={updateMutation.isPending}>
                   {updateMutation.isPending ? "Saving..." : "Save Changes"}
+                  <ShortcutBadge
+                    shortcut="meta+enter"
+                    className="ml-2 hidden sm:inline-flex"
+                  />
                 </Button>
               </div>
             </form>

@@ -16,6 +16,8 @@ import { Icon } from "@/components/ui/icon";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { ShortcutBadge } from "@/components/ui/shortcut-badge";
+import { useSubmitShortcut } from "@/hooks/use-submit-shortcut";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { MiniCalendar } from "./mini-calendar";
 import { formatDate, formatDisplayDate } from "./utils";
@@ -214,6 +216,12 @@ function DateOverridesEditorBody({
   };
 
   const isSaving = createMutation.isPending || updateMutation.isPending;
+  const canSave = !!editingOverride && !isSaving;
+
+  useSubmitShortcut({
+    enabled: canSave,
+    onSubmit: handleSave,
+  });
 
   if (isLoading) {
     return (
@@ -281,6 +289,10 @@ function DateOverridesEditorBody({
               <Button size="sm" onClick={handleSave} disabled={isSaving}>
                 <Icon icon={FloppyDiskIcon} className="mr-1.5" />
                 {isSaving ? "Saving..." : "Save"}
+                <ShortcutBadge
+                  shortcut="meta+enter"
+                  className="ml-2 hidden sm:inline-flex"
+                />
               </Button>
               <Button variant="ghost" size="sm" onClick={clearEditor}>
                 Cancel
@@ -420,6 +432,10 @@ function DateOverridesEditorBody({
                 <Button onClick={handleSave} disabled={isSaving}>
                   <Icon icon={FloppyDiskIcon} className="mr-2" />
                   {isSaving ? "Saving..." : "Save"}
+                  <ShortcutBadge
+                    shortcut="meta+enter"
+                    className="ml-2 hidden sm:inline-flex"
+                  />
                 </Button>
                 <Button variant="ghost" onClick={clearEditor}>
                   Cancel

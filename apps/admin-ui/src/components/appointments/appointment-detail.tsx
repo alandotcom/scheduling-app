@@ -1,6 +1,6 @@
 // Appointment detail panel component for split-pane layout
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -23,6 +23,7 @@ import { Icon } from "@/components/ui/icon";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { ShortcutBadge } from "@/components/ui/shortcut-badge";
 import { Textarea } from "@/components/ui/textarea";
 import { DetailTabs, DetailTab } from "@/components/split-pane";
 import {
@@ -38,6 +39,7 @@ import {
 import { RescheduleDialog } from "./reschedule-dialog";
 import { AppointmentHistory } from "./appointment-history";
 import { useResetFormOnOpen } from "@/hooks/use-reset-form-on-open";
+import { useSubmitShortcut } from "@/hooks/use-submit-shortcut";
 import {
   formatDateWithWeekday,
   formatTimeDisplay,
@@ -95,6 +97,7 @@ export function AppointmentDetail({
   const [showCancelDialog, setShowCancelDialog] = useState(false);
   const [showNoShowDialog, setShowNoShowDialog] = useState(false);
   const [showRescheduleDialog, setShowRescheduleDialog] = useState(false);
+  const notesFormRef = useRef<HTMLFormElement>(null);
 
   const notesForm = useForm<NotesFormData>({
     resolver: zodResolver(notesSchema),
@@ -155,6 +158,19 @@ export function AppointmentDetail({
     }),
   );
 
+  const isActionable =
+    appointment?.status === "scheduled" || appointment?.status === "confirmed";
+
+  useSubmitShortcut({
+    enabled:
+      !!appointment &&
+      !isLoading &&
+      isActionable &&
+      activeTab === "details" &&
+      !updateMutation.isPending,
+    onSubmit: () => notesFormRef.current?.requestSubmit(),
+  });
+
   if (isLoading || !appointment) {
     return (
       <div className="flex h-full items-center justify-center p-8 text-sm text-muted-foreground">
@@ -163,8 +179,6 @@ export function AppointmentDetail({
     );
   }
 
-  const isActionable =
-    appointment.status === "scheduled" || appointment.status === "confirmed";
   const displayTimezoneShort = formatTimezoneShort(
     displayTimezone,
     appointment.startAt,
@@ -282,6 +296,7 @@ export function AppointmentDetail({
                 </Label>
                 {isActionable ? (
                   <form
+                    ref={notesFormRef}
                     onSubmit={notesForm.handleSubmit(handleSaveNotes)}
                     className="mt-2 space-y-3"
                   >
@@ -297,6 +312,10 @@ export function AppointmentDetail({
                         disabled={updateMutation.isPending}
                       >
                         {updateMutation.isPending ? "Saving..." : "Save"}
+                        <ShortcutBadge
+                          shortcut="meta+enter"
+                          className="ml-2 hidden sm:inline-flex"
+                        />
                       </Button>
                     </div>
                   </form>

@@ -1,6 +1,6 @@
 // Appointment Types management page with modal-based CRUD
 
-import { useCallback, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import { useClosingSnapshot } from "@/hooks/use-closing-snapshot";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
@@ -27,6 +27,7 @@ import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { ShortcutBadge } from "@/components/ui/shortcut-badge";
 import {
   Table,
   TableBody,
@@ -36,7 +37,12 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useCrudState } from "@/hooks/use-crud-state";
+import {
+  useKeyboardShortcuts,
+  useListNavigation,
+} from "@/hooks/use-keyboard-shortcuts";
 import { useAppointmentTypeMutations } from "@/hooks/use-appointment-type-mutations";
+import { useSubmitShortcut } from "@/hooks/use-submit-shortcut";
 import { useUrlDrivenModal } from "@/hooks/use-url-driven-modal";
 import { formatDisplayDate } from "@/lib/date-utils";
 import { getQueryClient, orpc } from "@/lib/query";
@@ -63,6 +69,7 @@ function AppointmentTypeForm({
   onCancel,
   isSubmitting,
 }: AppointmentTypeFormProps) {
+  const formRef = useRef<HTMLFormElement>(null);
   const {
     register,
     handleSubmit,
@@ -76,8 +83,13 @@ function AppointmentTypeForm({
     },
   });
 
+  useSubmitShortcut({
+    enabled: !isSubmitting,
+    onSubmit: () => formRef.current?.requestSubmit(),
+  });
+
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
+    <form ref={formRef} onSubmit={handleSubmit(onSubmit)} className="space-y-5">
       <div className="space-y-2.5">
         <Label htmlFor="name">Name</Label>
         <Input
@@ -173,6 +185,10 @@ function AppointmentTypeForm({
         </Button>
         <Button type="submit" disabled={isSubmitting}>
           {isSubmitting ? "Saving..." : "Save"}
+          <ShortcutBadge
+            shortcut="meta+enter"
+            className="ml-2 hidden sm:inline-flex"
+          />
         </Button>
       </div>
     </form>
@@ -186,7 +202,7 @@ const isManageTab = (value: string): value is ManageTab =>
 
 function AppointmentTypesPage() {
   const navigate = useNavigate({ from: Route.fullPath });
-  const { selected, tab } = Route.useSearch();
+  const { selected, tab, create } = Route.useSearch();
   const manageTypeId = selected ?? null;
   const manageTab: ManageTab = tab && isManageTab(tab) ? tab : "details";
 
@@ -226,6 +242,18 @@ function AppointmentTypesPage() {
 
   const crud = useCrudState<AppointmentTypeItem>();
 
+  useEffect(() => {
+    if (create !== "1") return;
+    crud.openCreate();
+    navigate({
+      search: (prev) => ({
+        ...prev,
+        create: undefined,
+      }),
+      replace: true,
+    });
+  }, [create, crud, navigate]);
+
   const appointmentTypes = data?.items ?? [];
   const manageType = useMemo(
     () => appointmentTypes.find((item) => item.id === manageTypeId) ?? null,
@@ -237,6 +265,39 @@ function AppointmentTypesPage() {
       selectedId: manageTypeId,
       hasResolvedEntity: !!manageType,
     });
+
+  const selectedIndex = manageTypeId
+    ? appointmentTypes.findIndex((item) => item.id === manageTypeId)
+    : -1;
+
+  useListNavigation({
+    items: appointmentTypes,
+    selectedIndex,
+    onSelect: (index) => {
+      const item = appointmentTypes[index];
+      if (item) setManageTypeId(item.id);
+    },
+    onOpen: (item) => setManageTypeId(item.id),
+    enabled:
+      appointmentTypes.length > 0 && !crud.showCreateForm && !manageModalOpen,
+  });
+
+  useKeyboardShortcuts({
+    shortcuts: [
+      {
+        key: "c",
+        action: crud.openCreate,
+        description: "Create appointment type",
+      },
+      {
+        key: "escape",
+        action: () => setManageTypeId(null),
+        description: "Close details",
+        ignoreInputs: false,
+      },
+    ],
+    enabled: !crud.showCreateForm && !manageModalOpen,
+  });
 
   const {
     createMutation,
@@ -388,6 +449,7 @@ function AppointmentTypesPage() {
           <Icon icon={Add01Icon} data-icon="inline-start" />
           <span className="hidden sm:inline">Add Type</span>
           <span className="sm:hidden">Add</span>
+          <ShortcutBadge shortcut="c" className="ml-2 hidden md:inline-flex" />
         </Button>
       </div>
 
@@ -596,12 +658,13 @@ function AppointmentTypesPage() {
 export const Route = createFileRoute("/_authenticated/appointment-types/")({
   validateSearch: (
     search: Record<string, unknown>,
-  ): { selected?: string; tab?: ManageTab } => {
+  ): { create?: "1"; selected?: string; tab?: ManageTab } => {
+    const create = search.create === "1" ? "1" : undefined;
     const selected =
       typeof search.selected === "string" ? search.selected : undefined;
     const rawTab = typeof search.tab === "string" ? search.tab : "";
     const tab = isManageTab(rawTab) ? rawTab : undefined;
-    return { selected, tab };
+    return { create, selected, tab };
   },
   loader: async () => {
     const queryClient = getQueryClient();

@@ -1,6 +1,6 @@
 // Resources management page with modal-based CRUD and details
 
-import { useCallback } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { useClosingSnapshot } from "@/hooks/use-closing-snapshot";
 import type { ReactNode } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
@@ -21,6 +21,7 @@ import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { ShortcutBadge } from "@/components/ui/shortcut-badge";
 import {
   Select,
   SelectContent,
@@ -37,6 +38,11 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useCrudState } from "@/hooks/use-crud-state";
+import {
+  useKeyboardShortcuts,
+  useListNavigation,
+} from "@/hooks/use-keyboard-shortcuts";
+import { useSubmitShortcut } from "@/hooks/use-submit-shortcut";
 import { useUrlDrivenModal } from "@/hooks/use-url-driven-modal";
 import { useValidateSelection } from "@/hooks/use-selection-search-params";
 import { formatDisplayDate } from "@/lib/date-utils";
@@ -65,6 +71,7 @@ export function ResourceForm({
   isSubmitting,
   footerStart,
 }: ResourceFormProps) {
+  const formRef = useRef<HTMLFormElement>(null);
   const {
     register,
     handleSubmit,
@@ -87,8 +94,13 @@ export function ResourceForm({
     unknownLabel: "Unknown location",
   });
 
+  useSubmitShortcut({
+    enabled: !isSubmitting,
+    onSubmit: () => formRef.current?.requestSubmit(),
+  });
+
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
+    <form ref={formRef} onSubmit={handleSubmit(onSubmit)} className="space-y-5">
       <div className="space-y-2.5">
         <Label htmlFor="name">Name</Label>
         <Input
@@ -163,6 +175,10 @@ export function ResourceForm({
           </Button>
           <Button type="submit" disabled={isSubmitting}>
             {isSubmitting ? "Saving..." : "Save"}
+            <ShortcutBadge
+              shortcut="meta+enter"
+              className="ml-2 hidden sm:inline-flex"
+            />
           </Button>
         </div>
       </div>
@@ -173,7 +189,7 @@ export function ResourceForm({
 function ResourcesPage() {
   const queryClient = useQueryClient();
   const navigate = useNavigate({ from: Route.fullPath });
-  const { selected } = Route.useSearch();
+  const { selected, create } = Route.useSearch();
   const selectedId = selected ?? null;
 
   const { data, isLoading, error } = useQuery({
@@ -186,6 +202,18 @@ function ResourcesPage() {
   type ResourceItem = NonNullable<typeof data>["items"][number];
 
   const crud = useCrudState<ResourceItem>();
+
+  useEffect(() => {
+    if (create !== "1") return;
+    crud.openCreate();
+    navigate({
+      search: (prev) => ({
+        ...prev,
+        create: undefined,
+      }),
+      replace: true,
+    });
+  }, [create, crud, navigate]);
 
   const { data: locationsData } = useQuery({
     ...orpc.locations.list.queryOptions({
@@ -228,6 +256,38 @@ function ResourcesPage() {
   }, [closeDetailModalNow, navigate]);
 
   useValidateSelection(resources, selectedId, clearDetails);
+
+  const selectedIndex = selectedId
+    ? resources.findIndex((resource) => resource.id === selectedId)
+    : -1;
+
+  useListNavigation({
+    items: resources,
+    selectedIndex,
+    onSelect: (index) => {
+      const resource = resources[index];
+      if (resource) openDetails(resource.id);
+    },
+    onOpen: (resource) => openDetails(resource.id),
+    enabled: resources.length > 0 && !crud.showCreateForm && !detailModalOpen,
+  });
+
+  useKeyboardShortcuts({
+    shortcuts: [
+      {
+        key: "c",
+        action: crud.openCreate,
+        description: "Create resource",
+      },
+      {
+        key: "escape",
+        action: clearDetails,
+        description: "Close details",
+        ignoreInputs: false,
+      },
+    ],
+    enabled: !crud.showCreateForm && !detailModalOpen,
+  });
 
   const createMutation = useMutation(
     orpc.resources.create.mutationOptions({
@@ -308,6 +368,7 @@ function ResourcesPage() {
           <Icon icon={Add01Icon} data-icon="inline-start" />
           <span className="hidden sm:inline">Add Resource</span>
           <span className="sm:hidden">Add</span>
+          <ShortcutBadge shortcut="c" className="ml-2 hidden md:inline-flex" />
         </Button>
       </div>
 
@@ -458,10 +519,13 @@ function ResourcesPage() {
 }
 
 export const Route = createFileRoute("/_authenticated/resources")({
-  validateSearch: (search: Record<string, unknown>): { selected?: string } => {
+  validateSearch: (
+    search: Record<string, unknown>,
+  ): { create?: "1"; selected?: string } => {
+    const create = search.create === "1" ? "1" : undefined;
     const selected =
       typeof search.selected === "string" ? search.selected : undefined;
-    return { selected };
+    return { create, selected };
   },
   loader: async () => {
     const queryClient = getQueryClient();

@@ -1,6 +1,6 @@
 // Appointments page with list/schedule views and modal detail panel
 
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo, useEffect } from "react";
 import { DateTime } from "luxon";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -25,6 +25,7 @@ import {
   type SchedulingTimezoneMode,
 } from "@/lib/scheduling-timezone";
 import { Button } from "@/components/ui/button";
+import { ShortcutBadge } from "@/components/ui/shortcut-badge";
 import {
   Select,
   SelectContent,
@@ -102,6 +103,7 @@ function AppointmentsPage() {
     listScope: urlListScope,
     tzMode,
     tz,
+    create,
   } = Route.useSearch();
 
   const selectedId = selected ?? null;
@@ -119,6 +121,18 @@ function AppointmentsPage() {
   const [cancellingId, setCancellingId] = useState<string | null>(null);
   const [noShowId, setNoShowId] = useState<string | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
+
+  useEffect(() => {
+    if (create !== "1") return;
+    setModalOpen(true);
+    navigate({
+      search: (prev) => ({
+        ...prev,
+        create: undefined,
+      }),
+      replace: true,
+    });
+  }, [create, navigate]);
 
   // Filters from URL
   const filters = useMemo(
@@ -535,11 +549,7 @@ function AppointmentsPage() {
   // Keyboard shortcuts
   useKeyboardShortcuts({
     shortcuts: [
-      {
-        key: ["meta+n", "ctrl+n"],
-        action: () => setModalOpen(true),
-        description: "New appointment",
-      },
+      { key: "c", action: () => setModalOpen(true), description: "Create" },
       {
         key: "v",
         action: () => setView(currentView === "list" ? "schedule" : "list"),
@@ -697,6 +707,7 @@ function AppointmentsPage() {
         >
           <Icon icon={Add01Icon} data-icon="inline-start" />
           <span>New Appointment</span>
+          <ShortcutBadge shortcut="c" className="ml-2 hidden md:inline-flex" />
         </Button>
       </div>
 
@@ -909,6 +920,7 @@ function AppointmentsPage() {
 }
 
 interface AppointmentsSearchParams {
+  create?: "1";
   selected?: string;
   tab?: string;
   view?: "list" | "schedule";
@@ -927,6 +939,7 @@ export const Route = createFileRoute("/_authenticated/appointments/")({
     search: Record<string, unknown>,
   ): AppointmentsSearchParams => {
     return {
+      create: search.create === "1" ? "1" : undefined,
       selected:
         typeof search.selected === "string" ? search.selected : undefined,
       tab: typeof search.tab === "string" ? search.tab : undefined,

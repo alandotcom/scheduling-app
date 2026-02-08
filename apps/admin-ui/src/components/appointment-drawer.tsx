@@ -1,6 +1,6 @@
 // Appointment detail drawer for viewing and editing
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Calendar03Icon,
@@ -29,6 +29,7 @@ import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
+import { ShortcutBadge } from "@/components/ui/shortcut-badge";
 import { Textarea } from "@/components/ui/textarea";
 import {
   AlertDialog,
@@ -45,6 +46,7 @@ import {
   formatTimeDisplay,
   formatTimezoneShort,
 } from "@/lib/date-utils";
+import { useSubmitShortcut } from "@/hooks/use-submit-shortcut";
 
 interface AppointmentDrawerProps {
   appointment: {
@@ -83,6 +85,7 @@ export function AppointmentDrawer({
   const [showCancelDialog, setShowCancelDialog] = useState(false);
   const [showNoShowDialog, setShowNoShowDialog] = useState(false);
   const [showRescheduleDialog, setShowRescheduleDialog] = useState(false);
+  const notesFormRef = useRef<HTMLFormElement>(null);
 
   const notesForm = useForm<NotesFormData>({
     resolver: zodResolver(notesSchema),
@@ -176,6 +179,11 @@ export function AppointmentDrawer({
       },
     });
   };
+
+  useSubmitShortcut({
+    enabled: open && editingNotes && isActionable && !updateMutation.isPending,
+    onSubmit: () => notesFormRef.current?.requestSubmit(),
+  });
 
   const handleConfirm = () => {
     // Note: confirm would need a dedicated endpoint
@@ -291,6 +299,7 @@ export function AppointmentDrawer({
               </div>
               {editingNotes ? (
                 <form
+                  ref={notesFormRef}
                   onSubmit={notesForm.handleSubmit(handleSaveNotes)}
                   className="mt-2 space-y-3"
                 >
@@ -306,6 +315,10 @@ export function AppointmentDrawer({
                       disabled={updateMutation.isPending}
                     >
                       {updateMutation.isPending ? "Saving..." : "Save"}
+                      <ShortcutBadge
+                        shortcut="meta+enter"
+                        className="ml-2 hidden sm:inline-flex"
+                      />
                     </Button>
                     <Button
                       type="button"

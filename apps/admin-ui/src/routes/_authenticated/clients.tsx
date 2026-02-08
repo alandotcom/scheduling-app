@@ -1,6 +1,6 @@
 // Clients management page with table list and modal-based detail/create/edit flows
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Combobox } from "@base-ui/react/combobox";
 import { useClosingSnapshot } from "@/hooks/use-closing-snapshot";
 import { DateTime } from "luxon";
@@ -39,6 +39,7 @@ import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { ShortcutBadge } from "@/components/ui/shortcut-badge";
 import {
   Table,
   TableBody,
@@ -48,6 +49,11 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useCrudState } from "@/hooks/use-crud-state";
+import {
+  useKeyboardShortcuts,
+  useListNavigation,
+} from "@/hooks/use-keyboard-shortcuts";
+import { useSubmitShortcut } from "@/hooks/use-submit-shortcut";
 import { useUrlDrivenModal } from "@/hooks/use-url-driven-modal";
 import { useValidateSelection } from "@/hooks/use-selection-search-params";
 import { AppointmentDetail } from "@/components/appointments/appointment-detail";
@@ -128,6 +134,7 @@ function ClientForm({
   onCancel,
   isSubmitting,
 }: ClientFormProps) {
+  const formRef = useRef<HTMLFormElement>(null);
   const [countryComboboxOpen, setCountryComboboxOpen] = useState(false);
 
   const {
@@ -157,8 +164,13 @@ function ClientForm({
       (option) => option.value === activePhoneCountry,
     ) ?? PHONE_COUNTRY_OPTIONS.find((option) => option.value === "US");
 
+  useSubmitShortcut({
+    enabled: !isSubmitting,
+    onSubmit: () => formRef.current?.requestSubmit(),
+  });
+
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
+    <form ref={formRef} onSubmit={handleSubmit(onSubmit)} className="space-y-5">
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div className="space-y-2.5">
           <Label htmlFor="firstName">First Name</Label>
@@ -384,6 +396,10 @@ function ClientForm({
           disabled={isSubmitting}
         >
           {isSubmitting ? "Saving..." : "Save"}
+          <ShortcutBadge
+            shortcut="meta+enter"
+            className="ml-2 hidden sm:inline-flex"
+          />
         </Button>
       </div>
     </form>
@@ -403,7 +419,8 @@ const isAppointmentDetailTab = (
 function ClientsPage() {
   const queryClient = useQueryClient();
   const navigate = useNavigate({ from: Route.fullPath });
-  const { selected, tab, appointment, appointmentTab } = Route.useSearch();
+  const { selected, tab, appointment, appointmentTab, create } =
+    Route.useSearch();
   const selectedId = selected ?? null;
   const activeTab: DetailTabValue = tab && isDetailTab(tab) ? tab : "details";
   const selectedAppointmentId = appointment ?? null;
@@ -429,6 +446,19 @@ function ClientsPage() {
   type ClientItem = NonNullable<typeof data>["items"][number];
 
   const crud = useCrudState<ClientItem>();
+
+  useEffect(() => {
+    if (create !== "1") return;
+    crud.openCreate();
+    navigate({
+      search: (prev) => ({
+        ...prev,
+        create: undefined,
+      }),
+      replace: true,
+    });
+  }, [create, crud, navigate]);
+
   const clients = data?.items ?? [];
   const selectedClient =
     clients.find((client) => client.id === selectedId) ?? null;
@@ -533,6 +563,42 @@ function ClientsPage() {
   );
 
   useValidateSelection(clients, selectedId, clearDetails);
+
+  const selectedIndex = selectedId
+    ? clients.findIndex((client) => client.id === selectedId)
+    : -1;
+
+  useListNavigation({
+    items: clients,
+    selectedIndex,
+    onSelect: (index) => {
+      const client = clients[index];
+      if (client) openDetails(client.id);
+    },
+    onOpen: (client) => openDetails(client.id),
+    enabled:
+      clients.length > 0 &&
+      !crud.showCreateForm &&
+      !detailModalOpen &&
+      !appointmentModalOpen,
+  });
+
+  useKeyboardShortcuts({
+    shortcuts: [
+      {
+        key: "c",
+        action: crud.openCreate,
+        description: "Create client",
+      },
+      {
+        key: "escape",
+        action: clearDetails,
+        description: "Close details",
+        ignoreInputs: false,
+      },
+    ],
+    enabled: !crud.showCreateForm && !detailModalOpen && !appointmentModalOpen,
+  });
 
   const createMutation = useMutation(
     orpc.clients.create.mutationOptions({
@@ -661,6 +727,7 @@ function ClientsPage() {
           <Icon icon={Add01Icon} data-icon="inline-start" />
           <span className="hidden sm:inline">Add Client</span>
           <span className="sm:hidden">Add</span>
+          <ShortcutBadge shortcut="c" className="ml-2 hidden md:inline-flex" />
         </Button>
       </div>
 
@@ -1131,11 +1198,13 @@ export const Route = createFileRoute("/_authenticated/clients")({
   validateSearch: (
     search: Record<string, unknown>,
   ): {
+    create?: "1";
     selected?: string;
     tab?: DetailTabValue;
     appointment?: string;
     appointmentTab?: AppointmentDetailTabValue;
   } => {
+    const create = search.create === "1" ? "1" : undefined;
     const selected =
       typeof search.selected === "string" ? search.selected : undefined;
     const rawTab = typeof search.tab === "string" ? search.tab : "";
@@ -1148,6 +1217,7 @@ export const Route = createFileRoute("/_authenticated/clients")({
       ? rawAppointmentTab
       : undefined;
     return {
+      create,
       selected,
       tab,
       appointment,

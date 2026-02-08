@@ -1,6 +1,6 @@
 // Client detail drawer with appointment history
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { DateTime } from "luxon";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
@@ -32,8 +32,10 @@ import { Icon } from "@/components/ui/icon";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { ShortcutBadge } from "@/components/ui/shortcut-badge";
 import { DeleteConfirmDialog } from "@/components/delete-confirm-dialog";
 import { useResetFormOnOpen } from "@/hooks/use-reset-form-on-open";
+import { useSubmitShortcut } from "@/hooks/use-submit-shortcut";
 import { formatDisplayDateTime } from "@/lib/date-utils";
 
 interface ClientDrawerProps {
@@ -62,6 +64,7 @@ export function ClientDrawer({
 }: ClientDrawerProps) {
   const queryClient = useQueryClient();
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const formRef = useRef<HTMLFormElement>(null);
 
   // Fetch appointments for this client
   const { data: appointmentsData, isLoading: isLoadingAppointments } = useQuery(
@@ -152,6 +155,11 @@ export function ClientDrawer({
     });
   };
 
+  useSubmitShortcut({
+    enabled: open && activeTab === "details" && !updateMutation.isPending,
+    onSubmit: () => formRef.current?.requestSubmit(),
+  });
+
   const getStatusIcon = (status: string) => {
     switch (status) {
       case "confirmed":
@@ -194,6 +202,7 @@ export function ClientDrawer({
           <DrawerBody>
             {activeTab === "details" && (
               <form
+                ref={formRef}
                 onSubmit={form.handleSubmit(handleSave)}
                 className="space-y-5"
               >
@@ -261,6 +270,10 @@ export function ClientDrawer({
                 <div className="flex gap-2 pt-4">
                   <Button type="submit" disabled={updateMutation.isPending}>
                     {updateMutation.isPending ? "Saving..." : "Save Changes"}
+                    <ShortcutBadge
+                      shortcut="meta+enter"
+                      className="ml-2 hidden sm:inline-flex"
+                    />
                   </Button>
                   {onBookAppointment && (
                     <Button

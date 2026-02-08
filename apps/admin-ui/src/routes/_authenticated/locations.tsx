@@ -1,6 +1,6 @@
 // Locations management page with modal-based CRUD and details
 
-import { useCallback } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { useClosingSnapshot } from "@/hooks/use-closing-snapshot";
 import type { ReactNode } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
@@ -26,6 +26,7 @@ import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { ShortcutBadge } from "@/components/ui/shortcut-badge";
 import {
   Select,
   SelectContent,
@@ -42,6 +43,11 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useCrudState } from "@/hooks/use-crud-state";
+import {
+  useKeyboardShortcuts,
+  useListNavigation,
+} from "@/hooks/use-keyboard-shortcuts";
+import { useSubmitShortcut } from "@/hooks/use-submit-shortcut";
 import { useUrlDrivenModal } from "@/hooks/use-url-driven-modal";
 import { useValidateSelection } from "@/hooks/use-selection-search-params";
 import { TIMEZONES } from "@/lib/constants";
@@ -65,6 +71,7 @@ function LocationForm({
   isSubmitting,
   footerStart,
 }: LocationFormProps) {
+  const formRef = useRef<HTMLFormElement>(null);
   const {
     register,
     handleSubmit,
@@ -86,8 +93,13 @@ function LocationForm({
     unknownLabel: "Unknown timezone",
   });
 
+  useSubmitShortcut({
+    enabled: !isSubmitting,
+    onSubmit: () => formRef.current?.requestSubmit(),
+  });
+
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
+    <form ref={formRef} onSubmit={handleSubmit(onSubmit)} className="space-y-5">
       <div className="space-y-2.5">
         <Label htmlFor="name">Name</Label>
         <Input
@@ -143,6 +155,10 @@ function LocationForm({
           </Button>
           <Button type="submit" disabled={isSubmitting}>
             {isSubmitting ? "Saving..." : "Save"}
+            <ShortcutBadge
+              shortcut="meta+enter"
+              className="ml-2 hidden sm:inline-flex"
+            />
           </Button>
         </div>
       </div>
@@ -158,7 +174,7 @@ const isDetailTab = (value: string): value is DetailTabValue =>
 function LocationsPage() {
   const queryClient = useQueryClient();
   const navigate = useNavigate({ from: Route.fullPath });
-  const { selected, tab } = Route.useSearch();
+  const { selected, tab, create } = Route.useSearch();
 
   const selectedId = selected ?? null;
   const activeTab: DetailTabValue = tab && isDetailTab(tab) ? tab : "details";
@@ -173,6 +189,18 @@ function LocationsPage() {
   type LocationItem = NonNullable<typeof data>["items"][number];
 
   const crud = useCrudState<LocationItem>();
+
+  useEffect(() => {
+    if (create !== "1") return;
+    crud.openCreate();
+    navigate({
+      search: (prev) => ({
+        ...prev,
+        create: undefined,
+      }),
+      replace: true,
+    });
+  }, [create, crud, navigate]);
 
   const locations = data?.items ?? [];
   const selectedLocation =
@@ -222,6 +250,38 @@ function LocationsPage() {
   );
 
   useValidateSelection(locations, selectedId, clearDetails);
+
+  const selectedIndex = selectedId
+    ? locations.findIndex((location) => location.id === selectedId)
+    : -1;
+
+  useListNavigation({
+    items: locations,
+    selectedIndex,
+    onSelect: (index) => {
+      const location = locations[index];
+      if (location) openDetails(location.id);
+    },
+    onOpen: (location) => openDetails(location.id),
+    enabled: locations.length > 0 && !crud.showCreateForm && !detailModalOpen,
+  });
+
+  useKeyboardShortcuts({
+    shortcuts: [
+      {
+        key: "c",
+        action: crud.openCreate,
+        description: "Create location",
+      },
+      {
+        key: "escape",
+        action: clearDetails,
+        description: "Close details",
+        ignoreInputs: false,
+      },
+    ],
+    enabled: !crud.showCreateForm && !detailModalOpen,
+  });
 
   const { data: calendarsData } = useQuery({
     ...orpc.calendars.list.queryOptions({
@@ -319,6 +379,7 @@ function LocationsPage() {
           <Icon icon={Add01Icon} data-icon="inline-start" />
           <span className="hidden sm:inline">Add Location</span>
           <span className="sm:hidden">Add</span>
+          <ShortcutBadge shortcut="c" className="ml-2 hidden md:inline-flex" />
         </Button>
       </div>
 
@@ -580,12 +641,13 @@ function LocationsPage() {
 export const Route = createFileRoute("/_authenticated/locations")({
   validateSearch: (
     search: Record<string, unknown>,
-  ): { selected?: string; tab?: DetailTabValue } => {
+  ): { create?: "1"; selected?: string; tab?: DetailTabValue } => {
+    const create = search.create === "1" ? "1" : undefined;
     const selected =
       typeof search.selected === "string" ? search.selected : undefined;
     const rawTab = typeof search.tab === "string" ? search.tab : "";
     const tab = isDetailTab(rawTab) ? rawTab : undefined;
-    return { selected, tab };
+    return { create, selected, tab };
   },
   loader: async () => {
     const queryClient = getQueryClient();

@@ -1,6 +1,6 @@
 // Location detail drawer with relationships
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -29,6 +29,7 @@ import { Icon } from "@/components/ui/icon";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { ShortcutBadge } from "@/components/ui/shortcut-badge";
 import {
   Select,
   SelectContent,
@@ -38,6 +39,7 @@ import {
 } from "@/components/ui/select";
 import { DeleteConfirmDialog } from "@/components/delete-confirm-dialog";
 import { useResetFormOnOpen } from "@/hooks/use-reset-form-on-open";
+import { useSubmitShortcut } from "@/hooks/use-submit-shortcut";
 
 interface LocationDrawerProps {
   location: {
@@ -61,6 +63,7 @@ export function LocationDrawer({
 }: LocationDrawerProps) {
   const queryClient = useQueryClient();
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const formRef = useRef<HTMLFormElement>(null);
 
   // Fetch calendars at this location
   const { data: calendarsData } = useQuery({
@@ -153,6 +156,11 @@ export function LocationDrawer({
     });
   };
 
+  useSubmitShortcut({
+    enabled: open && activeTab === "details" && !updateMutation.isPending,
+    onSubmit: () => formRef.current?.requestSubmit(),
+  });
+
   return (
     <>
       <Drawer open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
@@ -174,6 +182,7 @@ export function LocationDrawer({
           <DrawerBody>
             {activeTab === "details" && (
               <form
+                ref={formRef}
                 onSubmit={form.handleSubmit(handleSave)}
                 className="space-y-5"
               >
@@ -216,6 +225,10 @@ export function LocationDrawer({
                 <div className="flex gap-2 pt-4">
                   <Button type="submit" disabled={updateMutation.isPending}>
                     {updateMutation.isPending ? "Saving..." : "Save Changes"}
+                    <ShortcutBadge
+                      shortcut="meta+enter"
+                      className="ml-2 hidden sm:inline-flex"
+                    />
                   </Button>
                 </div>
               </form>

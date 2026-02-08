@@ -1,6 +1,6 @@
 // Calendars management page with modal-based CRUD
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useClosingSnapshot } from "@/hooks/use-closing-snapshot";
 import { DateTime } from "luxon";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
@@ -36,6 +36,7 @@ import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { ShortcutBadge } from "@/components/ui/shortcut-badge";
 import {
   Select,
   SelectContent,
@@ -52,6 +53,11 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useCrudState } from "@/hooks/use-crud-state";
+import {
+  useKeyboardShortcuts,
+  useListNavigation,
+} from "@/hooks/use-keyboard-shortcuts";
+import { useSubmitShortcut } from "@/hooks/use-submit-shortcut";
 import { useUrlDrivenModal } from "@/hooks/use-url-driven-modal";
 import { useValidateSelection } from "@/hooks/use-selection-search-params";
 import {
@@ -84,6 +90,7 @@ function CalendarForm({
   onCancel,
   isSubmitting,
 }: CalendarFormProps) {
+  const formRef = useRef<HTMLFormElement>(null);
   const {
     register,
     handleSubmit,
@@ -119,8 +126,13 @@ function CalendarForm({
     unknownLabel: "Unknown location",
   });
 
+  useSubmitShortcut({
+    enabled: !isSubmitting,
+    onSubmit: () => formRef.current?.requestSubmit(),
+  });
+
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
+    <form ref={formRef} onSubmit={handleSubmit(onSubmit)} className="space-y-5">
       <div className="space-y-2.5">
         <Label htmlFor="name">Name</Label>
         <Input
@@ -200,6 +212,10 @@ function CalendarForm({
         </Button>
         <Button type="submit" disabled={isSubmitting}>
           {isSubmitting ? "Saving..." : "Save"}
+          <ShortcutBadge
+            shortcut="meta+enter"
+            className="ml-2 hidden sm:inline-flex"
+          />
         </Button>
       </div>
     </form>
@@ -214,7 +230,7 @@ const isDetailTab = (value: string): value is DetailTabValue =>
 function CalendarsPage() {
   const queryClient = useQueryClient();
   const navigate = useNavigate({ from: Route.fullPath });
-  const { selected, tab } = Route.useSearch();
+  const { selected, tab, create } = Route.useSearch();
   const selectedId = selected ?? null;
   const activeTab: DetailTabValue = tab && isDetailTab(tab) ? tab : "details";
   const [availabilitySubTab, setAvailabilitySubTab] =
@@ -231,6 +247,19 @@ function CalendarsPage() {
   type CalendarItem = NonNullable<typeof data>["items"][number];
 
   const crud = useCrudState<CalendarItem>();
+
+  useEffect(() => {
+    if (create !== "1") return;
+    crud.openCreate();
+    navigate({
+      search: (prev) => ({
+        ...prev,
+        create: undefined,
+      }),
+      replace: true,
+    });
+  }, [create, crud, navigate]);
+
   const calendars = data?.items ?? [];
   const selectedCalendar =
     calendars.find((calendar) => calendar.id === selectedId) ?? null;
@@ -280,6 +309,42 @@ function CalendarsPage() {
   );
 
   useValidateSelection(calendars, selectedId, clearDetails);
+
+  const selectedIndex = selectedId
+    ? calendars.findIndex((calendar) => calendar.id === selectedId)
+    : -1;
+
+  useListNavigation({
+    items: calendars,
+    selectedIndex,
+    onSelect: (index) => {
+      const calendar = calendars[index];
+      if (calendar) openDetails(calendar.id);
+    },
+    onOpen: (calendar) => openDetails(calendar.id),
+    enabled:
+      calendars.length > 0 &&
+      !crud.showCreateForm &&
+      !detailModalOpen &&
+      !appointmentModalOpen,
+  });
+
+  useKeyboardShortcuts({
+    shortcuts: [
+      {
+        key: "c",
+        action: crud.openCreate,
+        description: "Create calendar",
+      },
+      {
+        key: "escape",
+        action: clearDetails,
+        description: "Close details",
+        ignoreInputs: false,
+      },
+    ],
+    enabled: !crud.showCreateForm && !detailModalOpen && !appointmentModalOpen,
+  });
 
   const { data: locationsData } = useQuery(
     orpc.locations.list.queryOptions({
@@ -414,6 +479,7 @@ function CalendarsPage() {
           <Icon icon={Add01Icon} data-icon="inline-start" />
           <span className="hidden sm:inline">Add Calendar</span>
           <span className="sm:hidden">Add</span>
+          <ShortcutBadge shortcut="c" className="ml-2 hidden md:inline-flex" />
         </Button>
       </div>
 
@@ -707,12 +773,13 @@ function CalendarsPage() {
 export const Route = createFileRoute("/_authenticated/calendars/")({
   validateSearch: (
     search: Record<string, unknown>,
-  ): { selected?: string; tab?: DetailTabValue } => {
+  ): { create?: "1"; selected?: string; tab?: DetailTabValue } => {
+    const create = search.create === "1" ? "1" : undefined;
     const selected =
       typeof search.selected === "string" ? search.selected : undefined;
     const rawTab = typeof search.tab === "string" ? search.tab : "";
     const tab = isDetailTab(rawTab) ? rawTab : undefined;
-    return { selected, tab };
+    return { create, selected, tab };
   },
   loader: async () => {
     const queryClient = getQueryClient();

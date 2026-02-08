@@ -27,6 +27,8 @@ import { AvailabilityManageModal } from "@/components/availability/availability-
 import { TimeDisplayToggle } from "@/components/appointments/time-display-toggle";
 import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
+import { ShortcutBadge } from "@/components/ui/shortcut-badge";
+import { useSubmitShortcut } from "@/hooks/use-submit-shortcut";
 
 interface RescheduleDialogProps {
   appointment: AppointmentWithRelations;
@@ -145,6 +147,24 @@ export function RescheduleDialog({
       setSelectedTime(null);
     }
   }, [monthSlots, open, selectedDate, selectedTime, slotsLoading]);
+
+  const canReschedule = !!selectedTime && !rescheduleMutation.isPending;
+
+  useSubmitShortcut({
+    enabled: open && canReschedule,
+    onSubmit: () => {
+      if (!selectedTime) return;
+      rescheduleMutation.mutate({
+        id: appointment.id,
+        data: {
+          newStartTime: DateTime.fromISO(selectedTime, {
+            setZone: true,
+          }).toJSDate(),
+          timezone: calendarTimezone,
+        },
+      });
+    },
+  });
 
   return (
     <>
@@ -273,11 +293,15 @@ export function RescheduleDialog({
                     });
                   }
                 }}
-                disabled={!selectedTime || rescheduleMutation.isPending}
+                disabled={!canReschedule}
               >
                 {rescheduleMutation.isPending
                   ? "Rescheduling..."
                   : "Reschedule"}
+                <ShortcutBadge
+                  shortcut="meta+enter"
+                  className="ml-2 hidden sm:inline-flex"
+                />
               </Button>
             </div>
           </DialogPrimitive.Popup>

@@ -30,10 +30,12 @@ import {
 import { authClient } from "@/lib/auth-client";
 import { getSafeRedirectHref } from "@/lib/auth-redirect";
 import { UserMenu, type UserMenuOrganization } from "@/components/user-menu";
+import { ShortcutsHelpDialog } from "@/components/shortcuts-help-dialog";
 import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { ShortcutBadge } from "@/components/ui/shortcut-badge";
 import {
   Sheet,
   SheetContent,
@@ -43,7 +45,10 @@ import {
 } from "@/components/ui/sheet";
 import { Toaster, toast } from "sonner";
 import { CommandPalette } from "@/components/command-palette";
-import { useNavigationShortcuts } from "@/hooks/use-keyboard-shortcuts";
+import {
+  useKeyboardShortcuts,
+  useNavigationShortcuts,
+} from "@/hooks/use-keyboard-shortcuts";
 import { isIgnorableRouteLoaderError } from "@/lib/query-cancellation";
 import { cn } from "@/lib/utils";
 
@@ -102,6 +107,7 @@ function RootLayout() {
   const [createOrganizationName, setCreateOrganizationName] = useState("");
   const [createOrganizationSlug, setCreateOrganizationSlug] = useState("");
   const [isCreatingOrganization, setIsCreatingOrganization] = useState(false);
+  const [shortcutsHelpOpen, setShortcutsHelpOpen] = useState(false);
 
   const organizationsQuery = useQuery({
     queryKey: ["auth", "organizations"],
@@ -253,6 +259,17 @@ function RootLayout() {
 
   // Enable keyboard navigation shortcuts when authenticated
   useNavigationShortcuts(isAuthenticated);
+  useKeyboardShortcuts({
+    shortcuts: [
+      {
+        key: ["meta+/", "ctrl+/", "meta+?", "ctrl+?"],
+        action: () => setShortcutsHelpOpen(true),
+        description: "Open keyboard shortcut help",
+        ignoreInputs: false,
+      },
+    ],
+    enabled: isAuthenticated,
+  });
 
   if (isInitialAuthCheck) {
     return (
@@ -512,9 +529,7 @@ function RootLayout() {
           >
             <Icon icon={Search01Icon} className="size-3.5" />
             <span>Search...</span>
-            <kbd className="ml-4 rounded border border-border bg-background px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
-              {"K"}
-            </kbd>
+            <ShortcutBadge shortcut="meta+k" className="ml-4" />
           </button>
 
           {/* Right side */}
@@ -540,6 +555,16 @@ function RootLayout() {
                 onSignOut={onSignOut}
               />
             </div>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => setShortcutsHelpOpen(true)}
+              aria-label="Open keyboard shortcuts help"
+              className="hidden md:inline-flex"
+            >
+              ?
+            </Button>
           </div>
         </header>
 
@@ -663,6 +688,11 @@ function RootLayout() {
 
       {/* Command palette (Cmd+K) */}
       <CommandPalette />
+
+      <ShortcutsHelpDialog
+        open={shortcutsHelpOpen}
+        onOpenChange={setShortcutsHelpOpen}
+      />
 
       {/* Dev tools - only in development */}
       {import.meta.env.DEV ? (

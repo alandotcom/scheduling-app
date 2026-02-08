@@ -1,7 +1,8 @@
 import { expect } from "bun:test";
 
 declare module "bun:test" {
-  interface Matchers<_T> {
+  // oxlint-disable-next-line no-unused-vars -- Bun matcher typing requires this generic parameter name.
+  interface Matchers<T = unknown> {
     toRejectWith(pattern?: string | RegExp): Promise<void>;
   }
 }

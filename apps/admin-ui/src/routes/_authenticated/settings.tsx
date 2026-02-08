@@ -5,6 +5,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
+import { useRef } from "react";
 
 import { orpc } from "@/lib/query";
 import { TIMEZONES } from "@/lib/constants";
@@ -16,6 +17,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
+import { ShortcutBadge } from "@/components/ui/shortcut-badge";
+import { useSubmitShortcut } from "@/hooks/use-submit-shortcut";
 import {
   Card,
   CardHeader,
@@ -105,6 +108,7 @@ interface SettingsFormProps {
 
 function SettingsForm({ org }: SettingsFormProps) {
   const queryClient = useQueryClient();
+  const formRef = useRef<HTMLFormElement>(null);
 
   // Update settings mutation
   const updateMutation = useMutation(
@@ -165,6 +169,12 @@ function SettingsForm({ org }: SettingsFormProps) {
     updateMutation.mutate(data);
   };
 
+  useSubmitShortcut({
+    enabled: !updateMutation.isPending && isDirty,
+    scope: "global",
+    onSubmit: () => formRef.current?.requestSubmit(),
+  });
+
   return (
     <div className="mx-auto max-w-4xl px-4 py-6 sm:px-6 lg:px-8">
       <h1 className="text-2xl font-semibold tracking-tight">Settings</h1>
@@ -173,6 +183,7 @@ function SettingsForm({ org }: SettingsFormProps) {
       </p>
 
       <form
+        ref={formRef}
         onSubmit={handleSubmit(onSubmit)}
         className="mt-8 flex flex-col gap-6"
       >
@@ -343,6 +354,10 @@ function SettingsForm({ org }: SettingsFormProps) {
         <div className="flex justify-end">
           <Button type="submit" disabled={updateMutation.isPending || !isDirty}>
             {updateMutation.isPending ? "Saving..." : "Save Settings"}
+            <ShortcutBadge
+              shortcut="meta+enter"
+              className="ml-2 hidden sm:inline-flex"
+            />
           </Button>
         </div>
       </form>

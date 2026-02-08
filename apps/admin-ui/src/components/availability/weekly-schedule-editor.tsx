@@ -13,6 +13,8 @@ import { toast } from "sonner";
 import { orpc } from "@/lib/query";
 import { Icon } from "@/components/ui/icon";
 import { Button } from "@/components/ui/button";
+import { ShortcutBadge } from "@/components/ui/shortcut-badge";
+import { useSubmitShortcut } from "@/hooks/use-submit-shortcut";
 import {
   WEEKDAYS,
   type TimeBlock,
@@ -304,6 +306,11 @@ function WeeklyScheduleEditorBody({
     setWeeklyMutation.mutate({ calendarId, rules });
   };
 
+  useSubmitShortcut({
+    enabled: hasChanges && !setWeeklyMutation.isPending,
+    onSubmit: handleSave,
+  });
+
   if (isLoading) {
     return (
       <div className="text-center text-muted-foreground py-8">Loading...</div>
@@ -363,6 +370,10 @@ function WeeklyScheduleEditorBody({
         >
           <Icon icon={FloppyDiskIcon} className="mr-1.5" />
           {setWeeklyMutation.isPending ? "Saving..." : "Save"}
+          <ShortcutBadge
+            shortcut="meta+enter"
+            className="ml-2 hidden sm:inline-flex"
+          />
         </Button>
       </div>
     </div>

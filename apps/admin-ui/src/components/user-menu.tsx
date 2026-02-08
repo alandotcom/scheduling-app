@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { Popover } from "@base-ui/react/popover";
 import {
   Add01Icon,
@@ -11,6 +11,8 @@ import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { ShortcutBadge } from "@/components/ui/shortcut-badge";
+import { useSubmitShortcut } from "@/hooks/use-submit-shortcut";
 import { cn } from "@/lib/utils";
 
 export interface UserMenuOrganization {
@@ -49,11 +51,17 @@ export function UserMenu({
   const [name, setName] = useState("");
   const [slug, setSlug] = useState("");
   const [createError, setCreateError] = useState<string | null>(null);
+  const createFormRef = useRef<HTMLFormElement>(null);
 
   const initials = useMemo(
     () => userName?.[0] ?? userEmail?.[0]?.toUpperCase() ?? "U",
     [userEmail, userName],
   );
+
+  useSubmitShortcut({
+    enabled: createOpen && !creatingOrg,
+    onSubmit: () => createFormRef.current?.requestSubmit(),
+  });
 
   return (
     <>
@@ -183,6 +191,7 @@ export function UserMenu({
       >
         <div className="h-full overflow-y-auto px-4 py-4 sm:px-6 sm:py-5">
           <form
+            ref={createFormRef}
             className="space-y-4"
             onSubmit={async (event) => {
               event.preventDefault();
@@ -249,6 +258,10 @@ export function UserMenu({
               </Button>
               <Button type="submit" disabled={creatingOrg}>
                 {creatingOrg ? "Creating..." : "Create"}
+                <ShortcutBadge
+                  shortcut="meta+enter"
+                  className="ml-2 hidden sm:inline-flex"
+                />
               </Button>
             </div>
           </form>

@@ -17,6 +17,8 @@ import { Icon } from "@/components/ui/icon";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { ShortcutBadge } from "@/components/ui/shortcut-badge";
+import { useSubmitShortcut } from "@/hooks/use-submit-shortcut";
 import {
   Select,
   SelectContent,
@@ -343,6 +345,12 @@ function BlockedTimeEditorBody({
   };
 
   const isSaving = createMutation.isPending || updateMutation.isPending;
+  const canSave = !!editingBlock && !isSaving;
+
+  useSubmitShortcut({
+    enabled: canSave,
+    onSubmit: handleSave,
+  });
 
   if (isLoading) {
     return (
@@ -509,6 +517,10 @@ function BlockedTimeEditorBody({
               <Button size="sm" onClick={handleSave} disabled={isSaving}>
                 <Icon icon={FloppyDiskIcon} className="mr-1.5" />
                 {isSaving ? "Saving..." : "Save"}
+                <ShortcutBadge
+                  shortcut="meta+enter"
+                  className="ml-2 hidden sm:inline-flex"
+                />
               </Button>
               <Button
                 variant="ghost"
@@ -745,6 +757,10 @@ function BlockedTimeEditorBody({
               <Button onClick={handleSave} disabled={isSaving}>
                 <Icon icon={FloppyDiskIcon} className="mr-2" />
                 {isSaving ? "Saving..." : "Save"}
+                <ShortcutBadge
+                  shortcut="meta+enter"
+                  className="ml-2 hidden sm:inline-flex"
+                />
               </Button>
               <Button
                 variant="ghost"

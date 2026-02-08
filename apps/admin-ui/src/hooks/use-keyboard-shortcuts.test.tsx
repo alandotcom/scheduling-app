@@ -17,6 +17,22 @@ function dispatchKey(key: string, target?: HTMLElement) {
   document.dispatchEvent(event);
 }
 
+function dispatchKeyWithInit(
+  key: string,
+  init: Omit<KeyboardEventInit, "key" | "bubbles">,
+  target?: HTMLElement,
+) {
+  const event = new KeyboardEvent("keydown", {
+    key,
+    bubbles: true,
+    ...init,
+  });
+  if (target) {
+    Object.defineProperty(event, "target", { value: target });
+  }
+  document.dispatchEvent(event);
+}
+
 function MultiShortcutHarness({
   onAlpha,
   onBeta,
@@ -61,6 +77,35 @@ function InputShortcutHarness({
     shortcuts: [{ key: "x", action: onForced, ignoreInputs: false }],
   });
   return <input aria-label="target-input" />;
+}
+
+function ScopeShortcutHarness({
+  onGlobal,
+  onModal,
+}: {
+  onGlobal: () => void;
+  onModal: () => void;
+}) {
+  useKeyboardShortcuts({
+    shortcuts: [{ key: "x", action: onGlobal }],
+  });
+  useKeyboardShortcuts({
+    shortcuts: [{ key: "x", action: onModal }],
+    scope: "modal",
+  });
+
+  return (
+    <div>
+      <div aria-modal="true">
+        <button type="button" aria-label="inside-modal">
+          Inside modal
+        </button>
+      </div>
+      <button type="button" aria-label="outside-modal">
+        Outside
+      </button>
+    </div>
+  );
 }
 
 afterEach(() => {
@@ -170,5 +215,36 @@ describe("useKeyboardShortcuts", () => {
 
     expect(onDefault).toHaveBeenCalledTimes(0);
     expect(onForced).toHaveBeenCalledTimes(1);
+  });
+
+  test("suppresses global shortcuts and allows modal-scoped shortcuts in active modals", () => {
+    const onGlobal = mock(() => {});
+    const onModal = mock(() => {});
+
+    const view = renderHarness(
+      <ScopeShortcutHarness onGlobal={onGlobal} onModal={onModal} />,
+    );
+    const insideModal = view.getByRole("button", { name: "inside-modal" });
+    const outsideModal = view.getByRole("button", { name: "outside-modal" });
+
+    dispatchKey("x", insideModal);
+    expect(onGlobal).toHaveBeenCalledTimes(0);
+    expect(onModal).toHaveBeenCalledTimes(1);
+
+    dispatchKey("x", outsideModal);
+    expect(onGlobal).toHaveBeenCalledTimes(0);
+    expect(onModal).toHaveBeenCalledTimes(1);
+  });
+
+  test("normalizes Ctrl/Cmd keys for modified shortcuts", () => {
+    const onShortcut = mock(() => {});
+    renderHarness(
+      <DynamicShortcutHarness shortcutKey="meta+enter" onAction={onShortcut} />,
+    );
+
+    dispatchKeyWithInit("Enter", { metaKey: true });
+    dispatchKeyWithInit("Enter", { ctrlKey: true });
+
+    expect(onShortcut).toHaveBeenCalledTimes(1);
   });
 });

@@ -24,7 +24,9 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Icon } from "@/components/ui/icon";
+import { ShortcutBadge } from "@/components/ui/shortcut-badge";
 import { AppointmentModal } from "@/components/appointment-modal";
+import { useKeyboardShortcuts } from "@/hooks/use-keyboard-shortcuts";
 
 export function getDashboardStats(summary: DashboardSummary | undefined) {
   return {
@@ -58,6 +60,16 @@ export function getSortedTodayAppointments(
 
 export function Dashboard() {
   const [appointmentModalOpen, setAppointmentModalOpen] = useState(false);
+
+  useKeyboardShortcuts({
+    shortcuts: [
+      {
+        key: "c",
+        action: () => setAppointmentModalOpen(true),
+        description: "Create appointment",
+      },
+    ],
+  });
 
   // Get today's date boundaries
   const today = DateTime.now().startOf("day");
@@ -102,6 +114,7 @@ export function Dashboard() {
           <Icon icon={Add01Icon} data-icon="inline-start" />
           <span className="hidden sm:inline">New Appointment</span>
           <span className="sm:hidden">New</span>
+          <ShortcutBadge shortcut="c" className="ml-2 hidden sm:inline-flex" />
         </Button>
       </div>
 

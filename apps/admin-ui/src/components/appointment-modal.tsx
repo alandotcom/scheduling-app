@@ -36,6 +36,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { AvailabilityManageModal } from "@/components/availability/availability-manage-modal";
+import { ShortcutBadge } from "@/components/ui/shortcut-badge";
+import { useSubmitShortcut } from "@/hooks/use-submit-shortcut";
 
 interface AppointmentModalProps {
   open: boolean;
@@ -299,6 +301,11 @@ export function AppointmentModal({
 
   const canBook = selectedTypeId && selectedCalendarId && selectedTime;
 
+  useSubmitShortcut({
+    enabled: open && !!canBook && !createMutation.isPending,
+    onSubmit: handleSubmit,
+  });
+
   return (
     <>
       <DialogPrimitive.Root
@@ -536,6 +543,10 @@ export function AppointmentModal({
                     {createMutation.isPending
                       ? "Booking..."
                       : "Book Appointment"}
+                    <ShortcutBadge
+                      shortcut="meta+enter"
+                      className="ml-2 hidden sm:inline-flex"
+                    />
                   </Button>
                 </div>
               </div>

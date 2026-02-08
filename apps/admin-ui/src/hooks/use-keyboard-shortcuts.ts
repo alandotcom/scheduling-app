@@ -5,7 +5,7 @@ import { useNavigate, useRouter } from "@tanstack/react-router";
 
 type KeySequence = string | string[];
 
-interface ShortcutConfig {
+export interface ShortcutConfig {
   key: KeySequence;
   action: () => void;
   description?: string;
@@ -13,15 +13,19 @@ interface ShortcutConfig {
   ignoreInputs?: boolean;
 }
 
+export type ShortcutScope = "global" | "modal" | "all";
+
 interface UseKeyboardShortcutsOptions {
   shortcuts: ShortcutConfig[];
   enabled?: boolean;
+  scope?: ShortcutScope;
 }
 
 interface ShortcutRegistration {
   shortcutsRef: { current: ShortcutConfig[] };
   sequence: string[];
   timeoutRef: { current: ReturnType<typeof setTimeout> | null };
+  scope: ShortcutScope;
 }
 
 const registrations = new Set<ShortcutRegistration>();
@@ -63,22 +67,52 @@ function scheduleSequenceReset(registration: ShortcutRegistration) {
   }, 1000);
 }
 
-function isDialogOpen() {
-  if (typeof document === "undefined") return false;
-  return !!document.querySelector(
-    '[aria-modal="true"], [data-slot="entity-modal-content"], [data-slot="appointment-modal-content"], [data-slot="alert-dialog-content"]',
+function getTopMostModalElement() {
+  if (typeof document === "undefined") return null;
+  const modals = document.querySelectorAll<HTMLElement>(
+    [
+      '[aria-modal="true"]',
+      '[data-slot="entity-modal-content"]',
+      '[data-slot="appointment-modal-content"]',
+      '[data-slot="availability-manage-modal-content"]',
+      '[data-slot="reschedule-dialog-content"]',
+      '[data-slot="alert-dialog-content"]',
+    ].join(", "),
   );
+  if (modals.length === 0) return null;
+  return modals[modals.length - 1] ?? null;
+}
+
+function isEventInModal(eventTarget: EventTarget | null, modal: HTMLElement) {
+  if (!(eventTarget instanceof Node)) return true;
+  return modal.contains(eventTarget);
+}
+
+function matchesScope(
+  scope: ShortcutScope,
+  modal: HTMLElement | null,
+  eventTarget: EventTarget | null,
+) {
+  if (scope === "all") return true;
+  if (scope === "global") return !modal;
+  if (!modal) return false;
+  return isEventInModal(eventTarget, modal);
 }
 
 function onDocumentKeyDown(event: KeyboardEvent) {
   if (event.defaultPrevented) return;
-  if (isDialogOpen()) return;
+  if (event.isComposing) return;
 
   const key = normalizeKey(event);
   const isInput = isTypingInInput(event.target);
+  const activeModal = getTopMostModalElement();
   const orderedRegistrations = Array.from(registrations).reverse();
 
   for (const registration of orderedRegistrations) {
+    if (!matchesScope(registration.scope, activeModal, event.target)) {
+      continue;
+    }
+
     registration.sequence.push(key);
     if (registration.sequence.length > 8) {
       registration.sequence.shift();
@@ -133,6 +167,7 @@ function unregisterShortcuts(registration: ShortcutRegistration) {
 export function useKeyboardShortcuts({
   shortcuts,
   enabled = true,
+  scope = "global",
 }: UseKeyboardShortcutsOptions) {
   const shortcutsRef = useRef(shortcuts);
   const registrationRef = useRef<ShortcutRegistration | null>(null);
@@ -154,6 +189,7 @@ export function useKeyboardShortcuts({
       shortcutsRef,
       sequence: [],
       timeoutRef: { current: null },
+      scope,
     };
     registrationRef.current = registration;
     registerShortcuts(registration);
@@ -164,7 +200,7 @@ export function useKeyboardShortcuts({
         registrationRef.current = null;
       }
     };
-  }, [enabled]);
+  }, [enabled, scope]);
 }
 
 // Pre-built navigation shortcuts
