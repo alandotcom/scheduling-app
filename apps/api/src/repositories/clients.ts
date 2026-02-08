@@ -82,15 +82,16 @@ export class ClientRepository {
           .limit(1);
 
         if (cursorClient) {
-          filters.push(
-            or(
-              lt(clients.updatedAt, cursorClient.updatedAt),
-              and(
-                eq(clients.updatedAt, cursorClient.updatedAt),
-                lt(clients.id, cursorClient.id),
-              ),
-            ) as SQL,
+          const cursorFilter = or(
+            lt(clients.updatedAt, cursorClient.updatedAt),
+            and(
+              eq(clients.updatedAt, cursorClient.updatedAt),
+              lt(clients.id, cursorClient.id),
+            ),
           );
+          if (cursorFilter) {
+            filters.push(cursorFilter);
+          }
         }
       } else {
         filters.push(gt(clients.id, cursor));
@@ -100,19 +101,26 @@ export class ClientRepository {
     // Apply search filter if provided
     if (search) {
       const searchPattern = `%${search}%`;
-      filters.push(
-        or(
-          ilike(clients.firstName, searchPattern),
-          ilike(clients.lastName, searchPattern),
-          ilike(clients.email, searchPattern),
-        ) as SQL,
+      const searchFilter = or(
+        ilike(clients.firstName, searchPattern),
+        ilike(clients.lastName, searchPattern),
+        ilike(clients.email, searchPattern),
       );
+      if (searchFilter) {
+        filters.push(searchFilter);
+      }
     }
 
     if (filters.length === 1) {
-      query = query.where(filters[0]!);
+      const [singleFilter] = filters;
+      if (singleFilter) {
+        query = query.where(singleFilter);
+      }
     } else if (filters.length > 1) {
-      query = query.where(and(...filters));
+      const combinedFilters = and(...filters);
+      if (combinedFilters) {
+        query = query.where(combinedFilters);
+      }
     }
 
     const orderByColumns =
