@@ -73,6 +73,20 @@ interface BlockedTimeFixture {
   recurringRule: string | null;
 }
 
+interface AppointmentTypeCalendarFixture {
+  id: string;
+  appointmentTypeId: string;
+  calendarId: string;
+  calendar: CalendarFixture;
+}
+
+interface AvailabilityEngineTimeSlotFixture {
+  start: string;
+  end: string;
+  available: boolean;
+  remainingCapacity: number;
+}
+
 // Counter for unique IDs
 let idCounter = 1;
 
@@ -260,6 +274,8 @@ let mockLocations: LocationFixture[] = [];
 let mockAvailabilityRules: AvailabilityRuleFixture[] = [];
 let mockDateOverrides: DateOverrideFixture[] = [];
 let mockBlockedTimes: BlockedTimeFixture[] = [];
+let mockAppointmentTypeCalendars: AppointmentTypeCalendarFixture[] = [];
+let mockAvailabilityEngineTimeSlots: AvailabilityEngineTimeSlotFixture[] = [];
 let mockDashboardSummary: DashboardSummary = {
   todayAppointments: 0,
   weekAppointments: 0,
@@ -301,6 +317,18 @@ export function setMockBlockedTimes(blockedTimes: BlockedTimeFixture[]) {
   mockBlockedTimes = blockedTimes;
 }
 
+export function setMockAppointmentTypeCalendars(
+  appointmentTypeCalendars: AppointmentTypeCalendarFixture[],
+) {
+  mockAppointmentTypeCalendars = appointmentTypeCalendars;
+}
+
+export function setMockAvailabilityEngineTimeSlots(
+  slots: AvailabilityEngineTimeSlotFixture[],
+) {
+  mockAvailabilityEngineTimeSlots = slots;
+}
+
 export function setMockDashboardSummary(summary: DashboardSummary) {
   mockDashboardSummary = summary;
 }
@@ -314,6 +342,8 @@ export function resetMockData() {
   mockAvailabilityRules = [];
   mockDateOverrides = [];
   mockBlockedTimes = [];
+  mockAppointmentTypeCalendars = [];
+  mockAvailabilityEngineTimeSlots = [];
   mockDashboardSummary = {
     todayAppointments: 0,
     weekAppointments: 0,
@@ -327,12 +357,12 @@ export function resetMockData() {
 
 // MSW handlers
 export const handlers = [
-  http.post("*/v1/dashboard.summary", () => {
+  http.post("*/v1/dashboard/summary", () => {
     return HttpResponse.json(mockDashboardSummary);
   }),
 
   // List appointments
-  http.post("*/v1/appointments.list", () => {
+  http.post("*/v1/appointments/list", () => {
     return HttpResponse.json({
       items: mockAppointments,
       nextCursor: null,
@@ -341,7 +371,7 @@ export const handlers = [
   }),
 
   // Get single appointment
-  http.post("*/v1/appointments.get", async ({ request }) => {
+  http.post("*/v1/appointments/get", async ({ request }) => {
     const body = (await request.json()) as { id: string };
     const appointment = mockAppointments.find((a) => a.id === body.id);
     if (!appointment) {
@@ -351,7 +381,7 @@ export const handlers = [
   }),
 
   // Range query for schedule view
-  http.post("*/v1/appointments.range", () => {
+  http.post("*/v1/appointments/range", () => {
     return HttpResponse.json({
       items: mockScheduleEvents,
       nextCursor: null,
@@ -360,7 +390,7 @@ export const handlers = [
   }),
 
   // Cancel appointment
-  http.post("*/v1/appointments.cancel", async ({ request }) => {
+  http.post("*/v1/appointments/cancel", async ({ request }) => {
     const body = (await request.json()) as { id: string };
     const index = mockAppointments.findIndex((a) => a.id === body.id);
     if (index !== -1) {
@@ -373,7 +403,7 @@ export const handlers = [
   }),
 
   // No-show appointment
-  http.post("*/v1/appointments.noShow", async ({ request }) => {
+  http.post("*/v1/appointments/noShow", async ({ request }) => {
     const body = (await request.json()) as { id: string };
     const index = mockAppointments.findIndex((a) => a.id === body.id);
     if (index !== -1) {
@@ -386,7 +416,7 @@ export const handlers = [
   }),
 
   // List calendars
-  http.post("*/v1/calendars.list", () => {
+  http.post("*/v1/calendars/list", () => {
     return HttpResponse.json({
       items: mockCalendars,
       nextCursor: null,
@@ -395,7 +425,7 @@ export const handlers = [
   }),
 
   // List appointment types
-  http.post("*/v1/appointmentTypes.list", () => {
+  http.post("*/v1/appointmentTypes/list", () => {
     return HttpResponse.json({
       items: mockAppointmentTypes,
       nextCursor: null,
@@ -403,8 +433,13 @@ export const handlers = [
     });
   }),
 
+  // List calendars linked to appointment type
+  http.post("*/v1/appointmentTypes/calendars/list", () => {
+    return HttpResponse.json(mockAppointmentTypeCalendars);
+  }),
+
   // List locations
-  http.post("*/v1/locations.list", () => {
+  http.post("*/v1/locations/list", () => {
     return HttpResponse.json({
       items: mockLocations,
       nextCursor: null,
@@ -413,7 +448,7 @@ export const handlers = [
   }),
 
   // Availability rules
-  http.post("*/v1/availability.rules.list", () => {
+  http.post("*/v1/availability/rules/list", () => {
     return HttpResponse.json({
       items: mockAvailabilityRules,
       nextCursor: null,
@@ -422,7 +457,7 @@ export const handlers = [
   }),
 
   // Date overrides
-  http.post("*/v1/availability.overrides.list", () => {
+  http.post("*/v1/availability/overrides/list", () => {
     return HttpResponse.json({
       items: mockDateOverrides,
       nextCursor: null,
@@ -431,11 +466,18 @@ export const handlers = [
   }),
 
   // Blocked time
-  http.post("*/v1/availability.blockedTime.list", () => {
+  http.post("*/v1/availability/blockedTime/list", () => {
     return HttpResponse.json({
       items: mockBlockedTimes,
       nextCursor: null,
       hasMore: false,
+    });
+  }),
+
+  // Availability engine time slots
+  http.post("*/v1/availability/engine/times", () => {
+    return HttpResponse.json({
+      slots: mockAvailabilityEngineTimeSlots,
     });
   }),
 ];

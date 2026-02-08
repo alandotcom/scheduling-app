@@ -128,6 +128,18 @@ Structure:
 
 Check these files for relevant context before implementing features in that area.
 
+### UI Modal Memory
+
+- When a modal's open state is derived from TanStack Router search params (`selected`, `tab`), pressing `Escape` can briefly flash fallback modal content while URL state updates.
+- Preferred fix pattern: keep local modal open state and do **immediate local close first**, then clear search params.
+- Example approach:
+  - Local state: `const [isModalOpen, setIsModalOpen] = useState(false)`
+  - Open when selected entity is present (effect on `selectedId` + resolved entity)
+  - On dismiss (`Escape`, backdrop, close button): `setIsModalOpen(false)` first, then navigate to clear `selected`/`tab`
+- This prevents the transient "empty details modal" flash caused by URL update timing.
+- For URL-driven detail modals, also keep a `displayEntity` snapshot (`selected ? selectedEntity : closingSnapshot`) and use it for modal title/description/body. This avoids blank fallback headers/content when the selected entity is briefly unresolved during close/refetch.
+- Do not use generic fallback titles like `"Client details"` for URL-driven entity detail modals; prefer `""` and gate `open` with actual `displayEntity` presence (`open={isModalOpen && !!displayEntity}`) to avoid visible empty-shell flashes.
+
 ## Testing with Real Postgres
 
 Tests use a real Postgres database (`scheduling_test`) with RLS enforced. The test database is automatically created on first test run via the preload script.
@@ -236,5 +248,3 @@ agent-browser close
 - Use refs (`@e1`, `@e2`) instead of CSS selectors for reliability
 - Take screenshots at key steps for verification
 - Close the browser when done to free resources
-
-

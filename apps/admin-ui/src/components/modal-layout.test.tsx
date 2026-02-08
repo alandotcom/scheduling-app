@@ -7,6 +7,7 @@ import type { ReactElement } from "react";
 import { createTestQueryClient, createAppointmentFixture } from "@/test-utils";
 import { AppointmentModal } from "@/components/appointment-modal";
 import { RescheduleDialog } from "@/components/appointments/reschedule-dialog";
+import { AvailabilityManageModal } from "@/components/availability/availability-manage-modal";
 import { EntityModal } from "@/components/entity-modal";
 import {
   AlertDialog,
@@ -72,6 +73,24 @@ describe("modal layout positioning", () => {
 
     const popup = document.querySelector<HTMLElement>(
       '[data-slot="reschedule-dialog-content"]',
+    );
+    expect(popup).toBeTruthy();
+    expect(popup?.className).toContain("top-2");
+    expect(popup?.className).not.toContain("-translate-y-1/2");
+  });
+
+  test("AvailabilityManageModal keeps a top anchor", () => {
+    renderWithQuery(
+      <AvailabilityManageModal
+        open
+        onOpenChange={() => {}}
+        calendarId="calendar-1"
+        timezone="America/New_York"
+      />,
+    );
+
+    const popup = document.querySelector<HTMLElement>(
+      '[data-slot="availability-manage-modal-content"]',
     );
     expect(popup).toBeTruthy();
     expect(popup?.className).toContain("top-2");

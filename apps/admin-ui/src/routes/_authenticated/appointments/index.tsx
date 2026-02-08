@@ -1,4 +1,4 @@
-// Appointments page with split-pane layout and list/schedule toggle
+// Appointments page with list/schedule views and modal detail panel
 
 import { useState, useCallback, useMemo } from "react";
 import { DateTime } from "luxon";
@@ -46,12 +46,8 @@ import {
   FilterField,
   ActiveFilters,
 } from "@/components/filter-popover";
-import {
-  DetailPanel,
-  ListPanel,
-  WorkbenchLayout,
-} from "@/components/workbench";
 import { AppointmentModal } from "@/components/appointment-modal";
+import { EntityModal } from "@/components/entity-modal";
 import {
   useKeyboardShortcuts,
   useFocusZones,
@@ -674,59 +670,57 @@ function AppointmentsPage() {
       </div>
 
       {/* Main Content */}
-      <WorkbenchLayout className="mt-6 min-h-[600px]">
-        <ListPanel id={FOCUS_ZONES.LIST} className="flex flex-col">
-          {currentView === "list" ? (
-            <AppointmentsList
-              appointments={listAppointments}
+      <div id={FOCUS_ZONES.LIST} className="mt-6 flex min-h-[600px] flex-col">
+        {currentView === "list" ? (
+          <AppointmentsList
+            appointments={listAppointments}
+            displayTimezone={displayTimezone}
+            selectedId={selectedId}
+            onSelect={handleSelectAppointment}
+            onCancel={setCancellingId}
+            onNoShow={setNoShowId}
+            isLoading={listLoading}
+          />
+        ) : (
+          <div className="flex-1 overflow-hidden rounded-xl border border-border shadow-sm">
+            <ScheduleGrid
+              appointments={scheduleAppointments}
               displayTimezone={displayTimezone}
+              weekStart={weekStart}
               selectedId={selectedId}
-              onSelect={handleSelectAppointment}
-              onCancel={setCancellingId}
-              onNoShow={setNoShowId}
-              isLoading={listLoading}
+              onSelectAppointment={handleSelectScheduleAppointment}
+              onPreviousWeek={goToPreviousWeek}
+              onNextWeek={goToNextWeek}
+              onToday={goToToday}
+              isLoading={scheduleLoading}
             />
-          ) : (
-            <div className="rounded-xl border border-border overflow-hidden shadow-sm flex-1">
-              <ScheduleGrid
-                appointments={scheduleAppointments}
-                displayTimezone={displayTimezone}
-                weekStart={weekStart}
-                selectedId={selectedId}
-                onSelectAppointment={handleSelectScheduleAppointment}
-                onPreviousWeek={goToPreviousWeek}
-                onNextWeek={goToNextWeek}
-                onToday={goToToday}
-                isLoading={scheduleLoading}
-              />
-            </div>
-          )}
+          </div>
+        )}
 
-          {listError && currentView === "list" && (
-            <div className="text-center text-destructive py-10">
-              Error loading appointments
-            </div>
-          )}
-        </ListPanel>
+        {listError && currentView === "list" && (
+          <div className="py-10 text-center text-destructive">
+            Error loading appointments
+          </div>
+        )}
+      </div>
 
-        <DetailPanel
-          id={FOCUS_ZONES.DETAIL}
-          open={detailOpen}
-          storageKey="appointments"
-          onOpenChange={(open) => {
-            if (!open) clearDetails();
-          }}
-          sheetTitle={
-            selectedAppointment?.appointmentType?.name ?? "Appointment details"
-          }
-          sheetDescription={
-            selectedAppointment
-              ? formatDisplayDate(selectedAppointment.startAt, displayTimezone)
-              : undefined
-          }
-          bodyClassName="p-0"
-        >
-          {detailOpen && (
+      <EntityModal
+        open={detailOpen}
+        onOpenChange={(open) => {
+          if (!open) clearDetails();
+        }}
+        title={
+          selectedAppointment?.appointmentType?.name ?? "Appointment details"
+        }
+        description={
+          selectedAppointment
+            ? formatDisplayDate(selectedAppointment.startAt, displayTimezone)
+            : undefined
+        }
+        className="max-w-6xl"
+      >
+        {detailOpen ? (
+          <div id={FOCUS_ZONES.DETAIL}>
             <AppointmentDetail
               appointment={selectedAppointment}
               displayTimezone={displayTimezone}
@@ -736,9 +730,9 @@ function AppointmentsPage() {
               onTabChange={setActiveTab}
               isLoading={!!selectedInSchedule && isFetchingAppointment}
             />
-          )}
-        </DetailPanel>
-      </WorkbenchLayout>
+          </div>
+        ) : null}
+      </EntityModal>
 
       {/* Appointment Modal */}
       <AppointmentModal

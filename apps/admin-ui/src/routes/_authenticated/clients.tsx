@@ -1,6 +1,6 @@
-// Clients management page with split list/detail view, modal-based create/edit, and appointment booking
+// Clients management page with table list and modal-based detail/create/edit flows
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { DateTime } from "luxon";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -20,13 +20,7 @@ import { createClientSchema } from "@scheduling/dto";
 import type { CreateClientInput } from "@scheduling/dto";
 import { AppointmentModal } from "@/components/appointment-modal";
 import { DeleteConfirmDialog } from "@/components/delete-confirm-dialog";
-import {
-  DetailPanel,
-  DetailTab,
-  DetailTabs,
-  ListPanel,
-  WorkbenchLayout,
-} from "@/components/workbench";
+import { DetailTab, DetailTabs } from "@/components/workbench";
 import { EntityModal } from "@/components/entity-modal";
 import { RelationshipCountBadge } from "@/components/relationship-count-badge";
 import { RowActions } from "@/components/row-actions";
@@ -183,7 +177,9 @@ function ClientsPage() {
   const { selected, tab } = Route.useSearch();
   const selectedId = selected ?? null;
   const activeTab: DetailTabValue = tab && isDetailTab(tab) ? tab : "details";
-  const detailOpen = !!selectedId;
+  const [detailModalOpen, setDetailModalOpen] = useState(false);
+  const [isDetailDismissed, setIsDetailDismissed] = useState(false);
+  const prevSelectedIdRef = useRef<string | null>(null);
 
   const [search, setSearch] = useState("");
   const [appointmentModalOpen, setAppointmentModalOpen] = useState(false);
@@ -203,9 +199,19 @@ function ClientsPage() {
   const clients = data?.items ?? [];
   const selectedClient =
     clients.find((client) => client.id === selectedId) ?? null;
+  const [closingClientSnapshot, setClosingClientSnapshot] =
+    useState<ClientItem | null>(null);
+
+  useEffect(() => {
+    if (!selectedClient) return;
+    setClosingClientSnapshot(selectedClient);
+  }, [selectedClient]);
+
+  const displayClient = selectedClient ?? closingClientSnapshot;
 
   const openDetails = useCallback(
     (clientId: string, nextTab: DetailTabValue = "details") => {
+      setIsDetailDismissed(false);
       navigate({
         search: (prev) => ({
           ...prev,
@@ -218,6 +224,8 @@ function ClientsPage() {
   );
 
   const clearDetails = useCallback(() => {
+    setIsDetailDismissed(true);
+    setDetailModalOpen(false);
     navigate({
       search: (prev) => ({
         ...prev,
@@ -226,6 +234,26 @@ function ClientsPage() {
       }),
     });
   }, [navigate]);
+
+  useEffect(() => {
+    if (!selectedId || isDetailDismissed) {
+      setDetailModalOpen(false);
+      return;
+    }
+    if (selectedClient) {
+      setDetailModalOpen(true);
+    }
+  }, [isDetailDismissed, selectedClient, selectedId]);
+
+  useEffect(() => {
+    const prevSelectedId = prevSelectedIdRef.current;
+    if (!selectedId) {
+      setIsDetailDismissed(false);
+    } else if (selectedId !== prevSelectedId) {
+      setIsDetailDismissed(false);
+    }
+    prevSelectedIdRef.current = selectedId;
+  }, [selectedId]);
 
   const setActiveTab = useCallback(
     (value: string) => {
@@ -355,333 +383,336 @@ function ClientsPage() {
         </Button>
       </div>
 
-      <WorkbenchLayout className="mt-6 min-h-[600px]">
-        <ListPanel className="flex flex-col gap-6">
-          <div className="max-w-sm">
-            <div className="relative">
-              <Icon
-                icon={Search01Icon}
-                className="size-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
-              />
-              <Input
-                placeholder="Search by name or email..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="pl-10"
-              />
-            </div>
+      <div className="mt-6 space-y-6">
+        <div className="max-w-sm">
+          <div className="relative">
+            <Icon
+              icon={Search01Icon}
+              className="size-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+            />
+            <Input
+              placeholder="Search by name or email..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-10"
+            />
           </div>
+        </div>
 
-          <div>
-            {isLoading ? (
-              <div
-                className="py-10 text-center text-muted-foreground"
-                role="status"
-                aria-live="polite"
-              >
-                Loading...
-              </div>
-            ) : error ? (
-              <div className="py-10 text-center text-destructive">
-                Error loading clients
-              </div>
-            ) : !clients.length ? (
-              <div className="rounded-xl border border-border bg-card p-10 text-center text-muted-foreground shadow-sm">
-                {search
-                  ? "No clients found matching your search."
-                  : "No clients yet. Create your first client to get started."}
-              </div>
-            ) : (
-              <div className="overflow-hidden rounded-xl border border-border shadow-sm">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Name</TableHead>
-                      <TableHead>Email</TableHead>
-                      <TableHead>Phone</TableHead>
-                      <TableHead>Appointments</TableHead>
-                      <TableHead>Created</TableHead>
-                      <TableHead className="text-right">Actions</TableHead>
+        <div>
+          {isLoading ? (
+            <div
+              className="py-10 text-center text-muted-foreground"
+              role="status"
+              aria-live="polite"
+            >
+              Loading...
+            </div>
+          ) : error ? (
+            <div className="py-10 text-center text-destructive">
+              Error loading clients
+            </div>
+          ) : !clients.length ? (
+            <div className="rounded-xl border border-border bg-card p-10 text-center text-muted-foreground shadow-sm">
+              {search
+                ? "No clients found matching your search."
+                : "No clients yet. Create your first client to get started."}
+            </div>
+          ) : (
+            <div className="overflow-hidden rounded-xl border border-border shadow-sm">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Name</TableHead>
+                    <TableHead>Email</TableHead>
+                    <TableHead>Phone</TableHead>
+                    <TableHead>Appointments</TableHead>
+                    <TableHead>Created</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {clients.map((client) => (
+                    <TableRow
+                      key={client.id}
+                      className="cursor-pointer transition-colors hover:bg-muted/50"
+                      tabIndex={0}
+                      onClick={() => openDetails(client.id)}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter" || event.key === " ") {
+                          event.preventDefault();
+                          openDetails(client.id);
+                        }
+                      }}
+                    >
+                      <TableCell className="font-medium">
+                        {client.firstName} {client.lastName}
+                      </TableCell>
+                      <TableCell>
+                        {client.email || (
+                          <span className="text-muted-foreground">-</span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {client.phone || (
+                          <span className="text-muted-foreground">-</span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <RelationshipCountBadge
+                          count={client.relationshipCounts?.appointments ?? 0}
+                          singular="appointment"
+                        />
+                      </TableCell>
+                      <TableCell>
+                        {formatDisplayDate(client.createdAt)}
+                      </TableCell>
+                      <TableCell>
+                        <RowActions
+                          ariaLabel={`Actions for ${client.firstName} ${client.lastName}`}
+                          actions={[
+                            {
+                              label: "View",
+                              onClick: () => openDetails(client.id),
+                            },
+                            {
+                              label: "Book",
+                              onClick: () => handleBookAppointment(client),
+                            },
+                            {
+                              label: "Edit",
+                              onClick: () => crud.openEdit(client),
+                            },
+                            {
+                              label: "Delete",
+                              onClick: () => crud.openDelete(client.id),
+                              variant: "destructive",
+                            },
+                          ]}
+                        />
+                      </TableCell>
                     </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {clients.map((client) => (
-                      <TableRow
-                        key={client.id}
-                        className="cursor-pointer transition-colors hover:bg-muted/50"
-                        tabIndex={0}
-                        onClick={() => openDetails(client.id)}
-                        onKeyDown={(event) => {
-                          if (event.key === "Enter" || event.key === " ") {
-                            event.preventDefault();
-                            openDetails(client.id);
-                          }
-                        }}
-                      >
-                        <TableCell className="font-medium">
-                          {client.firstName} {client.lastName}
-                        </TableCell>
-                        <TableCell>
-                          {client.email || (
-                            <span className="text-muted-foreground">-</span>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          {client.phone || (
-                            <span className="text-muted-foreground">-</span>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          <RelationshipCountBadge
-                            count={client.relationshipCounts?.appointments ?? 0}
-                            singular="appointment"
-                          />
-                        </TableCell>
-                        <TableCell>
-                          {formatDisplayDate(client.createdAt)}
-                        </TableCell>
-                        <TableCell>
-                          <RowActions
-                            ariaLabel={`Actions for ${client.firstName} ${client.lastName}`}
-                            actions={[
-                              {
-                                label: "View",
-                                onClick: () => openDetails(client.id),
-                              },
-                              {
-                                label: "Book",
-                                onClick: () => handleBookAppointment(client),
-                              },
-                              {
-                                label: "Edit",
-                                onClick: () => crud.openEdit(client),
-                              },
-                              {
-                                label: "Delete",
-                                onClick: () => crud.openDelete(client.id),
-                                variant: "destructive",
-                              },
-                            ]}
-                          />
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-            )}
-          </div>
-        </ListPanel>
-
-        <DetailPanel
-          open={detailOpen}
-          onOpenChange={(open) => {
-            if (!open) clearDetails();
-          }}
-          sheetTitle={
-            selectedClient
-              ? `${selectedClient.firstName} ${selectedClient.lastName}`
-              : "Client details"
-          }
-          sheetDescription={
-            selectedClient?.email ?? selectedClient?.phone ?? undefined
-          }
-          bodyClassName="p-0"
-        >
-          {detailOpen && !selectedClient ? (
-            <div className="flex h-full items-center justify-center p-8 text-sm text-muted-foreground">
-              Loading client...
+                  ))}
+                </TableBody>
+              </Table>
             </div>
-          ) : selectedClient ? (
-            <div className="flex h-full flex-col">
-              <div className="flex flex-wrap items-start justify-between gap-3 border-b border-border px-6 py-4">
-                <div>
-                  <h2 className="text-lg font-semibold tracking-tight">
-                    {selectedClient.firstName} {selectedClient.lastName}
-                  </h2>
-                  <p className="mt-1 text-sm text-muted-foreground">
-                    Client created {formatDisplayDate(selectedClient.createdAt)}
-                  </p>
-                </div>
-                <div className="flex gap-2">
-                  <Button
-                    size="sm"
-                    onClick={() => crud.openEdit(selectedClient)}
-                  >
-                    <Icon icon={PencilEdit01Icon} data-icon="inline-start" />
-                    Edit
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => handleBookAppointment(selectedClient)}
-                  >
-                    <Icon icon={Calendar03Icon} data-icon="inline-start" />
-                    Book
-                  </Button>
-                </div>
-              </div>
+          )}
+        </div>
+      </div>
 
-              <DetailTabs value={activeTab} onValueChange={setActiveTab}>
-                <DetailTab value="details">Details</DetailTab>
-                <DetailTab value="history">History</DetailTab>
-              </DetailTabs>
+      <EntityModal
+        open={detailModalOpen && !!displayClient}
+        onOpenChange={(open) => {
+          if (!open) clearDetails();
+        }}
+        title={
+          displayClient
+            ? `${displayClient.firstName} ${displayClient.lastName}`
+            : ""
+        }
+        description={displayClient?.email ?? displayClient?.phone ?? undefined}
+        className="max-w-5xl"
+        headerActions={
+          displayClient ? (
+            <div className="flex items-center gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  clearDetails();
+                  handleBookAppointment(displayClient);
+                }}
+              >
+                <Icon icon={Calendar03Icon} data-icon="inline-start" />
+                Book
+              </Button>
+              <Button
+                size="sm"
+                onClick={() => {
+                  clearDetails();
+                  crud.openEdit(displayClient);
+                }}
+              >
+                <Icon icon={PencilEdit01Icon} data-icon="inline-start" />
+                Edit
+              </Button>
+            </div>
+          ) : null
+        }
+      >
+        {displayClient ? (
+          <div className="space-y-4">
+            <DetailTabs
+              value={activeTab}
+              onValueChange={setActiveTab}
+              className="px-0"
+            >
+              <DetailTab value="details">Details</DetailTab>
+              <DetailTab value="history">History</DetailTab>
+            </DetailTabs>
 
-              <div className="flex-1 overflow-y-auto px-6 py-5">
-                {activeTab === "details" ? (
-                  <div className="space-y-4">
-                    <div>
-                      <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                        Email
-                      </Label>
-                      <p className="mt-1 text-sm">
-                        {selectedClient.email ?? (
-                          <span className="text-muted-foreground">Not set</span>
-                        )}
-                      </p>
-                    </div>
-                    <div>
-                      <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                        Phone
-                      </Label>
-                      <p className="mt-1 text-sm">
-                        {selectedClient.phone ?? (
-                          <span className="text-muted-foreground">Not set</span>
-                        )}
-                      </p>
-                    </div>
-                    <div>
-                      <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                        Total Appointments
-                      </Label>
-                      <p className="mt-1 text-sm">
-                        {selectedClient.relationshipCounts?.appointments ?? 0}
-                      </p>
-                    </div>
-                    <div className="border-t border-border pt-4">
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                        onClick={() => crud.openDelete(selectedClient.id)}
-                      >
-                        <Icon icon={Delete01Icon} data-icon="inline-start" />
-                        Delete Client
-                      </Button>
-                    </div>
+            <div className="space-y-6">
+              {activeTab === "details" ? (
+                <div className="space-y-4">
+                  <div>
+                    <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                      Created
+                    </Label>
+                    <p className="mt-1 text-sm">
+                      {formatDisplayDate(displayClient.createdAt)}
+                    </p>
                   </div>
-                ) : (
-                  <div className="space-y-6">
-                    {isLoadingAppointments ? (
-                      <div className="text-center text-muted-foreground py-6">
-                        Loading appointments...
-                      </div>
-                    ) : (
-                      <>
-                        <div>
-                          <h3 className="mb-3 text-sm font-medium text-muted-foreground uppercase tracking-wider">
-                            Upcoming
-                          </h3>
-                          {upcomingAppointments.length === 0 ? (
-                            <div className="rounded-lg border border-border p-4 text-sm text-muted-foreground">
-                              No upcoming appointments
-                            </div>
-                          ) : (
-                            <div className="rounded-lg border border-border divide-y divide-border/50">
-                              {upcomingAppointments.map((apt) => (
-                                <div key={apt.id} className="px-4 py-3">
-                                  <div className="flex items-center justify-between">
-                                    <div>
-                                      <div className="font-medium">
-                                        {formatDisplayDateTime(apt.startAt)}
-                                      </div>
-                                      <div className="text-sm text-muted-foreground">
-                                        {apt.appointmentType?.name}
-                                        {apt.calendar &&
-                                          ` - ${apt.calendar.name}`}
-                                      </div>
-                                    </div>
-                                    <Badge
-                                      variant={
-                                        apt.status === "confirmed"
-                                          ? "success"
-                                          : "secondary"
-                                      }
-                                    >
-                                      {apt.status}
-                                    </Badge>
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-
-                        <div>
-                          <div className="mb-3 flex items-center justify-between">
-                            <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
-                              Past
-                            </h3>
-                            <Button variant="ghost" size="sm" asChild>
-                              <Link
-                                to="/appointments"
-                                search={{ clientId: selectedClient.id }}
-                              >
-                                View all
-                                <Icon
-                                  icon={ArrowRight02Icon}
-                                  data-icon="inline-end"
-                                />
-                              </Link>
-                            </Button>
+                  <div>
+                    <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                      Email
+                    </Label>
+                    <p className="mt-1 text-sm">
+                      {displayClient.email ?? (
+                        <span className="text-muted-foreground">Not set</span>
+                      )}
+                    </p>
+                  </div>
+                  <div>
+                    <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                      Phone
+                    </Label>
+                    <p className="mt-1 text-sm">
+                      {displayClient.phone ?? (
+                        <span className="text-muted-foreground">Not set</span>
+                      )}
+                    </p>
+                  </div>
+                  <div>
+                    <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                      Total Appointments
+                    </Label>
+                    <p className="mt-1 text-sm">
+                      {displayClient.relationshipCounts?.appointments ?? 0}
+                    </p>
+                  </div>
+                  <div className="border-t border-border pt-4">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                      onClick={() => crud.openDelete(displayClient.id)}
+                    >
+                      <Icon icon={Delete01Icon} data-icon="inline-start" />
+                      Delete Client
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-6">
+                  {isLoadingAppointments ? (
+                    <div className="py-6 text-center text-muted-foreground">
+                      Loading appointments...
+                    </div>
+                  ) : (
+                    <>
+                      <div>
+                        <h3 className="mb-3 text-sm font-medium text-muted-foreground uppercase tracking-wider">
+                          Upcoming
+                        </h3>
+                        {upcomingAppointments.length === 0 ? (
+                          <div className="rounded-lg border border-border p-4 text-sm text-muted-foreground">
+                            No upcoming appointments
                           </div>
-                          {pastAppointments.length === 0 ? (
-                            <div className="rounded-lg border border-border p-4 text-sm text-muted-foreground">
-                              No past appointments
-                            </div>
-                          ) : (
-                            <div className="rounded-lg border border-border divide-y divide-border/50">
-                              {pastAppointments.slice(0, 5).map((apt) => (
-                                <div key={apt.id} className="px-4 py-3">
-                                  <div className="flex items-center justify-between">
-                                    <div>
-                                      <div className="font-medium">
-                                        {formatDisplayDateTime(apt.startAt)}
-                                      </div>
-                                      <div className="text-sm text-muted-foreground">
-                                        {apt.appointmentType?.name}
-                                      </div>
+                        ) : (
+                          <div className="divide-y divide-border/50 rounded-lg border border-border">
+                            {upcomingAppointments.map((apt) => (
+                              <div key={apt.id} className="px-4 py-3">
+                                <div className="flex items-center justify-between">
+                                  <div>
+                                    <div className="font-medium">
+                                      {formatDisplayDateTime(apt.startAt)}
                                     </div>
-                                    <Badge
-                                      variant={
-                                        apt.status === "confirmed"
-                                          ? "success"
-                                          : apt.status === "cancelled" ||
-                                              apt.status === "no_show"
-                                            ? "destructive"
-                                            : "secondary"
-                                      }
-                                    >
-                                      {apt.status === "no_show"
-                                        ? "No Show"
-                                        : apt.status}
-                                    </Badge>
+                                    <div className="text-sm text-muted-foreground">
+                                      {apt.appointmentType?.name}
+                                      {apt.calendar &&
+                                        ` - ${apt.calendar.name}`}
+                                    </div>
                                   </div>
+                                  <Badge
+                                    variant={
+                                      apt.status === "confirmed"
+                                        ? "success"
+                                        : "secondary"
+                                    }
+                                  >
+                                    {apt.status}
+                                  </Badge>
                                 </div>
-                              ))}
-                            </div>
-                          )}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      <div>
+                        <div className="mb-3 flex items-center justify-between">
+                          <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
+                            Past
+                          </h3>
+                          <Button variant="ghost" size="sm" asChild>
+                            <Link
+                              to="/appointments"
+                              search={{ clientId: displayClient.id }}
+                            >
+                              View all
+                              <Icon
+                                icon={ArrowRight02Icon}
+                                data-icon="inline-end"
+                              />
+                            </Link>
+                          </Button>
                         </div>
-                      </>
-                    )}
-                  </div>
-                )}
-              </div>
+                        {pastAppointments.length === 0 ? (
+                          <div className="rounded-lg border border-border p-4 text-sm text-muted-foreground">
+                            No past appointments
+                          </div>
+                        ) : (
+                          <div className="divide-y divide-border/50 rounded-lg border border-border">
+                            {pastAppointments.slice(0, 5).map((apt) => (
+                              <div key={apt.id} className="px-4 py-3">
+                                <div className="flex items-center justify-between">
+                                  <div>
+                                    <div className="font-medium">
+                                      {formatDisplayDateTime(apt.startAt)}
+                                    </div>
+                                    <div className="text-sm text-muted-foreground">
+                                      {apt.appointmentType?.name}
+                                    </div>
+                                  </div>
+                                  <Badge
+                                    variant={
+                                      apt.status === "confirmed"
+                                        ? "success"
+                                        : apt.status === "cancelled" ||
+                                            apt.status === "no_show"
+                                          ? "destructive"
+                                          : "secondary"
+                                    }
+                                  >
+                                    {apt.status === "no_show"
+                                      ? "No Show"
+                                      : apt.status}
+                                  </Badge>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
             </div>
-          ) : null}
-        </DetailPanel>
-      </WorkbenchLayout>
+          </div>
+        ) : null}
+      </EntityModal>
 
       <EntityModal
         open={crud.showCreateForm}
