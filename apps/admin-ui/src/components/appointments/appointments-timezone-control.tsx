@@ -1,4 +1,8 @@
 import { TIMEZONES } from "@/lib/constants";
+import {
+  formatTimezonePath,
+  formatTimezonePickerLabel,
+} from "@/lib/date-utils";
 import type { SchedulingTimezoneMode } from "@/lib/scheduling-timezone";
 import { cn } from "@/lib/utils";
 import {
@@ -48,12 +52,14 @@ export function AppointmentsTimezoneControl({
           }}
         >
           <SelectTrigger size="sm" className="w-full" aria-label="Timezone">
-            <SelectValue />
+            <SelectValue>
+              {formatTimezonePickerLabel(displayTimezone)}
+            </SelectValue>
           </SelectTrigger>
           <SelectContent>
             {timezoneOptions.map((timezone) => (
               <SelectItem key={timezone} value={timezone}>
-                {timezone}
+                {formatTimezonePickerLabel(timezone)}
               </SelectItem>
             ))}
           </SelectContent>
@@ -61,17 +67,14 @@ export function AppointmentsTimezoneControl({
       ) : (
         <div
           className="flex h-8 items-center rounded-md border border-border bg-muted/30 px-3 text-sm"
-          title={displayTimezone}
+          title={formatTimezonePath(displayTimezone)}
         >
           <span className="truncate">
             <span className="text-muted-foreground">
               {timezoneMode === "viewer" ? "My time" : "Calendar timezone"}
             </span>
             <span className="mx-1 text-muted-foreground">·</span>
-            <span>{displayTimezone}</span>
-            <span className="ml-1 text-muted-foreground">
-              ({displayTimezoneShort})
-            </span>
+            <span>{displayTimezoneShort}</span>
           </span>
         </div>
       )}

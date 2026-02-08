@@ -66,6 +66,7 @@ import {
   formatDateISO,
   formatDisplayDate,
   formatDisplayDateTime,
+  formatTimezonePickerLabel,
   formatTimezoneShort,
 } from "@/lib/date-utils";
 import { TIMEZONES } from "@/lib/constants";
@@ -115,7 +116,7 @@ function CalendarForm({
     value: timezone,
     options: TIMEZONES,
     getOptionValue: (tz) => tz,
-    getOptionLabel: (tz) => tz,
+    getOptionLabel: (tz) => formatTimezonePickerLabel(tz),
     unknownLabel: "Unknown timezone",
   });
 
@@ -187,7 +188,7 @@ function CalendarForm({
           <SelectContent>
             {TIMEZONES.map((tz) => (
               <SelectItem key={tz} value={tz}>
-                {tz}
+                {formatTimezonePickerLabel(tz)}
               </SelectItem>
             ))}
           </SelectContent>

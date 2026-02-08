@@ -193,6 +193,25 @@ export function formatTimezoneShort(
   return dt.offsetNameShort || timezone;
 }
 
+export function formatTimezonePath(timezone: string): string {
+  return timezone
+    .split("/")
+    .map((part) => part.replaceAll("_", " "))
+    .join("/");
+}
+
+export function formatTimezonePickerLabel(
+  timezone: string,
+  reference?: DateInput,
+): string {
+  const path = formatTimezonePath(timezone);
+  const short = formatTimezoneShort(timezone, reference);
+  if (!short || short === timezone) {
+    return path;
+  }
+  return `${path} (${short})`;
+}
+
 export function toJSDate(dt: DateTime): Date {
   return dt.toJSDate();
 }

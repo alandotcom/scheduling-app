@@ -20,7 +20,7 @@ describe("AppointmentsTimezoneControl", () => {
 
     const trigger = container.querySelector("[data-slot='select-trigger']");
     expect(trigger).not.toBeNull();
-    expect(container.textContent).toContain("America/New_York");
+    expect(container.textContent).toContain("America/New York");
   });
 
   test("renders read-only my time in viewer mode", () => {
@@ -35,8 +35,8 @@ describe("AppointmentsTimezoneControl", () => {
     );
 
     expect(container.textContent).toContain("My time");
-    expect(container.textContent).toContain("America/Los_Angeles");
-    expect(container.textContent).toContain("(PST)");
+    expect(container.textContent).toContain("PST");
+    expect(container.textContent).not.toContain("America/Los_Angeles");
     expect(container.querySelector("[data-slot='select-trigger']")).toBeNull();
   });
 
@@ -53,8 +53,8 @@ describe("AppointmentsTimezoneControl", () => {
     );
 
     expect(container.textContent).toContain("Calendar timezone");
-    expect(container.textContent).toContain("America/New_York");
-    expect(container.textContent).toContain("(EST)");
+    expect(container.textContent).toContain("EST");
+    expect(container.textContent).not.toContain("America/New_York");
     expect(container.querySelector("[data-slot='select-trigger']")).toBeNull();
   });
 });

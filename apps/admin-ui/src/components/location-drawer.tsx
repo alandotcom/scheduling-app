@@ -10,7 +10,10 @@ import { toast } from "sonner";
 
 import { orpc } from "@/lib/query";
 import { TIMEZONES } from "@/lib/constants";
-import { formatTimezoneShort } from "@/lib/date-utils";
+import {
+  formatTimezonePickerLabel,
+  formatTimezoneShort,
+} from "@/lib/date-utils";
 import { resolveSelectValueLabel } from "@/lib/select-value-label";
 import { createLocationSchema } from "@scheduling/dto";
 import type { CreateLocationInput } from "@scheduling/dto";
@@ -147,7 +150,7 @@ export function LocationDrawer({
     value: timezone,
     options: TIMEZONES,
     getOptionValue: (tz) => tz,
-    getOptionLabel: (tz) => tz,
+    getOptionLabel: (tz) => formatTimezonePickerLabel(tz),
     unknownLabel: "Unknown timezone",
   });
 
@@ -234,7 +237,7 @@ export function LocationDrawer({
                     <SelectContent>
                       {TIMEZONES.map((tz) => (
                         <SelectItem key={tz} value={tz}>
-                          {tz}
+                          {formatTimezonePickerLabel(tz)}
                         </SelectItem>
                       ))}
                     </SelectContent>

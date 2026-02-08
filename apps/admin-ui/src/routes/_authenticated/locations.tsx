@@ -53,7 +53,11 @@ import { useSubmitShortcut } from "@/hooks/use-submit-shortcut";
 import { useUrlDrivenModal } from "@/hooks/use-url-driven-modal";
 import { useValidateSelection } from "@/hooks/use-selection-search-params";
 import { TIMEZONES } from "@/lib/constants";
-import { formatDisplayDate, formatTimezoneShort } from "@/lib/date-utils";
+import {
+  formatDisplayDate,
+  formatTimezonePickerLabel,
+  formatTimezoneShort,
+} from "@/lib/date-utils";
 import { getQueryClient, orpc } from "@/lib/query";
 import { swallowIgnorableRouteLoaderError } from "@/lib/query-cancellation";
 import { resolveSelectValueLabel } from "@/lib/select-value-label";
@@ -91,7 +95,7 @@ function LocationForm({
     value: timezone,
     options: TIMEZONES,
     getOptionValue: (tz) => tz,
-    getOptionLabel: (tz) => tz,
+    getOptionLabel: (tz) => formatTimezonePickerLabel(tz),
     unknownLabel: "Unknown timezone",
   });
 
@@ -148,7 +152,7 @@ function LocationForm({
           <SelectContent>
             {TIMEZONES.map((tz) => (
               <SelectItem key={tz} value={tz}>
-                {tz}
+                {formatTimezonePickerLabel(tz)}
               </SelectItem>
             ))}
           </SelectContent>

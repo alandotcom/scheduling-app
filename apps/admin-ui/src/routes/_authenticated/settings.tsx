@@ -9,6 +9,7 @@ import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 
 import { orpc } from "@/lib/query";
 import { TIMEZONES } from "@/lib/constants";
+import { formatTimezonePickerLabel } from "@/lib/date-utils";
 import { resolveSelectValueLabel } from "@/lib/select-value-label";
 import {
   createApiKeySchema,
@@ -280,7 +281,7 @@ function SettingsForm({ org }: SettingsFormProps) {
                     value: field.value,
                     options: TIMEZONES,
                     getOptionValue: (tz) => tz,
-                    getOptionLabel: (tz) => tz,
+                    getOptionLabel: (tz) => formatTimezonePickerLabel(tz),
                     unknownLabel: "Unknown timezone",
                   });
 
@@ -298,7 +299,7 @@ function SettingsForm({ org }: SettingsFormProps) {
                       <SelectContent>
                         {TIMEZONES.map((tz) => (
                           <SelectItem key={tz} value={tz}>
-                            {tz}
+                            {formatTimezonePickerLabel(tz)}
                           </SelectItem>
                         ))}
                       </SelectContent>
