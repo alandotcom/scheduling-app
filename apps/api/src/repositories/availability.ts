@@ -210,35 +210,20 @@ export class AvailabilityRepository {
     const rangeStart = startDateTime.toJSDate();
     const rangeEnd = endDateTime.toJSDate();
 
-    const overlappingResults = await tx
+    const results = await tx
       .select()
       .from(blockedTime)
       .where(
         and(
           inArray(blockedTime.calendarId, calendarIds),
-          sql`tstzrange(${blockedTime.startAt}, ${blockedTime.endAt}, '[)') && tstzrange(${rangeStart}, ${rangeEnd}, '[)')`,
+          or(
+            sql`tstzrange(${blockedTime.startAt}, ${blockedTime.endAt}, '[)') && tstzrange(${rangeStart}, ${rangeEnd}, '[)')`,
+            sql`${blockedTime.recurringRule} is not null`,
+          ),
         ),
       );
 
-    const recurringResults = await tx
-      .select()
-      .from(blockedTime)
-      .where(
-        and(
-          inArray(blockedTime.calendarId, calendarIds),
-          ne(blockedTime.recurringRule, null as any),
-        ),
-      );
-
-    const mergedById = new Map<string, typeof blockedTime.$inferSelect>();
-    for (const row of overlappingResults) {
-      mergedById.set(row.id, row);
-    }
-    for (const row of recurringResults) {
-      mergedById.set(row.id, row);
-    }
-
-    return Array.from(mergedById.values()).map((b) => ({
+    return results.map((b) => ({
       id: b.id,
       calendarId: b.calendarId,
       startAt: b.startAt,

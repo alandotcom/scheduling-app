@@ -138,7 +138,7 @@ export class AvailabilityManagementRepository {
         ),
       )
       .limit(limit + 1)
-      .orderBy(availabilityRules.weekday, availabilityRules.startTime);
+      .orderBy(availabilityRules.id);
 
     return paginate(results, limit);
   }
@@ -291,7 +291,7 @@ export class AvailabilityManagementRepository {
         ),
       )
       .limit(limit + 1)
-      .orderBy(availabilityOverrides.date);
+      .orderBy(availabilityOverrides.id);
 
     return paginate(results, limit);
   }
@@ -423,7 +423,7 @@ export class AvailabilityManagementRepository {
         ),
       )
       .limit(limit + 1)
-      .orderBy(blockedTime.startAt);
+      .orderBy(blockedTime.id);
 
     return paginate(results, limit);
   }
@@ -445,8 +445,7 @@ export class AvailabilityManagementRepository {
           inArray(blockedTime.calendarId, calendarIds),
           sql`tstzrange(${blockedTime.startAt}, ${blockedTime.endAt}, '[)') && tstzrange(${startAt}, ${endAt}, '[)')`,
         ),
-      )
-      .orderBy(blockedTime.startAt);
+      );
   }
 
   async createBlockedTime(

@@ -842,7 +842,11 @@ export class AvailabilityManagementService {
       });
     }
 
-    items.sort((a, b) => a.startAt.getTime() - b.startAt.getTime());
+    items.sort((a, b) => {
+      const startDiff = a.startAt.getTime() - b.startAt.getTime();
+      if (startDiff !== 0) return startDiff;
+      return (a.sourceId ?? "").localeCompare(b.sourceId ?? "");
+    });
 
     return { items };
   }

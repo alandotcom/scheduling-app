@@ -297,7 +297,18 @@ export const availabilityRules = pgTable(
     intervalMin: integer("interval_min"),
     groupId: uuid("group_id"),
   },
-  (table) => [index("availability_rules_calendar_idx").on(table.calendarId)],
+  (table) => [
+    index("availability_rules_calendar_weekday_start_id_idx").on(
+      table.calendarId,
+      table.weekday,
+      table.startTime,
+      table.id,
+    ),
+    index("availability_rules_calendar_id_id_idx").on(
+      table.calendarId,
+      table.id,
+    ),
+  ],
 );
 
 export const availabilityOverrides = pgTable(
@@ -321,6 +332,10 @@ export const availabilityOverrides = pgTable(
       table.calendarId,
       table.date,
     ),
+    index("availability_overrides_calendar_id_id_idx").on(
+      table.calendarId,
+      table.id,
+    ),
   ],
 );
 
@@ -340,6 +355,7 @@ export const blockedTime = pgTable(
       table.calendarId,
       table.startAt,
     ),
+    index("blocked_time_calendar_id_id_idx").on(table.calendarId, table.id),
     index("blocked_time_calendar_end_idx").on(table.calendarId, table.endAt),
     index("blocked_time_calendar_range_gist_idx").using(
       "gist",
@@ -352,16 +368,20 @@ export const blockedTime = pgTable(
   ],
 );
 
-export const schedulingLimits = pgTable("scheduling_limits", {
-  id,
-  calendarId: uuid("calendar_id").references(() => calendars.id),
-  groupId: uuid("group_id"),
-  minNoticeHours: integer("min_notice_hours"),
-  maxNoticeDays: integer("max_notice_days"),
-  maxPerSlot: integer("max_per_slot"),
-  maxPerDay: integer("max_per_day"),
-  maxPerWeek: integer("max_per_week"),
-});
+export const schedulingLimits = pgTable(
+  "scheduling_limits",
+  {
+    id,
+    calendarId: uuid("calendar_id").references(() => calendars.id),
+    groupId: uuid("group_id"),
+    minNoticeHours: integer("min_notice_hours"),
+    maxNoticeDays: integer("max_notice_days"),
+    maxPerSlot: integer("max_per_slot"),
+    maxPerDay: integer("max_per_day"),
+    maxPerWeek: integer("max_per_week"),
+  },
+  (table) => [index("scheduling_limits_calendar_id_idx").on(table.calendarId)],
+);
 
 // ============================================================================
 // EVENT OUTBOX
