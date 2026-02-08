@@ -122,6 +122,8 @@ export function AppointmentModal({
     fallbackTimezone: defaultTimezone,
     viewerTimezone,
   });
+  // Business logic (availability + booking validation) must stay in calendar time.
+  const schedulingTimezone = selectedCalendar?.timezone ?? effectiveTimezone;
   const timezoneShortLabel = formatTimezoneShort(
     effectiveTimezone,
     selectedTime,
@@ -144,11 +146,15 @@ export function AppointmentModal({
         calendarIds: [selectedCalendarId],
         startDate: selectedDateStr,
         endDate: selectedDateStr,
-        timezone: effectiveTimezone,
+        timezone: schedulingTimezone,
       },
     }),
     enabled:
-      open && !!selectedTypeId && !!selectedCalendarId && !!selectedDateStr,
+      open &&
+      !!selectedTypeId &&
+      !!selectedCalendarId &&
+      !!selectedDateStr &&
+      !!selectedCalendar,
   });
 
   // Create appointment mutation
@@ -234,12 +240,16 @@ export function AppointmentModal({
       calendarId: selectedCalendarId,
       appointmentTypeId: selectedTypeId,
       startTime: DateTime.fromISO(selectedTime, { setZone: true }).toJSDate(),
-      // Always persist calendar timezone, even when the UI displays "My time".
-      timezone: selectedCalendar?.timezone ?? effectiveTimezone,
+      timezone: schedulingTimezone,
       notes: notes || undefined,
       clientId: selectedClientId || undefined,
     });
   };
+
+  useEffect(() => {
+    if (!open) return;
+    setSelectedTime("");
+  }, [open, timezoneMode]);
 
   const formatTime = (isoString: string) => {
     return formatTimeDisplay(isoString, effectiveTimezone);

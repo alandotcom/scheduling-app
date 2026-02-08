@@ -1,6 +1,6 @@
 // Reschedule appointment dialog with calendar and time slot picker
 
-import { useState, useMemo } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
 import { DateTime } from "luxon";
@@ -84,6 +84,11 @@ export function RescheduleDialog({
     selectedTime ?? undefined,
   );
 
+  useEffect(() => {
+    if (!open) return;
+    setSelectedTime(null);
+  }, [open, timezoneMode]);
+
   // Reset state when dialog opens/closes
   const handleOpenChange = (isOpen: boolean) => {
     if (isOpen) {
@@ -123,7 +128,7 @@ export function RescheduleDialog({
         calendarIds: [appointment.calendarId],
         startDate: selectedDateStr ?? "",
         endDate: selectedDateStr ?? "",
-        timezone: effectiveTimezone,
+        timezone: calendarTimezone,
       },
     }),
     enabled: !!selectedDateStr && open,
