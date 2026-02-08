@@ -308,14 +308,16 @@ export const availabilityOverrides = pgTable(
       .notNull()
       .references(() => calendars.id),
     date: text("date").notNull(), // YYYY-MM-DD
-    startTime: text("start_time"),
-    endTime: text("end_time"),
-    isBlocked: boolean("is_blocked").default(false),
+    // Empty array means the date is fully blocked.
+    timeRanges: jsonb("time_ranges")
+      .$type<Array<{ startTime: string; endTime: string }>>()
+      .notNull()
+      .default([]),
     intervalMin: integer("interval_min"),
     groupId: uuid("group_id"),
   },
   (table) => [
-    index("availability_overrides_calendar_date_idx").on(
+    uniqueIndex("availability_overrides_calendar_date_unique_idx").on(
       table.calendarId,
       table.date,
     ),

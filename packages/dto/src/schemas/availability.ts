@@ -50,6 +50,33 @@ export const setWeeklyAvailabilitySchema = z.object({
   rules: z.array(createAvailabilityRuleSchema),
 });
 
+const availabilityTimeRangeSchema = z
+  .object({
+    startTime: timeSchema,
+    endTime: timeSchema,
+  })
+  .refine((data) => data.startTime < data.endTime, {
+    message: "startTime must be before endTime",
+    path: ["startTime"],
+  });
+
+function hasOverlappingTimeRanges(
+  timeRanges: Array<{ startTime: string; endTime: string }>,
+): boolean {
+  const sorted = [...timeRanges].sort((a, b) =>
+    a.startTime.localeCompare(b.startTime),
+  );
+  for (let i = 1; i < sorted.length; i++) {
+    const previous = sorted[i - 1];
+    const current = sorted[i];
+    if (!previous || !current) continue;
+    if (current.startTime < previous.endTime) {
+      return true;
+    }
+  }
+  return false;
+}
+
 // ============================================================================
 // AVAILABILITY OVERRIDES (Date-specific changes)
 // ============================================================================
@@ -58,9 +85,7 @@ export const availabilityOverrideSchema = z.object({
   id: uuidSchema,
   calendarId: uuidSchema,
   date: dateSchema,
-  startTime: timeSchema.nullable(),
-  endTime: timeSchema.nullable(),
-  isBlocked: z.boolean(),
+  timeRanges: z.array(availabilityTimeRangeSchema),
   intervalMin: positiveIntSchema.nullable(),
   groupId: uuidSchema.nullable(),
 });
@@ -68,32 +93,31 @@ export const availabilityOverrideSchema = z.object({
 export const createAvailabilityOverrideSchema = z
   .object({
     date: dateSchema,
-    startTime: timeSchema.optional(),
-    endTime: timeSchema.optional(),
-    isBlocked: z.boolean().optional().default(false),
+    timeRanges: z.array(availabilityTimeRangeSchema),
     intervalMin: positiveIntSchema.optional(),
     groupId: uuidSchema.optional(),
   })
+  .refine((data) => !hasOverlappingTimeRanges(data.timeRanges), {
+    message: "timeRanges must not overlap",
+    path: ["timeRanges"],
+  });
+
+export const updateAvailabilityOverrideSchema = z
+  .object({
+    date: dateSchema.optional(),
+    timeRanges: z.array(availabilityTimeRangeSchema).optional(),
+    intervalMin: positiveIntSchema.nullable().optional(),
+    groupId: uuidSchema.nullable().optional(),
+  })
   .refine(
-    (data) => {
-      if (data.isBlocked) return true;
-      if (data.startTime && data.endTime) return data.startTime < data.endTime;
-      return true;
-    },
+    (data) =>
+      data.timeRanges === undefined ||
+      !hasOverlappingTimeRanges(data.timeRanges),
     {
-      message: "startTime must be before endTime for non-blocked overrides",
-      path: ["startTime"],
+      message: "timeRanges must not overlap",
+      path: ["timeRanges"],
     },
   );
-
-export const updateAvailabilityOverrideSchema = z.object({
-  date: dateSchema.optional(),
-  startTime: timeSchema.nullable().optional(),
-  endTime: timeSchema.nullable().optional(),
-  isBlocked: z.boolean().optional(),
-  intervalMin: positiveIntSchema.nullable().optional(),
-  groupId: uuidSchema.nullable().optional(),
-});
 
 // ============================================================================
 // BLOCKED TIME (Single or recurring via RRULE)

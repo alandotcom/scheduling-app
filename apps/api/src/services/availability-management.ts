@@ -373,13 +373,10 @@ export class AvailabilityManagementService {
         id,
         {
           date: input.date ?? existing.date,
-          startTime:
-            input.startTime !== undefined
-              ? input.startTime
-              : existing.startTime,
-          endTime:
-            input.endTime !== undefined ? input.endTime : existing.endTime,
-          isBlocked: input.isBlocked ?? existing.isBlocked ?? false,
+          timeRanges:
+            input.timeRanges !== undefined
+              ? input.timeRanges
+              : existing.timeRanges,
           intervalMin:
             input.intervalMin !== undefined
               ? input.intervalMin
@@ -786,30 +783,51 @@ export class AvailabilityManagementService {
 
     for (const override of overrides) {
       const day = DateTime.fromISO(override.date, { zone: timezone });
-      const start = override.startTime
-        ? day.set(parseTime(override.startTime))
-        : day.startOf("day");
-      const end = override.endTime
-        ? day.set(parseTime(override.endTime))
-        : day.endOf("day");
+      if (override.timeRanges.length === 0) {
+        const start = day.startOf("day");
+        const end = day.endOf("day");
 
-      if (end.toMillis() <= start.toMillis()) continue;
-      if (
-        end.toMillis() <= rangeStartMillis ||
-        start.toMillis() >= rangeEndMillis
-      ) {
+        if (
+          end.toMillis() <= rangeStartMillis ||
+          start.toMillis() >= rangeEndMillis
+        ) {
+          continue;
+        }
+
+        items.push({
+          type: "override_closed",
+          startAt: start.toJSDate(),
+          endAt: end.toJSDate(),
+          calendarId: override.calendarId,
+          label: "Override (closed)",
+          reason: null,
+          sourceId: override.id,
+        });
         continue;
       }
 
-      items.push({
-        type: override.isBlocked ? "override_closed" : "override_open",
-        startAt: start.toJSDate(),
-        endAt: end.toJSDate(),
-        calendarId: override.calendarId,
-        label: override.isBlocked ? "Override (closed)" : "Override (open)",
-        reason: null,
-        sourceId: override.id,
-      });
+      for (const timeRange of override.timeRanges) {
+        const start = day.set(parseTime(timeRange.startTime));
+        const end = day.set(parseTime(timeRange.endTime));
+
+        if (end.toMillis() <= start.toMillis()) continue;
+        if (
+          end.toMillis() <= rangeStartMillis ||
+          start.toMillis() >= rangeEndMillis
+        ) {
+          continue;
+        }
+
+        items.push({
+          type: "override_open",
+          startAt: start.toJSDate(),
+          endAt: end.toJSDate(),
+          calendarId: override.calendarId,
+          label: "Override (open)",
+          reason: null,
+          sourceId: override.id,
+        });
+      }
     }
 
     for (const block of blocked) {

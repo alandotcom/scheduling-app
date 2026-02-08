@@ -22,7 +22,10 @@ export function WorkbenchLayout({
   ...props
 }: WorkbenchLayoutProps) {
   return (
-    <div className={cn("flex flex-1 min-w-0 flex-col", className)} {...props}>
+    <div
+      className={cn("flex min-w-0 flex-1 flex-col lg:flex-row", className)}
+      {...props}
+    >
       {children}
     </div>
   );
@@ -63,46 +66,85 @@ export function DetailPanel({
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-40 flex flex-col bg-background animate-in fade-in-0 duration-200">
-      {/* Top bar */}
-      <div className="flex items-center gap-3 border-b border-border px-4 py-3 sm:px-6">
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => onOpenChange(false)}
-          className="gap-1.5"
-          aria-label="Back to list"
+    <>
+      <div className="fixed inset-0 z-40 flex flex-col bg-background animate-in fade-in-0 duration-200 lg:hidden">
+        <div className="flex items-center gap-3 border-b border-border px-4 py-3 sm:px-6">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => onOpenChange(false)}
+            className="gap-1.5"
+            aria-label="Back to list"
+          >
+            <Icon icon={ArrowLeft02Icon} />
+            <span className="hidden sm:inline">Back</span>
+          </Button>
+
+          {(sheetTitle || sheetDescription) && (
+            <div className="min-w-0 flex-1">
+              {sheetTitle && (
+                <h2 className="truncate text-base font-semibold tracking-tight text-foreground">
+                  {sheetTitle}
+                </h2>
+              )}
+              {sheetDescription && (
+                <p className="truncate text-xs text-muted-foreground">
+                  {sheetDescription}
+                </p>
+              )}
+            </div>
+          )}
+        </div>
+
+        <div
+          className={cn(
+            "flex-1 overflow-y-auto overscroll-contain",
+            bodyClassName,
+          )}
         >
-          <Icon icon={ArrowLeft02Icon} />
-          <span className="hidden sm:inline">Back</span>
-        </Button>
-
-        {(sheetTitle || sheetDescription) && (
-          <div className="min-w-0 flex-1">
-            {sheetTitle && (
-              <h2 className="truncate text-base font-semibold tracking-tight text-foreground">
-                {sheetTitle}
-              </h2>
-            )}
-            {sheetDescription && (
-              <p className="truncate text-xs text-muted-foreground">
-                {sheetDescription}
-              </p>
-            )}
-          </div>
-        )}
+          {children}
+        </div>
       </div>
 
-      {/* Content */}
-      <div
-        className={cn(
-          "flex-1 overflow-y-auto overscroll-contain",
-          bodyClassName,
-        )}
-      >
-        {children}
-      </div>
-    </div>
+      <aside className="hidden min-w-0 border-l border-border bg-background lg:flex lg:w-[min(56vw,760px)] lg:max-w-[760px] lg:flex-col">
+        <div className="flex items-center gap-3 border-b border-border px-4 py-3">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => onOpenChange(false)}
+            className="gap-1.5"
+            aria-label="Back to list"
+          >
+            <Icon icon={ArrowLeft02Icon} />
+            <span>Back</span>
+          </Button>
+
+          {(sheetTitle || sheetDescription) && (
+            <div className="min-w-0 flex-1">
+              {sheetTitle && (
+                <h2 className="truncate text-base font-semibold tracking-tight text-foreground">
+                  {sheetTitle}
+                </h2>
+              )}
+              {sheetDescription && (
+                <p className="truncate text-xs text-muted-foreground">
+                  {sheetDescription}
+                </p>
+              )}
+            </div>
+          )}
+        </div>
+
+        <div
+          className={cn(
+            "flex-1 overflow-y-auto overscroll-contain",
+            bodyClassName,
+          )}
+        >
+          {children}
+        </div>
+      </aside>
+    </>
   );
 }
 

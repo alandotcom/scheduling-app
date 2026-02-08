@@ -17,32 +17,6 @@ type Cleanup = () => void;
 
 let cleanup: Cleanup | null = null;
 
-function setMatchMedia({
-  docked = false,
-  overlay = false,
-}: {
-  docked?: boolean;
-  overlay?: boolean;
-}) {
-  Object.defineProperty(window, "matchMedia", {
-    writable: true,
-    value: (query: string) => ({
-      matches: query.includes("1280px")
-        ? docked
-        : query.includes("768px")
-          ? overlay
-          : false,
-      media: query,
-      onchange: null,
-      addEventListener: () => {},
-      removeEventListener: () => {},
-      addListener: () => {},
-      removeListener: () => {},
-      dispatchEvent: () => false,
-    }),
-  });
-}
-
 function render(ui: React.ReactElement) {
   const container = document.createElement("div");
   document.body.appendChild(container);
@@ -69,9 +43,7 @@ afterEach(() => {
 });
 
 describe("split-pane components", () => {
-  test("renders list panel and detail sheet on desktop", () => {
-    setMatchMedia({ docked: true, overlay: true });
-
+  test("renders list panel and detail content when open", () => {
     render(
       <WorkbenchLayout>
         <ListPanel>List content</ListPanel>
@@ -84,70 +56,36 @@ describe("split-pane components", () => {
     expect(document.querySelector("section")?.textContent).toContain(
       "List content",
     );
-    const sheet = document.querySelector('[data-slot="sheet-content"]');
-    expect(sheet).not.toBeNull();
-    expect(sheet?.textContent).toContain("Detail content");
+    expect(document.body.textContent).toContain("Detail content");
   });
 
-  test("does not render sheet content when closed", () => {
-    setMatchMedia({ docked: true, overlay: true });
-
+  test("does not render detail content when closed", () => {
     render(
       <DetailPanel open={false} onOpenChange={() => {}}>
         <div>Detail content</div>
       </DetailPanel>,
     );
 
-    const sheet = document.querySelector('[data-slot="sheet-content"]');
-    expect(sheet).toBeNull();
+    expect(document.body.textContent).not.toContain("Detail content");
   });
 
-  test("renders sheet content on mobile", () => {
-    setMatchMedia({ docked: false, overlay: false });
-
+  test("renders both mobile overlay and desktop dock containers", () => {
     render(
       <DetailPanel
         open
         onOpenChange={() => {}}
         sheetTitle="Details"
-        sheetDescription="Mobile sheet"
+        sheetDescription="Responsive detail panel"
       >
         <div>Detail content</div>
       </DetailPanel>,
     );
 
-    const sheet = document.querySelector('[data-slot="sheet-content"]');
-    expect(sheet).not.toBeNull();
-    expect(sheet?.textContent).toContain("Detail content");
-    const closeButton = document.querySelector('[data-slot="sheet-close"]');
-    expect(closeButton).not.toBeNull();
-  });
+    const mobilePanel = document.querySelector("div.fixed.inset-0.lg\\:hidden");
+    const desktopPanel = document.querySelector("aside.hidden.lg\\:flex");
 
-  test("renders right overlay sheet on tablet", () => {
-    setMatchMedia({ docked: false, overlay: true });
-
-    render(
-      <DetailPanel open onOpenChange={() => {}}>
-        <div>Tablet detail</div>
-      </DetailPanel>,
-    );
-
-    const sheet = document.querySelector('[data-slot="sheet-content"]');
-    expect(sheet?.className).toContain("w-[min(92vw,560px)]");
-  });
-
-  test("uses overlay sizing even when persisted width exists", () => {
-    setMatchMedia({ docked: true, overlay: true });
-    window.localStorage.setItem("workbench:appointments:detail-width", "520");
-
-    render(
-      <DetailPanel open storageKey="appointments" onOpenChange={() => {}}>
-        <div>Detail content</div>
-      </DetailPanel>,
-    );
-
-    const sheet = document.querySelector('[data-slot="sheet-content"]');
-    expect(sheet?.className).toContain("w-[min(92vw,560px)]");
+    expect(mobilePanel).not.toBeNull();
+    expect(desktopPanel).not.toBeNull();
   });
 
   test("marks the active tab", () => {

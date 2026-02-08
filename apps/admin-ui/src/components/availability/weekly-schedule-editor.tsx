@@ -239,16 +239,13 @@ function WeeklyScheduleEditorBody({
   const getDay = (weekday: number): DaySchedule =>
     schedule[weekday] ?? { enabled: false, blocks: [] };
 
-  const updateDay = useCallback(
-    (weekday: number, daySchedule: DaySchedule) => {
-      setSchedule((prev) => ({
-        ...prev,
-        [weekday]: daySchedule,
-      }));
-      setHasChanges(true);
-    },
-    [],
-  );
+  const updateDay = useCallback((weekday: number, daySchedule: DaySchedule) => {
+    setSchedule((prev) => ({
+      ...prev,
+      [weekday]: daySchedule,
+    }));
+    setHasChanges(true);
+  }, []);
 
   const copyMondayToWeekdays = () => {
     const monday = getDay(1);

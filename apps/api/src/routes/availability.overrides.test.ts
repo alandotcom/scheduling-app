@@ -54,8 +54,7 @@ describe("Availability Overrides", () => {
         calendarId: calendar.id,
         data: {
           date,
-          startTime: "10:00",
-          endTime: "12:00",
+          timeRanges: [{ startTime: "10:00", endTime: "12:00" }],
         },
       },
       { context: ctx },
@@ -77,7 +76,9 @@ describe("Availability Overrides", () => {
     );
 
     expect(fetched.id).toBe(created.id);
-    expect(fetched.startTime).toBe("10:00");
+    expect(fetched.timeRanges).toEqual([
+      { startTime: "10:00", endTime: "12:00" },
+    ]);
   });
 
   test("rejects duplicate overrides for the same date", async () => {
@@ -94,7 +95,7 @@ describe("Availability Overrides", () => {
       availabilityRoutes.overrides.create,
       {
         calendarId: calendar.id,
-        data: { date, startTime: "09:00", endTime: "10:00" },
+        data: { date, timeRanges: [{ startTime: "09:00", endTime: "10:00" }] },
       },
       { context: ctx },
     );
@@ -104,7 +105,10 @@ describe("Availability Overrides", () => {
         availabilityRoutes.overrides.create,
         {
           calendarId: calendar.id,
-          data: { date, startTime: "11:00", endTime: "12:00" },
+          data: {
+            date,
+            timeRanges: [{ startTime: "11:00", endTime: "12:00" }],
+          },
         },
         { context: ctx },
       ),
@@ -125,7 +129,7 @@ describe("Availability Overrides", () => {
       availabilityRoutes.overrides.create,
       {
         calendarId: calendar.id,
-        data: { date, startTime: "09:00", endTime: "11:00" },
+        data: { date, timeRanges: [{ startTime: "09:00", endTime: "11:00" }] },
       },
       { context: ctx },
     );
@@ -134,13 +138,12 @@ describe("Availability Overrides", () => {
       availabilityRoutes.overrides.update,
       {
         id: created.id,
-        data: { isBlocked: true, startTime: null, endTime: null },
+        data: { timeRanges: [] },
       },
       { context: ctx },
     );
 
-    expect(updated.isBlocked).toBe(true);
-    expect(updated.startTime).toBeNull();
+    expect(updated.timeRanges).toEqual([]);
 
     const removed = await call(
       availabilityRoutes.overrides.delete,

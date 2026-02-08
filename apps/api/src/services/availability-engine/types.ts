@@ -29,9 +29,7 @@ export interface AvailabilityOverride {
   id: string;
   calendarId: string;
   date: string; // YYYY-MM-DD
-  startTime: string | null;
-  endTime: string | null;
-  isBlocked: boolean | null;
+  timeRanges: Array<{ startTime: string; endTime: string }>;
   intervalMin: number | null;
   groupId: string | null;
 }

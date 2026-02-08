@@ -724,7 +724,7 @@ export class AvailabilityService {
       // Check for override on this date
       const override = overrides.find((o) => o.date === dateStr);
 
-      if (override?.isBlocked) {
+      if (override && override.timeRanges.length === 0) {
         // Entire day is blocked
         current = current.plus({ days: 1 });
         continue;
@@ -741,14 +741,12 @@ export class AvailabilityService {
             intervalMin: number | null;
           }>
         | AvailabilityRule[] =
-        override && override.startTime && override.endTime
-          ? [
-              {
-                startTime: override.startTime,
-                endTime: override.endTime,
-                intervalMin: override.intervalMin,
-              },
-            ]
+        override && override.timeRanges.length > 0
+          ? override.timeRanges.map((timeRange) => ({
+              startTime: timeRange.startTime,
+              endTime: timeRange.endTime,
+              intervalMin: override.intervalMin,
+            }))
           : dayRules;
 
       if (ruleWindows.length === 0) {

@@ -205,7 +205,7 @@ describe("AvailabilityService", () => {
       await db.insert(availabilityOverrides).values({
         calendarId: calendar.id,
         date: "2026-01-27",
-        isBlocked: true,
+        timeRanges: [],
       });
 
       const slots = await availabilityService.getAvailableSlots(
@@ -236,9 +236,7 @@ describe("AvailabilityService", () => {
       await db.insert(availabilityOverrides).values({
         calendarId: calendar.id,
         date: "2026-01-27",
-        startTime: "10:00",
-        endTime: "12:00",
-        isBlocked: false,
+        timeRanges: [{ startTime: "10:00", endTime: "12:00" }],
         intervalMin: 30,
       });
 
