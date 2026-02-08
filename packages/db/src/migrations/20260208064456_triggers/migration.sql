@@ -1,4 +1,4 @@
--- Scope resource capacity checks to the appointment's location
+-- Appointment capacity check function (location-scoped)
 CREATE OR REPLACE FUNCTION check_appointment_capacity()
 RETURNS TRIGGER AS $$
 DECLARE
@@ -130,3 +130,27 @@ BEGIN
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
+--> statement-breakpoint
+-- Trigger: check capacity on INSERT
+CREATE TRIGGER check_appointment_capacity_insert
+  BEFORE INSERT ON appointments
+  FOR EACH ROW
+  EXECUTE FUNCTION check_appointment_capacity();
+--> statement-breakpoint
+-- Trigger: check capacity on UPDATE (ENUM-aware WHEN clause)
+CREATE TRIGGER check_appointment_capacity_update
+  BEFORE UPDATE ON appointments
+  FOR EACH ROW
+  WHEN (
+    ((old.status = 'cancelled') AND (new.status <> 'cancelled'))
+    OR (old.start_at <> new.start_at)
+    OR (old.end_at <> new.end_at)
+    OR (old.calendar_id <> new.calendar_id)
+    OR (old.appointment_type_id <> new.appointment_type_id)
+  )
+  EXECUTE FUNCTION check_appointment_capacity();
+--> statement-breakpoint
+-- Index for resource capacity check queries
+CREATE INDEX idx_appointments_resource_check
+  ON appointments (appointment_type_id, start_at, end_at)
+  WHERE (status <> 'cancelled');

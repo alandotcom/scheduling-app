@@ -1,4 +1,7 @@
--- Helper functions for RLS policies (must be created before policies)
+-- Extensions
+CREATE EXTENSION IF NOT EXISTS btree_gist;
+--> statement-breakpoint
+-- RLS helper functions (must exist before policies)
 CREATE OR REPLACE FUNCTION current_org_id() RETURNS uuid AS $$
   SELECT nullif(current_setting('app.current_org_id', true), '')::uuid;
 $$ LANGUAGE SQL STABLE;
@@ -7,6 +10,9 @@ CREATE OR REPLACE FUNCTION current_user_id() RETURNS uuid AS $$
   SELECT nullif(current_setting('app.current_user_id', true), '')::uuid;
 $$ LANGUAGE SQL STABLE;
 --> statement-breakpoint
+CREATE TYPE "appointment_status" AS ENUM('scheduled', 'confirmed', 'cancelled', 'no_show');--> statement-breakpoint
+CREATE TYPE "invitation_status" AS ENUM('pending', 'accepted', 'rejected', 'canceled');--> statement-breakpoint
+CREATE TYPE "org_role" AS ENUM('owner', 'admin', 'member');--> statement-breakpoint
 CREATE TABLE "accounts" (
 	"id" uuid PRIMARY KEY DEFAULT uuidv7(),
 	"user_id" uuid NOT NULL,
@@ -23,6 +29,30 @@ CREATE TABLE "accounts" (
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
+CREATE TABLE "apikey" (
+	"id" uuid PRIMARY KEY DEFAULT uuidv7(),
+	"name" text,
+	"start" text,
+	"prefix" text,
+	"key" text NOT NULL UNIQUE,
+	"user_id" uuid NOT NULL,
+	"refill_interval" integer,
+	"refill_amount" integer,
+	"last_refill_at" timestamp with time zone,
+	"enabled" boolean DEFAULT true NOT NULL,
+	"rate_limit_enabled" boolean DEFAULT true NOT NULL,
+	"rate_limit_time_window" integer,
+	"rate_limit_max" integer,
+	"request_count" integer DEFAULT 0 NOT NULL,
+	"remaining" integer,
+	"last_request" timestamp with time zone,
+	"expires_at" timestamp with time zone,
+	"permissions" text,
+	"metadata" text,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
 CREATE TABLE "api_tokens" (
 	"id" uuid PRIMARY KEY DEFAULT uuidv7(),
 	"org_id" uuid NOT NULL,
@@ -30,7 +60,7 @@ CREATE TABLE "api_tokens" (
 	"name" text NOT NULL,
 	"token_hash" text NOT NULL UNIQUE,
 	"token_prefix" text NOT NULL,
-	"scope" text NOT NULL,
+	"scope" "org_role" NOT NULL,
 	"last_used_at" timestamp with time zone,
 	"expires_at" timestamp with time zone,
 	"revoked_at" timestamp with time zone,
@@ -75,7 +105,7 @@ CREATE TABLE "appointments" (
 	"start_at" timestamp with time zone NOT NULL,
 	"end_at" timestamp with time zone NOT NULL,
 	"timezone" text NOT NULL,
-	"status" text NOT NULL,
+	"status" "appointment_status" NOT NULL,
 	"notes" text,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
@@ -97,13 +127,12 @@ CREATE TABLE "audit_events" (
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
+ALTER TABLE "audit_events" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
 CREATE TABLE "availability_overrides" (
 	"id" uuid PRIMARY KEY DEFAULT uuidv7(),
 	"calendar_id" uuid NOT NULL,
 	"date" text NOT NULL,
-	"start_time" text,
-	"end_time" text,
-	"is_blocked" boolean DEFAULT false,
+	"time_ranges" jsonb DEFAULT '[]' NOT NULL,
 	"interval_min" integer,
 	"group_id" uuid
 );
@@ -171,19 +200,38 @@ CREATE TABLE "locations" (
 );
 --> statement-breakpoint
 ALTER TABLE "locations" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
+CREATE TABLE "org_invitations" (
+	"id" uuid PRIMARY KEY DEFAULT uuidv7(),
+	"org_id" uuid NOT NULL,
+	"email" text NOT NULL,
+	"role" "org_role" DEFAULT 'member'::"org_role" NOT NULL,
+	"status" "invitation_status" DEFAULT 'pending'::"invitation_status" NOT NULL,
+	"inviter_id" uuid NOT NULL,
+	"expires_at" timestamp with time zone NOT NULL,
+	"team_id" uuid,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
 CREATE TABLE "org_memberships" (
 	"id" uuid PRIMARY KEY DEFAULT uuidv7(),
 	"org_id" uuid NOT NULL,
 	"user_id" uuid NOT NULL,
-	"role" text NOT NULL,
+	"role" "org_role" DEFAULT 'member'::"org_role" NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-ALTER TABLE "org_memberships" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
 CREATE TABLE "orgs" (
 	"id" uuid PRIMARY KEY DEFAULT uuidv7(),
 	"name" text NOT NULL,
+	"slug" text DEFAULT replace(uuidv7()::text, '-', '') NOT NULL UNIQUE,
+	"logo" text,
+	"metadata" jsonb,
+	"default_timezone" text DEFAULT 'America/New_York',
+	"default_business_hours_start" text DEFAULT '09:00',
+	"default_business_hours_end" text DEFAULT '17:00',
+	"default_business_days" jsonb DEFAULT '[1,2,3,4,5]',
+	"notifications_enabled" boolean DEFAULT true,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
@@ -214,6 +262,7 @@ CREATE TABLE "sessions" (
 	"id" uuid PRIMARY KEY DEFAULT uuidv7(),
 	"user_id" uuid NOT NULL,
 	"token" text NOT NULL UNIQUE,
+	"active_organization_id" uuid,
 	"expires_at" timestamp with time zone NOT NULL,
 	"ip_address" text,
 	"user_agent" text,
@@ -242,8 +291,23 @@ CREATE TABLE "verifications" (
 --> statement-breakpoint
 CREATE UNIQUE INDEX "appointment_type_calendars_type_calendar_idx" ON "appointment_type_calendars" ("appointment_type_id","calendar_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "appointment_type_resources_type_resource_idx" ON "appointment_type_resources" ("appointment_type_id","resource_id");--> statement-breakpoint
+CREATE INDEX "appointment_type_resources_resource_idx" ON "appointment_type_resources" ("resource_id","appointment_type_id");--> statement-breakpoint
+CREATE INDEX "appointments_calendar_start_at_idx" ON "appointments" ("calendar_id","start_at") WHERE "status" <> 'cancelled';--> statement-breakpoint
+CREATE INDEX "appointments_calendar_range_gist_idx" ON "appointments" USING gist ("calendar_id",tstzrange("start_at", "end_at", '[)')) WHERE "status" <> 'cancelled';--> statement-breakpoint
+CREATE INDEX "audit_events_action_id_idx" ON "audit_events" ("action","id");--> statement-breakpoint
+CREATE UNIQUE INDEX "availability_overrides_calendar_date_unique_idx" ON "availability_overrides" ("calendar_id","date");--> statement-breakpoint
+CREATE INDEX "availability_overrides_calendar_id_id_idx" ON "availability_overrides" ("calendar_id","id");--> statement-breakpoint
+CREATE INDEX "availability_rules_calendar_weekday_start_id_idx" ON "availability_rules" ("calendar_id","weekday","start_time","id");--> statement-breakpoint
+CREATE INDEX "availability_rules_calendar_id_id_idx" ON "availability_rules" ("calendar_id","id");--> statement-breakpoint
+CREATE INDEX "blocked_time_calendar_start_idx" ON "blocked_time" ("calendar_id","start_at");--> statement-breakpoint
+CREATE INDEX "blocked_time_calendar_id_id_idx" ON "blocked_time" ("calendar_id","id");--> statement-breakpoint
+CREATE INDEX "blocked_time_calendar_end_idx" ON "blocked_time" ("calendar_id","end_at");--> statement-breakpoint
+CREATE INDEX "blocked_time_calendar_range_gist_idx" ON "blocked_time" USING gist ("calendar_id",tstzrange("start_at", "end_at", '[)'));--> statement-breakpoint
+CREATE INDEX "blocked_time_calendar_recurring_idx" ON "blocked_time" ("calendar_id") WHERE "recurring_rule" is not null;--> statement-breakpoint
 CREATE UNIQUE INDEX "org_memberships_org_user_idx" ON "org_memberships" ("org_id","user_id");--> statement-breakpoint
+CREATE INDEX "scheduling_limits_calendar_id_idx" ON "scheduling_limits" ("calendar_id");--> statement-breakpoint
 ALTER TABLE "accounts" ADD CONSTRAINT "accounts_user_id_users_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE;--> statement-breakpoint
+ALTER TABLE "apikey" ADD CONSTRAINT "apikey_user_id_users_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE;--> statement-breakpoint
 ALTER TABLE "api_tokens" ADD CONSTRAINT "api_tokens_org_id_orgs_id_fkey" FOREIGN KEY ("org_id") REFERENCES "orgs"("id");--> statement-breakpoint
 ALTER TABLE "api_tokens" ADD CONSTRAINT "api_tokens_user_id_users_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id");--> statement-breakpoint
 ALTER TABLE "appointment_type_calendars" ADD CONSTRAINT "appointment_type_calendars_gHcf7toxCUtt_fkey" FOREIGN KEY ("appointment_type_id") REFERENCES "appointment_types"("id");--> statement-breakpoint
@@ -254,7 +318,7 @@ ALTER TABLE "appointment_types" ADD CONSTRAINT "appointment_types_org_id_orgs_id
 ALTER TABLE "appointments" ADD CONSTRAINT "appointments_org_id_orgs_id_fkey" FOREIGN KEY ("org_id") REFERENCES "orgs"("id");--> statement-breakpoint
 ALTER TABLE "appointments" ADD CONSTRAINT "appointments_calendar_id_calendars_id_fkey" FOREIGN KEY ("calendar_id") REFERENCES "calendars"("id");--> statement-breakpoint
 ALTER TABLE "appointments" ADD CONSTRAINT "appointments_appointment_type_id_appointment_types_id_fkey" FOREIGN KEY ("appointment_type_id") REFERENCES "appointment_types"("id");--> statement-breakpoint
-ALTER TABLE "appointments" ADD CONSTRAINT "appointments_client_id_clients_id_fkey" FOREIGN KEY ("client_id") REFERENCES "clients"("id");--> statement-breakpoint
+ALTER TABLE "appointments" ADD CONSTRAINT "appointments_client_id_clients_id_fkey" FOREIGN KEY ("client_id") REFERENCES "clients"("id") ON DELETE SET NULL;--> statement-breakpoint
 ALTER TABLE "audit_events" ADD CONSTRAINT "audit_events_org_id_orgs_id_fkey" FOREIGN KEY ("org_id") REFERENCES "orgs"("id");--> statement-breakpoint
 ALTER TABLE "audit_events" ADD CONSTRAINT "audit_events_actor_id_users_id_fkey" FOREIGN KEY ("actor_id") REFERENCES "users"("id");--> statement-breakpoint
 ALTER TABLE "availability_overrides" ADD CONSTRAINT "availability_overrides_calendar_id_calendars_id_fkey" FOREIGN KEY ("calendar_id") REFERENCES "calendars"("id");--> statement-breakpoint
@@ -265,8 +329,10 @@ ALTER TABLE "calendars" ADD CONSTRAINT "calendars_location_id_locations_id_fkey"
 ALTER TABLE "clients" ADD CONSTRAINT "clients_org_id_orgs_id_fkey" FOREIGN KEY ("org_id") REFERENCES "orgs"("id");--> statement-breakpoint
 ALTER TABLE "event_outbox" ADD CONSTRAINT "event_outbox_org_id_orgs_id_fkey" FOREIGN KEY ("org_id") REFERENCES "orgs"("id");--> statement-breakpoint
 ALTER TABLE "locations" ADD CONSTRAINT "locations_org_id_orgs_id_fkey" FOREIGN KEY ("org_id") REFERENCES "orgs"("id");--> statement-breakpoint
-ALTER TABLE "org_memberships" ADD CONSTRAINT "org_memberships_org_id_orgs_id_fkey" FOREIGN KEY ("org_id") REFERENCES "orgs"("id");--> statement-breakpoint
-ALTER TABLE "org_memberships" ADD CONSTRAINT "org_memberships_user_id_users_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id");--> statement-breakpoint
+ALTER TABLE "org_invitations" ADD CONSTRAINT "org_invitations_org_id_orgs_id_fkey" FOREIGN KEY ("org_id") REFERENCES "orgs"("id") ON DELETE CASCADE;--> statement-breakpoint
+ALTER TABLE "org_invitations" ADD CONSTRAINT "org_invitations_inviter_id_users_id_fkey" FOREIGN KEY ("inviter_id") REFERENCES "users"("id") ON DELETE CASCADE;--> statement-breakpoint
+ALTER TABLE "org_memberships" ADD CONSTRAINT "org_memberships_org_id_orgs_id_fkey" FOREIGN KEY ("org_id") REFERENCES "orgs"("id") ON DELETE CASCADE;--> statement-breakpoint
+ALTER TABLE "org_memberships" ADD CONSTRAINT "org_memberships_user_id_users_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE;--> statement-breakpoint
 ALTER TABLE "resources" ADD CONSTRAINT "resources_org_id_orgs_id_fkey" FOREIGN KEY ("org_id") REFERENCES "orgs"("id");--> statement-breakpoint
 ALTER TABLE "resources" ADD CONSTRAINT "resources_location_id_locations_id_fkey" FOREIGN KEY ("location_id") REFERENCES "locations"("id");--> statement-breakpoint
 ALTER TABLE "scheduling_limits" ADD CONSTRAINT "scheduling_limits_calendar_id_calendars_id_fkey" FOREIGN KEY ("calendar_id") REFERENCES "calendars"("id");--> statement-breakpoint
@@ -274,9 +340,9 @@ ALTER TABLE "sessions" ADD CONSTRAINT "sessions_user_id_users_id_fkey" FOREIGN K
 CREATE POLICY "org_isolation_api_tokens" ON "api_tokens" AS PERMISSIVE FOR ALL TO public USING (org_id = current_org_id()) WITH CHECK (org_id = current_org_id());--> statement-breakpoint
 CREATE POLICY "org_isolation_appointment_types" ON "appointment_types" AS PERMISSIVE FOR ALL TO public USING (org_id = current_org_id()) WITH CHECK (org_id = current_org_id());--> statement-breakpoint
 CREATE POLICY "org_isolation_appointments" ON "appointments" AS PERMISSIVE FOR ALL TO public USING (org_id = current_org_id()) WITH CHECK (org_id = current_org_id());--> statement-breakpoint
+CREATE POLICY "org_isolation_audit_events" ON "audit_events" AS PERMISSIVE FOR ALL TO public USING (org_id = current_org_id()) WITH CHECK (org_id = current_org_id());--> statement-breakpoint
 CREATE POLICY "org_isolation_calendars" ON "calendars" AS PERMISSIVE FOR ALL TO public USING (org_id = current_org_id()) WITH CHECK (org_id = current_org_id());--> statement-breakpoint
 CREATE POLICY "org_isolation_clients" ON "clients" AS PERMISSIVE FOR ALL TO public USING (org_id = current_org_id()) WITH CHECK (org_id = current_org_id());--> statement-breakpoint
 CREATE POLICY "org_isolation_event_outbox" ON "event_outbox" AS PERMISSIVE FOR ALL TO public USING (org_id = current_org_id()) WITH CHECK (org_id = current_org_id());--> statement-breakpoint
 CREATE POLICY "org_isolation_locations" ON "locations" AS PERMISSIVE FOR ALL TO public USING (org_id = current_org_id()) WITH CHECK (org_id = current_org_id());--> statement-breakpoint
-CREATE POLICY "user_org_memberships" ON "org_memberships" AS PERMISSIVE FOR ALL TO public USING (org_id = current_org_id() OR user_id = current_user_id()) WITH CHECK (org_id = current_org_id() OR user_id = current_user_id());--> statement-breakpoint
 CREATE POLICY "org_isolation_resources" ON "resources" AS PERMISSIVE FOR ALL TO public USING (org_id = current_org_id()) WITH CHECK (org_id = current_org_id());

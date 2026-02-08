@@ -23,7 +23,7 @@ export const config = envParse(process.env, {
     url: {
       format: z.string().url(),
       env: "DATABASE_URL",
-      default: "postgres://scheduling:scheduling@localhost:5433/scheduling",
+      default: "postgres://scheduling_app:scheduling@localhost:5433/scheduling",
     },
   },
   auth: {

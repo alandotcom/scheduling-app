@@ -59,17 +59,16 @@ export async function emitEvent<T>(
     await withOrg(orgId, insertFn);
   }
 
-  // Enqueue for background processing
-  try {
-    await getJobQueue().enqueue(event);
-  } catch (error) {
-    // Log error but don't fail the main operation
-    // The outbox worker will pick up unprocessed events
-    console.error(
-      "Failed to enqueue event, will be picked up by outbox worker:",
-      error,
-    );
-  }
+  // Enqueue for background processing (fire-and-forget so it never blocks
+  // the caller's database transaction — the outbox is the durable record)
+  getJobQueue()
+    .enqueue(event)
+    .catch((error) => {
+      console.error(
+        "Failed to enqueue event, will be picked up by outbox worker:",
+        error,
+      );
+    });
 
   return eventId;
 }

@@ -42,6 +42,7 @@ export async function resetTestDb(): Promise<void> {
   // Truncate all tables in reverse dependency order
   await testClient.unsafe(`
     TRUNCATE TABLE
+      audit_events,
       event_outbox,
       scheduling_limits,
       blocked_time,
@@ -58,7 +59,9 @@ export async function resetTestDb(): Promise<void> {
       accounts,
       sessions,
       verifications,
+      org_invitations,
       org_memberships,
+      apikey,
       api_tokens,
       users,
       orgs
