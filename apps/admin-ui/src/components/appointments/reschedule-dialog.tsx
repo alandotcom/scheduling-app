@@ -28,6 +28,7 @@ import { TimeDisplayToggle } from "@/components/appointments/time-display-toggle
 import { Button } from "@/components/ui/button";
 import { FieldShortcutHint } from "@/components/ui/field-shortcut-hint";
 import { Icon } from "@/components/ui/icon";
+import { Label } from "@/components/ui/label";
 import { ShortcutBadge } from "@/components/ui/shortcut-badge";
 import { useModalFieldShortcuts } from "@/hooks/use-modal-field-shortcuts";
 import { useSubmitShortcut } from "@/hooks/use-submit-shortcut";
@@ -223,61 +224,68 @@ export function RescheduleDialog({
 
             {/* Content */}
             <div className="flex-1 overflow-y-auto p-6">
-              {/* Current Time */}
-              <div className="mb-6 rounded-lg border border-border bg-muted/30 p-4">
-                <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
-                  Current Time
+              <div className="mb-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
+                {/* Current Time */}
+                <div className="rounded-lg border border-border bg-muted/30 p-4">
+                  <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
+                    Current Time
+                  </div>
+                  <div className="flex items-center gap-2 text-sm">
+                    <Icon
+                      icon={Calendar03Icon}
+                      className="text-muted-foreground"
+                    />
+                    <span className="font-medium">
+                      {formatDateWithWeekday(
+                        appointment.startAt,
+                        effectiveTimezone,
+                      )}
+                    </span>
+                    <span className="text-muted-foreground">·</span>
+                    <span>
+                      {formatTimeDisplay(
+                        appointment.startAt,
+                        effectiveTimezone,
+                      )}{" "}
+                      -{" "}
+                      {formatTimeDisplay(appointment.endAt, effectiveTimezone)}{" "}
+                      ({timezoneShortLabel})
+                    </span>
+                  </div>
                 </div>
-                <div className="flex items-center gap-2 text-sm">
-                  <Icon
-                    icon={Calendar03Icon}
-                    className="text-muted-foreground"
-                  />
-                  <span className="font-medium">
-                    {formatDateWithWeekday(
-                      appointment.startAt,
-                      effectiveTimezone,
-                    )}
-                  </span>
-                  <span className="text-muted-foreground">·</span>
-                  <span>
-                    {formatTimeDisplay(appointment.startAt, effectiveTimezone)}{" "}
-                    - {formatTimeDisplay(appointment.endAt, effectiveTimezone)}{" "}
-                    ({timezoneShortLabel})
-                  </span>
-                </div>
-              </div>
 
-              <div
-                className="mb-6 rounded-lg border border-border bg-muted/30 px-4 py-3 relative"
-                ref={registerField("time-display")}
-              >
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Time Display</label>
-                  <TimeDisplayToggle
-                    value={timezoneMode}
-                    onValueChange={(value) => {
-                      if (onTimezoneModeChange) {
-                        onTimezoneModeChange(value);
-                        return;
-                      }
-                      setLocalTimezoneMode(value);
-                    }}
+                <div
+                  className="rounded-lg border border-border bg-muted/30 px-4 py-3 relative"
+                  ref={registerField("time-display")}
+                >
+                  <div className="space-y-2">
+                    <Label>Time Display</Label>
+                    <TimeDisplayToggle
+                      value={timezoneMode}
+                      onValueChange={(value) => {
+                        if (onTimezoneModeChange) {
+                          onTimezoneModeChange(value);
+                          return;
+                        }
+                        setLocalTimezoneMode(value);
+                      }}
+                      className="w-full sm:w-fit"
+                    />
+                    <p
+                      className="text-sm text-muted-foreground"
+                      title={effectiveTimezone}
+                    >
+                      Showing{" "}
+                      {timezoneMode === "viewer" ? "your local" : "calendar"}{" "}
+                      time ({timezoneShortLabel})
+                    </p>
+                  </div>
+                  <FieldShortcutHint
+                    shortcut="z"
+                    label="Display"
+                    visible={hintsVisible}
                   />
-                  <p
-                    className="text-sm text-muted-foreground"
-                    title={effectiveTimezone}
-                  >
-                    Showing{" "}
-                    {timezoneMode === "viewer" ? "your local" : "calendar"} time
-                    ({timezoneShortLabel})
-                  </p>
                 </div>
-                <FieldShortcutHint
-                  shortcut="z"
-                  label="Display"
-                  visible={hintsVisible}
-                />
               </div>
 
               {/* Calendar and Time Selection */}

@@ -392,103 +392,107 @@ export function AppointmentModal({
             </div>
 
             {/* Content */}
-            <div className="flex-1 overflow-y-auto p-4 sm:p-6">
-              {/* Type & Calendar Selection */}
-              <div className="mb-5 grid grid-cols-1 gap-4 sm:mb-6 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <Label>Appointment Type</Label>
-                  <div
-                    className="relative"
-                    ref={registerField("appointment-type")}
-                  >
-                    <Select
-                      value={selectedTypeId}
-                      onValueChange={(v) => v && handleTypeChange(v)}
+            <div className="flex min-h-0 flex-1 flex-col overflow-y-auto p-4 sm:p-6">
+              {/* Type, Calendar, and Time Display */}
+              <div className="mb-5 grid grid-cols-1 gap-4 sm:mb-6 lg:grid-cols-2">
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label>Appointment Type</Label>
+                    <div
+                      className="relative"
+                      ref={registerField("appointment-type")}
                     >
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Select type">
-                          {appointmentTypeSelectLabel}
-                        </SelectValue>
-                      </SelectTrigger>
-                      <SelectContent>
-                        {appointmentTypes.map((type) => (
-                          <SelectItem key={type.id} value={type.id}>
-                            {type.name} ({type.durationMin} min)
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <FieldShortcutHint
-                      shortcut="t"
-                      label="Type"
-                      visible={hintsVisible}
-                    />
+                      <Select
+                        value={selectedTypeId}
+                        onValueChange={(v) => v && handleTypeChange(v)}
+                      >
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder="Select type">
+                            {appointmentTypeSelectLabel}
+                          </SelectValue>
+                        </SelectTrigger>
+                        <SelectContent>
+                          {appointmentTypes.map((type) => (
+                            <SelectItem key={type.id} value={type.id}>
+                              {type.name} ({type.durationMin} min)
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FieldShortcutHint
+                        shortcut="t"
+                        label="Type"
+                        visible={hintsVisible}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Calendar</Label>
+                    <div className="relative" ref={registerField("calendar")}>
+                      <Select
+                        value={selectedCalendarId}
+                        onValueChange={(v) => v && handleCalendarChange(v)}
+                        disabled={!selectedTypeId || calendarsLoading}
+                      >
+                        <SelectTrigger className="w-full">
+                          <SelectValue
+                            placeholder={
+                              calendarsLoading
+                                ? "Loading..."
+                                : "Select calendar"
+                            }
+                          >
+                            {calendarSelectLabel}
+                          </SelectValue>
+                        </SelectTrigger>
+                        <SelectContent>
+                          {calendars.map((cal) => (
+                            <SelectItem key={cal.id} value={cal.id}>
+                              {cal.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FieldShortcutHint
+                        shortcut="c"
+                        label="Calendar"
+                        visible={hintsVisible}
+                      />
+                    </div>
                   </div>
                 </div>
 
-                <div className="space-y-2">
-                  <Label>Calendar</Label>
-                  <div className="relative" ref={registerField("calendar")}>
-                    <Select
-                      value={selectedCalendarId}
-                      onValueChange={(v) => v && handleCalendarChange(v)}
-                      disabled={!selectedTypeId || calendarsLoading}
-                    >
-                      <SelectTrigger className="w-full">
-                        <SelectValue
-                          placeholder={
-                            calendarsLoading ? "Loading..." : "Select calendar"
-                          }
-                        >
-                          {calendarSelectLabel}
-                        </SelectValue>
-                      </SelectTrigger>
-                      <SelectContent>
-                        {calendars.map((cal) => (
-                          <SelectItem key={cal.id} value={cal.id}>
-                            {cal.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <FieldShortcutHint
-                      shortcut="c"
-                      label="Calendar"
-                      visible={hintsVisible}
+                <div className="rounded-lg border border-border bg-muted/30 px-4 py-3">
+                  <div className="space-y-2">
+                    <Label>Time Display</Label>
+                    <TimeDisplayToggle
+                      value={timezoneMode}
+                      onValueChange={(value) => {
+                        if (onTimezoneModeChange) {
+                          onTimezoneModeChange(value);
+                          return;
+                        }
+                        setLocalTimezoneMode(value);
+                      }}
+                      className="w-full sm:w-fit"
                     />
+                    <p
+                      className="text-sm text-muted-foreground"
+                      title={effectiveTimezone}
+                    >
+                      Showing{" "}
+                      {timezoneMode === "viewer" ? "your local" : "calendar"}{" "}
+                      time ({timezoneShortLabel})
+                    </p>
                   </div>
-                </div>
-              </div>
-
-              <div className="mb-5 rounded-lg border border-border bg-muted/30 px-4 py-3 sm:mb-6">
-                <div className="space-y-2">
-                  <Label>Time Display</Label>
-                  <TimeDisplayToggle
-                    value={timezoneMode}
-                    onValueChange={(value) => {
-                      if (onTimezoneModeChange) {
-                        onTimezoneModeChange(value);
-                        return;
-                      }
-                      setLocalTimezoneMode(value);
-                    }}
-                    className="w-full sm:w-fit"
-                  />
-                  <p
-                    className="text-sm text-muted-foreground"
-                    title={effectiveTimezone}
-                  >
-                    Showing{" "}
-                    {timezoneMode === "viewer" ? "your local" : "calendar"} time
-                    ({timezoneShortLabel})
-                  </p>
                 </div>
               </div>
 
               {/* Calendar and Time Selection */}
               {selectedCalendarId && (
                 <div
-                  className="mb-5 sm:mb-6 relative"
+                  className="relative flex-1 min-h-0"
                   ref={registerField("date-time")}
                 >
                   <AvailabilityCalendarPicker
@@ -516,83 +520,90 @@ export function AppointmentModal({
                 </div>
               )}
 
-              {/* Client Search (optional) */}
-              <div className="mb-6">
-                <Label>Client (optional)</Label>
-                <div
-                  className="mt-2 space-y-2 relative"
-                  ref={registerField("client")}
-                >
-                  <Input
-                    placeholder="Search by name or email..."
-                    value={clientSearch}
-                    onChange={(e) => setClientSearch(e.target.value)}
-                  />
-                  <FieldShortcutHint
-                    shortcut="l"
-                    label="Client"
-                    visible={hintsVisible}
-                  />
-                  {clients.length > 0 && (
-                    <div className="rounded-md border border-border divide-y divide-border/50">
-                      {clients.map((client) => (
-                        <button
-                          key={client.id}
-                          type="button"
-                          onClick={() => {
-                            setSelectedClientId(client.id);
-                            setClientSearch(
-                              `${client.firstName} ${client.lastName}`,
-                            );
-                          }}
-                          className={cn(
-                            "w-full px-3 py-2 text-left text-sm hover:bg-muted transition-colors",
-                            selectedClientId === client.id && "bg-muted",
-                          )}
-                        >
-                          <div className="font-medium">
-                            {client.firstName} {client.lastName}
-                          </div>
-                          {client.email && (
-                            <div className="text-xs text-muted-foreground">
-                              {client.email}
+              <div
+                className={cn(
+                  "mt-5 grid grid-cols-1 gap-4 lg:grid-cols-2",
+                  selectedCalendarId && "lg:mt-auto",
+                )}
+              >
+                {/* Client Search (optional) */}
+                <div>
+                  <Label>Client (optional)</Label>
+                  <div
+                    className="mt-2 space-y-2 relative"
+                    ref={registerField("client")}
+                  >
+                    <Input
+                      placeholder="Search by name or email..."
+                      value={clientSearch}
+                      onChange={(e) => setClientSearch(e.target.value)}
+                    />
+                    <FieldShortcutHint
+                      shortcut="l"
+                      label="Client"
+                      visible={hintsVisible}
+                    />
+                    {clients.length > 0 && (
+                      <div className="rounded-md border border-border divide-y divide-border/50">
+                        {clients.map((client) => (
+                          <button
+                            key={client.id}
+                            type="button"
+                            onClick={() => {
+                              setSelectedClientId(client.id);
+                              setClientSearch(
+                                `${client.firstName} ${client.lastName}`,
+                              );
+                            }}
+                            className={cn(
+                              "w-full px-3 py-2 text-left text-sm hover:bg-muted transition-colors",
+                              selectedClientId === client.id && "bg-muted",
+                            )}
+                          >
+                            <div className="font-medium">
+                              {client.firstName} {client.lastName}
                             </div>
-                          )}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                  {selectedClientId && (
-                    <Button
-                      variant="ghost"
-                      size="xs"
-                      onClick={() => {
-                        setSelectedClientId("");
-                        setClientSearch("");
-                      }}
-                      className="text-muted-foreground"
-                    >
-                      Clear selection
-                    </Button>
-                  )}
+                            {client.email && (
+                              <div className="text-xs text-muted-foreground">
+                                {client.email}
+                              </div>
+                            )}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    {selectedClientId && (
+                      <Button
+                        variant="ghost"
+                        size="xs"
+                        onClick={() => {
+                          setSelectedClientId("");
+                          setClientSearch("");
+                        }}
+                        className="text-muted-foreground"
+                      >
+                        Clear selection
+                      </Button>
+                    )}
+                  </div>
                 </div>
-              </div>
 
-              {/* Notes */}
-              <div>
-                <Label>Notes (optional)</Label>
-                <div className="relative mt-2" ref={registerField("notes")}>
-                  <Textarea
-                    placeholder="Add any notes..."
-                    value={notes}
-                    onChange={(e) => setNotes(e.target.value)}
-                    rows={2}
-                  />
-                  <FieldShortcutHint
-                    shortcut="n"
-                    label="Notes"
-                    visible={hintsVisible}
-                  />
+                {/* Notes */}
+                <div>
+                  <Label>Notes (optional)</Label>
+                  <div className="relative mt-2" ref={registerField("notes")}>
+                    <Textarea
+                      placeholder="Add any notes..."
+                      value={notes}
+                      onChange={(e) => setNotes(e.target.value)}
+                      rows={2}
+                    />
+                    <FieldShortcutHint
+                      shortcut="n"
+                      label="Notes"
+                      visible={hintsVisible}
+                    />
+                  </div>
                 </div>
               </div>
             </div>
