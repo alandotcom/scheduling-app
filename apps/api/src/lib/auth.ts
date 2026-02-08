@@ -8,6 +8,23 @@ import * as schema from "@scheduling/db/schema";
 import { config } from "../config.js";
 
 const isDev = process.env.NODE_ENV !== "production";
+const configuredTrustedOrigins = config.auth.trustedOrigins
+  .split(",")
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+
+// In development, allow any incoming Origin to simplify tunneling (e.g. ngrok).
+// In production, only allow explicitly configured trusted origins.
+const trustedOrigins = isDev
+  ? async (request?: Request) => {
+      const requestOrigin = request?.headers.get("origin")?.trim();
+      if (!requestOrigin) return configuredTrustedOrigins;
+      if (configuredTrustedOrigins.includes(requestOrigin)) {
+        return configuredTrustedOrigins;
+      }
+      return [...configuredTrustedOrigins, requestOrigin];
+    }
+  : configuredTrustedOrigins;
 
 export const auth = betterAuth({
   database: drizzleAdapter(db, {
@@ -25,7 +42,7 @@ export const auth = betterAuth({
   }),
   secret: config.auth.secret,
   baseURL: config.auth.baseUrl,
-  trustedOrigins: config.auth.trustedOrigins.split(",").map((o) => o.trim()),
+  trustedOrigins,
   emailAndPassword: {
     enabled: true,
     requireEmailVerification: isDev
