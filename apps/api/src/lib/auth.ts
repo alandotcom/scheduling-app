@@ -2,7 +2,7 @@
 
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
-import { apiKey, organization } from "better-auth/plugins";
+import { admin, apiKey, organization } from "better-auth/plugins";
 import { db } from "./db.js";
 import * as schema from "@scheduling/db/schema";
 import { config } from "../config.js";
@@ -41,6 +41,7 @@ export const auth = betterAuth({
     },
   },
   plugins: [
+    admin(),
     organization({
       allowUserToCreateOrganization: true,
       creatorRole: "owner",

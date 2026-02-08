@@ -8,6 +8,7 @@ import { authUser, authed, adminOnly } from "./base.js";
 import { db } from "../lib/db.js";
 import { auth } from "../lib/auth.js";
 import { ApplicationError } from "../errors/application-error.js";
+import { orgUserRoutes } from "./org-users.js";
 
 // Get current org with settings
 export const get = authed
@@ -139,4 +140,5 @@ export const orgRoutes = {
   create,
   setActive,
   updateSettings,
+  users: orgUserRoutes,
 };

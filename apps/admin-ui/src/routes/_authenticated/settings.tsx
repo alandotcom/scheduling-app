@@ -5,13 +5,19 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
-import { useRef } from "react";
+import { useRef, useState } from "react";
 
 import { orpc } from "@/lib/query";
 import { TIMEZONES } from "@/lib/constants";
 import { resolveSelectValueLabel } from "@/lib/select-value-label";
-import { updateOrgSettingsSchema } from "@scheduling/dto";
-import type { UpdateOrgSettingsInput } from "@scheduling/dto";
+import {
+  createOrgUserSchema,
+  updateOrgSettingsSchema,
+  type CreateOrgUserInput,
+  type OrgMembershipRole,
+  type UpdateOrgSettingsInput,
+  type UpdateOrgUserRoleInput,
+} from "@scheduling/dto";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -33,6 +39,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 
 const WEEKDAYS = [
   { value: 0, label: "Sun" },
@@ -43,6 +57,12 @@ const WEEKDAYS = [
   { value: 5, label: "Fri" },
   { value: 6, label: "Sat" },
 ] as const;
+
+const ORG_ROLE_OPTIONS: Array<{ value: OrgMembershipRole; label: string }> = [
+  { value: "owner", label: "Owner" },
+  { value: "admin", label: "Admin" },
+  { value: "member", label: "Member" },
+];
 
 // Org settings type inferred from API response
 interface OrgSettings {
@@ -361,7 +381,265 @@ function SettingsForm({ org }: SettingsFormProps) {
           </Button>
         </div>
       </form>
+
+      <UsersManagementSection />
     </div>
+  );
+}
+
+interface OrgUserListItem {
+  membershipId: string;
+  orgId: string;
+  userId: string;
+  email: string;
+  name: string | null;
+  image: string | null;
+  role: OrgMembershipRole;
+  membershipCreatedAt: Date;
+  membershipUpdatedAt: Date;
+  userCreatedAt: Date;
+  userUpdatedAt: Date;
+}
+
+function formatDate(value: Date | string) {
+  return new Date(value).toLocaleDateString();
+}
+
+function UsersManagementSection() {
+  const queryClient = useQueryClient();
+  const [updatingUserId, setUpdatingUserId] = useState<string | null>(null);
+
+  const {
+    data: users,
+    isLoading,
+    error,
+  } = useQuery(orpc.org.users.list.queryOptions({}));
+
+  const createUserMutation = useMutation(
+    orpc.org.users.create.mutationOptions({
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: orpc.org.users.key() });
+        toast.success("User created");
+      },
+      onError: (mutationError) => {
+        toast.error(mutationError.message || "Failed to create user");
+      },
+    }),
+  );
+
+  const updateRoleMutation = useMutation(
+    orpc.org.users.updateRole.mutationOptions({
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: orpc.org.users.key() });
+        toast.success("User role updated");
+      },
+      onError: (mutationError) => {
+        toast.error(mutationError.message || "Failed to update role");
+      },
+    }),
+  );
+
+  const {
+    register,
+    control,
+    handleSubmit,
+    reset,
+    formState: { errors },
+  } = useForm<CreateOrgUserInput>({
+    resolver: zodResolver(createOrgUserSchema),
+    defaultValues: {
+      email: "",
+      name: "",
+      role: "member",
+    },
+  });
+
+  const onCreateUser = (data: CreateOrgUserInput) => {
+    createUserMutation.mutate(
+      {
+        email: data.email.trim().toLowerCase(),
+        name: data.name?.trim() || undefined,
+        role: data.role,
+      },
+      {
+        onSuccess: () => {
+          reset({
+            email: "",
+            name: "",
+            role: "member",
+          });
+        },
+      },
+    );
+  };
+
+  const onChangeRole = (input: UpdateOrgUserRoleInput) => {
+    setUpdatingUserId(input.userId);
+    updateRoleMutation.mutate(input, {
+      onSettled: () => {
+        setUpdatingUserId(null);
+      },
+    });
+  };
+
+  const orgUsers = (users ?? []) as OrgUserListItem[];
+
+  return (
+    <Card className="mt-6">
+      <CardHeader>
+        <CardTitle>Users</CardTitle>
+        <CardDescription>
+          Manage organization members and roles. Invite emails are coming next.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-6">
+        <form
+          onSubmit={handleSubmit(onCreateUser)}
+          className="grid gap-3 md:grid-cols-[1fr_1fr_180px_auto]"
+        >
+          <div>
+            <Label htmlFor="new-user-email">Email</Label>
+            <Input
+              id="new-user-email"
+              type="email"
+              placeholder="new.user@example.com"
+              disabled={createUserMutation.isPending}
+              {...register("email")}
+            />
+            {errors.email && (
+              <p className="mt-1 text-xs text-destructive">
+                {errors.email.message}
+              </p>
+            )}
+          </div>
+
+          <div>
+            <Label htmlFor="new-user-name">Name (optional)</Label>
+            <Input
+              id="new-user-name"
+              placeholder="Full name"
+              disabled={createUserMutation.isPending}
+              {...register("name", {
+                setValueAs: (value) => {
+                  if (typeof value !== "string") return value;
+                  const trimmed = value.trim();
+                  return trimmed.length > 0 ? trimmed : undefined;
+                },
+              })}
+            />
+            {errors.name && (
+              <p className="mt-1 text-xs text-destructive">
+                {errors.name.message}
+              </p>
+            )}
+          </div>
+
+          <div>
+            <Label htmlFor="new-user-role">Role</Label>
+            <Controller
+              name="role"
+              control={control}
+              render={({ field }) => (
+                <Select
+                  value={field.value}
+                  onValueChange={(value) =>
+                    field.onChange(value as OrgMembershipRole)
+                  }
+                  disabled={createUserMutation.isPending}
+                >
+                  <SelectTrigger id="new-user-role">
+                    <SelectValue placeholder="Select role" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {ORG_ROLE_OPTIONS.map((role) => (
+                      <SelectItem key={role.value} value={role.value}>
+                        {role.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            />
+            {errors.role && (
+              <p className="mt-1 text-xs text-destructive">
+                {errors.role.message}
+              </p>
+            )}
+          </div>
+
+          <div className="flex items-end">
+            <Button type="submit" disabled={createUserMutation.isPending}>
+              {createUserMutation.isPending ? "Creating..." : "Add user"}
+            </Button>
+          </div>
+        </form>
+
+        {isLoading ? (
+          <div
+            className="text-sm text-muted-foreground"
+            role="status"
+            aria-live="polite"
+          >
+            Loading users...
+          </div>
+        ) : error ? (
+          <div className="text-sm text-destructive">Failed to load users.</div>
+        ) : !orgUsers.length ? (
+          <div className="text-sm text-muted-foreground">
+            No users in this organization yet.
+          </div>
+        ) : (
+          <div className="overflow-hidden rounded-xl border border-border shadow-sm">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Name</TableHead>
+                  <TableHead>Email</TableHead>
+                  <TableHead>Role</TableHead>
+                  <TableHead>Joined</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {orgUsers.map((user) => (
+                  <TableRow key={user.membershipId}>
+                    <TableCell>{user.name || "—"}</TableCell>
+                    <TableCell>{user.email}</TableCell>
+                    <TableCell>
+                      <Select
+                        value={user.role}
+                        onValueChange={(nextRole) => {
+                          const role = nextRole as OrgMembershipRole;
+                          if (role === user.role) return;
+                          onChangeRole({ userId: user.userId, role });
+                        }}
+                        disabled={
+                          updateRoleMutation.isPending &&
+                          updatingUserId === user.userId
+                        }
+                      >
+                        <SelectTrigger className="w-[160px]">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {ORG_ROLE_OPTIONS.map((role) => (
+                            <SelectItem key={role.value} value={role.value}>
+                              {role.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </TableCell>
+                    <TableCell>
+                      {formatDate(user.membershipCreatedAt)}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 

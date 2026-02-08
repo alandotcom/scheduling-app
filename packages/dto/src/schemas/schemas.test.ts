@@ -11,6 +11,9 @@ import {
   updateOrgSchema,
   // User
   createUserSchema,
+  createOrgUserSchema,
+  updateOrgUserRoleSchema,
+  orgUserListItemSchema,
   orgMembershipRoleSchema,
   // Location
   createLocationSchema,
@@ -157,6 +160,61 @@ describe("User schemas", () => {
 
     test("rejects invalid role", () => {
       expect(orgMembershipRoleSchema.safeParse("staff").success).toBe(false);
+    });
+  });
+
+  describe("createOrgUserSchema", () => {
+    test("accepts valid input with explicit role", () => {
+      const result = createOrgUserSchema.safeParse({
+        email: "member@example.com",
+        name: "Member User",
+        role: "admin",
+      });
+      expect(result.success).toBe(true);
+    });
+
+    test("requires role", () => {
+      const result = createOrgUserSchema.safeParse({
+        email: "member@example.com",
+      });
+      expect(result.success).toBe(false);
+    });
+  });
+
+  describe("updateOrgUserRoleSchema", () => {
+    test("accepts valid role update input", () => {
+      const result = updateOrgUserRoleSchema.safeParse({
+        userId: "550e8400-e29b-41d4-a716-446655440000",
+        role: "owner",
+      });
+      expect(result.success).toBe(true);
+    });
+
+    test("rejects invalid role update input", () => {
+      const result = updateOrgUserRoleSchema.safeParse({
+        userId: "not-a-uuid",
+        role: "staff",
+      });
+      expect(result.success).toBe(false);
+    });
+  });
+
+  describe("orgUserListItemSchema", () => {
+    test("accepts valid list item", () => {
+      const result = orgUserListItemSchema.safeParse({
+        membershipId: "550e8400-e29b-41d4-a716-446655440001",
+        orgId: "550e8400-e29b-41d4-a716-446655440002",
+        userId: "550e8400-e29b-41d4-a716-446655440003",
+        email: "member@example.com",
+        name: "Member User",
+        image: null,
+        role: "member",
+        membershipCreatedAt: new Date(),
+        membershipUpdatedAt: new Date(),
+        userCreatedAt: new Date(),
+        userUpdatedAt: new Date(),
+      });
+      expect(result.success).toBe(true);
     });
   });
 });

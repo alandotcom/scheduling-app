@@ -10,11 +10,11 @@
     "db:migrate": "pnpm --filter @scheduling/db run migrate",
     "db:reset": "pnpm --filter @scheduling/db run reset",
     "db:seed": " pnpm --filter @scheduling/api run seed",
-    "db:reseed": "pnpm db:reset && pnpm db:seed",
+    "db:reseed": "pnpm db:reset && pnpm db:migrate && pnpm db:seed",
     "build": "pnpm -r run build",
     "test": "pnpm -r run test",
     "test:coverage": "pnpm -r --workspace-concurrency=1 --stream run test:coverage",
-    "lint": "oxlint .",
+    "lint": "oxlint --type-aware .",
     "format": "biome format . --write",
     "format:check": "biome check .",
     "typecheck": "pnpm -r run typecheck"
@@ -22,6 +22,7 @@
   "devDependencies": {
     "@biomejs/biome": "2.3.14",
     "oxlint": "^1.43.0",
+    "oxlint-tsgolint": "^0.11.5",
     "typescript": "catalog:"
   },
   "engines": {
