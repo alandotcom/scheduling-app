@@ -13,15 +13,19 @@ import { toast } from "sonner";
 
 import { createResourceSchema } from "@scheduling/dto";
 import type { CreateResourceInput } from "@scheduling/dto";
-import { TableSkeleton } from "@/components/ui/skeleton";
 import { DeleteConfirmDialog } from "@/components/delete-confirm-dialog";
 import { EntityModal } from "@/components/entity-modal";
-import { RowActions } from "@/components/row-actions";
+import {
+  EntityListEmptyState,
+  EntityListLoadingState,
+} from "@/components/entity-list";
 import { Button } from "@/components/ui/button";
 import { FieldShortcutHint } from "@/components/ui/field-shortcut-hint";
 import { Icon } from "@/components/ui/icon";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { PageHeader, PageScaffold } from "@/components/layout/page-scaffold";
+import { ResourcesListPresentation } from "@/components/resources/resources-list-presentation";
 import { ShortcutBadge } from "@/components/ui/shortcut-badge";
 import {
   Select,
@@ -30,14 +34,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { useCrudState } from "@/hooks/use-crud-state";
 import {
   useKeyboardShortcuts,
@@ -47,7 +43,6 @@ import { useModalFieldShortcuts } from "@/hooks/use-modal-field-shortcuts";
 import { useSubmitShortcut } from "@/hooks/use-submit-shortcut";
 import { useUrlDrivenModal } from "@/hooks/use-url-driven-modal";
 import { useValidateSelection } from "@/hooks/use-selection-search-params";
-import { formatDisplayDate } from "@/lib/date-utils";
 import { getQueryClient, orpc } from "@/lib/query";
 import { swallowIgnorableRouteLoaderError } from "@/lib/query-cancellation";
 import { resolveSelectValueLabel } from "@/lib/select-value-label";
@@ -380,100 +375,41 @@ function ResourcesPage() {
   };
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div className="min-w-0 flex-1">
-          <h1 className="truncate text-2xl font-semibold tracking-tight">
-            Resources
-          </h1>
-          <p className="mt-1 text-sm text-muted-foreground sm:truncate">
-            Manage resources like rooms, equipment, or staff
-          </p>
-        </div>
-        <Button className="shrink-0" onClick={crud.openCreate}>
-          <Icon icon={Add01Icon} data-icon="inline-start" />
-          <span className="hidden sm:inline">Add Resource</span>
-          <span className="sm:hidden">Add</span>
-          <ShortcutBadge shortcut="c" className="ml-2 hidden md:inline-flex" />
-        </Button>
-      </div>
+    <PageScaffold>
+      <PageHeader
+        title="Resources"
+        description="Manage resources like rooms, equipment, or staff"
+        actions={
+          <Button onClick={crud.openCreate}>
+            <Icon icon={Add01Icon} data-icon="inline-start" />
+            <span className="hidden sm:inline">Add Resource</span>
+            <span className="sm:hidden">Add</span>
+            <ShortcutBadge
+              shortcut="c"
+              className="ml-2 hidden md:inline-flex"
+            />
+          </Button>
+        }
+      />
 
       <div className="mt-6">
         {isLoading ? (
-          <div className="py-10" role="status" aria-live="polite">
-            <TableSkeleton rows={5} cols={5} />
-          </div>
+          <EntityListLoadingState rows={5} cols={5} />
         ) : error ? (
           <div className="py-10 text-center text-destructive">
             Error loading resources
           </div>
         ) : !resources.length ? (
-          <div className="rounded-xl border border-border bg-card p-10 text-center text-muted-foreground shadow-sm">
+          <EntityListEmptyState>
             No resources yet. Create your first resource to get started.
-          </div>
+          </EntityListEmptyState>
         ) : (
-          <div className="overflow-hidden rounded-xl border border-border shadow-sm">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead className="hidden md:table-cell">
-                    Quantity
-                  </TableHead>
-                  <TableHead>Location</TableHead>
-                  <TableHead className="hidden md:table-cell">
-                    Created
-                  </TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {resources.map((resource) => (
-                  <TableRow
-                    key={resource.id}
-                    className="cursor-pointer transition-colors hover:bg-muted/50"
-                    tabIndex={0}
-                    onClick={() => openDetails(resource.id)}
-                    onKeyDown={(event) => {
-                      if (event.key === "Enter" || event.key === " ") {
-                        event.preventDefault();
-                        openDetails(resource.id);
-                      }
-                    }}
-                  >
-                    <TableCell className="font-medium">
-                      {resource.name}
-                    </TableCell>
-                    <TableCell className="hidden md:table-cell">
-                      {resource.quantity}
-                    </TableCell>
-                    <TableCell>
-                      {getLocationName(resource.locationId)}
-                    </TableCell>
-                    <TableCell className="hidden md:table-cell">
-                      {formatDisplayDate(resource.createdAt)}
-                    </TableCell>
-                    <TableCell>
-                      <RowActions
-                        ariaLabel={`Actions for ${resource.name}`}
-                        actions={[
-                          {
-                            label: "Edit",
-                            onClick: () => openDetails(resource.id),
-                          },
-                          {
-                            label: "Delete",
-                            onClick: () => crud.openDelete(resource.id),
-                            variant: "destructive",
-                          },
-                        ]}
-                      />
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
+          <ResourcesListPresentation
+            resources={resources}
+            getLocationName={getLocationName}
+            onOpen={openDetails}
+            onDelete={crud.openDelete}
+          />
         )}
       </div>
 
@@ -546,7 +482,7 @@ function ResourcesPage() {
         description="Are you sure you want to delete this resource? This action cannot be undone."
         isPending={deleteMutation.isPending}
       />
-    </div>
+    </PageScaffold>
   );
 }
 

@@ -16,27 +16,21 @@ import {
 
 import { createAppointmentTypeSchema } from "@scheduling/dto";
 import type { CreateAppointmentTypeInput } from "@scheduling/dto";
-import { TableSkeleton } from "@/components/ui/skeleton";
-import { ContextMenu, type ContextMenuItem } from "@/components/context-menu";
+import {
+  EntityListEmptyState,
+  EntityListLoadingState,
+} from "@/components/entity-list";
+import type { ContextMenuItem } from "@/components/context-menu";
 import { DeleteConfirmDialog } from "@/components/delete-confirm-dialog";
 import { EntityModal } from "@/components/entity-modal";
-import { RelationshipCountBadge } from "@/components/relationship-count-badge";
-import { RowActions } from "@/components/row-actions";
-import { Badge } from "@/components/ui/badge";
+import { PageHeader, PageScaffold } from "@/components/layout/page-scaffold";
+import { AppointmentTypesListPresentation } from "@/components/appointment-types/appointment-types-list-presentation";
 import { Button } from "@/components/ui/button";
 import { FieldShortcutHint } from "@/components/ui/field-shortcut-hint";
 import { Icon } from "@/components/ui/icon";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ShortcutBadge } from "@/components/ui/shortcut-badge";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { useCrudState } from "@/hooks/use-crud-state";
 import {
   useKeyboardShortcuts,
@@ -46,7 +40,6 @@ import { useAppointmentTypeMutations } from "@/hooks/use-appointment-type-mutati
 import { useModalFieldShortcuts } from "@/hooks/use-modal-field-shortcuts";
 import { useSubmitShortcut } from "@/hooks/use-submit-shortcut";
 import { useUrlDrivenModal } from "@/hooks/use-url-driven-modal";
-import { formatDisplayDate } from "@/lib/date-utils";
 import { getQueryClient, orpc } from "@/lib/query";
 import { swallowIgnorableRouteLoaderError } from "@/lib/query-cancellation";
 import { CalendarsTab } from "./components/calendars-tab";
@@ -468,124 +461,44 @@ function AppointmentTypesPage() {
   };
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div className="min-w-0 flex-1">
-          <h1 className="truncate text-2xl font-semibold tracking-tight">
-            Appointment Types
-          </h1>
-          <p className="mt-1 text-sm text-muted-foreground sm:truncate">
-            Configure the types of appointments that can be booked
-          </p>
-        </div>
-        <Button className="shrink-0" onClick={crud.openCreate}>
-          <Icon icon={Add01Icon} data-icon="inline-start" />
-          <span className="hidden sm:inline">Add Type</span>
-          <span className="sm:hidden">Add</span>
-          <ShortcutBadge shortcut="c" className="ml-2 hidden md:inline-flex" />
-        </Button>
-      </div>
+    <PageScaffold>
+      <PageHeader
+        title="Appointment Types"
+        description="Configure the types of appointments that can be booked"
+        actions={
+          <Button onClick={crud.openCreate}>
+            <Icon icon={Add01Icon} data-icon="inline-start" />
+            <span className="hidden sm:inline">Add Type</span>
+            <span className="sm:hidden">Add</span>
+            <ShortcutBadge
+              shortcut="c"
+              className="ml-2 hidden md:inline-flex"
+            />
+          </Button>
+        }
+      />
 
       <div className="mt-6">
         {isLoading ? (
-          <div className="py-10" role="status" aria-live="polite">
-            <TableSkeleton rows={5} cols={7} />
-          </div>
+          <EntityListLoadingState rows={5} cols={7} />
         ) : error ? (
           <div className="py-10 text-center text-destructive">
             Error loading appointment types
           </div>
         ) : !appointmentTypes.length ? (
-          <div className="rounded-xl border border-border bg-card p-10 text-center text-muted-foreground shadow-sm">
+          <EntityListEmptyState>
             No appointment types yet. Create your first appointment type to get
             started.
-          </div>
+          </EntityListEmptyState>
         ) : (
-          <div className="overflow-hidden rounded-xl border border-border shadow-sm">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Duration</TableHead>
-                  <TableHead className="hidden md:table-cell">
-                    Padding
-                  </TableHead>
-                  <TableHead className="hidden md:table-cell">
-                    Capacity
-                  </TableHead>
-                  <TableHead className="hidden md:table-cell">
-                    Relationships
-                  </TableHead>
-                  <TableHead className="hidden md:table-cell">
-                    Created
-                  </TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {appointmentTypes.map((type) => (
-                  <ContextMenu key={type.id} items={getContextMenuItems(type)}>
-                    <TableRow
-                      className="cursor-pointer transition-colors hover:bg-muted/50"
-                      tabIndex={0}
-                      onClick={() => {
-                        setManageTypeId(type.id);
-                        setManageTab("details");
-                      }}
-                      onKeyDown={(event) => {
-                        if (event.key === "Enter" || event.key === " ") {
-                          event.preventDefault();
-                          setManageTypeId(type.id);
-                          setManageTab("details");
-                        }
-                      }}
-                    >
-                      <TableCell className="font-medium">{type.name}</TableCell>
-                      <TableCell>{type.durationMin} min</TableCell>
-                      <TableCell className="hidden md:table-cell">
-                        {type.paddingBeforeMin || type.paddingAfterMin ? (
-                          <span className="text-muted-foreground">
-                            {type.paddingBeforeMin ?? 0} /{" "}
-                            {type.paddingAfterMin ?? 0} min
-                          </span>
-                        ) : (
-                          <span className="text-muted-foreground">-</span>
-                        )}
-                      </TableCell>
-                      <TableCell className="hidden md:table-cell">
-                        <Badge variant="secondary">{type.capacity ?? 1}</Badge>
-                      </TableCell>
-                      <TableCell className="hidden md:table-cell">
-                        <div className="flex flex-wrap gap-1">
-                          <RelationshipCountBadge
-                            count={type.relationshipCounts?.calendars ?? 0}
-                            singular="calendar"
-                          />
-                          <RelationshipCountBadge
-                            count={type.relationshipCounts?.resources ?? 0}
-                            singular="resource"
-                          />
-                          <RelationshipCountBadge
-                            count={type.relationshipCounts?.appointments ?? 0}
-                            singular="appointment"
-                          />
-                        </div>
-                      </TableCell>
-                      <TableCell className="hidden md:table-cell">
-                        {formatDisplayDate(type.createdAt)}
-                      </TableCell>
-                      <TableCell>
-                        <RowActions
-                          ariaLabel={`Actions for ${type.name}`}
-                          actions={getContextMenuItems(type)}
-                        />
-                      </TableCell>
-                    </TableRow>
-                  </ContextMenu>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
+          <AppointmentTypesListPresentation
+            appointmentTypes={appointmentTypes}
+            getActions={getContextMenuItems}
+            onOpen={(typeId, tabValue = "details") => {
+              setManageTypeId(typeId);
+              setManageTab(tabValue);
+            }}
+          />
         )}
       </div>
 
@@ -694,7 +607,7 @@ function AppointmentTypesPage() {
         description="Are you sure you want to delete this appointment type? This action cannot be undone."
         isPending={deleteMutation.isPending}
       />
-    </div>
+    </PageScaffold>
   );
 }
 

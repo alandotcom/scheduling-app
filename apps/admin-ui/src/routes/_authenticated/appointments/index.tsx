@@ -50,6 +50,7 @@ import {
 } from "@/components/filter-popover";
 import { AppointmentModal } from "@/components/appointment-modal";
 import { EntityModal } from "@/components/entity-modal";
+import { PageHeader, PageScaffold } from "@/components/layout/page-scaffold";
 import {
   useKeyboardShortcuts,
   useFocusZones,
@@ -689,17 +690,11 @@ function AppointmentsPage() {
   );
 
   return (
-    <div className="mx-auto max-w-7xl px-4 pb-24 pt-6 sm:px-6 sm:pb-6 lg:px-8">
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div className="min-w-0 flex-1">
-          <h1 className="truncate text-2xl font-semibold tracking-tight">
-            Appointments
-          </h1>
-          <p className="mt-1 text-sm text-muted-foreground sm:truncate">
-            View and manage scheduled appointments
-          </p>
-        </div>
-      </div>
+    <PageScaffold className="pb-24 sm:pb-6">
+      <PageHeader
+        title="Appointments"
+        description="View and manage scheduled appointments"
+      />
 
       <div className="mt-6 flex flex-wrap items-center gap-2 sm:gap-3">
         <ViewToggle view={currentView} onViewChange={setView} size="sm" />
@@ -956,7 +951,7 @@ function AppointmentsPage() {
           New Appointment
         </Button>
       </div>
-    </div>
+    </PageScaffold>
   );
 }
 

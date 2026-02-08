@@ -28,27 +28,22 @@ import { toast } from "sonner";
 import { createClientSchema } from "@scheduling/dto";
 import type { CreateClientInput } from "@scheduling/dto";
 import { AppointmentModal } from "@/components/appointment-modal";
-import { TableSkeleton } from "@/components/ui/skeleton";
 import { DeleteConfirmDialog } from "@/components/delete-confirm-dialog";
 import { DetailTab, DetailTabs } from "@/components/workbench";
 import { EntityModal } from "@/components/entity-modal";
-import { RelationshipCountBadge } from "@/components/relationship-count-badge";
-import { RowActions } from "@/components/row-actions";
+import {
+  EntityListEmptyState,
+  EntityListLoadingState,
+} from "@/components/entity-list";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { ClientsListPresentation } from "@/components/clients/clients-list-presentation";
 import { FieldShortcutHint } from "@/components/ui/field-shortcut-hint";
 import { Icon } from "@/components/ui/icon";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { PageHeader, PageScaffold } from "@/components/layout/page-scaffold";
 import { ShortcutBadge } from "@/components/ui/shortcut-badge";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { useCrudState } from "@/hooks/use-crud-state";
 import {
   useKeyboardShortcuts,
@@ -788,30 +783,29 @@ function ClientsPage() {
   }, [appointments]);
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div className="min-w-0 flex-1">
-          <h1 className="truncate text-2xl font-semibold tracking-tight">
-            Clients
-          </h1>
-          <p className="mt-1 text-sm text-muted-foreground sm:truncate">
-            Manage client records and contact information
-          </p>
-        </div>
-        <Button className="shrink-0" onClick={crud.openCreate}>
-          <Icon icon={Add01Icon} data-icon="inline-start" />
-          <span className="hidden sm:inline">Add Client</span>
-          <span className="sm:hidden">Add</span>
-          <ShortcutBadge shortcut="c" className="ml-2 hidden md:inline-flex" />
-        </Button>
-      </div>
+    <PageScaffold>
+      <PageHeader
+        title="Clients"
+        description="Manage client records and contact information"
+        actions={
+          <Button onClick={crud.openCreate}>
+            <Icon icon={Add01Icon} data-icon="inline-start" />
+            <span className="hidden sm:inline">Add Client</span>
+            <span className="sm:hidden">Add</span>
+            <ShortcutBadge
+              shortcut="c"
+              className="ml-2 hidden md:inline-flex"
+            />
+          </Button>
+        }
+      />
 
       <div className="mt-6 space-y-6">
         <div className="max-w-sm">
           <div className="relative">
             <Icon
               icon={Search01Icon}
-              className="size-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+              className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
             />
             <Input
               placeholder="Search by name or email..."
@@ -824,107 +818,25 @@ function ClientsPage() {
 
         <div>
           {isLoading ? (
-            <div className="py-10" role="status" aria-live="polite">
-              <TableSkeleton rows={5} cols={6} />
-            </div>
+            <EntityListLoadingState rows={5} cols={6} />
           ) : error ? (
             <div className="py-10 text-center text-destructive">
               Error loading clients
             </div>
           ) : !clients.length ? (
-            <div className="rounded-xl border border-border bg-card p-10 text-center text-muted-foreground shadow-sm">
+            <EntityListEmptyState>
               {search
                 ? "No clients found matching your search."
                 : "No clients yet. Create your first client to get started."}
-            </div>
+            </EntityListEmptyState>
           ) : (
-            <div className="overflow-hidden rounded-xl border border-border shadow-sm">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Name</TableHead>
-                    <TableHead className="hidden md:table-cell">
-                      Email
-                    </TableHead>
-                    <TableHead className="hidden md:table-cell">
-                      Phone
-                    </TableHead>
-                    <TableHead>Appointments</TableHead>
-                    <TableHead className="hidden md:table-cell">
-                      Created
-                    </TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {clients.map((client) => {
-                    const formattedPhone = formatPhoneForDisplay(client.phone);
-
-                    return (
-                      <TableRow
-                        key={client.id}
-                        className="cursor-pointer transition-colors hover:bg-muted/50"
-                        tabIndex={0}
-                        onClick={() => openDetails(client.id)}
-                        onKeyDown={(event) => {
-                          if (event.key === "Enter" || event.key === " ") {
-                            event.preventDefault();
-                            openDetails(client.id);
-                          }
-                        }}
-                      >
-                        <TableCell className="font-medium">
-                          {client.firstName} {client.lastName}
-                        </TableCell>
-                        <TableCell className="hidden md:table-cell">
-                          {client.email || (
-                            <span className="text-muted-foreground">-</span>
-                          )}
-                        </TableCell>
-                        <TableCell className="hidden md:table-cell">
-                          {formattedPhone ?? (
-                            <span className="text-muted-foreground">-</span>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          <RelationshipCountBadge
-                            count={client.relationshipCounts?.appointments ?? 0}
-                            singular="appointment"
-                          />
-                        </TableCell>
-                        <TableCell className="hidden md:table-cell">
-                          {formatDisplayDate(client.createdAt)}
-                        </TableCell>
-                        <TableCell>
-                          <RowActions
-                            ariaLabel={`Actions for ${client.firstName} ${client.lastName}`}
-                            actions={[
-                              {
-                                label: "View",
-                                onClick: () => openDetails(client.id),
-                              },
-                              {
-                                label: "Book",
-                                onClick: () => handleBookAppointment(client),
-                              },
-                              {
-                                label: "Edit",
-                                onClick: () => crud.openEdit(client),
-                              },
-                              {
-                                label: "Delete",
-                                onClick: () => crud.openDelete(client.id),
-                                variant: "destructive",
-                              },
-                            ]}
-                          />
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            </div>
+            <ClientsListPresentation
+              clients={clients}
+              onOpen={openDetails}
+              onBook={handleBookAppointment}
+              onEdit={crud.openEdit}
+              onDelete={crud.openDelete}
+            />
           )}
         </div>
       </div>
@@ -1279,7 +1191,7 @@ function ClientsPage() {
         description="Are you sure you want to delete this client? This action cannot be undone."
         isPending={deleteMutation.isPending}
       />
-    </div>
+    </PageScaffold>
   );
 }
 

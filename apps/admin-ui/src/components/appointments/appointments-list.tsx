@@ -1,7 +1,6 @@
 // Appointments list table component
 
 import type { AppointmentWithRelations } from "@scheduling/dto";
-import { TableSkeleton } from "@/components/ui/skeleton";
 import {
   Cancel01Icon,
   CheckmarkCircle01Icon,
@@ -11,6 +10,15 @@ import {
 } from "@hugeicons/core-free-icons";
 
 import { Badge } from "@/components/ui/badge";
+import {
+  EntityCardField,
+  EntityDesktopTable,
+  EntityListEmptyState,
+  EntityListLoadingState,
+  EntityMobileCard,
+  EntityMobileCardList,
+} from "@/components/entity-list";
+import { RowActions } from "@/components/row-actions";
 import {
   Table,
   TableBody,
@@ -58,6 +66,7 @@ export function AppointmentsList({
   isLoading,
 }: AppointmentsListProps) {
   const timezoneShortLabel = formatTimezoneShort(displayTimezone);
+
   const getContextMenuItems = (
     appointment: AppointmentWithRelations,
   ): ContextMenuItem[] => {
@@ -110,85 +119,139 @@ export function AppointmentsList({
   };
 
   if (isLoading) {
-    return (
-      <div className="py-10" role="status" aria-live="polite">
-        <TableSkeleton rows={5} cols={5} />
-      </div>
-    );
+    return <EntityListLoadingState rows={5} cols={5} />;
   }
 
   if (appointments.length === 0) {
     return (
-      <div className="rounded-xl border border-border bg-card p-10 text-center text-muted-foreground shadow-sm">
+      <EntityListEmptyState>
         No appointments found. Create your first appointment or adjust filters.
-      </div>
+      </EntityListEmptyState>
     );
   }
 
   return (
-    <div className="rounded-xl border border-border overflow-hidden shadow-sm">
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>Date/Time</TableHead>
-            <TableHead>Type</TableHead>
-            <TableHead>Calendar</TableHead>
-            <TableHead>Client</TableHead>
-            <TableHead>Status</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {appointments.map((appointment) => {
-            const isSelected = appointment.id === selectedId;
-            return (
-              <ContextMenu
-                key={appointment.id}
-                items={getContextMenuItems(appointment)}
-              >
-                <TableRow
-                  className={cn(
-                    "cursor-pointer transition-colors hover:bg-muted/50",
-                    isSelected && "bg-muted/60",
-                  )}
-                  aria-selected={isSelected}
-                  onClick={() => onSelect(appointment)}
-                >
-                  <TableCell className="font-medium">
-                    <div>
-                      {formatDisplayDateTime(
-                        appointment.startAt,
-                        displayTimezone,
-                      )}
-                    </div>
-                    <div className="text-xs text-muted-foreground">
-                      {timezoneShortLabel}
-                    </div>
-                    {appointment.appointmentType?.durationMin && (
-                      <div className="text-xs text-muted-foreground">
-                        {appointment.appointmentType.durationMin} min
-                      </div>
+    <>
+      <EntityMobileCardList>
+        {appointments.map((appointment) => {
+          const isSelected = appointment.id === selectedId;
+          return (
+            <EntityMobileCard
+              key={appointment.id}
+              onOpen={() => onSelect(appointment)}
+              className={cn(isSelected && "bg-muted/50")}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-foreground">
+                    {formatDisplayDateTime(
+                      appointment.startAt,
+                      displayTimezone,
                     )}
-                  </TableCell>
-                  <TableCell>
-                    {appointment.appointmentType?.name ?? "-"}
-                  </TableCell>
-                  <TableCell>{appointment.calendar?.name ?? "-"}</TableCell>
-                  <TableCell>
-                    {appointment.client
+                  </p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {timezoneShortLabel}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Badge variant={getStatusVariant(appointment.status)}>
+                    {appointment.status.replace("_", " ")}
+                  </Badge>
+                  <RowActions
+                    ariaLabel={`Actions for appointment ${appointment.id}`}
+                    actions={getContextMenuItems(appointment)}
+                  />
+                </div>
+              </div>
+
+              <dl className="mt-4 grid grid-cols-2 gap-3">
+                <EntityCardField
+                  label="Type"
+                  value={appointment.appointmentType?.name ?? "-"}
+                />
+                <EntityCardField
+                  label="Calendar"
+                  value={appointment.calendar?.name ?? "-"}
+                />
+                <EntityCardField
+                  label="Client"
+                  value={
+                    appointment.client
                       ? `${appointment.client.firstName} ${appointment.client.lastName}`
-                      : "-"}
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant={getStatusVariant(appointment.status)}>
-                      {appointment.status.replace("_", " ")}
-                    </Badge>
-                  </TableCell>
-                </TableRow>
-              </ContextMenu>
-            );
-          })}
-        </TableBody>
-      </Table>
-    </div>
+                      : "-"
+                  }
+                  className="col-span-2"
+                />
+              </dl>
+            </EntityMobileCard>
+          );
+        })}
+      </EntityMobileCardList>
+
+      <EntityDesktopTable>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Date/Time</TableHead>
+              <TableHead>Type</TableHead>
+              <TableHead>Calendar</TableHead>
+              <TableHead>Client</TableHead>
+              <TableHead>Status</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {appointments.map((appointment) => {
+              const isSelected = appointment.id === selectedId;
+              return (
+                <ContextMenu
+                  key={appointment.id}
+                  items={getContextMenuItems(appointment)}
+                >
+                  <TableRow
+                    className={cn(
+                      "cursor-pointer transition-colors hover:bg-muted/50",
+                      isSelected && "bg-muted/60",
+                    )}
+                    aria-selected={isSelected}
+                    onClick={() => onSelect(appointment)}
+                  >
+                    <TableCell className="font-medium">
+                      <div>
+                        {formatDisplayDateTime(
+                          appointment.startAt,
+                          displayTimezone,
+                        )}
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        {timezoneShortLabel}
+                      </div>
+                      {appointment.appointmentType?.durationMin && (
+                        <div className="text-xs text-muted-foreground">
+                          {appointment.appointmentType.durationMin} min
+                        </div>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {appointment.appointmentType?.name ?? "-"}
+                    </TableCell>
+                    <TableCell>{appointment.calendar?.name ?? "-"}</TableCell>
+                    <TableCell>
+                      {appointment.client
+                        ? `${appointment.client.firstName} ${appointment.client.lastName}`
+                        : "-"}
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant={getStatusVariant(appointment.status)}>
+                        {appointment.status.replace("_", " ")}
+                      </Badge>
+                    </TableCell>
+                  </TableRow>
+                </ContextMenu>
+              );
+            })}
+          </TableBody>
+        </Table>
+      </EntityDesktopTable>
+    </>
   );
 }

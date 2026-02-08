@@ -28,6 +28,11 @@ import {
 } from "@scheduling/dto";
 
 import { RowActions } from "@/components/row-actions";
+import {
+  EntityCardField,
+  EntityMobileCard,
+  EntityMobileCardList,
+} from "@/components/entity-list";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
@@ -1100,46 +1105,63 @@ function UsersManagementSection() {
             </Button>
           </div>
         ) : (
-          <div className="overflow-hidden rounded-xl border border-border shadow-sm">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Member</TableHead>
-                  <TableHead>Role</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Joined</TableHead>
-                  <TableHead className="w-14 text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredUsers.map((user) => {
-                  const displayName = getUserDisplayName(user);
-                  return (
-                    <TableRow key={user.membershipId}>
-                      <TableCell>
-                        <div className="flex items-center gap-3">
-                          {user.image ? (
-                            <img
-                              src={user.image}
-                              alt=""
-                              className="size-8 rounded-full object-cover"
-                            />
-                          ) : (
-                            <div className="flex size-8 items-center justify-center rounded-full border border-border bg-muted text-xs font-semibold uppercase text-muted-foreground">
-                              {getUserInitials(user)}
-                            </div>
-                          )}
-                          <div className="min-w-0">
-                            <div className="truncate text-sm font-medium">
-                              {displayName}
-                            </div>
-                            <div className="truncate text-xs text-muted-foreground">
-                              {user.email}
-                            </div>
+          <>
+            <EntityMobileCardList>
+              {filteredUsers.map((user) => {
+                const displayName = getUserDisplayName(user);
+                return (
+                  <EntityMobileCard key={user.membershipId}>
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex min-w-0 items-center gap-3">
+                        {user.image ? (
+                          <img
+                            src={user.image}
+                            alt=""
+                            className="size-8 rounded-full object-cover"
+                          />
+                        ) : (
+                          <div className="flex size-8 items-center justify-center rounded-full border border-border bg-muted text-xs font-semibold uppercase text-muted-foreground">
+                            {getUserInitials(user)}
+                          </div>
+                        )}
+                        <div className="min-w-0">
+                          <div className="truncate text-sm font-medium">
+                            {displayName}
+                          </div>
+                          <div className="truncate text-xs text-muted-foreground">
+                            {user.email}
                           </div>
                         </div>
-                      </TableCell>
-                      <TableCell>
+                      </div>
+                      <RowActions
+                        ariaLabel={`Actions for ${displayName}`}
+                        actions={[
+                          {
+                            label: "View profile (Coming soon)",
+                            onClick: () => {},
+                            disabled: true,
+                          },
+                          {
+                            label: "Suspend user (Coming soon)",
+                            onClick: () => {},
+                            disabled: true,
+                            separator: true,
+                          },
+                          {
+                            label: "Remove from organization (Coming soon)",
+                            onClick: () => {},
+                            variant: "destructive",
+                            disabled: true,
+                          },
+                        ]}
+                      />
+                    </div>
+
+                    <div className="mt-4 space-y-3">
+                      <div className="space-y-1.5">
+                        <Label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                          Role
+                        </Label>
                         <Select
                           value={user.role}
                           onValueChange={(nextRole) => {
@@ -1155,7 +1177,7 @@ function UsersManagementSection() {
                             updatingUserId === user.userId
                           }
                         >
-                          <SelectTrigger className="w-[160px]">
+                          <SelectTrigger className="w-full">
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
@@ -1166,43 +1188,128 @@ function UsersManagementSection() {
                             ))}
                           </SelectContent>
                         </Select>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="success">Active</Badge>
-                      </TableCell>
-                      <TableCell>
-                        {formatDate(user.membershipCreatedAt)}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <RowActions
-                          ariaLabel={`Actions for ${displayName}`}
-                          actions={[
-                            {
-                              label: "View profile (Coming soon)",
-                              onClick: () => {},
-                              disabled: true,
-                            },
-                            {
-                              label: "Suspend user (Coming soon)",
-                              onClick: () => {},
-                              disabled: true,
-                              separator: true,
-                            },
-                            {
-                              label: "Remove from organization (Coming soon)",
-                              onClick: () => {},
-                              variant: "destructive",
-                              disabled: true,
-                            },
-                          ]}
+                      </div>
+
+                      <dl className="grid grid-cols-2 gap-3">
+                        <EntityCardField
+                          label="Status"
+                          value={<Badge variant="success">Active</Badge>}
                         />
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          </div>
+                        <EntityCardField
+                          label="Joined"
+                          value={formatDate(user.membershipCreatedAt)}
+                        />
+                      </dl>
+                    </div>
+                  </EntityMobileCard>
+                );
+              })}
+            </EntityMobileCardList>
+
+            <div className="hidden overflow-hidden rounded-xl border border-border shadow-sm md:block">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Member</TableHead>
+                    <TableHead>Role</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Joined</TableHead>
+                    <TableHead className="w-14 text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredUsers.map((user) => {
+                    const displayName = getUserDisplayName(user);
+                    return (
+                      <TableRow key={user.membershipId}>
+                        <TableCell>
+                          <div className="flex items-center gap-3">
+                            {user.image ? (
+                              <img
+                                src={user.image}
+                                alt=""
+                                className="size-8 rounded-full object-cover"
+                              />
+                            ) : (
+                              <div className="flex size-8 items-center justify-center rounded-full border border-border bg-muted text-xs font-semibold uppercase text-muted-foreground">
+                                {getUserInitials(user)}
+                              </div>
+                            )}
+                            <div className="min-w-0">
+                              <div className="truncate text-sm font-medium">
+                                {displayName}
+                              </div>
+                              <div className="truncate text-xs text-muted-foreground">
+                                {user.email}
+                              </div>
+                            </div>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <Select
+                            value={user.role}
+                            onValueChange={(nextRole) => {
+                              if (!isOrgMembershipRole(nextRole)) return;
+                              if (nextRole === user.role) return;
+                              onChangeRole({
+                                userId: user.userId,
+                                role: nextRole,
+                              });
+                            }}
+                            disabled={
+                              updateRoleMutation.isPending &&
+                              updatingUserId === user.userId
+                            }
+                          >
+                            <SelectTrigger className="w-[160px]">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {ORG_ROLE_OPTIONS.map((role) => (
+                                <SelectItem key={role.value} value={role.value}>
+                                  {role.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="success">Active</Badge>
+                        </TableCell>
+                        <TableCell>
+                          {formatDate(user.membershipCreatedAt)}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <RowActions
+                            ariaLabel={`Actions for ${displayName}`}
+                            actions={[
+                              {
+                                label: "View profile (Coming soon)",
+                                onClick: () => {},
+                                disabled: true,
+                              },
+                              {
+                                label: "Suspend user (Coming soon)",
+                                onClick: () => {},
+                                disabled: true,
+                                separator: true,
+                              },
+                              {
+                                label: "Remove from organization (Coming soon)",
+                                onClick: () => {},
+                                variant: "destructive",
+                                disabled: true,
+                              },
+                            ]}
+                          />
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </div>
+          </>
         )}
       </CardContent>
     </Card>

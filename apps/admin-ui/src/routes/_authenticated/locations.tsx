@@ -16,17 +16,20 @@ import { toast } from "sonner";
 
 import { createLocationSchema } from "@scheduling/dto";
 import type { CreateLocationInput } from "@scheduling/dto";
-import { TableSkeleton } from "@/components/ui/skeleton";
 import { DeleteConfirmDialog } from "@/components/delete-confirm-dialog";
 import { DetailTab, DetailTabs } from "@/components/workbench";
 import { EntityModal } from "@/components/entity-modal";
-import { RelationshipCountBadge } from "@/components/relationship-count-badge";
-import { RowActions } from "@/components/row-actions";
+import {
+  EntityListEmptyState,
+  EntityListLoadingState,
+} from "@/components/entity-list";
 import { Button } from "@/components/ui/button";
 import { FieldShortcutHint } from "@/components/ui/field-shortcut-hint";
 import { Icon } from "@/components/ui/icon";
 import { Input } from "@/components/ui/input";
+import { PageHeader, PageScaffold } from "@/components/layout/page-scaffold";
 import { Label } from "@/components/ui/label";
+import { LocationsListPresentation } from "@/components/locations/locations-list-presentation";
 import { ShortcutBadge } from "@/components/ui/shortcut-badge";
 import {
   Select,
@@ -35,14 +38,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { useCrudState } from "@/hooks/use-crud-state";
 import {
   useKeyboardShortcuts,
@@ -393,113 +388,40 @@ function LocationsPage() {
   };
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div className="min-w-0 flex-1">
-          <h1 className="truncate text-2xl font-semibold tracking-tight">
-            Locations
-          </h1>
-          <p className="mt-1 text-sm text-muted-foreground sm:truncate">
-            Manage physical locations for your calendars
-          </p>
-        </div>
-        <Button className="shrink-0" onClick={crud.openCreate}>
-          <Icon icon={Add01Icon} data-icon="inline-start" />
-          <span className="hidden sm:inline">Add Location</span>
-          <span className="sm:hidden">Add</span>
-          <ShortcutBadge shortcut="c" className="ml-2 hidden md:inline-flex" />
-        </Button>
-      </div>
+    <PageScaffold>
+      <PageHeader
+        title="Locations"
+        description="Manage physical locations for your calendars"
+        actions={
+          <Button onClick={crud.openCreate}>
+            <Icon icon={Add01Icon} data-icon="inline-start" />
+            <span className="hidden sm:inline">Add Location</span>
+            <span className="sm:hidden">Add</span>
+            <ShortcutBadge
+              shortcut="c"
+              className="ml-2 hidden md:inline-flex"
+            />
+          </Button>
+        }
+      />
 
       <div className="mt-6">
         {isLoading ? (
-          <div className="py-10" role="status" aria-live="polite">
-            <TableSkeleton rows={5} cols={5} />
-          </div>
+          <EntityListLoadingState rows={5} cols={5} />
         ) : error ? (
           <div className="py-10 text-center text-destructive">
             Error loading locations
           </div>
         ) : !locations.length ? (
-          <div className="rounded-xl border border-border bg-card p-10 text-center text-muted-foreground shadow-sm">
+          <EntityListEmptyState>
             No locations yet. Create your first location to get started.
-          </div>
+          </EntityListEmptyState>
         ) : (
-          <div className="overflow-hidden rounded-xl border border-border shadow-sm">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Timezone</TableHead>
-                  <TableHead className="hidden md:table-cell">
-                    Relationships
-                  </TableHead>
-                  <TableHead className="hidden md:table-cell">
-                    Created
-                  </TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {locations.map((location) => (
-                  <TableRow
-                    key={location.id}
-                    className="cursor-pointer transition-colors hover:bg-muted/50"
-                    tabIndex={0}
-                    onClick={() => openDetails(location.id)}
-                    onKeyDown={(event) => {
-                      if (event.key === "Enter" || event.key === " ") {
-                        event.preventDefault();
-                        openDetails(location.id);
-                      }
-                    }}
-                  >
-                    <TableCell className="font-medium">
-                      {location.name}
-                    </TableCell>
-                    <TableCell title={location.timezone}>
-                      {formatTimezoneShort(location.timezone)}
-                    </TableCell>
-                    <TableCell className="hidden md:table-cell">
-                      <div className="flex flex-wrap gap-1">
-                        <RelationshipCountBadge
-                          count={location.relationshipCounts?.calendars ?? 0}
-                          singular="calendar"
-                        />
-                        <RelationshipCountBadge
-                          count={location.relationshipCounts?.resources ?? 0}
-                          singular="resource"
-                        />
-                      </div>
-                    </TableCell>
-                    <TableCell className="hidden md:table-cell">
-                      {formatDisplayDate(location.createdAt)}
-                    </TableCell>
-                    <TableCell>
-                      <RowActions
-                        ariaLabel={`Actions for ${location.name}`}
-                        actions={[
-                          {
-                            label: "View",
-                            onClick: () => openDetails(location.id),
-                          },
-                          {
-                            label: "Edit",
-                            onClick: () => openDetails(location.id, "details"),
-                          },
-                          {
-                            label: "Delete",
-                            onClick: () => crud.openDelete(location.id),
-                            variant: "destructive",
-                          },
-                        ]}
-                      />
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
+          <LocationsListPresentation
+            locations={locations}
+            onOpen={openDetails}
+            onDelete={crud.openDelete}
+          />
         )}
       </div>
 
@@ -666,7 +588,7 @@ function LocationsPage() {
         description="Are you sure you want to delete this location? This action cannot be undone."
         isPending={deleteMutation.isPending}
       />
-    </div>
+    </PageScaffold>
   );
 }
 

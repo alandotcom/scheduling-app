@@ -18,19 +18,22 @@ import { toast } from "sonner";
 
 import { createCalendarSchema } from "@scheduling/dto";
 import type { CreateCalendarInput } from "@scheduling/dto";
-import { TableSkeleton } from "@/components/ui/skeleton";
+import {
+  EntityListEmptyState,
+  EntityListLoadingState,
+} from "@/components/entity-list";
 import { AvailabilitySubTabs } from "@/components/availability/availability-sub-tabs";
 import { BlockedTimeEditor } from "@/components/availability/blocked-time-editor";
 import { AppointmentModal } from "@/components/appointment-modal";
 import type { AvailabilitySubTabType } from "@/components/availability/constants";
 import { DateOverridesEditor } from "@/components/availability/date-overrides-editor";
 import { WeeklyScheduleEditor } from "@/components/availability/weekly-schedule-editor";
-import { ContextMenu, type ContextMenuItem } from "@/components/context-menu";
+import type { ContextMenuItem } from "@/components/context-menu";
 import { DeleteConfirmDialog } from "@/components/delete-confirm-dialog";
 import { DetailTab, DetailTabs } from "@/components/workbench";
 import { EntityModal } from "@/components/entity-modal";
-import { RelationshipCountBadge } from "@/components/relationship-count-badge";
-import { RowActions } from "@/components/row-actions";
+import { PageHeader, PageScaffold } from "@/components/layout/page-scaffold";
+import { CalendarsListPresentation } from "@/components/calendars/calendars-list-presentation";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { FieldShortcutHint } from "@/components/ui/field-shortcut-hint";
@@ -45,14 +48,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { useCrudState } from "@/hooks/use-crud-state";
 import {
   useKeyboardShortcuts,
@@ -64,7 +59,6 @@ import { useUrlDrivenModal } from "@/hooks/use-url-driven-modal";
 import { useValidateSelection } from "@/hooks/use-selection-search-params";
 import {
   formatDateISO,
-  formatDisplayDate,
   formatDisplayDateTime,
   formatTimezonePickerLabel,
   formatTimezoneShort,
@@ -510,106 +504,41 @@ function CalendarsPage() {
   );
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div className="min-w-0 flex-1">
-          <h1 className="truncate text-2xl font-semibold tracking-tight">
-            Calendars
-          </h1>
-          <p className="mt-1 text-sm text-muted-foreground sm:truncate">
-            Manage calendars and their availability
-          </p>
-        </div>
-        <Button className="shrink-0" onClick={crud.openCreate}>
-          <Icon icon={Add01Icon} data-icon="inline-start" />
-          <span className="hidden sm:inline">Add Calendar</span>
-          <span className="sm:hidden">Add</span>
-          <ShortcutBadge shortcut="c" className="ml-2 hidden md:inline-flex" />
-        </Button>
-      </div>
+    <PageScaffold>
+      <PageHeader
+        title="Calendars"
+        description="Manage calendars and their availability"
+        actions={
+          <Button onClick={crud.openCreate}>
+            <Icon icon={Add01Icon} data-icon="inline-start" />
+            <span className="hidden sm:inline">Add Calendar</span>
+            <span className="sm:hidden">Add</span>
+            <ShortcutBadge
+              shortcut="c"
+              className="ml-2 hidden md:inline-flex"
+            />
+          </Button>
+        }
+      />
 
       <div className="mt-6">
         {isLoading ? (
-          <div className="py-10" role="status" aria-live="polite">
-            <TableSkeleton rows={5} cols={6} />
-          </div>
+          <EntityListLoadingState rows={5} cols={6} />
         ) : error ? (
-          <div className="text-center text-destructive py-10">
+          <div className="py-10 text-center text-destructive">
             Error loading calendars
           </div>
         ) : !calendars.length ? (
-          <div className="rounded-xl border border-border bg-card p-10 text-center text-muted-foreground shadow-sm">
+          <EntityListEmptyState>
             No calendars yet. Create your first calendar to get started.
-          </div>
+          </EntityListEmptyState>
         ) : (
-          <div className="rounded-xl border border-border overflow-hidden shadow-sm">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Timezone</TableHead>
-                  <TableHead className="hidden md:table-cell">
-                    Location
-                  </TableHead>
-                  <TableHead className="hidden md:table-cell">
-                    This Week
-                  </TableHead>
-                  <TableHead className="hidden md:table-cell">
-                    Created
-                  </TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {calendars.map((calendar) => (
-                  <ContextMenu
-                    key={calendar.id}
-                    items={getContextMenuItems(calendar)}
-                  >
-                    <TableRow
-                      className="cursor-pointer transition-colors hover:bg-muted/50"
-                      tabIndex={0}
-                      onClick={() => openDetails(calendar.id)}
-                      onKeyDown={(event) => {
-                        if (event.key === "Enter" || event.key === " ") {
-                          event.preventDefault();
-                          openDetails(calendar.id);
-                        }
-                      }}
-                    >
-                      <TableCell className="font-medium">
-                        {calendar.name}
-                      </TableCell>
-                      <TableCell title={calendar.timezone}>
-                        {formatTimezoneShort(calendar.timezone)}
-                      </TableCell>
-                      <TableCell className="hidden md:table-cell">
-                        {getLocationName(calendar.locationId)}
-                      </TableCell>
-                      <TableCell className="hidden md:table-cell">
-                        <RelationshipCountBadge
-                          count={
-                            calendar.relationshipCounts?.appointmentsThisWeek ??
-                            0
-                          }
-                          singular="appointment"
-                        />
-                      </TableCell>
-                      <TableCell className="hidden md:table-cell">
-                        {formatDisplayDate(calendar.createdAt)}
-                      </TableCell>
-                      <TableCell>
-                        <RowActions
-                          ariaLabel={`Actions for ${calendar.name}`}
-                          actions={getContextMenuItems(calendar)}
-                        />
-                      </TableCell>
-                    </TableRow>
-                  </ContextMenu>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
+          <CalendarsListPresentation
+            calendars={calendars}
+            getLocationName={getLocationName}
+            getActions={getContextMenuItems}
+            onOpen={openDetails}
+          />
         )}
       </div>
 
@@ -818,7 +747,7 @@ function CalendarsPage() {
         defaultCalendarName={displayCalendar?.name}
         onCreated={handleAppointmentCreated}
       />
-    </div>
+    </PageScaffold>
   );
 }
 

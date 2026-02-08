@@ -24,6 +24,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Icon } from "@/components/ui/icon";
+import { PageHeader, PageScaffold } from "@/components/layout/page-scaffold";
 import { ShortcutBadge } from "@/components/ui/shortcut-badge";
 import { AppointmentModal } from "@/components/appointment-modal";
 import { useKeyboardShortcuts } from "@/hooks/use-keyboard-shortcuts";
@@ -126,26 +127,27 @@ export function Dashboard() {
   const hasAlerts = pendingAppointments > 0 || noShows > 0;
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
-      <div className="flex items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {today.toLocaleString({
-              weekday: "long",
-              month: "long",
-              day: "numeric",
-              year: "numeric",
-            })}
-          </p>
-        </div>
-        <Button onClick={() => setAppointmentModalOpen(true)}>
-          <Icon icon={Add01Icon} data-icon="inline-start" />
-          <span className="hidden sm:inline">New Appointment</span>
-          <span className="sm:hidden">New</span>
-          <ShortcutBadge shortcut="c" className="ml-2 hidden sm:inline-flex" />
-        </Button>
-      </div>
+    <PageScaffold>
+      <PageHeader
+        title="Dashboard"
+        description={today.toLocaleString({
+          weekday: "long",
+          month: "long",
+          day: "numeric",
+          year: "numeric",
+        })}
+        actions={
+          <Button onClick={() => setAppointmentModalOpen(true)}>
+            <Icon icon={Add01Icon} data-icon="inline-start" />
+            <span className="hidden sm:inline">New Appointment</span>
+            <span className="sm:hidden">New</span>
+            <ShortcutBadge
+              shortcut="c"
+              className="ml-2 hidden sm:inline-flex"
+            />
+          </Button>
+        }
+      />
 
       {/* Stats Cards */}
       <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -294,7 +296,7 @@ export function Dashboard() {
         onOpenChange={setAppointmentModalOpen}
         onCreated={handleAppointmentCreated}
       />
-    </div>
+    </PageScaffold>
   );
 }
 
