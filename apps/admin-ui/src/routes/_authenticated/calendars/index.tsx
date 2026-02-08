@@ -66,9 +66,9 @@ import {
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { AvailabilitySubTabs } from "@/components/availability/availability-sub-tabs";
-import { CompactWeeklyScheduleEditor } from "@/components/availability/weekly-schedule-editor";
-import { CompactDateOverridesEditor } from "@/components/availability/date-overrides-editor";
-import { CompactBlockedTimeEditor } from "@/components/availability/blocked-time-editor";
+import { WeeklyScheduleEditor } from "@/components/availability/weekly-schedule-editor";
+import { DateOverridesEditor } from "@/components/availability/date-overrides-editor";
+import { BlockedTimeEditor } from "@/components/availability/blocked-time-editor";
 import type { AvailabilitySubTabType } from "@/components/availability/constants";
 
 interface CalendarFormProps {
@@ -610,7 +610,7 @@ function CalendarsPage() {
           </div>
         </ListPanel>
 
-        {/* NOTE: Split-pane detail panel replaces CalendarDrawer for list/detail UX. */}
+        {/* Full-screen inline detail panel */}
         <DetailPanel
           id={FOCUS_ZONES.DETAIL}
           open={detailOpen}
@@ -634,26 +634,6 @@ function CalendarsPage() {
             </div>
           ) : selectedCalendar ? (
             <div className="flex h-full flex-col">
-              <div className="flex flex-wrap items-start justify-between gap-4 border-b border-border px-6 py-5">
-                <div>
-                  <h2 className="text-lg font-semibold tracking-tight">
-                    {selectedCalendar.name}
-                  </h2>
-                  <p className="mt-1 text-sm text-muted-foreground">
-                    {[selectedCalendar.timezone, detailLocationLabel]
-                      .filter(Boolean)
-                      .join(" · ")}
-                  </p>
-                </div>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => crud.openEdit(selectedCalendar)}
-                >
-                  Edit
-                </Button>
-              </div>
-
               <DetailTabs
                 value={activeTab}
                 onValueChange={(value) => setActiveTab(value)}
@@ -663,188 +643,195 @@ function CalendarsPage() {
                 <DetailTab value="appointments">Appointments</DetailTab>
               </DetailTabs>
 
-              <div className="flex-1 overflow-y-auto px-6 py-4">
-                {activeTab === "details" && (
-                  <form
-                    onSubmit={detailForm.handleSubmit(handleDetailUpdate)}
-                    className="space-y-5"
-                  >
-                    <div className="space-y-2">
-                      <Label htmlFor="detail-name">Name</Label>
-                      <Input
-                        id="detail-name"
-                        {...detailForm.register("name")}
-                        disabled={updateMutation.isPending}
-                      />
-                      {detailForm.formState.errors.name && (
-                        <p className="text-sm text-destructive">
-                          {detailForm.formState.errors.name.message}
-                        </p>
-                      )}
-                    </div>
+              <div className="flex-1 overflow-y-auto">
+                <div className="mx-auto max-w-3xl px-4 py-6 sm:px-6 lg:px-8">
+                  {activeTab === "details" && (
+                    <form
+                      onSubmit={detailForm.handleSubmit(handleDetailUpdate)}
+                      className="space-y-5"
+                    >
+                      <div className="space-y-2">
+                        <Label htmlFor="detail-name">Name</Label>
+                        <Input
+                          id="detail-name"
+                          {...detailForm.register("name")}
+                          disabled={updateMutation.isPending}
+                        />
+                        {detailForm.formState.errors.name && (
+                          <p className="text-sm text-destructive">
+                            {detailForm.formState.errors.name.message}
+                          </p>
+                        )}
+                      </div>
 
-                    <div className="space-y-2">
-                      <Label>Timezone</Label>
-                      <Select
-                        value={detailTimezone}
-                        onValueChange={(value) =>
-                          value && detailForm.setValue("timezone", value)
-                        }
-                        disabled={updateMutation.isPending}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select timezone">
-                            {detailTimezoneSelectLabel}
-                          </SelectValue>
-                        </SelectTrigger>
-                        <SelectContent>
-                          {TIMEZONES.map((tz) => (
-                            <SelectItem key={tz} value={tz}>
-                              {tz}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      {detailForm.formState.errors.timezone && (
-                        <p className="text-sm text-destructive">
-                          {detailForm.formState.errors.timezone.message}
-                        </p>
-                      )}
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label>Location (optional)</Label>
-                      <Select
-                        value={detailLocationId ?? "none"}
-                        onValueChange={(value) =>
-                          value &&
-                          detailForm.setValue(
-                            "locationId",
-                            value === "none" ? undefined : value,
-                          )
-                        }
-                        disabled={updateMutation.isPending}
-                      >
-                        <SelectTrigger>
-                          <SelectValue>{detailLocationSelectLabel}</SelectValue>
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="none">No location</SelectItem>
-                          {locations.map((loc) => (
-                            <SelectItem key={loc.id} value={loc.id}>
-                              {loc.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div className="flex flex-wrap gap-2 pt-2">
-                      <Button type="submit" disabled={updateMutation.isPending}>
-                        {updateMutation.isPending
-                          ? "Saving..."
-                          : "Save Changes"}
-                      </Button>
-                    </div>
-
-                    <div className="mt-6 border-t border-border pt-4">
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                        onClick={() => crud.openDelete(selectedCalendar.id)}
-                      >
-                        <Icon icon={Delete01Icon} data-icon="inline-start" />
-                        Delete Calendar
-                      </Button>
-                    </div>
-                  </form>
-                )}
-
-                {activeTab === "availability" && (
-                  <div className="space-y-4">
-                    <AvailabilitySubTabs
-                      value={availabilitySubTab}
-                      onChange={setAvailabilitySubTab}
-                    />
-
-                    {availabilitySubTab === "weekly" && (
-                      <CompactWeeklyScheduleEditor
-                        calendarId={selectedCalendar.id}
-                        timezone={selectedCalendar.timezone}
-                      />
-                    )}
-                    {availabilitySubTab === "overrides" && (
-                      <CompactDateOverridesEditor
-                        calendarId={selectedCalendar.id}
-                        timezone={selectedCalendar.timezone}
-                      />
-                    )}
-                    {availabilitySubTab === "blocked" && (
-                      <CompactBlockedTimeEditor
-                        calendarId={selectedCalendar.id}
-                        timezone={selectedCalendar.timezone}
-                      />
-                    )}
-                  </div>
-                )}
-
-                {activeTab === "appointments" && (
-                  <div className="space-y-4">
-                    <div className="flex items-center justify-between">
-                      <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
-                        Upcoming Appointments
-                      </h3>
-                      <Button variant="ghost" size="sm" asChild>
-                        <Link
-                          to="/appointments"
-                          search={{ calendarId: selectedCalendar.id }}
+                      <div className="space-y-2">
+                        <Label>Timezone</Label>
+                        <Select
+                          value={detailTimezone}
+                          onValueChange={(value) =>
+                            value && detailForm.setValue("timezone", value)
+                          }
+                          disabled={updateMutation.isPending}
                         >
-                          View all
-                          <Icon
-                            icon={ArrowRight02Icon}
-                            data-icon="inline-end"
-                          />
-                        </Link>
-                      </Button>
-                    </div>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select timezone">
+                              {detailTimezoneSelectLabel}
+                            </SelectValue>
+                          </SelectTrigger>
+                          <SelectContent>
+                            {TIMEZONES.map((tz) => (
+                              <SelectItem key={tz} value={tz}>
+                                {tz}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        {detailForm.formState.errors.timezone && (
+                          <p className="text-sm text-destructive">
+                            {detailForm.formState.errors.timezone.message}
+                          </p>
+                        )}
+                      </div>
 
-                    {appointments.length === 0 ? (
-                      <div className="rounded-lg border border-border p-6 text-center text-sm text-muted-foreground">
-                        No upcoming appointments
+                      <div className="space-y-2">
+                        <Label>Location (optional)</Label>
+                        <Select
+                          value={detailLocationId ?? "none"}
+                          onValueChange={(value) =>
+                            value &&
+                            detailForm.setValue(
+                              "locationId",
+                              value === "none" ? undefined : value,
+                            )
+                          }
+                          disabled={updateMutation.isPending}
+                        >
+                          <SelectTrigger>
+                            <SelectValue>
+                              {detailLocationSelectLabel}
+                            </SelectValue>
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="none">No location</SelectItem>
+                            {locations.map((loc) => (
+                              <SelectItem key={loc.id} value={loc.id}>
+                                {loc.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                       </div>
-                    ) : (
-                      <div className="rounded-lg border border-border divide-y divide-border/50">
-                        {appointments.map((apt) => (
-                          <div key={apt.id} className="px-4 py-3">
-                            <div className="flex items-center justify-between">
-                              <div>
-                                <div className="text-sm font-medium">
-                                  {formatDisplayDateTime(apt.startAt)}
+
+                      <div className="flex flex-wrap gap-2 pt-2">
+                        <Button
+                          type="submit"
+                          disabled={updateMutation.isPending}
+                        >
+                          {updateMutation.isPending
+                            ? "Saving..."
+                            : "Save Changes"}
+                        </Button>
+                      </div>
+
+                      <div className="mt-6 border-t border-border pt-4">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                          onClick={() => crud.openDelete(selectedCalendar.id)}
+                        >
+                          <Icon icon={Delete01Icon} data-icon="inline-start" />
+                          Delete Calendar
+                        </Button>
+                      </div>
+                    </form>
+                  )}
+
+                  {activeTab === "availability" && (
+                    <div className="space-y-6">
+                      <AvailabilitySubTabs
+                        value={availabilitySubTab}
+                        onChange={setAvailabilitySubTab}
+                      />
+
+                      {availabilitySubTab === "weekly" && (
+                        <WeeklyScheduleEditor
+                          calendarId={selectedCalendar.id}
+                          timezone={selectedCalendar.timezone}
+                        />
+                      )}
+                      {availabilitySubTab === "overrides" && (
+                        <DateOverridesEditor
+                          calendarId={selectedCalendar.id}
+                          timezone={selectedCalendar.timezone}
+                        />
+                      )}
+                      {availabilitySubTab === "blocked" && (
+                        <BlockedTimeEditor
+                          calendarId={selectedCalendar.id}
+                          timezone={selectedCalendar.timezone}
+                        />
+                      )}
+                    </div>
+                  )}
+
+                  {activeTab === "appointments" && (
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between">
+                        <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
+                          Upcoming Appointments
+                        </h3>
+                        <Button variant="ghost" size="sm" asChild>
+                          <Link
+                            to="/appointments"
+                            search={{ calendarId: selectedCalendar.id }}
+                          >
+                            View all
+                            <Icon
+                              icon={ArrowRight02Icon}
+                              data-icon="inline-end"
+                            />
+                          </Link>
+                        </Button>
+                      </div>
+
+                      {appointments.length === 0 ? (
+                        <div className="rounded-lg border border-border p-6 text-center text-sm text-muted-foreground">
+                          No upcoming appointments
+                        </div>
+                      ) : (
+                        <div className="rounded-lg border border-border divide-y divide-border/50">
+                          {appointments.map((apt) => (
+                            <div key={apt.id} className="px-4 py-3">
+                              <div className="flex items-center justify-between">
+                                <div>
+                                  <div className="text-sm font-medium">
+                                    {formatDisplayDateTime(apt.startAt)}
+                                  </div>
+                                  <div className="text-xs text-muted-foreground">
+                                    {apt.appointmentType?.name}
+                                    {apt.client &&
+                                      ` - ${apt.client.firstName} ${apt.client.lastName}`}
+                                  </div>
                                 </div>
-                                <div className="text-xs text-muted-foreground">
-                                  {apt.appointmentType?.name}
-                                  {apt.client &&
-                                    ` - ${apt.client.firstName} ${apt.client.lastName}`}
-                                </div>
+                                <Badge
+                                  variant={
+                                    apt.status === "confirmed"
+                                      ? "success"
+                                      : "secondary"
+                                  }
+                                >
+                                  {apt.status}
+                                </Badge>
                               </div>
-                              <Badge
-                                variant={
-                                  apt.status === "confirmed"
-                                    ? "success"
-                                    : "secondary"
-                                }
-                              >
-                                {apt.status}
-                              </Badge>
                             </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                )}
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           ) : null}
