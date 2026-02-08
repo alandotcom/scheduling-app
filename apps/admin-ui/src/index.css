@@ -140,6 +140,18 @@
     scrollbar-gutter: stable both-edges;
   }
 
+  /* Eliminate 300ms tap delay on touch devices */
+  a,
+  button,
+  [role="button"],
+  input,
+  select,
+  textarea,
+  label,
+  [tabindex] {
+    touch-action: manipulation;
+  }
+
   /* Clean heading scale */
   h1 {
     font-family: var(--font-display);

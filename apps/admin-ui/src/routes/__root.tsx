@@ -381,7 +381,7 @@ function RootLayout() {
   ];
 
   return (
-    <div className="flex h-[100dvh] overflow-hidden">
+    <div className="flex h-[100dvh] overflow-hidden pb-[env(safe-area-inset-bottom)]">
       <a
         href="#main-content"
         className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-[60] focus:rounded-md focus:bg-background focus:px-3 focus:py-2 focus:text-sm focus:font-medium focus:ring-2 focus:ring-ring"
@@ -670,7 +670,11 @@ function RootLayout() {
                   onKeyDown={() => {}}
                   role="presentation"
                 >
-                  <SidebarLink to={item.to} icon={item.icon}>
+                  <SidebarLink
+                    to={item.to}
+                    icon={item.icon}
+                    className="py-3 text-sm"
+                  >
                     {item.label}
                   </SidebarLink>
                 </div>
@@ -684,7 +688,11 @@ function RootLayout() {
                   onKeyDown={() => {}}
                   role="presentation"
                 >
-                  <SidebarLink to={item.to} icon={item.icon}>
+                  <SidebarLink
+                    to={item.to}
+                    icon={item.icon}
+                    className="py-3 text-sm"
+                  >
                     {item.label}
                   </SidebarLink>
                 </div>
@@ -907,11 +915,13 @@ function SidebarLink({
   to,
   icon,
   collapsed = false,
+  className: externalClassName,
   children,
 }: {
   to: string;
   icon: React.ComponentProps<typeof Icon>["icon"];
   collapsed?: boolean;
+  className?: string;
   children: React.ReactNode;
 }) {
   return (
@@ -925,6 +935,7 @@ function SidebarLink({
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring",
         "[&.active]:bg-sidebar-accent [&.active]:text-sidebar-accent-foreground",
         collapsed && "justify-center px-2",
+        externalClassName,
       )}
     >
       <Icon icon={icon} className="size-4 shrink-0" />

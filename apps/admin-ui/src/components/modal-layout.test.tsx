@@ -45,7 +45,8 @@ describe("modal layout positioning", () => {
       '[data-slot="entity-modal-content"]',
     );
     expect(popup).toBeTruthy();
-    expect(popup?.className).toContain("top-4");
+    expect(popup?.className).toContain("inset-0");
+    expect(popup?.className).toContain("md:top-8");
     expect(popup?.className).not.toContain("-translate-y-1/2");
     expect(popup?.className).toContain("max-w-4xl");
     expect(document.body.textContent).toContain("Header Action");

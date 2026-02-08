@@ -45,9 +45,13 @@ export function EntityModal({
         <DialogPrimitive.Popup
           data-slot="entity-modal-content"
           className={cn(
-            "fixed left-1/2 top-4 z-50 w-[calc(100vw-2rem)] -translate-x-1/2 sm:top-8",
+            // Mobile: full-screen sheet. Desktop: centered dialog.
+            "fixed z-50 inset-0 md:inset-auto md:left-1/2 md:top-8 md:-translate-x-1/2",
+            "md:w-[calc(100vw-2rem)]",
             STANDARD_MODAL_MAX_WIDTH_CLASS,
-            "max-h-[calc(100dvh-2rem)] overflow-hidden rounded-xl border border-border bg-background shadow-xl sm:h-[min(86dvh,52rem)] sm:max-h-[calc(100dvh-4rem)] sm:min-h-[36rem]",
+            "md:max-h-[calc(100dvh-4rem)] md:h-[min(86dvh,52rem)] md:min-h-[36rem]",
+            "overflow-hidden bg-background pb-[env(safe-area-inset-bottom)] md:pb-0",
+            "md:rounded-xl md:border md:border-border md:shadow-xl",
             "flex flex-col",
             "data-open:animate-in data-closed:animate-out",
             "data-closed:fade-out-0 data-open:fade-in-0",
@@ -56,7 +60,7 @@ export function EntityModal({
             className,
           )}
         >
-          <div className="flex items-center justify-between border-b border-border px-4 py-3 sm:px-6">
+          <div className="flex items-center justify-between border-b border-border px-4 py-3 md:px-6">
             <div className="min-w-0">
               <DialogPrimitive.Title className="truncate text-base font-semibold tracking-tight sm:text-lg">
                 {title}

@@ -15,7 +15,7 @@ export function Checkbox({ checked, onChange, label }: CheckboxProps) {
       role="checkbox"
       aria-checked={checked}
       onClick={() => onChange(!checked)}
-      className="flex items-center gap-2 group"
+      className="flex items-center gap-2 group min-h-11 md:min-h-0"
     >
       <div
         className={`size-5 rounded border-2 flex items-center justify-center transition-all duration-200 ${

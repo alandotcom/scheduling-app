@@ -71,7 +71,7 @@ export function RowActions({ actions, ariaLabel }: RowActionsProps) {
                       setOpen(false);
                     }}
                     className={cn(
-                      "flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-sm",
+                      "flex w-full items-center gap-2 rounded-md px-2.5 py-3 md:py-2 text-left text-sm",
                       "transition-colors hover:bg-accent hover:text-accent-foreground",
                       "disabled:pointer-events-none disabled:opacity-50",
                       action.variant === "destructive" &&
