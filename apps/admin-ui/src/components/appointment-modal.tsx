@@ -253,29 +253,30 @@ export function AppointmentModal({
   const canBook = selectedTypeId && selectedCalendarId && selectedTime;
 
   return (
-    <DialogPrimitive.Root open={open} onOpenChange={onOpenChange}>
+    <DialogPrimitive.Root
+      open={open}
+      onOpenChange={onOpenChange}
+      modal="trap-focus"
+    >
       <DialogPrimitive.Portal>
         <DialogPrimitive.Backdrop
+          data-slot="appointment-modal-backdrop"
           className={cn(
             "fixed inset-0 z-50 bg-black/50 backdrop-blur-sm",
-            "data-open:animate-in data-closed:animate-out",
-            "data-closed:fade-out-0 data-open:fade-in-0",
-            "duration-150",
+            "data-open:animate-in data-open:fade-in-0 duration-100",
           )}
         />
         <DialogPrimitive.Popup
+          data-slot="appointment-modal-content"
           className={cn(
-            "fixed left-1/2 top-1/2 z-50 w-full max-w-2xl -translate-x-1/2 -translate-y-1/2",
+            "fixed left-1/2 top-1/2 z-50 w-[calc(100vw-1rem)] max-w-2xl -translate-x-1/2 -translate-y-1/2 sm:w-full",
             "rounded-xl border border-border bg-background shadow-xl",
-            "data-open:animate-in data-closed:animate-out",
-            "data-closed:fade-out-0 data-open:fade-in-0",
-            "data-closed:zoom-out-95 data-open:zoom-in-95",
-            "duration-200",
-            "max-h-[90vh] overflow-hidden flex flex-col",
+            "data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 duration-150",
+            "max-h-[92vh] overflow-hidden flex flex-col sm:max-h-[90vh]",
           )}
         >
           {/* Header */}
-          <div className="flex items-center justify-between border-b border-border px-6 py-4">
+          <div className="flex items-center justify-between border-b border-border px-4 py-3 sm:px-6 sm:py-4">
             <DialogPrimitive.Title className="text-lg font-medium">
               New Appointment
             </DialogPrimitive.Title>
@@ -300,9 +301,9 @@ export function AppointmentModal({
           </div>
 
           {/* Content */}
-          <div className="flex-1 overflow-y-auto p-6">
+          <div className="flex-1 overflow-y-auto p-4 sm:p-6">
             {/* Type & Calendar Selection */}
-            <div className="grid grid-cols-2 gap-4 mb-6">
+            <div className="mb-5 grid grid-cols-1 gap-4 sm:mb-6 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label>Appointment Type</Label>
                 <Select
@@ -351,7 +352,7 @@ export function AppointmentModal({
               </div>
             </div>
 
-            <div className="mb-6 flex items-end justify-between gap-4 rounded-lg border border-border bg-muted/30 px-4 py-3">
+            <div className="mb-5 flex flex-col gap-3 rounded-lg border border-border bg-muted/30 px-4 py-3 sm:mb-6 sm:flex-row sm:items-end sm:justify-between">
               <div className="space-y-2">
                 <Label>Time Display</Label>
                 <Select
@@ -365,7 +366,7 @@ export function AppointmentModal({
                     setLocalTimezoneMode(value);
                   }}
                 >
-                  <SelectTrigger className="w-[180px]">
+                  <SelectTrigger className="w-full sm:w-[180px]">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -385,7 +386,7 @@ export function AppointmentModal({
 
             {/* Calendar and Time Selection */}
             {selectedCalendarId && (
-              <div className="grid grid-cols-2 gap-6 mb-6">
+              <div className="mb-5 grid grid-cols-1 gap-5 sm:mb-6 sm:grid-cols-2 sm:gap-6">
                 {/* Calendar */}
                 <div>
                   <div className="flex items-center justify-between mb-4">
@@ -568,25 +569,32 @@ export function AppointmentModal({
           </div>
 
           {/* Footer */}
-          <div className="flex items-center justify-between border-t border-border px-6 py-4">
-            <div className="text-sm text-muted-foreground">
-              {selectedTime && (
-                <span className="flex items-center gap-2">
-                  <Icon icon={Calendar03Icon} />
-                  {formatSelectedDateTime()} ({timezoneShortLabel})
-                </span>
-              )}
-            </div>
-            <div className="flex gap-2">
-              <Button variant="ghost" onClick={handleClose}>
-                Cancel
-              </Button>
-              <Button
-                onClick={handleSubmit}
-                disabled={!canBook || createMutation.isPending}
-              >
-                {createMutation.isPending ? "Booking..." : "Book Appointment"}
-              </Button>
+          <div className="sticky bottom-0 border-t border-border bg-background px-4 py-3 sm:px-6 sm:py-4">
+            <div className="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="min-h-5 text-sm text-muted-foreground">
+                {selectedTime && (
+                  <span className="flex items-center gap-2">
+                    <Icon icon={Calendar03Icon} />
+                    {formatSelectedDateTime()} ({timezoneShortLabel})
+                  </span>
+                )}
+              </div>
+              <div className="flex w-full flex-col-reverse gap-2 sm:w-auto sm:flex-row">
+                <Button
+                  variant="ghost"
+                  onClick={handleClose}
+                  className="w-full sm:w-auto"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleSubmit}
+                  disabled={!canBook || createMutation.isPending}
+                  className="w-full sm:w-auto"
+                >
+                  {createMutation.isPending ? "Booking..." : "Book Appointment"}
+                </Button>
+              </div>
             </div>
           </div>
         </DialogPrimitive.Popup>

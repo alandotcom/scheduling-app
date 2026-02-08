@@ -36,10 +36,10 @@ export function FilterPopover({
         }
       />
       <Popover.Portal>
-        <Popover.Positioner sideOffset={8} align="start">
+        <Popover.Positioner sideOffset={8} align="start" className="z-40">
           <Popover.Popup
             className={cn(
-              "z-50 w-72 rounded-lg border border-border bg-background p-4 shadow-lg",
+              "relative isolate z-40 w-72 rounded-lg border border-border bg-background p-4 shadow-lg",
               "data-open:animate-in data-closed:animate-out",
               "data-closed:fade-out-0 data-open:fade-in-0",
               "data-closed:zoom-out-95 data-open:zoom-in-95",

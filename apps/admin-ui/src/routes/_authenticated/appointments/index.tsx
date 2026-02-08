@@ -568,8 +568,8 @@ function AppointmentsPage() {
   );
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
-      <div className="flex items-center justify-between gap-4">
+    <div className="mx-auto max-w-7xl px-4 pb-24 pt-6 sm:px-6 sm:pb-6 lg:px-8">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0 flex-1">
           <h1 className="truncate text-2xl font-semibold tracking-tight">
             Appointments
@@ -578,7 +578,7 @@ function AppointmentsPage() {
             View and manage all appointments
           </p>
         </div>
-        <div className="flex shrink-0 items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2 sm:shrink-0 sm:gap-3">
           <ViewToggle view={currentView} onViewChange={setView} />
           <Select
             value={timezoneMode}
@@ -588,7 +588,7 @@ function AppointmentsPage() {
               }
             }}
           >
-            <SelectTrigger className="w-[170px]">
+            <SelectTrigger className="w-[165px]">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -604,7 +604,7 @@ function AppointmentsPage() {
                 setDisplayTimezone(value);
               }}
             >
-              <SelectTrigger className="w-[220px]">
+              <SelectTrigger className="w-[180px] sm:w-[220px]">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -622,10 +622,12 @@ function AppointmentsPage() {
           >
             {displayTimezoneShort}
           </span>
-          <Button onClick={() => setModalOpen(true)}>
+          <Button
+            className="hidden sm:inline-flex"
+            onClick={() => setModalOpen(true)}
+          >
             <Icon icon={Add01Icon} data-icon="inline-start" />
-            <span className="hidden sm:inline">New Appointment</span>
-            <span className="sm:hidden">New</span>
+            <span>New Appointment</span>
           </Button>
         </div>
       </div>
@@ -833,6 +835,13 @@ function AppointmentsPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <div className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background/95 p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] backdrop-blur supports-[backdrop-filter]:bg-background/80 sm:hidden">
+        <Button className="w-full" onClick={() => setModalOpen(true)}>
+          <Icon icon={Add01Icon} data-icon="inline-start" />
+          New Appointment
+        </Button>
+      </div>
     </div>
   );
 }

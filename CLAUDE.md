@@ -84,9 +84,6 @@ Use these skills (`/skill-name`) when working in relevant areas:
 | `/frontend-design` | Building pages, layouts, visual design |
 | `/web-design-guidelines` | UI reviews, accessibility audits, UX checks |
 
-**UI/UX Reference Docs:** Before making UI changes to admin-ui, review:
-- `apps/admin-ui/UI-UX-DIRECTIVES.md` — Component standards, interaction patterns, page requirements
-- `apps/admin-ui/UX-NAV-REDESIGN.md` — Split-pane layout spec, journey maps, keyboard model
 
 ## Dependencies
 
