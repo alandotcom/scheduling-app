@@ -31,6 +31,7 @@
     "drizzle-orm": "catalog:",
     "hono": "^4.11.8",
     "ioredis": "^5.9.2",
+    "libphonenumber-js": "^1.12.36",
     "luxon": "^3.7.2",
     "rrule": "^2.8.1",
     "standardenv": "^0.0.2",

@@ -3,6 +3,7 @@
 // Creates the test database and runs migrations if needed.
 // Sets up an app user without BYPASSRLS for RLS enforcement.
 
+import "./test-matchers.js";
 import { SQL } from "bun";
 
 const ADMIN_DATABASE_URL =

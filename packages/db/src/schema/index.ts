@@ -2,6 +2,7 @@ import {
   pgTable,
   pgPolicy,
   pgEnum,
+  customType,
   uuid,
   text,
   timestamp,
@@ -9,6 +10,7 @@ import {
   boolean,
   jsonb,
   index,
+  check,
   uniqueIndex,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
@@ -31,6 +33,12 @@ export const invitationStatusEnum = pgEnum("invitation_status", [
   "rejected",
   "canceled",
 ]);
+
+const citext = customType<{ data: string }>({
+  dataType() {
+    return "citext";
+  },
+});
 
 // Common column helpers using Postgres 18 native uuidv7()
 const id = uuid("id").primaryKey().default(sql`uuidv7()`);
@@ -252,11 +260,21 @@ export const clients = pgTable.withRLS(
       .references(() => orgs.id),
     firstName: text("first_name").notNull(),
     lastName: text("last_name").notNull(),
-    email: text("email"),
+    email: citext("email"),
     phone: text("phone"),
     ...timestamps,
   },
-  () => [
+  (table) => [
+    check(
+      "clients_phone_e164_check",
+      sql`${table.phone} IS NULL OR ${table.phone} ~ '^\\+[1-9][0-9]{1,14}$'`,
+    ),
+    uniqueIndex("clients_org_email_unique_idx")
+      .on(table.orgId, table.email)
+      .where(sql`${table.email} IS NOT NULL`),
+    uniqueIndex("clients_org_phone_unique_idx")
+      .on(table.orgId, table.phone)
+      .where(sql`${table.phone} IS NOT NULL`),
     pgPolicy("org_isolation_clients", {
       for: "all",
       using: sql`org_id = current_org_id()`,

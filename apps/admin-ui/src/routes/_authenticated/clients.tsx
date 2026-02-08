@@ -5,7 +5,7 @@ import { useClosingSnapshot } from "@/hooks/use-closing-snapshot";
 import { DateTime } from "luxon";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useForm } from "react-hook-form";
+import { Controller, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   Add01Icon,
@@ -32,6 +32,13 @@ import { Icon } from "@/components/ui/icon";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Table,
   TableBody,
   TableCell,
@@ -51,12 +58,23 @@ import {
   type SchedulingTimezoneMode,
 } from "@/lib/scheduling-timezone";
 
+const PHONE_COUNTRY_OPTIONS = [
+  { value: "US", label: "United States (+1)" },
+  { value: "CA", label: "Canada (+1)" },
+  { value: "GB", label: "United Kingdom (+44)" },
+  { value: "AU", label: "Australia (+61)" },
+  { value: "DE", label: "Germany (+49)" },
+  { value: "FR", label: "France (+33)" },
+  { value: "IN", label: "India (+91)" },
+] as const;
+
 interface ClientFormProps {
   defaultValues?: {
     firstName: string;
     lastName: string;
     email?: string;
     phone?: string;
+    phoneCountry?: string;
   };
   onSubmit: (data: CreateClientInput) => void;
   onCancel: () => void;
@@ -70,17 +88,19 @@ function ClientForm({
   isSubmitting,
 }: ClientFormProps) {
   const {
+    control,
     register,
     handleSubmit,
     formState: { errors },
   } = useForm<CreateClientInput>({
     resolver: zodResolver(createClientSchema),
     mode: "onBlur",
-    defaultValues: defaultValues ?? {
-      firstName: "",
-      lastName: "",
-      email: "",
-      phone: "",
+    defaultValues: {
+      firstName: defaultValues?.firstName ?? "",
+      lastName: defaultValues?.lastName ?? "",
+      email: defaultValues?.email ?? "",
+      phone: defaultValues?.phone ?? "",
+      phoneCountry: defaultValues?.phoneCountry ?? "US",
     },
   });
 
@@ -140,22 +160,61 @@ function ClientForm({
         )}
       </div>
 
-      <div className="space-y-2.5">
-        <Label htmlFor="phone">Phone (optional)</Label>
-        <Input
-          id="phone"
-          type="tel"
-          placeholder="(555) 123-4567"
-          aria-describedby={errors.phone ? "phone-error" : undefined}
-          aria-invalid={!!errors.phone}
-          {...register("phone")}
-          disabled={isSubmitting}
-        />
-        {errors.phone && (
-          <p id="phone-error" className="text-sm text-destructive">
-            {errors.phone.message}
-          </p>
-        )}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-[220px_minmax(0,1fr)]">
+        <div className="space-y-2.5">
+          <Label htmlFor="phoneCountry">Country</Label>
+          <Controller
+            name="phoneCountry"
+            control={control}
+            render={({ field }) => (
+              <Select
+                value={field.value ?? "US"}
+                onValueChange={field.onChange}
+                disabled={isSubmitting}
+              >
+                <SelectTrigger
+                  id="phoneCountry"
+                  aria-describedby={
+                    errors.phoneCountry ? "phone-country-error" : undefined
+                  }
+                  aria-invalid={!!errors.phoneCountry}
+                >
+                  <SelectValue placeholder="Select country" />
+                </SelectTrigger>
+                <SelectContent>
+                  {PHONE_COUNTRY_OPTIONS.map((country) => (
+                    <SelectItem key={country.value} value={country.value}>
+                      {country.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+          />
+          {errors.phoneCountry && (
+            <p id="phone-country-error" className="text-sm text-destructive">
+              {errors.phoneCountry.message}
+            </p>
+          )}
+        </div>
+
+        <div className="space-y-2.5">
+          <Label htmlFor="phone">Phone (optional)</Label>
+          <Input
+            id="phone"
+            type="tel"
+            placeholder="(555) 123-4567"
+            aria-describedby={errors.phone ? "phone-error" : undefined}
+            aria-invalid={!!errors.phone}
+            {...register("phone")}
+            disabled={isSubmitting}
+          />
+          {errors.phone && (
+            <p id="phone-error" className="text-sm text-destructive">
+              {errors.phone.message}
+            </p>
+          )}
+        </div>
       </div>
 
       <div className="flex justify-end gap-3 pt-2">
@@ -854,6 +913,7 @@ function ClientsPage() {
               lastName: crud.editingItem.lastName,
               email: crud.editingItem.email ?? undefined,
               phone: crud.editingItem.phone ?? undefined,
+              phoneCountry: "US",
             }}
             onSubmit={handleUpdate}
             onCancel={crud.closeEdit}

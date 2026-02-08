@@ -6,6 +6,12 @@ import {
   nonNegativeIntSchema,
 } from "./common";
 
+const countryCodeSchema = z
+  .string()
+  .length(2, "Country code must be exactly 2 letters")
+  .regex(/^[A-Za-z]{2}$/, "Country code must use ISO 2-letter format")
+  .transform((value) => value.toUpperCase());
+
 // Base client schema
 export const clientSchema = z.object({
   id: uuidSchema,
@@ -35,6 +41,7 @@ export const createClientSchema = z.object({
     .max(255, "Last name is too long"),
   email: z.string().email("Invalid email address").optional().or(z.literal("")),
   phone: z.string().max(50, "Phone number is too long").optional(),
+  phoneCountry: countryCodeSchema.optional(),
 });
 
 // Update client input
@@ -49,8 +56,11 @@ export const updateClientSchema = z.object({
     .min(1, "Last name is required")
     .max(255, "Last name is too long")
     .optional(),
-  email: z.string().email("Invalid email address").nullable().optional(),
+  email: z
+    .union([z.string().email("Invalid email address"), z.literal(""), z.null()])
+    .optional(),
   phone: z.string().max(50, "Phone number is too long").nullable().optional(),
+  phoneCountry: countryCodeSchema.optional(),
 });
 
 // List clients query

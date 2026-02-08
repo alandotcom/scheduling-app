@@ -466,7 +466,7 @@ function buildClientFixtures(
         phone:
           index % 4 === 0
             ? null
-            : `555-${String(phoneBase + index)
+            : `+1415555${String(phoneBase + index)
                 .padStart(4, "0")
                 .slice(-4)}`,
       };

@@ -284,6 +284,7 @@ describe("Client schemas", () => {
         lastName: "Doe",
         email: "john@example.com",
         phone: "555-1234",
+        phoneCountry: "US",
       });
       expect(result.success).toBe(true);
     });
@@ -294,6 +295,26 @@ describe("Client schemas", () => {
         lastName: "Doe",
       });
       expect(result.success).toBe(true);
+    });
+
+    test("normalizes lowercase phone country to uppercase", () => {
+      const result = createClientSchema.parse({
+        firstName: "John",
+        lastName: "Doe",
+        phone: "4155552671",
+        phoneCountry: "us",
+      });
+
+      expect(result.phoneCountry).toBe("US");
+    });
+
+    test("rejects invalid phone country format", () => {
+      const result = createClientSchema.safeParse({
+        firstName: "John",
+        lastName: "Doe",
+        phoneCountry: "USA",
+      });
+      expect(result.success).toBe(false);
     });
   });
 });

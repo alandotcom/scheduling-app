@@ -1,5 +1,6 @@
 -- Extensions
 CREATE EXTENSION IF NOT EXISTS btree_gist;
+CREATE EXTENSION IF NOT EXISTS citext;
 --> statement-breakpoint
 -- RLS helper functions (must exist before policies)
 CREATE OR REPLACE FUNCTION current_org_id() RETURNS uuid AS $$
@@ -171,10 +172,11 @@ CREATE TABLE "clients" (
 	"org_id" uuid NOT NULL,
 	"first_name" text NOT NULL,
 	"last_name" text NOT NULL,
-	"email" text,
+	"email" citext,
 	"phone" text,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "clients_phone_e164_check" CHECK ("phone" IS NULL OR "phone" ~ '^\+[1-9][0-9]{1,14}$')
 );
 --> statement-breakpoint
 ALTER TABLE "clients" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
@@ -305,6 +307,8 @@ CREATE INDEX "blocked_time_calendar_id_id_idx" ON "blocked_time" ("calendar_id",
 CREATE INDEX "blocked_time_calendar_end_idx" ON "blocked_time" ("calendar_id","end_at");--> statement-breakpoint
 CREATE INDEX "blocked_time_calendar_range_gist_idx" ON "blocked_time" USING gist ("calendar_id",tstzrange("start_at", "end_at", '[)'));--> statement-breakpoint
 CREATE INDEX "blocked_time_calendar_recurring_idx" ON "blocked_time" ("calendar_id") WHERE "recurring_rule" is not null;--> statement-breakpoint
+CREATE UNIQUE INDEX "clients_org_email_unique_idx" ON "clients" ("org_id","email") WHERE "email" IS NOT NULL;--> statement-breakpoint
+CREATE UNIQUE INDEX "clients_org_phone_unique_idx" ON "clients" ("org_id","phone") WHERE "phone" IS NOT NULL;--> statement-breakpoint
 CREATE UNIQUE INDEX "org_memberships_org_user_idx" ON "org_memberships" ("org_id","user_id");--> statement-breakpoint
 CREATE INDEX "scheduling_limits_calendar_id_idx" ON "scheduling_limits" ("calendar_id");--> statement-breakpoint
 ALTER TABLE "accounts" ADD CONSTRAINT "accounts_user_id_users_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE;--> statement-breakpoint

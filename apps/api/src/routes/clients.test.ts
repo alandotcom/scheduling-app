@@ -421,7 +421,7 @@ describe("Client Routes", () => {
         firstName: "John",
         lastName: "Doe",
         email: "john@example.com",
-        phone: "555-1234",
+        phone: "+14155551234",
       });
 
       const result = await call(
@@ -434,7 +434,7 @@ describe("Client Routes", () => {
       expect(result.firstName).toBe("John");
       expect(result.lastName).toBe("Doe");
       expect(result.email).toBe("john@example.com");
-      expect(result.phone).toBe("555-1234");
+      expect(result.phone).toBe("+14155551234");
     });
 
     test("throws NOT_FOUND for non-existent client", async () => {
@@ -481,7 +481,7 @@ describe("Client Routes", () => {
           firstName: "New",
           lastName: "Client",
           email: "new@example.com",
-          phone: "555-5678",
+          phone: "+14155555678",
         },
         { context: ctx },
       );
@@ -490,7 +490,7 @@ describe("Client Routes", () => {
       expect(result!.firstName).toBe("New");
       expect(result!.lastName).toBe("Client");
       expect(result!.email).toBe("new@example.com");
-      expect(result!.phone).toBe("555-5678");
+      expect(result!.phone).toBe("+14155555678");
       expect(result!.orgId).toBe(org.id);
 
       // Verify in database
@@ -511,6 +511,142 @@ describe("Client Routes", () => {
 
       expect(result!.email).toBeNull();
       expect(result!.phone).toBeNull();
+    });
+
+    test("normalizes phone to E.164 using default US country", async () => {
+      const { org, user } = await createOrg(db);
+      const ctx = createTestContext({ orgId: org.id, userId: user.id });
+
+      const result = await call(
+        clientRoutes.create,
+        {
+          firstName: "Phone",
+          lastName: "Normalize",
+          phone: "(415) 555-2671",
+        },
+        { context: ctx },
+      );
+
+      expect(result!.phone).toBe("+14155552671");
+    });
+
+    test("normalizes phone to E.164 using provided country", async () => {
+      const { org, user } = await createOrg(db);
+      const ctx = createTestContext({ orgId: org.id, userId: user.id });
+
+      const result = await call(
+        clientRoutes.create,
+        {
+          firstName: "Country",
+          lastName: "Code",
+          phone: "07890 123456",
+          phoneCountry: "GB",
+        },
+        { context: ctx },
+      );
+
+      expect(result!.phone).toBe("+447890123456");
+    });
+
+    test("throws BAD_REQUEST for invalid phone format", async () => {
+      const { org, user } = await createOrg(db);
+      const ctx = createTestContext({ orgId: org.id, userId: user.id });
+
+      await expect(
+        call(
+          clientRoutes.create,
+          {
+            firstName: "Bad",
+            lastName: "Phone",
+            phone: "not-a-phone",
+          },
+          { context: ctx },
+        ),
+      ).rejects.toMatchObject({
+        code: "BAD_REQUEST",
+      });
+    });
+
+    test("throws CONFLICT for duplicate email in same org (case-insensitive)", async () => {
+      const { org, user } = await createOrg(db);
+      const ctx = createTestContext({ orgId: org.id, userId: user.id });
+
+      await call(
+        clientRoutes.create,
+        {
+          firstName: "First",
+          lastName: "Client",
+          email: "John@Example.com",
+        },
+        { context: ctx },
+      );
+
+      await expect(
+        call(
+          clientRoutes.create,
+          {
+            firstName: "Second",
+            lastName: "Client",
+            email: "john@example.com",
+          },
+          { context: ctx },
+        ),
+      ).rejects.toMatchObject({
+        code: "CONFLICT",
+      });
+    });
+
+    test("throws CONFLICT for duplicate normalized phone in same org", async () => {
+      const { org, user } = await createOrg(db);
+      const ctx = createTestContext({ orgId: org.id, userId: user.id });
+
+      await call(
+        clientRoutes.create,
+        {
+          firstName: "First",
+          lastName: "Client",
+          phone: "(415) 555-2671",
+        },
+        { context: ctx },
+      );
+
+      await expect(
+        call(
+          clientRoutes.create,
+          {
+            firstName: "Second",
+            lastName: "Client",
+            phone: "+1 415 555 2671",
+          },
+          { context: ctx },
+        ),
+      ).rejects.toMatchObject({
+        code: "CONFLICT",
+      });
+    });
+
+    test("allows same email and phone in different orgs", async () => {
+      const { org: org1, user: user1 } = await createOrg(db, { name: "Org 1" });
+      const { org: org2, user: user2 } = await createOrg(db, { name: "Org 2" });
+      const ctx1 = createTestContext({ orgId: org1.id, userId: user1.id });
+      const ctx2 = createTestContext({ orgId: org2.id, userId: user2.id });
+
+      const payload = {
+        firstName: "Shared",
+        lastName: "Contact",
+        email: "shared@example.com",
+        phone: "(415) 555-2671",
+      };
+
+      const first = await call(clientRoutes.create, payload, { context: ctx1 });
+      const second = await call(clientRoutes.create, payload, {
+        context: ctx2,
+      });
+
+      expect(first.orgId).toBe(org1.id);
+      expect(second.orgId).toBe(org2.id);
+      expect(first.phone).toBe("+14155552671");
+      expect(second.phone).toBe("+14155552671");
     });
   });
 
@@ -573,16 +709,108 @@ describe("Client Routes", () => {
       const client = await createClient(db, org.id, {
         firstName: "Test",
         lastName: "Client",
-        phone: "555-0000",
+        phone: "+14155550000",
       });
 
       const result = await call(
         clientRoutes.update,
-        { id: client.id, data: { phone: "555-9999" } },
+        { id: client.id, data: { phone: "+14155559999" } },
         { context: ctx },
       );
 
-      expect(result!.phone).toBe("555-9999");
+      expect(result!.phone).toBe("+14155559999");
+    });
+
+    test("normalizes updated phone to E.164", async () => {
+      const { org, user } = await createOrg(db);
+      const ctx = createTestContext({ orgId: org.id, userId: user.id });
+      const client = await createClient(db, org.id, {
+        firstName: "Test",
+        lastName: "Client",
+      });
+
+      const result = await call(
+        clientRoutes.update,
+        { id: client.id, data: { phone: "(415) 555-2671" } },
+        { context: ctx },
+      );
+
+      expect(result!.phone).toBe("+14155552671");
+    });
+
+    test("throws BAD_REQUEST for invalid phone format", async () => {
+      const { org, user } = await createOrg(db);
+      const ctx = createTestContext({ orgId: org.id, userId: user.id });
+      const client = await createClient(db, org.id, {
+        firstName: "Test",
+        lastName: "Client",
+      });
+
+      await expect(
+        call(
+          clientRoutes.update,
+          { id: client.id, data: { phone: "invalid-phone" } },
+          { context: ctx },
+        ),
+      ).rejects.toMatchObject({
+        code: "BAD_REQUEST",
+      });
+    });
+
+    test("throws CONFLICT when updating to duplicate email in same org", async () => {
+      const { org, user } = await createOrg(db);
+      const ctx = createTestContext({ orgId: org.id, userId: user.id });
+
+      const first = await createClient(db, org.id, {
+        firstName: "First",
+        lastName: "Client",
+        email: "first@example.com",
+      });
+      const second = await createClient(db, org.id, {
+        firstName: "Second",
+        lastName: "Client",
+        email: "second@example.com",
+      });
+
+      await expect(
+        call(
+          clientRoutes.update,
+          { id: second.id, data: { email: "FIRST@EXAMPLE.COM" } },
+          { context: ctx },
+        ),
+      ).rejects.toMatchObject({
+        code: "CONFLICT",
+      });
+
+      expect(first.email).toBe("first@example.com");
+    });
+
+    test("throws CONFLICT when updating to duplicate normalized phone in same org", async () => {
+      const { org, user } = await createOrg(db);
+      const ctx = createTestContext({ orgId: org.id, userId: user.id });
+
+      const first = await createClient(db, org.id, {
+        firstName: "First",
+        lastName: "Client",
+        phone: "+14155552671",
+      });
+      const second = await createClient(db, org.id, {
+        firstName: "Second",
+        lastName: "Client",
+        phone: "+14155552672",
+      });
+
+      await expect(
+        call(
+          clientRoutes.update,
+          { id: second.id, data: { phone: "(415) 555-2671" } },
+          { context: ctx },
+        ),
+      ).rejects.toMatchObject({
+        code: "CONFLICT",
+      });
+
+      expect(first.phone).toBe("+14155552671");
     });
 
     test("throws NOT_FOUND for non-existent client", async () => {
