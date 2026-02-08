@@ -1,10 +1,16 @@
 // Appointment booking modal with availability calendar
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { DateTime } from "luxon";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
-import { Calendar03Icon, Cancel01Icon } from "@hugeicons/core-free-icons";
+import { Combobox } from "@base-ui/react/combobox";
+import {
+  ArrowDown01Icon,
+  Calendar03Icon,
+  Cancel01Icon,
+  Tick02Icon,
+} from "@hugeicons/core-free-icons";
 import { toast } from "sonner";
 
 import { orpc } from "@/lib/query";
@@ -18,7 +24,7 @@ import {
   resolveEffectiveSchedulingTimezone,
   type SchedulingTimezoneMode,
 } from "@/lib/scheduling-timezone";
-import { STANDARD_MODAL_MAX_WIDTH_CLASS } from "@/lib/modal";
+import { MOBILE_FIRST_MODAL_CONTENT_CLASS } from "@/lib/modal";
 import { resolveSelectValueLabel } from "@/lib/select-value-label";
 import { cn } from "@/lib/utils";
 import { AvailabilityCalendarPicker } from "@/components/appointments/availability-calendar-picker";
@@ -26,7 +32,6 @@ import { TimeDisplayToggle } from "@/components/appointments/time-display-toggle
 import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
 import { Label } from "@/components/ui/label";
-import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
@@ -85,6 +90,7 @@ export function AppointmentModal({
   const [selectedClientId, setSelectedClientId] = useState<string>(
     defaultClientId ?? "",
   );
+  const [clientComboboxOpen, setClientComboboxOpen] = useState(false);
   const [availabilityModalOpen, setAvailabilityModalOpen] = useState(false);
   const timezoneMode = controlledTimezoneMode ?? localTimezoneMode;
   const selectedDisplayTimezone = displayTimezone ?? defaultTimezone;
@@ -133,12 +139,12 @@ export function AppointmentModal({
     selectedTime,
   );
 
-  // Fetch clients for search
+  // Fetch clients for appointment booking (sorted by recency in UI)
   const { data: clientsData } = useQuery({
     ...orpc.clients.list.queryOptions({
-      input: { search: clientSearch, limit: 10 },
+      input: { limit: 100, sort: "updated_at_desc" },
     }),
-    enabled: open && clientSearch.length >= 2,
+    enabled: open,
   });
 
   // Fetch available time slots for visible month
@@ -172,6 +178,11 @@ export function AppointmentModal({
     orpc.appointments.create.mutationOptions({
       onSuccess: (createdAppointment) => {
         queryClient.invalidateQueries({ queryKey: orpc.appointments.key() });
+        queryClient.invalidateQueries({ queryKey: orpc.clients.key() });
+        queryClient.invalidateQueries({ queryKey: orpc.calendars.key() });
+        queryClient.invalidateQueries({
+          queryKey: orpc.appointmentTypes.key(),
+        });
         const createdId =
           typeof createdAppointment?.id === "string"
             ? createdAppointment.id
@@ -186,8 +197,26 @@ export function AppointmentModal({
   );
 
   const appointmentTypes = typesData?.items ?? [];
-  const clients = clientsData?.items ?? [];
+  const allClients = clientsData?.items ?? [];
   const monthSlots = slotsData?.slots ?? [];
+  const clients = useMemo(() => {
+    const normalizedSearch = clientSearch.trim().toLowerCase();
+    if (!normalizedSearch) {
+      return allClients.slice(0, 12);
+    }
+    return allClients
+      .filter((client) => {
+        const fullName = `${client.firstName} ${client.lastName}`.toLowerCase();
+        const email = client.email?.toLowerCase() ?? "";
+        return (
+          fullName.includes(normalizedSearch) ||
+          email.includes(normalizedSearch)
+        );
+      })
+      .slice(0, 12);
+  }, [allClients, clientSearch]);
+  const selectedClient =
+    allClients.find((client) => client.id === selectedClientId) ?? null;
 
   const appointmentTypeSelectLabel = resolveSelectValueLabel({
     value: selectedTypeId,
@@ -206,6 +235,7 @@ export function AppointmentModal({
 
   const handleClose = () => {
     setAvailabilityModalOpen(false);
+    setClientComboboxOpen(false);
     setSelectedTypeId(defaultTypeId ?? "");
     setSelectedCalendarId(defaultCalendarId ?? "");
     setSelectedDate(null);
@@ -259,6 +289,7 @@ export function AppointmentModal({
   useEffect(() => {
     if (open) return;
     setAvailabilityModalOpen(false);
+    setClientComboboxOpen(false);
   }, [open]);
 
   useEffect(() => {
@@ -359,7 +390,7 @@ export function AppointmentModal({
           <DialogPrimitive.Backdrop
             data-slot="appointment-modal-backdrop"
             className={cn(
-              "fixed inset-0 z-50 bg-black/50 backdrop-blur-sm",
+              "fixed inset-0 z-50 bg-black/50 md:backdrop-blur-sm",
               "data-open:animate-in data-closed:animate-out",
               "data-closed:fade-out-0 data-open:fade-in-0",
               "duration-200",
@@ -368,14 +399,11 @@ export function AppointmentModal({
           <DialogPrimitive.Popup
             data-slot="appointment-modal-content"
             className={cn(
-              "fixed left-1/2 top-2 z-50 w-[calc(100vw-1rem)] -translate-x-1/2 sm:top-8 sm:w-full",
-              STANDARD_MODAL_MAX_WIDTH_CLASS,
-              "rounded-xl border border-border bg-background shadow-xl",
+              MOBILE_FIRST_MODAL_CONTENT_CLASS,
               "data-open:animate-in data-closed:animate-out",
               "data-closed:fade-out-0 data-open:fade-in-0",
               "data-closed:zoom-out-95 data-open:zoom-in-95",
               "duration-200",
-              "max-h-[calc(100dvh-1rem)] overflow-hidden flex flex-col sm:h-[min(86dvh,52rem)] sm:max-h-[calc(100dvh-4rem)] sm:min-h-[36rem]",
             )}
           >
             {/* Header */}
@@ -392,7 +420,7 @@ export function AppointmentModal({
             </div>
 
             {/* Content */}
-            <div className="flex min-h-0 flex-1 flex-col overflow-y-auto p-4 sm:p-6">
+            <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain p-4 sm:p-6">
               {/* Type, Calendar, and Time Display */}
               <div className="mb-5 grid grid-cols-1 gap-4 sm:mb-6 lg:grid-cols-2">
                 <div className="space-y-4">
@@ -530,45 +558,106 @@ export function AppointmentModal({
                     className="mt-2 space-y-2 relative"
                     ref={registerField("client")}
                   >
-                    <Input
-                      placeholder="Search by name or email..."
-                      value={clientSearch}
-                      onChange={(e) => setClientSearch(e.target.value)}
-                    />
+                    <Combobox.Root
+                      items={clients}
+                      value={selectedClient}
+                      inputValue={clientSearch}
+                      open={clientComboboxOpen}
+                      itemToStringLabel={(client) =>
+                        `${client.firstName} ${client.lastName}`
+                      }
+                      itemToStringValue={(client) => client.id}
+                      isItemEqualToValue={(item, selected) =>
+                        item.id === selected.id
+                      }
+                      onOpenChange={setClientComboboxOpen}
+                      onInputValueChange={(inputValue) => {
+                        setClientSearch(inputValue);
+                        const normalizedInput = inputValue.trim();
+                        const selectedLabel = selectedClient
+                          ? `${selectedClient.firstName} ${selectedClient.lastName}`
+                          : "";
+
+                        if (!normalizedInput || inputValue !== selectedLabel) {
+                          setSelectedClientId("");
+                        }
+                      }}
+                      onValueChange={(client) => {
+                        if (!client) return;
+                        setSelectedClientId(client.id);
+                        setClientSearch(
+                          `${client.firstName} ${client.lastName}`,
+                        );
+                        setClientComboboxOpen(false);
+                      }}
+                    >
+                      <div className="relative">
+                        <Combobox.Input
+                          placeholder="Search by name or email..."
+                          onFocus={() => {
+                            setClientComboboxOpen(true);
+                          }}
+                          onPointerDown={() => {
+                            if (!clientComboboxOpen) {
+                              setClientComboboxOpen(true);
+                            }
+                          }}
+                          className={cn(
+                            "dark:bg-input/30 border-input focus-visible:border-ring focus-visible:ring-ring/30 aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive dark:aria-invalid:border-destructive/50 disabled:bg-input/50 dark:disabled:bg-input/80 h-11 md:h-10 rounded-lg border bg-transparent pr-10 pl-3 py-2 text-base transition-all duration-200 ease-out focus-visible:ring-[3px] aria-invalid:ring-[3px] md:text-sm placeholder:text-muted-foreground/70 w-full min-w-0 outline-none disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50",
+                          )}
+                        />
+                        <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-muted-foreground">
+                          <Icon icon={ArrowDown01Icon} className="size-4" />
+                        </span>
+                      </div>
+
+                      <Combobox.Portal keepMounted>
+                        <Combobox.Positioner
+                          positionMethod="fixed"
+                          disableAnchorTracking
+                          sideOffset={6}
+                          align="start"
+                          className="z-[120]"
+                        >
+                          <Combobox.Popup className="w-[min(var(--anchor-width),calc(100vw-2rem))] overflow-hidden rounded-lg border border-border bg-background shadow-lg">
+                            <Combobox.Empty className="px-3 py-3 text-sm text-muted-foreground">
+                              No clients found.
+                            </Combobox.Empty>
+                            <Combobox.List className="max-h-72 overflow-y-auto p-1">
+                              {(client) => (
+                                <Combobox.Item
+                                  key={client.id}
+                                  value={client}
+                                  className="relative flex cursor-pointer items-center gap-2 rounded-md px-2.5 py-2 text-sm outline-none data-[highlighted]:bg-accent data-[highlighted]:text-accent-foreground"
+                                >
+                                  <div className="min-w-0 flex-1">
+                                    <div className="truncate font-medium">
+                                      {client.firstName} {client.lastName}
+                                    </div>
+                                    {client.email ? (
+                                      <div className="truncate text-xs text-muted-foreground">
+                                        {client.email}
+                                      </div>
+                                    ) : null}
+                                  </div>
+                                  <Combobox.ItemIndicator>
+                                    <Icon
+                                      icon={Tick02Icon}
+                                      className="size-4"
+                                    />
+                                  </Combobox.ItemIndicator>
+                                </Combobox.Item>
+                              )}
+                            </Combobox.List>
+                          </Combobox.Popup>
+                        </Combobox.Positioner>
+                      </Combobox.Portal>
+                    </Combobox.Root>
                     <FieldShortcutHint
                       shortcut="l"
                       label="Client"
                       visible={hintsVisible}
                     />
-                    {clients.length > 0 && (
-                      <div className="rounded-md border border-border divide-y divide-border/50">
-                        {clients.map((client) => (
-                          <button
-                            key={client.id}
-                            type="button"
-                            onClick={() => {
-                              setSelectedClientId(client.id);
-                              setClientSearch(
-                                `${client.firstName} ${client.lastName}`,
-                              );
-                            }}
-                            className={cn(
-                              "w-full px-3 py-2 text-left text-sm hover:bg-muted transition-colors",
-                              selectedClientId === client.id && "bg-muted",
-                            )}
-                          >
-                            <div className="font-medium">
-                              {client.firstName} {client.lastName}
-                            </div>
-                            {client.email && (
-                              <div className="text-xs text-muted-foreground">
-                                {client.email}
-                              </div>
-                            )}
-                          </button>
-                        ))}
-                      </div>
-                    )}
                     {selectedClientId && (
                       <Button
                         variant="ghost"
@@ -606,9 +695,14 @@ export function AppointmentModal({
             </div>
 
             {/* Footer */}
-            <div className="sticky bottom-0 border-t border-border bg-background px-4 py-3 sm:px-6 sm:py-4">
-              <div className="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div className="min-h-5 text-sm text-muted-foreground">
+            <div className="mt-auto border-t border-border bg-background px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-6 sm:py-4">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div
+                  className={cn(
+                    "text-sm text-muted-foreground",
+                    !selectedTime && "hidden min-h-5 sm:block",
+                  )}
+                >
                   {selectedTime && (
                     <span className="flex items-center gap-2">
                       <Icon icon={Calendar03Icon} />

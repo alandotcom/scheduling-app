@@ -115,7 +115,6 @@ export function AppointmentDrawer({
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: orpc.appointments.key() });
         setEditingNotes(false);
-        toast.success("Notes updated");
       },
       onError: (error) => {
         toast.error(error.message || "Failed to update notes");
@@ -128,7 +127,11 @@ export function AppointmentDrawer({
     orpc.appointments.update.mutationOptions({
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: orpc.appointments.key() });
-        toast.success("Appointment confirmed");
+        queryClient.invalidateQueries({ queryKey: orpc.clients.key() });
+        queryClient.invalidateQueries({ queryKey: orpc.calendars.key() });
+        queryClient.invalidateQueries({
+          queryKey: orpc.appointmentTypes.key(),
+        });
       },
       onError: (error) => {
         toast.error(error.message || "Failed to confirm appointment");
@@ -141,8 +144,12 @@ export function AppointmentDrawer({
     orpc.appointments.cancel.mutationOptions({
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: orpc.appointments.key() });
+        queryClient.invalidateQueries({ queryKey: orpc.clients.key() });
+        queryClient.invalidateQueries({ queryKey: orpc.calendars.key() });
+        queryClient.invalidateQueries({
+          queryKey: orpc.appointmentTypes.key(),
+        });
         setShowCancelDialog(false);
-        toast.success("Appointment cancelled");
       },
       onError: (error) => {
         toast.error(error.message || "Failed to cancel appointment");
@@ -155,8 +162,12 @@ export function AppointmentDrawer({
     orpc.appointments.noShow.mutationOptions({
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: orpc.appointments.key() });
+        queryClient.invalidateQueries({ queryKey: orpc.clients.key() });
+        queryClient.invalidateQueries({ queryKey: orpc.calendars.key() });
+        queryClient.invalidateQueries({
+          queryKey: orpc.appointmentTypes.key(),
+        });
         setShowNoShowDialog(false);
-        toast.success("Marked as no-show");
       },
       onError: (error) => {
         toast.error(error.message || "Failed to mark as no-show");

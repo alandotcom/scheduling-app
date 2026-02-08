@@ -461,15 +461,14 @@ function AppointmentTypesPage() {
   };
 
   return (
-    <PageScaffold>
+    <PageScaffold className="pb-24 sm:pb-6">
       <PageHeader
         title="Appointment Types"
         description="Configure the types of appointments that can be booked"
         actions={
-          <Button onClick={crud.openCreate}>
+          <Button className="hidden sm:inline-flex" onClick={crud.openCreate}>
             <Icon icon={Add01Icon} data-icon="inline-start" />
-            <span className="hidden sm:inline">Add Type</span>
-            <span className="sm:hidden">Add</span>
+            Add Type
             <ShortcutBadge
               shortcut="c"
               className="ml-2 hidden md:inline-flex"
@@ -607,6 +606,13 @@ function AppointmentTypesPage() {
         description="Are you sure you want to delete this appointment type? This action cannot be undone."
         isPending={deleteMutation.isPending}
       />
+
+      <div className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background/95 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:hidden">
+        <Button className="w-full" onClick={crud.openCreate}>
+          <Icon icon={Add01Icon} data-icon="inline-start" />
+          Add Type
+        </Button>
+      </div>
     </PageScaffold>
   );
 }

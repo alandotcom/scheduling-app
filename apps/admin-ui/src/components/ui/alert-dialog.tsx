@@ -30,7 +30,7 @@ function AlertDialogOverlay({
     <AlertDialogPrimitive.Backdrop
       data-slot="alert-dialog-overlay"
       className={cn(
-        "data-open:animate-in data-open:fade-in-0 fixed inset-0 isolate z-50 bg-black/30 duration-150 supports-backdrop-filter:backdrop-blur-md",
+        "data-open:animate-in data-open:fade-in-0 fixed inset-0 isolate z-50 bg-black/30 duration-150 md:backdrop-blur-md",
         className,
       )}
       {...props}

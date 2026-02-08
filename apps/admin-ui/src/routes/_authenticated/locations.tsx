@@ -346,7 +346,6 @@ function LocationsPage() {
     orpc.locations.update.mutationOptions({
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: orpc.locations.key() });
-        toast.success("Location updated successfully");
       },
       onError: (error) => {
         toast.error(error.message || "Failed to update location");
@@ -362,7 +361,6 @@ function LocationsPage() {
         }
         queryClient.invalidateQueries({ queryKey: orpc.locations.key() });
         crud.closeDelete();
-        toast.success("Location deleted successfully");
       },
       onError: (error) => {
         toast.error(error.message || "Failed to delete location");
@@ -388,15 +386,14 @@ function LocationsPage() {
   };
 
   return (
-    <PageScaffold>
+    <PageScaffold className="pb-24 sm:pb-6">
       <PageHeader
         title="Locations"
         description="Manage physical locations for your calendars"
         actions={
-          <Button onClick={crud.openCreate}>
+          <Button className="hidden sm:inline-flex" onClick={crud.openCreate}>
             <Icon icon={Add01Icon} data-icon="inline-start" />
-            <span className="hidden sm:inline">Add Location</span>
-            <span className="sm:hidden">Add</span>
+            Add Location
             <ShortcutBadge
               shortcut="c"
               className="ml-2 hidden md:inline-flex"
@@ -588,6 +585,13 @@ function LocationsPage() {
         description="Are you sure you want to delete this location? This action cannot be undone."
         isPending={deleteMutation.isPending}
       />
+
+      <div className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background/95 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:hidden">
+        <Button className="w-full" onClick={crud.openCreate}>
+          <Icon icon={Add01Icon} data-icon="inline-start" />
+          Add Location
+        </Button>
+      </div>
     </PageScaffold>
   );
 }

@@ -186,6 +186,35 @@ describe("Client Routes", () => {
       expect(result.items[0]!.firstName).toBe("John");
     });
 
+    test("supports sorting by most recently updated", async () => {
+      const { org, user } = await createOrg(db);
+      const ctx = createTestContext({ orgId: org.id, userId: user.id });
+
+      const older = await createClient(db, org.id, {
+        firstName: "Older",
+        lastName: "Client",
+      });
+      await createClient(db, org.id, {
+        firstName: "Newer",
+        lastName: "Client",
+      });
+
+      await call(
+        clientRoutes.update,
+        { id: older.id, data: { lastName: "Recently Updated" } },
+        { context: ctx },
+      );
+
+      const result = await call(
+        clientRoutes.list,
+        { limit: 10, sort: "updated_at_desc" },
+        { context: ctx },
+      );
+
+      expect(result.items[0]!.id).toBe(older.id);
+      expect(result.items[0]!.lastName).toBe("Recently Updated");
+    });
+
     test("does not return clients from other orgs (RLS)", async () => {
       const { org: org1, user: user1 } = await createOrg(db, { name: "Org 1" });
       const { org: org2 } = await createOrg(db, { name: "Org 2" });

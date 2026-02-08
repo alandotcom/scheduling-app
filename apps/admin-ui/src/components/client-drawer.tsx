@@ -83,7 +83,6 @@ export function ClientDrawer({
     orpc.clients.update.mutationOptions({
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: orpc.clients.key() });
-        toast.success("Client updated");
       },
       onError: (error) => {
         toast.error(error.message || "Failed to update client");
@@ -98,7 +97,6 @@ export function ClientDrawer({
         setShowDeleteDialog(false);
         onClose();
         queryClient.invalidateQueries({ queryKey: orpc.clients.key() });
-        toast.success("Client deleted");
       },
       onError: (error) => {
         toast.error(error.message || "Failed to delete client");

@@ -208,7 +208,7 @@ export function AvailabilityCalendarPicker({
             ) : null}
           </div>
         ) : (
-          <div className="grid grid-cols-2 gap-2 max-h-64 overflow-y-auto">
+          <div className="grid grid-cols-2 gap-2 md:max-h-64 md:overflow-y-auto">
             {availableSlots.map((slot) => (
               <Button
                 key={slot.start}

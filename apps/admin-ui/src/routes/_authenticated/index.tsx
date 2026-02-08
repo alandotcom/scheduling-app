@@ -127,7 +127,7 @@ export function Dashboard() {
   const hasAlerts = pendingAppointments > 0 || noShows > 0;
 
   return (
-    <PageScaffold>
+    <PageScaffold className="pb-24 sm:pb-6">
       <PageHeader
         title="Dashboard"
         description={today.toLocaleString({
@@ -137,13 +137,15 @@ export function Dashboard() {
           year: "numeric",
         })}
         actions={
-          <Button onClick={() => setAppointmentModalOpen(true)}>
+          <Button
+            className="hidden sm:inline-flex"
+            onClick={() => setAppointmentModalOpen(true)}
+          >
             <Icon icon={Add01Icon} data-icon="inline-start" />
-            <span className="hidden sm:inline">New Appointment</span>
-            <span className="sm:hidden">New</span>
+            New Appointment
             <ShortcutBadge
               shortcut="c"
-              className="ml-2 hidden sm:inline-flex"
+              className="ml-2 hidden md:inline-flex"
             />
           </Button>
         }
@@ -296,6 +298,16 @@ export function Dashboard() {
         onOpenChange={setAppointmentModalOpen}
         onCreated={handleAppointmentCreated}
       />
+
+      <div className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background/95 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:hidden">
+        <Button
+          className="w-full"
+          onClick={() => setAppointmentModalOpen(true)}
+        >
+          <Icon icon={Add01Icon} data-icon="inline-start" />
+          New Appointment
+        </Button>
+      </div>
     </PageScaffold>
   );
 }

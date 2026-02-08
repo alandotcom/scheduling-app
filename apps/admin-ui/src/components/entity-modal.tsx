@@ -4,7 +4,7 @@ import { Cancel01Icon } from "@hugeicons/core-free-icons";
 
 import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
-import { STANDARD_MODAL_MAX_WIDTH_CLASS } from "@/lib/modal";
+import { MOBILE_FIRST_MODAL_CONTENT_CLASS } from "@/lib/modal";
 import { cn } from "@/lib/utils";
 
 interface EntityModalProps {
@@ -45,14 +45,7 @@ export function EntityModal({
         <DialogPrimitive.Popup
           data-slot="entity-modal-content"
           className={cn(
-            // Mobile: full-screen sheet. Desktop: centered dialog.
-            "fixed z-50 inset-0 md:inset-auto md:left-1/2 md:top-8 md:-translate-x-1/2",
-            "md:w-[calc(100vw-2rem)]",
-            STANDARD_MODAL_MAX_WIDTH_CLASS,
-            "md:max-h-[calc(100dvh-4rem)] md:h-[min(86dvh,52rem)] md:min-h-[36rem]",
-            "overflow-hidden bg-background pb-[env(safe-area-inset-bottom)] md:pb-0",
-            "md:rounded-xl md:border md:border-border md:shadow-xl",
-            "flex flex-col",
+            MOBILE_FIRST_MODAL_CONTENT_CLASS,
             "data-open:animate-in data-closed:animate-out",
             "data-closed:fade-out-0 data-open:fade-in-0",
             "data-closed:zoom-out-95 data-open:zoom-in-95",

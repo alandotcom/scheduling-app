@@ -26,7 +26,9 @@ export function TimeDisplayToggle({
         onClick={() => onValueChange("calendar")}
         className={cn(
           "rounded-md font-medium transition-colors",
-          size === "sm" ? "h-8 px-3 text-sm" : "h-9 px-3.5 text-sm",
+          size === "sm"
+            ? "h-10 px-3 text-sm md:h-8"
+            : "h-10 px-3.5 text-sm md:h-9",
           value === "calendar"
             ? "bg-background text-foreground shadow-sm"
             : "text-muted-foreground hover:text-foreground",
@@ -39,7 +41,9 @@ export function TimeDisplayToggle({
         onClick={() => onValueChange("viewer")}
         className={cn(
           "rounded-md font-medium transition-colors",
-          size === "sm" ? "h-8 px-3 text-sm" : "h-9 px-3.5 text-sm",
+          size === "sm"
+            ? "h-10 px-3 text-sm md:h-8"
+            : "h-10 px-3.5 text-sm md:h-9",
           value === "viewer"
             ? "bg-background text-foreground shadow-sm"
             : "text-muted-foreground hover:text-foreground",

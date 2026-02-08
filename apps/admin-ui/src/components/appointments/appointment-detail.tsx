@@ -126,7 +126,6 @@ export function AppointmentDetail({
     orpc.appointments.update.mutationOptions({
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: orpc.appointments.key() });
-        toast.success("Notes updated");
       },
       onError: (error) => {
         toast.error(error.message || "Failed to update notes");
@@ -139,8 +138,12 @@ export function AppointmentDetail({
     orpc.appointments.cancel.mutationOptions({
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: orpc.appointments.key() });
+        queryClient.invalidateQueries({ queryKey: orpc.clients.key() });
+        queryClient.invalidateQueries({ queryKey: orpc.calendars.key() });
+        queryClient.invalidateQueries({
+          queryKey: orpc.appointmentTypes.key(),
+        });
         setShowCancelDialog(false);
-        toast.success("Appointment cancelled");
       },
       onError: (error) => {
         toast.error(error.message || "Failed to cancel appointment");
@@ -153,8 +156,12 @@ export function AppointmentDetail({
     orpc.appointments.noShow.mutationOptions({
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: orpc.appointments.key() });
+        queryClient.invalidateQueries({ queryKey: orpc.clients.key() });
+        queryClient.invalidateQueries({ queryKey: orpc.calendars.key() });
+        queryClient.invalidateQueries({
+          queryKey: orpc.appointmentTypes.key(),
+        });
         setShowNoShowDialog(false);
-        toast.success("Marked as no-show");
       },
       onError: (error) => {
         toast.error(error.message || "Failed to mark as no-show");
@@ -224,13 +231,14 @@ export function AppointmentDetail({
             </div>
           </div>
         ) : (
-          <div className="px-6 pt-4 pb-1">
+          <div className="px-4 pt-3 pb-1 sm:px-6 sm:pt-4">
             {getStatusBadge(appointment.status)}
           </div>
         )}
 
         {/* Tabs */}
         <DetailTabs
+          className="px-4 sm:px-6"
           value={activeTab}
           onValueChange={(value) => {
             if (isDetailTabValue(value)) {
@@ -244,9 +252,9 @@ export function AppointmentDetail({
         </DetailTabs>
 
         {/* Tab Content */}
-        <div className="flex-1 overflow-y-auto px-6 py-4">
+        <div className="flex-1 overflow-y-auto px-4 py-4 sm:px-6">
           {activeTab === "details" && (
-            <div className="space-y-6">
+            <div className="space-y-4 sm:space-y-6">
               {/* Date/Time Card */}
               <div className="rounded-lg border border-border bg-muted/30 p-4">
                 <div className="flex items-center gap-2 text-sm">
@@ -397,7 +405,7 @@ export function AppointmentDetail({
           )}
 
           {activeTab === "client" && (
-            <div className="space-y-6">
+            <div className="space-y-4 sm:space-y-6">
               {appointment.client ? (
                 <>
                   <button
@@ -421,7 +429,9 @@ export function AppointmentDetail({
                     {appointment.client.email && (
                       <div className="flex items-center gap-2 mt-2 text-sm text-muted-foreground">
                         <Icon icon={Mail01Icon} className="size-3.5" />
-                        <span>{appointment.client.email}</span>
+                        <span className="min-w-0 break-all">
+                          {appointment.client.email}
+                        </span>
                       </div>
                     )}
                     <div className="mt-3 flex items-center justify-end text-sm text-muted-foreground">

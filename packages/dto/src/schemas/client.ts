@@ -68,6 +68,7 @@ export const updateClientSchema = z.object({
 export const listClientsQuerySchema = z.object({
   search: z.string().optional(), // search by name or email
   cursor: uuidSchema.optional(),
+  sort: z.enum(["id_asc", "updated_at_desc"]).default("id_asc"),
   limit: z
     .number()
     .int()

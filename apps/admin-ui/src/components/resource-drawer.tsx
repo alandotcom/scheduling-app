@@ -68,7 +68,6 @@ export function ResourceDrawer({
     orpc.resources.update.mutationOptions({
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: orpc.resources.key() });
-        toast.success("Resource updated");
       },
       onError: (error) => {
         toast.error(error.message || "Failed to update resource");
@@ -83,7 +82,6 @@ export function ResourceDrawer({
         setShowDeleteDialog(false);
         onClose();
         queryClient.invalidateQueries({ queryKey: orpc.resources.key() });
-        toast.success("Resource deleted");
       },
       onError: (error) => {
         toast.error(error.message || "Failed to delete resource");

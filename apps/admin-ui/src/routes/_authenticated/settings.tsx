@@ -299,7 +299,6 @@ function SettingsForm({ org }: SettingsFormProps) {
     orpc.org.updateSettings.mutationOptions({
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: orpc.org.key() });
-        toast.success("Settings saved successfully");
       },
       onError: (mutationError) => {
         toast.error(mutationError.message || "Failed to save settings");
@@ -787,7 +786,6 @@ function UsersManagementSection() {
     orpc.org.users.create.mutationOptions({
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: orpc.org.users.key() });
-        toast.success("User created");
       },
       onError: (mutationError) => {
         toast.error(mutationError.message || "Failed to create user");
@@ -799,7 +797,6 @@ function UsersManagementSection() {
     orpc.org.users.updateRole.mutationOptions({
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: orpc.org.users.key() });
-        toast.success("User role updated");
       },
       onError: (mutationError) => {
         toast.error(mutationError.message || "Failed to update role");

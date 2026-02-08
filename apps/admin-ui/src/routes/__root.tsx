@@ -42,7 +42,7 @@ import {
   SheetTitle,
   SheetClose,
 } from "@/components/ui/sheet";
-import { Toaster, toast } from "sonner";
+import { Toaster } from "sonner";
 import { CommandPalette } from "@/components/command-palette";
 import {
   useKeyboardShortcuts,
@@ -199,7 +199,6 @@ function RootLayout() {
     await resetOrgScopedState();
     await refetchOrganizations();
     setMobileMenuOpen(false);
-    toast.success("Organization switched.");
   };
 
   const onCreateOrganization = async (input: {

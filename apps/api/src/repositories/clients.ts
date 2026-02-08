@@ -1,6 +1,18 @@
 // Client repository - data access layer for clients
 
-import { and, eq, gt, ilike, inArray, ne, or, sql } from "drizzle-orm";
+import {
+  and,
+  desc,
+  eq,
+  gt,
+  ilike,
+  inArray,
+  lt,
+  ne,
+  or,
+  type SQL,
+  sql,
+} from "drizzle-orm";
 import { clients, appointments } from "@scheduling/db/schema";
 import type { PaginationInput, PaginatedResult } from "./base.js";
 import type { DbClient } from "../lib/db.js";
@@ -31,6 +43,7 @@ export interface ClientUpdateInput {
 
 export interface ClientListInput extends PaginationInput {
   search?: string | null | undefined;
+  sort?: "id_asc" | "updated_at_desc" | undefined;
 }
 
 export class ClientRepository {
@@ -54,28 +67,60 @@ export class ClientRepository {
     input: ClientListInput,
   ): Promise<PaginatedResult<ClientWithRelationshipCounts>> {
     await setOrgContext(tx, orgId);
-    const { cursor, limit, search } = input;
+    const { cursor, limit, search, sort = "id_asc" } = input;
 
     let query = tx.select().from(clients).$dynamic();
+    const filters: SQL[] = [];
 
     // Apply cursor pagination
     if (cursor) {
-      query = query.where(gt(clients.id, cursor));
+      if (sort === "updated_at_desc") {
+        const [cursorClient] = await tx
+          .select({ id: clients.id, updatedAt: clients.updatedAt })
+          .from(clients)
+          .where(eq(clients.id, cursor))
+          .limit(1);
+
+        if (cursorClient) {
+          filters.push(
+            or(
+              lt(clients.updatedAt, cursorClient.updatedAt),
+              and(
+                eq(clients.updatedAt, cursorClient.updatedAt),
+                lt(clients.id, cursorClient.id),
+              ),
+            ) as SQL,
+          );
+        }
+      } else {
+        filters.push(gt(clients.id, cursor));
+      }
     }
 
     // Apply search filter if provided
     if (search) {
       const searchPattern = `%${search}%`;
-      query = query.where(
+      filters.push(
         or(
           ilike(clients.firstName, searchPattern),
           ilike(clients.lastName, searchPattern),
           ilike(clients.email, searchPattern),
-        ),
+        ) as SQL,
       );
     }
 
-    const results = await query.limit(limit + 1).orderBy(clients.id);
+    if (filters.length === 1) {
+      query = query.where(filters[0]!);
+    } else if (filters.length > 1) {
+      query = query.where(and(...filters));
+    }
+
+    const orderByColumns =
+      sort === "updated_at_desc"
+        ? [desc(clients.updatedAt), desc(clients.id)]
+        : [clients.id];
+
+    const results = await query.limit(limit + 1).orderBy(...orderByColumns);
     const paginated = paginate(results, limit);
 
     if (paginated.items.length === 0) {

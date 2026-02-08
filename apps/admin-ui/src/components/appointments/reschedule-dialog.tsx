@@ -9,7 +9,7 @@ import { toast } from "sonner";
 import type { AppointmentWithRelations } from "@scheduling/dto";
 
 import { orpc } from "@/lib/query";
-import { STANDARD_MODAL_MAX_WIDTH_CLASS } from "@/lib/modal";
+import { MOBILE_FIRST_MODAL_CONTENT_CLASS } from "@/lib/modal";
 import { cn } from "@/lib/utils";
 import {
   formatDateWithWeekday,
@@ -102,9 +102,13 @@ export function RescheduleDialog({
     orpc.appointments.reschedule.mutationOptions({
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: orpc.appointments.key() });
+        queryClient.invalidateQueries({ queryKey: orpc.clients.key() });
+        queryClient.invalidateQueries({ queryKey: orpc.calendars.key() });
+        queryClient.invalidateQueries({
+          queryKey: orpc.appointmentTypes.key(),
+        });
         queryClient.invalidateQueries({ queryKey: orpc.audit.key() });
         handleOpenChange(false);
-        toast.success("Appointment rescheduled");
       },
       onError: (error) => {
         toast.error(error.message || "Failed to reschedule appointment");
@@ -190,7 +194,7 @@ export function RescheduleDialog({
         <DialogPrimitive.Portal>
           <DialogPrimitive.Backdrop
             className={cn(
-              "fixed inset-0 z-50 bg-black/50 backdrop-blur-sm",
+              "fixed inset-0 z-50 bg-black/50 md:backdrop-blur-sm",
               "data-open:animate-in data-closed:animate-out",
               "data-closed:fade-out-0 data-open:fade-in-0",
               "duration-200",
@@ -199,18 +203,15 @@ export function RescheduleDialog({
           <DialogPrimitive.Popup
             data-slot="reschedule-dialog-content"
             className={cn(
-              "fixed left-1/2 top-2 z-50 w-[calc(100vw-1rem)] -translate-x-1/2 sm:top-8 sm:w-full",
-              STANDARD_MODAL_MAX_WIDTH_CLASS,
-              "rounded-xl border border-border bg-background shadow-xl",
+              MOBILE_FIRST_MODAL_CONTENT_CLASS,
               "data-open:animate-in data-closed:animate-out",
               "data-closed:fade-out-0 data-open:fade-in-0",
               "data-closed:zoom-out-95 data-open:zoom-in-95",
               "duration-200",
-              "max-h-[calc(100dvh-1rem)] overflow-hidden flex flex-col sm:h-[min(86dvh,52rem)] sm:max-h-[calc(100dvh-4rem)] sm:min-h-[36rem]",
             )}
           >
             {/* Header */}
-            <div className="flex items-center justify-between border-b border-border px-6 py-4">
+            <div className="flex items-center justify-between border-b border-border px-4 py-3 sm:px-6 sm:py-4">
               <DialogPrimitive.Title className="text-lg font-medium">
                 Reschedule Appointment
               </DialogPrimitive.Title>
@@ -223,7 +224,7 @@ export function RescheduleDialog({
             </div>
 
             {/* Content */}
-            <div className="flex-1 overflow-y-auto p-6">
+            <div className="flex-1 overflow-y-auto overscroll-contain p-4 sm:p-6">
               <div className="mb-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
                 {/* Current Time */}
                 <div className="rounded-lg border border-border bg-muted/30 p-4">
@@ -315,34 +316,41 @@ export function RescheduleDialog({
             </div>
 
             {/* Footer */}
-            <div className="flex items-center justify-end gap-2 border-t border-border px-6 py-4">
-              <Button variant="ghost" onClick={() => handleOpenChange(false)}>
-                Cancel
-              </Button>
-              <Button
-                onClick={() => {
-                  if (selectedTime) {
-                    rescheduleMutation.mutate({
-                      id: appointment.id,
-                      data: {
-                        newStartTime: DateTime.fromISO(selectedTime, {
-                          setZone: true,
-                        }).toJSDate(),
-                        timezone: calendarTimezone,
-                      },
-                    });
-                  }
-                }}
-                disabled={!canReschedule}
-              >
-                {rescheduleMutation.isPending
-                  ? "Rescheduling..."
-                  : "Reschedule"}
-                <ShortcutBadge
-                  shortcut="meta+enter"
-                  className="ml-2 hidden sm:inline-flex"
-                />
-              </Button>
+            <div className="mt-auto border-t border-border bg-background px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-6 sm:py-4">
+              <div className="flex w-full flex-col-reverse gap-2 sm:w-auto sm:flex-row sm:justify-end">
+                <Button
+                  variant="ghost"
+                  onClick={() => handleOpenChange(false)}
+                  className="w-full sm:w-auto"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={() => {
+                    if (selectedTime) {
+                      rescheduleMutation.mutate({
+                        id: appointment.id,
+                        data: {
+                          newStartTime: DateTime.fromISO(selectedTime, {
+                            setZone: true,
+                          }).toJSDate(),
+                          timezone: calendarTimezone,
+                        },
+                      });
+                    }
+                  }}
+                  disabled={!canReschedule}
+                  className="w-full sm:w-auto"
+                >
+                  {rescheduleMutation.isPending
+                    ? "Rescheduling..."
+                    : "Reschedule"}
+                  <ShortcutBadge
+                    shortcut="meta+enter"
+                    className="ml-2 hidden sm:inline-flex"
+                  />
+                </Button>
+              </div>
             </div>
           </DialogPrimitive.Popup>
         </DialogPrimitive.Portal>

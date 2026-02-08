@@ -71,6 +71,7 @@ import { AppointmentsTimezoneControl } from "@/components/appointments/appointme
 import { AppointmentsList } from "@/components/appointments/appointments-list";
 import { AppointmentDetail } from "@/components/appointments/appointment-detail";
 import { ScheduleGrid } from "@/components/appointments/schedule-grid";
+import { SchedulingControlsSheet } from "@/components/appointments/scheduling-controls-sheet";
 
 type ViewMode = "list" | "schedule";
 type DetailTabValue = "details" | "client" | "history";
@@ -122,6 +123,7 @@ function AppointmentsPage() {
   const [cancellingId, setCancellingId] = useState<string | null>(null);
   const [noShowId, setNoShowId] = useState<string | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
+  const [mobileControlsOpen, setMobileControlsOpen] = useState(false);
 
   useEffect(() => {
     if (create !== "1") return;
@@ -418,8 +420,12 @@ function AppointmentsPage() {
     orpc.appointments.cancel.mutationOptions({
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: orpc.appointments.key() });
+        queryClient.invalidateQueries({ queryKey: orpc.clients.key() });
+        queryClient.invalidateQueries({ queryKey: orpc.calendars.key() });
+        queryClient.invalidateQueries({
+          queryKey: orpc.appointmentTypes.key(),
+        });
         setCancellingId(null);
-        toast.success("Appointment cancelled");
       },
       onError: (error) => {
         toast.error(error.message || "Failed to cancel appointment");
@@ -432,8 +438,12 @@ function AppointmentsPage() {
     orpc.appointments.noShow.mutationOptions({
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: orpc.appointments.key() });
+        queryClient.invalidateQueries({ queryKey: orpc.clients.key() });
+        queryClient.invalidateQueries({ queryKey: orpc.calendars.key() });
+        queryClient.invalidateQueries({
+          queryKey: orpc.appointmentTypes.key(),
+        });
         setNoShowId(null);
-        toast.success("Appointment marked as no-show");
       },
       onError: (error) => {
         toast.error(error.message || "Failed to mark as no-show");
@@ -648,6 +658,12 @@ function AppointmentsPage() {
       onRemove: () => clearFilter("status"),
     });
   }
+  const mobileTimezoneSummaryLabel =
+    timezoneMode === "viewer"
+      ? "My time"
+      : selectedCalendar?.timezone
+        ? "Calendar timezone"
+        : "Calendar time";
 
   const handleSelectAppointment = useCallback(
     (appointment: AppointmentWithRelations) => {
@@ -694,9 +710,22 @@ function AppointmentsPage() {
       <PageHeader
         title="Appointments"
         description="View and manage scheduled appointments"
+        actions={
+          <Button
+            className="hidden sm:inline-flex"
+            onClick={() => setModalOpen(true)}
+          >
+            <Icon icon={Add01Icon} data-icon="inline-start" />
+            New Appointment
+            <ShortcutBadge
+              shortcut="c"
+              className="ml-2 hidden md:inline-flex"
+            />
+          </Button>
+        }
       />
 
-      <div className="mt-6 flex flex-wrap items-center gap-2 sm:gap-3">
+      <div className="mt-6 hidden flex-wrap items-center gap-2 sm:flex sm:gap-3">
         <ViewToggle view={currentView} onViewChange={setView} size="sm" />
         {currentView === "list" && (
           <div className="inline-flex items-center rounded-lg border border-border bg-muted/50 p-1">
@@ -736,18 +765,37 @@ function AppointmentsPage() {
           selectedCalendarTimezone={selectedCalendar?.timezone}
           onTimezoneChange={setDisplayTimezone}
         />
-        <Button
-          className="hidden h-8 min-w-[210px] justify-center text-sm sm:inline-flex"
-          onClick={() => setModalOpen(true)}
-        >
-          <Icon icon={Add01Icon} data-icon="inline-start" />
-          <span>New Appointment</span>
-          <ShortcutBadge shortcut="c" className="ml-2 hidden md:inline-flex" />
-        </Button>
+      </div>
+
+      <div className="mt-6 space-y-2 sm:hidden">
+        <div className="flex items-center gap-2">
+          <ViewToggle view={currentView} onViewChange={setView} size="sm" />
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-10 shrink-0"
+            onClick={() => setMobileControlsOpen(true)}
+          >
+            Controls
+            {activeFilterCount > 0 ? (
+              <span className="ml-1.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-medium text-primary-foreground">
+                {activeFilterCount}
+              </span>
+            ) : null}
+          </Button>
+        </div>
+        <div className="flex h-10 items-center rounded-md border border-border bg-muted/30 px-3 text-sm">
+          <span className="text-muted-foreground">
+            {mobileTimezoneSummaryLabel}
+          </span>
+          <span className="mx-1 text-muted-foreground">·</span>
+          <span>{displayTimezoneShort}</span>
+        </div>
       </div>
 
       {/* Filters */}
-      <div className="mt-6 flex items-center gap-4">
+      <div className="mt-6 hidden items-center gap-4 sm:flex">
         <FilterPopover
           activeFilterCount={activeFilterCount}
           onClear={clearAllFilters}
@@ -827,6 +875,34 @@ function AppointmentsPage() {
           <ActiveFilters filters={activeFiltersDisplay} />
         )}
       </div>
+
+      <SchedulingControlsSheet
+        open={mobileControlsOpen}
+        onOpenChange={setMobileControlsOpen}
+        currentView={currentView}
+        listScope={listScope}
+        onListScopeChange={setListScope}
+        timezoneMode={timezoneMode}
+        onTimezoneModeChange={setTimezoneMode}
+        displayTimezone={displayTimezone}
+        displayTimezoneShort={displayTimezoneShort}
+        selectedCalendarTimezone={selectedCalendar?.timezone}
+        onTimezoneChange={setDisplayTimezone}
+        filters={{
+          calendarId: filters.calendarId,
+          appointmentTypeId: filters.appointmentTypeId,
+          status: filters.status,
+        }}
+        onFilterChange={setFilters}
+        calendars={calendars}
+        appointmentTypes={appointmentTypes}
+        calendarFilterLabel={calendarFilterLabel}
+        typeFilterLabel={typeFilterLabel}
+        statusFilterLabel={statusFilterLabel}
+        activeFilterCount={activeFilterCount}
+        activeFiltersDisplay={activeFiltersDisplay}
+        onClearAllFilters={clearAllFilters}
+      />
 
       {/* Main Content */}
       <div id={FOCUS_ZONES.LIST} className="mt-6 flex min-h-[600px] flex-col">
@@ -945,7 +1021,7 @@ function AppointmentsPage() {
         </AlertDialogContent>
       </AlertDialog>
 
-      <div className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background/95 p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] backdrop-blur supports-[backdrop-filter]:bg-background/80 sm:hidden">
+      <div className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background/95 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:hidden">
         <Button className="w-full" onClick={() => setModalOpen(true)}>
           <Icon icon={Add01Icon} data-icon="inline-start" />
           New Appointment

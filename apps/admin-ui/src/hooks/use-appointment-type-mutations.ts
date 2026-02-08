@@ -42,7 +42,6 @@ export function useAppointmentTypeMutations(
     orpc.appointmentTypes.update.mutationOptions({
       onSuccess: () => {
         invalidateAppointmentTypes();
-        toast.success("Appointment type updated successfully");
         options.onUpdateSuccess?.();
       },
       onError: (error) => {
@@ -55,7 +54,6 @@ export function useAppointmentTypeMutations(
     orpc.appointmentTypes.remove.mutationOptions({
       onSuccess: () => {
         invalidateAppointmentTypes();
-        toast.success("Appointment type deleted successfully");
         options.onDeleteSuccess?.();
       },
       onError: (error) => {
@@ -68,7 +66,6 @@ export function useAppointmentTypeMutations(
     orpc.appointmentTypes.calendars.add.mutationOptions({
       onSuccess: () => {
         invalidateAppointmentTypes();
-        toast.success("Calendar linked successfully");
         options.onAddCalendarSuccess?.();
       },
       onError: (error) => {
@@ -81,7 +78,6 @@ export function useAppointmentTypeMutations(
     orpc.appointmentTypes.calendars.remove.mutationOptions({
       onSuccess: () => {
         invalidateAppointmentTypes();
-        toast.success("Calendar unlinked successfully");
         options.onRemoveCalendarSuccess?.();
       },
       onError: (error) => {
@@ -94,7 +90,6 @@ export function useAppointmentTypeMutations(
     orpc.appointmentTypes.resources.add.mutationOptions({
       onSuccess: () => {
         invalidateAppointmentTypes();
-        toast.success("Resource linked successfully");
         options.onAddResourceSuccess?.();
       },
       onError: (error) => {
@@ -119,7 +114,6 @@ export function useAppointmentTypeMutations(
     orpc.appointmentTypes.resources.remove.mutationOptions({
       onSuccess: () => {
         invalidateAppointmentTypes();
-        toast.success("Resource unlinked successfully");
         options.onRemoveResourceSuccess?.();
       },
       onError: (error) => {

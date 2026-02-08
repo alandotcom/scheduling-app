@@ -382,6 +382,7 @@ function CalendarsPage() {
     orpc.calendars.create.mutationOptions({
       onSuccess: (createdCalendar) => {
         queryClient.invalidateQueries({ queryKey: orpc.calendars.key() });
+        queryClient.invalidateQueries({ queryKey: orpc.locations.key() });
         crud.closeCreate();
         openDetails(createdCalendar.id, "details");
       },
@@ -395,7 +396,7 @@ function CalendarsPage() {
     orpc.calendars.update.mutationOptions({
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: orpc.calendars.key() });
-        toast.success("Calendar updated successfully");
+        queryClient.invalidateQueries({ queryKey: orpc.locations.key() });
       },
       onError: (error) => {
         toast.error(error.message || "Failed to update calendar");
@@ -410,8 +411,8 @@ function CalendarsPage() {
           clearDetails();
         }
         queryClient.invalidateQueries({ queryKey: orpc.calendars.key() });
+        queryClient.invalidateQueries({ queryKey: orpc.locations.key() });
         crud.closeDelete();
-        toast.success("Calendar deleted successfully");
       },
       onError: (error) => {
         toast.error(error.message || "Failed to delete calendar");
@@ -504,15 +505,14 @@ function CalendarsPage() {
   );
 
   return (
-    <PageScaffold>
+    <PageScaffold className="pb-24 sm:pb-6">
       <PageHeader
         title="Calendars"
         description="Manage calendars and their availability"
         actions={
-          <Button onClick={crud.openCreate}>
+          <Button className="hidden sm:inline-flex" onClick={crud.openCreate}>
             <Icon icon={Add01Icon} data-icon="inline-start" />
-            <span className="hidden sm:inline">Add Calendar</span>
-            <span className="sm:hidden">Add</span>
+            Add Calendar
             <ShortcutBadge
               shortcut="c"
               className="ml-2 hidden md:inline-flex"
@@ -747,6 +747,13 @@ function CalendarsPage() {
         defaultCalendarName={displayCalendar?.name}
         onCreated={handleAppointmentCreated}
       />
+
+      <div className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background/95 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:hidden">
+        <Button className="w-full" onClick={crud.openCreate}>
+          <Icon icon={Add01Icon} data-icon="inline-start" />
+          Add Calendar
+        </Button>
+      </div>
     </PageScaffold>
   );
 }

@@ -60,19 +60,20 @@ describe("modal layout positioning", () => {
     expect(body?.className).not.toContain("overflow-hidden");
   });
 
-  test("AppointmentModal keeps a top anchor", () => {
+  test("AppointmentModal uses mobile fullscreen layout with desktop top anchor", () => {
     renderWithQuery(<AppointmentModal open onOpenChange={() => {}} />);
 
     const popup = document.querySelector<HTMLElement>(
       '[data-slot="appointment-modal-content"]',
     );
     expect(popup).toBeTruthy();
-    expect(popup?.className).toContain("top-2");
+    expect(popup?.className).toContain("inset-0");
+    expect(popup?.className).toContain("md:top-8");
     expect(popup?.className).not.toContain("-translate-y-1/2");
     expect(popup?.className).toContain("max-w-4xl");
   });
 
-  test("RescheduleDialog keeps a top anchor", () => {
+  test("RescheduleDialog uses mobile fullscreen layout with desktop top anchor", () => {
     const appointment = createAppointmentFixture();
     renderWithQuery(
       <RescheduleDialog
@@ -86,12 +87,13 @@ describe("modal layout positioning", () => {
       '[data-slot="reschedule-dialog-content"]',
     );
     expect(popup).toBeTruthy();
-    expect(popup?.className).toContain("top-2");
+    expect(popup?.className).toContain("inset-0");
+    expect(popup?.className).toContain("md:top-8");
     expect(popup?.className).not.toContain("-translate-y-1/2");
     expect(popup?.className).toContain("max-w-4xl");
   });
 
-  test("AvailabilityManageModal keeps a top anchor", () => {
+  test("AvailabilityManageModal uses mobile fullscreen layout with desktop top anchor", () => {
     renderWithQuery(
       <AvailabilityManageModal
         open
@@ -105,7 +107,8 @@ describe("modal layout positioning", () => {
       '[data-slot="availability-manage-modal-content"]',
     );
     expect(popup).toBeTruthy();
-    expect(popup?.className).toContain("top-2");
+    expect(popup?.className).toContain("inset-0");
+    expect(popup?.className).toContain("md:top-8");
     expect(popup?.className).not.toContain("-translate-y-1/2");
     expect(popup?.className).toContain("max-w-4xl");
   });

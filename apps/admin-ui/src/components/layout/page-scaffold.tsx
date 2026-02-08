@@ -38,12 +38,7 @@ export function PageHeader({
   className,
 }: PageHeaderProps) {
   return (
-    <div
-      className={cn(
-        "flex flex-wrap items-center justify-between gap-4",
-        className,
-      )}
-    >
+    <div className={cn("flex items-center justify-between gap-4", className)}>
       <div className="min-w-0 flex-1">
         <h1 className="truncate text-2xl font-semibold tracking-tight">
           {title}

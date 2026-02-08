@@ -22,7 +22,9 @@ export function ViewToggle({
         onClick={() => onViewChange("list")}
         className={cn(
           "flex items-center gap-1.5 rounded-md font-medium transition-colors",
-          size === "sm" ? "h-8 px-3 text-sm" : "h-9 px-3.5 text-sm",
+          size === "sm"
+            ? "h-10 px-3 text-sm md:h-8"
+            : "h-10 px-3.5 text-sm md:h-9",
           view === "list"
             ? "bg-background text-foreground shadow-sm"
             : "text-muted-foreground hover:text-foreground",
@@ -36,7 +38,9 @@ export function ViewToggle({
         onClick={() => onViewChange("schedule")}
         className={cn(
           "flex items-center gap-1.5 rounded-md font-medium transition-colors",
-          size === "sm" ? "h-8 px-3 text-sm" : "h-9 px-3.5 text-sm",
+          size === "sm"
+            ? "h-10 px-3 text-sm md:h-8"
+            : "h-10 px-3.5 text-sm md:h-9",
           view === "schedule"
             ? "bg-background text-foreground shadow-sm"
             : "text-muted-foreground hover:text-foreground",

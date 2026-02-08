@@ -91,7 +91,6 @@ export function LocationDrawer({
     orpc.locations.update.mutationOptions({
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: orpc.locations.key() });
-        toast.success("Location updated");
       },
       onError: (error) => {
         toast.error(error.message || "Failed to update location");
@@ -106,7 +105,6 @@ export function LocationDrawer({
         setShowDeleteDialog(false);
         onClose();
         queryClient.invalidateQueries({ queryKey: orpc.locations.key() });
-        toast.success("Location deleted");
       },
       onError: (error) => {
         toast.error(error.message || "Failed to delete location");

@@ -66,7 +66,7 @@ export function AppointmentsTimezoneControl({
         </Select>
       ) : (
         <div
-          className="flex h-8 items-center rounded-md border border-border bg-muted/30 px-3 text-sm"
+          className="flex h-10 items-center rounded-md border border-border bg-muted/30 px-3 text-sm md:h-8"
           title={formatTimezonePath(displayTimezone)}
         >
           <span className="truncate">

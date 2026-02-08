@@ -230,7 +230,6 @@ function WeeklyScheduleEditorBody({
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: orpc.availability.key() });
         setHasChanges(false);
-        toast.success("Weekly schedule saved");
       },
       onError: (error) => {
         toast.error(error.message || "Failed to save weekly schedule");

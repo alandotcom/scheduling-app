@@ -256,7 +256,7 @@ export function CommandPalette() {
       )}
     >
       <div
-        className="fixed inset-0 bg-black/35 backdrop-blur-[2px]"
+        className="fixed inset-0 bg-black/35 md:backdrop-blur-[2px]"
         onClick={() => setOpen(false)}
       />
 

@@ -419,7 +419,7 @@ function ClientForm({
         </div>
       </div>
 
-      <div className="sticky bottom-0 z-10 -mx-4 flex justify-end gap-3 border-t border-border bg-background/95 px-4 pt-3 pb-1 backdrop-blur supports-[backdrop-filter]:bg-background/80 sm:-mx-6 sm:px-6">
+      <div className="sticky bottom-0 z-10 -mx-4 flex justify-end gap-3 border-t border-border bg-background/95 px-4 pt-3 pb-1 sm:-mx-6 sm:px-6 sm:backdrop-blur sm:supports-[backdrop-filter]:bg-background/80">
         <Button
           type="button"
           variant="outline"
@@ -674,7 +674,6 @@ function ClientsPage() {
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: orpc.clients.key() });
         crud.closeEdit();
-        toast.success("Client updated successfully");
       },
       onError: (error) => {
         toast.error(error.message || "Failed to update client");
@@ -690,7 +689,6 @@ function ClientsPage() {
         }
         queryClient.invalidateQueries({ queryKey: orpc.clients.key() });
         crud.closeDelete();
-        toast.success("Client deleted successfully");
       },
       onError: (error) => {
         toast.error(error.message || "Failed to delete client");
@@ -783,15 +781,14 @@ function ClientsPage() {
   }, [appointments]);
 
   return (
-    <PageScaffold>
+    <PageScaffold className="pb-24 sm:pb-6">
       <PageHeader
         title="Clients"
         description="Manage client records and contact information"
         actions={
-          <Button onClick={crud.openCreate}>
+          <Button className="hidden sm:inline-flex" onClick={crud.openCreate}>
             <Icon icon={Add01Icon} data-icon="inline-start" />
-            <span className="hidden sm:inline">Add Client</span>
-            <span className="sm:hidden">Add</span>
+            Add Client
             <ShortcutBadge
               shortcut="c"
               className="ml-2 hidden md:inline-flex"
@@ -1191,6 +1188,13 @@ function ClientsPage() {
         description="Are you sure you want to delete this client? This action cannot be undone."
         isPending={deleteMutation.isPending}
       />
+
+      <div className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background/95 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:hidden">
+        <Button className="w-full" onClick={crud.openCreate}>
+          <Icon icon={Add01Icon} data-icon="inline-start" />
+          Add Client
+        </Button>
+      </div>
     </PageScaffold>
   );
 }

@@ -314,6 +314,7 @@ function ResourcesPage() {
     orpc.resources.create.mutationOptions({
       onSuccess: (createdResource) => {
         queryClient.invalidateQueries({ queryKey: orpc.resources.key() });
+        queryClient.invalidateQueries({ queryKey: orpc.locations.key() });
         crud.closeCreate();
         openDetails(createdResource.id);
       },
@@ -327,7 +328,7 @@ function ResourcesPage() {
     orpc.resources.update.mutationOptions({
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: orpc.resources.key() });
-        toast.success("Resource updated successfully");
+        queryClient.invalidateQueries({ queryKey: orpc.locations.key() });
       },
       onError: (error) => {
         toast.error(error.message || "Failed to update resource");
@@ -342,8 +343,8 @@ function ResourcesPage() {
           clearDetails();
         }
         queryClient.invalidateQueries({ queryKey: orpc.resources.key() });
+        queryClient.invalidateQueries({ queryKey: orpc.locations.key() });
         crud.closeDelete();
-        toast.success("Resource deleted successfully");
       },
       onError: (error) => {
         toast.error(error.message || "Failed to delete resource");
@@ -375,15 +376,14 @@ function ResourcesPage() {
   };
 
   return (
-    <PageScaffold>
+    <PageScaffold className="pb-24 sm:pb-6">
       <PageHeader
         title="Resources"
         description="Manage resources like rooms, equipment, or staff"
         actions={
-          <Button onClick={crud.openCreate}>
+          <Button className="hidden sm:inline-flex" onClick={crud.openCreate}>
             <Icon icon={Add01Icon} data-icon="inline-start" />
-            <span className="hidden sm:inline">Add Resource</span>
-            <span className="sm:hidden">Add</span>
+            Add Resource
             <ShortcutBadge
               shortcut="c"
               className="ml-2 hidden md:inline-flex"
@@ -482,6 +482,13 @@ function ResourcesPage() {
         description="Are you sure you want to delete this resource? This action cannot be undone."
         isPending={deleteMutation.isPending}
       />
+
+      <div className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background/95 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:hidden">
+        <Button className="w-full" onClick={crud.openCreate}>
+          <Icon icon={Add01Icon} data-icon="inline-start" />
+          Add Resource
+        </Button>
+      </div>
     </PageScaffold>
   );
 }
