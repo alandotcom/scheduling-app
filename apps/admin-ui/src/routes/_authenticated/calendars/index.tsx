@@ -1,55 +1,43 @@
-// Calendars management page with drawer and context menus
+// Calendars management page with modal-based CRUD
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import { DateTime } from "luxon";
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   Add01Icon,
   ArrowRight02Icon,
-  PencilEdit01Icon,
-  Delete01Icon,
   Clock01Icon,
-  ViewIcon,
+  Delete01Icon,
+  PencilEdit01Icon,
 } from "@hugeicons/core-free-icons";
-
 import { toast } from "sonner";
-import { Badge } from "@/components/ui/badge";
-import { Icon } from "@/components/ui/icon";
-import { getQueryClient, orpc } from "@/lib/query";
-import {
-  formatDateISO,
-  formatDisplayDate,
-  formatDisplayDateTime,
-  formatTimezoneShort,
-} from "@/lib/date-utils";
-import { TIMEZONES } from "@/lib/constants";
-import { resolveSelectValueLabel } from "@/lib/select-value-label";
+
 import { createCalendarSchema } from "@scheduling/dto";
 import type { CreateCalendarInput } from "@scheduling/dto";
-import { useCrudState } from "@/hooks/use-crud-state";
-import {
-  useFocusZones,
-  useListNavigation,
-  FOCUS_ZONES,
-} from "@/hooks/use-keyboard-shortcuts";
-import { useValidateSelection } from "@/hooks/use-selection-search-params";
-import { DeleteConfirmDialog } from "@/components/delete-confirm-dialog";
+import { AvailabilitySubTabs } from "@/components/availability/availability-sub-tabs";
+import { BlockedTimeEditor } from "@/components/availability/blocked-time-editor";
+import type { AvailabilitySubTabType } from "@/components/availability/constants";
+import { DateOverridesEditor } from "@/components/availability/date-overrides-editor";
+import { WeeklyScheduleEditor } from "@/components/availability/weekly-schedule-editor";
 import { ContextMenu, type ContextMenuItem } from "@/components/context-menu";
-import {
-  DetailPanel,
-  DetailTab,
-  DetailTabs,
-  ListPanel,
-  WorkbenchLayout,
-} from "@/components/workbench";
+import { DeleteConfirmDialog } from "@/components/delete-confirm-dialog";
+import { EntityModal } from "@/components/entity-modal";
 import { RelationshipCountBadge } from "@/components/relationship-count-badge";
-
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Icon } from "@/components/ui/icon";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Table,
   TableBody,
@@ -58,19 +46,17 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { useCrudState } from "@/hooks/use-crud-state";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+  formatDateISO,
+  formatDisplayDate,
+  formatDisplayDateTime,
+  formatTimezoneShort,
+} from "@/lib/date-utils";
+import { TIMEZONES } from "@/lib/constants";
 import { cn } from "@/lib/utils";
-import { AvailabilitySubTabs } from "@/components/availability/availability-sub-tabs";
-import { WeeklyScheduleEditor } from "@/components/availability/weekly-schedule-editor";
-import { DateOverridesEditor } from "@/components/availability/date-overrides-editor";
-import { BlockedTimeEditor } from "@/components/availability/blocked-time-editor";
-import type { AvailabilitySubTabType } from "@/components/availability/constants";
+import { getQueryClient, orpc } from "@/lib/query";
+import { resolveSelectValueLabel } from "@/lib/select-value-label";
 
 interface CalendarFormProps {
   defaultValues?: {
@@ -83,11 +69,6 @@ interface CalendarFormProps {
   onCancel: () => void;
   isSubmitting: boolean;
 }
-
-type DetailTabValue = "details" | "availability" | "appointments";
-
-const isDetailTab = (value: string): value is DetailTabValue =>
-  value === "details" || value === "availability" || value === "appointments";
 
 function CalendarForm({
   defaultValues,
@@ -113,6 +94,7 @@ function CalendarForm({
 
   const timezone = watch("timezone");
   const locationId = watch("locationId");
+
   const timezoneSelectLabel = resolveSelectValueLabel({
     value: timezone,
     options: TIMEZONES,
@@ -120,6 +102,7 @@ function CalendarForm({
     getOptionLabel: (tz) => tz,
     unknownLabel: "Unknown timezone",
   });
+
   const locationSelectLabel = resolveSelectValueLabel({
     value: locationId ?? "none",
     options: locations,
@@ -147,6 +130,7 @@ function CalendarForm({
           </p>
         )}
       </div>
+
       <div className="space-y-2.5">
         <Label htmlFor="timezone">Timezone</Label>
         <Select
@@ -171,6 +155,7 @@ function CalendarForm({
           <p className="text-sm text-destructive">{errors.timezone.message}</p>
         )}
       </div>
+
       <div className="space-y-2.5">
         <Label htmlFor="locationId">Location (optional)</Label>
         <Select
@@ -196,7 +181,8 @@ function CalendarForm({
           </SelectContent>
         </Select>
       </div>
-      <div className="flex justify-end gap-3 pt-4">
+
+      <div className="flex justify-end gap-3 pt-2">
         <Button
           type="button"
           variant="outline"
@@ -213,18 +199,15 @@ function CalendarForm({
   );
 }
 
+type ManageTab = "availability" | "appointments";
+
 function CalendarsPage() {
   const queryClient = useQueryClient();
-
-  const navigate = useNavigate({ from: Route.fullPath });
-  const { selected, tab } = Route.useSearch();
-  const selectedId = selected ?? null;
-  const activeTab: DetailTabValue = tab ?? "details";
-  const detailOpen = !!selectedId;
+  const [manageCalendarId, setManageCalendarId] = useState<string | null>(null);
+  const [manageTab, setManageTab] = useState<ManageTab>("availability");
   const [availabilitySubTab, setAvailabilitySubTab] =
     useState<AvailabilitySubTabType>("weekly");
 
-  // Fetch calendars (moved up for keyboard navigation)
   const { data, isLoading, error } = useQuery({
     ...orpc.calendars.list.queryOptions({
       input: { limit: 100 },
@@ -232,93 +215,16 @@ function CalendarsPage() {
     placeholderData: (previous) => previous,
   });
 
-  // Infer item type from query result
   type CalendarItem = NonNullable<typeof data>["items"][number];
 
   const crud = useCrudState<CalendarItem>();
 
-  const calendars = data?.items ?? [];
-  const selectedIndex = selectedId
-    ? calendars.findIndex((c) => c.id === selectedId)
-    : -1;
-
-  const openDetails = useCallback(
-    (calendarId: string, tab: DetailTabValue = "details") => {
-      navigate({
-        search: (prev) => ({
-          ...prev,
-          selected: calendarId,
-          tab,
-        }),
-      });
-    },
-    [navigate],
-  );
-
-  const clearDetails = useCallback(() => {
-    navigate({
-      search: () => ({
-        selected: undefined,
-        tab: undefined,
-      }),
-    });
-  }, [navigate]);
-
-  const setActiveTab = useCallback(
-    (value: string) => {
-      if (!selectedId || !isDetailTab(value)) return;
-      navigate({
-        search: (prev) => ({
-          ...prev,
-          selected: selectedId,
-          tab: value,
-        }),
-      });
-    },
-    [navigate, selectedId],
-  );
-
-  // Keyboard shortcuts for focus zones (Cmd+L, Cmd+D, Escape)
-  useFocusZones({
-    onEscape: clearDetails,
-    detailOpen,
-  });
-
-  // Keyboard shortcuts for list navigation (j/k/arrows, Enter)
-  useListNavigation({
-    items: calendars,
-    selectedIndex,
-    onSelect: (index) => {
-      const calendar = calendars[index];
-      if (calendar) {
-        openDetails(calendar.id, "details");
-      }
-    },
-    onOpen: (calendar) => {
-      openDetails(calendar.id, "details");
-    },
-    enabled: !crud.isFormOpen, // Disable when editing
-  });
-
-  // Fetch locations for the dropdown
   const { data: locationsData } = useQuery(
     orpc.locations.list.queryOptions({
       input: { limit: 100 },
     }),
   );
 
-  const { data: appointmentsData } = useQuery({
-    ...orpc.appointments.list.queryOptions({
-      input: {
-        calendarId: selectedId ?? "",
-        limit: 5,
-        startDate: formatDateISO(DateTime.now()),
-      },
-    }),
-    enabled: !!selectedId && activeTab === "appointments",
-  });
-
-  // Create mutation
   const createMutation = useMutation(
     orpc.calendars.create.mutationOptions({
       onSuccess: () => {
@@ -332,7 +238,6 @@ function CalendarsPage() {
     }),
   );
 
-  // Update mutation
   const updateMutation = useMutation(
     orpc.calendars.update.mutationOptions({
       onSuccess: () => {
@@ -346,15 +251,14 @@ function CalendarsPage() {
     }),
   );
 
-  // Delete mutation
   const deleteMutation = useMutation(
     orpc.calendars.remove.mutationOptions({
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: orpc.calendars.key() });
-        const deletedId = crud.deletingItemId;
+        const removedId = crud.deletingItemId;
         crud.closeDelete();
-        if (deletedId && deletedId === selectedId) {
-          clearDetails();
+        if (removedId && removedId === manageCalendarId) {
+          setManageCalendarId(null);
         }
         toast.success("Calendar deleted successfully");
       },
@@ -365,30 +269,28 @@ function CalendarsPage() {
   );
 
   const locations = locationsData?.items ?? [];
-  const appointments = appointmentsData?.items ?? [];
-  const selectedCalendar =
-    data?.items.find((calendar) => calendar.id === selectedId) ?? null;
+  const calendars = data?.items ?? [];
+  const manageCalendar =
+    calendars.find((calendar) => calendar.id === manageCalendarId) ?? null;
 
-  const detailForm = useForm<CreateCalendarInput>({
-    resolver: zodResolver(createCalendarSchema),
-    defaultValues: {
-      name: selectedCalendar?.name ?? "",
-      timezone: selectedCalendar?.timezone ?? "America/New_York",
-      locationId: selectedCalendar?.locationId ?? undefined,
-    },
+  const { data: appointmentsData } = useQuery({
+    ...orpc.appointments.list.queryOptions({
+      input: {
+        calendarId: manageCalendarId ?? "",
+        limit: 5,
+        startDate: formatDateISO(DateTime.now()),
+      },
+    }),
+    enabled: !!manageCalendarId && manageTab === "appointments",
   });
 
-  useEffect(() => {
-    if (!selectedCalendar) return;
-    detailForm.reset({
-      name: selectedCalendar.name,
-      timezone: selectedCalendar.timezone,
-      locationId: selectedCalendar.locationId ?? undefined,
-    });
-  }, [detailForm, selectedCalendar]);
+  const appointments = appointmentsData?.items ?? [];
 
-  // Clear selection if item no longer exists (e.g., after deletion)
-  useValidateSelection(data?.items, selectedId, clearDetails);
+  const getLocationName = (locationId: string | null | undefined) => {
+    if (!locationId) return "-";
+    const location = locations.find((l) => l.id === locationId);
+    return location?.name ?? "-";
+  };
 
   const handleCreate = (formData: CreateCalendarInput) => {
     createMutation.mutate(formData);
@@ -402,78 +304,53 @@ function CalendarsPage() {
     });
   };
 
-  const handleDetailUpdate = (formData: CreateCalendarInput) => {
-    if (!selectedCalendar) return;
-    updateMutation.mutate({
-      id: selectedCalendar.id,
-      data: formData,
-    });
-  };
-
   const handleDelete = () => {
     if (!crud.deletingItemId) return;
     deleteMutation.mutate({ id: crud.deletingItemId });
   };
 
-  const getLocationName = (locationId: string | null | undefined) => {
-    if (!locationId) return "-";
-    const location = locations.find((l) => l.id === locationId);
-    return location?.name ?? "-";
+  const openManageModal = (calendar: CalendarItem, tab: ManageTab) => {
+    setManageCalendarId(calendar.id);
+    setManageTab(tab);
   };
 
-  const detailLocationLabel = selectedCalendar?.locationId
-    ? getLocationName(selectedCalendar.locationId)
-    : null;
-
-  const detailTimezone = detailForm.watch("timezone");
-  const detailLocationId = detailForm.watch("locationId");
-  const detailTimezoneSelectLabel = resolveSelectValueLabel({
-    value: detailTimezone,
-    options: TIMEZONES,
-    getOptionValue: (tz) => tz,
-    getOptionLabel: (tz) => tz,
-    unknownLabel: "Unknown timezone",
-  });
-  const detailLocationSelectLabel = resolveSelectValueLabel({
-    value: detailLocationId ?? "none",
-    options: locations,
-    getOptionValue: (location) => location.id,
-    getOptionLabel: (location) => location.name,
-    noneLabel: "No location",
-    unknownLabel: "Unknown location",
-  });
+  const closeManageModal = () => {
+    setManageCalendarId(null);
+    setManageTab("availability");
+    setAvailabilitySubTab("weekly");
+  };
 
   const getContextMenuItems = useCallback(
     (calendar: CalendarItem): ContextMenuItem[] => [
       {
-        label: "View Details",
-        icon: ViewIcon,
-        onClick: () => openDetails(calendar.id, "details"),
-      },
-      {
         label: "Manage Availability",
         icon: Clock01Icon,
-        onClick: () => openDetails(calendar.id, "availability"),
+        onClick: () => openManageModal(calendar, "availability"),
+      },
+      {
+        label: "View Appointments",
+        icon: ArrowRight02Icon,
+        onClick: () => openManageModal(calendar, "appointments"),
       },
       {
         label: "Edit",
         icon: PencilEdit01Icon,
         onClick: () => crud.openEdit(calendar),
+        separator: true,
       },
       {
         label: "Delete",
         icon: Delete01Icon,
         onClick: () => crud.openDelete(calendar.id),
         variant: "destructive",
-        separator: true,
       },
     ],
-    [crud, openDetails],
+    [crud],
   );
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
-      <div className="flex items-center justify-between gap-4">
+      <div className="flex flex-wrap items-center justify-between gap-4">
         <div className="min-w-0 flex-1">
           <h1 className="truncate text-2xl font-semibold tracking-tight">
             Calendars
@@ -482,378 +359,253 @@ function CalendarsPage() {
             Manage calendars and their availability
           </p>
         </div>
-        {!crud.isFormOpen && (
-          <Button className="shrink-0" onClick={crud.openCreate}>
-            <Icon icon={Add01Icon} data-icon="inline-start" />
-            <span className="hidden sm:inline">Add Calendar</span>
-            <span className="sm:hidden">Add</span>
-          </Button>
+        <Button className="shrink-0" onClick={crud.openCreate}>
+          <Icon icon={Add01Icon} data-icon="inline-start" />
+          <span className="hidden sm:inline">Add Calendar</span>
+          <span className="sm:hidden">Add</span>
+        </Button>
+      </div>
+
+      <div className="mt-6">
+        {isLoading ? (
+          <div
+            className="text-center text-muted-foreground py-10"
+            role="status"
+            aria-live="polite"
+          >
+            Loading...
+          </div>
+        ) : error ? (
+          <div className="text-center text-destructive py-10">
+            Error loading calendars
+          </div>
+        ) : !calendars.length ? (
+          <div className="rounded-xl border border-border bg-card p-10 text-center text-muted-foreground shadow-sm">
+            No calendars yet. Create your first calendar to get started.
+          </div>
+        ) : (
+          <div className="rounded-xl border border-border overflow-hidden shadow-sm">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Name</TableHead>
+                  <TableHead>Timezone</TableHead>
+                  <TableHead>Location</TableHead>
+                  <TableHead>This Week</TableHead>
+                  <TableHead>Created</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {calendars.map((calendar) => (
+                  <ContextMenu
+                    key={calendar.id}
+                    items={getContextMenuItems(calendar)}
+                  >
+                    <TableRow
+                      className={cn(
+                        "cursor-pointer transition-colors hover:bg-muted/50",
+                      )}
+                      tabIndex={0}
+                      onClick={() => crud.openEdit(calendar)}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter" || event.key === " ") {
+                          event.preventDefault();
+                          crud.openEdit(calendar);
+                        }
+                      }}
+                    >
+                      <TableCell className="font-medium">
+                        {calendar.name}
+                      </TableCell>
+                      <TableCell title={calendar.timezone}>
+                        {formatTimezoneShort(calendar.timezone)}
+                      </TableCell>
+                      <TableCell>
+                        {getLocationName(calendar.locationId)}
+                      </TableCell>
+                      <TableCell>
+                        <RelationshipCountBadge
+                          count={
+                            calendar.relationshipCounts?.appointmentsThisWeek ??
+                            0
+                          }
+                          singular="appointment"
+                        />
+                      </TableCell>
+                      <TableCell>
+                        {formatDisplayDate(calendar.createdAt)}
+                      </TableCell>
+                    </TableRow>
+                  </ContextMenu>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
         )}
       </div>
 
-      <WorkbenchLayout className="mt-6 min-h-[600px]">
-        <ListPanel id={FOCUS_ZONES.LIST} className="flex flex-col gap-6">
-          {/* Create Form */}
-          {crud.showCreateForm && (
-            <div className="rounded-xl border border-border bg-card p-6 shadow-sm">
-              <h2 className="mb-5 text-lg font-semibold tracking-tight">
-                New Calendar
-              </h2>
-              <CalendarForm
-                locations={locations}
-                onSubmit={handleCreate}
-                onCancel={crud.closeCreate}
-                isSubmitting={createMutation.isPending}
-              />
-            </div>
-          )}
+      <EntityModal
+        open={crud.showCreateForm}
+        onOpenChange={(open) => {
+          if (!open) crud.closeCreate();
+        }}
+        title="New Calendar"
+      >
+        <CalendarForm
+          locations={locations}
+          onSubmit={handleCreate}
+          onCancel={crud.closeCreate}
+          isSubmitting={createMutation.isPending}
+        />
+      </EntityModal>
 
-          {/* Edit Form */}
-          {crud.editingItem && (
-            <div className="rounded-xl border border-border bg-card p-6 shadow-sm">
-              <h2 className="mb-5 text-lg font-semibold tracking-tight">
-                Edit Calendar
-              </h2>
-              <CalendarForm
-                defaultValues={{
-                  name: crud.editingItem.name,
-                  timezone: crud.editingItem.timezone,
-                  locationId: crud.editingItem.locationId ?? undefined,
-                }}
-                locations={locations}
-                onSubmit={handleUpdate}
-                onCancel={crud.closeEdit}
-                isSubmitting={updateMutation.isPending}
-              />
-            </div>
-          )}
+      <EntityModal
+        open={!!crud.editingItem}
+        onOpenChange={(open) => {
+          if (!open) crud.closeEdit();
+        }}
+        title="Edit Calendar"
+      >
+        {crud.editingItem ? (
+          <CalendarForm
+            defaultValues={{
+              name: crud.editingItem.name,
+              timezone: crud.editingItem.timezone,
+              locationId: crud.editingItem.locationId ?? undefined,
+            }}
+            locations={locations}
+            onSubmit={handleUpdate}
+            onCancel={crud.closeEdit}
+            isSubmitting={updateMutation.isPending}
+          />
+        ) : null}
+      </EntityModal>
 
-          {/* Calendars Table */}
-          <div>
-            {isLoading ? (
-              <div
-                className="text-center text-muted-foreground py-10"
-                role="status"
-                aria-live="polite"
+      <EntityModal
+        open={!!manageCalendar}
+        onOpenChange={(open) => {
+          if (!open) closeManageModal();
+        }}
+        title={manageCalendar ? manageCalendar.name : "Manage Calendar"}
+        description={
+          manageCalendar
+            ? `${formatTimezoneShort(manageCalendar.timezone)} · ${getLocationName(manageCalendar.locationId)}`
+            : undefined
+        }
+        className="max-w-4xl"
+      >
+        {manageCalendar ? (
+          <div className="space-y-4">
+            <div className="flex flex-wrap gap-2 border-b border-border pb-3">
+              <Button
+                type="button"
+                size="sm"
+                variant={manageTab === "availability" ? "default" : "outline"}
+                onClick={() => setManageTab("availability")}
               >
-                Loading...
-              </div>
-            ) : error ? (
-              <div className="text-center text-destructive py-10">
-                Error loading calendars
-              </div>
-            ) : !data?.items.length ? (
-              <div className="rounded-xl border border-border bg-card p-10 text-center text-muted-foreground shadow-sm">
-                No calendars yet. Create your first calendar to get started.
+                Availability
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant={manageTab === "appointments" ? "default" : "outline"}
+                onClick={() => setManageTab("appointments")}
+              >
+                Appointments
+              </Button>
+            </div>
+
+            {manageTab === "availability" ? (
+              <div className="space-y-6">
+                <AvailabilitySubTabs
+                  value={availabilitySubTab}
+                  onChange={setAvailabilitySubTab}
+                />
+
+                {availabilitySubTab === "weekly" && (
+                  <WeeklyScheduleEditor
+                    calendarId={manageCalendar.id}
+                    timezone={manageCalendar.timezone}
+                  />
+                )}
+                {availabilitySubTab === "overrides" && (
+                  <DateOverridesEditor
+                    calendarId={manageCalendar.id}
+                    timezone={manageCalendar.timezone}
+                  />
+                )}
+                {availabilitySubTab === "blocked" && (
+                  <BlockedTimeEditor
+                    calendarId={manageCalendar.id}
+                    timezone={manageCalendar.timezone}
+                  />
+                )}
               </div>
             ) : (
-              <div className="rounded-xl border border-border overflow-hidden shadow-sm">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Name</TableHead>
-                      <TableHead>Timezone</TableHead>
-                      <TableHead>Location</TableHead>
-                      <TableHead>This Week</TableHead>
-                      <TableHead>Created</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {data.items.map((calendar) => {
-                      const isSelected = calendar.id === selectedId;
-                      return (
-                        <ContextMenu
-                          key={calendar.id}
-                          items={getContextMenuItems(calendar)}
-                        >
-                          <TableRow
-                            className={cn(
-                              "cursor-pointer transition-colors hover:bg-muted/50",
-                              isSelected && "bg-muted/60",
-                            )}
-                            tabIndex={0}
-                            aria-selected={isSelected}
-                            onClick={() => openDetails(calendar.id, "details")}
-                            onKeyDown={(event) => {
-                              if (event.key === "Enter" || event.key === " ") {
-                                event.preventDefault();
-                                openDetails(calendar.id, "details");
-                              }
-                            }}
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
+                    Upcoming Appointments
+                  </h3>
+                  <Button variant="ghost" size="sm" asChild>
+                    <Link
+                      to="/appointments"
+                      search={{ calendarId: manageCalendar.id }}
+                    >
+                      View all
+                      <Icon icon={ArrowRight02Icon} data-icon="inline-end" />
+                    </Link>
+                  </Button>
+                </div>
+
+                {appointments.length === 0 ? (
+                  <div className="rounded-lg border border-border p-6 text-center text-sm text-muted-foreground">
+                    No upcoming appointments
+                  </div>
+                ) : (
+                  <div className="rounded-lg border border-border divide-y divide-border/50">
+                    {appointments.map((apt) => (
+                      <div key={apt.id} className="px-4 py-3">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <div className="text-sm font-medium">
+                              {formatDisplayDateTime(
+                                apt.startAt,
+                                manageCalendar.timezone,
+                              )}{" "}
+                              (
+                              {formatTimezoneShort(
+                                manageCalendar.timezone,
+                                apt.startAt,
+                              )}
+                              )
+                            </div>
+                            <div className="text-xs text-muted-foreground">
+                              {apt.appointmentType?.name}
+                              {apt.client &&
+                                ` - ${apt.client.firstName} ${apt.client.lastName}`}
+                            </div>
+                          </div>
+                          <Badge
+                            variant={
+                              apt.status === "confirmed"
+                                ? "success"
+                                : "secondary"
+                            }
                           >
-                            <TableCell className="font-medium">
-                              {calendar.name}
-                            </TableCell>
-                            <TableCell title={calendar.timezone}>
-                              {formatTimezoneShort(calendar.timezone)}
-                            </TableCell>
-                            <TableCell>
-                              {getLocationName(calendar.locationId)}
-                            </TableCell>
-                            <TableCell>
-                              <RelationshipCountBadge
-                                count={
-                                  calendar.relationshipCounts
-                                    ?.appointmentsThisWeek ?? 0
-                                }
-                                singular="appointment"
-                              />
-                            </TableCell>
-                            <TableCell>
-                              {formatDisplayDate(calendar.createdAt)}
-                            </TableCell>
-                          </TableRow>
-                        </ContextMenu>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
+                            {apt.status}
+                          </Badge>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
           </div>
-        </ListPanel>
+        ) : null}
+      </EntityModal>
 
-        {/* Full-screen inline detail panel */}
-        <DetailPanel
-          id={FOCUS_ZONES.DETAIL}
-          open={detailOpen}
-          storageKey="calendars"
-          onOpenChange={(open) => {
-            if (!open) clearDetails();
-          }}
-          sheetTitle={selectedCalendar?.name ?? "Calendar details"}
-          sheetDescription={
-            selectedCalendar
-              ? [
-                  formatTimezoneShort(selectedCalendar.timezone),
-                  detailLocationLabel,
-                ]
-                  .filter(Boolean)
-                  .join(" · ")
-              : undefined
-          }
-          bodyClassName="p-0"
-        >
-          {detailOpen && !selectedCalendar ? (
-            <div className="flex h-full items-center justify-center p-8 text-sm text-muted-foreground">
-              Loading calendar...
-            </div>
-          ) : selectedCalendar ? (
-            <div className="flex h-full flex-col">
-              <DetailTabs
-                value={activeTab}
-                onValueChange={(value) => setActiveTab(value)}
-              >
-                <DetailTab value="details">Details</DetailTab>
-                <DetailTab value="availability">Availability</DetailTab>
-                <DetailTab value="appointments">Appointments</DetailTab>
-              </DetailTabs>
-
-              <div className="flex-1 overflow-y-auto">
-                <div className="mx-auto max-w-3xl px-4 py-6 sm:px-6 lg:px-8">
-                  {activeTab === "details" && (
-                    <form
-                      onSubmit={detailForm.handleSubmit(handleDetailUpdate)}
-                      className="space-y-5"
-                    >
-                      <div className="space-y-2">
-                        <Label htmlFor="detail-name">Name</Label>
-                        <Input
-                          id="detail-name"
-                          {...detailForm.register("name")}
-                          disabled={updateMutation.isPending}
-                        />
-                        {detailForm.formState.errors.name && (
-                          <p className="text-sm text-destructive">
-                            {detailForm.formState.errors.name.message}
-                          </p>
-                        )}
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label>Timezone</Label>
-                        <Select
-                          value={detailTimezone}
-                          onValueChange={(value) =>
-                            value && detailForm.setValue("timezone", value)
-                          }
-                          disabled={updateMutation.isPending}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select timezone">
-                              {detailTimezoneSelectLabel}
-                            </SelectValue>
-                          </SelectTrigger>
-                          <SelectContent>
-                            {TIMEZONES.map((tz) => (
-                              <SelectItem key={tz} value={tz}>
-                                {tz}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        {detailForm.formState.errors.timezone && (
-                          <p className="text-sm text-destructive">
-                            {detailForm.formState.errors.timezone.message}
-                          </p>
-                        )}
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label>Location (optional)</Label>
-                        <Select
-                          value={detailLocationId ?? "none"}
-                          onValueChange={(value) =>
-                            value &&
-                            detailForm.setValue(
-                              "locationId",
-                              value === "none" ? undefined : value,
-                            )
-                          }
-                          disabled={updateMutation.isPending}
-                        >
-                          <SelectTrigger>
-                            <SelectValue>
-                              {detailLocationSelectLabel}
-                            </SelectValue>
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="none">No location</SelectItem>
-                            {locations.map((loc) => (
-                              <SelectItem key={loc.id} value={loc.id}>
-                                {loc.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-
-                      <div className="flex flex-wrap gap-2 pt-2">
-                        <Button
-                          type="submit"
-                          disabled={updateMutation.isPending}
-                        >
-                          {updateMutation.isPending
-                            ? "Saving..."
-                            : "Save Changes"}
-                        </Button>
-                      </div>
-
-                      <div className="mt-6 border-t border-border pt-4">
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                          onClick={() => crud.openDelete(selectedCalendar.id)}
-                        >
-                          <Icon icon={Delete01Icon} data-icon="inline-start" />
-                          Delete Calendar
-                        </Button>
-                      </div>
-                    </form>
-                  )}
-
-                  {activeTab === "availability" && (
-                    <div className="space-y-6">
-                      <AvailabilitySubTabs
-                        value={availabilitySubTab}
-                        onChange={setAvailabilitySubTab}
-                      />
-
-                      {availabilitySubTab === "weekly" && (
-                        <WeeklyScheduleEditor
-                          calendarId={selectedCalendar.id}
-                          timezone={selectedCalendar.timezone}
-                        />
-                      )}
-                      {availabilitySubTab === "overrides" && (
-                        <DateOverridesEditor
-                          calendarId={selectedCalendar.id}
-                          timezone={selectedCalendar.timezone}
-                        />
-                      )}
-                      {availabilitySubTab === "blocked" && (
-                        <BlockedTimeEditor
-                          calendarId={selectedCalendar.id}
-                          timezone={selectedCalendar.timezone}
-                        />
-                      )}
-                    </div>
-                  )}
-
-                  {activeTab === "appointments" && (
-                    <div className="space-y-4">
-                      <div className="flex items-center justify-between">
-                        <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
-                          Upcoming Appointments
-                        </h3>
-                        <Button variant="ghost" size="sm" asChild>
-                          <Link
-                            to="/appointments"
-                            search={{ calendarId: selectedCalendar.id }}
-                          >
-                            View all
-                            <Icon
-                              icon={ArrowRight02Icon}
-                              data-icon="inline-end"
-                            />
-                          </Link>
-                        </Button>
-                      </div>
-
-                      {appointments.length === 0 ? (
-                        <div className="rounded-lg border border-border p-6 text-center text-sm text-muted-foreground">
-                          No upcoming appointments
-                        </div>
-                      ) : (
-                        <div className="rounded-lg border border-border divide-y divide-border/50">
-                          {appointments.map((apt) => (
-                            <div key={apt.id} className="px-4 py-3">
-                              <div className="flex items-center justify-between">
-                                <div>
-                                  <div className="text-sm font-medium">
-                                    {formatDisplayDateTime(
-                                      apt.startAt,
-                                      selectedCalendar.timezone,
-                                    )}{" "}
-                                    (
-                                    {formatTimezoneShort(
-                                      selectedCalendar.timezone,
-                                      apt.startAt,
-                                    )}
-                                    )
-                                  </div>
-                                  <div className="text-xs text-muted-foreground">
-                                    {apt.appointmentType?.name}
-                                    {apt.client &&
-                                      ` - ${apt.client.firstName} ${apt.client.lastName}`}
-                                  </div>
-                                </div>
-                                <Badge
-                                  variant={
-                                    apt.status === "confirmed"
-                                      ? "success"
-                                      : "secondary"
-                                  }
-                                >
-                                  {apt.status}
-                                </Badge>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-          ) : null}
-        </DetailPanel>
-      </WorkbenchLayout>
-
-      {/* Delete Confirmation */}
       <DeleteConfirmDialog
         open={!!crud.deletingItemId}
         onOpenChange={crud.closeDelete}
@@ -867,15 +619,6 @@ function CalendarsPage() {
 }
 
 export const Route = createFileRoute("/_authenticated/calendars/")({
-  validateSearch: (
-    search: Record<string, unknown>,
-  ): { selected?: string; tab?: DetailTabValue } => {
-    const selected =
-      typeof search.selected === "string" ? search.selected : undefined;
-    const rawTab = typeof search.tab === "string" ? search.tab : "";
-    const tab = isDetailTab(rawTab) ? rawTab : undefined;
-    return { selected, tab };
-  },
   loader: async () => {
     const queryClient = getQueryClient();
     await Promise.all([

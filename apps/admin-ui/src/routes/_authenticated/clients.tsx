@@ -1,48 +1,30 @@
-// Clients management page with drawer and context menus
+// Clients management page with modal-based CRUD and appointment booking
 
-import { useState, useCallback, useMemo } from "react";
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useCallback, useState } from "react";
+import { createFileRoute } from "@tanstack/react-router";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   Add01Icon,
-  PencilEdit01Icon,
-  Delete01Icon,
-  ViewIcon,
   Calendar03Icon,
+  Delete01Icon,
+  PencilEdit01Icon,
   Search01Icon,
 } from "@hugeicons/core-free-icons";
-
 import { toast } from "sonner";
-import { Icon } from "@/components/ui/icon";
-import { getQueryClient, orpc } from "@/lib/query";
-import { formatDisplayDate, formatDisplayDateTime } from "@/lib/date-utils";
+
 import { createClientSchema } from "@scheduling/dto";
 import type { CreateClientInput } from "@scheduling/dto";
-import { useCrudState } from "@/hooks/use-crud-state";
-import { DeleteConfirmDialog } from "@/components/delete-confirm-dialog";
-import { ContextMenu, type ContextMenuItem } from "@/components/context-menu";
 import { AppointmentModal } from "@/components/appointment-modal";
+import { ContextMenu, type ContextMenuItem } from "@/components/context-menu";
+import { DeleteConfirmDialog } from "@/components/delete-confirm-dialog";
+import { EntityModal } from "@/components/entity-modal";
 import { RelationshipCountBadge } from "@/components/relationship-count-badge";
-import {
-  DetailPanel,
-  DetailTab,
-  DetailTabs,
-  ListPanel,
-  WorkbenchLayout,
-} from "@/components/workbench";
-import {
-  FOCUS_ZONES,
-  useFocusZones,
-  useListNavigation,
-} from "@/hooks/use-keyboard-shortcuts";
-import { useValidateSelection } from "@/hooks/use-selection-search-params";
-
 import { Button } from "@/components/ui/button";
+import { Icon } from "@/components/ui/icon";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
 import {
   Table,
   TableBody,
@@ -51,6 +33,9 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { useCrudState } from "@/hooks/use-crud-state";
+import { formatDisplayDate } from "@/lib/date-utils";
+import { getQueryClient, orpc } from "@/lib/query";
 
 interface ClientFormProps {
   defaultValues?: {
@@ -87,7 +72,7 @@ function ClientForm({
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div className="space-y-2.5">
           <Label htmlFor="firstName">First Name</Label>
           <Input
@@ -104,6 +89,7 @@ function ClientForm({
             </p>
           )}
         </div>
+
         <div className="space-y-2.5">
           <Label htmlFor="lastName">Last Name</Label>
           <Input
@@ -121,6 +107,7 @@ function ClientForm({
           )}
         </div>
       </div>
+
       <div className="space-y-2.5">
         <Label htmlFor="email">Email (optional)</Label>
         <Input
@@ -138,6 +125,7 @@ function ClientForm({
           </p>
         )}
       </div>
+
       <div className="space-y-2.5">
         <Label htmlFor="phone">Phone (optional)</Label>
         <Input
@@ -155,7 +143,8 @@ function ClientForm({
           </p>
         )}
       </div>
-      <div className="flex justify-end gap-3 pt-4">
+
+      <div className="flex justify-end gap-3 pt-2">
         <Button
           type="button"
           variant="outline"
@@ -172,31 +161,14 @@ function ClientForm({
   );
 }
 
-type ClientTabValue = "details" | "history";
-
-const isClientTab = (value: string): value is ClientTabValue =>
-  value === "details" || value === "history";
-
 function ClientsPage() {
   const queryClient = useQueryClient();
-
-  // Search state
   const [search, setSearch] = useState("");
 
-  // URL-driven drawer state
-  const navigate = useNavigate({ from: Route.fullPath });
-  const { selected, tab } = Route.useSearch();
-
-  const selectedId = selected ?? null;
-  const activeTab: ClientTabValue = tab ?? "details";
-  const drawerOpen = !!selectedId;
-
-  // Appointment modal state
   const [appointmentModalOpen, setAppointmentModalOpen] = useState(false);
   const [appointmentModalClientPrefill, setAppointmentModalClientPrefill] =
     useState<{ id: string; name: string } | null>(null);
 
-  // Fetch clients
   const { data, isLoading, error } = useQuery({
     ...orpc.clients.list.queryOptions({
       input: { search: search || undefined, limit: 100 },
@@ -204,12 +176,10 @@ function ClientsPage() {
     placeholderData: (previous) => previous,
   });
 
-  // Infer item type from query result
   type ClientItem = NonNullable<typeof data>["items"][number];
 
   const crud = useCrudState<ClientItem>();
 
-  // Create mutation
   const createMutation = useMutation(
     orpc.clients.create.mutationOptions({
       onSuccess: () => {
@@ -223,7 +193,6 @@ function ClientsPage() {
     }),
   );
 
-  // Update mutation
   const updateMutation = useMutation(
     orpc.clients.update.mutationOptions({
       onSuccess: () => {
@@ -237,7 +206,6 @@ function ClientsPage() {
     }),
   );
 
-  // Delete mutation
   const deleteMutation = useMutation(
     orpc.clients.remove.mutationOptions({
       onSuccess: () => {
@@ -268,94 +236,20 @@ function ClientsPage() {
     deleteMutation.mutate({ id: crud.deletingItemId });
   };
 
-  // Derive selected client from data
-  const selectedClient = useMemo(
-    () => data?.items.find((c) => c.id === selectedId) ?? null,
-    [data?.items, selectedId],
-  );
-  const clients = data?.items ?? [];
-  const selectedIndex = selectedId
-    ? clients.findIndex((client) => client.id === selectedId)
-    : -1;
-
-  // URL navigation helpers
-  const openDrawer = useCallback(
-    (id: string, newTab: ClientTabValue = "details") => {
-      navigate({ search: { selected: id, tab: newTab } });
-    },
-    [navigate],
-  );
-
-  const closeDrawer = useCallback(() => {
-    navigate({ search: {} });
-  }, [navigate]);
-
-  const setActiveTabUrl = useCallback(
-    (value: string) => {
-      if (!selectedId || !isClientTab(value)) return;
-      navigate({ search: { selected: selectedId, tab: value } });
-    },
-    [navigate, selectedId],
-  );
-
-  useValidateSelection(data?.items, selectedId, closeDrawer);
-
-  useListNavigation({
-    items: clients,
-    selectedIndex,
-    onSelect: (index) => {
-      const client = clients[index];
-      if (client) openDrawer(client.id, "details");
-    },
-    onOpen: (client) => openDrawer(client.id, "details"),
-    enabled: !crud.isFormOpen,
-  });
-
-  useFocusZones({
-    onEscape: closeDrawer,
-    detailOpen: drawerOpen,
-  });
-
-  const { data: appointmentsData, isLoading: isLoadingAppointments } = useQuery(
-    {
-      ...orpc.appointments.list.queryOptions({
-        input: {
-          clientId: selectedClient?.id ?? "",
-          limit: 20,
-        },
-      }),
-      enabled: !!selectedClient?.id && activeTab === "history",
-    },
-  );
-
-  const handleBookAppointment = useCallback(
-    (clientId: string) => {
-      const client = data?.items.find((item) => item.id === clientId);
-      setAppointmentModalClientPrefill(
-        client
-          ? {
-              id: client.id,
-              name: `${client.firstName} ${client.lastName}`,
-            }
-          : null,
-      );
-      setAppointmentModalOpen(true);
-      closeDrawer();
-    },
-    [closeDrawer, data?.items],
-  );
+  const handleBookAppointment = useCallback((client: ClientItem) => {
+    setAppointmentModalClientPrefill({
+      id: client.id,
+      name: `${client.firstName} ${client.lastName}`,
+    });
+    setAppointmentModalOpen(true);
+  }, []);
 
   const getContextMenuItems = useCallback(
     (client: ClientItem): ContextMenuItem[] => [
       {
-        label: "View Details",
-        icon: ViewIcon,
-        onClick: () => openDrawer(client.id, "details"),
-      },
-      {
         label: "Book Appointment",
         icon: Calendar03Icon,
-        onClick: () => handleBookAppointment(client.id),
+        onClick: () => handleBookAppointment(client),
       },
       {
         label: "Edit",
@@ -370,12 +264,12 @@ function ClientsPage() {
         variant: "destructive",
       },
     ],
-    [openDrawer, handleBookAppointment, crud],
+    [crud, handleBookAppointment],
   );
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
-      <div className="flex items-center justify-between gap-4">
+      <div className="flex flex-wrap items-center justify-between gap-4">
         <div className="min-w-0 flex-1">
           <h1 className="truncate text-2xl font-semibold tracking-tight">
             Clients
@@ -384,21 +278,18 @@ function ClientsPage() {
             Manage client records and contact information
           </p>
         </div>
-        {!crud.isFormOpen && (
-          <Button className="shrink-0" onClick={crud.openCreate}>
-            <Icon icon={Add01Icon} data-icon="inline-start" />
-            <span className="hidden sm:inline">Add Client</span>
-            <span className="sm:hidden">Add</span>
-          </Button>
-        )}
+        <Button className="shrink-0" onClick={crud.openCreate}>
+          <Icon icon={Add01Icon} data-icon="inline-start" />
+          <span className="hidden sm:inline">Add Client</span>
+          <span className="sm:hidden">Add</span>
+        </Button>
       </div>
 
-      {/* Search */}
       <div className="mt-6 max-w-sm">
         <div className="relative">
           <Icon
             icon={Search01Icon}
-            className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground size-4"
+            className="size-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
           />
           <Input
             placeholder="Search by name or email..."
@@ -409,26 +300,107 @@ function ClientsPage() {
         </div>
       </div>
 
-      {/* Create Form */}
-      {crud.showCreateForm && (
-        <div className="mt-6 rounded-xl border border-border bg-card p-6 shadow-sm">
-          <h2 className="mb-5 text-lg font-semibold tracking-tight">
-            New Client
-          </h2>
-          <ClientForm
-            onSubmit={handleCreate}
-            onCancel={crud.closeCreate}
-            isSubmitting={createMutation.isPending}
-          />
-        </div>
-      )}
+      <div className="mt-6">
+        {isLoading ? (
+          <div
+            className="py-10 text-center text-muted-foreground"
+            role="status"
+            aria-live="polite"
+          >
+            Loading...
+          </div>
+        ) : error ? (
+          <div className="py-10 text-center text-destructive">
+            Error loading clients
+          </div>
+        ) : !data?.items.length ? (
+          <div className="rounded-xl border border-border bg-card p-10 text-center text-muted-foreground shadow-sm">
+            {search
+              ? "No clients found matching your search."
+              : "No clients yet. Create your first client to get started."}
+          </div>
+        ) : (
+          <div className="overflow-hidden rounded-xl border border-border shadow-sm">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Name</TableHead>
+                  <TableHead>Email</TableHead>
+                  <TableHead>Phone</TableHead>
+                  <TableHead>Appointments</TableHead>
+                  <TableHead>Created</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {data.items.map((client) => (
+                  <ContextMenu
+                    key={client.id}
+                    items={getContextMenuItems(client)}
+                  >
+                    <TableRow
+                      className="cursor-pointer transition-colors hover:bg-muted/50"
+                      tabIndex={0}
+                      onClick={() => crud.openEdit(client)}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter" || event.key === " ") {
+                          event.preventDefault();
+                          crud.openEdit(client);
+                        }
+                      }}
+                    >
+                      <TableCell className="font-medium">
+                        {client.firstName} {client.lastName}
+                      </TableCell>
+                      <TableCell>
+                        {client.email || (
+                          <span className="text-muted-foreground">-</span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {client.phone || (
+                          <span className="text-muted-foreground">-</span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <RelationshipCountBadge
+                          count={client.relationshipCounts?.appointments ?? 0}
+                          singular="appointment"
+                        />
+                      </TableCell>
+                      <TableCell>
+                        {formatDisplayDate(client.createdAt)}
+                      </TableCell>
+                    </TableRow>
+                  </ContextMenu>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        )}
+      </div>
 
-      {/* Edit Form */}
-      {crud.editingItem && (
-        <div className="mt-6 rounded-xl border border-border bg-card p-6 shadow-sm">
-          <h2 className="mb-5 text-lg font-semibold tracking-tight">
-            Edit Client
-          </h2>
+      <EntityModal
+        open={crud.showCreateForm}
+        onOpenChange={(open) => {
+          if (!open) crud.closeCreate();
+        }}
+        title="New Client"
+      >
+        <ClientForm
+          onSubmit={handleCreate}
+          onCancel={crud.closeCreate}
+          isSubmitting={createMutation.isPending}
+        />
+      </EntityModal>
+
+      <EntityModal
+        open={!!crud.editingItem}
+        onOpenChange={(open) => {
+          if (!open) crud.closeEdit();
+        }}
+        title="Edit Client"
+      >
+        {crud.editingItem ? (
           <ClientForm
             defaultValues={{
               firstName: crud.editingItem.firstName,
@@ -440,209 +412,9 @@ function ClientsPage() {
             onCancel={crud.closeEdit}
             isSubmitting={updateMutation.isPending}
           />
-        </div>
-      )}
+        ) : null}
+      </EntityModal>
 
-      <WorkbenchLayout className="mt-6 min-h-[600px]">
-        <ListPanel id={FOCUS_ZONES.LIST}>
-          {isLoading ? (
-            <div
-              className="py-10 text-center text-muted-foreground"
-              role="status"
-              aria-live="polite"
-            >
-              Loading...
-            </div>
-          ) : error ? (
-            <div className="py-10 text-center text-destructive">
-              Error loading clients
-            </div>
-          ) : !data?.items.length ? (
-            <div className="rounded-xl border border-border bg-card p-10 text-center text-muted-foreground shadow-sm">
-              {search
-                ? "No clients found matching your search."
-                : "No clients yet. Create your first client to get started."}
-            </div>
-          ) : (
-            <div className="overflow-hidden rounded-xl border border-border shadow-sm">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Email</TableHead>
-                    <TableHead>Phone</TableHead>
-                    <TableHead>Appointments</TableHead>
-                    <TableHead>Created</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {data.items.map((client) => (
-                    <ContextMenu
-                      key={client.id}
-                      items={getContextMenuItems(client)}
-                    >
-                      <TableRow
-                        className="cursor-pointer transition-colors hover:bg-muted/50"
-                        tabIndex={0}
-                        aria-selected={client.id === selectedId}
-                        onClick={() => openDrawer(client.id)}
-                        onKeyDown={(event) => {
-                          if (event.key === "Enter" || event.key === " ") {
-                            event.preventDefault();
-                            openDrawer(client.id);
-                          }
-                        }}
-                      >
-                        <TableCell className="font-medium">
-                          {client.firstName} {client.lastName}
-                        </TableCell>
-                        <TableCell>
-                          {client.email || (
-                            <span className="text-muted-foreground">-</span>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          {client.phone || (
-                            <span className="text-muted-foreground">-</span>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          <RelationshipCountBadge
-                            count={client.relationshipCounts?.appointments ?? 0}
-                            singular="appointment"
-                          />
-                        </TableCell>
-                        <TableCell>
-                          {formatDisplayDate(client.createdAt)}
-                        </TableCell>
-                      </TableRow>
-                    </ContextMenu>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          )}
-        </ListPanel>
-
-        <DetailPanel
-          id={FOCUS_ZONES.DETAIL}
-          open={drawerOpen}
-          storageKey="clients"
-          onOpenChange={(open) => {
-            if (!open) closeDrawer();
-          }}
-          sheetTitle={
-            selectedClient
-              ? `${selectedClient.firstName} ${selectedClient.lastName}`
-              : "Client Details"
-          }
-          bodyClassName="p-0"
-        >
-          {selectedClient ? (
-            <div className="flex h-full flex-col">
-              <div className="flex flex-wrap items-start justify-between gap-4 border-b border-border px-6 py-5">
-                <div>
-                  <h2 className="text-lg font-semibold tracking-tight">
-                    {selectedClient.firstName} {selectedClient.lastName}
-                  </h2>
-                  <p className="mt-1 text-sm text-muted-foreground">
-                    {selectedClient.email || "No email"}
-                    {selectedClient.phone ? ` · ${selectedClient.phone}` : ""}
-                  </p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => crud.openEdit(selectedClient)}
-                  >
-                    <Icon icon={PencilEdit01Icon} data-icon="inline-start" />
-                    Edit
-                  </Button>
-                  <Button
-                    size="sm"
-                    onClick={() => handleBookAppointment(selectedClient.id)}
-                  >
-                    <Icon icon={Calendar03Icon} data-icon="inline-start" />
-                    Book
-                  </Button>
-                </div>
-              </div>
-
-              <DetailTabs value={activeTab} onValueChange={setActiveTabUrl}>
-                <DetailTab value="details">Details</DetailTab>
-                <DetailTab value="history">History</DetailTab>
-              </DetailTabs>
-
-              <div className="flex-1 overflow-y-auto px-6 py-4">
-                {activeTab === "details" ? (
-                  <div className="space-y-4">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-muted-foreground">
-                        Email
-                      </span>
-                      <span className="text-sm font-medium">
-                        {selectedClient.email || "Not set"}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-muted-foreground">
-                        Phone
-                      </span>
-                      <span className="text-sm font-medium">
-                        {selectedClient.phone || "Not set"}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-muted-foreground">
-                        Appointments
-                      </span>
-                      <Badge variant="secondary">
-                        {selectedClient.relationshipCounts?.appointments ?? 0}
-                      </Badge>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-muted-foreground">
-                        Created
-                      </span>
-                      <span className="text-sm font-medium">
-                        {formatDisplayDate(selectedClient.createdAt)}
-                      </span>
-                    </div>
-                  </div>
-                ) : isLoadingAppointments ? (
-                  <div className="py-8 text-center text-muted-foreground">
-                    Loading…
-                  </div>
-                ) : (
-                  <div className="space-y-2">
-                    {(appointmentsData?.items ?? []).map((appointment) => (
-                      <div
-                        key={appointment.id}
-                        className="rounded-lg border border-border px-4 py-3"
-                      >
-                        <div className="text-sm font-medium">
-                          {formatDisplayDateTime(appointment.startAt)}
-                        </div>
-                        <div className="text-xs text-muted-foreground">
-                          {appointment.appointmentType?.name ?? "Appointment"}
-                        </div>
-                      </div>
-                    ))}
-                    {(appointmentsData?.items ?? []).length === 0 ? (
-                      <div className="rounded-lg border border-border p-6 text-center text-sm text-muted-foreground">
-                        No appointment history yet.
-                      </div>
-                    ) : null}
-                  </div>
-                )}
-              </div>
-            </div>
-          ) : null}
-        </DetailPanel>
-      </WorkbenchLayout>
-
-      {/* Appointment Modal */}
       <AppointmentModal
         open={appointmentModalOpen}
         onOpenChange={(nextOpen) => {
@@ -655,7 +427,6 @@ function ClientsPage() {
         defaultClientName={appointmentModalClientPrefill?.name}
       />
 
-      {/* Delete Confirmation */}
       <DeleteConfirmDialog
         open={!!crud.deletingItemId}
         onOpenChange={crud.closeDelete}
@@ -668,20 +439,7 @@ function ClientsPage() {
   );
 }
 
-interface ClientsSearchParams {
-  selected?: string;
-  tab?: "details" | "history";
-}
-
 export const Route = createFileRoute("/_authenticated/clients")({
-  validateSearch: (search: Record<string, unknown>): ClientsSearchParams => ({
-    selected: typeof search.selected === "string" ? search.selected : undefined,
-    tab:
-      typeof search.tab === "string" &&
-      (search.tab === "details" || search.tab === "history")
-        ? search.tab
-        : undefined,
-  }),
   loader: async () => {
     const queryClient = getQueryClient();
     await queryClient.ensureQueryData(

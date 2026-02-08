@@ -104,7 +104,7 @@ export function ScheduleGrid({
   const hours = Array.from({ length: TOTAL_HOURS }, (_, i) => START_HOUR + i);
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="relative flex h-full flex-col">
       {/* Header with navigation */}
       <div className="flex items-center justify-between border-b border-border px-4 py-3">
         <div className="flex items-center gap-2">
@@ -126,7 +126,7 @@ export function ScheduleGrid({
 
       {/* Loading overlay */}
       {isLoading && (
-        <div className="absolute inset-0 bg-background/50 flex items-center justify-center z-10">
+        <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center bg-background/35">
           <div className="text-sm text-muted-foreground">Loading...</div>
         </div>
       )}

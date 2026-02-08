@@ -63,7 +63,17 @@ function scheduleSequenceReset(registration: ShortcutRegistration) {
   }, 1000);
 }
 
+function isDialogOpen() {
+  if (typeof document === "undefined") return false;
+  return !!document.querySelector(
+    '[aria-modal="true"], [data-slot="entity-modal-content"], [data-slot="appointment-modal-content"], [data-slot="alert-dialog-content"]',
+  );
+}
+
 function onDocumentKeyDown(event: KeyboardEvent) {
+  if (event.defaultPrevented) return;
+  if (isDialogOpen()) return;
+
   const key = normalizeKey(event);
   const isInput = isTypingInInput(event.target);
   const orderedRegistrations = Array.from(registrations).reverse();

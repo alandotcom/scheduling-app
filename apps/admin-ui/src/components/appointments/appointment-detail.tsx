@@ -407,10 +407,7 @@ export function AppointmentDetail({
                     className="w-full justify-between"
                     asChild
                   >
-                    <Link
-                      to="/clients"
-                      search={{ selected: appointment.client.id }}
-                    >
+                    <Link to="/clients">
                       <span>View Client Profile</span>
                       <Icon icon={ArrowRight02Icon} />
                     </Link>
