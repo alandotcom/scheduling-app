@@ -18,6 +18,7 @@ import {
   resolveEffectiveSchedulingTimezone,
   type SchedulingTimezoneMode,
 } from "@/lib/scheduling-timezone";
+import { STANDARD_MODAL_MAX_WIDTH_CLASS } from "@/lib/modal";
 import { resolveSelectValueLabel } from "@/lib/select-value-label";
 import { cn } from "@/lib/utils";
 import { AvailabilityCalendarPicker } from "@/components/appointments/availability-calendar-picker";
@@ -318,7 +319,8 @@ export function AppointmentModal({
           <DialogPrimitive.Popup
             data-slot="appointment-modal-content"
             className={cn(
-              "fixed left-1/2 top-2 z-50 w-[calc(100vw-1rem)] max-w-2xl -translate-x-1/2 sm:top-8 sm:w-full",
+              "fixed left-1/2 top-2 z-50 w-[calc(100vw-1rem)] -translate-x-1/2 sm:top-8 sm:w-full",
+              STANDARD_MODAL_MAX_WIDTH_CLASS,
               "rounded-xl border border-border bg-background shadow-xl",
               "data-open:animate-in data-closed:animate-out",
               "data-closed:fade-out-0 data-open:fade-in-0",

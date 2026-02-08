@@ -14,7 +14,6 @@ export const RECURRENCE_OPTIONS = [
   { value: "none", label: "Does not repeat" },
   { value: "daily", label: "Daily" },
   { value: "weekly", label: "Weekly" },
-  { value: "weekdays", label: "Weekdays (Mon-Fri)" },
 ] as const;
 
 export interface TimeBlock {

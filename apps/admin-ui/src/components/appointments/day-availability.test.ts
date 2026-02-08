@@ -1,9 +1,12 @@
 import { describe, expect, test } from "bun:test";
+import { DateTime } from "luxon";
 
 import {
   buildDayAvailabilityMap,
   filterAvailableSlotsForDate,
   getDayAvailabilityLevel,
+  isPastDateForTimezone,
+  isTodayForTimezone,
 } from "@/components/appointments/day-availability";
 
 describe("day availability helpers", () => {
@@ -66,5 +69,18 @@ describe("day availability helpers", () => {
     expect(getDayAvailabilityLevel(1)).toBe("low");
     expect(getDayAvailabilityLevel(2)).toBe("low");
     expect(getDayAvailabilityLevel(3)).toBe("good");
+  });
+
+  test("isPastDateForTimezone compares against calendar timezone day", () => {
+    const nowPst = DateTime.fromISO("2026-02-07T23:30:00", {
+      zone: "America/Los_Angeles",
+    });
+
+    expect(isPastDateForTimezone("2026-02-07", "America/Chicago", nowPst)).toBe(
+      true,
+    );
+    expect(isTodayForTimezone("2026-02-08", "America/Chicago", nowPst)).toBe(
+      true,
+    );
   });
 });

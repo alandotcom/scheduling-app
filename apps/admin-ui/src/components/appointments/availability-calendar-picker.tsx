@@ -19,6 +19,8 @@ import {
   buildDayAvailabilityMap,
   filterAvailableSlotsForDate,
   getDayAvailabilityLevel,
+  isPastDateForTimezone,
+  isTodayForTimezone,
 } from "@/components/appointments/day-availability";
 import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
@@ -73,15 +75,14 @@ export function AvailabilityCalendarPicker({
     const year = viewMonth.year;
     const month = viewMonth.month - 1;
     const days = getMonthDays(year, month);
-    const today = DateTime.now().startOf("day");
 
     return days.map((date) => ({
       date,
       isCurrentMonth: date.month === month + 1,
-      isToday: date.hasSame(today, "day"),
-      isPast: date < today,
+      isToday: isTodayForTimezone(formatDateISO(date), schedulingTimezone),
+      isPast: isPastDateForTimezone(formatDateISO(date), schedulingTimezone),
     }));
-  }, [viewMonth]);
+  }, [schedulingTimezone, viewMonth]);
 
   return (
     <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 sm:gap-6">

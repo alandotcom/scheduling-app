@@ -434,7 +434,6 @@ function LocationsPage() {
             ? formatTimezoneShort(displayLocation.timezone)
             : undefined
         }
-        className="max-w-5xl"
       >
         {displayLocation ? (
           <div className="space-y-4">

@@ -776,7 +776,6 @@ function AppointmentsPage() {
             ? formatDisplayDate(displayAppointment.startAt, displayTimezone)
             : undefined
         }
-        className="max-w-6xl"
       >
         {displayAppointment ? (
           <div id={FOCUS_ZONES.DETAIL}>

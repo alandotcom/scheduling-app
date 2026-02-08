@@ -25,15 +25,16 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { RECURRENCE_OPTIONS } from "./constants";
+import { RECURRENCE_OPTIONS, WEEKDAYS } from "./constants";
 import {
+  buildRecurrenceRule,
+  type BlockRecurrenceType,
+  formatDisplayDate,
   formatDisplayDateTime,
-  rruleToLabel,
-  recurrenceToRrule,
-  rruleToRecurrence,
+  getTomorrowInTimezone,
   parseInTimezone,
   parseISOInTimezone,
-  getTomorrowInTimezone,
+  parseRecurrenceRule,
 } from "./utils";
 
 interface BlockedTimeEditorProps {
@@ -58,18 +59,20 @@ function BlockedTimeEditorBody({
   timezone,
   compact,
 }: BlockedTimeEditorBodyProps) {
-  const queryClient = useQueryClient();
-  const [showForm, setShowForm] = useState(false);
-  const [editingBlock, setEditingBlock] = useState<{
+  type EditingBlock = {
     id?: string;
-    title: string;
     startDate: string;
     startTime: string;
     endDate: string;
     endTime: string;
-    allDay: boolean;
-    recurrence: string;
-  } | null>(null);
+    recurrence: BlockRecurrenceType;
+    weekdays: number[];
+  };
+
+  const queryClient = useQueryClient();
+  const [showForm, setShowForm] = useState(false);
+  const [editingBlock, setEditingBlock] = useState<EditingBlock | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
 
   // Fetch blocked time
   const { data: blockedData, isLoading } = useQuery(
@@ -83,6 +86,92 @@ function BlockedTimeEditorBody({
     typeof value === "string"
       ? DateTime.fromISO(value, { setZone: true })
       : DateTime.fromJSDate(value);
+  const getWeekdayFromDate = (date: string): number => {
+    const dt = DateTime.fromISO(date);
+    return dt.isValid ? dt.weekday % 7 : 1;
+  };
+  const getWeekdaysFromDateSpan = (startDate: string, endDate: string) => {
+    const start = DateTime.fromISO(startDate).startOf("day");
+    const end = DateTime.fromISO(endDate).startOf("day");
+    if (!start.isValid || !end.isValid || end < start) return [];
+
+    const days = new Set<number>();
+    let cursor = start;
+    // Weekdays repeat every 7 days; cap iteration to one cycle for safety.
+    while (cursor <= end && days.size < 7) {
+      days.add(cursor.weekday % 7);
+      cursor = cursor.plus({ days: 1 });
+    }
+
+    return Array.from(days).sort((a, b) => a - b);
+  };
+  const toRecurrenceValue = (
+    value: BlockRecurrenceType | "custom",
+  ): BlockRecurrenceType => {
+    return value === "daily" || value === "weekly" ? value : "none";
+  };
+  const toggleWeekday = (weekday: number) => {
+    setEditingBlock((prev) => {
+      if (!prev) return null;
+      const hasDay = prev.weekdays.includes(weekday);
+      return {
+        ...prev,
+        weekdays: hasDay
+          ? prev.weekdays.filter((d) => d !== weekday)
+          : [...prev.weekdays, weekday].sort((a, b) => a - b),
+      };
+    });
+  };
+  const parseRuleForBlock = (block: (typeof blockedTimes)[number]) =>
+    parseRecurrenceRule(block.recurringRule, timezone);
+  const getRecurringDisplayRange = (block: (typeof blockedTimes)[number]) => {
+    const start = toDateTime(block.startAt).setZone(timezone);
+    const parsed = parseRuleForBlock(block);
+    const startDate = start.toISODate();
+    const endDate =
+      parsed.untilDate ?? toDateTime(block.endAt).setZone(timezone).toISODate();
+
+    if (!startDate || !endDate) return null;
+    return `${formatDisplayDate(startDate, timezone)} to ${formatDisplayDate(endDate, timezone)}`;
+  };
+  const getBlockTitle = (block: (typeof blockedTimes)[number]) => {
+    const start = toDateTime(block.startAt).setZone(timezone);
+    const end = toDateTime(block.endAt).setZone(timezone);
+    const parsed = parseRuleForBlock(block);
+
+    if (parsed.type === "none" || parsed.type === "custom") {
+      return `${formatDisplayDateTime(block.startAt, timezone)} - ${formatDisplayDateTime(block.endAt, timezone)}`;
+    }
+
+    const range = getRecurringDisplayRange(block);
+    const timeWindow = `${start.toFormat("h:mm a")} - ${end.toFormat("h:mm a")}`;
+    return range ? `${timeWindow} · ${range}` : timeWindow;
+  };
+  const getRecurrenceSummary = (block: (typeof blockedTimes)[number]) => {
+    const parsed = parseRuleForBlock(block);
+
+    if (parsed.type === "daily") {
+      return "Repeats daily";
+    }
+
+    if (parsed.type === "weekly") {
+      const startDate = toDateTime(block.startAt).setZone(timezone).toISODate();
+      const endDate = toDateTime(block.endAt).setZone(timezone).toISODate();
+      const fallbackWeekdays =
+        startDate && endDate
+          ? getWeekdaysFromDateSpan(startDate, endDate)
+          : [toDateTime(block.startAt).setZone(timezone).weekday % 7];
+      const weekdayLabels = (
+        parsed.weekdays.length ? parsed.weekdays : fallbackWeekdays
+      ).flatMap((weekday) => {
+        const label = WEEKDAYS.find((day) => day.value === weekday)?.short;
+        return label ? [label] : [];
+      });
+      return `Repeats weekly on ${weekdayLabels.join(", ")}`;
+    }
+
+    return "One-time block";
+  };
 
   // Mutations
   const createMutation = useMutation(
@@ -92,6 +181,7 @@ function BlockedTimeEditorBody({
           queryKey: orpc.availability.blockedTime.key(),
         });
         setEditingBlock(null);
+        setFormError(null);
         setShowForm(false);
       },
       onError: (error) => {
@@ -107,6 +197,7 @@ function BlockedTimeEditorBody({
           queryKey: orpc.availability.blockedTime.key(),
         });
         setEditingBlock(null);
+        setFormError(null);
         setShowForm(false);
       },
       onError: (error) => {
@@ -132,36 +223,76 @@ function BlockedTimeEditorBody({
     const tomorrow = getTomorrowInTimezone(timezone);
 
     setEditingBlock({
-      title: "",
       startDate: tomorrow,
       startTime: "09:00",
       endDate: tomorrow,
       endTime: "17:00",
-      allDay: false,
       recurrence: "none",
+      weekdays: [getWeekdayFromDate(tomorrow)],
     });
+    setFormError(null);
     setShowForm(true);
   };
 
   const handleEdit = (block: (typeof blockedTimes)[0]) => {
     const startParts = parseISOInTimezone(block.startAt, timezone);
     const endParts = parseISOInTimezone(block.endAt, timezone);
+    const parsed = parseRuleForBlock(block);
+    const recurrence = toRecurrenceValue(parsed.type);
+    const fallbackWeekdays = getWeekdaysFromDateSpan(
+      startParts.date,
+      endParts.date,
+    );
+    const weekdays =
+      recurrence === "weekly"
+        ? (parsed.weekdays.length
+            ? parsed.weekdays
+            : fallbackWeekdays.length
+              ? fallbackWeekdays
+              : [getWeekdayFromDate(startParts.date)]
+          ).sort((a, b) => a - b)
+        : [];
 
     setEditingBlock({
       id: block.id,
-      title: "",
       startDate: startParts.date,
       startTime: startParts.time,
-      endDate: endParts.date,
+      endDate: parsed.untilDate ?? endParts.date,
       endTime: endParts.time,
-      allDay: false,
-      recurrence: rruleToRecurrence(block.recurringRule),
+      recurrence,
+      weekdays,
     });
+    setFormError(null);
     setShowForm(true);
   };
 
   const handleSave = () => {
     if (!editingBlock) return;
+    setFormError(null);
+
+    const startDate = DateTime.fromISO(editingBlock.startDate);
+    const endDate = DateTime.fromISO(editingBlock.endDate);
+    if (!startDate.isValid || !endDate.isValid) {
+      setFormError("Select a valid date range.");
+      return;
+    }
+    if (endDate < startDate) {
+      setFormError("End date must be on or after start date.");
+      return;
+    }
+
+    const isRecurring = editingBlock.recurrence !== "none";
+    if (isRecurring && editingBlock.endTime <= editingBlock.startTime) {
+      setFormError("For recurring blocks, end time must be after start time.");
+      return;
+    }
+    if (
+      editingBlock.recurrence === "weekly" &&
+      editingBlock.weekdays.length === 0
+    ) {
+      setFormError("Select at least one weekday for weekly recurrence.");
+      return;
+    }
 
     // Parse dates/times in the calendar's timezone, then convert to ISO for API
     const startAt = parseInTimezone(
@@ -170,11 +301,29 @@ function BlockedTimeEditorBody({
       timezone,
     );
     const endAt = parseInTimezone(
-      editingBlock.endDate,
+      isRecurring ? editingBlock.startDate : editingBlock.endDate,
       editingBlock.endTime,
       timezone,
     );
-    const recurringRule = recurrenceToRrule(editingBlock.recurrence);
+    const recurringRule = buildRecurrenceRule({
+      type: editingBlock.recurrence,
+      startDate: editingBlock.startDate,
+      startTime: editingBlock.startTime,
+      endDate: editingBlock.endDate,
+      timezone,
+      weekdays: editingBlock.weekdays,
+    });
+
+    const startAtDt = DateTime.fromISO(startAt);
+    const endAtDt = DateTime.fromISO(endAt);
+    if (!startAtDt.isValid || !endAtDt.isValid || endAtDt <= startAtDt) {
+      setFormError("End must be after start.");
+      return;
+    }
+    if (isRecurring && !recurringRule) {
+      setFormError("Invalid recurrence settings.");
+      return;
+    }
 
     const data = {
       startAt,
@@ -226,10 +375,10 @@ function BlockedTimeEditorBody({
               {editingBlock.id ? "Edit Block" : "Add Blocked Time"}
             </h4>
 
-            {/* Start Date/Time */}
+            {/* Date Range */}
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
-                <Label className="text-xs">Start Date</Label>
+                <Label className="text-xs">From</Label>
                 <Input
                   type="date"
                   value={editingBlock.startDate}
@@ -241,6 +390,22 @@ function BlockedTimeEditorBody({
                 />
               </div>
               <div className="space-y-1">
+                <Label className="text-xs">To</Label>
+                <Input
+                  type="date"
+                  value={editingBlock.endDate}
+                  onChange={(e) =>
+                    setEditingBlock((prev) =>
+                      prev ? { ...prev, endDate: e.target.value } : null,
+                    )
+                  }
+                />
+              </div>
+            </div>
+
+            {/* Time Range */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
                 <Label className="text-xs">Start Time</Label>
                 <Input
                   type="time"
@@ -248,22 +413,6 @@ function BlockedTimeEditorBody({
                   onChange={(e) =>
                     setEditingBlock((prev) =>
                       prev ? { ...prev, startTime: e.target.value } : null,
-                    )
-                  }
-                />
-              </div>
-            </div>
-
-            {/* End Date/Time */}
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <Label className="text-xs">End Date</Label>
-                <Input
-                  type="date"
-                  value={editingBlock.endDate}
-                  onChange={(e) =>
-                    setEditingBlock((prev) =>
-                      prev ? { ...prev, endDate: e.target.value } : null,
                     )
                   }
                 />
@@ -289,7 +438,21 @@ function BlockedTimeEditorBody({
                 value={editingBlock.recurrence}
                 onValueChange={(value) =>
                   setEditingBlock((prev) =>
-                    prev ? { ...prev, recurrence: value ?? "none" } : null,
+                    prev
+                      ? {
+                          ...prev,
+                          recurrence:
+                            value === "daily" || value === "weekly"
+                              ? value
+                              : "none",
+                          weekdays:
+                            value === "weekly"
+                              ? prev.weekdays.length
+                                ? prev.weekdays
+                                : [getWeekdayFromDate(prev.startDate)]
+                              : [],
+                        }
+                      : null,
                   )
                 }
               >
@@ -314,6 +477,32 @@ function BlockedTimeEditorBody({
                 </SelectContent>
               </Select>
             </div>
+            {editingBlock.recurrence === "weekly" && (
+              <div className="space-y-1">
+                <Label className="text-xs">Days</Label>
+                <div className="flex flex-wrap gap-1.5">
+                  {WEEKDAYS.map((day) => {
+                    const selected = editingBlock.weekdays.includes(day.value);
+                    return (
+                      <Button
+                        key={day.value}
+                        type="button"
+                        size="sm"
+                        variant={selected ? "default" : "outline"}
+                        onClick={() => toggleWeekday(day.value)}
+                      >
+                        {day.short}
+                      </Button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+            {formError && (
+              <p className="text-xs text-destructive" role="alert">
+                {formError}
+              </p>
+            )}
 
             {/* Actions */}
             <div className="flex gap-2 pt-1">
@@ -327,6 +516,7 @@ function BlockedTimeEditorBody({
                 onClick={() => {
                   setEditingBlock(null);
                   setShowForm(false);
+                  setFormError(null);
                 }}
               >
                 Cancel
@@ -367,12 +557,9 @@ function BlockedTimeEditorBody({
                     onClick={() => handleEdit(block)}
                   >
                     <div>
-                      <div className="font-medium">
-                        {formatDisplayDateTime(block.startAt, timezone)} -{" "}
-                        {formatDisplayDateTime(block.endAt, timezone)}
-                      </div>
+                      <div className="font-medium">{getBlockTitle(block)}</div>
                       <div className="text-xs text-muted-foreground">
-                        {rruleToLabel(block.recurringRule)}
+                        {getRecurrenceSummary(block)}
                       </div>
                     </div>
                     <Button
@@ -421,10 +608,10 @@ function BlockedTimeEditorBody({
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            {/* Start Date/Time */}
+            {/* Date Range */}
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1.5">
-                <Label>Start Date</Label>
+                <Label>From</Label>
                 <Input
                   type="date"
                   value={editingBlock.startDate}
@@ -436,6 +623,22 @@ function BlockedTimeEditorBody({
                 />
               </div>
               <div className="space-y-1.5">
+                <Label>To</Label>
+                <Input
+                  type="date"
+                  value={editingBlock.endDate}
+                  onChange={(e) =>
+                    setEditingBlock((prev) =>
+                      prev ? { ...prev, endDate: e.target.value } : null,
+                    )
+                  }
+                />
+              </div>
+            </div>
+
+            {/* Time Range */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1.5">
                 <Label>Start Time</Label>
                 <Input
                   type="time"
@@ -443,22 +646,6 @@ function BlockedTimeEditorBody({
                   onChange={(e) =>
                     setEditingBlock((prev) =>
                       prev ? { ...prev, startTime: e.target.value } : null,
-                    )
-                  }
-                />
-              </div>
-            </div>
-
-            {/* End Date/Time */}
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <Label>End Date</Label>
-                <Input
-                  type="date"
-                  value={editingBlock.endDate}
-                  onChange={(e) =>
-                    setEditingBlock((prev) =>
-                      prev ? { ...prev, endDate: e.target.value } : null,
                     )
                   }
                 />
@@ -484,7 +671,21 @@ function BlockedTimeEditorBody({
                 value={editingBlock.recurrence}
                 onValueChange={(value) =>
                   setEditingBlock((prev) =>
-                    prev ? { ...prev, recurrence: value ?? "none" } : null,
+                    prev
+                      ? {
+                          ...prev,
+                          recurrence:
+                            value === "daily" || value === "weekly"
+                              ? value
+                              : "none",
+                          weekdays:
+                            value === "weekly"
+                              ? prev.weekdays.length
+                                ? prev.weekdays
+                                : [getWeekdayFromDate(prev.startDate)]
+                              : [],
+                        }
+                      : null,
                   )
                 }
               >
@@ -509,6 +710,35 @@ function BlockedTimeEditorBody({
                 </SelectContent>
               </Select>
             </div>
+            {editingBlock.recurrence === "weekly" && (
+              <div className="space-y-1.5">
+                <Label>Days</Label>
+                <div className="flex flex-wrap gap-1.5">
+                  {WEEKDAYS.map((day) => {
+                    const selected = editingBlock.weekdays.includes(day.value);
+                    return (
+                      <Button
+                        key={day.value}
+                        type="button"
+                        size="sm"
+                        variant={selected ? "default" : "outline"}
+                        onClick={() => toggleWeekday(day.value)}
+                      >
+                        {day.label}
+                      </Button>
+                    );
+                  })}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Select which days this recurring block applies to.
+                </p>
+              </div>
+            )}
+            {formError && (
+              <p className="text-sm text-destructive" role="alert">
+                {formError}
+              </p>
+            )}
 
             {/* Actions */}
             <div className="flex gap-2 pt-2">
@@ -521,6 +751,7 @@ function BlockedTimeEditorBody({
                 onClick={() => {
                   setEditingBlock(null);
                   setShowForm(false);
+                  setFormError(null);
                 }}
               >
                 Cancel
@@ -564,12 +795,9 @@ function BlockedTimeEditorBody({
                     onClick={() => handleEdit(block)}
                   >
                     <div>
-                      <div className="font-medium">
-                        {formatDisplayDateTime(block.startAt, timezone)} -{" "}
-                        {formatDisplayDateTime(block.endAt, timezone)}
-                      </div>
+                      <div className="font-medium">{getBlockTitle(block)}</div>
                       <div className="text-sm text-muted-foreground">
-                        {rruleToLabel(block.recurringRule)}
+                        {getRecurrenceSummary(block)}
                       </div>
                     </div>
                     <div className="flex items-center gap-2">

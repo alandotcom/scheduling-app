@@ -66,9 +66,19 @@ function DateOverridesEditorBody({
   );
 
   const overrides = overridesData?.items ?? [];
+  const todayDateKey = DateTime.now().setZone(timezone).toISODate() ?? "";
+  const upcomingOverrides = useMemo(
+    () =>
+      overrides
+        .filter((override) =>
+          todayDateKey ? override.date >= todayDateKey : true,
+        )
+        .sort((a, b) => a.date.localeCompare(b.date)),
+    [overrides, todayDateKey],
+  );
   const markedDates = useMemo(
-    () => new Set(overrides.map((override) => override.date)),
-    [overrides],
+    () => new Set(upcomingOverrides.map((override) => override.date)),
+    [upcomingOverrides],
   );
 
   const createMutation = useMutation(
@@ -144,6 +154,10 @@ function DateOverridesEditorBody({
 
   const handleDateSelect = (date: DateTime) => {
     const dateStr = formatDate(date);
+    if (todayDateKey && dateStr < todayDateKey) {
+      return;
+    }
+
     const existing = overrides.find((override) => override.date === dateStr);
 
     if (existing) {
@@ -219,6 +233,8 @@ function DateOverridesEditorBody({
             selectedDate={selectedDate}
             onSelectDate={handleDateSelect}
             markedDates={markedDates}
+            timezone={timezone}
+            disablePastDates
           />
           <p className="mt-3 text-xs text-muted-foreground">
             Click a date to add or edit an override. Dates with dots have
@@ -286,53 +302,51 @@ function DateOverridesEditorBody({
 
         <div className="rounded-lg border border-border bg-card p-4">
           <h4 className="mb-3 text-sm font-medium">Upcoming Overrides</h4>
-          {overrides.length === 0 ? (
+          {upcomingOverrides.length === 0 ? (
             <p className="text-sm text-muted-foreground">
-              No date overrides configured.
+              No upcoming overrides configured.
             </p>
           ) : (
             <div className="space-y-1.5">
-              {overrides
-                .sort((a, b) => a.date.localeCompare(b.date))
-                .map((override) => {
-                  const summary =
-                    override.timeRanges.length === 0
-                      ? "Blocked"
-                      : formatTimeBlocksForInput(override.timeRanges);
+              {upcomingOverrides.map((override) => {
+                const summary =
+                  override.timeRanges.length === 0
+                    ? "Blocked"
+                    : formatTimeBlocksForInput(override.timeRanges);
 
-                  return (
-                    <div
-                      key={override.id}
-                      className="flex cursor-pointer items-center justify-between rounded-md bg-muted/30 px-2 py-1.5 text-sm transition-colors hover:bg-muted/50"
-                      onClick={() =>
-                        openEditor(DateTime.fromISO(override.date), {
-                          id: override.id,
-                          date: override.date,
-                          timeRanges: override.timeRanges,
-                        })
-                      }
-                    >
-                      <div>
-                        <span className="font-medium">
-                          {formatDisplayDate(override.date, timezone)}
-                        </span>
-                        <span className="ml-2 text-muted-foreground">
-                          {summary}
-                        </span>
-                      </div>
-                      <Button
-                        variant="ghost"
-                        size="icon-xs"
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          handleDelete(override.id);
-                        }}
-                      >
-                        <Icon icon={Delete01Icon} />
-                      </Button>
+                return (
+                  <div
+                    key={override.id}
+                    className="flex cursor-pointer items-center justify-between rounded-md bg-muted/30 px-2 py-1.5 text-sm transition-colors hover:bg-muted/50"
+                    onClick={() =>
+                      openEditor(DateTime.fromISO(override.date), {
+                        id: override.id,
+                        date: override.date,
+                        timeRanges: override.timeRanges,
+                      })
+                    }
+                  >
+                    <div>
+                      <span className="font-medium">
+                        {formatDisplayDate(override.date, timezone)}
+                      </span>
+                      <span className="ml-2 text-muted-foreground">
+                        {summary}
+                      </span>
                     </div>
-                  );
-                })}
+                    <Button
+                      variant="ghost"
+                      size="icon-xs"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        handleDelete(override.id);
+                      }}
+                    >
+                      <Icon icon={Delete01Icon} />
+                    </Button>
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>
@@ -354,6 +368,8 @@ function DateOverridesEditorBody({
             selectedDate={selectedDate}
             onSelectDate={handleDateSelect}
             markedDates={markedDates}
+            timezone={timezone}
+            disablePastDates
           />
           <p className="mt-4 text-sm text-muted-foreground">
             Click a date to add or edit an override. Dates with dots have
@@ -429,54 +445,52 @@ function DateOverridesEditorBody({
             <CardTitle className="text-lg">Upcoming Overrides</CardTitle>
           </CardHeader>
           <CardContent>
-            {overrides.length === 0 ? (
+            {upcomingOverrides.length === 0 ? (
               <p className="text-muted-foreground">
-                No date overrides configured. Click a date on the calendar to
-                add one.
+                No upcoming overrides configured. Click a date on the calendar
+                to add one.
               </p>
             ) : (
               <div className="space-y-2">
-                {overrides
-                  .sort((a, b) => a.date.localeCompare(b.date))
-                  .map((override) => {
-                    const summary =
-                      override.timeRanges.length === 0
-                        ? "Blocked"
-                        : formatTimeBlocksForInput(override.timeRanges);
+                {upcomingOverrides.map((override) => {
+                  const summary =
+                    override.timeRanges.length === 0
+                      ? "Blocked"
+                      : formatTimeBlocksForInput(override.timeRanges);
 
-                    return (
-                      <div
-                        key={override.id}
-                        className="flex cursor-pointer items-center justify-between rounded-lg bg-muted/30 px-3 py-2 transition-colors hover:bg-muted/50"
-                        onClick={() =>
-                          openEditor(DateTime.fromISO(override.date), {
-                            id: override.id,
-                            date: override.date,
-                            timeRanges: override.timeRanges,
-                          })
-                        }
-                      >
-                        <div>
-                          <span className="font-medium">
-                            {formatDisplayDate(override.date, timezone)}
-                          </span>
-                          <span className="ml-2 text-muted-foreground">
-                            {summary}
-                          </span>
-                        </div>
-                        <Button
-                          variant="ghost"
-                          size="icon-xs"
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            handleDelete(override.id);
-                          }}
-                        >
-                          <Icon icon={Delete01Icon} />
-                        </Button>
+                  return (
+                    <div
+                      key={override.id}
+                      className="flex cursor-pointer items-center justify-between rounded-lg bg-muted/30 px-3 py-2 transition-colors hover:bg-muted/50"
+                      onClick={() =>
+                        openEditor(DateTime.fromISO(override.date), {
+                          id: override.id,
+                          date: override.date,
+                          timeRanges: override.timeRanges,
+                        })
+                      }
+                    >
+                      <div>
+                        <span className="font-medium">
+                          {formatDisplayDate(override.date, timezone)}
+                        </span>
+                        <span className="ml-2 text-muted-foreground">
+                          {summary}
+                        </span>
                       </div>
-                    );
-                  })}
+                      <Button
+                        variant="ghost"
+                        size="icon-xs"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          handleDelete(override.id);
+                        }}
+                      >
+                        <Icon icon={Delete01Icon} />
+                      </Button>
+                    </div>
+                  );
+                })}
               </div>
             )}
           </CardContent>

@@ -12,19 +12,25 @@ interface MiniCalendarProps {
   selectedDate: DateTime | null;
   onSelectDate: (date: DateTime) => void;
   markedDates: Set<string>;
+  timezone?: string;
+  disablePastDates?: boolean;
 }
 
 export function MiniCalendar({
   selectedDate,
   onSelectDate,
   markedDates,
+  timezone,
+  disablePastDates = false,
 }: MiniCalendarProps) {
   const [viewDate, setViewDate] = useState(() => DateTime.now());
 
   const year = viewDate.year;
   const month = viewDate.month - 1;
   const days = useMemo(() => getMonthDays(year, month), [year, month]);
-  const today = formatDate(DateTime.now());
+  const today = formatDate(
+    timezone ? DateTime.now().setZone(timezone) : DateTime.now(),
+  );
 
   const prevMonth = () => setViewDate((prev) => prev.minus({ months: 1 }));
   const nextMonth = () => setViewDate((prev) => prev.plus({ months: 1 }));
@@ -68,16 +74,18 @@ export function MiniCalendar({
             selectedDate && formatDate(selectedDate) === dateStr;
           const isMarked = markedDates.has(dateStr);
           const isToday = dateStr === today;
+          const isPast = disablePastDates && dateStr < today;
 
           return (
             <button
               key={i}
               onClick={() => onSelectDate(date)}
-              disabled={!isCurrentMonth}
+              disabled={!isCurrentMonth || isPast}
               className={`
                 relative aspect-square flex items-center justify-center text-sm rounded-md
                 transition-all duration-150
                 ${!isCurrentMonth ? "text-muted-foreground/40 cursor-not-allowed" : "hover:bg-muted"}
+                ${isPast ? "text-muted-foreground/40 cursor-not-allowed" : ""}
                 ${isSelected ? "bg-primary text-primary-foreground hover:bg-primary/90" : ""}
                 ${isToday && !isSelected ? "ring-1 ring-primary" : ""}
               `}

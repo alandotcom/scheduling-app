@@ -47,6 +47,7 @@ describe("modal layout positioning", () => {
     expect(popup).toBeTruthy();
     expect(popup?.className).toContain("top-4");
     expect(popup?.className).not.toContain("-translate-y-1/2");
+    expect(popup?.className).toContain("max-w-4xl");
     expect(document.body.textContent).toContain("Header Action");
   });
 
@@ -59,6 +60,7 @@ describe("modal layout positioning", () => {
     expect(popup).toBeTruthy();
     expect(popup?.className).toContain("top-2");
     expect(popup?.className).not.toContain("-translate-y-1/2");
+    expect(popup?.className).toContain("max-w-4xl");
   });
 
   test("RescheduleDialog keeps a top anchor", () => {
@@ -77,6 +79,7 @@ describe("modal layout positioning", () => {
     expect(popup).toBeTruthy();
     expect(popup?.className).toContain("top-2");
     expect(popup?.className).not.toContain("-translate-y-1/2");
+    expect(popup?.className).toContain("max-w-4xl");
   });
 
   test("AvailabilityManageModal keeps a top anchor", () => {
@@ -95,6 +98,7 @@ describe("modal layout positioning", () => {
     expect(popup).toBeTruthy();
     expect(popup?.className).toContain("top-2");
     expect(popup?.className).not.toContain("-translate-y-1/2");
+    expect(popup?.className).toContain("max-w-4xl");
   });
 
   test("AlertDialog is centered in the viewport", () => {

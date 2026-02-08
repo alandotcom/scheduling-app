@@ -521,7 +521,6 @@ function CalendarsPage() {
             ? `${formatTimezoneShort(displayCalendar.timezone)} · ${getLocationName(displayCalendar.locationId)}`
             : undefined
         }
-        className="max-w-6xl"
       >
         {displayCalendar ? (
           <div className="space-y-4">

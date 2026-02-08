@@ -4,6 +4,7 @@ import { Cancel01Icon } from "@hugeicons/core-free-icons";
 
 import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
+import { STANDARD_MODAL_MAX_WIDTH_CLASS } from "@/lib/modal";
 import { cn } from "@/lib/utils";
 
 interface EntityModalProps {
@@ -44,7 +45,8 @@ export function EntityModal({
         <DialogPrimitive.Popup
           data-slot="entity-modal-content"
           className={cn(
-            "fixed left-1/2 top-4 z-50 w-[calc(100vw-2rem)] max-w-xl -translate-x-1/2 sm:top-8",
+            "fixed left-1/2 top-4 z-50 w-[calc(100vw-2rem)] -translate-x-1/2 sm:top-8",
+            STANDARD_MODAL_MAX_WIDTH_CLASS,
             "max-h-[calc(100dvh-2rem)] overflow-hidden rounded-xl border border-border bg-background shadow-xl sm:h-[min(86dvh,52rem)] sm:max-h-[calc(100dvh-4rem)] sm:min-h-[36rem]",
             "flex flex-col",
             "data-open:animate-in data-closed:animate-out",

@@ -503,7 +503,6 @@ function AppointmentTypesPage() {
           if (!open) closeManageModal();
         }}
         title={displayManageType?.name ?? ""}
-        className="max-w-4xl"
       >
         {displayManageType ? (
           <div className="space-y-4">

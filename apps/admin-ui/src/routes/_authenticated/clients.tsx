@@ -583,8 +583,8 @@ function ClientsPage() {
         }
         className={
           displayAppointment
-            ? "max-w-5xl sm:h-[min(94dvh,60rem)] sm:min-h-[42rem]"
-            : "max-w-5xl"
+            ? "sm:h-[min(94dvh,60rem)] sm:min-h-[42rem]"
+            : undefined
         }
         headerActions={
           displayAppointment ? (

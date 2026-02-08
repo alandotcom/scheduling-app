@@ -3,6 +3,7 @@ import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
 import { Cancel01Icon } from "@hugeicons/core-free-icons";
 
 import { formatTimezoneShort } from "@/lib/date-utils";
+import { STANDARD_MODAL_MAX_WIDTH_CLASS } from "@/lib/modal";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
@@ -58,7 +59,8 @@ export function AvailabilityManageModal({
         <DialogPrimitive.Popup
           data-slot="availability-manage-modal-content"
           className={cn(
-            "fixed left-1/2 top-2 z-[71] w-[calc(100vw-1rem)] max-w-4xl -translate-x-1/2 sm:top-8 sm:w-full",
+            "fixed left-1/2 top-2 z-[71] w-[calc(100vw-1rem)] -translate-x-1/2 sm:top-8 sm:w-full",
+            STANDARD_MODAL_MAX_WIDTH_CLASS,
             "rounded-xl border border-border bg-background shadow-xl",
             "data-open:animate-in data-closed:animate-out",
             "data-closed:fade-out-0 data-open:fade-in-0",

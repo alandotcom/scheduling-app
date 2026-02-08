@@ -409,7 +409,6 @@ function ResourcesPage() {
             ? getLocationName(displayResource.locationId)
             : undefined
         }
-        className="max-w-3xl"
       >
         {displayResource ? (
           <div className="space-y-4">

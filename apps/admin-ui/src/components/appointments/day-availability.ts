@@ -14,6 +14,14 @@ function slotDateKey(startIso: string, timezone: string): string | null {
   return dt.isValid ? dt.toISODate() : null;
 }
 
+function getTodayDateKey(
+  timezone: string,
+  now: DateTime = DateTime.now(),
+): string | null {
+  const dt = now.setZone(timezone);
+  return dt.isValid ? dt.toISODate() : null;
+}
+
 export function buildDayAvailabilityMap(
   slots: AvailabilitySlotLike[],
   timezone: string,
@@ -48,4 +56,24 @@ export function getDayAvailabilityLevel(
   if (availableCount <= 0) return "none";
   if (availableCount <= lowThreshold) return "low";
   return "good";
+}
+
+export function isPastDateForTimezone(
+  dateKey: string,
+  timezone: string,
+  now: DateTime = DateTime.now(),
+): boolean {
+  const todayDateKey = getTodayDateKey(timezone, now);
+  if (!todayDateKey) return false;
+  return dateKey < todayDateKey;
+}
+
+export function isTodayForTimezone(
+  dateKey: string,
+  timezone: string,
+  now: DateTime = DateTime.now(),
+): boolean {
+  const todayDateKey = getTodayDateKey(timezone, now);
+  if (!todayDateKey) return false;
+  return dateKey === todayDateKey;
 }

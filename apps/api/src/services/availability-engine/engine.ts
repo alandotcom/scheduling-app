@@ -795,7 +795,10 @@ export class AvailabilityService {
     // Handle recurring blocked time
     if (blocked.recurringRule) {
       try {
-        const rrule = RRule.fromString(blocked.recurringRule);
+        const rruleOptions = RRule.parseString(blocked.recurringRule);
+        // Anchor recurrence to the block's configured start timestamp.
+        rruleOptions.dtstart = blocked.startAt;
+        const rrule = new RRule(rruleOptions);
         const occurrences = rrule.between(
           DateTime.fromJSDate(start).minus({ days: 1 }).toJSDate(),
           DateTime.fromJSDate(end).plus({ days: 1 }).toJSDate(),

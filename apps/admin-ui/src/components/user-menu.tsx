@@ -180,7 +180,6 @@ export function UserMenu({
         onOpenChange={setCreateOpen}
         title="Create Organization"
         description="Create a new workspace and switch into it immediately."
-        className="max-w-md"
       >
         <form
           className="space-y-4"
