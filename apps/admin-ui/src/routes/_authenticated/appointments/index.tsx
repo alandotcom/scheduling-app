@@ -16,7 +16,6 @@ import {
   getUserTimezone,
   parseDateParamInTimezone,
 } from "@/lib/date-utils";
-import { TIMEZONES } from "@/lib/constants";
 import { resolveSelectValueLabel } from "@/lib/select-value-label";
 import {
   DEFAULT_SCHEDULING_TIMEZONE_MODE,
@@ -66,6 +65,8 @@ import {
   formatDateParam,
 } from "@/hooks/use-schedule-appointments";
 import { ViewToggle } from "@/components/appointments/view-toggle";
+import { TimeDisplayToggle } from "@/components/appointments/time-display-toggle";
+import { AppointmentsTimezoneControl } from "@/components/appointments/appointments-timezone-control";
 import { AppointmentsList } from "@/components/appointments/appointments-list";
 import { AppointmentDetail } from "@/components/appointments/appointment-detail";
 import { ScheduleGrid } from "@/components/appointments/schedule-grid";
@@ -277,8 +278,6 @@ function AppointmentsPage() {
     viewerTimezone,
   });
   const displayTimezoneShort = formatTimezoneShort(displayTimezone);
-  const showCalendarTimezoneSelector =
-    timezoneMode === "calendar" && !selectedCalendar;
 
   // Parse date param for schedule view or default to current week
   const weekStart = useMemo(() => {
@@ -569,67 +568,27 @@ function AppointmentsPage() {
 
   return (
     <div className="mx-auto max-w-7xl px-4 pb-24 pt-6 sm:px-6 sm:pb-6 lg:px-8">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="min-w-0 flex-1">
-          <h1 className="truncate text-2xl font-semibold tracking-tight">
-            Appointments
-          </h1>
-          <p className="mt-1 truncate text-sm text-muted-foreground">
-            View and manage all appointments
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2 sm:shrink-0 sm:gap-3">
-          <ViewToggle view={currentView} onViewChange={setView} />
-          <Select
-            value={timezoneMode}
-            onValueChange={(value) => {
-              if (value && isSchedulingTimezoneMode(value)) {
-                setTimezoneMode(value);
-              }
-            }}
-          >
-            <SelectTrigger className="w-[165px]">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="calendar">Calendar time</SelectItem>
-              <SelectItem value="viewer">My time</SelectItem>
-            </SelectContent>
-          </Select>
-          {showCalendarTimezoneSelector && (
-            <Select
-              value={displayTimezone}
-              onValueChange={(value) => {
-                if (!value) return;
-                setDisplayTimezone(value);
-              }}
-            >
-              <SelectTrigger className="w-[180px] sm:w-[220px]">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {TIMEZONES.map((timezone) => (
-                  <SelectItem key={timezone} value={timezone}>
-                    {timezone}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          )}
-          <span
-            className="text-xs text-muted-foreground"
-            title={displayTimezone}
-          >
-            {displayTimezoneShort}
-          </span>
-          <Button
-            className="hidden sm:inline-flex"
-            onClick={() => setModalOpen(true)}
-          >
-            <Icon icon={Add01Icon} data-icon="inline-start" />
-            <span>New Appointment</span>
-          </Button>
-        </div>
+      <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+        <ViewToggle view={currentView} onViewChange={setView} size="sm" />
+        <TimeDisplayToggle
+          value={timezoneMode}
+          onValueChange={setTimezoneMode}
+          size="sm"
+        />
+        <AppointmentsTimezoneControl
+          timezoneMode={timezoneMode}
+          displayTimezone={displayTimezone}
+          displayTimezoneShort={displayTimezoneShort}
+          selectedCalendarTimezone={selectedCalendar?.timezone}
+          onTimezoneChange={setDisplayTimezone}
+        />
+        <Button
+          className="hidden h-8 min-w-[210px] justify-center text-sm sm:inline-flex"
+          onClick={() => setModalOpen(true)}
+        >
+          <Icon icon={Add01Icon} data-icon="inline-start" />
+          <span>New Appointment</span>
+        </Button>
       </div>
 
       {/* Filters */}

@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useMemo } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useNavigate } from "@tanstack/react-router";
 import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
 import { DateTime } from "luxon";
 import {
@@ -26,19 +27,12 @@ import {
 } from "@/lib/date-utils";
 import {
   DEFAULT_SCHEDULING_TIMEZONE_MODE,
-  isSchedulingTimezoneMode,
   resolveEffectiveSchedulingTimezone,
   type SchedulingTimezoneMode,
 } from "@/lib/scheduling-timezone";
+import { TimeDisplayToggle } from "@/components/appointments/time-display-toggle";
 import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 
 interface RescheduleDialogProps {
   appointment: AppointmentWithRelations;
@@ -59,6 +53,7 @@ export function RescheduleDialog({
   displayTimezone,
   defaultTimezone,
 }: RescheduleDialogProps) {
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const viewerTimezone = getUserTimezone();
   const [localTimezoneMode, setLocalTimezoneMode] =
@@ -151,6 +146,19 @@ export function RescheduleDialog({
     }));
   }, [viewMonth]);
 
+  const openCalendarAvailability = () => {
+    const calendarId = appointment.calendarId;
+    if (!calendarId) return;
+    handleOpenChange(false);
+    void navigate({
+      to: "/calendars",
+      search: {
+        selected: calendarId,
+        tab: "availability",
+      },
+    });
+  };
+
   return (
     <DialogPrimitive.Root open={open} onOpenChange={handleOpenChange}>
       <DialogPrimitive.Portal>
@@ -163,14 +171,15 @@ export function RescheduleDialog({
           )}
         />
         <DialogPrimitive.Popup
+          data-slot="reschedule-dialog-content"
           className={cn(
-            "fixed left-1/2 top-1/2 z-50 w-full max-w-2xl -translate-x-1/2 -translate-y-1/2",
+            "fixed left-1/2 top-2 z-50 w-[calc(100vw-1rem)] max-w-2xl -translate-x-1/2 sm:top-8 sm:w-full",
             "rounded-xl border border-border bg-background shadow-xl",
             "data-open:animate-in data-closed:animate-out",
             "data-closed:fade-out-0 data-open:fade-in-0",
             "data-closed:zoom-out-95 data-open:zoom-in-95",
             "duration-200",
-            "max-h-[90vh] overflow-hidden flex flex-col",
+            "max-h-[calc(100dvh-1rem)] overflow-hidden flex flex-col sm:h-[min(86dvh,52rem)] sm:max-h-[calc(100dvh-4rem)] sm:min-h-[36rem]",
           )}
         >
           {/* Header */}
@@ -210,36 +219,28 @@ export function RescheduleDialog({
               </div>
             </div>
 
-            <div className="mb-6 flex items-end justify-between gap-4 rounded-lg border border-border bg-muted/30 px-4 py-3">
+            <div className="mb-6 rounded-lg border border-border bg-muted/30 px-4 py-3">
               <div className="space-y-2">
                 <label className="text-sm font-medium">Time Display</label>
-                <Select
+                <TimeDisplayToggle
                   value={timezoneMode}
                   onValueChange={(value) => {
-                    if (!value || !isSchedulingTimezoneMode(value)) return;
                     if (onTimezoneModeChange) {
                       onTimezoneModeChange(value);
                       return;
                     }
                     setLocalTimezoneMode(value);
                   }}
+                />
+                <p
+                  className="text-sm text-muted-foreground"
+                  title={effectiveTimezone}
                 >
-                  <SelectTrigger className="w-[180px]">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="calendar">Calendar time</SelectItem>
-                    <SelectItem value="viewer">My time</SelectItem>
-                  </SelectContent>
-                </Select>
+                  Showing{" "}
+                  {timezoneMode === "viewer" ? "your local" : "calendar"} time (
+                  {timezoneShortLabel})
+                </p>
               </div>
-              <p
-                className="text-sm text-muted-foreground"
-                title={effectiveTimezone}
-              >
-                Showing {timezoneMode === "viewer" ? "your local" : "calendar"}{" "}
-                time ({timezoneShortLabel})
-              </p>
             </div>
 
             {/* Calendar and Time Selection */}
@@ -336,8 +337,18 @@ export function RescheduleDialog({
                     Loading times...
                   </div>
                 ) : availableSlots.length === 0 ? (
-                  <div className="text-sm text-muted-foreground">
-                    No available times on this date
+                  <div className="space-y-2">
+                    <p className="text-sm text-muted-foreground">
+                      No available times on this date
+                    </p>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={openCalendarAvailability}
+                    >
+                      Manage availability
+                    </Button>
                   </div>
                 ) : (
                   <div className="grid grid-cols-2 gap-2 max-h-64 overflow-y-auto">

@@ -1,0 +1,102 @@
+/// <reference lib="dom" />
+
+import { afterEach, describe, expect, test } from "bun:test";
+import { QueryClientProvider } from "@tanstack/react-query";
+import { cleanup, render } from "@testing-library/react";
+import type { ReactElement } from "react";
+import { createTestQueryClient, createAppointmentFixture } from "@/test-utils";
+import { AppointmentModal } from "@/components/appointment-modal";
+import { RescheduleDialog } from "@/components/appointments/reschedule-dialog";
+import { EntityModal } from "@/components/entity-modal";
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+
+afterEach(() => {
+  cleanup();
+});
+
+function renderWithQuery(ui: ReactElement) {
+  const queryClient = createTestQueryClient();
+  return render(
+    <QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>,
+  );
+}
+
+describe("modal layout positioning", () => {
+  test("EntityModal keeps a top anchor and renders header actions", () => {
+    render(
+      <EntityModal
+        open
+        onOpenChange={() => {}}
+        title="Entity"
+        headerActions={<button type="button">Header Action</button>}
+      >
+        <div>Entity body</div>
+      </EntityModal>,
+    );
+
+    const popup = document.querySelector<HTMLElement>(
+      '[data-slot="entity-modal-content"]',
+    );
+    expect(popup).toBeTruthy();
+    expect(popup?.className).toContain("top-4");
+    expect(popup?.className).not.toContain("-translate-y-1/2");
+    expect(document.body.textContent).toContain("Header Action");
+  });
+
+  test("AppointmentModal keeps a top anchor", () => {
+    renderWithQuery(<AppointmentModal open onOpenChange={() => {}} />);
+
+    const popup = document.querySelector<HTMLElement>(
+      '[data-slot="appointment-modal-content"]',
+    );
+    expect(popup).toBeTruthy();
+    expect(popup?.className).toContain("top-2");
+    expect(popup?.className).not.toContain("-translate-y-1/2");
+  });
+
+  test("RescheduleDialog keeps a top anchor", () => {
+    const appointment = createAppointmentFixture();
+    renderWithQuery(
+      <RescheduleDialog
+        appointment={appointment}
+        open
+        onOpenChange={() => {}}
+      />,
+    );
+
+    const popup = document.querySelector<HTMLElement>(
+      '[data-slot="reschedule-dialog-content"]',
+    );
+    expect(popup).toBeTruthy();
+    expect(popup?.className).toContain("top-2");
+    expect(popup?.className).not.toContain("-translate-y-1/2");
+  });
+
+  test("AlertDialog keeps a top anchor", () => {
+    render(
+      <AlertDialog open onOpenChange={() => {}}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirm</AlertDialogTitle>
+            <AlertDialogDescription>
+              Confirmation description.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+        </AlertDialogContent>
+      </AlertDialog>,
+    );
+
+    const popup = document.querySelector<HTMLElement>(
+      '[data-slot="alert-dialog-content"]',
+    );
+    expect(popup).toBeTruthy();
+    expect(popup?.className).toContain("top-4");
+    expect(popup?.className).not.toContain("-translate-y-1/2");
+  });
+});

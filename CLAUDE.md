@@ -83,6 +83,7 @@ Use these skills (`/skill-name`) when working in relevant areas:
 | `/base-ui` | Adding accessible, unstyled UI components |
 | `/frontend-design` | Building pages, layouts, visual design |
 | `/web-design-guidelines` | UI reviews, accessibility audits, UX checks |
+| `/drizzle` | Drizzle ORM schemas, relations v2, queries, migrations |
 
 
 ## Dependencies

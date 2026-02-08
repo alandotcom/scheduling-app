@@ -3,6 +3,7 @@
 import { useEffect, useState, useMemo } from "react";
 import { DateTime } from "luxon";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useNavigate } from "@tanstack/react-router";
 import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
 import {
   ArrowLeft02Icon,
@@ -23,12 +24,12 @@ import {
 } from "@/lib/date-utils";
 import {
   DEFAULT_SCHEDULING_TIMEZONE_MODE,
-  isSchedulingTimezoneMode,
   resolveEffectiveSchedulingTimezone,
   type SchedulingTimezoneMode,
 } from "@/lib/scheduling-timezone";
 import { resolveSelectValueLabel } from "@/lib/select-value-label";
 import { cn } from "@/lib/utils";
+import { TimeDisplayToggle } from "@/components/appointments/time-display-toggle";
 import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
 import { Label } from "@/components/ui/label";
@@ -46,6 +47,7 @@ interface AppointmentModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   defaultCalendarId?: string;
+  defaultCalendarName?: string;
   defaultTypeId?: string;
   defaultClientId?: string;
   defaultClientName?: string;
@@ -59,6 +61,7 @@ export function AppointmentModal({
   open,
   onOpenChange,
   defaultCalendarId,
+  defaultCalendarName,
   defaultTypeId,
   defaultClientId,
   defaultClientName,
@@ -67,6 +70,7 @@ export function AppointmentModal({
   displayTimezone,
   defaultTimezone,
 }: AppointmentModalProps) {
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const viewerTimezone = getUserTimezone();
   const [localTimezoneMode, setLocalTimezoneMode] =
@@ -187,7 +191,7 @@ export function AppointmentModal({
     options: calendars,
     getOptionValue: (calendar) => calendar.id,
     getOptionLabel: (calendar) => calendar.name,
-    unknownLabel: "Unknown calendar",
+    unknownLabel: defaultCalendarName ?? "Unknown calendar",
   });
   // Generate calendar days
   const calendarDays = useMemo(() => {
@@ -217,7 +221,6 @@ export function AppointmentModal({
 
   const handleTypeChange = (typeId: string) => {
     setSelectedTypeId(typeId);
-    setSelectedCalendarId("");
     setSelectedDate(null);
     setSelectedTime("");
   };
@@ -246,10 +249,51 @@ export function AppointmentModal({
     });
   };
 
+  const openCalendarAvailability = (calendarId: string) => {
+    handleClose();
+    void navigate({
+      to: "/calendars",
+      search: {
+        selected: calendarId,
+        tab: "availability",
+      },
+    });
+  };
+
   useEffect(() => {
     if (!open) return;
     setSelectedTime("");
   }, [open, timezoneMode]);
+
+  useEffect(() => {
+    if (!open || !selectedTypeId || calendarsLoading) return;
+
+    const hasSelectedCalendar = calendars.some(
+      (calendar) => calendar.id === selectedCalendarId,
+    );
+    if (selectedCalendarId && !hasSelectedCalendar) {
+      setSelectedCalendarId("");
+      setSelectedDate(null);
+      setSelectedTime("");
+      return;
+    }
+
+    if (!selectedCalendarId && defaultCalendarId) {
+      const hasDefaultCalendar = calendars.some(
+        (calendar) => calendar.id === defaultCalendarId,
+      );
+      if (hasDefaultCalendar) {
+        setSelectedCalendarId(defaultCalendarId);
+      }
+    }
+  }, [
+    calendars,
+    calendarsLoading,
+    defaultCalendarId,
+    open,
+    selectedCalendarId,
+    selectedTypeId,
+  ]);
 
   const formatTime = (isoString: string) => {
     return formatTimeDisplay(isoString, effectiveTimezone);
@@ -279,10 +323,10 @@ export function AppointmentModal({
         <DialogPrimitive.Popup
           data-slot="appointment-modal-content"
           className={cn(
-            "fixed left-1/2 top-1/2 z-50 w-[calc(100vw-1rem)] max-w-2xl -translate-x-1/2 -translate-y-1/2 sm:w-full",
+            "fixed left-1/2 top-2 z-50 w-[calc(100vw-1rem)] max-w-2xl -translate-x-1/2 sm:top-8 sm:w-full",
             "rounded-xl border border-border bg-background shadow-xl",
             "data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 duration-150",
-            "max-h-[92vh] overflow-hidden flex flex-col sm:max-h-[90vh]",
+            "max-h-[calc(100dvh-1rem)] overflow-hidden flex flex-col sm:h-[min(86dvh,52rem)] sm:max-h-[calc(100dvh-4rem)] sm:min-h-[36rem]",
           )}
         >
           {/* Header */}
@@ -362,36 +406,29 @@ export function AppointmentModal({
               </div>
             </div>
 
-            <div className="mb-5 flex flex-col gap-3 rounded-lg border border-border bg-muted/30 px-4 py-3 sm:mb-6 sm:flex-row sm:items-end sm:justify-between">
+            <div className="mb-5 rounded-lg border border-border bg-muted/30 px-4 py-3 sm:mb-6">
               <div className="space-y-2">
                 <Label>Time Display</Label>
-                <Select
+                <TimeDisplayToggle
                   value={timezoneMode}
                   onValueChange={(value) => {
-                    if (!value || !isSchedulingTimezoneMode(value)) return;
                     if (onTimezoneModeChange) {
                       onTimezoneModeChange(value);
                       return;
                     }
                     setLocalTimezoneMode(value);
                   }}
+                  className="w-full sm:w-fit"
+                />
+                <p
+                  className="text-sm text-muted-foreground"
+                  title={effectiveTimezone}
                 >
-                  <SelectTrigger className="w-full sm:w-[180px]">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="calendar">Calendar time</SelectItem>
-                    <SelectItem value="viewer">My time</SelectItem>
-                  </SelectContent>
-                </Select>
+                  Showing{" "}
+                  {timezoneMode === "viewer" ? "your local" : "calendar"} time (
+                  {timezoneShortLabel})
+                </p>
               </div>
-              <p
-                className="text-sm text-muted-foreground"
-                title={effectiveTimezone}
-              >
-                Showing {timezoneMode === "viewer" ? "your local" : "calendar"}{" "}
-                time ({timezoneShortLabel})
-              </p>
             </div>
 
             {/* Calendar and Time Selection */}
@@ -486,8 +523,22 @@ export function AppointmentModal({
                       Loading times...
                     </div>
                   ) : availableSlots.length === 0 ? (
-                    <div className="text-sm text-muted-foreground">
-                      No available times on this date
+                    <div className="space-y-2">
+                      <p className="text-sm text-muted-foreground">
+                        No available times on this date
+                      </p>
+                      {selectedCalendarId ? (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() =>
+                            openCalendarAvailability(selectedCalendarId)
+                          }
+                        >
+                          Manage availability
+                        </Button>
+                      ) : null}
                     </div>
                   ) : (
                     <div className="grid grid-cols-2 gap-2 max-h-64 overflow-y-auto">

@@ -1,6 +1,6 @@
 // Appointment Types management page with modal-based CRUD
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
@@ -196,6 +196,15 @@ function AppointmentTypesPage() {
     () => appointmentTypes.find((item) => item.id === manageTypeId) ?? null,
     [appointmentTypes, manageTypeId],
   );
+  const [closingManageTypeSnapshot, setClosingManageTypeSnapshot] =
+    useState<AppointmentTypeItem | null>(null);
+
+  useEffect(() => {
+    if (!manageType) return;
+    setClosingManageTypeSnapshot(manageType);
+  }, [manageType]);
+
+  const displayManageType = manageType ?? closingManageTypeSnapshot;
 
   const {
     createMutation,
@@ -208,7 +217,6 @@ function AppointmentTypesPage() {
     removeResourceMutation,
   } = useAppointmentTypeMutations({
     onCreateSuccess: crud.closeCreate,
-    onUpdateSuccess: crud.closeEdit,
     onDeleteSuccess: () => {
       const removedId = crud.deletingItemId;
       crud.closeDelete();
@@ -223,9 +231,9 @@ function AppointmentTypesPage() {
   };
 
   const handleUpdate = (formData: CreateAppointmentTypeInput) => {
-    if (!crud.editingItem) return;
+    if (!displayManageType) return;
     updateMutation.mutate({
-      id: crud.editingItem.id,
+      id: displayManageType.id,
       data: formData,
     });
   };
@@ -312,7 +320,10 @@ function AppointmentTypesPage() {
       {
         label: "Edit",
         icon: PencilEdit01Icon,
-        onClick: () => crud.openEdit(type),
+        onClick: () => {
+          setManageTypeId(type.id);
+          setManageTab("details");
+        },
         separator: true,
       },
       {
@@ -327,7 +338,6 @@ function AppointmentTypesPage() {
 
   const closeManageModal = () => {
     setManageTypeId(null);
-    setManageTab("details");
   };
 
   return (
@@ -385,11 +395,15 @@ function AppointmentTypesPage() {
                     <TableRow
                       className="cursor-pointer transition-colors hover:bg-muted/50"
                       tabIndex={0}
-                      onClick={() => crud.openEdit(type)}
+                      onClick={() => {
+                        setManageTypeId(type.id);
+                        setManageTab("details");
+                      }}
                       onKeyDown={(event) => {
                         if (event.key === "Enter" || event.key === " ") {
                           event.preventDefault();
-                          crud.openEdit(type);
+                          setManageTypeId(type.id);
+                          setManageTab("details");
                         }
                       }}
                     >
@@ -449,37 +463,14 @@ function AppointmentTypesPage() {
       </EntityModal>
 
       <EntityModal
-        open={!!crud.editingItem}
-        onOpenChange={(open) => {
-          if (!open) crud.closeEdit();
-        }}
-        title="Edit Appointment Type"
-      >
-        {crud.editingItem ? (
-          <AppointmentTypeForm
-            defaultValues={{
-              name: crud.editingItem.name,
-              durationMin: crud.editingItem.durationMin,
-              paddingBeforeMin: crud.editingItem.paddingBeforeMin ?? undefined,
-              paddingAfterMin: crud.editingItem.paddingAfterMin ?? undefined,
-              capacity: crud.editingItem.capacity ?? undefined,
-            }}
-            onSubmit={handleUpdate}
-            onCancel={crud.closeEdit}
-            isSubmitting={updateMutation.isPending}
-          />
-        ) : null}
-      </EntityModal>
-
-      <EntityModal
         open={!!manageType}
         onOpenChange={(open) => {
           if (!open) closeManageModal();
         }}
-        title={manageType ? manageType.name : "Manage Appointment Type"}
+        title={displayManageType?.name ?? ""}
         className="max-w-4xl"
       >
-        {manageType ? (
+        {displayManageType ? (
           <div className="space-y-4">
             <div className="flex flex-wrap gap-2 border-b border-border pb-3">
               <Button
@@ -509,36 +500,26 @@ function AppointmentTypesPage() {
             </div>
 
             {manageTab === "details" && (
-              <div className="space-y-4">
-                <div>
-                  <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                    Duration
-                  </Label>
-                  <p className="mt-1 font-medium">
-                    {manageType.durationMin} minutes
-                  </p>
-                </div>
-                <div>
-                  <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                    Padding
-                  </Label>
-                  <p className="mt-1">
-                    {manageType.paddingBeforeMin ?? 0} min before,{" "}
-                    {manageType.paddingAfterMin ?? 0} min after
-                  </p>
-                </div>
-                <div>
-                  <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                    Capacity
-                  </Label>
-                  <p className="mt-1">{manageType.capacity ?? 1} per slot</p>
-                </div>
-              </div>
+              <AppointmentTypeForm
+                key={displayManageType.id}
+                defaultValues={{
+                  name: displayManageType.name,
+                  durationMin: displayManageType.durationMin,
+                  paddingBeforeMin:
+                    displayManageType.paddingBeforeMin ?? undefined,
+                  paddingAfterMin:
+                    displayManageType.paddingAfterMin ?? undefined,
+                  capacity: displayManageType.capacity ?? undefined,
+                }}
+                onSubmit={handleUpdate}
+                onCancel={closeManageModal}
+                isSubmitting={updateMutation.isPending}
+              />
             )}
 
             {manageTab === "calendars" && (
               <CalendarsTab
-                appointmentTypeId={manageType.id}
+                appointmentTypeId={displayManageType.id}
                 onAddCalendar={handleAddCalendar}
                 onRemoveCalendar={handleRemoveCalendar}
                 isAddPending={addCalendarMutation.isPending}
@@ -548,7 +529,7 @@ function AppointmentTypesPage() {
 
             {manageTab === "resources" && (
               <ResourcesTab
-                appointmentTypeId={manageType.id}
+                appointmentTypeId={displayManageType.id}
                 onAddResource={handleAddResource}
                 onUpdateQuantity={handleUpdateResourceQuantity}
                 onRemoveResource={handleRemoveResource}

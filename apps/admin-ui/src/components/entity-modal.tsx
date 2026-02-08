@@ -9,6 +9,7 @@ interface EntityModalProps {
   onOpenChange: (open: boolean) => void;
   title: string;
   description?: string;
+  headerActions?: ReactNode;
   className?: string;
   children: ReactNode;
 }
@@ -18,6 +19,7 @@ export function EntityModal({
   onOpenChange,
   title,
   description,
+  headerActions,
   className,
   children,
 }: EntityModalProps) {
@@ -38,8 +40,9 @@ export function EntityModal({
         <DialogPrimitive.Popup
           data-slot="entity-modal-content"
           className={cn(
-            "fixed left-1/2 top-1/2 z-50 w-[calc(100vw-2rem)] max-w-xl -translate-x-1/2 -translate-y-1/2",
-            "max-h-[90vh] overflow-hidden rounded-xl border border-border bg-background shadow-xl",
+            "fixed left-1/2 top-4 z-50 w-[calc(100vw-2rem)] max-w-xl -translate-x-1/2 sm:top-8",
+            "max-h-[calc(100dvh-2rem)] overflow-hidden rounded-xl border border-border bg-background shadow-xl sm:h-[min(86dvh,52rem)] sm:max-h-[calc(100dvh-4rem)] sm:min-h-[36rem]",
+            "flex flex-col",
             "data-open:animate-in data-open:zoom-in-95 duration-150",
             className,
           )}
@@ -55,27 +58,32 @@ export function EntityModal({
                 </DialogPrimitive.Description>
               ) : null}
             </div>
-            <DialogPrimitive.Close
-              render={<Button variant="ghost" size="icon-sm" />}
-            >
-              <span className="sr-only">Close</span>
-              <svg
-                className="size-4"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
+            <div className="flex items-center gap-2">
+              {headerActions ? (
+                <div className="shrink-0">{headerActions}</div>
+              ) : null}
+              <DialogPrimitive.Close
+                render={<Button variant="ghost" size="icon-sm" />}
               >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M6 18L18 6M6 6l12 12"
-                />
-              </svg>
-            </DialogPrimitive.Close>
+                <span className="sr-only">Close</span>
+                <svg
+                  className="size-4"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M6 18L18 6M6 6l12 12"
+                  />
+                </svg>
+              </DialogPrimitive.Close>
+            </div>
           </div>
 
-          <div className="max-h-[calc(90vh-68px)] overflow-y-auto px-4 py-4 sm:px-6 sm:py-5">
+          <div className="flex-1 overflow-y-auto px-4 py-4 sm:px-6 sm:py-5">
             {children}
           </div>
         </DialogPrimitive.Popup>

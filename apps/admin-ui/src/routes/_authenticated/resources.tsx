@@ -1,23 +1,20 @@
-// Resources management page with modal-based CRUD
+// Resources management page with modal-based CRUD and details
 
-import { useCallback } from "react";
-import { createFileRoute } from "@tanstack/react-router";
+import { useCallback, useEffect, useState } from "react";
+import type { ReactNode } from "react";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import {
-  Add01Icon,
-  Delete01Icon,
-  PencilEdit01Icon,
-} from "@hugeicons/core-free-icons";
+import { Add01Icon, Delete01Icon } from "@hugeicons/core-free-icons";
 import { z } from "zod/mini";
 import { toast } from "sonner";
 
 import { createResourceSchema } from "@scheduling/dto";
 import type { CreateResourceInput } from "@scheduling/dto";
-import { ContextMenu, type ContextMenuItem } from "@/components/context-menu";
 import { DeleteConfirmDialog } from "@/components/delete-confirm-dialog";
 import { EntityModal } from "@/components/entity-modal";
+import { RowActions } from "@/components/row-actions";
 import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
 import { Input } from "@/components/ui/input";
@@ -38,6 +35,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useCrudState } from "@/hooks/use-crud-state";
+import { useValidateSelection } from "@/hooks/use-selection-search-params";
 import { formatDisplayDate } from "@/lib/date-utils";
 import { getQueryClient, orpc } from "@/lib/query";
 import { resolveSelectValueLabel } from "@/lib/select-value-label";
@@ -52,6 +50,7 @@ interface ResourceFormProps {
   onSubmit: (data: CreateResourceInput) => void;
   onCancel: () => void;
   isSubmitting: boolean;
+  footerStart?: ReactNode;
 }
 
 export function ResourceForm({
@@ -60,6 +59,7 @@ export function ResourceForm({
   onSubmit,
   onCancel,
   isSubmitting,
+  footerStart,
 }: ResourceFormProps) {
   const {
     register,
@@ -146,18 +146,21 @@ export function ResourceForm({
         </Select>
       </div>
 
-      <div className="flex justify-end gap-3 pt-2">
-        <Button
-          type="button"
-          variant="outline"
-          onClick={onCancel}
-          disabled={isSubmitting}
-        >
-          Cancel
-        </Button>
-        <Button type="submit" disabled={isSubmitting}>
-          {isSubmitting ? "Saving..." : "Save"}
-        </Button>
+      <div className="flex items-center gap-3 pt-2">
+        {footerStart ? <div>{footerStart}</div> : null}
+        <div className="ml-auto flex gap-3">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={onCancel}
+            disabled={isSubmitting}
+          >
+            Cancel
+          </Button>
+          <Button type="submit" disabled={isSubmitting}>
+            {isSubmitting ? "Saving..." : "Save"}
+          </Button>
+        </div>
       </div>
     </form>
   );
@@ -165,6 +168,10 @@ export function ResourceForm({
 
 function ResourcesPage() {
   const queryClient = useQueryClient();
+  const navigate = useNavigate({ from: Route.fullPath });
+  const { selected } = Route.useSearch();
+  const selectedId = selected ?? null;
+  const detailOpen = !!selectedId;
 
   const { data, isLoading, error } = useQuery({
     ...orpc.resources.list.queryOptions({
@@ -184,6 +191,45 @@ function ResourcesPage() {
     placeholderData: (previous) => previous,
   });
 
+  const locations = locationsData?.items ?? [];
+  const resources = data?.items ?? [];
+  const selectedResource =
+    resources.find((resource) => resource.id === selectedId) ?? null;
+  const [closingResourceSnapshot, setClosingResourceSnapshot] =
+    useState<ResourceItem | null>(null);
+
+  useEffect(() => {
+    if (!selectedResource) return;
+    setClosingResourceSnapshot(selectedResource);
+  }, [selectedResource]);
+
+  const displayResource = detailOpen
+    ? selectedResource
+    : closingResourceSnapshot;
+
+  const openDetails = useCallback(
+    (resourceId: string) => {
+      navigate({
+        search: (prev) => ({
+          ...prev,
+          selected: resourceId,
+        }),
+      });
+    },
+    [navigate],
+  );
+
+  const clearDetails = useCallback(() => {
+    navigate({
+      search: (prev) => ({
+        ...prev,
+        selected: undefined,
+      }),
+    });
+  }, [navigate]);
+
+  useValidateSelection(resources, selectedId, clearDetails);
+
   const createMutation = useMutation(
     orpc.resources.create.mutationOptions({
       onSuccess: () => {
@@ -201,7 +247,6 @@ function ResourcesPage() {
     orpc.resources.update.mutationOptions({
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: orpc.resources.key() });
-        crud.closeEdit();
         toast.success("Resource updated successfully");
       },
       onError: (error) => {
@@ -213,6 +258,9 @@ function ResourcesPage() {
   const deleteMutation = useMutation(
     orpc.resources.remove.mutationOptions({
       onSuccess: () => {
+        if (crud.deletingItemId && crud.deletingItemId === selectedId) {
+          clearDetails();
+        }
         queryClient.invalidateQueries({ queryKey: orpc.resources.key() });
         crud.closeDelete();
         toast.success("Resource deleted successfully");
@@ -223,11 +271,9 @@ function ResourcesPage() {
     }),
   );
 
-  const locations = locationsData?.items ?? [];
-
   const getLocationName = (locationId: string | null | undefined) => {
     if (!locationId) return "-";
-    const location = locations.find((l) => l.id === locationId);
+    const location = locations.find((loc) => loc.id === locationId);
     return location?.name ?? "-";
   };
 
@@ -236,9 +282,9 @@ function ResourcesPage() {
   };
 
   const handleUpdate = (formData: CreateResourceInput) => {
-    if (!crud.editingItem) return;
+    if (!displayResource) return;
     updateMutation.mutate({
-      id: crud.editingItem.id,
+      id: displayResource.id,
       data: formData,
     });
   };
@@ -247,24 +293,6 @@ function ResourcesPage() {
     if (!crud.deletingItemId) return;
     deleteMutation.mutate({ id: crud.deletingItemId });
   };
-
-  const getContextMenuItems = useCallback(
-    (resource: ResourceItem): ContextMenuItem[] => [
-      {
-        label: "Edit",
-        icon: PencilEdit01Icon,
-        onClick: () => crud.openEdit(resource),
-      },
-      {
-        label: "Delete",
-        icon: Delete01Icon,
-        onClick: () => crud.openDelete(resource.id),
-        variant: "destructive",
-        separator: true,
-      },
-    ],
-    [crud],
-  );
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
@@ -297,7 +325,7 @@ function ResourcesPage() {
           <div className="py-10 text-center text-destructive">
             Error loading resources
           </div>
-        ) : !data?.items.length ? (
+        ) : !resources.length ? (
           <div className="rounded-xl border border-border bg-card p-10 text-center text-muted-foreground shadow-sm">
             No resources yet. Create your first resource to get started.
           </div>
@@ -310,37 +338,54 @@ function ResourcesPage() {
                   <TableHead>Quantity</TableHead>
                   <TableHead>Location</TableHead>
                   <TableHead>Created</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {data.items.map((resource) => (
-                  <ContextMenu
+                {resources.map((resource) => (
+                  <TableRow
                     key={resource.id}
-                    items={getContextMenuItems(resource)}
+                    className="cursor-pointer transition-colors hover:bg-muted/50"
+                    tabIndex={0}
+                    onClick={() => openDetails(resource.id)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        openDetails(resource.id);
+                      }
+                    }}
                   >
-                    <TableRow
-                      className="cursor-pointer transition-colors hover:bg-muted/50"
-                      tabIndex={0}
-                      onClick={() => crud.openEdit(resource)}
-                      onKeyDown={(event) => {
-                        if (event.key === "Enter" || event.key === " ") {
-                          event.preventDefault();
-                          crud.openEdit(resource);
-                        }
-                      }}
-                    >
-                      <TableCell className="font-medium">
-                        {resource.name}
-                      </TableCell>
-                      <TableCell>{resource.quantity}</TableCell>
-                      <TableCell>
-                        {getLocationName(resource.locationId)}
-                      </TableCell>
-                      <TableCell>
-                        {formatDisplayDate(resource.createdAt)}
-                      </TableCell>
-                    </TableRow>
-                  </ContextMenu>
+                    <TableCell className="font-medium">
+                      {resource.name}
+                    </TableCell>
+                    <TableCell>{resource.quantity}</TableCell>
+                    <TableCell>
+                      {getLocationName(resource.locationId)}
+                    </TableCell>
+                    <TableCell>
+                      {formatDisplayDate(resource.createdAt)}
+                    </TableCell>
+                    <TableCell>
+                      <RowActions
+                        ariaLabel={`Actions for ${resource.name}`}
+                        actions={[
+                          {
+                            label: "View",
+                            onClick: () => openDetails(resource.id),
+                          },
+                          {
+                            label: "Edit",
+                            onClick: () => openDetails(resource.id),
+                          },
+                          {
+                            label: "Delete",
+                            onClick: () => crud.openDelete(resource.id),
+                            variant: "destructive",
+                          },
+                        ]}
+                      />
+                    </TableCell>
+                  </TableRow>
                 ))}
               </TableBody>
             </Table>
@@ -364,24 +409,49 @@ function ResourcesPage() {
       </EntityModal>
 
       <EntityModal
-        open={!!crud.editingItem}
+        open={detailOpen}
         onOpenChange={(open) => {
-          if (!open) crud.closeEdit();
+          if (!open) clearDetails();
         }}
-        title="Edit Resource"
+        title={displayResource?.name ?? ""}
+        description={
+          displayResource
+            ? getLocationName(displayResource.locationId)
+            : undefined
+        }
+        className="max-w-3xl"
       >
-        {crud.editingItem ? (
-          <ResourceForm
-            defaultValues={{
-              name: crud.editingItem.name,
-              quantity: crud.editingItem.quantity,
-              locationId: crud.editingItem.locationId ?? undefined,
-            }}
-            locations={locations}
-            onSubmit={handleUpdate}
-            onCancel={crud.closeEdit}
-            isSubmitting={updateMutation.isPending}
-          />
+        {detailOpen && !selectedResource ? (
+          <div className="flex items-center justify-center p-8 text-sm text-muted-foreground">
+            Loading resource...
+          </div>
+        ) : displayResource ? (
+          <div className="space-y-4">
+            <ResourceForm
+              key={displayResource.id}
+              defaultValues={{
+                name: displayResource.name,
+                quantity: displayResource.quantity,
+                locationId: displayResource.locationId ?? undefined,
+              }}
+              locations={locations}
+              onSubmit={handleUpdate}
+              onCancel={clearDetails}
+              isSubmitting={updateMutation.isPending}
+              footerStart={
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                  onClick={() => crud.openDelete(displayResource.id)}
+                >
+                  <Icon icon={Delete01Icon} data-icon="inline-start" />
+                  Delete Resource
+                </Button>
+              }
+            />
+          </div>
         ) : null}
       </EntityModal>
 
@@ -398,6 +468,11 @@ function ResourcesPage() {
 }
 
 export const Route = createFileRoute("/_authenticated/resources")({
+  validateSearch: (search: Record<string, unknown>): { selected?: string } => {
+    const selected =
+      typeof search.selected === "string" ? search.selected : undefined;
+    return { selected };
+  },
   loader: async () => {
     const queryClient = getQueryClient();
     await Promise.all([

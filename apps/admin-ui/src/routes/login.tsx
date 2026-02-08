@@ -6,6 +6,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod/mini";
 import { authClient } from "@/lib/auth-client";
+import { getSafeRedirectHref, validateLoginSearch } from "@/lib/auth-redirect";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -19,8 +20,10 @@ type LoginInput = z.infer<typeof loginSchema>;
 
 function LoginPage() {
   const { data: session, isPending: isLoading } = authClient.useSession();
+  const { redirect } = Route.useSearch();
   const navigate = useNavigate();
   const [serverError, setServerError] = useState<string | null>(null);
+  const redirectHref = getSafeRedirectHref(redirect, window.location.origin);
 
   const {
     register,
@@ -46,7 +49,7 @@ function LoginPage() {
   }
 
   if (session) {
-    return <Navigate to="/" />;
+    return <Navigate to="/" href={redirectHref} replace />;
   }
 
   const onSubmit = async (data: LoginInput) => {
@@ -60,7 +63,7 @@ function LoginPage() {
       if (result.error) {
         throw new Error(result.error.message ?? "Login failed");
       }
-      void navigate({ to: "/" });
+      void navigate({ to: "/", href: redirectHref, replace: true });
     } catch (err) {
       setServerError(err instanceof Error ? err.message : "Login failed");
     }
@@ -133,5 +136,6 @@ function LoginPage() {
 }
 
 export const Route = createFileRoute("/login")({
+  validateSearch: validateLoginSearch,
   component: LoginPage,
 });

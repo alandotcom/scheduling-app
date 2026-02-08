@@ -24,6 +24,7 @@ import {
   Search01Icon,
 } from "@hugeicons/core-free-icons";
 import { authClient } from "@/lib/auth-client";
+import { getSafeRedirectHref } from "@/lib/auth-redirect";
 import { UserMenu, type UserMenuOrganization } from "@/components/user-menu";
 import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
@@ -72,6 +73,10 @@ function RootLayout() {
   const user = session?.user;
   const isAuthenticated = !!session;
   const isInitialAuthCheck = isLoading && session === undefined;
+  const loginRedirect = getSafeRedirectHref(
+    new URLSearchParams(window.location.search).get("redirect") ?? undefined,
+    window.location.origin,
+  );
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [isAutoSelectingOrg, setIsAutoSelectingOrg] = useState(false);
@@ -262,7 +267,7 @@ function RootLayout() {
   }
 
   if (isAuthenticated && location.pathname === "/login") {
-    return <Navigate to="/" replace />;
+    return <Navigate to="/" href={loginRedirect} replace />;
   }
 
   if (!isAuthenticated) {
