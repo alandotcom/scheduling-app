@@ -76,6 +76,7 @@ function getTopMostModalElement() {
       '[data-slot="appointment-modal-content"]',
       '[data-slot="availability-manage-modal-content"]',
       '[data-slot="reschedule-dialog-content"]',
+      '[data-slot="drawer-content"]',
       '[data-slot="alert-dialog-content"]',
     ].join(", "),
   );

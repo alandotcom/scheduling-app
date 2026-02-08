@@ -51,6 +51,7 @@ export function DrawerContent({
         )}
       />
       <DialogPrimitive.Popup
+        data-slot="drawer-content"
         className={cn(
           "fixed inset-y-0 right-0 z-50 h-full border-l border-border bg-background shadow-xl",
           "data-open:animate-in data-closed:animate-out",

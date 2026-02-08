@@ -26,8 +26,10 @@ import { AvailabilityCalendarPicker } from "@/components/appointments/availabili
 import { AvailabilityManageModal } from "@/components/availability/availability-manage-modal";
 import { TimeDisplayToggle } from "@/components/appointments/time-display-toggle";
 import { Button } from "@/components/ui/button";
+import { FieldShortcutHint } from "@/components/ui/field-shortcut-hint";
 import { Icon } from "@/components/ui/icon";
 import { ShortcutBadge } from "@/components/ui/shortcut-badge";
+import { useModalFieldShortcuts } from "@/hooks/use-modal-field-shortcuts";
 import { useSubmitShortcut } from "@/hooks/use-submit-shortcut";
 
 interface RescheduleDialogProps {
@@ -149,6 +151,21 @@ export function RescheduleDialog({
   }, [monthSlots, open, selectedDate, selectedTime, slotsLoading]);
 
   const canReschedule = !!selectedTime && !rescheduleMutation.isPending;
+  const { hintsVisible, registerField } = useModalFieldShortcuts({
+    enabled: open,
+    fields: [
+      {
+        id: "time-display",
+        key: "z",
+        description: "Focus time display",
+      },
+      {
+        id: "date-time",
+        key: "d",
+        description: "Focus date and time",
+      },
+    ],
+  });
 
   useSubmitShortcut({
     enabled: open && canReschedule,
@@ -231,7 +248,10 @@ export function RescheduleDialog({
                 </div>
               </div>
 
-              <div className="mb-6 rounded-lg border border-border bg-muted/30 px-4 py-3">
+              <div
+                className="mb-6 rounded-lg border border-border bg-muted/30 px-4 py-3 relative"
+                ref={registerField("time-display")}
+              >
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Time Display</label>
                   <TimeDisplayToggle
@@ -253,25 +273,37 @@ export function RescheduleDialog({
                     ({timezoneShortLabel})
                   </p>
                 </div>
+                <FieldShortcutHint
+                  shortcut="z"
+                  label="Display"
+                  visible={hintsVisible}
+                />
               </div>
 
               {/* Calendar and Time Selection */}
-              <AvailabilityCalendarPicker
-                viewMonth={viewMonth}
-                onViewMonthChange={setViewMonth}
-                selectedDate={selectedDate}
-                onSelectDate={(date) => {
-                  setSelectedDate(date);
-                  setSelectedTime(null);
-                }}
-                selectedTime={selectedTime}
-                onSelectTime={setSelectedTime}
-                monthSlots={monthSlots}
-                slotsLoading={slotsLoading}
-                schedulingTimezone={calendarTimezone}
-                displayTimezone={effectiveTimezone}
-                onManageAvailability={openCalendarAvailability}
-              />
+              <div className="relative" ref={registerField("date-time")}>
+                <AvailabilityCalendarPicker
+                  viewMonth={viewMonth}
+                  onViewMonthChange={setViewMonth}
+                  selectedDate={selectedDate}
+                  onSelectDate={(date) => {
+                    setSelectedDate(date);
+                    setSelectedTime(null);
+                  }}
+                  selectedTime={selectedTime}
+                  onSelectTime={setSelectedTime}
+                  monthSlots={monthSlots}
+                  slotsLoading={slotsLoading}
+                  schedulingTimezone={calendarTimezone}
+                  displayTimezone={effectiveTimezone}
+                  onManageAvailability={openCalendarAvailability}
+                />
+                <FieldShortcutHint
+                  shortcut="d"
+                  label="Date/Time"
+                  visible={hintsVisible}
+                />
+              </div>
             </div>
 
             {/* Footer */}

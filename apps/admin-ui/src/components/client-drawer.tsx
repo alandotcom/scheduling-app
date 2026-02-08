@@ -28,12 +28,14 @@ import {
   DrawerTab,
 } from "@/components/drawer";
 import { Button } from "@/components/ui/button";
+import { FieldShortcutHint } from "@/components/ui/field-shortcut-hint";
 import { Icon } from "@/components/ui/icon";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { ShortcutBadge } from "@/components/ui/shortcut-badge";
 import { DeleteConfirmDialog } from "@/components/delete-confirm-dialog";
+import { useModalFieldShortcuts } from "@/hooks/use-modal-field-shortcuts";
 import { useResetFormOnOpen } from "@/hooks/use-reset-form-on-open";
 import { useSubmitShortcut } from "@/hooks/use-submit-shortcut";
 import { formatDisplayDateTime } from "@/lib/date-utils";
@@ -160,6 +162,16 @@ export function ClientDrawer({
     onSubmit: () => formRef.current?.requestSubmit(),
   });
 
+  const { hintsVisible, registerField } = useModalFieldShortcuts({
+    enabled: open && activeTab === "details",
+    fields: [
+      { id: "first-name", key: "f", description: "Focus first name" },
+      { id: "last-name", key: "l", description: "Focus last name" },
+      { id: "email", key: "e", description: "Focus email" },
+      { id: "phone", key: "p", description: "Focus phone" },
+    ],
+  });
+
   const getStatusIcon = (status: string) => {
     switch (status) {
       case "confirmed":
@@ -207,7 +219,10 @@ export function ClientDrawer({
                 className="space-y-5"
               >
                 <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
+                  <div
+                    className="space-y-2 relative"
+                    ref={registerField("first-name")}
+                  >
                     <Label htmlFor="firstName">First Name</Label>
                     <Input
                       id="firstName"
@@ -219,8 +234,12 @@ export function ClientDrawer({
                         {form.formState.errors.firstName.message}
                       </p>
                     )}
+                    <FieldShortcutHint shortcut="f" visible={hintsVisible} />
                   </div>
-                  <div className="space-y-2">
+                  <div
+                    className="space-y-2 relative"
+                    ref={registerField("last-name")}
+                  >
                     <Label htmlFor="lastName">Last Name</Label>
                     <Input
                       id="lastName"
@@ -232,10 +251,14 @@ export function ClientDrawer({
                         {form.formState.errors.lastName.message}
                       </p>
                     )}
+                    <FieldShortcutHint shortcut="l" visible={hintsVisible} />
                   </div>
                 </div>
 
-                <div className="space-y-2">
+                <div
+                  className="space-y-2 relative"
+                  ref={registerField("email")}
+                >
                   <Label htmlFor="email">Email</Label>
                   <Input
                     id="email"
@@ -249,9 +272,13 @@ export function ClientDrawer({
                       {form.formState.errors.email.message}
                     </p>
                   )}
+                  <FieldShortcutHint shortcut="e" visible={hintsVisible} />
                 </div>
 
-                <div className="space-y-2">
+                <div
+                  className="space-y-2 relative"
+                  ref={registerField("phone")}
+                >
                   <Label htmlFor="phone">Phone</Label>
                   <Input
                     id="phone"
@@ -265,6 +292,7 @@ export function ClientDrawer({
                       {form.formState.errors.phone.message}
                     </p>
                   )}
+                  <FieldShortcutHint shortcut="p" visible={hintsVisible} />
                 </div>
 
                 <div className="flex gap-2 pt-4">

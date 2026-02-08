@@ -19,6 +19,7 @@ import {
   DrawerFooter,
 } from "@/components/drawer";
 import { Button } from "@/components/ui/button";
+import { FieldShortcutHint } from "@/components/ui/field-shortcut-hint";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ShortcutBadge } from "@/components/ui/shortcut-badge";
@@ -30,6 +31,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { DeleteConfirmDialog } from "@/components/delete-confirm-dialog";
+import { useModalFieldShortcuts } from "@/hooks/use-modal-field-shortcuts";
 import { useResetFormOnOpen } from "@/hooks/use-reset-form-on-open";
 import { useSubmitShortcut } from "@/hooks/use-submit-shortcut";
 
@@ -140,6 +142,20 @@ export function ResourceDrawer({
     unknownLabel: "Unknown location",
   });
 
+  const { hintsVisible, registerField } = useModalFieldShortcuts({
+    enabled: open,
+    fields: [
+      { id: "name", key: "n", description: "Focus name" },
+      { id: "quantity", key: "q", description: "Focus quantity" },
+      {
+        id: "location",
+        key: "l",
+        description: "Focus location",
+        openOnFocus: true,
+      },
+    ],
+  });
+
   return (
     <>
       <Drawer open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
@@ -154,7 +170,7 @@ export function ResourceDrawer({
               onSubmit={form.handleSubmit(handleSave)}
               className="space-y-5"
             >
-              <div className="space-y-2">
+              <div className="space-y-2 relative" ref={registerField("name")}>
                 <Label htmlFor="name">Name</Label>
                 <Input
                   id="name"
@@ -166,9 +182,13 @@ export function ResourceDrawer({
                     {form.formState.errors.name.message}
                   </p>
                 )}
+                <FieldShortcutHint shortcut="n" visible={hintsVisible} />
               </div>
 
-              <div className="space-y-2">
+              <div
+                className="space-y-2 relative"
+                ref={registerField("quantity")}
+              >
                 <Label htmlFor="quantity">Quantity</Label>
                 <Input
                   id="quantity"
@@ -182,9 +202,13 @@ export function ResourceDrawer({
                     {form.formState.errors.quantity.message}
                   </p>
                 )}
+                <FieldShortcutHint shortcut="q" visible={hintsVisible} />
               </div>
 
-              <div className="space-y-2">
+              <div
+                className="space-y-2 relative"
+                ref={registerField("location")}
+              >
                 <Label>Location (optional)</Label>
                 <Select
                   value={locationId ?? "none"}
@@ -206,6 +230,7 @@ export function ResourceDrawer({
                     ))}
                   </SelectContent>
                 </Select>
+                <FieldShortcutHint shortcut="l" visible={hintsVisible} />
               </div>
 
               <div className="flex gap-2 pt-4">

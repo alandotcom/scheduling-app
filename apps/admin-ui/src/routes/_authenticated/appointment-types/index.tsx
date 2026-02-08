@@ -24,6 +24,7 @@ import { RelationshipCountBadge } from "@/components/relationship-count-badge";
 import { RowActions } from "@/components/row-actions";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { FieldShortcutHint } from "@/components/ui/field-shortcut-hint";
 import { Icon } from "@/components/ui/icon";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -42,6 +43,7 @@ import {
   useListNavigation,
 } from "@/hooks/use-keyboard-shortcuts";
 import { useAppointmentTypeMutations } from "@/hooks/use-appointment-type-mutations";
+import { useModalFieldShortcuts } from "@/hooks/use-modal-field-shortcuts";
 import { useSubmitShortcut } from "@/hooks/use-submit-shortcut";
 import { useUrlDrivenModal } from "@/hooks/use-url-driven-modal";
 import { formatDisplayDate } from "@/lib/date-utils";
@@ -83,6 +85,17 @@ function AppointmentTypeForm({
     },
   });
 
+  const { hintsVisible, registerField } = useModalFieldShortcuts({
+    enabled: true,
+    fields: [
+      { id: "name", key: "n", description: "Focus name" },
+      { id: "duration", key: "d", description: "Focus duration" },
+      { id: "capacity", key: "c", description: "Focus capacity" },
+      { id: "padding-before", key: "b", description: "Focus padding before" },
+      { id: "padding-after", key: "a", description: "Focus padding after" },
+    ],
+  });
+
   useSubmitShortcut({
     enabled: !isSubmitting,
     onSubmit: () => formRef.current?.requestSubmit(),
@@ -90,7 +103,7 @@ function AppointmentTypeForm({
 
   return (
     <form ref={formRef} onSubmit={handleSubmit(onSubmit)} className="space-y-5">
-      <div className="space-y-2.5">
+      <div className="space-y-2.5 relative" ref={registerField("name")}>
         <Label htmlFor="name">Name</Label>
         <Input
           id="name"
@@ -105,10 +118,11 @@ function AppointmentTypeForm({
             {errors.name.message}
           </p>
         )}
+        <FieldShortcutHint shortcut="n" visible={hintsVisible} />
       </div>
 
       <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
-        <div className="space-y-2.5">
+        <div className="space-y-2.5 relative" ref={registerField("duration")}>
           <Label htmlFor="durationMin">Duration (minutes)</Label>
           <Input
             id="durationMin"
@@ -125,9 +139,10 @@ function AppointmentTypeForm({
               {errors.durationMin.message}
             </p>
           )}
+          <FieldShortcutHint shortcut="d" visible={hintsVisible} />
         </div>
 
-        <div className="space-y-2.5">
+        <div className="space-y-2.5 relative" ref={registerField("capacity")}>
           <Label htmlFor="capacity">Capacity (optional)</Label>
           <Input
             id="capacity"
@@ -139,11 +154,15 @@ function AppointmentTypeForm({
             })}
             disabled={isSubmitting}
           />
+          <FieldShortcutHint shortcut="c" visible={hintsVisible} />
         </div>
       </div>
 
       <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
-        <div className="space-y-2.5">
+        <div
+          className="space-y-2.5 relative"
+          ref={registerField("padding-before")}
+        >
           <Label htmlFor="paddingBeforeMin">Padding Before (min)</Label>
           <Input
             id="paddingBeforeMin"
@@ -156,9 +175,13 @@ function AppointmentTypeForm({
             })}
             disabled={isSubmitting}
           />
+          <FieldShortcutHint shortcut="b" visible={hintsVisible} />
         </div>
 
-        <div className="space-y-2.5">
+        <div
+          className="space-y-2.5 relative"
+          ref={registerField("padding-after")}
+        >
           <Label htmlFor="paddingAfterMin">Padding After (min)</Label>
           <Input
             id="paddingAfterMin"
@@ -171,6 +194,7 @@ function AppointmentTypeForm({
             })}
             disabled={isSubmitting}
           />
+          <FieldShortcutHint shortcut="a" visible={hintsVisible} />
         </div>
       </div>
 

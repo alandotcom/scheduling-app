@@ -36,7 +36,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { AvailabilityManageModal } from "@/components/availability/availability-manage-modal";
+import { FieldShortcutHint } from "@/components/ui/field-shortcut-hint";
 import { ShortcutBadge } from "@/components/ui/shortcut-badge";
+import { useModalFieldShortcuts } from "@/hooks/use-modal-field-shortcuts";
 import { useSubmitShortcut } from "@/hooks/use-submit-shortcut";
 
 interface AppointmentModalProps {
@@ -301,6 +303,40 @@ export function AppointmentModal({
 
   const canBook = selectedTypeId && selectedCalendarId && selectedTime;
 
+  const { hintsVisible, registerField } = useModalFieldShortcuts({
+    enabled: open,
+    fields: [
+      {
+        id: "appointment-type",
+        key: "t",
+        description: "Focus appointment type",
+        openOnFocus: true,
+      },
+      {
+        id: "calendar",
+        key: "c",
+        description: "Focus calendar",
+        openOnFocus: true,
+      },
+      {
+        id: "date-time",
+        key: "d",
+        description: "Focus date and time",
+        disabled: !selectedCalendarId,
+      },
+      {
+        id: "client",
+        key: "l",
+        description: "Focus client search",
+      },
+      {
+        id: "notes",
+        key: "n",
+        description: "Focus notes",
+      },
+    ],
+  });
+
   useSubmitShortcut({
     enabled: open && !!canBook && !createMutation.isPending,
     onSubmit: handleSubmit,
@@ -355,49 +391,66 @@ export function AppointmentModal({
               <div className="mb-5 grid grid-cols-1 gap-4 sm:mb-6 sm:grid-cols-2">
                 <div className="space-y-2">
                   <Label>Appointment Type</Label>
-                  <Select
-                    value={selectedTypeId}
-                    onValueChange={(v) => v && handleTypeChange(v)}
+                  <div
+                    className="relative"
+                    ref={registerField("appointment-type")}
                   >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select type">
-                        {appointmentTypeSelectLabel}
-                      </SelectValue>
-                    </SelectTrigger>
-                    <SelectContent>
-                      {appointmentTypes.map((type) => (
-                        <SelectItem key={type.id} value={type.id}>
-                          {type.name} ({type.durationMin} min)
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                    <Select
+                      value={selectedTypeId}
+                      onValueChange={(v) => v && handleTypeChange(v)}
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Select type">
+                          {appointmentTypeSelectLabel}
+                        </SelectValue>
+                      </SelectTrigger>
+                      <SelectContent>
+                        {appointmentTypes.map((type) => (
+                          <SelectItem key={type.id} value={type.id}>
+                            {type.name} ({type.durationMin} min)
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FieldShortcutHint
+                      shortcut="t"
+                      label="Type"
+                      visible={hintsVisible}
+                    />
+                  </div>
                 </div>
 
                 <div className="space-y-2">
                   <Label>Calendar</Label>
-                  <Select
-                    value={selectedCalendarId}
-                    onValueChange={(v) => v && handleCalendarChange(v)}
-                    disabled={!selectedTypeId || calendarsLoading}
-                  >
-                    <SelectTrigger>
-                      <SelectValue
-                        placeholder={
-                          calendarsLoading ? "Loading..." : "Select calendar"
-                        }
-                      >
-                        {calendarSelectLabel}
-                      </SelectValue>
-                    </SelectTrigger>
-                    <SelectContent>
-                      {calendars.map((cal) => (
-                        <SelectItem key={cal.id} value={cal.id}>
-                          {cal.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <div className="relative" ref={registerField("calendar")}>
+                    <Select
+                      value={selectedCalendarId}
+                      onValueChange={(v) => v && handleCalendarChange(v)}
+                      disabled={!selectedTypeId || calendarsLoading}
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue
+                          placeholder={
+                            calendarsLoading ? "Loading..." : "Select calendar"
+                          }
+                        >
+                          {calendarSelectLabel}
+                        </SelectValue>
+                      </SelectTrigger>
+                      <SelectContent>
+                        {calendars.map((cal) => (
+                          <SelectItem key={cal.id} value={cal.id}>
+                            {cal.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FieldShortcutHint
+                      shortcut="c"
+                      label="Calendar"
+                      visible={hintsVisible}
+                    />
+                  </div>
                 </div>
               </div>
 
@@ -428,7 +481,10 @@ export function AppointmentModal({
 
               {/* Calendar and Time Selection */}
               {selectedCalendarId && (
-                <div className="mb-5 sm:mb-6">
+                <div
+                  className="mb-5 sm:mb-6 relative"
+                  ref={registerField("date-time")}
+                >
                   <AvailabilityCalendarPicker
                     viewMonth={viewMonth}
                     onViewMonthChange={setViewMonth}
@@ -446,17 +502,30 @@ export function AppointmentModal({
                         : undefined
                     }
                   />
+                  <FieldShortcutHint
+                    shortcut="d"
+                    label="Date/Time"
+                    visible={hintsVisible}
+                  />
                 </div>
               )}
 
               {/* Client Search (optional) */}
               <div className="mb-6">
                 <Label>Client (optional)</Label>
-                <div className="mt-2 space-y-2">
+                <div
+                  className="mt-2 space-y-2 relative"
+                  ref={registerField("client")}
+                >
                   <Input
                     placeholder="Search by name or email..."
                     value={clientSearch}
                     onChange={(e) => setClientSearch(e.target.value)}
+                  />
+                  <FieldShortcutHint
+                    shortcut="l"
+                    label="Client"
+                    visible={hintsVisible}
                   />
                   {clients.length > 0 && (
                     <div className="rounded-md border border-border divide-y divide-border/50">
@@ -506,13 +575,19 @@ export function AppointmentModal({
               {/* Notes */}
               <div>
                 <Label>Notes (optional)</Label>
-                <Textarea
-                  placeholder="Add any notes..."
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
-                  className="mt-2"
-                  rows={2}
-                />
+                <div className="relative mt-2" ref={registerField("notes")}>
+                  <Textarea
+                    placeholder="Add any notes..."
+                    value={notes}
+                    onChange={(e) => setNotes(e.target.value)}
+                    rows={2}
+                  />
+                  <FieldShortcutHint
+                    shortcut="n"
+                    label="Notes"
+                    visible={hintsVisible}
+                  />
+                </div>
               </div>
             </div>
 

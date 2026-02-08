@@ -2,6 +2,7 @@ import * as React from "react";
 import { Select as SelectPrimitive } from "@base-ui/react/select";
 
 import { cn } from "@/lib/utils";
+import { handleCtrlJkArrowNavigation } from "@/lib/keyboard-navigation";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
   UnfoldMoreIcon,
@@ -36,6 +37,7 @@ function SelectTrigger({
   className,
   size = "default",
   children,
+  onKeyDown,
   ...props
 }: SelectPrimitive.Trigger.Props & {
   size?: "sm" | "default";
@@ -48,6 +50,13 @@ function SelectTrigger({
         "border-input data-[placeholder]:text-muted-foreground/70 dark:bg-input/30 dark:hover:bg-input/50 focus-visible:border-ring focus-visible:ring-ring/30 aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive dark:aria-invalid:border-destructive/50 gap-1.5 rounded-lg border bg-transparent py-2 pr-2.5 pl-3 text-sm transition-all duration-200 ease-out select-none focus-visible:ring-[3px] aria-invalid:ring-[3px] data-[size=default]:h-10 data-[size=sm]:h-8 data-[size=sm]:rounded-md *:data-[slot=select-value]:flex *:data-[slot=select-value]:gap-1.5 [&_svg:not([class*='size-'])]:size-4 flex min-w-40 items-center justify-between whitespace-nowrap outline-none disabled:cursor-not-allowed disabled:opacity-50 *:data-[slot=select-value]:line-clamp-1 *:data-[slot=select-value]:flex *:data-[slot=select-value]:items-center [&_svg]:pointer-events-none [&_svg]:shrink-0",
         className,
       )}
+      onKeyDown={(event) => {
+        onKeyDown?.(event);
+        if (event.defaultPrevented) return;
+        const isOpen =
+          event.currentTarget.getAttribute("aria-expanded") === "true";
+        handleCtrlJkArrowNavigation(event, isOpen);
+      }}
       {...props}
     >
       {children}
@@ -72,6 +81,7 @@ function SelectContent({
   align = "start",
   alignOffset = 0,
   alignItemWithTrigger = false,
+  onKeyDown,
   ...props
 }: SelectPrimitive.Popup.Props &
   Pick<
@@ -95,6 +105,11 @@ function SelectContent({
             "bg-popover text-popover-foreground data-open:animate-in data-closed:animate-out data-closed:fade-out-0 data-open:fade-in-0 data-closed:zoom-out-95 data-open:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 border border-border min-w-36 rounded-lg shadow-lg duration-150 data-[side=inline-start]:slide-in-from-right-2 data-[side=inline-end]:slide-in-from-left-2 relative isolate z-[80] max-h-(--available-height) min-w-[var(--anchor-width)] max-w-[min(90vw,30rem)] w-max origin-(--transform-origin) overflow-x-hidden overflow-y-auto data-[align-trigger=true]:animate-none",
             className,
           )}
+          onKeyDown={(event) => {
+            onKeyDown?.(event);
+            if (event.defaultPrevented) return;
+            handleCtrlJkArrowNavigation(event, true);
+          }}
           {...props}
         >
           <SelectScrollUpButton />

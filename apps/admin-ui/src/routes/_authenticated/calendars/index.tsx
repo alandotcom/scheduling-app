@@ -33,6 +33,7 @@ import { RelationshipCountBadge } from "@/components/relationship-count-badge";
 import { RowActions } from "@/components/row-actions";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { FieldShortcutHint } from "@/components/ui/field-shortcut-hint";
 import { Icon } from "@/components/ui/icon";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -57,6 +58,7 @@ import {
   useKeyboardShortcuts,
   useListNavigation,
 } from "@/hooks/use-keyboard-shortcuts";
+import { useModalFieldShortcuts } from "@/hooks/use-modal-field-shortcuts";
 import { useSubmitShortcut } from "@/hooks/use-submit-shortcut";
 import { useUrlDrivenModal } from "@/hooks/use-url-driven-modal";
 import { useValidateSelection } from "@/hooks/use-selection-search-params";
@@ -126,6 +128,25 @@ function CalendarForm({
     unknownLabel: "Unknown location",
   });
 
+  const { hintsVisible, registerField } = useModalFieldShortcuts({
+    enabled: true,
+    fields: [
+      { id: "name", key: "n", description: "Focus name" },
+      {
+        id: "timezone",
+        key: "t",
+        description: "Focus timezone",
+        openOnFocus: true,
+      },
+      {
+        id: "location",
+        key: "l",
+        description: "Focus location",
+        openOnFocus: true,
+      },
+    ],
+  });
+
   useSubmitShortcut({
     enabled: !isSubmitting,
     onSubmit: () => formRef.current?.requestSubmit(),
@@ -133,7 +154,7 @@ function CalendarForm({
 
   return (
     <form ref={formRef} onSubmit={handleSubmit(onSubmit)} className="space-y-5">
-      <div className="space-y-2.5">
+      <div className="space-y-2.5 relative" ref={registerField("name")}>
         <Label htmlFor="name">Name</Label>
         <Input
           id="name"
@@ -148,9 +169,10 @@ function CalendarForm({
             {errors.name.message}
           </p>
         )}
+        <FieldShortcutHint shortcut="n" visible={hintsVisible} />
       </div>
 
-      <div className="space-y-2.5">
+      <div className="space-y-2.5 relative" ref={registerField("timezone")}>
         <Label htmlFor="timezone">Timezone</Label>
         <Select
           value={timezone}
@@ -173,9 +195,10 @@ function CalendarForm({
         {errors.timezone && (
           <p className="text-sm text-destructive">{errors.timezone.message}</p>
         )}
+        <FieldShortcutHint shortcut="t" visible={hintsVisible} />
       </div>
 
-      <div className="space-y-2.5">
+      <div className="space-y-2.5 relative" ref={registerField("location")}>
         <Label htmlFor="locationId">Location (optional)</Label>
         <Select
           value={locationId ?? "none"}
@@ -199,6 +222,7 @@ function CalendarForm({
             ))}
           </SelectContent>
         </Select>
+        <FieldShortcutHint shortcut="l" visible={hintsVisible} />
       </div>
 
       <div className="flex justify-end gap-3 pt-2">

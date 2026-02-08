@@ -25,6 +25,7 @@ import {
   DrawerTab,
 } from "@/components/drawer";
 import { Button } from "@/components/ui/button";
+import { FieldShortcutHint } from "@/components/ui/field-shortcut-hint";
 import { Icon } from "@/components/ui/icon";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -38,6 +39,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { DeleteConfirmDialog } from "@/components/delete-confirm-dialog";
+import { useModalFieldShortcuts } from "@/hooks/use-modal-field-shortcuts";
 import { useResetFormOnOpen } from "@/hooks/use-reset-form-on-open";
 import { useSubmitShortcut } from "@/hooks/use-submit-shortcut";
 
@@ -161,6 +163,19 @@ export function LocationDrawer({
     onSubmit: () => formRef.current?.requestSubmit(),
   });
 
+  const { hintsVisible, registerField } = useModalFieldShortcuts({
+    enabled: open && activeTab === "details",
+    fields: [
+      { id: "name", key: "n", description: "Focus name" },
+      {
+        id: "timezone",
+        key: "t",
+        description: "Focus timezone",
+        openOnFocus: true,
+      },
+    ],
+  });
+
   return (
     <>
       <Drawer open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
@@ -186,7 +201,7 @@ export function LocationDrawer({
                 onSubmit={form.handleSubmit(handleSave)}
                 className="space-y-5"
               >
-                <div className="space-y-2">
+                <div className="space-y-2 relative" ref={registerField("name")}>
                   <Label htmlFor="name">Name</Label>
                   <Input
                     id="name"
@@ -198,9 +213,13 @@ export function LocationDrawer({
                       {form.formState.errors.name.message}
                     </p>
                   )}
+                  <FieldShortcutHint shortcut="n" visible={hintsVisible} />
                 </div>
 
-                <div className="space-y-2">
+                <div
+                  className="space-y-2 relative"
+                  ref={registerField("timezone")}
+                >
                   <Label>Timezone</Label>
                   <Select
                     value={timezone}
@@ -220,6 +239,7 @@ export function LocationDrawer({
                       ))}
                     </SelectContent>
                   </Select>
+                  <FieldShortcutHint shortcut="t" visible={hintsVisible} />
                 </div>
 
                 <div className="flex gap-2 pt-4">

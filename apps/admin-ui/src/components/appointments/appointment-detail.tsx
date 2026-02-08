@@ -22,6 +22,7 @@ import { orpc } from "@/lib/query";
 import { Icon } from "@/components/ui/icon";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { FieldShortcutHint } from "@/components/ui/field-shortcut-hint";
 import { Label } from "@/components/ui/label";
 import { ShortcutBadge } from "@/components/ui/shortcut-badge";
 import { Textarea } from "@/components/ui/textarea";
@@ -38,6 +39,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { RescheduleDialog } from "./reschedule-dialog";
 import { AppointmentHistory } from "./appointment-history";
+import { useModalFieldShortcuts } from "@/hooks/use-modal-field-shortcuts";
 import { useResetFormOnOpen } from "@/hooks/use-reset-form-on-open";
 import { useSubmitShortcut } from "@/hooks/use-submit-shortcut";
 import {
@@ -171,6 +173,12 @@ export function AppointmentDetail({
     onSubmit: () => notesFormRef.current?.requestSubmit(),
   });
 
+  const { hintsVisible, registerField } = useModalFieldShortcuts({
+    enabled:
+      !!appointment && !isLoading && isActionable && activeTab === "details",
+    fields: [{ id: "notes", key: "n", description: "Focus notes" }],
+  });
+
   if (isLoading || !appointment) {
     return (
       <div className="flex h-full items-center justify-center p-8 text-sm text-muted-foreground">
@@ -300,11 +308,14 @@ export function AppointmentDetail({
                     onSubmit={notesForm.handleSubmit(handleSaveNotes)}
                     className="mt-2 space-y-3"
                   >
-                    <Textarea
-                      {...notesForm.register("notes")}
-                      placeholder="Add notes..."
-                      rows={3}
-                    />
+                    <div className="relative" ref={registerField("notes")}>
+                      <Textarea
+                        {...notesForm.register("notes")}
+                        placeholder="Add notes..."
+                        rows={3}
+                      />
+                      <FieldShortcutHint shortcut="n" visible={hintsVisible} />
+                    </div>
                     <div className="flex gap-2">
                       <Button
                         type="submit"

@@ -8,10 +8,12 @@ import {
 
 import { EntityModal } from "@/components/entity-modal";
 import { Button } from "@/components/ui/button";
+import { FieldShortcutHint } from "@/components/ui/field-shortcut-hint";
 import { Icon } from "@/components/ui/icon";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ShortcutBadge } from "@/components/ui/shortcut-badge";
+import { useModalFieldShortcuts } from "@/hooks/use-modal-field-shortcuts";
 import { useSubmitShortcut } from "@/hooks/use-submit-shortcut";
 import { cn } from "@/lib/utils";
 
@@ -61,6 +63,14 @@ export function UserMenu({
   useSubmitShortcut({
     enabled: createOpen && !creatingOrg,
     onSubmit: () => createFormRef.current?.requestSubmit(),
+  });
+
+  const { hintsVisible, registerField } = useModalFieldShortcuts({
+    enabled: createOpen,
+    fields: [
+      { id: "org-name", key: "n", description: "Focus organization name" },
+      { id: "org-slug", key: "s", description: "Focus organization slug" },
+    ],
   });
 
   return (
@@ -223,7 +233,10 @@ export function UserMenu({
               }
             }}
           >
-            <div className="space-y-1.5">
+            <div
+              className="space-y-1.5 relative"
+              ref={registerField("org-name")}
+            >
               <Label htmlFor="org-name">Organization name</Label>
               <Input
                 id="org-name"
@@ -232,9 +245,13 @@ export function UserMenu({
                 placeholder="Acme Scheduling"
                 autoFocus
               />
+              <FieldShortcutHint shortcut="n" visible={hintsVisible} />
             </div>
 
-            <div className="space-y-1.5">
+            <div
+              className="space-y-1.5 relative"
+              ref={registerField("org-slug")}
+            >
               <Label htmlFor="org-slug">Slug (optional)</Label>
               <Input
                 id="org-slug"
@@ -242,6 +259,7 @@ export function UserMenu({
                 onChange={(event) => setSlug(event.target.value)}
                 placeholder="acme-scheduling"
               />
+              <FieldShortcutHint shortcut="s" visible={hintsVisible} />
             </div>
 
             {createError ? (

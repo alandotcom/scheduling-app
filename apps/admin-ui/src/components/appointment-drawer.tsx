@@ -26,6 +26,7 @@ import {
   DrawerFooter,
 } from "@/components/drawer";
 import { Button } from "@/components/ui/button";
+import { FieldShortcutHint } from "@/components/ui/field-shortcut-hint";
 import { Icon } from "@/components/ui/icon";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
@@ -46,6 +47,7 @@ import {
   formatTimeDisplay,
   formatTimezoneShort,
 } from "@/lib/date-utils";
+import { useModalFieldShortcuts } from "@/hooks/use-modal-field-shortcuts";
 import { useSubmitShortcut } from "@/hooks/use-submit-shortcut";
 
 interface AppointmentDrawerProps {
@@ -185,6 +187,11 @@ export function AppointmentDrawer({
     onSubmit: () => notesFormRef.current?.requestSubmit(),
   });
 
+  const { hintsVisible, registerField } = useModalFieldShortcuts({
+    enabled: open && editingNotes && isActionable,
+    fields: [{ id: "notes", key: "n", description: "Focus notes" }],
+  });
+
   const handleConfirm = () => {
     // Note: confirm would need a dedicated endpoint
     // For now, show a message since there's no status field in update
@@ -303,11 +310,14 @@ export function AppointmentDrawer({
                   onSubmit={notesForm.handleSubmit(handleSaveNotes)}
                   className="mt-2 space-y-3"
                 >
-                  <Textarea
-                    {...notesForm.register("notes")}
-                    placeholder="Add notes..."
-                    rows={3}
-                  />
+                  <div className="relative" ref={registerField("notes")}>
+                    <Textarea
+                      {...notesForm.register("notes")}
+                      placeholder="Add notes..."
+                      rows={3}
+                    />
+                    <FieldShortcutHint shortcut="n" visible={hintsVisible} />
+                  </div>
                   <div className="flex gap-2">
                     <Button
                       type="submit"

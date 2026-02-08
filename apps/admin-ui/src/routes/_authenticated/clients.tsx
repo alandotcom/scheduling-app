@@ -36,6 +36,7 @@ import { RelationshipCountBadge } from "@/components/relationship-count-badge";
 import { RowActions } from "@/components/row-actions";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { FieldShortcutHint } from "@/components/ui/field-shortcut-hint";
 import { Icon } from "@/components/ui/icon";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -53,11 +54,13 @@ import {
   useKeyboardShortcuts,
   useListNavigation,
 } from "@/hooks/use-keyboard-shortcuts";
+import { useModalFieldShortcuts } from "@/hooks/use-modal-field-shortcuts";
 import { useSubmitShortcut } from "@/hooks/use-submit-shortcut";
 import { useUrlDrivenModal } from "@/hooks/use-url-driven-modal";
 import { useValidateSelection } from "@/hooks/use-selection-search-params";
 import { AppointmentDetail } from "@/components/appointments/appointment-detail";
 import { formatDisplayDate, formatDisplayDateTime } from "@/lib/date-utils";
+import { handleCtrlJkArrowNavigation } from "@/lib/keyboard-navigation";
 import {
   deriveCountryFromPhone,
   formatPhoneForDisplay,
@@ -164,6 +167,22 @@ function ClientForm({
       (option) => option.value === activePhoneCountry,
     ) ?? PHONE_COUNTRY_OPTIONS.find((option) => option.value === "US");
 
+  const { hintsVisible, registerField } = useModalFieldShortcuts({
+    enabled: true,
+    fields: [
+      { id: "first-name", key: "f", description: "Focus first name" },
+      { id: "last-name", key: "l", description: "Focus last name" },
+      { id: "email", key: "e", description: "Focus email" },
+      {
+        id: "country",
+        key: "c",
+        description: "Focus country",
+        openOnFocus: true,
+      },
+      { id: "phone", key: "p", description: "Focus phone" },
+    ],
+  });
+
   useSubmitShortcut({
     enabled: !isSubmitting,
     onSubmit: () => formRef.current?.requestSubmit(),
@@ -172,7 +191,7 @@ function ClientForm({
   return (
     <form ref={formRef} onSubmit={handleSubmit(onSubmit)} className="space-y-5">
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <div className="space-y-2.5">
+        <div className="space-y-2.5 relative" ref={registerField("first-name")}>
           <Label htmlFor="firstName">First Name</Label>
           <Input
             id="firstName"
@@ -187,9 +206,10 @@ function ClientForm({
               {errors.firstName.message}
             </p>
           )}
+          <FieldShortcutHint shortcut="f" visible={hintsVisible} />
         </div>
 
-        <div className="space-y-2.5">
+        <div className="space-y-2.5 relative" ref={registerField("last-name")}>
           <Label htmlFor="lastName">Last Name</Label>
           <Input
             id="lastName"
@@ -204,10 +224,11 @@ function ClientForm({
               {errors.lastName.message}
             </p>
           )}
+          <FieldShortcutHint shortcut="l" visible={hintsVisible} />
         </div>
       </div>
 
-      <div className="space-y-2.5">
+      <div className="space-y-2.5 relative" ref={registerField("email")}>
         <Label htmlFor="email">Email (optional)</Label>
         <Input
           id="email"
@@ -223,10 +244,11 @@ function ClientForm({
             {errors.email.message}
           </p>
         )}
+        <FieldShortcutHint shortcut="e" visible={hintsVisible} />
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-[220px_minmax(0,1fr)]">
-        <div className="space-y-2.5">
+        <div className="space-y-2.5 relative" ref={registerField("country")}>
           <Label htmlFor="phoneCountry">Country</Label>
           <Controller
             name="phoneCountry"
@@ -276,6 +298,9 @@ function ClientForm({
                       aria-invalid={!!errors.phoneCountry}
                       className="h-10 w-full justify-between px-3"
                       disabled={isSubmitting}
+                      onKeyDown={(event) => {
+                        handleCtrlJkArrowNavigation(event, countryComboboxOpen);
+                      }}
                     >
                       <span className="truncate">
                         {selectedCountryOption
@@ -294,11 +319,22 @@ function ClientForm({
                     align="start"
                     className="z-[90]"
                   >
-                    <Combobox.Popup className="w-[22rem] max-w-[calc(100vw-2rem)] overflow-hidden rounded-lg border border-border bg-background shadow-lg">
+                    <Combobox.Popup
+                      className="w-[22rem] max-w-[calc(100vw-2rem)] overflow-hidden rounded-lg border border-border bg-background shadow-lg"
+                      onKeyDown={(event) => {
+                        handleCtrlJkArrowNavigation(event, countryComboboxOpen);
+                      }}
+                    >
                       <div className="border-b border-border px-3 py-1">
                         <Combobox.Input
                           placeholder="Search country or dialing code..."
                           className="h-9 w-full border-0 bg-transparent p-0 text-sm outline-none placeholder:text-muted-foreground"
+                          onKeyDown={(event) => {
+                            handleCtrlJkArrowNavigation(
+                              event,
+                              countryComboboxOpen,
+                            );
+                          }}
                         />
                       </div>
                       <Combobox.Empty className="px-3 py-3 text-sm text-muted-foreground">
@@ -334,9 +370,10 @@ function ClientForm({
               {errors.phoneCountry.message}
             </p>
           )}
+          <FieldShortcutHint shortcut="c" visible={hintsVisible} />
         </div>
 
-        <div className="space-y-2.5">
+        <div className="space-y-2.5 relative" ref={registerField("phone")}>
           <Label htmlFor="phone">Phone (optional)</Label>
           <Controller
             name="phone"
@@ -377,6 +414,7 @@ function ClientForm({
               {errors.phone.message}
             </p>
           )}
+          <FieldShortcutHint shortcut="p" visible={hintsVisible} />
         </div>
       </div>
 
