@@ -187,7 +187,7 @@ export const updateSchedulingLimitsSchema = z.object({
 
 export const availabilityQuerySchema = z.object({
   appointmentTypeId: uuidSchema,
-  calendarIds: z.array(uuidSchema).min(1),
+  calendarIds: z.array(uuidSchema).min(1, "At least one calendar is required"),
   startDate: dateSchema,
   endDate: dateSchema,
   timezone: timezoneSchema,
@@ -240,7 +240,9 @@ export const availabilityFeedItemSchema = z.object({
 
 export const availabilityFeedQuerySchema = z
   .object({
-    calendarIds: z.array(uuidSchema).min(1),
+    calendarIds: z
+      .array(uuidSchema)
+      .min(1, "At least one calendar is required"),
     startAt: timestampSchema,
     endAt: timestampSchema,
     timezone: timezoneSchema,

@@ -54,6 +54,8 @@ import {
   useListNavigation,
   FOCUS_ZONES,
 } from "@/hooks/use-keyboard-shortcuts";
+import { useClosingSnapshot } from "@/hooks/use-closing-snapshot";
+import { useUrlDrivenModal } from "@/hooks/use-url-driven-modal";
 import { useValidateSelection } from "@/hooks/use-selection-search-params";
 import {
   useScheduleAppointments,
@@ -96,7 +98,11 @@ function AppointmentsPage() {
 
   const selectedId = selected ?? null;
   const activeTab: DetailTabValue = tab && isDetailTab(tab) ? tab : "details";
-  const detailOpen = !!selectedId;
+  const { isOpen: detailModalOpen, closeNow: closeDetailModalNow } =
+    useUrlDrivenModal({
+      selectedId,
+      hasResolvedEntity: !!selectedId,
+    });
   const currentView: ViewMode = view;
 
   // Confirmation dialogs
@@ -129,6 +135,7 @@ function AppointmentsPage() {
   );
 
   const clearDetails = useCallback(() => {
+    closeDetailModalNow();
     navigate({
       search: (prev) => ({
         ...prev,
@@ -136,7 +143,7 @@ function AppointmentsPage() {
         tab: undefined,
       }),
     });
-  }, [navigate]);
+  }, [closeDetailModalNow, navigate]);
 
   const setActiveTab = useCallback(
     (value: string) => {
@@ -445,6 +452,10 @@ function AppointmentsPage() {
     return null;
   }, [selectedId, selectedInList, fetchedAppointment]);
 
+  const displayAppointment = useClosingSnapshot(
+    selectedAppointment ?? undefined,
+  );
+
   // Build set of appointment IDs for selection validation
   const appointmentIds = useMemo(() => {
     const ids = new Set(listAppointments.map((a) => a.id));
@@ -475,7 +486,7 @@ function AppointmentsPage() {
   // Focus zones
   useFocusZones({
     onEscape: clearDetails,
-    detailOpen,
+    detailOpen: detailModalOpen,
   });
 
   // Keyboard shortcuts
@@ -564,7 +575,18 @@ function AppointmentsPage() {
 
   return (
     <div className="mx-auto max-w-7xl px-4 pb-24 pt-6 sm:px-6 sm:pb-6 lg:px-8">
-      <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div className="min-w-0 flex-1">
+          <h1 className="truncate text-2xl font-semibold tracking-tight">
+            Appointments
+          </h1>
+          <p className="mt-1 truncate text-sm text-muted-foreground">
+            View and manage scheduled appointments
+          </p>
+        </div>
+      </div>
+
+      <div className="mt-6 flex flex-wrap items-center gap-2 sm:gap-3">
         <ViewToggle view={currentView} onViewChange={setView} size="sm" />
         <TimeDisplayToggle
           value={timezoneMode}
@@ -705,24 +727,22 @@ function AppointmentsPage() {
       </div>
 
       <EntityModal
-        open={detailOpen}
+        open={detailModalOpen && !!displayAppointment}
         onOpenChange={(open) => {
           if (!open) clearDetails();
         }}
-        title={
-          selectedAppointment?.appointmentType?.name ?? "Appointment details"
-        }
+        title={displayAppointment?.appointmentType?.name ?? ""}
         description={
-          selectedAppointment
-            ? formatDisplayDate(selectedAppointment.startAt, displayTimezone)
+          displayAppointment
+            ? formatDisplayDate(displayAppointment.startAt, displayTimezone)
             : undefined
         }
         className="max-w-6xl"
       >
-        {detailOpen ? (
+        {displayAppointment ? (
           <div id={FOCUS_ZONES.DETAIL}>
             <AppointmentDetail
-              appointment={selectedAppointment}
+              appointment={displayAppointment}
               displayTimezone={displayTimezone}
               timezoneMode={timezoneMode}
               onTimezoneModeChange={setTimezoneMode}

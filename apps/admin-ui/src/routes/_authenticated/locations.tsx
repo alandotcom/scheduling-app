@@ -1,6 +1,7 @@
 // Locations management page with modal-based CRUD and details
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback } from "react";
+import { useClosingSnapshot } from "@/hooks/use-closing-snapshot";
 import type { ReactNode } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -15,6 +16,7 @@ import { toast } from "sonner";
 
 import { createLocationSchema } from "@scheduling/dto";
 import type { CreateLocationInput } from "@scheduling/dto";
+import { TableSkeleton } from "@/components/ui/skeleton";
 import { DeleteConfirmDialog } from "@/components/delete-confirm-dialog";
 import { DetailTab, DetailTabs } from "@/components/workbench";
 import { EntityModal } from "@/components/entity-modal";
@@ -40,6 +42,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useCrudState } from "@/hooks/use-crud-state";
+import { useUrlDrivenModal } from "@/hooks/use-url-driven-modal";
 import { useValidateSelection } from "@/hooks/use-selection-search-params";
 import { TIMEZONES } from "@/lib/constants";
 import { formatDisplayDate, formatTimezoneShort } from "@/lib/date-utils";
@@ -158,7 +161,6 @@ function LocationsPage() {
 
   const selectedId = selected ?? null;
   const activeTab: DetailTabValue = tab && isDetailTab(tab) ? tab : "details";
-  const detailOpen = !!selectedId;
 
   const { data, isLoading, error } = useQuery({
     ...orpc.locations.list.queryOptions({
@@ -174,17 +176,12 @@ function LocationsPage() {
   const locations = data?.items ?? [];
   const selectedLocation =
     locations.find((location) => location.id === selectedId) ?? null;
-  const [closingLocationSnapshot, setClosingLocationSnapshot] =
-    useState<LocationItem | null>(null);
-
-  useEffect(() => {
-    if (!selectedLocation) return;
-    setClosingLocationSnapshot(selectedLocation);
-  }, [selectedLocation]);
-
-  const displayLocation = detailOpen
-    ? selectedLocation
-    : closingLocationSnapshot;
+  const displayLocation = useClosingSnapshot(selectedLocation ?? undefined);
+  const { isOpen: detailModalOpen, closeNow: closeDetailModalNow } =
+    useUrlDrivenModal({
+      selectedId,
+      hasResolvedEntity: !!selectedLocation,
+    });
 
   const openDetails = useCallback(
     (locationId: string, nextTab: DetailTabValue = "details") => {
@@ -200,6 +197,7 @@ function LocationsPage() {
   );
 
   const clearDetails = useCallback(() => {
+    closeDetailModalNow();
     navigate({
       search: (prev) => ({
         ...prev,
@@ -207,7 +205,7 @@ function LocationsPage() {
         tab: undefined,
       }),
     });
-  }, [navigate]);
+  }, [closeDetailModalNow, navigate]);
 
   const setActiveTab = useCallback(
     (value: string) => {
@@ -228,14 +226,14 @@ function LocationsPage() {
     ...orpc.calendars.list.queryOptions({
       input: { limit: 100 },
     }),
-    enabled: detailOpen,
+    enabled: !!selectedId,
   });
 
   const { data: resourcesData } = useQuery({
     ...orpc.resources.list.queryOptions({
       input: { limit: 100 },
     }),
-    enabled: detailOpen,
+    enabled: !!selectedId,
   });
 
   const calendarsAtLocation =
@@ -325,12 +323,8 @@ function LocationsPage() {
 
       <div className="mt-6">
         {isLoading ? (
-          <div
-            className="py-10 text-center text-muted-foreground"
-            role="status"
-            aria-live="polite"
-          >
-            Loading...
+          <div className="py-10" role="status" aria-live="polite">
+            <TableSkeleton rows={5} cols={5} />
           </div>
         ) : error ? (
           <div className="py-10 text-center text-destructive">
@@ -430,7 +424,7 @@ function LocationsPage() {
       </EntityModal>
 
       <EntityModal
-        open={detailOpen}
+        open={detailModalOpen && !!displayLocation}
         onOpenChange={(open) => {
           if (!open) clearDetails();
         }}
@@ -442,11 +436,7 @@ function LocationsPage() {
         }
         className="max-w-5xl"
       >
-        {detailOpen && !selectedLocation ? (
-          <div className="flex items-center justify-center p-8 text-sm text-muted-foreground">
-            Loading location...
-          </div>
-        ) : displayLocation ? (
+        {displayLocation ? (
           <div className="space-y-4">
             <DetailTabs
               value={activeTab}

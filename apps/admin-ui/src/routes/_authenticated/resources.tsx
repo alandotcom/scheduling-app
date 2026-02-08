@@ -1,6 +1,7 @@
 // Resources management page with modal-based CRUD and details
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback } from "react";
+import { useClosingSnapshot } from "@/hooks/use-closing-snapshot";
 import type { ReactNode } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -12,6 +13,7 @@ import { toast } from "sonner";
 
 import { createResourceSchema } from "@scheduling/dto";
 import type { CreateResourceInput } from "@scheduling/dto";
+import { TableSkeleton } from "@/components/ui/skeleton";
 import { DeleteConfirmDialog } from "@/components/delete-confirm-dialog";
 import { EntityModal } from "@/components/entity-modal";
 import { RowActions } from "@/components/row-actions";
@@ -35,6 +37,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useCrudState } from "@/hooks/use-crud-state";
+import { useUrlDrivenModal } from "@/hooks/use-url-driven-modal";
 import { useValidateSelection } from "@/hooks/use-selection-search-params";
 import { formatDisplayDate } from "@/lib/date-utils";
 import { getQueryClient, orpc } from "@/lib/query";
@@ -171,7 +174,6 @@ function ResourcesPage() {
   const navigate = useNavigate({ from: Route.fullPath });
   const { selected } = Route.useSearch();
   const selectedId = selected ?? null;
-  const detailOpen = !!selectedId;
 
   const { data, isLoading, error } = useQuery({
     ...orpc.resources.list.queryOptions({
@@ -195,17 +197,12 @@ function ResourcesPage() {
   const resources = data?.items ?? [];
   const selectedResource =
     resources.find((resource) => resource.id === selectedId) ?? null;
-  const [closingResourceSnapshot, setClosingResourceSnapshot] =
-    useState<ResourceItem | null>(null);
-
-  useEffect(() => {
-    if (!selectedResource) return;
-    setClosingResourceSnapshot(selectedResource);
-  }, [selectedResource]);
-
-  const displayResource = detailOpen
-    ? selectedResource
-    : closingResourceSnapshot;
+  const displayResource = useClosingSnapshot(selectedResource ?? undefined);
+  const { isOpen: detailModalOpen, closeNow: closeDetailModalNow } =
+    useUrlDrivenModal({
+      selectedId,
+      hasResolvedEntity: !!selectedResource,
+    });
 
   const openDetails = useCallback(
     (resourceId: string) => {
@@ -220,13 +217,14 @@ function ResourcesPage() {
   );
 
   const clearDetails = useCallback(() => {
+    closeDetailModalNow();
     navigate({
       search: (prev) => ({
         ...prev,
         selected: undefined,
       }),
     });
-  }, [navigate]);
+  }, [closeDetailModalNow, navigate]);
 
   useValidateSelection(resources, selectedId, clearDetails);
 
@@ -314,12 +312,8 @@ function ResourcesPage() {
 
       <div className="mt-6">
         {isLoading ? (
-          <div
-            className="py-10 text-center text-muted-foreground"
-            role="status"
-            aria-live="polite"
-          >
-            Loading...
+          <div className="py-10" role="status" aria-live="polite">
+            <TableSkeleton rows={5} cols={5} />
           </div>
         ) : error ? (
           <div className="py-10 text-center text-destructive">
@@ -370,10 +364,6 @@ function ResourcesPage() {
                         ariaLabel={`Actions for ${resource.name}`}
                         actions={[
                           {
-                            label: "View",
-                            onClick: () => openDetails(resource.id),
-                          },
-                          {
                             label: "Edit",
                             onClick: () => openDetails(resource.id),
                           },
@@ -409,7 +399,7 @@ function ResourcesPage() {
       </EntityModal>
 
       <EntityModal
-        open={detailOpen}
+        open={detailModalOpen && !!displayResource}
         onOpenChange={(open) => {
           if (!open) clearDetails();
         }}
@@ -421,11 +411,7 @@ function ResourcesPage() {
         }
         className="max-w-3xl"
       >
-        {detailOpen && !selectedResource ? (
-          <div className="flex items-center justify-center p-8 text-sm text-muted-foreground">
-            Loading resource...
-          </div>
-        ) : displayResource ? (
+        {displayResource ? (
           <div className="space-y-4">
             <ResourceForm
               key={displayResource.id}

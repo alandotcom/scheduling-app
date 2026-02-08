@@ -1,9 +1,11 @@
 import { useEffect, useState } from "react";
 import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
+import { Cancel01Icon } from "@hugeicons/core-free-icons";
 
 import { formatTimezoneShort } from "@/lib/date-utils";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { Icon } from "@/components/ui/icon";
 import { AvailabilitySubTabs } from "@/components/availability/availability-sub-tabs";
 import { CompactBlockedTimeEditor } from "@/components/availability/blocked-time-editor";
 import type { AvailabilitySubTabType } from "@/components/availability/constants";
@@ -48,7 +50,9 @@ export function AvailabilityManageModal({
           data-slot="availability-manage-modal-backdrop"
           className={cn(
             "fixed inset-0 z-[70] bg-black/60 backdrop-blur-sm",
-            "data-open:animate-in data-open:fade-in-0 duration-100",
+            "data-open:animate-in data-closed:animate-out",
+            "data-closed:fade-out-0 data-open:fade-in-0",
+            "duration-200",
           )}
         />
         <DialogPrimitive.Popup
@@ -56,7 +60,10 @@ export function AvailabilityManageModal({
           className={cn(
             "fixed left-1/2 top-2 z-[71] w-[calc(100vw-1rem)] max-w-4xl -translate-x-1/2 sm:top-8 sm:w-full",
             "rounded-xl border border-border bg-background shadow-xl",
-            "data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 duration-150",
+            "data-open:animate-in data-closed:animate-out",
+            "data-closed:fade-out-0 data-open:fade-in-0",
+            "data-closed:zoom-out-95 data-open:zoom-in-95",
+            "duration-200",
             "max-h-[calc(100dvh-1rem)] overflow-hidden flex flex-col sm:h-[min(86dvh,52rem)] sm:max-h-[calc(100dvh-4rem)]",
           )}
         >
@@ -75,19 +82,7 @@ export function AvailabilityManageModal({
               render={<Button variant="ghost" size="icon-sm" />}
             >
               <span className="sr-only">Close</span>
-              <svg
-                className="size-4"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M6 18L18 6M6 6l12 12"
-                />
-              </svg>
+              <Icon icon={Cancel01Icon} />
             </DialogPrimitive.Close>
           </div>
 

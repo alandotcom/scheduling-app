@@ -46,3 +46,4 @@ tmp/
 # Beads
 /.beads/export-state/
 /.beads/beads.db*
+.pnpm-store/

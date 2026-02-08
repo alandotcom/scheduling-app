@@ -5,6 +5,7 @@
 import { drizzle } from "drizzle-orm/bun-sql";
 import { eq, inArray, sql } from "drizzle-orm";
 import { SQL } from "bun";
+import { faker } from "@faker-js/faker";
 import {
   appointmentTypeCalendars,
   appointmentTypeResources,
@@ -86,6 +87,15 @@ type SeedSummary = {
   blockedTime: number;
 };
 
+type SeedClient = {
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone: string | null;
+};
+
+const CLIENT_FIXTURE_COUNT = 12;
+
 const APPOINTMENT_TYPE_FIXTURES: SeedAppointmentType[] = [
   {
     key: "initial_consult",
@@ -123,81 +133,6 @@ const APPOINTMENT_TYPE_FIXTURES: SeedAppointmentType[] = [
     calendarKeys: ["provider_a", "support"],
   },
 ];
-
-const CLIENT_FIXTURES = [
-  {
-    firstName: "Olivia",
-    lastName: "Bennett",
-    email: "olivia.bennett@example.com",
-    phone: "555-0101",
-  },
-  {
-    firstName: "Noah",
-    lastName: "Harris",
-    email: "noah.harris@example.com",
-    phone: "555-0102",
-  },
-  {
-    firstName: "Ava",
-    lastName: "Nguyen",
-    email: "ava.nguyen@example.com",
-    phone: "555-0103",
-  },
-  {
-    firstName: "Liam",
-    lastName: "Patel",
-    email: "liam.patel@example.com",
-    phone: null,
-  },
-  {
-    firstName: "Emma",
-    lastName: "Rodriguez",
-    email: "emma.rodriguez@example.com",
-    phone: "555-0105",
-  },
-  {
-    firstName: "Mason",
-    lastName: "Kim",
-    email: null,
-    phone: "555-0106",
-  },
-  {
-    firstName: "Sophia",
-    lastName: "Collins",
-    email: "sophia.collins@example.com",
-    phone: "555-0107",
-  },
-  {
-    firstName: "Ethan",
-    lastName: "Davis",
-    email: "ethan.davis@example.com",
-    phone: null,
-  },
-  {
-    firstName: "Isabella",
-    lastName: "Lopez",
-    email: "isabella.lopez@example.com",
-    phone: "555-0109",
-  },
-  {
-    firstName: "Lucas",
-    lastName: "Brooks",
-    email: null,
-    phone: "555-0110",
-  },
-  {
-    firstName: "Mia",
-    lastName: "Sharma",
-    email: "mia.sharma@example.com",
-    phone: "555-0111",
-  },
-  {
-    firstName: "James",
-    lastName: "Turner",
-    email: "james.turner@example.com",
-    phone: "555-0112",
-  },
-] as const;
 
 const APPOINTMENT_SPECS: AppointmentSpec[] = [
   {
@@ -463,6 +398,91 @@ const SEED_ORGS: SeedOrg[] = [
   },
 ];
 
+function createSeedFromText(value: string): number {
+  let hash = 0;
+  for (const char of value) {
+    hash = (hash * 31 + char.charCodeAt(0)) >>> 0;
+  }
+  return hash;
+}
+
+function slugifyOrgName(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+function normalizeEmailLocalPart(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9.]+/g, ".")
+    .replace(/\.+/g, ".")
+    .replace(/^\.+|\.+$/g, "");
+}
+
+function buildClientFixtures(
+  orgName: string,
+  usedFullNames: Set<string>,
+  usedEmails: Set<string>,
+): SeedClient[] {
+  const orgSlug = slugifyOrgName(orgName);
+  const seed = createSeedFromText(`clients:${orgName}`);
+  const phoneBase = 1000 + (seed % 7000);
+  const fixtures: SeedClient[] = [];
+
+  faker.seed(seed);
+
+  for (let index = 0; index < CLIENT_FIXTURE_COUNT; index += 1) {
+    let createdFixture: SeedClient | null = null;
+
+    for (let attempts = 0; attempts < 50; attempts += 1) {
+      const firstName = faker.person.firstName();
+      const lastName = faker.person.lastName();
+      const fullNameKey = `${firstName} ${lastName}`.toLowerCase();
+
+      if (usedFullNames.has(fullNameKey)) {
+        continue;
+      }
+
+      const emailLocalPart = normalizeEmailLocalPart(
+        `${firstName}.${lastName}.${orgSlug}.${index + 1}`,
+      );
+      const email = `${emailLocalPart}@example.com`;
+
+      if (usedEmails.has(email)) {
+        continue;
+      }
+
+      usedFullNames.add(fullNameKey);
+      usedEmails.add(email);
+
+      createdFixture = {
+        firstName,
+        lastName,
+        email,
+        phone:
+          index % 4 === 0
+            ? null
+            : `555-${String(phoneBase + index)
+                .padStart(4, "0")
+                .slice(-4)}`,
+      };
+      break;
+    }
+
+    if (!createdFixture) {
+      throw new Error(
+        `Failed to generate unique client fixture for org: ${orgName}`,
+      );
+    }
+
+    fixtures.push(createdFixture);
+  }
+
+  return fixtures;
+}
+
 function startOfUtcDay(): Date {
   const now = new Date();
   return new Date(
@@ -491,6 +511,15 @@ function dateStringAtDayOffset(startOfDayUtc: Date, dayOffset: number): string {
 }
 
 async function seed() {
+  const isLocal =
+    databaseUrl.includes("localhost") || databaseUrl.includes("127.0.0.1");
+  if (!isLocal && process.env["NODE_ENV"] === "production") {
+    console.error(
+      "ERROR: seed() refused to run — DATABASE_URL does not point to localhost and NODE_ENV is 'production'.",
+    );
+    process.exit(1);
+  }
+
   console.log("Seeding database...");
 
   const client = new SQL(databaseUrl);
@@ -651,6 +680,8 @@ async function seed() {
   async function seedOrgData(
     orgId: string,
     seedOrg: SeedOrg,
+    usedClientNames: Set<string>,
+    usedClientEmails: Set<string>,
   ): Promise<SeedSummary> {
     await resetOrgDomainData(orgId);
 
@@ -663,6 +694,11 @@ async function seed() {
         { id: string; durationMin: number }
       >();
       const clientIds: string[] = [];
+      const clientFixtures = buildClientFixtures(
+        seedOrg.name,
+        usedClientNames,
+        usedClientEmails,
+      );
 
       for (const location of seedOrg.locations) {
         const [inserted] = await tx
@@ -749,7 +785,7 @@ async function seed() {
         });
       }
 
-      for (const clientFixture of CLIENT_FIXTURES) {
+      for (const clientFixture of clientFixtures) {
         const [insertedClient] = await tx
           .insert(clients)
           .values({
@@ -950,7 +986,7 @@ async function seed() {
         locations: seedOrg.locations.length,
         calendars: seedOrg.calendars.length,
         appointmentTypes: seedOrg.appointmentTypes.length,
-        clients: CLIENT_FIXTURES.length,
+        clients: clientFixtures.length,
         appointments: APPOINTMENT_SPECS.length,
         availabilityRules: availabilityRuleRows.length,
         availabilityOverrides: 3,
@@ -962,6 +998,8 @@ async function seed() {
   try {
     const adminUser = await getOrCreateAdminUser();
     const orgSummaries: Array<{ name: string; summary: SeedSummary }> = [];
+    const usedClientNames = new Set<string>();
+    const usedClientEmails = new Set<string>();
 
     for (const seedOrg of SEED_ORGS) {
       console.log(`\nPreparing org: ${seedOrg.name}`);
@@ -969,7 +1007,12 @@ async function seed() {
       await ensureAdminMembership(org.id, adminUser.id);
 
       console.log(`Resetting + seeding rich data for org: ${seedOrg.name}`);
-      const summary = await seedOrgData(org.id, seedOrg);
+      const summary = await seedOrgData(
+        org.id,
+        seedOrg,
+        usedClientNames,
+        usedClientEmails,
+      );
       orgSummaries.push({ name: seedOrg.name, summary });
     }
 

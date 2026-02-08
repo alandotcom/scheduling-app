@@ -12,6 +12,15 @@ function quoteIdentifier(value: string): string {
 }
 
 async function reset() {
+  const isLocal =
+    databaseUrl.includes("localhost") || databaseUrl.includes("127.0.0.1");
+  if (!isLocal && process.env["NODE_ENV"] === "production") {
+    console.error(
+      "ERROR: reset() refused to run — DATABASE_URL does not point to localhost and NODE_ENV is 'production'.",
+    );
+    process.exit(1);
+  }
+
   console.log("Resetting database...");
 
   const client = new SQL(databaseUrl);

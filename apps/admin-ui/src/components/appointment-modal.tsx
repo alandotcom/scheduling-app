@@ -1,25 +1,17 @@
 // Appointment booking modal with availability calendar
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState } from "react";
 import { DateTime } from "luxon";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
-import {
-  ArrowLeft02Icon,
-  ArrowRight02Icon,
-  Calendar03Icon,
-  Clock01Icon,
-} from "@hugeicons/core-free-icons";
+import { Calendar03Icon, Cancel01Icon } from "@hugeicons/core-free-icons";
 import { toast } from "sonner";
 
 import { orpc } from "@/lib/query";
 import {
-  formatDateISO,
   formatDisplayDateTime,
   formatTimezoneShort,
-  formatTimeDisplay,
   getUserTimezone,
-  getMonthDays,
 } from "@/lib/date-utils";
 import {
   DEFAULT_SCHEDULING_TIMEZONE_MODE,
@@ -28,6 +20,7 @@ import {
 } from "@/lib/scheduling-timezone";
 import { resolveSelectValueLabel } from "@/lib/select-value-label";
 import { cn } from "@/lib/utils";
+import { AvailabilityCalendarPicker } from "@/components/appointments/availability-calendar-picker";
 import { TimeDisplayToggle } from "@/components/appointments/time-display-toggle";
 import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
@@ -41,11 +34,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  buildDayAvailabilityMap,
-  filterAvailableSlotsForDate,
-  getDayAvailabilityLevel,
-} from "@/components/appointments/day-availability";
 import { AvailabilityManageModal } from "@/components/availability/availability-manage-modal";
 
 interface AppointmentModalProps {
@@ -149,7 +137,6 @@ export function AppointmentModal({
   // Fetch available time slots for visible month
   const monthStartDateStr = viewMonth.startOf("month").toISODate() ?? "";
   const monthEndDateStr = viewMonth.endOf("month").toISODate() ?? "";
-  const selectedDateStr = selectedDate ? formatDateISO(selectedDate) : "";
   const {
     data: slotsData,
     isLoading: slotsLoading,
@@ -190,21 +177,6 @@ export function AppointmentModal({
   const appointmentTypes = typesData?.items ?? [];
   const clients = clientsData?.items ?? [];
   const monthSlots = slotsData?.slots ?? [];
-  const dayAvailabilityCounts = useMemo(
-    () => buildDayAvailabilityMap(monthSlots, schedulingTimezone),
-    [monthSlots, schedulingTimezone],
-  );
-  const availableSlots = useMemo(
-    () =>
-      selectedDateStr
-        ? filterAvailableSlotsForDate(
-            monthSlots,
-            selectedDateStr,
-            schedulingTimezone,
-          )
-        : [],
-    [monthSlots, selectedDateStr, schedulingTimezone],
-  );
 
   const appointmentTypeSelectLabel = resolveSelectValueLabel({
     value: selectedTypeId,
@@ -220,20 +192,6 @@ export function AppointmentModal({
     getOptionLabel: (calendar) => calendar.name,
     unknownLabel: defaultCalendarName ?? "Unknown calendar",
   });
-  // Generate calendar days
-  const calendarDays = useMemo(() => {
-    const year = viewMonth.year;
-    const month = viewMonth.month - 1;
-    const days = getMonthDays(year, month);
-    const today = DateTime.now().startOf("day");
-
-    return days.map((date) => ({
-      date,
-      isCurrentMonth: date.month === month + 1,
-      isToday: date.hasSame(today, "day"),
-      isPast: date < today,
-    }));
-  }, [viewMonth]);
 
   const handleClose = () => {
     setAvailabilityModalOpen(false);
@@ -295,13 +253,13 @@ export function AppointmentModal({
   useEffect(() => {
     if (!open || !selectedDate || !selectedTime || slotsLoading) return;
 
-    const stillAvailable = availableSlots.some((slot) => {
+    const stillAvailable = monthSlots.some((slot) => {
       return slot.start === selectedTime;
     });
     if (!stillAvailable) {
       setSelectedTime("");
     }
-  }, [availableSlots, open, selectedDate, selectedTime, slotsLoading]);
+  }, [monthSlots, open, selectedDate, selectedTime, slotsLoading]);
 
   useEffect(() => {
     if (!open || !selectedTypeId || calendarsLoading) return;
@@ -333,10 +291,6 @@ export function AppointmentModal({
     selectedTypeId,
   ]);
 
-  const formatTime = (isoString: string) => {
-    return formatTimeDisplay(isoString, effectiveTimezone);
-  };
-
   const formatSelectedDateTime = () => {
     if (!selectedTime) return "";
     return formatDisplayDateTime(selectedTime, effectiveTimezone);
@@ -356,7 +310,9 @@ export function AppointmentModal({
             data-slot="appointment-modal-backdrop"
             className={cn(
               "fixed inset-0 z-50 bg-black/50 backdrop-blur-sm",
-              "data-open:animate-in data-open:fade-in-0 duration-100",
+              "data-open:animate-in data-closed:animate-out",
+              "data-closed:fade-out-0 data-open:fade-in-0",
+              "duration-200",
             )}
           />
           <DialogPrimitive.Popup
@@ -364,7 +320,10 @@ export function AppointmentModal({
             className={cn(
               "fixed left-1/2 top-2 z-50 w-[calc(100vw-1rem)] max-w-2xl -translate-x-1/2 sm:top-8 sm:w-full",
               "rounded-xl border border-border bg-background shadow-xl",
-              "data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 duration-150",
+              "data-open:animate-in data-closed:animate-out",
+              "data-closed:fade-out-0 data-open:fade-in-0",
+              "data-closed:zoom-out-95 data-open:zoom-in-95",
+              "duration-200",
               "max-h-[calc(100dvh-1rem)] overflow-hidden flex flex-col sm:h-[min(86dvh,52rem)] sm:max-h-[calc(100dvh-4rem)] sm:min-h-[36rem]",
             )}
           >
@@ -377,19 +336,7 @@ export function AppointmentModal({
                 render={<Button variant="ghost" size="icon-sm" />}
               >
                 <span className="sr-only">Close</span>
-                <svg
-                  className="size-4"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M6 18L18 6M6 6l12 12"
-                  />
-                </svg>
+                <Icon icon={Cancel01Icon} />
               </DialogPrimitive.Close>
             </div>
 
@@ -472,157 +419,24 @@ export function AppointmentModal({
 
               {/* Calendar and Time Selection */}
               {selectedCalendarId && (
-                <div className="mb-5 grid grid-cols-1 gap-5 sm:mb-6 sm:grid-cols-2 sm:gap-6">
-                  {/* Calendar */}
-                  <div>
-                    <div className="flex items-center justify-between mb-4">
-                      <h3 className="font-medium">
-                        {viewMonth.toLocaleString({
-                          month: "long",
-                          year: "numeric",
-                        })}
-                      </h3>
-                      <div className="flex gap-1">
-                        <Button
-                          variant="ghost"
-                          size="icon-sm"
-                          onClick={() =>
-                            setViewMonth((prev) => prev.minus({ months: 1 }))
-                          }
-                        >
-                          <Icon icon={ArrowLeft02Icon} className="size-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon-sm"
-                          onClick={() =>
-                            setViewMonth((prev) => prev.plus({ months: 1 }))
-                          }
-                        >
-                          <Icon icon={ArrowRight02Icon} className="size-4" />
-                        </Button>
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-7 gap-1 text-center">
-                      {["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"].map((day) => (
-                        <div
-                          key={day}
-                          className="p-2 text-xs font-medium text-muted-foreground"
-                        >
-                          {day}
-                        </div>
-                      ))}
-                      {calendarDays.map((day, i) => {
-                        if (!day.isCurrentMonth) {
-                          return (
-                            <div
-                              key={i}
-                              className="p-2"
-                              aria-hidden="true"
-                              data-slot="calendar-empty-day"
-                            />
-                          );
-                        }
-
-                        const isSelected =
-                          selectedDate && day.date.hasSame(selectedDate, "day");
-                        const dayDateKey = formatDateISO(day.date);
-                        const availabilityLevel = day.isPast
-                          ? "none"
-                          : getDayAvailabilityLevel(
-                              dayAvailabilityCounts.get(dayDateKey) ?? 0,
-                            );
-                        return (
-                          <button
-                            key={i}
-                            type="button"
-                            data-availability={availabilityLevel}
-                            disabled={day.isPast}
-                            onClick={() => handleDateSelect(day.date)}
-                            className={cn(
-                              "p-2 text-sm rounded-md border border-transparent transition-colors",
-                              "text-foreground",
-                              day.isPast && "opacity-50 cursor-not-allowed",
-                              day.isToday && "ring-1 ring-primary",
-                              isSelected &&
-                                "bg-primary text-primary-foreground",
-                              !isSelected &&
-                                availabilityLevel === "good" &&
-                                "border-emerald-300/70 bg-emerald-100/45 hover:bg-emerald-100/65 dark:border-emerald-500/40 dark:bg-emerald-500/15 dark:hover:bg-emerald-500/20",
-                              !isSelected &&
-                                availabilityLevel === "low" &&
-                                "border-amber-300/70 bg-amber-100/45 hover:bg-amber-100/65 dark:border-amber-500/40 dark:bg-amber-500/15 dark:hover:bg-amber-500/20",
-                              !isSelected &&
-                                availabilityLevel === "none" &&
-                                !day.isPast &&
-                                "hover:bg-muted",
-                            )}
-                          >
-                            {day.date.day}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  {/* Time Slots */}
-                  <div>
-                    <h3 className="font-medium mb-4">
-                      {selectedDate
-                        ? selectedDate.toLocaleString({
-                            weekday: "short",
-                            month: "short",
-                            day: "numeric",
-                          })
-                        : "Select a date"}
-                    </h3>
-                    {!selectedDate ? (
-                      <div className="text-sm text-muted-foreground">
-                        Choose a date to see available times
-                      </div>
-                    ) : slotsLoading ? (
-                      <div className="text-sm text-muted-foreground">
-                        Loading times...
-                      </div>
-                    ) : availableSlots.length === 0 ? (
-                      <div className="space-y-2">
-                        <p className="text-sm text-muted-foreground">
-                          No available times on this date
-                        </p>
-                        {selectedCalendarId ? (
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            onClick={() =>
-                              openCalendarAvailability(selectedCalendarId)
-                            }
-                          >
-                            Manage availability
-                          </Button>
-                        ) : null}
-                      </div>
-                    ) : (
-                      <div className="grid grid-cols-2 gap-2 max-h-64 overflow-y-auto">
-                        {availableSlots.map((slot) => (
-                          <Button
-                            key={slot.start}
-                            variant={
-                              selectedTime === slot.start
-                                ? "default"
-                                : "outline"
-                            }
-                            size="sm"
-                            onClick={() => setSelectedTime(slot.start)}
-                            className="justify-start"
-                          >
-                            <Icon icon={Clock01Icon} data-icon="inline-start" />
-                            {formatTime(slot.start)}
-                          </Button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
+                <div className="mb-5 sm:mb-6">
+                  <AvailabilityCalendarPicker
+                    viewMonth={viewMonth}
+                    onViewMonthChange={setViewMonth}
+                    selectedDate={selectedDate}
+                    onSelectDate={handleDateSelect}
+                    selectedTime={selectedTime}
+                    onSelectTime={setSelectedTime}
+                    monthSlots={monthSlots}
+                    slotsLoading={slotsLoading}
+                    schedulingTimezone={schedulingTimezone}
+                    displayTimezone={effectiveTimezone}
+                    onManageAvailability={
+                      selectedCalendarId
+                        ? () => openCalendarAvailability(selectedCalendarId)
+                        : undefined
+                    }
+                  />
                 </div>
               )}
 

@@ -1,6 +1,6 @@
 // Schedule grid component for week view
 
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { DateTime } from "luxon";
 import {
   ArrowLeft02Icon,
@@ -94,6 +94,27 @@ export function ScheduleGrid({
   onToday,
   isLoading,
 }: ScheduleGridProps) {
+  const [viewMode, setViewMode] = useState<"week" | "day">(() =>
+    typeof window !== "undefined" &&
+    window.matchMedia("(max-width: 639px)").matches
+      ? "day"
+      : "week",
+  );
+  const [selectedDayIndex, setSelectedDayIndex] = useState(() => {
+    const today = new Date();
+    const dayOfWeek = today.getDay(); // 0=Sun, 1=Mon, etc.
+    return dayOfWeek === 0 ? 6 : dayOfWeek - 1; // Convert to Mon=0 index
+  });
+
+  useEffect(() => {
+    const mq = window.matchMedia("(min-width: 640px)");
+    const handler = (e: MediaQueryListEvent) => {
+      setViewMode(e.matches ? "week" : "day");
+    };
+    mq.addEventListener("change", handler);
+    return () => mq.removeEventListener("change", handler);
+  }, []);
+
   const timezoneShortLabel = formatTimezoneShort(displayTimezone);
   const weekDays = useMemo(() => getWeekDays(weekStart), [weekStart]);
   const appointmentsByDay = useMemo(
@@ -102,6 +123,15 @@ export function ScheduleGrid({
   );
 
   const hours = Array.from({ length: TOTAL_HOURS }, (_, i) => START_HOUR + i);
+
+  // Safe access: clamp selectedDayIndex and assert non-null (weekDays always has 7 entries)
+  const clampedDayIndex = Math.min(selectedDayIndex, weekDays.length - 1);
+  const selectedDay = weekDays[clampedDayIndex]!;
+
+  const visibleDays =
+    viewMode === "day"
+      ? [{ day: selectedDay, index: clampedDayIndex }]
+      : weekDays.map((day, index) => ({ day: day!, index }));
 
   return (
     <div className="relative flex h-full flex-col">
@@ -119,8 +149,42 @@ export function ScheduleGrid({
             Today
           </Button>
         </div>
-        <div className="text-sm font-medium">
-          {formatWeekRange(weekStart)} ({timezoneShortLabel})
+        <div className="flex items-center gap-2">
+          {viewMode === "day" && (
+            <div className="flex items-center gap-1">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setSelectedDayIndex((i) => (i > 0 ? i - 1 : 6))}
+              >
+                <Icon icon={ArrowLeft02Icon} className="size-4" />
+              </Button>
+              <span className="text-sm font-medium min-w-[100px] text-center">
+                {WEEKDAYS[selectedDay.weekday % 7]},{" "}
+                {formatDateHeader(selectedDay)}
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setSelectedDayIndex((i) => (i < 6 ? i + 1 : 0))}
+              >
+                <Icon icon={ArrowRight02Icon} className="size-4" />
+              </Button>
+            </div>
+          )}
+          {viewMode === "week" && (
+            <span className="text-sm font-medium">
+              {formatWeekRange(weekStart)} ({timezoneShortLabel})
+            </span>
+          )}
+          <Button
+            variant="outline"
+            size="sm"
+            className="sm:hidden"
+            onClick={() => setViewMode((m) => (m === "week" ? "day" : "week"))}
+          >
+            {viewMode === "day" ? "Week" : "Day"}
+          </Button>
         </div>
       </div>
 
@@ -133,11 +197,11 @@ export function ScheduleGrid({
 
       {/* Grid */}
       <div className="flex-1 overflow-auto">
-        <div className="min-w-[800px]">
+        <div className={viewMode === "week" ? "min-w-[800px]" : ""}>
           {/* Day headers */}
           <div className="flex border-b border-border bg-muted/30 sticky top-0 z-10">
             <div className="w-16 shrink-0" />
-            {weekDays.map((day, index) => (
+            {visibleDays.map(({ day, index }) => (
               <div
                 key={index}
                 className={`flex-1 px-2 py-2 text-center border-l border-border/30 ${
@@ -180,7 +244,7 @@ export function ScheduleGrid({
             </div>
 
             {/* Day columns */}
-            {weekDays.map((day, dayIndex) => {
+            {visibleDays.map(({ day, index: dayIndex }) => {
               const dayAppointments = appointmentsByDay.get(dayIndex) ?? [];
 
               return (

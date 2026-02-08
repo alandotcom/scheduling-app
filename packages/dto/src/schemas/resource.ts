@@ -6,7 +6,7 @@ export const resourceSchema = z.object({
   id: uuidSchema,
   orgId: uuidSchema,
   locationId: uuidSchema.nullable(),
-  name: z.string().min(1).max(255),
+  name: z.string().min(1, "Name is required").max(255, "Name is too long"),
   quantity: positiveIntSchema,
   ...timestampsSchema.shape,
 });
@@ -14,14 +14,18 @@ export const resourceSchema = z.object({
 // Create resource input
 export const createResourceSchema = z.object({
   locationId: uuidSchema.optional(),
-  name: z.string().min(1).max(255),
+  name: z.string().min(1, "Name is required").max(255, "Name is too long"),
   quantity: positiveIntSchema.optional().default(1),
 });
 
 // Update resource input
 export const updateResourceSchema = z.object({
   locationId: uuidSchema.nullable().optional(),
-  name: z.string().min(1).max(255).optional(),
+  name: z
+    .string()
+    .min(1, "Name is required")
+    .max(255, "Name is too long")
+    .optional(),
   quantity: positiveIntSchema.optional(),
 });
 
@@ -29,7 +33,12 @@ export const updateResourceSchema = z.object({
 export const listResourcesQuerySchema = z.object({
   locationId: uuidSchema.optional(),
   cursor: uuidSchema.optional(),
-  limit: z.number().int().min(1).max(100).default(20),
+  limit: z
+    .number()
+    .int()
+    .min(1, "Must be at least 1")
+    .max(100, "Must be at most 100")
+    .default(20),
 });
 
 // Response types

@@ -66,7 +66,12 @@ export const listAppointmentsQuerySchema = z.object({
   startDate: dateSchema.optional(),
   endDate: dateSchema.optional(),
   cursor: uuidSchema.optional(),
-  limit: z.number().int().min(1).max(100).default(20),
+  limit: z
+    .number()
+    .int()
+    .min(1, "Must be at least 1")
+    .max(100, "Must be at most 100")
+    .default(20),
 });
 
 // Time-range appointments query (schedule view)
@@ -79,7 +84,12 @@ export const appointmentTimeRangeQuerySchema = z
     clientId: uuidSchema.optional(),
     status: appointmentStatusSchema.optional(),
     cursor: uuidSchema.optional(),
-    limit: z.number().int().min(1).max(1000).default(500),
+    limit: z
+      .number()
+      .int()
+      .min(1, "Must be at least 1")
+      .max(1000, "Must be at most 1000")
+      .default(500),
   })
   .refine((data) => data.startAt < data.endAt, {
     message: "startAt must be before endAt",

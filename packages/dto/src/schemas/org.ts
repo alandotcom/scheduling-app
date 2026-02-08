@@ -9,8 +9,11 @@ import {
 // Base org schema
 export const orgSchema = z.object({
   id: uuidSchema,
-  name: z.string().min(1).max(255),
-  defaultTimezone: z.string().min(1).default("America/New_York"),
+  name: z.string().min(1, "Name is required").max(255, "Name is too long"),
+  defaultTimezone: z
+    .string()
+    .min(1, "Default timezone is required")
+    .default("America/New_York"),
   defaultBusinessHoursStart: timeSchema.default("09:00"),
   defaultBusinessHoursEnd: timeSchema.default("17:00"),
   defaultBusinessDays: z.array(weekdaySchema).default([1, 2, 3, 4, 5]),
@@ -20,17 +23,21 @@ export const orgSchema = z.object({
 
 // Create org input
 export const createOrgSchema = z.object({
-  name: z.string().min(1).max(255),
+  name: z.string().min(1, "Name is required").max(255, "Name is too long"),
 });
 
 // Update org input
 export const updateOrgSchema = z.object({
-  name: z.string().min(1).max(255).optional(),
+  name: z
+    .string()
+    .min(1, "Name is required")
+    .max(255, "Name is too long")
+    .optional(),
 });
 
 // Update org settings input
 export const updateOrgSettingsSchema = z.object({
-  defaultTimezone: z.string().min(1).optional(),
+  defaultTimezone: z.string().min(1, "Default timezone is required").optional(),
   defaultBusinessHoursStart: timeSchema.optional(),
   defaultBusinessHoursEnd: timeSchema.optional(),
   defaultBusinessDays: z.array(weekdaySchema).optional(),

@@ -1,7 +1,9 @@
 import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
 import type { ReactNode } from "react";
+import { Cancel01Icon } from "@hugeicons/core-free-icons";
 
 import { Button } from "@/components/ui/button";
+import { Icon } from "@/components/ui/icon";
 import { cn } from "@/lib/utils";
 
 interface EntityModalProps {
@@ -34,7 +36,9 @@ export function EntityModal({
           data-slot="entity-modal-backdrop"
           className={cn(
             "fixed inset-0 z-50 bg-black/40",
-            "data-open:animate-in data-open:fade-in-0 duration-100",
+            "data-open:animate-in data-closed:animate-out",
+            "data-closed:fade-out-0 data-open:fade-in-0",
+            "duration-200",
           )}
         />
         <DialogPrimitive.Popup
@@ -43,7 +47,10 @@ export function EntityModal({
             "fixed left-1/2 top-4 z-50 w-[calc(100vw-2rem)] max-w-xl -translate-x-1/2 sm:top-8",
             "max-h-[calc(100dvh-2rem)] overflow-hidden rounded-xl border border-border bg-background shadow-xl sm:h-[min(86dvh,52rem)] sm:max-h-[calc(100dvh-4rem)] sm:min-h-[36rem]",
             "flex flex-col",
-            "data-open:animate-in data-open:zoom-in-95 duration-150",
+            "data-open:animate-in data-closed:animate-out",
+            "data-closed:fade-out-0 data-open:fade-in-0",
+            "data-closed:zoom-out-95 data-open:zoom-in-95",
+            "duration-200",
             className,
           )}
         >
@@ -66,19 +73,7 @@ export function EntityModal({
                 render={<Button variant="ghost" size="icon-sm" />}
               >
                 <span className="sr-only">Close</span>
-                <svg
-                  className="size-4"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M6 18L18 6M6 6l12 12"
-                  />
-                </svg>
+                <Icon icon={Cancel01Icon} />
               </DialogPrimitive.Close>
             </div>
           </div>

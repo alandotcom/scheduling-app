@@ -51,7 +51,10 @@ export function RowActions({ actions, ariaLabel }: RowActionsProps) {
             <Popover.Popup
               className={cn(
                 "min-w-44 overflow-hidden rounded-lg border border-border bg-background p-1 shadow-lg",
-                "data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 duration-150",
+                "data-open:animate-in data-closed:animate-out",
+                "data-closed:fade-out-0 data-open:fade-in-0",
+                "data-closed:zoom-out-95 data-open:zoom-in-95",
+                "duration-150",
               )}
             >
               {actions.map((action, index) => (

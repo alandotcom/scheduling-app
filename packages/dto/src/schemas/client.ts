@@ -10,34 +10,59 @@ import {
 export const clientSchema = z.object({
   id: uuidSchema,
   orgId: uuidSchema,
-  firstName: z.string().min(1).max(255),
-  lastName: z.string().min(1).max(255),
-  email: z.string().email().nullable(),
-  phone: z.string().max(50).nullable(),
+  firstName: z
+    .string()
+    .min(1, "First name is required")
+    .max(255, "First name is too long"),
+  lastName: z
+    .string()
+    .min(1, "Last name is required")
+    .max(255, "Last name is too long"),
+  email: z.string().email("Invalid email address").nullable(),
+  phone: z.string().max(50, "Phone number is too long").nullable(),
   ...timestampsSchema.shape,
 });
 
 // Create client input
 export const createClientSchema = z.object({
-  firstName: z.string().min(1).max(255),
-  lastName: z.string().min(1).max(255),
-  email: z.string().email().optional(),
-  phone: z.string().max(50).optional(),
+  firstName: z
+    .string()
+    .min(1, "First name is required")
+    .max(255, "First name is too long"),
+  lastName: z
+    .string()
+    .min(1, "Last name is required")
+    .max(255, "Last name is too long"),
+  email: z.string().email("Invalid email address").optional().or(z.literal("")),
+  phone: z.string().max(50, "Phone number is too long").optional(),
 });
 
 // Update client input
 export const updateClientSchema = z.object({
-  firstName: z.string().min(1).max(255).optional(),
-  lastName: z.string().min(1).max(255).optional(),
-  email: z.string().email().nullable().optional(),
-  phone: z.string().max(50).nullable().optional(),
+  firstName: z
+    .string()
+    .min(1, "First name is required")
+    .max(255, "First name is too long")
+    .optional(),
+  lastName: z
+    .string()
+    .min(1, "Last name is required")
+    .max(255, "Last name is too long")
+    .optional(),
+  email: z.string().email("Invalid email address").nullable().optional(),
+  phone: z.string().max(50, "Phone number is too long").nullable().optional(),
 });
 
 // List clients query
 export const listClientsQuerySchema = z.object({
   search: z.string().optional(), // search by name or email
   cursor: uuidSchema.optional(),
-  limit: z.number().int().min(1).max(100).default(20),
+  limit: z
+    .number()
+    .int()
+    .min(1, "Must be at least 1")
+    .max(100, "Must be at most 100")
+    .default(20),
 });
 
 // Response types

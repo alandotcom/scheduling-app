@@ -78,7 +78,11 @@ function RootLayout() {
     window.location.origin,
   );
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(
+    () =>
+      typeof window !== "undefined" &&
+      window.matchMedia("(max-width: 1279px)").matches,
+  );
   const [isAutoSelectingOrg, setIsAutoSelectingOrg] = useState(false);
   const [autoSelectAttemptKey, setAutoSelectAttemptKey] = useState<
     string | null
@@ -159,10 +163,8 @@ function RootLayout() {
         return;
       }
 
-      await Promise.all([
-        queryClient.invalidateQueries(),
-        refetchOrganizations(),
-      ]);
+      queryClient.clear();
+      await refetchOrganizations();
     })().finally(() => {
       if (!cancelled) {
         setIsAutoSelectingOrg(false);
@@ -191,10 +193,8 @@ function RootLayout() {
       throw new Error(result.error.message ?? "Failed to switch organization.");
     }
 
-    await Promise.all([
-      queryClient.invalidateQueries(),
-      refetchOrganizations(),
-    ]);
+    queryClient.clear();
+    await refetchOrganizations();
     setMobileMenuOpen(false);
     toast.success("Organization switched.");
   };
@@ -487,8 +487,8 @@ function RootLayout() {
                 {activeOrganization?.name ?? "No active organization"}
               </p>
               <p className="truncate text-xs text-muted-foreground">
-                {activeOrganization?.slug
-                  ? `@${activeOrganization.slug}`
+                {activeOrganization
+                  ? user?.email
                   : "Select or create an organization"}
               </p>
             </div>
@@ -588,20 +588,30 @@ function RootLayout() {
           <nav className="flex-1 px-3 py-3">
             <div className="flex flex-col gap-0.5">
               {navItems.map((item) => (
-                <SheetClose key={item.to} asChild>
+                <div
+                  key={item.to}
+                  onClick={() => setMobileMenuOpen(false)}
+                  onKeyDown={() => {}}
+                  role="presentation"
+                >
                   <SidebarLink to={item.to} icon={item.icon}>
                     {item.label}
                   </SidebarLink>
-                </SheetClose>
+                </div>
               ))}
             </div>
             <div className="mt-4 border-t border-sidebar-border pt-4">
               {bottomNavItems.map((item) => (
-                <SheetClose key={item.to} asChild>
+                <div
+                  key={item.to}
+                  onClick={() => setMobileMenuOpen(false)}
+                  onKeyDown={() => {}}
+                  role="presentation"
+                >
                   <SidebarLink to={item.to} icon={item.icon}>
                     {item.label}
                   </SidebarLink>
-                </SheetClose>
+                </div>
               ))}
             </div>
           </nav>

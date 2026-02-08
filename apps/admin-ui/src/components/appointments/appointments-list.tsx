@@ -1,6 +1,7 @@
 // Appointments list table component
 
 import type { AppointmentWithRelations } from "@scheduling/dto";
+import { TableSkeleton } from "@/components/ui/skeleton";
 import {
   Cancel01Icon,
   CheckmarkCircle01Icon,
@@ -110,12 +111,8 @@ export function AppointmentsList({
 
   if (isLoading) {
     return (
-      <div
-        className="text-center text-muted-foreground py-10"
-        role="status"
-        aria-live="polite"
-      >
-        Loading...
+      <div className="py-10" role="status" aria-live="polite">
+        <TableSkeleton rows={5} cols={5} />
       </div>
     );
   }

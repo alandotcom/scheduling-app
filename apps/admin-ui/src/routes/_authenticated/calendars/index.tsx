@@ -1,6 +1,7 @@
 // Calendars management page with modal-based CRUD
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
+import { useClosingSnapshot } from "@/hooks/use-closing-snapshot";
 import { DateTime } from "luxon";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -17,6 +18,7 @@ import { toast } from "sonner";
 
 import { createCalendarSchema } from "@scheduling/dto";
 import type { CreateCalendarInput } from "@scheduling/dto";
+import { TableSkeleton } from "@/components/ui/skeleton";
 import { AvailabilitySubTabs } from "@/components/availability/availability-sub-tabs";
 import { BlockedTimeEditor } from "@/components/availability/blocked-time-editor";
 import { AppointmentModal } from "@/components/appointment-modal";
@@ -50,6 +52,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useCrudState } from "@/hooks/use-crud-state";
+import { useUrlDrivenModal } from "@/hooks/use-url-driven-modal";
 import { useValidateSelection } from "@/hooks/use-selection-search-params";
 import {
   formatDateISO,
@@ -213,7 +216,6 @@ function CalendarsPage() {
   const { selected, tab } = Route.useSearch();
   const selectedId = selected ?? null;
   const activeTab: DetailTabValue = tab && isDetailTab(tab) ? tab : "details";
-  const detailOpen = !!selectedId;
   const [availabilitySubTab, setAvailabilitySubTab] =
     useState<AvailabilitySubTabType>("weekly");
   const [appointmentModalOpen, setAppointmentModalOpen] = useState(false);
@@ -231,17 +233,12 @@ function CalendarsPage() {
   const calendars = data?.items ?? [];
   const selectedCalendar =
     calendars.find((calendar) => calendar.id === selectedId) ?? null;
-  const [closingCalendarSnapshot, setClosingCalendarSnapshot] =
-    useState<CalendarItem | null>(null);
-
-  useEffect(() => {
-    if (!selectedCalendar) return;
-    setClosingCalendarSnapshot(selectedCalendar);
-  }, [selectedCalendar]);
-
-  const displayCalendar = detailOpen
-    ? selectedCalendar
-    : closingCalendarSnapshot;
+  const displayCalendar = useClosingSnapshot(selectedCalendar ?? undefined);
+  const { isOpen: detailModalOpen, closeNow: closeDetailModalNow } =
+    useUrlDrivenModal({
+      selectedId,
+      hasResolvedEntity: !!selectedCalendar,
+    });
 
   const openDetails = useCallback(
     (calendarId: string, nextTab: DetailTabValue = "details") => {
@@ -257,6 +254,7 @@ function CalendarsPage() {
   );
 
   const clearDetails = useCallback(() => {
+    closeDetailModalNow();
     setAvailabilitySubTab("weekly");
     navigate({
       search: (prev) => ({
@@ -265,7 +263,7 @@ function CalendarsPage() {
         tab: undefined,
       }),
     });
-  }, [navigate]);
+  }, [closeDetailModalNow, navigate]);
 
   const setActiveTab = useCallback(
     (value: string) => {
@@ -420,12 +418,8 @@ function CalendarsPage() {
 
       <div className="mt-6">
         {isLoading ? (
-          <div
-            className="text-center text-muted-foreground py-10"
-            role="status"
-            aria-live="polite"
-          >
-            Loading...
+          <div className="py-10" role="status" aria-live="polite">
+            <TableSkeleton rows={5} cols={6} />
           </div>
         ) : error ? (
           <div className="text-center text-destructive py-10">
@@ -517,7 +511,7 @@ function CalendarsPage() {
       </EntityModal>
 
       <EntityModal
-        open={detailOpen}
+        open={detailModalOpen && !!displayCalendar}
         onOpenChange={(open) => {
           if (!open) clearDetails();
         }}
@@ -529,11 +523,7 @@ function CalendarsPage() {
         }
         className="max-w-6xl"
       >
-        {detailOpen && !selectedCalendar ? (
-          <div className="flex items-center justify-center p-8 text-sm text-muted-foreground">
-            Loading calendar...
-          </div>
-        ) : displayCalendar ? (
+        {displayCalendar ? (
           <div className="space-y-4">
             <DetailTabs
               value={activeTab}

@@ -1,7 +1,8 @@
 // Appointment Types management page with modal-based CRUD
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { createFileRoute } from "@tanstack/react-router";
+import { useCallback, useMemo } from "react";
+import { useClosingSnapshot } from "@/hooks/use-closing-snapshot";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -15,10 +16,12 @@ import {
 
 import { createAppointmentTypeSchema } from "@scheduling/dto";
 import type { CreateAppointmentTypeInput } from "@scheduling/dto";
+import { TableSkeleton } from "@/components/ui/skeleton";
 import { ContextMenu, type ContextMenuItem } from "@/components/context-menu";
 import { DeleteConfirmDialog } from "@/components/delete-confirm-dialog";
 import { EntityModal } from "@/components/entity-modal";
 import { RelationshipCountBadge } from "@/components/relationship-count-badge";
+import { RowActions } from "@/components/row-actions";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
@@ -34,6 +37,7 @@ import {
 } from "@/components/ui/table";
 import { useCrudState } from "@/hooks/use-crud-state";
 import { useAppointmentTypeMutations } from "@/hooks/use-appointment-type-mutations";
+import { useUrlDrivenModal } from "@/hooks/use-url-driven-modal";
 import { formatDisplayDate } from "@/lib/date-utils";
 import { getQueryClient, orpc } from "@/lib/query";
 import { CalendarsTab } from "./-components/calendars-tab";
@@ -176,9 +180,39 @@ function AppointmentTypeForm({
 
 type ManageTab = "details" | "calendars" | "resources";
 
+const isManageTab = (value: string): value is ManageTab =>
+  value === "details" || value === "calendars" || value === "resources";
+
 function AppointmentTypesPage() {
-  const [manageTypeId, setManageTypeId] = useState<string | null>(null);
-  const [manageTab, setManageTab] = useState<ManageTab>("details");
+  const navigate = useNavigate({ from: Route.fullPath });
+  const { selected, tab } = Route.useSearch();
+  const manageTypeId = selected ?? null;
+  const manageTab: ManageTab = tab && isManageTab(tab) ? tab : "details";
+
+  const setManageTypeId = useCallback(
+    (id: string | null) => {
+      navigate({
+        search: (prev) => ({
+          ...prev,
+          selected: id ?? undefined,
+          tab: id ? prev.tab : undefined,
+        }),
+      });
+    },
+    [navigate],
+  );
+
+  const setManageTab = useCallback(
+    (nextTab: ManageTab) => {
+      navigate({
+        search: (prev) => ({
+          ...prev,
+          tab: nextTab,
+        }),
+      });
+    },
+    [navigate],
+  );
 
   const { data, isLoading, error } = useQuery({
     ...orpc.appointmentTypes.list.queryOptions({
@@ -196,15 +230,12 @@ function AppointmentTypesPage() {
     () => appointmentTypes.find((item) => item.id === manageTypeId) ?? null,
     [appointmentTypes, manageTypeId],
   );
-  const [closingManageTypeSnapshot, setClosingManageTypeSnapshot] =
-    useState<AppointmentTypeItem | null>(null);
-
-  useEffect(() => {
-    if (!manageType) return;
-    setClosingManageTypeSnapshot(manageType);
-  }, [manageType]);
-
-  const displayManageType = manageType ?? closingManageTypeSnapshot;
+  const displayManageType = useClosingSnapshot(manageType ?? undefined);
+  const { isOpen: manageModalOpen, closeNow: closeManageModalNow } =
+    useUrlDrivenModal({
+      selectedId: manageTypeId,
+      hasResolvedEntity: !!manageType,
+    });
 
   const {
     createMutation,
@@ -337,6 +368,7 @@ function AppointmentTypesPage() {
   );
 
   const closeManageModal = () => {
+    closeManageModalNow();
     setManageTypeId(null);
   };
 
@@ -360,12 +392,8 @@ function AppointmentTypesPage() {
 
       <div className="mt-6">
         {isLoading ? (
-          <div
-            className="py-10 text-center text-muted-foreground"
-            role="status"
-            aria-live="polite"
-          >
-            Loading...
+          <div className="py-10" role="status" aria-live="polite">
+            <TableSkeleton rows={5} cols={7} />
           </div>
         ) : error ? (
           <div className="py-10 text-center text-destructive">
@@ -387,6 +415,7 @@ function AppointmentTypesPage() {
                   <TableHead>Capacity</TableHead>
                   <TableHead>Relationships</TableHead>
                   <TableHead>Created</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -439,6 +468,12 @@ function AppointmentTypesPage() {
                         </div>
                       </TableCell>
                       <TableCell>{formatDisplayDate(type.createdAt)}</TableCell>
+                      <TableCell>
+                        <RowActions
+                          ariaLabel={`Actions for ${type.name}`}
+                          actions={getContextMenuItems(type)}
+                        />
+                      </TableCell>
                     </TableRow>
                   </ContextMenu>
                 ))}
@@ -463,7 +498,7 @@ function AppointmentTypesPage() {
       </EntityModal>
 
       <EntityModal
-        open={!!manageType}
+        open={manageModalOpen && !!displayManageType}
         onOpenChange={(open) => {
           if (!open) closeManageModal();
         }}
@@ -555,6 +590,15 @@ function AppointmentTypesPage() {
 }
 
 export const Route = createFileRoute("/_authenticated/appointment-types/")({
+  validateSearch: (
+    search: Record<string, unknown>,
+  ): { selected?: string; tab?: ManageTab } => {
+    const selected =
+      typeof search.selected === "string" ? search.selected : undefined;
+    const rawTab = typeof search.tab === "string" ? search.tab : "";
+    const tab = isManageTab(rawTab) ? rawTab : undefined;
+    return { selected, tab };
+  },
   loader: async () => {
     const queryClient = getQueryClient();
     await queryClient.ensureQueryData(

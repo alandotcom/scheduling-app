@@ -11,7 +11,7 @@ export const calendarSchema = z.object({
   id: uuidSchema,
   orgId: uuidSchema,
   locationId: uuidSchema.nullable(),
-  name: z.string().min(1).max(255),
+  name: z.string().min(1, "Name is required").max(255, "Name is too long"),
   timezone: timezoneSchema,
   ...timestampsSchema.shape,
 });
@@ -19,14 +19,18 @@ export const calendarSchema = z.object({
 // Create calendar input
 export const createCalendarSchema = z.object({
   locationId: uuidSchema.optional(),
-  name: z.string().min(1).max(255),
+  name: z.string().min(1, "Name is required").max(255, "Name is too long"),
   timezone: timezoneSchema,
 });
 
 // Update calendar input
 export const updateCalendarSchema = z.object({
   locationId: uuidSchema.nullable().optional(),
-  name: z.string().min(1).max(255).optional(),
+  name: z
+    .string()
+    .min(1, "Name is required")
+    .max(255, "Name is too long")
+    .optional(),
   timezone: timezoneSchema.optional(),
 });
 
@@ -34,7 +38,12 @@ export const updateCalendarSchema = z.object({
 export const listCalendarsQuerySchema = z.object({
   locationId: uuidSchema.optional(),
   cursor: uuidSchema.optional(),
-  limit: z.number().int().min(1).max(100).default(20),
+  limit: z
+    .number()
+    .int()
+    .min(1, "Must be at least 1")
+    .max(100, "Must be at most 100")
+    .default(20),
 });
 
 // Response types

@@ -1,6 +1,7 @@
 // Clients management page with table list and modal-based detail/create/edit flows
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
+import { useClosingSnapshot } from "@/hooks/use-closing-snapshot";
 import { DateTime } from "luxon";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -19,6 +20,7 @@ import { toast } from "sonner";
 import { createClientSchema } from "@scheduling/dto";
 import type { CreateClientInput } from "@scheduling/dto";
 import { AppointmentModal } from "@/components/appointment-modal";
+import { TableSkeleton } from "@/components/ui/skeleton";
 import { DeleteConfirmDialog } from "@/components/delete-confirm-dialog";
 import { DetailTab, DetailTabs } from "@/components/workbench";
 import { EntityModal } from "@/components/entity-modal";
@@ -38,6 +40,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useCrudState } from "@/hooks/use-crud-state";
+import { useUrlDrivenModal } from "@/hooks/use-url-driven-modal";
 import { useValidateSelection } from "@/hooks/use-selection-search-params";
 import { formatDisplayDate, formatDisplayDateTime } from "@/lib/date-utils";
 import { getQueryClient, orpc } from "@/lib/query";
@@ -177,9 +180,6 @@ function ClientsPage() {
   const { selected, tab } = Route.useSearch();
   const selectedId = selected ?? null;
   const activeTab: DetailTabValue = tab && isDetailTab(tab) ? tab : "details";
-  const [detailModalOpen, setDetailModalOpen] = useState(false);
-  const [isDetailDismissed, setIsDetailDismissed] = useState(false);
-  const prevSelectedIdRef = useRef<string | null>(null);
 
   const [search, setSearch] = useState("");
   const [appointmentModalOpen, setAppointmentModalOpen] = useState(false);
@@ -199,19 +199,15 @@ function ClientsPage() {
   const clients = data?.items ?? [];
   const selectedClient =
     clients.find((client) => client.id === selectedId) ?? null;
-  const [closingClientSnapshot, setClosingClientSnapshot] =
-    useState<ClientItem | null>(null);
-
-  useEffect(() => {
-    if (!selectedClient) return;
-    setClosingClientSnapshot(selectedClient);
-  }, [selectedClient]);
-
-  const displayClient = selectedClient ?? closingClientSnapshot;
+  const displayClient = useClosingSnapshot(selectedClient ?? undefined);
+  const { isOpen: detailModalOpen, closeNow: closeDetailModalNow } =
+    useUrlDrivenModal({
+      selectedId,
+      hasResolvedEntity: !!selectedClient,
+    });
 
   const openDetails = useCallback(
     (clientId: string, nextTab: DetailTabValue = "details") => {
-      setIsDetailDismissed(false);
       navigate({
         search: (prev) => ({
           ...prev,
@@ -224,8 +220,7 @@ function ClientsPage() {
   );
 
   const clearDetails = useCallback(() => {
-    setIsDetailDismissed(true);
-    setDetailModalOpen(false);
+    closeDetailModalNow();
     navigate({
       search: (prev) => ({
         ...prev,
@@ -233,27 +228,7 @@ function ClientsPage() {
         tab: undefined,
       }),
     });
-  }, [navigate]);
-
-  useEffect(() => {
-    if (!selectedId || isDetailDismissed) {
-      setDetailModalOpen(false);
-      return;
-    }
-    if (selectedClient) {
-      setDetailModalOpen(true);
-    }
-  }, [isDetailDismissed, selectedClient, selectedId]);
-
-  useEffect(() => {
-    const prevSelectedId = prevSelectedIdRef.current;
-    if (!selectedId) {
-      setIsDetailDismissed(false);
-    } else if (selectedId !== prevSelectedId) {
-      setIsDetailDismissed(false);
-    }
-    prevSelectedIdRef.current = selectedId;
-  }, [selectedId]);
+  }, [closeDetailModalNow, navigate]);
 
   const setActiveTab = useCallback(
     (value: string) => {
@@ -401,12 +376,8 @@ function ClientsPage() {
 
         <div>
           {isLoading ? (
-            <div
-              className="py-10 text-center text-muted-foreground"
-              role="status"
-              aria-live="polite"
-            >
-              Loading...
+            <div className="py-10" role="status" aria-live="polite">
+              <TableSkeleton rows={5} cols={6} />
             </div>
           ) : error ? (
             <div className="py-10 text-center text-destructive">
