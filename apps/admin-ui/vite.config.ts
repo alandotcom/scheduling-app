@@ -13,7 +13,11 @@ export default defineConfig({
       routeFileIgnorePattern:
         "(^|/)(components|__tests__)(/|$)|\\.(test|spec)\\.[jt]sx?$",
     }),
-    react(),
+    react({
+      babel: {
+        plugins: ["babel-plugin-react-compiler"],
+      },
+    }),
     tailwindcss(),
   ],
   resolve: {

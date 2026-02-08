@@ -6,6 +6,7 @@
     "dev": "pnpm -r --parallel run dev",
     "dev:api": "pnpm --filter @scheduling/api run dev",
     "dev:admin": "pnpm --filter @scheduling/admin-ui run dev",
+    "preview:admin": "pnpm --filter @scheduling/admin-ui run build && pnpm --filter @scheduling/admin-ui run preview -- --host",
     "db:migrate": "pnpm --filter @scheduling/db run migrate",
     "db:reset": "pnpm --filter @scheduling/db run reset",
     "db:seed": " pnpm --filter @scheduling/api run seed",

@@ -40,7 +40,7 @@ export const config = envParse(process.env, {
     trustedOrigins: {
       format: z.string(),
       env: "TRUSTED_ORIGINS",
-      default: "http://localhost:5173",
+      default: "http://localhost:5173,http://localhost:4173",
     },
     requireEmailVerification: {
       format: z.string().transform((v) => v === "true"),
@@ -52,7 +52,7 @@ export const config = envParse(process.env, {
     origin: {
       format: z.string(),
       env: "CORS_ORIGIN",
-      default: "http://localhost:5173",
+      default: "http://localhost:5173,http://localhost:4173",
     },
   },
   valkey: {
