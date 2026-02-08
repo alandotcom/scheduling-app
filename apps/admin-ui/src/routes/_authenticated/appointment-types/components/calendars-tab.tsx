@@ -1,12 +1,28 @@
 // Calendars tab for linking calendars to appointment types
 
-import { useState, useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import type {
+  ColumnDef,
+  PaginationState,
+  SortingState,
+} from "@tanstack/react-table";
+import {
+  flexRender,
+  getCoreRowModel,
+  getFilteredRowModel,
+  getPaginationRowModel,
+  getSortedRowModel,
+  useReactTable,
+} from "@tanstack/react-table";
 import { Add01Icon, Delete01Icon } from "@hugeicons/core-free-icons";
 
 import { Icon } from "@/components/ui/icon";
 import { formatTimezoneShort } from "@/lib/date-utils";
 import { Button } from "@/components/ui/button";
+import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
+import { DataTablePagination } from "@/components/ui/data-table-pagination";
+import { Input } from "@/components/ui/input";
 import { resolveSelectValueLabel } from "@/lib/select-value-label";
 import {
   Select,
@@ -33,6 +49,15 @@ interface CalendarsTabProps {
   isRemovePending: boolean;
 }
 
+interface LinkedCalendarRow {
+  calendarId: string;
+  calendar: {
+    id: string;
+    name: string;
+    timezone: string;
+  };
+}
+
 export function CalendarsTab({
   appointmentTypeId,
   onAddCalendar,
@@ -41,6 +66,12 @@ export function CalendarsTab({
   isRemovePending,
 }: CalendarsTabProps) {
   const [selectedCalendarId, setSelectedCalendarId] = useState<string>("");
+  const [sorting, setSorting] = useState<SortingState>([]);
+  const [globalFilter, setGlobalFilter] = useState("");
+  const [pagination, setPagination] = useState<PaginationState>({
+    pageIndex: 0,
+    pageSize: 10,
+  });
 
   // Fetch linked calendars for this type
   const { data: linkedCalendarsData } = useQuery({
@@ -75,6 +106,76 @@ export function CalendarsTab({
     getOptionValue: (calendar) => calendar.id,
     getOptionLabel: (calendar) => calendar.name,
     unknownLabel: "Unknown calendar",
+  });
+
+  const columns = useMemo<ColumnDef<LinkedCalendarRow>[]>(
+    () => [
+      {
+        id: "calendar",
+        accessorFn: (row) => row.calendar.name,
+        header: ({ column }) => (
+          <DataTableColumnHeader column={column} title="Calendar" />
+        ),
+        cell: ({ row }) => (
+          <span className="font-medium">{row.original.calendar.name}</span>
+        ),
+      },
+      {
+        id: "timezone",
+        accessorFn: (row) => row.calendar.timezone,
+        header: ({ column }) => (
+          <DataTableColumnHeader column={column} title="Timezone" />
+        ),
+        cell: ({ row }) => (
+          <span title={row.original.calendar.timezone}>
+            {formatTimezoneShort(row.original.calendar.timezone)}
+          </span>
+        ),
+      },
+      {
+        id: "actions",
+        enableSorting: false,
+        enableGlobalFilter: false,
+        header: () => <span className="sr-only">Actions</span>,
+        cell: ({ row }) => (
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            onClick={() => onRemoveCalendar(row.original.calendarId)}
+            disabled={isRemovePending}
+          >
+            <Icon icon={Delete01Icon} />
+          </Button>
+        ),
+      },
+    ],
+    [isRemovePending, onRemoveCalendar],
+  );
+
+  const table = useReactTable({
+    data: linkedCalendars,
+    columns,
+    state: {
+      sorting,
+      globalFilter,
+      pagination,
+    },
+    onSortingChange: setSorting,
+    onGlobalFilterChange: setGlobalFilter,
+    onPaginationChange: setPagination,
+    getCoreRowModel: getCoreRowModel(),
+    getFilteredRowModel: getFilteredRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
+    globalFilterFn: (row, _columnId, filterValue) => {
+      const query = String(filterValue).trim().toLowerCase();
+      if (!query) return true;
+
+      return (
+        row.original.calendar.name.toLowerCase().includes(query) ||
+        row.original.calendar.timezone.toLowerCase().includes(query)
+      );
+    },
   });
 
   const handleAdd = () => {
@@ -125,40 +226,73 @@ export function CalendarsTab({
           available.
         </p>
       ) : (
-        <div className="rounded-lg border border-border overflow-hidden">
+        <div className="overflow-hidden rounded-lg border border-border">
+          <div className="border-b border-border px-4 py-3">
+            <Input
+              value={globalFilter}
+              onChange={(event) => setGlobalFilter(event.target.value)}
+              placeholder="Filter linked calendars..."
+              className="max-w-sm"
+            />
+          </div>
           <Table>
             <TableHeader>
-              <TableRow>
-                <TableHead>Calendar</TableHead>
-                <TableHead>Timezone</TableHead>
-                <TableHead className="w-[60px]" />
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {linkedCalendars.map((link) => (
-                <TableRow key={link.calendarId}>
-                  <TableCell className="font-medium">
-                    {link.calendar.name}
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">
-                    <span title={link.calendar.timezone}>
-                      {formatTimezoneShort(link.calendar.timezone)}
-                    </span>
-                  </TableCell>
-                  <TableCell>
-                    <Button
-                      variant="ghost"
-                      size="icon-sm"
-                      onClick={() => onRemoveCalendar(link.calendarId)}
-                      disabled={isRemovePending}
+              {table.getHeaderGroups().map((headerGroup) => (
+                <TableRow key={headerGroup.id}>
+                  {headerGroup.headers.map((header) => (
+                    <TableHead
+                      key={header.id}
+                      className={
+                        header.id === "actions"
+                          ? "w-[60px] text-right"
+                          : undefined
+                      }
                     >
-                      <Icon icon={Delete01Icon} />
-                    </Button>
-                  </TableCell>
+                      {header.isPlaceholder
+                        ? null
+                        : flexRender(
+                            header.column.columnDef.header,
+                            header.getContext(),
+                          )}
+                    </TableHead>
+                  ))}
                 </TableRow>
               ))}
+            </TableHeader>
+            <TableBody>
+              {table.getRowModel().rows.length > 0 ? (
+                table.getRowModel().rows.map((row) => (
+                  <TableRow key={row.original.calendarId}>
+                    {row.getVisibleCells().map((cell) => (
+                      <TableCell
+                        key={cell.id}
+                        className={
+                          cell.column.id === "actions"
+                            ? "text-right"
+                            : undefined
+                        }
+                      >
+                        {flexRender(
+                          cell.column.columnDef.cell,
+                          cell.getContext(),
+                        )}
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                ))
+              ) : (
+                <TableRow>
+                  <TableCell
+                    colSpan={columns.length}
+                    className="h-24 text-center"
+                  >
+                    No linked calendars match your filters.
+                  </TableCell>
+                </TableRow>
+              )}
             </TableBody>
           </Table>
+          <DataTablePagination table={table} className="border-t-0" />
         </div>
       )}
     </div>

@@ -1,6 +1,6 @@
 // Appointment booking modal with availability calendar
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { DateTime } from "luxon";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
@@ -9,6 +9,7 @@ import {
   ArrowDown01Icon,
   Calendar03Icon,
   Cancel01Icon,
+  Search01Icon,
   Tick02Icon,
 } from "@hugeicons/core-free-icons";
 import { toast } from "sonner";
@@ -90,7 +91,9 @@ export function AppointmentModal({
   const [selectedClientId, setSelectedClientId] = useState<string>(
     defaultClientId ?? "",
   );
+  const skipClientClearRef = useRef(false);
   const [clientComboboxOpen, setClientComboboxOpen] = useState(false);
+  const [mobileClientPickerOpen, setMobileClientPickerOpen] = useState(false);
   const [availabilityModalOpen, setAvailabilityModalOpen] = useState(false);
   const timezoneMode = controlledTimezoneMode ?? localTimezoneMode;
   const selectedDisplayTimezone = displayTimezone ?? defaultTimezone;
@@ -236,6 +239,7 @@ export function AppointmentModal({
   const handleClose = () => {
     setAvailabilityModalOpen(false);
     setClientComboboxOpen(false);
+    setMobileClientPickerOpen(false);
     setSelectedTypeId(defaultTypeId ?? "");
     setSelectedCalendarId(defaultCalendarId ?? "");
     setSelectedDate(null);
@@ -290,6 +294,7 @@ export function AppointmentModal({
     if (open) return;
     setAvailabilityModalOpen(false);
     setClientComboboxOpen(false);
+    setMobileClientPickerOpen(false);
   }, [open]);
 
   useEffect(() => {
@@ -558,101 +563,231 @@ export function AppointmentModal({
                     className="mt-2 space-y-2 relative"
                     ref={registerField("client")}
                   >
-                    <Combobox.Root
-                      items={clients}
-                      value={selectedClient}
-                      inputValue={clientSearch}
-                      open={clientComboboxOpen}
-                      itemToStringLabel={(client) =>
-                        `${client.firstName} ${client.lastName}`
-                      }
-                      itemToStringValue={(client) => client.id}
-                      isItemEqualToValue={(item, selected) =>
-                        item.id === selected.id
-                      }
-                      onOpenChange={setClientComboboxOpen}
-                      onInputValueChange={(inputValue) => {
-                        setClientSearch(inputValue);
-                        const normalizedInput = inputValue.trim();
-                        const selectedLabel = selectedClient
-                          ? `${selectedClient.firstName} ${selectedClient.lastName}`
-                          : "";
+                    {/* Mobile: button trigger → full-screen picker */}
+                    <div className="md:hidden">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setClientSearch("");
+                          setMobileClientPickerOpen(true);
+                        }}
+                        className="dark:bg-input/30 border-input h-11 rounded-lg border bg-transparent px-3 py-2 text-base w-full text-left text-muted-foreground/70"
+                      >
+                        {selectedClient ? (
+                          <span className="text-foreground">
+                            {selectedClient.firstName} {selectedClient.lastName}
+                          </span>
+                        ) : (
+                          "Search by name or email..."
+                        )}
+                      </button>
 
-                        if (!normalizedInput || inputValue !== selectedLabel) {
-                          setSelectedClientId("");
-                        }
-                      }}
-                      onValueChange={(client) => {
-                        if (!client) return;
-                        setSelectedClientId(client.id);
-                        setClientSearch(
-                          `${client.firstName} ${client.lastName}`,
-                        );
-                        setClientComboboxOpen(false);
-                      }}
-                    >
-                      <div className="relative">
-                        <Combobox.Input
-                          placeholder="Search by name or email..."
-                          onFocus={() => {
-                            setClientComboboxOpen(true);
-                          }}
-                          onPointerDown={() => {
-                            if (!clientComboboxOpen) {
-                              setClientComboboxOpen(true);
-                            }
-                          }}
-                          className={cn(
-                            "dark:bg-input/30 border-input focus-visible:border-ring focus-visible:ring-ring/30 aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive dark:aria-invalid:border-destructive/50 disabled:bg-input/50 dark:disabled:bg-input/80 h-11 md:h-10 rounded-lg border bg-transparent pr-10 pl-3 py-2 text-base transition-all duration-200 ease-out focus-visible:ring-[3px] aria-invalid:ring-[3px] md:text-sm placeholder:text-muted-foreground/70 w-full min-w-0 outline-none disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50",
-                          )}
-                        />
-                        <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-muted-foreground">
-                          <Icon icon={ArrowDown01Icon} className="size-4" />
-                        </span>
-                      </div>
+                      <DialogPrimitive.Root
+                        open={mobileClientPickerOpen}
+                        onOpenChange={(open) => {
+                          setMobileClientPickerOpen(open);
+                          if (!open) {
+                            // Restore clientSearch to match selection (for desktop combobox sync)
+                            setClientSearch(
+                              selectedClient
+                                ? `${selectedClient.firstName} ${selectedClient.lastName}`
+                                : "",
+                            );
+                          }
+                        }}
+                      >
+                        <DialogPrimitive.Portal>
+                          <DialogPrimitive.Backdrop className="fixed inset-0 z-[60] bg-black/50" />
+                          <DialogPrimitive.Popup
+                            className="fixed inset-0 z-[60] flex flex-col bg-background"
+                            onKeyDown={(e) => {
+                              // Prevent Escape from bubbling to the parent appointment modal
+                              if (e.key === "Escape") e.stopPropagation();
+                            }}
+                          >
+                            {/* Header */}
+                            <div className="flex items-center justify-between border-b border-border px-4 py-3">
+                              <DialogPrimitive.Title className="text-lg font-medium">
+                                Select Client
+                              </DialogPrimitive.Title>
+                              <DialogPrimitive.Close
+                                render={
+                                  <Button variant="ghost" size="icon-sm" />
+                                }
+                              >
+                                <span className="sr-only">Close</span>
+                                <Icon icon={Cancel01Icon} />
+                              </DialogPrimitive.Close>
+                            </div>
 
-                      <Combobox.Portal keepMounted>
-                        <Combobox.Positioner
-                          positionMethod="fixed"
-                          disableAnchorTracking
-                          sideOffset={6}
-                          align="start"
-                          className="z-[120]"
-                        >
-                          <Combobox.Popup className="w-[min(var(--anchor-width),calc(100vw-2rem))] overflow-hidden rounded-lg border border-border bg-background shadow-lg">
-                            <Combobox.Empty className="px-3 py-3 text-sm text-muted-foreground">
-                              No clients found.
-                            </Combobox.Empty>
-                            <Combobox.List className="max-h-72 overflow-y-auto p-1">
-                              {(client) => (
-                                <Combobox.Item
-                                  key={client.id}
-                                  value={client}
-                                  className="relative flex cursor-pointer items-center gap-2 rounded-md px-2.5 py-2 text-sm outline-none data-[highlighted]:bg-accent data-[highlighted]:text-accent-foreground"
-                                >
-                                  <div className="min-w-0 flex-1">
-                                    <div className="truncate font-medium">
-                                      {client.firstName} {client.lastName}
-                                    </div>
-                                    {client.email ? (
-                                      <div className="truncate text-xs text-muted-foreground">
-                                        {client.email}
+                            {/* Search input */}
+                            <div className="border-b border-border px-4 py-3">
+                              <div className="relative">
+                                <Icon
+                                  icon={Search01Icon}
+                                  className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground"
+                                />
+                                <input
+                                  autoFocus
+                                  placeholder="Search by name or email..."
+                                  value={clientSearch}
+                                  onChange={(e) => {
+                                    setClientSearch(e.target.value);
+                                    if (!e.target.value.trim()) {
+                                      setSelectedClientId("");
+                                    }
+                                  }}
+                                  className="h-11 w-full rounded-lg border border-input bg-transparent pl-10 pr-3 text-base outline-none placeholder:text-muted-foreground/70 focus-visible:border-ring focus-visible:ring-ring/30 focus-visible:ring-[3px]"
+                                />
+                              </div>
+                            </div>
+
+                            {/* Scrollable client list */}
+                            <div className="flex-1 overflow-y-auto">
+                              {clients.length === 0 ? (
+                                <p className="px-4 py-6 text-sm text-muted-foreground">
+                                  No clients found.
+                                </p>
+                              ) : (
+                                clients.map((client) => (
+                                  <button
+                                    key={client.id}
+                                    type="button"
+                                    onClick={() => {
+                                      setSelectedClientId(client.id);
+                                      setClientSearch(
+                                        `${client.firstName} ${client.lastName}`,
+                                      );
+                                      setMobileClientPickerOpen(false);
+                                    }}
+                                    className="flex w-full items-center gap-3 border-b border-border px-4 py-3 text-left active:bg-accent"
+                                  >
+                                    <div className="min-w-0 flex-1">
+                                      <div className="font-medium">
+                                        {client.firstName} {client.lastName}
                                       </div>
-                                    ) : null}
-                                  </div>
-                                  <Combobox.ItemIndicator>
-                                    <Icon
-                                      icon={Tick02Icon}
-                                      className="size-4"
-                                    />
-                                  </Combobox.ItemIndicator>
-                                </Combobox.Item>
+                                      {client.email && (
+                                        <div className="text-xs text-muted-foreground">
+                                          {client.email}
+                                        </div>
+                                      )}
+                                    </div>
+                                    {selectedClientId === client.id && (
+                                      <Icon
+                                        icon={Tick02Icon}
+                                        className="size-5 text-primary"
+                                      />
+                                    )}
+                                  </button>
+                                ))
                               )}
-                            </Combobox.List>
-                          </Combobox.Popup>
-                        </Combobox.Positioner>
-                      </Combobox.Portal>
-                    </Combobox.Root>
+                            </div>
+
+                            {/* Bottom safe area */}
+                            <div className="pb-[env(safe-area-inset-bottom)]" />
+                          </DialogPrimitive.Popup>
+                        </DialogPrimitive.Portal>
+                      </DialogPrimitive.Root>
+                    </div>
+
+                    {/* Desktop: combobox with dropdown */}
+                    <div className="hidden md:block">
+                      <Combobox.Root
+                        items={clients}
+                        value={selectedClient}
+                        inputValue={clientSearch}
+                        open={clientComboboxOpen}
+                        itemToStringLabel={(client) =>
+                          `${client.firstName} ${client.lastName}`
+                        }
+                        itemToStringValue={(client) => client.id}
+                        isItemEqualToValue={(item, selected) =>
+                          item.id === selected.id
+                        }
+                        onOpenChange={setClientComboboxOpen}
+                        onInputValueChange={(inputValue) => {
+                          setClientSearch(inputValue);
+                          if (skipClientClearRef.current) {
+                            skipClientClearRef.current = false;
+                            return;
+                          }
+                          if (!inputValue.trim()) {
+                            setSelectedClientId("");
+                          }
+                        }}
+                        onValueChange={(client) => {
+                          if (!client) return;
+                          skipClientClearRef.current = true;
+                          setSelectedClientId(client.id);
+                          setClientSearch(
+                            `${client.firstName} ${client.lastName}`,
+                          );
+                          setClientComboboxOpen(false);
+                        }}
+                      >
+                        <div className="relative">
+                          <Combobox.Input
+                            placeholder="Search by name or email..."
+                            onFocus={() => {
+                              setClientComboboxOpen(true);
+                            }}
+                            onPointerDown={() => {
+                              if (!clientComboboxOpen) {
+                                setClientComboboxOpen(true);
+                              }
+                            }}
+                            className={cn(
+                              "dark:bg-input/30 border-input focus-visible:border-ring focus-visible:ring-ring/30 aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive dark:aria-invalid:border-destructive/50 disabled:bg-input/50 dark:disabled:bg-input/80 h-11 md:h-10 rounded-lg border bg-transparent pr-10 pl-3 py-2 text-base transition-all duration-200 ease-out focus-visible:ring-[3px] aria-invalid:ring-[3px] md:text-sm placeholder:text-muted-foreground/70 w-full min-w-0 outline-none disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50",
+                            )}
+                          />
+                          <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-muted-foreground">
+                            <Icon icon={ArrowDown01Icon} className="size-4" />
+                          </span>
+                        </div>
+
+                        <Combobox.Portal keepMounted>
+                          <Combobox.Positioner
+                            positionMethod="fixed"
+                            disableAnchorTracking
+                            sideOffset={6}
+                            align="start"
+                            className="z-[120]"
+                          >
+                            <Combobox.Popup className="w-[min(var(--anchor-width),calc(100vw-2rem))] overflow-hidden rounded-lg border border-border bg-background shadow-lg">
+                              <Combobox.Empty className="px-3 py-3 text-sm text-muted-foreground">
+                                No clients found.
+                              </Combobox.Empty>
+                              <Combobox.List className="max-h-72 overflow-y-auto p-1">
+                                {(client) => (
+                                  <Combobox.Item
+                                    key={client.id}
+                                    value={client}
+                                    className="relative flex cursor-pointer items-center gap-2 rounded-md px-2.5 py-2 text-sm outline-none data-[highlighted]:bg-accent data-[highlighted]:text-accent-foreground"
+                                  >
+                                    <div className="min-w-0 flex-1">
+                                      <div className="truncate font-medium">
+                                        {client.firstName} {client.lastName}
+                                      </div>
+                                      {client.email ? (
+                                        <div className="truncate text-xs text-muted-foreground">
+                                          {client.email}
+                                        </div>
+                                      ) : null}
+                                    </div>
+                                    <Combobox.ItemIndicator>
+                                      <Icon
+                                        icon={Tick02Icon}
+                                        className="size-4"
+                                      />
+                                    </Combobox.ItemIndicator>
+                                  </Combobox.Item>
+                                )}
+                              </Combobox.List>
+                            </Combobox.Popup>
+                          </Combobox.Positioner>
+                        </Combobox.Portal>
+                      </Combobox.Root>
+                    </div>
                     <FieldShortcutHint
                       shortcut="l"
                       label="Client"

@@ -2,10 +2,25 @@
 
 import { useState, useMemo, useRef, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
+import type {
+  ColumnDef,
+  PaginationState,
+  SortingState,
+} from "@tanstack/react-table";
+import {
+  flexRender,
+  getCoreRowModel,
+  getFilteredRowModel,
+  getPaginationRowModel,
+  getSortedRowModel,
+  useReactTable,
+} from "@tanstack/react-table";
 import { Add01Icon, Delete01Icon } from "@hugeicons/core-free-icons";
 
 import { Icon } from "@/components/ui/icon";
 import { Button } from "@/components/ui/button";
+import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
+import { DataTablePagination } from "@/components/ui/data-table-pagination";
 import { Input } from "@/components/ui/input";
 import { resolveSelectValueLabel } from "@/lib/select-value-label";
 import {
@@ -35,6 +50,16 @@ interface ResourcesTabProps {
   isRemovePending: boolean;
 }
 
+interface RequiredResourceRow {
+  resourceId: string;
+  quantityRequired: number;
+  resource: {
+    id: string;
+    name: string;
+    quantity: number;
+  };
+}
+
 export function ResourcesTab({
   appointmentTypeId,
   onAddResource,
@@ -46,6 +71,12 @@ export function ResourcesTab({
 }: ResourcesTabProps) {
   const [selectedResourceId, setSelectedResourceId] = useState<string>("");
   const [quantityRequired, setQuantityRequired] = useState<number>(1);
+  const [sorting, setSorting] = useState<SortingState>([]);
+  const [globalFilter, setGlobalFilter] = useState("");
+  const [pagination, setPagination] = useState<PaginationState>({
+    pageIndex: 0,
+    pageSize: 10,
+  });
 
   // Debounce timer ref
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
@@ -88,13 +119,6 @@ export function ResourcesTab({
     unknownLabel: "Unknown resource",
   });
 
-  const handleAdd = () => {
-    if (!selectedResourceId) return;
-    onAddResource(selectedResourceId, quantityRequired);
-    setSelectedResourceId("");
-    setQuantityRequired(1);
-  };
-
   // Debounced quantity update
   const handleQuantityChange = useCallback(
     (resourceId: string, newQty: number, maxQty: number) => {
@@ -112,6 +136,104 @@ export function ResourcesTab({
     },
     [onUpdateQuantity],
   );
+
+  const columns = useMemo<ColumnDef<RequiredResourceRow>[]>(
+    () => [
+      {
+        id: "resource",
+        accessorFn: (row) => row.resource.name,
+        header: ({ column }) => (
+          <DataTableColumnHeader column={column} title="Resource" />
+        ),
+        cell: ({ row }) => (
+          <span className="font-medium">{row.original.resource.name}</span>
+        ),
+      },
+      {
+        id: "available",
+        accessorFn: (row) => row.resource.quantity,
+        header: ({ column }) => (
+          <DataTableColumnHeader column={column} title="Available" />
+        ),
+        cell: ({ row }) => (
+          <span className="text-muted-foreground">
+            {row.original.resource.quantity}
+          </span>
+        ),
+      },
+      {
+        id: "required",
+        accessorFn: (row) => row.quantityRequired,
+        header: ({ column }) => (
+          <DataTableColumnHeader column={column} title="Required" />
+        ),
+        cell: ({ row }) => (
+          <Input
+            type="number"
+            min={1}
+            max={row.original.resource.quantity}
+            className="h-8 w-[70px]"
+            defaultValue={row.original.quantityRequired}
+            onChange={(event) => {
+              const newQty = parseInt(event.target.value, 10);
+              handleQuantityChange(
+                row.original.resourceId,
+                newQty,
+                row.original.resource.quantity,
+              );
+            }}
+            disabled={isUpdatePending}
+          />
+        ),
+      },
+      {
+        id: "actions",
+        enableSorting: false,
+        enableGlobalFilter: false,
+        header: () => <span className="sr-only">Actions</span>,
+        cell: ({ row }) => (
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            onClick={() => onRemoveResource(row.original.resourceId)}
+            disabled={isRemovePending}
+          >
+            <Icon icon={Delete01Icon} />
+          </Button>
+        ),
+      },
+    ],
+    [handleQuantityChange, isRemovePending, isUpdatePending, onRemoveResource],
+  );
+
+  const table = useReactTable({
+    data: requiredResources,
+    columns,
+    state: {
+      sorting,
+      globalFilter,
+      pagination,
+    },
+    onSortingChange: setSorting,
+    onGlobalFilterChange: setGlobalFilter,
+    onPaginationChange: setPagination,
+    getCoreRowModel: getCoreRowModel(),
+    getFilteredRowModel: getFilteredRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
+    globalFilterFn: (row, _columnId, filterValue) => {
+      const query = String(filterValue).trim().toLowerCase();
+      if (!query) return true;
+      return row.original.resource.name.toLowerCase().includes(query);
+    },
+  });
+
+  const handleAdd = () => {
+    if (!selectedResourceId) return;
+    onAddResource(selectedResourceId, quantityRequired);
+    setSelectedResourceId("");
+    setQuantityRequired(1);
+  };
 
   return (
     <div className="space-y-4">
@@ -165,57 +287,73 @@ export function ResourcesTab({
           specific equipment or rooms.
         </p>
       ) : (
-        <div className="rounded-lg border border-border overflow-hidden">
+        <div className="overflow-hidden rounded-lg border border-border">
+          <div className="border-b border-border px-4 py-3">
+            <Input
+              value={globalFilter}
+              onChange={(event) => setGlobalFilter(event.target.value)}
+              placeholder="Filter linked resources..."
+              className="max-w-sm"
+            />
+          </div>
           <Table>
             <TableHeader>
-              <TableRow>
-                <TableHead>Resource</TableHead>
-                <TableHead>Available</TableHead>
-                <TableHead>Required</TableHead>
-                <TableHead className="w-[60px]" />
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {requiredResources.map((req) => (
-                <TableRow key={req.resourceId}>
-                  <TableCell className="font-medium">
-                    {req.resource.name}
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">
-                    {req.resource.quantity}
-                  </TableCell>
-                  <TableCell>
-                    <Input
-                      type="number"
-                      min={1}
-                      max={req.resource.quantity}
-                      className="w-[70px] h-8"
-                      defaultValue={req.quantityRequired}
-                      onChange={(e) => {
-                        const newQty = parseInt(e.target.value, 10);
-                        handleQuantityChange(
-                          req.resourceId,
-                          newQty,
-                          req.resource.quantity,
-                        );
-                      }}
-                      disabled={isUpdatePending}
-                    />
-                  </TableCell>
-                  <TableCell>
-                    <Button
-                      variant="ghost"
-                      size="icon-sm"
-                      onClick={() => onRemoveResource(req.resourceId)}
-                      disabled={isRemovePending}
+              {table.getHeaderGroups().map((headerGroup) => (
+                <TableRow key={headerGroup.id}>
+                  {headerGroup.headers.map((header) => (
+                    <TableHead
+                      key={header.id}
+                      className={
+                        header.id === "actions"
+                          ? "w-[60px] text-right"
+                          : undefined
+                      }
                     >
-                      <Icon icon={Delete01Icon} />
-                    </Button>
-                  </TableCell>
+                      {header.isPlaceholder
+                        ? null
+                        : flexRender(
+                            header.column.columnDef.header,
+                            header.getContext(),
+                          )}
+                    </TableHead>
+                  ))}
                 </TableRow>
               ))}
+            </TableHeader>
+            <TableBody>
+              {table.getRowModel().rows.length > 0 ? (
+                table.getRowModel().rows.map((row) => (
+                  <TableRow key={row.original.resourceId}>
+                    {row.getVisibleCells().map((cell) => (
+                      <TableCell
+                        key={cell.id}
+                        className={
+                          cell.column.id === "actions"
+                            ? "text-right"
+                            : undefined
+                        }
+                      >
+                        {flexRender(
+                          cell.column.columnDef.cell,
+                          cell.getContext(),
+                        )}
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                ))
+              ) : (
+                <TableRow>
+                  <TableCell
+                    colSpan={columns.length}
+                    className="h-24 text-center"
+                  >
+                    No linked resources match your filters.
+                  </TableCell>
+                </TableRow>
+              )}
             </TableBody>
           </Table>
+          <DataTablePagination table={table} className="border-t-0" />
         </div>
       )}
     </div>

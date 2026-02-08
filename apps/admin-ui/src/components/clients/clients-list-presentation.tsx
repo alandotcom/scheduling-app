@@ -1,3 +1,18 @@
+import { useMemo, useState } from "react";
+import type {
+  ColumnDef,
+  PaginationState,
+  SortingState,
+} from "@tanstack/react-table";
+import {
+  flexRender,
+  getCoreRowModel,
+  getFilteredRowModel,
+  getPaginationRowModel,
+  getSortedRowModel,
+  useReactTable,
+} from "@tanstack/react-table";
+
 import {
   EntityCardField,
   EntityDesktopTable,
@@ -6,6 +21,9 @@ import {
 } from "@/components/entity-list";
 import { RelationshipCountBadge } from "@/components/relationship-count-badge";
 import { RowActions } from "@/components/row-actions";
+import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
+import { DataTablePagination } from "@/components/ui/data-table-pagination";
+import { Input } from "@/components/ui/input";
 import {
   Table,
   TableBody,
@@ -17,37 +35,177 @@ import {
 import { formatDisplayDate } from "@/lib/date-utils";
 import { formatPhoneForDisplay } from "@/lib/phone";
 
-interface ClientListItemBase {
+interface ClientListItem {
   id: string;
+  orgId: string;
   firstName: string;
   lastName: string;
   email: string | null;
   phone: string | null;
-  createdAt: string | Date;
-  relationshipCounts?: {
-    appointments?: number;
-  } | null;
+  createdAt: Date;
+  updatedAt: Date;
+  relationshipCounts: {
+    appointments: number;
+  };
 }
 
-interface ClientsListPresentationProps<TClient extends ClientListItemBase> {
-  clients: TClient[];
+interface ClientsListPresentationProps {
+  clients: ClientListItem[];
   onOpen: (clientId: string) => void;
-  onBook: (client: TClient) => void;
-  onEdit: (client: TClient) => void;
+  onBook: (client: ClientListItem) => void;
+  onEdit: (client: ClientListItem) => void;
   onDelete: (clientId: string) => void;
 }
 
-export function ClientsListPresentation<TClient extends ClientListItemBase>({
+export function ClientsListPresentation({
   clients,
   onOpen,
   onBook,
   onEdit,
   onDelete,
-}: ClientsListPresentationProps<TClient>) {
+}: ClientsListPresentationProps) {
+  const [sorting, setSorting] = useState<SortingState>([]);
+  const [globalFilter, setGlobalFilter] = useState("");
+  const [pagination, setPagination] = useState<PaginationState>({
+    pageIndex: 0,
+    pageSize: 20,
+  });
+
+  const columns = useMemo<ColumnDef<ClientListItem>[]>(
+    () => [
+      {
+        id: "name",
+        accessorFn: (row) => `${row.firstName} ${row.lastName}`,
+        header: ({ column }) => (
+          <DataTableColumnHeader column={column} title="Name" />
+        ),
+        cell: ({ row }) => (
+          <span className="font-medium">
+            {row.original.firstName} {row.original.lastName}
+          </span>
+        ),
+      },
+      {
+        id: "email",
+        accessorFn: (row) => row.email ?? "",
+        header: ({ column }) => (
+          <DataTableColumnHeader column={column} title="Email" />
+        ),
+        cell: ({ row }) =>
+          row.original.email || (
+            <span className="text-muted-foreground">-</span>
+          ),
+      },
+      {
+        id: "phone",
+        accessorFn: (row) => formatPhoneForDisplay(row.phone) ?? "",
+        header: ({ column }) => (
+          <DataTableColumnHeader column={column} title="Phone" />
+        ),
+        cell: ({ row }) =>
+          formatPhoneForDisplay(row.original.phone) ?? (
+            <span className="text-muted-foreground">-</span>
+          ),
+      },
+      {
+        id: "appointments",
+        accessorFn: (row) => row.relationshipCounts?.appointments ?? 0,
+        header: ({ column }) => (
+          <DataTableColumnHeader column={column} title="Appointments" />
+        ),
+        cell: ({ row }) => (
+          <RelationshipCountBadge
+            count={row.original.relationshipCounts?.appointments ?? 0}
+            singular="appointment"
+          />
+        ),
+      },
+      {
+        id: "createdAt",
+        accessorFn: (row) => {
+          const value = row.createdAt;
+          return typeof value === "string"
+            ? new Date(value).getTime()
+            : value.getTime();
+        },
+        header: ({ column }) => (
+          <DataTableColumnHeader column={column} title="Created" />
+        ),
+        cell: ({ row }) => formatDisplayDate(row.original.createdAt),
+      },
+      {
+        id: "actions",
+        enableSorting: false,
+        enableGlobalFilter: false,
+        header: () => <span className="sr-only">Actions</span>,
+        cell: ({ row }) => {
+          const displayName = `${row.original.firstName} ${row.original.lastName}`;
+          return (
+            <RowActions
+              ariaLabel={`Actions for ${displayName}`}
+              actions={[
+                {
+                  label: "View",
+                  onClick: () => onOpen(row.original.id),
+                },
+                {
+                  label: "Book",
+                  onClick: () => onBook(row.original),
+                },
+                {
+                  label: "Edit",
+                  onClick: () => onEdit(row.original),
+                },
+                {
+                  label: "Delete",
+                  onClick: () => onDelete(row.original.id),
+                  variant: "destructive",
+                },
+              ]}
+            />
+          );
+        },
+      },
+    ],
+    [onBook, onDelete, onEdit, onOpen],
+  );
+
+  const table = useReactTable({
+    data: clients,
+    columns,
+    state: {
+      sorting,
+      globalFilter,
+      pagination,
+    },
+    onSortingChange: setSorting,
+    onGlobalFilterChange: setGlobalFilter,
+    onPaginationChange: setPagination,
+    getCoreRowModel: getCoreRowModel(),
+    getFilteredRowModel: getFilteredRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
+    globalFilterFn: (row, _columnId, filterValue) => {
+      const query = String(filterValue).trim().toLowerCase();
+      if (!query) return true;
+
+      const fullName = `${row.original.firstName} ${row.original.lastName}`;
+      const email = row.original.email ?? "";
+      const phone = formatPhoneForDisplay(row.original.phone) ?? "";
+
+      return (
+        fullName.toLowerCase().includes(query) ||
+        email.toLowerCase().includes(query) ||
+        phone.toLowerCase().includes(query)
+      );
+    },
+  });
+
   return (
     <>
       <EntityMobileCardList>
-        {clients.map((client) => {
+        {table.getRowModel().rows.map((row) => {
+          const client = row.original;
           const formattedPhone = formatPhoneForDisplay(client.phone);
           const displayName = `${client.firstName} ${client.lastName}`;
 
@@ -126,83 +284,85 @@ export function ClientsListPresentation<TClient extends ClientListItemBase>({
         })}
       </EntityMobileCardList>
 
+      <DataTablePagination
+        table={table}
+        className="justify-center rounded-xl border border-border bg-card shadow-sm md:hidden"
+      />
+
       <EntityDesktopTable>
+        <div className="border-b border-border px-4 py-3">
+          <Input
+            value={globalFilter}
+            onChange={(event) => setGlobalFilter(event.target.value)}
+            placeholder="Filter clients..."
+            className="max-w-sm"
+          />
+        </div>
         <Table>
           <TableHeader>
-            <TableRow>
-              <TableHead>Name</TableHead>
-              <TableHead>Email</TableHead>
-              <TableHead>Phone</TableHead>
-              <TableHead>Appointments</TableHead>
-              <TableHead>Created</TableHead>
-              <TableHead className="text-right">Actions</TableHead>
-            </TableRow>
+            {table.getHeaderGroups().map((headerGroup) => (
+              <TableRow key={headerGroup.id}>
+                {headerGroup.headers.map((header) => (
+                  <TableHead
+                    key={header.id}
+                    className={
+                      header.id === "actions" ? "text-right" : undefined
+                    }
+                  >
+                    {header.isPlaceholder
+                      ? null
+                      : flexRender(
+                          header.column.columnDef.header,
+                          header.getContext(),
+                        )}
+                  </TableHead>
+                ))}
+              </TableRow>
+            ))}
           </TableHeader>
           <TableBody>
-            {clients.map((client) => {
-              const formattedPhone = formatPhoneForDisplay(client.phone);
-              const displayName = `${client.firstName} ${client.lastName}`;
-
-              return (
+            {table.getRowModel().rows.length > 0 ? (
+              table.getRowModel().rows.map((row) => (
                 <TableRow
-                  key={client.id}
+                  key={row.original.id}
                   className="cursor-pointer transition-colors hover:bg-muted/50"
                   tabIndex={0}
-                  onClick={() => onOpen(client.id)}
+                  onClick={() => onOpen(row.original.id)}
                   onKeyDown={(event) => {
                     if (event.key === "Enter" || event.key === " ") {
                       event.preventDefault();
-                      onOpen(client.id);
+                      onOpen(row.original.id);
                     }
                   }}
                 >
-                  <TableCell className="font-medium">{displayName}</TableCell>
-                  <TableCell>
-                    {client.email || (
-                      <span className="text-muted-foreground">-</span>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    {formattedPhone ?? (
-                      <span className="text-muted-foreground">-</span>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    <RelationshipCountBadge
-                      count={client.relationshipCounts?.appointments ?? 0}
-                      singular="appointment"
-                    />
-                  </TableCell>
-                  <TableCell>{formatDisplayDate(client.createdAt)}</TableCell>
-                  <TableCell>
-                    <RowActions
-                      ariaLabel={`Actions for ${displayName}`}
-                      actions={[
-                        {
-                          label: "View",
-                          onClick: () => onOpen(client.id),
-                        },
-                        {
-                          label: "Book",
-                          onClick: () => onBook(client),
-                        },
-                        {
-                          label: "Edit",
-                          onClick: () => onEdit(client),
-                        },
-                        {
-                          label: "Delete",
-                          onClick: () => onDelete(client.id),
-                          variant: "destructive",
-                        },
-                      ]}
-                    />
-                  </TableCell>
+                  {row.getVisibleCells().map((cell) => (
+                    <TableCell
+                      key={cell.id}
+                      className={
+                        cell.column.id === "actions" ? "text-right" : undefined
+                      }
+                    >
+                      {flexRender(
+                        cell.column.columnDef.cell,
+                        cell.getContext(),
+                      )}
+                    </TableCell>
+                  ))}
                 </TableRow>
-              );
-            })}
+              ))
+            ) : (
+              <TableRow>
+                <TableCell
+                  colSpan={columns.length}
+                  className="h-24 text-center"
+                >
+                  No clients match your filters.
+                </TableCell>
+              </TableRow>
+            )}
           </TableBody>
         </Table>
+        <DataTablePagination table={table} />
       </EntityDesktopTable>
     </>
   );

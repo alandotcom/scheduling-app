@@ -137,7 +137,17 @@
   }
   html {
     @apply font-sans scroll-smooth;
-    scrollbar-gutter: stable both-edges;
+  }
+
+  html,
+  body {
+    scrollbar-gutter: stable;
+  }
+
+  @supports not (scrollbar-gutter: stable) {
+    html {
+      overflow-y: scroll;
+    }
   }
 
   /* Eliminate 300ms tap delay on touch devices */

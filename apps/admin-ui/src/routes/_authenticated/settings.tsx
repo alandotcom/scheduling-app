@@ -2,6 +2,18 @@
 
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import type {
+  ColumnDef,
+  PaginationState,
+  SortingState,
+} from "@tanstack/react-table";
+import {
+  flexRender,
+  getCoreRowModel,
+  getPaginationRowModel,
+  getSortedRowModel,
+  useReactTable,
+} from "@tanstack/react-table";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
@@ -35,6 +47,8 @@ import {
 } from "@/components/entity-list";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
+import { DataTablePagination } from "@/components/ui/data-table-pagination";
 import { Icon } from "@/components/ui/icon";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -775,6 +789,11 @@ function UsersManagementSection() {
   const [searchQuery, setSearchQuery] = useState("");
   const [roleFilter, setRoleFilter] = useState<OrgRoleFilter>("all");
   const [statusFilter, setStatusFilter] = useState<UserStatusFilter>("all");
+  const [sorting, setSorting] = useState<SortingState>([]);
+  const [pagination, setPagination] = useState<PaginationState>({
+    pageIndex: 0,
+    pageSize: 20,
+  });
 
   const {
     data: users,
@@ -872,6 +891,141 @@ function UsersManagementSection() {
       return matchesQuery && matchesRole && matchesStatus;
     });
   }, [orgUsers, searchQuery, roleFilter, statusFilter]);
+
+  const columns = useMemo<ColumnDef<OrgUserListItem>[]>(
+    () => [
+      {
+        id: "member",
+        accessorFn: (row) => getUserDisplayName(row),
+        header: ({ column }) => (
+          <DataTableColumnHeader column={column} title="Member" />
+        ),
+        cell: ({ row }) => {
+          const user = row.original;
+          const displayName = getUserDisplayName(user);
+          return (
+            <div className="flex items-center gap-3">
+              {user.image ? (
+                <img
+                  src={user.image}
+                  alt=""
+                  className="size-8 rounded-full object-cover"
+                />
+              ) : (
+                <div className="flex size-8 items-center justify-center rounded-full border border-border bg-muted text-xs font-semibold uppercase text-muted-foreground">
+                  {getUserInitials(user)}
+                </div>
+              )}
+              <div className="min-w-0">
+                <div className="truncate font-medium">{displayName}</div>
+                <div className="truncate text-xs text-muted-foreground">
+                  {user.email}
+                </div>
+              </div>
+            </div>
+          );
+        },
+      },
+      {
+        id: "role",
+        accessorKey: "role",
+        header: ({ column }) => (
+          <DataTableColumnHeader column={column} title="Role" />
+        ),
+        cell: ({ row }) => (
+          <Select
+            value={row.original.role}
+            onValueChange={(nextRole) => {
+              if (!isOrgMembershipRole(nextRole)) return;
+              if (nextRole === row.original.role) return;
+              onChangeRole({
+                userId: row.original.userId,
+                role: nextRole,
+              });
+            }}
+            disabled={
+              updateRoleMutation.isPending &&
+              updatingUserId === row.original.userId
+            }
+          >
+            <SelectTrigger className="w-[130px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {ORG_ROLE_OPTIONS.map((role) => (
+                <SelectItem key={role.value} value={role.value}>
+                  {role.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        ),
+      },
+      {
+        id: "status",
+        accessorFn: () => "active",
+        header: ({ column }) => (
+          <DataTableColumnHeader column={column} title="Status" />
+        ),
+        cell: () => <Badge variant="success">Active</Badge>,
+      },
+      {
+        id: "joined",
+        accessorFn: (row) => new Date(row.membershipCreatedAt).getTime(),
+        header: ({ column }) => (
+          <DataTableColumnHeader column={column} title="Joined" />
+        ),
+        cell: ({ row }) => formatDate(row.original.membershipCreatedAt),
+      },
+      {
+        id: "actions",
+        enableSorting: false,
+        header: () => <span className="sr-only">Actions</span>,
+        cell: ({ row }) => {
+          const displayName = getUserDisplayName(row.original);
+          return (
+            <RowActions
+              ariaLabel={`Actions for ${displayName}`}
+              actions={[
+                {
+                  label: "View profile (Coming soon)",
+                  onClick: () => {},
+                  disabled: true,
+                },
+                {
+                  label: "Suspend user (Coming soon)",
+                  onClick: () => {},
+                  disabled: true,
+                  separator: true,
+                },
+                {
+                  label: "Remove from organization (Coming soon)",
+                  onClick: () => {},
+                  variant: "destructive",
+                  disabled: true,
+                },
+              ]}
+            />
+          );
+        },
+      },
+    ],
+    [onChangeRole, updateRoleMutation.isPending, updatingUserId],
+  );
+
+  const usersTable = useReactTable({
+    data: filteredUsers,
+    columns,
+    state: {
+      sorting,
+      pagination,
+    },
+    onSortingChange: setSorting,
+    onPaginationChange: setPagination,
+    getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
+  });
 
   return (
     <Card>
@@ -1104,7 +1258,8 @@ function UsersManagementSection() {
         ) : (
           <>
             <EntityMobileCardList>
-              {filteredUsers.map((user) => {
+              {usersTable.getRowModel().rows.map((row) => {
+                const user = row.original;
                 const displayName = getUserDisplayName(user);
                 return (
                   <EntityMobileCard key={user.membershipId}>
@@ -1203,108 +1358,70 @@ function UsersManagementSection() {
               })}
             </EntityMobileCardList>
 
+            <DataTablePagination
+              table={usersTable}
+              className="justify-center rounded-xl border border-border bg-card shadow-sm md:hidden"
+            />
+
             <div className="hidden overflow-hidden rounded-xl border border-border shadow-sm md:block">
               <Table>
                 <TableHeader>
-                  <TableRow>
-                    <TableHead>Member</TableHead>
-                    <TableHead>Role</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Joined</TableHead>
-                    <TableHead className="w-14 text-right">Actions</TableHead>
-                  </TableRow>
+                  {usersTable.getHeaderGroups().map((headerGroup) => (
+                    <TableRow key={headerGroup.id}>
+                      {headerGroup.headers.map((header) => (
+                        <TableHead
+                          key={header.id}
+                          className={
+                            header.id === "actions"
+                              ? "w-14 text-right"
+                              : undefined
+                          }
+                        >
+                          {header.isPlaceholder
+                            ? null
+                            : flexRender(
+                                header.column.columnDef.header,
+                                header.getContext(),
+                              )}
+                        </TableHead>
+                      ))}
+                    </TableRow>
+                  ))}
                 </TableHeader>
                 <TableBody>
-                  {filteredUsers.map((user) => {
-                    const displayName = getUserDisplayName(user);
-                    return (
-                      <TableRow key={user.membershipId}>
-                        <TableCell>
-                          <div className="flex items-center gap-3">
-                            {user.image ? (
-                              <img
-                                src={user.image}
-                                alt=""
-                                className="size-8 rounded-full object-cover"
-                              />
-                            ) : (
-                              <div className="flex size-8 items-center justify-center rounded-full border border-border bg-muted text-xs font-semibold uppercase text-muted-foreground">
-                                {getUserInitials(user)}
-                              </div>
-                            )}
-                            <div className="min-w-0">
-                              <div className="truncate text-sm font-medium">
-                                {displayName}
-                              </div>
-                              <div className="truncate text-xs text-muted-foreground">
-                                {user.email}
-                              </div>
-                            </div>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <Select
-                            value={user.role}
-                            onValueChange={(nextRole) => {
-                              if (!isOrgMembershipRole(nextRole)) return;
-                              if (nextRole === user.role) return;
-                              onChangeRole({
-                                userId: user.userId,
-                                role: nextRole,
-                              });
-                            }}
-                            disabled={
-                              updateRoleMutation.isPending &&
-                              updatingUserId === user.userId
+                  {usersTable.getRowModel().rows.length > 0 ? (
+                    usersTable.getRowModel().rows.map((row) => (
+                      <TableRow key={row.original.membershipId}>
+                        {row.getVisibleCells().map((cell) => (
+                          <TableCell
+                            key={cell.id}
+                            className={
+                              cell.column.id === "actions"
+                                ? "text-right"
+                                : undefined
                             }
                           >
-                            <SelectTrigger className="w-[160px]">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {ORG_ROLE_OPTIONS.map((role) => (
-                                <SelectItem key={role.value} value={role.value}>
-                                  {role.label}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="success">Active</Badge>
-                        </TableCell>
-                        <TableCell>
-                          {formatDate(user.membershipCreatedAt)}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <RowActions
-                            ariaLabel={`Actions for ${displayName}`}
-                            actions={[
-                              {
-                                label: "View profile (Coming soon)",
-                                onClick: () => {},
-                                disabled: true,
-                              },
-                              {
-                                label: "Suspend user (Coming soon)",
-                                onClick: () => {},
-                                disabled: true,
-                                separator: true,
-                              },
-                              {
-                                label: "Remove from organization (Coming soon)",
-                                onClick: () => {},
-                                variant: "destructive",
-                                disabled: true,
-                              },
-                            ]}
-                          />
-                        </TableCell>
+                            {flexRender(
+                              cell.column.columnDef.cell,
+                              cell.getContext(),
+                            )}
+                          </TableCell>
+                        ))}
                       </TableRow>
-                    );
-                  })}
+                    ))
+                  ) : (
+                    <TableRow>
+                      <TableCell
+                        colSpan={columns.length}
+                        className="h-24 text-center"
+                      >
+                        No users match the current filters.
+                      </TableCell>
+                    </TableRow>
+                  )}
                 </TableBody>
               </Table>
+              <DataTablePagination table={usersTable} />
             </div>
           </>
         )}
