@@ -34,6 +34,7 @@ describe("AppointmentDetail", () => {
     );
 
     expect(container.querySelector("h2")).toBeNull();
+    expect(container.textContent).toContain("Scheduled");
     unmount();
   });
 

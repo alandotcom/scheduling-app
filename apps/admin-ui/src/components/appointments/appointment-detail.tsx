@@ -199,7 +199,11 @@ export function AppointmentDetail({
               </p>
             </div>
           </div>
-        ) : null}
+        ) : (
+          <div className="px-6 pt-4 pb-1">
+            {getStatusBadge(appointment.status)}
+          </div>
+        )}
 
         {/* Tabs */}
         <DetailTabs
