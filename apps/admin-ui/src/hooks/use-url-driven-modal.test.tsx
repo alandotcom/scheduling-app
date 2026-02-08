@@ -75,4 +75,23 @@ describe("useUrlDrivenModal", () => {
     expect(hook.result.current.isOpen).toBe(false);
     hook.unmount();
   });
+
+  test("reopens when same id is selected again after selection clears", () => {
+    const hook = renderModalHook({
+      selectedId: "resource-1",
+      hasResolvedEntity: true,
+    });
+
+    act(() => {
+      hook.result.current.closeNow();
+    });
+    expect(hook.result.current.isOpen).toBe(false);
+
+    hook.rerender({ selectedId: null, hasResolvedEntity: false });
+    expect(hook.result.current.isOpen).toBe(false);
+
+    hook.rerender({ selectedId: "resource-1", hasResolvedEntity: true });
+    expect(hook.result.current.isOpen).toBe(true);
+    hook.unmount();
+  });
 });

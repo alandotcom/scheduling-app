@@ -108,11 +108,6 @@ function AppointmentsPage() {
 
   const selectedId = selected ?? null;
   const activeTab: DetailTabValue = tab && isDetailTab(tab) ? tab : "details";
-  const { isOpen: detailModalOpen, closeNow: closeDetailModalNow } =
-    useUrlDrivenModal({
-      selectedId,
-      hasResolvedEntity: !!selectedId,
-    });
   const currentView: ViewMode = view;
   const listScope: ListScope =
     urlListScope && isListScope(urlListScope) ? urlListScope : "upcoming";
@@ -158,17 +153,6 @@ function AppointmentsPage() {
     },
     [navigate],
   );
-
-  const clearDetails = useCallback(() => {
-    closeDetailModalNow();
-    navigate({
-      search: (prev) => ({
-        ...prev,
-        selected: undefined,
-        tab: undefined,
-      }),
-    });
-  }, [closeDetailModalNow, navigate]);
 
   const setActiveTab = useCallback(
     (value: string) => {
@@ -313,6 +297,7 @@ function AppointmentsPage() {
   const {
     data: listData,
     isLoading: listLoading,
+    isFetching: listFetching,
     error: listError,
   } = useQuery({
     ...orpc.appointments.list.queryOptions({
@@ -348,18 +333,21 @@ function AppointmentsPage() {
   }, [date, displayTimezone]);
 
   // Fetch appointments for schedule view
-  const { appointments: scheduleAppointments, isLoading: scheduleLoading } =
-    useScheduleAppointments({
-      weekStart,
-      displayTimezone,
-      filters: {
-        calendarId: filters.calendarId || undefined,
-        clientId: filters.clientId || undefined,
-        appointmentTypeId: filters.appointmentTypeId || undefined,
-        status: filters.status || undefined,
-      },
-      enabled: currentView === "schedule",
-    });
+  const {
+    appointments: scheduleAppointments,
+    isLoading: scheduleLoading,
+    isFetching: scheduleFetching,
+  } = useScheduleAppointments({
+    weekStart,
+    displayTimezone,
+    filters: {
+      calendarId: filters.calendarId || undefined,
+      clientId: filters.clientId || undefined,
+      appointmentTypeId: filters.appointmentTypeId || undefined,
+      status: filters.status || undefined,
+    },
+    enabled: currentView === "schedule",
+  });
 
   // Week navigation for schedule view
   const goToPreviousWeek = useCallback(() => {
@@ -512,6 +500,23 @@ function AppointmentsPage() {
   const displayAppointment = useClosingSnapshot(
     selectedAppointment ?? undefined,
   );
+  const { isOpen: detailModalOpen, closeNow: closeDetailModalNow } =
+    useUrlDrivenModal({
+      selectedId,
+      hasResolvedEntity: !!selectedAppointment,
+    });
+
+  const clearDetails = useCallback(() => {
+    closeDetailModalNow();
+    navigate({
+      search: (prev) => ({
+        ...prev,
+        selected: undefined,
+        tab: undefined,
+      }),
+      replace: true,
+    });
+  }, [closeDetailModalNow, navigate]);
 
   // Build set of appointment IDs for selection validation
   const appointmentIds = useMemo(() => {
@@ -522,7 +527,19 @@ function AppointmentsPage() {
     return ids;
   }, [listAppointments, scheduleAppointments]);
 
-  useValidateSelection(appointmentIds, selectedId, clearDetails);
+  const isSelectionDataResolved =
+    !listLoading &&
+    !listError &&
+    !listFetching &&
+    (currentView !== "schedule" || (!scheduleLoading && !scheduleFetching)) &&
+    (!selectedInSchedule || !isFetchingAppointment);
+
+  useValidateSelection({
+    items: appointmentIds,
+    selectedId,
+    isDataResolved: isSelectionDataResolved,
+    onInvalidSelection: clearDetails,
+  });
 
   // Keyboard navigation for list
   const selectedIndex = selectedId

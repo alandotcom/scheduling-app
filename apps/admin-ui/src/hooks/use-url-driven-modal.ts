@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 interface UseUrlDrivenModalOptions {
   selectedId: string | null;
@@ -14,21 +14,30 @@ export function useUrlDrivenModal({
   selectedId,
   hasResolvedEntity,
 }: UseUrlDrivenModalOptions): UseUrlDrivenModalResult {
-  const [isDismissed, setIsDismissed] = useState(false);
-  const prevSelectedIdRef = useRef(selectedId);
-
-  // Reset dismissed synchronously when selection changes (no effect delay)
-  if (selectedId !== prevSelectedIdRef.current) {
-    prevSelectedIdRef.current = selectedId;
-    if (isDismissed) setIsDismissed(false);
-  }
+  const [dismissedSelectionId, setDismissedSelectionId] = useState<
+    string | null
+  >(null);
+  const isDismissed =
+    typeof selectedId === "string" && dismissedSelectionId === selectedId;
 
   // Derived — always correct in the same render, no intermediate states
   const isOpen = !!selectedId && hasResolvedEntity && !isDismissed;
 
+  useEffect(() => {
+    if (!selectedId) {
+      if (dismissedSelectionId) setDismissedSelectionId(null);
+      return;
+    }
+
+    if (dismissedSelectionId && dismissedSelectionId !== selectedId) {
+      setDismissedSelectionId(null);
+    }
+  }, [dismissedSelectionId, selectedId]);
+
   const closeNow = useCallback(() => {
-    setIsDismissed(true);
-  }, []);
+    if (!selectedId) return;
+    setDismissedSelectionId(selectedId);
+  }, [selectedId]);
 
   return { isOpen, closeNow };
 }

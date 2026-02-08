@@ -192,7 +192,7 @@ function ResourcesPage() {
   const { selected, create } = Route.useSearch();
   const selectedId = selected ?? null;
 
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, isFetching, error } = useQuery({
     ...orpc.resources.list.queryOptions({
       input: { limit: 100 },
     }),
@@ -224,6 +224,7 @@ function ResourcesPage() {
 
   const locations = locationsData?.items ?? [];
   const resources = data?.items ?? [];
+  const isSelectionDataResolved = !isLoading && !isFetching && !error;
   const selectedResource =
     resources.find((resource) => resource.id === selectedId) ?? null;
   const displayResource = useClosingSnapshot(selectedResource ?? undefined);
@@ -252,10 +253,16 @@ function ResourcesPage() {
         ...prev,
         selected: undefined,
       }),
+      replace: true,
     });
   }, [closeDetailModalNow, navigate]);
 
-  useValidateSelection(resources, selectedId, clearDetails);
+  useValidateSelection({
+    items: resources,
+    selectedId,
+    isDataResolved: isSelectionDataResolved,
+    onInvalidSelection: clearDetails,
+  });
 
   const selectedIndex = selectedId
     ? resources.findIndex((resource) => resource.id === selectedId)

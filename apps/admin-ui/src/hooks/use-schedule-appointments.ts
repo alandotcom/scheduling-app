@@ -77,7 +77,7 @@ export function useScheduleAppointments({
     ],
   );
 
-  const { data, isLoading, error, refetch } = useQuery({
+  const { data, isLoading, isFetching, error, refetch } = useQuery({
     ...orpc.appointments.range.queryOptions({ input }),
     enabled,
   });
@@ -103,6 +103,7 @@ export function useScheduleAppointments({
   return {
     appointments,
     isLoading,
+    isFetching,
     error,
     hasMore: data?.hasMore ?? false,
     refetch,

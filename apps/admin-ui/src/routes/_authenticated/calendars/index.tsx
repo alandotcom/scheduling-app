@@ -237,7 +237,7 @@ function CalendarsPage() {
     useState<AvailabilitySubTabType>("weekly");
   const [appointmentModalOpen, setAppointmentModalOpen] = useState(false);
 
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, isFetching, error } = useQuery({
     ...orpc.calendars.list.queryOptions({
       input: { limit: 100 },
     }),
@@ -261,6 +261,7 @@ function CalendarsPage() {
   }, [create, crud, navigate]);
 
   const calendars = data?.items ?? [];
+  const isSelectionDataResolved = !isLoading && !isFetching && !error;
   const selectedCalendar =
     calendars.find((calendar) => calendar.id === selectedId) ?? null;
   const displayCalendar = useClosingSnapshot(selectedCalendar ?? undefined);
@@ -292,6 +293,7 @@ function CalendarsPage() {
         selected: undefined,
         tab: undefined,
       }),
+      replace: true,
     });
   }, [closeDetailModalNow, navigate]);
 
@@ -308,7 +310,12 @@ function CalendarsPage() {
     [navigate, selectedId],
   );
 
-  useValidateSelection(calendars, selectedId, clearDetails);
+  useValidateSelection({
+    items: calendars,
+    selectedId,
+    isDataResolved: isSelectionDataResolved,
+    onInvalidSelection: clearDetails,
+  });
 
   const selectedIndex = selectedId
     ? calendars.findIndex((calendar) => calendar.id === selectedId)

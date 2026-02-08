@@ -436,7 +436,7 @@ function ClientsPage() {
   const [appointmentTimezoneMode, setAppointmentTimezoneMode] =
     useState<SchedulingTimezoneMode>(DEFAULT_SCHEDULING_TIMEZONE_MODE);
 
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, isFetching, error } = useQuery({
     ...orpc.clients.list.queryOptions({
       input: { search: search || undefined, limit: 100 },
     }),
@@ -460,6 +460,7 @@ function ClientsPage() {
   }, [create, crud, navigate]);
 
   const clients = data?.items ?? [];
+  const isSelectionDataResolved = !isLoading && !isFetching && !error;
   const selectedClient =
     clients.find((client) => client.id === selectedId) ?? null;
   const displayClient = useClosingSnapshot(selectedClient ?? undefined);
@@ -494,6 +495,7 @@ function ClientsPage() {
         appointment: undefined,
         appointmentTab: undefined,
       }),
+      replace: true,
     });
   }, [closeDetailModalNow, navigate]);
 
@@ -531,6 +533,7 @@ function ClientsPage() {
         appointment: undefined,
         appointmentTab: undefined,
       }),
+      replace: true,
     });
   }, [navigate]);
 
@@ -562,7 +565,12 @@ function ClientsPage() {
     [navigate, selectedAppointmentId],
   );
 
-  useValidateSelection(clients, selectedId, clearDetails);
+  useValidateSelection({
+    items: clients,
+    selectedId,
+    isDataResolved: isSelectionDataResolved,
+    onInvalidSelection: clearDetails,
+  });
 
   const selectedIndex = selectedId
     ? clients.findIndex((client) => client.id === selectedId)

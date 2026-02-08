@@ -1,6 +1,6 @@
 // Root route layout with modern navigation shell
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   type ErrorComponentProps,
@@ -108,6 +108,8 @@ function RootLayout() {
   const [createOrganizationSlug, setCreateOrganizationSlug] = useState("");
   const [isCreatingOrganization, setIsCreatingOrganization] = useState(false);
   const [shortcutsHelpOpen, setShortcutsHelpOpen] = useState(false);
+  const [lastStableActiveOrganization, setLastStableActiveOrganization] =
+    useState<OrganizationListItem | null>(null);
 
   const organizationsQuery = useQuery({
     queryKey: ["auth", "organizations"],
@@ -150,6 +152,13 @@ function RootLayout() {
     [activeOrganizationId, organizations],
   );
   const hasValidActiveOrganization = !!activeOrganization;
+  const displayActiveOrganization =
+    activeOrganization ?? lastStableActiveOrganization;
+
+  useEffect(() => {
+    if (!activeOrganization) return;
+    setLastStableActiveOrganization(activeOrganization);
+  }, [activeOrganization]);
 
   const resetOrgScopedState = async () => {
     await navigate({
@@ -306,11 +315,10 @@ function RootLayout() {
     );
   }
 
-  if (
-    !isOrganizationsPending &&
-    !organizationsError &&
-    !hasValidActiveOrganization
-  ) {
+  const shouldShowOrganizationSelectionGate =
+    !isOrganizationsPending && !organizationsError && !activeOrganizationId;
+
+  if (shouldShowOrganizationSelectionGate) {
     return (
       <OrganizationSelectionScreen
         organizations={organizationMenuItems}
@@ -334,7 +342,9 @@ function RootLayout() {
   }
 
   const isResolvingActiveOrganization =
-    !hasValidActiveOrganization && isOrganizationsPending;
+    !!activeOrganizationId &&
+    !hasValidActiveOrganization &&
+    isOrganizationsPending;
 
   const navItems = [
     { to: "/", icon: Home01Icon, label: "Dashboard" },
@@ -476,7 +486,7 @@ function RootLayout() {
                   {user?.name ?? user?.email}
                 </div>
                 <div className="truncate text-[11px] text-sidebar-foreground/50">
-                  {activeOrganization?.name ?? user?.email}
+                  {displayActiveOrganization?.name ?? user?.email}
                 </div>
               </div>
             )}
@@ -536,10 +546,10 @@ function RootLayout() {
           <div className="flex items-center gap-3">
             <div className="hidden min-w-0 text-right lg:block">
               <p className="truncate text-sm font-medium">
-                {activeOrganization?.name ?? "No active organization"}
+                {displayActiveOrganization?.name ?? "No active organization"}
               </p>
               <p className="truncate text-xs text-muted-foreground">
-                {activeOrganization
+                {displayActiveOrganization
                   ? user?.email
                   : "Select or create an organization"}
               </p>
@@ -675,7 +685,7 @@ function RootLayout() {
                   {user?.name ?? user?.email}
                 </div>
                 <div className="truncate text-[11px] text-sidebar-foreground/50">
-                  {activeOrganization?.name ?? user?.email}
+                  {displayActiveOrganization?.name ?? user?.email}
                 </div>
               </div>
             </div>

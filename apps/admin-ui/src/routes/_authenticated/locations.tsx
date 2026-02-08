@@ -179,7 +179,7 @@ function LocationsPage() {
   const selectedId = selected ?? null;
   const activeTab: DetailTabValue = tab && isDetailTab(tab) ? tab : "details";
 
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, isFetching, error } = useQuery({
     ...orpc.locations.list.queryOptions({
       input: { limit: 100 },
     }),
@@ -203,6 +203,7 @@ function LocationsPage() {
   }, [create, crud, navigate]);
 
   const locations = data?.items ?? [];
+  const isSelectionDataResolved = !isLoading && !isFetching && !error;
   const selectedLocation =
     locations.find((location) => location.id === selectedId) ?? null;
   const displayLocation = useClosingSnapshot(selectedLocation ?? undefined);
@@ -233,6 +234,7 @@ function LocationsPage() {
         selected: undefined,
         tab: undefined,
       }),
+      replace: true,
     });
   }, [closeDetailModalNow, navigate]);
 
@@ -249,7 +251,12 @@ function LocationsPage() {
     [navigate, selectedId],
   );
 
-  useValidateSelection(locations, selectedId, clearDetails);
+  useValidateSelection({
+    items: locations,
+    selectedId,
+    isDataResolved: isSelectionDataResolved,
+    onInvalidSelection: clearDetails,
+  });
 
   const selectedIndex = selectedId
     ? locations.findIndex((location) => location.id === selectedId)
