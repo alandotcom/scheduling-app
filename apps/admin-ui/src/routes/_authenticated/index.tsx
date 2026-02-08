@@ -27,6 +27,13 @@ import { Icon } from "@/components/ui/icon";
 import { ShortcutBadge } from "@/components/ui/shortcut-badge";
 import { AppointmentModal } from "@/components/appointment-modal";
 import { useKeyboardShortcuts } from "@/hooks/use-keyboard-shortcuts";
+import { authClient } from "@/lib/auth-client";
+
+export function shouldEnableDashboardQueries(
+  activeOrganizationId: string | null | undefined,
+) {
+  return !!activeOrganizationId;
+}
 
 export function getDashboardStats(summary: DashboardSummary | undefined) {
   return {
@@ -61,6 +68,10 @@ export function getSortedTodayAppointments(
 export function Dashboard() {
   const [appointmentModalOpen, setAppointmentModalOpen] = useState(false);
   const navigate = useNavigate({ from: Route.fullPath });
+  const { data: session } = authClient.useSession();
+  const hasActiveOrganization = shouldEnableDashboardQueries(
+    session?.session.activeOrganizationId,
+  );
 
   const handleAppointmentCreated = useCallback(
     (appointmentId: string) => {
@@ -90,18 +101,22 @@ export function Dashboard() {
   const todayStr = today.toISODate() ?? "";
 
   // Fetch dashboard summary metrics
-  const { data: summary } = useQuery(orpc.dashboard.summary.queryOptions());
+  const { data: summary } = useQuery({
+    ...orpc.dashboard.summary.queryOptions(),
+    enabled: hasActiveOrganization,
+  });
 
   // Fetch today's appointments for schedule list
-  const { data: todayAppointments } = useQuery(
-    orpc.appointments.list.queryOptions({
+  const { data: todayAppointments } = useQuery({
+    ...orpc.appointments.list.queryOptions({
       input: {
         startDate: todayStr,
         endDate: todayStr,
         limit: 50,
       },
     }),
-  );
+    enabled: hasActiveOrganization,
+  });
 
   const { todayCount, weekCount, clientCount, calendarCount } =
     getDashboardStats(summary);

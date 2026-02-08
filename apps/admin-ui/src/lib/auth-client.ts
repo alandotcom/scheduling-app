@@ -3,8 +3,18 @@
 import { createAuthClient } from "better-auth/react";
 import { apiKeyClient, organizationClient } from "better-auth/client/plugins";
 
+const getAuthBaseUrl = () => {
+  if (typeof window !== "undefined") {
+    const origin = window.location.origin;
+    if (origin && origin !== "null" && /^https?:\/\//.test(origin)) {
+      return origin;
+    }
+  }
+  return "http://localhost:5173";
+};
+
 export const authClient = createAuthClient({
-  baseURL: window.location.origin, // Uses same origin, proxied by Vite in dev
+  baseURL: getAuthBaseUrl(), // Uses same origin in browser, localhost fallback in tests
   plugins: [organizationClient(), apiKeyClient()],
 });
 

@@ -4,6 +4,7 @@ import {
   getAttentionCounts,
   getDashboardStats,
   getSortedTodayAppointments,
+  shouldEnableDashboardQueries,
 } from "./index";
 
 describe("dashboard data helpers", () => {
@@ -76,5 +77,14 @@ describe("dashboard data helpers", () => {
       "late",
       "early",
     ]);
+  });
+
+  test("enables dashboard queries when active organization is present", () => {
+    expect(shouldEnableDashboardQueries("org-123")).toBe(true);
+  });
+
+  test("disables dashboard queries when active organization is missing", () => {
+    expect(shouldEnableDashboardQueries(null)).toBe(false);
+    expect(shouldEnableDashboardQueries(undefined)).toBe(false);
   });
 });

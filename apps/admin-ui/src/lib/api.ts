@@ -7,6 +7,10 @@ import { RPCLink } from "@orpc/client/fetch";
 import { getLogger } from "@logtape/logtape";
 
 const logger = getLogger(["ui", "api"]);
+const EXPECTED_AUTH_TRANSITION_MESSAGES = [
+  "Authentication required",
+  "Active organization required",
+] as const;
 
 // Construct the absolute URL for the RPC endpoint
 // Use window.location.origin in browser, fallback to localhost for SSR
@@ -16,6 +20,48 @@ const getBaseUrl = () => {
   }
   return "http://localhost:3000/v1";
 };
+
+function getApiErrorMessage(payload: unknown): string {
+  if (typeof payload === "string") return payload;
+  if (typeof payload !== "object" || payload === null) return "";
+  if ("message" in payload && typeof payload.message === "string") {
+    return payload.message;
+  }
+  if (
+    "error" in payload &&
+    typeof payload.error === "object" &&
+    payload.error !== null &&
+    "message" in payload.error &&
+    typeof payload.error.message === "string"
+  ) {
+    return payload.error.message;
+  }
+  return "";
+}
+
+export function isExpectedAuthTransitionErrorPayload(
+  status: number,
+  payload: unknown,
+): boolean {
+  if (status !== 401) return false;
+  const message = getApiErrorMessage(payload);
+  if (!message) return false;
+
+  return EXPECTED_AUTH_TRANSITION_MESSAGES.some((expectedMessage) =>
+    message.includes(expectedMessage),
+  );
+}
+
+async function shouldSuppressApiWarning(response: Response): Promise<boolean> {
+  if (response.status !== 401) return false;
+
+  try {
+    const payload = await response.clone().json();
+    return isExpectedAuthTransitionErrorPayload(response.status, payload);
+  } catch {
+    return false;
+  }
+}
 
 // Create the RPC link with fetch configuration
 const link = new RPCLink({
@@ -29,7 +75,10 @@ const link = new RPCLink({
         credentials: "include", // Include cookies for session auth
       });
       if (!response.ok) {
-        logger.warn(`API error: ${response.status}`);
+        const shouldSuppressWarning = await shouldSuppressApiWarning(response);
+        if (!shouldSuppressWarning) {
+          logger.warn(`API error: ${response.status}`);
+        }
       }
       return response;
     } catch (error) {

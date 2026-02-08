@@ -60,6 +60,21 @@ interface OrganizationListItem {
   createdAt: Date;
 }
 
+type OrganizationGateState = "loading" | "selection" | "error" | "ready";
+
+export function getOrganizationGateState(input: {
+  isOrganizationsPending: boolean;
+  organizationsError: unknown;
+  activeOrganizationId: string | null;
+  hasValidActiveOrganization: boolean;
+}): OrganizationGateState {
+  if (input.isOrganizationsPending) return "loading";
+  if (input.organizationsError) return "error";
+  if (!input.activeOrganizationId) return "selection";
+  if (!input.hasValidActiveOrganization) return "loading";
+  return "ready";
+}
+
 function getAuthErrorMessage(error: unknown, fallback: string): string {
   if (error instanceof Error && error.message) return error.message;
   return fallback;
@@ -153,6 +168,12 @@ function RootLayout() {
   const hasValidActiveOrganization = !!activeOrganization;
   const displayActiveOrganization =
     activeOrganization ?? lastStableActiveOrganization;
+  const organizationGateState = getOrganizationGateState({
+    isOrganizationsPending,
+    organizationsError,
+    activeOrganizationId,
+    hasValidActiveOrganization,
+  });
 
   useEffect(() => {
     if (!activeOrganization) return;
@@ -314,7 +335,7 @@ function RootLayout() {
   }
 
   const shouldShowOrganizationSelectionGate =
-    !isOrganizationsPending && !organizationsError && !activeOrganizationId;
+    organizationGateState === "selection";
 
   if (shouldShowOrganizationSelectionGate) {
     return (
@@ -339,10 +360,7 @@ function RootLayout() {
     );
   }
 
-  const isResolvingActiveOrganization =
-    !!activeOrganizationId &&
-    !hasValidActiveOrganization &&
-    isOrganizationsPending;
+  const isResolvingActiveOrganization = organizationGateState === "loading";
 
   const navItems = [
     { to: "/", icon: Home01Icon, label: "Dashboard" },
@@ -587,7 +605,7 @@ function RootLayout() {
                 </p>
               </div>
             </div>
-          ) : organizationsError ? (
+          ) : organizationGateState === "error" ? (
             <div className="mx-auto max-w-2xl px-4 py-10">
               <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-4">
                 <h2 className="text-sm font-semibold text-destructive">
