@@ -12,6 +12,7 @@ import {
   locations,
   calendars,
   appointmentTypes,
+  appointmentTypeCalendars,
 } from "@scheduling/db/schema";
 import { auth } from "../lib/auth.js";
 
@@ -172,8 +173,11 @@ async function seed() {
       .where(eq(appointmentTypes.name, typeData.name))
       .limit(1);
 
+    let appointmentType: { id: string; name: string };
+
     if (existing.length > 0) {
       console.log(`Appointment type already exists: ${typeData.name}`);
+      appointmentType = existing[0]!;
     } else {
       const [apptType] = await db
         .insert(appointmentTypes)
@@ -183,6 +187,26 @@ async function seed() {
         })
         .returning();
       console.log(`Created appointment type: ${apptType!.name}`);
+      appointmentType = apptType!;
+    }
+
+    const linked = await db
+      .insert(appointmentTypeCalendars)
+      .values({
+        appointmentTypeId: appointmentType.id,
+        calendarId: calendar.id,
+      })
+      .onConflictDoNothing()
+      .returning();
+
+    if (linked.length > 0) {
+      console.log(
+        `Linked appointment type to calendar: ${appointmentType.name} -> ${calendar.name}`,
+      );
+    } else {
+      console.log(
+        `Appointment type already linked: ${appointmentType.name} -> ${calendar.name}`,
+      );
     }
   }
 
