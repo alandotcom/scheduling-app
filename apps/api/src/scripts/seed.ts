@@ -1,18 +1,26 @@
 // Seed script for development/demo database
-// Creates a demo org with admin user
-// IDEMPOTENT: Safe to run multiple times
+// Creates two demo orgs with rich scheduling data
+// IDEMPOTENT: deterministic reset + reseed for managed demo orgs
 
 import { drizzle } from "drizzle-orm/bun-sql";
-import { sql, eq } from "drizzle-orm";
+import { eq, inArray, sql } from "drizzle-orm";
 import { SQL } from "bun";
 import {
-  orgs,
-  users,
-  orgMemberships,
-  locations,
-  calendars,
-  appointmentTypes,
   appointmentTypeCalendars,
+  appointmentTypeResources,
+  appointmentTypes,
+  appointments,
+  availabilityOverrides,
+  availabilityRules,
+  blockedTime,
+  calendars,
+  clients,
+  locations,
+  orgMemberships,
+  orgs,
+  resources,
+  schedulingLimits,
+  users,
 } from "@scheduling/db/schema";
 import { auth } from "../lib/auth.js";
 
@@ -20,26 +28,509 @@ const databaseUrl =
   process.env["DATABASE_URL"] ??
   "postgres://scheduling:scheduling@localhost:5433/scheduling";
 
+const MINUTE_MS = 60_000;
+const DAY_MS = 86_400_000;
+
+type AppointmentStatus = "scheduled" | "confirmed" | "cancelled" | "no_show";
+type CalendarProfile = "provider" | "support";
+
+type SeedLocation = {
+  key: string;
+  name: string;
+  timezone: string;
+};
+
+type SeedCalendar = {
+  key: string;
+  name: string;
+  locationKey: string;
+  timezone: string;
+  profile: CalendarProfile;
+};
+
+type SeedAppointmentType = {
+  key: string;
+  name: string;
+  durationMin: number;
+  paddingBeforeMin?: number;
+  paddingAfterMin?: number;
+  capacity?: number;
+  calendarKeys: string[];
+};
+
+type SeedOrg = {
+  name: string;
+  locations: SeedLocation[];
+  calendars: SeedCalendar[];
+  appointmentTypes: SeedAppointmentType[];
+};
+
+type AppointmentSpec = {
+  dayOffset: number;
+  hour: number;
+  minute: number;
+  calendarKey: string;
+  appointmentTypeKey: string;
+  clientIndex: number;
+  status: AppointmentStatus;
+};
+
+type SeedSummary = {
+  locations: number;
+  calendars: number;
+  appointmentTypes: number;
+  clients: number;
+  appointments: number;
+  availabilityRules: number;
+  availabilityOverrides: number;
+  blockedTime: number;
+};
+
+const APPOINTMENT_TYPE_FIXTURES: SeedAppointmentType[] = [
+  {
+    key: "initial_consult",
+    name: "Initial Consultation",
+    durationMin: 60,
+    paddingAfterMin: 15,
+    calendarKeys: ["provider_a", "provider_b"],
+  },
+  {
+    key: "follow_up",
+    name: "Follow-up Visit",
+    durationMin: 30,
+    paddingAfterMin: 10,
+    calendarKeys: ["provider_a", "provider_b", "support"],
+  },
+  {
+    key: "annual_exam",
+    name: "Annual Wellness Exam",
+    durationMin: 45,
+    paddingAfterMin: 10,
+    calendarKeys: ["provider_a", "provider_b"],
+  },
+  {
+    key: "procedure",
+    name: "Procedure Visit",
+    durationMin: 90,
+    paddingAfterMin: 15,
+    calendarKeys: ["provider_b"],
+  },
+  {
+    key: "quick_check",
+    name: "Quick Check-in",
+    durationMin: 15,
+    paddingAfterMin: 5,
+    calendarKeys: ["provider_a", "support"],
+  },
+];
+
+const CLIENT_FIXTURES = [
+  {
+    firstName: "Olivia",
+    lastName: "Bennett",
+    email: "olivia.bennett@example.com",
+    phone: "555-0101",
+  },
+  {
+    firstName: "Noah",
+    lastName: "Harris",
+    email: "noah.harris@example.com",
+    phone: "555-0102",
+  },
+  {
+    firstName: "Ava",
+    lastName: "Nguyen",
+    email: "ava.nguyen@example.com",
+    phone: "555-0103",
+  },
+  {
+    firstName: "Liam",
+    lastName: "Patel",
+    email: "liam.patel@example.com",
+    phone: null,
+  },
+  {
+    firstName: "Emma",
+    lastName: "Rodriguez",
+    email: "emma.rodriguez@example.com",
+    phone: "555-0105",
+  },
+  {
+    firstName: "Mason",
+    lastName: "Kim",
+    email: null,
+    phone: "555-0106",
+  },
+  {
+    firstName: "Sophia",
+    lastName: "Collins",
+    email: "sophia.collins@example.com",
+    phone: "555-0107",
+  },
+  {
+    firstName: "Ethan",
+    lastName: "Davis",
+    email: "ethan.davis@example.com",
+    phone: null,
+  },
+  {
+    firstName: "Isabella",
+    lastName: "Lopez",
+    email: "isabella.lopez@example.com",
+    phone: "555-0109",
+  },
+  {
+    firstName: "Lucas",
+    lastName: "Brooks",
+    email: null,
+    phone: "555-0110",
+  },
+  {
+    firstName: "Mia",
+    lastName: "Sharma",
+    email: "mia.sharma@example.com",
+    phone: "555-0111",
+  },
+  {
+    firstName: "James",
+    lastName: "Turner",
+    email: "james.turner@example.com",
+    phone: "555-0112",
+  },
+] as const;
+
+const APPOINTMENT_SPECS: AppointmentSpec[] = [
+  {
+    dayOffset: -18,
+    hour: 9,
+    minute: 0,
+    calendarKey: "provider_a",
+    appointmentTypeKey: "initial_consult",
+    clientIndex: 0,
+    status: "confirmed",
+  },
+  {
+    dayOffset: -16,
+    hour: 10,
+    minute: 30,
+    calendarKey: "provider_b",
+    appointmentTypeKey: "follow_up",
+    clientIndex: 1,
+    status: "confirmed",
+  },
+  {
+    dayOffset: -15,
+    hour: 14,
+    minute: 0,
+    calendarKey: "provider_b",
+    appointmentTypeKey: "annual_exam",
+    clientIndex: 2,
+    status: "cancelled",
+  },
+  {
+    dayOffset: -13,
+    hour: 11,
+    minute: 0,
+    calendarKey: "support",
+    appointmentTypeKey: "quick_check",
+    clientIndex: 3,
+    status: "no_show",
+  },
+  {
+    dayOffset: -11,
+    hour: 13,
+    minute: 30,
+    calendarKey: "provider_a",
+    appointmentTypeKey: "follow_up",
+    clientIndex: 4,
+    status: "confirmed",
+  },
+  {
+    dayOffset: -9,
+    hour: 15,
+    minute: 0,
+    calendarKey: "provider_b",
+    appointmentTypeKey: "procedure",
+    clientIndex: 5,
+    status: "confirmed",
+  },
+  {
+    dayOffset: -7,
+    hour: 9,
+    minute: 15,
+    calendarKey: "provider_a",
+    appointmentTypeKey: "quick_check",
+    clientIndex: 6,
+    status: "scheduled",
+  },
+  {
+    dayOffset: -4,
+    hour: 10,
+    minute: 0,
+    calendarKey: "provider_b",
+    appointmentTypeKey: "follow_up",
+    clientIndex: 7,
+    status: "cancelled",
+  },
+  {
+    dayOffset: -2,
+    hour: 16,
+    minute: 0,
+    calendarKey: "support",
+    appointmentTypeKey: "follow_up",
+    clientIndex: 8,
+    status: "confirmed",
+  },
+  {
+    dayOffset: 1,
+    hour: 9,
+    minute: 0,
+    calendarKey: "provider_a",
+    appointmentTypeKey: "initial_consult",
+    clientIndex: 9,
+    status: "scheduled",
+  },
+  {
+    dayOffset: 2,
+    hour: 11,
+    minute: 0,
+    calendarKey: "provider_b",
+    appointmentTypeKey: "procedure",
+    clientIndex: 10,
+    status: "confirmed",
+  },
+  {
+    dayOffset: 3,
+    hour: 13,
+    minute: 0,
+    calendarKey: "support",
+    appointmentTypeKey: "quick_check",
+    clientIndex: 11,
+    status: "scheduled",
+  },
+  {
+    dayOffset: 4,
+    hour: 10,
+    minute: 30,
+    calendarKey: "provider_a",
+    appointmentTypeKey: "follow_up",
+    clientIndex: 0,
+    status: "scheduled",
+  },
+  {
+    dayOffset: 5,
+    hour: 14,
+    minute: 0,
+    calendarKey: "provider_b",
+    appointmentTypeKey: "annual_exam",
+    clientIndex: 1,
+    status: "confirmed",
+  },
+  {
+    dayOffset: 6,
+    hour: 9,
+    minute: 45,
+    calendarKey: "provider_a",
+    appointmentTypeKey: "quick_check",
+    clientIndex: 2,
+    status: "scheduled",
+  },
+  {
+    dayOffset: 8,
+    hour: 15,
+    minute: 0,
+    calendarKey: "support",
+    appointmentTypeKey: "follow_up",
+    clientIndex: 3,
+    status: "scheduled",
+  },
+  {
+    dayOffset: 10,
+    hour: 11,
+    minute: 30,
+    calendarKey: "provider_b",
+    appointmentTypeKey: "initial_consult",
+    clientIndex: 4,
+    status: "confirmed",
+  },
+  {
+    dayOffset: 12,
+    hour: 13,
+    minute: 30,
+    calendarKey: "provider_a",
+    appointmentTypeKey: "annual_exam",
+    clientIndex: 5,
+    status: "scheduled",
+  },
+  {
+    dayOffset: 14,
+    hour: 10,
+    minute: 0,
+    calendarKey: "provider_b",
+    appointmentTypeKey: "follow_up",
+    clientIndex: 6,
+    status: "scheduled",
+  },
+  {
+    dayOffset: 17,
+    hour: 15,
+    minute: 30,
+    calendarKey: "support",
+    appointmentTypeKey: "quick_check",
+    clientIndex: 7,
+    status: "scheduled",
+  },
+];
+
+const SEED_ORGS: SeedOrg[] = [
+  {
+    name: "Acme Scheduling",
+    locations: [
+      {
+        key: "primary",
+        name: "Main Office",
+        timezone: "America/New_York",
+      },
+      {
+        key: "secondary",
+        name: "Telehealth Suite",
+        timezone: "America/New_York",
+      },
+    ],
+    calendars: [
+      {
+        key: "provider_a",
+        name: "Dr. Smith",
+        locationKey: "primary",
+        timezone: "America/New_York",
+        profile: "provider",
+      },
+      {
+        key: "provider_b",
+        name: "Dr. Patel",
+        locationKey: "primary",
+        timezone: "America/New_York",
+        profile: "provider",
+      },
+      {
+        key: "support",
+        name: "Nurse Ava",
+        locationKey: "secondary",
+        timezone: "America/New_York",
+        profile: "support",
+      },
+    ],
+    appointmentTypes: APPOINTMENT_TYPE_FIXTURES,
+  },
+  {
+    name: "Northwind Therapy Group",
+    locations: [
+      {
+        key: "primary",
+        name: "River North Clinic",
+        timezone: "America/Chicago",
+      },
+      {
+        key: "secondary",
+        name: "Virtual Care Hub",
+        timezone: "America/Chicago",
+      },
+    ],
+    calendars: [
+      {
+        key: "provider_a",
+        name: "Dr. Rivera",
+        locationKey: "primary",
+        timezone: "America/Chicago",
+        profile: "provider",
+      },
+      {
+        key: "provider_b",
+        name: "Dr. Chen",
+        locationKey: "primary",
+        timezone: "America/Chicago",
+        profile: "provider",
+      },
+      {
+        key: "support",
+        name: "Coach Maya",
+        locationKey: "secondary",
+        timezone: "America/Chicago",
+        profile: "support",
+      },
+    ],
+    appointmentTypes: APPOINTMENT_TYPE_FIXTURES,
+  },
+];
+
+function startOfUtcDay(): Date {
+  const now = new Date();
+  return new Date(
+    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()),
+  );
+}
+
+function dateAtDayOffset(
+  startOfDayUtc: Date,
+  dayOffset: number,
+  hour: number,
+  minute: number,
+): Date {
+  return new Date(
+    startOfDayUtc.getTime() +
+      dayOffset * DAY_MS +
+      hour * 60 * MINUTE_MS +
+      minute * MINUTE_MS,
+  );
+}
+
+function dateStringAtDayOffset(startOfDayUtc: Date, dayOffset: number): string {
+  return dateAtDayOffset(startOfDayUtc, dayOffset, 0, 0)
+    .toISOString()
+    .slice(0, 10);
+}
+
 async function seed() {
   console.log("Seeding database...");
 
   const client = new SQL(databaseUrl);
   const db = drizzle({ client });
+  const startOfDayUtc = startOfUtcDay();
+  type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
-  // Check if admin user already exists
-  const existingUser = await db
-    .select()
-    .from(users)
-    .where(eq(users.email, "admin@example.com"))
-    .limit(1);
+  async function withUserContext<T>(
+    userId: string,
+    fn: (tx: Tx) => Promise<T>,
+  ) {
+    return db.transaction(async (tx) => {
+      await tx.execute(
+        sql`SELECT set_config('app.current_user_id', ${userId}, true)`,
+      );
+      return fn(tx);
+    });
+  }
 
-  let adminUser: { id: string; email: string };
+  async function withOrgContext<T>(orgId: string, fn: (tx: Tx) => Promise<T>) {
+    return db.transaction(async (tx) => {
+      await tx.execute(
+        sql`SELECT set_config('app.current_org_id', ${orgId}, true)`,
+      );
+      return fn(tx);
+    });
+  }
 
-  if (existingUser.length > 0) {
-    console.log(`Admin user already exists: ${existingUser[0]!.email}`);
-    adminUser = existingUser[0]!;
-  } else {
-    // Use BetterAuth to create user with proper password hashing
+  async function getOrCreateAdminUser() {
+    const existingUser = await db
+      .select({ id: users.id, email: users.email })
+      .from(users)
+      .where(eq(users.email, "admin@example.com"))
+      .limit(1);
+
+    if (existingUser.length > 0) {
+      console.log(`Admin user already exists: ${existingUser[0]!.email}`);
+      return existingUser[0]!;
+    }
+
     console.log("Creating admin user via BetterAuth...");
     const result = await auth.api.signUpEmail({
       body: {
@@ -53,172 +544,455 @@ async function seed() {
       throw new Error("Failed to create admin user via BetterAuth");
     }
 
-    adminUser = { id: result.user.id, email: result.user.email };
-    console.log(`Created admin user: ${adminUser.email} (${adminUser.id})`);
+    console.log(`Created admin user: ${result.user.email} (${result.user.id})`);
+    return { id: result.user.id, email: result.user.email };
   }
 
-  // Check if org already exists
-  const existingOrg = await db
-    .select()
-    .from(orgs)
-    .where(eq(orgs.name, "Acme Scheduling"))
-    .limit(1);
-
-  let org: { id: string; name: string };
-
-  if (existingOrg.length > 0) {
-    console.log(`Org already exists: ${existingOrg[0]!.name}`);
-    org = existingOrg[0]!;
-  } else {
-    const [newOrg] = await db
-      .insert(orgs)
-      .values({
-        name: "Acme Scheduling",
-      })
-      .returning();
-    org = newOrg!;
-    console.log(`Created org: ${org.name} (${org.id})`);
-  }
-
-  // Set user context for RLS before inserting org_membership
-  await db.execute(
-    sql`SELECT set_config('app.current_user_id', ${adminUser.id}, false)`,
-  );
-
-  // Create org membership (use onConflictDoNothing for idempotency)
-  const membershipResult = await db
-    .insert(orgMemberships)
-    .values({
-      orgId: org.id,
-      userId: adminUser.id,
-      role: "owner",
-    })
-    .onConflictDoNothing()
-    .returning();
-
-  if (membershipResult.length > 0) {
-    console.log("Created org membership for admin");
-  } else {
-    console.log("Org membership already exists");
-  }
-
-  // Clear user context, set org context for remaining RLS-protected tables
-  await db.execute(sql`SELECT set_config('app.current_user_id', '', false)`);
-  await db.execute(
-    sql`SELECT set_config('app.current_org_id', ${org.id}, false)`,
-  );
-
-  // Create a demo location (check if exists first)
-  const existingLocation = await db
-    .select()
-    .from(locations)
-    .where(eq(locations.name, "Main Office"))
-    .limit(1);
-
-  let location: { id: string; name: string };
-
-  if (existingLocation.length > 0) {
-    console.log(`Location already exists: ${existingLocation[0]!.name}`);
-    location = existingLocation[0]!;
-  } else {
-    const [newLocation] = await db
-      .insert(locations)
-      .values({
-        orgId: org.id,
-        name: "Main Office",
-        timezone: "America/New_York",
-      })
-      .returning();
-    location = newLocation!;
-    console.log(`Created location: ${location.name}`);
-  }
-
-  // Create a demo calendar (check if exists first)
-  const existingCalendar = await db
-    .select()
-    .from(calendars)
-    .where(eq(calendars.name, "Dr. Smith"))
-    .limit(1);
-
-  let calendar: { id: string; name: string };
-
-  if (existingCalendar.length > 0) {
-    console.log(`Calendar already exists: ${existingCalendar[0]!.name}`);
-    calendar = existingCalendar[0]!;
-  } else {
-    const [newCalendar] = await db
-      .insert(calendars)
-      .values({
-        orgId: org.id,
-        locationId: location.id,
-        name: "Dr. Smith",
-        timezone: "America/New_York",
-      })
-      .returning();
-    calendar = newCalendar!;
-    console.log(`Created calendar: ${calendar.name}`);
-  }
-
-  // Create demo appointment types (check each one individually)
-  const appointmentTypeData = [
-    { name: "Initial Consultation", durationMin: 60, paddingAfterMin: 15 },
-    { name: "Follow-up Visit", durationMin: 30, paddingAfterMin: 10 },
-    { name: "Quick Check-in", durationMin: 15, paddingAfterMin: 5 },
-  ];
-
-  for (const typeData of appointmentTypeData) {
-    const existing = await db
-      .select()
-      .from(appointmentTypes)
-      .where(eq(appointmentTypes.name, typeData.name))
+  async function getOrCreateOrg(orgName: string) {
+    const existingOrg = await db
+      .select({ id: orgs.id, name: orgs.name })
+      .from(orgs)
+      .where(eq(orgs.name, orgName))
       .limit(1);
 
-    let appointmentType: { id: string; name: string };
-
-    if (existing.length > 0) {
-      console.log(`Appointment type already exists: ${typeData.name}`);
-      appointmentType = existing[0]!;
-    } else {
-      const [apptType] = await db
-        .insert(appointmentTypes)
-        .values({
-          orgId: org.id,
-          ...typeData,
-        })
-        .returning();
-      console.log(`Created appointment type: ${apptType!.name}`);
-      appointmentType = apptType!;
+    if (existingOrg.length > 0) {
+      console.log(`Org already exists: ${existingOrg[0]!.name}`);
+      return existingOrg[0]!;
     }
 
-    const linked = await db
-      .insert(appointmentTypeCalendars)
-      .values({
-        appointmentTypeId: appointmentType.id,
-        calendarId: calendar.id,
-      })
-      .onConflictDoNothing()
-      .returning();
+    const [newOrg] = await db
+      .insert(orgs)
+      .values({ name: orgName })
+      .returning({ id: orgs.id, name: orgs.name });
 
-    if (linked.length > 0) {
-      console.log(
-        `Linked appointment type to calendar: ${appointmentType.name} -> ${calendar.name}`,
-      );
+    if (!newOrg) {
+      throw new Error(`Failed to create org: ${orgName}`);
+    }
+
+    console.log(`Created org: ${newOrg.name} (${newOrg.id})`);
+    return newOrg;
+  }
+
+  async function ensureAdminMembership(orgId: string, userId: string) {
+    const membershipResult = await withUserContext(userId, async (tx) =>
+      tx
+        .insert(orgMemberships)
+        .values({
+          orgId,
+          userId,
+          role: "owner",
+        })
+        .onConflictDoNothing()
+        .returning({ id: orgMemberships.id }),
+    );
+
+    if (membershipResult.length > 0) {
+      console.log("Created org membership for admin");
     } else {
-      console.log(
-        `Appointment type already linked: ${appointmentType.name} -> ${calendar.name}`,
-      );
+      console.log("Org membership already exists");
     }
   }
 
-  // Clear org context
-  await db.execute(sql`SELECT set_config('app.current_org_id', '', false)`);
+  async function resetOrgDomainData(orgId: string) {
+    await withOrgContext(orgId, async (tx) => {
+      const existingCalendars = await tx
+        .select({ id: calendars.id })
+        .from(calendars)
+        .where(eq(calendars.orgId, orgId));
+      const calendarIds = existingCalendars.map((row) => row.id);
 
-  console.log("\nSeed completed successfully!");
-  console.log("\nDemo credentials:");
-  console.log("  Email: admin@example.com");
-  console.log("  Password: password123");
+      const existingAppointmentTypes = await tx
+        .select({ id: appointmentTypes.id })
+        .from(appointmentTypes)
+        .where(eq(appointmentTypes.orgId, orgId));
+      const appointmentTypeIds = existingAppointmentTypes.map((row) => row.id);
 
-  client.close();
+      await tx.delete(appointments).where(eq(appointments.orgId, orgId));
+      await tx.delete(clients).where(eq(clients.orgId, orgId));
+
+      if (calendarIds.length > 0) {
+        await tx
+          .delete(availabilityRules)
+          .where(inArray(availabilityRules.calendarId, calendarIds));
+        await tx
+          .delete(availabilityOverrides)
+          .where(inArray(availabilityOverrides.calendarId, calendarIds));
+        await tx
+          .delete(blockedTime)
+          .where(inArray(blockedTime.calendarId, calendarIds));
+        await tx
+          .delete(schedulingLimits)
+          .where(inArray(schedulingLimits.calendarId, calendarIds));
+        await tx
+          .delete(appointmentTypeCalendars)
+          .where(inArray(appointmentTypeCalendars.calendarId, calendarIds));
+      }
+
+      if (appointmentTypeIds.length > 0) {
+        await tx
+          .delete(appointmentTypeResources)
+          .where(
+            inArray(
+              appointmentTypeResources.appointmentTypeId,
+              appointmentTypeIds,
+            ),
+          );
+      }
+
+      await tx.delete(resources).where(eq(resources.orgId, orgId));
+      await tx
+        .delete(appointmentTypes)
+        .where(eq(appointmentTypes.orgId, orgId));
+      await tx.delete(calendars).where(eq(calendars.orgId, orgId));
+      await tx.delete(locations).where(eq(locations.orgId, orgId));
+    });
+  }
+
+  async function seedOrgData(
+    orgId: string,
+    seedOrg: SeedOrg,
+  ): Promise<SeedSummary> {
+    await resetOrgDomainData(orgId);
+
+    return withOrgContext(orgId, async (tx) => {
+      const locationIds = new Map<string, string>();
+      const calendarIds = new Map<string, string>();
+      const calendarProfiles = new Map<string, CalendarProfile>();
+      const appointmentTypeByKey = new Map<
+        string,
+        { id: string; durationMin: number }
+      >();
+      const clientIds: string[] = [];
+
+      for (const location of seedOrg.locations) {
+        const [inserted] = await tx
+          .insert(locations)
+          .values({
+            orgId,
+            name: location.name,
+            timezone: location.timezone,
+          })
+          .returning({ id: locations.id });
+
+        if (!inserted) {
+          throw new Error(`Failed to create location: ${location.name}`);
+        }
+
+        locationIds.set(location.key, inserted.id);
+      }
+
+      for (const calendar of seedOrg.calendars) {
+        const locationId = locationIds.get(calendar.locationKey);
+        if (!locationId) {
+          throw new Error(`Missing location key for calendar: ${calendar.key}`);
+        }
+
+        const [inserted] = await tx
+          .insert(calendars)
+          .values({
+            orgId,
+            locationId,
+            name: calendar.name,
+            timezone: calendar.timezone,
+          })
+          .returning({ id: calendars.id });
+
+        if (!inserted) {
+          throw new Error(`Failed to create calendar: ${calendar.name}`);
+        }
+
+        calendarIds.set(calendar.key, inserted.id);
+        calendarProfiles.set(calendar.key, calendar.profile);
+      }
+
+      for (const appointmentType of seedOrg.appointmentTypes) {
+        const [insertedType] = await tx
+          .insert(appointmentTypes)
+          .values({
+            orgId,
+            name: appointmentType.name,
+            durationMin: appointmentType.durationMin,
+            paddingBeforeMin: appointmentType.paddingBeforeMin ?? 0,
+            paddingAfterMin: appointmentType.paddingAfterMin ?? 0,
+            capacity: appointmentType.capacity ?? 1,
+          })
+          .returning({ id: appointmentTypes.id });
+
+        if (!insertedType) {
+          throw new Error(
+            `Failed to create appointment type: ${appointmentType.name}`,
+          );
+        }
+
+        const linkedCalendarIds = appointmentType.calendarKeys.map(
+          (calendarKey) => {
+            const calendarId = calendarIds.get(calendarKey);
+            if (!calendarId) {
+              throw new Error(
+                `Missing calendar key for appointment type link: ${calendarKey}`,
+              );
+            }
+            return calendarId;
+          },
+        );
+
+        await tx.insert(appointmentTypeCalendars).values(
+          linkedCalendarIds.map((calendarId) => ({
+            appointmentTypeId: insertedType.id,
+            calendarId,
+          })),
+        );
+
+        appointmentTypeByKey.set(appointmentType.key, {
+          id: insertedType.id,
+          durationMin: appointmentType.durationMin,
+        });
+      }
+
+      for (const clientFixture of CLIENT_FIXTURES) {
+        const [insertedClient] = await tx
+          .insert(clients)
+          .values({
+            orgId,
+            firstName: clientFixture.firstName,
+            lastName: clientFixture.lastName,
+            email: clientFixture.email,
+            phone: clientFixture.phone,
+          })
+          .returning({ id: clients.id });
+
+        if (!insertedClient) {
+          throw new Error(
+            `Failed to create client: ${clientFixture.firstName} ${clientFixture.lastName}`,
+          );
+        }
+
+        clientIds.push(insertedClient.id);
+      }
+
+      const availabilityRuleRows: Array<{
+        calendarId: string;
+        weekday: number;
+        startTime: string;
+        endTime: string;
+        intervalMin: number;
+      }> = [];
+
+      for (const [calendarKey, calendarId] of calendarIds.entries()) {
+        const profile = calendarProfiles.get(calendarKey);
+        if (!profile) continue;
+
+        if (profile === "provider") {
+          for (const weekday of [1, 2, 3, 4, 5]) {
+            availabilityRuleRows.push({
+              calendarId,
+              weekday,
+              startTime: "09:00",
+              endTime: "12:00",
+              intervalMin: 15,
+            });
+            availabilityRuleRows.push({
+              calendarId,
+              weekday,
+              startTime: "13:00",
+              endTime: "17:00",
+              intervalMin: 15,
+            });
+          }
+        } else {
+          for (const weekday of [1, 2, 3, 4, 5]) {
+            availabilityRuleRows.push({
+              calendarId,
+              weekday,
+              startTime: "08:00",
+              endTime: "12:00",
+              intervalMin: 15,
+            });
+            availabilityRuleRows.push({
+              calendarId,
+              weekday,
+              startTime: "12:30",
+              endTime: "16:00",
+              intervalMin: 15,
+            });
+          }
+          availabilityRuleRows.push({
+            calendarId,
+            weekday: 6,
+            startTime: "09:00",
+            endTime: "12:00",
+            intervalMin: 30,
+          });
+        }
+      }
+
+      if (availabilityRuleRows.length > 0) {
+        await tx.insert(availabilityRules).values(availabilityRuleRows);
+      }
+
+      const providerACalendarId = calendarIds.get("provider_a");
+      const providerBCalendarId = calendarIds.get("provider_b");
+      const supportCalendarId = calendarIds.get("support");
+
+      if (!providerACalendarId || !providerBCalendarId || !supportCalendarId) {
+        throw new Error(
+          "Required calendars missing for overrides/blocked time",
+        );
+      }
+
+      await tx.insert(availabilityOverrides).values([
+        {
+          calendarId: providerACalendarId,
+          date: dateStringAtDayOffset(startOfDayUtc, 7),
+          timeRanges: [],
+          intervalMin: null,
+          groupId: null,
+        },
+        {
+          calendarId: providerBCalendarId,
+          date: dateStringAtDayOffset(startOfDayUtc, 9),
+          timeRanges: [{ startTime: "10:00", endTime: "14:00" }],
+          intervalMin: 20,
+          groupId: null,
+        },
+        {
+          calendarId: supportCalendarId,
+          date: dateStringAtDayOffset(startOfDayUtc, 8),
+          timeRanges: [{ startTime: "09:00", endTime: "11:30" }],
+          intervalMin: 15,
+          groupId: null,
+        },
+      ]);
+
+      await tx.insert(blockedTime).values([
+        {
+          calendarId: providerACalendarId,
+          startAt: dateAtDayOffset(startOfDayUtc, 4, 12, 0),
+          endAt: dateAtDayOffset(startOfDayUtc, 4, 13, 0),
+          recurringRule: null,
+        },
+        {
+          calendarId: providerBCalendarId,
+          startAt: dateAtDayOffset(startOfDayUtc, 6, 15, 0),
+          endAt: dateAtDayOffset(startOfDayUtc, 6, 16, 0),
+          recurringRule: "FREQ=WEEKLY;BYDAY=TU",
+        },
+        {
+          calendarId: supportCalendarId,
+          startAt: dateAtDayOffset(startOfDayUtc, 5, 10, 0),
+          endAt: dateAtDayOffset(startOfDayUtc, 5, 10, 45),
+          recurringRule: null,
+        },
+      ]);
+
+      for (const spec of APPOINTMENT_SPECS) {
+        const calendarId = calendarIds.get(spec.calendarKey);
+        const appointmentType = appointmentTypeByKey.get(
+          spec.appointmentTypeKey,
+        );
+        const clientId = clientIds[spec.clientIndex];
+
+        if (!calendarId) {
+          throw new Error(
+            `Missing calendar for appointment spec: ${spec.calendarKey}`,
+          );
+        }
+        if (!appointmentType) {
+          throw new Error(
+            `Missing appointment type for appointment spec: ${spec.appointmentTypeKey}`,
+          );
+        }
+        if (!clientId) {
+          throw new Error(
+            `Missing client for appointment spec index: ${spec.clientIndex}`,
+          );
+        }
+
+        const startAt = dateAtDayOffset(
+          startOfDayUtc,
+          spec.dayOffset,
+          spec.hour,
+          spec.minute,
+        );
+        const endAt = new Date(
+          startAt.getTime() + appointmentType.durationMin * MINUTE_MS,
+        );
+
+        const calendarTimezone = seedOrg.calendars.find(
+          (calendar) => calendar.key === spec.calendarKey,
+        )?.timezone;
+
+        if (!calendarTimezone) {
+          throw new Error(
+            `Missing calendar timezone for appointment spec: ${spec.calendarKey}`,
+          );
+        }
+
+        await tx.insert(appointments).values({
+          orgId,
+          calendarId,
+          appointmentTypeId: appointmentType.id,
+          clientId,
+          startAt,
+          endAt,
+          timezone: calendarTimezone,
+          status: spec.status,
+          notes:
+            spec.status === "cancelled"
+              ? "Cancelled by client"
+              : spec.status === "no_show"
+                ? "Client did not arrive"
+                : null,
+        });
+      }
+
+      return {
+        locations: seedOrg.locations.length,
+        calendars: seedOrg.calendars.length,
+        appointmentTypes: seedOrg.appointmentTypes.length,
+        clients: CLIENT_FIXTURES.length,
+        appointments: APPOINTMENT_SPECS.length,
+        availabilityRules: availabilityRuleRows.length,
+        availabilityOverrides: 3,
+        blockedTime: 3,
+      };
+    });
+  }
+
+  try {
+    const adminUser = await getOrCreateAdminUser();
+    const orgSummaries: Array<{ name: string; summary: SeedSummary }> = [];
+
+    for (const seedOrg of SEED_ORGS) {
+      console.log(`\nPreparing org: ${seedOrg.name}`);
+      const org = await getOrCreateOrg(seedOrg.name);
+      await ensureAdminMembership(org.id, adminUser.id);
+
+      console.log(`Resetting + seeding rich data for org: ${seedOrg.name}`);
+      const summary = await seedOrgData(org.id, seedOrg);
+      orgSummaries.push({ name: seedOrg.name, summary });
+    }
+
+    console.log("\nSeed completed successfully!");
+    for (const orgSummary of orgSummaries) {
+      const { summary } = orgSummary;
+      console.log(`\n${orgSummary.name}:`);
+      console.log(`  Locations: ${summary.locations}`);
+      console.log(`  Calendars: ${summary.calendars}`);
+      console.log(`  Appointment types: ${summary.appointmentTypes}`);
+      console.log(`  Clients: ${summary.clients}`);
+      console.log(`  Appointments: ${summary.appointments}`);
+      console.log(`  Availability rules: ${summary.availabilityRules}`);
+      console.log(`  Availability overrides: ${summary.availabilityOverrides}`);
+      console.log(`  Blocked time entries: ${summary.blockedTime}`);
+    }
+
+    console.log("\nDemo credentials:");
+    console.log("  Email: admin@example.com");
+    console.log("  Password: password123");
+  } finally {
+    client.close();
+  }
 }
 
 seed().catch((err) => {

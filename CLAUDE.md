@@ -179,10 +179,13 @@ Run `pnpm db:seed` to populate the database with demo data. This is idempotent a
 - Password: `password123`
 
 **Seeded data:**
-- Org: "Acme Scheduling"
-- Location: "Main Office" (America/New_York)
-- Calendar: "Dr. Smith"
-- Appointment types: Initial Consultation (60 min), Follow-up Visit (30 min), Quick Check-in (15 min)
+- Orgs: "Acme Scheduling" and "Northwind Therapy Group" (same admin user in both)
+- Locations: 2 per org (including in-person and virtual locations)
+- Calendars: 3 per org (2 providers + 1 support calendar)
+- Appointment types: 5 per org (Initial Consultation, Follow-up Visit, Annual Wellness Exam, Procedure Visit, Quick Check-in)
+- Clients: 12 per org with mixed contact completeness
+- Appointments: 20 per org with mixed statuses (`scheduled`, `confirmed`, `cancelled`, `no_show`)
+- Availability: weekly rules, date-specific overrides, and blocked-time entries per org
 
 
 ## Agent-Browser QA
@@ -233,6 +236,5 @@ agent-browser close
 - Use refs (`@e1`, `@e2`) instead of CSS selectors for reliability
 - Take screenshots at key steps for verification
 - Close the browser when done to free resources
-
 
 
