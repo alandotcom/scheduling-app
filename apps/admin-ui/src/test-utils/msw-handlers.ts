@@ -62,9 +62,7 @@ interface DateOverrideFixture {
   id: string;
   calendarId: string;
   date: string;
-  isBlocked: boolean;
-  startTime: string | null;
-  endTime: string | null;
+  timeRanges: Array<{ startTime: string; endTime: string }>;
 }
 
 interface BlockedTimeFixture {
@@ -169,9 +167,7 @@ export function createDateOverrideFixture(
     id,
     calendarId: "test-calendar-id",
     date: "2026-02-10",
-    isBlocked: false,
-    startTime: "10:00",
-    endTime: "14:00",
+    timeRanges: [{ startTime: "10:00", endTime: "14:00" }],
     ...overrides,
   };
 }

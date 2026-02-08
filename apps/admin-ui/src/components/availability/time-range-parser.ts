@@ -21,7 +21,10 @@ function parseTimeString(raw: string): string | null {
   );
   if (!match) return null;
 
-  let hours = parseInt(match[1], 10);
+  const hourToken = match[1];
+  if (!hourToken) return null;
+
+  let hours = parseInt(hourToken, 10);
   const minutes = match[2] ? parseInt(match[2], 10) : 0;
   const meridiem = match[3]?.replace(/\./g, "");
 
@@ -55,8 +58,11 @@ function parseTimeRange(raw: string): TimeBlock | null {
   const parts = raw.split(/\s*[-\u2013\u2014]\s*/);
   if (parts.length !== 2) return null;
 
-  const startTime = parseTimeString(parts[0]);
-  const endTime = parseTimeString(parts[1]);
+  const [rawStart, rawEnd] = parts;
+  if (!rawStart || !rawEnd) return null;
+
+  const startTime = parseTimeString(rawStart);
+  const endTime = parseTimeString(rawEnd);
 
   if (!startTime || !endTime) return null;
 
@@ -71,7 +77,10 @@ function parseTimeRange(raw: string): TimeBlock | null {
 export function parseTimeRanges(input: string): TimeBlock[] {
   if (!input.trim()) return [];
 
-  const segments = input.split(",").map((s) => s.trim()).filter(Boolean);
+  const segments = input
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
   const blocks: TimeBlock[] = [];
 
   for (const segment of segments) {
@@ -96,7 +105,11 @@ export function formatTimeBlock(block: TimeBlock): string {
  */
 export function formatTimeBlocksForInput(blocks: TimeBlock[]): string {
   if (blocks.length === 0) return "";
-  return blocks.map((b) => `${formatTime24to12(b.startTime)}-${formatTime24to12(b.endTime)}`).join(", ");
+  return blocks
+    .map(
+      (b) => `${formatTime24to12(b.startTime)}-${formatTime24to12(b.endTime)}`,
+    )
+    .join(", ");
 }
 
 /**
@@ -104,6 +117,8 @@ export function formatTimeBlocksForInput(blocks: TimeBlock[]): string {
  */
 function formatTime24to12(time: string): string {
   const [hStr, mStr] = time.split(":");
+  if (!hStr || !mStr) return time;
+
   let hours = parseInt(hStr, 10);
   const minutes = parseInt(mStr, 10);
   const meridiem = hours >= 12 ? "PM" : "AM";
@@ -131,8 +146,12 @@ export function validateTimeBlocks(blocks: TimeBlock[]): string | null {
     a.startTime.localeCompare(b.startTime),
   );
   for (let i = 1; i < sorted.length; i++) {
-    if (sorted[i].startTime < sorted[i - 1].endTime) {
-      return `Time ranges overlap: ${formatTimeBlock(sorted[i - 1])} and ${formatTimeBlock(sorted[i])}`;
+    const previous = sorted[i - 1];
+    const current = sorted[i];
+    if (!previous || !current) continue;
+
+    if (current.startTime < previous.endTime) {
+      return `Time ranges overlap: ${formatTimeBlock(previous)} and ${formatTimeBlock(current)}`;
     }
   }
 

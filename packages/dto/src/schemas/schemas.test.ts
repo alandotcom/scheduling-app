@@ -370,21 +370,34 @@ describe("Availability schemas", () => {
   });
 
   describe("createAvailabilityOverrideSchema", () => {
-    test("accepts blocked date", () => {
+    test("accepts blocked date as empty ranges", () => {
       const result = createAvailabilityOverrideSchema.safeParse({
         date: "2024-12-25",
-        isBlocked: true,
+        timeRanges: [],
       });
       expect(result.success).toBe(true);
     });
 
-    test("accepts custom hours", () => {
+    test("accepts custom time ranges", () => {
       const result = createAvailabilityOverrideSchema.safeParse({
         date: "2024-12-24",
-        startTime: "09:00",
-        endTime: "12:00",
+        timeRanges: [
+          { startTime: "09:00", endTime: "12:00" },
+          { startTime: "13:00", endTime: "17:00" },
+        ],
       });
       expect(result.success).toBe(true);
+    });
+
+    test("rejects overlapping ranges", () => {
+      const result = createAvailabilityOverrideSchema.safeParse({
+        date: "2024-12-24",
+        timeRanges: [
+          { startTime: "09:00", endTime: "12:00" },
+          { startTime: "11:00", endTime: "13:00" },
+        ],
+      });
+      expect(result.success).toBe(false);
     });
   });
 

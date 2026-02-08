@@ -352,9 +352,7 @@ export async function createAvailabilityOverride(
   calendarId: string,
   options: {
     date: string; // YYYY-MM-DD
-    isBlocked?: boolean;
-    startTime?: string;
-    endTime?: string;
+    timeRanges?: Array<{ startTime: string; endTime: string }>;
     intervalMin?: number;
     groupId?: string;
   },
@@ -364,9 +362,7 @@ export async function createAvailabilityOverride(
     .values({
       calendarId,
       date: options.date,
-      isBlocked: options.isBlocked ?? false,
-      startTime: options.startTime ?? null,
-      endTime: options.endTime ?? null,
+      timeRanges: options.timeRanges ?? [],
       intervalMin: options.intervalMin ?? null,
       groupId: options.groupId ?? null,
     })

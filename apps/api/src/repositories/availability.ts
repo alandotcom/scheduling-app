@@ -184,9 +184,7 @@ export class AvailabilityRepository {
       id: o.id,
       calendarId: o.calendarId,
       date: o.date,
-      startTime: o.startTime,
-      endTime: o.endTime,
-      isBlocked: o.isBlocked,
+      timeRanges: o.timeRanges,
       intervalMin: o.intervalMin,
       groupId: o.groupId,
     }));

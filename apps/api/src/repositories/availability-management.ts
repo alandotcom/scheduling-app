@@ -38,18 +38,14 @@ export interface RuleUpdateInput {
 // Input types for overrides
 export interface OverrideCreateInput {
   date: string;
-  startTime?: string | null | undefined;
-  endTime?: string | null | undefined;
-  isBlocked?: boolean | undefined;
+  timeRanges: Array<{ startTime: string; endTime: string }>;
   intervalMin?: number | null | undefined;
   groupId?: string | null | undefined;
 }
 
 export interface OverrideUpdateInput {
   date?: string | undefined;
-  startTime?: string | null | undefined;
-  endTime?: string | null | undefined;
-  isBlocked?: boolean | undefined;
+  timeRanges?: Array<{ startTime: string; endTime: string }> | undefined;
   intervalMin?: number | null | undefined;
   groupId?: string | null | undefined;
 }
@@ -354,9 +350,7 @@ export class AvailabilityManagementRepository {
       .values({
         calendarId,
         date: input.date,
-        startTime: input.startTime ?? null,
-        endTime: input.endTime ?? null,
-        isBlocked: input.isBlocked ?? false,
+        timeRanges: input.timeRanges,
         intervalMin: input.intervalMin ?? null,
         groupId: input.groupId ?? null,
       })

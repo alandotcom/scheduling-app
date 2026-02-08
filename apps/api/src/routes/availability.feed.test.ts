@@ -62,9 +62,7 @@ describe("Availability Feed", () => {
     });
     const override = await createAvailabilityOverride(db, calendar.id, {
       date: day.toISODate()!,
-      isBlocked: true,
-      startTime: "12:00",
-      endTime: "14:00",
+      timeRanges: [],
     });
     const blockedStart = day
       .set({ hour: 15, minute: 0, second: 0, millisecond: 0 })
@@ -93,9 +91,19 @@ describe("Availability Feed", () => {
     );
 
     expect(result.items).toHaveLength(3);
-    expect(result.items[0]?.type).toBe("working_hours");
-    expect(result.items[1]?.type).toBe("override_closed");
-    expect(result.items[2]?.type).toBe("blocked_time");
+    const workingHoursItem = result.items.find(
+      (item) => item.type === "working_hours",
+    );
+    const overrideClosedItem = result.items.find(
+      (item) => item.type === "override_closed",
+    );
+    const blockedItem = result.items.find(
+      (item) => item.type === "blocked_time",
+    );
+
+    expect(workingHoursItem).toBeDefined();
+    expect(overrideClosedItem).toBeDefined();
+    expect(blockedItem).toBeDefined();
 
     const expectedStart = day
       .set({ hour: 9, minute: 0, second: 0, millisecond: 0 })
@@ -104,13 +112,13 @@ describe("Availability Feed", () => {
       .set({ hour: 17, minute: 0, second: 0, millisecond: 0 })
       .toJSDate();
 
-    expect(result.items[0]?.startAt.getTime()).toBe(expectedStart.getTime());
-    expect(result.items[0]?.endAt.getTime()).toBe(expectedEnd.getTime());
-    expect(result.items[0]?.sourceId).toBe(rule.id);
-    expect(result.items[1]?.sourceId).toBe(override.id);
-    expect(result.items[2]?.sourceId).toBe(blocked.id);
-    expect(result.items[0]?.label).toBe("Working hours");
-    expect(result.items[1]?.label).toBe("Override (closed)");
-    expect(result.items[2]?.label).toBe("Blocked time");
+    expect(workingHoursItem?.startAt.getTime()).toBe(expectedStart.getTime());
+    expect(workingHoursItem?.endAt.getTime()).toBe(expectedEnd.getTime());
+    expect(workingHoursItem?.sourceId).toBe(rule.id);
+    expect(overrideClosedItem?.sourceId).toBe(override.id);
+    expect(blockedItem?.sourceId).toBe(blocked.id);
+    expect(workingHoursItem?.label).toBe("Working hours");
+    expect(overrideClosedItem?.label).toBe("Override (closed)");
+    expect(blockedItem?.label).toBe("Blocked time");
   });
 });
