@@ -41,6 +41,7 @@ import { useUrlDrivenModal } from "@/hooks/use-url-driven-modal";
 import { useValidateSelection } from "@/hooks/use-selection-search-params";
 import { formatDisplayDate } from "@/lib/date-utils";
 import { getQueryClient, orpc } from "@/lib/query";
+import { swallowIgnorableRouteLoaderError } from "@/lib/query-cancellation";
 import { resolveSelectValueLabel } from "@/lib/select-value-label";
 
 export const resourceFormSchema = z.extend(createResourceSchema, {
@@ -460,14 +461,16 @@ export const Route = createFileRoute("/_authenticated/resources")({
   },
   loader: async () => {
     const queryClient = getQueryClient();
-    await Promise.all([
-      queryClient.ensureQueryData(
-        orpc.resources.list.queryOptions({ input: { limit: 100 } }),
-      ),
-      queryClient.ensureQueryData(
-        orpc.locations.list.queryOptions({ input: { limit: 100 } }),
-      ),
-    ]);
+    await swallowIgnorableRouteLoaderError(
+      Promise.all([
+        queryClient.ensureQueryData(
+          orpc.resources.list.queryOptions({ input: { limit: 100 } }),
+        ),
+        queryClient.ensureQueryData(
+          orpc.locations.list.queryOptions({ input: { limit: 100 } }),
+        ),
+      ]),
+    );
   },
   component: ResourcesPage,
 });

@@ -10,6 +10,7 @@ import type { AppointmentWithRelations } from "@scheduling/dto";
 
 import { Icon } from "@/components/ui/icon";
 import { getQueryClient, orpc } from "@/lib/query";
+import { swallowIgnorableRouteLoaderError } from "@/lib/query-cancellation";
 import {
   formatDisplayDate,
   formatTimezoneShort,
@@ -905,24 +906,26 @@ export const Route = createFileRoute("/_authenticated/appointments/")({
   },
   loader: async () => {
     const queryClient = getQueryClient();
-    await Promise.all([
-      queryClient.ensureQueryData(
-        orpc.appointments.list.queryOptions({
-          input: { limit: 50 },
-        }),
-      ),
-      queryClient.ensureQueryData(
-        orpc.calendars.list.queryOptions({
-          input: { limit: 100 },
-        }),
-      ),
-      queryClient.ensureQueryData(
-        orpc.appointmentTypes.list.queryOptions({
-          input: { limit: 100 },
-        }),
-      ),
-      queryClient.ensureQueryData(orpc.org.get.queryOptions({})),
-    ]);
+    await swallowIgnorableRouteLoaderError(
+      Promise.all([
+        queryClient.ensureQueryData(
+          orpc.appointments.list.queryOptions({
+            input: { limit: 50 },
+          }),
+        ),
+        queryClient.ensureQueryData(
+          orpc.calendars.list.queryOptions({
+            input: { limit: 100 },
+          }),
+        ),
+        queryClient.ensureQueryData(
+          orpc.appointmentTypes.list.queryOptions({
+            input: { limit: 100 },
+          }),
+        ),
+        queryClient.ensureQueryData(orpc.org.get.queryOptions({})),
+      ]),
+    );
   },
   component: AppointmentsPage,
 });

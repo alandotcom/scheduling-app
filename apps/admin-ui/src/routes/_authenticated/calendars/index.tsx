@@ -62,6 +62,7 @@ import {
 } from "@/lib/date-utils";
 import { TIMEZONES } from "@/lib/constants";
 import { getQueryClient, orpc } from "@/lib/query";
+import { swallowIgnorableRouteLoaderError } from "@/lib/query-cancellation";
 import { resolveSelectValueLabel } from "@/lib/select-value-label";
 
 interface CalendarFormProps {
@@ -711,14 +712,16 @@ export const Route = createFileRoute("/_authenticated/calendars/")({
   },
   loader: async () => {
     const queryClient = getQueryClient();
-    await Promise.all([
-      queryClient.ensureQueryData(
-        orpc.calendars.list.queryOptions({ input: { limit: 100 } }),
-      ),
-      queryClient.ensureQueryData(
-        orpc.locations.list.queryOptions({ input: { limit: 100 } }),
-      ),
-    ]);
+    await swallowIgnorableRouteLoaderError(
+      Promise.all([
+        queryClient.ensureQueryData(
+          orpc.calendars.list.queryOptions({ input: { limit: 100 } }),
+        ),
+        queryClient.ensureQueryData(
+          orpc.locations.list.queryOptions({ input: { limit: 100 } }),
+        ),
+      ]),
+    );
   },
   component: CalendarsPage,
 });

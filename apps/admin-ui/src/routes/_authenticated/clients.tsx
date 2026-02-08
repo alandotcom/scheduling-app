@@ -45,6 +45,7 @@ import { useValidateSelection } from "@/hooks/use-selection-search-params";
 import { AppointmentDetail } from "@/components/appointments/appointment-detail";
 import { formatDisplayDate, formatDisplayDateTime } from "@/lib/date-utils";
 import { getQueryClient, orpc } from "@/lib/query";
+import { swallowIgnorableRouteLoaderError } from "@/lib/query-cancellation";
 import {
   DEFAULT_SCHEDULING_TIMEZONE_MODE,
   type SchedulingTimezoneMode,
@@ -914,10 +915,12 @@ export const Route = createFileRoute("/_authenticated/clients")({
   },
   loader: async () => {
     const queryClient = getQueryClient();
-    await queryClient.ensureQueryData(
-      orpc.clients.list.queryOptions({
-        input: { limit: 100 },
-      }),
+    await swallowIgnorableRouteLoaderError(
+      queryClient.ensureQueryData(
+        orpc.clients.list.queryOptions({
+          input: { limit: 100 },
+        }),
+      ),
     );
   },
   component: ClientsPage,

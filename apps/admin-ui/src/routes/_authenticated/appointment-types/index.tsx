@@ -40,6 +40,7 @@ import { useAppointmentTypeMutations } from "@/hooks/use-appointment-type-mutati
 import { useUrlDrivenModal } from "@/hooks/use-url-driven-modal";
 import { formatDisplayDate } from "@/lib/date-utils";
 import { getQueryClient, orpc } from "@/lib/query";
+import { swallowIgnorableRouteLoaderError } from "@/lib/query-cancellation";
 import { CalendarsTab } from "./-components/calendars-tab";
 import { ResourcesTab } from "./-components/resources-tab";
 
@@ -600,10 +601,12 @@ export const Route = createFileRoute("/_authenticated/appointment-types/")({
   },
   loader: async () => {
     const queryClient = getQueryClient();
-    await queryClient.ensureQueryData(
-      orpc.appointmentTypes.list.queryOptions({
-        input: { limit: 100 },
-      }),
+    await swallowIgnorableRouteLoaderError(
+      queryClient.ensureQueryData(
+        orpc.appointmentTypes.list.queryOptions({
+          input: { limit: 100 },
+        }),
+      ),
     );
   },
   component: AppointmentTypesPage,

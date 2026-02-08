@@ -47,6 +47,7 @@ import { useValidateSelection } from "@/hooks/use-selection-search-params";
 import { TIMEZONES } from "@/lib/constants";
 import { formatDisplayDate, formatTimezoneShort } from "@/lib/date-utils";
 import { getQueryClient, orpc } from "@/lib/query";
+import { swallowIgnorableRouteLoaderError } from "@/lib/query-cancellation";
 import { resolveSelectValueLabel } from "@/lib/select-value-label";
 
 interface LocationFormProps {
@@ -578,10 +579,12 @@ export const Route = createFileRoute("/_authenticated/locations")({
   },
   loader: async () => {
     const queryClient = getQueryClient();
-    await queryClient.ensureQueryData(
-      orpc.locations.list.queryOptions({
-        input: { limit: 100 },
-      }),
+    await swallowIgnorableRouteLoaderError(
+      queryClient.ensureQueryData(
+        orpc.locations.list.queryOptions({
+          input: { limit: 100 },
+        }),
+      ),
     );
   },
   component: LocationsPage,

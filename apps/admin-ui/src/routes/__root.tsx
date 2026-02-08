@@ -1,13 +1,15 @@
 // Root route layout with modern navigation shell
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  type ErrorComponentProps,
   createRootRoute,
   Link,
   Navigate,
   Outlet,
   useLocation,
+  useNavigate,
 } from "@tanstack/react-router";
 import { TanStackRouterDevtools } from "@tanstack/router-devtools";
 import {
@@ -22,12 +24,16 @@ import {
   Cancel01Icon,
   Home01Icon,
   Search01Icon,
+  Add01Icon,
+  Logout01Icon,
 } from "@hugeicons/core-free-icons";
 import { authClient } from "@/lib/auth-client";
 import { getSafeRedirectHref } from "@/lib/auth-redirect";
 import { UserMenu, type UserMenuOrganization } from "@/components/user-menu";
 import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Sheet,
   SheetContent,
@@ -38,6 +44,7 @@ import {
 import { Toaster, toast } from "sonner";
 import { CommandPalette } from "@/components/command-palette";
 import { useNavigationShortcuts } from "@/hooks/use-keyboard-shortcuts";
+import { isIgnorableRouteLoaderError } from "@/lib/query-cancellation";
 import { cn } from "@/lib/utils";
 
 interface OrganizationListItem {
@@ -70,6 +77,7 @@ function RootLayout() {
   const { data: session, isPending: isLoading } = authClient.useSession();
   const queryClient = useQueryClient();
   const location = useLocation();
+  const navigate = useNavigate();
   const user = session?.user;
   const isAuthenticated = !!session;
   const isInitialAuthCheck = isLoading && session === undefined;
@@ -83,10 +91,17 @@ function RootLayout() {
       typeof window !== "undefined" &&
       window.matchMedia("(max-width: 1279px)").matches,
   );
-  const [isAutoSelectingOrg, setIsAutoSelectingOrg] = useState(false);
-  const [autoSelectAttemptKey, setAutoSelectAttemptKey] = useState<
+  const [selectingOrganizationId, setSelectingOrganizationId] = useState<
     string | null
   >(null);
+  const [organizationSelectionError, setOrganizationSelectionError] = useState<
+    string | null
+  >(null);
+  const [showCreateOrganizationForm, setShowCreateOrganizationForm] =
+    useState(false);
+  const [createOrganizationName, setCreateOrganizationName] = useState("");
+  const [createOrganizationSlug, setCreateOrganizationSlug] = useState("");
+  const [isCreatingOrganization, setIsCreatingOrganization] = useState(false);
 
   const organizationsQuery = useQuery({
     queryKey: ["auth", "organizations"],
@@ -129,61 +144,14 @@ function RootLayout() {
     [activeOrganizationId, organizations],
   );
   const hasValidActiveOrganization = !!activeOrganization;
-  const firstOrganizationId = organizations[0]?.id ?? null;
 
-  useEffect(() => {
-    if (!isAuthenticated) {
-      setAutoSelectAttemptKey(null);
-    }
-  }, [isAuthenticated]);
-
-  useEffect(() => {
-    if (!isAuthenticated) return;
-    if (isOrganizationsPending) return;
-    if (!firstOrganizationId) return;
-    if (hasValidActiveOrganization) return;
-
-    const attemptKey = `${session?.user.id ?? "unknown"}:${firstOrganizationId}`;
-    if (autoSelectAttemptKey === attemptKey) return;
-
-    let cancelled = false;
-    setAutoSelectAttemptKey(attemptKey);
-    setIsAutoSelectingOrg(true);
-
-    void (async () => {
-      const result = await authClient.organization.setActive({
-        organizationId: firstOrganizationId,
-      });
-      if (result.error) {
-        if (!cancelled) {
-          toast.error(
-            result.error.message ?? "Failed to set active organization.",
-          );
-        }
-        return;
-      }
-
-      queryClient.clear();
-      await refetchOrganizations();
-    })().finally(() => {
-      if (!cancelled) {
-        setIsAutoSelectingOrg(false);
-      }
+  const resetOrgScopedState = async () => {
+    await navigate({
+      href: location.pathname,
+      replace: true,
     });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [
-    autoSelectAttemptKey,
-    firstOrganizationId,
-    hasValidActiveOrganization,
-    isAuthenticated,
-    isOrganizationsPending,
-    queryClient,
-    refetchOrganizations,
-    session?.user.id,
-  ]);
+    queryClient.clear();
+  };
 
   const onSwitchOrganization = async (organizationId: string) => {
     if (organizationId === activeOrganizationId) return;
@@ -193,7 +161,7 @@ function RootLayout() {
       throw new Error(result.error.message ?? "Failed to switch organization.");
     }
 
-    queryClient.clear();
+    await resetOrgScopedState();
     await refetchOrganizations();
     setMobileMenuOpen(false);
     toast.success("Organization switched.");
@@ -224,10 +192,8 @@ function RootLayout() {
       );
     }
 
-    await Promise.all([
-      queryClient.invalidateQueries(),
-      refetchOrganizations(),
-    ]);
+    await resetOrgScopedState();
+    await refetchOrganizations();
     setMobileMenuOpen(false);
     toast.success("Organization created.");
   };
@@ -238,6 +204,51 @@ function RootLayout() {
       throw new Error(result.error.message ?? "Failed to sign out.");
     }
     queryClient.clear();
+  };
+
+  const onSelectOrganizationFromGate = async (organizationId: string) => {
+    setOrganizationSelectionError(null);
+    setSelectingOrganizationId(organizationId);
+    try {
+      await onSwitchOrganization(organizationId);
+    } catch (error) {
+      setOrganizationSelectionError(
+        error instanceof Error
+          ? error.message
+          : "Failed to switch organization.",
+      );
+    } finally {
+      setSelectingOrganizationId(null);
+    }
+  };
+
+  const onCreateOrganizationFromGate = async () => {
+    const name = createOrganizationName.trim();
+    const slug = createOrganizationSlug.trim();
+    if (!name) {
+      setOrganizationSelectionError("Organization name is required.");
+      return;
+    }
+
+    setOrganizationSelectionError(null);
+    setIsCreatingOrganization(true);
+    try {
+      await onCreateOrganization({
+        name,
+        slug: slug || undefined,
+      });
+      setCreateOrganizationName("");
+      setCreateOrganizationSlug("");
+      setShowCreateOrganizationForm(false);
+    } catch (error) {
+      setOrganizationSelectionError(
+        error instanceof Error
+          ? error.message
+          : "Failed to create organization.",
+      );
+    } finally {
+      setIsCreatingOrganization(false);
+    }
   };
 
   // Enable keyboard navigation shortcuts when authenticated
@@ -278,9 +289,35 @@ function RootLayout() {
     );
   }
 
+  if (
+    !isOrganizationsPending &&
+    !organizationsError &&
+    !hasValidActiveOrganization
+  ) {
+    return (
+      <OrganizationSelectionScreen
+        organizations={organizationMenuItems}
+        isSelectingOrganization={selectingOrganizationId !== null}
+        selectingOrganizationId={selectingOrganizationId}
+        onSelectOrganization={onSelectOrganizationFromGate}
+        showCreateOrganizationForm={
+          showCreateOrganizationForm || organizationMenuItems.length === 0
+        }
+        onShowCreateOrganizationForm={setShowCreateOrganizationForm}
+        createOrganizationName={createOrganizationName}
+        onCreateOrganizationNameChange={setCreateOrganizationName}
+        createOrganizationSlug={createOrganizationSlug}
+        onCreateOrganizationSlugChange={setCreateOrganizationSlug}
+        isCreatingOrganization={isCreatingOrganization}
+        onCreateOrganization={onCreateOrganizationFromGate}
+        error={organizationSelectionError}
+        onSignOut={onSignOut}
+      />
+    );
+  }
+
   const isResolvingActiveOrganization =
-    !hasValidActiveOrganization &&
-    (isOrganizationsPending || isAutoSelectingOrg);
+    !hasValidActiveOrganization && isOrganizationsPending;
 
   const navItems = [
     { to: "/", icon: Home01Icon, label: "Dashboard" },
@@ -539,20 +576,8 @@ function RootLayout() {
                 </Button>
               </div>
             </div>
-          ) : hasValidActiveOrganization ? (
-            <Outlet />
           ) : (
-            <div className="mx-auto max-w-2xl px-4 py-10">
-              <div className="rounded-lg border border-border bg-card p-6">
-                <h2 className="text-base font-semibold">
-                  No active organization
-                </h2>
-                <p className="mt-2 text-sm text-muted-foreground">
-                  Use the user menu to select an organization or create a new
-                  one.
-                </p>
-              </div>
-            </div>
+            <Outlet />
           )}
         </main>
       </div>
@@ -647,6 +672,186 @@ function RootLayout() {
   );
 }
 
+function OrganizationSelectionScreen({
+  organizations,
+  isSelectingOrganization,
+  selectingOrganizationId,
+  onSelectOrganization,
+  showCreateOrganizationForm,
+  onShowCreateOrganizationForm,
+  createOrganizationName,
+  onCreateOrganizationNameChange,
+  createOrganizationSlug,
+  onCreateOrganizationSlugChange,
+  isCreatingOrganization,
+  onCreateOrganization,
+  error,
+  onSignOut,
+}: {
+  organizations: UserMenuOrganization[];
+  isSelectingOrganization: boolean;
+  selectingOrganizationId: string | null;
+  onSelectOrganization: (organizationId: string) => Promise<void>;
+  showCreateOrganizationForm: boolean;
+  onShowCreateOrganizationForm: (show: boolean) => void;
+  createOrganizationName: string;
+  onCreateOrganizationNameChange: (value: string) => void;
+  createOrganizationSlug: string;
+  onCreateOrganizationSlugChange: (value: string) => void;
+  isCreatingOrganization: boolean;
+  onCreateOrganization: () => Promise<void>;
+  error: string | null;
+  onSignOut: () => Promise<void>;
+}) {
+  const [isSigningOut, setIsSigningOut] = useState(false);
+
+  return (
+    <div className="flex min-h-[100dvh] items-center justify-center bg-background p-4">
+      <div className="w-full max-w-md rounded-lg border border-border bg-card p-6">
+        <h1 className="text-2xl font-bold">Select Organization</h1>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Choose a workspace to continue.
+        </p>
+
+        <div className="mt-5 space-y-2">
+          {organizations.length === 0 ? (
+            <p className="rounded-md border border-border bg-muted/30 px-3 py-2 text-sm text-muted-foreground">
+              No organizations yet. Create one to continue.
+            </p>
+          ) : (
+            organizations.map((organization) => (
+              <Button
+                key={organization.id}
+                type="button"
+                variant="outline"
+                className="w-full justify-start"
+                disabled={isSelectingOrganization || isCreatingOrganization}
+                onClick={() => void onSelectOrganization(organization.id)}
+              >
+                {selectingOrganizationId === organization.id
+                  ? "Switching..."
+                  : organization.name}
+              </Button>
+            ))
+          )}
+        </div>
+
+        {showCreateOrganizationForm ? (
+          <form
+            className="mt-5 space-y-3 border-t border-border pt-4"
+            onSubmit={(event) => {
+              event.preventDefault();
+              void onCreateOrganization();
+            }}
+          >
+            <div className="space-y-1.5">
+              <Label htmlFor="org-select-name">Organization name</Label>
+              <Input
+                id="org-select-name"
+                value={createOrganizationName}
+                onChange={(event) =>
+                  onCreateOrganizationNameChange(event.target.value)
+                }
+                placeholder="Acme Scheduling"
+                autoFocus
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="org-select-slug">Slug (optional)</Label>
+              <Input
+                id="org-select-slug"
+                value={createOrganizationSlug}
+                onChange={(event) =>
+                  onCreateOrganizationSlugChange(event.target.value)
+                }
+                placeholder="acme-scheduling"
+              />
+            </div>
+            <div className="flex items-center justify-between gap-2">
+              {organizations.length > 0 ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={() => onShowCreateOrganizationForm(false)}
+                >
+                  Cancel
+                </Button>
+              ) : (
+                <div />
+              )}
+              <Button
+                type="submit"
+                disabled={isCreatingOrganization || isSelectingOrganization}
+              >
+                {isCreatingOrganization ? "Creating..." : "Create organization"}
+              </Button>
+            </div>
+          </form>
+        ) : (
+          <Button
+            type="button"
+            variant="outline"
+            className="mt-4 w-full"
+            onClick={() => onShowCreateOrganizationForm(true)}
+          >
+            <Icon icon={Add01Icon} data-icon="inline-start" />
+            Create organization
+          </Button>
+        )}
+
+        {error ? (
+          <p className="mt-3 text-sm text-destructive" role="alert">
+            {error}
+          </p>
+        ) : null}
+
+        <Button
+          type="button"
+          variant="ghost"
+          className="mt-4 w-full text-destructive hover:text-destructive"
+          disabled={isSigningOut}
+          onClick={async () => {
+            setIsSigningOut(true);
+            try {
+              await onSignOut();
+            } finally {
+              setIsSigningOut(false);
+            }
+          }}
+        >
+          <Icon icon={Logout01Icon} data-icon="inline-start" />
+          {isSigningOut ? "Signing out..." : "Sign out"}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function RootErrorBoundary({ error, reset }: ErrorComponentProps) {
+  if (isIgnorableRouteLoaderError(error)) {
+    return null;
+  }
+
+  return (
+    <div className="flex min-h-[100dvh] items-center justify-center bg-background p-4">
+      <div className="w-full max-w-lg rounded-lg border border-destructive/30 bg-destructive/5 p-4">
+        <h1 className="text-sm font-semibold text-destructive">Route error</h1>
+        <p className="mt-1 text-sm text-muted-foreground">
+          {getAuthErrorMessage(error, "Something went wrong while loading.")}
+        </p>
+        <Button
+          type="button"
+          className="mt-3"
+          size="sm"
+          onClick={() => reset()}
+        >
+          Retry
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 function SidebarLink({
   to,
   icon,
@@ -679,4 +884,5 @@ function SidebarLink({
 
 export const Route = createRootRoute({
   component: RootLayout,
+  errorComponent: RootErrorBoundary,
 });
