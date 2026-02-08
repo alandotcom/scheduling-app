@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 interface ScheduleEventProps {
   startAt: DateTime;
   endAt: DateTime;
+  displayTimezone: string;
   status: "scheduled" | "confirmed" | "cancelled" | "no_show";
   clientName?: string | null;
   appointmentTypeName?: string | null;
@@ -35,6 +36,7 @@ const STATUS_COLORS_SELECTED = {
 export function ScheduleEvent({
   startAt,
   endAt,
+  displayTimezone,
   status,
   clientName,
   appointmentTypeName,
@@ -70,7 +72,7 @@ export function ScheduleEvent({
     >
       {isCompact ? (
         <div className="truncate font-medium">
-          {formatTimeDisplay(startAt)}{" "}
+          {formatTimeDisplay(startAt, displayTimezone)}{" "}
           {clientName || appointmentTypeName || "Appointment"}
         </div>
       ) : (
@@ -82,7 +84,8 @@ export function ScheduleEvent({
             {appointmentTypeName || "Appointment"}
           </div>
           <div className="truncate text-[10px] opacity-70">
-            {formatTimeDisplay(startAt)} - {formatTimeDisplay(endAt)}
+            {formatTimeDisplay(startAt, displayTimezone)} -{" "}
+            {formatTimeDisplay(endAt, displayTimezone)}
           </div>
         </>
       )}

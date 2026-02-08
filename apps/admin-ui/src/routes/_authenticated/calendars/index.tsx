@@ -23,6 +23,7 @@ import {
   formatDateISO,
   formatDisplayDate,
   formatDisplayDateTime,
+  formatTimezoneShort,
 } from "@/lib/date-utils";
 import { TIMEZONES } from "@/lib/constants";
 import { resolveSelectValueLabel } from "@/lib/select-value-label";
@@ -583,7 +584,9 @@ function CalendarsPage() {
                             <TableCell className="font-medium">
                               {calendar.name}
                             </TableCell>
-                            <TableCell>{calendar.timezone}</TableCell>
+                            <TableCell title={calendar.timezone}>
+                              {formatTimezoneShort(calendar.timezone)}
+                            </TableCell>
                             <TableCell>
                               {getLocationName(calendar.locationId)}
                             </TableCell>
@@ -621,7 +624,10 @@ function CalendarsPage() {
           sheetTitle={selectedCalendar?.name ?? "Calendar details"}
           sheetDescription={
             selectedCalendar
-              ? [selectedCalendar.timezone, detailLocationLabel]
+              ? [
+                  formatTimezoneShort(selectedCalendar.timezone),
+                  detailLocationLabel,
+                ]
                   .filter(Boolean)
                   .join(" · ")
               : undefined
@@ -807,7 +813,16 @@ function CalendarsPage() {
                               <div className="flex items-center justify-between">
                                 <div>
                                   <div className="text-sm font-medium">
-                                    {formatDisplayDateTime(apt.startAt)}
+                                    {formatDisplayDateTime(
+                                      apt.startAt,
+                                      selectedCalendar.timezone,
+                                    )}{" "}
+                                    (
+                                    {formatTimezoneShort(
+                                      selectedCalendar.timezone,
+                                      apt.startAt,
+                                    )}
+                                    )
                                   </div>
                                   <div className="text-xs text-muted-foreground">
                                     {apt.appointmentType?.name}

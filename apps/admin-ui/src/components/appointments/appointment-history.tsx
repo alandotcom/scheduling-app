@@ -16,9 +16,13 @@ import { Icon } from "@/components/ui/icon";
 
 interface AppointmentHistoryProps {
   appointmentId: string;
+  displayTimezone: string;
 }
 
-export function AppointmentHistory({ appointmentId }: AppointmentHistoryProps) {
+export function AppointmentHistory({
+  appointmentId,
+  displayTimezone,
+}: AppointmentHistoryProps) {
   const { data, isLoading } = useQuery(
     orpc.audit.list.queryOptions({
       input: {
@@ -66,6 +70,7 @@ export function AppointmentHistory({ appointmentId }: AppointmentHistoryProps) {
               action={event.action}
               before={event.before}
               after={event.after}
+              displayTimezone={displayTimezone}
             />
             <div className="mt-1 text-xs text-muted-foreground">
               {formatRelativeTime(event.createdAt)}
@@ -147,10 +152,12 @@ function MaybeRescheduleChange({
   action,
   before,
   after,
+  displayTimezone,
 }: {
   action: string;
   before: unknown;
   after: unknown;
+  displayTimezone: string;
 }) {
   if (action !== "reschedule" || !before || !after) {
     return null;
@@ -168,7 +175,8 @@ function MaybeRescheduleChange({
 
   return (
     <div className="mt-1 text-xs text-muted-foreground">
-      {formatDisplayDateTime(oldDate)} → {formatDisplayDateTime(newDate)}
+      {formatDisplayDateTime(oldDate, displayTimezone)} →{" "}
+      {formatDisplayDateTime(newDate, displayTimezone)}
     </div>
   );
 }

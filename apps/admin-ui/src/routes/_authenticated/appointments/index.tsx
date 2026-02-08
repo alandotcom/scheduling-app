@@ -10,8 +10,20 @@ import type { AppointmentWithRelations } from "@scheduling/dto";
 
 import { Icon } from "@/components/ui/icon";
 import { getQueryClient, orpc } from "@/lib/query";
-import { formatDisplayDate } from "@/lib/date-utils";
+import {
+  formatDisplayDate,
+  formatTimezoneShort,
+  getUserTimezone,
+  parseDateParamInTimezone,
+} from "@/lib/date-utils";
+import { TIMEZONES } from "@/lib/constants";
 import { resolveSelectValueLabel } from "@/lib/select-value-label";
+import {
+  DEFAULT_SCHEDULING_TIMEZONE_MODE,
+  isSchedulingTimezoneMode,
+  resolveEffectiveSchedulingTimezone,
+  type SchedulingTimezoneMode,
+} from "@/lib/scheduling-timezone";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -52,7 +64,6 @@ import {
   useScheduleAppointments,
   getWeekStart,
   formatDateParam,
-  parseDateParam,
 } from "@/hooks/use-schedule-appointments";
 import { ViewToggle } from "@/components/appointments/view-toggle";
 import { AppointmentsList } from "@/components/appointments/appointments-list";
@@ -82,21 +93,14 @@ function AppointmentsPage() {
     calendarId: urlCalendarId,
     appointmentTypeId: urlAppointmentTypeId,
     status: urlStatus,
+    tzMode,
+    tz,
   } = Route.useSearch();
 
   const selectedId = selected ?? null;
   const activeTab: DetailTabValue = tab && isDetailTab(tab) ? tab : "details";
   const detailOpen = !!selectedId;
   const currentView: ViewMode = view;
-
-  // Parse date param for schedule view or default to current week
-  const weekStart = useMemo(() => {
-    if (date) {
-      const parsed = parseDateParam(date);
-      return getWeekStart(parsed);
-    }
-    return getWeekStart(DateTime.now());
-  }, [date]);
 
   // Confirmation dialogs
   const [cancellingId, setCancellingId] = useState<string | null>(null);
@@ -205,35 +209,7 @@ function AppointmentsPage() {
     });
   }, [navigate]);
 
-  // Week navigation for schedule view
-  const goToPreviousWeek = useCallback(() => {
-    const newStart = weekStart.minus({ days: 7 });
-    navigate({
-      search: (prev) => ({
-        ...prev,
-        date: formatDateParam(newStart),
-      }),
-    });
-  }, [navigate, weekStart]);
-
-  const goToNextWeek = useCallback(() => {
-    const newStart = weekStart.plus({ days: 7 });
-    navigate({
-      search: (prev) => ({
-        ...prev,
-        date: formatDateParam(newStart),
-      }),
-    });
-  }, [navigate, weekStart]);
-
-  const goToToday = useCallback(() => {
-    navigate({
-      search: (prev) => ({
-        ...prev,
-        date: formatDateParam(getWeekStart(DateTime.now())),
-      }),
-    });
-  }, [navigate]);
+  const viewerTimezone = getUserTimezone();
 
   // Fetch appointments for list view
   const {
@@ -260,18 +236,6 @@ function AppointmentsPage() {
     placeholderData: (previous) => previous,
   });
 
-  // Fetch appointments for schedule view
-  const { appointments: scheduleAppointments, isLoading: scheduleLoading } =
-    useScheduleAppointments({
-      weekStart,
-      filters: {
-        calendarId: filters.calendarId || undefined,
-        appointmentTypeId: filters.appointmentTypeId || undefined,
-        status: filters.status || undefined,
-      },
-      enabled: currentView === "schedule",
-    });
-
   // Fetch calendars for filter
   const { data: calendarsData } = useQuery({
     ...orpc.calendars.list.queryOptions({
@@ -287,6 +251,116 @@ function AppointmentsPage() {
     }),
     placeholderData: (previous) => previous,
   });
+
+  const { data: orgData } = useQuery({
+    ...orpc.org.get.queryOptions({}),
+    placeholderData: (previous) => previous,
+  });
+
+  const calendars = calendarsData?.items ?? [];
+  const appointmentTypes = typesData?.items ?? [];
+  const listAppointments = listData?.items ?? [];
+
+  const selectedCalendar = calendars.find((c) => c.id === filters.calendarId);
+  const selectedType = appointmentTypes.find(
+    (t) => t.id === filters.appointmentTypeId,
+  );
+  const modeFromSearch =
+    tzMode && isSchedulingTimezoneMode(tzMode) ? tzMode : null;
+  const timezoneMode = modeFromSearch ?? DEFAULT_SCHEDULING_TIMEZONE_MODE;
+  const orgDefaultTimezone = orgData?.defaultTimezone ?? "America/New_York";
+  const displayTimezone = resolveEffectiveSchedulingTimezone({
+    mode: timezoneMode,
+    calendarTimezone: selectedCalendar?.timezone,
+    selectedTimezone: tz,
+    fallbackTimezone: orgDefaultTimezone,
+    viewerTimezone,
+  });
+  const displayTimezoneShort = formatTimezoneShort(displayTimezone);
+  const showCalendarTimezoneSelector =
+    timezoneMode === "calendar" && !selectedCalendar;
+
+  // Parse date param for schedule view or default to current week
+  const weekStart = useMemo(() => {
+    if (date) {
+      const parsed = parseDateParamInTimezone(date, displayTimezone);
+      return getWeekStart(parsed);
+    }
+    return getWeekStart(DateTime.now().setZone(displayTimezone));
+  }, [date, displayTimezone]);
+
+  // Fetch appointments for schedule view
+  const { appointments: scheduleAppointments, isLoading: scheduleLoading } =
+    useScheduleAppointments({
+      weekStart,
+      displayTimezone,
+      filters: {
+        calendarId: filters.calendarId || undefined,
+        appointmentTypeId: filters.appointmentTypeId || undefined,
+        status: filters.status || undefined,
+      },
+      enabled: currentView === "schedule",
+    });
+
+  // Week navigation for schedule view
+  const goToPreviousWeek = useCallback(() => {
+    const newStart = weekStart.minus({ days: 7 });
+    navigate({
+      search: (prev) => ({
+        ...prev,
+        date: formatDateParam(newStart),
+      }),
+    });
+  }, [navigate, weekStart]);
+
+  const goToNextWeek = useCallback(() => {
+    const newStart = weekStart.plus({ days: 7 });
+    navigate({
+      search: (prev) => ({
+        ...prev,
+        date: formatDateParam(newStart),
+      }),
+    });
+  }, [navigate, weekStart]);
+
+  const goToToday = useCallback(() => {
+    navigate({
+      search: (prev) => ({
+        ...prev,
+        date: formatDateParam(
+          getWeekStart(DateTime.now().setZone(displayTimezone)),
+        ),
+      }),
+    });
+  }, [displayTimezone, navigate]);
+
+  const setTimezoneMode = useCallback(
+    (mode: SchedulingTimezoneMode) => {
+      navigate({
+        search: (prev) => ({
+          ...prev,
+          tzMode: mode,
+          tz:
+            mode === "calendar"
+              ? (prev.tz ?? selectedCalendar?.timezone ?? orgDefaultTimezone)
+              : prev.tz,
+        }),
+      });
+    },
+    [navigate, orgDefaultTimezone, selectedCalendar?.timezone],
+  );
+
+  const setDisplayTimezone = useCallback(
+    (nextTimezone: string) => {
+      navigate({
+        search: (prev) => ({
+          ...prev,
+          tz: nextTimezone,
+        }),
+      });
+    },
+    [navigate],
+  );
 
   // Cancel mutation
   const cancelMutation = useMutation(
@@ -316,14 +390,6 @@ function AppointmentsPage() {
     }),
   );
 
-  const calendars = calendarsData?.items ?? [];
-  const appointmentTypes = typesData?.items ?? [];
-  const listAppointments = listData?.items ?? [];
-
-  const selectedCalendar = calendars.find((c) => c.id === filters.calendarId);
-  const selectedType = appointmentTypes.find(
-    (t) => t.id === filters.appointmentTypeId,
-  );
   const calendarFilterLabel = resolveSelectValueLabel({
     value: filters.calendarId || "all",
     options: calendars,
@@ -514,6 +580,48 @@ function AppointmentsPage() {
         </div>
         <div className="flex shrink-0 items-center gap-3">
           <ViewToggle view={currentView} onViewChange={setView} />
+          <Select
+            value={timezoneMode}
+            onValueChange={(value) => {
+              if (value && isSchedulingTimezoneMode(value)) {
+                setTimezoneMode(value);
+              }
+            }}
+          >
+            <SelectTrigger className="w-[170px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="calendar">Calendar time</SelectItem>
+              <SelectItem value="viewer">My time</SelectItem>
+            </SelectContent>
+          </Select>
+          {showCalendarTimezoneSelector && (
+            <Select
+              value={displayTimezone}
+              onValueChange={(value) => {
+                if (!value) return;
+                setDisplayTimezone(value);
+              }}
+            >
+              <SelectTrigger className="w-[220px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {TIMEZONES.map((timezone) => (
+                  <SelectItem key={timezone} value={timezone}>
+                    {timezone}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+          <span
+            className="text-xs text-muted-foreground"
+            title={displayTimezone}
+          >
+            {displayTimezoneShort}
+          </span>
           <Button onClick={() => setModalOpen(true)}>
             <Icon icon={Add01Icon} data-icon="inline-start" />
             <span className="hidden sm:inline">New Appointment</span>
@@ -610,6 +718,7 @@ function AppointmentsPage() {
           {currentView === "list" ? (
             <AppointmentsList
               appointments={listAppointments}
+              displayTimezone={displayTimezone}
               selectedId={selectedId}
               onSelect={handleSelectAppointment}
               onCancel={setCancellingId}
@@ -620,6 +729,7 @@ function AppointmentsPage() {
             <div className="rounded-xl border border-border overflow-hidden shadow-sm flex-1">
               <ScheduleGrid
                 appointments={scheduleAppointments}
+                displayTimezone={displayTimezone}
                 weekStart={weekStart}
                 selectedId={selectedId}
                 onSelectAppointment={handleSelectScheduleAppointment}
@@ -650,7 +760,7 @@ function AppointmentsPage() {
           }
           sheetDescription={
             selectedAppointment
-              ? formatDisplayDate(selectedAppointment.startAt)
+              ? formatDisplayDate(selectedAppointment.startAt, displayTimezone)
               : undefined
           }
           bodyClassName="p-0"
@@ -658,6 +768,9 @@ function AppointmentsPage() {
           {detailOpen && (
             <AppointmentDetail
               appointment={selectedAppointment}
+              displayTimezone={displayTimezone}
+              timezoneMode={timezoneMode}
+              onTimezoneModeChange={setTimezoneMode}
               activeTab={activeTab}
               onTabChange={setActiveTab}
               isLoading={!!selectedInSchedule && isFetchingAppointment}
@@ -667,7 +780,14 @@ function AppointmentsPage() {
       </WorkbenchLayout>
 
       {/* Appointment Modal */}
-      <AppointmentModal open={modalOpen} onOpenChange={setModalOpen} />
+      <AppointmentModal
+        open={modalOpen}
+        onOpenChange={setModalOpen}
+        timezoneMode={timezoneMode}
+        onTimezoneModeChange={setTimezoneMode}
+        displayTimezone={displayTimezone}
+        defaultTimezone={orgDefaultTimezone}
+      />
 
       {/* Cancel Confirmation */}
       <AlertDialog
@@ -726,6 +846,8 @@ interface AppointmentsSearchParams {
   clientId?: string;
   appointmentTypeId?: string;
   status?: string;
+  tzMode?: SchedulingTimezoneMode;
+  tz?: string;
 }
 
 export const Route = createFileRoute("/_authenticated/appointments/")({
@@ -755,6 +877,12 @@ export const Route = createFileRoute("/_authenticated/appointments/")({
           ? search.appointmentTypeId
           : undefined,
       status: typeof search.status === "string" ? search.status : undefined,
+      tzMode:
+        typeof search.tzMode === "string" &&
+        isSchedulingTimezoneMode(search.tzMode)
+          ? search.tzMode
+          : undefined,
+      tz: typeof search.tz === "string" ? search.tz : undefined,
     };
   },
   loader: async () => {
@@ -775,6 +903,7 @@ export const Route = createFileRoute("/_authenticated/appointments/")({
           input: { limit: 100 },
         }),
       ),
+      queryClient.ensureQueryData(orpc.org.get.queryOptions({})),
     ]);
   },
   component: AppointmentsPage,

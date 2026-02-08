@@ -39,12 +39,20 @@ import {
 import { RescheduleDialog } from "./reschedule-dialog";
 import { AppointmentHistory } from "./appointment-history";
 import { useResetFormOnOpen } from "@/hooks/use-reset-form-on-open";
-import { formatDateWithWeekday, formatTimeDisplay } from "@/lib/date-utils";
+import {
+  formatDateWithWeekday,
+  formatTimeDisplay,
+  formatTimezoneShort,
+} from "@/lib/date-utils";
+import type { SchedulingTimezoneMode } from "@/lib/scheduling-timezone";
 
 type DetailTabValue = "details" | "client" | "history";
 
 interface AppointmentDetailProps {
   appointment: AppointmentWithRelations | null;
+  displayTimezone: string;
+  timezoneMode: SchedulingTimezoneMode;
+  onTimezoneModeChange: (mode: SchedulingTimezoneMode) => void;
   activeTab: DetailTabValue;
   onTabChange: (tab: DetailTabValue) => void;
   isLoading?: boolean;
@@ -73,6 +81,9 @@ function getStatusBadge(status: string) {
 
 export function AppointmentDetail({
   appointment,
+  displayTimezone,
+  timezoneMode,
+  onTimezoneModeChange,
   activeTab,
   onTabChange,
   isLoading,
@@ -156,6 +167,10 @@ export function AppointmentDetail({
 
   const isActionable =
     appointment.status === "scheduled" || appointment.status === "confirmed";
+  const displayTimezoneShort = formatTimezoneShort(
+    displayTimezone,
+    appointment.startAt,
+  );
 
   const handleSaveNotes = (data: NotesFormData) => {
     updateMutation.mutate({
@@ -179,9 +194,10 @@ export function AppointmentDetail({
               {getStatusBadge(appointment.status)}
             </div>
             <p className="mt-1 text-sm text-muted-foreground">
-              {formatDateWithWeekday(appointment.startAt)} ·{" "}
-              {formatTimeDisplay(appointment.startAt)} -{" "}
-              {formatTimeDisplay(appointment.endAt)}
+              {formatDateWithWeekday(appointment.startAt, displayTimezone)} ·{" "}
+              {formatTimeDisplay(appointment.startAt, displayTimezone)} -{" "}
+              {formatTimeDisplay(appointment.endAt, displayTimezone)} (
+              {displayTimezoneShort})
             </p>
           </div>
         </div>
@@ -208,7 +224,10 @@ export function AppointmentDetail({
                     className="text-muted-foreground"
                   />
                   <span className="font-medium">
-                    {formatDateWithWeekday(appointment.startAt)}
+                    {formatDateWithWeekday(
+                      appointment.startAt,
+                      displayTimezone,
+                    )}
                   </span>
                 </div>
                 <div className="flex items-center gap-2 text-sm mt-2">
@@ -217,14 +236,14 @@ export function AppointmentDetail({
                     className="text-muted-foreground shrink-0"
                   />
                   <span className="shrink-0">
-                    {formatTimeDisplay(appointment.startAt)} -{" "}
-                    {formatTimeDisplay(appointment.endAt)}
+                    {formatTimeDisplay(appointment.startAt, displayTimezone)} -{" "}
+                    {formatTimeDisplay(appointment.endAt, displayTimezone)}
                   </span>
                   <span
                     className="text-muted-foreground truncate"
-                    title={appointment.timezone}
+                    title={displayTimezone}
                   >
-                    ({appointment.timezone})
+                    ({displayTimezoneShort})
                   </span>
                 </div>
               </div>
@@ -406,7 +425,10 @@ export function AppointmentDetail({
           )}
 
           {activeTab === "history" && (
-            <AppointmentHistory appointmentId={appointment.id} />
+            <AppointmentHistory
+              appointmentId={appointment.id}
+              displayTimezone={displayTimezone}
+            />
           )}
         </div>
       </div>
@@ -460,6 +482,10 @@ export function AppointmentDetail({
         appointment={appointment}
         open={showRescheduleDialog}
         onOpenChange={setShowRescheduleDialog}
+        timezoneMode={timezoneMode}
+        onTimezoneModeChange={onTimezoneModeChange}
+        displayTimezone={displayTimezone}
+        defaultTimezone={appointment.calendar?.timezone ?? appointment.timezone}
       />
     </>
   );

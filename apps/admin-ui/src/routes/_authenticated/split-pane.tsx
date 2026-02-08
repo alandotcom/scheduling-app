@@ -15,6 +15,7 @@ import { Icon } from "@/components/ui/icon";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
+import { formatTimezoneShort } from "@/lib/date-utils";
 import { cn } from "@/lib/utils";
 
 type DemoItem = {
@@ -218,7 +219,9 @@ function SplitPaneDemoPage() {
                     <div>
                       <div className="text-sm font-medium">Timezone</div>
                       <div className="text-sm text-muted-foreground">
-                        {selectedItem.timezone}
+                        <span title={selectedItem.timezone}>
+                          {formatTimezoneShort(selectedItem.timezone)}
+                        </span>
                       </div>
                     </div>
                     <div>

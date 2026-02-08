@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Add01Icon, Delete01Icon } from "@hugeicons/core-free-icons";
 
 import { Icon } from "@/components/ui/icon";
+import { formatTimezoneShort } from "@/lib/date-utils";
 import { Button } from "@/components/ui/button";
 import { resolveSelectValueLabel } from "@/lib/select-value-label";
 import {
@@ -140,7 +141,9 @@ export function CalendarsTab({
                     {link.calendar.name}
                   </TableCell>
                   <TableCell className="text-muted-foreground">
-                    {link.calendar.timezone}
+                    <span title={link.calendar.timezone}>
+                      {formatTimezoneShort(link.calendar.timezone)}
+                    </span>
                   </TableCell>
                   <TableCell>
                     <Button
