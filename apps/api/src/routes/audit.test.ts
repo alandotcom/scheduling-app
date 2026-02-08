@@ -136,9 +136,9 @@ describe("Audit Routes", () => {
   test("filters by entity type, action, actor, and date range", async () => {
     const { org, user } = await createOrg(db);
     const otherUser = await createOrgMember(db, org.id, {
-      email: "staff@example.com",
-      name: "Staff User",
-      role: "staff",
+      email: "member@example.com",
+      name: "Member User",
+      role: "member",
     });
     const ctx = createTestContext({ orgId: org.id, userId: user.id });
 
@@ -227,7 +227,7 @@ describe("Audit Routes", () => {
     const ctx = createTestContext({
       orgId: org.id,
       userId: user.id,
-      role: "staff",
+      role: "member",
     });
 
     await expect(

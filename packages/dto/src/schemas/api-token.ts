@@ -2,7 +2,7 @@ import { z } from "zod";
 import { uuidSchema, timestampSchema, paginationSchema } from "./common";
 
 // Token scopes
-export const tokenScopeSchema = z.enum(["admin", "staff"]);
+export const tokenScopeSchema = z.enum(["owner", "admin", "member"]);
 export type TokenScope = z.infer<typeof tokenScopeSchema>;
 
 // Create API token - returns the full token only once

@@ -11,7 +11,7 @@ import type { Context, AuthMethod } from "../lib/orpc.js";
 export interface TestContextOptions {
   orgId: string;
   userId: string;
-  role?: "admin" | "staff";
+  role?: "owner" | "admin" | "member";
   sessionId?: string;
   tokenId?: string;
   authMethod?: AuthMethod;
@@ -33,10 +33,11 @@ export function createTestContext(options: TestContextOptions): Context {
   return {
     orgId: options.orgId,
     userId: options.userId,
-    role: options.role ?? "admin",
+    role: options.role ?? "owner",
     sessionId: options.sessionId ?? "test-session-id",
     tokenId: options.tokenId ?? null,
     authMethod: options.authMethod ?? "session",
+    headers: new Headers(),
   };
 }
 
@@ -51,6 +52,7 @@ export function createUnauthenticatedContext(): Context {
     sessionId: null,
     tokenId: null,
     authMethod: null,
+    headers: new Headers(),
   };
 }
 
@@ -63,9 +65,10 @@ export function createTokenContext(
   return {
     orgId: options.orgId,
     userId: options.userId,
-    role: options.role ?? "admin",
+    role: options.role ?? "owner",
     sessionId: null,
     tokenId: options.tokenId ?? "test-token-id",
     authMethod: "token",
+    headers: new Headers(),
   };
 }

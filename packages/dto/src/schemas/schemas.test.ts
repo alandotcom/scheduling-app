@@ -150,12 +150,13 @@ describe("User schemas", () => {
 
   describe("orgMembershipRoleSchema", () => {
     test("accepts valid roles", () => {
+      expect(orgMembershipRoleSchema.safeParse("owner").success).toBe(true);
       expect(orgMembershipRoleSchema.safeParse("admin").success).toBe(true);
-      expect(orgMembershipRoleSchema.safeParse("staff").success).toBe(true);
+      expect(orgMembershipRoleSchema.safeParse("member").success).toBe(true);
     });
 
     test("rejects invalid role", () => {
-      expect(orgMembershipRoleSchema.safeParse("owner").success).toBe(false);
+      expect(orgMembershipRoleSchema.safeParse("staff").success).toBe(false);
     });
   });
 });

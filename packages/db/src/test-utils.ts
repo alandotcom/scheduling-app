@@ -122,7 +122,7 @@ export async function seedTestOrg(
   await db.insert(schema.orgMemberships).values({
     orgId: org!.id,
     userId: user!.id,
-    role: "admin",
+    role: "owner",
   });
 
   // Clear user context after seeding
@@ -161,7 +161,7 @@ export async function seedSecondTestOrg(
   await db.insert(schema.orgMemberships).values({
     orgId: org!.id,
     userId: user!.id,
-    role: "admin",
+    role: "owner",
   });
 
   // Clear user context after seeding
@@ -185,7 +185,7 @@ export async function setTestOrgContext(
 
 /**
  * Set the user context for RLS queries in tests
- * Required for tables like org_memberships that use user-based RLS
+ * Used by tests that intentionally validate user-scoped DB helpers
  */
 export async function setTestUserContext(
   db: BunSQLDatabase<typeof schema, typeof relations>,

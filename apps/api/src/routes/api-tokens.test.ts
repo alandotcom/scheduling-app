@@ -242,7 +242,7 @@ describe("API Token Routes", () => {
     const ctx = createTestContext({
       orgId: org.id,
       userId: user.id,
-      role: "staff",
+      role: "member",
     });
 
     await expect(

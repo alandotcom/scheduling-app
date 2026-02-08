@@ -59,7 +59,7 @@ describe("Test Utilities", () => {
 
       expect(ctx.orgId).toBe("org-123");
       expect(ctx.userId).toBe("user-456");
-      expect(ctx.role).toBe("admin"); // default
+      expect(ctx.role).toBe("owner"); // default
       expect(ctx.authMethod).toBe("session"); // default
       expect(ctx.sessionId).toBe("test-session-id"); // default
       expect(ctx.tokenId).toBeNull();
@@ -69,11 +69,11 @@ describe("Test Utilities", () => {
       const ctx = createTestContext({
         orgId: "org-123",
         userId: "user-456",
-        role: "staff",
+        role: "member",
         sessionId: "custom-session",
       });
 
-      expect(ctx.role).toBe("staff");
+      expect(ctx.role).toBe("member");
       expect(ctx.sessionId).toBe("custom-session");
     });
   });

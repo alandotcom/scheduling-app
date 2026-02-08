@@ -5,5 +5,9 @@ export {
   sessions,
   accounts,
   verifications,
+  orgs,
+  orgMemberships,
+  orgInvitations,
+  apiKeys,
   apiTokens,
 } from "./index.js";

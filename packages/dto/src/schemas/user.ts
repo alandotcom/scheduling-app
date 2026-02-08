@@ -28,7 +28,7 @@ export const updateUserSchema = z.object({
 export const userResponseSchema = userSchema;
 
 // Org membership
-export const orgMembershipRoleSchema = z.enum(["admin", "staff"]);
+export const orgMembershipRoleSchema = z.enum(["owner", "admin", "member"]);
 
 export const orgMembershipSchema = z.object({
   id: uuidSchema,

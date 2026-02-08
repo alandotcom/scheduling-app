@@ -70,7 +70,7 @@ export async function createOrg(
     await db.insert(orgMemberships).values({
       orgId: org!.id,
       userId: user!.id,
-      role: "admin",
+      role: "owner",
     });
   } finally {
     await clearTestUserContext(db);
@@ -86,7 +86,11 @@ export async function createOrg(
 export async function createOrgMember(
   db: Database,
   orgId: string,
-  options: { email?: string; name?: string; role?: "admin" | "staff" } = {},
+  options: {
+    email?: string;
+    name?: string;
+    role?: "owner" | "admin" | "member";
+  } = {},
 ) {
   const [user] = await db
     .insert(users)
@@ -103,7 +107,7 @@ export async function createOrgMember(
     await db.insert(orgMemberships).values({
       orgId,
       userId: user!.id,
-      role: options.role ?? "staff",
+      role: options.role ?? "member",
     });
   } finally {
     await clearTestUserContext(db);

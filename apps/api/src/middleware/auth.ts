@@ -3,9 +3,6 @@
 import { createMiddleware } from "hono/factory";
 import { auth } from "../lib/auth.js";
 import { db } from "../lib/db.js";
-import { apiTokens } from "@scheduling/db/schema";
-import { eq, sql } from "drizzle-orm";
-import { createHash } from "crypto";
 import type { AuthMethod } from "../lib/orpc.js";
 
 declare module "hono" {
@@ -15,13 +12,8 @@ declare module "hono" {
     sessionId: string | null;
     tokenId: string | null;
     authMethod: AuthMethod;
-    role: "admin" | "staff" | null;
+    role: "owner" | "admin" | "member" | null;
   }
-}
-
-// Hash a token using SHA-256
-function hashToken(token: string): string {
-  return createHash("sha256").update(token).digest("hex");
 }
 
 export const authMiddleware = createMiddleware(async (c, next) => {
@@ -34,100 +26,83 @@ export const authMiddleware = createMiddleware(async (c, next) => {
     c.set("tokenId", null);
     c.set("authMethod", "session");
 
-    // Set user context for RLS before querying org_memberships
-    await db.execute(
-      sql`SELECT set_config('app.current_user_id', ${session.user.id}, false)`,
-    );
-
-    try {
-      // Get org context from header or query param
-      const orgId = c.req.header("X-Org-Id") ?? c.req.query("org_id");
-
-      if (orgId) {
-        // Verify user is member of this org
-        const membership = await db.query.orgMemberships.findFirst({
-          where: {
-            userId: session.user.id,
-            orgId: orgId,
-          },
-        });
-
-        if (membership) {
-          c.set("orgId", orgId);
-          c.set("role", membership.role);
-        } else {
-          return c.json(
-            {
-              error: { code: "FORBIDDEN", message: "Not a member of this org" },
-            },
-            403,
-          );
-        }
+    const activeOrgId = session.session.activeOrganizationId ?? null;
+    if (activeOrgId) {
+      const membership = await db.query.orgMemberships.findFirst({
+        where: {
+          userId: session.user.id,
+          orgId: activeOrgId,
+        },
+      });
+      if (membership) {
+        c.set("orgId", membership.orgId);
+        c.set("role", membership.role);
       } else {
-        // Default to first org membership
-        const membership = await db.query.orgMemberships.findFirst({
-          where: { userId: session.user.id },
-        });
-        if (membership) {
-          c.set("orgId", membership.orgId);
-          c.set("role", membership.role);
-        } else {
-          c.set("orgId", null);
-          c.set("role", null);
-        }
+        c.set("orgId", null);
+        c.set("role", null);
       }
-    } finally {
-      // Clear user context - RLS middleware will set both user and org context properly
-      await db.execute(
-        sql`SELECT set_config('app.current_user_id', '', false)`,
-      );
+    } else {
+      c.set("orgId", null);
+      c.set("role", null);
     }
 
     return next();
   }
 
-  // Try API token auth
+  // Try API key auth
   const authHeader = c.req.header("Authorization");
-  if (authHeader?.startsWith("Bearer ")) {
-    const token = authHeader.slice(7);
-    const tokenHash = hashToken(token);
+  const headerKey = c.req.header("x-api-key");
+  const token = authHeader?.startsWith("Bearer ")
+    ? authHeader.slice(7)
+    : (headerKey ?? null);
 
-    // Find the token by hash
-    const apiToken = await db.query.apiTokens.findFirst({
-      where: {
-        tokenHash: tokenHash,
-        revokedAt: { isNull: true },
-      },
+  if (token) {
+    const verification = await auth.api.verifyApiKey({
+      body: { key: token },
     });
 
-    if (apiToken) {
-      // Check if token is expired
-      if (apiToken.expiresAt && apiToken.expiresAt < new Date()) {
+    if (verification.valid && verification.key) {
+      const metadata = verification.key.metadata as {
+        organizationId?: string;
+        role?: "owner" | "admin" | "member";
+      } | null;
+      const orgId = metadata?.organizationId ?? null;
+      let role = metadata?.role ?? null;
+
+      if (!orgId) {
         return c.json(
-          { error: { code: "UNAUTHORIZED", message: "API token has expired" } },
+          {
+            error: {
+              code: "UNAUTHORIZED",
+              message: "API key is missing organization metadata",
+            },
+          },
           401,
         );
       }
 
-      // Update last used timestamp (non-blocking)
-      db.update(apiTokens)
-        .set({ lastUsedAt: new Date() })
-        .where(eq(apiTokens.id, apiToken.id))
-        .catch(() => {}); // Ignore errors for last_used_at update
+      if (!role) {
+        const membership = await db.query.orgMemberships.findFirst({
+          where: {
+            userId: verification.key.userId,
+            orgId,
+          },
+        });
+        role = membership?.role ?? null;
+      }
 
-      c.set("userId", apiToken.userId);
-      c.set("orgId", apiToken.orgId);
+      c.set("userId", verification.key.userId);
+      c.set("orgId", orgId);
       c.set("sessionId", null);
-      c.set("tokenId", apiToken.id);
+      c.set("tokenId", verification.key.id);
       c.set("authMethod", "token");
-      c.set("role", apiToken.scope);
+      c.set("role", role);
 
       return next();
     }
 
-    // Invalid token
     return c.json(
-      { error: { code: "UNAUTHORIZED", message: "Invalid API token" } },
+      { error: { code: "UNAUTHORIZED", message: "Invalid API key" } },
       401,
     );
   }

@@ -8,17 +8,6 @@ import { getLogger } from "@logtape/logtape";
 
 const logger = getLogger(["ui", "api"]);
 
-// Store for the active org ID (can be set by org switcher UI)
-let activeOrgId: string | null = null;
-
-export function setActiveOrg(orgId: string | null) {
-  activeOrgId = orgId;
-}
-
-export function getActiveOrg() {
-  return activeOrgId;
-}
-
 // Construct the absolute URL for the RPC endpoint
 // Use window.location.origin in browser, fallback to localhost for SSR
 const getBaseUrl = () => {
@@ -32,11 +21,7 @@ const getBaseUrl = () => {
 const link = new RPCLink({
   url: getBaseUrl(),
   method: () => "POST", // Always use POST - server doesn't allow GET for procedures
-  headers: () => {
-    // Include org context if an org is explicitly selected
-    // If not set, API middleware will default to user's first org
-    return activeOrgId ? { "X-Org-Id": activeOrgId } : {};
-  },
+  headers: () => ({}),
   fetch: async (request, init) => {
     try {
       const response = await globalThis.fetch(request, {

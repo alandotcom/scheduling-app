@@ -24,7 +24,13 @@ export const appointmentStatusEnum = pgEnum("appointment_status", [
   "no_show",
 ]);
 
-export const orgRoleEnum = pgEnum("org_role", ["admin", "staff"]);
+export const orgRoleEnum = pgEnum("org_role", ["owner", "admin", "member"]);
+export const invitationStatusEnum = pgEnum("invitation_status", [
+  "pending",
+  "accepted",
+  "rejected",
+  "canceled",
+]);
 
 // Common column helpers using Postgres 18 native uuidv7()
 const id = uuid("id").primaryKey().default(sql`uuidv7()`);
@@ -44,6 +50,12 @@ const timestamps = {
 export const orgs = pgTable("orgs", {
   id,
   name: text("name").notNull(),
+  slug: text("slug")
+    .notNull()
+    .unique()
+    .default(sql`replace(uuidv7()::text, '-', '')`),
+  logo: text("logo"),
+  metadata: jsonb("metadata"),
   // Organization settings
   defaultTimezone: text("default_timezone").default("America/New_York"),
   defaultBusinessHoursStart: text("default_business_hours_start").default(
@@ -66,28 +78,41 @@ export const users = pgTable("users", {
   ...timestamps,
 });
 
-export const orgMemberships = pgTable.withRLS(
+export const orgMemberships = pgTable(
   "org_memberships",
   {
     id,
     orgId: uuid("org_id")
       .notNull()
-      .references(() => orgs.id),
+      .references(() => orgs.id, { onDelete: "cascade" }),
     userId: uuid("user_id")
       .notNull()
-      .references(() => users.id),
-    role: orgRoleEnum("role").notNull(),
+      .references(() => users.id, { onDelete: "cascade" }),
+    role: orgRoleEnum("role").notNull().default("member"),
     ...timestamps,
   },
   (table) => [
     uniqueIndex("org_memberships_org_user_idx").on(table.orgId, table.userId),
-    pgPolicy("user_org_memberships", {
-      for: "all",
-      using: sql`org_id = current_org_id() OR user_id = current_user_id()`,
-      withCheck: sql`org_id = current_org_id() OR user_id = current_user_id()`,
-    }),
   ],
 );
+
+export const orgInvitations = pgTable("org_invitations", {
+  id,
+  orgId: uuid("org_id")
+    .notNull()
+    .references(() => orgs.id, { onDelete: "cascade" }),
+  email: text("email").notNull(),
+  role: orgRoleEnum("role").notNull().default("member"),
+  status: invitationStatusEnum("status").notNull().default("pending"),
+  inviterId: uuid("inviter_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  teamId: uuid("team_id"),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+});
 
 export const locations = pgTable.withRLS(
   "locations",
@@ -419,6 +444,7 @@ export const sessions = pgTable("sessions", {
     .notNull()
     .references(() => users.id, { onDelete: "cascade" }),
   token: text("token").notNull().unique(),
+  activeOrganizationId: uuid("active_organization_id"),
   expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
   ipAddress: text("ip_address"),
   userAgent: text("user_agent"),
@@ -457,6 +483,31 @@ export const verifications = pgTable("verifications", {
 // ============================================================================
 // API TOKENS
 // ============================================================================
+
+export const apiKeys = pgTable("apikey", {
+  id,
+  name: text("name"),
+  start: text("start"),
+  prefix: text("prefix"),
+  key: text("key").notNull().unique(),
+  userId: uuid("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  refillInterval: integer("refill_interval"),
+  refillAmount: integer("refill_amount"),
+  lastRefillAt: timestamp("last_refill_at", { withTimezone: true }),
+  enabled: boolean("enabled").notNull().default(true),
+  rateLimitEnabled: boolean("rate_limit_enabled").notNull().default(true),
+  rateLimitTimeWindow: integer("rate_limit_time_window"),
+  rateLimitMax: integer("rate_limit_max"),
+  requestCount: integer("request_count").notNull().default(0),
+  remaining: integer("remaining"),
+  lastRequest: timestamp("last_request", { withTimezone: true }),
+  expiresAt: timestamp("expires_at", { withTimezone: true }),
+  permissions: text("permissions"),
+  metadata: text("metadata"),
+  ...timestamps,
+});
 
 export const apiTokens = pgTable.withRLS(
   "api_tokens",

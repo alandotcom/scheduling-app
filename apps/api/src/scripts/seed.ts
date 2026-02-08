@@ -91,7 +91,7 @@ async function seed() {
     .values({
       orgId: org.id,
       userId: adminUser.id,
-      role: "admin",
+      role: "owner",
     })
     .onConflictDoNothing()
     .returning();

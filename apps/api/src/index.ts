@@ -80,6 +80,7 @@ app.all("/v1/*", async (c) => {
       tokenId: c.get("tokenId"),
       authMethod: c.get("authMethod"),
       role: c.get("role"),
+      headers: c.req.raw.headers,
     },
   });
 
@@ -129,6 +130,7 @@ app.all("/api/v1/*", async (c) => {
       tokenId: c.get("tokenId"),
       authMethod: c.get("authMethod"),
       role: c.get("role"),
+      headers: c.req.raw.headers,
     },
   });
 

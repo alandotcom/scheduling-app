@@ -11,7 +11,6 @@ import { availabilityEngineRoutes } from "./availability.js";
 import { availabilityRoutes } from "./availability.js";
 import { appointmentRoutes } from "./appointments.js";
 import { clientRoutes } from "./clients.js";
-import { apiTokenRoutes } from "./api-tokens.js";
 import { auditRoutes } from "./audit.js";
 import { dashboardRoutes } from "./dashboard.js";
 
@@ -40,13 +39,12 @@ export const uiRouter = {
   availability: availabilityRoutes,
   appointments: appointmentRoutes,
   clients: clientRoutes,
-  apiTokens: apiTokenRoutes,
   audit: auditRoutes,
 };
 
 // ============================================================================
 // API ROUTER (OpenAPI) - Public routes for M2M integrations
-// Excludes internal routes: apiTokens, audit
+// Excludes internal routes: audit
 // Used by external clients via REST at /api/v1/*
 // ============================================================================
 export const apiRouter = {

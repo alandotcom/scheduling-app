@@ -18,7 +18,8 @@ export interface Context {
   sessionId: string | null;
   tokenId: string | null; // API token ID if authenticated via token
   authMethod: AuthMethod;
-  role: "admin" | "staff" | null;
+  role: "owner" | "admin" | "member" | null;
+  headers: Headers;
 }
 
 // Map ApplicationError codes to oRPC error codes and HTTP status codes

@@ -7,6 +7,7 @@ export const relations = defineRelations(schema, (r) => ({
   // Core tables
   orgs: {
     memberships: r.many.orgMemberships(),
+    invitations: r.many.orgInvitations(),
     locations: r.many.locations(),
     calendars: r.many.calendars(),
     appointmentTypes: r.many.appointmentTypes(),
@@ -20,8 +21,10 @@ export const relations = defineRelations(schema, (r) => ({
 
   users: {
     memberships: r.many.orgMemberships(),
+    invitationsSent: r.many.orgInvitations(),
     sessions: r.many.sessions(),
     accounts: r.many.accounts(),
+    apiKeys: r.many.apiKeys(),
     apiTokens: r.many.apiTokens(),
   },
 
@@ -32,6 +35,17 @@ export const relations = defineRelations(schema, (r) => ({
     }),
     user: r.one.users({
       from: r.orgMemberships.userId,
+      to: r.users.id,
+    }),
+  },
+
+  orgInvitations: {
+    org: r.one.orgs({
+      from: r.orgInvitations.orgId,
+      to: r.orgs.id,
+    }),
+    inviter: r.one.users({
+      from: r.orgInvitations.inviterId,
       to: r.users.id,
     }),
   },
@@ -186,6 +200,14 @@ export const relations = defineRelations(schema, (r) => ({
   },
 
   // API tokens
+  apiKeys: {
+    user: r.one.users({
+      from: r.apiKeys.userId,
+      to: r.users.id,
+    }),
+  },
+
+  // Legacy API tokens
   apiTokens: {
     org: r.one.orgs({
       from: r.apiTokens.orgId,
