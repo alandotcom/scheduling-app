@@ -16,10 +16,10 @@ export const requestLogger = createMiddleware(async (c, next) => {
   const status = c.res.status;
 
   if (status >= 500) {
-    void logger.error`${method} ${path} ${status} ${duration}ms`;
+    logger.error(`${method} ${path} ${status} ${duration}ms`);
   } else if (status >= 400) {
-    void logger.warn`${method} ${path} ${status} ${duration}ms`;
+    logger.warn(`${method} ${path} ${status} ${duration}ms`);
   } else {
-    void logger.info`${method} ${path} ${status} ${duration}ms`;
+    logger.info(`${method} ${path} ${status} ${duration}ms`);
   }
 });

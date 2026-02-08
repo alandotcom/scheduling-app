@@ -16,17 +16,26 @@ function TableSkeleton({
   rows?: number;
   cols?: number;
 }) {
+  const columnKeys = Array.from(
+    { length: cols },
+    (_, colNumber) => `col-${colNumber}`,
+  );
+  const rowKeys = Array.from(
+    { length: rows },
+    (_, rowNumber) => `row-${rowNumber}`,
+  );
+
   return (
     <div className="w-full">
       <div className="flex gap-4 border-b border-border pb-3 mb-3">
-        {Array.from({ length: cols }).map((_, i) => (
-          <Skeleton key={i} className="h-4 flex-1" />
+        {columnKeys.map((columnKey) => (
+          <Skeleton key={columnKey} className="h-4 flex-1" />
         ))}
       </div>
-      {Array.from({ length: rows }).map((_, i) => (
-        <div key={i} className="flex gap-4 py-3">
-          {Array.from({ length: cols }).map((_, j) => (
-            <Skeleton key={j} className="h-4 flex-1" />
+      {rowKeys.map((rowKey) => (
+        <div key={rowKey} className="flex gap-4 py-3">
+          {columnKeys.map((columnKey) => (
+            <Skeleton key={`${rowKey}-${columnKey}`} className="h-4 flex-1" />
           ))}
         </div>
       ))}

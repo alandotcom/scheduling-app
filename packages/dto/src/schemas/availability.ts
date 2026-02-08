@@ -63,7 +63,7 @@ const availabilityTimeRangeSchema = z
 function hasOverlappingTimeRanges(
   timeRanges: Array<{ startTime: string; endTime: string }>,
 ): boolean {
-  const sorted = [...timeRanges].sort((a, b) =>
+  const sorted = timeRanges.toSorted((a, b) =>
     a.startTime.localeCompare(b.startTime),
   );
   for (let i = 1; i < sorted.length; i++) {

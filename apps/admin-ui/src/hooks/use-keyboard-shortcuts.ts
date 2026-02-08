@@ -107,7 +107,7 @@ function onDocumentKeyDown(event: KeyboardEvent) {
   const key = normalizeKey(event);
   const isInput = isTypingInInput(event.target);
   const activeModal = getTopMostModalElement();
-  const orderedRegistrations = Array.from(registrations).reverse();
+  const orderedRegistrations = Array.from(registrations).toReversed();
 
   for (const registration of orderedRegistrations) {
     if (!matchesScope(registration.scope, activeModal, event.target)) {
@@ -400,12 +400,11 @@ export function useFocusZones({
   }, []);
 
   const handleEscape = useCallback(() => {
-    const activeElement = document.activeElement as HTMLElement | null;
-
     // If in an input, blur it first
+    const activeElement = document.activeElement;
     if (
-      activeElement?.tagName === "INPUT" ||
-      activeElement?.tagName === "TEXTAREA"
+      activeElement instanceof HTMLInputElement ||
+      activeElement instanceof HTMLTextAreaElement
     ) {
       activeElement.blur();
       return;

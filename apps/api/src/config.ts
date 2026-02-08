@@ -1,5 +1,7 @@
 // Configuration loaded from environment variables with validation
 
+import process from "node:process";
+import { URL } from "node:url";
 import { envParse } from "standardenv";
 import { z } from "zod";
 
@@ -17,6 +19,23 @@ export const config = envParse(process.env, {
       format: z.coerce.number(),
       env: "PORT",
       default: 3000,
+    },
+  },
+  bullBoard: {
+    host: {
+      format: z.string(),
+      env: "BULL_BOARD_HOST",
+      default: "127.0.0.1",
+    },
+    port: {
+      format: z.coerce.number(),
+      env: "BULL_BOARD_PORT",
+      default: 3010,
+    },
+    basePath: {
+      format: z.string(),
+      env: "BULL_BOARD_BASE_PATH",
+      default: "/",
     },
   },
   db: {

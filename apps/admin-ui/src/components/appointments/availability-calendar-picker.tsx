@@ -121,11 +121,13 @@ export function AvailabilityCalendarPicker({
               {day}
             </div>
           ))}
-          {calendarDays.map((day, i) => {
+          {calendarDays.map((day) => {
+            const dayDateKey = formatDateISO(day.date);
+
             if (!day.isCurrentMonth) {
               return (
                 <div
-                  key={i}
+                  key={`${dayDateKey}-empty`}
                   className="p-2"
                   aria-hidden="true"
                   data-slot="calendar-empty-day"
@@ -135,7 +137,6 @@ export function AvailabilityCalendarPicker({
 
             const isSelected =
               selectedDate && day.date.hasSame(selectedDate, "day");
-            const dayDateKey = formatDateISO(day.date);
             const availabilityLevel = day.isPast
               ? "none"
               : getDayAvailabilityLevel(
@@ -143,7 +144,7 @@ export function AvailabilityCalendarPicker({
                 );
             return (
               <button
-                key={i}
+                key={dayDateKey}
                 type="button"
                 data-availability={availabilityLevel}
                 disabled={day.isPast}

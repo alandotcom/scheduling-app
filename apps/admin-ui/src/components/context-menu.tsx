@@ -45,7 +45,11 @@ export function ContextMenu({ children, items }: ContextMenuProps) {
     if (!isOpen) return;
 
     const handleClickOutside = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+      const target = e.target;
+      if (
+        menuRef.current &&
+        (!(target instanceof Node) || !menuRef.current.contains(target))
+      ) {
         handleClose();
       }
     };
@@ -92,6 +96,19 @@ export function ContextMenu({ children, items }: ContextMenuProps) {
     return { x, y };
   }, [position, isOpen, items.length]);
 
+  const itemsWithKeys = React.useMemo(() => {
+    const seenKeys = new Map<string, number>();
+    return items.map((item) => {
+      const baseKey = `${item.label}:${item.variant ?? "default"}:${item.separator ? "separator" : "item"}`;
+      const count = (seenKeys.get(baseKey) ?? 0) + 1;
+      seenKeys.set(baseKey, count);
+      return {
+        item,
+        key: count === 1 ? baseKey : `${baseKey}:${count}`,
+      };
+    });
+  }, [items]);
+
   return (
     <>
       {React.cloneElement(children, {
@@ -106,9 +123,9 @@ export function ContextMenu({ children, items }: ContextMenuProps) {
           )}
           style={{ top: adjustedPosition.y, left: adjustedPosition.x }}
         >
-          {items.map((item, index) => (
-            <React.Fragment key={index}>
-              {item.separator && index > 0 && (
+          {itemsWithKeys.map(({ item, key }, itemIndex) => (
+            <React.Fragment key={key}>
+              {item.separator && itemIndex > 0 && (
                 <div className="my-1 h-px bg-border/50" />
               )}
               <button

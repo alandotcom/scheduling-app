@@ -35,6 +35,19 @@ interface AvailabilityData {
   resourcesData: ResourceData[];
 }
 
+function makeConflict(
+  conflictType: AppointmentConflict["conflictType"],
+  message: string,
+  conflictingIds: string[] = [],
+): AppointmentConflict {
+  return {
+    conflictType,
+    message,
+    canOverride: false,
+    conflictingIds,
+  };
+}
+
 export class AvailabilityService {
   /**
    * Get available dates in the range
@@ -169,17 +182,6 @@ export class AvailabilityService {
     options?: { excludeAppointmentId?: string },
   ): Promise<{ available: boolean; conflicts: AppointmentConflict[] }> {
     return withOrg(context.orgId, async (tx) => {
-      const makeConflict = (
-        conflictType: AppointmentConflict["conflictType"],
-        message: string,
-        conflictingIds: string[] = [],
-      ): AppointmentConflict => ({
-        conflictType,
-        message,
-        canOverride: false,
-        conflictingIds,
-      });
-
       const appointmentType = await availabilityRepository.loadAppointmentType(
         tx,
         context.orgId,
@@ -733,7 +735,7 @@ export class AvailabilityService {
       // Get hours for this day (override or regular rules)
       const dayRules = rules
         .filter((r) => r.weekday === weekday)
-        .sort((a, b) => a.startTime.localeCompare(b.startTime));
+        .toSorted((a, b) => a.startTime.localeCompare(b.startTime));
       const ruleWindows:
         | Array<{
             startTime: string;

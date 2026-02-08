@@ -106,7 +106,7 @@ const ALL_PHONE_COUNTRY_OPTIONS: PhoneCountryOption[] = getCountries()
       searchText: `${country} ${label} +${callingCode}`.toLowerCase(),
     };
   })
-  .sort((a, b) => a.label.localeCompare(b.label));
+  .toSorted((a, b) => a.label.localeCompare(b.label));
 
 const priorityCountrySet = new Set(PRIORITY_PHONE_COUNTRIES);
 const PHONE_COUNTRY_OPTIONS: PhoneCountryOption[] = [
@@ -117,6 +117,8 @@ const PHONE_COUNTRY_OPTIONS: PhoneCountryOption[] = [
     (option) => !priorityCountrySet.has(option.value),
   ),
 ];
+const isPhoneCountryCode = (value: string): value is CountryCode =>
+  PHONE_COUNTRY_OPTIONS.some((option) => option.value === value);
 
 interface ClientFormProps {
   defaultValues?: {
@@ -161,7 +163,9 @@ function ClientForm({
   });
 
   const phoneCountry = watch("phoneCountry") ?? "US";
-  const activePhoneCountry = phoneCountry as CountryCode;
+  const activePhoneCountry = isPhoneCountryCode(phoneCountry)
+    ? phoneCountry
+    : "US";
   const selectedCountryOption =
     PHONE_COUNTRY_OPTIONS.find(
       (option) => option.value === activePhoneCountry,

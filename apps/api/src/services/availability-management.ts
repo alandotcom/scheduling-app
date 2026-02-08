@@ -35,6 +35,11 @@ function hasOverlap(
   return start1 < end2 && end1 > start2;
 }
 
+function parseTime(time: string): { hour: number; minute: number } {
+  const [hour, minute] = time.split(":").map(Number);
+  return { hour: hour ?? 0, minute: minute ?? 0 };
+}
+
 export class AvailabilityManagementService {
   // ============================================================================
   // SHARED HELPERS
@@ -725,11 +730,6 @@ export class AvailabilityManagementService {
     );
 
     const items: AvailabilityFeedItem[] = [];
-
-    const parseTime = (time: string) => {
-      const [hour, minute] = time.split(":").map(Number);
-      return { hour: hour ?? 0, minute: minute ?? 0 };
-    };
 
     const dayStart = rangeStart.startOf("day");
     const dayEnd = rangeEnd.startOf("day");

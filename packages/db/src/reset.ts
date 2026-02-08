@@ -67,12 +67,12 @@ async function reset() {
     );
 
     if (appUser) {
-      const roleRows = (await maintenanceClient.unsafe(`
+      const roleRows = await maintenanceClient.unsafe(`
         SELECT 1
         FROM pg_roles
         WHERE rolname = ${quoteLiteral(appUser)}
         LIMIT 1
-      `)) as Array<{ "?column?": number }>;
+      `);
 
       if (roleRows.length > 0) {
         await maintenanceClient.unsafe(

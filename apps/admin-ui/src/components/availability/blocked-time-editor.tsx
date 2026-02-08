@@ -48,6 +48,12 @@ interface BlockedTimeEditorBodyProps extends BlockedTimeEditorProps {
   compact: boolean;
 }
 
+const toRecurrenceValue = (
+  value: BlockRecurrenceType | "custom",
+): BlockRecurrenceType => {
+  return value === "daily" || value === "weekly" ? value : "none";
+};
+
 export function BlockedTimeEditor(props: BlockedTimeEditorProps) {
   return <BlockedTimeEditorBody {...props} compact={false} />;
 }
@@ -105,12 +111,7 @@ function BlockedTimeEditorBody({
       cursor = cursor.plus({ days: 1 });
     }
 
-    return Array.from(days).sort((a, b) => a - b);
-  };
-  const toRecurrenceValue = (
-    value: BlockRecurrenceType | "custom",
-  ): BlockRecurrenceType => {
-    return value === "daily" || value === "weekly" ? value : "none";
+    return Array.from(days).toSorted((a, b) => a - b);
   };
   const toggleWeekday = (weekday: number) => {
     setEditingBlock((prev) => {
@@ -120,7 +121,7 @@ function BlockedTimeEditorBody({
         ...prev,
         weekdays: hasDay
           ? prev.weekdays.filter((d) => d !== weekday)
-          : [...prev.weekdays, weekday].sort((a, b) => a - b),
+          : [...prev.weekdays, weekday].toSorted((a, b) => a - b),
       };
     });
   };
@@ -252,7 +253,7 @@ function BlockedTimeEditorBody({
             : fallbackWeekdays.length
               ? fallbackWeekdays
               : [getWeekdayFromDate(startParts.date)]
-          ).sort((a, b) => a - b)
+          ).toSorted((a, b) => a - b)
         : [];
 
     setEditingBlock({
@@ -557,7 +558,7 @@ function BlockedTimeEditorBody({
           ) : (
             <div className="space-y-2">
               {blockedTimes
-                .sort(
+                .toSorted(
                   (a, b) =>
                     toDateTime(a.startAt).toMillis() -
                     toDateTime(b.startAt).toMillis(),
@@ -799,7 +800,7 @@ function BlockedTimeEditorBody({
           ) : (
             <div className="space-y-3">
               {blockedTimes
-                .sort(
+                .toSorted(
                   (a, b) =>
                     toDateTime(a.startAt).toMillis() -
                     toDateTime(b.startAt).toMillis(),

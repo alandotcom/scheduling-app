@@ -50,6 +50,8 @@ import {
 import type { SchedulingTimezoneMode } from "@/lib/scheduling-timezone";
 
 type DetailTabValue = "details" | "client" | "history";
+const isDetailTabValue = (value: string): value is DetailTabValue =>
+  value === "details" || value === "client" || value === "history";
 
 interface AppointmentDetailProps {
   appointment: AppointmentWithRelations | null;
@@ -230,7 +232,11 @@ export function AppointmentDetail({
         {/* Tabs */}
         <DetailTabs
           value={activeTab}
-          onValueChange={(value) => onTabChange(value as DetailTabValue)}
+          onValueChange={(value) => {
+            if (isDetailTabValue(value)) {
+              onTabChange(value);
+            }
+          }}
         >
           <DetailTab value="details">Details</DetailTab>
           <DetailTab value="client">Client</DetailTab>

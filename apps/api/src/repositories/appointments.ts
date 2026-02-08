@@ -178,16 +178,7 @@ export class AppointmentRepository {
     const effectiveScope = scope ?? "all";
 
     // Build conditions array
-    const conditions: Array<
-      | ReturnType<typeof eq>
-      | ReturnType<typeof gt>
-      | ReturnType<typeof gte>
-      | ReturnType<typeof lte>
-      | ReturnType<typeof lt>
-      | ReturnType<typeof inArray>
-      | NonNullable<ReturnType<typeof and>>
-      | NonNullable<ReturnType<typeof or>>
-    > = [];
+    const conditions: Array<ReturnType<typeof sql>> = [];
 
     if (
       cursor &&
@@ -277,7 +268,14 @@ export class AppointmentRepository {
       } else if (startDate) {
         const [year, month, day] = startDate.split("-").map(Number);
         const startDateTime = new Date(
-          Date.UTC(year!, month! - 1, day!, 0, 0, 0),
+          Date.UTC(
+            year ?? Number.NaN,
+            (month ?? Number.NaN) - 1,
+            day ?? Number.NaN,
+            0,
+            0,
+            0,
+          ),
         );
         conditions.push(gte(appointments.startAt, startDateTime));
       }
@@ -287,7 +285,15 @@ export class AppointmentRepository {
       } else if (endDate) {
         const [year, month, day] = endDate.split("-").map(Number);
         const endDateTime = new Date(
-          Date.UTC(year!, month! - 1, day!, 23, 59, 59, 999),
+          Date.UTC(
+            year ?? Number.NaN,
+            (month ?? Number.NaN) - 1,
+            day ?? Number.NaN,
+            23,
+            59,
+            59,
+            999,
+          ),
         );
         conditions.push(lte(appointments.startAt, endDateTime));
       }

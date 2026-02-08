@@ -29,7 +29,7 @@ const link = new RPCLink({
         credentials: "include", // Include cookies for session auth
       });
       if (!response.ok) {
-        void logger.warn`API error: ${response.status}`;
+        logger.warn(`API error: ${response.status}`);
       }
       return response;
     } catch (error) {
@@ -37,7 +37,7 @@ const link = new RPCLink({
       if (error instanceof Error && error.name === "AbortError") {
         throw error;
       }
-      void logger.error`API request failed: ${error}`;
+      logger.error(`API request failed: ${String(error)}`);
       throw error;
     }
   },

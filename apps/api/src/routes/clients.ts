@@ -17,7 +17,7 @@ export const list = authed
   .handler(async ({ input, context }) => {
     return clientService.list(input, {
       orgId: context.orgId,
-      userId: context.userId!,
+      userId: context.userId,
     });
   });
 
@@ -28,7 +28,7 @@ export const get = authed
   .handler(async ({ input, context }) => {
     return clientService.get(input.id, {
       orgId: context.orgId,
-      userId: context.userId!,
+      userId: context.userId,
     });
   });
 
@@ -39,7 +39,7 @@ export const create = authed
   .handler(async ({ input, context }) => {
     return clientService.create(input, {
       orgId: context.orgId,
-      userId: context.userId!,
+      userId: context.userId,
     });
   });
 
@@ -55,7 +55,7 @@ export const update = authed
   .handler(async ({ input, context }) => {
     return clientService.update(input.id, input.data, {
       orgId: context.orgId,
-      userId: context.userId!,
+      userId: context.userId,
     });
   });
 
@@ -66,7 +66,7 @@ export const remove = authed
   .handler(async ({ input, context }) => {
     return clientService.delete(input.id, {
       orgId: context.orgId,
-      userId: context.userId!,
+      userId: context.userId,
     });
   });
 
@@ -77,7 +77,7 @@ export const historySummary = authed
   .handler(async ({ input, context }) => {
     const result = await clientService.historySummary(input.id, {
       orgId: context.orgId,
-      userId: context.userId!,
+      userId: context.userId,
     });
     return clientHistorySummarySchema.parse(result);
   });

@@ -80,6 +80,7 @@ const STATUS_FILTER_OPTIONS = [
   { value: "cancelled", label: "Cancelled" },
   { value: "no_show", label: "No Show" },
 ] as const;
+type AppointmentStatusFilter = (typeof STATUS_FILTER_OPTIONS)[number]["value"];
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -87,6 +88,10 @@ const isDetailTab = (value: string): value is DetailTabValue =>
   value === "details" || value === "client" || value === "history";
 const isListScope = (value: string): value is ListScope =>
   value === "upcoming" || value === "history";
+const isAppointmentStatusFilter = (
+  value: string,
+): value is AppointmentStatusFilter =>
+  STATUS_FILTER_OPTIONS.some((status) => status.value === value);
 
 function AppointmentsPage() {
   const queryClient = useQueryClient();
@@ -139,6 +144,10 @@ function AppointmentsPage() {
     }),
     [urlCalendarId, urlClientId, urlAppointmentTypeId, urlStatus],
   );
+  const statusFilter =
+    filters.status && isAppointmentStatusFilter(filters.status)
+      ? filters.status
+      : undefined;
 
   // Navigation callbacks
   const openDetails = useCallback(
@@ -310,13 +319,7 @@ function AppointmentsPage() {
         ...(filters.appointmentTypeId && {
           appointmentTypeId: filters.appointmentTypeId,
         }),
-        ...(filters.status && {
-          status: filters.status as
-            | "scheduled"
-            | "confirmed"
-            | "cancelled"
-            | "no_show",
-        }),
+        ...(statusFilter && { status: statusFilter }),
       },
     }),
     placeholderData: (previous) => previous,
@@ -344,7 +347,7 @@ function AppointmentsPage() {
       calendarId: filters.calendarId || undefined,
       clientId: filters.clientId || undefined,
       appointmentTypeId: filters.appointmentTypeId || undefined,
-      status: filters.status || undefined,
+      status: statusFilter,
     },
     enabled: currentView === "schedule",
   });
@@ -605,38 +608,45 @@ function AppointmentsPage() {
     filters.calendarId,
     filters.clientId,
     filters.appointmentTypeId,
-    filters.status,
+    statusFilter,
   ].filter(Boolean).length;
 
-  const activeFiltersDisplay = [
-    filters.clientId && {
+  const activeFiltersDisplay: Array<{
+    label: string;
+    value: string;
+    onRemove: () => void;
+  }> = [];
+  if (filters.clientId) {
+    activeFiltersDisplay.push({
       label: "Client",
       value: hasValidClientFilter
         ? `${selectedClientData?.firstName ?? ""} ${selectedClientData?.lastName ?? ""}`.trim() ||
           "Unknown client"
         : "Unknown client",
       onRemove: () => clearFilter("clientId"),
-    },
-    filters.calendarId && {
+    });
+  }
+  if (filters.calendarId) {
+    activeFiltersDisplay.push({
       label: "Calendar",
       value: selectedCalendar?.name ?? "Unknown",
       onRemove: () => clearFilter("calendarId"),
-    },
-    filters.appointmentTypeId && {
+    });
+  }
+  if (filters.appointmentTypeId) {
+    activeFiltersDisplay.push({
       label: "Type",
       value: selectedType?.name ?? "Unknown",
       onRemove: () => clearFilter("appointmentTypeId"),
-    },
-    filters.status && {
+    });
+  }
+  if (statusFilter) {
+    activeFiltersDisplay.push({
       label: "Status",
-      value: filters.status.replace("_", " "),
+      value: statusFilter.replace("_", " "),
       onRemove: () => clearFilter("status"),
-    },
-  ].filter(Boolean) as Array<{
-    label: string;
-    value: string;
-    onRemove: () => void;
-  }>;
+    });
+  }
 
   const handleSelectAppointment = useCallback(
     (appointment: AppointmentWithRelations) => {

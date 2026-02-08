@@ -32,13 +32,13 @@ function isExclusionConstraintViolation(error: unknown): boolean {
 
   // Check cause (Drizzle wraps Postgres errors)
   if ("cause" in error && error.cause && typeof error.cause === "object") {
-    const cause = error.cause as Record<string, unknown>;
+    const { cause } = error;
     // Bun's PostgresError uses errno for the Postgres error code
-    if (cause["errno"] === EXCLUSION_CONSTRAINT_VIOLATION) {
+    if ("errno" in cause && cause.errno === EXCLUSION_CONSTRAINT_VIOLATION) {
       return true;
     }
     // Also check cause.code for compatibility
-    if (cause["code"] === EXCLUSION_CONSTRAINT_VIOLATION) {
+    if ("code" in cause && cause.code === EXCLUSION_CONSTRAINT_VIOLATION) {
       return true;
     }
   }
@@ -102,7 +102,7 @@ function toAppointmentScheduleEvent(
 ): AppointmentScheduleEvent {
   return {
     id: row.id,
-    status: row.status as AppointmentScheduleEvent["status"],
+    status: row.status,
     startAt: row.startAt,
     endAt: row.endAt,
     calendarId: row.calendarId,

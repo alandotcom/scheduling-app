@@ -63,6 +63,24 @@ const ORG_ROLE_OPTIONS: Array<{ value: OrgMembershipRole; label: string }> = [
   { value: "admin", label: "Admin" },
   { value: "member", label: "Member" },
 ];
+const isOrgMembershipRole = (
+  value: string | null | undefined,
+): value is OrgMembershipRole =>
+  typeof value === "string" &&
+  ORG_ROLE_OPTIONS.some((role) => role.value === value);
+
+const parseBusinessDays = (days: unknown): number[] => {
+  if (Array.isArray(days)) return days;
+  if (typeof days === "string") {
+    try {
+      const parsed = JSON.parse(days);
+      if (Array.isArray(parsed)) return parsed;
+    } catch {
+      // ignore parse errors
+    }
+  }
+  return [1, 2, 3, 4, 5];
+};
 
 // Org settings type inferred from API response
 interface OrgSettings {
@@ -118,8 +136,22 @@ function SettingsPage() {
     );
   }
 
+  if (!org) {
+    return (
+      <div className="mx-auto max-w-4xl px-4 py-6 sm:px-6 lg:px-8">
+        <h1 className="text-2xl font-semibold tracking-tight">Settings</h1>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Configure organization and application settings.
+        </p>
+        <div className="mt-10 text-center text-destructive">
+          Error loading settings
+        </div>
+      </div>
+    );
+  }
+
   // Render form only when data is available
-  return <SettingsForm org={org as OrgSettings} />;
+  return <SettingsForm org={org} />;
 }
 
 interface SettingsFormProps {
@@ -142,20 +174,6 @@ function SettingsForm({ org }: SettingsFormProps) {
       },
     }),
   );
-
-  // Parse business days - handle both array and string formats from DB
-  const parseBusinessDays = (days: unknown): number[] => {
-    if (Array.isArray(days)) return days;
-    if (typeof days === "string") {
-      try {
-        const parsed = JSON.parse(days);
-        if (Array.isArray(parsed)) return parsed;
-      } catch {
-        // ignore parse errors
-      }
-    }
-    return [1, 2, 3, 4, 5];
-  };
 
   // Form setup with defaults from fetched org data
   const {
@@ -181,7 +199,7 @@ function SettingsForm({ org }: SettingsFormProps) {
     const current = selectedDays;
     const newDays = current.includes(day)
       ? current.filter((d) => d !== day)
-      : [...current, day].sort((a, b) => a - b);
+      : [...current, day].toSorted((a, b) => a - b);
     setValue("defaultBusinessDays", newDays, { shouldDirty: true });
   };
 
@@ -542,9 +560,11 @@ function UsersManagementSection() {
               render={({ field }) => (
                 <Select
                   value={field.value}
-                  onValueChange={(value) =>
-                    field.onChange(value as OrgMembershipRole)
-                  }
+                  onValueChange={(value) => {
+                    if (isOrgMembershipRole(value)) {
+                      field.onChange(value);
+                    }
+                  }}
                   disabled={createUserMutation.isPending}
                 >
                   <SelectTrigger id="new-user-role">
@@ -608,7 +628,8 @@ function UsersManagementSection() {
                       <Select
                         value={user.role}
                         onValueChange={(nextRole) => {
-                          const role = nextRole as OrgMembershipRole;
+                          if (!isOrgMembershipRole(nextRole)) return;
+                          const role = nextRole;
                           if (role === user.role) return;
                           onChangeRole({ userId: user.userId, role });
                         }}

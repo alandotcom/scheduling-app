@@ -1,0 +1,94 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": ["typescript", "react", "import", "unicorn"],
+  "categories": {
+    "correctness": "error",
+    "suspicious": "warn",
+    "perf": "warn"
+  },
+  "rules": {
+    "no-unused-vars": "error",
+    "no-undef": "error",
+    "no-console": "off",
+    "no-var": "error",
+    "prefer-const": "error",
+    "react/exhaustive-deps": "off",
+    "typescript/no-floating-promises": [
+      "error",
+      {
+        "allowForKnownSafeCalls": [
+          "navigate",
+          "invalidateQueries",
+          "refetchQueries",
+          "cancelQueries",
+          "resetQueries",
+          "prefetchQuery",
+          "prefetchInfiniteQuery"
+        ]
+      }
+    ]
+  },
+  "overrides": [
+    {
+      "files": ["**/*.ts", "**/*.tsx", "**/*.mts", "**/*.cts"],
+      "rules": {
+        "no-undef": "off"
+      }
+    },
+    {
+      "files": ["apps/admin-ui/src/**/*.ts", "apps/admin-ui/src/**/*.tsx"],
+      "env": {
+        "browser": true
+      },
+      "rules": {
+        "react/react-in-jsx-scope": "off",
+        "typescript/no-floating-promises": "off"
+      }
+    },
+    {
+      "files": ["apps/admin-ui/vite.config.ts"],
+      "env": {
+        "node": true
+      }
+    },
+    {
+      "files": [
+        "**/*.test.ts",
+        "**/*.test.tsx",
+        "**/*.spec.ts",
+        "**/*.spec.tsx",
+        "**/test-setup.ts",
+        "**/test-matchers.ts",
+        "**/test-utils.ts",
+        "**/test-utils/**/*.ts",
+        "**/test-utils/**/*.tsx",
+        "**/__tests__/**/*.ts",
+        "**/__tests__/**/*.tsx",
+        "**/tests/**/*.ts",
+        "**/tests/**/*.tsx"
+      ],
+      "rules": {
+        "no-undef": "off",
+        "no-console": "off",
+        "no-await-in-loop": "off",
+        "eqeqeq": "off",
+        "import/no-unassigned-import": "off",
+        "react/react-in-jsx-scope": "off",
+        "typescript/no-unnecessary-type-assertion": "off",
+        "typescript/no-unsafe-type-assertion": "off",
+        "typescript/await-thenable": "off",
+        "typescript/require-array-sort-compare": "off",
+        "typescript/no-floating-promises": "off",
+        "typescript/no-base-to-string": "off",
+        "unicorn/no-array-sort": "off",
+        "unicorn/consistent-function-scoping": "off"
+      }
+    }
+  ],
+  "settings": {
+    "typescript": {
+      "tsconfig": "./tsconfig.json"
+    }
+  },
+  "ignorePatterns": ["node_modules", "dist", "*.d.ts"]
+}

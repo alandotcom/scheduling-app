@@ -18,6 +18,13 @@ interface ScheduleFilters {
   status?: string;
 }
 
+type ScheduleStatus = "scheduled" | "confirmed" | "cancelled" | "no_show";
+const isScheduleStatus = (value: string): value is ScheduleStatus =>
+  value === "scheduled" ||
+  value === "confirmed" ||
+  value === "cancelled" ||
+  value === "no_show";
+
 export interface ScheduleAppointment {
   id: string;
   startAt: DateTime;
@@ -47,6 +54,10 @@ export function useScheduleAppointments({
 }: UseScheduleAppointmentsOptions) {
   // Calculate week end (Sunday to Saturday)
   const weekEnd = useMemo(() => weekStart.plus({ days: 7 }), [weekStart]);
+  const statusFilter =
+    filters.status && isScheduleStatus(filters.status)
+      ? filters.status
+      : undefined;
 
   // Build query input
   const input = useMemo(
@@ -59,13 +70,7 @@ export function useScheduleAppointments({
         appointmentTypeId: filters.appointmentTypeId,
       }),
       ...(filters.clientId && { clientId: filters.clientId }),
-      ...(filters.status && {
-        status: filters.status as
-          | "scheduled"
-          | "confirmed"
-          | "cancelled"
-          | "no_show",
-      }),
+      ...(statusFilter && { status: statusFilter }),
     }),
     [
       weekStart,
@@ -73,7 +78,7 @@ export function useScheduleAppointments({
       filters.calendarId,
       filters.appointmentTypeId,
       filters.clientId,
-      filters.status,
+      statusFilter,
     ],
   );
 

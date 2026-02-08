@@ -26,6 +26,7 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { routeTree } from "./routeTree.gen";
 import { getQueryClient } from "./lib/query";
 
+// eslint-disable-next-line import/no-unassigned-import
 import "./index.css";
 
 // Create a new router instance

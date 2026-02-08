@@ -16,7 +16,7 @@ export const list = authed
   .handler(async ({ input, context }) => {
     return locationService.list(input, {
       orgId: context.orgId,
-      userId: context.userId!,
+      userId: context.userId,
     });
   });
 
@@ -27,7 +27,7 @@ export const get = authed
   .handler(async ({ input, context }) => {
     return locationService.get(input.id, {
       orgId: context.orgId,
-      userId: context.userId!,
+      userId: context.userId,
     });
   });
 
@@ -38,7 +38,7 @@ export const create = authed
   .handler(async ({ input, context }) => {
     return locationService.create(input, {
       orgId: context.orgId,
-      userId: context.userId!,
+      userId: context.userId,
     });
   });
 
@@ -54,7 +54,7 @@ export const update = authed
   .handler(async ({ input, context }) => {
     return locationService.update(input.id, input.data, {
       orgId: context.orgId,
-      userId: context.userId!,
+      userId: context.userId,
     });
   });
 
@@ -65,7 +65,7 @@ export const remove = authed
   .handler(async ({ input, context }) => {
     return locationService.delete(input.id, {
       orgId: context.orgId,
-      userId: context.userId!,
+      userId: context.userId,
     });
   });
 

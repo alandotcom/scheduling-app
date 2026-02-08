@@ -90,6 +90,7 @@ Key entities:
 
    - API: http://localhost:3000
    - Admin UI: http://localhost:5173
+   - Bull Board: http://127.0.0.1:3010/
 
 ## Development
 
@@ -97,9 +98,10 @@ Key entities:
 
 ```bash
 # Development
-pnpm dev              # Run all apps in parallel (API + admin UI)
+pnpm dev              # Run API + admin UI + Bull Board in parallel
 pnpm dev:api          # Run API only with hot reload
 pnpm dev:admin        # Run admin UI only
+pnpm dev:bull-board   # Run only Bull Board as a separate server
 
 # Testing
 pnpm test             # Run all tests
@@ -163,14 +165,17 @@ Domain events are emitted on mutations:
 
 ## Environment Variables
 
-| Variable       | Description                              | Default                                                      |
-| -------------- | ---------------------------------------- | ------------------------------------------------------------ |
-| `DATABASE_URL` | Postgres connection string               | `postgres://scheduling:scheduling@localhost:5433/scheduling` |
-| `REDIS_URL`    | Redis/Valkey URL (overrides host/port)   | _(unset)_                                                    |
-| `VALKEY_HOST`  | Valkey/Redis host                        | `localhost`                                                  |
-| `VALKEY_PORT`  | Valkey/Redis port                        | `6380`                                                       |
-| `AUTH_SECRET`  | BetterAuth secret (change in production) | `dev-secret-change-in-production`                            |
-| `PORT`         | API server port                          | `3000`                                                       |
+| Variable               | Description                              | Default                                                      |
+| ---------------------- | ---------------------------------------- | ------------------------------------------------------------ |
+| `DATABASE_URL`         | Postgres connection string               | `postgres://scheduling:scheduling@localhost:5433/scheduling` |
+| `REDIS_URL`            | Redis/Valkey URL (overrides host/port)   | _(unset)_                                                    |
+| `VALKEY_HOST`          | Valkey/Redis host                        | `localhost`                                                  |
+| `VALKEY_PORT`          | Valkey/Redis port                        | `6380`                                                       |
+| `AUTH_SECRET`          | BetterAuth secret (change in production) | `dev-secret-change-in-production`                            |
+| `PORT`                 | API server port                          | `3000`                                                       |
+| `BULL_BOARD_HOST`      | Bull Board bind host                     | `127.0.0.1`                                                  |
+| `BULL_BOARD_PORT`      | Bull Board server port                   | `3010`                                                       |
+| `BULL_BOARD_BASE_PATH` | Bull Board UI base path                  | `/`                                                          |
 
 ## License
 

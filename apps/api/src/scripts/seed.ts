@@ -6,6 +6,7 @@ import { drizzle } from "drizzle-orm/bun-sql";
 import { eq, inArray, sql } from "drizzle-orm";
 import { SQL } from "bun";
 import { faker } from "@faker-js/faker";
+import { forEachAsync, mapAsync } from "es-toolkit/array";
 import {
   appointmentTypeCalendars,
   appointmentTypeResources,
@@ -718,118 +719,135 @@ async function seed() {
         string,
         { id: string; durationMin: number }
       >();
-      const clientIds: string[] = [];
       const clientFixtures = buildClientFixtures(
         seedOrg.name,
         usedClientNames,
         usedClientEmails,
       );
 
-      for (const location of seedOrg.locations) {
-        const [inserted] = await tx
-          .insert(locations)
-          .values({
-            orgId,
-            name: location.name,
-            timezone: location.timezone,
-          })
-          .returning({ id: locations.id });
+      await mapAsync(
+        seedOrg.locations,
+        async (location) => {
+          const [inserted] = await tx
+            .insert(locations)
+            .values({
+              orgId,
+              name: location.name,
+              timezone: location.timezone,
+            })
+            .returning({ id: locations.id });
 
-        if (!inserted) {
-          throw new Error(`Failed to create location: ${location.name}`);
-        }
+          if (!inserted) {
+            throw new Error(`Failed to create location: ${location.name}`);
+          }
 
-        locationIds.set(location.key, inserted.id);
-      }
+          locationIds.set(location.key, inserted.id);
+        },
+        { concurrency: 1 },
+      );
 
-      for (const calendar of seedOrg.calendars) {
-        const locationId = locationIds.get(calendar.locationKey);
-        if (!locationId) {
-          throw new Error(`Missing location key for calendar: ${calendar.key}`);
-        }
+      await mapAsync(
+        seedOrg.calendars,
+        async (calendar) => {
+          const locationId = locationIds.get(calendar.locationKey);
+          if (!locationId) {
+            throw new Error(
+              `Missing location key for calendar: ${calendar.key}`,
+            );
+          }
 
-        const [inserted] = await tx
-          .insert(calendars)
-          .values({
-            orgId,
-            locationId,
-            name: calendar.name,
-            timezone: calendar.timezone,
-          })
-          .returning({ id: calendars.id });
+          const [inserted] = await tx
+            .insert(calendars)
+            .values({
+              orgId,
+              locationId,
+              name: calendar.name,
+              timezone: calendar.timezone,
+            })
+            .returning({ id: calendars.id });
 
-        if (!inserted) {
-          throw new Error(`Failed to create calendar: ${calendar.name}`);
-        }
+          if (!inserted) {
+            throw new Error(`Failed to create calendar: ${calendar.name}`);
+          }
 
-        calendarIds.set(calendar.key, inserted.id);
-        calendarProfiles.set(calendar.key, calendar.profile);
-      }
+          calendarIds.set(calendar.key, inserted.id);
+          calendarProfiles.set(calendar.key, calendar.profile);
+        },
+        { concurrency: 1 },
+      );
 
-      for (const appointmentType of seedOrg.appointmentTypes) {
-        const [insertedType] = await tx
-          .insert(appointmentTypes)
-          .values({
-            orgId,
-            name: appointmentType.name,
+      await forEachAsync(
+        seedOrg.appointmentTypes,
+        async (appointmentType) => {
+          const [insertedType] = await tx
+            .insert(appointmentTypes)
+            .values({
+              orgId,
+              name: appointmentType.name,
+              durationMin: appointmentType.durationMin,
+              paddingBeforeMin: appointmentType.paddingBeforeMin ?? 0,
+              paddingAfterMin: appointmentType.paddingAfterMin ?? 0,
+              capacity: appointmentType.capacity ?? 1,
+            })
+            .returning({ id: appointmentTypes.id });
+
+          if (!insertedType) {
+            throw new Error(
+              `Failed to create appointment type: ${appointmentType.name}`,
+            );
+          }
+
+          const linkedCalendarIds = appointmentType.calendarKeys.map(
+            (calendarKey) => {
+              const calendarId = calendarIds.get(calendarKey);
+              if (!calendarId) {
+                throw new Error(
+                  `Missing calendar key for appointment type link: ${calendarKey}`,
+                );
+              }
+              return calendarId;
+            },
+          );
+
+          await tx.insert(appointmentTypeCalendars).values(
+            linkedCalendarIds.map((calendarId) => ({
+              appointmentTypeId: insertedType.id,
+              calendarId,
+            })),
+          );
+
+          appointmentTypeByKey.set(appointmentType.key, {
+            id: insertedType.id,
             durationMin: appointmentType.durationMin,
-            paddingBeforeMin: appointmentType.paddingBeforeMin ?? 0,
-            paddingAfterMin: appointmentType.paddingAfterMin ?? 0,
-            capacity: appointmentType.capacity ?? 1,
-          })
-          .returning({ id: appointmentTypes.id });
+          });
+        },
+        { concurrency: 1 },
+      );
 
-        if (!insertedType) {
-          throw new Error(
-            `Failed to create appointment type: ${appointmentType.name}`,
-          );
-        }
+      const clientIds = await mapAsync(
+        clientFixtures,
+        async (clientFixture) => {
+          const [insertedClient] = await tx
+            .insert(clients)
+            .values({
+              orgId,
+              firstName: clientFixture.firstName,
+              lastName: clientFixture.lastName,
+              email: clientFixture.email,
+              phone: clientFixture.phone,
+            })
+            .returning({ id: clients.id });
 
-        const linkedCalendarIds = appointmentType.calendarKeys.map(
-          (calendarKey) => {
-            const calendarId = calendarIds.get(calendarKey);
-            if (!calendarId) {
-              throw new Error(
-                `Missing calendar key for appointment type link: ${calendarKey}`,
-              );
-            }
-            return calendarId;
-          },
-        );
+          if (!insertedClient) {
+            throw new Error(
+              `Failed to create client: ${clientFixture.firstName} ${clientFixture.lastName}`,
+            );
+          }
 
-        await tx.insert(appointmentTypeCalendars).values(
-          linkedCalendarIds.map((calendarId) => ({
-            appointmentTypeId: insertedType.id,
-            calendarId,
-          })),
-        );
-
-        appointmentTypeByKey.set(appointmentType.key, {
-          id: insertedType.id,
-          durationMin: appointmentType.durationMin,
-        });
-      }
-
-      for (const clientFixture of clientFixtures) {
-        const [insertedClient] = await tx
-          .insert(clients)
-          .values({
-            orgId,
-            firstName: clientFixture.firstName,
-            lastName: clientFixture.lastName,
-            email: clientFixture.email,
-            phone: clientFixture.phone,
-          })
-          .returning({ id: clients.id });
-
-        if (!insertedClient) {
-          throw new Error(
-            `Failed to create client: ${clientFixture.firstName} ${clientFixture.lastName}`,
-          );
-        }
-
-        clientIds.push(insertedClient.id);
-      }
+          return insertedClient.id;
+        },
+        { concurrency: 1 },
+      );
 
       const availabilityRuleRows: Array<{
         calendarId: string;
@@ -946,66 +964,70 @@ async function seed() {
         },
       ]);
 
-      for (const spec of APPOINTMENT_SPECS) {
-        const calendarId = calendarIds.get(spec.calendarKey);
-        const appointmentType = appointmentTypeByKey.get(
-          spec.appointmentTypeKey,
-        );
-        const clientId = clientIds[spec.clientIndex];
-
-        if (!calendarId) {
-          throw new Error(
-            `Missing calendar for appointment spec: ${spec.calendarKey}`,
+      await forEachAsync(
+        APPOINTMENT_SPECS,
+        async (spec) => {
+          const calendarId = calendarIds.get(spec.calendarKey);
+          const appointmentType = appointmentTypeByKey.get(
+            spec.appointmentTypeKey,
           );
-        }
-        if (!appointmentType) {
-          throw new Error(
-            `Missing appointment type for appointment spec: ${spec.appointmentTypeKey}`,
+          const clientId = clientIds[spec.clientIndex];
+
+          if (!calendarId) {
+            throw new Error(
+              `Missing calendar for appointment spec: ${spec.calendarKey}`,
+            );
+          }
+          if (!appointmentType) {
+            throw new Error(
+              `Missing appointment type for appointment spec: ${spec.appointmentTypeKey}`,
+            );
+          }
+          if (!clientId) {
+            throw new Error(
+              `Missing client for appointment spec index: ${spec.clientIndex}`,
+            );
+          }
+
+          const startAt = dateAtDayOffset(
+            startOfDayUtc,
+            spec.dayOffset,
+            spec.hour,
+            spec.minute,
           );
-        }
-        if (!clientId) {
-          throw new Error(
-            `Missing client for appointment spec index: ${spec.clientIndex}`,
+          const endAt = new Date(
+            startAt.getTime() + appointmentType.durationMin * MINUTE_MS,
           );
-        }
 
-        const startAt = dateAtDayOffset(
-          startOfDayUtc,
-          spec.dayOffset,
-          spec.hour,
-          spec.minute,
-        );
-        const endAt = new Date(
-          startAt.getTime() + appointmentType.durationMin * MINUTE_MS,
-        );
+          const calendarTimezone = seedOrg.calendars.find(
+            (calendar) => calendar.key === spec.calendarKey,
+          )?.timezone;
 
-        const calendarTimezone = seedOrg.calendars.find(
-          (calendar) => calendar.key === spec.calendarKey,
-        )?.timezone;
+          if (!calendarTimezone) {
+            throw new Error(
+              `Missing calendar timezone for appointment spec: ${spec.calendarKey}`,
+            );
+          }
 
-        if (!calendarTimezone) {
-          throw new Error(
-            `Missing calendar timezone for appointment spec: ${spec.calendarKey}`,
-          );
-        }
-
-        await tx.insert(appointments).values({
-          orgId,
-          calendarId,
-          appointmentTypeId: appointmentType.id,
-          clientId,
-          startAt,
-          endAt,
-          timezone: calendarTimezone,
-          status: spec.status,
-          notes:
-            spec.status === "cancelled"
-              ? "Cancelled by client"
-              : spec.status === "no_show"
-                ? "Client did not arrive"
-                : null,
-        });
-      }
+          await tx.insert(appointments).values({
+            orgId,
+            calendarId,
+            appointmentTypeId: appointmentType.id,
+            clientId,
+            startAt,
+            endAt,
+            timezone: calendarTimezone,
+            status: spec.status,
+            notes:
+              spec.status === "cancelled"
+                ? "Cancelled by client"
+                : spec.status === "no_show"
+                  ? "Client did not arrive"
+                  : null,
+          });
+        },
+        { concurrency: 1 },
+      );
 
       return {
         locations: seedOrg.locations.length,
@@ -1022,24 +1044,27 @@ async function seed() {
 
   try {
     const adminUser = await getOrCreateAdminUser();
-    const orgSummaries: Array<{ name: string; summary: SeedSummary }> = [];
     const usedClientNames = new Set<string>();
     const usedClientEmails = new Set<string>();
+    const orgSummaries = await mapAsync(
+      SEED_ORGS,
+      async (seedOrg) => {
+        console.log(`\nPreparing org: ${seedOrg.name}`);
+        const org = await getOrCreateOrg(seedOrg.name);
+        await ensureAdminMembership(org.id, adminUser.id);
 
-    for (const seedOrg of SEED_ORGS) {
-      console.log(`\nPreparing org: ${seedOrg.name}`);
-      const org = await getOrCreateOrg(seedOrg.name);
-      await ensureAdminMembership(org.id, adminUser.id);
+        console.log(`Resetting + seeding rich data for org: ${seedOrg.name}`);
+        const summary = await seedOrgData(
+          org.id,
+          seedOrg,
+          usedClientNames,
+          usedClientEmails,
+        );
 
-      console.log(`Resetting + seeding rich data for org: ${seedOrg.name}`);
-      const summary = await seedOrgData(
-        org.id,
-        seedOrg,
-        usedClientNames,
-        usedClientEmails,
-      );
-      orgSummaries.push({ name: seedOrg.name, summary });
-    }
+        return { name: seedOrg.name, summary };
+      },
+      { concurrency: 1 },
+    );
 
     console.log("\nSeed completed successfully!");
     for (const orgSummary of orgSummaries) {
@@ -1059,7 +1084,7 @@ async function seed() {
     console.log(`  Email: ${DEV_ADMIN_EMAIL}`);
     console.log(`  Password: ${DEV_ADMIN_PASSWORD}`);
   } finally {
-    client.close();
+    await client.close();
   }
 }
 

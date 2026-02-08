@@ -157,4 +157,4 @@ export default {
   fetch: app.fetch,
 };
 
-void logger.info`Server running on port ${config.server.port}`;
+logger.info(`Server running on port ${config.server.port}`);

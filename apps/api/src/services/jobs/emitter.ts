@@ -24,6 +24,13 @@ function generateEventId(): string {
   return `evt_${timestamp}_${random}`;
 }
 
+function toOutboxPayload(value: unknown): Record<string, unknown> {
+  if (typeof value === "object" && value !== null) {
+    return Object.fromEntries(Object.entries(value));
+  }
+  return { value };
+}
+
 // Emit an event (writes to outbox and enqueues for processing)
 export async function emitEvent<T>(
   orgId: string,
@@ -47,7 +54,7 @@ export async function emitEvent<T>(
     await database.insert(eventOutbox).values({
       orgId,
       type,
-      payload: payload as Record<string, unknown>,
+      payload: toOutboxPayload(payload),
       status: "pending",
       nextAttemptAt: new Date(),
     });

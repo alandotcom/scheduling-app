@@ -93,13 +93,26 @@ interface ActiveFiltersProps {
 }
 
 export function ActiveFilters({ filters }: ActiveFiltersProps) {
+  const filtersWithKeys = React.useMemo(() => {
+    const seenKeys = new Map<string, number>();
+    return filters.map((filter) => {
+      const baseKey = `${filter.label}:${filter.value}`;
+      const count = (seenKeys.get(baseKey) ?? 0) + 1;
+      seenKeys.set(baseKey, count);
+      return {
+        filter,
+        key: count === 1 ? baseKey : `${baseKey}:${count}`,
+      };
+    });
+  }, [filters]);
+
   if (filters.length === 0) return null;
 
   return (
     <div className="flex flex-wrap gap-2">
-      {filters.map((filter, index) => (
+      {filtersWithKeys.map(({ filter, key }) => (
         <div
-          key={index}
+          key={key}
           className="inline-flex items-center gap-1.5 rounded-md bg-muted px-2 py-1 text-xs font-medium"
         >
           <span className="text-muted-foreground">{filter.label}:</span>

@@ -28,8 +28,8 @@ export function AppointmentsTimezoneControl({
 }: AppointmentsTimezoneControlProps) {
   const isEditable =
     timezoneMode === "calendar" && typeof selectedCalendarTimezone !== "string";
-  const timezoneOptions = TIMEZONES.includes(
-    displayTimezone as (typeof TIMEZONES)[number],
+  const timezoneOptions = TIMEZONES.some(
+    (timezone) => timezone === displayTimezone,
   )
     ? TIMEZONES
     : [displayTimezone, ...TIMEZONES];

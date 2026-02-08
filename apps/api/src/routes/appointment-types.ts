@@ -19,7 +19,7 @@ export const list = authed
   .handler(async ({ input, context }) => {
     return appointmentTypeService.list(input, {
       orgId: context.orgId,
-      userId: context.userId!,
+      userId: context.userId,
     });
   });
 
@@ -30,7 +30,7 @@ export const get = authed
   .handler(async ({ input, context }) => {
     return appointmentTypeService.get(input.id, {
       orgId: context.orgId,
-      userId: context.userId!,
+      userId: context.userId,
     });
   });
 
@@ -41,7 +41,7 @@ export const create = authed
   .handler(async ({ input, context }) => {
     return appointmentTypeService.create(input, {
       orgId: context.orgId,
-      userId: context.userId!,
+      userId: context.userId,
     });
   });
 
@@ -57,7 +57,7 @@ export const update = authed
   .handler(async ({ input, context }) => {
     return appointmentTypeService.update(input.id, input.data, {
       orgId: context.orgId,
-      userId: context.userId!,
+      userId: context.userId,
     });
   });
 
@@ -68,7 +68,7 @@ export const remove = authed
   .handler(async ({ input, context }) => {
     return appointmentTypeService.delete(input.id, {
       orgId: context.orgId,
-      userId: context.userId!,
+      userId: context.userId,
     });
   });
 
@@ -86,7 +86,7 @@ export const listCalendars = authed
   .handler(async ({ input, context }) => {
     return appointmentTypeService.listCalendars(input.appointmentTypeId, {
       orgId: context.orgId,
-      userId: context.userId!,
+      userId: context.userId,
     });
   });
 
@@ -109,7 +109,7 @@ export const addCalendar = authed
       { calendarId: input.data.calendarId },
       {
         orgId: context.orgId,
-        userId: context.userId!,
+        userId: context.userId,
       },
     );
   });
@@ -132,7 +132,7 @@ export const removeCalendar = authed
       { calendarId: input.calendarId },
       {
         orgId: context.orgId,
-        userId: context.userId!,
+        userId: context.userId,
       },
     );
   });
@@ -151,7 +151,7 @@ export const listResources = authed
   .handler(async ({ input, context }) => {
     return appointmentTypeService.listResources(input.appointmentTypeId, {
       orgId: context.orgId,
-      userId: context.userId!,
+      userId: context.userId,
     });
   });
 
@@ -177,7 +177,7 @@ export const addResource = authed
       },
       {
         orgId: context.orgId,
-        userId: context.userId!,
+        userId: context.userId,
       },
     );
   });
@@ -207,7 +207,7 @@ export const updateResource = authed
       },
       {
         orgId: context.orgId,
-        userId: context.userId!,
+        userId: context.userId,
       },
     );
   });
@@ -230,7 +230,7 @@ export const removeResource = authed
       { resourceId: input.resourceId },
       {
         orgId: context.orgId,
-        userId: context.userId!,
+        userId: context.userId,
       },
     );
   });

@@ -40,6 +40,33 @@ export type EventType =
   | LocationEventType
   | ClientEventType;
 
+export const EVENT_TYPES = [
+  "appointment.created",
+  "appointment.updated",
+  "appointment.cancelled",
+  "appointment.rescheduled",
+  "appointment.no_show",
+  "calendar.created",
+  "calendar.updated",
+  "calendar.deleted",
+  "appointment_type.created",
+  "appointment_type.updated",
+  "appointment_type.deleted",
+  "resource.created",
+  "resource.updated",
+  "resource.deleted",
+  "location.created",
+  "location.updated",
+  "location.deleted",
+  "client.created",
+  "client.updated",
+  "client.deleted",
+] as const satisfies readonly EventType[];
+
+export function isEventType(value: string): value is EventType {
+  return EVENT_TYPES.some((eventType) => eventType === value);
+}
+
 // Event payload structure
 export interface DomainEvent<T = unknown> {
   id: string;

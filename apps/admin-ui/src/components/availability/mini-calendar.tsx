@@ -67,7 +67,7 @@ export function MiniCalendar({
 
       {/* Days grid */}
       <div className="grid grid-cols-7 gap-1">
-        {days.map((date, i) => {
+        {days.map((date) => {
           const dateStr = formatDate(date);
           const isCurrentMonth = date.month === month + 1;
           const isSelected =
@@ -78,7 +78,7 @@ export function MiniCalendar({
 
           return (
             <button
-              key={i}
+              key={dateStr}
               onClick={() => onSelectDate(date)}
               disabled={!isCurrentMonth || isPast}
               className={`

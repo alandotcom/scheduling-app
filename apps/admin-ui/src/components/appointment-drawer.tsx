@@ -77,6 +77,21 @@ const notesSchema = z.object({
 
 type NotesFormData = z.infer<typeof notesSchema>;
 
+function getStatusBadge(status: string) {
+  switch (status) {
+    case "scheduled":
+      return <Badge variant="secondary">Scheduled</Badge>;
+    case "confirmed":
+      return <Badge variant="success">Confirmed</Badge>;
+    case "cancelled":
+      return <Badge variant="destructive">Cancelled</Badge>;
+    case "no_show":
+      return <Badge variant="warning">No Show</Badge>;
+    default:
+      return <Badge variant="secondary">{status}</Badge>;
+  }
+}
+
 export function AppointmentDrawer({
   appointment,
   open,
@@ -154,21 +169,6 @@ export function AppointmentDrawer({
     appointment.timezone,
     appointment.startAt,
   );
-
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case "scheduled":
-        return <Badge variant="secondary">Scheduled</Badge>;
-      case "confirmed":
-        return <Badge variant="success">Confirmed</Badge>;
-      case "cancelled":
-        return <Badge variant="destructive">Cancelled</Badge>;
-      case "no_show":
-        return <Badge variant="warning">No Show</Badge>;
-      default:
-        return <Badge variant="secondary">{status}</Badge>;
-    }
-  };
 
   const isActionable =
     appointment.status === "scheduled" || appointment.status === "confirmed";

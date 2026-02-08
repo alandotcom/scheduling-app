@@ -1,6 +1,7 @@
 // Client service - business logic layer for clients
 
 import {
+  getCountries,
   parsePhoneNumberFromString,
   type CountryCode,
 } from "libphonenumber-js";
@@ -27,6 +28,7 @@ const UNIQUE_CONSTRAINT_VIOLATION = "23505";
 const CLIENT_EMAIL_UNIQUE_CONSTRAINT = "clients_org_email_unique_idx";
 const CLIENT_PHONE_UNIQUE_CONSTRAINT = "clients_org_phone_unique_idx";
 const DEFAULT_PHONE_COUNTRY: CountryCode = "US";
+const PHONE_COUNTRIES = getCountries();
 
 function isUniqueConstraintViolation(error: unknown): boolean {
   if (!error || typeof error !== "object") return false;
@@ -36,9 +38,13 @@ function isUniqueConstraintViolation(error: unknown): boolean {
   }
 
   if ("cause" in error && error.cause && typeof error.cause === "object") {
-    const cause = error.cause as Record<string, unknown>;
-    if (cause["errno"] === UNIQUE_CONSTRAINT_VIOLATION) return true;
-    if (cause["code"] === UNIQUE_CONSTRAINT_VIOLATION) return true;
+    const { cause } = error;
+    if ("errno" in cause && cause.errno === UNIQUE_CONSTRAINT_VIOLATION) {
+      return true;
+    }
+    if ("code" in cause && cause.code === UNIQUE_CONSTRAINT_VIOLATION) {
+      return true;
+    }
   }
 
   return false;
@@ -52,9 +58,9 @@ function getConstraintName(error: unknown): string | null {
   }
 
   if ("cause" in error && error.cause && typeof error.cause === "object") {
-    const cause = error.cause as Record<string, unknown>;
-    if (typeof cause["constraint"] === "string") {
-      return cause["constraint"];
+    const { cause } = error;
+    if ("constraint" in cause && typeof cause.constraint === "string") {
+      return cause.constraint;
     }
   }
 
@@ -101,13 +107,14 @@ function normalizePhoneCountry(phoneCountry?: string): CountryCode {
   if (!phoneCountry) return DEFAULT_PHONE_COUNTRY;
 
   const normalized = phoneCountry.trim().toUpperCase();
-  if (!/^[A-Z]{2}$/.test(normalized)) {
+  const countryCode = PHONE_COUNTRIES.find((country) => country === normalized);
+  if (!countryCode) {
     throw new ApplicationError("Invalid phone country code", {
       code: "BAD_REQUEST",
     });
   }
 
-  return normalized as CountryCode;
+  return countryCode;
 }
 
 function normalizePhone(

@@ -25,7 +25,7 @@ export const list = authed
   .handler(async ({ input, context }) => {
     return appointmentService.list(input, {
       orgId: context.orgId,
-      userId: context.userId!,
+      userId: context.userId,
     });
   });
 
@@ -47,7 +47,7 @@ export const range = authed
       },
       {
         orgId: context.orgId,
-        userId: context.userId!,
+        userId: context.userId,
       },
     );
     return appointmentTimeRangeResponseSchema.parse(result);
@@ -61,7 +61,7 @@ export const get = authed
   .handler(async ({ input, context }) => {
     return appointmentService.get(input.id, {
       orgId: context.orgId,
-      userId: context.userId!,
+      userId: context.userId,
     });
   });
 
@@ -72,7 +72,7 @@ export const create = authed
   .handler(async ({ input, context }) => {
     return appointmentService.create(input, {
       orgId: context.orgId,
-      userId: context.userId!,
+      userId: context.userId,
       authMethod: context.authMethod,
     });
   });
@@ -84,7 +84,7 @@ export const update = authed
   .handler(async ({ input, context }) => {
     return appointmentService.update(input.id, input.data, {
       orgId: context.orgId,
-      userId: context.userId!,
+      userId: context.userId,
       authMethod: context.authMethod,
     });
   });
@@ -96,7 +96,7 @@ export const cancel = authed
   .handler(async ({ input, context }) => {
     return appointmentService.cancel(input.id, input.data, {
       orgId: context.orgId,
-      userId: context.userId!,
+      userId: context.userId,
       authMethod: context.authMethod,
     });
   });
@@ -108,7 +108,7 @@ export const reschedule = authed
   .handler(async ({ input, context }) => {
     return appointmentService.reschedule(input.id, input.data, {
       orgId: context.orgId,
-      userId: context.userId!,
+      userId: context.userId,
       authMethod: context.authMethod,
     });
   });
@@ -120,7 +120,7 @@ export const noShow = authed
   .handler(async ({ input, context }) => {
     return appointmentService.noShow(input.id, {
       orgId: context.orgId,
-      userId: context.userId!,
+      userId: context.userId,
       authMethod: context.authMethod,
     });
   });

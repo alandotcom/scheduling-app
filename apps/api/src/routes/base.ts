@@ -2,7 +2,7 @@
 
 import { ORPCError } from "@orpc/server";
 import { base } from "../lib/orpc.js";
-import type { Context, AuthMethod } from "../lib/orpc.js";
+import type { Context } from "../lib/orpc.js";
 
 // Authenticated procedure helper
 // Validates that the request has a valid session or API token
@@ -20,7 +20,7 @@ export const authUser = base.use(async (opts) => {
       orgId: context.orgId,
       sessionId: context.sessionId,
       tokenId: context.tokenId,
-      authMethod: context.authMethod as AuthMethod,
+      authMethod: context.authMethod,
       role: context.role,
       headers: context.headers,
     },

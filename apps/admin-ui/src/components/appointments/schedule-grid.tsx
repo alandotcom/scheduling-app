@@ -131,7 +131,7 @@ export function ScheduleGrid({
   const visibleDays =
     viewMode === "day"
       ? [{ day: selectedDay, index: clampedDayIndex }]
-      : weekDays.map((day, index) => ({ day: day!, index }));
+      : weekDays.map((day, index) => ({ day, index }));
 
   return (
     <div className="relative flex h-full flex-col">
@@ -201,9 +201,9 @@ export function ScheduleGrid({
           {/* Day headers */}
           <div className="flex border-b border-border bg-muted/30 sticky top-0 z-10">
             <div className="w-16 shrink-0" />
-            {visibleDays.map(({ day, index }) => (
+            {visibleDays.map(({ day }) => (
               <div
-                key={index}
+                key={day.toISODate() ?? `${day.year}-${day.month}-${day.day}`}
                 className={`flex-1 px-2 py-2 text-center border-l border-border/30 ${
                   isToday(day) ? "bg-primary/5" : ""
                 }`}
@@ -249,7 +249,7 @@ export function ScheduleGrid({
 
               return (
                 <div
-                  key={dayIndex}
+                  key={day.toISODate() ?? `${day.year}-${day.month}-${day.day}`}
                   className={`flex-1 relative border-l border-border/30 ${
                     isToday(day) ? "bg-primary/5" : ""
                   }`}

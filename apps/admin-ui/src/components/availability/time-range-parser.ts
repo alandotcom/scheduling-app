@@ -142,7 +142,7 @@ export function validateTimeBlocks(blocks: TimeBlock[]): string | null {
   }
 
   // Check for overlaps
-  const sorted = [...blocks].sort((a, b) =>
+  const sorted = blocks.toSorted((a, b) =>
     a.startTime.localeCompare(b.startTime),
   );
   for (let i = 1; i < sorted.length; i++) {

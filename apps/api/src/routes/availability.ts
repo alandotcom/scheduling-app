@@ -225,7 +225,7 @@ export const feed = authed
       input,
       {
         orgId: context.orgId,
-        userId: context.userId!,
+        userId: context.userId,
       },
     );
     return availabilityFeedResponseSchema.parse(result);
@@ -278,7 +278,7 @@ export const getDates = authed
   .handler(async ({ input, context }) => {
     const dates = await availabilityService.getAvailableDates(input, {
       orgId: context.orgId,
-      userId: context.userId!,
+      userId: context.userId,
     });
     return { dates };
   });
@@ -289,7 +289,7 @@ export const getTimes = authed
   .handler(async ({ input, context }) => {
     const slots = await availabilityService.getAvailableSlots(input, {
       orgId: context.orgId,
-      userId: context.userId!,
+      userId: context.userId,
     });
     return {
       slots: slots.map((slot) => ({
@@ -310,7 +310,7 @@ export const checkSlot = authed
       input.calendarId,
       new Date(input.startTime),
       input.timezone,
-      { orgId: context.orgId, userId: context.userId! },
+      { orgId: context.orgId, userId: context.userId },
     ),
   );
 

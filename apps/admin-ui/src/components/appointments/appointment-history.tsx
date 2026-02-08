@@ -163,10 +163,8 @@ function MaybeRescheduleChange({
     return null;
   }
 
-  const beforeRecord = before as Record<string, unknown>;
-  const afterRecord = after as Record<string, unknown>;
-  const oldStart = beforeRecord.startAt as string | undefined;
-  const newStart = afterRecord.startAt as string | undefined;
+  const oldStart = getStartAt(before);
+  const newStart = getStartAt(after);
 
   if (!oldStart || !newStart) return null;
 
@@ -179,4 +177,13 @@ function MaybeRescheduleChange({
       {formatDisplayDateTime(newDate, displayTimezone)}
     </div>
   );
+}
+
+function getStartAt(value: unknown): string | undefined {
+  if (typeof value !== "object" || value === null || !("startAt" in value)) {
+    return undefined;
+  }
+
+  const { startAt } = value;
+  return typeof startAt === "string" ? startAt : undefined;
 }

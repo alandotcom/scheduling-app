@@ -7,9 +7,10 @@ import { getLogger } from "@logtape/logtape";
 import { ApplicationError } from "../errors/application-error.js";
 
 const logger = getLogger(["api", "error"]);
+type ErrorHttpStatus = 400 | 401 | 403 | 404 | 409 | 422 | 500;
 
 // Map error codes to HTTP status codes
-const errorStatusMap: Record<string, number> = {
+const errorStatusMap: Record<string, ErrorHttpStatus> = {
   // Authentication (401)
   UNAUTHORIZED: 401,
   SESSION_EXPIRED: 401,
@@ -59,7 +60,7 @@ export const errorHandler = createMiddleware(async (c, next) => {
             details: error.details,
           },
         },
-        status as 400 | 401 | 403 | 404 | 409 | 422 | 500,
+        status,
       );
     }
 
@@ -73,7 +74,7 @@ export const errorHandler = createMiddleware(async (c, next) => {
             details: error.data,
           },
         },
-        status as 400 | 401 | 403 | 404 | 409 | 422 | 500,
+        status,
       );
     }
 
@@ -90,7 +91,7 @@ export const errorHandler = createMiddleware(async (c, next) => {
       );
     }
 
-    void logger.error`Unhandled error: ${error}`;
+    logger.error(`Unhandled error: ${String(error)}`);
     return c.json(
       {
         error: {

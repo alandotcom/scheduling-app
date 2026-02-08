@@ -20,9 +20,10 @@ This app is in active development — there are no production users yet. This me
 
 ```bash
 # Development
-pnpm dev              # Run all apps in parallel (API + admin UI)
+pnpm dev              # Run API + admin UI + Bull Board in parallel
 pnpm dev:api          # Run API only with hot reload
 pnpm dev:admin        # Run admin UI only
+pnpm dev:bull-board   # Run Bull Board only
 
 # Testing
 pnpm test             # Run all tests
@@ -48,8 +49,8 @@ pnpm --filter @scheduling/db run push       # Push schema to dev database
 **IMPORTANT:** Before starting a dev server, ALWAYS check if one is already running:
 
 ```bash
-# Check for running Vite (admin-ui) or Bun (api) processes
-ps aux | grep -E "(vite|bun.*src/index)" | grep -v grep
+# Check for running Vite (admin-ui) or Bun (api/bull-board) processes
+ps aux | grep -E "(vite|bun.*src/(index|bull-board))" | grep -v grep
 
 # If stale processes exist, kill them first
 kill <pid>   # or: pkill -f "vite.*admin-ui"
