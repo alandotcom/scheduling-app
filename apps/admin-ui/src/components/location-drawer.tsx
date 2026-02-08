@@ -10,6 +10,7 @@ import { toast } from "sonner";
 
 import { orpc } from "@/lib/query";
 import { TIMEZONES } from "@/lib/constants";
+import { formatTimezoneShort } from "@/lib/date-utils";
 import { resolveSelectValueLabel } from "@/lib/select-value-label";
 import { createLocationSchema } from "@scheduling/dto";
 import type { CreateLocationInput } from "@scheduling/dto";
@@ -252,7 +253,9 @@ export function LocationDrawer({
                           />
                           <span className="font-medium">{calendar.name}</span>
                         </div>
-                        <Badge variant="secondary">{calendar.timezone}</Badge>
+                        <Badge variant="secondary" title={calendar.timezone}>
+                          {formatTimezoneShort(calendar.timezone)}
+                        </Badge>
                       </div>
                     ))}
                   </div>

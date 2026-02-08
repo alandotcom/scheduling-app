@@ -123,6 +123,13 @@ export function parseDateParam(str: string): DateTime {
   return DateTime.fromISO(str).startOf("day");
 }
 
+export function parseDateParamInTimezone(
+  str: string,
+  timezone: string,
+): DateTime {
+  return DateTime.fromISO(str, { zone: timezone }).startOf("day");
+}
+
 export function parseISO(value: DateInput, timezone?: string): DateTime {
   return normalizeDateTime(value, timezone);
 }
@@ -156,6 +163,34 @@ export function parseISOInTimezone(
 
 export function getUserTimezone(): string {
   return Intl.DateTimeFormat().resolvedOptions().timeZone;
+}
+
+export function formatTimezoneShort(
+  timezone: string,
+  reference?: DateInput,
+): string {
+  const dt = reference
+    ? normalizeDateTime(reference).setZone(timezone)
+    : DateTime.now().setZone(timezone);
+
+  if (!dt.isValid) {
+    return timezone;
+  }
+
+  try {
+    const parts = new Intl.DateTimeFormat("en-US", {
+      timeZone: timezone,
+      timeZoneName: "short",
+    }).formatToParts(dt.toJSDate());
+    const zonePart = parts.find((part) => part.type === "timeZoneName")?.value;
+    if (zonePart) {
+      return zonePart;
+    }
+  } catch {
+    // Fall back to Luxon offset label if Intl cannot format this zone.
+  }
+
+  return dt.offsetNameShort || timezone;
 }
 
 export function toJSDate(dt: DateTime): Date {

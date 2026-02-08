@@ -12,10 +12,16 @@ import { Icon } from "@/components/ui/icon";
 import { Button } from "@/components/ui/button";
 import { ScheduleEvent } from "./schedule-event";
 import type { ScheduleAppointment } from "@/hooks/use-schedule-appointments";
-import { formatWeekRange, getWeekDays, isToday } from "@/lib/date-utils";
+import {
+  formatTimezoneShort,
+  formatWeekRange,
+  getWeekDays,
+  isToday,
+} from "@/lib/date-utils";
 
 interface ScheduleGridProps {
   appointments: ScheduleAppointment[];
+  displayTimezone: string;
   weekStart: DateTime;
   selectedId: string | null;
   onSelectAppointment: (id: string) => void;
@@ -79,6 +85,7 @@ function getAppointmentsByDay(
 
 export function ScheduleGrid({
   appointments,
+  displayTimezone,
   weekStart,
   selectedId,
   onSelectAppointment,
@@ -87,6 +94,7 @@ export function ScheduleGrid({
   onToday,
   isLoading,
 }: ScheduleGridProps) {
+  const timezoneShortLabel = formatTimezoneShort(displayTimezone);
   const weekDays = useMemo(() => getWeekDays(weekStart), [weekStart]);
   const appointmentsByDay = useMemo(
     () => getAppointmentsByDay(appointments, weekDays),
@@ -111,7 +119,9 @@ export function ScheduleGrid({
             Today
           </Button>
         </div>
-        <div className="text-sm font-medium">{formatWeekRange(weekStart)}</div>
+        <div className="text-sm font-medium">
+          {formatWeekRange(weekStart)} ({timezoneShortLabel})
+        </div>
       </div>
 
       {/* Loading overlay */}
@@ -203,6 +213,7 @@ export function ScheduleGrid({
                         key={apt.id}
                         startAt={apt.startAt}
                         endAt={apt.endAt}
+                        displayTimezone={displayTimezone}
                         status={apt.status}
                         clientName={apt.clientName}
                         appointmentTypeName={apt.appointmentTypeName}

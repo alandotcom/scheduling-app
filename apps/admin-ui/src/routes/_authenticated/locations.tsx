@@ -15,7 +15,7 @@ import {
 import { toast } from "sonner";
 import { Icon } from "@/components/ui/icon";
 import { getQueryClient, orpc } from "@/lib/query";
-import { formatDisplayDate } from "@/lib/date-utils";
+import { formatDisplayDate, formatTimezoneShort } from "@/lib/date-utils";
 import { TIMEZONES } from "@/lib/constants";
 import { resolveSelectValueLabel } from "@/lib/select-value-label";
 import { createLocationSchema } from "@scheduling/dto";
@@ -436,7 +436,9 @@ function LocationsPage() {
                         <TableCell className="font-medium">
                           {location.name}
                         </TableCell>
-                        <TableCell>{location.timezone}</TableCell>
+                        <TableCell title={location.timezone}>
+                          {formatTimezoneShort(location.timezone)}
+                        </TableCell>
                         <TableCell>
                           <div className="flex flex-wrap gap-1">
                             <RelationshipCountBadge
@@ -473,7 +475,11 @@ function LocationsPage() {
             if (!open) closeDrawer();
           }}
           sheetTitle={selectedLocation?.name ?? "Location Details"}
-          sheetDescription={selectedLocation?.timezone}
+          sheetDescription={
+            selectedLocation
+              ? formatTimezoneShort(selectedLocation.timezone)
+              : undefined
+          }
           bodyClassName="p-0"
         >
           {selectedLocation ? (
@@ -484,7 +490,7 @@ function LocationsPage() {
                     {selectedLocation.name}
                   </h2>
                   <p className="mt-1 text-sm text-muted-foreground">
-                    {selectedLocation.timezone}
+                    {formatTimezoneShort(selectedLocation.timezone)}
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
@@ -521,7 +527,7 @@ function LocationsPage() {
                         Timezone
                       </span>
                       <span className="text-sm font-medium">
-                        {selectedLocation.timezone}
+                        {formatTimezoneShort(selectedLocation.timezone)}
                       </span>
                     </div>
                     <div className="flex items-center justify-between">
@@ -554,7 +560,7 @@ function LocationsPage() {
                           {calendar.name}
                         </div>
                         <div className="text-xs text-muted-foreground">
-                          {calendar.timezone}
+                          {formatTimezoneShort(calendar.timezone)}
                         </div>
                       </div>
                     ))}

@@ -33,12 +33,14 @@ export interface ScheduleAppointment {
 
 interface UseScheduleAppointmentsOptions {
   weekStart: DateTime;
+  displayTimezone: string;
   filters?: ScheduleFilters;
   enabled?: boolean;
 }
 
 export function useScheduleAppointments({
   weekStart,
+  displayTimezone,
   filters = {},
   enabled = true,
 }: UseScheduleAppointmentsOptions) {
@@ -82,8 +84,8 @@ export function useScheduleAppointments({
 
     return data.items.map((item) => ({
       id: item.id,
-      startAt: parseISO(item.startAt),
-      endAt: parseISO(item.endAt),
+      startAt: parseISO(item.startAt, displayTimezone),
+      endAt: parseISO(item.endAt, displayTimezone),
       calendarId: item.calendarId,
       calendarColor: item.calendarColor,
       status: item.status,
@@ -93,7 +95,7 @@ export function useScheduleAppointments({
       hasNotes: item.hasNotes,
       resourceSummary: item.resourceSummary,
     }));
-  }, [data?.items]);
+  }, [data?.items, displayTimezone]);
 
   return {
     appointments,

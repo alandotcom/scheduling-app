@@ -19,28 +19,69 @@ import { cn } from "@/lib/utils";
 import {
   formatDateISO,
   formatDateWithWeekday,
+  formatTimezoneShort,
   formatTimeDisplay,
+  getUserTimezone,
   getMonthDays,
 } from "@/lib/date-utils";
+import {
+  DEFAULT_SCHEDULING_TIMEZONE_MODE,
+  isSchedulingTimezoneMode,
+  resolveEffectiveSchedulingTimezone,
+  type SchedulingTimezoneMode,
+} from "@/lib/scheduling-timezone";
 import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 interface RescheduleDialogProps {
   appointment: AppointmentWithRelations;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  timezoneMode?: SchedulingTimezoneMode;
+  onTimezoneModeChange?: (mode: SchedulingTimezoneMode) => void;
+  displayTimezone?: string;
+  defaultTimezone?: string;
 }
 
 export function RescheduleDialog({
   appointment,
   open,
   onOpenChange,
+  timezoneMode: controlledTimezoneMode,
+  onTimezoneModeChange,
+  displayTimezone,
+  defaultTimezone,
 }: RescheduleDialogProps) {
   const queryClient = useQueryClient();
+  const viewerTimezone = getUserTimezone();
+  const [localTimezoneMode, setLocalTimezoneMode] =
+    useState<SchedulingTimezoneMode>(DEFAULT_SCHEDULING_TIMEZONE_MODE);
   const [selectedDate, setSelectedDate] = useState<DateTime | null>(null);
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
   const [viewMonth, setViewMonth] = useState(() =>
     DateTime.now().startOf("month"),
+  );
+  const timezoneMode = controlledTimezoneMode ?? localTimezoneMode;
+  const selectedDisplayTimezone = displayTimezone ?? defaultTimezone;
+  const calendarTimezone =
+    appointment.calendar?.timezone ?? appointment.timezone;
+  const effectiveTimezone = resolveEffectiveSchedulingTimezone({
+    mode: timezoneMode,
+    calendarTimezone,
+    selectedTimezone: selectedDisplayTimezone,
+    fallbackTimezone: defaultTimezone,
+    viewerTimezone,
+  });
+  const timezoneShortLabel = formatTimezoneShort(
+    effectiveTimezone,
+    selectedTime ?? undefined,
   );
 
   // Reset state when dialog opens/closes
@@ -82,7 +123,7 @@ export function RescheduleDialog({
         calendarIds: [appointment.calendarId],
         startDate: selectedDateStr ?? "",
         endDate: selectedDateStr ?? "",
-        timezone: appointment.timezone,
+        timezone: effectiveTimezone,
       },
     }),
     enabled: !!selectedDateStr && open,
@@ -150,14 +191,50 @@ export function RescheduleDialog({
               <div className="flex items-center gap-2 text-sm">
                 <Icon icon={Calendar03Icon} className="text-muted-foreground" />
                 <span className="font-medium">
-                  {formatDateWithWeekday(appointment.startAt)}
+                  {formatDateWithWeekday(
+                    appointment.startAt,
+                    effectiveTimezone,
+                  )}
                 </span>
                 <span className="text-muted-foreground">·</span>
                 <span>
-                  {formatTimeDisplay(appointment.startAt)} -{" "}
-                  {formatTimeDisplay(appointment.endAt)}
+                  {formatTimeDisplay(appointment.startAt, effectiveTimezone)} -{" "}
+                  {formatTimeDisplay(appointment.endAt, effectiveTimezone)} (
+                  {timezoneShortLabel})
                 </span>
               </div>
+            </div>
+
+            <div className="mb-6 flex items-end justify-between gap-4 rounded-lg border border-border bg-muted/30 px-4 py-3">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Time Display</label>
+                <Select
+                  value={timezoneMode}
+                  onValueChange={(value) => {
+                    if (!value || !isSchedulingTimezoneMode(value)) return;
+                    if (onTimezoneModeChange) {
+                      onTimezoneModeChange(value);
+                      return;
+                    }
+                    setLocalTimezoneMode(value);
+                  }}
+                >
+                  <SelectTrigger className="w-[180px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="calendar">Calendar time</SelectItem>
+                    <SelectItem value="viewer">My time</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <p
+                className="text-sm text-muted-foreground"
+                title={effectiveTimezone}
+              >
+                Showing {timezoneMode === "viewer" ? "your local" : "calendar"}{" "}
+                time ({timezoneShortLabel})
+              </p>
             </div>
 
             {/* Calendar and Time Selection */}
@@ -270,7 +347,7 @@ export function RescheduleDialog({
                         className="justify-start"
                       >
                         <Icon icon={Clock01Icon} data-icon="inline-start" />
-                        {formatTimeDisplay(slot.start)}
+                        {formatTimeDisplay(slot.start, effectiveTimezone)}
                       </Button>
                     ))}
                   </div>
@@ -293,7 +370,7 @@ export function RescheduleDialog({
                       newStartTime: DateTime.fromISO(selectedTime, {
                         setZone: true,
                       }).toJSDate(),
-                      timezone: appointment.timezone,
+                      timezone: calendarTimezone,
                     },
                   });
                 }

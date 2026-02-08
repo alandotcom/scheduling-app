@@ -19,11 +19,12 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { ContextMenu, type ContextMenuItem } from "@/components/context-menu";
-import { formatDisplayDateTime } from "@/lib/date-utils";
+import { formatDisplayDateTime, formatTimezoneShort } from "@/lib/date-utils";
 import { cn } from "@/lib/utils";
 
 interface AppointmentsListProps {
   appointments: AppointmentWithRelations[];
+  displayTimezone: string;
   selectedId: string | null;
   onSelect: (appointment: AppointmentWithRelations) => void;
   onCancel: (id: string) => void;
@@ -48,12 +49,14 @@ function getStatusVariant(status: string) {
 
 export function AppointmentsList({
   appointments,
+  displayTimezone,
   selectedId,
   onSelect,
   onCancel,
   onNoShow,
   isLoading,
 }: AppointmentsListProps) {
+  const timezoneShortLabel = formatTimezoneShort(displayTimezone);
   const getContextMenuItems = (
     appointment: AppointmentWithRelations,
   ): ContextMenuItem[] => {
@@ -154,7 +157,15 @@ export function AppointmentsList({
                   onClick={() => onSelect(appointment)}
                 >
                   <TableCell className="font-medium">
-                    <div>{formatDisplayDateTime(appointment.startAt)}</div>
+                    <div>
+                      {formatDisplayDateTime(
+                        appointment.startAt,
+                        displayTimezone,
+                      )}
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      {timezoneShortLabel}
+                    </div>
                     {appointment.appointmentType?.durationMin && (
                       <div className="text-xs text-muted-foreground">
                         {appointment.appointmentType.durationMin} min

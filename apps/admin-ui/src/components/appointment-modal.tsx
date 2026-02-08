@@ -16,9 +16,17 @@ import { orpc } from "@/lib/query";
 import {
   formatDateISO,
   formatDisplayDateTime,
+  formatTimezoneShort,
   formatTimeDisplay,
+  getUserTimezone,
   getMonthDays,
 } from "@/lib/date-utils";
+import {
+  DEFAULT_SCHEDULING_TIMEZONE_MODE,
+  isSchedulingTimezoneMode,
+  resolveEffectiveSchedulingTimezone,
+  type SchedulingTimezoneMode,
+} from "@/lib/scheduling-timezone";
 import { resolveSelectValueLabel } from "@/lib/select-value-label";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -41,6 +49,10 @@ interface AppointmentModalProps {
   defaultTypeId?: string;
   defaultClientId?: string;
   defaultClientName?: string;
+  timezoneMode?: SchedulingTimezoneMode;
+  onTimezoneModeChange?: (mode: SchedulingTimezoneMode) => void;
+  displayTimezone?: string;
+  defaultTimezone?: string;
 }
 
 export function AppointmentModal({
@@ -50,8 +62,15 @@ export function AppointmentModal({
   defaultTypeId,
   defaultClientId,
   defaultClientName,
+  timezoneMode: controlledTimezoneMode,
+  onTimezoneModeChange,
+  displayTimezone,
+  defaultTimezone,
 }: AppointmentModalProps) {
   const queryClient = useQueryClient();
+  const viewerTimezone = getUserTimezone();
+  const [localTimezoneMode, setLocalTimezoneMode] =
+    useState<SchedulingTimezoneMode>(DEFAULT_SCHEDULING_TIMEZONE_MODE);
   const [selectedTypeId, setSelectedTypeId] = useState(defaultTypeId ?? "");
   const [selectedCalendarId, setSelectedCalendarId] = useState(
     defaultCalendarId ?? "",
@@ -63,7 +82,8 @@ export function AppointmentModal({
   const [selectedClientId, setSelectedClientId] = useState<string>(
     defaultClientId ?? "",
   );
-  const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const timezoneMode = controlledTimezoneMode ?? localTimezoneMode;
+  const selectedDisplayTimezone = displayTimezone ?? defaultTimezone;
 
   useEffect(() => {
     if (!open) return;
@@ -91,6 +111,21 @@ export function AppointmentModal({
     }),
     enabled: open && !!selectedTypeId,
   });
+  const calendars = linkedCalendars?.map((l) => l.calendar) ?? [];
+  const selectedCalendar = calendars.find((calendar) => {
+    return calendar.id === selectedCalendarId;
+  });
+  const effectiveTimezone = resolveEffectiveSchedulingTimezone({
+    mode: timezoneMode,
+    calendarTimezone: selectedCalendar?.timezone,
+    selectedTimezone: selectedDisplayTimezone,
+    fallbackTimezone: defaultTimezone,
+    viewerTimezone,
+  });
+  const timezoneShortLabel = formatTimezoneShort(
+    effectiveTimezone,
+    selectedTime,
+  );
 
   // Fetch clients for search
   const { data: clientsData } = useQuery({
@@ -109,7 +144,7 @@ export function AppointmentModal({
         calendarIds: [selectedCalendarId],
         startDate: selectedDateStr,
         endDate: selectedDateStr,
-        timezone,
+        timezone: effectiveTimezone,
       },
     }),
     enabled:
@@ -131,7 +166,6 @@ export function AppointmentModal({
   );
 
   const appointmentTypes = typesData?.items ?? [];
-  const calendars = linkedCalendars?.map((l) => l.calendar) ?? [];
   const clients = clientsData?.items ?? [];
   const availableSlots = slotsData?.slots.filter((s) => s.available) ?? [];
 
@@ -200,19 +234,20 @@ export function AppointmentModal({
       calendarId: selectedCalendarId,
       appointmentTypeId: selectedTypeId,
       startTime: DateTime.fromISO(selectedTime, { setZone: true }).toJSDate(),
-      timezone,
+      // Always persist calendar timezone, even when the UI displays "My time".
+      timezone: selectedCalendar?.timezone ?? effectiveTimezone,
       notes: notes || undefined,
       clientId: selectedClientId || undefined,
     });
   };
 
   const formatTime = (isoString: string) => {
-    return formatTimeDisplay(isoString);
+    return formatTimeDisplay(isoString, effectiveTimezone);
   };
 
   const formatSelectedDateTime = () => {
     if (!selectedTime) return "";
-    return formatDisplayDateTime(selectedTime);
+    return formatDisplayDateTime(selectedTime, effectiveTimezone);
   };
 
   const canBook = selectedTypeId && selectedCalendarId && selectedTime;
@@ -314,6 +349,38 @@ export function AppointmentModal({
                   </SelectContent>
                 </Select>
               </div>
+            </div>
+
+            <div className="mb-6 flex items-end justify-between gap-4 rounded-lg border border-border bg-muted/30 px-4 py-3">
+              <div className="space-y-2">
+                <Label>Time Display</Label>
+                <Select
+                  value={timezoneMode}
+                  onValueChange={(value) => {
+                    if (!value || !isSchedulingTimezoneMode(value)) return;
+                    if (onTimezoneModeChange) {
+                      onTimezoneModeChange(value);
+                      return;
+                    }
+                    setLocalTimezoneMode(value);
+                  }}
+                >
+                  <SelectTrigger className="w-[180px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="calendar">Calendar time</SelectItem>
+                    <SelectItem value="viewer">My time</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <p
+                className="text-sm text-muted-foreground"
+                title={effectiveTimezone}
+              >
+                Showing {timezoneMode === "viewer" ? "your local" : "calendar"}{" "}
+                time ({timezoneShortLabel})
+              </p>
             </div>
 
             {/* Calendar and Time Selection */}
@@ -506,7 +573,7 @@ export function AppointmentModal({
               {selectedTime && (
                 <span className="flex items-center gap-2">
                   <Icon icon={Calendar03Icon} />
-                  {formatSelectedDateTime()}
+                  {formatSelectedDateTime()} ({timezoneShortLabel})
                 </span>
               )}
             </div>
