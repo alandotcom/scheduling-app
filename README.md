@@ -17,7 +17,7 @@ packages/
 
 - **Runtime:** Bun
 - **API:** Hono 4.x + oRPC (REST + OpenAPI)
-- **Auth:** BetterAuth with Drizzle adapter, API tokens for server-to-server access
+- **Auth:** BetterAuth with Drizzle adapter, API keys for server-to-server access
 - **Database:** Drizzle ORM + Bun SQL, Postgres 18 with native `uuidv7()`
 - **Job Queue:** BullMQ with Valkey/Redis for webhook delivery and event processing
 - **Testing:** Real Postgres via Docker
@@ -38,7 +38,7 @@ Key entities:
 - **Blocked Time:** One-off or recurring blocked periods (RRULE support)
 - **Appointments:** Bookings with status tracking and client info
 - **Event Outbox:** Transactional outbox for reliable webhook delivery
-- **API Tokens:** Server-to-server authentication with scoped access
+- **API Keys:** Server-to-server authentication with scoped access
 - **Audit Events:** Change history for compliance and debugging
 
 ## Getting Started
@@ -126,34 +126,36 @@ The API exposes two transports:
 | Transport    | Base Path    | Purpose              | Auth      |
 | ------------ | ------------ | -------------------- | --------- |
 | oRPC         | `/v1/*`      | Admin UI (type-safe) | Session   |
-| OpenAPI/REST | `/api/v1/*`  | M2M integrations     | API Token |
+| OpenAPI/REST | `/api/v1/*`  | M2M integrations     | API Key   |
+
+OpenAPI docs are available at `/api/v1/docs` (Scalar UI) and `/api/v1/openapi.json` (raw spec).
 
 **UI Endpoints (`/v1/*`)** - Full admin features:
 
 - `locations`, `calendars`, `resources`, `appointmentTypes`
 - `availability` (rules, overrides, blocked time, scheduling limits, queries)
 - `appointments`, `clients`
-- `apiTokens`, `audit` (admin only)
+- `apiKeys`, `audit` (admin only)
 
 **API Endpoints (`/api/v1/*`)** - External integrations:
 
 - `locations`, `calendars`, `resources`, `appointmentTypes`
 - `appointments`, `clients`
 - `availability` (query-only: dates, times, check)
-- Excludes: `apiTokens`, `audit`, availability management
+- Excludes: `apiKeys`, `audit`, availability management
 
 ### Authentication
 
 Two authentication methods are supported:
 
 1. **Session Auth:** Cookie-based sessions via BetterAuth for browser clients
-2. **API Token Auth:** Bearer tokens for server-to-server integration
+2. **API Key Auth:** Better Auth API keys for server-to-server integration
 
-API tokens are scoped (`admin` or `staff`) and include rate limiting.
+API keys are scoped (`owner`, `admin`, `member`) and are managed in Settings under API Access.
 
 ### Multi-tenancy
 
-All org-scoped data is protected by PostgreSQL row-level security (RLS). The `X-Org-Id` header specifies the organization context for authenticated requests.
+All org-scoped data is protected by PostgreSQL row-level security (RLS). Organization context comes from the active org session or API key metadata.
 
 ### Event System
 

@@ -5,6 +5,9 @@ import {
   createLocationSchema,
   updateLocationSchema,
   listLocationsQuerySchema,
+  locationResponseSchema,
+  locationListResponseSchema,
+  successResponseSchema,
 } from "@scheduling/dto";
 import { authed } from "./base.js";
 import { locationService } from "../services/locations.js";
@@ -13,6 +16,7 @@ import { locationService } from "../services/locations.js";
 export const list = authed
   .route({ method: "GET", path: "/locations" })
   .input(listLocationsQuerySchema)
+  .output(locationListResponseSchema)
   .handler(async ({ input, context }) => {
     return locationService.list(input, {
       orgId: context.orgId,
@@ -24,6 +28,7 @@ export const list = authed
 export const get = authed
   .route({ method: "GET", path: "/locations/{id}" })
   .input(z.object({ id: z.string().uuid() }))
+  .output(locationResponseSchema)
   .handler(async ({ input, context }) => {
     return locationService.get(input.id, {
       orgId: context.orgId,
@@ -35,6 +40,7 @@ export const get = authed
 export const create = authed
   .route({ method: "POST", path: "/locations", successStatus: 201 })
   .input(createLocationSchema)
+  .output(locationResponseSchema)
   .handler(async ({ input, context }) => {
     return locationService.create(input, {
       orgId: context.orgId,
@@ -51,6 +57,7 @@ export const update = authed
       data: updateLocationSchema,
     }),
   )
+  .output(locationResponseSchema)
   .handler(async ({ input, context }) => {
     return locationService.update(input.id, input.data, {
       orgId: context.orgId,
@@ -62,6 +69,7 @@ export const update = authed
 export const remove = authed
   .route({ method: "DELETE", path: "/locations/{id}" })
   .input(z.object({ id: z.string().uuid() }))
+  .output(successResponseSchema)
   .handler(async ({ input, context }) => {
     return locationService.delete(input.id, {
       orgId: context.orgId,

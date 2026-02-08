@@ -11,6 +11,6 @@ export * from "./resource";
 export * from "./client";
 export * from "./appointment";
 export * from "./availability";
-export * from "./api-token";
+export * from "./api-key";
 export * from "./audit";
 export * from "./dashboard";

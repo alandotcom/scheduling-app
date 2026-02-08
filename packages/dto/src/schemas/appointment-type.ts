@@ -4,7 +4,11 @@ import {
   timestampsSchema,
   positiveIntSchema,
   nonNegativeIntSchema,
+  paginatedResponseSchema,
+  timezoneSchema,
 } from "./common";
+import { calendarSchema } from "./calendar";
+import { resourceSchema } from "./resource";
 
 // Base appointment type schema
 export const appointmentTypeSchema = z.object({
@@ -60,6 +64,10 @@ export const appointmentTypeCalendarSchema = z.object({
   appointmentTypeId: uuidSchema,
   calendarId: uuidSchema,
 });
+export const appointmentTypeCalendarAssociationSchema =
+  appointmentTypeCalendarSchema.extend({
+    calendar: calendarSchema,
+  });
 
 export const createAppointmentTypeCalendarSchema = z.object({
   calendarId: uuidSchema,
@@ -72,6 +80,10 @@ export const appointmentTypeResourceSchema = z.object({
   resourceId: uuidSchema,
   quantityRequired: positiveIntSchema,
 });
+export const appointmentTypeResourceAssociationSchema =
+  appointmentTypeResourceSchema.extend({
+    resource: resourceSchema,
+  });
 
 export const createAppointmentTypeResourceSchema = z.object({
   resourceId: uuidSchema,
@@ -84,6 +96,22 @@ export const updateAppointmentTypeResourceSchema = z.object({
 
 // Response types
 export const appointmentTypeResponseSchema = appointmentTypeSchema;
+export const appointmentTypeWithLinksSchema = appointmentTypeSchema.extend({
+  calendars: z.array(
+    z.object({
+      id: uuidSchema,
+      name: z.string(),
+      timezone: timezoneSchema,
+    }),
+  ),
+  resources: z.array(
+    z.object({
+      id: uuidSchema,
+      name: z.string(),
+      quantityRequired: positiveIntSchema,
+    }),
+  ),
+});
 export const appointmentTypeListItemSchema = appointmentTypeSchema.extend({
   relationshipCounts: z.object({
     calendars: nonNegativeIntSchema,
@@ -91,6 +119,9 @@ export const appointmentTypeListItemSchema = appointmentTypeSchema.extend({
     appointments: nonNegativeIntSchema,
   }),
 });
+export const appointmentTypeListResponseSchema = paginatedResponseSchema(
+  appointmentTypeListItemSchema,
+);
 
 // Inferred types
 export type AppointmentType = z.infer<typeof appointmentTypeSchema>;
@@ -106,17 +137,29 @@ export type ListAppointmentTypesQuery = z.infer<
 export type AppointmentTypeResponse = z.infer<
   typeof appointmentTypeResponseSchema
 >;
+export type AppointmentTypeWithLinks = z.infer<
+  typeof appointmentTypeWithLinksSchema
+>;
 export type AppointmentTypeListItem = z.infer<
   typeof appointmentTypeListItemSchema
 >;
+export type AppointmentTypeListResponse = z.infer<
+  typeof appointmentTypeListResponseSchema
+>;
 export type AppointmentTypeCalendar = z.infer<
   typeof appointmentTypeCalendarSchema
+>;
+export type AppointmentTypeCalendarAssociation = z.infer<
+  typeof appointmentTypeCalendarAssociationSchema
 >;
 export type CreateAppointmentTypeCalendarInput = z.infer<
   typeof createAppointmentTypeCalendarSchema
 >;
 export type AppointmentTypeResource = z.infer<
   typeof appointmentTypeResourceSchema
+>;
+export type AppointmentTypeResourceAssociation = z.infer<
+  typeof appointmentTypeResourceAssociationSchema
 >;
 export type CreateAppointmentTypeResourceInput = z.infer<
   typeof createAppointmentTypeResourceSchema

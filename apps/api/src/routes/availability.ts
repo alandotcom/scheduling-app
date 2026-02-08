@@ -19,6 +19,9 @@ import {
   availabilityCheckSchema,
   availabilityFeedQuerySchema,
   availabilityFeedResponseSchema,
+  availableDatesResponseSchema,
+  availabilityTimesResponseSchema,
+  availabilityCheckResultSchema,
 } from "@scheduling/dto";
 import { authed } from "./base.js";
 import { availabilityManagementService } from "../services/availability-management.js";
@@ -220,6 +223,7 @@ export const deleteSchedulingLimits = authed
 export const feed = authed
   .route({ method: "GET", path: "/availability/feed" })
   .input(availabilityFeedQuerySchema)
+  .output(availabilityFeedResponseSchema)
   .handler(async ({ input, context }) => {
     const result = await availabilityManagementService.getAvailabilityFeed(
       input,
@@ -275,6 +279,7 @@ export const schedulingLimitsRoutes = {
 export const getDates = authed
   .route({ method: "GET", path: "/availability/dates" })
   .input(availabilityQuerySchema)
+  .output(availableDatesResponseSchema)
   .handler(async ({ input, context }) => {
     const dates = await availabilityService.getAvailableDates(input, {
       orgId: context.orgId,
@@ -286,6 +291,7 @@ export const getDates = authed
 export const getTimes = authed
   .route({ method: "GET", path: "/availability/times" })
   .input(availabilityQuerySchema)
+  .output(availabilityTimesResponseSchema)
   .handler(async ({ input, context }) => {
     const slots = await availabilityService.getAvailableSlots(input, {
       orgId: context.orgId,
@@ -304,6 +310,7 @@ export const getTimes = authed
 export const checkSlot = authed
   .route({ method: "GET", path: "/availability/check" })
   .input(availabilityCheckSchema)
+  .output(availabilityCheckResultSchema)
   .handler(({ input, context }) =>
     availabilityService.checkSlot(
       input.appointmentTypeId,

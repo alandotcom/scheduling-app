@@ -49,3 +49,7 @@ export const paginatedResponseSchema = <T extends z.ZodTypeAny>(
     nextCursor: uuidSchema.nullable(),
     hasMore: z.boolean(),
   });
+
+export const successResponseSchema = z.object({
+  success: z.literal(true),
+});

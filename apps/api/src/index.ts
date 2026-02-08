@@ -34,8 +34,9 @@ import { secureHeaders } from "hono/secure-headers";
 import { cors } from "hono/cors";
 import { RPCHandler } from "@orpc/server/fetch";
 import { OpenAPIHandler } from "@orpc/openapi/fetch";
+import { OpenAPIReferencePlugin } from "@orpc/openapi/plugins";
+import { ZodToJsonSchemaConverter } from "@orpc/zod/zod4";
 import { uiRouter, apiRouter } from "./routes/index.js";
-import { openAPIGenerator } from "./lib/orpc.js";
 import { auth } from "./lib/auth.js";
 import { authMiddleware } from "./middleware/auth.js";
 import { errorHandler } from "./middleware/error-handler.js";
@@ -53,7 +54,7 @@ app.use(
     origin: config.cors.origin.split(",").map((o) => o.trim()),
     credentials: true,
     allowMethods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allowHeaders: ["Content-Type", "Authorization"],
+    allowHeaders: ["Content-Type", "Authorization", "x-api-key"],
     maxAge: 86400,
   }),
 );
@@ -108,24 +109,46 @@ app.all("/v1/*", async (c) => {
 // REST/OpenAPI protocol for external M2M integrations
 // ============================================================================
 
-// OpenAPI spec endpoint (no auth required)
-app.get("/api/v1/openapi.json", async (c) => {
-  const spec = await openAPIGenerator.generate(apiRouter, {
-    info: {
-      title: "Scheduling API",
-      version: "1.0.0",
-      description: "REST API for appointment scheduling integrations",
-    },
-    servers: [{ url: "/api/v1" }],
-  });
-  return c.json(spec);
+const openAPIHandler = new OpenAPIHandler(apiRouter, {
+  plugins: [
+    new OpenAPIReferencePlugin({
+      schemaConverters: [new ZodToJsonSchemaConverter()],
+      docsProvider: "scalar",
+      docsTitle: "Scheduling API",
+      docsPath: "/docs",
+      specPath: "/openapi.json",
+      specGenerateOptions: {
+        info: {
+          title: "Scheduling API",
+          version: "1.0.0",
+          description: "REST API for appointment scheduling integrations",
+        },
+        servers: [{ url: "/api/v1" }],
+        components: {
+          securitySchemes: {
+            BearerAuth: {
+              type: "http",
+              scheme: "bearer",
+              bearerFormat: "API Key",
+              description: "Use your Better Auth API key as a Bearer token",
+            },
+            ApiKeyAuth: {
+              type: "apiKey",
+              in: "header",
+              name: "x-api-key",
+              description:
+                "Use your Better Auth API key in the x-api-key header",
+            },
+          },
+        },
+        security: [{ BearerAuth: [] }, { ApiKeyAuth: [] }],
+      },
+    }),
+  ],
 });
 
 // Auth middleware for OpenAPI routes
 app.use("/api/v1/*", authMiddleware);
-
-// OpenAPI handler for M2M API
-const openAPIHandler = new OpenAPIHandler(apiRouter);
 
 app.all("/api/v1/*", async (c) => {
   const { matched, response } = await openAPIHandler.handle(c.req.raw, {

@@ -45,7 +45,7 @@ Build an API‑first scheduling platform that matches core Acuity capabilities f
 - Multi‑tenant data isolation enforced via Postgres RLS
 - Timezone‑aware data model; default timezone on location and calendar; appointment can override
 - REST API under `/v1` with simple path versioning
-- Admin/staff auth via BetterAuth (session) + API tokens for server‑to‑server
+- Admin/staff auth via BetterAuth (session) + API keys for server‑to‑server
 - Bun runtime; BullMQ for background jobs (behind an abstraction)
 
 ## Architecture Overview
@@ -90,7 +90,7 @@ flowchart LR
 
 ### Auth & Tenancy
 - BetterAuth for session auth (admin/staff UI)
-- API tokens for server‑to‑server access
+- API keys for server‑to‑server access
 - Postgres RLS enforces org isolation
 - Middleware sets `app.current_org_id` (or similar) for each request
 
@@ -190,10 +190,10 @@ All core scheduling tables are implemented with Postgres 18 `uuidv7()` IDs. `gro
 - **Availability Management**: Weekly rules, per-date overrides, blocked time, scheduling limits
 - **Availability Engine**: `getAvailableDates`, `getAvailableSlots`, `checkSlot` with rule/resource/capacity enforcement
 - **Dashboard Summary API**: Real metrics (appointments, clients, calendars, attention counts)
-- **API Tokens**: Admin token management with hashing, prefix, expiration
+- **API Keys**: Better Auth API key management with prefix, metadata, and expiration
 - **Audit Logging**: Entity audit trail with before/after snapshots
 - **Event Emission**: Domain events written to outbox and queued through BullMQ
-- **Auth**: BetterAuth session auth + API token auth for server-to-server
+- **Auth**: BetterAuth session auth + API key auth for server-to-server
 
 #### Partially Implemented
 - **Appointment editing workflow**: Rescheduling is implemented; update is intentionally narrow (notes/client fields). No dedicated confirm endpoint/workflow.
@@ -218,7 +218,7 @@ All core scheduling tables are implemented with Postgres 18 `uuidv7()` IDs. `gro
 - **Settings**: Organization settings (timezone, business hours/days, notifications)
 
 #### Partially Implemented
-- **Settings scope**: Org settings are implemented, but user profile and API token management UI are not yet present
+- **Settings scope**: Org settings and API key management are implemented, but user profile settings are not yet present
 
 ### Background Jobs: Partially Implemented
 

@@ -8,6 +8,14 @@ import {
   createAppointmentTypeCalendarSchema,
   createAppointmentTypeResourceSchema,
   updateAppointmentTypeResourceSchema,
+  appointmentTypeResponseSchema,
+  appointmentTypeWithLinksSchema,
+  appointmentTypeListResponseSchema,
+  appointmentTypeCalendarSchema,
+  appointmentTypeCalendarAssociationSchema,
+  appointmentTypeResourceSchema,
+  appointmentTypeResourceAssociationSchema,
+  successResponseSchema,
 } from "@scheduling/dto";
 import { authed } from "./base.js";
 import { appointmentTypeService } from "../services/appointment-types.js";
@@ -16,33 +24,39 @@ import { appointmentTypeService } from "../services/appointment-types.js";
 export const list = authed
   .route({ method: "GET", path: "/appointment-types" })
   .input(listAppointmentTypesQuerySchema)
+  .output(appointmentTypeListResponseSchema)
   .handler(async ({ input, context }) => {
-    return appointmentTypeService.list(input, {
+    const result = await appointmentTypeService.list(input, {
       orgId: context.orgId,
       userId: context.userId,
     });
+    return appointmentTypeListResponseSchema.parse(result);
   });
 
 // Get single appointment type by ID (with linked calendars/resources)
 export const get = authed
   .route({ method: "GET", path: "/appointment-types/{id}" })
   .input(z.object({ id: z.string().uuid() }))
+  .output(appointmentTypeWithLinksSchema)
   .handler(async ({ input, context }) => {
-    return appointmentTypeService.get(input.id, {
+    const result = await appointmentTypeService.get(input.id, {
       orgId: context.orgId,
       userId: context.userId,
     });
+    return appointmentTypeWithLinksSchema.parse(result);
   });
 
 // Create appointment type
 export const create = authed
   .route({ method: "POST", path: "/appointment-types", successStatus: 201 })
   .input(createAppointmentTypeSchema)
+  .output(appointmentTypeResponseSchema)
   .handler(async ({ input, context }) => {
-    return appointmentTypeService.create(input, {
+    const result = await appointmentTypeService.create(input, {
       orgId: context.orgId,
       userId: context.userId,
     });
+    return appointmentTypeResponseSchema.parse(result);
   });
 
 // Update appointment type
@@ -54,17 +68,20 @@ export const update = authed
       data: updateAppointmentTypeSchema,
     }),
   )
+  .output(appointmentTypeResponseSchema)
   .handler(async ({ input, context }) => {
-    return appointmentTypeService.update(input.id, input.data, {
+    const result = await appointmentTypeService.update(input.id, input.data, {
       orgId: context.orgId,
       userId: context.userId,
     });
+    return appointmentTypeResponseSchema.parse(result);
   });
 
 // Delete appointment type
 export const remove = authed
   .route({ method: "DELETE", path: "/appointment-types/{id}" })
   .input(z.object({ id: z.string().uuid() }))
+  .output(successResponseSchema)
   .handler(async ({ input, context }) => {
     return appointmentTypeService.delete(input.id, {
       orgId: context.orgId,
@@ -83,6 +100,7 @@ export const listCalendars = authed
     path: "/appointment-types/{appointmentTypeId}/calendars",
   })
   .input(z.object({ appointmentTypeId: z.string().uuid() }))
+  .output(z.array(appointmentTypeCalendarAssociationSchema))
   .handler(async ({ input, context }) => {
     return appointmentTypeService.listCalendars(input.appointmentTypeId, {
       orgId: context.orgId,
@@ -103,6 +121,7 @@ export const addCalendar = authed
       data: createAppointmentTypeCalendarSchema,
     }),
   )
+  .output(appointmentTypeCalendarSchema)
   .handler(async ({ input, context }) => {
     return appointmentTypeService.linkCalendar(
       input.appointmentTypeId,
@@ -126,6 +145,7 @@ export const removeCalendar = authed
       calendarId: z.string().uuid(),
     }),
   )
+  .output(successResponseSchema)
   .handler(async ({ input, context }) => {
     return appointmentTypeService.unlinkCalendar(
       input.appointmentTypeId,
@@ -148,6 +168,7 @@ export const listResources = authed
     path: "/appointment-types/{appointmentTypeId}/resources",
   })
   .input(z.object({ appointmentTypeId: z.string().uuid() }))
+  .output(z.array(appointmentTypeResourceAssociationSchema))
   .handler(async ({ input, context }) => {
     return appointmentTypeService.listResources(input.appointmentTypeId, {
       orgId: context.orgId,
@@ -168,6 +189,7 @@ export const addResource = authed
       data: createAppointmentTypeResourceSchema,
     }),
   )
+  .output(appointmentTypeResourceSchema)
   .handler(async ({ input, context }) => {
     return appointmentTypeService.linkResource(
       input.appointmentTypeId,
@@ -198,6 +220,7 @@ export const updateResource = authed
       ),
     }),
   )
+  .output(appointmentTypeResourceSchema)
   .handler(async ({ input, context }) => {
     return appointmentTypeService.updateResource(
       input.appointmentTypeId,
@@ -224,6 +247,7 @@ export const removeResource = authed
       resourceId: z.string().uuid(),
     }),
   )
+  .output(successResponseSchema)
   .handler(async ({ input, context }) => {
     return appointmentTypeService.unlinkResource(
       input.appointmentTypeId,

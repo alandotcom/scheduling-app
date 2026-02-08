@@ -4,6 +4,7 @@ import {
   timestampsSchema,
   timezoneSchema,
   nonNegativeIntSchema,
+  paginatedResponseSchema,
 } from "./common";
 
 // Base calendar schema
@@ -48,11 +49,23 @@ export const listCalendarsQuerySchema = z.object({
 
 // Response types
 export const calendarResponseSchema = calendarSchema;
+export const calendarWithLocationSchema = calendarSchema.extend({
+  location: z
+    .object({
+      id: uuidSchema,
+      name: z.string(),
+      timezone: timezoneSchema,
+    })
+    .optional(),
+});
 export const calendarListItemSchema = calendarSchema.extend({
   relationshipCounts: z.object({
     appointmentsThisWeek: nonNegativeIntSchema,
   }),
 });
+export const calendarListResponseSchema = paginatedResponseSchema(
+  calendarListItemSchema,
+);
 
 // Inferred types
 export type Calendar = z.infer<typeof calendarSchema>;
@@ -60,4 +73,6 @@ export type CreateCalendarInput = z.infer<typeof createCalendarSchema>;
 export type UpdateCalendarInput = z.infer<typeof updateCalendarSchema>;
 export type ListCalendarsQuery = z.infer<typeof listCalendarsQuerySchema>;
 export type CalendarResponse = z.infer<typeof calendarResponseSchema>;
+export type CalendarWithLocation = z.infer<typeof calendarWithLocationSchema>;
 export type CalendarListItem = z.infer<typeof calendarListItemSchema>;
+export type CalendarListResponse = z.infer<typeof calendarListResponseSchema>;

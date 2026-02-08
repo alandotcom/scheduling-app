@@ -1,8 +1,6 @@
 // oRPC instance setup with context type
 
 import { os, ORPCError } from "@orpc/server";
-import { OpenAPIGenerator } from "@orpc/openapi";
-import { ZodToJsonSchemaConverter } from "@orpc/zod/zod4";
 import {
   ApplicationError,
   type ApplicationErrorCode,
@@ -16,7 +14,7 @@ export interface Context {
   userId: string | null;
   orgId: string | null;
   sessionId: string | null;
-  tokenId: string | null; // API token ID if authenticated via token
+  tokenId: string | null; // API key ID if authenticated via token
   authMethod: AuthMethod;
   role: "owner" | "admin" | "member" | null;
   headers: Headers;
@@ -73,9 +71,4 @@ export const base = osWithContext.use(async ({ next }) => {
     }
     throw error;
   }
-});
-
-// OpenAPI spec generator for M2M API
-export const openAPIGenerator = new OpenAPIGenerator({
-  schemaConverters: [new ZodToJsonSchemaConverter()],
 });

@@ -11,6 +11,7 @@ import {
   appointmentTimeRangeResponseSchema,
   appointmentListResponseSchema,
   appointmentWithRelationsSchema,
+  appointmentResponseSchema,
 } from "@scheduling/dto";
 import { authed } from "./base.js";
 import { appointmentService } from "../services/appointments.js";
@@ -33,6 +34,7 @@ export const list = authed
 export const range = authed
   .route({ method: "GET", path: "/appointments/range" })
   .input(appointmentTimeRangeQuerySchema)
+  .output(appointmentTimeRangeResponseSchema)
   .handler(async ({ input, context }) => {
     const result = await appointmentService.listRange(
       {
@@ -69,6 +71,7 @@ export const get = authed
 export const create = authed
   .route({ method: "POST", path: "/appointments", successStatus: 201 })
   .input(createAppointmentSchema)
+  .output(appointmentResponseSchema)
   .handler(async ({ input, context }) => {
     return appointmentService.create(input, {
       orgId: context.orgId,
@@ -81,6 +84,7 @@ export const create = authed
 export const update = authed
   .route({ method: "PATCH", path: "/appointments/{id}" })
   .input(idInput.merge(z.object({ data: updateAppointmentSchema })))
+  .output(appointmentResponseSchema)
   .handler(async ({ input, context }) => {
     return appointmentService.update(input.id, input.data, {
       orgId: context.orgId,
@@ -93,6 +97,7 @@ export const update = authed
 export const cancel = authed
   .route({ method: "DELETE", path: "/appointments/{id}" })
   .input(idInput.merge(z.object({ data: cancelAppointmentSchema.optional() })))
+  .output(appointmentResponseSchema)
   .handler(async ({ input, context }) => {
     return appointmentService.cancel(input.id, input.data, {
       orgId: context.orgId,
@@ -105,6 +110,7 @@ export const cancel = authed
 export const reschedule = authed
   .route({ method: "POST", path: "/appointments/{id}/reschedule" })
   .input(idInput.merge(z.object({ data: rescheduleAppointmentSchema })))
+  .output(appointmentResponseSchema)
   .handler(async ({ input, context }) => {
     return appointmentService.reschedule(input.id, input.data, {
       orgId: context.orgId,
@@ -117,6 +123,7 @@ export const reschedule = authed
 export const noShow = authed
   .route({ method: "POST", path: "/appointments/{id}/no-show" })
   .input(idInput)
+  .output(appointmentResponseSchema)
   .handler(async ({ input, context }) => {
     return appointmentService.noShow(input.id, {
       orgId: context.orgId,

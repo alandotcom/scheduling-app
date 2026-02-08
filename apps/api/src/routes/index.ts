@@ -2,6 +2,7 @@
 // Separate routers for UI (oRPC) and M2M API (OpenAPI)
 
 import { base } from "../lib/orpc.js";
+import { z } from "zod";
 import { orgRoutes } from "./orgs.js";
 import { locationRoutes } from "./locations.js";
 import { calendarRoutes } from "./calendars.js";
@@ -13,6 +14,7 @@ import { appointmentRoutes } from "./appointments.js";
 import { clientRoutes } from "./clients.js";
 import { auditRoutes } from "./audit.js";
 import { dashboardRoutes } from "./dashboard.js";
+import { apiKeyRoutes } from "./api-keys.js";
 
 // Re-export authed and adminOnly from base for backwards compatibility
 export { authed, adminOnly } from "./base.js";
@@ -20,6 +22,7 @@ export { authed, adminOnly } from "./base.js";
 // Health check procedure
 export const health = base
   .route({ method: "GET", path: "/health" })
+  .output(z.object({ status: z.literal("ok") }))
   .handler(async () => {
     return { status: "ok" as const };
   });
@@ -40,11 +43,12 @@ export const uiRouter = {
   appointments: appointmentRoutes,
   clients: clientRoutes,
   audit: auditRoutes,
+  apiKeys: apiKeyRoutes,
 };
 
 // ============================================================================
 // API ROUTER (OpenAPI) - Public routes for M2M integrations
-// Excludes internal routes: audit
+// Excludes internal routes: audit, apiKeys, dashboard
 // Used by external clients via REST at /api/v1/*
 // ============================================================================
 export const apiRouter = {

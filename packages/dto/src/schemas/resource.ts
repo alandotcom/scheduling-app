@@ -1,5 +1,10 @@
 import { z } from "zod";
-import { uuidSchema, timestampsSchema, positiveIntSchema } from "./common";
+import {
+  uuidSchema,
+  timestampsSchema,
+  positiveIntSchema,
+  paginatedResponseSchema,
+} from "./common";
 
 // Base resource schema
 export const resourceSchema = z.object({
@@ -43,6 +48,9 @@ export const listResourcesQuerySchema = z.object({
 
 // Response types
 export const resourceResponseSchema = resourceSchema;
+export const resourceListResponseSchema = paginatedResponseSchema(
+  resourceResponseSchema,
+);
 
 // Inferred types
 export type Resource = z.infer<typeof resourceSchema>;
@@ -50,3 +58,4 @@ export type CreateResourceInput = z.infer<typeof createResourceSchema>;
 export type UpdateResourceInput = z.infer<typeof updateResourceSchema>;
 export type ListResourcesQuery = z.infer<typeof listResourcesQuerySchema>;
 export type ResourceResponse = z.infer<typeof resourceResponseSchema>;
+export type ResourceListResponse = z.infer<typeof resourceListResponseSchema>;

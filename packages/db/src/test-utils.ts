@@ -62,7 +62,6 @@ export async function resetTestDb(): Promise<void> {
       org_invitations,
       org_memberships,
       apikey,
-      api_tokens,
       users,
       orgs
     CASCADE;

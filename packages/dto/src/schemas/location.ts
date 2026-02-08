@@ -4,6 +4,7 @@ import {
   timestampsSchema,
   timezoneSchema,
   nonNegativeIntSchema,
+  paginatedResponseSchema,
 } from "./common";
 
 // Base location schema
@@ -50,6 +51,9 @@ export const locationListItemSchema = locationSchema.extend({
     resources: nonNegativeIntSchema,
   }),
 });
+export const locationListResponseSchema = paginatedResponseSchema(
+  locationListItemSchema,
+);
 
 // Inferred types
 export type Location = z.infer<typeof locationSchema>;
@@ -58,3 +62,4 @@ export type UpdateLocationInput = z.infer<typeof updateLocationSchema>;
 export type ListLocationsQuery = z.infer<typeof listLocationsQuerySchema>;
 export type LocationResponse = z.infer<typeof locationResponseSchema>;
 export type LocationListItem = z.infer<typeof locationListItemSchema>;
+export type LocationListResponse = z.infer<typeof locationListResponseSchema>;

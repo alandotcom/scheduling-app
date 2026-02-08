@@ -1,9 +1,50 @@
-// Auth middleware - validates session or API token and populates context
+// Auth middleware - validates session or API key and populates context
 
 import { createMiddleware } from "hono/factory";
 import { auth } from "../lib/auth.js";
 import { db } from "../lib/db.js";
 import type { AuthMethod } from "../lib/orpc.js";
+
+type ApiKeyRole = "owner" | "admin" | "member";
+type ApiKeyMetadata = {
+  organizationId?: string;
+  role?: ApiKeyRole;
+};
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function isApiKeyRole(value: unknown): value is ApiKeyRole {
+  return value === "owner" || value === "admin" || value === "member";
+}
+
+function parseApiKeyMetadata(metadata: unknown): ApiKeyMetadata | null {
+  if (!metadata) return null;
+
+  let parsed: unknown = metadata;
+  if (typeof metadata === "string") {
+    try {
+      parsed = JSON.parse(metadata);
+    } catch {
+      return null;
+    }
+  }
+
+  if (!isRecord(parsed)) {
+    return null;
+  }
+
+  const result: ApiKeyMetadata = {};
+  if (typeof parsed["organizationId"] === "string") {
+    result.organizationId = parsed["organizationId"];
+  }
+  if (isApiKeyRole(parsed["role"])) {
+    result.role = parsed["role"];
+  }
+
+  return result;
+}
 
 declare module "hono" {
   interface ContextVariableMap {
@@ -62,12 +103,9 @@ export const authMiddleware = createMiddleware(async (c, next) => {
     });
 
     if (verification.valid && verification.key) {
-      const metadata = verification.key.metadata as {
-        organizationId?: string;
-        role?: "owner" | "admin" | "member";
-      } | null;
+      const metadata = parseApiKeyMetadata(verification.key.metadata);
       const orgId = metadata?.organizationId ?? null;
-      let role = metadata?.role ?? null;
+      const keyRole = metadata?.role ?? null;
 
       if (!orgId) {
         return c.json(
@@ -81,22 +119,43 @@ export const authMiddleware = createMiddleware(async (c, next) => {
         );
       }
 
-      if (!role) {
-        const membership = await db.query.orgMemberships.findFirst({
-          where: {
-            userId: verification.key.userId,
-            orgId,
+      const membership = await db.query.orgMemberships.findFirst({
+        where: {
+          userId: verification.key.userId,
+          orgId,
+        },
+      });
+
+      if (!membership) {
+        return c.json(
+          {
+            error: {
+              code: "UNAUTHORIZED",
+              message: "API key user is not a member of this organization",
+            },
           },
-        });
-        role = membership?.role ?? null;
+          401,
+        );
       }
+
+      const roleRank = {
+        member: 1,
+        admin: 2,
+        owner: 3,
+      } as const;
+      const keyRoleRank = keyRole
+        ? roleRank[keyRole]
+        : roleRank[membership.role];
+      const membershipRoleRank = roleRank[membership.role];
+      const effectiveRole =
+        keyRoleRank <= membershipRoleRank ? keyRole : membership.role;
 
       c.set("userId", verification.key.userId);
       c.set("orgId", orgId);
       c.set("sessionId", null);
       c.set("tokenId", verification.key.id);
       c.set("authMethod", "token");
-      c.set("role", role);
+      c.set("role", effectiveRole ?? membership.role);
 
       return next();
     }

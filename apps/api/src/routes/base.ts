@@ -5,7 +5,7 @@ import { base } from "../lib/orpc.js";
 import type { Context } from "../lib/orpc.js";
 
 // Authenticated procedure helper
-// Validates that the request has a valid session or API token
+// Validates that the request has a valid session or API key
 export const authUser = base.use(async (opts) => {
   const context = opts.context as Context;
   if (!context.userId) {

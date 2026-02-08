@@ -197,12 +197,24 @@ export const availableDateSchema = z.object({
   date: dateSchema,
   available: z.boolean(),
 });
+export const availableDatesResponseSchema = z.object({
+  dates: z.array(dateSchema),
+});
 
 export const timeSlotSchema = z.object({
   start: timestampSchema,
   end: timestampSchema,
   available: z.boolean(),
   remainingCapacity: nonNegativeIntSchema,
+});
+export const availabilityTimeSlotApiSchema = z.object({
+  start: z.string(),
+  end: z.string(),
+  available: z.boolean(),
+  remainingCapacity: nonNegativeIntSchema,
+});
+export const availabilityTimesResponseSchema = z.object({
+  slots: z.array(availabilityTimeSlotApiSchema),
 });
 
 export const availabilityCheckSchema = z.object({
@@ -293,7 +305,16 @@ export type UpdateSchedulingLimitsInput = z.infer<
 
 export type AvailabilityQuery = z.infer<typeof availabilityQuerySchema>;
 export type AvailableDate = z.infer<typeof availableDateSchema>;
+export type AvailableDatesResponse = z.infer<
+  typeof availableDatesResponseSchema
+>;
 export type TimeSlot = z.infer<typeof timeSlotSchema>;
+export type AvailabilityTimeSlotApi = z.infer<
+  typeof availabilityTimeSlotApiSchema
+>;
+export type AvailabilityTimesResponse = z.infer<
+  typeof availabilityTimesResponseSchema
+>;
 export type AvailabilityCheck = z.infer<typeof availabilityCheckSchema>;
 export type AvailabilityCheckResult = z.infer<
   typeof availabilityCheckResultSchema

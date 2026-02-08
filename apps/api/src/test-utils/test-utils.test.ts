@@ -90,7 +90,7 @@ describe("Test Utilities", () => {
   });
 
   describe("createTokenContext", () => {
-    test("creates API token context", () => {
+    test("creates API key context", () => {
       const ctx = createTokenContext({
         orgId: "org-123",
         userId: "user-456",

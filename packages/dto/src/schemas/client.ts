@@ -4,6 +4,7 @@ import {
   timestampsSchema,
   timestampSchema,
   nonNegativeIntSchema,
+  paginatedResponseSchema,
 } from "./common";
 
 const countryCodeSchema = z
@@ -82,6 +83,8 @@ export const clientListItemSchema = clientSchema.extend({
     appointments: nonNegativeIntSchema,
   }),
 });
+export const clientListResponseSchema =
+  paginatedResponseSchema(clientListItemSchema);
 
 // Client history summary
 export const clientHistorySummarySchema = z.object({
@@ -102,4 +105,5 @@ export type UpdateClientInput = z.infer<typeof updateClientSchema>;
 export type ListClientsQuery = z.infer<typeof listClientsQuerySchema>;
 export type ClientResponse = z.infer<typeof clientResponseSchema>;
 export type ClientListItem = z.infer<typeof clientListItemSchema>;
+export type ClientListResponse = z.infer<typeof clientListResponseSchema>;
 export type ClientHistorySummary = z.infer<typeof clientHistorySummarySchema>;

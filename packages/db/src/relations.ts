@@ -15,7 +15,6 @@ export const relations = defineRelations(schema, (r) => ({
     clients: r.many.clients(),
     appointments: r.many.appointments(),
     eventOutbox: r.many.eventOutbox(),
-    apiTokens: r.many.apiTokens(),
     auditEvents: r.many.auditEvents(),
   },
 
@@ -25,7 +24,6 @@ export const relations = defineRelations(schema, (r) => ({
     sessions: r.many.sessions(),
     accounts: r.many.accounts(),
     apiKeys: r.many.apiKeys(),
-    apiTokens: r.many.apiTokens(),
   },
 
   orgMemberships: {
@@ -199,22 +197,10 @@ export const relations = defineRelations(schema, (r) => ({
     }),
   },
 
-  // API tokens
+  // API keys
   apiKeys: {
     user: r.one.users({
       from: r.apiKeys.userId,
-      to: r.users.id,
-    }),
-  },
-
-  // Legacy API tokens
-  apiTokens: {
-    org: r.one.orgs({
-      from: r.apiTokens.orgId,
-      to: r.orgs.id,
-    }),
-    user: r.one.users({
-      from: r.apiTokens.userId,
       to: r.users.id,
     }),
   },

@@ -513,7 +513,7 @@ export const verifications = pgTable("verifications", {
 });
 
 // ============================================================================
-// API TOKENS
+// API KEYS (BetterAuth plugin)
 // ============================================================================
 
 export const apiKeys = pgTable("apikey", {
@@ -540,34 +540,6 @@ export const apiKeys = pgTable("apikey", {
   metadata: text("metadata"),
   ...timestamps,
 });
-
-export const apiTokens = pgTable.withRLS(
-  "api_tokens",
-  {
-    id,
-    orgId: uuid("org_id")
-      .notNull()
-      .references(() => orgs.id),
-    userId: uuid("user_id")
-      .notNull()
-      .references(() => users.id), // Who created the token
-    name: text("name").notNull(), // Human-readable name for the token
-    tokenHash: text("token_hash").notNull().unique(), // SHA-256 hash of the token
-    tokenPrefix: text("token_prefix").notNull(), // First 8 chars for identification (e.g., "sk_live_")
-    scope: orgRoleEnum("scope").notNull(),
-    lastUsedAt: timestamp("last_used_at", { withTimezone: true }),
-    expiresAt: timestamp("expires_at", { withTimezone: true }),
-    revokedAt: timestamp("revoked_at", { withTimezone: true }),
-    ...timestamps,
-  },
-  () => [
-    pgPolicy("org_isolation_api_tokens", {
-      for: "all",
-      using: sql`org_id = current_org_id()`,
-      withCheck: sql`org_id = current_org_id()`,
-    }),
-  ],
-);
 
 // ============================================================================
 // AUDIT EVENTS

@@ -18,6 +18,8 @@ export interface DeleteConfirmDialogProps {
   title?: string;
   description?: string;
   isPending?: boolean;
+  confirmLabel?: string;
+  pendingLabel?: string;
 }
 
 export function DeleteConfirmDialog({
@@ -27,6 +29,8 @@ export function DeleteConfirmDialog({
   title = "Delete Item",
   description = "Are you sure you want to delete this item? This action cannot be undone.",
   isPending = false,
+  confirmLabel = "Delete",
+  pendingLabel = "Deleting...",
 }: DeleteConfirmDialogProps) {
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
@@ -41,7 +45,7 @@ export function DeleteConfirmDialog({
             onClick={onConfirm}
             className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
           >
-            {isPending ? "Deleting..." : "Delete"}
+            {isPending ? pendingLabel : confirmLabel}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

@@ -34,7 +34,7 @@ src/
     client.ts               # Client + history summary schemas
     appointment.ts          # Appointment + conflict + schedule schemas
     availability.ts         # Rules, overrides, blocked time, limits, feed
-    api-token.ts            # API token schemas
+    api-key.ts              # API key schemas
     audit.ts                # Audit event schemas
     dashboard.ts            # Dashboard summary schema
     schemas.test.ts         # All tests (~50 cases)
@@ -70,7 +70,7 @@ export type CreateOrgInput = z.infer<typeof createOrgSchema>;
 - **Appointment:** Separate `rescheduleAppointmentSchema` (time changes are a distinct operation)
 - **Appointment type:** Join table schemas for calendar/resource many-to-many
 - **Client:** `clientHistorySummarySchema` with appointment counts
-- **API token:** `createApiTokenResponseSchema` includes full token (returned once only)
+- **API key:** `createApiKeyResponseSchema` includes full key (returned once only)
 - **Org:** Separate `updateOrgSettingsSchema` for settings-specific updates
 - **Audit:** Response extends with optional `actor` relation
 
@@ -103,7 +103,7 @@ export type CreateOrgInput = z.infer<typeof createOrgSchema>;
 | `client.ts` | Clients | `clientSchema`, `clientHistorySummarySchema` | Email accepts empty string, history counts |
 | `appointment.ts` | Appointments | `appointmentSchema`, `rescheduleAppointmentSchema`, `appointmentConflictSchema` | Status enum, conflict types, schedule events |
 | `availability.ts` | Availability | Rules, overrides, blocked time, limits, feed | Overlap detection, RRULE support, 309 lines |
-| `api-token.ts` | API Tokens | `createApiTokenResponseSchema`, `apiTokenResponseSchema` | Full token only on create |
+| `api-key.ts` | API Keys | `createApiKeyResponseSchema`, `apiKeyResponseSchema` | Full key only on create |
 | `audit.ts` | Audit | `auditEventSchema`, `auditEventResponseSchema` | Before/after snapshots, actor types |
 | `dashboard.ts` | Dashboard | `dashboardSummarySchema` | Aggregate counts |
 

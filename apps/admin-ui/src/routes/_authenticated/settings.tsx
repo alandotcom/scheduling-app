@@ -5,15 +5,19 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
-import { useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 
 import { orpc } from "@/lib/query";
 import { TIMEZONES } from "@/lib/constants";
 import { resolveSelectValueLabel } from "@/lib/select-value-label";
 import {
+  createApiKeySchema,
   createOrgUserSchema,
   updateOrgSettingsSchema,
+  type ApiKeyResponse,
+  type ApiKeyScope,
   type CreateOrgUserInput,
+  type CreateApiKeyResponse,
   type OrgMembershipRole,
   type UpdateOrgSettingsInput,
   type UpdateOrgUserRoleInput,
@@ -25,6 +29,7 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ShortcutBadge } from "@/components/ui/shortcut-badge";
 import { useSubmitShortcut } from "@/hooks/use-submit-shortcut";
+import { DeleteConfirmDialog } from "@/components/delete-confirm-dialog";
 import {
   Card,
   CardHeader,
@@ -63,11 +68,40 @@ const ORG_ROLE_OPTIONS: Array<{ value: OrgMembershipRole; label: string }> = [
   { value: "admin", label: "Admin" },
   { value: "member", label: "Member" },
 ];
+const API_KEY_SCOPE_OPTIONS: Array<{ value: ApiKeyScope; label: string }> = [
+  { value: "owner", label: "Owner" },
+  { value: "admin", label: "Admin" },
+  { value: "member", label: "Member" },
+];
+const isApiKeyScope = (
+  value: string | null | undefined,
+): value is ApiKeyScope =>
+  typeof value === "string" &&
+  API_KEY_SCOPE_OPTIONS.some((scope) => scope.value === value);
 const isOrgMembershipRole = (
   value: string | null | undefined,
 ): value is OrgMembershipRole =>
   typeof value === "string" &&
   ORG_ROLE_OPTIONS.some((role) => role.value === value);
+
+const orgRoleRank: Record<OrgMembershipRole, number> = {
+  owner: 3,
+  admin: 2,
+  member: 1,
+};
+const apiKeyScopeRank: Record<ApiKeyScope, number> = {
+  owner: 3,
+  admin: 2,
+  member: 1,
+};
+
+function getAllowedApiKeyScopes(role: OrgMembershipRole | null): ApiKeyScope[] {
+  if (!role) return ["member"];
+
+  return API_KEY_SCOPE_OPTIONS.map((option) => option.value).filter(
+    (scope) => apiKeyScopeRank[scope] <= orgRoleRank[role],
+  );
+}
 
 const parseBusinessDays = (days: unknown): number[] => {
   if (Array.isArray(days)) return days;
@@ -401,6 +435,7 @@ function SettingsForm({ org }: SettingsFormProps) {
       </form>
 
       <UsersManagementSection />
+      <ApiAccessSection orgId={org.id} />
     </div>
   );
 }
@@ -419,8 +454,18 @@ interface OrgUserListItem {
   userUpdatedAt: Date;
 }
 
+interface OrgMembershipListItem {
+  orgId: string;
+  role: OrgMembershipRole;
+}
+
 function formatDate(value: Date | string) {
   return new Date(value).toLocaleDateString();
+}
+
+function formatDateTime(value: Date | string | null | undefined) {
+  if (!value) return "Never";
+  return new Date(value).toLocaleString();
 }
 
 function UsersManagementSection() {
@@ -660,6 +705,281 @@ function UsersManagementSection() {
           </div>
         )}
       </CardContent>
+    </Card>
+  );
+}
+
+function ApiAccessSection({ orgId }: { orgId: string }) {
+  const queryClient = useQueryClient();
+  const [keyName, setKeyName] = useState("");
+  const [scope, setScope] = useState<ApiKeyScope>("member");
+  const [expiresAtInput, setExpiresAtInput] = useState("");
+  const [revealedKey, setRevealedKey] = useState<CreateApiKeyResponse | null>(
+    null,
+  );
+  const [keyToRevoke, setKeyToRevoke] = useState<ApiKeyResponse | null>(null);
+
+  const {
+    data: keysData,
+    isLoading: isKeysLoading,
+    error: keysError,
+  } = useQuery(orpc.apiKeys.list.queryOptions({}));
+
+  const { data: memberships } = useQuery(
+    orpc.org.listMemberships.queryOptions({}),
+  );
+
+  const currentMembershipRole =
+    (memberships as OrgMembershipListItem[] | undefined)?.find(
+      (membership) => membership.orgId === orgId,
+    )?.role ?? null;
+
+  const allowedScopes = useMemo(
+    () => getAllowedApiKeyScopes(currentMembershipRole),
+    [currentMembershipRole],
+  );
+
+  useEffect(() => {
+    if (!allowedScopes.includes(scope)) {
+      setScope(allowedScopes[0] ?? "member");
+    }
+  }, [allowedScopes, scope]);
+
+  const createApiKeyMutation = useMutation(
+    orpc.apiKeys.create.mutationOptions({
+      onSuccess: (created) => {
+        queryClient.invalidateQueries({ queryKey: orpc.apiKeys.key() });
+        setRevealedKey(created);
+        setKeyName("");
+        setExpiresAtInput("");
+        setScope(allowedScopes[0] ?? "member");
+        toast.success("API key created");
+      },
+      onError: (mutationError) => {
+        toast.error(mutationError.message || "Failed to create API key");
+      },
+    }),
+  );
+
+  const revokeApiKeyMutation = useMutation(
+    orpc.apiKeys.revoke.mutationOptions({
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: orpc.apiKeys.key() });
+        setKeyToRevoke(null);
+        toast.success("API key revoked");
+      },
+      onError: (mutationError) => {
+        toast.error(mutationError.message || "Failed to revoke API key");
+      },
+    }),
+  );
+
+  const onCreateApiKey = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const expiresAtValue = expiresAtInput
+      ? new Date(expiresAtInput)
+      : undefined;
+    const parsed = createApiKeySchema.safeParse({
+      name: keyName.trim(),
+      scope,
+      expiresAt: expiresAtValue,
+    });
+
+    if (!parsed.success) {
+      toast.error(parsed.error.issues[0]?.message ?? "Invalid API key input");
+      return;
+    }
+
+    createApiKeyMutation.mutate(parsed.data);
+  };
+
+  const copyRevealedKey = async () => {
+    if (!revealedKey?.key) return;
+    try {
+      await navigator.clipboard.writeText(revealedKey.key);
+      toast.success("API key copied");
+    } catch {
+      toast.error("Failed to copy API key");
+    }
+  };
+
+  const keys = keysData?.items ?? [];
+
+  return (
+    <Card className="mt-6">
+      <CardHeader className="gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <CardTitle>API Access</CardTitle>
+          <CardDescription>
+            Create and revoke organization-scoped API keys for server-to-server
+            access.
+          </CardDescription>
+        </div>
+        <Button asChild variant="outline" size="sm">
+          <a href="/api/v1/docs" target="_blank" rel="noreferrer">
+            Open API docs
+          </a>
+        </Button>
+      </CardHeader>
+      <CardContent className="space-y-6">
+        <form
+          onSubmit={onCreateApiKey}
+          className="grid gap-3 md:grid-cols-[1fr_180px_220px_auto]"
+        >
+          <div>
+            <Label htmlFor="api-key-name">Name</Label>
+            <Input
+              id="api-key-name"
+              value={keyName}
+              onChange={(event) => setKeyName(event.target.value)}
+              placeholder="Integration key"
+              disabled={createApiKeyMutation.isPending}
+            />
+          </div>
+
+          <div>
+            <Label htmlFor="api-key-scope">Scope</Label>
+            <Select
+              value={scope}
+              onValueChange={(nextScope) => {
+                if (!isApiKeyScope(nextScope)) return;
+                setScope(nextScope);
+              }}
+              disabled={createApiKeyMutation.isPending}
+            >
+              <SelectTrigger id="api-key-scope">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {API_KEY_SCOPE_OPTIONS.filter((option) =>
+                  allowedScopes.includes(option.value),
+                ).map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div>
+            <Label htmlFor="api-key-expires-at">Expires at (optional)</Label>
+            <Input
+              id="api-key-expires-at"
+              type="datetime-local"
+              value={expiresAtInput}
+              onChange={(event) => setExpiresAtInput(event.target.value)}
+              disabled={createApiKeyMutation.isPending}
+            />
+          </div>
+
+          <div className="flex items-end">
+            <Button type="submit" disabled={createApiKeyMutation.isPending}>
+              {createApiKeyMutation.isPending ? "Creating..." : "Create key"}
+            </Button>
+          </div>
+        </form>
+
+        {revealedKey ? (
+          <div className="rounded-lg border border-border bg-muted/30 p-4">
+            <p className="text-sm font-medium">New API key</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Copy this key now. You will not be able to view it again.
+            </p>
+            <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+              <Input readOnly value={revealedKey.key} className="font-mono" />
+              <Button type="button" variant="outline" onClick={copyRevealedKey}>
+                Copy key
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => setRevealedKey(null)}
+              >
+                Hide
+              </Button>
+            </div>
+          </div>
+        ) : null}
+
+        {isKeysLoading ? (
+          <div className="text-sm text-muted-foreground">
+            Loading API keys...
+          </div>
+        ) : keysError ? (
+          <div className="text-sm text-destructive">
+            Failed to load API keys.
+          </div>
+        ) : !keys.length ? (
+          <div className="text-sm text-muted-foreground">
+            No API keys yet. Create one to access the OpenAPI endpoints.
+          </div>
+        ) : (
+          <div className="overflow-hidden rounded-xl border border-border shadow-sm">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Name</TableHead>
+                  <TableHead>Scope</TableHead>
+                  <TableHead>Prefix</TableHead>
+                  <TableHead>Last Used</TableHead>
+                  <TableHead>Expires</TableHead>
+                  <TableHead>Created</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {keys.map((key) => (
+                  <TableRow key={key.id}>
+                    <TableCell>{key.name || "—"}</TableCell>
+                    <TableCell className="capitalize">{key.scope}</TableCell>
+                    <TableCell className="font-mono text-xs">
+                      {key.start ?? key.prefix ?? "—"}
+                    </TableCell>
+                    <TableCell>{formatDateTime(key.lastUsedAt)}</TableCell>
+                    <TableCell>
+                      {key.expiresAt ? formatDateTime(key.expiresAt) : "Never"}
+                    </TableCell>
+                    <TableCell>{formatDateTime(key.createdAt)}</TableCell>
+                    <TableCell className="text-right">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="text-destructive hover:text-destructive"
+                        onClick={() => setKeyToRevoke(key)}
+                        disabled={revokeApiKeyMutation.isPending}
+                      >
+                        Revoke
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        )}
+      </CardContent>
+
+      <DeleteConfirmDialog
+        open={!!keyToRevoke}
+        onOpenChange={(open) => {
+          if (!open) setKeyToRevoke(null);
+        }}
+        onConfirm={() => {
+          if (!keyToRevoke) return;
+          revokeApiKeyMutation.mutate({ id: keyToRevoke.id });
+        }}
+        title="Revoke API key"
+        description={
+          keyToRevoke
+            ? `Revoke "${keyToRevoke.name || keyToRevoke.start || keyToRevoke.id}"? This action cannot be undone.`
+            : "Revoke this API key? This action cannot be undone."
+        }
+        isPending={revokeApiKeyMutation.isPending}
+        confirmLabel="Revoke"
+        pendingLabel="Revoking..."
+      />
     </Card>
   );
 }

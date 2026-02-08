@@ -74,7 +74,7 @@ const timestamps = {
 `orgs`, `users`, `org_memberships`, `org_invitations`, `sessions`, `accounts`, `verifications`
 
 **RLS-protected (org-scoped):**
-`locations`, `calendars`, `appointment_types`, `resources`, `clients`, `appointments`, `event_outbox`, `api_tokens`, `audit_events`
+`locations`, `calendars`, `appointment_types`, `resources`, `clients`, `appointments`, `event_outbox`, `audit_events`
 
 **Join tables:**
 `appointment_type_calendars`, `appointment_type_resources`

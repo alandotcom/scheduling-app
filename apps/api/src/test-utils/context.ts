@@ -57,7 +57,7 @@ export function createUnauthenticatedContext(): Context {
 }
 
 /**
- * Create a context authenticated via API token
+ * Create a context authenticated via API key
  */
 export function createTokenContext(
   options: Omit<TestContextOptions, "authMethod" | "sessionId">,

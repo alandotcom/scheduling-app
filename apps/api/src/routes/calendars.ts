@@ -5,6 +5,10 @@ import {
   createCalendarSchema,
   updateCalendarSchema,
   listCalendarsQuerySchema,
+  calendarResponseSchema,
+  calendarWithLocationSchema,
+  calendarListResponseSchema,
+  successResponseSchema,
 } from "@scheduling/dto";
 import { authed } from "./base.js";
 import { calendarService } from "../services/calendars.js";
@@ -13,6 +17,7 @@ import { calendarService } from "../services/calendars.js";
 export const list = authed
   .route({ method: "GET", path: "/calendars" })
   .input(listCalendarsQuerySchema)
+  .output(calendarListResponseSchema)
   .handler(async ({ input, context }) => {
     return calendarService.list(input, {
       orgId: context.orgId,
@@ -24,6 +29,7 @@ export const list = authed
 export const get = authed
   .route({ method: "GET", path: "/calendars/{id}" })
   .input(z.object({ id: z.string().uuid() }))
+  .output(calendarWithLocationSchema)
   .handler(async ({ input, context }) => {
     return calendarService.get(input.id, {
       orgId: context.orgId,
@@ -35,6 +41,7 @@ export const get = authed
 export const create = authed
   .route({ method: "POST", path: "/calendars", successStatus: 201 })
   .input(createCalendarSchema)
+  .output(calendarResponseSchema)
   .handler(async ({ input, context }) => {
     return calendarService.create(input, {
       orgId: context.orgId,
@@ -51,6 +58,7 @@ export const update = authed
       data: updateCalendarSchema,
     }),
   )
+  .output(calendarResponseSchema)
   .handler(async ({ input, context }) => {
     return calendarService.update(input.id, input.data, {
       orgId: context.orgId,
@@ -62,6 +70,7 @@ export const update = authed
 export const remove = authed
   .route({ method: "DELETE", path: "/calendars/{id}" })
   .input(z.object({ id: z.string().uuid() }))
+  .output(successResponseSchema)
   .handler(async ({ input, context }) => {
     return calendarService.delete(input.id, {
       orgId: context.orgId,

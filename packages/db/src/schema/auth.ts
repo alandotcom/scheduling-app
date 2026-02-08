@@ -9,5 +9,4 @@ export {
   orgMemberships,
   orgInvitations,
   apiKeys,
-  apiTokens,
 } from "./index.js";

@@ -6,6 +6,9 @@ import {
   updateClientSchema,
   listClientsQuerySchema,
   clientHistorySummarySchema,
+  clientResponseSchema,
+  clientListResponseSchema,
+  successResponseSchema,
 } from "@scheduling/dto";
 import { authed } from "./base.js";
 import { clientService } from "../services/clients.js";
@@ -14,6 +17,7 @@ import { clientService } from "../services/clients.js";
 export const list = authed
   .route({ method: "GET", path: "/clients" })
   .input(listClientsQuerySchema)
+  .output(clientListResponseSchema)
   .handler(async ({ input, context }) => {
     return clientService.list(input, {
       orgId: context.orgId,
@@ -25,6 +29,7 @@ export const list = authed
 export const get = authed
   .route({ method: "GET", path: "/clients/{id}" })
   .input(z.object({ id: z.string().uuid() }))
+  .output(clientResponseSchema)
   .handler(async ({ input, context }) => {
     return clientService.get(input.id, {
       orgId: context.orgId,
@@ -36,6 +41,7 @@ export const get = authed
 export const create = authed
   .route({ method: "POST", path: "/clients", successStatus: 201 })
   .input(createClientSchema)
+  .output(clientResponseSchema)
   .handler(async ({ input, context }) => {
     return clientService.create(input, {
       orgId: context.orgId,
@@ -52,6 +58,7 @@ export const update = authed
       data: updateClientSchema,
     }),
   )
+  .output(clientResponseSchema)
   .handler(async ({ input, context }) => {
     return clientService.update(input.id, input.data, {
       orgId: context.orgId,
@@ -63,6 +70,7 @@ export const update = authed
 export const remove = authed
   .route({ method: "DELETE", path: "/clients/{id}" })
   .input(z.object({ id: z.string().uuid() }))
+  .output(successResponseSchema)
   .handler(async ({ input, context }) => {
     return clientService.delete(input.id, {
       orgId: context.orgId,
@@ -74,6 +82,7 @@ export const remove = authed
 export const historySummary = authed
   .route({ method: "GET", path: "/clients/{id}/history-summary" })
   .input(z.object({ id: z.string().uuid() }))
+  .output(clientHistorySummarySchema)
   .handler(async ({ input, context }) => {
     const result = await clientService.historySummary(input.id, {
       orgId: context.orgId,
