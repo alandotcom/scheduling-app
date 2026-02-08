@@ -97,7 +97,7 @@ describe("modal layout positioning", () => {
     expect(popup?.className).not.toContain("-translate-y-1/2");
   });
 
-  test("AlertDialog keeps a top anchor", () => {
+  test("AlertDialog is centered in the viewport", () => {
     render(
       <AlertDialog open onOpenChange={() => {}}>
         <AlertDialogContent>
@@ -115,7 +115,7 @@ describe("modal layout positioning", () => {
       '[data-slot="alert-dialog-content"]',
     );
     expect(popup).toBeTruthy();
-    expect(popup?.className).toContain("top-4");
-    expect(popup?.className).not.toContain("-translate-y-1/2");
+    expect(popup?.className).toContain("top-1/2");
+    expect(popup?.className).toContain("-translate-y-1/2");
   });
 });

@@ -14,6 +14,7 @@ import {
 interface ScheduleFilters {
   calendarId?: string;
   appointmentTypeId?: string;
+  clientId?: string;
   status?: string;
 }
 
@@ -57,6 +58,7 @@ export function useScheduleAppointments({
       ...(filters.appointmentTypeId && {
         appointmentTypeId: filters.appointmentTypeId,
       }),
+      ...(filters.clientId && { clientId: filters.clientId }),
       ...(filters.status && {
         status: filters.status as
           | "scheduled"
@@ -70,6 +72,7 @@ export function useScheduleAppointments({
       weekEnd,
       filters.calendarId,
       filters.appointmentTypeId,
+      filters.clientId,
       filters.status,
     ],
   );

@@ -28,7 +28,9 @@ export const auth = betterAuth({
   trustedOrigins: config.auth.trustedOrigins.split(",").map((o) => o.trim()),
   emailAndPassword: {
     enabled: true,
-    requireEmailVerification: config.auth.requireEmailVerification,
+    requireEmailVerification: isDev
+      ? false
+      : config.auth.requireEmailVerification,
   },
   session: {
     expiresIn: 60 * 60 * 24 * 7, // 7 days

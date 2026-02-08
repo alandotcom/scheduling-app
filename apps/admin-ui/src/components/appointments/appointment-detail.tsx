@@ -1,7 +1,6 @@
 // Appointment detail panel component for split-pane layout
 
 import { useState } from "react";
-import { Link } from "@tanstack/react-router";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -55,6 +54,7 @@ interface AppointmentDetailProps {
   onTimezoneModeChange: (mode: SchedulingTimezoneMode) => void;
   activeTab: DetailTabValue;
   onTabChange: (tab: DetailTabValue) => void;
+  onOpenClient?: (clientId: string) => void;
   isLoading?: boolean;
 }
 
@@ -86,10 +86,10 @@ export function AppointmentDetail({
   onTimezoneModeChange,
   activeTab,
   onTabChange,
+  onOpenClient,
   isLoading,
 }: AppointmentDetailProps) {
   const queryClient = useQueryClient();
-  const [editingNotes, setEditingNotes] = useState(false);
   const [showCancelDialog, setShowCancelDialog] = useState(false);
   const [showNoShowDialog, setShowNoShowDialog] = useState(false);
   const [showRescheduleDialog, setShowRescheduleDialog] = useState(false);
@@ -110,9 +110,6 @@ export function AppointmentDetail({
     reset: (values) => {
       notesForm.reset(values);
     },
-    onReset: () => {
-      setEditingNotes(false);
-    },
   });
 
   // Update notes mutation
@@ -120,7 +117,6 @@ export function AppointmentDetail({
     orpc.appointments.update.mutationOptions({
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: orpc.appointments.key() });
-        setEditingNotes(false);
         toast.success("Notes updated");
       },
       onError: (error) => {
@@ -274,24 +270,10 @@ export function AppointmentDetail({
 
               {/* Notes */}
               <div>
-                <div className="flex items-center justify-between">
-                  <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                    Notes
-                  </Label>
-                  {!editingNotes && isActionable && (
-                    <Button
-                      variant="ghost"
-                      size="xs"
-                      onClick={() => {
-                        notesForm.reset({ notes: appointment.notes ?? "" });
-                        setEditingNotes(true);
-                      }}
-                    >
-                      Edit
-                    </Button>
-                  )}
-                </div>
-                {editingNotes ? (
+                <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                  Notes
+                </Label>
+                {isActionable ? (
                   <form
                     onSubmit={notesForm.handleSubmit(handleSaveNotes)}
                     className="mt-2 space-y-3"
@@ -308,14 +290,6 @@ export function AppointmentDetail({
                         disabled={updateMutation.isPending}
                       >
                         {updateMutation.isPending ? "Saving..." : "Save"}
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setEditingNotes(false)}
-                      >
-                        Cancel
                       </Button>
                     </div>
                   </form>
@@ -383,7 +357,14 @@ export function AppointmentDetail({
             <div className="space-y-6">
               {appointment.client ? (
                 <>
-                  <div className="rounded-lg border border-border p-4">
+                  <button
+                    type="button"
+                    className="w-full rounded-lg border border-border p-4 text-left transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    onClick={() =>
+                      appointment.client &&
+                      onOpenClient?.(appointment.client.id)
+                    }
+                  >
                     <div className="flex items-center gap-2">
                       <Icon
                         icon={UserCircle02Icon}
@@ -400,18 +381,11 @@ export function AppointmentDetail({
                         <span>{appointment.client.email}</span>
                       </div>
                     )}
-                  </div>
-
-                  <Button
-                    variant="outline"
-                    className="w-full justify-between"
-                    asChild
-                  >
-                    <Link to="/clients">
-                      <span>View Client Profile</span>
-                      <Icon icon={ArrowRight02Icon} />
-                    </Link>
-                  </Button>
+                    <div className="mt-3 flex items-center justify-end text-sm text-muted-foreground">
+                      <span>Open client</span>
+                      <Icon icon={ArrowRight02Icon} className="ml-2 size-4" />
+                    </div>
+                  </button>
                 </>
               ) : (
                 <div className="rounded-lg border border-border p-6 text-center text-sm text-muted-foreground">
@@ -444,7 +418,6 @@ export function AppointmentDetail({
             <AlertDialogCancel>Keep Appointment</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => cancelMutation.mutate({ id: appointment.id })}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               {cancelMutation.isPending
                 ? "Cancelling..."

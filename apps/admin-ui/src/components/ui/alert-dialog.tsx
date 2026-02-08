@@ -30,7 +30,7 @@ function AlertDialogOverlay({
     <AlertDialogPrimitive.Backdrop
       data-slot="alert-dialog-overlay"
       className={cn(
-        "data-open:animate-in data-open:fade-in-0 bg-black/15 duration-100 supports-backdrop-filter:backdrop-blur-sm fixed inset-0 isolate z-50",
+        "data-open:animate-in data-open:fade-in-0 fixed inset-0 isolate z-50 bg-black/30 duration-150 supports-backdrop-filter:backdrop-blur-md",
         className,
       )}
       {...props}
@@ -52,8 +52,8 @@ function AlertDialogContent({
         data-slot="alert-dialog-content"
         data-size={size}
         className={cn(
-          "data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 bg-background border border-border gap-6 rounded-xl p-6 shadow-lg duration-100 data-[size=default]:max-w-xs data-[size=sm]:max-w-xs data-[size=default]:sm:max-w-sm group/alert-dialog-content fixed top-4 left-1/2 z-50 grid w-[calc(100vw-2rem)] -translate-x-1/2 outline-none sm:top-8 sm:w-full",
-          "max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-h-[calc(100dvh-4rem)]",
+          "data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 fixed left-1/2 top-1/2 z-50 grid w-[calc(100vw-2rem)] -translate-x-1/2 -translate-y-1/2 gap-6 rounded-xl border border-border bg-background p-6 shadow-xl outline-none duration-100 data-[size=default]:max-w-xs data-[size=sm]:max-w-xs data-[size=default]:sm:max-w-sm sm:w-full group/alert-dialog-content",
+          "max-h-[min(90dvh,32rem)] overflow-x-hidden overflow-y-auto",
           className,
         )}
         {...props}
@@ -86,7 +86,7 @@ function AlertDialogFooter({
     <div
       data-slot="alert-dialog-footer"
       className={cn(
-        "bg-muted/30 -mx-6 -mb-6 rounded-b-xl border-t p-6 flex flex-col-reverse gap-3 group-data-[size=sm]/alert-dialog-content:grid group-data-[size=sm]/alert-dialog-content:grid-cols-2 sm:flex-row sm:justify-end",
+        "mt-2 flex flex-col-reverse gap-3 border-t pt-5 group-data-[size=sm]/alert-dialog-content:grid group-data-[size=sm]/alert-dialog-content:grid-cols-2 sm:flex-row sm:justify-end",
         className,
       )}
       {...props}

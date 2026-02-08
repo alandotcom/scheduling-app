@@ -391,7 +391,6 @@ export function AppointmentDrawer({
             <AlertDialogCancel>Keep Appointment</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => cancelMutation.mutate({ id: appointment.id })}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               {cancelMutation.isPending
                 ? "Cancelling..."

@@ -42,8 +42,13 @@ import {
 import { useCrudState } from "@/hooks/use-crud-state";
 import { useUrlDrivenModal } from "@/hooks/use-url-driven-modal";
 import { useValidateSelection } from "@/hooks/use-selection-search-params";
+import { AppointmentDetail } from "@/components/appointments/appointment-detail";
 import { formatDisplayDate, formatDisplayDateTime } from "@/lib/date-utils";
 import { getQueryClient, orpc } from "@/lib/query";
+import {
+  DEFAULT_SCHEDULING_TIMEZONE_MODE,
+  type SchedulingTimezoneMode,
+} from "@/lib/scheduling-timezone";
 
 interface ClientFormProps {
   defaultValues?: {
@@ -170,21 +175,33 @@ function ClientForm({
 }
 
 type DetailTabValue = "details" | "history";
+type AppointmentDetailTabValue = "details" | "client" | "history";
 
 const isDetailTab = (value: string): value is DetailTabValue =>
   value === "details" || value === "history";
+const isAppointmentDetailTab = (
+  value: string,
+): value is AppointmentDetailTabValue =>
+  value === "details" || value === "client" || value === "history";
 
 function ClientsPage() {
   const queryClient = useQueryClient();
   const navigate = useNavigate({ from: Route.fullPath });
-  const { selected, tab } = Route.useSearch();
+  const { selected, tab, appointment, appointmentTab } = Route.useSearch();
   const selectedId = selected ?? null;
   const activeTab: DetailTabValue = tab && isDetailTab(tab) ? tab : "details";
+  const selectedAppointmentId = appointment ?? null;
+  const activeAppointmentTab: AppointmentDetailTabValue =
+    appointmentTab && isAppointmentDetailTab(appointmentTab)
+      ? appointmentTab
+      : "details";
 
   const [search, setSearch] = useState("");
   const [appointmentModalOpen, setAppointmentModalOpen] = useState(false);
   const [appointmentModalClientPrefill, setAppointmentModalClientPrefill] =
     useState<{ id: string; name: string } | null>(null);
+  const [appointmentTimezoneMode, setAppointmentTimezoneMode] =
+    useState<SchedulingTimezoneMode>(DEFAULT_SCHEDULING_TIMEZONE_MODE);
 
   const { data, isLoading, error } = useQuery({
     ...orpc.clients.list.queryOptions({
@@ -213,6 +230,8 @@ function ClientsPage() {
           ...prev,
           selected: clientId,
           tab: nextTab,
+          appointment: undefined,
+          appointmentTab: undefined,
         }),
       });
     },
@@ -226,6 +245,8 @@ function ClientsPage() {
         ...prev,
         selected: undefined,
         tab: undefined,
+        appointment: undefined,
+        appointmentTab: undefined,
       }),
     });
   }, [closeDetailModalNow, navigate]);
@@ -241,6 +262,58 @@ function ClientsPage() {
       });
     },
     [navigate, selectedId],
+  );
+
+  const openAppointmentDetails = useCallback(
+    (appointmentId: string, nextTab: AppointmentDetailTabValue = "details") => {
+      navigate({
+        search: (prev) => ({
+          ...prev,
+          tab: "history",
+          appointment: appointmentId,
+          appointmentTab: nextTab,
+        }),
+      });
+    },
+    [navigate],
+  );
+
+  const clearSelectedAppointment = useCallback(() => {
+    navigate({
+      search: (prev) => ({
+        ...prev,
+        appointment: undefined,
+        appointmentTab: undefined,
+      }),
+    });
+  }, [navigate]);
+
+  const openClientFromAppointment = useCallback(
+    (clientId: string) => {
+      navigate({
+        search: (prev) => ({
+          ...prev,
+          selected: clientId,
+          tab: "details",
+          appointment: undefined,
+          appointmentTab: undefined,
+        }),
+      });
+    },
+    [navigate],
+  );
+
+  const setActiveAppointmentTab = useCallback(
+    (value: AppointmentDetailTabValue) => {
+      if (!selectedAppointmentId) return;
+      navigate({
+        search: (prev) => ({
+          ...prev,
+          appointmentTab: value,
+        }),
+      });
+    },
+    [navigate, selectedAppointmentId],
   );
 
   useValidateSelection(clients, selectedId, clearDetails);
@@ -317,11 +390,28 @@ function ClientsPage() {
       ...orpc.appointments.list.queryOptions({
         input: { clientId: selectedId ?? "", limit: 20 },
       }),
-      enabled: !!selectedId && activeTab === "history",
+      enabled:
+        !!selectedId && (activeTab === "history" || !!selectedAppointmentId),
     },
   );
 
   const appointments = appointmentsData?.items ?? [];
+  const selectedAppointmentFromList =
+    appointments.find((apt) => apt.id === selectedAppointmentId) ?? null;
+  const { data: selectedAppointmentFromGet, isLoading: isLoadingAppointment } =
+    useQuery({
+      ...orpc.appointments.get.queryOptions({
+        input: { id: selectedAppointmentId ?? "" },
+      }),
+      enabled: !!selectedAppointmentId && !selectedAppointmentFromList,
+    });
+  const selectedAppointment =
+    selectedAppointmentFromList ?? selectedAppointmentFromGet ?? null;
+  const displayAppointment = selectedAppointmentId ? selectedAppointment : null;
+  const appointmentDisplayTimezone =
+    displayAppointment?.calendar?.timezone ??
+    displayAppointment?.timezone ??
+    "America/New_York";
 
   const { upcomingAppointments, pastAppointments } = useMemo(() => {
     const now = DateTime.now();
@@ -477,14 +567,40 @@ function ClientsPage() {
           if (!open) clearDetails();
         }}
         title={
-          displayClient
-            ? `${displayClient.firstName} ${displayClient.lastName}`
-            : ""
+          displayAppointment
+            ? (displayAppointment.appointmentType?.name ?? "Appointment")
+            : displayClient
+              ? `${displayClient.firstName} ${displayClient.lastName}`
+              : ""
         }
-        description={displayClient?.email ?? displayClient?.phone ?? undefined}
-        className="max-w-5xl"
+        description={
+          displayAppointment
+            ? formatDisplayDate(
+                displayAppointment.startAt,
+                appointmentDisplayTimezone,
+              )
+            : (displayClient?.email ?? displayClient?.phone ?? undefined)
+        }
+        className={
+          displayAppointment
+            ? "max-w-5xl sm:h-[min(94dvh,60rem)] sm:min-h-[42rem]"
+            : "max-w-5xl"
+        }
         headerActions={
-          displayClient ? (
+          displayAppointment ? (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={clearSelectedAppointment}
+            >
+              <Icon
+                icon={ArrowRight02Icon}
+                data-icon="inline-start"
+                className="rotate-180"
+              />
+              Back to client
+            </Button>
+          ) : displayClient ? (
             <div className="flex items-center gap-2">
               <Button
                 size="sm"
@@ -512,176 +628,200 @@ function ClientsPage() {
         }
       >
         {displayClient ? (
-          <div className="space-y-4">
-            <DetailTabs
-              value={activeTab}
-              onValueChange={setActiveTab}
-              className="px-0"
-            >
-              <DetailTab value="details">Details</DetailTab>
-              <DetailTab value="history">History</DetailTab>
-            </DetailTabs>
+          displayAppointment ||
+          (selectedAppointmentId && isLoadingAppointment) ? (
+            <AppointmentDetail
+              appointment={displayAppointment}
+              displayTimezone={appointmentDisplayTimezone}
+              timezoneMode={appointmentTimezoneMode}
+              onTimezoneModeChange={setAppointmentTimezoneMode}
+              activeTab={activeAppointmentTab}
+              onTabChange={(tabValue) => setActiveAppointmentTab(tabValue)}
+              onOpenClient={openClientFromAppointment}
+              isLoading={isLoadingAppointment}
+            />
+          ) : (
+            <div className="space-y-4">
+              <DetailTabs
+                value={activeTab}
+                onValueChange={setActiveTab}
+                className="px-0"
+              >
+                <DetailTab value="details">Details</DetailTab>
+                <DetailTab value="history">History</DetailTab>
+              </DetailTabs>
 
-            <div className="space-y-6">
-              {activeTab === "details" ? (
-                <div className="space-y-4">
-                  <div>
-                    <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                      Created
-                    </Label>
-                    <p className="mt-1 text-sm">
-                      {formatDisplayDate(displayClient.createdAt)}
-                    </p>
-                  </div>
-                  <div>
-                    <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                      Email
-                    </Label>
-                    <p className="mt-1 text-sm">
-                      {displayClient.email ?? (
-                        <span className="text-muted-foreground">Not set</span>
-                      )}
-                    </p>
-                  </div>
-                  <div>
-                    <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                      Phone
-                    </Label>
-                    <p className="mt-1 text-sm">
-                      {displayClient.phone ?? (
-                        <span className="text-muted-foreground">Not set</span>
-                      )}
-                    </p>
-                  </div>
-                  <div>
-                    <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                      Total Appointments
-                    </Label>
-                    <p className="mt-1 text-sm">
-                      {displayClient.relationshipCounts?.appointments ?? 0}
-                    </p>
-                  </div>
-                  <div className="border-t border-border pt-4">
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                      onClick={() => crud.openDelete(displayClient.id)}
-                    >
-                      <Icon icon={Delete01Icon} data-icon="inline-start" />
-                      Delete Client
-                    </Button>
-                  </div>
-                </div>
-              ) : (
-                <div className="space-y-6">
-                  {isLoadingAppointments ? (
-                    <div className="py-6 text-center text-muted-foreground">
-                      Loading appointments...
+              <div className="space-y-6">
+                {activeTab === "details" ? (
+                  <div className="space-y-4">
+                    <div>
+                      <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                        Created
+                      </Label>
+                      <p className="mt-1 text-sm">
+                        {formatDisplayDate(displayClient.createdAt)}
+                      </p>
                     </div>
-                  ) : (
-                    <>
-                      <div>
-                        <h3 className="mb-3 text-sm font-medium text-muted-foreground uppercase tracking-wider">
-                          Upcoming
-                        </h3>
-                        {upcomingAppointments.length === 0 ? (
-                          <div className="rounded-lg border border-border p-4 text-sm text-muted-foreground">
-                            No upcoming appointments
-                          </div>
-                        ) : (
-                          <div className="divide-y divide-border/50 rounded-lg border border-border">
-                            {upcomingAppointments.map((apt) => (
-                              <div key={apt.id} className="px-4 py-3">
-                                <div className="flex items-center justify-between">
-                                  <div>
-                                    <div className="font-medium">
-                                      {formatDisplayDateTime(apt.startAt)}
-                                    </div>
-                                    <div className="text-sm text-muted-foreground">
-                                      {apt.appointmentType?.name}
-                                      {apt.calendar &&
-                                        ` - ${apt.calendar.name}`}
-                                    </div>
-                                  </div>
-                                  <Badge
-                                    variant={
-                                      apt.status === "confirmed"
-                                        ? "success"
-                                        : "secondary"
-                                    }
-                                  >
-                                    {apt.status}
-                                  </Badge>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
+                    <div>
+                      <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                        Email
+                      </Label>
+                      <p className="mt-1 text-sm">
+                        {displayClient.email ?? (
+                          <span className="text-muted-foreground">Not set</span>
                         )}
+                      </p>
+                    </div>
+                    <div>
+                      <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                        Phone
+                      </Label>
+                      <p className="mt-1 text-sm">
+                        {displayClient.phone ?? (
+                          <span className="text-muted-foreground">Not set</span>
+                        )}
+                      </p>
+                    </div>
+                    <div>
+                      <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                        Total Appointments
+                      </Label>
+                      <p className="mt-1 text-sm">
+                        {displayClient.relationshipCounts?.appointments ?? 0}
+                      </p>
+                    </div>
+                    <div className="border-t border-border pt-4">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                        onClick={() => crud.openDelete(displayClient.id)}
+                      >
+                        <Icon icon={Delete01Icon} data-icon="inline-start" />
+                        Delete Client
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-6">
+                    {isLoadingAppointments ? (
+                      <div className="py-6 text-center text-muted-foreground">
+                        Loading appointments...
                       </div>
-
-                      <div>
-                        <div className="mb-3 flex items-center justify-between">
-                          <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
-                            Past
+                    ) : (
+                      <>
+                        <div>
+                          <h3 className="mb-3 text-sm font-medium text-muted-foreground uppercase tracking-wider">
+                            Upcoming
                           </h3>
-                          <Button variant="ghost" size="sm" asChild>
-                            <Link
-                              to="/appointments"
-                              search={{ clientId: displayClient.id }}
-                            >
-                              View all
-                              <Icon
-                                icon={ArrowRight02Icon}
-                                data-icon="inline-end"
-                              />
-                            </Link>
-                          </Button>
-                        </div>
-                        {pastAppointments.length === 0 ? (
-                          <div className="rounded-lg border border-border p-4 text-sm text-muted-foreground">
-                            No past appointments
-                          </div>
-                        ) : (
-                          <div className="divide-y divide-border/50 rounded-lg border border-border">
-                            {pastAppointments.slice(0, 5).map((apt) => (
-                              <div key={apt.id} className="px-4 py-3">
-                                <div className="flex items-center justify-between">
-                                  <div>
-                                    <div className="font-medium">
-                                      {formatDisplayDateTime(apt.startAt)}
+                          {upcomingAppointments.length === 0 ? (
+                            <div className="rounded-lg border border-border p-4 text-sm text-muted-foreground">
+                              No upcoming appointments
+                            </div>
+                          ) : (
+                            <div className="divide-y divide-border/50 rounded-lg border border-border">
+                              {upcomingAppointments.map((apt) => (
+                                <button
+                                  key={apt.id}
+                                  type="button"
+                                  className="w-full px-4 py-3 text-left transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                                  onClick={() => openAppointmentDetails(apt.id)}
+                                >
+                                  <div className="flex items-center justify-between">
+                                    <div>
+                                      <div className="font-medium">
+                                        {formatDisplayDateTime(apt.startAt)}
+                                      </div>
+                                      <div className="text-sm text-muted-foreground">
+                                        {apt.appointmentType?.name}
+                                        {apt.calendar &&
+                                          ` - ${apt.calendar.name}`}
+                                      </div>
                                     </div>
-                                    <div className="text-sm text-muted-foreground">
-                                      {apt.appointmentType?.name}
-                                    </div>
-                                  </div>
-                                  <Badge
-                                    variant={
-                                      apt.status === "confirmed"
-                                        ? "success"
-                                        : apt.status === "cancelled" ||
-                                            apt.status === "no_show"
-                                          ? "destructive"
+                                    <Badge
+                                      variant={
+                                        apt.status === "confirmed"
+                                          ? "success"
                                           : "secondary"
-                                    }
-                                  >
-                                    {apt.status === "no_show"
-                                      ? "No Show"
-                                      : apt.status}
-                                  </Badge>
-                                </div>
-                              </div>
-                            ))}
+                                      }
+                                    >
+                                      {apt.status}
+                                    </Badge>
+                                  </div>
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+
+                        <div>
+                          <div className="mb-3 flex items-center justify-between">
+                            <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
+                              Past
+                            </h3>
+                            <Button variant="ghost" size="sm" asChild>
+                              <Link
+                                to="/appointments"
+                                search={{ clientId: displayClient.id }}
+                              >
+                                View all
+                                <Icon
+                                  icon={ArrowRight02Icon}
+                                  data-icon="inline-end"
+                                />
+                              </Link>
+                            </Button>
                           </div>
-                        )}
-                      </div>
-                    </>
-                  )}
-                </div>
-              )}
+                          {pastAppointments.length === 0 ? (
+                            <div className="rounded-lg border border-border p-4 text-sm text-muted-foreground">
+                              No past appointments
+                            </div>
+                          ) : (
+                            <div className="divide-y divide-border/50 rounded-lg border border-border">
+                              {pastAppointments.slice(0, 5).map((apt) => (
+                                <button
+                                  key={apt.id}
+                                  type="button"
+                                  className="w-full px-4 py-3 text-left transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                                  onClick={() => openAppointmentDetails(apt.id)}
+                                >
+                                  <div className="flex items-center justify-between">
+                                    <div>
+                                      <div className="font-medium">
+                                        {formatDisplayDateTime(apt.startAt)}
+                                      </div>
+                                      <div className="text-sm text-muted-foreground">
+                                        {apt.appointmentType?.name}
+                                      </div>
+                                    </div>
+                                    <Badge
+                                      variant={
+                                        apt.status === "confirmed"
+                                          ? "success"
+                                          : apt.status === "cancelled" ||
+                                              apt.status === "no_show"
+                                            ? "destructive"
+                                            : "secondary"
+                                      }
+                                    >
+                                      {apt.status === "no_show"
+                                        ? "No Show"
+                                        : apt.status}
+                                    </Badge>
+                                  </div>
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
+          )
         ) : null}
       </EntityModal>
 
@@ -748,12 +888,29 @@ function ClientsPage() {
 export const Route = createFileRoute("/_authenticated/clients")({
   validateSearch: (
     search: Record<string, unknown>,
-  ): { selected?: string; tab?: DetailTabValue } => {
+  ): {
+    selected?: string;
+    tab?: DetailTabValue;
+    appointment?: string;
+    appointmentTab?: AppointmentDetailTabValue;
+  } => {
     const selected =
       typeof search.selected === "string" ? search.selected : undefined;
     const rawTab = typeof search.tab === "string" ? search.tab : "";
     const tab = isDetailTab(rawTab) ? rawTab : undefined;
-    return { selected, tab };
+    const appointment =
+      typeof search.appointment === "string" ? search.appointment : undefined;
+    const rawAppointmentTab =
+      typeof search.appointmentTab === "string" ? search.appointmentTab : "";
+    const parsedAppointmentTab = isAppointmentDetailTab(rawAppointmentTab)
+      ? rawAppointmentTab
+      : undefined;
+    return {
+      selected,
+      tab,
+      appointment,
+      appointmentTab: parsedAppointmentTab,
+    };
   },
   loader: async () => {
     const queryClient = getQueryClient();

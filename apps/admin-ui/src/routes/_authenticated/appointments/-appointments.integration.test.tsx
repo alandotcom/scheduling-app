@@ -113,12 +113,19 @@ describe("validateSearch", () => {
   test("accepts filter params", () => {
     const result = validateSearch({
       calendarId: "cal-123",
+      clientId: "client-789",
       appointmentTypeId: "type-456",
       status: "scheduled",
     });
     expect(result.calendarId).toBe("cal-123");
+    expect(result.clientId).toBe("client-789");
     expect(result.appointmentTypeId).toBe("type-456");
     expect(result.status).toBe("scheduled");
+  });
+
+  test("rejects non-string clientId", () => {
+    const result = validateSearch({ clientId: 123 });
+    expect(result.clientId).toBeUndefined();
   });
 
   test("parses complex deep link", () => {

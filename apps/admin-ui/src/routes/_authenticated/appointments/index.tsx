@@ -77,6 +77,8 @@ const STATUS_FILTER_OPTIONS = [
   { value: "cancelled", label: "Cancelled" },
   { value: "no_show", label: "No Show" },
 ] as const;
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 const isDetailTab = (value: string): value is DetailTabValue =>
   value === "details" || value === "client" || value === "history";
@@ -90,6 +92,7 @@ function AppointmentsPage() {
     view = "list",
     date,
     calendarId: urlCalendarId,
+    clientId: urlClientId,
     appointmentTypeId: urlAppointmentTypeId,
     status: urlStatus,
     tzMode,
@@ -114,10 +117,11 @@ function AppointmentsPage() {
   const filters = useMemo(
     () => ({
       calendarId: urlCalendarId ?? "",
+      clientId: urlClientId ?? "",
       appointmentTypeId: urlAppointmentTypeId ?? "",
       status: urlStatus ?? "",
     }),
-    [urlCalendarId, urlAppointmentTypeId, urlStatus],
+    [urlCalendarId, urlClientId, urlAppointmentTypeId, urlStatus],
   );
 
   // Navigation callbacks
@@ -181,6 +185,7 @@ function AppointmentsPage() {
         search: (prev) => ({
           ...prev,
           calendarId: newFilters.calendarId ?? prev.calendarId,
+          clientId: newFilters.clientId ?? prev.clientId,
           appointmentTypeId:
             newFilters.appointmentTypeId ?? prev.appointmentTypeId,
           status: newFilters.status ?? prev.status,
@@ -207,6 +212,7 @@ function AppointmentsPage() {
       search: (prev) => ({
         ...prev,
         calendarId: undefined,
+        clientId: undefined,
         appointmentTypeId: undefined,
         status: undefined,
       }),
@@ -225,6 +231,7 @@ function AppointmentsPage() {
       input: {
         limit: 50,
         ...(filters.calendarId && { calendarId: filters.calendarId }),
+        ...(filters.clientId && { clientId: filters.clientId }),
         ...(filters.appointmentTypeId && {
           appointmentTypeId: filters.appointmentTypeId,
         }),
@@ -253,6 +260,15 @@ function AppointmentsPage() {
     ...orpc.appointmentTypes.list.queryOptions({
       input: { limit: 100 },
     }),
+    placeholderData: (previous) => previous,
+  });
+
+  const hasValidClientFilter = UUID_PATTERN.test(filters.clientId);
+  const { data: selectedClientData } = useQuery({
+    ...orpc.clients.get.queryOptions({
+      input: { id: filters.clientId },
+    }),
+    enabled: hasValidClientFilter,
     placeholderData: (previous) => previous,
   });
 
@@ -298,6 +314,7 @@ function AppointmentsPage() {
       displayTimezone,
       filters: {
         calendarId: filters.calendarId || undefined,
+        clientId: filters.clientId || undefined,
         appointmentTypeId: filters.appointmentTypeId || undefined,
         status: filters.status || undefined,
       },
@@ -533,11 +550,20 @@ function AppointmentsPage() {
   // Active filter count and display
   const activeFilterCount = [
     filters.calendarId,
+    filters.clientId,
     filters.appointmentTypeId,
     filters.status,
   ].filter(Boolean).length;
 
   const activeFiltersDisplay = [
+    filters.clientId && {
+      label: "Client",
+      value: hasValidClientFilter
+        ? `${selectedClientData?.firstName ?? ""} ${selectedClientData?.lastName ?? ""}`.trim() ||
+          "Unknown client"
+        : "Unknown client",
+      onRemove: () => clearFilter("clientId"),
+    },
     filters.calendarId && {
       label: "Calendar",
       value: selectedCalendar?.name ?? "Unknown",
@@ -571,6 +597,19 @@ function AppointmentsPage() {
       openDetails(id, "details");
     },
     [openDetails],
+  );
+
+  const handleOpenClient = useCallback(
+    (clientId: string) => {
+      navigate({
+        to: "/clients",
+        search: {
+          selected: clientId,
+          tab: "details",
+        },
+      });
+    },
+    [navigate],
   );
 
   return (
@@ -748,6 +787,7 @@ function AppointmentsPage() {
               onTimezoneModeChange={setTimezoneMode}
               activeTab={activeTab}
               onTabChange={setActiveTab}
+              onOpenClient={handleOpenClient}
               isLoading={!!selectedInSchedule && isFetchingAppointment}
             />
           </div>
@@ -779,10 +819,7 @@ function AppointmentsPage() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Keep Appointment</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleCancel}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
+            <AlertDialogAction onClick={handleCancel}>
               {cancelMutation.isPending
                 ? "Cancelling..."
                 : "Cancel Appointment"}

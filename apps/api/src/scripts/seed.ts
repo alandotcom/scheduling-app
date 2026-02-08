@@ -95,6 +95,8 @@ type SeedClient = {
 };
 
 const CLIENT_FIXTURE_COUNT = 12;
+const DEV_ADMIN_EMAIL = "admin@example.com";
+const DEV_ADMIN_PASSWORD = "password123";
 
 const APPOINTMENT_TYPE_FIXTURES: SeedAppointmentType[] = [
   {
@@ -550,28 +552,51 @@ async function seed() {
 
   async function getOrCreateAdminUser() {
     const existingUser = await db
-      .select({ id: users.id, email: users.email })
+      .select({
+        id: users.id,
+        email: users.email,
+        emailVerified: users.emailVerified,
+      })
       .from(users)
-      .where(eq(users.email, "admin@example.com"))
+      .where(eq(users.email, DEV_ADMIN_EMAIL))
       .limit(1);
 
     if (existingUser.length > 0) {
-      console.log(`Admin user already exists: ${existingUser[0]!.email}`);
-      return existingUser[0]!;
+      const [adminUser] = existingUser;
+      if (!adminUser) {
+        throw new Error("Expected existing admin user to be defined");
+      }
+
+      if (!adminUser.emailVerified) {
+        await db
+          .update(users)
+          .set({ emailVerified: true })
+          .where(eq(users.id, adminUser.id));
+        console.log(`Admin user already exists: ${adminUser.email} (verified)`);
+      } else {
+        console.log(`Admin user already exists: ${adminUser.email}`);
+      }
+
+      return { id: adminUser.id, email: adminUser.email };
     }
 
     console.log("Creating admin user via BetterAuth...");
     const result = await auth.api.signUpEmail({
       body: {
         name: "Admin User",
-        email: "admin@example.com",
-        password: "password123",
+        email: DEV_ADMIN_EMAIL,
+        password: DEV_ADMIN_PASSWORD,
       },
     });
 
     if (!result.user) {
       throw new Error("Failed to create admin user via BetterAuth");
     }
+
+    await db
+      .update(users)
+      .set({ emailVerified: true })
+      .where(eq(users.id, result.user.id));
 
     console.log(`Created admin user: ${result.user.email} (${result.user.id})`);
     return { id: result.user.id, email: result.user.email };
@@ -1031,8 +1056,8 @@ async function seed() {
     }
 
     console.log("\nDemo credentials:");
-    console.log("  Email: admin@example.com");
-    console.log("  Password: password123");
+    console.log(`  Email: ${DEV_ADMIN_EMAIL}`);
+    console.log(`  Password: ${DEV_ADMIN_PASSWORD}`);
   } finally {
     client.close();
   }
