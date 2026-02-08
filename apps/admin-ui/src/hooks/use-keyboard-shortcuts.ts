@@ -266,7 +266,7 @@ export function useNavigationShortcuts(enabled = true) {
     },
   ];
 
-  useKeyboardShortcuts({ shortcuts, enabled });
+  useKeyboardShortcuts({ shortcuts, enabled, scope: "all" });
 }
 
 // List navigation hook

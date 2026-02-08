@@ -131,6 +131,7 @@ interface ClientFormProps {
   onSubmit: (data: CreateClientInput) => void;
   onCancel: () => void;
   isSubmitting: boolean;
+  shortcutsEnabled?: boolean;
 }
 
 function ClientForm({
@@ -138,6 +139,7 @@ function ClientForm({
   onSubmit,
   onCancel,
   isSubmitting,
+  shortcutsEnabled = true,
 }: ClientFormProps) {
   const formRef = useRef<HTMLFormElement>(null);
   const [countryComboboxOpen, setCountryComboboxOpen] = useState(false);
@@ -172,7 +174,7 @@ function ClientForm({
     ) ?? PHONE_COUNTRY_OPTIONS.find((option) => option.value === "US");
 
   const { hintsVisible, registerField } = useModalFieldShortcuts({
-    enabled: true,
+    enabled: shortcutsEnabled,
     fields: [
       { id: "first-name", key: "f", description: "Focus first name" },
       { id: "last-name", key: "l", description: "Focus last name" },
@@ -188,7 +190,7 @@ function ClientForm({
   });
 
   useSubmitShortcut({
-    enabled: !isSubmitting,
+    enabled: shortcutsEnabled && !isSubmitting,
     onSubmit: () => formRef.current?.requestSubmit(),
   });
 
@@ -762,6 +764,7 @@ function ClientsPage() {
   const selectedAppointment =
     selectedAppointmentFromList ?? selectedAppointmentFromGet ?? null;
   const displayAppointment = selectedAppointmentId ? selectedAppointment : null;
+  const isAppointmentDetailOpen = !!selectedAppointmentId;
   const appointmentDisplayTimezone =
     displayAppointment?.calendar?.timezone ??
     displayAppointment?.timezone ??
@@ -926,276 +929,281 @@ function ClientsPage() {
           if (!open) clearDetails();
         }}
         title={
-          displayAppointment
-            ? (displayAppointment.appointmentType?.name ?? "Appointment")
+          isAppointmentDetailOpen
+            ? (displayAppointment?.appointmentType?.name ?? "Appointment")
             : displayClient
               ? `${displayClient.firstName} ${displayClient.lastName}`
               : ""
         }
         description={
-          displayAppointment
+          isAppointmentDetailOpen && displayAppointment
             ? formatDisplayDate(
                 displayAppointment.startAt,
                 appointmentDisplayTimezone,
               )
-            : (displayClient?.email ??
-              formatPhoneForDisplay(displayClient?.phone) ??
-              undefined)
+            : !isAppointmentDetailOpen
+              ? (displayClient?.email ??
+                formatPhoneForDisplay(displayClient?.phone) ??
+                undefined)
+              : undefined
         }
         className={
           displayAppointment
             ? "sm:h-[min(94dvh,60rem)] sm:min-h-[42rem]"
             : undefined
         }
-        headerActions={
-          displayAppointment ? (
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={clearSelectedAppointment}
-            >
-              <Icon
-                icon={ArrowRight02Icon}
-                data-icon="inline-start"
-                className="rotate-180"
-              />
-              Back to client
-            </Button>
-          ) : displayClient ? (
-            <div className="flex items-center gap-2">
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => {
-                  clearDetails();
-                  handleBookAppointment(displayClient);
-                }}
-              >
-                <Icon icon={Calendar03Icon} data-icon="inline-start" />
-                Book
-              </Button>
-              <Button
-                size="sm"
-                onClick={() => {
-                  clearDetails();
-                  crud.openEdit(displayClient);
-                }}
-              >
-                <Icon icon={PencilEdit01Icon} data-icon="inline-start" />
-                Edit
-              </Button>
-            </div>
-          ) : null
-        }
       >
         {displayClient ? (
-          displayAppointment ||
-          (selectedAppointmentId && isLoadingAppointment) ? (
-            <div className="h-full">
-              <AppointmentDetail
-                appointment={displayAppointment}
-                displayTimezone={appointmentDisplayTimezone}
-                timezoneMode={appointmentTimezoneMode}
-                onTimezoneModeChange={setAppointmentTimezoneMode}
-                activeTab={activeAppointmentTab}
-                onTabChange={(tabValue) => setActiveAppointmentTab(tabValue)}
-                onOpenClient={openClientFromAppointment}
-                isLoading={isLoadingAppointment}
-                showHeader={false}
-              />
-            </div>
-          ) : (
-            <div className="h-full overflow-y-auto px-4 py-4 sm:px-6 sm:py-5">
-              <div className="space-y-4">
-                <DetailTabs
-                  value={activeTab}
-                  onValueChange={setActiveTab}
-                  className="px-0"
-                >
-                  <DetailTab value="details">Details</DetailTab>
-                  <DetailTab value="history">History</DetailTab>
-                </DetailTabs>
+          <div className="flex h-full min-h-0 flex-col">
+            {isAppointmentDetailOpen ? (
+              <div className="min-h-0 flex-1">
+                <AppointmentDetail
+                  appointment={displayAppointment}
+                  displayTimezone={appointmentDisplayTimezone}
+                  timezoneMode={appointmentTimezoneMode}
+                  onTimezoneModeChange={setAppointmentTimezoneMode}
+                  activeTab={activeAppointmentTab}
+                  onTabChange={(tabValue) => setActiveAppointmentTab(tabValue)}
+                  onOpenClient={openClientFromAppointment}
+                  isLoading={isLoadingAppointment}
+                  showHeader={false}
+                />
+              </div>
+            ) : (
+              <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-6 sm:py-5">
+                <div className="space-y-4">
+                  <DetailTabs
+                    value={activeTab}
+                    onValueChange={setActiveTab}
+                    className="px-0"
+                  >
+                    <DetailTab value="details">Details</DetailTab>
+                    <DetailTab value="history">History</DetailTab>
+                  </DetailTabs>
 
-                <div className="space-y-6">
-                  {activeTab === "details" ? (
-                    <div className="space-y-4">
-                      <div>
-                        <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                          Created
-                        </Label>
-                        <p className="mt-1 text-sm">
-                          {formatDisplayDate(displayClient.createdAt)}
-                        </p>
-                      </div>
-                      <div>
-                        <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                          Email
-                        </Label>
-                        <p className="mt-1 text-sm">
-                          {displayClient.email ?? (
-                            <span className="text-muted-foreground">
-                              Not set
-                            </span>
-                          )}
-                        </p>
-                      </div>
-                      <div>
-                        <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                          Phone
-                        </Label>
-                        <p className="mt-1 text-sm">
-                          {formatPhoneForDisplay(displayClient.phone) ?? (
-                            <span className="text-muted-foreground">
-                              Not set
-                            </span>
-                          )}
-                        </p>
-                      </div>
-                      <div>
-                        <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                          Total Appointments
-                        </Label>
-                        <p className="mt-1 text-sm">
-                          {displayClient.relationshipCounts?.appointments ?? 0}
-                        </p>
-                      </div>
-                      <div className="border-t border-border pt-4">
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                          onClick={() => crud.openDelete(displayClient.id)}
-                        >
-                          <Icon icon={Delete01Icon} data-icon="inline-start" />
-                          Delete Client
-                        </Button>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="space-y-6">
-                      {isLoadingAppointments ? (
-                        <div className="py-6 text-center text-muted-foreground">
-                          Loading appointments...
+                  <div className="space-y-6">
+                    {activeTab === "details" ? (
+                      <div className="space-y-4">
+                        <div>
+                          <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                            Created
+                          </Label>
+                          <p className="mt-1 text-sm">
+                            {formatDisplayDate(displayClient.createdAt)}
+                          </p>
                         </div>
-                      ) : (
-                        <>
-                          <div>
-                            <h3 className="mb-3 text-sm font-medium text-muted-foreground uppercase tracking-wider">
-                              Upcoming
-                            </h3>
-                            {upcomingAppointments.length === 0 ? (
-                              <div className="rounded-lg border border-border p-4 text-sm text-muted-foreground">
-                                No upcoming appointments
-                              </div>
-                            ) : (
-                              <div className="divide-y divide-border/50 rounded-lg border border-border">
-                                {upcomingAppointments.map((apt) => (
-                                  <button
-                                    key={apt.id}
-                                    type="button"
-                                    className="w-full px-4 py-3 text-left transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                                    onClick={() =>
-                                      openAppointmentDetails(apt.id)
-                                    }
-                                  >
-                                    <div className="flex items-center justify-between">
-                                      <div>
-                                        <div className="font-medium">
-                                          {formatDisplayDateTime(apt.startAt)}
-                                        </div>
-                                        <div className="text-sm text-muted-foreground">
-                                          {apt.appointmentType?.name}
-                                          {apt.calendar &&
-                                            ` - ${apt.calendar.name}`}
-                                        </div>
-                                      </div>
-                                      <Badge
-                                        variant={
-                                          apt.status === "confirmed"
-                                            ? "success"
-                                            : "secondary"
-                                        }
-                                      >
-                                        {apt.status}
-                                      </Badge>
-                                    </div>
-                                  </button>
-                                ))}
-                              </div>
+                        <div>
+                          <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                            Email
+                          </Label>
+                          <p className="mt-1 text-sm">
+                            {displayClient.email ?? (
+                              <span className="text-muted-foreground">
+                                Not set
+                              </span>
                             )}
+                          </p>
+                        </div>
+                        <div>
+                          <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                            Phone
+                          </Label>
+                          <p className="mt-1 text-sm">
+                            {formatPhoneForDisplay(displayClient.phone) ?? (
+                              <span className="text-muted-foreground">
+                                Not set
+                              </span>
+                            )}
+                          </p>
+                        </div>
+                        <div>
+                          <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                            Total Appointments
+                          </Label>
+                          <p className="mt-1 text-sm">
+                            {displayClient.relationshipCounts?.appointments ??
+                              0}
+                          </p>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="space-y-6">
+                        {isLoadingAppointments ? (
+                          <div className="py-6 text-center text-muted-foreground">
+                            Loading appointments...
                           </div>
-
-                          <div>
-                            <div className="mb-3 flex items-center justify-between">
-                              <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
-                                Past
+                        ) : (
+                          <>
+                            <div>
+                              <h3 className="mb-3 text-sm font-medium text-muted-foreground uppercase tracking-wider">
+                                Upcoming
                               </h3>
-                              <Button variant="ghost" size="sm" asChild>
-                                <Link
-                                  to="/appointments"
-                                  search={{ clientId: displayClient.id }}
-                                >
-                                  View all
-                                  <Icon
-                                    icon={ArrowRight02Icon}
-                                    data-icon="inline-end"
-                                  />
-                                </Link>
-                              </Button>
-                            </div>
-                            {pastAppointments.length === 0 ? (
-                              <div className="rounded-lg border border-border p-4 text-sm text-muted-foreground">
-                                No past appointments
-                              </div>
-                            ) : (
-                              <div className="divide-y divide-border/50 rounded-lg border border-border">
-                                {pastAppointments.slice(0, 5).map((apt) => (
-                                  <button
-                                    key={apt.id}
-                                    type="button"
-                                    className="w-full px-4 py-3 text-left transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                                    onClick={() =>
-                                      openAppointmentDetails(apt.id)
-                                    }
-                                  >
-                                    <div className="flex items-center justify-between">
-                                      <div>
-                                        <div className="font-medium">
-                                          {formatDisplayDateTime(apt.startAt)}
+                              {upcomingAppointments.length === 0 ? (
+                                <div className="rounded-lg border border-border p-4 text-sm text-muted-foreground">
+                                  No upcoming appointments
+                                </div>
+                              ) : (
+                                <div className="divide-y divide-border/50 rounded-lg border border-border">
+                                  {upcomingAppointments.map((apt) => (
+                                    <button
+                                      key={apt.id}
+                                      type="button"
+                                      className="w-full px-4 py-3 text-left transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                                      onClick={() =>
+                                        openAppointmentDetails(apt.id)
+                                      }
+                                    >
+                                      <div className="flex items-center justify-between">
+                                        <div>
+                                          <div className="font-medium">
+                                            {formatDisplayDateTime(apt.startAt)}
+                                          </div>
+                                          <div className="text-sm text-muted-foreground">
+                                            {apt.appointmentType?.name}
+                                            {apt.calendar &&
+                                              ` - ${apt.calendar.name}`}
+                                          </div>
                                         </div>
-                                        <div className="text-sm text-muted-foreground">
-                                          {apt.appointmentType?.name}
-                                        </div>
-                                      </div>
-                                      <Badge
-                                        variant={
-                                          apt.status === "confirmed"
-                                            ? "success"
-                                            : apt.status === "cancelled" ||
-                                                apt.status === "no_show"
-                                              ? "destructive"
+                                        <Badge
+                                          variant={
+                                            apt.status === "confirmed"
+                                              ? "success"
                                               : "secondary"
-                                        }
-                                      >
-                                        {apt.status === "no_show"
-                                          ? "No Show"
-                                          : apt.status}
-                                      </Badge>
-                                    </div>
-                                  </button>
-                                ))}
+                                          }
+                                        >
+                                          {apt.status}
+                                        </Badge>
+                                      </div>
+                                    </button>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+
+                            <div>
+                              <div className="mb-3 flex items-center justify-between">
+                                <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
+                                  Past
+                                </h3>
+                                <Button variant="ghost" size="sm" asChild>
+                                  <Link
+                                    to="/appointments"
+                                    search={{ clientId: displayClient.id }}
+                                  >
+                                    View all
+                                    <Icon
+                                      icon={ArrowRight02Icon}
+                                      data-icon="inline-end"
+                                    />
+                                  </Link>
+                                </Button>
                               </div>
-                            )}
-                          </div>
-                        </>
-                      )}
-                    </div>
-                  )}
+                              {pastAppointments.length === 0 ? (
+                                <div className="rounded-lg border border-border p-4 text-sm text-muted-foreground">
+                                  No past appointments
+                                </div>
+                              ) : (
+                                <div className="divide-y divide-border/50 rounded-lg border border-border">
+                                  {pastAppointments.slice(0, 5).map((apt) => (
+                                    <button
+                                      key={apt.id}
+                                      type="button"
+                                      className="w-full px-4 py-3 text-left transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                                      onClick={() =>
+                                        openAppointmentDetails(apt.id)
+                                      }
+                                    >
+                                      <div className="flex items-center justify-between">
+                                        <div>
+                                          <div className="font-medium">
+                                            {formatDisplayDateTime(apt.startAt)}
+                                          </div>
+                                          <div className="text-sm text-muted-foreground">
+                                            {apt.appointmentType?.name}
+                                          </div>
+                                        </div>
+                                        <Badge
+                                          variant={
+                                            apt.status === "confirmed"
+                                              ? "success"
+                                              : apt.status === "cancelled" ||
+                                                  apt.status === "no_show"
+                                                ? "destructive"
+                                                : "secondary"
+                                          }
+                                        >
+                                          {apt.status === "no_show"
+                                            ? "No Show"
+                                            : apt.status}
+                                        </Badge>
+                                      </div>
+                                    </button>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
+            )}
+
+            <div className="flex flex-wrap items-center gap-2 border-t border-border px-4 py-3 sm:px-6">
+              {isAppointmentDetailOpen ? (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={clearSelectedAppointment}
+                >
+                  <Icon
+                    icon={ArrowRight02Icon}
+                    data-icon="inline-start"
+                    className="rotate-180"
+                  />
+                  Back to client
+                </Button>
+              ) : (
+                <>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                    onClick={() => crud.openDelete(displayClient.id)}
+                  >
+                    <Icon icon={Delete01Icon} data-icon="inline-start" />
+                    Delete Client
+                  </Button>
+                  <div className="ml-auto flex items-center gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        clearDetails();
+                        handleBookAppointment(displayClient);
+                      }}
+                    >
+                      <Icon icon={Calendar03Icon} data-icon="inline-start" />
+                      Book
+                    </Button>
+                    <Button
+                      size="sm"
+                      onClick={() => {
+                        clearDetails();
+                        crud.openEdit(displayClient);
+                      }}
+                    >
+                      <Icon icon={PencilEdit01Icon} data-icon="inline-start" />
+                      Edit
+                    </Button>
+                  </div>
+                </>
+              )}
             </div>
-          )
+          </div>
         ) : null}
       </EntityModal>
 
@@ -1211,6 +1219,7 @@ function ClientsPage() {
             onSubmit={handleCreate}
             onCancel={crud.closeCreate}
             isSubmitting={createMutation.isPending}
+            shortcutsEnabled={crud.showCreateForm}
           />
         </div>
       </EntityModal>
@@ -1237,6 +1246,7 @@ function ClientsPage() {
               onSubmit={handleUpdate}
               onCancel={crud.closeEdit}
               isSubmitting={updateMutation.isPending}
+              shortcutsEnabled={!!crud.editingItem}
             />
           </div>
         ) : null}

@@ -108,6 +108,53 @@ function ScopeShortcutHarness({
   );
 }
 
+function AllScopeSequenceHarness({ onNavigate }: { onNavigate: () => void }) {
+  useKeyboardShortcuts({
+    shortcuts: [{ key: "g a", action: onNavigate }],
+    scope: "all",
+  });
+
+  return (
+    <div>
+      <div aria-modal="true">
+        <button type="button" aria-label="inside-modal">
+          Inside modal
+        </button>
+      </div>
+      <button type="button" aria-label="outside-modal">
+        Outside
+      </button>
+    </div>
+  );
+}
+
+function ModalPrioritySequenceHarness({
+  onNavigate,
+  onModalG,
+}: {
+  onNavigate: () => void;
+  onModalG: () => void;
+}) {
+  useKeyboardShortcuts({
+    shortcuts: [{ key: "g a", action: onNavigate }],
+    scope: "all",
+  });
+  useKeyboardShortcuts({
+    shortcuts: [{ key: "g", action: onModalG }],
+    scope: "modal",
+  });
+
+  return (
+    <div>
+      <div aria-modal="true">
+        <button type="button" aria-label="inside-modal">
+          Inside modal
+        </button>
+      </div>
+    </div>
+  );
+}
+
 afterEach(() => {
   cleanup();
 });
@@ -234,6 +281,37 @@ describe("useKeyboardShortcuts", () => {
     dispatchKey("x", outsideModal);
     expect(onGlobal).toHaveBeenCalledTimes(0);
     expect(onModal).toHaveBeenCalledTimes(1);
+  });
+
+  test("allows all-scoped sequence shortcuts inside active modals", () => {
+    const onNavigate = mock(() => {});
+    const view = renderHarness(
+      <AllScopeSequenceHarness onNavigate={onNavigate} />,
+    );
+    const insideModal = view.getByRole("button", { name: "inside-modal" });
+
+    dispatchKey("g", insideModal);
+    dispatchKey("a", insideModal);
+
+    expect(onNavigate).toHaveBeenCalledTimes(1);
+  });
+
+  test("prioritizes modal-scoped g shortcuts over all-scoped g sequences", () => {
+    const onNavigate = mock(() => {});
+    const onModalG = mock(() => {});
+    const view = renderHarness(
+      <ModalPrioritySequenceHarness
+        onNavigate={onNavigate}
+        onModalG={onModalG}
+      />,
+    );
+    const insideModal = view.getByRole("button", { name: "inside-modal" });
+
+    dispatchKey("g", insideModal);
+    dispatchKey("a", insideModal);
+
+    expect(onModalG).toHaveBeenCalledTimes(1);
+    expect(onNavigate).toHaveBeenCalledTimes(0);
   });
 
   test("normalizes Ctrl/Cmd keys for modified shortcuts", () => {
