@@ -96,6 +96,9 @@ importers:
       clsx:
         specifier: ^2.1.1
         version: 2.1.1
+      libphonenumber-js:
+        specifier: ^1.12.36
+        version: 1.12.36
       luxon:
         specifier: ^3.7.2
         version: 3.7.2

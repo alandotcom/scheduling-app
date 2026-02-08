@@ -1,6 +1,7 @@
 // Clients management page with table list and modal-based detail/create/edit flows
 
 import { useCallback, useMemo, useState } from "react";
+import { Combobox } from "@base-ui/react/combobox";
 import { useClosingSnapshot } from "@/hooks/use-closing-snapshot";
 import { DateTime } from "luxon";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
@@ -8,12 +9,19 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Controller, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
+  getCountries,
+  getCountryCallingCode,
+  type CountryCode,
+} from "libphonenumber-js/min";
+import {
   Add01Icon,
+  ArrowDown01Icon,
   ArrowRight02Icon,
   Calendar03Icon,
   Delete01Icon,
   PencilEdit01Icon,
   Search01Icon,
+  Tick02Icon,
 } from "@hugeicons/core-free-icons";
 import { toast } from "sonner";
 
@@ -32,13 +40,6 @@ import { Icon } from "@/components/ui/icon";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
   Table,
   TableBody,
   TableCell,
@@ -51,6 +52,11 @@ import { useUrlDrivenModal } from "@/hooks/use-url-driven-modal";
 import { useValidateSelection } from "@/hooks/use-selection-search-params";
 import { AppointmentDetail } from "@/components/appointments/appointment-detail";
 import { formatDisplayDate, formatDisplayDateTime } from "@/lib/date-utils";
+import {
+  deriveCountryFromPhone,
+  formatPhoneForDisplay,
+  formatPhoneInputAsYouType,
+} from "@/lib/phone";
 import { getQueryClient, orpc } from "@/lib/query";
 import { swallowIgnorableRouteLoaderError } from "@/lib/query-cancellation";
 import {
@@ -58,15 +64,50 @@ import {
   type SchedulingTimezoneMode,
 } from "@/lib/scheduling-timezone";
 
-const PHONE_COUNTRY_OPTIONS = [
-  { value: "US", label: "United States (+1)" },
-  { value: "CA", label: "Canada (+1)" },
-  { value: "GB", label: "United Kingdom (+44)" },
-  { value: "AU", label: "Australia (+61)" },
-  { value: "DE", label: "Germany (+49)" },
-  { value: "FR", label: "France (+33)" },
-  { value: "IN", label: "India (+91)" },
-] as const;
+type PhoneCountryOption = {
+  value: CountryCode;
+  label: string;
+  callingCode: string;
+  searchText: string;
+};
+
+const PRIORITY_PHONE_COUNTRIES: CountryCode[] = [
+  "US",
+  "CA",
+  "GB",
+  "AU",
+  "DE",
+  "FR",
+  "IN",
+];
+
+const countryDisplayNames =
+  typeof Intl !== "undefined" && "DisplayNames" in Intl
+    ? new Intl.DisplayNames(["en"], { type: "region" })
+    : null;
+
+const ALL_PHONE_COUNTRY_OPTIONS: PhoneCountryOption[] = getCountries()
+  .map((country) => {
+    const label = countryDisplayNames?.of(country) ?? country;
+    const callingCode = getCountryCallingCode(country);
+    return {
+      value: country,
+      label,
+      callingCode,
+      searchText: `${country} ${label} +${callingCode}`.toLowerCase(),
+    };
+  })
+  .sort((a, b) => a.label.localeCompare(b.label));
+
+const priorityCountrySet = new Set(PRIORITY_PHONE_COUNTRIES);
+const PHONE_COUNTRY_OPTIONS: PhoneCountryOption[] = [
+  ...PRIORITY_PHONE_COUNTRIES.map((country) =>
+    ALL_PHONE_COUNTRY_OPTIONS.find((option) => option.value === country),
+  ).filter((option): option is PhoneCountryOption => !!option),
+  ...ALL_PHONE_COUNTRY_OPTIONS.filter(
+    (option) => !priorityCountrySet.has(option.value),
+  ),
+];
 
 interface ClientFormProps {
   defaultValues?: {
@@ -87,10 +128,15 @@ function ClientForm({
   onCancel,
   isSubmitting,
 }: ClientFormProps) {
+  const [countryComboboxOpen, setCountryComboboxOpen] = useState(false);
+
   const {
     control,
     register,
     handleSubmit,
+    setValue,
+    watch,
+    getValues,
     formState: { errors },
   } = useForm<CreateClientInput>({
     resolver: zodResolver(createClientSchema),
@@ -103,6 +149,13 @@ function ClientForm({
       phoneCountry: defaultValues?.phoneCountry ?? "US",
     },
   });
+
+  const phoneCountry = watch("phoneCountry") ?? "US";
+  const activePhoneCountry = phoneCountry as CountryCode;
+  const selectedCountryOption =
+    PHONE_COUNTRY_OPTIONS.find(
+      (option) => option.value === activePhoneCountry,
+    ) ?? PHONE_COUNTRY_OPTIONS.find((option) => option.value === "US");
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
@@ -167,28 +220,101 @@ function ClientForm({
             name="phoneCountry"
             control={control}
             render={({ field }) => (
-              <Select
-                value={field.value ?? "US"}
-                onValueChange={field.onChange}
-                disabled={isSubmitting}
-              >
-                <SelectTrigger
-                  id="phoneCountry"
-                  aria-describedby={
-                    errors.phoneCountry ? "phone-country-error" : undefined
+              <Combobox.Root
+                items={PHONE_COUNTRY_OPTIONS}
+                value={selectedCountryOption ?? null}
+                open={countryComboboxOpen}
+                itemToStringLabel={(item) => item.label}
+                itemToStringValue={(item) => item.value}
+                isItemEqualToValue={(item, selected) =>
+                  item.value === selected.value
+                }
+                onOpenChange={(open) => {
+                  setCountryComboboxOpen(open);
+                }}
+                onValueChange={(nextCountry) => {
+                  if (!nextCountry) return;
+
+                  field.onChange(nextCountry.value);
+
+                  const currentPhone = getValues("phone") ?? "";
+                  if (!currentPhone.startsWith("+")) {
+                    const { formatted } = formatPhoneInputAsYouType(
+                      currentPhone,
+                      nextCountry.value,
+                    );
+                    setValue("phone", formatted, {
+                      shouldDirty: true,
+                      shouldValidate: !!errors.phone,
+                    });
                   }
-                  aria-invalid={!!errors.phoneCountry}
-                >
-                  <SelectValue placeholder="Select country" />
-                </SelectTrigger>
-                <SelectContent>
-                  {PHONE_COUNTRY_OPTIONS.map((country) => (
-                    <SelectItem key={country.value} value={country.value}>
-                      {country.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                }}
+              >
+                <Combobox.Trigger
+                  render={
+                    <Button
+                      id="phoneCountry"
+                      type="button"
+                      variant="outline"
+                      role="combobox"
+                      aria-expanded={countryComboboxOpen}
+                      aria-describedby={
+                        errors.phoneCountry ? "phone-country-error" : undefined
+                      }
+                      aria-invalid={!!errors.phoneCountry}
+                      className="h-10 w-full justify-between px-3"
+                      disabled={isSubmitting}
+                    >
+                      <span className="truncate">
+                        {selectedCountryOption
+                          ? `${selectedCountryOption.label} (+${selectedCountryOption.callingCode})`
+                          : "Select country"}
+                      </span>
+                      <Icon icon={ArrowDown01Icon} className="size-4" />
+                    </Button>
+                  }
+                />
+                <Combobox.Portal keepMounted>
+                  <Combobox.Positioner
+                    positionMethod="fixed"
+                    disableAnchorTracking
+                    sideOffset={6}
+                    align="start"
+                    className="z-[90]"
+                  >
+                    <Combobox.Popup className="w-[22rem] max-w-[calc(100vw-2rem)] overflow-hidden rounded-lg border border-border bg-background shadow-lg">
+                      <div className="border-b border-border px-3 py-1">
+                        <Combobox.Input
+                          placeholder="Search country or dialing code..."
+                          className="h-9 w-full border-0 bg-transparent p-0 text-sm outline-none placeholder:text-muted-foreground"
+                        />
+                      </div>
+                      <Combobox.Empty className="px-3 py-3 text-sm text-muted-foreground">
+                        No countries found.
+                      </Combobox.Empty>
+                      <Combobox.List className="max-h-72 overflow-y-auto p-1">
+                        {(country: PhoneCountryOption) => (
+                          <Combobox.Item
+                            key={country.value}
+                            value={country}
+                            className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-2 text-sm outline-none data-[highlighted]:bg-accent data-[highlighted]:text-accent-foreground"
+                          >
+                            <span className="flex-1 truncate">
+                              {country.label}
+                            </span>
+                            <span className="text-muted-foreground">
+                              +{country.callingCode}
+                            </span>
+                            <Combobox.ItemIndicator>
+                              <Icon icon={Tick02Icon} className="size-4" />
+                            </Combobox.ItemIndicator>
+                          </Combobox.Item>
+                        )}
+                      </Combobox.List>
+                    </Combobox.Popup>
+                  </Combobox.Positioner>
+                </Combobox.Portal>
+              </Combobox.Root>
             )}
           />
           {errors.phoneCountry && (
@@ -200,14 +326,39 @@ function ClientForm({
 
         <div className="space-y-2.5">
           <Label htmlFor="phone">Phone (optional)</Label>
-          <Input
-            id="phone"
-            type="tel"
-            placeholder="(555) 123-4567"
-            aria-describedby={errors.phone ? "phone-error" : undefined}
-            aria-invalid={!!errors.phone}
-            {...register("phone")}
-            disabled={isSubmitting}
+          <Controller
+            name="phone"
+            control={control}
+            render={({ field }) => (
+              <Input
+                id="phone"
+                type="tel"
+                placeholder="555-555-5555"
+                aria-describedby={errors.phone ? "phone-error" : undefined}
+                aria-invalid={!!errors.phone}
+                value={field.value ?? ""}
+                onBlur={field.onBlur}
+                onChange={(event) => {
+                  const typedValue = event.target.value;
+                  const { formatted, detectedCountry } =
+                    formatPhoneInputAsYouType(typedValue, activePhoneCountry);
+
+                  field.onChange(formatted);
+
+                  if (
+                    typedValue.trim().startsWith("+") &&
+                    detectedCountry &&
+                    detectedCountry !== activePhoneCountry
+                  ) {
+                    setValue("phoneCountry", detectedCountry, {
+                      shouldDirty: true,
+                      shouldValidate: true,
+                    });
+                  }
+                }}
+                disabled={isSubmitting}
+              />
+            )}
           />
           {errors.phone && (
             <p id="phone-error" className="text-sm text-destructive">
@@ -217,16 +368,21 @@ function ClientForm({
         </div>
       </div>
 
-      <div className="flex justify-end gap-3 pt-2">
+      <div className="sticky bottom-0 z-10 -mx-4 flex justify-end gap-3 border-t border-border bg-background/95 px-4 pt-3 pb-1 backdrop-blur supports-[backdrop-filter]:bg-background/80 sm:-mx-6 sm:px-6">
         <Button
           type="button"
           variant="outline"
+          className="hover:translate-y-0"
           onClick={onCancel}
           disabled={isSubmitting}
         >
           Cancel
         </Button>
-        <Button type="submit" disabled={isSubmitting}>
+        <Button
+          type="submit"
+          className="hover:translate-y-0"
+          disabled={isSubmitting}
+        >
           {isSubmitting ? "Saving..." : "Save"}
         </Button>
       </div>
@@ -553,67 +709,71 @@ function ClientsPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {clients.map((client) => (
-                    <TableRow
-                      key={client.id}
-                      className="cursor-pointer transition-colors hover:bg-muted/50"
-                      tabIndex={0}
-                      onClick={() => openDetails(client.id)}
-                      onKeyDown={(event) => {
-                        if (event.key === "Enter" || event.key === " ") {
-                          event.preventDefault();
-                          openDetails(client.id);
-                        }
-                      }}
-                    >
-                      <TableCell className="font-medium">
-                        {client.firstName} {client.lastName}
-                      </TableCell>
-                      <TableCell>
-                        {client.email || (
-                          <span className="text-muted-foreground">-</span>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        {client.phone || (
-                          <span className="text-muted-foreground">-</span>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        <RelationshipCountBadge
-                          count={client.relationshipCounts?.appointments ?? 0}
-                          singular="appointment"
-                        />
-                      </TableCell>
-                      <TableCell>
-                        {formatDisplayDate(client.createdAt)}
-                      </TableCell>
-                      <TableCell>
-                        <RowActions
-                          ariaLabel={`Actions for ${client.firstName} ${client.lastName}`}
-                          actions={[
-                            {
-                              label: "View",
-                              onClick: () => openDetails(client.id),
-                            },
-                            {
-                              label: "Book",
-                              onClick: () => handleBookAppointment(client),
-                            },
-                            {
-                              label: "Edit",
-                              onClick: () => crud.openEdit(client),
-                            },
-                            {
-                              label: "Delete",
-                              onClick: () => crud.openDelete(client.id),
-                              variant: "destructive",
-                            },
-                          ]}
-                        />
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                  {clients.map((client) => {
+                    const formattedPhone = formatPhoneForDisplay(client.phone);
+
+                    return (
+                      <TableRow
+                        key={client.id}
+                        className="cursor-pointer transition-colors hover:bg-muted/50"
+                        tabIndex={0}
+                        onClick={() => openDetails(client.id)}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter" || event.key === " ") {
+                            event.preventDefault();
+                            openDetails(client.id);
+                          }
+                        }}
+                      >
+                        <TableCell className="font-medium">
+                          {client.firstName} {client.lastName}
+                        </TableCell>
+                        <TableCell>
+                          {client.email || (
+                            <span className="text-muted-foreground">-</span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {formattedPhone ?? (
+                            <span className="text-muted-foreground">-</span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <RelationshipCountBadge
+                            count={client.relationshipCounts?.appointments ?? 0}
+                            singular="appointment"
+                          />
+                        </TableCell>
+                        <TableCell>
+                          {formatDisplayDate(client.createdAt)}
+                        </TableCell>
+                        <TableCell>
+                          <RowActions
+                            ariaLabel={`Actions for ${client.firstName} ${client.lastName}`}
+                            actions={[
+                              {
+                                label: "View",
+                                onClick: () => openDetails(client.id),
+                              },
+                              {
+                                label: "Book",
+                                onClick: () => handleBookAppointment(client),
+                              },
+                              {
+                                label: "Edit",
+                                onClick: () => crud.openEdit(client),
+                              },
+                              {
+                                label: "Delete",
+                                onClick: () => crud.openDelete(client.id),
+                                variant: "destructive",
+                              },
+                            ]}
+                          />
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
                 </TableBody>
               </Table>
             </div>
@@ -639,7 +799,9 @@ function ClientsPage() {
                 displayAppointment.startAt,
                 appointmentDisplayTimezone,
               )
-            : (displayClient?.email ?? displayClient?.phone ?? undefined)
+            : (displayClient?.email ??
+              formatPhoneForDisplay(displayClient?.phone) ??
+              undefined)
         }
         className={
           displayAppointment
@@ -737,7 +899,7 @@ function ClientsPage() {
                         Phone
                       </Label>
                       <p className="mt-1 text-sm">
-                        {displayClient.phone ?? (
+                        {formatPhoneForDisplay(displayClient.phone) ?? (
                           <span className="text-muted-foreground">Not set</span>
                         )}
                       </p>
@@ -912,8 +1074,9 @@ function ClientsPage() {
               firstName: crud.editingItem.firstName,
               lastName: crud.editingItem.lastName,
               email: crud.editingItem.email ?? undefined,
-              phone: crud.editingItem.phone ?? undefined,
-              phoneCountry: "US",
+              phone: formatPhoneForDisplay(crud.editingItem.phone) ?? undefined,
+              phoneCountry:
+                deriveCountryFromPhone(crud.editingItem.phone) ?? "US",
             }}
             onSubmit={handleUpdate}
             onCancel={crud.closeEdit}
