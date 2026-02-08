@@ -53,6 +53,7 @@ interface AppointmentModalProps {
   onTimezoneModeChange?: (mode: SchedulingTimezoneMode) => void;
   displayTimezone?: string;
   defaultTimezone?: string;
+  onCreated?: (appointmentId: string) => void;
 }
 
 export function AppointmentModal({
@@ -67,6 +68,7 @@ export function AppointmentModal({
   onTimezoneModeChange,
   displayTimezone,
   defaultTimezone,
+  onCreated,
 }: AppointmentModalProps) {
   const queryClient = useQueryClient();
   const viewerTimezone = getUserTimezone();
@@ -168,10 +170,14 @@ export function AppointmentModal({
   // Create appointment mutation
   const createMutation = useMutation(
     orpc.appointments.create.mutationOptions({
-      onSuccess: () => {
+      onSuccess: (createdAppointment) => {
         queryClient.invalidateQueries({ queryKey: orpc.appointments.key() });
-        toast.success("Appointment booked successfully");
+        const createdId =
+          typeof createdAppointment?.id === "string"
+            ? createdAppointment.id
+            : undefined;
         handleClose();
+        if (createdId) onCreated?.(createdId);
       },
       onError: (error) => {
         toast.error(error.message || "Failed to book appointment");

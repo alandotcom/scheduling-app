@@ -317,10 +317,10 @@ function ResourcesPage() {
 
   const createMutation = useMutation(
     orpc.resources.create.mutationOptions({
-      onSuccess: () => {
+      onSuccess: (createdResource) => {
         queryClient.invalidateQueries({ queryKey: orpc.resources.key() });
         crud.closeCreate();
-        toast.success("Resource created successfully");
+        openDetails(createdResource.id);
       },
       onError: (error) => {
         toast.error(error.message || "Failed to create resource");

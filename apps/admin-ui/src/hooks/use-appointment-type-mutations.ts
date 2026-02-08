@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import { orpc } from "@/lib/query";
 
 interface UseAppointmentTypeMutationsOptions {
-  onCreateSuccess?: () => void;
+  onCreateSuccess?: (createdAppointmentTypeId: string) => void;
   onUpdateSuccess?: () => void;
   onDeleteSuccess?: () => void;
   onAddCalendarSuccess?: () => void;
@@ -28,10 +28,9 @@ export function useAppointmentTypeMutations(
 
   const createMutation = useMutation(
     orpc.appointmentTypes.create.mutationOptions({
-      onSuccess: () => {
+      onSuccess: (createdAppointmentType) => {
         invalidateAppointmentTypes();
-        toast.success("Appointment type created successfully");
-        options.onCreateSuccess?.();
+        options.onCreateSuccess?.(createdAppointmentType.id);
       },
       onError: (error) => {
         toast.error(error.message || "Failed to create appointment type");

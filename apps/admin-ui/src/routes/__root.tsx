@@ -209,7 +209,6 @@ function RootLayout() {
     await resetOrgScopedState();
     await refetchOrganizations();
     setMobileMenuOpen(false);
-    toast.success("Organization created.");
   };
 
   const onSignOut = async () => {

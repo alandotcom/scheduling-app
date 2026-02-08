@@ -648,10 +648,19 @@ function ClientsPage() {
 
   const createMutation = useMutation(
     orpc.clients.create.mutationOptions({
-      onSuccess: () => {
+      onSuccess: (createdClient) => {
         queryClient.invalidateQueries({ queryKey: orpc.clients.key() });
+        setSearch("");
         crud.closeCreate();
-        toast.success("Client created successfully");
+        navigate({
+          search: (prev) => ({
+            ...prev,
+            selected: createdClient.id,
+            tab: "details",
+            appointment: undefined,
+            appointmentTab: undefined,
+          }),
+        });
       },
       onError: (error) => {
         toast.error(error.message || "Failed to create client");
@@ -712,6 +721,19 @@ function ClientsPage() {
     });
     setAppointmentModalOpen(true);
   }, []);
+
+  const handleAppointmentCreated = useCallback(
+    (appointmentId: string) => {
+      navigate({
+        to: "/appointments",
+        search: {
+          selected: appointmentId,
+          tab: "details",
+        },
+      });
+    },
+    [navigate],
+  );
 
   const { data: appointmentsData, isLoading: isLoadingAppointments } = useQuery(
     {
@@ -1226,6 +1248,7 @@ function ClientsPage() {
         }}
         defaultClientId={appointmentModalClientPrefill?.id}
         defaultClientName={appointmentModalClientPrefill?.name}
+        onCreated={handleAppointmentCreated}
       />
 
       <DeleteConfirmDialog

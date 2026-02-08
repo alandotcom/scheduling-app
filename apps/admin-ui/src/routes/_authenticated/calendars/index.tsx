@@ -385,10 +385,10 @@ function CalendarsPage() {
 
   const createMutation = useMutation(
     orpc.calendars.create.mutationOptions({
-      onSuccess: () => {
+      onSuccess: (createdCalendar) => {
         queryClient.invalidateQueries({ queryKey: orpc.calendars.key() });
         crud.closeCreate();
-        toast.success("Calendar created successfully");
+        openDetails(createdCalendar.id, "details");
       },
       onError: (error) => {
         toast.error(error.message || "Failed to create calendar");
@@ -448,6 +448,19 @@ function CalendarsPage() {
   const handleCreate = (formData: CreateCalendarInput) => {
     createMutation.mutate(formData);
   };
+
+  const handleAppointmentCreated = useCallback(
+    (appointmentId: string) => {
+      navigate({
+        to: "/appointments",
+        search: {
+          selected: appointmentId,
+          tab: "details",
+        },
+      });
+    },
+    [navigate],
+  );
 
   const handleUpdate = (formData: CreateCalendarInput) => {
     if (!displayCalendar) return;
@@ -796,6 +809,7 @@ function CalendarsPage() {
         onOpenChange={setAppointmentModalOpen}
         defaultCalendarId={displayCalendar?.id}
         defaultCalendarName={displayCalendar?.name}
+        onCreated={handleAppointmentCreated}
       />
     </div>
   );

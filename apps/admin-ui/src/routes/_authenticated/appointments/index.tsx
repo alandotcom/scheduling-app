@@ -652,6 +652,19 @@ function AppointmentsPage() {
     [openDetails],
   );
 
+  const handleAppointmentCreated = useCallback(
+    (appointmentId: string) => {
+      navigate({
+        to: "/appointments",
+        search: {
+          selected: appointmentId,
+          tab: "details",
+        },
+      });
+    },
+    [navigate],
+  );
+
   const handleOpenClient = useCallback(
     (clientId: string) => {
       navigate({
@@ -882,6 +895,7 @@ function AppointmentsPage() {
         onTimezoneModeChange={setTimezoneMode}
         displayTimezone={displayTimezone}
         defaultTimezone={orgDefaultTimezone}
+        onCreated={handleAppointmentCreated}
       />
 
       {/* Cancel Confirmation */}

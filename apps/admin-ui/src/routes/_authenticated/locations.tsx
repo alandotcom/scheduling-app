@@ -332,10 +332,10 @@ function LocationsPage() {
 
   const createMutation = useMutation(
     orpc.locations.create.mutationOptions({
-      onSuccess: () => {
+      onSuccess: (createdLocation) => {
         queryClient.invalidateQueries({ queryKey: orpc.locations.key() });
         crud.closeCreate();
-        toast.success("Location created successfully");
+        openDetails(createdLocation.id, "details");
       },
       onError: (error) => {
         toast.error(error.message || "Failed to create location");

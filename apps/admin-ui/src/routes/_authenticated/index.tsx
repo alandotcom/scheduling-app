@@ -1,8 +1,8 @@
 // Dashboard / Home page with real data
 
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { DateTime } from "luxon";
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import type { IconSvgElement } from "@hugeicons/react";
 import type {
@@ -60,6 +60,20 @@ export function getSortedTodayAppointments(
 
 export function Dashboard() {
   const [appointmentModalOpen, setAppointmentModalOpen] = useState(false);
+  const navigate = useNavigate({ from: Route.fullPath });
+
+  const handleAppointmentCreated = useCallback(
+    (appointmentId: string) => {
+      navigate({
+        to: "/appointments",
+        search: {
+          selected: appointmentId,
+          tab: "details",
+        },
+      });
+    },
+    [navigate],
+  );
 
   useKeyboardShortcuts({
     shortcuts: [
@@ -263,6 +277,7 @@ export function Dashboard() {
       <AppointmentModal
         open={appointmentModalOpen}
         onOpenChange={setAppointmentModalOpen}
+        onCreated={handleAppointmentCreated}
       />
     </div>
   );

@@ -333,7 +333,16 @@ function AppointmentTypesPage() {
     updateResourceMutation,
     removeResourceMutation,
   } = useAppointmentTypeMutations({
-    onCreateSuccess: crud.closeCreate,
+    onCreateSuccess: (createdAppointmentTypeId) => {
+      crud.closeCreate();
+      navigate({
+        search: (prev) => ({
+          ...prev,
+          selected: createdAppointmentTypeId,
+          tab: "details",
+        }),
+      });
+    },
     onDeleteSuccess: () => {
       const removedId = crud.deletingItemId;
       crud.closeDelete();
