@@ -28,7 +28,14 @@ describe("validateSearch", () => {
     clientId?: string;
     appointmentTypeId?: string;
     status?: string;
+    listScope?: "upcoming" | "history";
   } => {
+    const listScope =
+      typeof search.listScope === "string" &&
+      (search.listScope === "upcoming" || search.listScope === "history")
+        ? search.listScope
+        : undefined;
+
     return {
       selected:
         typeof search.selected === "string" ? search.selected : undefined,
@@ -52,6 +59,7 @@ describe("validateSearch", () => {
           ? search.appointmentTypeId
           : undefined,
       status: typeof search.status === "string" ? search.status : undefined,
+      listScope,
     };
   };
 
@@ -116,11 +124,18 @@ describe("validateSearch", () => {
       clientId: "client-789",
       appointmentTypeId: "type-456",
       status: "scheduled",
+      listScope: "history",
     });
     expect(result.calendarId).toBe("cal-123");
     expect(result.clientId).toBe("client-789");
     expect(result.appointmentTypeId).toBe("type-456");
     expect(result.status).toBe("scheduled");
+    expect(result.listScope).toBe("history");
+  });
+
+  test("rejects invalid listScope values", () => {
+    const result = validateSearch({ listScope: "all" });
+    expect(result.listScope).toBeUndefined();
   });
 
   test("rejects non-string clientId", () => {

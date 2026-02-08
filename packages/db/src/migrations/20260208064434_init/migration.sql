@@ -292,6 +292,7 @@ CREATE TABLE "verifications" (
 CREATE UNIQUE INDEX "appointment_type_calendars_type_calendar_idx" ON "appointment_type_calendars" ("appointment_type_id","calendar_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "appointment_type_resources_type_resource_idx" ON "appointment_type_resources" ("appointment_type_id","resource_id");--> statement-breakpoint
 CREATE INDEX "appointment_type_resources_resource_idx" ON "appointment_type_resources" ("resource_id","appointment_type_id");--> statement-breakpoint
+CREATE INDEX "appointments_org_start_at_id_idx" ON "appointments" ("org_id","start_at","id");--> statement-breakpoint
 CREATE INDEX "appointments_calendar_start_at_idx" ON "appointments" ("calendar_id","start_at") WHERE "status" <> 'cancelled';--> statement-breakpoint
 CREATE INDEX "appointments_calendar_range_gist_idx" ON "appointments" USING gist ("calendar_id",tstzrange("start_at", "end_at", '[)')) WHERE "status" <> 'cancelled';--> statement-breakpoint
 CREATE INDEX "audit_events_action_id_idx" ON "audit_events" ("action","id");--> statement-breakpoint

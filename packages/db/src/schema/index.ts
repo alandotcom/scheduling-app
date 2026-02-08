@@ -289,6 +289,11 @@ export const appointments = pgTable.withRLS(
     ...timestamps,
   },
   (table) => [
+    index("appointments_org_start_at_id_idx").on(
+      table.orgId,
+      table.startAt,
+      table.id,
+    ),
     index("appointments_calendar_start_at_idx")
       .on(table.calendarId, table.startAt)
       .where(sql`${table.status} <> 'cancelled'`),

@@ -15,6 +15,12 @@ export const appointmentStatusSchema = z.enum([
   "no_show",
 ]);
 
+export const appointmentListScopeSchema = z.enum([
+  "upcoming",
+  "history",
+  "all",
+]);
+
 // Base appointment schema
 export const appointmentSchema = z.object({
   id: uuidSchema,
@@ -63,6 +69,8 @@ export const listAppointmentsQuerySchema = z.object({
   appointmentTypeId: uuidSchema.optional(),
   clientId: uuidSchema.optional(),
   status: appointmentStatusSchema.optional(),
+  scope: appointmentListScopeSchema.optional(),
+  boundaryAt: timestampSchema.optional(),
   startDate: dateSchema.optional(),
   endDate: dateSchema.optional(),
   cursor: uuidSchema.optional(),
@@ -170,6 +178,7 @@ export const appointmentListResponseSchema = z.object({
 
 // Inferred types
 export type AppointmentStatus = z.infer<typeof appointmentStatusSchema>;
+export type AppointmentListScope = z.infer<typeof appointmentListScopeSchema>;
 export type Appointment = z.infer<typeof appointmentSchema>;
 export type CreateAppointmentInput = z.infer<typeof createAppointmentSchema>;
 export type UpdateAppointmentInput = z.infer<typeof updateAppointmentSchema>;

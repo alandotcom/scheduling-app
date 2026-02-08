@@ -72,6 +72,7 @@ import { ScheduleGrid } from "@/components/appointments/schedule-grid";
 
 type ViewMode = "list" | "schedule";
 type DetailTabValue = "details" | "client" | "history";
+type ListScope = "upcoming" | "history";
 const STATUS_FILTER_OPTIONS = [
   { value: "scheduled", label: "Scheduled" },
   { value: "confirmed", label: "Confirmed" },
@@ -83,6 +84,8 @@ const UUID_PATTERN =
 
 const isDetailTab = (value: string): value is DetailTabValue =>
   value === "details" || value === "client" || value === "history";
+const isListScope = (value: string): value is ListScope =>
+  value === "upcoming" || value === "history";
 
 function AppointmentsPage() {
   const queryClient = useQueryClient();
@@ -96,6 +99,7 @@ function AppointmentsPage() {
     clientId: urlClientId,
     appointmentTypeId: urlAppointmentTypeId,
     status: urlStatus,
+    listScope: urlListScope,
     tzMode,
     tz,
   } = Route.useSearch();
@@ -108,6 +112,8 @@ function AppointmentsPage() {
       hasResolvedEntity: !!selectedId,
     });
   const currentView: ViewMode = view;
+  const listScope: ListScope =
+    urlListScope && isListScope(urlListScope) ? urlListScope : "upcoming";
 
   // Confirmation dialogs
   const [cancellingId, setCancellingId] = useState<string | null>(null);
@@ -220,33 +226,19 @@ function AppointmentsPage() {
     });
   }, [navigate]);
 
-  const viewerTimezone = getUserTimezone();
+  const setListScope = useCallback(
+    (nextScope: ListScope) => {
+      navigate({
+        search: (prev) => ({
+          ...prev,
+          listScope: nextScope,
+        }),
+      });
+    },
+    [navigate],
+  );
 
-  // Fetch appointments for list view
-  const {
-    data: listData,
-    isLoading: listLoading,
-    error: listError,
-  } = useQuery({
-    ...orpc.appointments.list.queryOptions({
-      input: {
-        limit: 50,
-        ...(filters.calendarId && { calendarId: filters.calendarId }),
-        ...(filters.clientId && { clientId: filters.clientId }),
-        ...(filters.appointmentTypeId && {
-          appointmentTypeId: filters.appointmentTypeId,
-        }),
-        ...(filters.status && {
-          status: filters.status as
-            | "scheduled"
-            | "confirmed"
-            | "cancelled"
-            | "no_show",
-        }),
-      },
-    }),
-    placeholderData: (previous) => previous,
-  });
+  const viewerTimezone = getUserTimezone();
 
   // Fetch calendars for filter
   const { data: calendarsData } = useQuery({
@@ -280,7 +272,6 @@ function AppointmentsPage() {
 
   const calendars = calendarsData?.items ?? [];
   const appointmentTypes = typesData?.items ?? [];
-  const listAppointments = listData?.items ?? [];
 
   const selectedCalendar = calendars.find((c) => c.id === filters.calendarId);
   const selectedType = appointmentTypes.find(
@@ -298,6 +289,40 @@ function AppointmentsPage() {
     viewerTimezone,
   });
   const displayTimezoneShort = formatTimezoneShort(displayTimezone);
+  const listBoundaryAt = useMemo(
+    () =>
+      DateTime.now().setZone(displayTimezone).startOf("day").toUTC().toJSDate(),
+    [displayTimezone],
+  );
+
+  // Fetch appointments for list view
+  const {
+    data: listData,
+    isLoading: listLoading,
+    error: listError,
+  } = useQuery({
+    ...orpc.appointments.list.queryOptions({
+      input: {
+        limit: 50,
+        scope: listScope,
+        boundaryAt: listBoundaryAt,
+        ...(filters.calendarId && { calendarId: filters.calendarId }),
+        ...(filters.clientId && { clientId: filters.clientId }),
+        ...(filters.appointmentTypeId && {
+          appointmentTypeId: filters.appointmentTypeId,
+        }),
+        ...(filters.status && {
+          status: filters.status as
+            | "scheduled"
+            | "confirmed"
+            | "cancelled"
+            | "no_show",
+        }),
+      },
+    }),
+    placeholderData: (previous) => previous,
+  });
+  const listAppointments = listData?.items ?? [];
 
   // Parse date param for schedule view or default to current week
   const weekStart = useMemo(() => {
@@ -628,6 +653,32 @@ function AppointmentsPage() {
 
       <div className="mt-6 flex flex-wrap items-center gap-2 sm:gap-3">
         <ViewToggle view={currentView} onViewChange={setView} size="sm" />
+        {currentView === "list" && (
+          <div className="inline-flex items-center rounded-lg border border-border bg-muted/50 p-1">
+            <button
+              type="button"
+              onClick={() => setListScope("upcoming")}
+              className={`rounded-md px-3 py-1.5 text-sm font-medium transition-all duration-200 ${
+                listScope === "upcoming"
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              Upcoming
+            </button>
+            <button
+              type="button"
+              onClick={() => setListScope("history")}
+              className={`rounded-md px-3 py-1.5 text-sm font-medium transition-all duration-200 ${
+                listScope === "history"
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              History
+            </button>
+          </div>
+        )}
         <TimeDisplayToggle
           value={timezoneMode}
           onValueChange={setTimezoneMode}
@@ -865,6 +916,7 @@ interface AppointmentsSearchParams {
   clientId?: string;
   appointmentTypeId?: string;
   status?: string;
+  listScope?: ListScope;
   tzMode?: SchedulingTimezoneMode;
   tz?: string;
 }
@@ -896,6 +948,10 @@ export const Route = createFileRoute("/_authenticated/appointments/")({
           ? search.appointmentTypeId
           : undefined,
       status: typeof search.status === "string" ? search.status : undefined,
+      listScope:
+        typeof search.listScope === "string" && isListScope(search.listScope)
+          ? search.listScope
+          : undefined,
       tzMode:
         typeof search.tzMode === "string" &&
         isSchedulingTimezoneMode(search.tzMode)
@@ -907,24 +963,37 @@ export const Route = createFileRoute("/_authenticated/appointments/")({
   loader: async () => {
     const queryClient = getQueryClient();
     await swallowIgnorableRouteLoaderError(
-      Promise.all([
-        queryClient.ensureQueryData(
-          orpc.appointments.list.queryOptions({
-            input: { limit: 50 },
-          }),
-        ),
-        queryClient.ensureQueryData(
-          orpc.calendars.list.queryOptions({
-            input: { limit: 100 },
-          }),
-        ),
-        queryClient.ensureQueryData(
-          orpc.appointmentTypes.list.queryOptions({
-            input: { limit: 100 },
-          }),
-        ),
-        queryClient.ensureQueryData(orpc.org.get.queryOptions({})),
-      ]),
+      (async () => {
+        const org = await queryClient.ensureQueryData(
+          orpc.org.get.queryOptions({}),
+        );
+        const prefetchBoundaryAt = DateTime.now()
+          .setZone(org.defaultTimezone ?? "America/New_York")
+          .startOf("day")
+          .toUTC()
+          .toJSDate();
+        await Promise.all([
+          queryClient.ensureQueryData(
+            orpc.appointments.list.queryOptions({
+              input: {
+                limit: 50,
+                scope: "upcoming",
+                boundaryAt: prefetchBoundaryAt,
+              },
+            }),
+          ),
+          queryClient.ensureQueryData(
+            orpc.calendars.list.queryOptions({
+              input: { limit: 100 },
+            }),
+          ),
+          queryClient.ensureQueryData(
+            orpc.appointmentTypes.list.queryOptions({
+              input: { limit: 100 },
+            }),
+          ),
+        ]);
+      })(),
     );
   },
   component: AppointmentsPage,

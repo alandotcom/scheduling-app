@@ -299,6 +299,232 @@ describe("Appointment Routes", () => {
       expect(result.items[0]!.clientId).toBe(client.id);
     });
 
+    test("supports upcoming scope with timezone boundary", async () => {
+      const { org, user, calendar, appointmentType } =
+        await createFixtureWithAvailability();
+      const ctx = createTestContext({ orgId: org.id, userId: user.id });
+
+      const boundary = DateTime.now()
+        .setZone("America/New_York")
+        .startOf("day");
+      const pastStart = boundary.minus({ days: 1 }).plus({ hours: 10 });
+      const todayStart = boundary.plus({ hours: 9 });
+      const futureStart = boundary.plus({ days: 2, hours: 11 });
+      const futureCancelledStart = boundary.plus({ days: 3, hours: 10 });
+
+      const pastScheduled = await createAppointment(db, org.id, {
+        calendarId: calendar.id,
+        appointmentTypeId: appointmentType.id,
+        startAt: pastStart.toJSDate(),
+        endAt: pastStart.plus({ hours: 1 }).toJSDate(),
+        status: "scheduled",
+      });
+      const todayConfirmed = await createAppointment(db, org.id, {
+        calendarId: calendar.id,
+        appointmentTypeId: appointmentType.id,
+        startAt: todayStart.toJSDate(),
+        endAt: todayStart.plus({ hours: 1 }).toJSDate(),
+        status: "confirmed",
+      });
+      const futureScheduled = await createAppointment(db, org.id, {
+        calendarId: calendar.id,
+        appointmentTypeId: appointmentType.id,
+        startAt: futureStart.toJSDate(),
+        endAt: futureStart.plus({ hours: 1 }).toJSDate(),
+        status: "scheduled",
+      });
+      const futureCancelled = await createAppointment(db, org.id, {
+        calendarId: calendar.id,
+        appointmentTypeId: appointmentType.id,
+        startAt: futureCancelledStart.toJSDate(),
+        endAt: futureCancelledStart.plus({ hours: 1 }).toJSDate(),
+        status: "cancelled",
+      });
+
+      const result = await call(
+        appointmentRoutes.list,
+        {
+          limit: 10,
+          scope: "upcoming",
+          boundaryAt: boundary.toUTC().toJSDate(),
+        },
+        { context: ctx },
+      );
+
+      expect(result.items.map((item) => item.id)).toEqual([
+        todayConfirmed.id,
+        futureScheduled.id,
+      ]);
+      expect(result.items.some((item) => item.id === pastScheduled.id)).toBe(
+        false,
+      );
+      expect(result.items.some((item) => item.id === futureCancelled.id)).toBe(
+        false,
+      );
+    });
+
+    test("supports history scope with timezone boundary", async () => {
+      const { org, user, calendar, appointmentType } =
+        await createFixtureWithAvailability();
+      const ctx = createTestContext({ orgId: org.id, userId: user.id });
+
+      const boundary = DateTime.now()
+        .setZone("America/New_York")
+        .startOf("day");
+      const pastStart = boundary.minus({ days: 2 }).plus({ hours: 11 });
+      const todayStart = boundary.plus({ hours: 10 });
+      const futureCancelledStart = boundary.plus({ days: 1, hours: 12 });
+      const futureNoShowStart = boundary.plus({ days: 2, hours: 9 });
+
+      const pastScheduled = await createAppointment(db, org.id, {
+        calendarId: calendar.id,
+        appointmentTypeId: appointmentType.id,
+        startAt: pastStart.toJSDate(),
+        endAt: pastStart.plus({ hours: 1 }).toJSDate(),
+        status: "scheduled",
+      });
+      const todayScheduled = await createAppointment(db, org.id, {
+        calendarId: calendar.id,
+        appointmentTypeId: appointmentType.id,
+        startAt: todayStart.toJSDate(),
+        endAt: todayStart.plus({ hours: 1 }).toJSDate(),
+        status: "scheduled",
+      });
+      const futureCancelled = await createAppointment(db, org.id, {
+        calendarId: calendar.id,
+        appointmentTypeId: appointmentType.id,
+        startAt: futureCancelledStart.toJSDate(),
+        endAt: futureCancelledStart.plus({ hours: 1 }).toJSDate(),
+        status: "cancelled",
+      });
+      const futureNoShow = await createAppointment(db, org.id, {
+        calendarId: calendar.id,
+        appointmentTypeId: appointmentType.id,
+        startAt: futureNoShowStart.toJSDate(),
+        endAt: futureNoShowStart.plus({ hours: 1 }).toJSDate(),
+        status: "no_show",
+      });
+
+      const result = await call(
+        appointmentRoutes.list,
+        {
+          limit: 10,
+          scope: "history",
+          boundaryAt: boundary.toUTC().toJSDate(),
+        },
+        { context: ctx },
+      );
+
+      expect(result.items.map((item) => item.id)).toEqual([
+        futureNoShow.id,
+        futureCancelled.id,
+        pastScheduled.id,
+      ]);
+      expect(result.items.some((item) => item.id === todayScheduled.id)).toBe(
+        false,
+      );
+    });
+
+    test("paginates history scope in most-recent-first order", async () => {
+      const { org, user, calendar, appointmentType } =
+        await createFixtureWithAvailability();
+      const ctx = createTestContext({ orgId: org.id, userId: user.id });
+
+      const boundary = DateTime.now()
+        .setZone("America/New_York")
+        .startOf("day");
+
+      const noShowNewest = await createAppointment(db, org.id, {
+        calendarId: calendar.id,
+        appointmentTypeId: appointmentType.id,
+        startAt: boundary.plus({ days: 2, hours: 9 }).toJSDate(),
+        endAt: boundary.plus({ days: 2, hours: 10 }).toJSDate(),
+        status: "no_show",
+      });
+      const cancelledMiddle = await createAppointment(db, org.id, {
+        calendarId: calendar.id,
+        appointmentTypeId: appointmentType.id,
+        startAt: boundary.plus({ days: 1, hours: 10 }).toJSDate(),
+        endAt: boundary.plus({ days: 1, hours: 11 }).toJSDate(),
+        status: "cancelled",
+      });
+      const pastOldest = await createAppointment(db, org.id, {
+        calendarId: calendar.id,
+        appointmentTypeId: appointmentType.id,
+        startAt: boundary.minus({ days: 1, hours: 10 }).toJSDate(),
+        endAt: boundary.minus({ days: 1, hours: 9 }).toJSDate(),
+        status: "scheduled",
+      });
+
+      const first = await call(
+        appointmentRoutes.list,
+        {
+          limit: 2,
+          scope: "history",
+          boundaryAt: boundary.toUTC().toJSDate(),
+        },
+        { context: ctx },
+      );
+
+      expect(first.items.map((item) => item.id)).toEqual([
+        noShowNewest.id,
+        cancelledMiddle.id,
+      ]);
+      expect(first.hasMore).toBe(true);
+      expect(first.nextCursor).toBe(cancelledMiddle.id);
+
+      const second = await call(
+        appointmentRoutes.list,
+        {
+          limit: 2,
+          scope: "history",
+          boundaryAt: boundary.toUTC().toJSDate(),
+          cursor: first.nextCursor!,
+        },
+        { context: ctx },
+      );
+
+      expect(second.items.map((item) => item.id)).toEqual([pastOldest.id]);
+      expect(second.hasMore).toBe(false);
+    });
+
+    test("keeps existing all-items behavior when scope is omitted", async () => {
+      const { org, user, calendar, appointmentType } =
+        await createFixtureWithAvailability();
+      const ctx = createTestContext({ orgId: org.id, userId: user.id });
+
+      const boundary = DateTime.now()
+        .setZone("America/New_York")
+        .startOf("day");
+      const pastStart = boundary.minus({ days: 1 }).plus({ hours: 10 });
+      const futureCancelledStart = boundary.plus({ days: 1, hours: 10 });
+
+      const pastScheduled = await createAppointment(db, org.id, {
+        calendarId: calendar.id,
+        appointmentTypeId: appointmentType.id,
+        startAt: pastStart.toJSDate(),
+        endAt: pastStart.plus({ hours: 1 }).toJSDate(),
+        status: "scheduled",
+      });
+      const futureCancelled = await createAppointment(db, org.id, {
+        calendarId: calendar.id,
+        appointmentTypeId: appointmentType.id,
+        startAt: futureCancelledStart.toJSDate(),
+        endAt: futureCancelledStart.plus({ hours: 1 }).toJSDate(),
+        status: "cancelled",
+      });
+
+      const result = await call(
+        appointmentRoutes.list,
+        { limit: 10 },
+        { context: ctx },
+      );
+
+      expect(result.items.map((item) => item.id).sort()).toEqual(
+        [pastScheduled.id, futureCancelled.id].sort(),
+      );
+    });
+
     test("does not return appointments from other orgs (RLS)", async () => {
       const {
         org: org1,

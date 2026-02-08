@@ -1,6 +1,19 @@
 // Appointment repository - data access layer for appointments
 
-import { eq, gt, gte, lte, lt, ne, and, inArray, sql } from "drizzle-orm";
+import {
+  eq,
+  gt,
+  gte,
+  lte,
+  lt,
+  ne,
+  and,
+  or,
+  asc,
+  desc,
+  inArray,
+  sql,
+} from "drizzle-orm";
 import {
   appointments,
   calendars,
@@ -21,6 +34,7 @@ export type Appointment = typeof appointments.$inferSelect;
 export type AppointmentInsert = typeof appointments.$inferInsert;
 export type AppointmentStatus =
   (typeof appointmentStatusEnum.enumValues)[number];
+export type AppointmentListScope = "upcoming" | "history" | "all";
 
 export interface AppointmentCreateInput {
   calendarId: string;
@@ -49,6 +63,8 @@ export interface AppointmentListInput extends PaginationInput {
   appointmentTypeId?: string | null | undefined;
   clientId?: string | null | undefined;
   status?: AppointmentStatus | null | undefined;
+  scope?: AppointmentListScope | null | undefined;
+  boundaryAt?: Date | null | undefined;
   startDate?: string | null | undefined;
   endDate?: string | null | undefined;
   startAt?: Date | null | undefined;
@@ -151,16 +167,73 @@ export class AppointmentRepository {
       appointmentTypeId,
       clientId,
       status,
+      scope,
+      boundaryAt,
       startDate,
       endDate,
       startAt,
       endAt,
     } = input;
 
-    // Build conditions array
-    const conditions: ReturnType<typeof eq>[] = [];
+    const effectiveScope = scope ?? "all";
 
-    if (cursor) {
+    // Build conditions array
+    const conditions: Array<
+      | ReturnType<typeof eq>
+      | ReturnType<typeof gt>
+      | ReturnType<typeof gte>
+      | ReturnType<typeof lte>
+      | ReturnType<typeof lt>
+      | ReturnType<typeof inArray>
+      | NonNullable<ReturnType<typeof and>>
+      | NonNullable<ReturnType<typeof or>>
+    > = [];
+
+    if (
+      cursor &&
+      (effectiveScope === "upcoming" || effectiveScope === "history")
+    ) {
+      const [cursorAppointment] = await tx
+        .select({
+          id: appointments.id,
+          startAt: appointments.startAt,
+        })
+        .from(appointments)
+        .where(eq(appointments.id, cursor))
+        .limit(1);
+
+      if (!cursorAppointment) {
+        return {
+          items: [],
+          nextCursor: null,
+          hasMore: false,
+        };
+      }
+
+      if (effectiveScope === "upcoming") {
+        const afterCursor = or(
+          gt(appointments.startAt, cursorAppointment.startAt),
+          and(
+            eq(appointments.startAt, cursorAppointment.startAt),
+            gt(appointments.id, cursorAppointment.id),
+          ),
+        );
+        if (afterCursor) {
+          conditions.push(afterCursor);
+        }
+      } else {
+        const beforeCursor = or(
+          lt(appointments.startAt, cursorAppointment.startAt),
+          and(
+            eq(appointments.startAt, cursorAppointment.startAt),
+            lt(appointments.id, cursorAppointment.id),
+          ),
+        );
+        if (beforeCursor) {
+          conditions.push(beforeCursor);
+        }
+      }
+    } else if (cursor) {
       conditions.push(gt(appointments.id, cursor));
     }
 
@@ -178,6 +251,20 @@ export class AppointmentRepository {
 
     if (status) {
       conditions.push(eq(appointments.status, status));
+    }
+
+    const effectiveBoundaryAt = boundaryAt ?? new Date();
+    if (effectiveScope === "upcoming") {
+      conditions.push(gte(appointments.startAt, effectiveBoundaryAt));
+      conditions.push(inArray(appointments.status, ["scheduled", "confirmed"]));
+    } else if (effectiveScope === "history") {
+      const historyCondition = or(
+        lt(appointments.startAt, effectiveBoundaryAt),
+        inArray(appointments.status, ["cancelled", "no_show"]),
+      );
+      if (historyCondition) {
+        conditions.push(historyCondition);
+      }
     }
 
     if (startAt && endAt) {
@@ -208,6 +295,13 @@ export class AppointmentRepository {
 
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
+    const orderBy =
+      effectiveScope === "history"
+        ? [desc(appointments.startAt), desc(appointments.id)]
+        : effectiveScope === "upcoming"
+          ? [asc(appointments.startAt), asc(appointments.id)]
+          : [appointments.id];
+
     const results = await tx
       .select({
         appointment: appointments,
@@ -237,7 +331,7 @@ export class AppointmentRepository {
       .leftJoin(clients, eq(appointments.clientId, clients.id))
       .where(whereClause)
       .limit(limit + 1)
-      .orderBy(appointments.id);
+      .orderBy(...orderBy);
 
     // Custom pagination for joined results
     const hasMore = results.length > limit;
