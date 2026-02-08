@@ -50,9 +50,39 @@ describe("formatPhoneInputAsYouType", () => {
     expect(result.detectedCountry).toBe("GB");
   });
 
+  test("formats GB national input without trunk prefix", () => {
+    expect(formatPhoneInputAsYouType("2071234567", "GB").formatted).toBe(
+      "20 7123 4567",
+    );
+  });
+
   test("normalizes punctuation in US input", () => {
     expect(formatPhoneInputAsYouType("415.555.2671", "US").formatted).toBe(
       "415-555-2671",
+    );
+  });
+
+  test("stops US input when too long", () => {
+    expect(formatPhoneInputAsYouType("41555526712345", "US").formatted).toBe(
+      "415-555-2671",
+    );
+  });
+
+  test("keeps GB trunk-prefix formatting", () => {
+    expect(formatPhoneInputAsYouType("02071234567", "GB").formatted).toBe(
+      "020 7123 4567",
+    );
+  });
+
+  test("stops GB input when too long", () => {
+    expect(formatPhoneInputAsYouType("207123456789", "GB").formatted).toBe(
+      "20 7123 4567",
+    );
+  });
+
+  test("stops + input when too long", () => {
+    expect(formatPhoneInputAsYouType("+44207123456789", "GB").formatted).toBe(
+      "+44 20 7123 4567",
     );
   });
 

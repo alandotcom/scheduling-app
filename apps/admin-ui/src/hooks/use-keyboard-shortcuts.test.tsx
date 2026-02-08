@@ -1,38 +1,20 @@
 /// <reference lib="dom" />
 
 import { afterEach, describe, expect, mock, test } from "bun:test";
-import { act, type ReactElement } from "react";
-import { createRoot } from "react-dom/client";
+import type { ReactElement } from "react";
+import { cleanup, render } from "@testing-library/react";
 import { useKeyboardShortcuts } from "./use-keyboard-shortcuts";
 
-type Cleanup = () => void;
-let cleanup: Cleanup | null = null;
-
-function render(ui: ReactElement) {
-  const container = document.createElement("div");
-  document.body.appendChild(container);
-  const root = createRoot(container);
-
-  act(() => {
-    root.render(ui);
-  });
-
-  cleanup = () => {
-    act(() => {
-      root.unmount();
-    });
-    container.remove();
-  };
+function renderHarness(ui: ReactElement) {
+  return render(ui);
 }
 
 function dispatchKey(key: string, target?: HTMLElement) {
-  act(() => {
-    const event = new KeyboardEvent("keydown", { key });
-    if (target) {
-      Object.defineProperty(event, "target", { value: target });
-    }
-    document.dispatchEvent(event);
-  });
+  const event = new KeyboardEvent("keydown", { key, bubbles: true });
+  if (target) {
+    Object.defineProperty(event, "target", { value: target });
+  }
+  document.dispatchEvent(event);
 }
 
 function MultiShortcutHarness({
@@ -82,9 +64,7 @@ function InputShortcutHarness({
 }
 
 afterEach(() => {
-  cleanup?.();
-  cleanup = null;
-  document.body.innerHTML = "";
+  cleanup();
 });
 
 describe("useKeyboardShortcuts", () => {
@@ -113,8 +93,11 @@ describe("useKeyboardShortcuts", () => {
       originalRemove(type, listener, options);
     }) as typeof document.removeEventListener;
 
+    let view: ReturnType<typeof renderHarness> | null = null;
     try {
-      render(<MultiShortcutHarness onAlpha={onAlpha} onBeta={onBeta} />);
+      view = renderHarness(
+        <MultiShortcutHarness onAlpha={onAlpha} onBeta={onBeta} />,
+      );
 
       expect(addKeydownCount).toBe(1);
 
@@ -124,8 +107,7 @@ describe("useKeyboardShortcuts", () => {
       expect(onAlpha).toHaveBeenCalledTimes(1);
       expect(onBeta).toHaveBeenCalledTimes(1);
     } finally {
-      cleanup?.();
-      cleanup = null;
+      view?.unmount();
 
       expect(removeKeydownCount).toBe(1);
       document.addEventListener =
@@ -149,31 +131,17 @@ describe("useKeyboardShortcuts", () => {
     }) as typeof document.addEventListener;
 
     try {
-      const container = document.createElement("div");
-      document.body.appendChild(container);
-      const root = createRoot(container);
-      cleanup = () => {
-        act(() => {
-          root.unmount();
-        });
-        container.remove();
-      };
-
-      act(() => {
-        root.render(
-          <DynamicShortcutHarness shortcutKey="a" onAction={onAction} />,
-        );
-      });
+      const view = renderHarness(
+        <DynamicShortcutHarness shortcutKey="a" onAction={onAction} />,
+      );
 
       dispatchKey("a");
       expect(onAction).toHaveBeenCalledTimes(1);
       expect(addKeydownCount).toBe(1);
 
-      act(() => {
-        root.render(
-          <DynamicShortcutHarness shortcutKey="z" onAction={onAction} />,
-        );
-      });
+      view.rerender(
+        <DynamicShortcutHarness shortcutKey="z" onAction={onAction} />,
+      );
 
       dispatchKey("a");
       dispatchKey("z");
@@ -189,7 +157,9 @@ describe("useKeyboardShortcuts", () => {
     const onDefault = mock(() => {});
     const onForced = mock(() => {});
 
-    render(<InputShortcutHarness onDefault={onDefault} onForced={onForced} />);
+    renderHarness(
+      <InputShortcutHarness onDefault={onDefault} onForced={onForced} />,
+    );
 
     const input = document.querySelector("input");
     expect(input).not.toBeNull();

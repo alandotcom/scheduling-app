@@ -1,33 +1,21 @@
-import { describe, expect, test, mock } from "bun:test";
-import * as React from "react";
-import { act } from "react";
-import { createRoot } from "react-dom/client";
+import { afterEach, describe, expect, test, mock } from "bun:test";
 import { QueryClientProvider } from "@tanstack/react-query";
+import { cleanup, fireEvent, render } from "@testing-library/react";
+import type { ReactElement } from "react";
 
 import { createAppointmentFixture, createTestQueryClient } from "@/test-utils";
 import { AppointmentDetail } from "./appointment-detail";
 
-function render(ui: React.ReactElement) {
+function renderWithQuery(ui: ReactElement) {
   const queryClient = createTestQueryClient();
-  const container = document.createElement("div");
-  document.body.appendChild(container);
-  const root = createRoot(container);
-
-  act(() => {
-    root.render(
-      <QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>,
-    );
-  });
-
-  const unmount = () => {
-    act(() => {
-      root.unmount();
-    });
-    container.remove();
-  };
-
-  return { container, unmount };
+  return render(
+    <QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>,
+  );
 }
+
+afterEach(() => {
+  cleanup();
+});
 
 describe("AppointmentDetail", () => {
   test("shows notes as always-editable for actionable appointments", () => {
@@ -36,7 +24,7 @@ describe("AppointmentDetail", () => {
       notes: null,
     });
 
-    const { container, unmount } = render(
+    const { container } = renderWithQuery(
       <AppointmentDetail
         appointment={appointment}
         displayTimezone="America/New_York"
@@ -50,15 +38,13 @@ describe("AppointmentDetail", () => {
     expect(container.querySelector("textarea")).not.toBeNull();
     expect(container.textContent).toContain("Save");
     expect(container.textContent).not.toContain("Edit");
-
-    unmount();
   });
 
   test("uses clickable client row instead of separate profile button", () => {
     const appointment = createAppointmentFixture();
     const onOpenClient = mock(() => {});
 
-    const { container, unmount } = render(
+    const { container } = renderWithQuery(
       <AppointmentDetail
         appointment={appointment}
         displayTimezone="America/New_York"
@@ -76,11 +62,8 @@ describe("AppointmentDetail", () => {
       (button) => button.textContent?.includes("Open client"),
     );
     expect(clientButton).not.toBeNull();
-    act(() => {
-      clientButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-    });
+    fireEvent.click(clientButton as HTMLButtonElement);
 
     expect(onOpenClient).toHaveBeenCalledWith("test-client-id");
-    unmount();
   });
 });

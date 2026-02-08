@@ -41,8 +41,8 @@ import { useUrlDrivenModal } from "@/hooks/use-url-driven-modal";
 import { formatDisplayDate } from "@/lib/date-utils";
 import { getQueryClient, orpc } from "@/lib/query";
 import { swallowIgnorableRouteLoaderError } from "@/lib/query-cancellation";
-import { CalendarsTab } from "./-components/calendars-tab";
-import { ResourcesTab } from "./-components/resources-tab";
+import { CalendarsTab } from "./components/calendars-tab";
+import { ResourcesTab } from "./components/resources-tab";
 
 interface AppointmentTypeFormProps {
   defaultValues?: {

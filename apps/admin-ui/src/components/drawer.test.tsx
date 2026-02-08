@@ -1,35 +1,11 @@
 /// <reference lib="dom" />
 
 import { afterEach, describe, expect, test } from "bun:test";
-import { act, type ReactElement } from "react";
-import { createRoot } from "react-dom/client";
+import { cleanup, fireEvent, render } from "@testing-library/react";
 import { DrawerTab, DrawerTabs } from "@/components/drawer";
 
-type Cleanup = () => void;
-
-let cleanup: Cleanup | null = null;
-
-function render(ui: ReactElement) {
-  const container = document.createElement("div");
-  document.body.appendChild(container);
-  const root = createRoot(container);
-
-  act(() => {
-    root.render(ui);
-  });
-
-  cleanup = () => {
-    act(() => {
-      root.unmount();
-    });
-    container.remove();
-  };
-}
-
 afterEach(() => {
-  cleanup?.();
-  cleanup = null;
-  document.body.innerHTML = "";
+  cleanup();
 });
 
 describe("drawer tabs", () => {
@@ -54,9 +30,7 @@ describe("drawer tabs", () => {
     expect(tabs[0]?.getAttribute("aria-selected")).toBe("true");
     expect(tabs[1]?.getAttribute("aria-selected")).toBe("false");
 
-    act(() => {
-      tabs[1]?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-    });
+    fireEvent.click(tabs[1] as HTMLButtonElement);
 
     expect(changes).toEqual(["history"]);
   });

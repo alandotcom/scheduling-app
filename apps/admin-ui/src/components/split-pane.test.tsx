@@ -1,9 +1,7 @@
 /// <reference lib="dom" />
 
 import { afterEach, describe, expect, test } from "bun:test";
-import * as React from "react";
-import { act } from "react";
-import { createRoot } from "react-dom/client";
+import { cleanup, render } from "@testing-library/react";
 
 import {
   DetailPanel,
@@ -13,33 +11,8 @@ import {
   WorkbenchLayout,
 } from "@/components/workbench";
 
-type Cleanup = () => void;
-
-let cleanup: Cleanup | null = null;
-
-function render(ui: React.ReactElement) {
-  const container = document.createElement("div");
-  document.body.appendChild(container);
-  const root = createRoot(container);
-
-  act(() => {
-    root.render(ui);
-  });
-
-  cleanup = () => {
-    act(() => {
-      root.unmount();
-    });
-    container.remove();
-  };
-
-  return container;
-}
-
 afterEach(() => {
-  cleanup?.();
-  cleanup = null;
-  document.body.innerHTML = "";
+  cleanup();
 });
 
 describe("split-pane components", () => {

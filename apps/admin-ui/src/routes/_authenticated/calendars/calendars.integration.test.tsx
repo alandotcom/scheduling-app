@@ -1,10 +1,15 @@
 /// <reference lib="dom" />
 
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { act, useState } from "react";
-import { createRoot } from "react-dom/client";
+import { useState } from "react";
 import { QueryClientProvider } from "@tanstack/react-query";
-import { waitFor } from "@testing-library/dom";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { AvailabilitySubTabs } from "@/components/availability/availability-sub-tabs";
 import { CompactBlockedTimeEditor } from "@/components/availability/blocked-time-editor";
 import { CompactDateOverridesEditor } from "@/components/availability/date-overrides-editor";
@@ -17,10 +22,6 @@ import {
   setMockBlockedTimes,
   setMockDateOverrides,
 } from "@/test-utils";
-
-type Cleanup = () => void;
-
-let cleanup: Cleanup | null = null;
 
 function AvailabilityHarness({
   calendarId,
@@ -53,38 +54,13 @@ function AvailabilityHarness({
   );
 }
 
-async function renderAvailabilityHarness() {
-  const container = document.createElement("div");
-  document.body.appendChild(container);
-  const root = createRoot(container);
+function renderAvailabilityHarness() {
   const queryClient = createTestQueryClient();
-
-  await act(async () => {
-    root.render(
-      <QueryClientProvider client={queryClient}>
-        <AvailabilityHarness calendarId="cal-1" timezone="America/New_York" />
-      </QueryClientProvider>,
-    );
-    await Promise.resolve();
-  });
-
-  cleanup = () => {
-    act(() => {
-      root.unmount();
-    });
-    container.remove();
-  };
-}
-
-async function clickButtonByText(label: string) {
-  const button = Array.from(document.querySelectorAll("button")).find(
-    (el) => el.textContent?.trim() === label,
+  return render(
+    <QueryClientProvider client={queryClient}>
+      <AvailabilityHarness calendarId="cal-1" timezone="America/New_York" />
+    </QueryClientProvider>,
   );
-  expect(button).toBeDefined();
-  await act(async () => {
-    button?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-    await Promise.resolve();
-  });
 }
 
 describe("calendars route validateSearch", () => {
@@ -139,44 +115,36 @@ describe("calendars availability tab integration", () => {
   });
 
   afterEach(() => {
-    cleanup?.();
-    cleanup = null;
-    document.body.innerHTML = "";
+    cleanup();
   });
 
   test("renders availability tabs with weekly editor by default", async () => {
-    await renderAvailabilityHarness();
+    renderAvailabilityHarness();
+
+    expect(screen.getByText("Weekly Schedule")).toBeTruthy();
+    expect(screen.getByText("Date Overrides")).toBeTruthy();
+    expect(screen.getByText("Blocked Time")).toBeTruthy();
 
     await waitFor(() => {
-      expect(document.body.textContent).toContain("Weekly Schedule");
-      expect(document.body.textContent).toContain("Date Overrides");
-      expect(document.body.textContent).toContain("Blocked Time");
-    });
-
-    await waitFor(() => {
-      expect(document.body.textContent).toContain("Mon");
+      expect(screen.getByText("Mon")).toBeTruthy();
     });
   });
 
   test("switches between weekly, overrides, and blocked editors", async () => {
-    await renderAvailabilityHarness();
+    renderAvailabilityHarness();
 
+    expect(screen.getByText("Weekly Schedule")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Date Overrides" }));
     await waitFor(() => {
-      expect(document.body.textContent).toContain("Weekly Schedule");
+      expect(
+        screen.getByText("No upcoming overrides configured."),
+      ).toBeTruthy();
     });
 
-    await clickButtonByText("Date Overrides");
+    fireEvent.click(screen.getByRole("button", { name: "Blocked Time" }));
     await waitFor(() => {
-      expect(document.body.textContent).toContain(
-        "No upcoming overrides configured.",
-      );
-    });
-
-    await clickButtonByText("Blocked Time");
-    await waitFor(() => {
-      expect(document.body.textContent).toContain(
-        "No blocked time configured.",
-      );
+      expect(screen.getByText("No blocked time configured.")).toBeTruthy();
     });
   });
 });

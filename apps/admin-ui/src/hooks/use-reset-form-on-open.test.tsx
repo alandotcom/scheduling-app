@@ -1,8 +1,7 @@
 /// <reference lib="dom" />
 
 import { afterEach, describe, expect, mock, test } from "bun:test";
-import { act } from "react";
-import { createRoot } from "react-dom/client";
+import { cleanup, renderHook } from "@testing-library/react";
 
 import { useResetFormOnOpen } from "./use-reset-form-on-open";
 
@@ -16,51 +15,21 @@ type HookProps = {
   onReset?: () => void;
 };
 
-type Cleanup = () => void;
-
-let cleanup: Cleanup | null = null;
-
-function TestComponent(props: HookProps) {
-  useResetFormOnOpen(props);
-  return null;
-}
-
-function renderHook(props: HookProps) {
-  const container = document.createElement("div");
-  document.body.appendChild(container);
-  const root = createRoot(container);
-
-  act(() => {
-    root.render(<TestComponent {...props} />);
+function renderResetFormHook(props: HookProps) {
+  return renderHook((nextProps: HookProps) => useResetFormOnOpen(nextProps), {
+    initialProps: props,
   });
-
-  cleanup = () => {
-    act(() => {
-      root.unmount();
-    });
-    container.remove();
-  };
-
-  const rerender = (nextProps: HookProps) => {
-    act(() => {
-      root.render(<TestComponent {...nextProps} />);
-    });
-  };
-
-  return { rerender };
 }
 
 afterEach(() => {
-  cleanup?.();
-  cleanup = null;
-  document.body.innerHTML = "";
+  cleanup();
 });
 
 describe("useResetFormOnOpen", () => {
   test("resets on open transition", () => {
     const reset = mock((_values: FormValues) => {});
     const onReset = mock(() => {});
-    const { rerender } = renderHook({
+    const { rerender } = renderResetFormHook({
       open: false,
       entityKey: "a",
       values: { name: "Alpha" },
@@ -86,7 +55,7 @@ describe("useResetFormOnOpen", () => {
 
   test("resets when entity key changes while open", () => {
     const reset = mock((_values: FormValues) => {});
-    const { rerender } = renderHook({
+    const { rerender } = renderResetFormHook({
       open: true,
       entityKey: "a",
       values: { name: "Alpha" },
@@ -108,7 +77,7 @@ describe("useResetFormOnOpen", () => {
 
   test("does not reset on rerender with same key while open", () => {
     const reset = mock((_values: FormValues) => {});
-    const { rerender } = renderHook({
+    const { rerender } = renderResetFormHook({
       open: true,
       entityKey: "a",
       values: { name: "Alpha" },
@@ -129,7 +98,7 @@ describe("useResetFormOnOpen", () => {
 
   test("resets again when reopened with same key", () => {
     const reset = mock((_values: FormValues) => {});
-    const { rerender } = renderHook({
+    const { rerender } = renderResetFormHook({
       open: true,
       entityKey: "a",
       values: { name: "Alpha" },
@@ -157,7 +126,7 @@ describe("useResetFormOnOpen", () => {
 
   test("skips reset when values are null", () => {
     const reset = mock((_values: FormValues) => {});
-    const { rerender } = renderHook({
+    const { rerender } = renderResetFormHook({
       open: false,
       entityKey: "a",
       values: null,
@@ -177,7 +146,7 @@ describe("useResetFormOnOpen", () => {
   test("calls onReset for each reset", () => {
     const reset = mock((_values: FormValues) => {});
     const onReset = mock(() => {});
-    const { rerender } = renderHook({
+    const { rerender } = renderResetFormHook({
       open: true,
       entityKey: "a",
       values: { name: "Alpha" },

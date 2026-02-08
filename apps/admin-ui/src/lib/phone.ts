@@ -1,7 +1,9 @@
 import {
   AsYouType,
+  getCountryCallingCode,
   parseIncompletePhoneNumber,
   parsePhoneNumberFromString,
+  validatePhoneNumberLength,
   type CountryCode,
 } from "libphonenumber-js/min";
 
@@ -15,13 +17,45 @@ function toDigits(value: string): string {
 function formatNanpPhone(digits: string): string {
   if (!digits) return "";
 
+  if (digits.length === 11 && digits.startsWith("1")) {
+    return `1 ${formatNanpPhone(digits.slice(1))}`;
+  }
+
   if (digits.length <= 3) return digits;
   if (digits.length <= 6) return `${digits.slice(0, 3)}-${digits.slice(3)}`;
   if (digits.length <= 10) {
     return `${digits.slice(0, 3)}-${digits.slice(3, 6)}-${digits.slice(6)}`;
   }
 
-  return `${digits.slice(0, 3)}-${digits.slice(3, 6)}-${digits.slice(6, 10)} ${digits.slice(10)}`;
+  return formatNanpPhone(digits.slice(0, 10));
+}
+
+function clampNationalToPossibleLength(
+  raw: string,
+  country: CountryCode,
+): string {
+  let digits = toDigits(raw);
+  while (
+    digits.length > 0 &&
+    validatePhoneNumberLength(digits, country) === "TOO_LONG"
+  ) {
+    digits = digits.slice(0, -1);
+  }
+  return digits;
+}
+
+function clampInternationalToPossibleLength(raw: string): string {
+  const digits = toDigits(raw);
+  if (!digits) return "+";
+
+  let clamped = `+${digits}`;
+  while (
+    clamped.length > 1 &&
+    validatePhoneNumberLength(clamped) === "TOO_LONG"
+  ) {
+    clamped = clamped.slice(0, -1);
+  }
+  return clamped;
 }
 
 export function formatPhoneForDisplay(
@@ -57,13 +91,14 @@ export function formatPhoneInputAsYouType(
   if (!normalized) return { formatted: "" };
 
   if (normalized.startsWith("+")) {
+    const clampedInternational = clampInternationalToPossibleLength(normalized);
     const formatter = new AsYouType(country);
-    const formattedInternational = formatter.input(normalized);
+    const formattedInternational = formatter.input(clampedInternational);
     const detectedCountry = formatter.getCountry() ?? undefined;
     const callingCode = formatter.getCallingCode();
 
     if (callingCode === "1") {
-      const digits = toDigits(normalized);
+      const digits = toDigits(clampedInternational);
       if (digits.length === 0) return { formatted: "+", detectedCountry };
       if (!digits.startsWith("1")) {
         return { formatted: formattedInternational, detectedCountry };
@@ -81,15 +116,52 @@ export function formatPhoneInputAsYouType(
   }
 
   if (NANP_COUNTRIES.has(country)) {
+    const digits = clampNationalToPossibleLength(normalized, country);
     return {
-      formatted: formatNanpPhone(toDigits(normalized)),
+      formatted: formatNanpPhone(digits),
       detectedCountry: country,
     };
   }
 
+  const clampedNational = clampNationalToPossibleLength(normalized, country);
   const formatter = new AsYouType(country);
+  const formattedNational = formatter.input(clampedNational);
+  if (/[^\d]/.test(formattedNational)) {
+    return {
+      formatted: formattedNational,
+      detectedCountry: formatter.getCountry() ?? undefined,
+    };
+  }
+
+  const digits = toDigits(clampedNational);
+  if (!digits) {
+    return {
+      formatted: formattedNational,
+      detectedCountry: formatter.getCountry() ?? undefined,
+    };
+  }
+
+  const callingCode = getCountryCallingCode(country);
+  const digitsForInternational = digits.replace(/^0+/, "");
+  if (!digitsForInternational) {
+    return {
+      formatted: formattedNational,
+      detectedCountry: formatter.getCountry() ?? undefined,
+    };
+  }
+
+  const intlFormatter = new AsYouType();
+  const formattedInternational = intlFormatter.input(
+    `+${callingCode}${digitsForInternational}`,
+  );
+  const prefix = `+${callingCode}`;
+  const formattedWithoutPrefix = formattedInternational.startsWith(prefix)
+    ? formattedInternational.slice(prefix.length).trimStart()
+    : formattedInternational;
+
   return {
-    formatted: formatter.input(normalized),
-    detectedCountry: formatter.getCountry() ?? undefined,
+    formatted: formattedWithoutPrefix || formattedNational,
+    detectedCountry:
+      intlFormatter.getCountry() ?? formatter.getCountry() ?? undefined,
   };
 }
