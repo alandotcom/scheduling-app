@@ -109,6 +109,17 @@ describe("RLS context functions", () => {
 
 describe("RLS policy setup verification", () => {
   test("RLS is enabled on org-scoped tables", async () => {
+    const expectedTables = [
+      "appointment_types",
+      "appointments",
+      "audit_events",
+      "calendars",
+      "clients",
+      "event_outbox",
+      "locations",
+      "resources",
+    ];
+
     // Query pg_tables to verify RLS is enabled
     const result = await db.execute(sql`
       SELECT tablename, rowsecurity
@@ -120,7 +131,7 @@ describe("RLS policy setup verification", () => {
 
     const tables = result as Array<{ tablename: string; rowsecurity: boolean }>;
 
-    expect(tables).toHaveLength(8);
+    expect(tables.map((table) => table.tablename)).toEqual(expectedTables);
     for (const table of tables) {
       expect(table.rowsecurity).toBe(true);
     }
