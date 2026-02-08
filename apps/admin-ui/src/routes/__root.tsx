@@ -11,7 +11,6 @@ import {
   useLocation,
   useNavigate,
 } from "@tanstack/react-router";
-import { TanStackRouterDevtools } from "@tanstack/router-devtools";
 import {
   Calendar03Icon,
   UserGroup02Icon,
@@ -703,11 +702,6 @@ function RootLayout() {
         open={shortcutsHelpOpen}
         onOpenChange={setShortcutsHelpOpen}
       />
-
-      {/* Dev tools - only in development */}
-      {import.meta.env.DEV ? (
-        <TanStackRouterDevtools position="bottom-right" />
-      ) : null}
     </div>
   );
 }

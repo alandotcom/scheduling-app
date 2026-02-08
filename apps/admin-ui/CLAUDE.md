@@ -151,6 +151,62 @@ const displayEntity = useClosingSnapshot(entity);
 | `useScheduleAppointments` | Fetch appointments for weekly schedule view |
 | `useAppointmentTypeMutations` | CRUD + calendar/resource linking for appointment types |
 
+## Keyboard Shortcuts
+
+Custom-built system (no external lib). A single global `keydown` listener on `document` handles all shortcuts via a registration pattern. Supports key sequences (e.g., `g d`), modifier combos (`meta+k`), and scoping.
+
+### Scopes
+
+| Scope | When active |
+|-------|-------------|
+| `"global"` (default) | No modal is open |
+| `"modal"` | Inside an open modal only |
+| `"all"` | Always (modal or not) — use sparingly (e.g., Cmd+K) |
+
+### Adding a New Shortcut — 3 Steps
+
+1. **Register** with `useKeyboardShortcuts()` in your component
+2. **Document** in `SHORTCUT_SECTIONS` in `src/components/shortcuts-help-dialog.tsx`
+3. **Optionally** add to `src/components/command-palette.tsx` for navigation/create actions
+
+Example — page-specific shortcut with `enabled` gating:
+
+```typescript
+useKeyboardShortcuts({
+  shortcuts: [
+    { key: "c", action: () => setCrudState({ mode: "create" }), description: "Create new" },
+  ],
+  enabled: !crudState.mode, // disable when a form is open
+});
+```
+
+### Which Hook to Use
+
+| Hook | When |
+|------|------|
+| `useKeyboardShortcuts` | Arbitrary shortcuts in any component |
+| `useNavigationShortcuts` | Already wired in `__root.tsx` — don't duplicate |
+| `useListNavigation` | j/k/Enter for any list/table (pass items + selectedIndex) |
+| `useFocusZones` | Cmd+L/D/F for split-pane pages — needs `FOCUS_ZONES.*` IDs on elements |
+| `useSubmitShortcut` | Cmd+Enter for modal forms (scope defaults to `"modal"`) |
+
+### Key Files
+
+| File | Purpose |
+|------|---------|
+| `src/hooks/use-keyboard-shortcuts.ts` | Core hook + `useNavigationShortcuts`, `useListNavigation`, `useFocusZones`, `FOCUS_ZONES` |
+| `src/hooks/use-submit-shortcut.ts` | `useSubmitShortcut` (Cmd+Enter) |
+| `src/components/shortcuts-help-dialog.tsx` | `SHORTCUT_SECTIONS` registry (static, shown in `?` dialog) |
+| `src/components/command-palette.tsx` | `CommandPalette` (Cmd+K) — navigation + create actions |
+| `src/lib/shortcuts.ts` | `formatShortcut()` — platform-aware key label formatting |
+
+### Existing Shortcuts (avoid conflicts)
+
+**General:** `Cmd+K` (command menu), `Cmd+Enter` (save/submit), `Cmd+/` (help), `Escape` (back/blur), `c` (create)
+**Navigation:** `g d` (dashboard), `g a` (appointments), `g p` (clients), `g c` (calendars), `g t` (appt types), `g r` (resources), `g l` (locations), `g s` (settings)
+**Focus:** `Cmd+F` (filter/search), `Cmd+L` (list panel), `Cmd+D` (detail panel)
+**Lists:** `j`/`k` (up/down), `Enter` (open selected)
+
 ## Testing
 
 - Co-located test files: `*.test.tsx` / `*.test.ts` next to source

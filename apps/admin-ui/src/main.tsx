@@ -22,7 +22,6 @@ import { StrictMode, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { RouterProvider, createRouter } from "@tanstack/react-router";
 import { QueryClientProvider } from "@tanstack/react-query";
-import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 
 import { routeTree } from "./routeTree.gen";
 import { getQueryClient } from "./lib/query";
@@ -54,9 +53,6 @@ function App() {
     <StrictMode>
       <QueryClientProvider client={queryClient}>
         <RouterProvider router={router} />
-        {import.meta.env.DEV ? (
-          <ReactQueryDevtools initialIsOpen={false} />
-        ) : null}
       </QueryClientProvider>
     </StrictMode>
   );

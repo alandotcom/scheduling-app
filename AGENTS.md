@@ -154,6 +154,10 @@ Check these files for relevant context before implementing features in that area
 - For URL-driven detail modals, also keep a `displayEntity` snapshot (`selected ? selectedEntity : closingSnapshot`) and use it for modal title/description/body. This avoids blank fallback headers/content when the selected entity is briefly unresolved during close/refetch.
 - Do not use generic fallback titles like `"Client details"` for URL-driven entity detail modals; prefer `""` and gate `open` with actual `displayEntity` presence (`open={isModalOpen && !!displayEntity}`) to avoid visible empty-shell flashes.
 
+### Keyboard Shortcuts
+
+The admin-ui has a custom keyboard shortcuts system (single global listener, registration-based, scoped). See `apps/admin-ui/CLAUDE.md` "Keyboard Shortcuts" section for full details. When adding shortcuts: (1) register with `useKeyboardShortcuts()`, (2) add to `SHORTCUT_SECTIONS` in `shortcuts-help-dialog.tsx`, (3) optionally add to `command-palette.tsx`.
+
 ## Testing with Real Postgres
 
 Tests use a real Postgres database (`scheduling_test`) with RLS enforced. The test database is automatically created on first test run via the preload script.
