@@ -168,7 +168,7 @@ describe("calendars availability tab integration", () => {
     await clickButtonByText("Date Overrides");
     await waitFor(() => {
       expect(document.body.textContent).toContain(
-        "No date overrides configured.",
+        "No upcoming overrides configured.",
       );
     });
 
