@@ -491,10 +491,7 @@ export function AppointmentModal({
 
               {/* Calendar and Time Selection */}
               {selectedCalendarId && (
-                <div
-                  className="relative flex-1 min-h-0"
-                  ref={registerField("date-time")}
-                >
+                <div className="relative" ref={registerField("date-time")}>
                   <AvailabilityCalendarPicker
                     viewMonth={viewMonth}
                     onViewMonthChange={setViewMonth}

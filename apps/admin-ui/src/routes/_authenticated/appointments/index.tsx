@@ -695,7 +695,7 @@ function AppointmentsPage() {
           <h1 className="truncate text-2xl font-semibold tracking-tight">
             Appointments
           </h1>
-          <p className="mt-1 truncate text-sm text-muted-foreground">
+          <p className="mt-1 text-sm text-muted-foreground sm:truncate">
             View and manage scheduled appointments
           </p>
         </div>

@@ -516,7 +516,7 @@ function CalendarsPage() {
           <h1 className="truncate text-2xl font-semibold tracking-tight">
             Calendars
           </h1>
-          <p className="mt-1 truncate text-sm text-muted-foreground">
+          <p className="mt-1 text-sm text-muted-foreground sm:truncate">
             Manage calendars and their availability
           </p>
         </div>
@@ -548,9 +548,15 @@ function CalendarsPage() {
                 <TableRow>
                   <TableHead>Name</TableHead>
                   <TableHead>Timezone</TableHead>
-                  <TableHead>Location</TableHead>
-                  <TableHead>This Week</TableHead>
-                  <TableHead>Created</TableHead>
+                  <TableHead className="hidden md:table-cell">
+                    Location
+                  </TableHead>
+                  <TableHead className="hidden md:table-cell">
+                    This Week
+                  </TableHead>
+                  <TableHead className="hidden md:table-cell">
+                    Created
+                  </TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
@@ -577,10 +583,10 @@ function CalendarsPage() {
                       <TableCell title={calendar.timezone}>
                         {formatTimezoneShort(calendar.timezone)}
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="hidden md:table-cell">
                         {getLocationName(calendar.locationId)}
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="hidden md:table-cell">
                         <RelationshipCountBadge
                           count={
                             calendar.relationshipCounts?.appointmentsThisWeek ??
@@ -589,7 +595,7 @@ function CalendarsPage() {
                           singular="appointment"
                         />
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="hidden md:table-cell">
                         {formatDisplayDate(calendar.createdAt)}
                       </TableCell>
                       <TableCell>

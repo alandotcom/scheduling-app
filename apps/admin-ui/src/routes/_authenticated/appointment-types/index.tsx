@@ -474,7 +474,7 @@ function AppointmentTypesPage() {
           <h1 className="truncate text-2xl font-semibold tracking-tight">
             Appointment Types
           </h1>
-          <p className="mt-1 truncate text-sm text-muted-foreground">
+          <p className="mt-1 text-sm text-muted-foreground sm:truncate">
             Configure the types of appointments that can be booked
           </p>
         </div>
@@ -507,10 +507,18 @@ function AppointmentTypesPage() {
                 <TableRow>
                   <TableHead>Name</TableHead>
                   <TableHead>Duration</TableHead>
-                  <TableHead>Padding</TableHead>
-                  <TableHead>Capacity</TableHead>
-                  <TableHead>Relationships</TableHead>
-                  <TableHead>Created</TableHead>
+                  <TableHead className="hidden md:table-cell">
+                    Padding
+                  </TableHead>
+                  <TableHead className="hidden md:table-cell">
+                    Capacity
+                  </TableHead>
+                  <TableHead className="hidden md:table-cell">
+                    Relationships
+                  </TableHead>
+                  <TableHead className="hidden md:table-cell">
+                    Created
+                  </TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
@@ -534,7 +542,7 @@ function AppointmentTypesPage() {
                     >
                       <TableCell className="font-medium">{type.name}</TableCell>
                       <TableCell>{type.durationMin} min</TableCell>
-                      <TableCell>
+                      <TableCell className="hidden md:table-cell">
                         {type.paddingBeforeMin || type.paddingAfterMin ? (
                           <span className="text-muted-foreground">
                             {type.paddingBeforeMin ?? 0} /{" "}
@@ -544,10 +552,10 @@ function AppointmentTypesPage() {
                           <span className="text-muted-foreground">-</span>
                         )}
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="hidden md:table-cell">
                         <Badge variant="secondary">{type.capacity ?? 1}</Badge>
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="hidden md:table-cell">
                         <div className="flex flex-wrap gap-1">
                           <RelationshipCountBadge
                             count={type.relationshipCounts?.calendars ?? 0}
@@ -563,7 +571,9 @@ function AppointmentTypesPage() {
                           />
                         </div>
                       </TableCell>
-                      <TableCell>{formatDisplayDate(type.createdAt)}</TableCell>
+                      <TableCell className="hidden md:table-cell">
+                        {formatDisplayDate(type.createdAt)}
+                      </TableCell>
                       <TableCell>
                         <RowActions
                           ariaLabel={`Actions for ${type.name}`}

@@ -85,7 +85,7 @@ export function AvailabilityCalendarPicker({
   }, [schedulingTimezone, viewMonth]);
 
   return (
-    <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 sm:gap-6">
+    <div className="grid grid-cols-1 gap-5 pb-16 sm:grid-cols-2 sm:gap-6 sm:pb-0">
       {/* Calendar */}
       <div>
         <div className="flex items-center justify-between mb-4">

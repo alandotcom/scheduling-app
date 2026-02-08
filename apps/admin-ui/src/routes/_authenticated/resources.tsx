@@ -386,7 +386,7 @@ function ResourcesPage() {
           <h1 className="truncate text-2xl font-semibold tracking-tight">
             Resources
           </h1>
-          <p className="mt-1 truncate text-sm text-muted-foreground">
+          <p className="mt-1 text-sm text-muted-foreground sm:truncate">
             Manage resources like rooms, equipment, or staff
           </p>
         </div>
@@ -417,9 +417,13 @@ function ResourcesPage() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Name</TableHead>
-                  <TableHead>Quantity</TableHead>
+                  <TableHead className="hidden md:table-cell">
+                    Quantity
+                  </TableHead>
                   <TableHead>Location</TableHead>
-                  <TableHead>Created</TableHead>
+                  <TableHead className="hidden md:table-cell">
+                    Created
+                  </TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
@@ -440,11 +444,13 @@ function ResourcesPage() {
                     <TableCell className="font-medium">
                       {resource.name}
                     </TableCell>
-                    <TableCell>{resource.quantity}</TableCell>
+                    <TableCell className="hidden md:table-cell">
+                      {resource.quantity}
+                    </TableCell>
                     <TableCell>
                       {getLocationName(resource.locationId)}
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="hidden md:table-cell">
                       {formatDisplayDate(resource.createdAt)}
                     </TableCell>
                     <TableCell>

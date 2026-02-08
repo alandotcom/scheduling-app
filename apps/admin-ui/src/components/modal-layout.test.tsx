@@ -54,9 +54,9 @@ describe("modal layout positioning", () => {
       '[data-slot="entity-modal-body"]',
     );
     expect(body).toBeTruthy();
-    expect(body?.className).toContain("overflow-hidden");
+    expect(body?.className).toContain("overflow-y-auto");
     expect(body?.className).toContain("p-0");
-    expect(body?.className).not.toContain("overflow-y-auto");
+    expect(body?.className).not.toContain("overflow-hidden");
   });
 
   test("AppointmentModal keeps a top anchor", () => {

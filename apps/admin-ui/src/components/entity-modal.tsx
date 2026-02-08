@@ -82,7 +82,7 @@ export function EntityModal({
 
           <div
             data-slot="entity-modal-body"
-            className="flex-1 overflow-hidden p-0"
+            className="flex-1 overflow-y-auto p-0"
           >
             {children}
           </div>

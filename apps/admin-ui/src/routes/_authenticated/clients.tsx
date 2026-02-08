@@ -794,7 +794,7 @@ function ClientsPage() {
           <h1 className="truncate text-2xl font-semibold tracking-tight">
             Clients
           </h1>
-          <p className="mt-1 truncate text-sm text-muted-foreground">
+          <p className="mt-1 text-sm text-muted-foreground sm:truncate">
             Manage client records and contact information
           </p>
         </div>
@@ -843,10 +843,16 @@ function ClientsPage() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Name</TableHead>
-                    <TableHead>Email</TableHead>
-                    <TableHead>Phone</TableHead>
+                    <TableHead className="hidden md:table-cell">
+                      Email
+                    </TableHead>
+                    <TableHead className="hidden md:table-cell">
+                      Phone
+                    </TableHead>
                     <TableHead>Appointments</TableHead>
-                    <TableHead>Created</TableHead>
+                    <TableHead className="hidden md:table-cell">
+                      Created
+                    </TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -870,12 +876,12 @@ function ClientsPage() {
                         <TableCell className="font-medium">
                           {client.firstName} {client.lastName}
                         </TableCell>
-                        <TableCell>
+                        <TableCell className="hidden md:table-cell">
                           {client.email || (
                             <span className="text-muted-foreground">-</span>
                           )}
                         </TableCell>
-                        <TableCell>
+                        <TableCell className="hidden md:table-cell">
                           {formattedPhone ?? (
                             <span className="text-muted-foreground">-</span>
                           )}
@@ -886,7 +892,7 @@ function ClientsPage() {
                             singular="appointment"
                           />
                         </TableCell>
-                        <TableCell>
+                        <TableCell className="hidden md:table-cell">
                           {formatDisplayDate(client.createdAt)}
                         </TableCell>
                         <TableCell>

@@ -399,7 +399,7 @@ function LocationsPage() {
           <h1 className="truncate text-2xl font-semibold tracking-tight">
             Locations
           </h1>
-          <p className="mt-1 truncate text-sm text-muted-foreground">
+          <p className="mt-1 text-sm text-muted-foreground sm:truncate">
             Manage physical locations for your calendars
           </p>
         </div>
@@ -431,8 +431,12 @@ function LocationsPage() {
                 <TableRow>
                   <TableHead>Name</TableHead>
                   <TableHead>Timezone</TableHead>
-                  <TableHead>Relationships</TableHead>
-                  <TableHead>Created</TableHead>
+                  <TableHead className="hidden md:table-cell">
+                    Relationships
+                  </TableHead>
+                  <TableHead className="hidden md:table-cell">
+                    Created
+                  </TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
@@ -456,7 +460,7 @@ function LocationsPage() {
                     <TableCell title={location.timezone}>
                       {formatTimezoneShort(location.timezone)}
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="hidden md:table-cell">
                       <div className="flex flex-wrap gap-1">
                         <RelationshipCountBadge
                           count={location.relationshipCounts?.calendars ?? 0}
@@ -468,7 +472,7 @@ function LocationsPage() {
                         />
                       </div>
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="hidden md:table-cell">
                       {formatDisplayDate(location.createdAt)}
                     </TableCell>
                     <TableCell>

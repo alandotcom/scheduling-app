@@ -136,7 +136,7 @@ export function ScheduleGrid({
   return (
     <div className="relative flex h-full flex-col">
       {/* Header with navigation */}
-      <div className="flex items-center justify-between border-b border-border px-4 py-3">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-4 py-3">
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm" onClick={onPreviousWeek}>
             <Icon icon={ArrowLeft02Icon} className="size-4" />
@@ -159,7 +159,7 @@ export function ScheduleGrid({
               >
                 <Icon icon={ArrowLeft02Icon} className="size-4" />
               </Button>
-              <span className="text-sm font-medium min-w-[100px] text-center">
+              <span className="text-sm font-medium min-w-[80px] text-center">
                 {WEEKDAYS[selectedDay.weekday % 7]},{" "}
                 {formatDateHeader(selectedDay)}
               </span>
