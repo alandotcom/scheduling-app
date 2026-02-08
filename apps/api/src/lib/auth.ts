@@ -7,6 +7,8 @@ import { db } from "./db.js";
 import * as schema from "@scheduling/db/schema";
 import { config } from "../config.js";
 
+const isDev = process.env.NODE_ENV !== "production";
+
 export const auth = betterAuth({
   database: drizzleAdapter(db, {
     provider: "pg",
@@ -23,14 +25,18 @@ export const auth = betterAuth({
   }),
   secret: config.auth.secret,
   baseURL: config.auth.baseUrl,
-  trustedOrigins: ["http://localhost:5173"], // Frontend dev server
+  trustedOrigins: config.auth.trustedOrigins.split(",").map((o) => o.trim()),
   emailAndPassword: {
     enabled: true,
-    requireEmailVerification: false, // Enable in production
+    requireEmailVerification: config.auth.requireEmailVerification,
   },
   session: {
     expiresIn: 60 * 60 * 24 * 7, // 7 days
     updateAge: 60 * 60 * 24, // Update session every 24 hours
+    cookieCache: {
+      enabled: true,
+      maxAge: 60 * 5, // 5 minutes
+    },
   },
   plugins: [
     organization({
@@ -61,6 +67,11 @@ export const auth = betterAuth({
   advanced: {
     database: {
       generateId: () => Bun.randomUUIDv7(), // Generate UUIDv7 to match our schema
+    },
+    cookiePrefix: "scheduling",
+    defaultCookieAttributes: {
+      sameSite: "lax",
+      secure: !isDev,
     },
   },
 });

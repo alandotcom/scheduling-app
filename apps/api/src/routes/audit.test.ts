@@ -19,6 +19,10 @@ import {
   resetTestDb,
   closeTestDb,
 } from "../test-utils/index.js";
+import {
+  setTestOrgContext,
+  clearTestOrgContext,
+} from "@scheduling/db/test-utils";
 import * as auditRoutes from "./audit.js";
 import { auditEvents } from "@scheduling/db/schema";
 import type { BunSQLDatabase } from "drizzle-orm/bun-sql/postgres";
@@ -62,24 +66,29 @@ describe("Audit Routes", () => {
     entityId?: string;
     createdAt: Date;
   }) {
-    const [event] = await db
-      .insert(auditEvents)
-      .values({
-        orgId: options.orgId,
-        actorId: options.actorId,
-        actorType: options.actorId ? "user" : "system",
-        action: options.action ?? "create",
-        entityType: options.entityType ?? "appointment",
-        entityId: options.entityId ?? randomUUID(),
-        before: null,
-        after: null,
-        metadata: null,
-        createdAt: options.createdAt,
-        updatedAt: options.createdAt,
-      })
-      .returning();
+    await setTestOrgContext(db, options.orgId);
+    try {
+      const [event] = await db
+        .insert(auditEvents)
+        .values({
+          orgId: options.orgId,
+          actorId: options.actorId,
+          actorType: options.actorId ? "user" : "system",
+          action: options.action ?? "create",
+          entityType: options.entityType ?? "appointment",
+          entityId: options.entityId ?? randomUUID(),
+          before: null,
+          after: null,
+          metadata: null,
+          createdAt: options.createdAt,
+          updatedAt: options.createdAt,
+        })
+        .returning();
 
-    return event!;
+      return event!;
+    } finally {
+      await clearTestOrgContext(db);
+    }
   }
 
   test("lists events with pagination and actor details", async () => {

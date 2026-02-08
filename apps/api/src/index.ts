@@ -30,22 +30,33 @@ await configure({
 const logger = getLogger(["api"]);
 
 import { Hono } from "hono";
+import { secureHeaders } from "hono/secure-headers";
+import { cors } from "hono/cors";
 import { RPCHandler } from "@orpc/server/fetch";
 import { OpenAPIHandler } from "@orpc/openapi/fetch";
 import { uiRouter, apiRouter } from "./routes/index.js";
 import { openAPIGenerator } from "./lib/orpc.js";
 import { auth } from "./lib/auth.js";
 import { authMiddleware } from "./middleware/auth.js";
-import { rlsMiddleware } from "./middleware/rls.js";
-// import { rateLimitMiddleware } from "./middleware/rate-limit.js"; // Disabled for dev
 import { errorHandler } from "./middleware/error-handler.js";
 import { requestLogger } from "./middleware/request-logger.js";
 import { config } from "./config.js";
 
 const app = new Hono();
 
-// Global error handler
+// Global middleware
 app.use("*", errorHandler);
+app.use("*", secureHeaders());
+app.use(
+  "*",
+  cors({
+    origin: config.cors.origin.split(",").map((o) => o.trim()),
+    credentials: true,
+    allowMethods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowHeaders: ["Content-Type", "Authorization"],
+    maxAge: 86400,
+  }),
+);
 app.use("*", requestLogger);
 
 // Health check (no auth required)
@@ -62,10 +73,8 @@ app.on(["GET", "POST"], "/api/auth/*", (c) => {
 // Type-safe RPC protocol for internal admin UI
 // ============================================================================
 
-// Auth and RLS middleware for oRPC routes
+// Auth middleware for oRPC routes
 app.use("/v1/*", authMiddleware);
-// app.use("/v1/*", rateLimitMiddleware); // Disabled for dev
-app.use("/v1/*", rlsMiddleware);
 
 // oRPC handler for UI
 const rpcHandler = new RPCHandler(uiRouter);
@@ -112,10 +121,8 @@ app.get("/api/v1/openapi.json", async (c) => {
   return c.json(spec);
 });
 
-// Auth and RLS middleware for OpenAPI routes
+// Auth middleware for OpenAPI routes
 app.use("/api/v1/*", authMiddleware);
-// app.use("/api/v1/*", rateLimitMiddleware); // Disabled for dev
-app.use("/api/v1/*", rlsMiddleware);
 
 // OpenAPI handler for M2M API
 const openAPIHandler = new OpenAPIHandler(apiRouter);

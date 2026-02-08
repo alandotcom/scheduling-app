@@ -114,13 +114,13 @@ describe("RLS policy setup verification", () => {
       SELECT tablename, rowsecurity
       FROM pg_tables
       WHERE schemaname = 'public'
-        AND tablename IN ('locations', 'calendars', 'appointment_types', 'resources', 'clients', 'appointments', 'event_outbox')
+        AND tablename IN ('locations', 'calendars', 'appointment_types', 'resources', 'clients', 'appointments', 'event_outbox', 'audit_events')
       ORDER BY tablename
     `);
 
     const tables = result as Array<{ tablename: string; rowsecurity: boolean }>;
 
-    expect(tables).toHaveLength(7);
+    expect(tables).toHaveLength(8);
     for (const table of tables) {
       expect(table.rowsecurity).toBe(true);
     }
@@ -139,6 +139,7 @@ describe("RLS policy setup verification", () => {
     const expectedTables = [
       "appointment_types",
       "appointments",
+      "audit_events",
       "calendars",
       "clients",
       "event_outbox",

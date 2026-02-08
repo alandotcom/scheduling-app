@@ -37,6 +37,23 @@ export const config = envParse(process.env, {
       env: "AUTH_BASE_URL",
       optional: true,
     },
+    trustedOrigins: {
+      format: z.string(),
+      env: "TRUSTED_ORIGINS",
+      default: "http://localhost:5173",
+    },
+    requireEmailVerification: {
+      format: z.string().transform((v) => v === "true"),
+      env: "REQUIRE_EMAIL_VERIFICATION",
+      default: false,
+    },
+  },
+  cors: {
+    origin: {
+      format: z.string(),
+      env: "CORS_ORIGIN",
+      default: "http://localhost:5173",
+    },
   },
   valkey: {
     url: {

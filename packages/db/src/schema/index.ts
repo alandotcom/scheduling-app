@@ -543,7 +543,7 @@ export const apiTokens = pgTable.withRLS(
 // AUDIT EVENTS
 // ============================================================================
 
-export const auditEvents = pgTable(
+export const auditEvents = pgTable.withRLS(
   "audit_events",
   {
     id,
@@ -560,5 +560,12 @@ export const auditEvents = pgTable(
     metadata: jsonb("metadata"), // Additional context (e.g., IP address, user agent, reason)
     ...timestamps,
   },
-  (table) => [index("audit_events_action_id_idx").on(table.action, table.id)],
+  (table) => [
+    index("audit_events_action_id_idx").on(table.action, table.id),
+    pgPolicy("org_isolation_audit_events", {
+      for: "all",
+      using: sql`org_id = current_org_id()`,
+      withCheck: sql`org_id = current_org_id()`,
+    }),
+  ],
 );
