@@ -830,7 +830,7 @@ function AppointmentsPage() {
         }
       >
         {displayAppointment ? (
-          <div id={FOCUS_ZONES.DETAIL}>
+          <div id={FOCUS_ZONES.DETAIL} className="h-full">
             <AppointmentDetail
               appointment={displayAppointment}
               displayTimezone={displayTimezone}
@@ -840,6 +840,7 @@ function AppointmentsPage() {
               onTabChange={setActiveTab}
               onOpenClient={handleOpenClient}
               isLoading={!!selectedInSchedule && isFetchingAppointment}
+              showHeader={false}
             />
           </div>
         ) : null}

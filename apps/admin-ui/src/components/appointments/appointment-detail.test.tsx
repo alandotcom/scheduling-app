@@ -18,6 +18,45 @@ afterEach(() => {
 });
 
 describe("AppointmentDetail", () => {
+  test("hides the internal title header when showHeader is false", () => {
+    const appointment = createAppointmentFixture();
+
+    const { container, unmount } = renderWithQuery(
+      <AppointmentDetail
+        appointment={appointment}
+        displayTimezone="America/New_York"
+        timezoneMode="calendar"
+        onTimezoneModeChange={() => {}}
+        activeTab="details"
+        onTabChange={() => {}}
+        showHeader={false}
+      />,
+    );
+
+    expect(container.querySelector("h2")).toBeNull();
+    unmount();
+  });
+
+  test("shows the internal title header by default", () => {
+    const appointment = createAppointmentFixture();
+
+    const { container, unmount } = renderWithQuery(
+      <AppointmentDetail
+        appointment={appointment}
+        displayTimezone="America/New_York"
+        timezoneMode="calendar"
+        onTimezoneModeChange={() => {}}
+        activeTab="details"
+        onTabChange={() => {}}
+      />,
+    );
+
+    expect(container.querySelector("h2")?.textContent).toContain(
+      appointment.appointmentType?.name ?? "Appointment",
+    );
+    unmount();
+  });
+
   test("shows notes as always-editable for actionable appointments", () => {
     const appointment = createAppointmentFixture({
       status: "scheduled",

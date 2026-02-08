@@ -56,6 +56,7 @@ interface AppointmentDetailProps {
   onTabChange: (tab: DetailTabValue) => void;
   onOpenClient?: (clientId: string) => void;
   isLoading?: boolean;
+  showHeader?: boolean;
 }
 
 const notesSchema = z.object({
@@ -88,6 +89,7 @@ export function AppointmentDetail({
   onTabChange,
   onOpenClient,
   isLoading,
+  showHeader = true,
 }: AppointmentDetailProps) {
   const queryClient = useQueryClient();
   const [showCancelDialog, setShowCancelDialog] = useState(false);
@@ -180,23 +182,24 @@ export function AppointmentDetail({
   return (
     <>
       <div className="flex h-full flex-col">
-        {/* Header */}
-        <div className="flex flex-wrap items-start justify-between gap-4 border-b border-border px-6 py-5">
-          <div>
-            <div className="flex items-center gap-2">
-              <h2 className="text-lg font-semibold tracking-tight">
-                {appointment.appointmentType?.name ?? "Appointment"}
-              </h2>
-              {getStatusBadge(appointment.status)}
+        {showHeader ? (
+          <div className="flex flex-wrap items-start justify-between gap-4 border-b border-border px-6 py-5">
+            <div>
+              <div className="flex items-center gap-2">
+                <h2 className="text-lg font-semibold tracking-tight">
+                  {appointment.appointmentType?.name ?? "Appointment"}
+                </h2>
+                {getStatusBadge(appointment.status)}
+              </div>
+              <p className="mt-1 text-sm text-muted-foreground">
+                {formatDateWithWeekday(appointment.startAt, displayTimezone)} ·{" "}
+                {formatTimeDisplay(appointment.startAt, displayTimezone)} -{" "}
+                {formatTimeDisplay(appointment.endAt, displayTimezone)} (
+                {displayTimezoneShort})
+              </p>
             </div>
-            <p className="mt-1 text-sm text-muted-foreground">
-              {formatDateWithWeekday(appointment.startAt, displayTimezone)} ·{" "}
-              {formatTimeDisplay(appointment.startAt, displayTimezone)} -{" "}
-              {formatTimeDisplay(appointment.endAt, displayTimezone)} (
-              {displayTimezoneShort})
-            </p>
           </div>
-        </div>
+        ) : null}
 
         {/* Tabs */}
         <DetailTabs

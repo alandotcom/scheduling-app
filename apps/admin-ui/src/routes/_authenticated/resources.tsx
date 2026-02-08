@@ -391,12 +391,14 @@ function ResourcesPage() {
         }}
         title="New Resource"
       >
-        <ResourceForm
-          locations={locations}
-          onSubmit={handleCreate}
-          onCancel={crud.closeCreate}
-          isSubmitting={createMutation.isPending}
-        />
+        <div className="h-full overflow-y-auto px-4 py-4 sm:px-6 sm:py-5">
+          <ResourceForm
+            locations={locations}
+            onSubmit={handleCreate}
+            onCancel={crud.closeCreate}
+            isSubmitting={createMutation.isPending}
+          />
+        </div>
       </EntityModal>
 
       <EntityModal
@@ -412,31 +414,33 @@ function ResourcesPage() {
         }
       >
         {displayResource ? (
-          <div className="space-y-4">
-            <ResourceForm
-              key={displayResource.id}
-              defaultValues={{
-                name: displayResource.name,
-                quantity: displayResource.quantity,
-                locationId: displayResource.locationId ?? undefined,
-              }}
-              locations={locations}
-              onSubmit={handleUpdate}
-              onCancel={clearDetails}
-              isSubmitting={updateMutation.isPending}
-              footerStart={
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                  onClick={() => crud.openDelete(displayResource.id)}
-                >
-                  <Icon icon={Delete01Icon} data-icon="inline-start" />
-                  Delete Resource
-                </Button>
-              }
-            />
+          <div className="h-full overflow-y-auto px-4 py-4 sm:px-6 sm:py-5">
+            <div className="space-y-4">
+              <ResourceForm
+                key={displayResource.id}
+                defaultValues={{
+                  name: displayResource.name,
+                  quantity: displayResource.quantity,
+                  locationId: displayResource.locationId ?? undefined,
+                }}
+                locations={locations}
+                onSubmit={handleUpdate}
+                onCancel={clearDetails}
+                isSubmitting={updateMutation.isPending}
+                footerStart={
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                    onClick={() => crud.openDelete(displayResource.id)}
+                  >
+                    <Icon icon={Delete01Icon} data-icon="inline-start" />
+                    Delete Resource
+                  </Button>
+                }
+              />
+            </div>
           </div>
         ) : null}
       </EntityModal>

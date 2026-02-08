@@ -491,11 +491,13 @@ function AppointmentTypesPage() {
         }}
         title="New Appointment Type"
       >
-        <AppointmentTypeForm
-          onSubmit={handleCreate}
-          onCancel={crud.closeCreate}
-          isSubmitting={createMutation.isPending}
-        />
+        <div className="h-full overflow-y-auto px-4 py-4 sm:px-6 sm:py-5">
+          <AppointmentTypeForm
+            onSubmit={handleCreate}
+            onCancel={crud.closeCreate}
+            isSubmitting={createMutation.isPending}
+          />
+        </div>
       </EntityModal>
 
       <EntityModal
@@ -506,73 +508,75 @@ function AppointmentTypesPage() {
         title={displayManageType?.name ?? ""}
       >
         {displayManageType ? (
-          <div className="space-y-4">
-            <div className="flex flex-wrap gap-2 border-b border-border pb-3">
-              <Button
-                type="button"
-                size="sm"
-                variant={manageTab === "details" ? "default" : "outline"}
-                onClick={() => setManageTab("details")}
-              >
-                Details
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                variant={manageTab === "calendars" ? "default" : "outline"}
-                onClick={() => setManageTab("calendars")}
-              >
-                Calendars
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                variant={manageTab === "resources" ? "default" : "outline"}
-                onClick={() => setManageTab("resources")}
-              >
-                Resources
-              </Button>
+          <div className="h-full overflow-y-auto px-4 py-4 sm:px-6 sm:py-5">
+            <div className="space-y-4">
+              <div className="flex flex-wrap gap-2 border-b border-border pb-3">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={manageTab === "details" ? "default" : "outline"}
+                  onClick={() => setManageTab("details")}
+                >
+                  Details
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={manageTab === "calendars" ? "default" : "outline"}
+                  onClick={() => setManageTab("calendars")}
+                >
+                  Calendars
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={manageTab === "resources" ? "default" : "outline"}
+                  onClick={() => setManageTab("resources")}
+                >
+                  Resources
+                </Button>
+              </div>
+
+              {manageTab === "details" && (
+                <AppointmentTypeForm
+                  key={displayManageType.id}
+                  defaultValues={{
+                    name: displayManageType.name,
+                    durationMin: displayManageType.durationMin,
+                    paddingBeforeMin:
+                      displayManageType.paddingBeforeMin ?? undefined,
+                    paddingAfterMin:
+                      displayManageType.paddingAfterMin ?? undefined,
+                    capacity: displayManageType.capacity ?? undefined,
+                  }}
+                  onSubmit={handleUpdate}
+                  onCancel={closeManageModal}
+                  isSubmitting={updateMutation.isPending}
+                />
+              )}
+
+              {manageTab === "calendars" && (
+                <CalendarsTab
+                  appointmentTypeId={displayManageType.id}
+                  onAddCalendar={handleAddCalendar}
+                  onRemoveCalendar={handleRemoveCalendar}
+                  isAddPending={addCalendarMutation.isPending}
+                  isRemovePending={removeCalendarMutation.isPending}
+                />
+              )}
+
+              {manageTab === "resources" && (
+                <ResourcesTab
+                  appointmentTypeId={displayManageType.id}
+                  onAddResource={handleAddResource}
+                  onUpdateQuantity={handleUpdateResourceQuantity}
+                  onRemoveResource={handleRemoveResource}
+                  isAddPending={addResourceMutation.isPending}
+                  isUpdatePending={updateResourceMutation.isPending}
+                  isRemovePending={removeResourceMutation.isPending}
+                />
+              )}
             </div>
-
-            {manageTab === "details" && (
-              <AppointmentTypeForm
-                key={displayManageType.id}
-                defaultValues={{
-                  name: displayManageType.name,
-                  durationMin: displayManageType.durationMin,
-                  paddingBeforeMin:
-                    displayManageType.paddingBeforeMin ?? undefined,
-                  paddingAfterMin:
-                    displayManageType.paddingAfterMin ?? undefined,
-                  capacity: displayManageType.capacity ?? undefined,
-                }}
-                onSubmit={handleUpdate}
-                onCancel={closeManageModal}
-                isSubmitting={updateMutation.isPending}
-              />
-            )}
-
-            {manageTab === "calendars" && (
-              <CalendarsTab
-                appointmentTypeId={displayManageType.id}
-                onAddCalendar={handleAddCalendar}
-                onRemoveCalendar={handleRemoveCalendar}
-                isAddPending={addCalendarMutation.isPending}
-                isRemovePending={removeCalendarMutation.isPending}
-              />
-            )}
-
-            {manageTab === "resources" && (
-              <ResourcesTab
-                appointmentTypeId={displayManageType.id}
-                onAddResource={handleAddResource}
-                onUpdateQuantity={handleUpdateResourceQuantity}
-                onRemoveResource={handleRemoveResource}
-                isAddPending={addResourceMutation.isPending}
-                isUpdatePending={updateResourceMutation.isPending}
-                isRemovePending={removeResourceMutation.isPending}
-              />
-            )}
           </div>
         ) : null}
       </EntityModal>

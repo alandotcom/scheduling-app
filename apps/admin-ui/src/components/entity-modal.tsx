@@ -80,7 +80,10 @@ export function EntityModal({
             </div>
           </div>
 
-          <div className="flex-1 overflow-y-auto px-4 py-4 [overflow-anchor:none] [scrollbar-gutter:stable] sm:px-6 sm:py-5">
+          <div
+            data-slot="entity-modal-body"
+            className="flex-1 overflow-hidden p-0"
+          >
             {children}
           </div>
         </DialogPrimitive.Popup>

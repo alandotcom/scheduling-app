@@ -181,76 +181,78 @@ export function UserMenu({
         title="Create Organization"
         description="Create a new workspace and switch into it immediately."
       >
-        <form
-          className="space-y-4"
-          onSubmit={async (event) => {
-            event.preventDefault();
-            const trimmedName = name.trim();
-            const trimmedSlug = slug.trim();
-            if (!trimmedName) {
-              setCreateError("Organization name is required.");
-              return;
-            }
-            setCreateError(null);
-            setCreatingOrg(true);
-            try {
-              await onCreateOrganization({
-                name: trimmedName,
-                slug: trimmedSlug || undefined,
-              });
-              setName("");
-              setSlug("");
-              setCreateOpen(false);
-              setOpen(false);
-            } catch (error) {
-              setCreateError(
-                error instanceof Error
-                  ? error.message
-                  : "Failed to create organization.",
-              );
-            } finally {
-              setCreatingOrg(false);
-            }
-          }}
-        >
-          <div className="space-y-1.5">
-            <Label htmlFor="org-name">Organization name</Label>
-            <Input
-              id="org-name"
-              value={name}
-              onChange={(event) => setName(event.target.value)}
-              placeholder="Acme Scheduling"
-              autoFocus
-            />
-          </div>
+        <div className="h-full overflow-y-auto px-4 py-4 sm:px-6 sm:py-5">
+          <form
+            className="space-y-4"
+            onSubmit={async (event) => {
+              event.preventDefault();
+              const trimmedName = name.trim();
+              const trimmedSlug = slug.trim();
+              if (!trimmedName) {
+                setCreateError("Organization name is required.");
+                return;
+              }
+              setCreateError(null);
+              setCreatingOrg(true);
+              try {
+                await onCreateOrganization({
+                  name: trimmedName,
+                  slug: trimmedSlug || undefined,
+                });
+                setName("");
+                setSlug("");
+                setCreateOpen(false);
+                setOpen(false);
+              } catch (error) {
+                setCreateError(
+                  error instanceof Error
+                    ? error.message
+                    : "Failed to create organization.",
+                );
+              } finally {
+                setCreatingOrg(false);
+              }
+            }}
+          >
+            <div className="space-y-1.5">
+              <Label htmlFor="org-name">Organization name</Label>
+              <Input
+                id="org-name"
+                value={name}
+                onChange={(event) => setName(event.target.value)}
+                placeholder="Acme Scheduling"
+                autoFocus
+              />
+            </div>
 
-          <div className="space-y-1.5">
-            <Label htmlFor="org-slug">Slug (optional)</Label>
-            <Input
-              id="org-slug"
-              value={slug}
-              onChange={(event) => setSlug(event.target.value)}
-              placeholder="acme-scheduling"
-            />
-          </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="org-slug">Slug (optional)</Label>
+              <Input
+                id="org-slug"
+                value={slug}
+                onChange={(event) => setSlug(event.target.value)}
+                placeholder="acme-scheduling"
+              />
+            </div>
 
-          {createError ? (
-            <p className="text-sm text-destructive">{createError}</p>
-          ) : null}
+            {createError ? (
+              <p className="text-sm text-destructive">{createError}</p>
+            ) : null}
 
-          <div className="flex justify-end gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setCreateOpen(false)}
-            >
-              Cancel
-            </Button>
-            <Button type="submit" disabled={creatingOrg}>
-              {creatingOrg ? "Creating..." : "Create"}
-            </Button>
-          </div>
-        </form>
+            <div className="flex justify-end gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setCreateOpen(false)}
+              >
+                Cancel
+              </Button>
+              <Button type="submit" disabled={creatingOrg}>
+                {creatingOrg ? "Creating..." : "Create"}
+              </Button>
+            </div>
+          </form>
+        </div>
       </EntityModal>
     </>
   );

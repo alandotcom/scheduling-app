@@ -417,11 +417,13 @@ function LocationsPage() {
         }}
         title="New Location"
       >
-        <LocationForm
-          onSubmit={handleCreate}
-          onCancel={crud.closeCreate}
-          isSubmitting={createMutation.isPending}
-        />
+        <div className="h-full overflow-y-auto px-4 py-4 sm:px-6 sm:py-5">
+          <LocationForm
+            onSubmit={handleCreate}
+            onCancel={crud.closeCreate}
+            isSubmitting={createMutation.isPending}
+          />
+        </div>
       </EntityModal>
 
       <EntityModal
@@ -437,119 +439,127 @@ function LocationsPage() {
         }
       >
         {displayLocation ? (
-          <div className="space-y-4">
-            <DetailTabs
-              value={activeTab}
-              onValueChange={setActiveTab}
-              className="px-0"
-            >
-              <DetailTab value="details">Details</DetailTab>
-              <DetailTab value="calendars">Calendars</DetailTab>
-              <DetailTab value="resources">Resources</DetailTab>
-            </DetailTabs>
+          <div className="h-full overflow-y-auto px-4 py-4 sm:px-6 sm:py-5">
+            <div className="space-y-4">
+              <DetailTabs
+                value={activeTab}
+                onValueChange={setActiveTab}
+                className="px-0"
+              >
+                <DetailTab value="details">Details</DetailTab>
+                <DetailTab value="calendars">Calendars</DetailTab>
+                <DetailTab value="resources">Resources</DetailTab>
+              </DetailTabs>
 
-            <div className="space-y-6">
-              {activeTab === "details" && (
-                <div className="space-y-4">
-                  <div>
-                    <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                      Created
-                    </Label>
-                    <p className="mt-1 text-sm">
-                      {formatDisplayDate(displayLocation.createdAt)}
-                    </p>
+              <div className="space-y-6">
+                {activeTab === "details" && (
+                  <div className="space-y-4">
+                    <div>
+                      <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                        Created
+                      </Label>
+                      <p className="mt-1 text-sm">
+                        {formatDisplayDate(displayLocation.createdAt)}
+                      </p>
+                    </div>
+                    <LocationForm
+                      key={displayLocation.id}
+                      defaultValues={{
+                        name: displayLocation.name,
+                        timezone: displayLocation.timezone,
+                      }}
+                      onSubmit={handleUpdate}
+                      onCancel={clearDetails}
+                      isSubmitting={updateMutation.isPending}
+                      footerStart={
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                          onClick={() => crud.openDelete(displayLocation.id)}
+                        >
+                          <Icon icon={Delete01Icon} data-icon="inline-start" />
+                          Delete Location
+                        </Button>
+                      }
+                    />
                   </div>
-                  <LocationForm
-                    key={displayLocation.id}
-                    defaultValues={{
-                      name: displayLocation.name,
-                      timezone: displayLocation.timezone,
-                    }}
-                    onSubmit={handleUpdate}
-                    onCancel={clearDetails}
-                    isSubmitting={updateMutation.isPending}
-                    footerStart={
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                        onClick={() => crud.openDelete(displayLocation.id)}
-                      >
-                        <Icon icon={Delete01Icon} data-icon="inline-start" />
-                        Delete Location
+                )}
+
+                {activeTab === "calendars" && (
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
+                        Calendars ({calendarsAtLocation.length})
+                      </h3>
+                      <Button variant="ghost" size="sm" asChild>
+                        <Link to="/calendars" search={{}}>
+                          View all
+                          <Icon
+                            icon={ArrowRight02Icon}
+                            data-icon="inline-end"
+                          />
+                        </Link>
                       </Button>
-                    }
-                  />
-                </div>
-              )}
-
-              {activeTab === "calendars" && (
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
-                      Calendars ({calendarsAtLocation.length})
-                    </h3>
-                    <Button variant="ghost" size="sm" asChild>
-                      <Link to="/calendars" search={{}}>
-                        View all
-                        <Icon icon={ArrowRight02Icon} data-icon="inline-end" />
-                      </Link>
-                    </Button>
-                  </div>
-                  {calendarsAtLocation.length === 0 ? (
-                    <div className="rounded-lg border border-border p-5 text-sm text-muted-foreground">
-                      No calendars assigned to this location.
                     </div>
-                  ) : (
-                    <div className="rounded-lg border border-border divide-y divide-border/50">
-                      {calendarsAtLocation.map((calendar) => (
-                        <div key={calendar.id} className="px-4 py-3 text-sm">
-                          <div className="font-medium">{calendar.name}</div>
-                          <div
-                            className="text-muted-foreground"
-                            title={calendar.timezone}
-                          >
-                            {formatTimezoneShort(calendar.timezone)}
+                    {calendarsAtLocation.length === 0 ? (
+                      <div className="rounded-lg border border-border p-5 text-sm text-muted-foreground">
+                        No calendars assigned to this location.
+                      </div>
+                    ) : (
+                      <div className="rounded-lg border border-border divide-y divide-border/50">
+                        {calendarsAtLocation.map((calendar) => (
+                          <div key={calendar.id} className="px-4 py-3 text-sm">
+                            <div className="font-medium">{calendar.name}</div>
+                            <div
+                              className="text-muted-foreground"
+                              title={calendar.timezone}
+                            >
+                              {formatTimezoneShort(calendar.timezone)}
+                            </div>
                           </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {activeTab === "resources" && (
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
-                      Resources ({resourcesAtLocation.length})
-                    </h3>
-                    <Button variant="ghost" size="sm" asChild>
-                      <Link to="/resources" search={{}}>
-                        View all
-                        <Icon icon={ArrowRight02Icon} data-icon="inline-end" />
-                      </Link>
-                    </Button>
+                        ))}
+                      </div>
+                    )}
                   </div>
-                  {resourcesAtLocation.length === 0 ? (
-                    <div className="rounded-lg border border-border p-5 text-sm text-muted-foreground">
-                      No resources assigned to this location.
+                )}
+
+                {activeTab === "resources" && (
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
+                        Resources ({resourcesAtLocation.length})
+                      </h3>
+                      <Button variant="ghost" size="sm" asChild>
+                        <Link to="/resources" search={{}}>
+                          View all
+                          <Icon
+                            icon={ArrowRight02Icon}
+                            data-icon="inline-end"
+                          />
+                        </Link>
+                      </Button>
                     </div>
-                  ) : (
-                    <div className="rounded-lg border border-border divide-y divide-border/50">
-                      {resourcesAtLocation.map((resource) => (
-                        <div key={resource.id} className="px-4 py-3 text-sm">
-                          <div className="font-medium">{resource.name}</div>
-                          <div className="text-muted-foreground">
-                            Quantity: {resource.quantity}
+                    {resourcesAtLocation.length === 0 ? (
+                      <div className="rounded-lg border border-border p-5 text-sm text-muted-foreground">
+                        No resources assigned to this location.
+                      </div>
+                    ) : (
+                      <div className="rounded-lg border border-border divide-y divide-border/50">
+                        {resourcesAtLocation.map((resource) => (
+                          <div key={resource.id} className="px-4 py-3 text-sm">
+                            <div className="font-medium">{resource.name}</div>
+                            <div className="text-muted-foreground">
+                              Quantity: {resource.quantity}
+                            </div>
                           </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         ) : null}

@@ -503,12 +503,14 @@ function CalendarsPage() {
         }}
         title="New Calendar"
       >
-        <CalendarForm
-          locations={locations}
-          onSubmit={handleCreate}
-          onCancel={crud.closeCreate}
-          isSubmitting={createMutation.isPending}
-        />
+        <div className="h-full overflow-y-auto px-4 py-4 sm:px-6 sm:py-5">
+          <CalendarForm
+            locations={locations}
+            onSubmit={handleCreate}
+            onCancel={crud.closeCreate}
+            isSubmitting={createMutation.isPending}
+          />
+        </div>
       </EntityModal>
 
       <EntityModal
@@ -524,158 +526,160 @@ function CalendarsPage() {
         }
       >
         {displayCalendar ? (
-          <div className="space-y-4">
-            <DetailTabs
-              value={activeTab}
-              onValueChange={setActiveTab}
-              className="px-0"
-            >
-              <DetailTab value="details">Details</DetailTab>
-              <DetailTab value="availability">Availability</DetailTab>
-              <DetailTab value="appointments">Appointments</DetailTab>
-            </DetailTabs>
+          <div className="h-full overflow-y-auto px-4 py-4 sm:px-6 sm:py-5">
+            <div className="space-y-4">
+              <DetailTabs
+                value={activeTab}
+                onValueChange={setActiveTab}
+                className="px-0"
+              >
+                <DetailTab value="details">Details</DetailTab>
+                <DetailTab value="availability">Availability</DetailTab>
+                <DetailTab value="appointments">Appointments</DetailTab>
+              </DetailTabs>
 
-            <div className="space-y-6">
-              {activeTab === "details" && (
-                <div className="space-y-4">
-                  <CalendarForm
-                    key={displayCalendar.id}
-                    defaultValues={{
-                      name: displayCalendar.name,
-                      timezone: displayCalendar.timezone,
-                      locationId: displayCalendar.locationId ?? undefined,
-                    }}
-                    locations={locations}
-                    onSubmit={handleUpdate}
-                    onCancel={clearDetails}
-                    isSubmitting={updateMutation.isPending}
-                  />
-                  <div className="border-t border-border pt-4">
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                      onClick={() => crud.openDelete(displayCalendar.id)}
-                    >
-                      <Icon icon={Delete01Icon} data-icon="inline-start" />
-                      Delete Calendar
-                    </Button>
-                  </div>
-                </div>
-              )}
-
-              {activeTab === "availability" && (
-                <div className="space-y-6">
-                  <AvailabilitySubTabs
-                    value={availabilitySubTab}
-                    onChange={setAvailabilitySubTab}
-                  />
-
-                  {availabilitySubTab === "weekly" && (
-                    <WeeklyScheduleEditor
-                      calendarId={displayCalendar.id}
-                      timezone={displayCalendar.timezone}
+              <div className="space-y-6">
+                {activeTab === "details" && (
+                  <div className="space-y-4">
+                    <CalendarForm
+                      key={displayCalendar.id}
+                      defaultValues={{
+                        name: displayCalendar.name,
+                        timezone: displayCalendar.timezone,
+                        locationId: displayCalendar.locationId ?? undefined,
+                      }}
+                      locations={locations}
+                      onSubmit={handleUpdate}
+                      onCancel={clearDetails}
+                      isSubmitting={updateMutation.isPending}
                     />
-                  )}
-                  {availabilitySubTab === "overrides" && (
-                    <DateOverridesEditor
-                      calendarId={displayCalendar.id}
-                      timezone={displayCalendar.timezone}
-                    />
-                  )}
-                  {availabilitySubTab === "blocked" && (
-                    <BlockedTimeEditor
-                      calendarId={displayCalendar.id}
-                      timezone={displayCalendar.timezone}
-                    />
-                  )}
-                </div>
-              )}
-
-              {activeTab === "appointments" && (
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
-                      Upcoming Appointments
-                    </h3>
-                    <div className="flex items-center gap-2">
+                    <div className="border-t border-border pt-4">
                       <Button
+                        type="button"
+                        variant="ghost"
                         size="sm"
-                        onClick={() => setAppointmentModalOpen(true)}
+                        className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                        onClick={() => crud.openDelete(displayCalendar.id)}
                       >
-                        <Icon icon={Add01Icon} data-icon="inline-start" />
-                        New Appointment
+                        <Icon icon={Delete01Icon} data-icon="inline-start" />
+                        Delete Calendar
                       </Button>
-                      <Button variant="ghost" size="sm" asChild>
-                        <Link
-                          to="/appointments"
-                          search={{ calendarId: displayCalendar.id }}
+                    </div>
+                  </div>
+                )}
+
+                {activeTab === "availability" && (
+                  <div className="space-y-6">
+                    <AvailabilitySubTabs
+                      value={availabilitySubTab}
+                      onChange={setAvailabilitySubTab}
+                    />
+
+                    {availabilitySubTab === "weekly" && (
+                      <WeeklyScheduleEditor
+                        calendarId={displayCalendar.id}
+                        timezone={displayCalendar.timezone}
+                      />
+                    )}
+                    {availabilitySubTab === "overrides" && (
+                      <DateOverridesEditor
+                        calendarId={displayCalendar.id}
+                        timezone={displayCalendar.timezone}
+                      />
+                    )}
+                    {availabilitySubTab === "blocked" && (
+                      <BlockedTimeEditor
+                        calendarId={displayCalendar.id}
+                        timezone={displayCalendar.timezone}
+                      />
+                    )}
+                  </div>
+                )}
+
+                {activeTab === "appointments" && (
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
+                        Upcoming Appointments
+                      </h3>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          size="sm"
+                          onClick={() => setAppointmentModalOpen(true)}
                         >
-                          View all
-                          <Icon
-                            icon={ArrowRight02Icon}
-                            data-icon="inline-end"
-                          />
-                        </Link>
-                      </Button>
+                          <Icon icon={Add01Icon} data-icon="inline-start" />
+                          New Appointment
+                        </Button>
+                        <Button variant="ghost" size="sm" asChild>
+                          <Link
+                            to="/appointments"
+                            search={{ calendarId: displayCalendar.id }}
+                          >
+                            View all
+                            <Icon
+                              icon={ArrowRight02Icon}
+                              data-icon="inline-end"
+                            />
+                          </Link>
+                        </Button>
+                      </div>
                     </div>
-                  </div>
 
-                  {appointments.length === 0 ? (
-                    <div className="rounded-lg border border-border p-6 text-center">
-                      <p className="text-sm text-muted-foreground">
-                        No upcoming appointments
-                      </p>
-                      <Button
-                        className="mt-4"
-                        size="sm"
-                        onClick={() => setAppointmentModalOpen(true)}
-                      >
-                        <Icon icon={Add01Icon} data-icon="inline-start" />
-                        Create Appointment
-                      </Button>
-                    </div>
-                  ) : (
-                    <div className="rounded-lg border border-border divide-y divide-border/50">
-                      {appointments.map((apt) => (
-                        <div key={apt.id} className="px-4 py-3">
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <div className="text-sm font-medium">
-                                {formatDisplayDateTime(
-                                  apt.startAt,
-                                  displayCalendar.timezone,
-                                )}{" "}
-                                (
-                                {formatTimezoneShort(
-                                  displayCalendar.timezone,
-                                  apt.startAt,
-                                )}
-                                )
+                    {appointments.length === 0 ? (
+                      <div className="rounded-lg border border-border p-6 text-center">
+                        <p className="text-sm text-muted-foreground">
+                          No upcoming appointments
+                        </p>
+                        <Button
+                          className="mt-4"
+                          size="sm"
+                          onClick={() => setAppointmentModalOpen(true)}
+                        >
+                          <Icon icon={Add01Icon} data-icon="inline-start" />
+                          Create Appointment
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="rounded-lg border border-border divide-y divide-border/50">
+                        {appointments.map((apt) => (
+                          <div key={apt.id} className="px-4 py-3">
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <div className="text-sm font-medium">
+                                  {formatDisplayDateTime(
+                                    apt.startAt,
+                                    displayCalendar.timezone,
+                                  )}{" "}
+                                  (
+                                  {formatTimezoneShort(
+                                    displayCalendar.timezone,
+                                    apt.startAt,
+                                  )}
+                                  )
+                                </div>
+                                <div className="text-xs text-muted-foreground">
+                                  {apt.appointmentType?.name}
+                                  {apt.client &&
+                                    ` - ${apt.client.firstName} ${apt.client.lastName}`}
+                                </div>
                               </div>
-                              <div className="text-xs text-muted-foreground">
-                                {apt.appointmentType?.name}
-                                {apt.client &&
-                                  ` - ${apt.client.firstName} ${apt.client.lastName}`}
-                              </div>
+                              <Badge
+                                variant={
+                                  apt.status === "confirmed"
+                                    ? "success"
+                                    : "secondary"
+                                }
+                              >
+                                {apt.status}
+                              </Badge>
                             </div>
-                            <Badge
-                              variant={
-                                apt.status === "confirmed"
-                                  ? "success"
-                                  : "secondary"
-                              }
-                            >
-                              {apt.status}
-                            </Badge>
                           </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         ) : null}

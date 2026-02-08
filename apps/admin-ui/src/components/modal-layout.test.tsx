@@ -49,6 +49,14 @@ describe("modal layout positioning", () => {
     expect(popup?.className).not.toContain("-translate-y-1/2");
     expect(popup?.className).toContain("max-w-4xl");
     expect(document.body.textContent).toContain("Header Action");
+
+    const body = document.querySelector<HTMLElement>(
+      '[data-slot="entity-modal-body"]',
+    );
+    expect(body).toBeTruthy();
+    expect(body?.className).toContain("overflow-hidden");
+    expect(body?.className).toContain("p-0");
+    expect(body?.className).not.toContain("overflow-y-auto");
   });
 
   test("AppointmentModal keeps a top anchor", () => {
