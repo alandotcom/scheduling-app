@@ -1,44 +1,15 @@
 import * as React from "react";
 
-import {
-  Sheet,
-  SheetClose,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
-import { Cancel01Icon } from "@hugeicons/core-free-icons";
+import { ArrowLeft02Icon } from "@hugeicons/core-free-icons";
 import { cn } from "@/lib/utils";
 import { TabsContext, useTabs } from "@/components/ui/tabs-context";
 
-export type DetailMode = "overlay" | "fullscreen";
-
-const OVERLAY_BREAKPOINT = "(min-width: 768px)";
-
-function useMediaQuery(query: string) {
-  const [matches, setMatches] = React.useState<boolean>(() => {
-    if (typeof window === "undefined") return false;
-    return window.matchMedia(query).matches;
-  });
-
-  React.useEffect(() => {
-    const media = window.matchMedia(query);
-    setMatches(media.matches);
-    const handleChange = () => setMatches(media.matches);
-    media.addEventListener("change", handleChange);
-    return () => media.removeEventListener("change", handleChange);
-  }, [query]);
-
-  return matches;
-}
+export type DetailMode = "inline";
 
 export function useDetailMode(): DetailMode {
-  const isOverlay = useMediaQuery(OVERLAY_BREAKPOINT);
-  if (isOverlay) return "overlay";
-  return "fullscreen";
+  return "inline";
 }
 
 interface WorkbenchLayoutProps extends React.ComponentProps<"div"> {
@@ -86,47 +57,52 @@ export function DetailPanel({
   onOpenChange,
   sheetTitle,
   sheetDescription,
-  mobileClassName,
   bodyClassName,
   children,
 }: DetailPanelProps) {
-  const detailMode = useDetailMode();
+  if (!open) return null;
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent
-        side="right"
+    <div className="fixed inset-0 z-40 flex flex-col bg-background animate-in fade-in-0 duration-200">
+      {/* Top bar */}
+      <div className="flex items-center gap-3 border-b border-border px-4 py-3 sm:px-6">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => onOpenChange(false)}
+          className="gap-1.5"
+          aria-label="Back to list"
+        >
+          <Icon icon={ArrowLeft02Icon} />
+          <span className="hidden sm:inline">Back</span>
+        </Button>
+
+        {(sheetTitle || sheetDescription) && (
+          <div className="min-w-0 flex-1">
+            {sheetTitle && (
+              <h2 className="truncate text-base font-semibold tracking-tight text-foreground">
+                {sheetTitle}
+              </h2>
+            )}
+            {sheetDescription && (
+              <p className="truncate text-xs text-muted-foreground">
+                {sheetDescription}
+              </p>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Content */}
+      <div
         className={cn(
-          "p-0 touch-manipulation overflow-y-auto overscroll-contain",
-          detailMode === "overlay"
-            ? "w-[min(92vw,560px)]"
-            : "w-screen max-w-none",
-          mobileClassName,
+          "flex-1 overflow-y-auto overscroll-contain",
+          bodyClassName,
         )}
       >
-        {(sheetTitle || sheetDescription) && (
-          <SheetHeader className="border-b border-border px-6 py-4">
-            {sheetTitle && <SheetTitle>{sheetTitle}</SheetTitle>}
-            {sheetDescription && (
-              <SheetDescription>{sheetDescription}</SheetDescription>
-            )}
-          </SheetHeader>
-        )}
-        <SheetClose asChild>
-          <Button
-            variant="ghost"
-            className="absolute top-4 right-4"
-            size="icon-sm"
-            aria-label="Close details"
-          >
-            <Icon icon={Cancel01Icon} />
-          </Button>
-        </SheetClose>
-        <div className={cn("flex h-full flex-col", bodyClassName)}>
-          {children}
-        </div>
-      </SheetContent>
-    </Sheet>
+        {children}
+      </div>
+    </div>
   );
 }
 
