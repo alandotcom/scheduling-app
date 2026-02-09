@@ -253,15 +253,23 @@ export async function stopWorkers(): Promise<void> {
 // Process stale outbox entries (fallback for missed queue entries)
 // This should be run periodically (e.g., every minute via cron)
 export async function processStaleOutboxEntries(): Promise<void> {
+  logger.debug("Stale outbox sweep started");
+
   await withStaleOutboxRunLock(async () => {
+    const startedAt = Date.now();
     const staleThreshold = new Date(Date.now() - 5 * 60 * 1000); // 5 minutes ago
     const queue = await import("./queue.js");
     const orgRows = await db.select({ orgId: orgs.id }).from(orgs);
+    let orgsScanned = 0;
+    let staleEntriesFound = 0;
+    let eventsReenqueued = 0;
     let remaining = 100;
 
     await forEachAsync(
       orgRows,
       async ({ orgId }) => {
+        orgsScanned += 1;
+
         if (remaining <= 0) {
           return;
         }
@@ -279,6 +287,7 @@ export async function processStaleOutboxEntries(): Promise<void> {
             .limit(remaining),
         );
 
+        staleEntriesFound += staleEntries.length;
         remaining -= staleEntries.length;
 
         await forEachAsync(
@@ -311,9 +320,10 @@ export async function processStaleOutboxEntries(): Promise<void> {
                 timestamp: entry.createdAt.toISOString(),
               };
 
-              await queue
-                .getEventQueue()
-                .add(event.type, event, { jobId: event.id });
+            await queue
+              .getEventQueue()
+              .add(event.type, event, { jobId: event.id });
+            eventsReenqueued += 1;
 
               // Update next attempt time
               await withOrg(orgId, (tx) =>
@@ -341,5 +351,12 @@ export async function processStaleOutboxEntries(): Promise<void> {
       },
       { concurrency: 1 },
     );
+
+    logger.debug("Stale outbox sweep completed", {
+      orgsScanned,
+      staleEntriesFound,
+      eventsReenqueued,
+      elapsedMs: Date.now() - startedAt,
+    });
   });
 }
