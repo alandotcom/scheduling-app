@@ -748,7 +748,6 @@ export function AppointmentModal({
                         <Combobox.Portal keepMounted>
                           <Combobox.Positioner
                             positionMethod="fixed"
-                            disableAnchorTracking
                             sideOffset={6}
                             align="start"
                             className="z-[120]"

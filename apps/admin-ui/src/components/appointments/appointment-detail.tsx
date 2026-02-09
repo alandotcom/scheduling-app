@@ -1,7 +1,7 @@
 // Appointment detail panel component for split-pane layout
 
 import { useRef, useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -25,6 +25,7 @@ import { Button } from "@/components/ui/button";
 import { FieldShortcutHint } from "@/components/ui/field-shortcut-hint";
 import { Label } from "@/components/ui/label";
 import { ShortcutBadge } from "@/components/ui/shortcut-badge";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { DetailTabs, DetailTab } from "@/components/split-pane";
 import {
@@ -121,6 +122,18 @@ export function AppointmentDetail({
     },
   });
 
+  // Prefetch audit history so History tab loads instantly
+  useQuery({
+    ...orpc.audit.list.queryOptions({
+      input: {
+        entityType: "appointment" as const,
+        entityId: appointment?.id ?? "",
+        limit: 50,
+      },
+    }),
+    enabled: !!appointment?.id,
+  });
+
   // Update notes mutation
   const updateMutation = useMutation(
     orpc.appointments.update.mutationOptions({
@@ -190,8 +203,13 @@ export function AppointmentDetail({
 
   if (isLoading || !appointment) {
     return (
-      <div className="flex h-full items-center justify-center p-8 text-sm text-muted-foreground">
-        Loading appointment...
+      <div className="space-y-4 p-6">
+        <Skeleton className="h-6 w-48" />
+        <div className="space-y-3">
+          <Skeleton className="h-4 w-32" />
+          <Skeleton className="h-4 w-40" />
+          <Skeleton className="h-4 w-36" />
+        </div>
       </div>
     );
   }

@@ -13,6 +13,7 @@ import {
   useReactTable,
 } from "@tanstack/react-table";
 
+import { ContextMenu, type ContextMenuItem } from "@/components/context-menu";
 import {
   EntityCardField,
   EntityDesktopTable,
@@ -52,17 +53,13 @@ interface ClientListItem {
 interface ClientsListPresentationProps {
   clients: ClientListItem[];
   onOpen: (clientId: string) => void;
-  onBook: (client: ClientListItem) => void;
-  onEdit: (client: ClientListItem) => void;
-  onDelete: (clientId: string) => void;
+  getActions: (client: ClientListItem) => ContextMenuItem[];
 }
 
 export function ClientsListPresentation({
   clients,
   onOpen,
-  onBook,
-  onEdit,
-  onDelete,
+  getActions,
 }: ClientsListPresentationProps) {
   const [sorting, setSorting] = useState<SortingState>([]);
   const [globalFilter, setGlobalFilter] = useState("");
@@ -143,31 +140,13 @@ export function ClientsListPresentation({
           return (
             <RowActions
               ariaLabel={`Actions for ${displayName}`}
-              actions={[
-                {
-                  label: "View",
-                  onClick: () => onOpen(row.original.id),
-                },
-                {
-                  label: "Book",
-                  onClick: () => onBook(row.original),
-                },
-                {
-                  label: "Edit",
-                  onClick: () => onEdit(row.original),
-                },
-                {
-                  label: "Delete",
-                  onClick: () => onDelete(row.original.id),
-                  variant: "destructive",
-                },
-              ]}
+              actions={getActions(row.original)}
             />
           );
         },
       },
     ],
-    [onBook, onDelete, onEdit, onOpen],
+    [getActions],
   );
 
   const table = useReactTable({
@@ -222,25 +201,7 @@ export function ClientsListPresentation({
                 </div>
                 <RowActions
                   ariaLabel={`Actions for ${displayName}`}
-                  actions={[
-                    {
-                      label: "View",
-                      onClick: () => onOpen(client.id),
-                    },
-                    {
-                      label: "Book",
-                      onClick: () => onBook(client),
-                    },
-                    {
-                      label: "Edit",
-                      onClick: () => onEdit(client),
-                    },
-                    {
-                      label: "Delete",
-                      onClick: () => onDelete(client.id),
-                      variant: "destructive",
-                    },
-                  ]}
+                  actions={getActions(client)}
                 />
               </div>
 
@@ -323,32 +284,38 @@ export function ClientsListPresentation({
           <TableBody>
             {table.getRowModel().rows.length > 0 ? (
               table.getRowModel().rows.map((row) => (
-                <TableRow
+                <ContextMenu
                   key={row.original.id}
-                  className="cursor-pointer transition-colors hover:bg-muted/50"
-                  tabIndex={0}
-                  onClick={() => onOpen(row.original.id)}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter" || event.key === " ") {
-                      event.preventDefault();
-                      onOpen(row.original.id);
-                    }
-                  }}
+                  items={getActions(row.original)}
                 >
-                  {row.getVisibleCells().map((cell) => (
-                    <TableCell
-                      key={cell.id}
-                      className={
-                        cell.column.id === "actions" ? "text-right" : undefined
+                  <TableRow
+                    className="cursor-pointer transition-colors hover:bg-muted/50"
+                    tabIndex={0}
+                    onClick={() => onOpen(row.original.id)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        onOpen(row.original.id);
                       }
-                    >
-                      {flexRender(
-                        cell.column.columnDef.cell,
-                        cell.getContext(),
-                      )}
-                    </TableCell>
-                  ))}
-                </TableRow>
+                    }}
+                  >
+                    {row.getVisibleCells().map((cell) => (
+                      <TableCell
+                        key={cell.id}
+                        className={
+                          cell.column.id === "actions"
+                            ? "text-right"
+                            : undefined
+                        }
+                      >
+                        {flexRender(
+                          cell.column.columnDef.cell,
+                          cell.getContext(),
+                        )}
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                </ContextMenu>
               ))
             ) : (
               <TableRow>

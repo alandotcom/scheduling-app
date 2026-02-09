@@ -8,6 +8,7 @@ import { Add01Icon } from "@hugeicons/core-free-icons";
 import { toast } from "sonner";
 import type { AppointmentWithRelations } from "@scheduling/dto";
 
+import { cn } from "@/lib/utils";
 import { Icon } from "@/components/ui/icon";
 import { getQueryClient, orpc } from "@/lib/query";
 import { swallowIgnorableRouteLoaderError } from "@/lib/query-cancellation";
@@ -353,7 +354,7 @@ function AppointmentsPage() {
       appointmentTypeId: filters.appointmentTypeId || undefined,
       status: statusFilter,
     },
-    enabled: currentView === "schedule",
+    enabled: true,
   });
 
   // Week navigation for schedule view
@@ -728,32 +729,37 @@ function AppointmentsPage() {
 
       <div className="mt-6 hidden flex-wrap items-center gap-2 sm:flex sm:gap-3">
         <ViewToggle view={currentView} onViewChange={setView} size="sm" />
-        {currentView === "list" && (
-          <div className="inline-flex items-center rounded-lg border border-border bg-muted/50 p-1">
-            <button
-              type="button"
-              onClick={() => setListScope("upcoming")}
-              className={`rounded-md px-3 py-1.5 text-sm font-medium transition-all duration-200 ${
-                listScope === "upcoming"
-                  ? "bg-background text-foreground shadow-sm"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              Upcoming
-            </button>
-            <button
-              type="button"
-              onClick={() => setListScope("history")}
-              className={`rounded-md px-3 py-1.5 text-sm font-medium transition-all duration-200 ${
-                listScope === "history"
-                  ? "bg-background text-foreground shadow-sm"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              History
-            </button>
-          </div>
-        )}
+        <div
+          className={cn(
+            "inline-flex items-center rounded-lg border border-border bg-muted/30 p-0.5",
+            currentView !== "list" && "invisible",
+          )}
+        >
+          <button
+            type="button"
+            onClick={() => setListScope("upcoming")}
+            className={cn(
+              "h-10 rounded-md px-3 text-sm font-medium transition-colors md:h-8",
+              listScope === "upcoming"
+                ? "bg-background text-foreground shadow-sm"
+                : "text-muted-foreground hover:text-foreground",
+            )}
+          >
+            Upcoming
+          </button>
+          <button
+            type="button"
+            onClick={() => setListScope("history")}
+            className={cn(
+              "h-10 rounded-md px-3 text-sm font-medium transition-colors md:h-8",
+              listScope === "history"
+                ? "bg-background text-foreground shadow-sm"
+                : "text-muted-foreground hover:text-foreground",
+            )}
+          >
+            History
+          </button>
+        </div>
         <TimeDisplayToggle
           value={timezoneMode}
           onValueChange={setTimezoneMode}

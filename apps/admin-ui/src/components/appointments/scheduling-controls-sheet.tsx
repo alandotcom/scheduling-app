@@ -96,7 +96,7 @@ export function SchedulingControlsSheet({
           {currentView === "list" && (
             <section className="space-y-2">
               <h3 className="text-sm font-medium">List Scope</h3>
-              <div className="inline-flex w-full items-center rounded-lg border border-border bg-muted/50 p-1">
+              <div className="inline-flex w-full items-center rounded-lg border border-border bg-muted/30 p-0.5">
                 <button
                   type="button"
                   onClick={() => onListScopeChange("upcoming")}

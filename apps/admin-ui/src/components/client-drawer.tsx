@@ -74,7 +74,7 @@ export function ClientDrawer({
       ...orpc.appointments.list.queryOptions({
         input: { clientId: client?.id ?? "", limit: 20 },
       }),
-      enabled: !!client?.id && activeTab === "history",
+      enabled: !!client?.id,
     },
   );
 

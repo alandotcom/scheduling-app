@@ -431,7 +431,7 @@ function CalendarsPage() {
         startDate: formatDateISO(DateTime.now()),
       },
     }),
-    enabled: !!selectedId && activeTab === "appointments",
+    enabled: !!selectedId,
   });
 
   const appointments = appointmentsData?.items ?? [];

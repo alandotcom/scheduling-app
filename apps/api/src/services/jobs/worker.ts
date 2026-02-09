@@ -45,9 +45,7 @@ function getRetryDelayMs(attemptNumber: number): number {
   return Math.min(300_000, 1000 * 2 ** Math.max(0, attemptNumber - 1));
 }
 
-async function withStaleOutboxRunLock(
-  run: () => Promise<void>,
-): Promise<void> {
+async function withStaleOutboxRunLock(run: () => Promise<void>): Promise<void> {
   await db.transaction(async (tx) => {
     const result = await tx.execute(
       sql`SELECT pg_try_advisory_xact_lock(${STALE_OUTBOX_LOCK_KEY}) AS locked`,
@@ -320,10 +318,10 @@ export async function processStaleOutboxEntries(): Promise<void> {
                 timestamp: entry.createdAt.toISOString(),
               };
 
-            await queue
-              .getEventQueue()
-              .add(event.type, event, { jobId: event.id });
-            eventsReenqueued += 1;
+              await queue
+                .getEventQueue()
+                .add(event.type, event, { jobId: event.id });
+              eventsReenqueued += 1;
 
               // Update next attempt time
               await withOrg(orgId, (tx) =>

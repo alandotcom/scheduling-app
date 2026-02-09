@@ -1,5 +1,7 @@
 // Compact sub-tabs for availability editor navigation
 
+import { cn } from "@/lib/utils";
+
 import type { AvailabilitySubTabType } from "./constants";
 
 interface AvailabilitySubTabsProps {
@@ -18,16 +20,17 @@ export function AvailabilitySubTabs({
   onChange,
 }: AvailabilitySubTabsProps) {
   return (
-    <div className="inline-flex rounded-lg border border-border bg-muted/50 p-1">
+    <div className="inline-flex rounded-lg border border-border bg-muted/30 p-0.5">
       {TABS.map((tab) => (
         <button
           key={tab.id}
           onClick={() => onChange(tab.id)}
-          className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all duration-200 ${
+          className={cn(
+            "h-10 rounded-md px-3 text-sm font-medium transition-colors md:h-8",
             value === tab.id
               ? "bg-background text-foreground shadow-sm"
-              : "text-muted-foreground hover:text-foreground"
-          }`}
+              : "text-muted-foreground hover:text-foreground",
+          )}
         >
           {tab.label}
         </button>

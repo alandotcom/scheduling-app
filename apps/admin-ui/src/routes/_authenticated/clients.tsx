@@ -27,6 +27,7 @@ import { toast } from "sonner";
 
 import { createClientSchema } from "@scheduling/dto";
 import type { CreateClientInput } from "@scheduling/dto";
+import type { ContextMenuItem } from "@/components/context-menu";
 import { AppointmentModal } from "@/components/appointment-modal";
 import { CopyIdHeaderAction } from "@/components/copy-id-header-action";
 import { DeleteConfirmDialog } from "@/components/delete-confirm-dialog";
@@ -722,6 +723,34 @@ function ClientsPage() {
     setAppointmentModalOpen(true);
   }, []);
 
+  const getContextMenuItems = useCallback(
+    (client: ClientItem): ContextMenuItem[] => [
+      {
+        label: "View",
+        icon: ArrowRight02Icon,
+        onClick: () => openDetails(client.id),
+      },
+      {
+        label: "Book",
+        icon: Calendar03Icon,
+        onClick: () => handleBookAppointment(client),
+      },
+      {
+        label: "Edit",
+        icon: PencilEdit01Icon,
+        onClick: () => crud.openEdit(client),
+        separator: true,
+      },
+      {
+        label: "Delete",
+        icon: Delete01Icon,
+        onClick: () => crud.openDelete(client.id),
+        variant: "destructive",
+      },
+    ],
+    [openDetails, handleBookAppointment, crud],
+  );
+
   const handleAppointmentCreated = useCallback(
     (appointmentId: string) => {
       navigate({
@@ -740,8 +769,7 @@ function ClientsPage() {
       ...orpc.appointments.list.queryOptions({
         input: { clientId: selectedId ?? "", limit: 20 },
       }),
-      enabled:
-        !!selectedId && (activeTab === "history" || !!selectedAppointmentId),
+      enabled: !!selectedId,
     },
   );
 
@@ -831,9 +859,7 @@ function ClientsPage() {
             <ClientsListPresentation
               clients={clients}
               onOpen={openDetails}
-              onBook={handleBookAppointment}
-              onEdit={crud.openEdit}
-              onDelete={crud.openDelete}
+              getActions={getContextMenuItems}
             />
           )}
         </div>
