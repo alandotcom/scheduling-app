@@ -1,6 +1,6 @@
 // Root route layout with modern navigation shell
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   type ErrorComponentProps,
@@ -82,12 +82,55 @@ export function getOrganizationGateState(input: {
   organizationsError: unknown;
   activeOrganizationId: string | null;
   hasValidActiveOrganization: boolean;
+  hasStableActiveOrganization: boolean;
 }): OrganizationGateState {
-  if (input.isOrganizationsPending) return "loading";
+  if (input.isOrganizationsPending && !input.hasStableActiveOrganization) {
+    return "loading";
+  }
   if (input.organizationsError) return "error";
   if (!input.activeOrganizationId) return "selection";
-  if (!input.hasValidActiveOrganization) return "loading";
+  if (!input.hasValidActiveOrganization && !input.hasStableActiveOrganization) {
+    return "loading";
+  }
   return "ready";
+}
+
+const ORG_SWITCH_OVERLAY_DELAY_MS = 150;
+const ORG_SWITCH_OVERLAY_MIN_VISIBLE_MS = 350;
+const ORG_SWITCH_STRIPPED_SEARCH_KEYS = [
+  "selected",
+  "appointment",
+  "clientId",
+  "calendarId",
+  "appointmentTypeId",
+  "endpointId",
+  "messageId",
+  "create",
+] as const;
+
+export function sanitizeSearchParamsForOrganizationSwitch(
+  searchStr: string,
+): string {
+  const params = new URLSearchParams(searchStr);
+  for (const key of ORG_SWITCH_STRIPPED_SEARCH_KEYS) {
+    params.delete(key);
+  }
+  if (!params.has("selected")) {
+    params.delete("tab");
+  }
+  if (!params.has("appointment")) {
+    params.delete("appointmentTab");
+  }
+  return params.toString();
+}
+
+export function getRemainingMinimumVisibleMs(input: {
+  shownAtMs: number | null;
+  nowMs: number;
+  minVisibleMs: number;
+}): number {
+  if (input.shownAtMs === null) return 0;
+  return Math.max(0, input.minVisibleMs - (input.nowMs - input.shownAtMs));
 }
 
 function getAuthErrorMessage(error: unknown, fallback: string): string {
@@ -133,6 +176,16 @@ function RootLayout() {
   const [shortcutsHelpOpen, setShortcutsHelpOpen] = useState(false);
   const [lastStableActiveOrganization, setLastStableActiveOrganization] =
     useState<OrganizationListItem | null>(null);
+  const [isOrganizationSwitchPending, setIsOrganizationSwitchPending] =
+    useState(false);
+  const [
+    isOrganizationSwitchOverlayVisible,
+    setIsOrganizationSwitchOverlayVisible,
+  ] = useState(false);
+  const [pendingOrganizationName, setPendingOrganizationName] = useState<
+    string | null
+  >(null);
+  const organizationSwitchOverlayShownAtRef = useRef<number | null>(null);
 
   const organizationsQuery = useQuery({
     queryKey: ["auth", "organizations"],
@@ -182,6 +235,7 @@ function RootLayout() {
     organizationsError,
     activeOrganizationId,
     hasValidActiveOrganization,
+    hasStableActiveOrganization: !!lastStableActiveOrganization,
   });
 
   useEffect(() => {
@@ -189,24 +243,83 @@ function RootLayout() {
     setLastStableActiveOrganization(activeOrganization);
   }, [activeOrganization]);
 
-  const resetOrgScopedState = async () => {
+  useEffect(() => {
+    if (!isOrganizationSwitchPending) return;
+    const showTimer = window.setTimeout(() => {
+      organizationSwitchOverlayShownAtRef.current = Date.now();
+      setIsOrganizationSwitchOverlayVisible(true);
+    }, ORG_SWITCH_OVERLAY_DELAY_MS);
+    return () => {
+      window.clearTimeout(showTimer);
+    };
+  }, [isOrganizationSwitchPending]);
+
+  const finishOrganizationSwitchTransition = async () => {
+    const remainingMs = getRemainingMinimumVisibleMs({
+      shownAtMs: organizationSwitchOverlayShownAtRef.current,
+      nowMs: Date.now(),
+      minVisibleMs: ORG_SWITCH_OVERLAY_MIN_VISIBLE_MS,
+    });
+    if (remainingMs > 0) {
+      await new Promise<void>((resolve) => {
+        window.setTimeout(resolve, remainingMs);
+      });
+    }
+    organizationSwitchOverlayShownAtRef.current = null;
+    setIsOrganizationSwitchOverlayVisible(false);
+    setIsOrganizationSwitchPending(false);
+    setPendingOrganizationName(null);
+  };
+
+  const navigateToSanitizedOrganizationSearch = async () => {
+    const currentSearch = new URLSearchParams(location.searchStr).toString();
+    const sanitizedSearch = sanitizeSearchParamsForOrganizationSwitch(
+      location.searchStr,
+    );
+    if (currentSearch === sanitizedSearch) return;
     await navigate({
-      href: location.pathname,
+      href: sanitizedSearch
+        ? `${location.pathname}?${sanitizedSearch}`
+        : location.pathname,
       replace: true,
     });
-    queryClient.clear();
+  };
+
+  const switchOrganizationContext = async (
+    organizationId: string,
+    organizationName?: string,
+  ) => {
+    if (organizationId === activeOrganizationId) return;
+    setPendingOrganizationName(organizationName ?? "organization");
+    setIsOrganizationSwitchPending(true);
+    setIsOrganizationSwitchOverlayVisible(false);
+    organizationSwitchOverlayShownAtRef.current = null;
+    try {
+      await queryClient.cancelQueries();
+      const result = await authClient.organization.setActive({
+        organizationId,
+      });
+      if (result.error) {
+        throw new Error(
+          result.error.message ?? "Failed to switch organization.",
+        );
+      }
+      await navigateToSanitizedOrganizationSearch();
+      await Promise.all([
+        queryClient.invalidateQueries(),
+        refetchOrganizations(),
+      ]);
+    } finally {
+      await finishOrganizationSwitchTransition();
+    }
   };
 
   const onSwitchOrganization = async (organizationId: string) => {
     if (organizationId === activeOrganizationId) return;
-
-    const result = await authClient.organization.setActive({ organizationId });
-    if (result.error) {
-      throw new Error(result.error.message ?? "Failed to switch organization.");
-    }
-
-    await resetOrgScopedState();
-    await refetchOrganizations();
+    const nextOrganizationName = organizations.find(
+      (organization) => organization.id === organizationId,
+    )?.name;
+    await switchOrganizationContext(organizationId, nextOrganizationName);
   };
 
   const onCreateOrganization = async (input: {
@@ -225,17 +338,7 @@ function RootLayout() {
       );
     }
 
-    const setActiveResult = await authClient.organization.setActive({
-      organizationId: createResult.data.id,
-    });
-    if (setActiveResult.error) {
-      throw new Error(
-        setActiveResult.error.message ?? "Failed to activate organization.",
-      );
-    }
-
-    await resetOrgScopedState();
-    await refetchOrganizations();
+    await switchOrganizationContext(createResult.data.id, input.name);
   };
 
   const onSignOut = async () => {
@@ -381,7 +484,8 @@ function RootLayout() {
     );
   }
 
-  const isResolvingActiveOrganization = organizationGateState === "loading";
+  const isResolvingActiveOrganization =
+    organizationGateState === "loading" && !displayActiveOrganization;
 
   const navItems = [
     { to: "/", icon: Home01Icon, label: "Dashboard" },
@@ -448,7 +552,7 @@ function RootLayout() {
             className="hidden items-center gap-2 rounded-lg border border-border bg-muted/50 px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-muted md:flex"
           >
             <Icon icon={Search01Icon} className="size-3.5" />
-            <span>Search...</span>
+            <span>Search…</span>
             <ShortcutBadge shortcut="meta+k" className="ml-4" />
           </button>
 
@@ -500,7 +604,8 @@ function RootLayout() {
 
         <main
           id="main-content"
-          className="flex-1 min-w-0 overflow-y-auto [scrollbar-gutter:stable]"
+          aria-busy={isOrganizationSwitchPending}
+          className="relative flex-1 min-w-0 overflow-y-auto [scrollbar-gutter:stable]"
         >
           {isResolvingActiveOrganization ? (
             <section className="mx-auto w-full max-w-7xl px-4 pt-6 sm:px-6 lg:px-8 animate-skeleton-fade-in">
@@ -540,6 +645,23 @@ function RootLayout() {
           ) : (
             <Outlet />
           )}
+          {isOrganizationSwitchOverlayVisible ? (
+            <div className="absolute inset-0 z-20 flex items-start justify-center bg-background/40 pt-6 backdrop-blur-[1px]">
+              <div className="inline-flex items-center gap-2 rounded-full border border-border bg-background px-3 py-1.5 shadow-sm">
+                <span
+                  aria-hidden="true"
+                  className="size-2 rounded-full bg-primary animate-pulse"
+                />
+                <p
+                  role="status"
+                  aria-live="polite"
+                  className="text-sm font-medium"
+                >
+                  Switching to {pendingOrganizationName ?? "organization"}…
+                </p>
+              </div>
+            </div>
+          ) : null}
         </main>
       </SidebarInset>
 
@@ -610,7 +732,7 @@ function OrganizationSelectionScreen({
                 onClick={() => void onSelectOrganization(organization.id)}
               >
                 {selectingOrganizationId === organization.id
-                  ? "Switching..."
+                  ? "Switching…"
                   : organization.name}
               </Button>
             ))
@@ -664,7 +786,7 @@ function OrganizationSelectionScreen({
                 type="submit"
                 disabled={isCreatingOrganization || isSelectingOrganization}
               >
-                {isCreatingOrganization ? "Creating..." : "Create organization"}
+                {isCreatingOrganization ? "Creating…" : "Create organization"}
               </Button>
             </div>
           </form>
@@ -701,7 +823,7 @@ function OrganizationSelectionScreen({
           }}
         >
           <Icon icon={Logout01Icon} data-icon="inline-start" />
-          {isSigningOut ? "Signing out..." : "Sign out"}
+          {isSigningOut ? "Signing out…" : "Sign out"}
         </Button>
       </div>
     </div>

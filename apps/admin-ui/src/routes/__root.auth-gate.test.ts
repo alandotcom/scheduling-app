@@ -8,6 +8,7 @@ describe("getOrganizationGateState", () => {
       organizationsError: null,
       activeOrganizationId: null,
       hasValidActiveOrganization: false,
+      hasStableActiveOrganization: false,
     });
 
     expect(state).toBe("loading");
@@ -19,6 +20,7 @@ describe("getOrganizationGateState", () => {
       organizationsError: null,
       activeOrganizationId: null,
       hasValidActiveOrganization: false,
+      hasStableActiveOrganization: false,
     });
 
     expect(state).toBe("selection");
@@ -30,6 +32,7 @@ describe("getOrganizationGateState", () => {
       organizationsError: null,
       activeOrganizationId: "org-123",
       hasValidActiveOrganization: false,
+      hasStableActiveOrganization: false,
     });
 
     expect(state).toBe("loading");
@@ -41,6 +44,7 @@ describe("getOrganizationGateState", () => {
       organizationsError: new Error("Failed to load organizations."),
       activeOrganizationId: "org-123",
       hasValidActiveOrganization: false,
+      hasStableActiveOrganization: false,
     });
 
     expect(state).toBe("error");
@@ -52,6 +56,31 @@ describe("getOrganizationGateState", () => {
       organizationsError: null,
       activeOrganizationId: "org-123",
       hasValidActiveOrganization: true,
+      hasStableActiveOrganization: false,
+    });
+
+    expect(state).toBe("ready");
+  });
+
+  test("returns ready when active organization is unresolved but a stable one exists", () => {
+    const state = getOrganizationGateState({
+      isOrganizationsPending: false,
+      organizationsError: null,
+      activeOrganizationId: "org-123",
+      hasValidActiveOrganization: false,
+      hasStableActiveOrganization: true,
+    });
+
+    expect(state).toBe("ready");
+  });
+
+  test("returns ready while organizations refetch if a stable organization exists", () => {
+    const state = getOrganizationGateState({
+      isOrganizationsPending: true,
+      organizationsError: null,
+      activeOrganizationId: "org-123",
+      hasValidActiveOrganization: false,
+      hasStableActiveOrganization: true,
     });
 
     expect(state).toBe("ready");

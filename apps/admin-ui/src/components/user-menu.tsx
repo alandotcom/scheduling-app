@@ -126,6 +126,7 @@ export function UserMenu({
                   ) : (
                     organizations.map((organization) => {
                       const isActive = organization.id === activeOrganizationId;
+                      const isSwitching = switchingOrgId === organization.id;
                       return (
                         <button
                           key={organization.id}
@@ -154,7 +155,11 @@ export function UserMenu({
                           }}
                         >
                           <span className="truncate">{organization.name}</span>
-                          {isActive ? (
+                          {isSwitching ? (
+                            <span className="text-xs text-muted-foreground">
+                              Switching…
+                            </span>
+                          ) : isActive ? (
                             <Icon
                               icon={Tick02Icon}
                               className="size-4 text-primary"
@@ -285,7 +290,7 @@ export function UserMenu({
                 Cancel
               </Button>
               <Button type="submit" disabled={creatingOrg}>
-                {creatingOrg ? "Creating..." : "Create"}
+                {creatingOrg ? "Creating…" : "Create"}
                 <ShortcutBadge
                   shortcut="meta+enter"
                   className="ml-2 hidden sm:inline-flex"

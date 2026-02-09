@@ -36,6 +36,10 @@ pnpm --filter @scheduling/db run test            # Run DB tests only
 pnpm lint             # Run oxlint
 pnpm format           # Auto-format with Biome (spaces, no tabs)
 pnpm typecheck        # Type-check all packages
+pnpm knip             # Run full Knip analysis (cached)
+pnpm knip:deps        # Run strict dependency-focused Knip checks
+pnpm knip:deps:ci     # CI dependency gate (strict, zero issues)
+pnpm knip:audit       # Run full Knip audit without failing the command
 
 # After updating code
 pnpm format           # Always run formatting after code changes
@@ -108,6 +112,22 @@ Use these skills (`/skill-name`) when working in relevant areas:
 ## Dependencies
 
 Always use the latest versions of dependencies when adding new packages or updating existing ones. Check current versions before installing and prefer `pnpm add <package>@latest` to ensure you're not using outdated APIs or patterns.
+
+Dependency classification rule:
+- Runtime imports must be listed in `dependencies`.
+- Test-only/dev-only/tooling usage must be listed in `devDependencies`.
+- Validate dependency hygiene with `pnpm knip:deps` before pushing.
+
+## TypeScript + Bun Types
+
+- Root `tsconfig.json` intentionally does **not** define Bun global types.
+- Bun runtime packages (`apps/api`, `packages/db`, `packages/dto`) declare `@types/bun` in their own workspace `tsconfig.json` and `package.json`.
+
+## Collection Utilities
+
+- Prefer `es-toolkit` helpers for non-trivial collection transforms instead of custom async loops/reducers/object-mapping logic.
+- For async arrays, default to `forEachAsync` / `mapAsync` / `reduceAsync` from `es-toolkit/array`, and set `concurrency` intentionally (`1` when order/transactional sequencing matters).
+- For object value transforms, prefer `mapValues` from `es-toolkit/object`; use `es-toolkit/compat` only when lodash-compatible behavior is specifically needed.
 
 ## Database Schema Patterns
 
