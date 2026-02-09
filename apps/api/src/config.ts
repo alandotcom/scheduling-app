@@ -108,6 +108,13 @@ export const config = envParse(process.env, {
       optional: true,
     },
   },
+  integrations: {
+    enabled: {
+      format: z.string(),
+      env: "INTEGRATIONS_ENABLED",
+      default: "svix",
+    },
+  },
 });
 
 export const authBaseUrl =

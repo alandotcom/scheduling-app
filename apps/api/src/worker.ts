@@ -1,5 +1,5 @@
 // @scheduling/api - background worker process
-// Runs BullMQ workers for outbox event processing and webhook publishing.
+// Runs BullMQ workers for outbox dispatch and integration consumers.
 
 import process from "node:process";
 import {

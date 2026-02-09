@@ -1,11 +1,10 @@
 {
-  "name": "@scheduling/dto",
+  "name": "@integrations/logger",
   "version": "0.0.1",
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts",
-    "./schemas": "./src/schemas/index.ts"
+    ".": "./src/index.ts"
   },
   "scripts": {
     "dev": "bun --watch src/index.ts",
@@ -16,10 +15,9 @@
   },
   "dependencies": {
     "@logtape/logtape": "catalog:",
-    "zod": "catalog:"
+    "@integrations/core": "workspace:*"
   },
   "devDependencies": {
-    "@types/bun": "catalog:",
     "typescript": "catalog:"
   }
 }

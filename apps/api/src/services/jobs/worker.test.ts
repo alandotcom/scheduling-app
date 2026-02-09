@@ -8,8 +8,8 @@ import {
   test,
 } from "bun:test";
 import type { Job } from "bullmq";
-import { sql, eq } from "drizzle-orm";
-import { ApiException } from "svix";
+import { eq, sql } from "drizzle-orm";
+import type { IntegrationConsumer } from "@integrations/core";
 import { eventOutbox } from "@scheduling/db/schema";
 import {
   closeTestDb,
@@ -57,6 +57,15 @@ function createJob(
   } as Job<DomainEvent>;
 }
 
+function createIntegration(name: string): IntegrationConsumer {
+  return {
+    name,
+    queueName: `scheduling-events.integration.${name}`,
+    supportedEventTypes: ["*"],
+    async process() {},
+  };
+}
+
 describe("Event Worker", () => {
   let db: TestDatabase;
 
@@ -72,11 +81,11 @@ describe("Event Worker", () => {
     await resetTestDb();
   });
 
-  test("retries without publishing when outbox row is not claimable", async () => {
+  test("retries without fanout enqueue when outbox row is not claimable", async () => {
     const { org } = await createOrg(db);
     const event = createEvent({ orgId: org.id });
     const job = createJob(event, { attemptsMade: 0, attempts: 3 });
-    const publishEvent = mock(async () => {});
+    const enqueueFanout = mock(async () => {});
 
     await db.transaction(async (tx) => {
       await tx.execute(
@@ -86,20 +95,21 @@ describe("Event Worker", () => {
       await expect(
         processEventJob(job, {
           dbClient: tx,
-          publishEvent,
+          enqueueFanout,
+          integrations: [createIntegration("logger")],
           now: () => new Date("2026-02-09T00:00:00.000Z"),
         }),
       ).rejects.toMatchObject({ name: "OutboxRowNotReadyError" });
     });
 
-    expect(publishEvent).not.toHaveBeenCalled();
+    expect(enqueueFanout).not.toHaveBeenCalled();
   });
 
-  test("skips publish on final attempt when outbox row is still not claimable", async () => {
+  test("skips fanout enqueue on final attempt when outbox row is still not claimable", async () => {
     const { org } = await createOrg(db);
     const event = createEvent({ orgId: org.id });
     const job = createJob(event, { attemptsMade: 2, attempts: 3 });
-    const publishEvent = mock(async () => {});
+    const enqueueFanout = mock(async () => {});
 
     await db.transaction(async (tx) => {
       await tx.execute(
@@ -108,7 +118,8 @@ describe("Event Worker", () => {
 
       await processEventJob(job, {
         dbClient: tx,
-        publishEvent,
+        enqueueFanout,
+        integrations: [createIntegration("logger")],
         now: () => new Date("2026-02-09T00:00:00.000Z"),
       });
 
@@ -119,14 +130,18 @@ describe("Event Worker", () => {
       expect(rows).toHaveLength(0);
     });
 
-    expect(publishEvent).not.toHaveBeenCalled();
+    expect(enqueueFanout).not.toHaveBeenCalled();
   });
 
-  test("claims pending outbox row and marks it delivered after publish", async () => {
+  test("claims pending outbox row, enqueues fanout, and marks it delivered", async () => {
     const { org } = await createOrg(db);
     const event = createEvent({ orgId: org.id });
     const job = createJob(event, { attemptsMade: 0, attempts: 3 });
-    const publishEvent = mock(async () => {});
+    const integrations = [
+      createIntegration("svix"),
+      createIntegration("logger"),
+    ];
+    const enqueueFanout = mock(async () => {});
 
     await db.transaction(async (tx) => {
       await tx.execute(
@@ -144,7 +159,8 @@ describe("Event Worker", () => {
 
       await processEventJob(job, {
         dbClient: tx,
-        publishEvent,
+        enqueueFanout,
+        integrations,
         now: () => new Date("2026-02-09T00:00:00.000Z"),
       });
 
@@ -160,23 +176,15 @@ describe("Event Worker", () => {
       expect(row?.nextAttemptAt).toBeNull();
     });
 
-    expect(publishEvent).toHaveBeenCalledTimes(1);
-    expect(publishEvent).toHaveBeenCalledWith({
-      eventId: event.id,
-      eventType: event.type,
-      orgId: event.orgId,
-      payload: event.payload,
-      occurredAt: event.timestamp,
-    });
+    expect(enqueueFanout).toHaveBeenCalledTimes(1);
+    expect(enqueueFanout).toHaveBeenCalledWith(event, integrations);
   });
 
-  test("marks row delivered when Svix returns conflict for an already-published event", async () => {
+  test("marks row delivered when no integrations are enabled", async () => {
     const { org } = await createOrg(db);
     const event = createEvent({ orgId: org.id });
     const job = createJob(event, { attemptsMade: 0, attempts: 3 });
-    const publishEvent = mock(async () => {
-      throw new ApiException(409, { message: "Conflict" }, new Headers());
-    });
+    const enqueueFanout = mock(async () => {});
 
     await db.transaction(async (tx) => {
       await tx.execute(
@@ -194,9 +202,52 @@ describe("Event Worker", () => {
 
       await processEventJob(job, {
         dbClient: tx,
-        publishEvent,
+        enqueueFanout,
+        integrations: [],
         now: () => new Date("2026-02-09T00:00:00.000Z"),
       });
+
+      const [row] = await tx
+        .select({ status: eventOutbox.status })
+        .from(eventOutbox)
+        .where(eq(eventOutbox.id, event.id));
+
+      expect(row?.status).toBe("delivered");
+    });
+
+    expect(enqueueFanout).not.toHaveBeenCalled();
+  });
+
+  test("sets row back to pending and schedules retry when fanout enqueue fails", async () => {
+    const { org } = await createOrg(db);
+    const event = createEvent({ orgId: org.id });
+    const job = createJob(event, { attemptsMade: 0, attempts: 3 });
+    const enqueueFanout = mock(async () => {
+      throw new Error("redis unavailable");
+    });
+
+    await db.transaction(async (tx) => {
+      await tx.execute(
+        sql`SELECT set_config('app.current_org_id', ${org.id}, true)`,
+      );
+
+      await tx.insert(eventOutbox).values({
+        id: event.id,
+        orgId: org.id,
+        type: event.type,
+        payload: event.payload as Record<string, unknown>,
+        status: "pending",
+        nextAttemptAt: new Date("2026-02-09T00:00:00.000Z"),
+      });
+
+      await expect(
+        processEventJob(job, {
+          dbClient: tx,
+          enqueueFanout,
+          integrations: [createIntegration("logger")],
+          now: () => new Date("2026-02-09T00:00:00.000Z"),
+        }),
+      ).rejects.toThrow("redis unavailable");
 
       const [row] = await tx
         .select({
@@ -206,18 +257,66 @@ describe("Event Worker", () => {
         .from(eventOutbox)
         .where(eq(eventOutbox.id, event.id));
 
-      expect(row?.status).toBe("delivered");
-      expect(row?.nextAttemptAt).toBeNull();
+      expect(row?.status).toBe("pending");
+      expect(row?.nextAttemptAt?.toISOString()).toBe(
+        "2026-02-09T00:00:01.000Z",
+      );
+    });
+  });
+
+  test("marks row failed when retries are exhausted", async () => {
+    const { org } = await createOrg(db);
+    const event = createEvent({ orgId: org.id });
+    const job = createJob(event, { attemptsMade: 2, attempts: 3 });
+    const enqueueFanout = mock(async () => {
+      throw new Error("redis unavailable");
     });
 
-    expect(publishEvent).toHaveBeenCalledTimes(1);
+    await db.transaction(async (tx) => {
+      await tx.execute(
+        sql`SELECT set_config('app.current_org_id', ${org.id}, true)`,
+      );
+
+      await tx.insert(eventOutbox).values({
+        id: event.id,
+        orgId: org.id,
+        type: event.type,
+        payload: event.payload as Record<string, unknown>,
+        status: "pending",
+        nextAttemptAt: new Date("2026-02-09T00:00:00.000Z"),
+      });
+    });
+
+    await expect(
+      processEventJob(job, {
+        enqueueFanout,
+        integrations: [createIntegration("logger")],
+        now: () => new Date("2026-02-09T00:00:00.000Z"),
+      }),
+    ).rejects.toThrow("redis unavailable");
+
+    await db.transaction(async (tx) => {
+      await tx.execute(
+        sql`SELECT set_config('app.current_org_id', ${org.id}, true)`,
+      );
+      const [row] = await tx
+        .select({
+          status: eventOutbox.status,
+          nextAttemptAt: eventOutbox.nextAttemptAt,
+        })
+        .from(eventOutbox)
+        .where(eq(eventOutbox.id, event.id));
+
+      expect(row?.status).toBe("failed");
+      expect(row?.nextAttemptAt).toBeNull();
+    });
   });
 
   test("default worker DB path is RLS-safe without injected db client", async () => {
     const { org } = await createOrg(db);
     const event = createEvent({ orgId: org.id });
     const job = createJob(event, { attemptsMade: 0, attempts: 3 });
-    const publishEvent = mock(async () => {});
+    const enqueueFanout = mock(async () => {});
 
     await db.transaction(async (tx) => {
       await tx.execute(
@@ -235,7 +334,8 @@ describe("Event Worker", () => {
     });
 
     await processEventJob(job, {
-      publishEvent,
+      enqueueFanout,
+      integrations: [],
       now: () => new Date("2026-02-09T00:00:00.000Z"),
     });
 
@@ -257,13 +357,6 @@ describe("Event Worker", () => {
 
     expect(row?.status).toBe("delivered");
     expect(row?.nextAttemptAt).toBeNull();
-    expect(publishEvent).toHaveBeenCalledTimes(1);
-    expect(publishEvent).toHaveBeenCalledWith({
-      eventId: event.id,
-      eventType: event.type,
-      orgId: event.orgId,
-      payload: event.payload,
-      occurredAt: event.timestamp,
-    });
+    expect(enqueueFanout).not.toHaveBeenCalled();
   });
 });

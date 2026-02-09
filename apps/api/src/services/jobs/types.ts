@@ -1,26 +1,13 @@
 // Event types for the scheduling system
 
 import {
-  webhookEventTypes as EVENT_TYPES,
-  type WebhookEventData,
-  type WebhookEventType,
-} from "@scheduling/dto";
+  isEventType,
+  type DomainEvent,
+  type EventType,
+} from "@integrations/core";
 
-export type EventType = WebhookEventType;
-
-export function isEventType(value: string): value is EventType {
-  return EVENT_TYPES.some((eventType) => eventType === value);
-}
-
-// Event payload structure
-export interface DomainEvent<TEventType extends EventType = EventType> {
-  id: string;
-  type: TEventType;
-  orgId: string;
-  payload: WebhookEventData<TEventType>;
-  timestamp: string;
-  attemptNumber?: number;
-}
+export { isEventType };
+export type { DomainEvent, EventType };
 
 // Outbox entry status
 export type OutboxStatus = "pending" | "processing" | "delivered" | "failed";

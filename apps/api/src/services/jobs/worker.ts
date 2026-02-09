@@ -1,32 +1,41 @@
-// Event outbox processing worker
-// Processes domain events from the queue and publishes to Svix.
+// Event outbox processing worker.
+// Claims domain events from outbox and fans them out to enabled integration queues.
 
 import type { Job, Worker } from "bullmq";
-import { eq, and, lte, sql } from "drizzle-orm";
+import { and, eq, lte, sql } from "drizzle-orm";
 import { getLogger } from "@logtape/logtape";
 import { forEachAsync } from "es-toolkit/array";
+import {
+  integrationSupportsEvent,
+  type DomainEvent,
+  type IntegrationConsumer,
+} from "@integrations/core";
 import { eventOutbox, orgs } from "@scheduling/db/schema";
 import { webhookEventDataSchemaByType } from "@scheduling/dto";
 import { db, type DbClient, withOrg } from "../../lib/db.js";
+import { getEnabledIntegrations } from "../integrations/registry.js";
 import {
-  getSvixErrorStatusCode,
-  isRetriableSvixError,
-  isSvixConflictError,
-  publishWebhookEvent,
-} from "../svix.js";
-import { isEventType, type DomainEvent } from "./types.js";
-import { createEventWorker } from "./queue.js";
+  createDispatchWorker,
+  createFanoutWorker,
+  createIntegrationWorker,
+  enqueueIntegrationFanout,
+  getDispatchQueue,
+  type FanoutJobData,
+} from "./queue.js";
+import { isEventType } from "./types.js";
 
 const logger = getLogger(["jobs"]);
 const STALE_OUTBOX_LOCK_KEY = 1_103_321;
 
-// Workers (lazily initialized)
-let eventWorker: Worker<DomainEvent> | null = null;
+let dispatchWorker: Worker<DomainEvent> | null = null;
+let fanoutWorker: Worker<FanoutJobData> | null = null;
+const integrationWorkers = new Map<string, Worker<DomainEvent>>();
 
 type ProcessEventDependencies = {
   dbClient?: DbClient;
-  publishEvent?: typeof publishWebhookEvent;
   now?: () => Date;
+  integrations?: readonly IntegrationConsumer[];
+  enqueueFanout?: typeof enqueueIntegrationFanout;
 };
 
 class OutboxRowNotReadyError extends Error {
@@ -62,16 +71,17 @@ async function withStaleOutboxRunLock(run: () => Promise<void>): Promise<void> {
   });
 }
 
-// Process domain events from the queue
+// Process a dispatch job from the outbox queue.
 export async function processEventJob(
   job: Job<DomainEvent>,
   deps: ProcessEventDependencies = {},
 ): Promise<void> {
   const dbClient = deps.dbClient ?? db;
-  const publishEvent = deps.publishEvent ?? publishWebhookEvent;
   const now = deps.now ?? (() => new Date());
   const hasInjectedDbClient = deps.dbClient !== undefined;
   const event = job.data;
+  const integrations = deps.integrations ?? getEnabledIntegrations();
+  const enqueueFanout = deps.enqueueFanout ?? enqueueIntegrationFanout;
 
   const runOutboxQuery = async <T>(
     query: (database: DbClient) => Promise<T>,
@@ -81,11 +91,11 @@ export async function processEventJob(
     }
 
     // Default runtime worker path: scope each outbox query to the event org.
-    // This keeps RLS-safe behavior without holding DB transactions open around network calls.
+    // This keeps RLS-safe behavior without holding DB transactions open around queue calls.
     return withOrg(event.orgId, query);
   };
 
-  logger.info(`Processing event: ${event.type} (${event.id})`, {
+  logger.info(`Dispatching event: ${event.type} (${event.id})`, {
     eventId: event.id,
     eventType: event.type,
     orgId: event.orgId,
@@ -93,8 +103,7 @@ export async function processEventJob(
   });
 
   try {
-    // Claim the outbox row atomically before publishing.
-    // If no row is transitioned, the row is not yet committed/visible (or no longer pending).
+    // Claim the outbox row atomically before fanout.
     const claimedRows = await runOutboxQuery((database) =>
       database
         .update(eventOutbox)
@@ -112,15 +121,23 @@ export async function processEventJob(
       throw new OutboxRowNotReadyError(event.id);
     }
 
-    await publishEvent({
-      eventId: event.id,
-      eventType: event.type,
-      orgId: event.orgId,
-      payload: event.payload,
-      occurredAt: event.timestamp,
-    });
+    const targetIntegrations = integrations.filter((integration) =>
+      integrationSupportsEvent(integration, event.type),
+    );
 
-    // Mark as delivered in outbox
+    if (targetIntegrations.length > 0) {
+      await enqueueFanout(event, targetIntegrations);
+    } else {
+      logger.debug(
+        "No enabled integrations support {eventType}; marking delivered",
+        {
+          eventId: event.id,
+          eventType: event.type,
+        },
+      );
+    }
+
+    // Mark as delivered once dispatch fanout is enqueued.
     await runOutboxQuery((database) =>
       database
         .update(eventOutbox)
@@ -137,7 +154,7 @@ export async function processEventJob(
         ),
     );
 
-    logger.info(`Event processed successfully: ${event.type} (${event.id})`);
+    logger.info(`Event dispatched successfully: ${event.type} (${event.id})`);
   } catch (error) {
     const attemptNumber = job.attemptsMade + 1;
     const maxAttempts =
@@ -154,38 +171,12 @@ export async function processEventJob(
       }
 
       logger.warn(
-        `Outbox row for ${event.id} still not ready after ${maxAttempts} attempts; skipping publish`,
+        `Outbox row for ${event.id} still not ready after ${maxAttempts} attempts; skipping dispatch`,
       );
       return;
     }
 
-    if (isSvixConflictError(error)) {
-      // Message already exists in Svix for this eventId, which is effectively delivered.
-      await runOutboxQuery((database) =>
-        database
-          .update(eventOutbox)
-          .set({
-            status: "delivered",
-            nextAttemptAt: null,
-            updatedAt: now(),
-          })
-          .where(
-            and(
-              eq(eventOutbox.id, event.id),
-              eq(eventOutbox.status, "processing"),
-            ),
-          ),
-      );
-
-      logger.info(
-        `Event already delivered in Svix: ${event.type} (${event.id})`,
-      );
-      return;
-    }
-
-    const statusCode = getSvixErrorStatusCode(error);
-    const retriable = isRetriableSvixError(error);
-    const willRetry = retriable && attemptNumber < maxAttempts;
+    const willRetry = attemptNumber < maxAttempts;
 
     await runOutboxQuery((database) =>
       database
@@ -205,58 +196,125 @@ export async function processEventJob(
         ),
     );
 
-    if (!retriable) {
-      logger.error(
-        `Permanent Svix publish failure for ${event.id} (status ${statusCode ?? "unknown"}): ${String(error)}`,
-      );
-      return;
-    }
-
     if (willRetry) {
       logger.warn(
-        `Retrying Svix publish for ${event.id} (attempt ${attemptNumber}/${maxAttempts}, status ${statusCode ?? "unknown"})`,
+        `Retrying event dispatch for ${event.id} (attempt ${attemptNumber}/${maxAttempts}): ${String(error)}`,
       );
-      throw error; // Let BullMQ schedule retry
+      throw error;
     }
 
     logger.error(
-      `Svix publish exhausted retries for ${event.id} (attempt ${attemptNumber}/${maxAttempts}, status ${statusCode ?? "unknown"})`,
+      `Event dispatch exhausted retries for ${event.id} (attempt ${attemptNumber}/${maxAttempts}): ${String(error)}`,
     );
+    throw error;
   }
 }
 
-// Start all workers
+async function processIntegrationJob(
+  job: Job<DomainEvent>,
+  integration: IntegrationConsumer,
+): Promise<void> {
+  const event = job.data;
+
+  if (!integrationSupportsEvent(integration, event.type)) {
+    logger.warn(
+      "Integration {integrationName} received unsupported event type {eventType}",
+      {
+        integrationName: integration.name,
+        eventType: event.type,
+        eventId: event.id,
+      },
+    );
+    return;
+  }
+
+  await integration.process(event);
+
+  logger.info("Integration processed event", {
+    integrationName: integration.name,
+    eventId: event.id,
+    eventType: event.type,
+  });
+}
+
+// Start all workers.
 export function startWorkers(): void {
-  if (!eventWorker) {
-    eventWorker = createEventWorker(processEventJob);
-    eventWorker.on("completed", (job) => {
-      logger.info(`Event job completed: ${job.id}`);
+  const enabledIntegrations = getEnabledIntegrations();
+
+  if (!dispatchWorker) {
+    dispatchWorker = createDispatchWorker((job) =>
+      processEventJob(job, { integrations: enabledIntegrations }),
+    );
+    dispatchWorker.on("completed", (job) => {
+      logger.info(`Dispatch job completed: ${job.id}`);
     });
-    eventWorker.on("failed", (job, error) => {
-      logger.error(`Event job failed: ${job?.id}: ${error.message}`);
+    dispatchWorker.on("failed", (job, error) => {
+      logger.error(`Dispatch job failed: ${job?.id}: ${error.message}`);
     });
-    logger.info("Event worker started");
+    logger.info("Dispatch worker started");
+  }
+
+  if (!fanoutWorker) {
+    fanoutWorker = createFanoutWorker(async () => {
+      // Parent flow job exists only as a join barrier and audit trail.
+    });
+    fanoutWorker.on("failed", (job, error) => {
+      logger.error(`Fanout job failed: ${job?.id}: ${error.message}`);
+    });
+    logger.info("Fanout worker started");
+  }
+
+  for (const integration of enabledIntegrations) {
+    if (integrationWorkers.has(integration.name)) {
+      continue;
+    }
+
+    const worker = createIntegrationWorker(integration, (job) =>
+      processIntegrationJob(job, integration),
+    );
+    worker.on("failed", (job, error) => {
+      logger.error(
+        `Integration job failed (${integration.name}): ${job?.id}: ${error.message}`,
+      );
+    });
+
+    integrationWorkers.set(integration.name, worker);
+    logger.info("Integration worker started", {
+      integrationName: integration.name,
+      queueName: integration.queueName,
+    });
   }
 }
 
-// Stop all workers gracefully
+// Stop all workers gracefully.
 export async function stopWorkers(): Promise<void> {
-  if (eventWorker) {
-    await eventWorker.close();
-    eventWorker = null;
-    logger.info("Event worker stopped");
+  if (dispatchWorker) {
+    await dispatchWorker.close();
+    dispatchWorker = null;
+    logger.info("Dispatch worker stopped");
   }
+
+  if (fanoutWorker) {
+    await fanoutWorker.close();
+    fanoutWorker = null;
+    logger.info("Fanout worker stopped");
+  }
+
+  for (const [integrationName, worker] of integrationWorkers.entries()) {
+    await worker.close();
+    logger.info("Integration worker stopped", { integrationName });
+  }
+  integrationWorkers.clear();
 }
 
-// Process stale outbox entries (fallback for missed queue entries)
-// This should be run periodically (e.g., every minute via cron)
+// Process stale outbox entries (fallback for missed queue entries).
+// This should be run periodically (e.g., every minute via cron).
 export async function processStaleOutboxEntries(): Promise<void> {
   logger.debug("Stale outbox sweep started");
 
   await withStaleOutboxRunLock(async () => {
     const startedAt = Date.now();
     const staleThreshold = new Date(Date.now() - 5 * 60 * 1000); // 5 minutes ago
-    const queue = await import("./queue.js");
     const orgRows = await db.select({ orgId: orgs.id }).from(orgs);
     let orgsScanned = 0;
     let staleEntriesFound = 0;
@@ -309,7 +367,6 @@ export async function processStaleOutboxEntries(): Promise<void> {
                 return;
               }
 
-              // Re-enqueue the event
               const event: DomainEvent = {
                 id: entry.id,
                 type: entry.type,
@@ -318,17 +375,16 @@ export async function processStaleOutboxEntries(): Promise<void> {
                 timestamp: entry.createdAt.toISOString(),
               };
 
-              await queue
-                .getEventQueue()
-                .add(event.type, event, { jobId: event.id });
+              await getDispatchQueue().add(event.type, event, {
+                jobId: event.id,
+              });
               eventsReenqueued += 1;
 
-              // Update next attempt time
               await withOrg(orgId, (tx) =>
                 tx
                   .update(eventOutbox)
                   .set({
-                    nextAttemptAt: new Date(Date.now() + 5 * 60 * 1000), // 5 minutes from now
+                    nextAttemptAt: new Date(Date.now() + 5 * 60 * 1000),
                     updatedAt: new Date(),
                   })
                   .where(

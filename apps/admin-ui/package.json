@@ -18,7 +18,7 @@
     "@hookform/resolvers": "^5.2.2",
     "@hugeicons/core-free-icons": "^3.1.1",
     "@hugeicons/react": "^1.1.5",
-    "@logtape/logtape": "^2.0.2",
+    "@logtape/logtape": "catalog:",
     "@orpc/client": "^1.13.4",
     "@orpc/tanstack-query": "^1.13.4",
     "@radix-ui/react-slot": "^1.2.4",

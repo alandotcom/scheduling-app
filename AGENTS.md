@@ -79,7 +79,7 @@ packages/
 
 **Package dependencies:** `@scheduling/api` → `@scheduling/db`, `@scheduling/dto`. Frontend uses `@scheduling/dto` for type-safe validation.
 
-**Path aliases:** `@scheduling/db`, `@scheduling/db/*`, `@scheduling/dto`, `@scheduling/dto/*` are configured in root tsconfig.json.
+**Path aliases:** `@scheduling/db`, `@scheduling/db/*`, `@scheduling/dto`, `@scheduling/dto/*`, `@integrations/core`, `@integrations/logger` are configured in root tsconfig.json.
 
 ## Tech Stack
 
