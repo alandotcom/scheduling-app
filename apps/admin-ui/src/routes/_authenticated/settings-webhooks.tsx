@@ -3,7 +3,7 @@
 
 import { useNavigate } from "@tanstack/react-router";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   SvixProvider,
   useEndpoints,
@@ -42,6 +42,7 @@ import { Icon } from "@/components/ui/icon";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Skeleton, TableSkeleton } from "@/components/ui/skeleton";
 import {
   Table,
   TableBody,
@@ -134,6 +135,64 @@ function StatusCodeBadge({ code }: { code: number }) {
     return <Badge variant="destructive">{code}</Badge>;
   }
   return <Badge variant="outline">{code}</Badge>;
+}
+
+// ---------------------------------------------------------------------------
+// useAttemptEventTypes — resolves msgId → eventType for attempt rows
+// ---------------------------------------------------------------------------
+
+function useAttemptEventTypes(attempts: Array<{ msgId: string }> | undefined) {
+  const { svix, appId } = useSvix();
+  const [eventTypeMap, setEventTypeMap] = useState<Map<string, string>>(
+    new Map(),
+  );
+  const fetchedRef = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    if (!attempts?.length) return;
+
+    const newMsgIds = attempts
+      .map((a) => a.msgId)
+      .filter((id) => !fetchedRef.current.has(id));
+
+    if (newMsgIds.length === 0) return;
+
+    const uniqueIds = [...new Set(newMsgIds)];
+
+    let cancelled = false;
+
+    async function fetchEventTypes() {
+      const results = await Promise.all(
+        uniqueIds.map(async (msgId) => {
+          try {
+            const msg = await svix.message.get(appId, msgId);
+            return [msgId, msg.eventType] as const;
+          } catch {
+            return [msgId, null] as const;
+          }
+        }),
+      );
+
+      if (cancelled) return;
+
+      setEventTypeMap((prev) => {
+        const next = new Map(prev);
+        for (const [msgId, eventType] of results) {
+          if (eventType) next.set(msgId, eventType);
+          fetchedRef.current.add(msgId);
+        }
+        return next;
+      });
+    }
+
+    fetchEventTypes();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [appId, attempts, svix]);
+
+  return eventTypeMap;
 }
 
 type WebhookTab = "endpoints" | "catalog" | "logs";
@@ -412,8 +471,16 @@ function EndpointsTab() {
       />
 
       {endpoints.loading ? (
-        <div className="text-sm text-muted-foreground">
-          Loading endpoints...
+        <div className="space-y-2">
+          {Array.from({ length: 3 }, (_, i) => (
+            <div
+              key={`ep-skel-${i}`}
+              className="rounded-lg border border-border p-4 space-y-2"
+            >
+              <Skeleton className="h-4 w-2/3" />
+              <Skeleton className="h-3 w-1/4" />
+            </div>
+          ))}
         </div>
       ) : endpoints.error ? (
         <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-4 text-sm text-destructive">
@@ -670,6 +737,7 @@ function EndpointDetailView({ endpointId }: { endpointId: string }) {
     limit: 20,
     status: attemptFilterToStatus(attemptFilter),
   });
+  const eventTypeMap = useAttemptEventTypes(attempts.data);
 
   const [showSecret, setShowSecret] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
@@ -735,7 +803,38 @@ function EndpointDetailView({ endpointId }: { endpointId: string }) {
 
   if (endpoint.loading) {
     return (
-      <div className="text-sm text-muted-foreground">Loading endpoint...</div>
+      <div className="space-y-5">
+        {/* Breadcrumb skeleton */}
+        <Skeleton className="h-4 w-48" />
+        {/* Header skeleton */}
+        <div className="flex items-center gap-2">
+          <Skeleton className="h-6 w-72" />
+          <Skeleton className="h-5 w-16 rounded-full" />
+        </div>
+        {/* Grid skeleton */}
+        <div className="grid gap-5 lg:grid-cols-[2fr_1fr]">
+          <div className="space-y-5">
+            <Skeleton className="h-2.5 w-full rounded-full" />
+            <TableSkeleton rows={4} cols={5} />
+          </div>
+          <div className="space-y-5">
+            <div className="rounded-lg border border-border p-4 space-y-3">
+              <Skeleton className="h-3 w-16" />
+              <Skeleton className="h-4 w-full" />
+              <Skeleton className="h-3 w-16" />
+              <Skeleton className="h-4 w-full" />
+            </div>
+            <div className="rounded-lg border border-border p-4 space-y-2">
+              <Skeleton className="h-3 w-28" />
+              <div className="flex flex-wrap gap-1">
+                <Skeleton className="h-5 w-32 rounded-full" />
+                <Skeleton className="h-5 w-28 rounded-full" />
+                <Skeleton className="h-5 w-36 rounded-full" />
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
     );
   }
 
@@ -825,7 +924,14 @@ function EndpointDetailView({ endpointId }: { endpointId: string }) {
               Delivery stats
             </Label>
             {stats.loading ? (
-              <div className="text-xs text-muted-foreground">Loading...</div>
+              <div className="space-y-2">
+                <Skeleton className="h-2.5 w-full rounded-full" />
+                <div className="flex gap-3">
+                  <Skeleton className="h-3 w-20" />
+                  <Skeleton className="h-3 w-16" />
+                  <Skeleton className="h-3 w-18" />
+                </div>
+              </div>
             ) : stats.error ? null : stats.data ? (
               <DeliveryStatsBar stats={stats.data} />
             ) : null}
@@ -873,9 +979,7 @@ function EndpointDetailView({ endpointId }: { endpointId: string }) {
             </div>
 
             {attempts.loading ? (
-              <div className="text-sm text-muted-foreground">
-                Loading attempts...
-              </div>
+              <TableSkeleton rows={4} cols={5} />
             ) : attempts.error ? (
               <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-4 text-sm text-destructive">
                 Failed to load message attempts.
@@ -903,6 +1007,7 @@ function EndpointDetailView({ endpointId }: { endpointId: string }) {
                         <AttemptRow
                           key={attempt.id}
                           attempt={attempt}
+                          eventType={eventTypeMap.get(attempt.msgId)}
                           onViewMessage={() => goToMessage(attempt.msgId)}
                         />
                       ))}
@@ -1065,18 +1170,19 @@ function EndpointDetailView({ endpointId }: { endpointId: string }) {
 
 function AttemptRow({
   attempt,
+  eventType,
   onViewMessage,
 }: {
   attempt: {
     id: string;
     msgId: string;
     status: number;
-    eventType?: string | null;
     responseStatusCode: number;
     response: string;
     timestamp: Date | string;
     triggerType: number;
   };
+  eventType?: string;
   onViewMessage: () => void;
 }) {
   const [expanded, setExpanded] = useState(false);
@@ -1090,9 +1196,7 @@ function AttemptRow({
         <TableCell>
           <MessageStatusBadge status={attempt.status} />
         </TableCell>
-        <TableCell className="font-mono text-xs">
-          {attempt.eventType ?? "—"}
-        </TableCell>
+        <TableCell className="font-mono text-xs">{eventType ?? "—"}</TableCell>
         <TableCell>
           <StatusCodeBadge code={attempt.responseStatusCode} />
         </TableCell>
@@ -1389,7 +1493,20 @@ function MessageDetailView({
       </div>
 
       {message.loading ? (
-        <div className="text-sm text-muted-foreground">Loading message...</div>
+        <div className="space-y-5">
+          <div className="space-y-2">
+            <Skeleton className="h-6 w-48" />
+            <Skeleton className="h-3 w-32" />
+          </div>
+          <div className="space-y-2">
+            <Skeleton className="h-3 w-24" />
+            <Skeleton className="h-48 w-full rounded-lg" />
+          </div>
+          <div className="space-y-3">
+            <Skeleton className="h-3 w-28" />
+            <TableSkeleton rows={3} cols={4} />
+          </div>
+        </div>
       ) : message.error || !message.data ? (
         <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-4 text-sm text-destructive">
           Failed to load message.
@@ -1466,9 +1583,7 @@ function MessageDetailView({
               Webhook attempts
             </Label>
             {messageAttempts.loading ? (
-              <div className="text-sm text-muted-foreground">
-                Loading attempts...
-              </div>
+              <TableSkeleton rows={3} cols={4} />
             ) : messageAttempts.error ? (
               <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-4 text-sm text-destructive">
                 Failed to load attempts.
@@ -1813,8 +1928,29 @@ function EventCatalogTab() {
       </div>
 
       {eventTypes.loading ? (
-        <div className="text-sm text-muted-foreground">
-          Loading event catalog...
+        <div className="space-y-3">
+          {Array.from({ length: 3 }, (_, i) => (
+            <div
+              key={`cat-skel-${i}`}
+              className="rounded-lg border border-border"
+            >
+              <div className="flex items-center justify-between px-4 py-3">
+                <Skeleton className="h-4 w-24" />
+                <Skeleton className="h-5 w-8 rounded-full" />
+              </div>
+              <div className="border-t border-border">
+                {Array.from({ length: 3 }, (_, j) => (
+                  <div
+                    key={`cat-row-${i}-${j}`}
+                    className="flex items-center justify-between border-b border-border/50 px-4 py-2.5 last:border-b-0"
+                  >
+                    <Skeleton className="h-3 w-40" />
+                    <Skeleton className="h-3 w-48" />
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
         </div>
       ) : eventTypes.error ? (
         <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-4 text-sm text-destructive">
@@ -1931,7 +2067,7 @@ function LogsTab() {
       </div>
 
       {messages.loading ? (
-        <div className="text-sm text-muted-foreground">Loading messages...</div>
+        <TableSkeleton rows={5} cols={3} />
       ) : messages.error ? (
         <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-4 text-sm text-destructive">
           Failed to load messages.
@@ -2051,7 +2187,20 @@ function LogsMessageDetailView({ messageId }: { messageId: string }) {
       </div>
 
       {message.loading ? (
-        <div className="text-sm text-muted-foreground">Loading message...</div>
+        <div className="space-y-5">
+          <div className="space-y-2">
+            <Skeleton className="h-6 w-48" />
+            <Skeleton className="h-3 w-32" />
+          </div>
+          <div className="space-y-2">
+            <Skeleton className="h-3 w-24" />
+            <Skeleton className="h-48 w-full rounded-lg" />
+          </div>
+          <div className="space-y-3">
+            <Skeleton className="h-3 w-28" />
+            <TableSkeleton rows={3} cols={4} />
+          </div>
+        </div>
       ) : message.error || !message.data ? (
         <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-4 text-sm text-destructive">
           Failed to load message.
@@ -2127,9 +2276,7 @@ function LogsMessageDetailView({ messageId }: { messageId: string }) {
               Delivery attempts
             </Label>
             {messageAttempts.loading ? (
-              <div className="text-sm text-muted-foreground">
-                Loading attempts...
-              </div>
+              <TableSkeleton rows={3} cols={4} />
             ) : messageAttempts.error ? (
               <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-4 text-sm text-destructive">
                 Failed to load attempts.

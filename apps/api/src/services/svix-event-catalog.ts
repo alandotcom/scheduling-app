@@ -4,6 +4,7 @@ import {
   webhookEventTypes,
   type WebhookEventType,
 } from "@scheduling/dto";
+import { chunk } from "es-toolkit";
 import { z } from "zod";
 import { ApiException, Svix } from "svix";
 import { config } from "../config.js";
@@ -41,32 +42,36 @@ export async function syncSvixEventCatalog(): Promise<void> {
       : undefined,
   );
 
-  await Promise.all(
-    webhookEventTypes.map(async (eventType) => {
-      const eventDefinition = {
-        name: eventType,
-        description: getSvixEventDescription(eventType),
-        groupName: getSvixEventGroupName(eventType),
-        schemas: {
-          v1: getSvixEventSchemaV1(eventType),
-        },
-      };
+  const batches = chunk(webhookEventTypes, 5);
 
-      try {
-        await svix.eventType.create(eventDefinition);
-        logger.info("Created Svix event type {eventType}", { eventType });
-        return;
-      } catch (error) {
-        if (error instanceof ApiException && error.code === 409) {
-          await svix.eventType.update(eventType, eventDefinition);
-          logger.debug("Updated Svix event type {eventType}", { eventType });
+  for (const batch of batches) {
+    await Promise.all(
+      batch.map(async (eventType) => {
+        const eventDefinition = {
+          name: eventType,
+          description: getSvixEventDescription(eventType),
+          groupName: getSvixEventGroupName(eventType),
+          schemas: {
+            v1: getSvixEventSchemaV1(eventType),
+          },
+        };
+
+        try {
+          await svix.eventType.create(eventDefinition);
+          logger.info("Created Svix event type {eventType}", { eventType });
           return;
-        }
+        } catch (error) {
+          if (error instanceof ApiException && error.code === 409) {
+            await svix.eventType.update(eventType, eventDefinition);
+            logger.debug("Updated Svix event type {eventType}", { eventType });
+            return;
+          }
 
-        throw error;
-      }
-    }),
-  );
+          throw error;
+        }
+      }),
+    );
+  }
 
   logger.info("Synced {count} Svix event type definitions", {
     count: webhookEventTypes.length,
