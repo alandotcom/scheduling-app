@@ -36,7 +36,7 @@ import {
   type UpdateOrgUserRoleInput,
 } from "@scheduling/dto";
 
-import { WebhooksSection } from "./settings-webhooks";
+import { WebhooksSection } from "./-settings-webhooks";
 import { PageScaffold, PageHeader } from "@/components/layout/page-scaffold";
 import { RowActions } from "@/components/row-actions";
 import {
@@ -174,84 +174,88 @@ interface OrgSettings {
 }
 
 function SettingsPage() {
-  // Fetch current org settings
+  const { section } = Route.useSearch();
+  const activeTab = resolveTab(section);
+
+  return (
+    <PageScaffold>
+      <PageHeader
+        title="Settings"
+        description="Configure organization and application settings."
+      />
+
+      {activeTab === "organization" ? (
+        <div className="mt-6">
+          <OrganizationTab />
+        </div>
+      ) : null}
+
+      {activeTab === "users" ? (
+        <div className="mt-6">
+          <UsersManagementSection />
+        </div>
+      ) : null}
+
+      {activeTab === "developers" ? (
+        <div className="mt-6">
+          <ApiKeysSection />
+        </div>
+      ) : null}
+
+      {activeTab === "webhooks" ? (
+        <div className="mt-6">
+          <WebhooksSection />
+        </div>
+      ) : null}
+    </PageScaffold>
+  );
+}
+
+function OrganizationTab() {
   const {
     data: org,
     isLoading,
     error,
   } = useQuery(orpc.org.get.queryOptions({}));
 
-  // Show loading state while fetching
   if (isLoading) {
     return (
-      <PageScaffold>
-        <PageHeader
-          title="Settings"
-          description="Configure organization and application settings."
-        />
-        {/* Tab bar + content area skeleton */}
-        <div className="mt-6 space-y-6">
-          <dl className="divide-y divide-border">
-            {Array.from({ length: 4 }, (_, i) => (
-              <div
-                key={`settings-skel-${i}`}
-                className="grid grid-cols-1 gap-x-8 gap-y-2 py-6 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] sm:items-start"
-              >
-                <div className="space-y-2">
-                  <Skeleton className="h-4 w-32" />
-                  <Skeleton className="h-3 w-56" />
-                </div>
-                <div className="sm:justify-self-end">
-                  <Skeleton className="h-9 w-64 rounded-md" />
-                </div>
-              </div>
-            ))}
-          </dl>
-        </div>
-      </PageScaffold>
+      <dl className="divide-y divide-border">
+        {Array.from({ length: 4 }, (_, i) => (
+          <div
+            key={`settings-skel-${i}`}
+            className="grid grid-cols-1 gap-x-8 gap-y-2 py-6 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] sm:items-start"
+          >
+            <div className="space-y-2">
+              <Skeleton className="h-4 w-32" />
+              <Skeleton className="h-3 w-56" />
+            </div>
+            <div className="sm:justify-self-end">
+              <Skeleton className="h-9 w-64 rounded-md" />
+            </div>
+          </div>
+        ))}
+      </dl>
     );
   }
 
-  if (error) {
+  if (error || !org) {
     return (
-      <PageScaffold>
-        <PageHeader
-          title="Settings"
-          description="Configure organization and application settings."
-        />
-        <div className="mt-10 text-center text-destructive">
-          Error loading settings
-        </div>
-      </PageScaffold>
+      <div className="mt-10 text-center text-destructive">
+        Error loading settings
+      </div>
     );
   }
 
-  if (!org) {
-    return (
-      <PageScaffold>
-        <PageHeader
-          title="Settings"
-          description="Configure organization and application settings."
-        />
-        <div className="mt-10 text-center text-destructive">
-          Error loading settings
-        </div>
-      </PageScaffold>
-    );
-  }
-
-  // Render form only when data is available
-  return <SettingsForm org={org} />;
+  return <OrgSettingsForm org={org} />;
 }
 
 interface SettingsFormProps {
   org: OrgSettings;
 }
 
-function SettingsForm({ org }: SettingsFormProps) {
+function OrgSettingsForm({ org }: SettingsFormProps) {
   const queryClient = useQueryClient();
-  const { section } = Route.useSearch();
-  const activeTab = resolveTab(section);
   const formRef = useRef<HTMLFormElement>(null);
 
   // Update settings mutation
@@ -299,237 +303,199 @@ function SettingsForm({ org }: SettingsFormProps) {
   };
 
   useSubmitShortcut({
-    enabled:
-      activeTab === "organization" && !updateMutation.isPending && isDirty,
+    enabled: !updateMutation.isPending && isDirty,
     scope: "global",
     onSubmit: () => formRef.current?.requestSubmit(),
   });
 
   return (
-    <PageScaffold>
-      <PageHeader
-        title="Settings"
-        description="Configure organization and application settings."
-      />
+    <form ref={formRef} onSubmit={handleSubmit(onSubmit)}>
+      <dl className="divide-y divide-border">
+        {/* Default timezone */}
+        <div className="grid grid-cols-1 gap-x-8 gap-y-2 py-6 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] sm:items-start">
+          <div>
+            <dt className="text-sm font-medium">Default timezone</dt>
+            <dd className="mt-1 text-sm text-muted-foreground">
+              The default timezone used for new locations and calendars.
+            </dd>
+          </div>
+          <dd className="sm:justify-self-end">
+            <div className="w-full sm:w-64">
+              <Controller
+                name="defaultTimezone"
+                control={control}
+                render={({ field }) => {
+                  const timezoneSelectLabel = resolveSelectValueLabel({
+                    value: field.value,
+                    options: TIMEZONES,
+                    getOptionValue: (timezone) => timezone,
+                    getOptionLabel: (timezone) => timezone,
+                    unknownLabel: "Unknown timezone",
+                  });
 
-      {activeTab === "organization" ? (
-        <div className="mt-6">
-          <form ref={formRef} onSubmit={handleSubmit(onSubmit)}>
-            <dl className="divide-y divide-border">
-              {/* Default timezone */}
-              <div className="grid grid-cols-1 gap-x-8 gap-y-2 py-6 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] sm:items-start">
-                <div>
-                  <dt className="text-sm font-medium">Default timezone</dt>
-                  <dd className="mt-1 text-sm text-muted-foreground">
-                    The default timezone used for new locations and calendars.
-                  </dd>
-                </div>
-                <dd className="sm:justify-self-end">
-                  <div className="w-full sm:w-64">
-                    <Controller
-                      name="defaultTimezone"
-                      control={control}
-                      render={({ field }) => {
-                        const timezoneSelectLabel = resolveSelectValueLabel({
-                          value: field.value,
-                          options: TIMEZONES,
-                          getOptionValue: (timezone) => timezone,
-                          getOptionLabel: (timezone) => timezone,
-                          unknownLabel: "Unknown timezone",
-                        });
-
-                        return (
-                          <Select
-                            value={field.value}
-                            onValueChange={field.onChange}
-                            disabled={updateMutation.isPending}
-                          >
-                            <SelectTrigger id="timezone">
-                              <SelectValue placeholder="Select timezone">
-                                {timezoneSelectLabel}
-                              </SelectValue>
-                            </SelectTrigger>
-                            <SelectContent>
-                              {TIMEZONES.map((timezone) => (
-                                <SelectItem key={timezone} value={timezone}>
-                                  {timezone}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        );
-                      }}
-                    />
-                    {errors.defaultTimezone && (
-                      <p className="mt-2 text-sm text-destructive">
-                        {errors.defaultTimezone.message}
-                      </p>
-                    )}
-                  </div>
-                </dd>
-              </div>
-
-              {/* Email notifications */}
-              <div className="grid grid-cols-1 gap-x-8 gap-y-2 py-6 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] sm:items-start">
-                <div>
-                  <dt className="text-sm font-medium">Email notifications</dt>
-                  <dd className="mt-1 text-sm text-muted-foreground">
-                    Control email and notification preferences for the
-                    organization.
-                  </dd>
-                </div>
-                <dd className="sm:justify-self-end">
-                  <Controller
-                    name="notificationsEnabled"
-                    control={control}
-                    render={({ field }) => (
-                      <Checkbox
-                        checked={field.value ?? true}
-                        onChange={field.onChange}
-                        label="Enable email notifications"
-                      />
-                    )}
-                  />
-                </dd>
-              </div>
-
-              {/* Default business hours */}
-              <div className="grid grid-cols-1 gap-x-8 gap-y-2 py-6 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] sm:items-start">
-                <div>
-                  <dt className="text-sm font-medium">
-                    Default business hours
-                  </dt>
-                  <dd className="mt-1 text-sm text-muted-foreground">
-                    The default working hours applied to new calendars.
-                  </dd>
-                </div>
-                <dd className="sm:justify-self-end">
-                  <div className="flex items-end gap-3">
-                    <div className="space-y-1">
-                      <Label htmlFor="startTime" className="text-xs">
-                        Start
-                      </Label>
-                      <Controller
-                        name="defaultBusinessHoursStart"
-                        control={control}
-                        render={({ field }) => (
-                          <Input
-                            id="startTime"
-                            type="time"
-                            className="w-28"
-                            disabled={updateMutation.isPending}
-                            {...field}
-                          />
-                        )}
-                      />
-                      {errors.defaultBusinessHoursStart && (
-                        <p className="text-xs text-destructive">
-                          {errors.defaultBusinessHoursStart.message}
-                        </p>
-                      )}
-                    </div>
-                    <div className="space-y-1">
-                      <Label htmlFor="endTime" className="text-xs">
-                        End
-                      </Label>
-                      <Controller
-                        name="defaultBusinessHoursEnd"
-                        control={control}
-                        render={({ field }) => (
-                          <Input
-                            id="endTime"
-                            type="time"
-                            className="w-28"
-                            disabled={updateMutation.isPending}
-                            {...field}
-                          />
-                        )}
-                      />
-                      {errors.defaultBusinessHoursEnd && (
-                        <p className="text-xs text-destructive">
-                          {errors.defaultBusinessHoursEnd.message}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                </dd>
-              </div>
-
-              {/* Business days */}
-              <div className="grid grid-cols-1 gap-x-8 gap-y-2 py-6 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] sm:items-start">
-                <div>
-                  <dt className="text-sm font-medium">Business days</dt>
-                  <dd className="mt-1 text-sm text-muted-foreground">
-                    Select which days of the week your business operates.
-                  </dd>
-                </div>
-                <dd className="sm:justify-self-end">
-                  <div className="flex flex-wrap gap-1.5">
-                    {WEEKDAYS.map((day) => (
-                      <button
-                        key={day.value}
-                        type="button"
-                        onClick={() => toggleDay(day.value)}
-                        disabled={updateMutation.isPending}
-                        className={cn(
-                          "rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors",
-                          selectedDays.includes(day.value)
-                            ? "border-primary bg-primary text-primary-foreground"
-                            : "border-border bg-background hover:bg-muted",
-                          "disabled:cursor-not-allowed disabled:opacity-50",
-                        )}
-                        aria-pressed={selectedDays.includes(day.value)}
-                      >
-                        {day.label}
-                      </button>
-                    ))}
-                  </div>
-                  {errors.defaultBusinessDays && (
-                    <p className="mt-2 text-sm text-destructive">
-                      {errors.defaultBusinessDays.message}
-                    </p>
-                  )}
-                </dd>
-              </div>
-            </dl>
-
-            <div className="flex items-center justify-end gap-3 border-t border-border pt-6 mt-2">
-              {isDirty ? (
-                <Badge variant="warning">Unsaved changes</Badge>
-              ) : null}
-              <Button
-                type="submit"
-                disabled={updateMutation.isPending || !isDirty}
-              >
-                {updateMutation.isPending ? "Saving..." : "Save changes"}
-                <ShortcutBadge
-                  shortcut="meta+enter"
-                  className="ml-2 hidden sm:inline-flex"
-                />
-              </Button>
+                  return (
+                    <Select
+                      value={field.value}
+                      onValueChange={field.onChange}
+                      disabled={updateMutation.isPending}
+                    >
+                      <SelectTrigger id="timezone">
+                        <SelectValue placeholder="Select timezone">
+                          {timezoneSelectLabel}
+                        </SelectValue>
+                      </SelectTrigger>
+                      <SelectContent>
+                        {TIMEZONES.map((timezone) => (
+                          <SelectItem key={timezone} value={timezone}>
+                            {timezone}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  );
+                }}
+              />
+              {errors.defaultTimezone && (
+                <p className="mt-2 text-sm text-destructive">
+                  {errors.defaultTimezone.message}
+                </p>
+              )}
             </div>
-          </form>
+          </dd>
         </div>
-      ) : null}
 
-      {activeTab === "users" ? (
-        <div className="mt-6">
-          <UsersManagementSection />
+        {/* Email notifications */}
+        <div className="grid grid-cols-1 gap-x-8 gap-y-2 py-6 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] sm:items-start">
+          <div>
+            <dt className="text-sm font-medium">Email notifications</dt>
+            <dd className="mt-1 text-sm text-muted-foreground">
+              Control email and notification preferences for the organization.
+            </dd>
+          </div>
+          <dd className="sm:justify-self-end">
+            <Controller
+              name="notificationsEnabled"
+              control={control}
+              render={({ field }) => (
+                <Checkbox
+                  checked={field.value ?? true}
+                  onChange={field.onChange}
+                  label="Enable email notifications"
+                />
+              )}
+            />
+          </dd>
         </div>
-      ) : null}
 
-      {activeTab === "developers" ? (
-        <div className="mt-6">
-          <ApiKeysSection />
+        {/* Default business hours */}
+        <div className="grid grid-cols-1 gap-x-8 gap-y-2 py-6 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] sm:items-start">
+          <div>
+            <dt className="text-sm font-medium">Default business hours</dt>
+            <dd className="mt-1 text-sm text-muted-foreground">
+              The default working hours applied to new calendars.
+            </dd>
+          </div>
+          <dd className="sm:justify-self-end">
+            <div className="flex items-end gap-3">
+              <div className="space-y-1">
+                <Label htmlFor="startTime" className="text-xs">
+                  Start
+                </Label>
+                <Controller
+                  name="defaultBusinessHoursStart"
+                  control={control}
+                  render={({ field }) => (
+                    <Input
+                      id="startTime"
+                      type="time"
+                      className="w-28"
+                      disabled={updateMutation.isPending}
+                      {...field}
+                    />
+                  )}
+                />
+                {errors.defaultBusinessHoursStart && (
+                  <p className="text-xs text-destructive">
+                    {errors.defaultBusinessHoursStart.message}
+                  </p>
+                )}
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="endTime" className="text-xs">
+                  End
+                </Label>
+                <Controller
+                  name="defaultBusinessHoursEnd"
+                  control={control}
+                  render={({ field }) => (
+                    <Input
+                      id="endTime"
+                      type="time"
+                      className="w-28"
+                      disabled={updateMutation.isPending}
+                      {...field}
+                    />
+                  )}
+                />
+                {errors.defaultBusinessHoursEnd && (
+                  <p className="text-xs text-destructive">
+                    {errors.defaultBusinessHoursEnd.message}
+                  </p>
+                )}
+              </div>
+            </div>
+          </dd>
         </div>
-      ) : null}
 
-      {activeTab === "webhooks" ? (
-        <div className="mt-6">
-          <WebhooksSection />
+        {/* Business days */}
+        <div className="grid grid-cols-1 gap-x-8 gap-y-2 py-6 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] sm:items-start">
+          <div>
+            <dt className="text-sm font-medium">Business days</dt>
+            <dd className="mt-1 text-sm text-muted-foreground">
+              Select which days of the week your business operates.
+            </dd>
+          </div>
+          <dd className="sm:justify-self-end">
+            <div className="flex flex-wrap gap-1.5">
+              {WEEKDAYS.map((day) => (
+                <button
+                  key={day.value}
+                  type="button"
+                  onClick={() => toggleDay(day.value)}
+                  disabled={updateMutation.isPending}
+                  className={cn(
+                    "rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors",
+                    selectedDays.includes(day.value)
+                      ? "border-primary bg-primary text-primary-foreground"
+                      : "border-border bg-background hover:bg-muted",
+                    "disabled:cursor-not-allowed disabled:opacity-50",
+                  )}
+                  aria-pressed={selectedDays.includes(day.value)}
+                >
+                  {day.label}
+                </button>
+              ))}
+            </div>
+            {errors.defaultBusinessDays && (
+              <p className="mt-2 text-sm text-destructive">
+                {errors.defaultBusinessDays.message}
+              </p>
+            )}
+          </dd>
         </div>
-      ) : null}
-    </PageScaffold>
+      </dl>
+
+      <div className="flex items-center justify-end gap-3 border-t border-border pt-6 mt-2">
+        {isDirty ? <Badge variant="warning">Unsaved changes</Badge> : null}
+        <Button type="submit" disabled={updateMutation.isPending || !isDirty}>
+          {updateMutation.isPending ? "Saving..." : "Save changes"}
+          <ShortcutBadge
+            shortcut="meta+enter"
+            className="ml-2 hidden sm:inline-flex"
+          />
+        </Button>
+      </div>
+    </form>
   );
 }
 

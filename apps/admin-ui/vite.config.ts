@@ -37,6 +37,11 @@ export default defineConfig({
         target: "http://localhost:3000",
         changeOrigin: true,
       },
+      "/svix-api": {
+        target: "http://localhost:8071",
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/svix-api/, ""),
+      },
     },
   },
 });

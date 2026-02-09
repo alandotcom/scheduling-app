@@ -22,7 +22,9 @@ import {
 import { toast } from "sonner";
 import {
   Add01Icon,
+  ArrowDown01Icon,
   ArrowLeft02Icon,
+  ArrowRight01Icon,
   Copy01Icon,
   ViewIcon,
   ViewOffIcon,
@@ -31,7 +33,6 @@ import {
 
 import { orpc } from "@/lib/query";
 import { cn } from "@/lib/utils";
-import type { WebhookSessionResponse } from "@scheduling/dto";
 
 import { RowActions } from "@/components/row-actions";
 import { DeleteConfirmDialog } from "@/components/delete-confirm-dialog";
@@ -297,123 +298,43 @@ function useWebhookNavigate() {
 }
 
 // ---------------------------------------------------------------------------
-// WebhooksSection — Entry point (fetches session, wraps SvixProvider)
+// WebhooksSection — Entry point (fetches session, renders tabs immediately)
 // ---------------------------------------------------------------------------
+
+const TABS: { id: WebhookTab; label: string }[] = [
+  { id: "endpoints", label: "Endpoints" },
+  { id: "catalog", label: "Event Catalog" },
+  { id: "logs", label: "Logs" },
+];
 
 export function WebhooksSection() {
   const {
     data: webhookSession,
     isLoading,
-    isFetching,
     error,
-    refetch,
-  } = useQuery(orpc.webhooks.session.queryOptions({}));
+  } = useQuery({
+    ...orpc.webhooks.session.queryOptions({}),
+    staleTime: 30 * 60 * 1000, // 30 min — well within the 1hr token TTL
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+  });
 
-  if (isLoading) {
-    return (
-      <div className="space-y-5">
-        {/* Session bar skeleton */}
-        <div className="flex items-center justify-between rounded-xl bg-muted/30 px-4 py-2.5">
-          <div className="flex items-center gap-2">
-            <Skeleton className="h-5 w-28 rounded-full" />
-            <Skeleton className="h-5 w-36 rounded-full" />
-          </div>
-          <Skeleton className="h-8 w-28 rounded-md" />
-        </div>
-        {/* Tab bar skeleton */}
-        <div className="flex gap-1 rounded-lg border border-border bg-muted/30 p-0.5">
-          <Skeleton className="h-8 w-24 rounded-md" />
-          <Skeleton className="h-8 w-28 rounded-md" />
-          <Skeleton className="h-8 w-16 rounded-md" />
-        </div>
-        {/* Content skeleton */}
-        <div className="space-y-2">
-          {Array.from({ length: 3 }, (_, i) => (
-            <div
-              key={`wh-skel-${i}`}
-              className="rounded-lg border border-border p-4 space-y-2"
-            >
-              <Skeleton className="h-4 w-2/3" />
-              <Skeleton className="h-3 w-1/4" />
-            </div>
-          ))}
-        </div>
-      </div>
-    );
-  }
-
-  if (error || !webhookSession) {
-    return (
-      <div className="rounded-xl border border-destructive/40 bg-destructive/5 p-4 text-sm text-destructive">
-        Failed to load webhook management session.
-      </div>
-    );
-  }
-
-  return (
-    <SvixProvider
-      token={webhookSession.token}
-      appId={webhookSession.appId}
-      options={
-        webhookSession.serverUrl
-          ? { serverUrl: webhookSession.serverUrl }
-          : undefined
-      }
-    >
-      <WebhooksManager
-        webhookSession={webhookSession}
-        isRefreshingSession={isFetching}
-        onRefreshSession={() => void refetch()}
-      />
-    </SvixProvider>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// WebhooksManager — Tab controller
-// ---------------------------------------------------------------------------
-
-function WebhooksManager({
-  webhookSession,
-  onRefreshSession,
-  isRefreshingSession,
-}: {
-  webhookSession: WebhookSessionResponse;
-  onRefreshSession: () => void;
-  isRefreshingSession: boolean;
-}) {
   const { webhookTab: rawTab } = Route.useSearch();
   const activeTab = resolveWebhookTab(rawTab);
   const { goToTab } = useWebhookNavigate();
 
-  const TABS: { id: WebhookTab; label: string }[] = [
-    { id: "endpoints", label: "Endpoints" },
-    { id: "catalog", label: "Event Catalog" },
-    { id: "logs", label: "Logs" },
-  ];
+  // Memoize options so SvixProvider doesn't recreate the Svix client on every render
+  const svixOptions = useMemo(
+    () =>
+      webhookSession?.serverUrl
+        ? { serverUrl: `${window.location.origin}/svix-api` }
+        : undefined,
+    [webhookSession?.serverUrl],
+  );
 
   return (
     <div className="space-y-5">
-      {/* Compact session info */}
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-muted/30 px-4 py-2.5">
-        <div className="flex flex-wrap items-center gap-2 text-xs">
-          <Badge variant="outline">App: {webhookSession.appId}</Badge>
-          {webhookSession.serverUrl ? (
-            <Badge variant="outline">Svix: {webhookSession.serverUrl}</Badge>
-          ) : null}
-        </div>
-        <Button
-          type="button"
-          size="sm"
-          variant="outline"
-          disabled={isRefreshingSession}
-          onClick={onRefreshSession}
-        >
-          {isRefreshingSession ? "Refreshing..." : "Refresh session"}
-        </Button>
-      </div>
-
-      {/* Tab bar */}
+      {/* Tab bar — always rendered */}
       <div className="flex gap-1 rounded-lg border border-border bg-muted/30 p-0.5">
         {TABS.map((tab) => (
           <button
@@ -432,9 +353,34 @@ function WebhooksManager({
         ))}
       </div>
 
-      {activeTab === "endpoints" ? <EndpointsTab /> : null}
-      {activeTab === "catalog" ? <EventCatalogTab /> : null}
-      {activeTab === "logs" ? <LogsTab /> : null}
+      {/* Content area */}
+      {isLoading ? (
+        <div className="flex items-center justify-center py-12 text-sm text-muted-foreground">
+          Connecting to webhook service...
+        </div>
+      ) : error || !webhookSession ? (
+        <div className="rounded-xl border border-destructive/40 bg-destructive/5 p-4 text-sm text-destructive">
+          Failed to load webhook management session.
+        </div>
+      ) : (
+        <SvixProvider
+          token={webhookSession.token}
+          appId={webhookSession.appId}
+          options={svixOptions}
+        >
+          {/* All tabs always mounted so svix hooks keep their state.
+              CSS hidden class hides inactive tabs without unmounting. */}
+          <div className={activeTab !== "endpoints" ? "hidden" : undefined}>
+            <EndpointsTab />
+          </div>
+          <div className={activeTab !== "catalog" ? "hidden" : undefined}>
+            <EventCatalogTab />
+          </div>
+          <div className={activeTab !== "logs" ? "hidden" : undefined}>
+            <LogsTab />
+          </div>
+        </SvixProvider>
+      )}
     </div>
   );
 }
@@ -456,7 +402,13 @@ function EndpointsTab() {
 
   // Drill-in: endpoint detail
   if (endpointId) {
-    return <EndpointDetailView endpointId={endpointId} />;
+    const cachedEndpoint = endpoints.data?.find((ep) => ep.id === endpointId);
+    return (
+      <EndpointDetailView
+        endpointId={endpointId}
+        cachedEndpoint={cachedEndpoint}
+      />
+    );
   }
 
   // List view
@@ -754,7 +706,21 @@ function CreateEndpointModal({
 // EndpointDetailView
 // ---------------------------------------------------------------------------
 
-function EndpointDetailView({ endpointId }: { endpointId: string }) {
+function EndpointDetailView({
+  endpointId,
+  cachedEndpoint,
+}: {
+  endpointId: string;
+  cachedEndpoint?: {
+    id: string;
+    url: string;
+    disabled?: boolean;
+    description?: string;
+    filterTypes?: string[] | null;
+    createdAt: Date;
+    updatedAt: Date;
+  };
+}) {
   const { goToEndpoints, goToMessage, setAttemptFilter } = useWebhookNavigate();
   const { attemptFilter: rawAttemptFilter } = Route.useSearch();
   const attemptFilter = resolveAttemptFilter(rawAttemptFilter);
@@ -831,44 +797,47 @@ function EndpointDetailView({ endpointId }: { endpointId: string }) {
     }
   };
 
-  if (endpoint.loading) {
-    return (
-      <div className="space-y-5">
-        {/* Breadcrumb skeleton */}
-        <Skeleton className="h-4 w-48" />
-        {/* Header skeleton */}
-        <div className="flex items-center gap-2">
-          <Skeleton className="h-6 w-72" />
-          <Skeleton className="h-5 w-16 rounded-full" />
-        </div>
-        {/* Grid skeleton */}
-        <div className="grid gap-5 lg:grid-cols-[2fr_1fr]">
-          <div className="space-y-5">
-            <Skeleton className="h-2.5 w-full rounded-full" />
-            <TableSkeleton rows={4} cols={5} />
+  // Use fetched data, falling back to cached data from the list
+  const ep = endpoint.data ?? cachedEndpoint;
+
+  // Only show full skeleton if we have NO data at all
+  if (!ep) {
+    if (endpoint.loading) {
+      return (
+        <div className="space-y-5">
+          {/* Breadcrumb skeleton */}
+          <Skeleton className="h-4 w-48" />
+          {/* Header skeleton */}
+          <div className="flex items-center gap-2">
+            <Skeleton className="h-6 w-72" />
+            <Skeleton className="h-5 w-16 rounded-full" />
           </div>
-          <div className="space-y-5">
-            <div className="rounded-lg border border-border p-4 space-y-3">
-              <Skeleton className="h-3 w-16" />
-              <Skeleton className="h-4 w-full" />
-              <Skeleton className="h-3 w-16" />
-              <Skeleton className="h-4 w-full" />
+          {/* Grid skeleton */}
+          <div className="grid gap-5 lg:grid-cols-[2fr_1fr]">
+            <div className="space-y-5">
+              <Skeleton className="h-2.5 w-full rounded-full" />
+              <TableSkeleton rows={4} cols={5} />
             </div>
-            <div className="rounded-lg border border-border p-4 space-y-2">
-              <Skeleton className="h-3 w-28" />
-              <div className="flex flex-wrap gap-1">
-                <Skeleton className="h-5 w-32 rounded-full" />
-                <Skeleton className="h-5 w-28 rounded-full" />
-                <Skeleton className="h-5 w-36 rounded-full" />
+            <div className="space-y-5">
+              <div className="rounded-lg border border-border p-4 space-y-3">
+                <Skeleton className="h-3 w-16" />
+                <Skeleton className="h-4 w-full" />
+                <Skeleton className="h-3 w-16" />
+                <Skeleton className="h-4 w-full" />
+              </div>
+              <div className="rounded-lg border border-border p-4 space-y-2">
+                <Skeleton className="h-3 w-28" />
+                <div className="flex flex-wrap gap-1">
+                  <Skeleton className="h-5 w-32 rounded-full" />
+                  <Skeleton className="h-5 w-28 rounded-full" />
+                  <Skeleton className="h-5 w-36 rounded-full" />
+                </div>
               </div>
             </div>
           </div>
         </div>
-      </div>
-    );
-  }
-
-  if (endpoint.error || !endpoint.data) {
+      );
+    }
     return (
       <div className="space-y-3">
         <button
@@ -886,7 +855,6 @@ function EndpointDetailView({ endpointId }: { endpointId: string }) {
     );
   }
 
-  const ep = endpoint.data;
   const isDisabled = ep.disabled ?? false;
   const filterTypes = ep.filterTypes ?? [];
 
@@ -2030,7 +1998,7 @@ function EventCatalogTab() {
           </div>
 
           {/* Right panel — schema preview */}
-          <div className="min-w-0 flex-1">
+          <div className="min-w-0 flex-1 overflow-hidden">
             {selectedEvent ? (
               <EventSchemaDetail event={selectedEvent} />
             ) : (
@@ -2049,9 +2017,28 @@ function EventCatalogTab() {
 // JSON Schema property helpers
 // ---------------------------------------------------------------------------
 
+function getTypeBadgeClasses(type: string): string {
+  switch (type) {
+    case "string":
+      return "bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300";
+    case "integer":
+    case "number":
+      return "bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300";
+    case "object":
+      return "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300";
+    case "boolean":
+      return "bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-300";
+    case "array":
+      return "bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300";
+    default:
+      return "bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300";
+  }
+}
+
 interface PropertyInfo {
   type: string;
   format?: string;
+  description?: string;
   nullable: boolean;
   constValue?: string;
   enumValues?: string[];
@@ -2077,6 +2064,8 @@ function resolvePropertyInfo(
 
   const type = typeof prop.type === "string" ? prop.type : "unknown";
   const format = typeof prop.format === "string" ? prop.format : undefined;
+  const description =
+    typeof prop.description === "string" ? prop.description : undefined;
 
   const constValue = prop.const !== undefined ? String(prop.const) : undefined;
 
@@ -2108,6 +2097,7 @@ function resolvePropertyInfo(
   return {
     type,
     format,
+    description,
     nullable: false,
     constValue,
     enumValues,
@@ -2135,7 +2125,11 @@ function SchemaPropertiesView({ schema }: { schema: Record<string, unknown> }) {
     );
   }
 
-  return <PropertyList properties={properties} required={required} depth={0} />;
+  return (
+    <div className="rounded-lg border border-border/60">
+      <PropertyList properties={properties} required={required} depth={0} />
+    </div>
+  );
 }
 
 function PropertyList({
@@ -2148,7 +2142,7 @@ function PropertyList({
   depth: number;
 }) {
   return (
-    <div className="space-y-0">
+    <div>
       {Object.entries(properties).map(([name, propSchema]) => (
         <PropertyRow
           key={name}
@@ -2180,45 +2174,64 @@ function PropertyRow({
     hasNested && name === "data" && depth === 0,
   );
 
-  const typeLabel = info.format ? `${info.type} (${info.format})` : info.type;
-
   return (
-    <div>
+    <div
+      className={cn(depth === 0 && "border-b border-border/50 last:border-b-0")}
+    >
       <div
-        className="flex items-baseline gap-3 py-1"
-        style={{ paddingLeft: depth * 16 }}
+        className="flex items-center gap-2.5 py-3"
+        style={{ paddingLeft: depth * 20 + 12 }}
       >
         {/* Expand toggle or spacer */}
         {hasNested ? (
           <button
             type="button"
             onClick={() => setExpanded(!expanded)}
-            className="w-3 shrink-0 text-xs text-muted-foreground hover:text-foreground"
+            className="flex size-5 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-foreground"
           >
-            {expanded ? "▼" : "▶"}
+            <Icon
+              icon={expanded ? ArrowDown01Icon : ArrowRight01Icon}
+              className="size-3.5"
+            />
           </button>
         ) : (
-          <span className="w-3 shrink-0" />
+          <span className="size-5 shrink-0" />
         )}
 
-        {/* Name */}
-        <code className="shrink-0 text-xs font-medium">{name}</code>
+        {/* Name + optional description */}
+        <div className="flex min-w-0 flex-col">
+          <code className="shrink-0 text-[13px] font-semibold">{name}</code>
+          {info.description ? (
+            <span className="text-xs text-muted-foreground">
+              {info.description}
+            </span>
+          ) : null}
+        </div>
 
-        {/* Type */}
-        <span className="shrink-0 text-xs text-muted-foreground">
-          {typeLabel}
+        {/* Type badge */}
+        <span
+          className={cn(
+            "shrink-0 rounded-md px-1.5 py-0.5 text-[11px] font-medium",
+            getTypeBadgeClasses(info.type),
+          )}
+        >
+          {info.type}
           {info.isRecord ? " (record)" : ""}
         </span>
 
-        {/* Required / optional */}
-        <span
-          className={cn(
-            "shrink-0 text-[10px]",
-            isRequired ? "text-foreground/70" : "text-muted-foreground/60",
-          )}
-        >
-          {isRequired ? "required" : "optional"}
-        </span>
+        {/* Format badge */}
+        {info.format ? (
+          <span className="shrink-0 rounded-md bg-zinc-100 px-1.5 py-0.5 text-[11px] text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400">
+            {info.format}
+          </span>
+        ) : null}
+
+        {/* Optional label (required is default — no label needed) */}
+        {!isRequired ? (
+          <span className="shrink-0 text-[11px] italic text-muted-foreground/60">
+            optional
+          </span>
+        ) : null}
 
         {/* Nullable */}
         {info.nullable ? (
@@ -2247,11 +2260,16 @@ function PropertyRow({
 
       {/* Nested properties */}
       {expanded && info.nestedProperties ? (
-        <PropertyList
-          properties={info.nestedProperties}
-          required={info.nestedRequired ?? []}
-          depth={depth + 1}
-        />
+        <div
+          className="mb-3 rounded-md border border-border/60 bg-muted/20"
+          style={{ marginLeft: depth * 20 + 12 + 20 + 10 }}
+        >
+          <PropertyList
+            properties={info.nestedProperties}
+            required={info.nestedRequired ?? []}
+            depth={depth + 1}
+          />
+        </div>
       ) : null}
     </div>
   );
@@ -2273,15 +2291,18 @@ function EventSchemaDetail({
   const schemaV1 = event.schemas?.v1 as Record<string, unknown> | undefined;
 
   return (
-    <div className="rounded-lg border border-border bg-card p-4">
-      <div className="mb-4">
-        <code className="text-sm font-semibold">{event.name}</code>
+    <div className="rounded-lg border border-border bg-card p-5">
+      <div className="mb-5">
+        <code className="text-base font-bold">{event.name}</code>
         {event.description ? (
-          <p className="mt-1 text-xs text-muted-foreground">
+          <p className="mt-1.5 text-sm text-muted-foreground">
             {event.description}
           </p>
         ) : null}
       </div>
+      <h4 className="mb-3 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+        Payload
+      </h4>
       {schemaV1 ? (
         <SchemaPropertiesView schema={schemaV1} />
       ) : (
@@ -2321,9 +2342,10 @@ function EventCatalogGroup({
         onClick={() => setExpanded(!expanded)}
         className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left hover:bg-accent/30"
       >
-        <span className="w-3 shrink-0 text-xs text-muted-foreground">
-          {expanded ? "▼" : "▶"}
-        </span>
+        <Icon
+          icon={expanded ? ArrowDown01Icon : ArrowRight01Icon}
+          className="size-3 shrink-0 text-muted-foreground"
+        />
         <span className="text-xs font-semibold capitalize">{prefix}</span>
         <Badge variant="secondary" className="ml-auto h-4 px-1.5 text-[10px]">
           {events.length}
@@ -2358,26 +2380,17 @@ function EventCatalogGroup({
 
 function LogsTab() {
   const messages = useMessages({ limit: 25 });
-  const navigate = useNavigate({ from: Route.fullPath });
+  const [selectedMessageId, setSelectedMessageId] = useState<string | null>(
+    null,
+  );
 
-  const onClickMessage = (msgId: string) => {
-    // For logs, navigate to message detail with a placeholder endpointId
-    // We'll show message-level detail without endpoint context
-    navigate({
-      search: (prev) => ({
-        ...prev,
-        webhookTab: "logs",
-        messageId: msgId,
-      }),
-    });
-  };
-
-  const { messageId } = Route.useSearch();
-
-  // If a message is selected in logs tab, show message detail
-  if (messageId) {
-    return <LogsMessageDetailView messageId={messageId} />;
-  }
+  // Auto-select first message on load
+  useEffect(() => {
+    const first = messages.data?.[0];
+    if (!selectedMessageId && first) {
+      setSelectedMessageId(first.id);
+    }
+  }, [selectedMessageId, messages.data]);
 
   return (
     <div className="space-y-4">
@@ -2400,7 +2413,23 @@ function LogsTab() {
       </div>
 
       {messages.loading ? (
-        <TableSkeleton rows={5} cols={3} />
+        <div className="flex gap-6">
+          <div className="w-[320px] shrink-0 space-y-1">
+            {Array.from({ length: 6 }, (_, i) => (
+              <Skeleton key={`skel-msg-${i}`} className="h-14 w-full" />
+            ))}
+          </div>
+          <div className="flex-1 space-y-5">
+            <div className="space-y-2">
+              <Skeleton className="h-6 w-48" />
+              <Skeleton className="h-3 w-32" />
+            </div>
+            <div className="space-y-2">
+              <Skeleton className="h-3 w-24" />
+              <Skeleton className="h-48 w-full rounded-lg" />
+            </div>
+          </div>
+        </div>
       ) : messages.error ? (
         <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-4 text-sm text-destructive">
           Failed to load messages.
@@ -2410,70 +2439,85 @@ function LogsTab() {
           No webhook messages yet.
         </div>
       ) : (
-        <>
-          <div className="overflow-hidden rounded-xl border border-border/50">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Event Type</TableHead>
-                  <TableHead>Message ID</TableHead>
-                  <TableHead>Timestamp</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {messages.data.map((msg) => (
-                  <TableRow
-                    key={msg.id}
-                    className="cursor-pointer"
-                    onClick={() => onClickMessage(msg.id)}
-                  >
-                    <TableCell className="font-mono text-xs">
-                      {msg.eventType}
-                    </TableCell>
-                    <TableCell className="font-mono text-xs">
-                      {msg.id.slice(0, 16)}...
-                    </TableCell>
-                    <TableCell className="text-xs">
-                      {formatDateTime(msg.timestamp)}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+        <div className="flex flex-col gap-6 lg:flex-row">
+          {/* Left panel — message list */}
+          <div className="w-full shrink-0 lg:w-[320px]">
+            <div className="max-h-[600px] space-y-0.5 overflow-y-auto pr-1">
+              {messages.data.map((msg) => (
+                <button
+                  key={msg.id}
+                  type="button"
+                  onClick={() => setSelectedMessageId(msg.id)}
+                  className={cn(
+                    "flex w-full flex-col gap-0.5 rounded-lg px-3 py-2 text-left transition-colors",
+                    selectedMessageId === msg.id
+                      ? "bg-accent text-accent-foreground"
+                      : "text-muted-foreground hover:bg-accent/30",
+                  )}
+                >
+                  <span className="truncate font-mono text-xs font-medium text-foreground">
+                    {msg.eventType}
+                  </span>
+                  <span className="truncate font-mono text-[11px] text-muted-foreground">
+                    {msg.id.slice(0, 20)}...
+                  </span>
+                  <span className="text-[11px] text-muted-foreground">
+                    {formatDateTime(msg.timestamp)}
+                  </span>
+                </button>
+              ))}
+            </div>
+
+            {/* Pagination */}
+            <div className="mt-3 flex items-center justify-between">
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                disabled={!messages.hasPrevPage}
+                onClick={() => {
+                  setSelectedMessageId(null);
+                  messages.prevPage();
+                }}
+              >
+                Previous
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                disabled={!messages.hasNextPage}
+                onClick={() => {
+                  setSelectedMessageId(null);
+                  messages.nextPage();
+                }}
+              >
+                Next
+              </Button>
+            </div>
           </div>
 
-          <div className="flex items-center justify-between">
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              disabled={!messages.hasPrevPage}
-              onClick={() => messages.prevPage()}
-            >
-              Previous
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              disabled={!messages.hasNextPage}
-              onClick={() => messages.nextPage()}
-            >
-              Next
-            </Button>
+          {/* Right panel — message detail */}
+          <div className="min-w-0 flex-1 overflow-hidden">
+            {selectedMessageId ? (
+              <LogsMessageDetail messageId={selectedMessageId} />
+            ) : (
+              <div className="flex h-48 items-center justify-center rounded-lg border border-dashed border-border text-sm text-muted-foreground">
+                Select a message to view details
+              </div>
+            )}
           </div>
-        </>
+        </div>
       )}
     </div>
   );
 }
 
 // ---------------------------------------------------------------------------
-// LogsMessageDetailView — Message detail accessed from Logs tab
+// LogsMessageDetail — Inline message detail for split-view logs tab
 // ---------------------------------------------------------------------------
 
-function LogsMessageDetailView({ messageId }: { messageId: string }) {
-  const navigate = useNavigate({ from: Route.fullPath });
+function LogsMessageDetail({ messageId }: { messageId: string }) {
   const message = useMessage(messageId);
   const messageAttempts = useMessageAttempts(messageId, { limit: 25 });
   const [viewMode, setViewMode] = useState<"formatted" | "raw">("formatted");
@@ -2492,154 +2536,133 @@ function LogsMessageDetailView({ messageId }: { messageId: string }) {
     }
   };
 
-  const goBackToLogs = () => {
-    navigate({
-      search: (prev) => ({
-        ...prev,
-        webhookTab: "logs",
-        messageId: undefined,
-      }),
-    });
-  };
+  if (message.loading) {
+    return (
+      <div className="space-y-5">
+        <div className="space-y-2">
+          <Skeleton className="h-6 w-48" />
+          <Skeleton className="h-3 w-32" />
+        </div>
+        <div className="space-y-2">
+          <Skeleton className="h-3 w-24" />
+          <Skeleton className="h-48 w-full rounded-lg" />
+        </div>
+        <div className="space-y-3">
+          <Skeleton className="h-3 w-28" />
+          <TableSkeleton rows={3} cols={4} />
+        </div>
+      </div>
+    );
+  }
+
+  if (message.error || !message.data) {
+    return (
+      <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-4 text-sm text-destructive">
+        Failed to load message.
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-5">
-      {/* Breadcrumb */}
-      <div className="flex items-center gap-1.5 text-sm">
-        <button
-          type="button"
-          onClick={goBackToLogs}
-          className="text-muted-foreground hover:text-foreground"
-        >
-          Logs
-        </button>
-        <span className="text-muted-foreground">/</span>
-        <span className="truncate font-medium">
-          {messageId.slice(0, 12)}...
-        </span>
+      <div>
+        <h3 className="text-lg font-semibold tracking-tight">
+          {message.data.eventType}
+        </h3>
+        <p className="mt-0.5 text-xs text-muted-foreground">
+          Created {formatDateTime(message.data.timestamp)}
+        </p>
       </div>
 
-      {message.loading ? (
-        <div className="space-y-5">
-          <div className="space-y-2">
-            <Skeleton className="h-6 w-48" />
-            <Skeleton className="h-3 w-32" />
-          </div>
-          <div className="space-y-2">
-            <Skeleton className="h-3 w-24" />
-            <Skeleton className="h-48 w-full rounded-lg" />
-          </div>
-          <div className="space-y-3">
-            <Skeleton className="h-3 w-28" />
-            <TableSkeleton rows={3} cols={4} />
-          </div>
-        </div>
-      ) : message.error || !message.data ? (
-        <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-4 text-sm text-destructive">
-          Failed to load message.
-        </div>
-      ) : (
-        <>
-          <div>
-            <h3 className="text-lg font-semibold tracking-tight">
-              {message.data.eventType}
-            </h3>
-            <p className="mt-0.5 text-xs text-muted-foreground">
-              Created {formatDateTime(message.data.timestamp)}
-            </p>
-          </div>
-
-          {/* Payload */}
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <Label className="text-xs text-muted-foreground">
-                Message content
-              </Label>
-              <div className="flex items-center gap-2">
-                <div className="flex gap-0.5 rounded-lg border border-border bg-muted/30 p-0.5">
-                  <button
-                    type="button"
-                    onClick={() => setViewMode("formatted")}
-                    className={cn(
-                      "h-6 rounded-md px-2 text-xs font-medium transition-colors",
-                      viewMode === "formatted"
-                        ? "bg-background text-foreground shadow-sm"
-                        : "text-muted-foreground hover:text-foreground",
-                    )}
-                  >
-                    Formatted
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setViewMode("raw")}
-                    className={cn(
-                      "h-6 rounded-md px-2 text-xs font-medium transition-colors",
-                      viewMode === "raw"
-                        ? "bg-background text-foreground shadow-sm"
-                        : "text-muted-foreground hover:text-foreground",
-                    )}
-                  >
-                    Raw
-                  </button>
-                </div>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  onClick={onCopyPayload}
-                  disabled={!payload}
-                >
-                  <Icon icon={Copy01Icon} data-icon="inline-start" />
-                  Copy
-                </Button>
-              </div>
+      {/* Payload */}
+      <div className="space-y-2">
+        <div className="flex items-center justify-between">
+          <Label className="text-xs text-muted-foreground">
+            Message content
+          </Label>
+          <div className="flex items-center gap-2">
+            <div className="flex gap-0.5 rounded-lg border border-border bg-muted/30 p-0.5">
+              <button
+                type="button"
+                onClick={() => setViewMode("formatted")}
+                className={cn(
+                  "h-6 rounded-md px-2 text-xs font-medium transition-colors",
+                  viewMode === "formatted"
+                    ? "bg-background text-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                Formatted
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewMode("raw")}
+                className={cn(
+                  "h-6 rounded-md px-2 text-xs font-medium transition-colors",
+                  viewMode === "raw"
+                    ? "bg-background text-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                Raw
+              </button>
             </div>
-            {viewMode === "formatted" && payload ? (
-              <JsonTreeViewer data={message.data.payload} />
-            ) : (
-              <pre className="max-h-96 overflow-auto whitespace-pre-wrap break-words rounded-lg border border-border bg-muted/30 p-4 font-mono text-xs leading-relaxed">
-                {payload || "(empty)"}
-              </pre>
-            )}
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={onCopyPayload}
+              disabled={!payload}
+            >
+              <Icon icon={Copy01Icon} data-icon="inline-start" />
+              Copy
+            </Button>
           </div>
+        </div>
+        {viewMode === "formatted" && payload ? (
+          <JsonTreeViewer data={message.data.payload} />
+        ) : (
+          <pre className="max-h-96 overflow-auto whitespace-pre-wrap break-words rounded-lg border border-border bg-muted/30 p-4 font-mono text-xs leading-relaxed">
+            {payload || "(empty)"}
+          </pre>
+        )}
+      </div>
 
-          {/* Attempts */}
-          <div className="space-y-3">
-            <Label className="text-xs text-muted-foreground">
-              Delivery attempts
-            </Label>
-            {messageAttempts.loading ? (
-              <TableSkeleton rows={3} cols={4} />
-            ) : messageAttempts.error ? (
-              <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-4 text-sm text-destructive">
-                Failed to load attempts.
-              </div>
-            ) : !messageAttempts.data?.length ? (
-              <div className="rounded-lg bg-muted/30 p-6 text-center text-sm text-muted-foreground">
-                No delivery attempts yet.
-              </div>
-            ) : (
-              <div className="overflow-hidden rounded-xl border border-border/50">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Status</TableHead>
-                      <TableHead>URL</TableHead>
-                      <TableHead>Response</TableHead>
-                      <TableHead>Timestamp</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {messageAttempts.data.map((attempt) => (
-                      <MessageAttemptRow key={attempt.id} attempt={attempt} />
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-            )}
+      {/* Attempts */}
+      <div className="space-y-3">
+        <Label className="text-xs text-muted-foreground">
+          Delivery attempts
+        </Label>
+        {messageAttempts.loading ? (
+          <TableSkeleton rows={3} cols={4} />
+        ) : messageAttempts.error ? (
+          <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-4 text-sm text-destructive">
+            Failed to load attempts.
           </div>
-        </>
-      )}
+        ) : !messageAttempts.data?.length ? (
+          <div className="rounded-lg bg-muted/30 p-6 text-center text-sm text-muted-foreground">
+            No delivery attempts yet.
+          </div>
+        ) : (
+          <div className="overflow-hidden rounded-xl border border-border/50">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Status</TableHead>
+                  <TableHead>URL</TableHead>
+                  <TableHead>Response</TableHead>
+                  <TableHead>Timestamp</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {messageAttempts.data.map((attempt) => (
+                  <MessageAttemptRow key={attempt.id} attempt={attempt} />
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

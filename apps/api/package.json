@@ -27,9 +27,7 @@
   "dependencies": {
     "@bull-board/api": "^6.17.0",
     "@bull-board/hono": "^6.17.0",
-    "@faker-js/faker": "^10.3.0",
     "@logtape/logtape": "^2.0.2",
-    "@logtape/pretty": "^2.0.2",
     "@orpc/openapi": "^1.13.4",
     "@orpc/server": "^1.13.4",
     "@orpc/zod": "^1.13.4",
@@ -40,7 +38,6 @@
     "drizzle-orm": "catalog:",
     "es-toolkit": "^1.44.0",
     "hono": "^4.11.9",
-    "ioredis": "^5.9.2",
     "libphonenumber-js": "^1.12.36",
     "luxon": "^3.7.2",
     "rrule": "^2.8.1",
@@ -49,6 +46,7 @@
     "zod": "catalog:"
   },
   "devDependencies": {
+    "@faker-js/faker": "^10.3.0",
     "@types/bun": "catalog:",
     "@types/luxon": "^3.7.1",
     "typescript": "catalog:"

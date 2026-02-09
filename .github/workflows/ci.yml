@@ -58,6 +58,9 @@ jobs:
       - name: Lint
         run: pnpm lint
 
+      - name: Knip Dependency Gate
+        run: pnpm knip:deps:ci
+
       - name: Test
         env:
           DATABASE_URL: postgres://scheduling:scheduling@localhost:5433/scheduling

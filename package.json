@@ -20,6 +20,10 @@
     "start:bull-board": "pnpm --filter @scheduling/api run start:bull-board",
     "test": "pnpm -r run test",
     "test:coverage": "pnpm -r --workspace-concurrency=1 --stream run test:coverage",
+    "knip": "knip --cache",
+    "knip:deps": "knip --strict --dependencies --cache",
+    "knip:deps:ci": "knip --strict --dependencies --max-issues 0 --no-progress",
+    "knip:audit": "knip --no-exit-code --cache",
     "lint": "oxlint --type-aware .",
     "format": "biome format . --write",
     "format:check": "biome check .",
@@ -27,6 +31,7 @@
   },
   "devDependencies": {
     "@biomejs/biome": "2.3.14",
+    "knip": "^5.83.1",
     "oxlint": "^1.43.0",
     "oxlint-tsgolint": "^0.11.5",
     "typescript": "catalog:"
@@ -34,9 +39,5 @@
   "engines": {
     "node": ">=22.0.0"
   },
-  "packageManager": "pnpm@10.29.1",
-  "dependencies": {
-    "@logtape/logtape": "^2.0.2",
-    "@logtape/pretty": "^2.0.2"
-  }
+  "packageManager": "pnpm@10.29.1"
 }

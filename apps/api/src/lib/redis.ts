@@ -1,5 +1,13 @@
-import type { RedisOptions } from "ioredis";
 import { config } from "../config.js";
+
+type RedisOptions = {
+  host?: string;
+  port?: number;
+  username?: string;
+  password?: string;
+  db?: number;
+  tls?: Record<string, unknown>;
+};
 
 function parseRedisUrl(redisUrl: string): RedisOptions {
   const parsedUrl = new URL(redisUrl);
