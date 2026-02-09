@@ -47,7 +47,7 @@ export function DrawerContent({
           "fixed inset-0 z-50 bg-black/15 md:backdrop-blur-sm",
           "data-open:animate-in data-closed:animate-out",
           "data-closed:fade-out-0 data-open:fade-in-0",
-          "duration-150",
+          "duration-100",
         )}
       />
       <DialogPrimitive.Popup
@@ -57,7 +57,7 @@ export function DrawerContent({
           "data-open:animate-in data-closed:animate-out",
           "data-closed:slide-out-to-right-10 data-open:slide-in-from-right-10",
           "data-closed:fade-out-0 data-open:fade-in-0",
-          "duration-200 ease-in-out",
+          "duration-200",
           "flex flex-col",
           widthClasses[width],
           className,

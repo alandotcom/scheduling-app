@@ -39,13 +39,7 @@ function LoginPage() {
   });
 
   if (isLoading) {
-    return (
-      <div className="flex h-screen items-center justify-center">
-        <div className="text-muted-foreground" role="status" aria-live="polite">
-          Loading...
-        </div>
-      </div>
-    );
+    return <div className="flex h-screen bg-background" />;
   }
 
   if (session) {

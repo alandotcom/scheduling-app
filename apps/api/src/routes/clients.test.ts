@@ -215,6 +215,87 @@ describe("Client Routes", () => {
       expect(result.items[0]!.lastName).toBe("Recently Updated");
     });
 
+    test("supports cursor pagination when sorting by most recently updated", async () => {
+      const { org, user } = await createOrg(db);
+      const ctx = createTestContext({ orgId: org.id, userId: user.id });
+
+      const first = await createClient(db, org.id, {
+        firstName: "First",
+        lastName: "Client",
+      });
+      const second = await createClient(db, org.id, {
+        firstName: "Second",
+        lastName: "Client",
+      });
+      const third = await createClient(db, org.id, {
+        firstName: "Third",
+        lastName: "Client",
+      });
+
+      await call(
+        clientRoutes.update,
+        { id: first.id, data: { lastName: "Most Recent" } },
+        { context: ctx },
+      );
+
+      const firstPage = await call(
+        clientRoutes.list,
+        { limit: 2, sort: "updated_at_desc" },
+        { context: ctx },
+      );
+
+      expect(firstPage.items).toHaveLength(2);
+      expect(firstPage.hasMore).toBe(true);
+      expect(firstPage.nextCursor).toBeTruthy();
+
+      const secondPage = await call(
+        clientRoutes.list,
+        {
+          limit: 2,
+          sort: "updated_at_desc",
+          cursor: firstPage.nextCursor ?? undefined,
+        },
+        { context: ctx },
+      );
+
+      expect(secondPage.items).toHaveLength(1);
+      expect(secondPage.hasMore).toBe(false);
+      expect(secondPage.nextCursor).toBeNull();
+
+      const allReturnedIds = [
+        ...firstPage.items.map((client) => client.id),
+        ...secondPage.items.map((client) => client.id),
+      ];
+      expect(new Set(allReturnedIds).size).toBe(3);
+      expect(allReturnedIds.sort()).toEqual(
+        [first.id, second.id, third.id].sort(),
+      );
+    });
+
+    test("returns an empty page when updated_at_desc cursor does not exist", async () => {
+      const { org, user } = await createOrg(db);
+      const ctx = createTestContext({ orgId: org.id, userId: user.id });
+
+      await createClient(db, org.id, {
+        firstName: "John",
+        lastName: "Doe",
+      });
+
+      const result = await call(
+        clientRoutes.list,
+        {
+          limit: 10,
+          sort: "updated_at_desc",
+          cursor: "00000000-0000-7000-8000-000000000000",
+        },
+        { context: ctx },
+      );
+
+      expect(result.items).toHaveLength(0);
+      expect(result.hasMore).toBe(false);
+      expect(result.nextCursor).toBeNull();
+    });
+
     test("does not return clients from other orgs (RLS)", async () => {
       const { org: org1, user: user1 } = await createOrg(db, { name: "Org 1" });
       const { org: org2 } = await createOrg(db, { name: "Org 2" });

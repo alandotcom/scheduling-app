@@ -43,7 +43,7 @@ export function FilterPopover({
               "data-open:animate-in data-closed:animate-out",
               "data-closed:fade-out-0 data-open:fade-in-0",
               "data-closed:zoom-out-95 data-open:zoom-in-95",
-              "duration-150",
+              "duration-100",
             )}
           >
             <div className="flex items-center justify-between mb-4">

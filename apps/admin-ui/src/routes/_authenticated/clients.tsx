@@ -933,7 +933,7 @@ function ClientsPage() {
                         </div>
                         <div>
                           <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                            Total Appointments
+                            Appointments (non-cancelled)
                           </Label>
                           <p className="mt-1 text-sm">
                             {displayClient.relationshipCounts?.appointments ??

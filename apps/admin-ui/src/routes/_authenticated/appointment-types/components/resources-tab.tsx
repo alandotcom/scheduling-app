@@ -1,6 +1,6 @@
 // Resources tab for linking resources to appointment types
 
-import { useState, useMemo, useRef, useCallback } from "react";
+import { useState, useMemo, useRef, useCallback, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import type {
   ColumnDef,
@@ -71,6 +71,9 @@ export function ResourcesTab({
 }: ResourcesTabProps) {
   const [selectedResourceId, setSelectedResourceId] = useState<string>("");
   const [quantityRequired, setQuantityRequired] = useState<number>(1);
+  const [quantityDraftsByResourceId, setQuantityDraftsByResourceId] = useState<
+    Record<string, string>
+  >({});
   const [sorting, setSorting] = useState<SortingState>([]);
   const [globalFilter, setGlobalFilter] = useState("");
   const [pagination, setPagination] = useState<PaginationState>({
@@ -99,6 +102,25 @@ export function ResourcesTab({
 
   const requiredResources = requiredResourcesData ?? [];
 
+  useEffect(() => {
+    const syncedDrafts = Object.fromEntries(
+      requiredResources.map((resource) => [
+        resource.resourceId,
+        String(resource.quantityRequired),
+      ]),
+    );
+
+    setQuantityDraftsByResourceId((previousDrafts) => {
+      const previousEntries = Object.entries(previousDrafts);
+      const nextEntries = Object.entries(syncedDrafts);
+      if (previousEntries.length !== nextEntries.length) return syncedDrafts;
+      for (const [resourceId, quantity] of nextEntries) {
+        if (previousDrafts[resourceId] !== quantity) return syncedDrafts;
+      }
+      return previousDrafts;
+    });
+  }, [requiredResources]);
+
   // Memoize derived state
   const availableResources = useMemo(() => {
     const linkedResourceIds = new Set(
@@ -122,6 +144,7 @@ export function ResourcesTab({
   // Debounced quantity update
   const handleQuantityChange = useCallback(
     (resourceId: string, newQty: number, maxQty: number) => {
+      if (!Number.isFinite(newQty)) return;
       if (newQty < 1 || newQty > maxQty) return;
 
       // Clear existing timer
@@ -135,6 +158,22 @@ export function ResourcesTab({
       }, 500);
     },
     [onUpdateQuantity],
+  );
+
+  const handleRequiredQuantityInputChange = useCallback(
+    (resourceId: string, rawValue: string, maxQty: number) => {
+      setQuantityDraftsByResourceId((previousDrafts) => {
+        if (previousDrafts[resourceId] === rawValue) return previousDrafts;
+        return {
+          ...previousDrafts,
+          [resourceId]: rawValue,
+        };
+      });
+
+      const parsedQuantity = Number.parseInt(rawValue, 10);
+      handleQuantityChange(resourceId, parsedQuantity, maxQty);
+    },
+    [handleQuantityChange],
   );
 
   const columns = useMemo<ColumnDef<RequiredResourceRow>[]>(
@@ -173,12 +212,14 @@ export function ResourcesTab({
             min={1}
             max={row.original.resource.quantity}
             className="h-8 w-[70px]"
-            defaultValue={row.original.quantityRequired}
+            value={
+              quantityDraftsByResourceId[row.original.resourceId] ??
+              String(row.original.quantityRequired)
+            }
             onChange={(event) => {
-              const newQty = parseInt(event.target.value, 10);
-              handleQuantityChange(
+              handleRequiredQuantityInputChange(
                 row.original.resourceId,
-                newQty,
+                event.target.value,
                 row.original.resource.quantity,
               );
             }}
@@ -203,7 +244,13 @@ export function ResourcesTab({
         ),
       },
     ],
-    [handleQuantityChange, isRemovePending, isUpdatePending, onRemoveResource],
+    [
+      handleRequiredQuantityInputChange,
+      isRemovePending,
+      isUpdatePending,
+      onRemoveResource,
+      quantityDraftsByResourceId,
+    ],
   );
 
   const table = useReactTable({

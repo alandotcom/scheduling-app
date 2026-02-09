@@ -24,6 +24,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Icon } from "@/components/ui/icon";
+import { Skeleton } from "@/components/ui/skeleton";
 import { PageHeader, PageScaffold } from "@/components/layout/page-scaffold";
 import { ShortcutBadge } from "@/components/ui/shortcut-badge";
 import { AppointmentModal } from "@/components/appointment-modal";
@@ -102,13 +103,13 @@ export function Dashboard() {
   const todayStr = today.toISODate() ?? "";
 
   // Fetch dashboard summary metrics
-  const { data: summary } = useQuery({
+  const { data: summary, isLoading: isSummaryLoading } = useQuery({
     ...orpc.dashboard.summary.queryOptions(),
     enabled: hasActiveOrganization,
   });
 
   // Fetch today's appointments for schedule list
-  const { data: todayAppointments } = useQuery({
+  const { data: todayAppointments, isLoading: isTodayLoading } = useQuery({
     ...orpc.appointments.list.queryOptions({
       input: {
         startDate: todayStr,
@@ -118,6 +119,8 @@ export function Dashboard() {
     }),
     enabled: hasActiveOrganization,
   });
+
+  const isLoading = isSummaryLoading || isTodayLoading;
 
   const { todayCount, weekCount, clientCount, calendarCount } =
     getDashboardStats(summary);
@@ -152,145 +155,187 @@ export function Dashboard() {
       />
 
       {/* Stats Cards */}
-      <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <DashboardCard
-          title="Today"
-          value={todayCount.toString()}
-          subtitle="appointments"
-          href="/appointments"
-        />
-        <DashboardCard
-          title="This Week"
-          value={weekCount.toString()}
-          subtitle="appointments"
-          href="/appointments"
-        />
-        <DashboardCard
-          title="Clients"
-          value={clientCount.toString()}
-          subtitle="total"
-          href="/clients"
-        />
-        <DashboardCard
-          title="Calendars"
-          value={calendarCount.toString()}
-          subtitle="active"
-          href="/calendars"
-        />
-      </div>
-
-      <div className="mt-8 grid gap-6 lg:grid-cols-2">
-        {/* Today's Schedule */}
-        <div>
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold tracking-tight">
-              {"Today's Schedule"}
-            </h2>
-            <Button variant="ghost" size="sm" asChild>
-              <Link to="/appointments" search={{}}>
-                View all
-                <Icon icon={ArrowRight02Icon} data-icon="inline-end" />
-              </Link>
-            </Button>
-          </div>
-          {todayItems.length === 0 ? (
-            <div className="rounded-xl border border-border bg-card p-8 text-center">
-              <Icon
-                icon={Calendar03Icon}
-                className="mx-auto size-10 text-muted-foreground/40"
-              />
-              <p className="mt-3 text-sm text-muted-foreground">
-                No appointments scheduled for today
-              </p>
-              <Button
-                variant="outline"
-                size="sm"
-                className="mt-4"
-                onClick={() => setAppointmentModalOpen(true)}
-              >
-                <Icon icon={Add01Icon} data-icon="inline-start" />
-                Book an appointment
-              </Button>
+      {isLoading ? (
+        <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4 animate-skeleton-fade-in">
+          {Array.from({ length: 4 }, (_, i) => (
+            <div
+              key={i}
+              className="rounded-xl border border-border bg-card p-5"
+            >
+              <Skeleton className="h-3 w-16" />
+              <Skeleton className="mt-3 h-8 w-14" />
+              <Skeleton className="mt-1 h-3 w-20" />
             </div>
-          ) : (
-            <div className="rounded-xl border border-border bg-card overflow-hidden divide-y divide-border">
-              {todayItems.map((apt) => (
-                <Link
-                  key={apt.id}
-                  to="/appointments"
-                  search={{}}
-                  className="flex items-center justify-between px-4 py-3 hover:bg-muted/50 transition-colors"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="text-sm font-medium tabular-nums w-20 text-muted-foreground">
-                      {formatTimeDisplay(apt.startAt)}
-                    </div>
-                    <div>
-                      <div className="text-sm font-medium">
-                        {apt.client
-                          ? `${apt.client.firstName} ${apt.client.lastName}`
-                          : "No client"}
-                      </div>
-                      <div className="text-xs text-muted-foreground">
-                        {apt.appointmentType?.name}
-                        {apt.calendar && ` - ${apt.calendar.name}`}
-                      </div>
-                    </div>
+          ))}
+        </div>
+      ) : (
+        <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <DashboardCard
+            title="Today"
+            value={todayCount.toString()}
+            subtitle="appointments"
+            href="/appointments"
+          />
+          <DashboardCard
+            title="This Week"
+            value={weekCount.toString()}
+            subtitle="appointments"
+            href="/appointments"
+          />
+          <DashboardCard
+            title="Clients"
+            value={clientCount.toString()}
+            subtitle="total"
+            href="/clients"
+          />
+          <DashboardCard
+            title="Calendars"
+            value={calendarCount.toString()}
+            subtitle="active"
+            href="/calendars"
+          />
+        </div>
+      )}
+
+      {isLoading ? (
+        <div className="mt-8 grid gap-6 lg:grid-cols-2 animate-skeleton-fade-in">
+          <div>
+            <Skeleton className="h-5 w-36 mb-4" />
+            <div className="rounded-xl border border-border bg-card p-4 space-y-4">
+              {Array.from({ length: 3 }, (_, i) => (
+                <div key={i} className="flex items-center gap-3">
+                  <Skeleton className="h-4 w-16" />
+                  <div className="flex-1 space-y-1.5">
+                    <Skeleton className="h-4 w-32" />
+                    <Skeleton className="h-3 w-48" />
                   </div>
-                  <Badge
-                    variant={
-                      apt.status === "confirmed"
-                        ? "success"
-                        : apt.status === "cancelled" || apt.status === "no_show"
-                          ? "destructive"
-                          : "secondary"
-                    }
-                  >
-                    {apt.status}
-                  </Badge>
-                </Link>
+                </div>
               ))}
             </div>
-          )}
+          </div>
+          <div>
+            <Skeleton className="h-5 w-32 mb-4" />
+            <div className="rounded-xl border border-border bg-card p-8 flex flex-col items-center gap-3">
+              <Skeleton className="h-10 w-10 rounded-full" />
+              <Skeleton className="h-4 w-48" />
+            </div>
+          </div>
         </div>
+      ) : (
+        <div className="mt-8 grid gap-6 lg:grid-cols-2">
+          {/* Today's Schedule */}
+          <div>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold tracking-tight">
+                {"Today's Schedule"}
+              </h2>
+              <Button variant="ghost" size="sm" asChild>
+                <Link to="/appointments" search={{}}>
+                  View all
+                  <Icon icon={ArrowRight02Icon} data-icon="inline-end" />
+                </Link>
+              </Button>
+            </div>
+            {todayItems.length === 0 ? (
+              <div className="rounded-xl border border-border bg-card p-8 text-center">
+                <Icon
+                  icon={Calendar03Icon}
+                  className="mx-auto size-10 text-muted-foreground/40"
+                />
+                <p className="mt-3 text-sm text-muted-foreground">
+                  No appointments scheduled for today
+                </p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="mt-4"
+                  onClick={() => setAppointmentModalOpen(true)}
+                >
+                  <Icon icon={Add01Icon} data-icon="inline-start" />
+                  Book an appointment
+                </Button>
+              </div>
+            ) : (
+              <div className="rounded-xl border border-border bg-card overflow-hidden divide-y divide-border">
+                {todayItems.map((apt) => (
+                  <Link
+                    key={apt.id}
+                    to="/appointments"
+                    search={{}}
+                    className="flex items-center justify-between px-4 py-3 hover:bg-muted/50 transition-colors"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="text-sm font-medium tabular-nums w-20 text-muted-foreground">
+                        {formatTimeDisplay(apt.startAt)}
+                      </div>
+                      <div>
+                        <div className="text-sm font-medium">
+                          {apt.client
+                            ? `${apt.client.firstName} ${apt.client.lastName}`
+                            : "No client"}
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          {apt.appointmentType?.name}
+                          {apt.calendar && ` - ${apt.calendar.name}`}
+                        </div>
+                      </div>
+                    </div>
+                    <Badge
+                      variant={
+                        apt.status === "confirmed"
+                          ? "success"
+                          : apt.status === "cancelled" ||
+                              apt.status === "no_show"
+                            ? "destructive"
+                            : "secondary"
+                      }
+                    >
+                      {apt.status}
+                    </Badge>
+                  </Link>
+                ))}
+              </div>
+            )}
+          </div>
 
-        {/* Needs Attention */}
-        <div>
-          <h2 className="text-lg font-semibold tracking-tight mb-4">
-            Needs Attention
-          </h2>
-          {!hasAlerts ? (
-            <div className="rounded-xl border border-border bg-card p-8 text-center">
-              <Icon
-                icon={CheckmarkCircle01Icon}
-                className="mx-auto size-10 text-muted-foreground/30"
-              />
-              <p className="mt-3 text-sm text-muted-foreground">
-                Everything looks good! No items need attention.
-              </p>
-            </div>
-          ) : (
-            <div className="flex flex-col gap-3">
-              {pendingAppointments > 0 && (
-                <AlertCard
-                  icon={Clock01Icon}
-                  title={`${pendingAppointments} appointment${pendingAppointments === 1 ? "" : "s"} pending confirmation`}
-                  href="/appointments"
-                  variant="warning"
+          {/* Needs Attention */}
+          <div>
+            <h2 className="text-lg font-semibold tracking-tight mb-4">
+              Needs Attention
+            </h2>
+            {!hasAlerts ? (
+              <div className="rounded-xl border border-border bg-card p-8 text-center">
+                <Icon
+                  icon={CheckmarkCircle01Icon}
+                  className="mx-auto size-10 text-muted-foreground/30"
                 />
-              )}
-              {noShows > 0 && (
-                <AlertCard
-                  icon={Alert02Icon}
-                  title={`${noShows} no-show${noShows === 1 ? "" : "s"} this week`}
-                  href="/appointments"
-                  variant="destructive"
-                />
-              )}
-            </div>
-          )}
+                <p className="mt-3 text-sm text-muted-foreground">
+                  Everything looks good! No items need attention.
+                </p>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-3">
+                {pendingAppointments > 0 && (
+                  <AlertCard
+                    icon={Clock01Icon}
+                    title={`${pendingAppointments} appointment${pendingAppointments === 1 ? "" : "s"} pending confirmation`}
+                    href="/appointments"
+                    variant="warning"
+                  />
+                )}
+                {noShows > 0 && (
+                  <AlertCard
+                    icon={Alert02Icon}
+                    title={`${noShows} no-show${noShows === 1 ? "" : "s"} this week`}
+                    href="/appointments"
+                    variant="destructive"
+                  />
+                )}
+              </div>
+            )}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Appointment Modal */}
       <AppointmentModal

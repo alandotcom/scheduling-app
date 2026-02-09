@@ -35,6 +35,7 @@ import { Icon } from "@/components/ui/icon";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ShortcutBadge } from "@/components/ui/shortcut-badge";
+import { Skeleton, TableSkeleton } from "@/components/ui/skeleton";
 import {
   Sheet,
   SheetContent,
@@ -99,7 +100,7 @@ function RootLayout() {
   const navigate = useNavigate();
   const user = session?.user;
   const isAuthenticated = !!session;
-  const isInitialAuthCheck = isLoading && session === undefined;
+  const isInitialAuthCheck = isLoading && !session;
   const loginRedirect = getSafeRedirectHref(
     new URLSearchParams(window.location.search).get("redirect") ?? undefined,
     window.location.origin,
@@ -300,16 +301,30 @@ function RootLayout() {
 
   if (isInitialAuthCheck) {
     return (
-      <div className="flex h-screen items-center justify-center bg-background">
-        <div className="flex flex-col items-center gap-3">
-          <div className="h-8 w-8 animate-spin rounded-full border-2 border-muted-foreground/20 border-t-foreground" />
-          <span
-            className="text-sm text-muted-foreground"
-            role="status"
-            aria-live="polite"
-          >
-            Loading...
-          </span>
+      <div className="flex h-[100dvh] overflow-hidden bg-background animate-skeleton-fade-in">
+        <div className="hidden w-60 flex-col border-r border-sidebar-border bg-sidebar lg:flex">
+          <div className="flex h-14 items-center border-b border-sidebar-border px-5">
+            <div className="flex items-center gap-2.5">
+              <Skeleton className="h-8 w-8 rounded-lg" />
+              <Skeleton className="h-4 w-20" />
+            </div>
+          </div>
+          <div className="flex-1 px-3 py-3 space-y-1">
+            {Array.from({ length: 7 }).map((_, i) => (
+              <Skeleton key={i} className="h-8 w-full rounded-lg" />
+            ))}
+          </div>
+        </div>
+        <div className="flex min-w-0 flex-1 flex-col">
+          <div className="flex h-14 items-center justify-between border-b border-border px-4 lg:px-6">
+            <Skeleton className="h-5 w-20 lg:hidden" />
+            <div className="hidden lg:block" />
+            <div className="flex items-center gap-3">
+              <Skeleton className="hidden h-8 w-32 rounded-lg lg:block" />
+              <Skeleton className="h-8 w-8 rounded-full" />
+            </div>
+          </div>
+          <div className="flex-1" />
         </div>
       </div>
     );
@@ -560,14 +575,24 @@ function RootLayout() {
           {/* Right side */}
           <div className="flex items-center gap-3">
             <div className="hidden min-w-0 text-right lg:block">
-              <p className="truncate text-sm font-medium">
-                {displayActiveOrganization?.name ?? "No active organization"}
-              </p>
-              <p className="truncate text-xs text-muted-foreground">
-                {displayActiveOrganization
-                  ? user?.email
-                  : "Select or create an organization"}
-              </p>
+              {isResolvingActiveOrganization ? (
+                <div className="animate-skeleton-fade-in">
+                  <Skeleton className="ml-auto h-4 w-32" />
+                  <Skeleton className="mt-1.5 ml-auto h-3 w-24" />
+                </div>
+              ) : (
+                <>
+                  <p className="truncate text-sm font-medium">
+                    {displayActiveOrganization?.name ??
+                      "No active organization"}
+                  </p>
+                  <p className="truncate text-xs text-muted-foreground">
+                    {displayActiveOrganization
+                      ? user?.email
+                      : "Select or create an organization"}
+                  </p>
+                </>
+              )}
             </div>
             <div className="lg:hidden">
               <UserMenu
@@ -596,14 +621,18 @@ function RootLayout() {
         {/* Page content */}
         <main id="main-content" className="flex-1 min-w-0 overflow-y-auto">
           {isResolvingActiveOrganization ? (
-            <div className="flex h-full items-center justify-center p-6">
-              <div className="flex flex-col items-center gap-3">
-                <div className="h-8 w-8 animate-spin rounded-full border-2 border-muted-foreground/20 border-t-foreground" />
-                <p className="text-sm text-muted-foreground">
-                  Loading organization...
-                </p>
+            <section className="mx-auto w-full max-w-7xl px-4 pt-6 sm:px-6 lg:px-8 animate-skeleton-fade-in">
+              <div className="flex items-center justify-between">
+                <div>
+                  <Skeleton className="h-7 w-36" />
+                  <Skeleton className="mt-2 h-4 w-52" />
+                </div>
+                <Skeleton className="h-9 w-28 rounded-lg" />
               </div>
-            </div>
+              <div className="mt-8">
+                <TableSkeleton rows={6} cols={4} />
+              </div>
+            </section>
           ) : organizationGateState === "error" ? (
             <div className="mx-auto max-w-2xl px-4 py-10">
               <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-4">

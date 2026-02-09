@@ -81,17 +81,23 @@ export class ClientRepository {
           .where(eq(clients.id, cursor))
           .limit(1);
 
-        if (cursorClient) {
-          const cursorFilter = or(
-            lt(clients.updatedAt, cursorClient.updatedAt),
-            and(
-              eq(clients.updatedAt, cursorClient.updatedAt),
-              lt(clients.id, cursorClient.id),
-            ),
-          );
-          if (cursorFilter) {
-            filters.push(cursorFilter);
-          }
+        if (!cursorClient) {
+          return {
+            items: [],
+            nextCursor: null,
+            hasMore: false,
+          };
+        }
+
+        const cursorFilter = or(
+          lt(clients.updatedAt, cursorClient.updatedAt),
+          and(
+            eq(clients.updatedAt, cursorClient.updatedAt),
+            lt(clients.id, cursorClient.id),
+          ),
+        );
+        if (cursorFilter) {
+          filters.push(cursorFilter);
         }
       } else {
         filters.push(gt(clients.id, cursor));

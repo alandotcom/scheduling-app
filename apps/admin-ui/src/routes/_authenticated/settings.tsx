@@ -17,7 +17,7 @@ import {
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Add01Icon,
   Clock01Icon,
@@ -782,6 +782,16 @@ function getUserInitials(user: Pick<OrgUserListItem, "name" | "email">) {
   return `${firstInitial}${secondInitial}`.toUpperCase();
 }
 
+export function resetPaginationToFirstPage(
+  pagination: PaginationState,
+): PaginationState {
+  if (pagination.pageIndex === 0) return pagination;
+  return {
+    ...pagination,
+    pageIndex: 0,
+  };
+}
+
 function UsersManagementSection() {
   const queryClient = useQueryClient();
   const [updatingUserId, setUpdatingUserId] = useState<string | null>(null);
@@ -891,6 +901,12 @@ function UsersManagementSection() {
       return matchesQuery && matchesRole && matchesStatus;
     });
   }, [orgUsers, searchQuery, roleFilter, statusFilter]);
+
+  useEffect(() => {
+    setPagination((previousPagination) =>
+      resetPaginationToFirstPage(previousPagination),
+    );
+  }, [searchQuery, roleFilter, statusFilter]);
 
   const columns = useMemo<ColumnDef<OrgUserListItem>[]>(
     () => [
