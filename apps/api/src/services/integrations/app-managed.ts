@@ -35,6 +35,9 @@ const appManagedIntegrationByKey = new Map<
   AppIntegrationKey,
   AppManagedIntegrationDefinition
 >(appManagedIntegrations.map((integration) => [integration.key, integration]));
+const appManagedIntegrationKeySet = new Set<string>(
+  appManagedIntegrations.map((integration) => integration.key),
+);
 
 export function getAppManagedIntegrationDefinitions(): readonly AppManagedIntegrationDefinition[] {
   return appManagedIntegrations;
@@ -58,7 +61,7 @@ export function getAppManagedIntegrationDefinition(
 export function isAppManagedIntegrationKey(
   value: string,
 ): value is AppIntegrationKey {
-  return appManagedIntegrationByKey.has(value as AppIntegrationKey);
+  return appManagedIntegrationKeySet.has(value);
 }
 
 export function getAppManagedIntegrationConsumersByKeys(

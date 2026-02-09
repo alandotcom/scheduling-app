@@ -38,7 +38,13 @@ function hasConfiguredValue(value: unknown): boolean {
 
 function toConfig(value: unknown): Record<string, unknown> {
   if (typeof value === "object" && value !== null && !Array.isArray(value)) {
-    return value as Record<string, unknown>;
+    const config: Record<string, unknown> = {};
+
+    for (const [key, entryValue] of Object.entries(value)) {
+      config[key] = entryValue;
+    }
+
+    return config;
   }
 
   return {};
