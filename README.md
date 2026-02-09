@@ -79,13 +79,26 @@ pnpm --filter @scheduling/db run test            # Run DB tests only
 # Code Quality
 pnpm lint             # Run oxlint
 pnpm format           # Auto-format with Biome
-pnpm typecheck        # Type-check all packages
+pnpm build            # Build via Turborepo graph (dependency-aware + cached)
+pnpm build:changed    # Build only changed packages since origin/main (+ dependents)
+pnpm build:all        # Force full uncached build across all packages
+pnpm typecheck        # Type-check via Turborepo graph (dependency-aware + cached)
+pnpm typecheck:changed # Type-check only changed packages since origin/main (+ dependents)
+pnpm typecheck:all    # Force full uncached type-check across all packages
 
 # Database (from packages/db)
 pnpm --filter @scheduling/db run generate   # Generate migration from schema changes
 pnpm --filter @scheduling/db run migrate    # Run pending migrations
 pnpm --filter @scheduling/db run push       # Push schema to dev database
 ```
+
+### Build Usage (Turbo)
+
+- Use `pnpm build` for normal local development and packaging.
+- Use `pnpm build:all` for a clean full pass that bypasses cache.
+- Use `pnpm build:changed` for focused local checks against `origin/main`.
+- `admin-ui` build uses `vite build`; TypeScript validation is enforced via root `pnpm typecheck`.
+- If `origin/main` is missing locally, run `git fetch origin main` before `pnpm build:changed`.
 
 ## Environment Variables
 

@@ -1,11 +1,9 @@
 // Webhook management dashboard — Clerk-inspired drill-in UI
 // Extracted from settings.tsx to keep that file focused on org/users/developers tabs
 
-import { useNavigate } from "@tanstack/react-router";
-import { useQuery, useMutation } from "@tanstack/react-query";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useMutation } from "@tanstack/react-query";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  SvixProvider,
   useEndpoints,
   useEndpoint,
   useEndpointStats,
@@ -31,7 +29,6 @@ import {
   RefreshIcon,
 } from "@hugeicons/core-free-icons";
 
-import { orpc } from "@/lib/query";
 import { cn } from "@/lib/utils";
 
 import { RowActions } from "@/components/row-actions";
@@ -53,7 +50,13 @@ import {
   TableRow,
 } from "@/components/ui/table";
 
-import { Route } from "./settings";
+import {
+  type AttemptFilter,
+  type WebhookTab,
+  type WebhooksRouteActions,
+  type WebhooksRouteState,
+} from "./types";
+import { formatWebhookPayloadPreview } from "./utils/format-webhook-payload-preview";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -91,24 +94,6 @@ function normalizeWebhookUrl(value: string): string | null {
     return url.toString();
   } catch {
     return null;
-  }
-}
-
-export function formatWebhookPayloadPreview(payload: unknown): string {
-  if (typeof payload === "string") {
-    const trimmedPayload = payload.trim();
-    if (!trimmedPayload) return payload;
-    try {
-      return JSON.stringify(JSON.parse(trimmedPayload), null, 2);
-    } catch {
-      return payload;
-    }
-  }
-  if (payload === undefined) return "";
-  try {
-    return JSON.stringify(payload, null, 2);
-  } catch {
-    return "[unserializable payload]";
   }
 }
 
@@ -196,14 +181,10 @@ function useAttemptEventTypes(attempts: Array<{ msgId: string }> | undefined) {
   return eventTypeMap;
 }
 
-type WebhookTab = "endpoints" | "catalog" | "logs";
-
 function resolveWebhookTab(raw: string | undefined): WebhookTab {
   if (raw === "endpoints" || raw === "catalog" || raw === "logs") return raw;
   return "endpoints";
 }
-
-type AttemptFilter = "all" | "succeeded" | "failed";
 
 function resolveAttemptFilter(raw: string | undefined): AttemptFilter {
   if (raw === "all" || raw === "succeeded" || raw === "failed") return raw;
@@ -217,88 +198,7 @@ function attemptFilterToStatus(filter: AttemptFilter): number | undefined {
 }
 
 // ---------------------------------------------------------------------------
-// Navigation helpers
-// ---------------------------------------------------------------------------
-
-function useWebhookNavigate() {
-  const navigate = useNavigate({ from: Route.fullPath });
-
-  const goToEndpoints = useCallback(() => {
-    navigate({
-      search: (prev) => ({
-        ...prev,
-        webhookTab: undefined,
-        endpointId: undefined,
-        messageId: undefined,
-        attemptFilter: undefined,
-      }),
-    });
-  }, [navigate]);
-
-  const goToEndpoint = useCallback(
-    (endpointId: string) => {
-      navigate({
-        search: (prev) => ({
-          ...prev,
-          endpointId,
-          messageId: undefined,
-          attemptFilter: undefined,
-        }),
-      });
-    },
-    [navigate],
-  );
-
-  const goToMessage = useCallback(
-    (messageId: string) => {
-      navigate({
-        search: (prev) => ({
-          ...prev,
-          messageId,
-        }),
-      });
-    },
-    [navigate],
-  );
-
-  const goToTab = useCallback(
-    (tab: WebhookTab) => {
-      navigate({
-        search: (prev) => ({
-          ...prev,
-          webhookTab: tab === "endpoints" ? undefined : tab,
-          endpointId: undefined,
-          messageId: undefined,
-          attemptFilter: undefined,
-        }),
-      });
-    },
-    [navigate],
-  );
-
-  const setAttemptFilter = useCallback(
-    (filter: AttemptFilter) => {
-      navigate({
-        search: (prev) => ({
-          ...prev,
-          attemptFilter: filter === "all" ? undefined : filter,
-        }),
-      });
-    },
-    [navigate],
-  );
-
-  return {
-    goToEndpoints,
-    goToEndpoint,
-    goToMessage,
-    goToTab,
-    setAttemptFilter,
-  };
-}
-
-// ---------------------------------------------------------------------------
-// WebhooksSection — Entry point (fetches session, renders tabs immediately)
+// WebhooksManager — tab controller + tab content
 // ---------------------------------------------------------------------------
 
 const TABS: { id: WebhookTab; label: string }[] = [
@@ -307,40 +207,22 @@ const TABS: { id: WebhookTab; label: string }[] = [
   { id: "logs", label: "Logs" },
 ];
 
-export function WebhooksSection() {
-  const {
-    data: webhookSession,
-    isLoading,
-    error,
-  } = useQuery({
-    ...orpc.webhooks.session.queryOptions({}),
-    staleTime: 30 * 60 * 1000, // 30 min — well within the 1hr token TTL
-    refetchOnWindowFocus: false,
-    refetchOnReconnect: false,
-  });
+interface WebhooksManagerProps {
+  routeState: WebhooksRouteState;
+  actions: WebhooksRouteActions;
+}
 
-  const { webhookTab: rawTab } = Route.useSearch();
-  const activeTab = resolveWebhookTab(rawTab);
-  const { goToTab } = useWebhookNavigate();
-
-  // Memoize options so SvixProvider doesn't recreate the Svix client on every render
-  const svixOptions = useMemo(
-    () =>
-      webhookSession?.serverUrl
-        ? { serverUrl: `${window.location.origin}/svix-api` }
-        : undefined,
-    [webhookSession?.serverUrl],
-  );
+export function WebhooksManager({ routeState, actions }: WebhooksManagerProps) {
+  const activeTab = resolveWebhookTab(routeState.webhookTab);
 
   return (
     <div className="space-y-5">
-      {/* Tab bar — always rendered */}
       <div className="flex gap-1 rounded-lg border border-border bg-muted/30 p-0.5">
         {TABS.map((tab) => (
           <button
             key={tab.id}
             type="button"
-            onClick={() => goToTab(tab.id)}
+            onClick={() => actions.goToTab(tab.id)}
             className={cn(
               "h-8 shrink-0 rounded-md px-3 text-sm font-medium transition-colors",
               activeTab === tab.id
@@ -353,34 +235,16 @@ export function WebhooksSection() {
         ))}
       </div>
 
-      {/* Content area */}
-      {isLoading ? (
-        <div className="flex items-center justify-center py-12 text-sm text-muted-foreground">
-          Connecting to webhook service...
-        </div>
-      ) : error || !webhookSession ? (
-        <div className="rounded-xl border border-destructive/40 bg-destructive/5 p-4 text-sm text-destructive">
-          Failed to load webhook management session.
-        </div>
-      ) : (
-        <SvixProvider
-          token={webhookSession.token}
-          appId={webhookSession.appId}
-          options={svixOptions}
-        >
-          {/* All tabs always mounted so svix hooks keep their state.
-              CSS hidden class hides inactive tabs without unmounting. */}
-          <div className={activeTab !== "endpoints" ? "hidden" : undefined}>
-            <EndpointsTab />
-          </div>
-          <div className={activeTab !== "catalog" ? "hidden" : undefined}>
-            <EventCatalogTab />
-          </div>
-          <div className={activeTab !== "logs" ? "hidden" : undefined}>
-            <LogsTab />
-          </div>
-        </SvixProvider>
-      )}
+      {/* Keep tab components mounted to preserve svix hook state between tab switches. */}
+      <div className={activeTab !== "endpoints" ? "hidden" : undefined}>
+        <EndpointsTab routeState={routeState} actions={actions} />
+      </div>
+      <div className={activeTab !== "catalog" ? "hidden" : undefined}>
+        <EventCatalogTab />
+      </div>
+      <div className={activeTab !== "logs" ? "hidden" : undefined}>
+        <LogsTab />
+      </div>
     </div>
   );
 }
@@ -389,15 +253,26 @@ export function WebhooksSection() {
 // EndpointsTab — List or drill-in
 // ---------------------------------------------------------------------------
 
-function EndpointsTab() {
-  const { endpointId, messageId } = Route.useSearch();
-  const { goToEndpoint } = useWebhookNavigate();
+function EndpointsTab({
+  routeState,
+  actions,
+}: {
+  routeState: WebhooksRouteState;
+  actions: WebhooksRouteActions;
+}) {
+  const { endpointId, messageId } = routeState;
   const endpoints = useEndpoints({ limit: 50 });
   const [isCreateOpen, setIsCreateOpen] = useState(false);
 
   // Drill-in: message detail
   if (endpointId && messageId) {
-    return <MessageDetailView endpointId={endpointId} messageId={messageId} />;
+    return (
+      <MessageDetailView
+        endpointId={endpointId}
+        messageId={messageId}
+        actions={actions}
+      />
+    );
   }
 
   // Drill-in: endpoint detail
@@ -407,6 +282,8 @@ function EndpointsTab() {
       <EndpointDetailView
         endpointId={endpointId}
         cachedEndpoint={cachedEndpoint}
+        routeState={routeState}
+        actions={actions}
       />
     );
   }
@@ -488,7 +365,7 @@ function EndpointsTab() {
               <button
                 key={endpoint.id}
                 type="button"
-                onClick={() => goToEndpoint(endpoint.id)}
+                onClick={() => actions.goToEndpoint(endpoint.id)}
                 className="w-full rounded-lg border border-border bg-card p-4 text-left transition-colors hover:bg-accent/50"
               >
                 <div className="flex items-start justify-between gap-3">
@@ -709,6 +586,8 @@ function CreateEndpointModal({
 function EndpointDetailView({
   endpointId,
   cachedEndpoint,
+  routeState,
+  actions,
 }: {
   endpointId: string;
   cachedEndpoint?: {
@@ -720,10 +599,10 @@ function EndpointDetailView({
     createdAt: Date;
     updatedAt: Date;
   };
+  routeState: WebhooksRouteState;
+  actions: WebhooksRouteActions;
 }) {
-  const { goToEndpoints, goToMessage, setAttemptFilter } = useWebhookNavigate();
-  const { attemptFilter: rawAttemptFilter } = Route.useSearch();
-  const attemptFilter = resolveAttemptFilter(rawAttemptFilter);
+  const attemptFilter = resolveAttemptFilter(routeState.attemptFilter);
 
   const endpoint = useEndpoint(endpointId);
   const stats = useEndpointStats(endpointId);
@@ -745,7 +624,7 @@ function EndpointDetailView({
     setIsDeleting(true);
     try {
       await fns.deleteEndpoint();
-      goToEndpoints();
+      actions.goToEndpoints();
     } catch (err) {
       toast.error(
         err instanceof Error ? err.message : "Failed to delete endpoint",
@@ -842,7 +721,7 @@ function EndpointDetailView({
       <div className="space-y-3">
         <button
           type="button"
-          onClick={goToEndpoints}
+          onClick={actions.goToEndpoints}
           className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
         >
           <Icon icon={ArrowLeft02Icon} className="size-4" />
@@ -864,7 +743,7 @@ function EndpointDetailView({
       <div className="flex items-center gap-1.5 text-sm">
         <button
           type="button"
-          onClick={goToEndpoints}
+          onClick={actions.goToEndpoints}
           className="text-muted-foreground hover:text-foreground"
         >
           Endpoints
@@ -963,7 +842,7 @@ function EndpointDetailView({
                 <button
                   key={filter.id}
                   type="button"
-                  onClick={() => setAttemptFilter(filter.id)}
+                  onClick={() => actions.setAttemptFilter(filter.id)}
                   className={cn(
                     "h-7 rounded-md px-2.5 text-xs font-medium transition-colors",
                     attemptFilter === filter.id
@@ -1006,7 +885,9 @@ function EndpointDetailView({
                           key={attempt.id}
                           attempt={attempt}
                           eventType={eventTypeMap.get(attempt.msgId)}
-                          onViewMessage={() => goToMessage(attempt.msgId)}
+                          onViewMessage={() =>
+                            actions.goToMessage(attempt.msgId)
+                          }
                         />
                       ))}
                     </TableBody>
@@ -1447,11 +1328,12 @@ function DeliveryStatsBar({
 function MessageDetailView({
   endpointId,
   messageId,
+  actions,
 }: {
   endpointId: string;
   messageId: string;
+  actions: WebhooksRouteActions;
 }) {
-  const { goToEndpoint } = useWebhookNavigate();
   const endpoint = useEndpoint(endpointId);
   const message = useMessage(messageId);
   const messageAttempts = useMessageAttempts(messageId, { limit: 25 });
@@ -1477,16 +1359,15 @@ function MessageDetailView({
       <div className="flex items-center gap-1.5 text-sm">
         <button
           type="button"
-          onClick={() => goToEndpoint("")}
+          onClick={actions.goToEndpoints}
           className="text-muted-foreground hover:text-foreground"
-          // We need to go up to endpoints list first
         >
           Endpoints
         </button>
         <span className="text-muted-foreground">/</span>
         <button
           type="button"
-          onClick={() => goToEndpoint(endpointId)}
+          onClick={() => actions.goToEndpoint(endpointId)}
           className="truncate text-muted-foreground hover:text-foreground"
         >
           {endpoint.data?.url ?? endpointId}

@@ -1,6 +1,6 @@
 // Settings page - Organization settings management
 
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import type {
   ColumnDef,
@@ -17,7 +17,7 @@ import {
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { z } from "zod";
 import { Add01Icon, Search01Icon } from "@hugeicons/core-free-icons";
 
@@ -36,7 +36,12 @@ import {
   type UpdateOrgUserRoleInput,
 } from "@scheduling/dto";
 
-import { WebhooksSection } from "./-settings-webhooks";
+import { WebhooksSection } from "@/components/settings/webhooks/webhooks-section";
+import type {
+  AttemptFilter,
+  WebhookTab,
+  WebhooksRouteState,
+} from "@/components/settings/webhooks/types";
 import { PageScaffold, PageHeader } from "@/components/layout/page-scaffold";
 import { RowActions } from "@/components/row-actions";
 import {
@@ -174,8 +179,91 @@ interface OrgSettings {
 }
 
 function SettingsPage() {
-  const { section } = Route.useSearch();
+  const { section, webhookTab, endpointId, messageId, attemptFilter } =
+    Route.useSearch();
   const activeTab = resolveTab(section);
+  const navigate = useNavigate({ from: Route.fullPath });
+
+  const webhookRouteState: WebhooksRouteState = useMemo(
+    () => ({ webhookTab, endpointId, messageId, attemptFilter }),
+    [webhookTab, endpointId, messageId, attemptFilter],
+  );
+
+  const goToEndpoints = useCallback(() => {
+    navigate({
+      search: (prev) => ({
+        ...prev,
+        webhookTab: undefined,
+        endpointId: undefined,
+        messageId: undefined,
+        attemptFilter: undefined,
+      }),
+    });
+  }, [navigate]);
+
+  const goToEndpoint = useCallback(
+    (nextEndpointId: string) => {
+      navigate({
+        search: (prev) => ({
+          ...prev,
+          endpointId: nextEndpointId || undefined,
+          messageId: undefined,
+          attemptFilter: undefined,
+        }),
+      });
+    },
+    [navigate],
+  );
+
+  const goToMessage = useCallback(
+    (nextMessageId: string) => {
+      navigate({
+        search: (prev) => ({
+          ...prev,
+          messageId: nextMessageId,
+        }),
+      });
+    },
+    [navigate],
+  );
+
+  const goToTab = useCallback(
+    (tab: WebhookTab) => {
+      navigate({
+        search: (prev) => ({
+          ...prev,
+          webhookTab: tab === "endpoints" ? undefined : tab,
+          endpointId: undefined,
+          messageId: undefined,
+          attemptFilter: undefined,
+        }),
+      });
+    },
+    [navigate],
+  );
+
+  const setAttemptFilter = useCallback(
+    (filter: AttemptFilter) => {
+      navigate({
+        search: (prev) => ({
+          ...prev,
+          attemptFilter: filter === "all" ? undefined : filter,
+        }),
+      });
+    },
+    [navigate],
+  );
+
+  const webhookActions = useMemo(
+    () => ({
+      goToEndpoints,
+      goToEndpoint,
+      goToMessage,
+      goToTab,
+      setAttemptFilter,
+    }),
+    [goToEndpoints, goToEndpoint, goToMessage, goToTab, setAttemptFilter],
+  );
 
   return (
     <PageScaffold>
@@ -204,7 +292,10 @@ function SettingsPage() {
 
       {activeTab === "webhooks" ? (
         <div className="mt-6">
-          <WebhooksSection />
+          <WebhooksSection
+            routeState={webhookRouteState}
+            actions={webhookActions}
+          />
         </div>
       ) : null}
     </PageScaffold>

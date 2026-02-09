@@ -35,6 +35,9 @@ pnpm --filter @scheduling/db run test            # Run DB tests only
 # Code Quality
 pnpm lint             # Run oxlint
 pnpm format           # Auto-format with Biome (spaces, no tabs)
+pnpm build            # Build via Turborepo graph (dependency-aware + cached)
+pnpm build:changed    # Build only changed packages since origin/main (+ dependents)
+pnpm build:all        # Force full uncached build across all packages
 pnpm typecheck        # Type-check via Turborepo graph (dependency-aware + cached)
 pnpm typecheck:changed # Type-check only changed packages since origin/main (+ dependents)
 pnpm typecheck:all    # Force full uncached type-check across all packages
@@ -58,6 +61,14 @@ pnpm --filter @scheduling/db run push       # Push schema to dev database
 - Use `pnpm typecheck:changed` for PR validation and focused local checks against `origin/main`.
 - Use `pnpm typecheck:all` when you need a clean full pass that bypasses cache.
 - If `origin/main` is missing locally, run `git fetch origin main` before `pnpm typecheck:changed`.
+
+### Build Usage (Turbo)
+
+- Use `pnpm build` for normal local development and packaging (fast reruns with task cache).
+- Use `pnpm build:all` for a clean full pass that bypasses cache.
+- Use `pnpm build:changed` for focused local checks against `origin/main`.
+- `admin-ui` build uses `vite build`; TypeScript validation is enforced via root `pnpm typecheck`.
+- If `origin/main` is missing locally, run `git fetch origin main` before `pnpm build:changed`.
 
 ## Starting Dev Servers
 
