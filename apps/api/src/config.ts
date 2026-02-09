@@ -114,6 +114,11 @@ export const config = envParse(process.env, {
       env: "INTEGRATIONS_ENABLED",
       default: "svix",
     },
+    encryptionKey: {
+      format: z.string().min(1),
+      env: "INTEGRATIONS_ENCRYPTION_KEY",
+      optional: true,
+    },
   },
 });
 

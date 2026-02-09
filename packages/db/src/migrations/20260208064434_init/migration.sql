@@ -176,6 +176,19 @@ CREATE TABLE "event_outbox" (
 );
 --> statement-breakpoint
 ALTER TABLE "event_outbox" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
+CREATE TABLE "integrations" (
+	"id" uuid PRIMARY KEY DEFAULT uuidv7(),
+	"org_id" uuid NOT NULL,
+	"key" text NOT NULL,
+	"enabled" boolean DEFAULT false NOT NULL,
+	"config" jsonb DEFAULT '{}'::jsonb NOT NULL,
+	"secrets_encrypted" text,
+	"secret_salt" text,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+ALTER TABLE "integrations" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
 CREATE TABLE "locations" (
 	"id" uuid PRIMARY KEY DEFAULT uuidv7(),
 	"org_id" uuid NOT NULL,
@@ -298,6 +311,8 @@ CREATE INDEX "blocked_time_calendar_range_gist_idx" ON "blocked_time" USING gist
 CREATE INDEX "blocked_time_calendar_recurring_idx" ON "blocked_time" ("calendar_id") WHERE "recurring_rule" is not null;--> statement-breakpoint
 CREATE UNIQUE INDEX "clients_org_email_unique_idx" ON "clients" ("org_id","email") WHERE "email" IS NOT NULL;--> statement-breakpoint
 CREATE UNIQUE INDEX "clients_org_phone_unique_idx" ON "clients" ("org_id","phone") WHERE "phone" IS NOT NULL;--> statement-breakpoint
+CREATE UNIQUE INDEX "integrations_org_key_unique_idx" ON "integrations" ("org_id","key");--> statement-breakpoint
+CREATE INDEX "integrations_org_key_idx" ON "integrations" ("org_id","key");--> statement-breakpoint
 CREATE UNIQUE INDEX "org_memberships_org_user_idx" ON "org_memberships" ("org_id","user_id");--> statement-breakpoint
 CREATE INDEX "scheduling_limits_calendar_id_idx" ON "scheduling_limits" ("calendar_id");--> statement-breakpoint
 ALTER TABLE "accounts" ADD CONSTRAINT "accounts_user_id_users_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE;--> statement-breakpoint
@@ -320,6 +335,7 @@ ALTER TABLE "calendars" ADD CONSTRAINT "calendars_org_id_orgs_id_fkey" FOREIGN K
 ALTER TABLE "calendars" ADD CONSTRAINT "calendars_location_id_locations_id_fkey" FOREIGN KEY ("location_id") REFERENCES "locations"("id");--> statement-breakpoint
 ALTER TABLE "clients" ADD CONSTRAINT "clients_org_id_orgs_id_fkey" FOREIGN KEY ("org_id") REFERENCES "orgs"("id");--> statement-breakpoint
 ALTER TABLE "event_outbox" ADD CONSTRAINT "event_outbox_org_id_orgs_id_fkey" FOREIGN KEY ("org_id") REFERENCES "orgs"("id");--> statement-breakpoint
+ALTER TABLE "integrations" ADD CONSTRAINT "integrations_org_id_orgs_id_fkey" FOREIGN KEY ("org_id") REFERENCES "orgs"("id");--> statement-breakpoint
 ALTER TABLE "locations" ADD CONSTRAINT "locations_org_id_orgs_id_fkey" FOREIGN KEY ("org_id") REFERENCES "orgs"("id");--> statement-breakpoint
 ALTER TABLE "org_invitations" ADD CONSTRAINT "org_invitations_org_id_orgs_id_fkey" FOREIGN KEY ("org_id") REFERENCES "orgs"("id") ON DELETE CASCADE;--> statement-breakpoint
 ALTER TABLE "org_invitations" ADD CONSTRAINT "org_invitations_inviter_id_users_id_fkey" FOREIGN KEY ("inviter_id") REFERENCES "users"("id") ON DELETE CASCADE;--> statement-breakpoint
@@ -336,5 +352,6 @@ CREATE POLICY "org_isolation_audit_events" ON "audit_events" AS PERMISSIVE FOR A
 CREATE POLICY "org_isolation_calendars" ON "calendars" AS PERMISSIVE FOR ALL TO public USING (org_id = current_org_id()) WITH CHECK (org_id = current_org_id());--> statement-breakpoint
 CREATE POLICY "org_isolation_clients" ON "clients" AS PERMISSIVE FOR ALL TO public USING (org_id = current_org_id()) WITH CHECK (org_id = current_org_id());--> statement-breakpoint
 CREATE POLICY "org_isolation_event_outbox" ON "event_outbox" AS PERMISSIVE FOR ALL TO public USING (org_id = current_org_id()) WITH CHECK (org_id = current_org_id());--> statement-breakpoint
+CREATE POLICY "org_isolation_integrations" ON "integrations" AS PERMISSIVE FOR ALL TO public USING (org_id = current_org_id()) WITH CHECK (org_id = current_org_id());--> statement-breakpoint
 CREATE POLICY "org_isolation_locations" ON "locations" AS PERMISSIVE FOR ALL TO public USING (org_id = current_org_id()) WITH CHECK (org_id = current_org_id());--> statement-breakpoint
 CREATE POLICY "org_isolation_resources" ON "resources" AS PERMISSIVE FOR ALL TO public USING (org_id = current_org_id()) WITH CHECK (org_id = current_org_id());

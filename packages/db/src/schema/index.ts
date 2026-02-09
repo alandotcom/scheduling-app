@@ -464,6 +464,38 @@ export const eventOutbox = pgTable.withRLS(
 );
 
 // ============================================================================
+// INTEGRATIONS
+// ============================================================================
+
+export const integrations = pgTable.withRLS(
+  "integrations",
+  {
+    id,
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => orgs.id),
+    key: text("key").notNull(),
+    enabled: boolean("enabled").notNull().default(false),
+    config: jsonb("config")
+      .$type<Record<string, unknown>>()
+      .notNull()
+      .default({}),
+    secretsEncrypted: text("secrets_encrypted"),
+    secretSalt: text("secret_salt"),
+    ...timestamps,
+  },
+  (table) => [
+    uniqueIndex("integrations_org_key_unique_idx").on(table.orgId, table.key),
+    index("integrations_org_key_idx").on(table.orgId, table.key),
+    pgPolicy("org_isolation_integrations", {
+      for: "all",
+      using: sql`org_id = current_org_id()`,
+      withCheck: sql`org_id = current_org_id()`,
+    }),
+  ],
+);
+
+// ============================================================================
 // AUTH TABLES (BetterAuth)
 // ============================================================================
 

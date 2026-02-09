@@ -57,6 +57,7 @@ pnpm --filter @scheduling/db run push       # Push schema to dev database
 
 ### Typecheck Usage (Turbo)
 
+- **IMPORTANT:** Never run typecheck in individual projects/packages. Only run typecheck from the repo top level.
 - Use `pnpm typecheck` for normal local development (fast reruns with task cache).
 - Use `pnpm typecheck:changed` for PR validation and focused local checks against `origin/main`.
 - Use `pnpm typecheck:all` when you need a clean full pass that bypasses cache.

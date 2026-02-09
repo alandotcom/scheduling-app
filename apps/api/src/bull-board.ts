@@ -18,7 +18,7 @@ import {
   getQueuesForBullBoard,
   QUEUE_NAMES,
 } from "./services/jobs/queue.js";
-import { getEnabledIntegrations } from "./services/integrations/registry.js";
+import { getRuntimeIntegrationConsumersForWorkers } from "./services/integrations/runtime.js";
 
 const isDev = process.env.NODE_ENV !== "production";
 
@@ -59,8 +59,8 @@ function normalizeBasePath(basePath: string): string {
 }
 
 const basePath = normalizeBasePath(config.bullBoard.basePath);
-const enabledIntegrations = getEnabledIntegrations();
-const queues = getQueuesForBullBoard(enabledIntegrations);
+const runtimeIntegrations = getRuntimeIntegrationConsumersForWorkers();
+const queues = getQueuesForBullBoard(runtimeIntegrations);
 const dispatchQueue = queues.at(0);
 const fanoutQueue = queues.at(1);
 const integrationQueues = queues.slice(2);

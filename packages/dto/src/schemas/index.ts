@@ -15,3 +15,4 @@ export * from "./api-key";
 export * from "./audit";
 export * from "./dashboard";
 export * from "./webhook";
+export * from "./integration";

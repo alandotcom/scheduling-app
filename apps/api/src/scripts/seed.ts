@@ -25,6 +25,7 @@ import {
   users,
 } from "@scheduling/db/schema";
 import { auth } from "../lib/auth.js";
+import { ensureAppIntegrationDefaultsForOrg } from "../services/integrations/defaults.js";
 
 const databaseUrl =
   process.env["DATABASE_URL"] ??
@@ -1052,6 +1053,7 @@ async function seed() {
         console.log(`\nPreparing org: ${seedOrg.name}`);
         const org = await getOrCreateOrg(seedOrg.name);
         await ensureAdminMembership(org.id, adminUser.id);
+        await ensureAppIntegrationDefaultsForOrg(org.id);
 
         console.log(`Resetting + seeding rich data for org: ${seedOrg.name}`);
         const summary = await seedOrgData(

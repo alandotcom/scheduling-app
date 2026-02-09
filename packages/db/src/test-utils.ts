@@ -44,6 +44,7 @@ export async function resetTestDb(): Promise<void> {
     TRUNCATE TABLE
       audit_events,
       event_outbox,
+      integrations,
       scheduling_limits,
       blocked_time,
       availability_overrides,

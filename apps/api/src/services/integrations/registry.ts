@@ -1,15 +1,12 @@
 import { getLogger } from "@logtape/logtape";
-import { loggerIntegration } from "@integrations/logger";
 import type { IntegrationConsumer } from "@integrations/core";
 import { config } from "../../config.js";
+import { isAppManagedIntegrationKey } from "./app-managed.js";
 import { svixIntegration } from "./svix.js";
 
 const logger = getLogger(["integrations", "registry"]);
 
-const allIntegrations: readonly IntegrationConsumer[] = [
-  svixIntegration,
-  loggerIntegration,
-];
+const allIntegrations: readonly IntegrationConsumer[] = [svixIntegration];
 
 const integrationByName = new Map(
   allIntegrations.map((integration) => [integration.name, integration]),
@@ -34,7 +31,7 @@ export function getEnabledIntegrations(): readonly IntegrationConsumer[] {
   );
 
   for (const name of enabledNames) {
-    if (!integrationByName.has(name)) {
+    if (!integrationByName.has(name) && !isAppManagedIntegrationKey(name)) {
       logger.warn(
         "Unknown integration configured in INTEGRATIONS_ENABLED: {integrationName}",
         {

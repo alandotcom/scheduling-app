@@ -53,6 +53,11 @@ export function CommandPalette() {
     command();
   }, []);
 
+  const openApiDocs = useCallback(() => {
+    if (typeof window === "undefined") return;
+    window.open("/api/v1/docs", "_blank", "noopener,noreferrer");
+  }, []);
+
   const preloadRoute = useCallback(
     (to: string) => {
       void router.preloadRoute({ to });
@@ -229,8 +234,86 @@ export function CommandPalette() {
       },
     ];
 
-    return [...createActions, ...navActions];
-  }, [navigate, preloadRoute, runCommand]);
+    const settingsActions: CommandAction[] = [
+      {
+        id: "go-settings-organization",
+        group: "Navigate",
+        label: "Settings > Organization",
+        icon: Settings01Icon,
+        onSelect: () =>
+          runCommand(
+            () =>
+              void navigate({
+                to: "/settings",
+                search: { section: "organization" },
+              }),
+          ),
+        onHighlight: () => preloadRoute("/settings"),
+      },
+      {
+        id: "go-settings-users",
+        group: "Navigate",
+        label: "Settings > Users",
+        icon: Settings01Icon,
+        onSelect: () =>
+          runCommand(
+            () =>
+              void navigate({
+                to: "/settings",
+                search: { section: "users" },
+              }),
+          ),
+        onHighlight: () => preloadRoute("/settings"),
+      },
+      {
+        id: "go-settings-developers",
+        group: "Navigate",
+        label: "Settings > Developers",
+        icon: Settings01Icon,
+        onSelect: () =>
+          runCommand(
+            () =>
+              void navigate({
+                to: "/settings",
+                search: { section: "developers" },
+              }),
+          ),
+        onHighlight: () => preloadRoute("/settings"),
+      },
+      {
+        id: "go-settings-webhooks",
+        group: "Navigate",
+        label: "Settings > Webhooks",
+        icon: Settings01Icon,
+        onSelect: () =>
+          runCommand(
+            () =>
+              void navigate({
+                to: "/settings",
+                search: { section: "webhooks" },
+              }),
+          ),
+        onHighlight: () => preloadRoute("/settings"),
+      },
+    ];
+
+    const docsActions: CommandAction[] = [
+      {
+        id: "open-api-docs",
+        group: "Help",
+        label: "API Docs",
+        icon: Settings01Icon,
+        onSelect: () => runCommand(openApiDocs),
+      },
+    ];
+
+    return [
+      ...createActions,
+      ...navActions,
+      ...settingsActions,
+      ...docsActions,
+    ];
+  }, [navigate, openApiDocs, preloadRoute, runCommand]);
 
   const groups = useMemo(() => {
     const map = new Map<string, CommandAction[]>();

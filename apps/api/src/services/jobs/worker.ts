@@ -13,7 +13,11 @@ import {
 import { eventOutbox, orgs } from "@scheduling/db/schema";
 import { webhookEventDataSchemaByType } from "@scheduling/dto";
 import { db, type DbClient, withOrg } from "../../lib/db.js";
-import { getEnabledIntegrations } from "../integrations/registry.js";
+import {
+  clearEnabledIntegrationsCache,
+  getEnabledIntegrationsForOrg,
+  getRuntimeIntegrationConsumersForWorkers,
+} from "../integrations/runtime.js";
 import {
   createDispatchWorker,
   createFanoutWorker,
@@ -80,7 +84,8 @@ export async function processEventJob(
   const now = deps.now ?? (() => new Date());
   const hasInjectedDbClient = deps.dbClient !== undefined;
   const event = job.data;
-  const integrations = deps.integrations ?? getEnabledIntegrations();
+  const integrations =
+    deps.integrations ?? (await getEnabledIntegrationsForOrg(event.orgId));
   const enqueueFanout = deps.enqueueFanout ?? enqueueIntegrationFanout;
 
   const runOutboxQuery = async <T>(
@@ -239,12 +244,10 @@ async function processIntegrationJob(
 
 // Start all workers.
 export function startWorkers(): void {
-  const enabledIntegrations = getEnabledIntegrations();
+  const runtimeIntegrations = getRuntimeIntegrationConsumersForWorkers();
 
   if (!dispatchWorker) {
-    dispatchWorker = createDispatchWorker((job) =>
-      processEventJob(job, { integrations: enabledIntegrations }),
-    );
+    dispatchWorker = createDispatchWorker((job) => processEventJob(job));
     dispatchWorker.on("completed", (job) => {
       logger.info(`Dispatch job completed: ${job.id}`);
     });
@@ -264,7 +267,7 @@ export function startWorkers(): void {
     logger.info("Fanout worker started");
   }
 
-  for (const integration of enabledIntegrations) {
+  for (const integration of runtimeIntegrations) {
     if (integrationWorkers.has(integration.name)) {
       continue;
     }
@@ -310,6 +313,7 @@ export async function stopWorkers(): Promise<void> {
     ),
   );
   integrationWorkers.clear();
+  clearEnabledIntegrationsCache();
 }
 
 // Process stale outbox entries (fallback for missed queue entries).

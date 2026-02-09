@@ -37,6 +37,7 @@ import {
 } from "@scheduling/dto";
 
 import { WebhooksSection } from "@/components/settings/webhooks/webhooks-section";
+import { IntegrationsSection } from "@/components/settings/integrations/integrations-section";
 import type {
   AttemptFilter,
   WebhookTab,
@@ -93,13 +94,19 @@ const WEEKDAYS = [
   { value: 6, label: "Sat" },
 ] as const;
 
-type SettingsTab = "organization" | "users" | "developers" | "webhooks";
+type SettingsTab =
+  | "organization"
+  | "users"
+  | "developers"
+  | "integrations"
+  | "webhooks";
 
 function resolveTab(raw: string | undefined): SettingsTab {
   if (
     raw === "organization" ||
     raw === "users" ||
     raw === "developers" ||
+    raw === "integrations" ||
     raw === "webhooks"
   )
     return raw;
@@ -287,6 +294,12 @@ function SettingsPage() {
       {activeTab === "developers" ? (
         <div className="mt-6">
           <ApiKeysSection />
+        </div>
+      ) : null}
+
+      {activeTab === "integrations" ? (
+        <div className="mt-6">
+          <IntegrationsSection />
         </div>
       ) : null}
 

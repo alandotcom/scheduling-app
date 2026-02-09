@@ -15,6 +15,7 @@ export const relations = defineRelations(schema, (r) => ({
     clients: r.many.clients(),
     appointments: r.many.appointments(),
     eventOutbox: r.many.eventOutbox(),
+    integrations: r.many.integrations(),
     auditEvents: r.many.auditEvents(),
   },
 
@@ -178,6 +179,14 @@ export const relations = defineRelations(schema, (r) => ({
   eventOutbox: {
     org: r.one.orgs({
       from: r.eventOutbox.orgId,
+      to: r.orgs.id,
+    }),
+  },
+
+  // Integrations
+  integrations: {
+    org: r.one.orgs({
+      from: r.integrations.orgId,
       to: r.orgs.id,
     }),
   },

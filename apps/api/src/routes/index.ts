@@ -16,6 +16,7 @@ import { auditRoutes } from "./audit.js";
 import { dashboardRoutes } from "./dashboard.js";
 import { apiKeyRoutes } from "./api-keys.js";
 import { webhookRoutes } from "./webhooks.js";
+import { integrationRoutes } from "./integrations.js";
 
 // Re-export authed and adminOnly from base for backwards compatibility
 export { authed, adminOnly } from "./base.js";
@@ -45,6 +46,7 @@ export const uiRouter = {
   clients: clientRoutes,
   audit: auditRoutes,
   apiKeys: apiKeyRoutes,
+  integrations: integrationRoutes,
   webhooks: webhookRoutes,
 };
 

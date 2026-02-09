@@ -116,6 +116,7 @@ describe("RLS policy setup verification", () => {
       "calendars",
       "clients",
       "event_outbox",
+      "integrations",
       "locations",
       "resources",
     ];
@@ -125,7 +126,7 @@ describe("RLS policy setup verification", () => {
       SELECT tablename, rowsecurity
       FROM pg_tables
       WHERE schemaname = 'public'
-        AND tablename IN ('locations', 'calendars', 'appointment_types', 'resources', 'clients', 'appointments', 'event_outbox', 'audit_events')
+        AND tablename IN ('locations', 'calendars', 'appointment_types', 'resources', 'clients', 'appointments', 'event_outbox', 'audit_events', 'integrations')
       ORDER BY tablename
     `);
 
@@ -154,6 +155,7 @@ describe("RLS policy setup verification", () => {
       "calendars",
       "clients",
       "event_outbox",
+      "integrations",
       "locations",
       "resources",
     ];

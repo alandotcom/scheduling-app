@@ -174,6 +174,7 @@ function RootLayout() {
   const [createOrganizationSlug, setCreateOrganizationSlug] = useState("");
   const [isCreatingOrganization, setIsCreatingOrganization] = useState(false);
   const [shortcutsHelpOpen, setShortcutsHelpOpen] = useState(false);
+  const [helpMenuOpen, setHelpMenuOpen] = useState(false);
   const [lastStableActiveOrganization, setLastStableActiveOrganization] =
     useState<OrganizationListItem | null>(null);
   const [isOrganizationSwitchPending, setIsOrganizationSwitchPending] =
@@ -589,16 +590,49 @@ function RootLayout() {
                 onSignOut={onSignOut}
               />
             </div>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={() => setShortcutsHelpOpen(true)}
-              aria-label="Open keyboard shortcuts help"
-              className="hidden md:inline-flex"
-            >
-              ?
-            </Button>
+            <Popover.Root open={helpMenuOpen} onOpenChange={setHelpMenuOpen}>
+              <Popover.Trigger
+                render={
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    aria-label="Open help menu"
+                    className="hidden md:inline-flex"
+                  >
+                    ?
+                  </Button>
+                }
+              />
+              <Popover.Portal>
+                <Popover.Positioner side="bottom" align="end" sideOffset={8}>
+                  <Popover.Popup className="z-50 min-w-52 rounded-lg border border-border bg-background p-1 shadow-lg data-open:animate-in data-closed:animate-out data-closed:fade-out-0 data-open:fade-in-0 data-closed:zoom-out-95 data-open:zoom-in-95 duration-100">
+                    <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">
+                      Help
+                    </div>
+                    <button
+                      type="button"
+                      className="flex w-full items-center rounded-md px-2 py-1.5 text-left text-sm transition-colors hover:bg-accent hover:text-accent-foreground"
+                      onClick={() => {
+                        setShortcutsHelpOpen(true);
+                        setHelpMenuOpen(false);
+                      }}
+                    >
+                      Keyboard shortcuts
+                    </button>
+                    <a
+                      href="/api/v1/docs"
+                      target="_blank"
+                      rel="noreferrer noopener"
+                      className="flex w-full items-center rounded-md px-2 py-1.5 text-left text-sm transition-colors hover:bg-accent hover:text-accent-foreground"
+                      onClick={() => setHelpMenuOpen(false)}
+                    >
+                      OpenAPI docs
+                    </a>
+                  </Popover.Popup>
+                </Popover.Positioner>
+              </Popover.Portal>
+            </Popover.Root>
           </div>
         </header>
 
@@ -859,6 +893,7 @@ const SETTINGS_SUB_ITEMS = [
   { section: undefined, label: "Organization" },
   { section: "users" as const, label: "Users" },
   { section: "developers" as const, label: "Developers" },
+  { section: "integrations" as const, label: "Integrations" },
   { section: "webhooks" as const, label: "Webhooks" },
 ];
 
@@ -1027,6 +1062,11 @@ function AppSidebar({
                                     qc.ensureQueryData(
                                       orpc.org.get.queryOptions({}),
                                     );
+                                    if (item.section === "integrations") {
+                                      qc.ensureQueryData(
+                                        orpc.integrations.list.queryOptions({}),
+                                      );
+                                    }
                                     if (item.section === "webhooks") {
                                       qc.ensureQueryData(
                                         orpc.webhooks.session.queryOptions({}),

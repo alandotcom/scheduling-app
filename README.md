@@ -6,6 +6,8 @@ A multi-tenant appointment scheduling platform (Acuity-style) built with modern 
 
 - Architecture: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
 - Integration authoring guide: [`integrations/README.md`](integrations/README.md)
+- API docs (Scalar): [`http://localhost:3000/api/v1/docs`](http://localhost:3000/api/v1/docs)
+- OpenAPI spec JSON: [`http://localhost:3000/api/v1/openapi.json`](http://localhost:3000/api/v1/openapi.json)
 
 ## Getting Started
 
