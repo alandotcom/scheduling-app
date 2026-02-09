@@ -1,6 +1,6 @@
 // Settings page - Organization settings management
 
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import type {
   ColumnDef,
@@ -37,6 +37,7 @@ import {
 } from "@scheduling/dto";
 
 import { WebhooksSection } from "./settings-webhooks";
+import { PageScaffold, PageHeader } from "@/components/layout/page-scaffold";
 import { RowActions } from "@/components/row-actions";
 import {
   EntityCardField,
@@ -52,6 +53,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ShortcutBadge } from "@/components/ui/shortcut-badge";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useSubmitShortcut } from "@/hooks/use-submit-shortcut";
 import {
   Card,
@@ -87,15 +89,6 @@ const WEEKDAYS = [
 ] as const;
 
 type SettingsTab = "organization" | "users" | "developers" | "webhooks";
-
-const SETTINGS_TABS = [
-  { id: "organization" as const, label: "Organization" },
-  { id: "users" as const, label: "Users" },
-  { id: "developers" as const, label: "Developers" },
-  { id: "webhooks" as const, label: "Webhooks" },
-] as const;
-
-const COMING_SOON_TABS = [{ label: "Security" }, { label: "Audit" }] as const;
 
 function resolveTab(raw: string | undefined): SettingsTab {
   if (
@@ -191,47 +184,59 @@ function SettingsPage() {
   // Show loading state while fetching
   if (isLoading) {
     return (
-      <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 lg:px-8">
-        <h1 className="text-2xl font-semibold tracking-tight">Settings</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Configure organization and application settings.
-        </p>
-        <div
-          className="mt-10 text-center text-muted-foreground"
-          role="status"
-          aria-live="polite"
-        >
-          Loading...
+      <PageScaffold>
+        <PageHeader
+          title="Settings"
+          description="Configure organization and application settings."
+        />
+        {/* Tab bar + content area skeleton */}
+        <div className="mt-6 space-y-6">
+          <dl className="divide-y divide-border">
+            {Array.from({ length: 4 }, (_, i) => (
+              <div
+                key={`settings-skel-${i}`}
+                className="grid grid-cols-1 gap-x-8 gap-y-2 py-6 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] sm:items-start"
+              >
+                <div className="space-y-2">
+                  <Skeleton className="h-4 w-32" />
+                  <Skeleton className="h-3 w-56" />
+                </div>
+                <div className="sm:justify-self-end">
+                  <Skeleton className="h-9 w-64 rounded-md" />
+                </div>
+              </div>
+            ))}
+          </dl>
         </div>
-      </div>
+      </PageScaffold>
     );
   }
 
   if (error) {
     return (
-      <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 lg:px-8">
-        <h1 className="text-2xl font-semibold tracking-tight">Settings</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Configure organization and application settings.
-        </p>
+      <PageScaffold>
+        <PageHeader
+          title="Settings"
+          description="Configure organization and application settings."
+        />
         <div className="mt-10 text-center text-destructive">
           Error loading settings
         </div>
-      </div>
+      </PageScaffold>
     );
   }
 
   if (!org) {
     return (
-      <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 lg:px-8">
-        <h1 className="text-2xl font-semibold tracking-tight">Settings</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Configure organization and application settings.
-        </p>
+      <PageScaffold>
+        <PageHeader
+          title="Settings"
+          description="Configure organization and application settings."
+        />
         <div className="mt-10 text-center text-destructive">
           Error loading settings
         </div>
-      </div>
+      </PageScaffold>
     );
   }
 
@@ -245,7 +250,6 @@ interface SettingsFormProps {
 
 function SettingsForm({ org }: SettingsFormProps) {
   const queryClient = useQueryClient();
-  const navigate = useNavigate({ from: Route.fullPath });
   const { section } = Route.useSearch();
   const activeTab = resolveTab(section);
   const formRef = useRef<HTMLFormElement>(null);
@@ -301,64 +305,15 @@ function SettingsForm({ org }: SettingsFormProps) {
     onSubmit: () => formRef.current?.requestSubmit(),
   });
 
-  const setActiveTab = (tab: SettingsTab) => {
-    navigate({
-      search: (prev) => ({
-        ...prev,
-        section: tab === "organization" ? undefined : tab,
-      }),
-    });
-  };
-
   return (
-    <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 lg:px-8">
-      <h1 className="text-2xl font-semibold tracking-tight">Settings</h1>
-      <p className="mt-1 text-sm text-muted-foreground">
-        Configure organization and application settings.
-      </p>
-
-      <div
-        role="tablist"
-        aria-label="Settings sections"
-        className="mt-6 flex gap-1 overflow-x-auto rounded-lg border border-border bg-muted/30 p-0.5"
-      >
-        {SETTINGS_TABS.map((tab) => (
-          <button
-            key={tab.id}
-            type="button"
-            role="tab"
-            aria-selected={activeTab === tab.id}
-            aria-controls={`settings-panel-${tab.id}`}
-            onClick={() => setActiveTab(tab.id)}
-            className={cn(
-              "h-10 shrink-0 rounded-md px-3 text-sm font-medium transition-colors md:h-8",
-              activeTab === tab.id
-                ? "bg-background text-foreground shadow-sm"
-                : "text-muted-foreground hover:text-foreground",
-            )}
-          >
-            {tab.label}
-          </button>
-        ))}
-        {COMING_SOON_TABS.map((tab) => (
-          <button
-            key={tab.label}
-            type="button"
-            role="tab"
-            disabled
-            aria-disabled="true"
-            className="h-10 shrink-0 rounded-md px-3 text-sm font-medium text-muted-foreground/50 cursor-not-allowed md:h-8"
-          >
-            {tab.label}
-            <span className="ml-1.5 text-[10px] uppercase tracking-wide">
-              Soon
-            </span>
-          </button>
-        ))}
-      </div>
+    <PageScaffold>
+      <PageHeader
+        title="Settings"
+        description="Configure organization and application settings."
+      />
 
       {activeTab === "organization" ? (
-        <div id="settings-panel-organization" role="tabpanel" className="mt-6">
+        <div className="mt-6">
           <form ref={formRef} onSubmit={handleSubmit(onSubmit)}>
             <dl className="divide-y divide-border">
               {/* Default timezone */}
@@ -558,23 +513,23 @@ function SettingsForm({ org }: SettingsFormProps) {
       ) : null}
 
       {activeTab === "users" ? (
-        <div id="settings-panel-users" role="tabpanel" className="mt-6">
+        <div className="mt-6">
           <UsersManagementSection />
         </div>
       ) : null}
 
       {activeTab === "developers" ? (
-        <div id="settings-panel-developers" role="tabpanel" className="mt-6">
+        <div className="mt-6">
           <ApiKeysSection />
         </div>
       ) : null}
 
       {activeTab === "webhooks" ? (
-        <div id="settings-panel-webhooks" role="tabpanel" className="mt-6">
+        <div className="mt-6">
           <WebhooksSection />
         </div>
       ) : null}
-    </div>
+    </PageScaffold>
   );
 }
 

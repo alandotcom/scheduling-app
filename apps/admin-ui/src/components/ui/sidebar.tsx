@@ -493,6 +493,62 @@ function SidebarMenuButton({
 }
 
 // ---------------------------------------------------------------------------
+// Sub-menu components
+// ---------------------------------------------------------------------------
+
+function SidebarMenuSub({ className, ...props }: React.ComponentProps<"ul">) {
+  return (
+    <ul
+      data-slot="sidebar-menu-sub"
+      className={cn(
+        "mx-3.5 flex min-w-0 translate-x-px flex-col gap-1 border-l border-sidebar-border px-2.5 py-0.5",
+        "group-data-[collapsible=icon]:hidden",
+        className,
+      )}
+      {...props}
+    />
+  );
+}
+
+function SidebarMenuSubItem({
+  className,
+  ...props
+}: React.ComponentProps<"li">) {
+  return (
+    <li data-slot="sidebar-menu-sub-item" className={className} {...props} />
+  );
+}
+
+function SidebarMenuSubButton({
+  asChild = false,
+  isActive = false,
+  className,
+  ...props
+}: React.ComponentProps<"a"> & {
+  asChild?: boolean;
+  isActive?: boolean;
+}) {
+  const Comp = asChild ? Slot : "a";
+
+  return (
+    <Comp
+      data-slot="sidebar-menu-sub-button"
+      data-active={isActive || undefined}
+      className={cn(
+        "text-sidebar-foreground ring-sidebar-ring flex h-7 min-w-0 -translate-x-px items-center gap-2 overflow-hidden rounded-md px-2 outline-hidden focus-visible:ring-2 [&>span:last-child]:truncate [&>svg]:size-4 [&>svg]:shrink-0 [&>svg]:text-sidebar-accent-foreground",
+        "hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+        "data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-accent-foreground",
+        "text-sm",
+        "disabled:pointer-events-none disabled:opacity-50",
+        "aria-disabled:pointer-events-none aria-disabled:opacity-50",
+        className,
+      )}
+      {...props}
+    />
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Exports
 // ---------------------------------------------------------------------------
 
@@ -508,6 +564,9 @@ export {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarMenuSub,
+  SidebarMenuSubButton,
+  SidebarMenuSubItem,
   SidebarProvider,
   SidebarRail,
   SidebarSeparator,

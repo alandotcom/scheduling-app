@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useMemo, type ReactNode } from "react";
 import { useNavigate, useRouter } from "@tanstack/react-router";
+import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
 import { Command } from "cmdk";
 import {
   Calendar03Icon,
@@ -245,66 +246,73 @@ export function CommandPalette() {
   }, [actions]);
 
   return (
-    <Command.Dialog
-      open={open}
-      onOpenChange={setOpen}
-      label="Command Menu"
-      className={cn(
-        "fixed inset-0 z-50",
-        "data-[state=open]:animate-in data-[state=closed]:animate-out",
-        "data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
-      )}
-    >
-      <div
-        className="fixed inset-0 bg-black/35 md:backdrop-blur-[2px]"
-        onClick={() => setOpen(false)}
-      />
-
-      <div className="fixed left-1/2 top-1/2 z-50 w-[min(94vw,58rem)] -translate-x-1/2 -translate-y-1/2 p-4">
-        <div className="h-[min(80dvh,46rem)] overflow-hidden rounded-2xl border border-border/70 bg-background shadow-[0_20px_70px_-20px_rgba(0,0,0,0.45)]">
-          <div className="flex items-center border-b border-border/70 px-5 py-3">
-            <Icon
-              icon={Search01Icon}
-              className="mr-3 shrink-0 text-muted-foreground"
-            />
-            <Command.Input
-              placeholder="Type a command or search..."
-              className="h-11 w-full bg-transparent text-lg outline-none placeholder:text-muted-foreground/90 sm:text-[1.5rem]"
-            />
-            <ShortcutBadge
-              shortcut="escape"
-              className="ml-3 hidden sm:inline-flex"
-            />
-          </div>
-
-          <Command.List
-            className="h-[calc(min(80dvh,46rem)-4.75rem)] overflow-y-scroll px-3 pb-3 pt-2"
-            style={{ scrollbarGutter: "stable" }}
+    <DialogPrimitive.Root open={open} onOpenChange={setOpen}>
+      <DialogPrimitive.Portal>
+        <DialogPrimitive.Backdrop
+          className={cn(
+            "fixed inset-0 z-50 bg-black/35 md:backdrop-blur-[2px]",
+            "data-open:animate-in data-closed:animate-out",
+            "data-closed:fade-out-0 data-open:fade-in-0",
+            "duration-200",
+          )}
+        />
+        <DialogPrimitive.Popup
+          className={cn(
+            "fixed left-1/2 top-1/2 z-50 w-[min(94vw,58rem)] -translate-x-1/2 -translate-y-1/2 p-4",
+            "data-open:animate-in data-closed:animate-out",
+            "data-closed:fade-out-0 data-open:fade-in-0",
+            "data-closed:zoom-out-95 data-open:zoom-in-95",
+            "duration-200",
+          )}
+        >
+          <Command
+            label="Command Menu"
+            className="h-[min(80dvh,46rem)] overflow-hidden rounded-2xl border border-border/70 bg-background shadow-[0_20px_70px_-20px_rgba(0,0,0,0.45)]"
           >
-            <Command.Empty className="py-8 text-center text-sm text-muted-foreground">
-              No results found.
-            </Command.Empty>
+            <div className="flex items-center border-b border-border/70 px-5 py-3">
+              <Icon
+                icon={Search01Icon}
+                className="mr-3 shrink-0 text-muted-foreground"
+              />
+              <Command.Input
+                placeholder="Type a command or search..."
+                className="h-11 w-full bg-transparent text-lg outline-none placeholder:text-muted-foreground/90 sm:text-[1.5rem]"
+              />
+              <ShortcutBadge
+                shortcut="escape"
+                className="ml-3 hidden sm:inline-flex"
+              />
+            </div>
 
-            {groups.map(([groupLabel, groupActions]) => (
-              <Command.Group key={groupLabel} className="px-1 py-1">
-                <CommandGroupHeading>{groupLabel}</CommandGroupHeading>
-                {groupActions.map((action) => (
-                  <CommandItem
-                    key={action.id}
-                    onSelect={action.onSelect}
-                    onHighlight={action.onHighlight}
-                    icon={action.icon}
-                    shortcut={action.shortcut}
-                  >
-                    {action.label}
-                  </CommandItem>
-                ))}
-              </Command.Group>
-            ))}
-          </Command.List>
-        </div>
-      </div>
-    </Command.Dialog>
+            <Command.List
+              className="h-[calc(min(80dvh,46rem)-4.75rem)] overflow-y-scroll px-3 pb-3 pt-2"
+              style={{ scrollbarGutter: "stable" }}
+            >
+              <Command.Empty className="py-8 text-center text-sm text-muted-foreground">
+                No results found.
+              </Command.Empty>
+
+              {groups.map(([groupLabel, groupActions]) => (
+                <Command.Group key={groupLabel} className="px-1 py-1">
+                  <CommandGroupHeading>{groupLabel}</CommandGroupHeading>
+                  {groupActions.map((action) => (
+                    <CommandItem
+                      key={action.id}
+                      onSelect={action.onSelect}
+                      onHighlight={action.onHighlight}
+                      icon={action.icon}
+                      shortcut={action.shortcut}
+                    >
+                      {action.label}
+                    </CommandItem>
+                  ))}
+                </Command.Group>
+              ))}
+            </Command.List>
+          </Command>
+        </DialogPrimitive.Popup>
+      </DialogPrimitive.Portal>
+    </DialogPrimitive.Root>
   );
 }
 

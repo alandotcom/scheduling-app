@@ -12,6 +12,7 @@ import {
   useNavigate,
 } from "@tanstack/react-router";
 import {
+  ArrowRight01Icon,
   Calendar03Icon,
   UserGroup02Icon,
   Clock01Icon,
@@ -25,6 +26,9 @@ import {
   Add01Icon,
   Logout01Icon,
 } from "@hugeicons/core-free-icons";
+import { Collapsible } from "@base-ui/react/collapsible";
+import { Popover } from "@base-ui/react/popover";
+import { cn } from "@/lib/utils";
 import { authClient } from "@/lib/auth-client";
 import { getSafeRedirectHref } from "@/lib/auth-redirect";
 import { UserMenu, type UserMenuOrganization } from "@/components/user-menu";
@@ -46,8 +50,10 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarMenuSub,
+  SidebarMenuSubButton,
+  SidebarMenuSubItem,
   SidebarProvider,
-  SidebarRail,
   SidebarTrigger,
   useSidebar,
 } from "@/components/ui/sidebar";
@@ -57,6 +63,7 @@ import {
   useKeyboardShortcuts,
   useNavigationShortcuts,
 } from "@/hooks/use-keyboard-shortcuts";
+import { getQueryClient, orpc } from "@/lib/query";
 import { isIgnorableRouteLoaderError } from "@/lib/query-cancellation";
 
 interface OrganizationListItem {
@@ -390,10 +397,6 @@ function RootLayout() {
     { to: "/locations", icon: Location01Icon, label: "Locations" },
   ];
 
-  const bottomNavItems = [
-    { to: "/settings", icon: Settings01Icon, label: "Settings" },
-  ];
-
   return (
     <SidebarProvider
       defaultOpen={
@@ -412,7 +415,6 @@ function RootLayout() {
         user={user}
         displayActiveOrganization={displayActiveOrganization}
         navItems={navItems}
-        bottomNavItems={bottomNavItems}
         organizationMenuItems={organizationMenuItems}
         activeOrganizationId={activeOrganizationId}
         onSwitchOrganization={onSwitchOrganization}
@@ -731,11 +733,19 @@ function RootErrorBoundary({ error, reset }: ErrorComponentProps) {
   );
 }
 
+const SETTINGS_SUB_ITEMS = [
+  { section: undefined, label: "Organization" },
+  { section: "users" as const, label: "Users" },
+  { section: "developers" as const, label: "Developers" },
+  { section: "webhooks" as const, label: "Webhooks" },
+];
+
+const SETTINGS_COMING_SOON = [{ label: "Security" }, { label: "Audit" }];
+
 function AppSidebar({
   user,
   displayActiveOrganization,
   navItems,
-  bottomNavItems,
   organizationMenuItems,
   activeOrganizationId,
   onSwitchOrganization,
@@ -749,11 +759,6 @@ function AppSidebar({
     icon: React.ComponentProps<typeof Icon>["icon"];
     label: string;
   }[];
-  bottomNavItems: {
-    to: string;
-    icon: React.ComponentProps<typeof Icon>["icon"];
-    label: string;
-  }[];
   organizationMenuItems: UserMenuOrganization[];
   activeOrganizationId: string | null;
   onSwitchOrganization: (organizationId: string) => Promise<void>;
@@ -763,7 +768,13 @@ function AppSidebar({
   }) => Promise<void>;
   onSignOut: () => Promise<void>;
 }) {
-  const { setOpenMobile } = useSidebar();
+  const { state: sidebarState, isMobile, setOpenMobile } = useSidebar();
+  const isCollapsed = sidebarState === "collapsed" && !isMobile;
+  const location = useLocation();
+  const isOnSettings = location.pathname.startsWith("/settings");
+  const currentSection = isOnSettings
+    ? (new URLSearchParams(location.searchStr).get("section") ?? undefined)
+    : null;
 
   return (
     <Sidebar variant="inset" collapsible="icon">
@@ -802,36 +813,138 @@ function AppSidebar({
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}
+              {isCollapsed ? (
+                <SidebarMenuItem>
+                  <Popover.Root>
+                    <Popover.Trigger
+                      render={
+                        <SidebarMenuButton tooltip="Settings">
+                          <Icon icon={Settings01Icon} className="size-4" />
+                          <span>Settings</span>
+                        </SidebarMenuButton>
+                      }
+                    />
+                    <Popover.Portal>
+                      <Popover.Positioner
+                        side="right"
+                        align="start"
+                        sideOffset={8}
+                      >
+                        <Popover.Popup className="z-50 min-w-44 rounded-lg border border-border bg-background p-1 shadow-lg data-open:animate-in data-closed:animate-out data-closed:fade-out-0 data-open:fade-in-0 data-closed:zoom-out-95 data-open:zoom-in-95 duration-100">
+                          <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">
+                            Settings
+                          </div>
+                          {SETTINGS_SUB_ITEMS.map((item) => {
+                            const isActive =
+                              isOnSettings &&
+                              currentSection === (item.section ?? undefined) &&
+                              (item.section !== undefined ||
+                                currentSection === undefined);
+                            return (
+                              <Link
+                                key={item.label}
+                                to="/settings"
+                                search={{ section: item.section }}
+                                className={cn(
+                                  "flex w-full items-center rounded-md px-2 py-1.5 text-sm transition-colors hover:bg-accent hover:text-accent-foreground",
+                                  isActive && "bg-accent font-medium",
+                                )}
+                              >
+                                {item.label}
+                              </Link>
+                            );
+                          })}
+                          {SETTINGS_COMING_SOON.map((item) => (
+                            <div
+                              key={item.label}
+                              className="flex w-full items-center justify-between rounded-md px-2 py-1.5 text-sm text-muted-foreground/50"
+                            >
+                              <span>{item.label}</span>
+                              <span className="text-[10px] uppercase tracking-wide">
+                                Soon
+                              </span>
+                            </div>
+                          ))}
+                        </Popover.Popup>
+                      </Popover.Positioner>
+                    </Popover.Portal>
+                  </Popover.Root>
+                </SidebarMenuItem>
+              ) : (
+                <Collapsible.Root defaultOpen={isOnSettings}>
+                  <SidebarMenuItem>
+                    <Collapsible.Trigger
+                      render={
+                        <SidebarMenuButton tooltip="Settings">
+                          <Icon icon={Settings01Icon} className="size-4" />
+                          <span>Settings</span>
+                          <Icon
+                            icon={ArrowRight01Icon}
+                            className="ml-auto size-3.5 transition-transform duration-200 data-[panel-open]:rotate-90"
+                          />
+                        </SidebarMenuButton>
+                      }
+                    />
+                    <Collapsible.Panel>
+                      <SidebarMenuSub>
+                        {SETTINGS_SUB_ITEMS.map((item) => {
+                          const isActive =
+                            isOnSettings &&
+                            currentSection === (item.section ?? undefined) &&
+                            (item.section !== undefined ||
+                              currentSection === undefined);
+                          return (
+                            <SidebarMenuSubItem key={item.label}>
+                              <SidebarMenuSubButton asChild isActive={isActive}>
+                                <Link
+                                  to="/settings"
+                                  search={{ section: item.section }}
+                                  onClick={() => setOpenMobile(false)}
+                                  onMouseEnter={() => {
+                                    const qc = getQueryClient();
+                                    qc.ensureQueryData(
+                                      orpc.org.get.queryOptions({}),
+                                    );
+                                    if (item.section === "webhooks") {
+                                      qc.ensureQueryData(
+                                        orpc.webhooks.session.queryOptions({}),
+                                      );
+                                    }
+                                  }}
+                                >
+                                  <span>{item.label}</span>
+                                </Link>
+                              </SidebarMenuSubButton>
+                            </SidebarMenuSubItem>
+                          );
+                        })}
+                        {SETTINGS_COMING_SOON.map((item) => (
+                          <SidebarMenuSubItem key={item.label}>
+                            <SidebarMenuSubButton aria-disabled="true">
+                              <span>{item.label}</span>
+                              <span className="ml-auto text-[10px] uppercase tracking-wide text-sidebar-foreground/40">
+                                Soon
+                              </span>
+                            </SidebarMenuSubButton>
+                          </SidebarMenuSubItem>
+                        ))}
+                      </SidebarMenuSub>
+                    </Collapsible.Panel>
+                  </SidebarMenuItem>
+                </Collapsible.Root>
+              )}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
 
       <SidebarFooter>
-        <SidebarMenu>
-          {bottomNavItems.map((item) => (
-            <SidebarMenuItem key={item.to}>
-              <SidebarMenuButton asChild tooltip={item.label}>
-                <Link
-                  to={item.to}
-                  preload="intent"
-                  activeOptions={{ exact: false }}
-                  onClick={() => setOpenMobile(false)}
-                >
-                  <Icon icon={item.icon} className="size-4" />
-                  <span>{item.label}</span>
-                </Link>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-          ))}
-        </SidebarMenu>
-
-        <div className="flex items-center gap-3 rounded-lg px-3 py-2 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0">
+        <div className="flex items-center gap-3 rounded-lg px-3 py-2">
           <div className="flex-1 min-w-0 group-data-[collapsible=icon]:hidden">
-            <div className="truncate text-xs font-medium text-sidebar-primary">
+            <div className="truncate text-sm font-medium text-sidebar-primary">
               {user?.name ?? user?.email}
             </div>
-            <div className="truncate text-[11px] text-sidebar-foreground/50">
+            <div className="truncate text-xs text-sidebar-foreground/50">
               {displayActiveOrganization?.name ?? user?.email}
             </div>
           </div>
@@ -843,11 +956,11 @@ function AppSidebar({
             onSwitchOrganization={onSwitchOrganization}
             onCreateOrganization={onCreateOrganization}
             onSignOut={onSignOut}
+            popoverSide="right"
+            popoverAlign="end"
           />
         </div>
       </SidebarFooter>
-
-      <SidebarRail />
     </Sidebar>
   );
 }

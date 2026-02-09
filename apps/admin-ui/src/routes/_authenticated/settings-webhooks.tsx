@@ -311,8 +311,33 @@ export function WebhooksSection() {
 
   if (isLoading) {
     return (
-      <div className="rounded-xl bg-muted/30 p-6 text-sm text-muted-foreground">
-        Loading webhook manager...
+      <div className="space-y-5">
+        {/* Session bar skeleton */}
+        <div className="flex items-center justify-between rounded-xl bg-muted/30 px-4 py-2.5">
+          <div className="flex items-center gap-2">
+            <Skeleton className="h-5 w-28 rounded-full" />
+            <Skeleton className="h-5 w-36 rounded-full" />
+          </div>
+          <Skeleton className="h-8 w-28 rounded-md" />
+        </div>
+        {/* Tab bar skeleton */}
+        <div className="flex gap-1 rounded-lg border border-border bg-muted/30 p-0.5">
+          <Skeleton className="h-8 w-24 rounded-md" />
+          <Skeleton className="h-8 w-28 rounded-md" />
+          <Skeleton className="h-8 w-16 rounded-md" />
+        </div>
+        {/* Content skeleton */}
+        <div className="space-y-2">
+          {Array.from({ length: 3 }, (_, i) => (
+            <div
+              key={`wh-skel-${i}`}
+              className="rounded-lg border border-border p-4 space-y-2"
+            >
+              <Skeleton className="h-4 w-2/3" />
+              <Skeleton className="h-3 w-1/4" />
+            </div>
+          ))}
+        </div>
       </div>
     );
   }
@@ -662,8 +687,13 @@ function CreateEndpointModal({
             )}
           </div>
           {eventTypes.loading ? (
-            <div className="rounded-lg bg-muted/30 p-4 text-sm text-muted-foreground">
-              Loading event catalog...
+            <div className="grid gap-1.5 rounded-lg border border-border bg-muted/30 p-4 sm:grid-cols-2">
+              {Array.from({ length: 6 }, (_, i) => (
+                <Skeleton
+                  key={`et-skel-${i}`}
+                  className="h-8 w-full rounded-md"
+                />
+              ))}
             </div>
           ) : eventTypes.error ? (
             <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-4 text-sm text-destructive">
@@ -1090,7 +1120,7 @@ function EndpointDetailView({ endpointId }: { endpointId: string }) {
               Signing secret
             </Label>
             {secret.loading ? (
-              <div className="text-xs text-muted-foreground">Loading...</div>
+              <Skeleton className="h-9 w-full rounded-md" />
             ) : secret.data?.key ? (
               <div className="space-y-2">
                 <div className="relative">
@@ -1297,7 +1327,14 @@ function EditEndpointEventsModal({
     >
       <div className="space-y-4 p-6">
         {eventTypes.loading ? (
-          <div className="text-sm text-muted-foreground">Loading...</div>
+          <div className="grid gap-1.5 rounded-lg border border-border bg-muted/30 p-4 sm:grid-cols-2">
+            {Array.from({ length: 6 }, (_, i) => (
+              <Skeleton
+                key={`edit-et-skel-${i}`}
+                className="h-8 w-full rounded-md"
+              />
+            ))}
+          </div>
         ) : !sortedEventTypes.length ? (
           <div className="text-sm text-muted-foreground">
             No event types available.
@@ -1888,6 +1925,9 @@ function JsonNode({
 
 function EventCatalogTab() {
   const eventTypes = useEventTypes({ limit: 100 });
+  const [selectedEventName, setSelectedEventName] = useState<string | null>(
+    null,
+  );
 
   const grouped = useMemo(() => {
     if (!eventTypes.data)
@@ -1899,11 +1939,23 @@ function EventCatalogTab() {
       group.push(et);
       groups.set(prefix, group);
     }
-    // Sort groups by key
     return new Map(
       [...groups.entries()].toSorted(([a], [b]) => a.localeCompare(b)),
     );
   }, [eventTypes.data]);
+
+  // Auto-select first event on load
+  useEffect(() => {
+    const first = eventTypes.data?.[0];
+    if (!selectedEventName && first) {
+      setSelectedEventName(first.name);
+    }
+  }, [selectedEventName, eventTypes.data]);
+
+  const selectedEvent = useMemo(
+    () => eventTypes.data?.find((et) => et.name === selectedEventName),
+    [eventTypes.data, selectedEventName],
+  );
 
   return (
     <div className="space-y-4">
@@ -1928,29 +1980,29 @@ function EventCatalogTab() {
       </div>
 
       {eventTypes.loading ? (
-        <div className="space-y-3">
-          {Array.from({ length: 3 }, (_, i) => (
-            <div
-              key={`cat-skel-${i}`}
-              className="rounded-lg border border-border"
-            >
-              <div className="flex items-center justify-between px-4 py-3">
-                <Skeleton className="h-4 w-24" />
-                <Skeleton className="h-5 w-8 rounded-full" />
-              </div>
-              <div className="border-t border-border">
+        <div className="flex gap-6">
+          <div className="w-[280px] shrink-0 space-y-2">
+            {Array.from({ length: 4 }, (_, i) => (
+              <div key={`skel-group-${i}`}>
+                <Skeleton className="mb-1 h-4 w-20" />
                 {Array.from({ length: 3 }, (_, j) => (
-                  <div
-                    key={`cat-row-${i}-${j}`}
-                    className="flex items-center justify-between border-b border-border/50 px-4 py-2.5 last:border-b-0"
-                  >
-                    <Skeleton className="h-3 w-40" />
-                    <Skeleton className="h-3 w-48" />
-                  </div>
+                  <Skeleton
+                    key={`skel-item-${i}-${j}`}
+                    className="my-0.5 h-7 w-full"
+                  />
                 ))}
               </div>
+            ))}
+          </div>
+          <div className="flex-1 space-y-3">
+            <Skeleton className="h-5 w-48" />
+            <Skeleton className="h-3 w-64" />
+            <div className="mt-4 space-y-2">
+              {Array.from({ length: 6 }, (_, i) => (
+                <Skeleton key={`skel-prop-${i}`} className="h-4 w-full" />
+              ))}
             </div>
-          ))}
+          </div>
         </div>
       ) : eventTypes.error ? (
         <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-4 text-sm text-destructive">
@@ -1961,57 +2013,338 @@ function EventCatalogTab() {
           No event types registered. Run the Svix catalog sync script.
         </div>
       ) : (
-        <div className="space-y-3">
-          {[...grouped.entries()].map(([prefix, events]) => (
-            <EventCatalogGroup key={prefix} prefix={prefix} events={events} />
-          ))}
+        <div className="flex flex-col gap-6 lg:flex-row">
+          {/* Left panel — event list */}
+          <div className="w-full shrink-0 lg:w-[280px]">
+            <div className="max-h-[600px] space-y-1 overflow-y-auto pr-1">
+              {[...grouped.entries()].map(([prefix, events]) => (
+                <EventCatalogGroup
+                  key={prefix}
+                  prefix={prefix}
+                  events={events}
+                  selectedEventName={selectedEventName}
+                  onSelect={setSelectedEventName}
+                />
+              ))}
+            </div>
+          </div>
+
+          {/* Right panel — schema preview */}
+          <div className="min-w-0 flex-1">
+            {selectedEvent ? (
+              <EventSchemaDetail event={selectedEvent} />
+            ) : (
+              <div className="flex h-48 items-center justify-center rounded-lg border border-dashed border-border text-sm text-muted-foreground">
+                Select an event to view its schema
+              </div>
+            )}
+          </div>
         </div>
       )}
     </div>
   );
 }
 
+// ---------------------------------------------------------------------------
+// JSON Schema property helpers
+// ---------------------------------------------------------------------------
+
+interface PropertyInfo {
+  type: string;
+  format?: string;
+  nullable: boolean;
+  constValue?: string;
+  enumValues?: string[];
+  nestedProperties?: Record<string, unknown>;
+  nestedRequired?: string[];
+  isRecord?: boolean;
+}
+
+function resolvePropertyInfo(
+  prop: Record<string, unknown>,
+  _name?: string,
+): PropertyInfo {
+  // Zod nullable pattern: { anyOf: [{ ...actual }, { type: "null" }] }
+  if (Array.isArray(prop.anyOf) && prop.anyOf.length === 2) {
+    const nonNull = prop.anyOf.find(
+      (s: Record<string, unknown>) => s.type !== "null",
+    ) as Record<string, unknown> | undefined;
+    if (nonNull) {
+      const info = resolvePropertyInfo(nonNull);
+      return { ...info, nullable: true };
+    }
+  }
+
+  const type = typeof prop.type === "string" ? prop.type : "unknown";
+  const format = typeof prop.format === "string" ? prop.format : undefined;
+
+  const constValue = prop.const !== undefined ? String(prop.const) : undefined;
+
+  const enumValues = Array.isArray(prop.enum)
+    ? prop.enum.map(String)
+    : undefined;
+
+  let nestedProperties: Record<string, unknown> | undefined;
+  let nestedRequired: string[] | undefined;
+  let isRecord = false;
+
+  if (
+    type === "object" &&
+    prop.properties &&
+    typeof prop.properties === "object"
+  ) {
+    nestedProperties = prop.properties as Record<string, unknown>;
+    nestedRequired = Array.isArray(prop.required)
+      ? (prop.required as string[])
+      : undefined;
+  } else if (
+    type === "object" &&
+    prop.additionalProperties &&
+    typeof prop.additionalProperties === "object"
+  ) {
+    isRecord = true;
+  }
+
+  return {
+    type,
+    format,
+    nullable: false,
+    constValue,
+    enumValues,
+    nestedProperties,
+    nestedRequired,
+    isRecord,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Schema property table components
+// ---------------------------------------------------------------------------
+
+function SchemaPropertiesView({ schema }: { schema: Record<string, unknown> }) {
+  const properties = schema.properties as Record<string, unknown> | undefined;
+  const required = Array.isArray(schema.required)
+    ? (schema.required as string[])
+    : [];
+
+  if (!properties || Object.keys(properties).length === 0) {
+    return (
+      <span className="text-xs text-muted-foreground">
+        No schema properties
+      </span>
+    );
+  }
+
+  return <PropertyList properties={properties} required={required} depth={0} />;
+}
+
+function PropertyList({
+  properties,
+  required,
+  depth,
+}: {
+  properties: Record<string, unknown>;
+  required: string[];
+  depth: number;
+}) {
+  return (
+    <div className="space-y-0">
+      {Object.entries(properties).map(([name, propSchema]) => (
+        <PropertyRow
+          key={name}
+          name={name}
+          schema={propSchema as Record<string, unknown>}
+          isRequired={required.includes(name)}
+          depth={depth}
+        />
+      ))}
+    </div>
+  );
+}
+
+function PropertyRow({
+  name,
+  schema,
+  isRequired,
+  depth,
+}: {
+  name: string;
+  schema: Record<string, unknown>;
+  isRequired: boolean;
+  depth: number;
+}) {
+  const info = resolvePropertyInfo(schema, name);
+  const hasNested = !!info.nestedProperties;
+  // Auto-expand "data" at depth 0
+  const [expanded, setExpanded] = useState(
+    hasNested && name === "data" && depth === 0,
+  );
+
+  const typeLabel = info.format ? `${info.type} (${info.format})` : info.type;
+
+  return (
+    <div>
+      <div
+        className="flex items-baseline gap-3 py-1"
+        style={{ paddingLeft: depth * 16 }}
+      >
+        {/* Expand toggle or spacer */}
+        {hasNested ? (
+          <button
+            type="button"
+            onClick={() => setExpanded(!expanded)}
+            className="w-3 shrink-0 text-xs text-muted-foreground hover:text-foreground"
+          >
+            {expanded ? "▼" : "▶"}
+          </button>
+        ) : (
+          <span className="w-3 shrink-0" />
+        )}
+
+        {/* Name */}
+        <code className="shrink-0 text-xs font-medium">{name}</code>
+
+        {/* Type */}
+        <span className="shrink-0 text-xs text-muted-foreground">
+          {typeLabel}
+          {info.isRecord ? " (record)" : ""}
+        </span>
+
+        {/* Required / optional */}
+        <span
+          className={cn(
+            "shrink-0 text-[10px]",
+            isRequired ? "text-foreground/70" : "text-muted-foreground/60",
+          )}
+        >
+          {isRequired ? "required" : "optional"}
+        </span>
+
+        {/* Nullable */}
+        {info.nullable ? (
+          <Badge
+            variant="outline"
+            className="h-4 px-1 text-[10px] leading-none"
+          >
+            nullable
+          </Badge>
+        ) : null}
+
+        {/* Const value */}
+        {info.constValue !== undefined ? (
+          <code className="text-[10px] text-muted-foreground">
+            = "{info.constValue}"
+          </code>
+        ) : null}
+
+        {/* Enum values */}
+        {info.enumValues ? (
+          <code className="truncate text-[10px] text-muted-foreground">
+            [{info.enumValues.map((v) => `"${v}"`).join(" | ")}]
+          </code>
+        ) : null}
+      </div>
+
+      {/* Nested properties */}
+      {expanded && info.nestedProperties ? (
+        <PropertyList
+          properties={info.nestedProperties}
+          required={info.nestedRequired ?? []}
+          depth={depth + 1}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// EventSchemaDetail — right panel showing schema for a selected event
+// ---------------------------------------------------------------------------
+
+function EventSchemaDetail({
+  event,
+}: {
+  event: {
+    name: string;
+    description?: string | null;
+    schemas?: Record<string, unknown> | null;
+  };
+}) {
+  const schemaV1 = event.schemas?.v1 as Record<string, unknown> | undefined;
+
+  return (
+    <div className="rounded-lg border border-border bg-card p-4">
+      <div className="mb-4">
+        <code className="text-sm font-semibold">{event.name}</code>
+        {event.description ? (
+          <p className="mt-1 text-xs text-muted-foreground">
+            {event.description}
+          </p>
+        ) : null}
+      </div>
+      {schemaV1 ? (
+        <SchemaPropertiesView schema={schemaV1} />
+      ) : (
+        <span className="text-xs text-muted-foreground">
+          No schema available
+        </span>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// EventCatalogGroup — collapsible group with clickable event names
+// ---------------------------------------------------------------------------
+
 function EventCatalogGroup({
   prefix,
   events,
+  selectedEventName,
+  onSelect,
 }: {
   prefix: string;
   events: Array<{
     name: string;
     description?: string | null;
+    schemas?: Record<string, unknown> | null;
   }>;
+  selectedEventName: string | null;
+  onSelect: (name: string) => void;
 }) {
   const [expanded, setExpanded] = useState(true);
 
   return (
-    <div className="rounded-lg border border-border bg-card">
+    <div>
       <button
         type="button"
         onClick={() => setExpanded(!expanded)}
-        className="flex w-full items-center justify-between px-4 py-3 text-left"
+        className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left hover:bg-accent/30"
       >
-        <span className="text-sm font-medium capitalize">{prefix}</span>
-        <div className="flex items-center gap-2">
-          <Badge variant="secondary">{events.length}</Badge>
-          <span className="text-xs text-muted-foreground">
-            {expanded ? "▼" : "▶"}
-          </span>
-        </div>
+        <span className="w-3 shrink-0 text-xs text-muted-foreground">
+          {expanded ? "▼" : "▶"}
+        </span>
+        <span className="text-xs font-semibold capitalize">{prefix}</span>
+        <Badge variant="secondary" className="ml-auto h-4 px-1.5 text-[10px]">
+          {events.length}
+        </Badge>
       </button>
       {expanded ? (
-        <div className="border-t border-border">
+        <div className="ml-5 space-y-px">
           {events.map((et) => (
-            <div
+            <button
               key={et.name}
-              className="flex items-start justify-between gap-4 border-b border-border/50 px-4 py-2.5 last:border-b-0"
+              type="button"
+              onClick={() => onSelect(et.name)}
+              className={cn(
+                "block w-full truncate rounded px-2 py-1 text-left text-sm",
+                selectedEventName === et.name
+                  ? "bg-accent font-medium text-accent-foreground"
+                  : "text-muted-foreground hover:bg-accent/30 hover:text-foreground",
+              )}
             >
-              <code className="text-xs font-medium">{et.name}</code>
-              {et.description ? (
-                <span className="text-right text-xs text-muted-foreground">
-                  {et.description}
-                </span>
-              ) : null}
-            </div>
+              {et.name}
+            </button>
           ))}
         </div>
       ) : null}

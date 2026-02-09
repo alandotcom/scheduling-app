@@ -34,6 +34,8 @@ interface UserMenuProps {
     slug?: string;
   }) => Promise<void>;
   onSignOut: () => Promise<void>;
+  popoverSide?: "top" | "bottom" | "left" | "right";
+  popoverAlign?: "start" | "center" | "end";
 }
 
 export function UserMenu({
@@ -44,6 +46,8 @@ export function UserMenu({
   onSwitchOrganization,
   onCreateOrganization,
   onSignOut,
+  popoverSide,
+  popoverAlign = "end",
 }: UserMenuProps) {
   const [open, setOpen] = useState(false);
   const [creatingOrg, setCreatingOrg] = useState(false);
@@ -86,7 +90,13 @@ export function UserMenu({
           }
         />
         <Popover.Portal>
-          <Popover.Positioner sideOffset={8} align="end">
+          <Popover.Positioner
+            sideOffset={8}
+            side={popoverSide}
+            align={popoverAlign}
+            collisionPadding={8}
+            className="z-50"
+          >
             <Popover.Popup
               className={cn(
                 "z-50 w-72 rounded-lg border border-border bg-background p-2 shadow-lg",
