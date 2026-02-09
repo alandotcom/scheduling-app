@@ -42,8 +42,11 @@ import { authMiddleware } from "./middleware/auth.js";
 import { errorHandler } from "./middleware/error-handler.js";
 import { requestLogger } from "./middleware/request-logger.js";
 import { config } from "./config.js";
+import { bootstrapSvixEventCatalogOnStartup } from "./services/svix-event-catalog.js";
 
 const app = new Hono();
+
+await bootstrapSvixEventCatalogOnStartup();
 
 // Global middleware
 app.use("*", errorHandler);

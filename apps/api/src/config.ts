@@ -91,6 +91,23 @@ export const config = envParse(process.env, {
       default: 6380,
     },
   },
+  webhooks: {
+    enabled: {
+      format: z.string().transform((v) => v === "true"),
+      env: "SVIX_WEBHOOKS_ENABLED",
+      default: false,
+    },
+    baseUrl: {
+      format: z.string().url(),
+      env: "SVIX_BASE_URL",
+      optional: true,
+    },
+    authToken: {
+      format: z.string().min(1),
+      env: "SVIX_AUTH_TOKEN",
+      optional: true,
+    },
+  },
 });
 
 export const authBaseUrl =

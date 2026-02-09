@@ -2,12 +2,11 @@
 
 import { Queue, Worker, type Job, type ConnectionOptions } from "bullmq";
 import { getValkeyRedisOptions } from "../../lib/redis.js";
-import type { DomainEvent, JobQueue, WebhookDeliveryJob } from "./types.js";
+import type { DomainEvent, JobQueue } from "./types.js";
 
 // Queue names
 export const QUEUE_NAMES = {
   EVENTS: "scheduling-events",
-  WEBHOOKS: "scheduling-webhooks",
 } as const;
 
 // BullMQ connection options for Valkey
@@ -18,9 +17,6 @@ const connectionOptions: ConnectionOptions = {
 
 // Event queue for domain events
 let eventQueue: Queue<DomainEvent> | null = null;
-
-// Webhook delivery queue
-let webhookQueue: Queue<WebhookDeliveryJob> | null = null;
 
 // Get or create event queue
 export function getEventQueue(): Queue<DomainEvent> {
@@ -39,25 +35,6 @@ export function getEventQueue(): Queue<DomainEvent> {
     });
   }
   return eventQueue;
-}
-
-// Get or create webhook queue
-export function getWebhookQueue(): Queue<WebhookDeliveryJob> {
-  if (!webhookQueue) {
-    webhookQueue = new Queue<WebhookDeliveryJob>(QUEUE_NAMES.WEBHOOKS, {
-      connection: connectionOptions,
-      defaultJobOptions: {
-        removeOnComplete: 100,
-        removeOnFail: 1000,
-        attempts: 5,
-        backoff: {
-          type: "exponential",
-          delay: 2000,
-        },
-      },
-    });
-  }
-  return webhookQueue;
 }
 
 // BullMQ implementation of JobQueue interface
@@ -79,10 +56,6 @@ export class BullMQJobQueue implements JobQueue {
       await eventQueue.close();
       eventQueue = null;
     }
-    if (webhookQueue) {
-      await webhookQueue.close();
-      webhookQueue = null;
-    }
   }
 }
 
@@ -96,28 +69,10 @@ export function createEventWorker(
   });
 }
 
-// Create worker for webhook delivery
-export function createWebhookWorker(
-  processor: (job: Job<WebhookDeliveryJob>) => Promise<void>,
-): Worker<WebhookDeliveryJob> {
-  return new Worker<WebhookDeliveryJob>(QUEUE_NAMES.WEBHOOKS, processor, {
-    connection: connectionOptions,
-    concurrency: 5,
-    limiter: {
-      max: 100,
-      duration: 60000, // Max 100 webhook deliveries per minute per org
-    },
-  });
-}
-
 // Graceful shutdown helper
 export async function closeAllQueues(): Promise<void> {
   if (eventQueue) {
     await eventQueue.close();
     eventQueue = null;
-  }
-  if (webhookQueue) {
-    await webhookQueue.close();
-    webhookQueue = null;
   }
 }

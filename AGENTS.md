@@ -20,10 +20,12 @@ This app is in active development — there are no production users yet. This me
 
 ```bash
 # Development
-pnpm dev              # Run API + admin UI + Bull Board in parallel
+pnpm dev              # Run API + admin UI + worker + Bull Board in parallel
 pnpm dev:api          # Run API only with hot reload
+pnpm dev:worker       # Run worker only with hot reload
 pnpm dev:admin        # Run admin UI only
 pnpm dev:bull-board   # Run Bull Board only
+pnpm --filter @scheduling/api run sync:svix-event-catalog  # Manual Svix schema sync
 
 # Testing
 pnpm test             # Run all tests
@@ -49,8 +51,8 @@ pnpm --filter @scheduling/db run push       # Push schema to dev database
 **IMPORTANT:** Before starting a dev server, ALWAYS check if one is already running:
 
 ```bash
-# Check for running Vite (admin-ui) or Bun (api/bull-board) processes
-ps aux | grep -E "(vite|bun.*src/(index|bull-board))" | grep -v grep
+# Check for running Vite (admin-ui) or Bun (api/worker/bull-board) processes
+ps aux | grep -E "(vite|bun.*src/(index|worker|bull-board))" | grep -v grep
 
 # If stale processes exist, kill them first
 kill <pid>   # or: pkill -f "vite.*admin-ui"
@@ -81,6 +83,8 @@ packages/
 - **API:** Hono 4.x + oRPC (generates REST + OpenAPI, not tRPC)
 - **Auth:** BetterAuth with Drizzle adapter
 - **Database:** Drizzle ORM + Bun SQL, Postgres 18 with native `uuidv7()`
+- **Webhooks:** Svix (self-hosted OSS or hosted cloud)
+- **Queueing:** BullMQ + Valkey for outbox processing and retries
 - **Testing:** Real Postgres via Docker (test database auto-created on first test run)
 - **Linting:** oxlint (Rust-based, strict rules)
 - **Formatting:** Biome (spaces, no tabs)
@@ -125,6 +129,16 @@ export type CreateOrgInput = z.infer<typeof createOrgSchema>;
 ```
 
 Common validators in `packages/dto/src/common.ts`: UUID, timestamp, timezone, time (HH:MM), date (YYYY-MM-DD), weekday (0-6).
+
+## Webhook Delivery (Svix + Outbox)
+
+- Canonical webhook event types and payload schemas live in `packages/dto/src/schemas/webhook.ts`.
+- API event types are sourced from DTO (`apps/api/src/services/jobs/types.ts`) to prevent drift.
+- Event catalog sync logic lives in `apps/api/src/services/svix-event-catalog.ts`.
+- Catalog sync is idempotent (`create`, then `update` on 409) and runs on API + worker startup.
+- Manual sync command: `pnpm --filter @scheduling/api run sync:svix-event-catalog`.
+- For self-hosted Svix OSS, the admin UI does not use hosted App Portal; it uses `svix-react` hooks with a short-lived session from `GET /v1/webhooks/session`.
+- Keep outbox atomicity guarantees: worker must only publish after successfully claiming `event_outbox` row from `pending` to `processing`.
 
 ## Agent Memories
 
@@ -192,7 +206,13 @@ Factory functions in `apps/api/src/test-utils/factories.ts` automatically set or
 
 ## Infrastructure
 
-Docker Compose provides Postgres 18 (port 5433) and Valkey/Redis (port 6380). Start with `docker compose up -d`.
+Docker Compose provides:
+- Postgres 18 (port 5433)
+- Scheduling Valkey/Redis (port 6380)
+- Svix server (port 8071)
+- Dedicated Svix Valkey container (internal)
+
+Start with `docker compose up -d`.
 
 Environment variables in `.env`:
 
@@ -200,6 +220,10 @@ Environment variables in `.env`:
 - `REDIS_URL=redis://localhost:6380` (optional, overrides host/port)
 - `VALKEY_HOST=localhost`, `VALKEY_PORT=6380`
 - `AUTH_SECRET`, `PORT=3000`
+- `SVIX_WEBHOOKS_ENABLED=true|false`
+- `SVIX_BASE_URL=http://localhost:8071` (self-hosted) or hosted Svix base URL
+- `SVIX_AUTH_TOKEN=<svix-token>`
+- `SVIX_JWT_SECRET=<self-hosted svix jwt secret>`
 
 ## Test User & Seed Data
 

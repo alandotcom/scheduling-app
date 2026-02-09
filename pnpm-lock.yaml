@@ -126,6 +126,9 @@ importers:
       sonner:
         specifier: ^2.0.7
         version: 2.0.7(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
+      svix-react:
+        specifier: ^1.13.7
+        version: 1.13.7(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(svix@1.84.1)
       tailwind-merge:
         specifier: ^3.4.0
         version: 3.4.0
@@ -4107,6 +4110,13 @@ packages:
     resolution: {integrity: sha512-aulFJcD6YK8V1G7iRB5tigAP4TsHBZZrOV8pjV++zdUwmeV8uzbY7yn6h9MswN62adStNZFuCIx4haBnRuMDaw==}
     engines: {node: '>=18'}
 
+  svix-react@1.13.7:
+    resolution: {integrity: sha512-BtrGdn6CbHzK31Smf8J0qzqkzE62Tfm+vcxvH2Lc79khcIZ++S7PgP8B986THDzK0kVwtGGstvUlYDtgCjkcLg==}
+    peerDependencies:
+      react: '>=16'
+      react-dom: '>=16'
+      svix: '>=1.26.0'
+
   svix@1.84.1:
     resolution: {integrity: sha512-K8DPPSZaW/XqXiz1kEyzSHYgmGLnhB43nQCMeKjWGCUpLIpAMMM8kx3rVVOSm6Bo6EHyK1RQLPT4R06skM/MlQ==}
 
@@ -7993,6 +8003,12 @@ snapshots:
   strip-final-newline@2.0.0: {}
 
   strip-final-newline@4.0.0: {}
+
+  svix-react@1.13.7(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(svix@1.84.1):
+    dependencies:
+      react: 19.2.4
+      react-dom: 19.2.4(react@19.2.4)
+      svix: 1.84.1
 
   svix@1.84.1:
     dependencies:

@@ -1,120 +1,195 @@
 // Event outbox processing worker
-// Processes events from the queue and handles webhook delivery
+// Processes domain events from the queue and publishes to Svix.
 
 import type { Job, Worker } from "bullmq";
 import { eq, and, lte } from "drizzle-orm";
 import { getLogger } from "@logtape/logtape";
 import { forEachAsync } from "es-toolkit/array";
 import { eventOutbox } from "@scheduling/db/schema";
-import { db } from "../../lib/db.js";
+import { db, type DbClient } from "../../lib/db.js";
 import {
-  isEventType,
-  type DomainEvent,
-  type WebhookDeliveryJob,
-} from "./types.js";
-import { createEventWorker, createWebhookWorker } from "./queue.js";
+  getSvixErrorStatusCode,
+  isRetriableSvixError,
+  isSvixConflictError,
+  publishWebhookEvent,
+} from "../svix.js";
+import { isEventType, type DomainEvent } from "./types.js";
+import { createEventWorker } from "./queue.js";
 
 const logger = getLogger(["jobs"]);
 
 // Workers (lazily initialized)
 let eventWorker: Worker<DomainEvent> | null = null;
-let webhookWorker: Worker<WebhookDeliveryJob> | null = null;
+
+type ProcessEventDependencies = {
+  dbClient: DbClient;
+  publishEvent: typeof publishWebhookEvent;
+  now: () => Date;
+};
+
+const defaultProcessEventDependencies: ProcessEventDependencies = {
+  dbClient: db,
+  publishEvent: publishWebhookEvent,
+  now: () => new Date(),
+};
+
+class OutboxRowNotReadyError extends Error {
+  constructor(eventId: string) {
+    super(`Outbox row is not ready for event ${eventId}`);
+    this.name = "OutboxRowNotReadyError";
+  }
+}
+
+function isOutboxRowNotReadyError(error: unknown): boolean {
+  return error instanceof OutboxRowNotReadyError;
+}
+
+function getRetryDelayMs(attemptNumber: number): number {
+  // Keep this aligned with queue exponential backoff defaults.
+  return Math.min(300_000, 1000 * 2 ** Math.max(0, attemptNumber - 1));
+}
 
 // Process domain events from the queue
-async function processEvent(job: Job<DomainEvent>): Promise<void> {
+export async function processEventJob(
+  job: Job<DomainEvent>,
+  deps: Partial<ProcessEventDependencies> = {},
+): Promise<void> {
+  const { dbClient, publishEvent, now } = {
+    ...defaultProcessEventDependencies,
+    ...deps,
+  };
   const event = job.data;
 
-  logger.info(`Processing event: ${event.type} (${event.id})`);
+  logger.info(`Processing event: ${event.type} (${event.id})`, {
+    eventId: event.id,
+    eventType: event.type,
+    orgId: event.orgId,
+    attemptsMade: job.attemptsMade,
+  });
 
   try {
-    // Update outbox status to processing
-    await db
+    // Claim the outbox row atomically before publishing.
+    // If no row is transitioned, the row is not yet committed/visible (or no longer pending).
+    const claimedRows = await dbClient
       .update(eventOutbox)
-      .set({ status: "processing" })
+      .set({
+        status: "processing",
+        updatedAt: now(),
+      })
       .where(
-        and(
-          eq(eventOutbox.orgId, event.orgId),
-          eq(eventOutbox.type, event.type),
-        ),
-      );
+        and(eq(eventOutbox.id, event.id), eq(eventOutbox.status, "pending")),
+      )
+      .returning({ id: eventOutbox.id });
 
-    // TODO: Look up webhook subscriptions for this org and event type
-    // For now, just log the event and mark as delivered
-    // In a real implementation, this would:
-    // 1. Query webhook_subscriptions table for matching org_id + event_type
-    // 2. Enqueue a webhook delivery job for each subscription
+    if (claimedRows.length === 0) {
+      throw new OutboxRowNotReadyError(event.id);
+    }
+
+    await publishEvent({
+      eventId: event.id,
+      eventType: event.type,
+      orgId: event.orgId,
+      payload: event.payload,
+      occurredAt: event.timestamp,
+    });
 
     // Mark as delivered in outbox
-    await db
+    await dbClient
       .update(eventOutbox)
       .set({
         status: "delivered",
-        updatedAt: new Date(),
+        nextAttemptAt: null,
+        updatedAt: now(),
       })
       .where(
-        and(
-          eq(eventOutbox.orgId, event.orgId),
-          eq(eventOutbox.type, event.type),
-        ),
+        and(eq(eventOutbox.id, event.id), eq(eventOutbox.status, "processing")),
       );
 
     logger.info(`Event processed successfully: ${event.type} (${event.id})`);
   } catch (error) {
-    logger.error(
-      `Failed to process event: ${event.type} (${event.id}): ${String(error)}`,
-    );
-    throw error; // Let BullMQ handle retry
-  }
-}
+    const attemptNumber = job.attemptsMade + 1;
+    const maxAttempts =
+      typeof job.opts.attempts === "number" ? job.opts.attempts : 1;
 
-// Process webhook delivery jobs
-async function processWebhook(job: Job<WebhookDeliveryJob>): Promise<void> {
-  const { eventId, eventType, webhookUrl, payload, attemptNumber } = job.data;
+    if (isOutboxRowNotReadyError(error)) {
+      const willRetry = attemptNumber < maxAttempts;
 
-  if (!webhookUrl) {
-    logger.info(`No webhook URL for event ${eventId}, skipping delivery`);
-    return;
-  }
+      if (willRetry) {
+        logger.warn(
+          `Outbox row not committed/visible yet for ${event.id}; retrying (${attemptNumber}/${maxAttempts})`,
+        );
+        throw error;
+      }
 
-  logger.info(
-    `Delivering webhook for ${eventType} to ${webhookUrl} (attempt ${attemptNumber})`,
-  );
-
-  try {
-    const response = await fetch(webhookUrl, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Event-Type": eventType,
-        "X-Event-ID": eventId,
-        "X-Attempt-Number": String(attemptNumber),
-      },
-      body: JSON.stringify({
-        id: eventId,
-        type: eventType,
-        data: payload,
-        timestamp: new Date().toISOString(),
-      }),
-      signal: AbortSignal.timeout(30000), // 30 second timeout
-    });
-
-    if (!response.ok) {
-      throw new Error(
-        `Webhook delivery failed: ${response.status} ${response.statusText}`,
+      logger.warn(
+        `Outbox row for ${event.id} still not ready after ${maxAttempts} attempts; skipping publish`,
       );
+      return;
     }
 
-    logger.info(`Webhook delivered successfully: ${eventId} to ${webhookUrl}`);
-  } catch (error) {
-    logger.error(`Webhook delivery failed for ${eventId}: ${String(error)}`);
-    throw error; // Let BullMQ handle retry
+    if (isSvixConflictError(error)) {
+      // Message already exists in Svix for this eventId, which is effectively delivered.
+      await dbClient
+        .update(eventOutbox)
+        .set({
+          status: "delivered",
+          nextAttemptAt: null,
+          updatedAt: now(),
+        })
+        .where(
+          and(
+            eq(eventOutbox.id, event.id),
+            eq(eventOutbox.status, "processing"),
+          ),
+        );
+
+      logger.info(
+        `Event already delivered in Svix: ${event.type} (${event.id})`,
+      );
+      return;
+    }
+
+    const statusCode = getSvixErrorStatusCode(error);
+    const retriable = isRetriableSvixError(error);
+    const willRetry = retriable && attemptNumber < maxAttempts;
+
+    await dbClient
+      .update(eventOutbox)
+      .set({
+        status: willRetry ? "pending" : "failed",
+        nextAttemptAt: willRetry
+          ? new Date(now().getTime() + getRetryDelayMs(attemptNumber))
+          : null,
+        updatedAt: now(),
+      })
+      .where(
+        and(eq(eventOutbox.id, event.id), eq(eventOutbox.status, "processing")),
+      );
+
+    if (!retriable) {
+      logger.error(
+        `Permanent Svix publish failure for ${event.id} (status ${statusCode ?? "unknown"}): ${String(error)}`,
+      );
+      return;
+    }
+
+    if (willRetry) {
+      logger.warn(
+        `Retrying Svix publish for ${event.id} (attempt ${attemptNumber}/${maxAttempts}, status ${statusCode ?? "unknown"})`,
+      );
+      throw error; // Let BullMQ schedule retry
+    }
+
+    logger.error(
+      `Svix publish exhausted retries for ${event.id} (attempt ${attemptNumber}/${maxAttempts}, status ${statusCode ?? "unknown"})`,
+    );
   }
 }
 
 // Start all workers
 export function startWorkers(): void {
   if (!eventWorker) {
-    eventWorker = createEventWorker(processEvent);
+    eventWorker = createEventWorker(processEventJob);
     eventWorker.on("completed", (job) => {
       logger.info(`Event job completed: ${job.id}`);
     });
@@ -122,17 +197,6 @@ export function startWorkers(): void {
       logger.error(`Event job failed: ${job?.id}: ${error.message}`);
     });
     logger.info("Event worker started");
-  }
-
-  if (!webhookWorker) {
-    webhookWorker = createWebhookWorker(processWebhook);
-    webhookWorker.on("completed", (job) => {
-      logger.info(`Webhook job completed: ${job.id}`);
-    });
-    webhookWorker.on("failed", (job, error) => {
-      logger.error(`Webhook job failed: ${job?.id}: ${error.message}`);
-    });
-    logger.info("Webhook worker started");
   }
 }
 
@@ -142,12 +206,6 @@ export async function stopWorkers(): Promise<void> {
     await eventWorker.close();
     eventWorker = null;
     logger.info("Event worker stopped");
-  }
-
-  if (webhookWorker) {
-    await webhookWorker.close();
-    webhookWorker = null;
-    logger.info("Webhook worker stopped");
   }
 }
 

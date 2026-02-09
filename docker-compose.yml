@@ -30,6 +30,39 @@ services:
       timeout: 5s
       retries: 5
 
+  svix:
+    image: svix/svix-server:latest
+    container_name: scheduling-svix
+    environment:
+      SVIX_DB_DSN: postgresql://svix_app:svix@postgres:5432/svix
+      SVIX_REDIS_DSN: redis://svix-valkey:6379
+      SVIX_QUEUE_TYPE: redis
+      SVIX_JWT_SECRET: ${SVIX_JWT_SECRET:-change-this-svix-jwt-secret}
+    ports:
+      - "8071:8071"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      svix-valkey:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "svix-server healthcheck http://localhost:8071"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+
+  svix-valkey:
+    image: valkey/valkey:8
+    container_name: scheduling-svix-valkey
+    volumes:
+      - svix-valkey-data:/data
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
 volumes:
   postgres-data:
   valkey-data:
+  svix-valkey-data:

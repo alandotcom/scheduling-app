@@ -19,6 +19,14 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
+  SvixProvider,
+  useEndpoints,
+  useEventTypes,
+  useMessages,
+  useSvix,
+} from "svix-react";
+import { z } from "zod";
+import {
   Add01Icon,
   Clock01Icon,
   Search01Icon,
@@ -31,7 +39,10 @@ import { TIMEZONES } from "@/lib/constants";
 import { resolveSelectValueLabel } from "@/lib/select-value-label";
 import { cn } from "@/lib/utils";
 import {
+  createApiKeySchema,
   createOrgUserSchema,
+  type CreateApiKeyInput,
+  type WebhookSessionResponse,
   updateOrgSettingsSchema,
   type CreateOrgUserInput,
   type OrgMembershipRole,
@@ -92,6 +103,7 @@ type SettingsSection =
   | "general"
   | "scheduling"
   | "users"
+  | "developers"
   | "security"
   | "audit";
 
@@ -127,6 +139,13 @@ const SETTINGS_SECTIONS: SettingsSectionMeta[] = [
     icon: UserGroup02Icon,
   },
   {
+    value: "developers",
+    label: "Developers",
+    description: "Manage API keys and webhook integrations.",
+    group: "Access",
+    icon: Settings01Icon,
+  },
+  {
     value: "security",
     label: "Security",
     description: "Authentication and access policies.",
@@ -159,7 +178,7 @@ const SETTINGS_NAV_GROUPS: Array<{
   items: SettingsSection[];
 }> = [
   { label: "Organization", items: ["general", "scheduling"] },
-  { label: "Access", items: ["users", "security", "audit"] },
+  { label: "Access", items: ["users", "developers", "security", "audit"] },
 ];
 
 const isSettingsSection = (
@@ -682,6 +701,8 @@ function SettingsForm({ org }: SettingsFormProps) {
 
           {activeSection === "users" ? <UsersManagementSection /> : null}
 
+          {activeSection === "developers" ? <DevelopersSection /> : null}
+
           {activeSection === "security" ? (
             <ComingSoonSection
               title="Security & access controls"
@@ -734,6 +755,794 @@ function ComingSoonSection({
             <li key={bullet}>{bullet}</li>
           ))}
         </ul>
+      </CardContent>
+    </Card>
+  );
+}
+
+function DevelopersSection() {
+  return (
+    <div className="space-y-6">
+      <ApiKeysSection />
+      <WebhooksSection />
+    </div>
+  );
+}
+
+function formatDateTime(value: Date | string | null | undefined): string {
+  if (!value) return "Never";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Never";
+  return date.toLocaleString();
+}
+
+function ApiKeysSection() {
+  const queryClient = useQueryClient();
+  const [revealedKey, setRevealedKey] = useState<string | null>(null);
+  const [revokingKeyId, setRevokingKeyId] = useState<string | null>(null);
+
+  const {
+    data: apiKeysResponse,
+    isLoading,
+    error,
+  } = useQuery(orpc.apiKeys.list.queryOptions({}));
+
+  const createApiKeyMutation = useMutation(
+    orpc.apiKeys.create.mutationOptions({
+      onSuccess: (createdKey) => {
+        setRevealedKey(createdKey.key);
+        queryClient.invalidateQueries({ queryKey: orpc.apiKeys.key() });
+      },
+      onError: (mutationError) => {
+        toast.error(mutationError.message || "Failed to create API key");
+      },
+    }),
+  );
+
+  const revokeApiKeyMutation = useMutation(
+    orpc.apiKeys.revoke.mutationOptions({
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: orpc.apiKeys.key() });
+      },
+      onError: (mutationError) => {
+        toast.error(mutationError.message || "Failed to revoke API key");
+      },
+    }),
+  );
+
+  const {
+    register,
+    control,
+    handleSubmit,
+    reset,
+    formState: { errors },
+  } = useForm<z.input<typeof createApiKeySchema>, unknown, CreateApiKeyInput>({
+    resolver: zodResolver(createApiKeySchema),
+    defaultValues: {
+      name: "",
+      scope: "member",
+      expiresAt: undefined,
+    },
+  });
+
+  const onCreateApiKey = (input: CreateApiKeyInput) => {
+    createApiKeyMutation.mutate(input, {
+      onSuccess: () => {
+        reset({
+          name: "",
+          scope: "member",
+          expiresAt: undefined,
+        });
+      },
+    });
+  };
+
+  const onRevokeApiKey = (id: string) => {
+    setRevokingKeyId(id);
+    revokeApiKeyMutation.mutate(
+      { id },
+      {
+        onSettled: () => {
+          setRevokingKeyId(null);
+        },
+      },
+    );
+  };
+
+  const apiKeys = apiKeysResponse?.items ?? [];
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>API Keys</CardTitle>
+        <CardDescription>
+          Create scoped API keys for machine-to-machine integrations.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-5">
+        <form
+          onSubmit={handleSubmit(onCreateApiKey)}
+          className="grid gap-3 rounded-xl border border-border bg-muted/20 p-4 md:grid-cols-[1.4fr_180px_220px_auto]"
+        >
+          <div>
+            <Label htmlFor="api-key-name">Name</Label>
+            <Input
+              id="api-key-name"
+              placeholder="Production integration"
+              disabled={createApiKeyMutation.isPending}
+              {...register("name")}
+            />
+            {errors.name ? (
+              <p className="mt-1 text-xs text-destructive">
+                {errors.name.message}
+              </p>
+            ) : null}
+          </div>
+
+          <div>
+            <Label htmlFor="api-key-scope">Scope</Label>
+            <Controller
+              name="scope"
+              control={control}
+              render={({ field }) => (
+                <Select
+                  value={field.value}
+                  onValueChange={(value) => {
+                    if (isOrgMembershipRole(value)) {
+                      field.onChange(value);
+                    }
+                  }}
+                  disabled={createApiKeyMutation.isPending}
+                >
+                  <SelectTrigger id="api-key-scope">
+                    <SelectValue placeholder="Select scope" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {ORG_ROLE_OPTIONS.map((role) => (
+                      <SelectItem key={role.value} value={role.value}>
+                        {role.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            />
+            {errors.scope ? (
+              <p className="mt-1 text-xs text-destructive">
+                {errors.scope.message}
+              </p>
+            ) : null}
+          </div>
+
+          <div>
+            <Label htmlFor="api-key-expires-at">Expires at (optional)</Label>
+            <Input
+              id="api-key-expires-at"
+              type="datetime-local"
+              disabled={createApiKeyMutation.isPending}
+              {...register("expiresAt", {
+                setValueAs: (value) => {
+                  if (typeof value !== "string") return value;
+                  if (value.trim().length === 0) return undefined;
+                  const parsed = new Date(value);
+                  return Number.isNaN(parsed.getTime()) ? undefined : parsed;
+                },
+              })}
+            />
+            {errors.expiresAt ? (
+              <p className="mt-1 text-xs text-destructive">
+                {errors.expiresAt.message}
+              </p>
+            ) : null}
+          </div>
+
+          <div className="flex items-end">
+            <Button type="submit" disabled={createApiKeyMutation.isPending}>
+              {createApiKeyMutation.isPending ? "Creating..." : "Create key"}
+            </Button>
+          </div>
+        </form>
+
+        {revealedKey ? (
+          <div className="rounded-xl border border-border bg-background p-4">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="text-sm font-medium">New API key (shown once)</p>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={async () => {
+                  try {
+                    await navigator.clipboard.writeText(revealedKey);
+                    toast.success("API key copied");
+                  } catch {
+                    toast.error("Failed to copy API key");
+                  }
+                }}
+              >
+                Copy
+              </Button>
+            </div>
+            <Input
+              readOnly
+              value={revealedKey}
+              className="mt-3 font-mono text-xs"
+              aria-label="Created API key"
+            />
+          </div>
+        ) : null}
+
+        {isLoading ? (
+          <div className="text-sm text-muted-foreground">
+            Loading API keys...
+          </div>
+        ) : error ? (
+          <div className="text-sm text-destructive">
+            Failed to load API keys.
+          </div>
+        ) : !apiKeys.length ? (
+          <div className="rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
+            No API keys yet.
+          </div>
+        ) : (
+          <div className="overflow-hidden rounded-xl border border-border">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Name</TableHead>
+                  <TableHead>Scope</TableHead>
+                  <TableHead>Prefix</TableHead>
+                  <TableHead>Last used</TableHead>
+                  <TableHead>Expires</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {apiKeys.map((apiKey) => (
+                  <TableRow key={apiKey.id}>
+                    <TableCell className="font-medium">
+                      {apiKey.name?.trim() || "Untitled key"}
+                    </TableCell>
+                    <TableCell className="capitalize">{apiKey.scope}</TableCell>
+                    <TableCell className="font-mono text-xs">
+                      {apiKey.prefix ?? "—"}
+                    </TableCell>
+                    <TableCell>{formatDateTime(apiKey.lastUsedAt)}</TableCell>
+                    <TableCell>{formatDateTime(apiKey.expiresAt)}</TableCell>
+                    <TableCell className="text-right">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        disabled={
+                          revokeApiKeyMutation.isPending &&
+                          revokingKeyId === apiKey.id
+                        }
+                        onClick={() => onRevokeApiKey(apiKey.id)}
+                      >
+                        {revokeApiKeyMutation.isPending &&
+                        revokingKeyId === apiKey.id
+                          ? "Revoking..."
+                          : "Revoke"}
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function formatDurationSeconds(totalSeconds: number): string {
+  if (totalSeconds < 60) return `${totalSeconds}s`;
+  if (totalSeconds < 60 * 60) return `${Math.floor(totalSeconds / 60)}m`;
+  return `${Math.floor(totalSeconds / (60 * 60))}h`;
+}
+
+function normalizeWebhookUrl(value: string): string | null {
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+
+  try {
+    const url = new URL(trimmed);
+    if (url.protocol !== "http:" && url.protocol !== "https:") {
+      return null;
+    }
+    return url.toString();
+  } catch {
+    return null;
+  }
+}
+
+function WebhooksManager({
+  webhookSession,
+  onRefreshSession,
+  isRefreshingSession,
+}: {
+  webhookSession: WebhookSessionResponse;
+  onRefreshSession: () => void;
+  isRefreshingSession: boolean;
+}) {
+  const { svix, appId } = useSvix();
+  const endpoints = useEndpoints({ limit: 50 });
+  const eventTypes = useEventTypes({ limit: 100 });
+  const messages = useMessages({ limit: 25 });
+
+  const [newEndpointUrl, setNewEndpointUrl] = useState("");
+  const [newEndpointDescription, setNewEndpointDescription] = useState("");
+  const [newEndpointEventTypes, setNewEndpointEventTypes] = useState<string[]>(
+    [],
+  );
+  const [revealedSecret, setRevealedSecret] = useState<{
+    endpointId: string;
+    key: string;
+  } | null>(null);
+
+  const createEndpointMutation = useMutation({
+    mutationFn: async (input: {
+      url: string;
+      description: string;
+      eventTypes: string[];
+    }) =>
+      svix.endpoint.create(appId, {
+        url: input.url,
+        description: input.description || undefined,
+        filterTypes: input.eventTypes.length ? input.eventTypes : null,
+        metadata: {
+          source: "admin-ui",
+        },
+      }),
+    onSuccess: () => {
+      setNewEndpointUrl("");
+      setNewEndpointDescription("");
+      setNewEndpointEventTypes([]);
+      toast.success("Webhook endpoint created");
+      endpoints.reload();
+      messages.reload();
+    },
+    onError: (error) => {
+      toast.error(error.message || "Failed to create endpoint");
+    },
+  });
+
+  const deleteEndpointMutation = useMutation({
+    mutationFn: async (endpointId: string) => {
+      await svix.endpoint.delete(appId, endpointId);
+      return endpointId;
+    },
+    onSuccess: (endpointId) => {
+      if (revealedSecret?.endpointId === endpointId) {
+        setRevealedSecret(null);
+      }
+      toast.success("Webhook endpoint deleted");
+      endpoints.reload();
+    },
+    onError: (error) => {
+      toast.error(error.message || "Failed to delete endpoint");
+    },
+  });
+
+  const revealSecretMutation = useMutation({
+    mutationFn: async (endpointId: string) => {
+      const secret = await svix.endpoint.getSecret(appId, endpointId);
+      return { endpointId, key: secret.key };
+    },
+    onSuccess: (secret) => {
+      setRevealedSecret(secret);
+      toast.success("Signing secret loaded");
+    },
+    onError: (error) => {
+      toast.error(error.message || "Failed to load signing secret");
+    },
+  });
+
+  const sortedEventTypes = useMemo(
+    () =>
+      (eventTypes.data ?? []).toSorted((left, right) =>
+        left.name.localeCompare(right.name),
+      ),
+    [eventTypes.data],
+  );
+
+  const onToggleEventType = (eventTypeName: string) => {
+    setNewEndpointEventTypes((current) =>
+      current.includes(eventTypeName)
+        ? current.filter((value) => value !== eventTypeName)
+        : [...current, eventTypeName],
+    );
+  };
+
+  const onCreateEndpoint = () => {
+    const normalizedUrl = normalizeWebhookUrl(newEndpointUrl);
+    if (!normalizedUrl) {
+      toast.error("Enter a valid http(s) URL");
+      return;
+    }
+
+    createEndpointMutation.mutate({
+      url: normalizedUrl,
+      description: newEndpointDescription.trim(),
+      eventTypes: newEndpointEventTypes,
+    });
+  };
+
+  const onRefreshData = () => {
+    endpoints.reload();
+    eventTypes.reload();
+    messages.reload();
+  };
+
+  return (
+    <div className="space-y-5">
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-muted/20 px-4 py-3">
+        <div className="flex flex-wrap items-center gap-2 text-xs">
+          <Badge variant="outline">App ID: {webhookSession.appId}</Badge>
+          <Badge variant="outline">
+            Session TTL:{" "}
+            {formatDurationSeconds(webhookSession.expiresInSeconds)}
+          </Badge>
+          {webhookSession.serverUrl ? (
+            <Badge variant="outline">Svix: {webhookSession.serverUrl}</Badge>
+          ) : null}
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={onRefreshData}
+          >
+            Refresh data
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            disabled={isRefreshingSession}
+            onClick={onRefreshSession}
+          >
+            {isRefreshingSession ? "Refreshing..." : "Refresh session"}
+          </Button>
+        </div>
+      </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Create Endpoint</CardTitle>
+          <CardDescription>
+            Register a destination URL and choose which event types it receives.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="webhook-endpoint-url">Endpoint URL</Label>
+              <Input
+                id="webhook-endpoint-url"
+                type="url"
+                value={newEndpointUrl}
+                onChange={(event) => {
+                  setNewEndpointUrl(event.target.value);
+                }}
+                placeholder="https://example.com/webhooks/scheduling"
+                disabled={createEndpointMutation.isPending}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="webhook-endpoint-description">
+                Description (optional)
+              </Label>
+              <Input
+                id="webhook-endpoint-description"
+                value={newEndpointDescription}
+                onChange={(event) => {
+                  setNewEndpointDescription(event.target.value);
+                }}
+                placeholder="Production endpoint"
+                disabled={createEndpointMutation.isPending}
+              />
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label>Event filters</Label>
+            {eventTypes.loading ? (
+              <div className="rounded-lg border border-border bg-muted/20 p-4 text-sm text-muted-foreground">
+                Loading event catalog...
+              </div>
+            ) : eventTypes.error ? (
+              <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-4 text-sm text-destructive">
+                Failed to load event catalog.
+              </div>
+            ) : !sortedEventTypes.length ? (
+              <div className="rounded-lg border border-border bg-muted/20 p-4 text-sm text-muted-foreground">
+                No event types found. Run the Svix catalog sync script first.
+              </div>
+            ) : (
+              <div className="grid max-h-56 gap-2 overflow-y-auto rounded-lg border border-border p-3 sm:grid-cols-2 lg:grid-cols-3">
+                {sortedEventTypes.map((eventType) => (
+                  <label
+                    key={eventType.name}
+                    className="flex items-start gap-2 rounded-md border border-border/70 bg-background px-2 py-1.5 text-sm"
+                  >
+                    <input
+                      type="checkbox"
+                      className="mt-0.5"
+                      checked={newEndpointEventTypes.includes(eventType.name)}
+                      onChange={() => {
+                        onToggleEventType(eventType.name);
+                      }}
+                      disabled={createEndpointMutation.isPending}
+                    />
+                    <span className="font-mono text-xs">{eventType.name}</span>
+                  </label>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="flex justify-end">
+            <Button
+              type="button"
+              disabled={createEndpointMutation.isPending}
+              onClick={onCreateEndpoint}
+            >
+              {createEndpointMutation.isPending
+                ? "Creating..."
+                : "Create endpoint"}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Endpoints</CardTitle>
+          <CardDescription>
+            Active webhook destinations for this organization.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {endpoints.loading ? (
+            <div className="text-sm text-muted-foreground">
+              Loading endpoints...
+            </div>
+          ) : endpoints.error ? (
+            <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-4 text-sm text-destructive">
+              Failed to load endpoints.
+            </div>
+          ) : !endpoints.data?.length ? (
+            <div className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
+              No webhook endpoints yet.
+            </div>
+          ) : (
+            <div className="overflow-hidden rounded-xl border border-border">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>URL</TableHead>
+                    <TableHead>Events</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Updated</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {endpoints.data.map((endpoint) => {
+                    const endpointEventTypes = endpoint.filterTypes ?? [];
+                    const endpointDisabled = endpoint.disabled ?? false;
+                    const isDeleting =
+                      deleteEndpointMutation.isPending &&
+                      deleteEndpointMutation.variables === endpoint.id;
+                    const isRevealingSecret =
+                      revealSecretMutation.isPending &&
+                      revealSecretMutation.variables === endpoint.id;
+
+                    return (
+                      <TableRow key={endpoint.id}>
+                        <TableCell className="max-w-[320px]">
+                          <div className="truncate font-medium">
+                            {endpoint.url}
+                          </div>
+                          {endpoint.description ? (
+                            <div className="truncate text-xs text-muted-foreground">
+                              {endpoint.description}
+                            </div>
+                          ) : null}
+                        </TableCell>
+                        <TableCell>
+                          {endpointEventTypes.length ? (
+                            <span className="text-sm">
+                              {endpointEventTypes.length} selected
+                            </span>
+                          ) : (
+                            <span className="text-sm text-muted-foreground">
+                              All events
+                            </span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <Badge
+                            variant={endpointDisabled ? "secondary" : "success"}
+                          >
+                            {endpointDisabled ? "Disabled" : "Active"}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          {formatDateTime(endpoint.updatedAt)}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex justify-end gap-2">
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              disabled={isRevealingSecret}
+                              onClick={() => {
+                                revealSecretMutation.mutate(endpoint.id);
+                              }}
+                            >
+                              {isRevealingSecret ? "Loading..." : "Show secret"}
+                            </Button>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              disabled={isDeleting}
+                              onClick={() => {
+                                deleteEndpointMutation.mutate(endpoint.id);
+                              }}
+                            >
+                              {isDeleting ? "Deleting..." : "Delete"}
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+
+          {revealedSecret ? (
+            <div className="rounded-xl border border-border bg-background p-4">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="text-sm font-medium">
+                  Signing secret for endpoint {revealedSecret.endpointId}
+                </p>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={async () => {
+                    try {
+                      await navigator.clipboard.writeText(revealedSecret.key);
+                      toast.success("Signing secret copied");
+                    } catch {
+                      toast.error("Failed to copy signing secret");
+                    }
+                  }}
+                >
+                  Copy
+                </Button>
+              </div>
+              <Input
+                readOnly
+                value={revealedSecret.key}
+                className="mt-3 font-mono text-xs"
+                aria-label="Endpoint signing secret"
+              />
+            </div>
+          ) : null}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Recent Events</CardTitle>
+          <CardDescription>
+            Latest messages accepted by Svix for this organization.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {messages.loading ? (
+            <div className="text-sm text-muted-foreground">
+              Loading events...
+            </div>
+          ) : messages.error ? (
+            <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-4 text-sm text-destructive">
+              Failed to load events.
+            </div>
+          ) : !messages.data?.length ? (
+            <div className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
+              No events published yet.
+            </div>
+          ) : (
+            <div className="overflow-hidden rounded-xl border border-border">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Type</TableHead>
+                    <TableHead>Timestamp</TableHead>
+                    <TableHead>Event ID</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {messages.data.map((message) => (
+                    <TableRow key={message.id}>
+                      <TableCell className="font-mono text-xs">
+                        {message.eventType}
+                      </TableCell>
+                      <TableCell>{formatDateTime(message.timestamp)}</TableCell>
+                      <TableCell className="font-mono text-xs">
+                        {message.eventId ?? message.id}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+function WebhooksSection() {
+  const {
+    data: webhookSession,
+    isLoading,
+    isFetching,
+    error,
+    refetch,
+  } = useQuery(orpc.webhooks.session.queryOptions({}));
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Webhooks</CardTitle>
+        <CardDescription>
+          Manage webhook endpoints and recent deliveries with Svix.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {isLoading ? (
+          <div className="rounded-xl border border-border bg-muted/20 p-6 text-sm text-muted-foreground">
+            Loading webhook manager...
+          </div>
+        ) : error ? (
+          <div className="rounded-xl border border-destructive/40 bg-destructive/5 p-4 text-sm text-destructive">
+            Failed to load webhook management session.
+          </div>
+        ) : !webhookSession ? (
+          <div className="rounded-xl border border-destructive/40 bg-destructive/5 p-4 text-sm text-destructive">
+            Missing webhook session.
+          </div>
+        ) : (
+          <SvixProvider
+            token={webhookSession.token}
+            appId={webhookSession.appId}
+            options={
+              webhookSession.serverUrl
+                ? { serverUrl: webhookSession.serverUrl }
+                : undefined
+            }
+          >
+            <WebhooksManager
+              webhookSession={webhookSession}
+              isRefreshingSession={isFetching}
+              onRefreshSession={() => {
+                void refetch();
+              }}
+            />
+          </SvixProvider>
+        )}
       </CardContent>
     </Card>
   );

@@ -17,11 +17,9 @@ function getJobQueue(): JobQueue {
   return jobQueue;
 }
 
-// Generate a unique event ID (using timestamp + random for sortability)
+// Generate a unique event ID
 function generateEventId(): string {
-  const timestamp = Date.now().toString(36);
-  const random = Math.random().toString(36).slice(2, 10);
-  return `evt_${timestamp}_${random}`;
+  return Bun.randomUUIDv7();
 }
 
 function toOutboxPayload(value: unknown): Record<string, unknown> {
@@ -52,6 +50,7 @@ export async function emitEvent<T>(
   // Write to outbox within the provided transaction or a new one
   const insertFn = async (database: DbClient) => {
     await database.insert(eventOutbox).values({
+      id: eventId,
       orgId,
       type,
       payload: toOutboxPayload(payload),

@@ -15,6 +15,7 @@ import { clientRoutes } from "./clients.js";
 import { auditRoutes } from "./audit.js";
 import { dashboardRoutes } from "./dashboard.js";
 import { apiKeyRoutes } from "./api-keys.js";
+import { webhookRoutes } from "./webhooks.js";
 
 // Re-export authed and adminOnly from base for backwards compatibility
 export { authed, adminOnly } from "./base.js";
@@ -44,6 +45,7 @@ export const uiRouter = {
   clients: clientRoutes,
   audit: auditRoutes,
   apiKeys: apiKeyRoutes,
+  webhooks: webhookRoutes,
 };
 
 // ============================================================================
@@ -60,6 +62,7 @@ export const apiRouter = {
   availability: availabilityEngineRoutes,
   appointments: appointmentRoutes,
   clients: clientRoutes,
+  webhooks: webhookRoutes,
 };
 
 // Legacy export for backwards compatibility (points to UI router)

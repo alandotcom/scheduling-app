@@ -19,7 +19,8 @@ packages/
 - **API:** Hono 4.x + oRPC (REST + OpenAPI)
 - **Auth:** BetterAuth with Drizzle adapter, API keys for server-to-server access
 - **Database:** Drizzle ORM + Bun SQL, Postgres 18 with native `uuidv7()`
-- **Job Queue:** BullMQ with Valkey/Redis for webhook delivery and event processing
+- **Webhooks:** Svix (self-hosted via Docker Compose or hosted Svix Cloud)
+- **Job Queue:** BullMQ with Valkey/Redis for outbox processing and webhook delivery
 - **Testing:** Real Postgres via Docker
 - **Linting:** oxlint (Rust-based, strict rules)
 
@@ -98,10 +99,12 @@ Key entities:
 
 ```bash
 # Development
-pnpm dev              # Run API + admin UI + Bull Board in parallel
+pnpm dev              # Run API + admin UI + worker + Bull Board in parallel
 pnpm dev:api          # Run API only with hot reload
+pnpm dev:worker       # Run worker only with hot reload
 pnpm dev:admin        # Run admin UI only
 pnpm dev:bull-board   # Run only Bull Board as a separate server
+pnpm --filter @scheduling/api run sync:svix-event-catalog  # Manual Svix event schema sync
 
 # Testing
 pnpm test             # Run all tests
@@ -110,7 +113,7 @@ pnpm --filter @scheduling/db run test            # Run DB tests only
 
 # Code Quality
 pnpm lint             # Run oxlint
-pnpm format           # Auto-format with oxfmt
+pnpm format           # Auto-format with Biome
 pnpm typecheck        # Type-check all packages
 
 # Database (from packages/db)
@@ -135,12 +138,13 @@ OpenAPI docs are available at `/api/v1/docs` (Scalar UI) and `/api/v1/openapi.js
 - `locations`, `calendars`, `resources`, `appointmentTypes`
 - `availability` (rules, overrides, blocked time, scheduling limits, queries)
 - `appointments`, `clients`
-- `apiKeys`, `audit` (admin only)
+- `apiKeys`, `audit`, `webhooks` (admin only)
 
 **API Endpoints (`/api/v1/*`)** - External integrations:
 
 - `locations`, `calendars`, `resources`, `appointmentTypes`
 - `appointments`, `clients`
+- `webhooks`
 - `availability` (query-only: dates, times, check)
 - Excludes: `apiKeys`, `audit`, availability management
 
@@ -162,8 +166,22 @@ All org-scoped data is protected by PostgreSQL row-level security (RLS). Organiz
 Domain events are emitted on mutations:
 
 - Written to `event_outbox` table for reliable delivery
-- Processed by BullMQ workers for webhook delivery
+- Claimed atomically (`pending -> processing`) before publish to prevent pre-commit delivery races
+- Processed by BullMQ workers and published to Svix with idempotency key = event ID
 - Audit events recorded for compliance tracking
+
+### Webhooks (Svix)
+
+- Webhook event payloads are strongly typed in `packages/dto/src/schemas/webhook.ts`.
+- Svix event catalog schemas are synced idempotently (`create`, then `update` on conflict).
+- Catalog sync runs automatically on API and worker startup.
+- You can also run manual sync at any time:
+
+  ```bash
+  pnpm --filter @scheduling/api run sync:svix-event-catalog
+  ```
+
+- Admin webhook management in Settings uses `svix-react` hooks (OSS flow) with a short-lived session from `GET /v1/webhooks/session`.
 
 ## Environment Variables
 
@@ -178,6 +196,10 @@ Domain events are emitted on mutations:
 | `BULL_BOARD_HOST`      | Bull Board bind host                     | `127.0.0.1`                                                  |
 | `BULL_BOARD_PORT`      | Bull Board server port                   | `3010`                                                       |
 | `BULL_BOARD_BASE_PATH` | Bull Board UI base path                  | `/`                                                          |
+| `SVIX_WEBHOOKS_ENABLED`| Enable Svix publishing + webhook features| `false`                                                      |
+| `SVIX_BASE_URL`        | Svix API base URL                        | _(unset)_                                                    |
+| `SVIX_AUTH_TOKEN`      | Svix auth token for API access           | _(unset)_                                                    |
+| `SVIX_JWT_SECRET`      | Svix server JWT secret (self-hosted only)| _(unset)_                                                    |
 
 ## License
 

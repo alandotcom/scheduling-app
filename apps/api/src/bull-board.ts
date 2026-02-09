@@ -16,7 +16,6 @@ import { config } from "./config.js";
 import {
   closeAllQueues,
   getEventQueue,
-  getWebhookQueue,
   QUEUE_NAMES,
 } from "./services/jobs/queue.js";
 
@@ -64,7 +63,6 @@ const serverAdapter = new HonoAdapter(serveStatic);
 createBullBoard({
   queues: [
     new BullMQAdapter(getEventQueue(), { description: QUEUE_NAMES.EVENTS }),
-    new BullMQAdapter(getWebhookQueue(), { description: QUEUE_NAMES.WEBHOOKS }),
   ],
   serverAdapter,
 });
