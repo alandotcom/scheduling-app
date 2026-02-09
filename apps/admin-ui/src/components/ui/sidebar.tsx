@@ -154,6 +154,11 @@ function Sidebar({
     );
   }
 
+  // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion -- CSS custom property
+  const mobileStyle = {
+    "--sidebar-width": SIDEBAR_WIDTH_MOBILE,
+  } as React.CSSProperties;
+
   if (isMobile) {
     return (
       <Sheet open={openMobile} onOpenChange={setOpenMobile}>
@@ -162,11 +167,7 @@ function Sidebar({
           data-slot="sidebar"
           data-mobile="true"
           className="bg-sidebar text-sidebar-foreground w-(--sidebar-width) p-0 [&>button]:hidden"
-          style={
-            {
-              "--sidebar-width": SIDEBAR_WIDTH_MOBILE,
-            } as React.CSSProperties
-          }
+          style={mobileStyle}
           side={side}
         >
           <SheetHeader className="sr-only">

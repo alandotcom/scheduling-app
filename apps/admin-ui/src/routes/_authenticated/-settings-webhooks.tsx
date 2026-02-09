@@ -2047,6 +2047,16 @@ interface PropertyInfo {
   isRecord?: boolean;
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function toStringArray(value: unknown): string[] | undefined {
+  return Array.isArray(value)
+    ? value.filter((v): v is string => typeof v === "string")
+    : undefined;
+}
+
 function resolvePropertyInfo(
   prop: Record<string, unknown>,
   _name?: string,
@@ -2054,9 +2064,9 @@ function resolvePropertyInfo(
   // Zod nullable pattern: { anyOf: [{ ...actual }, { type: "null" }] }
   if (Array.isArray(prop.anyOf) && prop.anyOf.length === 2) {
     const nonNull = prop.anyOf.find(
-      (s: Record<string, unknown>) => s.type !== "null",
-    ) as Record<string, unknown> | undefined;
-    if (nonNull) {
+      (s: unknown) => isRecord(s) && s.type !== "null",
+    );
+    if (isRecord(nonNull)) {
       const info = resolvePropertyInfo(nonNull);
       return { ...info, nullable: true };
     }
@@ -2067,7 +2077,8 @@ function resolvePropertyInfo(
   const description =
     typeof prop.description === "string" ? prop.description : undefined;
 
-  const constValue = prop.const !== undefined ? String(prop.const) : undefined;
+  const constValue =
+    prop.const !== undefined ? JSON.stringify(prop.const) : undefined;
 
   const enumValues = Array.isArray(prop.enum)
     ? prop.enum.map(String)
@@ -2075,23 +2086,13 @@ function resolvePropertyInfo(
 
   let nestedProperties: Record<string, unknown> | undefined;
   let nestedRequired: string[] | undefined;
-  let isRecord = false;
+  let isRecordType = false;
 
-  if (
-    type === "object" &&
-    prop.properties &&
-    typeof prop.properties === "object"
-  ) {
-    nestedProperties = prop.properties as Record<string, unknown>;
-    nestedRequired = Array.isArray(prop.required)
-      ? (prop.required as string[])
-      : undefined;
-  } else if (
-    type === "object" &&
-    prop.additionalProperties &&
-    typeof prop.additionalProperties === "object"
-  ) {
-    isRecord = true;
+  if (type === "object" && isRecord(prop.properties)) {
+    nestedProperties = prop.properties;
+    nestedRequired = toStringArray(prop.required);
+  } else if (type === "object" && isRecord(prop.additionalProperties)) {
+    isRecordType = true;
   }
 
   return {
@@ -2103,7 +2104,7 @@ function resolvePropertyInfo(
     enumValues,
     nestedProperties,
     nestedRequired,
-    isRecord,
+    isRecord: isRecordType,
   };
 }
 
@@ -2112,10 +2113,10 @@ function resolvePropertyInfo(
 // ---------------------------------------------------------------------------
 
 function SchemaPropertiesView({ schema }: { schema: Record<string, unknown> }) {
-  const properties = schema.properties as Record<string, unknown> | undefined;
-  const required = Array.isArray(schema.required)
-    ? (schema.required as string[])
-    : [];
+  const properties = isRecord(schema.properties)
+    ? schema.properties
+    : undefined;
+  const required = toStringArray(schema.required) ?? [];
 
   if (!properties || Object.keys(properties).length === 0) {
     return (
@@ -2143,15 +2144,17 @@ function PropertyList({
 }) {
   return (
     <div>
-      {Object.entries(properties).map(([name, propSchema]) => (
-        <PropertyRow
-          key={name}
-          name={name}
-          schema={propSchema as Record<string, unknown>}
-          isRequired={required.includes(name)}
-          depth={depth}
-        />
-      ))}
+      {Object.entries(properties).map(([name, propSchema]) =>
+        isRecord(propSchema) ? (
+          <PropertyRow
+            key={name}
+            name={name}
+            schema={propSchema}
+            isRequired={required.includes(name)}
+            depth={depth}
+          />
+        ) : null,
+      )}
     </div>
   );
 }
@@ -2288,7 +2291,8 @@ function EventSchemaDetail({
     schemas?: Record<string, unknown> | null;
   };
 }) {
-  const schemaV1 = event.schemas?.v1 as Record<string, unknown> | undefined;
+  const rawV1 = event.schemas?.v1;
+  const schemaV1 = isRecord(rawV1) ? rawV1 : undefined;
 
   return (
     <div className="rounded-lg border border-border bg-card p-5">
