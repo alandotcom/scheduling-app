@@ -21,6 +21,7 @@ import {
   EntityListLoadingState,
 } from "@/components/entity-list";
 import type { ContextMenuItem } from "@/components/context-menu";
+import { CopyIdHeaderAction } from "@/components/copy-id-header-action";
 import { DeleteConfirmDialog } from "@/components/delete-confirm-dialog";
 import { EntityModal } from "@/components/entity-modal";
 import { PageHeader, PageScaffold } from "@/components/layout/page-scaffold";
@@ -522,6 +523,14 @@ function AppointmentTypesPage() {
         onOpenChange={(open) => {
           if (!open) closeManageModal();
         }}
+        headerActions={
+          displayManageType ? (
+            <CopyIdHeaderAction
+              id={displayManageType.id}
+              entityLabel="appointment type"
+            />
+          ) : null
+        }
         title={displayManageType?.name ?? ""}
       >
         {displayManageType ? (

@@ -49,6 +49,7 @@ import {
   ActiveFilters,
 } from "@/components/filter-popover";
 import { AppointmentModal } from "@/components/appointment-modal";
+import { CopyIdHeaderAction } from "@/components/copy-id-header-action";
 import { EntityModal } from "@/components/entity-modal";
 import { PageHeader, PageScaffold } from "@/components/layout/page-scaffold";
 import {
@@ -944,6 +945,14 @@ function AppointmentsPage() {
         onOpenChange={(open) => {
           if (!open) clearDetails();
         }}
+        headerActions={
+          displayAppointment ? (
+            <CopyIdHeaderAction
+              id={displayAppointment.id}
+              entityLabel="appointment"
+            />
+          ) : null
+        }
         title={displayAppointment?.appointmentType?.name ?? ""}
         description={
           displayAppointment

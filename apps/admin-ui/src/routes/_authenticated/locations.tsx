@@ -16,6 +16,7 @@ import { toast } from "sonner";
 
 import { createLocationSchema } from "@scheduling/dto";
 import type { CreateLocationInput } from "@scheduling/dto";
+import { CopyIdHeaderAction } from "@/components/copy-id-header-action";
 import { DeleteConfirmDialog } from "@/components/delete-confirm-dialog";
 import { DetailTab, DetailTabs } from "@/components/workbench";
 import { EntityModal } from "@/components/entity-modal";
@@ -443,6 +444,14 @@ function LocationsPage() {
         onOpenChange={(open) => {
           if (!open) clearDetails();
         }}
+        headerActions={
+          displayLocation ? (
+            <CopyIdHeaderAction
+              id={displayLocation.id}
+              entityLabel="location"
+            />
+          ) : null
+        }
         title={displayLocation?.name ?? ""}
         description={
           displayLocation

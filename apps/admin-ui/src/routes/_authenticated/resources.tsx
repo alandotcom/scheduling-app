@@ -14,6 +14,7 @@ import { toast } from "sonner";
 import { createResourceSchema } from "@scheduling/dto";
 import type { CreateResourceInput } from "@scheduling/dto";
 import { DeleteConfirmDialog } from "@/components/delete-confirm-dialog";
+import { CopyIdHeaderAction } from "@/components/copy-id-header-action";
 import { EntityModal } from "@/components/entity-modal";
 import {
   EntityListEmptyState,
@@ -435,6 +436,14 @@ function ResourcesPage() {
         onOpenChange={(open) => {
           if (!open) clearDetails();
         }}
+        headerActions={
+          displayResource ? (
+            <CopyIdHeaderAction
+              id={displayResource.id}
+              entityLabel="resource"
+            />
+          ) : null
+        }
         title={displayResource?.name ?? ""}
         description={
           displayResource

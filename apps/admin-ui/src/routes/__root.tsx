@@ -50,6 +50,7 @@ import {
   useNavigationShortcuts,
 } from "@/hooks/use-keyboard-shortcuts";
 import { isIgnorableRouteLoaderError } from "@/lib/query-cancellation";
+import { Tooltip } from "@base-ui/react/tooltip";
 import { cn } from "@/lib/utils";
 
 interface OrganizationListItem {
@@ -310,8 +311,11 @@ function RootLayout() {
             </div>
           </div>
           <div className="flex-1 px-3 py-3 space-y-1">
-            {Array.from({ length: 7 }).map((_, i) => (
-              <Skeleton key={i} className="h-8 w-full rounded-lg" />
+            {Array.from({ length: 7 }, (_, i) => (
+              <Skeleton
+                key={`nav-skeleton-${i}`}
+                className="h-8 w-full rounded-lg"
+              />
             ))}
           </div>
         </div>
@@ -404,40 +408,61 @@ function RootLayout() {
       </a>
 
       {/* Desktop Sidebar */}
-      <aside
-        className={cn(
-          "hidden flex-col bg-sidebar text-sidebar-foreground lg:flex transition-all duration-200 ease-out",
-          sidebarCollapsed ? "w-[68px]" : "w-60",
-        )}
-      >
-        {/* Logo area */}
-        <div
+      <Tooltip.Provider delay={400} closeDelay={0}>
+        <aside
           className={cn(
-            "flex h-14 items-center border-b border-sidebar-border shrink-0",
-            sidebarCollapsed ? "justify-center px-2" : "px-5",
+            "hidden flex-col bg-sidebar text-sidebar-foreground lg:flex transition-all duration-200 ease-out",
+            sidebarCollapsed ? "w-[68px]" : "w-60",
           )}
         >
-          <Link to="/" preload="intent" className="flex items-center gap-2.5">
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground text-sm font-bold">
-              S
-            </div>
-            {!sidebarCollapsed && (
-              <span className="text-sm font-semibold tracking-tight text-sidebar-primary">
-                Scheduling
-              </span>
+          {/* Logo area */}
+          <div
+            className={cn(
+              "flex h-14 items-center border-b border-sidebar-border shrink-0",
+              sidebarCollapsed ? "justify-center px-2" : "px-5",
             )}
-          </Link>
-        </div>
+          >
+            <Link to="/" preload="intent" className="flex items-center gap-2.5">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground text-sm font-bold">
+                S
+              </div>
+              {!sidebarCollapsed && (
+                <span className="text-sm font-semibold tracking-tight text-sidebar-primary">
+                  Scheduling
+                </span>
+              )}
+            </Link>
+          </div>
 
-        {/* Navigation */}
-        <nav
-          className={cn(
-            "flex-1 overflow-y-auto py-3",
-            sidebarCollapsed ? "px-2" : "px-3",
-          )}
-        >
-          <div className="flex flex-col gap-0.5">
-            {navItems.map((item) => (
+          {/* Navigation */}
+          <nav
+            className={cn(
+              "flex-1 overflow-y-auto py-3",
+              sidebarCollapsed ? "px-2" : "px-3",
+            )}
+          >
+            <div className="flex flex-col gap-0.5">
+              {navItems.map((item) => (
+                <SidebarLink
+                  key={item.to}
+                  to={item.to}
+                  icon={item.icon}
+                  collapsed={sidebarCollapsed}
+                >
+                  {item.label}
+                </SidebarLink>
+              ))}
+            </div>
+          </nav>
+
+          {/* Bottom section */}
+          <div
+            className={cn(
+              "border-t border-sidebar-border py-3",
+              sidebarCollapsed ? "px-2" : "px-3",
+            )}
+          >
+            {bottomNavItems.map((item) => (
               <SidebarLink
                 key={item.to}
                 to={item.to}
@@ -447,91 +472,104 @@ function RootLayout() {
                 {item.label}
               </SidebarLink>
             ))}
-          </div>
-        </nav>
 
-        {/* Bottom section */}
-        <div
-          className={cn(
-            "border-t border-sidebar-border py-3",
-            sidebarCollapsed ? "px-2" : "px-3",
-          )}
-        >
-          {bottomNavItems.map((item) => (
-            <SidebarLink
-              key={item.to}
-              to={item.to}
-              icon={item.icon}
-              collapsed={sidebarCollapsed}
-            >
-              {item.label}
-            </SidebarLink>
-          ))}
-
-          {/* Collapse toggle */}
-          <button
-            type="button"
-            onClick={() => setSidebarCollapsed((prev) => !prev)}
-            className={cn(
-              "mt-2 flex w-full items-center gap-3 rounded-lg px-3 py-2 text-xs font-medium text-sidebar-foreground/50",
-              "transition-colors duration-150 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
-              sidebarCollapsed && "justify-center",
+            {/* Collapse toggle */}
+            {sidebarCollapsed ? (
+              <Tooltip.Root>
+                <Tooltip.Trigger
+                  render={
+                    <button
+                      type="button"
+                      onClick={() => setSidebarCollapsed((prev) => !prev)}
+                      className={cn(
+                        "mt-2 flex w-full items-center gap-3 rounded-lg px-3 py-2 text-xs font-medium text-sidebar-foreground/50",
+                        "transition-colors duration-150 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+                        "justify-center",
+                      )}
+                      aria-label="Expand sidebar"
+                    />
+                  }
+                >
+                  <svg
+                    width="16"
+                    height="16"
+                    viewBox="0 0 16 16"
+                    fill="none"
+                    className="shrink-0 transition-transform duration-200 rotate-180"
+                  >
+                    <path
+                      d="M10 12L6 8L10 4"
+                      stroke="currentColor"
+                      strokeWidth="1.5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                </Tooltip.Trigger>
+                <Tooltip.Portal>
+                  <Tooltip.Positioner side="right" sideOffset={8}>
+                    <Tooltip.Popup className="rounded-md bg-popover px-2.5 py-1.5 text-xs font-medium text-popover-foreground shadow-md origin-(--transform-origin) transition-[transform,scale,opacity] data-starting-style:opacity-0 data-starting-style:scale-95 data-ending-style:opacity-0 data-ending-style:scale-95 data-instant:transition-none">
+                      Expand
+                    </Tooltip.Popup>
+                  </Tooltip.Positioner>
+                </Tooltip.Portal>
+              </Tooltip.Root>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setSidebarCollapsed((prev) => !prev)}
+                className="mt-2 flex w-full items-center gap-3 rounded-lg px-3 py-2 text-xs font-medium text-sidebar-foreground/50 transition-colors duration-150 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                aria-label="Collapse sidebar"
+              >
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 16 16"
+                  fill="none"
+                  className="shrink-0 transition-transform duration-200"
+                >
+                  <path
+                    d="M10 12L6 8L10 4"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+                <span>Collapse</span>
+              </button>
             )}
-            title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-            aria-label={
-              sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"
-            }
-          >
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 16 16"
-              fill="none"
+
+            {/* User menu */}
+            <div
               className={cn(
-                "shrink-0 transition-transform duration-200",
-                sidebarCollapsed && "rotate-180",
+                "mt-3 flex items-center gap-3 rounded-lg px-3 py-2",
+                sidebarCollapsed && "justify-center px-0",
               )}
             >
-              <path
-                d="M10 12L6 8L10 4"
-                stroke="currentColor"
-                strokeWidth="1.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
+              {!sidebarCollapsed && (
+                <div className="flex-1 min-w-0">
+                  <div className="truncate text-xs font-medium text-sidebar-primary">
+                    {user?.name ?? user?.email}
+                  </div>
+                  <div className="truncate text-[11px] text-sidebar-foreground/50">
+                    {displayActiveOrganization?.name ?? user?.email}
+                  </div>
+                </div>
+              )}
+              <UserMenu
+                userName={user?.name}
+                userEmail={user?.email}
+                organizations={organizationMenuItems}
+                activeOrganizationId={activeOrganizationId}
+                onSwitchOrganization={onSwitchOrganization}
+                onCreateOrganization={onCreateOrganization}
+                onSignOut={onSignOut}
               />
-            </svg>
-            {!sidebarCollapsed && <span>Collapse</span>}
-          </button>
-
-          {/* User menu */}
-          <div
-            className={cn(
-              "mt-3 flex items-center gap-3 rounded-lg px-3 py-2",
-              sidebarCollapsed && "justify-center px-0",
-            )}
-          >
-            {!sidebarCollapsed && (
-              <div className="flex-1 min-w-0">
-                <div className="truncate text-xs font-medium text-sidebar-primary">
-                  {user?.name ?? user?.email}
-                </div>
-                <div className="truncate text-[11px] text-sidebar-foreground/50">
-                  {displayActiveOrganization?.name ?? user?.email}
-                </div>
-              </div>
-            )}
-            <UserMenu
-              userName={user?.name}
-              userEmail={user?.email}
-              organizations={organizationMenuItems}
-              activeOrganizationId={activeOrganizationId}
-              onSwitchOrganization={onSwitchOrganization}
-              onCreateOrganization={onCreateOrganization}
-              onSignOut={onSignOut}
-            />
+            </div>
           </div>
-        </div>
-      </aside>
+        </aside>
+      </Tooltip.Provider>
 
       {/* Main content area */}
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
@@ -952,23 +990,51 @@ function SidebarLink({
   className?: string;
   children: React.ReactNode;
 }) {
+  const linkClassName = cn(
+    "flex items-center gap-3 rounded-lg px-3 py-2 text-[13px] font-medium text-sidebar-foreground/70",
+    "transition-colors duration-150 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring",
+    "[&.active]:bg-sidebar-accent [&.active]:text-sidebar-accent-foreground",
+    collapsed && "justify-center px-2",
+    externalClassName,
+  );
+
+  if (!collapsed) {
+    return (
+      <Link
+        to={to}
+        preload="intent"
+        activeOptions={{ exact: to === "/" }}
+        className={linkClassName}
+      >
+        <Icon icon={icon} className="size-4 shrink-0" />
+        <span>{children}</span>
+      </Link>
+    );
+  }
+
   return (
-    <Link
-      to={to}
-      preload="intent"
-      activeOptions={{ exact: to === "/" }}
-      className={cn(
-        "flex items-center gap-3 rounded-lg px-3 py-2 text-[13px] font-medium text-sidebar-foreground/70",
-        "transition-colors duration-150 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
-        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring",
-        "[&.active]:bg-sidebar-accent [&.active]:text-sidebar-accent-foreground",
-        collapsed && "justify-center px-2",
-        externalClassName,
-      )}
-    >
-      <Icon icon={icon} className="size-4 shrink-0" />
-      {!collapsed && <span>{children}</span>}
-    </Link>
+    <Tooltip.Root>
+      <Tooltip.Trigger
+        render={
+          <Link
+            to={to}
+            preload="intent"
+            activeOptions={{ exact: to === "/" }}
+            className={linkClassName}
+          />
+        }
+      >
+        <Icon icon={icon} className="size-4 shrink-0" />
+      </Tooltip.Trigger>
+      <Tooltip.Portal>
+        <Tooltip.Positioner side="right" sideOffset={8}>
+          <Tooltip.Popup className="rounded-md bg-popover px-2.5 py-1.5 text-xs font-medium text-popover-foreground shadow-md origin-(--transform-origin) transition-[transform,scale,opacity] data-starting-style:opacity-0 data-starting-style:scale-95 data-ending-style:opacity-0 data-ending-style:scale-95 data-instant:transition-none">
+            {children}
+          </Tooltip.Popup>
+        </Tooltip.Positioner>
+      </Tooltip.Portal>
+    </Tooltip.Root>
   );
 }
 

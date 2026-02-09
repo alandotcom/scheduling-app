@@ -29,6 +29,7 @@ import type { AvailabilitySubTabType } from "@/components/availability/constants
 import { DateOverridesEditor } from "@/components/availability/date-overrides-editor";
 import { WeeklyScheduleEditor } from "@/components/availability/weekly-schedule-editor";
 import type { ContextMenuItem } from "@/components/context-menu";
+import { CopyIdHeaderAction } from "@/components/copy-id-header-action";
 import { DeleteConfirmDialog } from "@/components/delete-confirm-dialog";
 import { DetailTab, DetailTabs } from "@/components/workbench";
 import { EntityModal } from "@/components/entity-modal";
@@ -564,6 +565,14 @@ function CalendarsPage() {
         onOpenChange={(open) => {
           if (!open) clearDetails();
         }}
+        headerActions={
+          displayCalendar ? (
+            <CopyIdHeaderAction
+              id={displayCalendar.id}
+              entityLabel="calendar"
+            />
+          ) : null
+        }
         title={displayCalendar?.name ?? ""}
         description={
           displayCalendar

@@ -28,6 +28,7 @@ import { toast } from "sonner";
 import { createClientSchema } from "@scheduling/dto";
 import type { CreateClientInput } from "@scheduling/dto";
 import { AppointmentModal } from "@/components/appointment-modal";
+import { CopyIdHeaderAction } from "@/components/copy-id-header-action";
 import { DeleteConfirmDialog } from "@/components/delete-confirm-dialog";
 import { DetailTab, DetailTabs } from "@/components/workbench";
 import { EntityModal } from "@/components/entity-modal";
@@ -843,6 +844,16 @@ function ClientsPage() {
         onOpenChange={(open) => {
           if (!open) clearDetails();
         }}
+        headerActions={
+          displayAppointment ? (
+            <CopyIdHeaderAction
+              id={displayAppointment.id}
+              entityLabel="appointment"
+            />
+          ) : displayClient ? (
+            <CopyIdHeaderAction id={displayClient.id} entityLabel="client" />
+          ) : null
+        }
         title={
           isAppointmentDetailOpen
             ? (displayAppointment?.appointmentType?.name ?? "Appointment")

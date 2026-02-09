@@ -8,6 +8,7 @@ import { createTestQueryClient, createAppointmentFixture } from "@/test-utils";
 import { AppointmentModal } from "@/components/appointment-modal";
 import { RescheduleDialog } from "@/components/appointments/reschedule-dialog";
 import { AvailabilityManageModal } from "@/components/availability/availability-manage-modal";
+import { CopyIdHeaderAction } from "@/components/copy-id-header-action";
 import { EntityModal } from "@/components/entity-modal";
 import {
   AlertDialog,
@@ -58,6 +59,29 @@ describe("modal layout positioning", () => {
     expect(body?.className).toContain("overflow-y-auto");
     expect(body?.className).toContain("p-0");
     expect(body?.className).not.toContain("overflow-hidden");
+  });
+
+  test("EntityModal renders copy-id header action", () => {
+    render(
+      <EntityModal
+        open
+        onOpenChange={() => {}}
+        title="Entity"
+        headerActions={
+          <CopyIdHeaderAction
+            id="018f3f7e-4c83-7e95-8df4-10ccf0f44f45"
+            entityLabel="client"
+          />
+        }
+      >
+        <div>Entity body</div>
+      </EntityModal>,
+    );
+
+    const copyButton = document.querySelector<HTMLElement>(
+      '[aria-label="Copy client ID"]',
+    );
+    expect(copyButton).toBeTruthy();
   });
 
   test("AppointmentModal uses mobile fullscreen layout with desktop top anchor", () => {
