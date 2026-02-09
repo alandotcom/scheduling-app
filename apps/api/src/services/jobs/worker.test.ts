@@ -201,4 +201,58 @@ describe("Event Worker", () => {
 
     expect(publishEvent).toHaveBeenCalledTimes(1);
   });
+
+  test("default worker DB path is RLS-safe without injected db client", async () => {
+    const { org } = await createOrg(db);
+    const event = createEvent({ orgId: org.id });
+    const job = createJob(event, { attemptsMade: 0, attempts: 3 });
+    const publishEvent = mock(async () => {});
+
+    await db.transaction(async (tx) => {
+      await tx.execute(
+        sql`SELECT set_config('app.current_org_id', ${org.id}, true)`,
+      );
+
+      await tx.insert(eventOutbox).values({
+        id: event.id,
+        orgId: org.id,
+        type: event.type,
+        payload: event.payload as Record<string, unknown>,
+        status: "pending",
+        nextAttemptAt: new Date("2026-02-09T00:00:00.000Z"),
+      });
+    });
+
+    await processEventJob(job, {
+      publishEvent,
+      now: () => new Date("2026-02-09T00:00:00.000Z"),
+    });
+
+    const [row] = await db.transaction(async (tx) => {
+      await tx.execute(
+        sql`SELECT set_config('app.current_org_id', ${org.id}, true)`,
+      );
+
+      const rows = await tx
+        .select({
+          status: eventOutbox.status,
+          nextAttemptAt: eventOutbox.nextAttemptAt,
+        })
+        .from(eventOutbox)
+        .where(eq(eventOutbox.id, event.id));
+
+      return rows;
+    });
+
+    expect(row?.status).toBe("delivered");
+    expect(row?.nextAttemptAt).toBeNull();
+    expect(publishEvent).toHaveBeenCalledTimes(1);
+    expect(publishEvent).toHaveBeenCalledWith({
+      eventId: event.id,
+      eventType: event.type,
+      orgId: event.orgId,
+      payload: event.payload,
+      occurredAt: event.timestamp,
+    });
+  });
 });
