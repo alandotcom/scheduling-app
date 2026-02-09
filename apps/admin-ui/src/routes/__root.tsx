@@ -970,6 +970,10 @@ function AppSidebar({
   const settingsSubItems = canManageIntegrations
     ? BASE_SETTINGS_SUB_ITEMS
     : BASE_SETTINGS_SUB_ITEMS.filter((item) => item.section !== "integrations");
+  const [settingsExpanded, setSettingsExpanded] = useState(isOnSettings);
+  useEffect(() => {
+    if (isOnSettings) setSettingsExpanded(true);
+  }, [isOnSettings]);
 
   return (
     <Sidebar variant="inset" collapsible="icon">
@@ -1066,7 +1070,10 @@ function AppSidebar({
                   </Popover.Root>
                 </SidebarMenuItem>
               ) : (
-                <Collapsible.Root defaultOpen={isOnSettings}>
+                <Collapsible.Root
+                  open={settingsExpanded}
+                  onOpenChange={setSettingsExpanded}
+                >
                   <SidebarMenuItem>
                     <Collapsible.Trigger
                       render={

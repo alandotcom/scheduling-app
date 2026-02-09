@@ -46,12 +46,35 @@ const errorStatusMap: Record<string, ErrorHttpStatus> = {
   APPOINTMENT_ALREADY_CANCELLED: 422,
 };
 
+function logServerError(
+  method: string,
+  path: string,
+  code: string,
+  error: unknown,
+): void {
+  logger.error(
+    "Handled error returned 500 for {method} {path} (code={code}): {error}",
+    {
+      method,
+      path,
+      code,
+      error,
+    },
+  );
+}
+
 export const errorHandler = createMiddleware(async (c, next) => {
   try {
     await next();
   } catch (error) {
+    const method = c.req.method;
+    const path = c.req.path;
+
     if (error instanceof ApplicationError) {
       const status = errorStatusMap[error.code] ?? 500;
+      if (status === 500) {
+        logServerError(method, path, error.code, error);
+      }
       return c.json(
         {
           error: {
@@ -66,6 +89,9 @@ export const errorHandler = createMiddleware(async (c, next) => {
 
     if (error instanceof ORPCError) {
       const status = errorStatusMap[error.code] ?? 500;
+      if (status === 500) {
+        logServerError(method, path, error.code, error);
+      }
       return c.json(
         {
           error: {
@@ -91,7 +117,11 @@ export const errorHandler = createMiddleware(async (c, next) => {
       );
     }
 
-    logger.error(`Unhandled error: ${String(error)}`);
+    logger.error("Unhandled error for {method} {path}: {error}", {
+      method,
+      path,
+      error,
+    });
     return c.json(
       {
         error: {

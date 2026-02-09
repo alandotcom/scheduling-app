@@ -315,14 +315,6 @@ export class AppointmentTypeRepository {
 
   async delete(tx: DbClient, orgId: string, id: string): Promise<boolean> {
     await setOrgContext(tx, orgId);
-    // Delete associated calendars and resources first
-    await tx
-      .delete(appointmentTypeCalendars)
-      .where(eq(appointmentTypeCalendars.appointmentTypeId, id));
-    await tx
-      .delete(appointmentTypeResources)
-      .where(eq(appointmentTypeResources.appointmentTypeId, id));
-    // Now delete the appointment type
     const result = await tx
       .delete(appointmentTypes)
       .where(eq(appointmentTypes.id, id))

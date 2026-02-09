@@ -197,10 +197,10 @@ export const appointmentTypeCalendars = pgTable(
     id,
     appointmentTypeId: uuid("appointment_type_id")
       .notNull()
-      .references(() => appointmentTypes.id),
+      .references(() => appointmentTypes.id, { onDelete: "cascade" }),
     calendarId: uuid("calendar_id")
       .notNull()
-      .references(() => calendars.id),
+      .references(() => calendars.id, { onDelete: "cascade" }),
   },
   (table) => [
     uniqueIndex("appointment_type_calendars_type_calendar_idx").on(
@@ -237,10 +237,10 @@ export const appointmentTypeResources = pgTable(
     id,
     appointmentTypeId: uuid("appointment_type_id")
       .notNull()
-      .references(() => appointmentTypes.id),
+      .references(() => appointmentTypes.id, { onDelete: "cascade" }),
     resourceId: uuid("resource_id")
       .notNull()
-      .references(() => resources.id),
+      .references(() => resources.id, { onDelete: "cascade" }),
     quantityRequired: integer("quantity_required").default(1).notNull(),
   },
   (table) => [
@@ -296,10 +296,10 @@ export const appointments = pgTable.withRLS(
       .references(() => orgs.id),
     calendarId: uuid("calendar_id")
       .notNull()
-      .references(() => calendars.id),
+      .references(() => calendars.id, { onDelete: "cascade" }),
     appointmentTypeId: uuid("appointment_type_id")
       .notNull()
-      .references(() => appointmentTypes.id),
+      .references(() => appointmentTypes.id, { onDelete: "cascade" }),
     clientId: uuid("client_id").references(() => clients.id, {
       onDelete: "set null",
     }),
@@ -344,7 +344,7 @@ export const availabilityRules = pgTable(
     id,
     calendarId: uuid("calendar_id")
       .notNull()
-      .references(() => calendars.id),
+      .references(() => calendars.id, { onDelete: "cascade" }),
     weekday: integer("weekday").notNull(), // 0-6
     startTime: text("start_time").notNull(), // HH:MM
     endTime: text("end_time").notNull(),
@@ -371,7 +371,7 @@ export const availabilityOverrides = pgTable(
     id,
     calendarId: uuid("calendar_id")
       .notNull()
-      .references(() => calendars.id),
+      .references(() => calendars.id, { onDelete: "cascade" }),
     date: text("date").notNull(), // YYYY-MM-DD
     // Empty array means the date is fully blocked.
     timeRanges: jsonb("time_ranges")
@@ -399,7 +399,7 @@ export const blockedTime = pgTable(
     id,
     calendarId: uuid("calendar_id")
       .notNull()
-      .references(() => calendars.id),
+      .references(() => calendars.id, { onDelete: "cascade" }),
     startAt: timestamp("start_at", { withTimezone: true }).notNull(),
     endAt: timestamp("end_at", { withTimezone: true }).notNull(),
     recurringRule: text("recurring_rule"), // RRULE
@@ -426,7 +426,9 @@ export const schedulingLimits = pgTable(
   "scheduling_limits",
   {
     id,
-    calendarId: uuid("calendar_id").references(() => calendars.id),
+    calendarId: uuid("calendar_id").references(() => calendars.id, {
+      onDelete: "cascade",
+    }),
     groupId: uuid("group_id"),
     minNoticeHours: integer("min_notice_hours"),
     maxNoticeDays: integer("max_notice_days"),

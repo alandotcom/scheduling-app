@@ -1,6 +1,7 @@
 // Context menu wrapper for right-click actions
 
 import * as React from "react";
+import { createPortal } from "react-dom";
 import { cn } from "@/lib/utils";
 import { Icon } from "@/components/ui/icon";
 
@@ -114,42 +115,45 @@ export function ContextMenu({ children, items }: ContextMenuProps) {
       {React.cloneElement(children, {
         onContextMenu: handleContextMenu,
       })}
-      {isOpen && adjustedPosition && (
-        <div
-          ref={menuRef}
-          className={cn(
-            "fixed z-50 min-w-48 overflow-hidden rounded-lg border border-border bg-background p-1 shadow-lg",
-            "animate-in fade-in-0 zoom-in-95 duration-100",
-          )}
-          style={{ top: adjustedPosition.y, left: adjustedPosition.x }}
-        >
-          {itemsWithKeys.map(({ item, key }, itemIndex) => (
-            <React.Fragment key={key}>
-              {item.separator && itemIndex > 0 && (
-                <div className="my-1 h-px bg-border/50" />
-              )}
-              <button
-                type="button"
-                disabled={item.disabled}
-                onClick={() => {
-                  item.onClick();
-                  handleClose();
-                }}
-                className={cn(
-                  "relative flex w-full cursor-pointer select-none items-center gap-2 rounded-md px-2.5 py-2 text-sm outline-none",
-                  "transition-colors hover:bg-accent hover:text-accent-foreground",
-                  "disabled:pointer-events-none disabled:opacity-50",
-                  item.variant === "destructive" &&
-                    "text-destructive hover:bg-destructive/10 hover:text-destructive",
+      {isOpen &&
+        adjustedPosition &&
+        createPortal(
+          <div
+            ref={menuRef}
+            className={cn(
+              "fixed z-50 min-w-48 overflow-hidden rounded-lg border border-border bg-background p-1 shadow-lg",
+              "animate-in fade-in-0 zoom-in-95 duration-100",
+            )}
+            style={{ top: adjustedPosition.y, left: adjustedPosition.x }}
+          >
+            {itemsWithKeys.map(({ item, key }, itemIndex) => (
+              <React.Fragment key={key}>
+                {item.separator && itemIndex > 0 && (
+                  <div className="my-1 h-px bg-border/50" />
                 )}
-              >
-                {item.icon && <Icon icon={item.icon} className="size-4" />}
-                {item.label}
-              </button>
-            </React.Fragment>
-          ))}
-        </div>
-      )}
+                <button
+                  type="button"
+                  disabled={item.disabled}
+                  onClick={() => {
+                    item.onClick();
+                    handleClose();
+                  }}
+                  className={cn(
+                    "relative flex w-full cursor-pointer select-none items-center gap-2 rounded-md px-2.5 py-2 text-sm outline-none",
+                    "transition-colors hover:bg-accent hover:text-accent-foreground",
+                    "disabled:pointer-events-none disabled:opacity-50",
+                    item.variant === "destructive" &&
+                      "text-destructive hover:bg-destructive/10 hover:text-destructive",
+                  )}
+                >
+                  {item.icon && <Icon icon={item.icon} className="size-4" />}
+                  {item.label}
+                </button>
+              </React.Fragment>
+            ))}
+          </div>,
+          document.body,
+        )}
     </>
   );
 }

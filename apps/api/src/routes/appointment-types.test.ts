@@ -23,7 +23,12 @@ import {
   setTestOrgContext,
 } from "../test-utils/index.js";
 import * as appointmentTypeRoutes from "./appointment-types.js";
-import { appointmentTypes } from "@scheduling/db/schema";
+import {
+  appointmentTypeCalendars,
+  appointmentTypeResources,
+  appointmentTypes,
+  appointments,
+} from "@scheduling/db/schema";
 import type { BunSQLDatabase } from "drizzle-orm/bun-sql/postgres";
 import type * as schema from "@scheduling/db/schema";
 import type { relations } from "@scheduling/db/relations";
@@ -430,6 +435,36 @@ describe("Appointment Type Routes", () => {
       expect(remaining).toHaveLength(0);
     });
 
+    test("deletes appointment type and cascades dependent records", async () => {
+      const { org, user } = await createOrg(db);
+      const ctx = createTestContext({ orgId: org.id, userId: user.id });
+      const calendar = await createCalendar(db, org.id, { name: "Calendar" });
+      const appointmentType = await createAppointmentType(db, org.id, {
+        name: "In Use",
+      });
+
+      const startAt = new Date();
+      const endAt = new Date(startAt.getTime() + 30 * 60 * 1000);
+      await createAppointment(db, org.id, {
+        calendarId: calendar.id,
+        appointmentTypeId: appointmentType.id,
+        startAt,
+        endAt,
+        status: "scheduled",
+      });
+
+      const result = await call(
+        appointmentTypeRoutes.remove,
+        { id: appointmentType.id },
+        { context: ctx },
+      );
+      expect(result.success).toBe(true);
+
+      await setTestOrgContext(db, org.id);
+      const remainingAppointments = await db.select().from(appointments);
+      expect(remainingAppointments).toHaveLength(0);
+    });
+
     test("deletes appointment type with associated calendars and resources", async () => {
       const { org, user } = await createOrg(db);
       const ctx = createTestContext({ orgId: org.id, userId: user.id });
@@ -455,6 +490,14 @@ describe("Appointment Type Routes", () => {
       await setTestOrgContext(db, org.id);
       const remaining = await db.select().from(appointmentTypes);
       expect(remaining).toHaveLength(0);
+      const remainingCalendarLinks = await db
+        .select()
+        .from(appointmentTypeCalendars);
+      const remainingResourceLinks = await db
+        .select()
+        .from(appointmentTypeResources);
+      expect(remainingCalendarLinks).toHaveLength(0);
+      expect(remainingResourceLinks).toHaveLength(0);
     });
 
     test("throws NOT_FOUND for non-existent appointment type", async () => {

@@ -12,8 +12,28 @@ import { config } from "../config.js";
 const logger = getLogger(["db"]);
 const isDev = process.env.NODE_ENV !== "production";
 
-// Create Bun SQL client
-const client = new SQL(config.db.url);
+const SQL_POOL_MAX_CONNECTIONS = 5;
+const SQL_POOL_IDLE_TIMEOUT_SECONDS = 30;
+const SQL_POOL_CONNECTION_TIMEOUT_SECONDS = 30;
+
+type GlobalWithDbClient = typeof globalThis & {
+  __schedulingApiDbClient?: SQL;
+};
+
+const globalWithDbClient = globalThis as GlobalWithDbClient;
+
+// Reuse SQL client across hot reloads to prevent connection buildup in dev.
+const client =
+  globalWithDbClient.__schedulingApiDbClient ??
+  new SQL(config.db.url, {
+    max: SQL_POOL_MAX_CONNECTIONS,
+    idleTimeout: SQL_POOL_IDLE_TIMEOUT_SECONDS,
+    connectionTimeout: SQL_POOL_CONNECTION_TIMEOUT_SECONDS,
+  });
+
+if (isDev) {
+  globalWithDbClient.__schedulingApiDbClient = client;
+}
 
 // Create drizzle instance with schema and relations for relational queries
 export const db = drizzle({

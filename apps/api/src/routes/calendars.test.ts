@@ -24,7 +24,7 @@ import {
   setTestOrgContext,
 } from "../test-utils/index.js";
 import * as calendarRoutes from "./calendars.js";
-import { calendars } from "@scheduling/db/schema";
+import { appointments, calendars } from "@scheduling/db/schema";
 import type { BunSQLDatabase } from "drizzle-orm/bun-sql/postgres";
 import type * as schema from "@scheduling/db/schema";
 import type { relations } from "@scheduling/db/relations";
@@ -481,6 +481,36 @@ describe("Calendar Routes", () => {
       await setTestOrgContext(db, org.id);
       const remaining = await db.select().from(calendars);
       expect(remaining).toHaveLength(0);
+    });
+
+    test("deletes calendar and cascades dependent records", async () => {
+      const { org, user } = await createOrg(db);
+      const ctx = createTestContext({ orgId: org.id, userId: user.id });
+      const calendar = await createCalendar(db, org.id, { name: "In Use" });
+      const appointmentType = await createAppointmentType(db, org.id, {
+        name: "Consult",
+      });
+
+      const startAt = new Date();
+      const endAt = new Date(startAt.getTime() + 30 * 60 * 1000);
+      await createAppointment(db, org.id, {
+        calendarId: calendar.id,
+        appointmentTypeId: appointmentType.id,
+        startAt,
+        endAt,
+        status: "scheduled",
+      });
+
+      const result = await call(
+        calendarRoutes.remove,
+        { id: calendar.id },
+        { context: ctx },
+      );
+      expect(result.success).toBe(true);
+
+      await setTestOrgContext(db, org.id);
+      const remainingAppointments = await db.select().from(appointments);
+      expect(remainingAppointments).toHaveLength(0);
     });
 
     test("throws NOT_FOUND for non-existent calendar", async () => {

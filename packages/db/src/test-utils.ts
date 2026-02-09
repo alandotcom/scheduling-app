@@ -17,6 +17,9 @@ const TEST_DATABASE_URL =
 
 let testClient: SQL | null = null;
 let testDb: BunSQLDatabase<typeof schema, typeof relations> | null = null;
+const TEST_SQL_POOL_MAX_CONNECTIONS = 2;
+const TEST_SQL_POOL_IDLE_TIMEOUT_SECONDS = 5;
+const TEST_SQL_POOL_CONNECTION_TIMEOUT_SECONDS = 30;
 
 /**
  * Create a test database connection using Bun SQL
@@ -26,7 +29,11 @@ export async function createTestDb(): Promise<
 > {
   if (testDb) return testDb;
 
-  testClient = new SQL(TEST_DATABASE_URL);
+  testClient = new SQL(TEST_DATABASE_URL, {
+    max: TEST_SQL_POOL_MAX_CONNECTIONS,
+    idleTimeout: TEST_SQL_POOL_IDLE_TIMEOUT_SECONDS,
+    connectionTimeout: TEST_SQL_POOL_CONNECTION_TIMEOUT_SECONDS,
+  });
   testDb = drizzle({ client: testClient, schema, relations });
 
   return testDb;

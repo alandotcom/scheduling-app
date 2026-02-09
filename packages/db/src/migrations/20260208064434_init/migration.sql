@@ -317,20 +317,20 @@ CREATE UNIQUE INDEX "org_memberships_org_user_idx" ON "org_memberships" ("org_id
 CREATE INDEX "scheduling_limits_calendar_id_idx" ON "scheduling_limits" ("calendar_id");--> statement-breakpoint
 ALTER TABLE "accounts" ADD CONSTRAINT "accounts_user_id_users_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE;--> statement-breakpoint
 ALTER TABLE "apikey" ADD CONSTRAINT "apikey_user_id_users_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE;--> statement-breakpoint
-ALTER TABLE "appointment_type_calendars" ADD CONSTRAINT "appointment_type_calendars_gHcf7toxCUtt_fkey" FOREIGN KEY ("appointment_type_id") REFERENCES "appointment_types"("id");--> statement-breakpoint
-ALTER TABLE "appointment_type_calendars" ADD CONSTRAINT "appointment_type_calendars_calendar_id_calendars_id_fkey" FOREIGN KEY ("calendar_id") REFERENCES "calendars"("id");--> statement-breakpoint
-ALTER TABLE "appointment_type_resources" ADD CONSTRAINT "appointment_type_resources_6XPhdSeLmkCN_fkey" FOREIGN KEY ("appointment_type_id") REFERENCES "appointment_types"("id");--> statement-breakpoint
-ALTER TABLE "appointment_type_resources" ADD CONSTRAINT "appointment_type_resources_resource_id_resources_id_fkey" FOREIGN KEY ("resource_id") REFERENCES "resources"("id");--> statement-breakpoint
+ALTER TABLE "appointment_type_calendars" ADD CONSTRAINT "appointment_type_calendars_gHcf7toxCUtt_fkey" FOREIGN KEY ("appointment_type_id") REFERENCES "appointment_types"("id") ON DELETE CASCADE;--> statement-breakpoint
+ALTER TABLE "appointment_type_calendars" ADD CONSTRAINT "appointment_type_calendars_calendar_id_calendars_id_fkey" FOREIGN KEY ("calendar_id") REFERENCES "calendars"("id") ON DELETE CASCADE;--> statement-breakpoint
+ALTER TABLE "appointment_type_resources" ADD CONSTRAINT "appointment_type_resources_6XPhdSeLmkCN_fkey" FOREIGN KEY ("appointment_type_id") REFERENCES "appointment_types"("id") ON DELETE CASCADE;--> statement-breakpoint
+ALTER TABLE "appointment_type_resources" ADD CONSTRAINT "appointment_type_resources_resource_id_resources_id_fkey" FOREIGN KEY ("resource_id") REFERENCES "resources"("id") ON DELETE CASCADE;--> statement-breakpoint
 ALTER TABLE "appointment_types" ADD CONSTRAINT "appointment_types_org_id_orgs_id_fkey" FOREIGN KEY ("org_id") REFERENCES "orgs"("id");--> statement-breakpoint
 ALTER TABLE "appointments" ADD CONSTRAINT "appointments_org_id_orgs_id_fkey" FOREIGN KEY ("org_id") REFERENCES "orgs"("id");--> statement-breakpoint
-ALTER TABLE "appointments" ADD CONSTRAINT "appointments_calendar_id_calendars_id_fkey" FOREIGN KEY ("calendar_id") REFERENCES "calendars"("id");--> statement-breakpoint
-ALTER TABLE "appointments" ADD CONSTRAINT "appointments_appointment_type_id_appointment_types_id_fkey" FOREIGN KEY ("appointment_type_id") REFERENCES "appointment_types"("id");--> statement-breakpoint
+ALTER TABLE "appointments" ADD CONSTRAINT "appointments_calendar_id_calendars_id_fkey" FOREIGN KEY ("calendar_id") REFERENCES "calendars"("id") ON DELETE CASCADE;--> statement-breakpoint
+ALTER TABLE "appointments" ADD CONSTRAINT "appointments_appointment_type_id_appointment_types_id_fkey" FOREIGN KEY ("appointment_type_id") REFERENCES "appointment_types"("id") ON DELETE CASCADE;--> statement-breakpoint
 ALTER TABLE "appointments" ADD CONSTRAINT "appointments_client_id_clients_id_fkey" FOREIGN KEY ("client_id") REFERENCES "clients"("id") ON DELETE SET NULL;--> statement-breakpoint
 ALTER TABLE "audit_events" ADD CONSTRAINT "audit_events_org_id_orgs_id_fkey" FOREIGN KEY ("org_id") REFERENCES "orgs"("id");--> statement-breakpoint
 ALTER TABLE "audit_events" ADD CONSTRAINT "audit_events_actor_id_users_id_fkey" FOREIGN KEY ("actor_id") REFERENCES "users"("id");--> statement-breakpoint
-ALTER TABLE "availability_overrides" ADD CONSTRAINT "availability_overrides_calendar_id_calendars_id_fkey" FOREIGN KEY ("calendar_id") REFERENCES "calendars"("id");--> statement-breakpoint
-ALTER TABLE "availability_rules" ADD CONSTRAINT "availability_rules_calendar_id_calendars_id_fkey" FOREIGN KEY ("calendar_id") REFERENCES "calendars"("id");--> statement-breakpoint
-ALTER TABLE "blocked_time" ADD CONSTRAINT "blocked_time_calendar_id_calendars_id_fkey" FOREIGN KEY ("calendar_id") REFERENCES "calendars"("id");--> statement-breakpoint
+ALTER TABLE "availability_overrides" ADD CONSTRAINT "availability_overrides_calendar_id_calendars_id_fkey" FOREIGN KEY ("calendar_id") REFERENCES "calendars"("id") ON DELETE CASCADE;--> statement-breakpoint
+ALTER TABLE "availability_rules" ADD CONSTRAINT "availability_rules_calendar_id_calendars_id_fkey" FOREIGN KEY ("calendar_id") REFERENCES "calendars"("id") ON DELETE CASCADE;--> statement-breakpoint
+ALTER TABLE "blocked_time" ADD CONSTRAINT "blocked_time_calendar_id_calendars_id_fkey" FOREIGN KEY ("calendar_id") REFERENCES "calendars"("id") ON DELETE CASCADE;--> statement-breakpoint
 ALTER TABLE "calendars" ADD CONSTRAINT "calendars_org_id_orgs_id_fkey" FOREIGN KEY ("org_id") REFERENCES "orgs"("id");--> statement-breakpoint
 ALTER TABLE "calendars" ADD CONSTRAINT "calendars_location_id_locations_id_fkey" FOREIGN KEY ("location_id") REFERENCES "locations"("id");--> statement-breakpoint
 ALTER TABLE "clients" ADD CONSTRAINT "clients_org_id_orgs_id_fkey" FOREIGN KEY ("org_id") REFERENCES "orgs"("id");--> statement-breakpoint
@@ -343,7 +343,7 @@ ALTER TABLE "org_memberships" ADD CONSTRAINT "org_memberships_org_id_orgs_id_fke
 ALTER TABLE "org_memberships" ADD CONSTRAINT "org_memberships_user_id_users_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE;--> statement-breakpoint
 ALTER TABLE "resources" ADD CONSTRAINT "resources_org_id_orgs_id_fkey" FOREIGN KEY ("org_id") REFERENCES "orgs"("id");--> statement-breakpoint
 ALTER TABLE "resources" ADD CONSTRAINT "resources_location_id_locations_id_fkey" FOREIGN KEY ("location_id") REFERENCES "locations"("id");--> statement-breakpoint
-ALTER TABLE "scheduling_limits" ADD CONSTRAINT "scheduling_limits_calendar_id_calendars_id_fkey" FOREIGN KEY ("calendar_id") REFERENCES "calendars"("id");--> statement-breakpoint
+ALTER TABLE "scheduling_limits" ADD CONSTRAINT "scheduling_limits_calendar_id_calendars_id_fkey" FOREIGN KEY ("calendar_id") REFERENCES "calendars"("id") ON DELETE CASCADE;--> statement-breakpoint
 ALTER TABLE "sessions" ADD CONSTRAINT "sessions_user_id_users_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE;--> statement-breakpoint
 ALTER TABLE "sessions" ADD CONSTRAINT "sessions_impersonated_by_users_id_fkey" FOREIGN KEY ("impersonated_by") REFERENCES "users"("id") ON DELETE SET NULL;--> statement-breakpoint
 CREATE POLICY "org_isolation_appointment_types" ON "appointment_types" AS PERMISSIVE FOR ALL TO public USING (org_id = current_org_id()) WITH CHECK (org_id = current_org_id());--> statement-breakpoint
