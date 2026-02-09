@@ -300,10 +300,15 @@ export async function stopWorkers(): Promise<void> {
     logger.info("Fanout worker stopped");
   }
 
-  for (const [integrationName, worker] of integrationWorkers.entries()) {
-    await worker.close();
-    logger.info("Integration worker stopped", { integrationName });
-  }
+  await Promise.all(
+    Array.from(
+      integrationWorkers.entries(),
+      async ([integrationName, worker]) => {
+        await worker.close();
+        logger.info("Integration worker stopped", { integrationName });
+      },
+    ),
+  );
   integrationWorkers.clear();
 }
 

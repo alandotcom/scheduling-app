@@ -247,9 +247,9 @@ export async function closeAllQueues(): Promise<void> {
     fanoutQueue = null;
   }
 
-  for (const queue of integrationQueues.values()) {
-    await queue.close();
-  }
+  await Promise.all(
+    Array.from(integrationQueues.values(), (queue) => queue.close()),
+  );
   integrationQueues.clear();
 
   if (flowProducer) {
