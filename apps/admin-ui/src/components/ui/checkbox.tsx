@@ -6,22 +6,31 @@ interface CheckboxProps {
   checked: boolean;
   onChange: (checked: boolean) => void;
   label?: string;
+  disabled?: boolean;
 }
 
-export function Checkbox({ checked, onChange, label }: CheckboxProps) {
+export function Checkbox({
+  checked,
+  onChange,
+  label,
+  disabled,
+}: CheckboxProps) {
   return (
     <button
       type="button"
       role="checkbox"
       aria-checked={checked}
-      onClick={() => onChange(!checked)}
-      className="flex items-center gap-2 group min-h-11 md:min-h-0"
+      aria-disabled={disabled}
+      onClick={() => !disabled && onChange(!checked)}
+      className={`flex items-center gap-2.5 group min-h-11 md:min-h-0 ${disabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
     >
       <div
-        className={`size-5 rounded border-2 flex items-center justify-center transition-all duration-200 ${
+        className={`size-[18px] rounded-[5px] border-2 flex items-center justify-center transition-all duration-200 ${
           checked
             ? "bg-primary border-primary"
-            : "border-border group-hover:border-primary/50"
+            : disabled
+              ? "border-border"
+              : "border-border group-hover:border-primary/50"
         }`}
       >
         {checked && (

@@ -7,7 +7,6 @@ import type {
 import {
   flexRender,
   getCoreRowModel,
-  getFilteredRowModel,
   getPaginationRowModel,
   getSortedRowModel,
   useReactTable,
@@ -24,7 +23,6 @@ import { RelationshipCountBadge } from "@/components/relationship-count-badge";
 import { RowActions } from "@/components/row-actions";
 import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
 import { DataTablePagination } from "@/components/ui/data-table-pagination";
-import { Input } from "@/components/ui/input";
 import {
   Table,
   TableBody,
@@ -62,7 +60,6 @@ export function ClientsListPresentation({
   getActions,
 }: ClientsListPresentationProps) {
   const [sorting, setSorting] = useState<SortingState>([]);
-  const [globalFilter, setGlobalFilter] = useState("");
   const [pagination, setPagination] = useState<PaginationState>({
     pageIndex: 0,
     pageSize: 20,
@@ -154,30 +151,13 @@ export function ClientsListPresentation({
     columns,
     state: {
       sorting,
-      globalFilter,
       pagination,
     },
     onSortingChange: setSorting,
-    onGlobalFilterChange: setGlobalFilter,
     onPaginationChange: setPagination,
     getCoreRowModel: getCoreRowModel(),
-    getFilteredRowModel: getFilteredRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
-    globalFilterFn: (row, _columnId, filterValue) => {
-      const query = String(filterValue).trim().toLowerCase();
-      if (!query) return true;
-
-      const fullName = `${row.original.firstName} ${row.original.lastName}`;
-      const email = row.original.email ?? "";
-      const phone = formatPhoneForDisplay(row.original.phone) ?? "";
-
-      return (
-        fullName.toLowerCase().includes(query) ||
-        email.toLowerCase().includes(query) ||
-        phone.toLowerCase().includes(query)
-      );
-    },
   });
 
   return (
@@ -251,14 +231,6 @@ export function ClientsListPresentation({
       />
 
       <EntityDesktopTable>
-        <div className="border-b border-border px-4 py-3">
-          <Input
-            value={globalFilter}
-            onChange={(event) => setGlobalFilter(event.target.value)}
-            placeholder="Filter clients..."
-            className="max-w-sm"
-          />
-        </div>
         <Table>
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (

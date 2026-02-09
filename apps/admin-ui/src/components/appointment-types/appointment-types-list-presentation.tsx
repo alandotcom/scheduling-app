@@ -13,6 +13,7 @@ import {
   useReactTable,
 } from "@tanstack/react-table";
 
+import { Search01Icon } from "@hugeicons/core-free-icons";
 import { Badge } from "@/components/ui/badge";
 import { ContextMenu, type ContextMenuItem } from "@/components/context-menu";
 import {
@@ -25,6 +26,7 @@ import { RelationshipCountBadge } from "@/components/relationship-count-badge";
 import { RowActions } from "@/components/row-actions";
 import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
 import { DataTablePagination } from "@/components/ui/data-table-pagination";
+import { Icon } from "@/components/ui/icon";
 import { Input } from "@/components/ui/input";
 import {
   Table,
@@ -276,15 +278,20 @@ export function AppointmentTypesListPresentation({
         className="justify-center rounded-xl border border-border bg-card shadow-sm md:hidden"
       />
 
+      <div className="relative mb-4 max-w-sm hidden md:block">
+        <Icon
+          icon={Search01Icon}
+          className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
+        />
+        <Input
+          value={globalFilter}
+          onChange={(event) => setGlobalFilter(event.target.value)}
+          placeholder="Filter appointment types..."
+          className="pl-10"
+        />
+      </div>
+
       <EntityDesktopTable>
-        <div className="border-b border-border px-4 py-3">
-          <Input
-            value={globalFilter}
-            onChange={(event) => setGlobalFilter(event.target.value)}
-            placeholder="Filter appointment types..."
-            className="max-w-sm"
-          />
-        </div>
         <Table>
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (

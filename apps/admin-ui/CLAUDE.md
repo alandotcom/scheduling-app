@@ -78,7 +78,7 @@ const mutation = useMutation(
   orpc.appointments.create.mutationOptions({
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: orpc.appointments.key() });
-      toast.success("Created");
+      // no success toast — see AGENTS.md
     },
   }),
 );
@@ -109,7 +109,7 @@ import { Calendar02Icon } from "@hugeicons/core-free-icons";
 
 **Class merging:** `cn()` from `@/lib/utils` (clsx + tailwind-merge).
 
-**Toasts:** `toast.success("Saved")` / `toast.error("Failed")` from `sonner`.
+**Toasts:** `toast.error("Failed")` from `sonner`. Never use `toast.success()` — see AGENTS.md.
 
 **Loading:** `<Skeleton />` and `<TableSkeleton />` from `@/components/ui/skeleton`.
 

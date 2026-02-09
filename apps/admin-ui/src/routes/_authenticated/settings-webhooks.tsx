@@ -1,0 +1,2165 @@
+// Webhook management dashboard — Clerk-inspired drill-in UI
+// Extracted from settings.tsx to keep that file focused on org/users/developers tabs
+
+import { useNavigate } from "@tanstack/react-router";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { useCallback, useMemo, useState } from "react";
+import {
+  SvixProvider,
+  useEndpoints,
+  useEndpoint,
+  useEndpointStats,
+  useEndpointSecret,
+  useEndpointFunctions,
+  useEndpointMessageAttempts,
+  useEventTypes,
+  useMessages,
+  useMessage,
+  useMessageAttempts,
+  useSvix,
+} from "svix-react";
+// MessageStatus enum from svix: Success=0, Pending=1, Fail=2, Sending=3
+import { toast } from "sonner";
+import {
+  Add01Icon,
+  ArrowLeft02Icon,
+  Copy01Icon,
+  ViewIcon,
+  ViewOffIcon,
+  RefreshIcon,
+} from "@hugeicons/core-free-icons";
+
+import { orpc } from "@/lib/query";
+import { cn } from "@/lib/utils";
+import type { WebhookSessionResponse } from "@scheduling/dto";
+
+import { RowActions } from "@/components/row-actions";
+import { DeleteConfirmDialog } from "@/components/delete-confirm-dialog";
+import { EntityModal } from "@/components/entity-modal";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Icon } from "@/components/ui/icon";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+
+import { Route } from "./settings";
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function formatDateTime(value: Date | string | null | undefined): string {
+  if (!value) return "Never";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Never";
+  return date.toLocaleString();
+}
+
+function formatRelativeTime(value: Date | string | null | undefined): string {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  const now = Date.now();
+  const diffMs = now - date.getTime();
+  const diffSec = Math.floor(diffMs / 1000);
+  if (diffSec < 60) return "just now";
+  const diffMin = Math.floor(diffSec / 60);
+  if (diffMin < 60) return `${diffMin}m ago`;
+  const diffHr = Math.floor(diffMin / 60);
+  if (diffHr < 24) return `${diffHr}h ago`;
+  const diffDay = Math.floor(diffHr / 24);
+  return `${diffDay}d ago`;
+}
+
+function normalizeWebhookUrl(value: string): string | null {
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  try {
+    const url = new URL(trimmed);
+    if (url.protocol !== "http:" && url.protocol !== "https:") return null;
+    return url.toString();
+  } catch {
+    return null;
+  }
+}
+
+export function formatWebhookPayloadPreview(payload: unknown): string {
+  if (typeof payload === "string") {
+    const trimmedPayload = payload.trim();
+    if (!trimmedPayload) return payload;
+    try {
+      return JSON.stringify(JSON.parse(trimmedPayload), null, 2);
+    } catch {
+      return payload;
+    }
+  }
+  if (payload === undefined) return "";
+  try {
+    return JSON.stringify(payload, null, 2);
+  } catch {
+    return "[unserializable payload]";
+  }
+}
+
+// MessageStatus enum: Success=0, Pending=1, Fail=2, Sending=3
+function MessageStatusBadge({ status }: { status: number }) {
+  switch (status) {
+    case 0:
+      return <Badge variant="success">Delivered</Badge>;
+    case 1:
+      return <Badge variant="warning">Pending</Badge>;
+    case 2:
+      return <Badge variant="destructive">Failed</Badge>;
+    case 3:
+      return <Badge variant="outline">Sending</Badge>;
+    default:
+      return <Badge variant="secondary">Unknown</Badge>;
+  }
+}
+
+function StatusCodeBadge({ code }: { code: number }) {
+  if (code >= 200 && code < 300) {
+    return <Badge variant="success">{code}</Badge>;
+  }
+  if (code >= 400) {
+    return <Badge variant="destructive">{code}</Badge>;
+  }
+  return <Badge variant="outline">{code}</Badge>;
+}
+
+type WebhookTab = "endpoints" | "catalog" | "logs";
+
+function resolveWebhookTab(raw: string | undefined): WebhookTab {
+  if (raw === "endpoints" || raw === "catalog" || raw === "logs") return raw;
+  return "endpoints";
+}
+
+type AttemptFilter = "all" | "succeeded" | "failed";
+
+function resolveAttemptFilter(raw: string | undefined): AttemptFilter {
+  if (raw === "all" || raw === "succeeded" || raw === "failed") return raw;
+  return "all";
+}
+
+function attemptFilterToStatus(filter: AttemptFilter): number | undefined {
+  if (filter === "succeeded") return 0;
+  if (filter === "failed") return 2;
+  return undefined;
+}
+
+// ---------------------------------------------------------------------------
+// Navigation helpers
+// ---------------------------------------------------------------------------
+
+function useWebhookNavigate() {
+  const navigate = useNavigate({ from: Route.fullPath });
+
+  const goToEndpoints = useCallback(() => {
+    navigate({
+      search: (prev) => ({
+        ...prev,
+        webhookTab: undefined,
+        endpointId: undefined,
+        messageId: undefined,
+        attemptFilter: undefined,
+      }),
+    });
+  }, [navigate]);
+
+  const goToEndpoint = useCallback(
+    (endpointId: string) => {
+      navigate({
+        search: (prev) => ({
+          ...prev,
+          endpointId,
+          messageId: undefined,
+          attemptFilter: undefined,
+        }),
+      });
+    },
+    [navigate],
+  );
+
+  const goToMessage = useCallback(
+    (messageId: string) => {
+      navigate({
+        search: (prev) => ({
+          ...prev,
+          messageId,
+        }),
+      });
+    },
+    [navigate],
+  );
+
+  const goToTab = useCallback(
+    (tab: WebhookTab) => {
+      navigate({
+        search: (prev) => ({
+          ...prev,
+          webhookTab: tab === "endpoints" ? undefined : tab,
+          endpointId: undefined,
+          messageId: undefined,
+          attemptFilter: undefined,
+        }),
+      });
+    },
+    [navigate],
+  );
+
+  const setAttemptFilter = useCallback(
+    (filter: AttemptFilter) => {
+      navigate({
+        search: (prev) => ({
+          ...prev,
+          attemptFilter: filter === "all" ? undefined : filter,
+        }),
+      });
+    },
+    [navigate],
+  );
+
+  return {
+    goToEndpoints,
+    goToEndpoint,
+    goToMessage,
+    goToTab,
+    setAttemptFilter,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// WebhooksSection — Entry point (fetches session, wraps SvixProvider)
+// ---------------------------------------------------------------------------
+
+export function WebhooksSection() {
+  const {
+    data: webhookSession,
+    isLoading,
+    isFetching,
+    error,
+    refetch,
+  } = useQuery(orpc.webhooks.session.queryOptions({}));
+
+  if (isLoading) {
+    return (
+      <div className="rounded-xl bg-muted/30 p-6 text-sm text-muted-foreground">
+        Loading webhook manager...
+      </div>
+    );
+  }
+
+  if (error || !webhookSession) {
+    return (
+      <div className="rounded-xl border border-destructive/40 bg-destructive/5 p-4 text-sm text-destructive">
+        Failed to load webhook management session.
+      </div>
+    );
+  }
+
+  return (
+    <SvixProvider
+      token={webhookSession.token}
+      appId={webhookSession.appId}
+      options={
+        webhookSession.serverUrl
+          ? { serverUrl: webhookSession.serverUrl }
+          : undefined
+      }
+    >
+      <WebhooksManager
+        webhookSession={webhookSession}
+        isRefreshingSession={isFetching}
+        onRefreshSession={() => void refetch()}
+      />
+    </SvixProvider>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// WebhooksManager — Tab controller
+// ---------------------------------------------------------------------------
+
+function WebhooksManager({
+  webhookSession,
+  onRefreshSession,
+  isRefreshingSession,
+}: {
+  webhookSession: WebhookSessionResponse;
+  onRefreshSession: () => void;
+  isRefreshingSession: boolean;
+}) {
+  const { webhookTab: rawTab } = Route.useSearch();
+  const activeTab = resolveWebhookTab(rawTab);
+  const { goToTab } = useWebhookNavigate();
+
+  const TABS: { id: WebhookTab; label: string }[] = [
+    { id: "endpoints", label: "Endpoints" },
+    { id: "catalog", label: "Event Catalog" },
+    { id: "logs", label: "Logs" },
+  ];
+
+  return (
+    <div className="space-y-5">
+      {/* Compact session info */}
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-muted/30 px-4 py-2.5">
+        <div className="flex flex-wrap items-center gap-2 text-xs">
+          <Badge variant="outline">App: {webhookSession.appId}</Badge>
+          {webhookSession.serverUrl ? (
+            <Badge variant="outline">Svix: {webhookSession.serverUrl}</Badge>
+          ) : null}
+        </div>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          disabled={isRefreshingSession}
+          onClick={onRefreshSession}
+        >
+          {isRefreshingSession ? "Refreshing..." : "Refresh session"}
+        </Button>
+      </div>
+
+      {/* Tab bar */}
+      <div className="flex gap-1 rounded-lg border border-border bg-muted/30 p-0.5">
+        {TABS.map((tab) => (
+          <button
+            key={tab.id}
+            type="button"
+            onClick={() => goToTab(tab.id)}
+            className={cn(
+              "h-8 shrink-0 rounded-md px-3 text-sm font-medium transition-colors",
+              activeTab === tab.id
+                ? "bg-background text-foreground shadow-sm"
+                : "text-muted-foreground hover:text-foreground",
+            )}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {activeTab === "endpoints" ? <EndpointsTab /> : null}
+      {activeTab === "catalog" ? <EventCatalogTab /> : null}
+      {activeTab === "logs" ? <LogsTab /> : null}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// EndpointsTab — List or drill-in
+// ---------------------------------------------------------------------------
+
+function EndpointsTab() {
+  const { endpointId, messageId } = Route.useSearch();
+  const { goToEndpoint } = useWebhookNavigate();
+  const endpoints = useEndpoints({ limit: 50 });
+  const [isCreateOpen, setIsCreateOpen] = useState(false);
+
+  // Drill-in: message detail
+  if (endpointId && messageId) {
+    return <MessageDetailView endpointId={endpointId} messageId={messageId} />;
+  }
+
+  // Drill-in: endpoint detail
+  if (endpointId) {
+    return <EndpointDetailView endpointId={endpointId} />;
+  }
+
+  // List view
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="text-sm font-semibold tracking-tight">Endpoints</h3>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            Webhook destinations and delivery history.
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={() => endpoints.reload()}
+          >
+            <Icon icon={RefreshIcon} data-icon="inline-start" />
+            Refresh
+          </Button>
+          <Button type="button" size="sm" onClick={() => setIsCreateOpen(true)}>
+            <Icon icon={Add01Icon} data-icon="inline-start" />
+            Add endpoint
+          </Button>
+        </div>
+      </div>
+
+      <CreateEndpointModal
+        open={isCreateOpen}
+        onOpenChange={setIsCreateOpen}
+        onCreated={() => {
+          setIsCreateOpen(false);
+          endpoints.reload();
+        }}
+      />
+
+      {endpoints.loading ? (
+        <div className="text-sm text-muted-foreground">
+          Loading endpoints...
+        </div>
+      ) : endpoints.error ? (
+        <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-4 text-sm text-destructive">
+          Failed to load endpoints.
+        </div>
+      ) : !endpoints.data?.length ? (
+        <div className="rounded-lg bg-muted/30 p-8 text-center">
+          <p className="text-sm text-muted-foreground">
+            No webhook endpoints yet.
+          </p>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="mt-3"
+            onClick={() => setIsCreateOpen(true)}
+          >
+            Create your first endpoint
+          </Button>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {endpoints.data.map((endpoint) => {
+            const eventCount = endpoint.filterTypes?.length ?? 0;
+            const isDisabled = endpoint.disabled ?? false;
+
+            return (
+              <button
+                key={endpoint.id}
+                type="button"
+                onClick={() => goToEndpoint(endpoint.id)}
+                className="w-full rounded-lg border border-border bg-card p-4 text-left transition-colors hover:bg-accent/50"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="truncate text-sm font-medium">
+                        {endpoint.url}
+                      </span>
+                      <Badge
+                        variant={isDisabled ? "secondary" : "success"}
+                        className="shrink-0"
+                      >
+                        {isDisabled ? "Disabled" : "Active"}
+                      </Badge>
+                    </div>
+                    {endpoint.description ? (
+                      <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                        {endpoint.description}
+                      </p>
+                    ) : null}
+                  </div>
+                </div>
+                <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+                  <span>
+                    {eventCount
+                      ? `${eventCount} event${eventCount === 1 ? "" : "s"}`
+                      : "All events"}
+                  </span>
+                  <span>Created {formatRelativeTime(endpoint.createdAt)}</span>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// CreateEndpointModal
+// ---------------------------------------------------------------------------
+
+function CreateEndpointModal({
+  open,
+  onOpenChange,
+  onCreated,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onCreated: () => void;
+}) {
+  const { svix, appId } = useSvix();
+  const eventTypes = useEventTypes({ limit: 100 });
+  const [url, setUrl] = useState("");
+  const [description, setDescription] = useState("");
+  const [selectedEventTypes, setSelectedEventTypes] = useState<string[]>([]);
+
+  const sortedEventTypes = useMemo(
+    () =>
+      (eventTypes.data ?? []).toSorted((a, b) => a.name.localeCompare(b.name)),
+    [eventTypes.data],
+  );
+
+  const createMutation = useMutation({
+    mutationFn: async () =>
+      svix.endpoint.create(appId, {
+        url: normalizeWebhookUrl(url) ?? "",
+        description: description.trim() || undefined,
+        filterTypes: selectedEventTypes.length ? selectedEventTypes : null,
+        metadata: { source: "admin-ui" },
+      }),
+    onSuccess: () => {
+      setUrl("");
+      setDescription("");
+      setSelectedEventTypes([]);
+      onCreated();
+    },
+    onError: (error) => {
+      toast.error(error.message || "Failed to create endpoint");
+    },
+  });
+
+  const onSubmit = () => {
+    if (!normalizeWebhookUrl(url)) {
+      toast.error("Enter a valid http(s) URL");
+      return;
+    }
+    createMutation.mutate();
+  };
+
+  return (
+    <EntityModal
+      open={open}
+      onOpenChange={onOpenChange}
+      title="Create Endpoint"
+      description="Register a destination URL and choose which event types it receives."
+    >
+      <div className="space-y-5 p-6">
+        <div className="grid gap-4 md:grid-cols-2">
+          <div className="space-y-2">
+            <Label htmlFor="webhook-endpoint-url">Endpoint URL</Label>
+            <Input
+              id="webhook-endpoint-url"
+              type="url"
+              value={url}
+              onChange={(e) => setUrl(e.target.value)}
+              placeholder="https://example.com/webhooks/scheduling"
+              disabled={createMutation.isPending}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="webhook-endpoint-description">
+              Description (optional)
+            </Label>
+            <Input
+              id="webhook-endpoint-description"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="Production endpoint"
+              disabled={createMutation.isPending}
+            />
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <Label>Event filters</Label>
+            {sortedEventTypes.length > 0 && (
+              <Button
+                type="button"
+                variant="link"
+                size="sm"
+                onClick={() => {
+                  const allNames = sortedEventTypes.map((et) => et.name);
+                  setSelectedEventTypes(
+                    selectedEventTypes.length === allNames.length
+                      ? []
+                      : allNames,
+                  );
+                }}
+                disabled={createMutation.isPending}
+              >
+                {selectedEventTypes.length === sortedEventTypes.length
+                  ? "Deselect all"
+                  : "Select all"}
+              </Button>
+            )}
+          </div>
+          {eventTypes.loading ? (
+            <div className="rounded-lg bg-muted/30 p-4 text-sm text-muted-foreground">
+              Loading event catalog...
+            </div>
+          ) : eventTypes.error ? (
+            <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-4 text-sm text-destructive">
+              Failed to load event catalog.
+            </div>
+          ) : !sortedEventTypes.length ? (
+            <div className="rounded-lg bg-muted/30 p-4 text-sm text-muted-foreground">
+              No event types found. Run the Svix catalog sync script first.
+            </div>
+          ) : (
+            <div className="grid gap-1.5 rounded-lg border border-border bg-muted/30 p-4 sm:grid-cols-2">
+              {sortedEventTypes.map((eventType) => (
+                <div
+                  key={eventType.name}
+                  className="rounded-md px-2.5 py-2 transition-colors hover:bg-background"
+                >
+                  <Checkbox
+                    checked={selectedEventTypes.includes(eventType.name)}
+                    onChange={() => {
+                      setSelectedEventTypes((prev) =>
+                        prev.includes(eventType.name)
+                          ? prev.filter((n) => n !== eventType.name)
+                          : [...prev, eventType.name],
+                      );
+                    }}
+                    disabled={createMutation.isPending}
+                    label={eventType.name}
+                  />
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="flex justify-end gap-3 pt-1">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+            disabled={createMutation.isPending}
+          >
+            Cancel
+          </Button>
+          <Button
+            type="button"
+            disabled={createMutation.isPending}
+            onClick={onSubmit}
+          >
+            {createMutation.isPending ? "Creating..." : "Create endpoint"}
+          </Button>
+        </div>
+      </div>
+    </EntityModal>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// EndpointDetailView
+// ---------------------------------------------------------------------------
+
+function EndpointDetailView({ endpointId }: { endpointId: string }) {
+  const { goToEndpoints, goToMessage, setAttemptFilter } = useWebhookNavigate();
+  const { attemptFilter: rawAttemptFilter } = Route.useSearch();
+  const attemptFilter = resolveAttemptFilter(rawAttemptFilter);
+
+  const endpoint = useEndpoint(endpointId);
+  const stats = useEndpointStats(endpointId);
+  const secret = useEndpointSecret(endpointId);
+  const fns = useEndpointFunctions(endpointId);
+  const attempts = useEndpointMessageAttempts(endpointId, {
+    limit: 20,
+    status: attemptFilterToStatus(attemptFilter),
+  });
+
+  const [showSecret, setShowSecret] = useState(false);
+  const [isDeleteOpen, setIsDeleteOpen] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [isEditEventsOpen, setIsEditEventsOpen] = useState(false);
+  const [isRecovering, setIsRecovering] = useState(false);
+
+  const onDelete = async () => {
+    setIsDeleting(true);
+    try {
+      await fns.deleteEndpoint();
+      goToEndpoints();
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Failed to delete endpoint",
+      );
+    } finally {
+      setIsDeleting(false);
+      setIsDeleteOpen(false);
+    }
+  };
+
+  const onToggleDisabled = async () => {
+    if (!endpoint.data) return;
+    try {
+      await fns.updateEndpoint({
+        url: endpoint.data.url,
+        disabled: !endpoint.data.disabled,
+      });
+      endpoint.reload();
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Failed to update endpoint",
+      );
+    }
+  };
+
+  const onRecover = async () => {
+    setIsRecovering(true);
+    try {
+      // Recover messages from the last 14 days
+      const since = new Date();
+      since.setDate(since.getDate() - 14);
+      await fns.recoverEndpointMessages({ since });
+      toast.success("Recovery started for failed messages");
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Failed to recover messages",
+      );
+    } finally {
+      setIsRecovering(false);
+    }
+  };
+
+  const onCopySecret = async () => {
+    if (!secret.data?.key) return;
+    try {
+      await navigator.clipboard.writeText(secret.data.key);
+    } catch {
+      toast.error("Failed to copy signing secret");
+    }
+  };
+
+  if (endpoint.loading) {
+    return (
+      <div className="text-sm text-muted-foreground">Loading endpoint...</div>
+    );
+  }
+
+  if (endpoint.error || !endpoint.data) {
+    return (
+      <div className="space-y-3">
+        <button
+          type="button"
+          onClick={goToEndpoints}
+          className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
+        >
+          <Icon icon={ArrowLeft02Icon} className="size-4" />
+          Back to endpoints
+        </button>
+        <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-4 text-sm text-destructive">
+          Failed to load endpoint.
+        </div>
+      </div>
+    );
+  }
+
+  const ep = endpoint.data;
+  const isDisabled = ep.disabled ?? false;
+  const filterTypes = ep.filterTypes ?? [];
+
+  return (
+    <div className="space-y-5">
+      {/* Breadcrumb */}
+      <div className="flex items-center gap-1.5 text-sm">
+        <button
+          type="button"
+          onClick={goToEndpoints}
+          className="text-muted-foreground hover:text-foreground"
+        >
+          Endpoints
+        </button>
+        <span className="text-muted-foreground">/</span>
+        <span className="truncate font-medium">{ep.url}</span>
+      </div>
+
+      {/* Header */}
+      <div className="flex items-start justify-between gap-4">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <h3 className="truncate text-lg font-semibold tracking-tight">
+              {ep.url}
+            </h3>
+            <Badge variant={isDisabled ? "secondary" : "success"}>
+              {isDisabled ? "Disabled" : "Active"}
+            </Badge>
+          </div>
+          {ep.description ? (
+            <p className="mt-0.5 text-sm text-muted-foreground">
+              {ep.description}
+            </p>
+          ) : null}
+        </div>
+        <RowActions
+          ariaLabel={`Actions for ${ep.url}`}
+          actions={[
+            {
+              label: isRecovering ? "Recovering..." : "Recover failed messages",
+              onClick: onRecover,
+              disabled: isRecovering,
+            },
+            {
+              label: isDisabled ? "Enable endpoint" : "Disable endpoint",
+              onClick: onToggleDisabled,
+            },
+            {
+              label: "Delete endpoint",
+              onClick: () => setIsDeleteOpen(true),
+              variant: "destructive",
+              separator: true,
+            },
+          ]}
+        />
+      </div>
+
+      {/* Info grid */}
+      <div className="grid gap-5 lg:grid-cols-[2fr_1fr]">
+        {/* Left: stats + attempts */}
+        <div className="space-y-5">
+          {/* Delivery stats bar */}
+          <div className="space-y-2">
+            <Label className="text-xs text-muted-foreground">
+              Delivery stats
+            </Label>
+            {stats.loading ? (
+              <div className="text-xs text-muted-foreground">Loading...</div>
+            ) : stats.error ? null : stats.data ? (
+              <DeliveryStatsBar stats={stats.data} />
+            ) : null}
+          </div>
+
+          {/* Message attempts */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <Label className="text-xs text-muted-foreground">
+                Message attempts
+              </Label>
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                onClick={() => attempts.reload()}
+              >
+                <Icon icon={RefreshIcon} className="size-3.5" />
+              </Button>
+            </div>
+
+            {/* Filter tabs */}
+            <div className="flex gap-1 rounded-lg border border-border bg-muted/30 p-0.5">
+              {(
+                [
+                  { id: "all", label: "All" },
+                  { id: "succeeded", label: "Succeeded" },
+                  { id: "failed", label: "Failed" },
+                ] as const
+              ).map((filter) => (
+                <button
+                  key={filter.id}
+                  type="button"
+                  onClick={() => setAttemptFilter(filter.id)}
+                  className={cn(
+                    "h-7 rounded-md px-2.5 text-xs font-medium transition-colors",
+                    attemptFilter === filter.id
+                      ? "bg-background text-foreground shadow-sm"
+                      : "text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  {filter.label}
+                </button>
+              ))}
+            </div>
+
+            {attempts.loading ? (
+              <div className="text-sm text-muted-foreground">
+                Loading attempts...
+              </div>
+            ) : attempts.error ? (
+              <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-4 text-sm text-destructive">
+                Failed to load message attempts.
+              </div>
+            ) : !attempts.data?.length ? (
+              <div className="rounded-lg bg-muted/30 p-6 text-center text-sm text-muted-foreground">
+                No message attempts
+                {attemptFilter !== "all" ? ` matching "${attemptFilter}"` : ""}.
+              </div>
+            ) : (
+              <>
+                <div className="overflow-hidden rounded-xl border border-border/50">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Event Type</TableHead>
+                        <TableHead>Response</TableHead>
+                        <TableHead>Timestamp</TableHead>
+                        <TableHead className="text-right">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {attempts.data.map((attempt) => (
+                        <AttemptRow
+                          key={attempt.id}
+                          attempt={attempt}
+                          onViewMessage={() => goToMessage(attempt.msgId)}
+                        />
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    disabled={!attempts.hasPrevPage}
+                    onClick={() => attempts.prevPage()}
+                  >
+                    Previous
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    disabled={!attempts.hasNextPage}
+                    onClick={() => attempts.nextPage()}
+                  >
+                    Next
+                  </Button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+
+        {/* Right: info sidebar */}
+        <div className="space-y-5">
+          {/* Dates */}
+          <div className="space-y-3 rounded-lg border border-border bg-card p-4">
+            <div>
+              <Label className="text-xs text-muted-foreground">Created</Label>
+              <p className="text-sm">{formatDateTime(ep.createdAt)}</p>
+            </div>
+            <div>
+              <Label className="text-xs text-muted-foreground">
+                Last updated
+              </Label>
+              <p className="text-sm">{formatDateTime(ep.updatedAt)}</p>
+            </div>
+          </div>
+
+          {/* Subscribed events */}
+          <div className="space-y-2 rounded-lg border border-border bg-card p-4">
+            <div className="flex items-center justify-between">
+              <Label className="text-xs text-muted-foreground">
+                Subscribed events
+              </Label>
+              <Button
+                type="button"
+                size="xs"
+                variant="ghost"
+                onClick={() => setIsEditEventsOpen(true)}
+              >
+                Edit
+              </Button>
+            </div>
+            {filterTypes.length === 0 ? (
+              <p className="text-sm text-muted-foreground">All events</p>
+            ) : (
+              <div className="flex flex-wrap gap-1">
+                {filterTypes.map((et) => (
+                  <Badge key={et} variant="outline" className="text-xs">
+                    {et}
+                  </Badge>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Signing secret */}
+          <div className="space-y-2 rounded-lg border border-border bg-card p-4">
+            <Label className="text-xs text-muted-foreground">
+              Signing secret
+            </Label>
+            {secret.loading ? (
+              <div className="text-xs text-muted-foreground">Loading...</div>
+            ) : secret.data?.key ? (
+              <div className="space-y-2">
+                <div className="relative">
+                  <Input
+                    readOnly
+                    value={
+                      showSecret
+                        ? secret.data.key
+                        : "whsec_" + "\u2022".repeat(24)
+                    }
+                    className="pr-16 font-mono text-xs"
+                    aria-label="Endpoint signing secret"
+                  />
+                  <div className="absolute top-1/2 right-1 flex -translate-y-1/2 gap-0.5">
+                    <Button
+                      type="button"
+                      size="icon-sm"
+                      variant="ghost"
+                      onClick={() => setShowSecret(!showSecret)}
+                      aria-label={showSecret ? "Hide secret" : "Show secret"}
+                    >
+                      <Icon
+                        icon={showSecret ? ViewOffIcon : ViewIcon}
+                        className="size-3.5"
+                      />
+                    </Button>
+                    <Button
+                      type="button"
+                      size="icon-sm"
+                      variant="ghost"
+                      onClick={onCopySecret}
+                      aria-label="Copy secret"
+                    >
+                      <Icon icon={Copy01Icon} className="size-3.5" />
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="text-xs text-muted-foreground">
+                Secret not available
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Edit events modal */}
+      <EditEndpointEventsModal
+        open={isEditEventsOpen}
+        onOpenChange={setIsEditEventsOpen}
+        endpointId={endpointId}
+        currentFilterTypes={filterTypes}
+        endpointUrl={ep.url}
+        onUpdated={() => {
+          setIsEditEventsOpen(false);
+          endpoint.reload();
+        }}
+      />
+
+      {/* Delete confirm */}
+      <DeleteConfirmDialog
+        open={isDeleteOpen}
+        onOpenChange={setIsDeleteOpen}
+        onConfirm={onDelete}
+        title="Delete Endpoint"
+        description={`Are you sure you want to delete the endpoint "${ep.url}"? This action cannot be undone.`}
+        isPending={isDeleting}
+      />
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// AttemptRow — expandable row in attempts table
+// ---------------------------------------------------------------------------
+
+function AttemptRow({
+  attempt,
+  onViewMessage,
+}: {
+  attempt: {
+    id: string;
+    msgId: string;
+    status: number;
+    eventType?: string | null;
+    responseStatusCode: number;
+    response: string;
+    timestamp: Date | string;
+    triggerType: number;
+  };
+  onViewMessage: () => void;
+}) {
+  const [expanded, setExpanded] = useState(false);
+
+  return (
+    <>
+      <TableRow
+        className="cursor-pointer"
+        onClick={() => setExpanded(!expanded)}
+      >
+        <TableCell>
+          <MessageStatusBadge status={attempt.status} />
+        </TableCell>
+        <TableCell className="font-mono text-xs">
+          {attempt.eventType ?? "—"}
+        </TableCell>
+        <TableCell>
+          <StatusCodeBadge code={attempt.responseStatusCode} />
+        </TableCell>
+        <TableCell className="text-xs">
+          {formatDateTime(attempt.timestamp)}
+        </TableCell>
+        <TableCell className="text-right">
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={(e) => {
+              e.stopPropagation();
+              onViewMessage();
+            }}
+          >
+            View message
+          </Button>
+        </TableCell>
+      </TableRow>
+      {expanded ? (
+        <TableRow>
+          <TableCell colSpan={5} className="bg-muted/20 p-0">
+            <div className="p-4">
+              <Label className="text-xs text-muted-foreground">
+                Response body
+              </Label>
+              <pre className="mt-1 max-h-40 overflow-auto whitespace-pre-wrap break-words rounded bg-muted/30 p-3 font-mono text-xs">
+                {attempt.response || "(empty)"}
+              </pre>
+            </div>
+          </TableCell>
+        </TableRow>
+      ) : null}
+    </>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// EditEndpointEventsModal
+// ---------------------------------------------------------------------------
+
+function EditEndpointEventsModal({
+  open,
+  onOpenChange,
+  endpointId,
+  currentFilterTypes,
+  endpointUrl,
+  onUpdated,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  endpointId: string;
+  currentFilterTypes: string[];
+  endpointUrl: string;
+  onUpdated: () => void;
+}) {
+  const fns = useEndpointFunctions(endpointId);
+  const eventTypes = useEventTypes({ limit: 100 });
+  const [selected, setSelected] = useState<string[]>(currentFilterTypes);
+  const [isSaving, setIsSaving] = useState(false);
+
+  // Reset selection when modal opens
+  const prevOpen = useState(open)[0];
+  if (open && !prevOpen) {
+    // noop — we set initial state from props
+  }
+
+  const sortedEventTypes = useMemo(
+    () =>
+      (eventTypes.data ?? []).toSorted((a, b) => a.name.localeCompare(b.name)),
+    [eventTypes.data],
+  );
+
+  const onSave = async () => {
+    setIsSaving(true);
+    try {
+      await fns.updateEndpoint({
+        url: endpointUrl,
+        filterTypes: selected.length ? selected : null,
+      });
+      onUpdated();
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Failed to update events",
+      );
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  return (
+    <EntityModal
+      open={open}
+      onOpenChange={onOpenChange}
+      title="Edit Subscribed Events"
+      description="Select which event types this endpoint receives."
+    >
+      <div className="space-y-4 p-6">
+        {eventTypes.loading ? (
+          <div className="text-sm text-muted-foreground">Loading...</div>
+        ) : !sortedEventTypes.length ? (
+          <div className="text-sm text-muted-foreground">
+            No event types available.
+          </div>
+        ) : (
+          <>
+            <div className="flex justify-end">
+              <Button
+                type="button"
+                variant="link"
+                size="sm"
+                onClick={() => {
+                  const allNames = sortedEventTypes.map((et) => et.name);
+                  setSelected(
+                    selected.length === allNames.length ? [] : allNames,
+                  );
+                }}
+              >
+                {selected.length === sortedEventTypes.length
+                  ? "Deselect all"
+                  : "Select all"}
+              </Button>
+            </div>
+            <div className="grid gap-1.5 rounded-lg border border-border bg-muted/30 p-4 sm:grid-cols-2">
+              {sortedEventTypes.map((et) => (
+                <div
+                  key={et.name}
+                  className="rounded-md px-2.5 py-2 transition-colors hover:bg-background"
+                >
+                  <Checkbox
+                    checked={selected.includes(et.name)}
+                    onChange={() =>
+                      setSelected((prev) =>
+                        prev.includes(et.name)
+                          ? prev.filter((n) => n !== et.name)
+                          : [...prev, et.name],
+                      )
+                    }
+                    label={et.name}
+                  />
+                </div>
+              ))}
+            </div>
+          </>
+        )}
+        <div className="flex justify-end gap-3">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+          >
+            Cancel
+          </Button>
+          <Button type="button" disabled={isSaving} onClick={onSave}>
+            {isSaving ? "Saving..." : "Save"}
+          </Button>
+        </div>
+      </div>
+    </EntityModal>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// DeliveryStatsBar
+// ---------------------------------------------------------------------------
+
+function DeliveryStatsBar({
+  stats,
+}: {
+  stats: { success: number; fail: number; pending: number; sending: number };
+}) {
+  const total = stats.success + stats.fail + stats.pending + stats.sending;
+
+  if (total === 0) {
+    return (
+      <span className="text-xs text-muted-foreground">No deliveries yet</span>
+    );
+  }
+
+  const segments: {
+    key: string;
+    count: number;
+    color: string;
+    label: string;
+  }[] = [
+    {
+      key: "success",
+      count: stats.success,
+      color: "bg-emerald-500",
+      label: `${stats.success} delivered`,
+    },
+    {
+      key: "fail",
+      count: stats.fail,
+      color: "bg-destructive",
+      label: `${stats.fail} failed`,
+    },
+    {
+      key: "pending",
+      count: stats.pending,
+      color: "bg-amber-500",
+      label: `${stats.pending} pending`,
+    },
+    {
+      key: "sending",
+      count: stats.sending,
+      color: "bg-muted-foreground",
+      label: `${stats.sending} sending`,
+    },
+  ].filter((s) => s.count > 0);
+
+  return (
+    <div className="space-y-2">
+      <div className="flex h-2.5 overflow-hidden rounded-full bg-muted">
+        {segments.map((seg) => (
+          <div
+            key={seg.key}
+            className={cn("h-full transition-all", seg.color)}
+            style={{ width: `${(seg.count / total) * 100}%` }}
+            title={seg.label}
+          />
+        ))}
+      </div>
+      <div className="flex flex-wrap gap-3">
+        {segments.map((seg) => (
+          <span key={seg.key} className="flex items-center gap-1.5 text-xs">
+            <span
+              className={cn("inline-block size-2 rounded-full", seg.color)}
+            />
+            {seg.label}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// MessageDetailView
+// ---------------------------------------------------------------------------
+
+function MessageDetailView({
+  endpointId,
+  messageId,
+}: {
+  endpointId: string;
+  messageId: string;
+}) {
+  const { goToEndpoint } = useWebhookNavigate();
+  const endpoint = useEndpoint(endpointId);
+  const message = useMessage(messageId);
+  const messageAttempts = useMessageAttempts(messageId, { limit: 25 });
+  const [viewMode, setViewMode] = useState<"formatted" | "raw">("formatted");
+
+  const payload = useMemo(() => {
+    if (!message.data?.payload) return "";
+    return formatWebhookPayloadPreview(message.data.payload);
+  }, [message.data?.payload]);
+
+  const onCopyPayload = async () => {
+    if (!payload) return;
+    try {
+      await navigator.clipboard.writeText(payload);
+    } catch {
+      toast.error("Failed to copy payload");
+    }
+  };
+
+  return (
+    <div className="space-y-5">
+      {/* Breadcrumb */}
+      <div className="flex items-center gap-1.5 text-sm">
+        <button
+          type="button"
+          onClick={() => goToEndpoint("")}
+          className="text-muted-foreground hover:text-foreground"
+          // We need to go up to endpoints list first
+        >
+          Endpoints
+        </button>
+        <span className="text-muted-foreground">/</span>
+        <button
+          type="button"
+          onClick={() => goToEndpoint(endpointId)}
+          className="truncate text-muted-foreground hover:text-foreground"
+        >
+          {endpoint.data?.url ?? endpointId}
+        </button>
+        <span className="text-muted-foreground">/</span>
+        <span className="truncate font-medium">
+          {messageId.slice(0, 12)}...
+        </span>
+      </div>
+
+      {message.loading ? (
+        <div className="text-sm text-muted-foreground">Loading message...</div>
+      ) : message.error || !message.data ? (
+        <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-4 text-sm text-destructive">
+          Failed to load message.
+        </div>
+      ) : (
+        <>
+          {/* Header */}
+          <div>
+            <h3 className="text-lg font-semibold tracking-tight">
+              {message.data.eventType}
+            </h3>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              Created {formatDateTime(message.data.timestamp)}
+            </p>
+          </div>
+
+          {/* Payload */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <Label className="text-xs text-muted-foreground">
+                Message content
+              </Label>
+              <div className="flex items-center gap-2">
+                <div className="flex gap-0.5 rounded-lg border border-border bg-muted/30 p-0.5">
+                  <button
+                    type="button"
+                    onClick={() => setViewMode("formatted")}
+                    className={cn(
+                      "h-6 rounded-md px-2 text-xs font-medium transition-colors",
+                      viewMode === "formatted"
+                        ? "bg-background text-foreground shadow-sm"
+                        : "text-muted-foreground hover:text-foreground",
+                    )}
+                  >
+                    Formatted
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setViewMode("raw")}
+                    className={cn(
+                      "h-6 rounded-md px-2 text-xs font-medium transition-colors",
+                      viewMode === "raw"
+                        ? "bg-background text-foreground shadow-sm"
+                        : "text-muted-foreground hover:text-foreground",
+                    )}
+                  >
+                    Raw
+                  </button>
+                </div>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={onCopyPayload}
+                  disabled={!payload}
+                >
+                  <Icon icon={Copy01Icon} data-icon="inline-start" />
+                  Copy
+                </Button>
+              </div>
+            </div>
+            {viewMode === "formatted" && payload ? (
+              <JsonTreeViewer data={message.data.payload} />
+            ) : (
+              <pre className="max-h-96 overflow-auto whitespace-pre-wrap break-words rounded-lg border border-border bg-muted/30 p-4 font-mono text-xs leading-relaxed">
+                {payload || "(empty)"}
+              </pre>
+            )}
+          </div>
+
+          {/* Attempts table */}
+          <div className="space-y-3">
+            <Label className="text-xs text-muted-foreground">
+              Webhook attempts
+            </Label>
+            {messageAttempts.loading ? (
+              <div className="text-sm text-muted-foreground">
+                Loading attempts...
+              </div>
+            ) : messageAttempts.error ? (
+              <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-4 text-sm text-destructive">
+                Failed to load attempts.
+              </div>
+            ) : !messageAttempts.data?.length ? (
+              <div className="rounded-lg bg-muted/30 p-6 text-center text-sm text-muted-foreground">
+                No delivery attempts yet.
+              </div>
+            ) : (
+              <div className="overflow-hidden rounded-xl border border-border/50">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Status</TableHead>
+                      <TableHead>URL</TableHead>
+                      <TableHead>Response</TableHead>
+                      <TableHead>Timestamp</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {messageAttempts.data.map((attempt) => (
+                      <MessageAttemptRow key={attempt.id} attempt={attempt} />
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// MessageAttemptRow — expandable row for message detail attempts
+// ---------------------------------------------------------------------------
+
+function MessageAttemptRow({
+  attempt,
+}: {
+  attempt: {
+    id: string;
+    status: number;
+    url: string;
+    responseStatusCode: number;
+    response: string;
+    timestamp: Date | string;
+  };
+}) {
+  const [expanded, setExpanded] = useState(false);
+
+  return (
+    <>
+      <TableRow
+        className="cursor-pointer"
+        onClick={() => setExpanded(!expanded)}
+      >
+        <TableCell>
+          <MessageStatusBadge status={attempt.status} />
+        </TableCell>
+        <TableCell className="max-w-48 truncate font-mono text-xs">
+          {attempt.url}
+        </TableCell>
+        <TableCell>
+          <StatusCodeBadge code={attempt.responseStatusCode} />
+        </TableCell>
+        <TableCell className="text-xs">
+          {formatDateTime(attempt.timestamp)}
+        </TableCell>
+      </TableRow>
+      {expanded ? (
+        <TableRow>
+          <TableCell colSpan={4} className="bg-muted/20 p-0">
+            <div className="p-4">
+              <Label className="text-xs text-muted-foreground">
+                Response body
+              </Label>
+              <pre className="mt-1 max-h-40 overflow-auto whitespace-pre-wrap break-words rounded bg-muted/30 p-3 font-mono text-xs">
+                {attempt.response || "(empty)"}
+              </pre>
+            </div>
+          </TableCell>
+        </TableRow>
+      ) : null}
+    </>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// JsonTreeViewer — recursive JSON renderer
+// ---------------------------------------------------------------------------
+
+function JsonTreeViewer({ data }: { data: unknown }) {
+  const parsed = useMemo(() => {
+    if (typeof data === "string") {
+      try {
+        return JSON.parse(data);
+      } catch {
+        return data;
+      }
+    }
+    return data;
+  }, [data]);
+
+  if (typeof parsed !== "object" || parsed === null) {
+    return (
+      <pre className="max-h-96 overflow-auto whitespace-pre-wrap break-words rounded-lg border border-border bg-muted/30 p-4 font-mono text-xs">
+        {String(parsed)}
+      </pre>
+    );
+  }
+
+  return (
+    <div className="max-h-96 overflow-auto rounded-lg border border-border bg-muted/30 p-4 font-mono text-xs">
+      <JsonNode value={parsed} depth={0} defaultExpanded />
+    </div>
+  );
+}
+
+function JsonNode({
+  name,
+  value,
+  depth,
+  defaultExpanded = false,
+}: {
+  name?: string;
+  value: unknown;
+  depth: number;
+  defaultExpanded?: boolean;
+}) {
+  const [expanded, setExpanded] = useState(defaultExpanded || depth < 1);
+
+  if (value === null) {
+    return (
+      <div style={{ paddingLeft: depth > 0 ? 16 : 0 }}>
+        {name !== undefined ? (
+          <span className="text-sky-600 dark:text-sky-400">"{name}"</span>
+        ) : null}
+        {name !== undefined ? ": " : null}
+        <span className="text-muted-foreground">null</span>
+      </div>
+    );
+  }
+
+  if (typeof value === "boolean") {
+    return (
+      <div style={{ paddingLeft: depth > 0 ? 16 : 0 }}>
+        {name !== undefined ? (
+          <span className="text-sky-600 dark:text-sky-400">"{name}"</span>
+        ) : null}
+        {name !== undefined ? ": " : null}
+        <span className="text-amber-600 dark:text-amber-400">
+          {String(value)}
+        </span>
+      </div>
+    );
+  }
+
+  if (typeof value === "number") {
+    return (
+      <div style={{ paddingLeft: depth > 0 ? 16 : 0 }}>
+        {name !== undefined ? (
+          <span className="text-sky-600 dark:text-sky-400">"{name}"</span>
+        ) : null}
+        {name !== undefined ? ": " : null}
+        <span className="text-emerald-600 dark:text-emerald-400">
+          {String(value)}
+        </span>
+      </div>
+    );
+  }
+
+  if (typeof value === "string") {
+    return (
+      <div style={{ paddingLeft: depth > 0 ? 16 : 0 }}>
+        {name !== undefined ? (
+          <span className="text-sky-600 dark:text-sky-400">"{name}"</span>
+        ) : null}
+        {name !== undefined ? ": " : null}
+        <span className="text-rose-600 dark:text-rose-400">"{value}"</span>
+      </div>
+    );
+  }
+
+  if (Array.isArray(value)) {
+    if (value.length === 0) {
+      return (
+        <div style={{ paddingLeft: depth > 0 ? 16 : 0 }}>
+          {name !== undefined ? (
+            <span className="text-sky-600 dark:text-sky-400">"{name}"</span>
+          ) : null}
+          {name !== undefined ? ": " : null}
+          <span className="text-muted-foreground">[]</span>
+        </div>
+      );
+    }
+
+    return (
+      <div style={{ paddingLeft: depth > 0 ? 16 : 0 }}>
+        <button
+          type="button"
+          onClick={() => setExpanded(!expanded)}
+          className="hover:text-foreground"
+        >
+          <span className="text-muted-foreground">{expanded ? "▼" : "▶"}</span>{" "}
+          {name !== undefined ? (
+            <span className="text-sky-600 dark:text-sky-400">"{name}"</span>
+          ) : null}
+          {name !== undefined ? ": " : null}
+          {!expanded ? (
+            <span className="text-muted-foreground">
+              [{value.length} items]
+            </span>
+          ) : (
+            "["
+          )}
+        </button>
+        {expanded ? (
+          <>
+            {value.map((item, index) => (
+              <JsonNode
+                key={`${depth}-${index}`}
+                value={item}
+                depth={depth + 1}
+              />
+            ))}
+            <div>]</div>
+          </>
+        ) : null}
+      </div>
+    );
+  }
+
+  if (typeof value === "object") {
+    const entries = Object.entries(value);
+    if (entries.length === 0) {
+      return (
+        <div style={{ paddingLeft: depth > 0 ? 16 : 0 }}>
+          {name !== undefined ? (
+            <span className="text-sky-600 dark:text-sky-400">"{name}"</span>
+          ) : null}
+          {name !== undefined ? ": " : null}
+          <span className="text-muted-foreground">{"{}"}</span>
+        </div>
+      );
+    }
+
+    return (
+      <div style={{ paddingLeft: depth > 0 ? 16 : 0 }}>
+        <button
+          type="button"
+          onClick={() => setExpanded(!expanded)}
+          className="hover:text-foreground"
+        >
+          <span className="text-muted-foreground">{expanded ? "▼" : "▶"}</span>{" "}
+          {name !== undefined ? (
+            <span className="text-sky-600 dark:text-sky-400">"{name}"</span>
+          ) : null}
+          {name !== undefined ? ": " : null}
+          {!expanded ? (
+            <span className="text-muted-foreground">
+              {"{"}
+              {entries.length} keys
+              {"}"}
+            </span>
+          ) : (
+            "{"
+          )}
+        </button>
+        {expanded ? (
+          <>
+            {entries.map(([key, val]) => (
+              <JsonNode
+                key={`${depth}-${key}`}
+                name={key}
+                value={val}
+                depth={depth + 1}
+              />
+            ))}
+            <div>{"}"}</div>
+          </>
+        ) : null}
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ paddingLeft: depth > 0 ? 16 : 0 }}>
+      {name !== undefined ? (
+        <span className="text-sky-600 dark:text-sky-400">"{name}"</span>
+      ) : null}
+      {name !== undefined ? ": " : null}
+      <span className="text-muted-foreground">{JSON.stringify(value)}</span>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// EventCatalogTab
+// ---------------------------------------------------------------------------
+
+function EventCatalogTab() {
+  const eventTypes = useEventTypes({ limit: 100 });
+
+  const grouped = useMemo(() => {
+    if (!eventTypes.data)
+      return new Map<string, NonNullable<typeof eventTypes.data>>();
+    const groups = new Map<string, NonNullable<typeof eventTypes.data>>();
+    for (const et of eventTypes.data) {
+      const prefix = et.name.split(".")[0] ?? "other";
+      const group = groups.get(prefix) ?? [];
+      group.push(et);
+      groups.set(prefix, group);
+    }
+    // Sort groups by key
+    return new Map(
+      [...groups.entries()].toSorted(([a], [b]) => a.localeCompare(b)),
+    );
+  }, [eventTypes.data]);
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="text-sm font-semibold tracking-tight">
+            Event Catalog
+          </h3>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            All registered webhook event types grouped by domain.
+          </p>
+        </div>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          onClick={() => eventTypes.reload()}
+        >
+          <Icon icon={RefreshIcon} data-icon="inline-start" />
+          Refresh
+        </Button>
+      </div>
+
+      {eventTypes.loading ? (
+        <div className="text-sm text-muted-foreground">
+          Loading event catalog...
+        </div>
+      ) : eventTypes.error ? (
+        <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-4 text-sm text-destructive">
+          Failed to load event catalog.
+        </div>
+      ) : !eventTypes.data?.length ? (
+        <div className="rounded-lg bg-muted/30 p-8 text-center text-sm text-muted-foreground">
+          No event types registered. Run the Svix catalog sync script.
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {[...grouped.entries()].map(([prefix, events]) => (
+            <EventCatalogGroup key={prefix} prefix={prefix} events={events} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function EventCatalogGroup({
+  prefix,
+  events,
+}: {
+  prefix: string;
+  events: Array<{
+    name: string;
+    description?: string | null;
+  }>;
+}) {
+  const [expanded, setExpanded] = useState(true);
+
+  return (
+    <div className="rounded-lg border border-border bg-card">
+      <button
+        type="button"
+        onClick={() => setExpanded(!expanded)}
+        className="flex w-full items-center justify-between px-4 py-3 text-left"
+      >
+        <span className="text-sm font-medium capitalize">{prefix}</span>
+        <div className="flex items-center gap-2">
+          <Badge variant="secondary">{events.length}</Badge>
+          <span className="text-xs text-muted-foreground">
+            {expanded ? "▼" : "▶"}
+          </span>
+        </div>
+      </button>
+      {expanded ? (
+        <div className="border-t border-border">
+          {events.map((et) => (
+            <div
+              key={et.name}
+              className="flex items-start justify-between gap-4 border-b border-border/50 px-4 py-2.5 last:border-b-0"
+            >
+              <code className="text-xs font-medium">{et.name}</code>
+              {et.description ? (
+                <span className="text-right text-xs text-muted-foreground">
+                  {et.description}
+                </span>
+              ) : null}
+            </div>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// LogsTab — Global message log
+// ---------------------------------------------------------------------------
+
+function LogsTab() {
+  const messages = useMessages({ limit: 25 });
+  const navigate = useNavigate({ from: Route.fullPath });
+
+  const onClickMessage = (msgId: string) => {
+    // For logs, navigate to message detail with a placeholder endpointId
+    // We'll show message-level detail without endpoint context
+    navigate({
+      search: (prev) => ({
+        ...prev,
+        webhookTab: "logs",
+        messageId: msgId,
+      }),
+    });
+  };
+
+  const { messageId } = Route.useSearch();
+
+  // If a message is selected in logs tab, show message detail
+  if (messageId) {
+    return <LogsMessageDetailView messageId={messageId} />;
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="text-sm font-semibold tracking-tight">Logs</h3>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            Global webhook message log across all endpoints.
+          </p>
+        </div>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          onClick={() => messages.reload()}
+        >
+          <Icon icon={RefreshIcon} data-icon="inline-start" />
+          Refresh
+        </Button>
+      </div>
+
+      {messages.loading ? (
+        <div className="text-sm text-muted-foreground">Loading messages...</div>
+      ) : messages.error ? (
+        <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-4 text-sm text-destructive">
+          Failed to load messages.
+        </div>
+      ) : !messages.data?.length ? (
+        <div className="rounded-lg bg-muted/30 p-8 text-center text-sm text-muted-foreground">
+          No webhook messages yet.
+        </div>
+      ) : (
+        <>
+          <div className="overflow-hidden rounded-xl border border-border/50">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Event Type</TableHead>
+                  <TableHead>Message ID</TableHead>
+                  <TableHead>Timestamp</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {messages.data.map((msg) => (
+                  <TableRow
+                    key={msg.id}
+                    className="cursor-pointer"
+                    onClick={() => onClickMessage(msg.id)}
+                  >
+                    <TableCell className="font-mono text-xs">
+                      {msg.eventType}
+                    </TableCell>
+                    <TableCell className="font-mono text-xs">
+                      {msg.id.slice(0, 16)}...
+                    </TableCell>
+                    <TableCell className="text-xs">
+                      {formatDateTime(msg.timestamp)}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+
+          <div className="flex items-center justify-between">
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={!messages.hasPrevPage}
+              onClick={() => messages.prevPage()}
+            >
+              Previous
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={!messages.hasNextPage}
+              onClick={() => messages.nextPage()}
+            >
+              Next
+            </Button>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// LogsMessageDetailView — Message detail accessed from Logs tab
+// ---------------------------------------------------------------------------
+
+function LogsMessageDetailView({ messageId }: { messageId: string }) {
+  const navigate = useNavigate({ from: Route.fullPath });
+  const message = useMessage(messageId);
+  const messageAttempts = useMessageAttempts(messageId, { limit: 25 });
+  const [viewMode, setViewMode] = useState<"formatted" | "raw">("formatted");
+
+  const payload = useMemo(() => {
+    if (!message.data?.payload) return "";
+    return formatWebhookPayloadPreview(message.data.payload);
+  }, [message.data?.payload]);
+
+  const onCopyPayload = async () => {
+    if (!payload) return;
+    try {
+      await navigator.clipboard.writeText(payload);
+    } catch {
+      toast.error("Failed to copy payload");
+    }
+  };
+
+  const goBackToLogs = () => {
+    navigate({
+      search: (prev) => ({
+        ...prev,
+        webhookTab: "logs",
+        messageId: undefined,
+      }),
+    });
+  };
+
+  return (
+    <div className="space-y-5">
+      {/* Breadcrumb */}
+      <div className="flex items-center gap-1.5 text-sm">
+        <button
+          type="button"
+          onClick={goBackToLogs}
+          className="text-muted-foreground hover:text-foreground"
+        >
+          Logs
+        </button>
+        <span className="text-muted-foreground">/</span>
+        <span className="truncate font-medium">
+          {messageId.slice(0, 12)}...
+        </span>
+      </div>
+
+      {message.loading ? (
+        <div className="text-sm text-muted-foreground">Loading message...</div>
+      ) : message.error || !message.data ? (
+        <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-4 text-sm text-destructive">
+          Failed to load message.
+        </div>
+      ) : (
+        <>
+          <div>
+            <h3 className="text-lg font-semibold tracking-tight">
+              {message.data.eventType}
+            </h3>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              Created {formatDateTime(message.data.timestamp)}
+            </p>
+          </div>
+
+          {/* Payload */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <Label className="text-xs text-muted-foreground">
+                Message content
+              </Label>
+              <div className="flex items-center gap-2">
+                <div className="flex gap-0.5 rounded-lg border border-border bg-muted/30 p-0.5">
+                  <button
+                    type="button"
+                    onClick={() => setViewMode("formatted")}
+                    className={cn(
+                      "h-6 rounded-md px-2 text-xs font-medium transition-colors",
+                      viewMode === "formatted"
+                        ? "bg-background text-foreground shadow-sm"
+                        : "text-muted-foreground hover:text-foreground",
+                    )}
+                  >
+                    Formatted
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setViewMode("raw")}
+                    className={cn(
+                      "h-6 rounded-md px-2 text-xs font-medium transition-colors",
+                      viewMode === "raw"
+                        ? "bg-background text-foreground shadow-sm"
+                        : "text-muted-foreground hover:text-foreground",
+                    )}
+                  >
+                    Raw
+                  </button>
+                </div>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={onCopyPayload}
+                  disabled={!payload}
+                >
+                  <Icon icon={Copy01Icon} data-icon="inline-start" />
+                  Copy
+                </Button>
+              </div>
+            </div>
+            {viewMode === "formatted" && payload ? (
+              <JsonTreeViewer data={message.data.payload} />
+            ) : (
+              <pre className="max-h-96 overflow-auto whitespace-pre-wrap break-words rounded-lg border border-border bg-muted/30 p-4 font-mono text-xs leading-relaxed">
+                {payload || "(empty)"}
+              </pre>
+            )}
+          </div>
+
+          {/* Attempts */}
+          <div className="space-y-3">
+            <Label className="text-xs text-muted-foreground">
+              Delivery attempts
+            </Label>
+            {messageAttempts.loading ? (
+              <div className="text-sm text-muted-foreground">
+                Loading attempts...
+              </div>
+            ) : messageAttempts.error ? (
+              <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-4 text-sm text-destructive">
+                Failed to load attempts.
+              </div>
+            ) : !messageAttempts.data?.length ? (
+              <div className="rounded-lg bg-muted/30 p-6 text-center text-sm text-muted-foreground">
+                No delivery attempts yet.
+              </div>
+            ) : (
+              <div className="overflow-hidden rounded-xl border border-border/50">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Status</TableHead>
+                      <TableHead>URL</TableHead>
+                      <TableHead>Response</TableHead>
+                      <TableHead>Timestamp</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {messageAttempts.data.map((attempt) => (
+                      <MessageAttemptRow key={attempt.id} attempt={attempt} />
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}

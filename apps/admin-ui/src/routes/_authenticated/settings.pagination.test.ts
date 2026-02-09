@@ -1,9 +1,7 @@
 import { describe, expect, test } from "bun:test";
 
-import {
-  formatWebhookPayloadPreview,
-  resetPaginationToFirstPage,
-} from "./settings";
+import { resetPaginationToFirstPage } from "./settings";
+import { formatWebhookPayloadPreview } from "./settings-webhooks";
 
 describe("settings pagination helpers", () => {
   test("keeps pagination object unchanged when already on first page", () => {

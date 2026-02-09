@@ -15,6 +15,7 @@ import {
   getSortedRowModel,
   useReactTable,
 } from "@tanstack/react-table";
+import { Search01Icon } from "@hugeicons/core-free-icons";
 import { TableSkeleton } from "@/components/ui/skeleton";
 import {
   Cancel01Icon,
@@ -34,6 +35,7 @@ import {
 import { RowActions } from "@/components/row-actions";
 import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
 import { DataTablePagination } from "@/components/ui/data-table-pagination";
+import { Icon } from "@/components/ui/icon";
 import { Input } from "@/components/ui/input";
 import {
   Table,
@@ -265,12 +267,18 @@ export function AppointmentsList({
 
   return (
     <div className="space-y-4">
-      <Input
-        value={globalFilter}
-        onChange={(event) => setGlobalFilter(event.target.value)}
-        placeholder="Filter appointments..."
-        className="max-w-sm"
-      />
+      <div className="relative max-w-sm">
+        <Icon
+          icon={Search01Icon}
+          className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
+        />
+        <Input
+          value={globalFilter}
+          onChange={(event) => setGlobalFilter(event.target.value)}
+          placeholder="Filter appointments..."
+          className="pl-10"
+        />
+      </div>
 
       {table.getRowModel().rows.length > 0 ? (
         <EntityMobileCardList>
