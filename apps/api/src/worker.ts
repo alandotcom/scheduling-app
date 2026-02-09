@@ -14,6 +14,7 @@ import {
   startWorkers,
   stopWorkers,
 } from "./services/jobs/worker.js";
+import { backfillAppIntegrationDefaultsForAllOrgs } from "./services/integrations/defaults.js";
 import { bootstrapSvixEventCatalogOnStartup } from "./services/svix-event-catalog.js";
 
 const isDev = process.env.NODE_ENV !== "production";
@@ -42,6 +43,7 @@ await configure({
 const logger = getLogger(["worker"]);
 
 await bootstrapSvixEventCatalogOnStartup();
+await backfillAppIntegrationDefaultsForAllOrgs();
 
 startWorkers();
 logger.info("Background workers started");

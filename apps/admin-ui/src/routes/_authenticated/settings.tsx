@@ -22,6 +22,7 @@ import { z } from "zod";
 import { Add01Icon, Search01Icon } from "@hugeicons/core-free-icons";
 
 import { orpc } from "@/lib/query";
+import { authClient } from "@/lib/auth-client";
 import { TIMEZONES } from "@/lib/constants";
 import { resolveSelectValueLabel } from "@/lib/select-value-label";
 import { cn } from "@/lib/utils";
@@ -164,6 +165,12 @@ const parseBusinessDays = (days: unknown): number[] => {
   return [1, 2, 3, 4, 5];
 };
 
+function canManageIntegrationsForRole(
+  role: "owner" | "admin" | "member" | null,
+): boolean {
+  return role === "owner" || role === "admin";
+}
+
 interface SettingsSearchParams {
   section?: string;
   webhookTab?: string;
@@ -190,6 +197,16 @@ function SettingsPage() {
     Route.useSearch();
   const activeTab = resolveTab(section);
   const navigate = useNavigate({ from: Route.fullPath });
+  const { data: session } = authClient.useSession();
+  const activeOrganizationId = session?.session.activeOrganizationId ?? null;
+  const membershipsQuery = useQuery(orpc.org.listMemberships.queryOptions({}));
+  const activeOrganizationRole =
+    membershipsQuery.data?.find(
+      (membership) => membership.orgId === activeOrganizationId,
+    )?.role ?? null;
+  const canManageIntegrations = canManageIntegrationsForRole(
+    activeOrganizationRole,
+  );
 
   const webhookRouteState: WebhooksRouteState = useMemo(
     () => ({ webhookTab, endpointId, messageId, attemptFilter }),
@@ -299,7 +316,30 @@ function SettingsPage() {
 
       {activeTab === "integrations" ? (
         <div className="mt-6">
-          <IntegrationsSection />
+          {membershipsQuery.isLoading ? (
+            <Card>
+              <CardHeader>
+                <CardTitle>Integrations</CardTitle>
+                <CardDescription>
+                  Loading integration permissions...
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Skeleton className="h-16 w-full rounded-lg" />
+              </CardContent>
+            </Card>
+          ) : canManageIntegrations ? (
+            <IntegrationsSection />
+          ) : (
+            <Card>
+              <CardHeader>
+                <CardTitle>Integrations</CardTitle>
+                <CardDescription>
+                  Only organization admins can manage integrations.
+                </CardDescription>
+              </CardHeader>
+            </Card>
+          )}
         </div>
       ) : null}
 

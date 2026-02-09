@@ -75,6 +75,11 @@ interface OrganizationListItem {
   createdAt: Date;
 }
 
+interface OrganizationMembershipListItem {
+  orgId: string;
+  role: "owner" | "admin" | "member";
+}
+
 type OrganizationGateState = "loading" | "selection" | "error" | "ready";
 
 export function getOrganizationGateState(input: {
@@ -107,6 +112,12 @@ const ORG_SWITCH_STRIPPED_SEARCH_KEYS = [
   "messageId",
   "create",
 ] as const;
+
+function canManageIntegrationsForRole(
+  role: "owner" | "admin" | "member" | null,
+): boolean {
+  return role === "owner" || role === "admin";
+}
 
 export function sanitizeSearchParamsForOrganizationSwitch(
   searchStr: string,
@@ -201,6 +212,10 @@ function RootLayout() {
       return (result.data ?? []) as OrganizationListItem[];
     },
   });
+  const membershipsQuery = useQuery({
+    ...orpc.org.listMemberships.queryOptions({}),
+    enabled: isAuthenticated,
+  });
   const {
     isPending: isOrganizationsPending,
     error: organizationsError,
@@ -208,6 +223,9 @@ function RootLayout() {
   } = organizationsQuery;
 
   const organizations = organizationsQuery.data ?? [];
+  const memberships =
+    (membershipsQuery.data as OrganizationMembershipListItem[] | undefined) ??
+    [];
   const organizationMenuItems = useMemo<UserMenuOrganization[]>(
     () =>
       organizations.map((organization) => ({
@@ -219,6 +237,20 @@ function RootLayout() {
   );
 
   const activeOrganizationId = session?.session.activeOrganizationId ?? null;
+  const activeOrganizationRole = useMemo(() => {
+    if (!activeOrganizationId) {
+      return null;
+    }
+
+    return (
+      memberships.find(
+        (membership) => membership.orgId === activeOrganizationId,
+      )?.role ?? null
+    );
+  }, [activeOrganizationId, memberships]);
+  const canManageIntegrations = canManageIntegrationsForRole(
+    activeOrganizationRole,
+  );
   const activeOrganization = useMemo(
     () =>
       activeOrganizationId
@@ -519,6 +551,7 @@ function RootLayout() {
       <AppSidebar
         user={user}
         displayActiveOrganization={displayActiveOrganization}
+        canManageIntegrations={canManageIntegrations}
         navItems={navItems}
         organizationMenuItems={organizationMenuItems}
         activeOrganizationId={activeOrganizationId}
@@ -889,7 +922,7 @@ function RootErrorBoundary({ error, reset }: ErrorComponentProps) {
   );
 }
 
-const SETTINGS_SUB_ITEMS = [
+const BASE_SETTINGS_SUB_ITEMS = [
   { section: undefined, label: "Organization" },
   { section: "users" as const, label: "Users" },
   { section: "developers" as const, label: "Developers" },
@@ -902,6 +935,7 @@ const SETTINGS_COMING_SOON = [{ label: "Security" }, { label: "Audit" }];
 function AppSidebar({
   user,
   displayActiveOrganization,
+  canManageIntegrations,
   navItems,
   organizationMenuItems,
   activeOrganizationId,
@@ -911,6 +945,7 @@ function AppSidebar({
 }: {
   user: { name?: string | null; email: string } | undefined;
   displayActiveOrganization: OrganizationListItem | null;
+  canManageIntegrations: boolean;
   navItems: {
     to: string;
     icon: React.ComponentProps<typeof Icon>["icon"];
@@ -932,6 +967,9 @@ function AppSidebar({
   const currentSection = isOnSettings
     ? (new URLSearchParams(location.searchStr).get("section") ?? undefined)
     : null;
+  const settingsSubItems = canManageIntegrations
+    ? BASE_SETTINGS_SUB_ITEMS
+    : BASE_SETTINGS_SUB_ITEMS.filter((item) => item.section !== "integrations");
 
   return (
     <Sidebar variant="inset" collapsible="icon">
@@ -991,7 +1029,7 @@ function AppSidebar({
                           <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">
                             Settings
                           </div>
-                          {SETTINGS_SUB_ITEMS.map((item) => {
+                          {settingsSubItems.map((item) => {
                             const isActive =
                               isOnSettings &&
                               currentSection === (item.section ?? undefined) &&
@@ -1044,7 +1082,7 @@ function AppSidebar({
                     />
                     <Collapsible.Panel>
                       <SidebarMenuSub>
-                        {SETTINGS_SUB_ITEMS.map((item) => {
+                        {settingsSubItems.map((item) => {
                           const isActive =
                             isOnSettings &&
                             currentSection === (item.section ?? undefined) &&

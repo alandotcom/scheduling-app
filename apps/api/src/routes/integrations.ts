@@ -15,6 +15,7 @@ import { ApplicationError } from "../errors/application-error.js";
 import { withOrg } from "../lib/db.js";
 import { integrationRepository } from "../repositories/integrations.js";
 import {
+  createDefaultIntegrationConfig,
   getAppManagedIntegrationDefinition,
   getAppManagedIntegrationDefinitions,
 } from "../services/integrations/app-managed.js";
@@ -114,24 +115,18 @@ function isIntegrationConfigured(input: {
 }
 
 async function loadIntegrationSettings(orgId: string, key: AppIntegrationKey) {
-  await ensureAppIntegrationDefaultsForOrg(orgId);
-
   const row = await withOrg(orgId, (tx) =>
     integrationRepository.findByKey(tx, orgId, key),
   );
 
-  if (!row) {
-    throw new ApplicationError("Integration not found", {
-      code: "NOT_FOUND",
-    });
-  }
-
   const definition = getAppManagedIntegrationDefinition(key);
-  const integrationConfig = toConfig(row.config);
+  const integrationConfig = row
+    ? toConfig(row.config)
+    : createDefaultIntegrationConfig(key);
   const secretFields = resolveSecretFields({
     integrationKey: key,
-    secretsEncrypted: row.secretsEncrypted,
-    secretSalt: row.secretSalt,
+    secretsEncrypted: row?.secretsEncrypted ?? null,
+    secretSalt: row?.secretSalt ?? null,
   });
 
   return integrationSettingsSchema.parse({
@@ -139,7 +134,7 @@ async function loadIntegrationSettings(orgId: string, key: AppIntegrationKey) {
     name: definition.name,
     description: definition.description,
     logoUrl: definition.logoUrl,
-    enabled: row.enabled,
+    enabled: row?.enabled ?? definition.defaultEnabled,
     configured: isIntegrationConfigured({
       integrationKey: key,
       config: integrationConfig,
@@ -155,8 +150,6 @@ export const list = adminOnly
   .route({ method: "GET", path: "/integrations" })
   .output(integrationsListResponseSchema)
   .handler(async ({ context }) => {
-    await ensureAppIntegrationDefaultsForOrg(context.orgId);
-
     const rows = await withOrg(context.orgId, (tx) =>
       integrationRepository.listByOrg(tx, context.orgId),
     );

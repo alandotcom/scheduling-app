@@ -35,12 +35,6 @@
       "schema": "public"
     },
     {
-      "isRlsEnabled": true,
-      "name": "api_tokens",
-      "entityType": "tables",
-      "schema": "public"
-    },
-    {
       "isRlsEnabled": false,
       "name": "appointment_type_calendars",
       "entityType": "tables",
@@ -103,6 +97,12 @@
     {
       "isRlsEnabled": true,
       "name": "event_outbox",
+      "entityType": "tables",
+      "schema": "public"
+    },
+    {
+      "isRlsEnabled": true,
+      "name": "integrations",
       "entityType": "tables",
       "schema": "public"
     },
@@ -601,162 +601,6 @@
       "entityType": "columns",
       "schema": "public",
       "table": "apikey"
-    },
-    {
-      "type": "uuid",
-      "typeSchema": null,
-      "notNull": true,
-      "dimensions": 0,
-      "default": "uuidv7()",
-      "generated": null,
-      "identity": null,
-      "name": "id",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "api_tokens"
-    },
-    {
-      "type": "uuid",
-      "typeSchema": null,
-      "notNull": true,
-      "dimensions": 0,
-      "default": null,
-      "generated": null,
-      "identity": null,
-      "name": "org_id",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "api_tokens"
-    },
-    {
-      "type": "uuid",
-      "typeSchema": null,
-      "notNull": true,
-      "dimensions": 0,
-      "default": null,
-      "generated": null,
-      "identity": null,
-      "name": "user_id",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "api_tokens"
-    },
-    {
-      "type": "text",
-      "typeSchema": null,
-      "notNull": true,
-      "dimensions": 0,
-      "default": null,
-      "generated": null,
-      "identity": null,
-      "name": "name",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "api_tokens"
-    },
-    {
-      "type": "text",
-      "typeSchema": null,
-      "notNull": true,
-      "dimensions": 0,
-      "default": null,
-      "generated": null,
-      "identity": null,
-      "name": "token_hash",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "api_tokens"
-    },
-    {
-      "type": "text",
-      "typeSchema": null,
-      "notNull": true,
-      "dimensions": 0,
-      "default": null,
-      "generated": null,
-      "identity": null,
-      "name": "token_prefix",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "api_tokens"
-    },
-    {
-      "type": "org_role",
-      "typeSchema": "public",
-      "notNull": true,
-      "dimensions": 0,
-      "default": null,
-      "generated": null,
-      "identity": null,
-      "name": "scope",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "api_tokens"
-    },
-    {
-      "type": "timestamp with time zone",
-      "typeSchema": null,
-      "notNull": false,
-      "dimensions": 0,
-      "default": null,
-      "generated": null,
-      "identity": null,
-      "name": "last_used_at",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "api_tokens"
-    },
-    {
-      "type": "timestamp with time zone",
-      "typeSchema": null,
-      "notNull": false,
-      "dimensions": 0,
-      "default": null,
-      "generated": null,
-      "identity": null,
-      "name": "expires_at",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "api_tokens"
-    },
-    {
-      "type": "timestamp with time zone",
-      "typeSchema": null,
-      "notNull": false,
-      "dimensions": 0,
-      "default": null,
-      "generated": null,
-      "identity": null,
-      "name": "revoked_at",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "api_tokens"
-    },
-    {
-      "type": "timestamp with time zone",
-      "typeSchema": null,
-      "notNull": true,
-      "dimensions": 0,
-      "default": "now()",
-      "generated": null,
-      "identity": null,
-      "name": "created_at",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "api_tokens"
-    },
-    {
-      "type": "timestamp with time zone",
-      "typeSchema": null,
-      "notNull": true,
-      "dimensions": 0,
-      "default": "now()",
-      "generated": null,
-      "identity": null,
-      "name": "updated_at",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "api_tokens"
     },
     {
       "type": "uuid",
@@ -1669,7 +1513,7 @@
       "table": "clients"
     },
     {
-      "type": "text",
+      "type": "citext",
       "typeSchema": null,
       "notNull": false,
       "dimensions": 0,
@@ -1823,6 +1667,123 @@
       "entityType": "columns",
       "schema": "public",
       "table": "event_outbox"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "uuidv7()",
+      "generated": null,
+      "identity": null,
+      "name": "id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "integrations"
+    },
+    {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "org_id",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "integrations"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "key",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "integrations"
+    },
+    {
+      "type": "boolean",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "false",
+      "generated": null,
+      "identity": null,
+      "name": "enabled",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "integrations"
+    },
+    {
+      "type": "jsonb",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "'{}'",
+      "generated": null,
+      "identity": null,
+      "name": "config",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "integrations"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "secrets_encrypted",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "integrations"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "secret_salt",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "integrations"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "created_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "integrations"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "now()",
+      "generated": null,
+      "identity": null,
+      "name": "updated_at",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "integrations"
     },
     {
       "type": "uuid",
@@ -2501,6 +2462,19 @@
       "table": "sessions"
     },
     {
+      "type": "uuid",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "impersonated_by",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "sessions"
+    },
+    {
       "type": "timestamp with time zone",
       "typeSchema": null,
       "notNull": true,
@@ -2631,6 +2605,58 @@
       "table": "users"
     },
     {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "'user'",
+      "generated": null,
+      "identity": null,
+      "name": "role",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "users"
+    },
+    {
+      "type": "boolean",
+      "typeSchema": null,
+      "notNull": true,
+      "dimensions": 0,
+      "default": "false",
+      "generated": null,
+      "identity": null,
+      "name": "banned",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "users"
+    },
+    {
+      "type": "text",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "ban_reason",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "users"
+    },
+    {
+      "type": "timestamp with time zone",
+      "typeSchema": null,
+      "notNull": false,
+      "dimensions": 0,
+      "default": null,
+      "generated": null,
+      "identity": null,
+      "name": "ban_expires",
+      "entityType": "columns",
+      "schema": "public",
+      "table": "users"
+    },
+    {
       "type": "timestamp with time zone",
       "typeSchema": null,
       "notNull": true,
@@ -2738,41 +2764,6 @@
       "nameExplicit": true,
       "columns": [
         {
-          "value": "org_id",
-          "isExpression": false,
-          "asc": true,
-          "nullsFirst": false,
-          "opclass": null
-        },
-        {
-          "value": "start_at",
-          "isExpression": false,
-          "asc": true,
-          "nullsFirst": false,
-          "opclass": null
-        },
-        {
-          "value": "id",
-          "isExpression": false,
-          "asc": true,
-          "nullsFirst": false,
-          "opclass": null
-        }
-      ],
-      "isUnique": false,
-      "where": null,
-      "with": "",
-      "method": "btree",
-      "concurrently": false,
-      "name": "appointments_org_start_at_id_idx",
-      "entityType": "indexes",
-      "schema": "public",
-      "table": "appointments"
-    },
-    {
-      "nameExplicit": true,
-      "columns": [
-        {
           "value": "appointment_type_id",
           "isExpression": false,
           "asc": true,
@@ -2852,6 +2843,41 @@
       "entityType": "indexes",
       "schema": "public",
       "table": "appointment_type_resources"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "org_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "start_at",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "appointments_org_start_at_id_idx",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "appointments"
     },
     {
       "nameExplicit": true,
@@ -3207,6 +3233,118 @@
           "opclass": null
         },
         {
+          "value": "email",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": true,
+      "where": "\"email\" IS NOT NULL",
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "clients_org_email_unique_idx",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "clients"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "org_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "phone",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": true,
+      "where": "\"phone\" IS NOT NULL",
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "clients_org_phone_unique_idx",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "clients"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "org_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "key",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": true,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "integrations_org_key_unique_idx",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "integrations"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "org_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
+          "value": "key",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        }
+      ],
+      "isUnique": false,
+      "where": null,
+      "with": "",
+      "method": "btree",
+      "concurrently": false,
+      "name": "integrations_org_key_idx",
+      "entityType": "indexes",
+      "schema": "public",
+      "table": "integrations"
+    },
+    {
+      "nameExplicit": true,
+      "columns": [
+        {
+          "value": "org_id",
+          "isExpression": false,
+          "asc": true,
+          "nullsFirst": false,
+          "opclass": null
+        },
+        {
           "value": "user_id",
           "isExpression": false,
           "asc": true,
@@ -3270,32 +3408,6 @@
       "entityType": "fks",
       "schema": "public",
       "table": "apikey"
-    },
-    {
-      "nameExplicit": false,
-      "columns": ["org_id"],
-      "schemaTo": "public",
-      "tableTo": "orgs",
-      "columnsTo": ["id"],
-      "onUpdate": "NO ACTION",
-      "onDelete": "NO ACTION",
-      "name": "api_tokens_org_id_orgs_id_fkey",
-      "entityType": "fks",
-      "schema": "public",
-      "table": "api_tokens"
-    },
-    {
-      "nameExplicit": false,
-      "columns": ["user_id"],
-      "schemaTo": "public",
-      "tableTo": "users",
-      "columnsTo": ["id"],
-      "onUpdate": "NO ACTION",
-      "onDelete": "NO ACTION",
-      "name": "api_tokens_user_id_users_id_fkey",
-      "entityType": "fks",
-      "schema": "public",
-      "table": "api_tokens"
     },
     {
       "nameExplicit": false,
@@ -3539,6 +3651,19 @@
       "columnsTo": ["id"],
       "onUpdate": "NO ACTION",
       "onDelete": "NO ACTION",
+      "name": "integrations_org_id_orgs_id_fkey",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "integrations"
+    },
+    {
+      "nameExplicit": false,
+      "columns": ["org_id"],
+      "schemaTo": "public",
+      "tableTo": "orgs",
+      "columnsTo": ["id"],
+      "onUpdate": "NO ACTION",
+      "onDelete": "NO ACTION",
       "name": "locations_org_id_orgs_id_fkey",
       "entityType": "fks",
       "schema": "public",
@@ -3649,6 +3774,19 @@
       "table": "sessions"
     },
     {
+      "nameExplicit": false,
+      "columns": ["impersonated_by"],
+      "schemaTo": "public",
+      "tableTo": "users",
+      "columnsTo": ["id"],
+      "onUpdate": "NO ACTION",
+      "onDelete": "SET NULL",
+      "name": "sessions_impersonated_by_users_id_fkey",
+      "entityType": "fks",
+      "schema": "public",
+      "table": "sessions"
+    },
+    {
       "columns": ["id"],
       "nameExplicit": false,
       "name": "accounts_pkey",
@@ -3662,14 +3800,6 @@
       "name": "apikey_pkey",
       "schema": "public",
       "table": "apikey",
-      "entityType": "pks"
-    },
-    {
-      "columns": ["id"],
-      "nameExplicit": false,
-      "name": "api_tokens_pkey",
-      "schema": "public",
-      "table": "api_tokens",
       "entityType": "pks"
     },
     {
@@ -3763,6 +3893,14 @@
     {
       "columns": ["id"],
       "nameExplicit": false,
+      "name": "integrations_pkey",
+      "schema": "public",
+      "table": "integrations",
+      "entityType": "pks"
+    },
+    {
+      "columns": ["id"],
+      "nameExplicit": false,
       "name": "locations_pkey",
       "schema": "public",
       "table": "locations",
@@ -3843,15 +3981,6 @@
     },
     {
       "nameExplicit": false,
-      "columns": ["token_hash"],
-      "nullsNotDistinct": false,
-      "name": "api_tokens_token_hash_key",
-      "schema": "public",
-      "table": "api_tokens",
-      "entityType": "uniques"
-    },
-    {
-      "nameExplicit": false,
       "columns": ["slug"],
       "nullsNotDistinct": false,
       "name": "orgs_slug_key",
@@ -3878,15 +4007,11 @@
       "entityType": "uniques"
     },
     {
-      "as": "PERMISSIVE",
-      "for": "ALL",
-      "roles": ["public"],
-      "using": "org_id = current_org_id()",
-      "withCheck": "org_id = current_org_id()",
-      "name": "org_isolation_api_tokens",
-      "entityType": "policies",
+      "value": "\"phone\" IS NULL OR \"phone\" ~ '^\\+[1-9][0-9]{1,14}$'",
+      "name": "clients_phone_e164_check",
+      "entityType": "checks",
       "schema": "public",
-      "table": "api_tokens"
+      "table": "clients"
     },
     {
       "as": "PERMISSIVE",
@@ -3953,6 +4078,17 @@
       "entityType": "policies",
       "schema": "public",
       "table": "event_outbox"
+    },
+    {
+      "as": "PERMISSIVE",
+      "for": "ALL",
+      "roles": ["public"],
+      "using": "org_id = current_org_id()",
+      "withCheck": "org_id = current_org_id()",
+      "name": "org_isolation_integrations",
+      "entityType": "policies",
+      "schema": "public",
+      "table": "integrations"
     },
     {
       "as": "PERMISSIVE",

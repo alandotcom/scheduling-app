@@ -117,6 +117,8 @@ export function IntegrationsSection() {
       ) ?? null,
     [integrations, selectedIntegrationKey],
   );
+  const selectedIntegrationHasSettingsPanel =
+    selectedIntegration?.hasSettingsPanel ?? false;
 
   const SettingsPanel = selectedIntegrationSettings
     ? getIntegrationSettingsPanel(selectedIntegrationSettings.key)
@@ -194,9 +196,15 @@ export function IntegrationsSection() {
                     type="button"
                     variant="outline"
                     size="sm"
-                    onClick={() => setSelectedIntegrationKey(integration.key)}
+                    onClick={() => {
+                      if (!integration.hasSettingsPanel) {
+                        return;
+                      }
+                      setSelectedIntegrationKey(integration.key);
+                    }}
+                    disabled={!integration.hasSettingsPanel}
                   >
-                    Configure
+                    {integration.hasSettingsPanel ? "Configure" : "No settings"}
                   </Button>
                 </div>
               </div>
@@ -206,7 +214,9 @@ export function IntegrationsSection() {
       </Card>
 
       <EntityModal
-        open={selectedIntegrationKey !== null}
+        open={
+          selectedIntegrationKey !== null && selectedIntegrationHasSettingsPanel
+        }
         onOpenChange={(open) => {
           if (!open) {
             setSelectedIntegrationKey(null);
@@ -223,11 +233,13 @@ export function IntegrationsSection() {
               <Skeleton className="h-4 w-48" />
               <Skeleton className="h-24 w-full rounded-lg" />
             </div>
-          ) : selectedSettingsError ||
-            !selectedIntegrationSettings ||
-            !SettingsPanel ? (
+          ) : selectedSettingsError || !selectedIntegrationSettings ? (
             <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-4 text-sm text-destructive">
               Failed to load integration settings.
+            </div>
+          ) : !SettingsPanel ? (
+            <div className="rounded-lg border border-border bg-muted/30 p-4 text-sm text-muted-foreground">
+              This integration does not expose configurable settings.
             </div>
           ) : (
             <SettingsPanel settings={selectedIntegrationSettings} />

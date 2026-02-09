@@ -17,6 +17,7 @@ import {
   blockedTime,
   calendars,
   clients,
+  integrations,
   locations,
   orgMemberships,
   orgs,
@@ -665,6 +666,7 @@ async function seed() {
 
       await tx.delete(appointments).where(eq(appointments.orgId, orgId));
       await tx.delete(clients).where(eq(clients.orgId, orgId));
+      await tx.delete(integrations).where(eq(integrations.orgId, orgId));
 
       if (calendarIds.length > 0) {
         await tx
@@ -1053,7 +1055,6 @@ async function seed() {
         console.log(`\nPreparing org: ${seedOrg.name}`);
         const org = await getOrCreateOrg(seedOrg.name);
         await ensureAdminMembership(org.id, adminUser.id);
-        await ensureAppIntegrationDefaultsForOrg(org.id);
 
         console.log(`Resetting + seeding rich data for org: ${seedOrg.name}`);
         const summary = await seedOrgData(
@@ -1062,6 +1063,7 @@ async function seed() {
           usedClientNames,
           usedClientEmails,
         );
+        await ensureAppIntegrationDefaultsForOrg(org.id);
 
         return { name: seedOrg.name, summary };
       },
