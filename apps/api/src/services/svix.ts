@@ -2,6 +2,7 @@ import { getLogger } from "@logtape/logtape";
 import { eq } from "drizzle-orm";
 import { ApiException, Svix } from "svix";
 import { orgs } from "@scheduling/db/schema";
+import type { WebhookEventData } from "@scheduling/dto";
 import { config } from "../config.js";
 import { ApplicationError } from "../errors/application-error.js";
 import { db } from "../lib/db.js";
@@ -114,16 +115,18 @@ export async function ensureSvixAppForOrg(
   return app.id;
 }
 
-export interface PublishWebhookEventInput {
+export interface PublishWebhookEventInput<
+  TEventType extends EventType = EventType,
+> {
   eventId: string;
-  eventType: EventType;
+  eventType: TEventType;
   orgId: string;
-  payload: unknown;
+  payload: WebhookEventData<TEventType>;
   occurredAt: string;
 }
 
-export async function publishWebhookEvent(
-  input: PublishWebhookEventInput,
+export async function publishWebhookEvent<TEventType extends EventType>(
+  input: PublishWebhookEventInput<TEventType>,
 ): Promise<void> {
   if (!isWebhooksEnabled()) {
     logger.debug(

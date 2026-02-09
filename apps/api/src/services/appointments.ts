@@ -462,7 +462,7 @@ export class AppointmentService {
           clientId: updated.clientId,
           startAt: updated.startAt.toISOString(),
           endAt: updated.endAt.toISOString(),
-          reason: data?.reason,
+          reason: data?.reason ?? undefined,
         },
         tx,
       );

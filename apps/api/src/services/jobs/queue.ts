@@ -45,7 +45,9 @@ export class BullMQJobQueue implements JobQueue {
     this.queue = getEventQueue();
   }
 
-  async enqueue(event: DomainEvent): Promise<void> {
+  async enqueue<TEventType extends DomainEvent["type"]>(
+    event: DomainEvent<TEventType>,
+  ): Promise<void> {
     await this.queue.add(event.type, event, {
       jobId: event.id,
     });

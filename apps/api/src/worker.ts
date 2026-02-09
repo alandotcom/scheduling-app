@@ -47,10 +47,28 @@ startWorkers();
 logger.info("Background workers started");
 
 const staleOutboxIntervalMs = 60_000;
+let staleOutboxRunInFlight = false;
+
+async function runStaleOutboxSweep(): Promise<void> {
+  if (staleOutboxRunInFlight) {
+    logger.debug(
+      "Skipping stale outbox processing run: previous run still in progress",
+    );
+    return;
+  }
+
+  staleOutboxRunInFlight = true;
+  try {
+    await processStaleOutboxEntries();
+  } catch (error) {
+    logger.error("Failed stale outbox processing run: {error}", { error });
+  } finally {
+    staleOutboxRunInFlight = false;
+  }
+}
+
 const staleOutboxTimer = setInterval(() => {
-  void processStaleOutboxEntries().catch((error) => {
-    logger.error(`Failed stale outbox processing run: ${String(error)}`);
-  });
+  void runStaleOutboxSweep();
 }, staleOutboxIntervalMs);
 
 const shutdownSignals = ["SIGINT", "SIGTERM"] as const;

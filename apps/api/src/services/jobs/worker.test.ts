@@ -21,12 +21,23 @@ import {
 import type { DomainEvent } from "./types.js";
 import { processEventJob } from "./worker.js";
 
-function createEvent(overrides: Partial<DomainEvent> = {}): DomainEvent {
+function createEvent(
+  overrides: Partial<DomainEvent<"appointment.created">> = {},
+): DomainEvent<"appointment.created"> {
   return {
     id: Bun.randomUUIDv7(),
     type: "appointment.created",
     orgId: Bun.randomUUIDv7(),
-    payload: { appointmentId: Bun.randomUUIDv7() },
+    payload: {
+      appointmentId: Bun.randomUUIDv7(),
+      calendarId: Bun.randomUUIDv7(),
+      appointmentTypeId: Bun.randomUUIDv7(),
+      clientId: Bun.randomUUIDv7(),
+      startAt: new Date("2026-02-09T00:00:00.000Z").toISOString(),
+      endAt: new Date("2026-02-09T00:30:00.000Z").toISOString(),
+      timezone: "America/New_York",
+      status: "scheduled",
+    },
     timestamp: new Date("2026-02-09T00:00:00.000Z").toISOString(),
     ...overrides,
   };

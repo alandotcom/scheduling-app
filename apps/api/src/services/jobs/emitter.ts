@@ -2,6 +2,7 @@
 // Writes events to both the database outbox and the job queue
 
 import { eventOutbox } from "@scheduling/db/schema";
+import type { WebhookEventData } from "@scheduling/dto";
 import type { DbClient } from "../../lib/db.js";
 import { withOrg } from "../../lib/db.js";
 import type { DomainEvent, EventType, JobQueue } from "./types.js";
@@ -30,16 +31,16 @@ function toOutboxPayload(value: unknown): Record<string, unknown> {
 }
 
 // Emit an event (writes to outbox and enqueues for processing)
-export async function emitEvent<T>(
+export async function emitEvent<TEventType extends EventType>(
   orgId: string,
-  type: EventType,
-  payload: T,
+  type: TEventType,
+  payload: WebhookEventData<TEventType>,
   tx?: DbClient,
 ): Promise<string> {
   const eventId = generateEventId();
   const timestamp = new Date().toISOString();
 
-  const event: DomainEvent<T> = {
+  const event: DomainEvent<TEventType> = {
     id: eventId,
     type,
     orgId,
@@ -79,73 +80,63 @@ export async function emitEvent<T>(
   return eventId;
 }
 
+function createTypedEmitter<TEventType extends EventType>(
+  eventType: TEventType,
+) {
+  return (
+    orgId: string,
+    payload: WebhookEventData<TEventType>,
+    tx?: DbClient,
+  ) => emitEvent(orgId, eventType, payload, tx);
+}
+
 // Convenience methods for specific event types
 export const events = {
   // Appointment events
-  appointmentCreated: <T>(orgId: string, payload: T, tx?: DbClient) =>
-    emitEvent(orgId, "appointment.created", payload, tx),
+  appointmentCreated: createTypedEmitter("appointment.created"),
 
-  appointmentUpdated: <T>(orgId: string, payload: T, tx?: DbClient) =>
-    emitEvent(orgId, "appointment.updated", payload, tx),
+  appointmentUpdated: createTypedEmitter("appointment.updated"),
 
-  appointmentCancelled: <T>(orgId: string, payload: T, tx?: DbClient) =>
-    emitEvent(orgId, "appointment.cancelled", payload, tx),
+  appointmentCancelled: createTypedEmitter("appointment.cancelled"),
 
-  appointmentRescheduled: <T>(orgId: string, payload: T, tx?: DbClient) =>
-    emitEvent(orgId, "appointment.rescheduled", payload, tx),
+  appointmentRescheduled: createTypedEmitter("appointment.rescheduled"),
 
-  appointmentNoShow: <T>(orgId: string, payload: T, tx?: DbClient) =>
-    emitEvent(orgId, "appointment.no_show", payload, tx),
+  appointmentNoShow: createTypedEmitter("appointment.no_show"),
 
   // Calendar events
-  calendarCreated: <T>(orgId: string, payload: T, tx?: DbClient) =>
-    emitEvent(orgId, "calendar.created", payload, tx),
+  calendarCreated: createTypedEmitter("calendar.created"),
 
-  calendarUpdated: <T>(orgId: string, payload: T, tx?: DbClient) =>
-    emitEvent(orgId, "calendar.updated", payload, tx),
+  calendarUpdated: createTypedEmitter("calendar.updated"),
 
-  calendarDeleted: <T>(orgId: string, payload: T, tx?: DbClient) =>
-    emitEvent(orgId, "calendar.deleted", payload, tx),
+  calendarDeleted: createTypedEmitter("calendar.deleted"),
 
   // Appointment type events
-  appointmentTypeCreated: <T>(orgId: string, payload: T, tx?: DbClient) =>
-    emitEvent(orgId, "appointment_type.created", payload, tx),
+  appointmentTypeCreated: createTypedEmitter("appointment_type.created"),
 
-  appointmentTypeUpdated: <T>(orgId: string, payload: T, tx?: DbClient) =>
-    emitEvent(orgId, "appointment_type.updated", payload, tx),
+  appointmentTypeUpdated: createTypedEmitter("appointment_type.updated"),
 
-  appointmentTypeDeleted: <T>(orgId: string, payload: T, tx?: DbClient) =>
-    emitEvent(orgId, "appointment_type.deleted", payload, tx),
+  appointmentTypeDeleted: createTypedEmitter("appointment_type.deleted"),
 
   // Resource events
-  resourceCreated: <T>(orgId: string, payload: T, tx?: DbClient) =>
-    emitEvent(orgId, "resource.created", payload, tx),
+  resourceCreated: createTypedEmitter("resource.created"),
 
-  resourceUpdated: <T>(orgId: string, payload: T, tx?: DbClient) =>
-    emitEvent(orgId, "resource.updated", payload, tx),
+  resourceUpdated: createTypedEmitter("resource.updated"),
 
-  resourceDeleted: <T>(orgId: string, payload: T, tx?: DbClient) =>
-    emitEvent(orgId, "resource.deleted", payload, tx),
+  resourceDeleted: createTypedEmitter("resource.deleted"),
 
   // Location events
-  locationCreated: <T>(orgId: string, payload: T, tx?: DbClient) =>
-    emitEvent(orgId, "location.created", payload, tx),
+  locationCreated: createTypedEmitter("location.created"),
 
-  locationUpdated: <T>(orgId: string, payload: T, tx?: DbClient) =>
-    emitEvent(orgId, "location.updated", payload, tx),
+  locationUpdated: createTypedEmitter("location.updated"),
 
-  locationDeleted: <T>(orgId: string, payload: T, tx?: DbClient) =>
-    emitEvent(orgId, "location.deleted", payload, tx),
+  locationDeleted: createTypedEmitter("location.deleted"),
 
   // Client events
-  clientCreated: <T>(orgId: string, payload: T, tx?: DbClient) =>
-    emitEvent(orgId, "client.created", payload, tx),
+  clientCreated: createTypedEmitter("client.created"),
 
-  clientUpdated: <T>(orgId: string, payload: T, tx?: DbClient) =>
-    emitEvent(orgId, "client.updated", payload, tx),
+  clientUpdated: createTypedEmitter("client.updated"),
 
-  clientDeleted: <T>(orgId: string, payload: T, tx?: DbClient) =>
-    emitEvent(orgId, "client.deleted", payload, tx),
+  clientDeleted: createTypedEmitter("client.deleted"),
 };
 
 // Close the job queue (for graceful shutdown)

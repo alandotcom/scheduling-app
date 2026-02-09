@@ -2,6 +2,7 @@
 
 import {
   webhookEventTypes as EVENT_TYPES,
+  type WebhookEventData,
   type WebhookEventType,
 } from "@scheduling/dto";
 
@@ -12,11 +13,11 @@ export function isEventType(value: string): value is EventType {
 }
 
 // Event payload structure
-export interface DomainEvent<T = unknown> {
+export interface DomainEvent<TEventType extends EventType = EventType> {
   id: string;
-  type: EventType;
+  type: TEventType;
   orgId: string;
-  payload: T;
+  payload: WebhookEventData<TEventType>;
   timestamp: string;
   attemptNumber?: number;
 }
@@ -26,6 +27,8 @@ export type OutboxStatus = "pending" | "processing" | "delivered" | "failed";
 
 // Abstract job queue interface for swapability
 export interface JobQueue {
-  enqueue(event: DomainEvent): Promise<void>;
+  enqueue<TEventType extends EventType>(
+    event: DomainEvent<TEventType>,
+  ): Promise<void>;
   close(): Promise<void>;
 }

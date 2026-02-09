@@ -2,10 +2,11 @@
 // Processes domain events from the queue and publishes to Svix.
 
 import type { Job, Worker } from "bullmq";
-import { eq, and, lte } from "drizzle-orm";
+import { eq, and, lte, sql } from "drizzle-orm";
 import { getLogger } from "@logtape/logtape";
 import { forEachAsync } from "es-toolkit/array";
 import { eventOutbox, orgs } from "@scheduling/db/schema";
+import { webhookEventDataSchemaByType } from "@scheduling/dto";
 import { db, type DbClient, withOrg } from "../../lib/db.js";
 import {
   getSvixErrorStatusCode,
@@ -17,6 +18,7 @@ import { isEventType, type DomainEvent } from "./types.js";
 import { createEventWorker } from "./queue.js";
 
 const logger = getLogger(["jobs"]);
+const STALE_OUTBOX_LOCK_KEY = 1_103_321;
 
 // Workers (lazily initialized)
 let eventWorker: Worker<DomainEvent> | null = null;
@@ -41,6 +43,25 @@ function isOutboxRowNotReadyError(error: unknown): boolean {
 function getRetryDelayMs(attemptNumber: number): number {
   // Keep this aligned with queue exponential backoff defaults.
   return Math.min(300_000, 1000 * 2 ** Math.max(0, attemptNumber - 1));
+}
+
+async function withStaleOutboxRunLock(
+  run: () => Promise<void>,
+): Promise<void> {
+  await db.transaction(async (tx) => {
+    const result = await tx.execute(
+      sql`SELECT pg_try_advisory_xact_lock(${STALE_OUTBOX_LOCK_KEY}) AS locked`,
+    );
+
+    if (result[0]?.["locked"] !== true) {
+      logger.debug(
+        "Skipping stale outbox processing run: advisory lock is held by another worker",
+      );
+      return;
+    }
+
+    await run();
+  });
 }
 
 // Process domain events from the queue
@@ -232,81 +253,93 @@ export async function stopWorkers(): Promise<void> {
 // Process stale outbox entries (fallback for missed queue entries)
 // This should be run periodically (e.g., every minute via cron)
 export async function processStaleOutboxEntries(): Promise<void> {
-  const staleThreshold = new Date(Date.now() - 5 * 60 * 1000); // 5 minutes ago
-  const queue = await import("./queue.js");
-  const orgRows = await db.select({ orgId: orgs.id }).from(orgs);
-  let remaining = 100;
+  await withStaleOutboxRunLock(async () => {
+    const staleThreshold = new Date(Date.now() - 5 * 60 * 1000); // 5 minutes ago
+    const queue = await import("./queue.js");
+    const orgRows = await db.select({ orgId: orgs.id }).from(orgs);
+    let remaining = 100;
 
-  await forEachAsync(
-    orgRows,
-    async ({ orgId }) => {
-      if (remaining <= 0) {
-        return;
-      }
+    await forEachAsync(
+      orgRows,
+      async ({ orgId }) => {
+        if (remaining <= 0) {
+          return;
+        }
 
-      const staleEntries = await withOrg(orgId, (tx) =>
-        tx
-          .select()
-          .from(eventOutbox)
-          .where(
-            and(
-              eq(eventOutbox.status, "pending"),
-              lte(eventOutbox.nextAttemptAt, staleThreshold),
-            ),
-          )
-          .limit(remaining),
-      );
+        const staleEntries = await withOrg(orgId, (tx) =>
+          tx
+            .select()
+            .from(eventOutbox)
+            .where(
+              and(
+                eq(eventOutbox.status, "pending"),
+                lte(eventOutbox.nextAttemptAt, staleThreshold),
+              ),
+            )
+            .limit(remaining),
+        );
 
-      remaining -= staleEntries.length;
+        remaining -= staleEntries.length;
 
-      await forEachAsync(
-        staleEntries,
-        async (entry) => {
-          try {
-            if (!isEventType(entry.type)) {
-              logger.error(
-                `Skipping stale entry ${entry.id}: unsupported event type ${entry.type}`,
-              );
-              return;
-            }
+        await forEachAsync(
+          staleEntries,
+          async (entry) => {
+            try {
+              if (!isEventType(entry.type)) {
+                logger.error(
+                  `Skipping stale entry ${entry.id}: unsupported event type ${entry.type}`,
+                );
+                return;
+              }
 
-            // Re-enqueue the event
-            const event: DomainEvent = {
-              id: entry.id,
-              type: entry.type,
-              orgId: entry.orgId,
-              payload: entry.payload,
-              timestamp: entry.createdAt.toISOString(),
-            };
+              const payloadValidation = webhookEventDataSchemaByType[
+                entry.type
+              ].safeParse(entry.payload);
+              if (!payloadValidation.success) {
+                logger.error(
+                  `Skipping stale entry ${entry.id}: payload does not match schema for ${entry.type}`,
+                );
+                return;
+              }
 
-            await queue
-              .getEventQueue()
-              .add(event.type, event, { jobId: event.id });
+              // Re-enqueue the event
+              const event: DomainEvent = {
+                id: entry.id,
+                type: entry.type,
+                orgId: entry.orgId,
+                payload: payloadValidation.data,
+                timestamp: entry.createdAt.toISOString(),
+              };
 
-            // Update next attempt time
-            await withOrg(orgId, (tx) =>
-              tx
-                .update(eventOutbox)
-                .set({
-                  nextAttemptAt: new Date(Date.now() + 5 * 60 * 1000), // 5 minutes from now
-                  updatedAt: new Date(),
-                })
-                .where(
-                  and(
-                    eq(eventOutbox.id, entry.id),
-                    eq(eventOutbox.status, "pending"),
+              await queue
+                .getEventQueue()
+                .add(event.type, event, { jobId: event.id });
+
+              // Update next attempt time
+              await withOrg(orgId, (tx) =>
+                tx
+                  .update(eventOutbox)
+                  .set({
+                    nextAttemptAt: new Date(Date.now() + 5 * 60 * 1000), // 5 minutes from now
+                    updatedAt: new Date(),
+                  })
+                  .where(
+                    and(
+                      eq(eventOutbox.id, entry.id),
+                      eq(eventOutbox.status, "pending"),
+                    ),
                   ),
-                ),
-            );
-          } catch (error) {
-            logger.error(
-              `Failed to re-enqueue stale entry ${entry.id}: ${String(error)}`,
-            );
-          }
-        },
-        { concurrency: 1 },
-      );
-    },
-    { concurrency: 1 },
-  );
+              );
+            } catch (error) {
+              logger.error(
+                `Failed to re-enqueue stale entry ${entry.id}: ${String(error)}`,
+              );
+            }
+          },
+          { concurrency: 1 },
+        );
+      },
+      { concurrency: 1 },
+    );
+  });
 }

@@ -232,6 +232,15 @@ export const webhookEventDataSchemaByType = {
   [TEventType in WebhookEventType]: z.ZodTypeAny;
 };
 
+export type WebhookEventDataByType = {
+  [TEventType in WebhookEventType]: z.infer<
+    (typeof webhookEventDataSchemaByType)[TEventType]
+  >;
+};
+
+export type WebhookEventData<TEventType extends WebhookEventType> =
+  WebhookEventDataByType[TEventType];
+
 export const webhookEventTypeSchema = z.enum(webhookEventTypes);
 
 const webhookEnvelopeBaseSchema = z.object({
