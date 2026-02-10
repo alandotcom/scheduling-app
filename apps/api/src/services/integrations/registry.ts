@@ -8,7 +8,7 @@ const logger = getLogger(["integrations", "registry"]);
 
 const allIntegrations: readonly IntegrationConsumer[] = [svixIntegration];
 
-const integrationByName = new Map(
+const integrationByName = new Map<string, IntegrationConsumer>(
   allIntegrations.map((integration) => [integration.name, integration]),
 );
 

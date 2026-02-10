@@ -1,18 +1,11 @@
 import { getLogger } from "@logtape/logtape";
-import type { IntegrationConsumer } from "@integrations/core";
+import { createIntegration } from "@integrations/core";
 
 const logger = getLogger(["integrations", "logger"]);
 
-export const loggerIntegration: IntegrationConsumer = {
+export const loggerIntegration = createIntegration({
   name: "logger",
-  queueName: "scheduling-events.integration.logger",
   supportedEventTypes: ["*"],
-  concurrency: 5,
-  jobOptions: {
-    attempts: 1,
-    removeOnComplete: 100,
-    removeOnFail: 100,
-  },
   async process(event) {
     logger.info("Logger integration received {eventType} ({eventId})", {
       eventId: event.id,
@@ -22,6 +15,6 @@ export const loggerIntegration: IntegrationConsumer = {
       occurredAt: event.timestamp,
     });
   },
-};
+});
 
 export default loggerIntegration;

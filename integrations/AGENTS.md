@@ -10,7 +10,8 @@ This file gives local guidance for agents working in `integrations/`.
 
 - Do not create per-integration producer contracts. Producers are shared and upstream.
 - Implement integrations as thin adapters around external systems.
-- Keep one queue per integration (`scheduling-events.integration.<name>`).
+- Create integrations with `createIntegration(...)` from `@integrations/core`.
+- Keep one derived queue per integration (`scheduling-events.integration.<name>`).
 - Throw errors on transient/failed delivery so BullMQ retry policy can apply.
 - Keep package boundaries simple: one package per integration.
 
@@ -19,7 +20,7 @@ This file gives local guidance for agents working in `integrations/`.
 When adding `integrations/<name>`:
 
 1. Create workspace package (`package.json`, `tsconfig.json`, `src/index.ts`).
-2. Implement and export `<name>Integration` (`IntegrationConsumer`).
+2. Implement and export `<name>Integration` via `createIntegration`.
 3. Add `@integrations/<name>` dependency to `apps/api/package.json`.
 4. Register in `apps/api/src/services/integrations/registry.ts` (`allIntegrations`).
 5. Add root tsconfig path alias for `@integrations/<name>`.

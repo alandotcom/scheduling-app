@@ -18,30 +18,22 @@ integrations/
 2. Event is written to `event_outbox` (durable).
 3. Dispatch worker claims the outbox row and creates a BullMQ fanout flow.
 4. One child job is enqueued per enabled integration queue.
-5. Each integration worker processes independently with its own retries/backoff.
+5. Each integration worker processes independently with shared global retry/backoff defaults.
 
 ## Integration Contract
 
-All integrations implement `IntegrationConsumer` from `@integrations/core`.
+All integrations are created with `createIntegration` from `@integrations/core`.
 
 ```ts
-import type { IntegrationConsumer } from "@integrations/core";
+import { createIntegration } from "@integrations/core";
 
-export const exampleIntegration: IntegrationConsumer = {
+export const exampleIntegration = createIntegration({
   name: "example",
-  queueName: "scheduling-events.integration.example",
   supportedEventTypes: ["*"],
-  concurrency: 5,
-  jobOptions: {
-    attempts: 3,
-    backoff: { type: "exponential", delayMs: 1000 },
-    removeOnComplete: 100,
-    removeOnFail: 1000,
-  },
   async process(event) {
     // Handle the event.
   },
-};
+});
 ```
 
 ## Add a New Integration
@@ -59,7 +51,7 @@ export const exampleIntegration: IntegrationConsumer = {
 
 3. Add `integrations/<name>/tsconfig.json` extending root `tsconfig.json`.
 
-4. Implement `src/index.ts` exporting `<name>Integration` as `IntegrationConsumer`.
+4. Implement `src/index.ts` exporting `<name>Integration` via `createIntegration`.
 
 5. Register it in API registry:
    - Add `@integrations/<name>` dependency in `apps/api/package.json`.
@@ -91,8 +83,19 @@ export const exampleIntegration: IntegrationConsumer = {
 - Package name: `@integrations/<name>`
 - Export name: `<name>Integration`
 
+## Queue and Job Defaults
+
+- Queue name is derived automatically from integration name: `scheduling-events.integration.<name>`.
+- Integration names must be globally unique at runtime.
+- Integration worker concurrency is fixed globally to `1`.
+- Integration jobs use shared defaults:
+  - `attempts: 3`
+  - `backoff: exponential (1000ms)`
+  - `removeOnComplete: 100`
+  - `removeOnFail: 1000`
+
 ## Notes
 
 - Keep integration code transport-focused; do not duplicate domain mutation logic.
 - Use idempotent external API calls whenever possible.
-- Failures should throw so BullMQ retries according to `jobOptions`.
+- Failures should throw so BullMQ retries according to global integration defaults.

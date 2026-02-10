@@ -18,6 +18,7 @@
     "@integrations/core": "workspace:*"
   },
   "devDependencies": {
+    "@types/bun": "catalog:",
     "typescript": "catalog:"
   }
 }

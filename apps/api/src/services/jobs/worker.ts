@@ -7,7 +7,7 @@ import { getLogger } from "@logtape/logtape";
 import { forEachAsync } from "es-toolkit/array";
 import {
   integrationSupportsEvent,
-  type DomainEvent,
+  type AnyDomainEvent,
   type IntegrationConsumer,
 } from "@integrations/core";
 import { eventOutbox, orgs } from "@scheduling/db/schema";
@@ -24,6 +24,7 @@ import {
   createIntegrationWorker,
   enqueueIntegrationFanout,
   getDispatchQueue,
+  getIntegrationQueueName,
   type FanoutJobData,
 } from "./queue.js";
 import { isEventType } from "./types.js";
@@ -31,9 +32,9 @@ import { isEventType } from "./types.js";
 const logger = getLogger(["jobs"]);
 const STALE_OUTBOX_LOCK_KEY = 1_103_321;
 
-let dispatchWorker: Worker<DomainEvent> | null = null;
+let dispatchWorker: Worker<AnyDomainEvent> | null = null;
 let fanoutWorker: Worker<FanoutJobData> | null = null;
-const integrationWorkers = new Map<string, Worker<DomainEvent>>();
+const integrationWorkers = new Map<string, Worker<AnyDomainEvent>>();
 
 type ProcessEventDependencies = {
   dbClient?: DbClient;
@@ -77,7 +78,7 @@ async function withStaleOutboxRunLock(run: () => Promise<void>): Promise<void> {
 
 // Process a dispatch job from the outbox queue.
 export async function processEventJob(
-  job: Job<DomainEvent>,
+  job: Job<AnyDomainEvent>,
   deps: ProcessEventDependencies = {},
 ): Promise<void> {
   const dbClient = deps.dbClient ?? db;
@@ -216,7 +217,7 @@ export async function processEventJob(
 }
 
 async function processIntegrationJob(
-  job: Job<DomainEvent>,
+  job: Job<AnyDomainEvent>,
   integration: IntegrationConsumer,
 ): Promise<void> {
   const event = job.data;
@@ -284,7 +285,7 @@ export function startWorkers(): void {
     integrationWorkers.set(integration.name, worker);
     logger.info("Integration worker started", {
       integrationName: integration.name,
-      queueName: integration.queueName,
+      queueName: getIntegrationQueueName(integration.name),
     });
   }
 }
@@ -376,7 +377,7 @@ export async function processStaleOutboxEntries(): Promise<void> {
                 return;
               }
 
-              const event: DomainEvent = {
+              const event: AnyDomainEvent = {
                 id: entry.id,
                 type: entry.type,
                 orgId: entry.orgId,

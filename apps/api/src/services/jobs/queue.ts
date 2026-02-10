@@ -9,16 +9,16 @@ import {
   type ConnectionOptions,
 } from "bullmq";
 import type {
+  AnyDomainEvent,
   DomainEvent,
   IntegrationConsumer,
-  IntegrationJobOptions,
 } from "@integrations/core";
 import { getValkeyRedisOptions } from "../../lib/redis.js";
 import type { JobQueue } from "./types.js";
 
 export type FanoutJobData = {
   eventId: string;
-  eventType: DomainEvent["type"];
+  eventType: AnyDomainEvent["type"];
 };
 
 // Queue names
@@ -26,6 +26,8 @@ export const QUEUE_NAMES = {
   DISPATCH: "scheduling-events.dispatch",
   FANOUT: "scheduling-events.fanout",
 } as const;
+const INTEGRATION_QUEUE_PREFIX = "scheduling-events.integration";
+const INTEGRATION_WORKER_CONCURRENCY = 1;
 
 // BullMQ connection options for Valkey
 const connectionOptions: ConnectionOptions = {
@@ -53,32 +55,31 @@ function buildIntegrationChildJobId(
   );
 }
 
-let dispatchQueue: Queue<DomainEvent> | null = null;
+let dispatchQueue: Queue<AnyDomainEvent> | null = null;
 let fanoutQueue: Queue<FanoutJobData> | null = null;
 let flowProducer: FlowProducer | null = null;
-const integrationQueues = new Map<string, Queue<DomainEvent>>();
+const integrationQueues = new Map<string, Queue<AnyDomainEvent>>();
 
-function toJobOptions(options?: IntegrationJobOptions): JobsOptions {
-  const result: JobsOptions = {
-    removeOnComplete: options?.removeOnComplete ?? 100,
-    removeOnFail: options?.removeOnFail ?? 1000,
-    attempts: options?.attempts ?? 3,
+function getDefaultIntegrationJobOptions(): JobsOptions {
+  return {
+    removeOnComplete: 100,
+    removeOnFail: 1000,
+    attempts: 3,
+    backoff: {
+      type: "exponential",
+      delay: 1000,
+    },
   };
+}
 
-  if (options?.backoff) {
-    result.backoff = {
-      type: options.backoff.type,
-      delay: options.backoff.delayMs,
-    };
-  }
-
-  return result;
+export function getIntegrationQueueName(integrationName: string): string {
+  return `${INTEGRATION_QUEUE_PREFIX}.${integrationName}`;
 }
 
 // Get or create dispatcher queue.
-export function getDispatchQueue(): Queue<DomainEvent> {
+export function getDispatchQueue(): Queue<AnyDomainEvent> {
   if (!dispatchQueue) {
-    dispatchQueue = new Queue<DomainEvent>(QUEUE_NAMES.DISPATCH, {
+    dispatchQueue = new Queue<AnyDomainEvent>(QUEUE_NAMES.DISPATCH, {
       connection: connectionOptions,
       defaultJobOptions: {
         removeOnComplete: 100,
@@ -122,18 +123,19 @@ function getFlowProducer(): FlowProducer {
 
 export function getIntegrationQueue(
   integration: IntegrationConsumer,
-): Queue<DomainEvent> {
-  const existing = integrationQueues.get(integration.queueName);
+): Queue<AnyDomainEvent> {
+  const queueName = getIntegrationQueueName(integration.name);
+  const existing = integrationQueues.get(queueName);
   if (existing) {
     return existing;
   }
 
-  const queue = new Queue<DomainEvent>(integration.queueName, {
+  const queue = new Queue<AnyDomainEvent>(queueName, {
     connection: connectionOptions,
-    defaultJobOptions: toJobOptions(integration.jobOptions),
+    defaultJobOptions: getDefaultIntegrationJobOptions(),
   });
 
-  integrationQueues.set(integration.queueName, queue);
+  integrationQueues.set(queueName, queue);
   return queue;
 }
 
@@ -150,14 +152,14 @@ export function getQueuesForBullBoard(
 }
 
 export async function enqueueIntegrationFanout(
-  event: DomainEvent,
+  event: AnyDomainEvent,
   integrations: readonly IntegrationConsumer[],
 ): Promise<void> {
   if (integrations.length === 0) {
     return;
   }
 
-  // Ensure integration queues are initialized with per-consumer defaults.
+  // Ensure integration queues are initialized with shared integration defaults.
   for (const integration of integrations) {
     getIntegrationQueue(integration);
   }
@@ -176,10 +178,10 @@ export async function enqueueIntegrationFanout(
     },
     children: integrations.map((integration) => ({
       name: `${integration.name}:${event.type}`,
-      queueName: integration.queueName,
+      queueName: getIntegrationQueueName(integration.name),
       data: event,
       opts: {
-        ...toJobOptions(integration.jobOptions),
+        ...getDefaultIntegrationJobOptions(),
         jobId: buildIntegrationChildJobId(event.id, integration.name),
       },
     })),
@@ -188,13 +190,13 @@ export async function enqueueIntegrationFanout(
 
 // BullMQ implementation of JobQueue interface for domain dispatch jobs.
 export class BullMQJobQueue implements JobQueue {
-  private queue: Queue<DomainEvent>;
+  private queue: Queue<AnyDomainEvent>;
 
   constructor() {
     this.queue = getDispatchQueue();
   }
 
-  async enqueue<TEventType extends DomainEvent["type"]>(
+  async enqueue<TEventType extends AnyDomainEvent["type"]>(
     event: DomainEvent<TEventType>,
   ): Promise<void> {
     await this.queue.add(event.type, event, {
@@ -208,9 +210,9 @@ export class BullMQJobQueue implements JobQueue {
 }
 
 export function createDispatchWorker(
-  processor: (job: Job<DomainEvent>) => Promise<void>,
-): Worker<DomainEvent> {
-  return new Worker<DomainEvent>(QUEUE_NAMES.DISPATCH, processor, {
+  processor: (job: Job<AnyDomainEvent>) => Promise<void>,
+): Worker<AnyDomainEvent> {
+  return new Worker<AnyDomainEvent>(QUEUE_NAMES.DISPATCH, processor, {
     connection: connectionOptions,
     concurrency: 10,
   });
@@ -227,12 +229,16 @@ export function createFanoutWorker(
 
 export function createIntegrationWorker(
   integration: IntegrationConsumer,
-  processor: (job: Job<DomainEvent>) => Promise<void>,
-): Worker<DomainEvent> {
-  return new Worker<DomainEvent>(integration.queueName, processor, {
-    connection: connectionOptions,
-    concurrency: integration.concurrency ?? 5,
-  });
+  processor: (job: Job<AnyDomainEvent>) => Promise<void>,
+): Worker<AnyDomainEvent> {
+  return new Worker<AnyDomainEvent>(
+    getIntegrationQueueName(integration.name),
+    processor,
+    {
+      connection: connectionOptions,
+      concurrency: INTEGRATION_WORKER_CONCURRENCY,
+    },
+  );
 }
 
 // Graceful shutdown helper

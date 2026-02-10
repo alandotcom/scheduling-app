@@ -9,7 +9,11 @@ import {
 } from "bun:test";
 import type { Job } from "bullmq";
 import { eq, sql } from "drizzle-orm";
-import type { IntegrationConsumer } from "@integrations/core";
+import {
+  createIntegration,
+  type IntegrationName,
+  type IntegrationConsumer,
+} from "@integrations/core";
 import { eventOutbox } from "@scheduling/db/schema";
 import {
   closeTestDb,
@@ -18,7 +22,7 @@ import {
   resetTestDb,
   type TestDatabase,
 } from "../../test-utils/index.js";
-import type { DomainEvent } from "./types.js";
+import type { AnyDomainEvent, DomainEvent } from "./types.js";
 import { processEventJob } from "./worker.js";
 
 function createEvent(
@@ -44,9 +48,9 @@ function createEvent(
 }
 
 function createJob(
-  event: DomainEvent,
+  event: AnyDomainEvent,
   options: { attemptsMade?: number; attempts?: number } = {},
-): Job<DomainEvent> {
+): Job<AnyDomainEvent> {
   return {
     id: event.id,
     data: event,
@@ -54,16 +58,15 @@ function createJob(
     opts: {
       attempts: options.attempts ?? 3,
     },
-  } as Job<DomainEvent>;
+  } as Job<AnyDomainEvent>;
 }
 
-function createIntegration(name: string): IntegrationConsumer {
-  return {
+function createTestIntegration(name: IntegrationName): IntegrationConsumer {
+  return createIntegration({
     name,
-    queueName: `scheduling-events.integration.${name}`,
     supportedEventTypes: ["*"],
     async process() {},
-  };
+  });
 }
 
 describe("Event Worker", () => {
@@ -96,7 +99,7 @@ describe("Event Worker", () => {
         processEventJob(job, {
           dbClient: tx,
           enqueueFanout,
-          integrations: [createIntegration("logger")],
+          integrations: [createTestIntegration("logger")],
           now: () => new Date("2026-02-09T00:00:00.000Z"),
         }),
       ).rejects.toMatchObject({ name: "OutboxRowNotReadyError" });
@@ -119,7 +122,7 @@ describe("Event Worker", () => {
       await processEventJob(job, {
         dbClient: tx,
         enqueueFanout,
-        integrations: [createIntegration("logger")],
+        integrations: [createTestIntegration("logger")],
         now: () => new Date("2026-02-09T00:00:00.000Z"),
       });
 
@@ -138,8 +141,8 @@ describe("Event Worker", () => {
     const event = createEvent({ orgId: org.id });
     const job = createJob(event, { attemptsMade: 0, attempts: 3 });
     const integrations = [
-      createIntegration("svix"),
-      createIntegration("logger"),
+      createTestIntegration("svix"),
+      createTestIntegration("logger"),
     ];
     const enqueueFanout = mock(async () => {});
 
@@ -244,7 +247,7 @@ describe("Event Worker", () => {
         processEventJob(job, {
           dbClient: tx,
           enqueueFanout,
-          integrations: [createIntegration("logger")],
+          integrations: [createTestIntegration("logger")],
           now: () => new Date("2026-02-09T00:00:00.000Z"),
         }),
       ).rejects.toThrow("redis unavailable");
@@ -290,7 +293,7 @@ describe("Event Worker", () => {
     await expect(
       processEventJob(job, {
         enqueueFanout,
-        integrations: [createIntegration("logger")],
+        integrations: [createTestIntegration("logger")],
         now: () => new Date("2026-02-09T00:00:00.000Z"),
       }),
     ).rejects.toThrow("redis unavailable");

@@ -9,6 +9,7 @@ import {
   isAppManagedIntegrationKey,
 } from "./app-managed.js";
 import { getEnabledIntegrations as getSystemEnabledIntegrations } from "./registry.js";
+import { assertUniqueIntegrationNames } from "./unique.js";
 
 const logger = getLogger(["integrations", "runtime"]);
 const ENABLED_INTEGRATIONS_CACHE_TTL_MS = 10_000;
@@ -21,18 +22,6 @@ const enabledIntegrationsByOrgId = new Map<
   }
 >();
 
-function dedupeIntegrationsByName(
-  integrations: readonly IntegrationConsumer[],
-): readonly IntegrationConsumer[] {
-  const deduped = new Map<string, IntegrationConsumer>();
-  for (const integration of integrations) {
-    if (!deduped.has(integration.name)) {
-      deduped.set(integration.name, integration);
-    }
-  }
-  return Array.from(deduped.values());
-}
-
 function toAppIntegrationKeys(values: readonly string[]): AppIntegrationKey[] {
   return values.filter((value): value is AppIntegrationKey =>
     isAppManagedIntegrationKey(value),
@@ -40,7 +29,7 @@ function toAppIntegrationKeys(values: readonly string[]): AppIntegrationKey[] {
 }
 
 export function getRuntimeIntegrationConsumersForWorkers(): readonly IntegrationConsumer[] {
-  return dedupeIntegrationsByName([
+  return assertUniqueIntegrationNames([
     ...getSystemEnabledIntegrations(),
     ...getAllAppManagedIntegrationConsumers(),
   ]);
@@ -63,7 +52,7 @@ export async function getEnabledIntegrationsForOrg(
     toAppIntegrationKeys(enabledAppManagedKeys),
   );
 
-  const combined = dedupeIntegrationsByName([
+  const combined = assertUniqueIntegrationNames([
     ...getSystemEnabledIntegrations(),
     ...appManagedIntegrations,
   ]);

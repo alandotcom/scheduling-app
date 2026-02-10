@@ -1,13 +1,14 @@
 // Event types for the scheduling system
 
 import {
+  type AnyDomainEvent,
   isEventType,
   type DomainEvent,
   type EventType,
 } from "@integrations/core";
 
 export { isEventType };
-export type { DomainEvent, EventType };
+export type { AnyDomainEvent, DomainEvent, EventType };
 
 // Outbox entry status
 export type OutboxStatus = "pending" | "processing" | "delivered" | "failed";
