@@ -33,6 +33,22 @@ export const invitationStatusEnum = pgEnum("invitation_status", [
   "rejected",
   "canceled",
 ]);
+// Workflow Postgres world uses public enums for run/step status.
+// Keep these declared so drizzle-kit push does not attempt to drop them.
+export const workflowRunStatusEnum = pgEnum("status", [
+  "pending",
+  "running",
+  "completed",
+  "failed",
+  "cancelled",
+]);
+export const workflowStepStatusEnum = pgEnum("step_status", [
+  "pending",
+  "running",
+  "completed",
+  "failed",
+  "cancelled",
+]);
 
 const citext = customType<{ data: string }>({
   dataType() {

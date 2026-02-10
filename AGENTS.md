@@ -20,11 +20,13 @@ This app is in active development — there are no production users yet. This me
 
 ```bash
 # Development
-pnpm dev              # Run API + admin UI + worker + Bull Board in parallel
+pnpm dev              # Run API + admin UI + worker + workflow-worker + Bull Board in parallel
 pnpm dev:api          # Run API only with hot reload
 pnpm dev:worker       # Run worker only with hot reload
+pnpm dev:workflow-worker # Run workflow runtime worker only
 pnpm dev:admin        # Run admin UI only
 pnpm dev:bull-board   # Run Bull Board only
+pnpm bootstrap:dev    # Push DB schema, seed demo data, and setup Workflow Postgres tables
 pnpm --filter @scheduling/api run sync:svix-event-catalog  # Manual Svix schema sync
 
 # Testing
@@ -81,8 +83,8 @@ pnpm --filter @scheduling/db run push       # Push schema to dev database
 **IMPORTANT:** Before starting a dev server, ALWAYS check if one is already running:
 
 ```bash
-# Check for running Vite (admin-ui) or Bun (api/worker/bull-board) processes
-ps aux | grep -E "(vite|bun.*src/(index|worker|bull-board))" | grep -v grep
+# Check for running Vite (admin-ui) or Bun (api/worker/workflow-worker/bull-board) processes
+ps aux | grep -E "(vite|bun.*src/(index|worker|workflow-worker|bull-board))" | grep -v grep
 
 # If stale processes exist, kill them first
 kill <pid>   # or: pkill -f "vite.*admin-ui"
@@ -263,9 +265,11 @@ Start with `docker compose up -d`.
 Environment variables in `.env`:
 
 - `DATABASE_URL=postgres://scheduling:scheduling@localhost:5433/scheduling`
+- `DB_PUSH_DATABASE_URL=postgres://scheduling:scheduling@localhost:5433/scheduling` (optional; used by `pnpm bootstrap:dev`)
 - `REDIS_URL=redis://localhost:6380` (optional, overrides host/port)
 - `VALKEY_HOST=localhost`, `VALKEY_PORT=6380`
-- `AUTH_SECRET`, `PORT=3000`
+- `AUTH_SECRET`, `API_PORT=3000` (optional), `PORT=3000`
+- `WORKFLOW_WORKER_HOST=127.0.0.1`, `WORKFLOW_WORKER_PORT=3020`
 - `SVIX_WEBHOOKS_ENABLED=true|false`
 - `SVIX_BASE_URL=http://localhost:8071` (self-hosted) or hosted Svix base URL
 - `SVIX_AUTH_TOKEN=<svix-token>`

@@ -51,6 +51,18 @@ export const config = envParse(Bun.env, {
       default: "/",
     },
   },
+  workflowWorker: {
+    host: {
+      format: z.string(),
+      env: "WORKFLOW_WORKER_HOST",
+      default: "127.0.0.1",
+    },
+    port: {
+      format: z.coerce.number(),
+      env: "WORKFLOW_WORKER_PORT",
+      default: 3020,
+    },
+  },
   db: {
     url: {
       format: z.url(),
