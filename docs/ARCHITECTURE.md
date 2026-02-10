@@ -62,6 +62,8 @@ All org-scoped data uses PostgreSQL row-level security. Organization context is 
 
 ## Event and Integration System
 
+> Superseded direction: see [`event-bus-workflow-runtime-rfc.md`](./event-bus-workflow-runtime-rfc.md) for the accepted migration from BullMQ/Valkey to pg-boss + Workflow DevKit orchestration.
+
 Domain events on mutations follow this path:
 
 1. Write durable row to `event_outbox`.
@@ -93,3 +95,4 @@ pnpm --filter @scheduling/api run sync:svix-event-catalog
 
 - Integration authoring: [`../integrations/README.md`](../integrations/README.md)
 - Root setup/commands: [`../README.md`](../README.md)
+- Event bus/workflow runtime RFC: [`./event-bus-workflow-runtime-rfc.md`](./event-bus-workflow-runtime-rfc.md)
