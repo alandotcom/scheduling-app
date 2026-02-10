@@ -9,7 +9,6 @@ import { db } from "../lib/db.js";
 import { auth } from "../lib/auth.js";
 import { ApplicationError } from "../errors/application-error.js";
 import { orgUserRoutes } from "./org-users.js";
-import { ensureAppIntegrationDefaultsForOrg } from "../services/integrations/defaults.js";
 
 // Get current org with settings
 export const get = authed
@@ -89,8 +88,6 @@ export const create = authUser
         code: "BAD_REQUEST",
       });
     }
-
-    await ensureAppIntegrationDefaultsForOrg(created.id);
 
     return created;
   });

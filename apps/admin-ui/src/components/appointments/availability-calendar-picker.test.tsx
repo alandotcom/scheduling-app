@@ -35,7 +35,7 @@ describe("AvailabilityCalendarPicker", () => {
     const timeButton = screen.getByRole("button", { name: /9:00 AM/i });
     const grid = timeButton.closest("div");
 
-    expect(grid?.className).toContain("md:max-h-64");
+    expect(grid?.className).toContain("md:max-h-56");
     expect(grid?.className).toContain("md:overflow-y-auto");
     expect(grid?.className).not.toContain("max-h-64 overflow-y-auto");
   });
