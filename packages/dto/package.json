@@ -12,7 +12,7 @@
     "build": "bun build ./src/index.ts --outdir ./dist",
     "test": "bun test",
     "test:coverage": "bun test --coverage",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc -p tsconfig.typecheck.json --noEmit --incremental --tsBuildInfoFile node_modules/.cache.typecheck.tsbuildinfo --pretty false"
   },
   "dependencies": {
     "@logtape/logtape": "catalog:",

@@ -62,6 +62,11 @@ pnpm --filter @scheduling/db run push       # Push schema to dev database
 - Use `pnpm typecheck:changed` for PR validation and focused local checks against `origin/main`.
 - Use `pnpm typecheck:all` when you need a clean full pass that bypasses cache.
 - If `origin/main` is missing locally, run `git fetch origin main` before `pnpm typecheck:changed`.
+- For every workspace package, keep the `typecheck` script on the fast pattern:
+  `tsc -p tsconfig.typecheck.json --noEmit --incremental --tsBuildInfoFile node_modules/.cache.typecheck.tsbuildinfo --pretty false`
+- For every workspace package, include a `tsconfig.typecheck.json` that extends the package `tsconfig.json` and sets:
+  `"declaration": false`, `"declarationMap": false`, `"sourceMap": false`
+- When creating a new package, add both the `typecheck` script and `tsconfig.typecheck.json` immediately so Turbo and local reruns stay fast.
 
 ### Build Usage (Turbo)
 
