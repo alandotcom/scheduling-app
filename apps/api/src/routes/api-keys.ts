@@ -16,7 +16,7 @@ import { auth } from "../lib/auth.js";
 import { ApplicationError } from "../errors/application-error.js";
 
 const apiKeyMetadataSchema = z.object({
-  organizationId: z.string().uuid(),
+  organizationId: z.uuid(),
   role: apiKeyScopeSchema.optional(),
 });
 

@@ -13,6 +13,7 @@
     "no-var": "error",
     "prefer-const": "error",
     "react/exhaustive-deps": "off",
+    "typescript/no-deprecated": "error",
     "typescript/no-floating-promises": [
       "error",
       {
@@ -49,6 +50,16 @@
       "files": ["apps/admin-ui/vite.config.ts"],
       "env": {
         "node": true
+      }
+    },
+    {
+      "files": [
+        "apps/api/src/index.ts",
+        "apps/api/src/worker.ts",
+        "apps/api/src/bull-board.ts"
+      ],
+      "rules": {
+        "import/no-unassigned-import": "off"
       }
     },
     {

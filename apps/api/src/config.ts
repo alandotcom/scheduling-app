@@ -1,24 +1,37 @@
 // Configuration loaded from environment variables with validation
 
-import process from "node:process";
-import { URL } from "node:url";
 import { envParse } from "standardenv";
 import { z } from "zod";
 
-const redisUrlSchema = z
-  .string()
-  .url()
-  .refine((value) => {
-    const protocol = new URL(value).protocol;
-    return protocol === "redis:" || protocol === "rediss:";
-  }, "REDIS_URL must use redis:// or rediss://");
+const isDev = Bun.env.NODE_ENV !== "production";
 
-export const config = envParse(process.env, {
+const logLevelSchema = z.enum([
+  "trace",
+  "debug",
+  "info",
+  "warning",
+  "error",
+  "fatal",
+]);
+
+const redisUrlSchema = z.url().refine((value) => {
+  const protocol = new URL(value).protocol;
+  return protocol === "redis:" || protocol === "rediss:";
+}, "REDIS_URL must use redis:// or rediss://");
+
+export const config = envParse(Bun.env, {
   server: {
     port: {
       format: z.coerce.number(),
       env: "PORT",
       default: 3000,
+    },
+  },
+  logging: {
+    level: {
+      format: logLevelSchema,
+      env: "LOG_LEVEL",
+      default: isDev ? "debug" : "info",
     },
   },
   bullBoard: {
@@ -40,7 +53,7 @@ export const config = envParse(process.env, {
   },
   db: {
     url: {
-      format: z.string().url(),
+      format: z.url(),
       env: "DATABASE_URL",
       default: "postgres://scheduling_app:scheduling@localhost:5433/scheduling",
     },
@@ -52,7 +65,7 @@ export const config = envParse(process.env, {
       default: "dev-secret-change-in-production",
     },
     baseUrl: {
-      format: z.string().url(),
+      format: z.url(),
       env: "AUTH_BASE_URL",
       optional: true,
     },
@@ -98,7 +111,7 @@ export const config = envParse(process.env, {
       default: false,
     },
     baseUrl: {
-      format: z.string().url(),
+      format: z.url(),
       env: "SVIX_BASE_URL",
       optional: true,
     },

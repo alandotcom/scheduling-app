@@ -36,7 +36,7 @@ export const list = authed
 // Get single appointment type by ID (with linked calendars/resources)
 export const get = authed
   .route({ method: "GET", path: "/appointment-types/{id}" })
-  .input(z.object({ id: z.string().uuid() }))
+  .input(z.object({ id: z.uuid() }))
   .output(appointmentTypeWithLinksSchema)
   .handler(async ({ input, context }) => {
     const result = await appointmentTypeService.get(input.id, {
@@ -64,7 +64,7 @@ export const update = authed
   .route({ method: "PATCH", path: "/appointment-types/{id}" })
   .input(
     z.object({
-      id: z.string().uuid(),
+      id: z.uuid(),
       data: updateAppointmentTypeSchema,
     }),
   )
@@ -80,7 +80,7 @@ export const update = authed
 // Delete appointment type
 export const remove = authed
   .route({ method: "DELETE", path: "/appointment-types/{id}" })
-  .input(z.object({ id: z.string().uuid() }))
+  .input(z.object({ id: z.uuid() }))
   .output(successResponseSchema)
   .handler(async ({ input, context }) => {
     return appointmentTypeService.delete(input.id, {
@@ -99,7 +99,7 @@ export const listCalendars = authed
     method: "GET",
     path: "/appointment-types/{appointmentTypeId}/calendars",
   })
-  .input(z.object({ appointmentTypeId: z.string().uuid() }))
+  .input(z.object({ appointmentTypeId: z.uuid() }))
   .output(z.array(appointmentTypeCalendarAssociationSchema))
   .handler(async ({ input, context }) => {
     return appointmentTypeService.listCalendars(input.appointmentTypeId, {
@@ -117,7 +117,7 @@ export const addCalendar = authed
   })
   .input(
     z.object({
-      appointmentTypeId: z.string().uuid(),
+      appointmentTypeId: z.uuid(),
       data: createAppointmentTypeCalendarSchema,
     }),
   )
@@ -141,8 +141,8 @@ export const removeCalendar = authed
   })
   .input(
     z.object({
-      appointmentTypeId: z.string().uuid(),
-      calendarId: z.string().uuid(),
+      appointmentTypeId: z.uuid(),
+      calendarId: z.uuid(),
     }),
   )
   .output(successResponseSchema)
@@ -167,7 +167,7 @@ export const listResources = authed
     method: "GET",
     path: "/appointment-types/{appointmentTypeId}/resources",
   })
-  .input(z.object({ appointmentTypeId: z.string().uuid() }))
+  .input(z.object({ appointmentTypeId: z.uuid() }))
   .output(z.array(appointmentTypeResourceAssociationSchema))
   .handler(async ({ input, context }) => {
     return appointmentTypeService.listResources(input.appointmentTypeId, {
@@ -185,7 +185,7 @@ export const addResource = authed
   })
   .input(
     z.object({
-      appointmentTypeId: z.string().uuid(),
+      appointmentTypeId: z.uuid(),
       data: createAppointmentTypeResourceSchema,
     }),
   )
@@ -212,8 +212,8 @@ export const updateResource = authed
   })
   .input(
     z.object({
-      appointmentTypeId: z.string().uuid(),
-      resourceId: z.string().uuid(),
+      appointmentTypeId: z.uuid(),
+      resourceId: z.uuid(),
       data: updateAppointmentTypeResourceSchema.refine(
         (data) => data.quantityRequired !== undefined,
         { message: "quantityRequired is required for update" },
@@ -243,8 +243,8 @@ export const removeResource = authed
   })
   .input(
     z.object({
-      appointmentTypeId: z.string().uuid(),
-      resourceId: z.string().uuid(),
+      appointmentTypeId: z.uuid(),
+      resourceId: z.uuid(),
     }),
   )
   .output(successResponseSchema)

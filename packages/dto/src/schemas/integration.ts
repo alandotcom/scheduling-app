@@ -8,7 +8,7 @@ export const integrationSummarySchema = z.object({
   key: appIntegrationKeySchema,
   name: z.string().min(1),
   description: z.string().min(1),
-  logoUrl: z.string().url().nullable(),
+  logoUrl: z.url().nullable(),
   enabled: z.boolean(),
   configured: z.boolean(),
   hasSettingsPanel: z.boolean(),

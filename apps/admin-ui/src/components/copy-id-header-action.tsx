@@ -15,26 +15,7 @@ async function copyTextToClipboard(value: string) {
     return;
   }
 
-  if (typeof document === "undefined") {
-    throw new Error("Clipboard API unavailable");
-  }
-
-  const textArea = document.createElement("textarea");
-  textArea.value = value;
-  textArea.setAttribute("readonly", "");
-  textArea.style.position = "fixed";
-  textArea.style.opacity = "0";
-  textArea.style.pointerEvents = "none";
-  textArea.style.left = "-9999px";
-  document.body.appendChild(textArea);
-  textArea.focus();
-  textArea.select();
-  const copied = document.execCommand("copy");
-  textArea.remove();
-
-  if (!copied) {
-    throw new Error("Failed to copy");
-  }
+  throw new Error("Clipboard API unavailable");
 }
 
 interface CopyIdHeaderActionProps {

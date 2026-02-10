@@ -4,23 +4,23 @@ import { uuidSchema, timestampsSchema, timestampSchema } from "./common";
 // Base user schema
 export const userSchema = z.object({
   id: uuidSchema,
-  email: z.string().email(),
+  email: z.email(),
   emailVerified: z.boolean(),
   name: z.string().nullable(),
-  image: z.string().url().nullable(),
+  image: z.url().nullable(),
   ...timestampsSchema.shape,
 });
 
 // Create user input (for admin creation)
 export const createUserSchema = z.object({
-  email: z.string().email(),
+  email: z.email(),
   name: z.string().min(1).max(255).optional(),
-  image: z.string().url().optional(),
+  image: z.url().optional(),
 });
 
 // Organization user management input
 export const createOrgUserSchema = z.object({
-  email: z.string().email(),
+  email: z.email(),
   name: z.string().min(1).max(255).optional(),
   role: z.enum(["owner", "admin", "member"]),
 });
@@ -33,7 +33,7 @@ export const updateOrgUserRoleSchema = z.object({
 // Update user input
 export const updateUserSchema = z.object({
   name: z.string().min(1).max(255).optional(),
-  image: z.string().url().nullable().optional(),
+  image: z.url().nullable().optional(),
 });
 
 // Response types
@@ -54,9 +54,9 @@ export const orgUserListItemSchema = z.object({
   membershipId: uuidSchema,
   orgId: uuidSchema,
   userId: uuidSchema,
-  email: z.string().email(),
+  email: z.email(),
   name: z.string().nullable(),
-  image: z.string().url().nullable(),
+  image: z.url().nullable(),
   role: orgMembershipRoleSchema,
   membershipCreatedAt: timestampSchema,
   membershipUpdatedAt: timestampSchema,

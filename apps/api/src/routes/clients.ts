@@ -28,7 +28,7 @@ export const list = authed
 // Get single client by ID
 export const get = authed
   .route({ method: "GET", path: "/clients/{id}" })
-  .input(z.object({ id: z.string().uuid() }))
+  .input(z.object({ id: z.uuid() }))
   .output(clientResponseSchema)
   .handler(async ({ input, context }) => {
     return clientService.get(input.id, {
@@ -54,7 +54,7 @@ export const update = authed
   .route({ method: "PATCH", path: "/clients/{id}" })
   .input(
     z.object({
-      id: z.string().uuid(),
+      id: z.uuid(),
       data: updateClientSchema,
     }),
   )
@@ -69,7 +69,7 @@ export const update = authed
 // Delete client
 export const remove = authed
   .route({ method: "DELETE", path: "/clients/{id}" })
-  .input(z.object({ id: z.string().uuid() }))
+  .input(z.object({ id: z.uuid() }))
   .output(successResponseSchema)
   .handler(async ({ input, context }) => {
     return clientService.delete(input.id, {
@@ -81,7 +81,7 @@ export const remove = authed
 // Client history summary
 export const historySummary = authed
   .route({ method: "GET", path: "/clients/{id}/history-summary" })
-  .input(z.object({ id: z.string().uuid() }))
+  .input(z.object({ id: z.uuid() }))
   .output(clientHistorySummarySchema)
   .handler(async ({ input, context }) => {
     const result = await clientService.historySummary(input.id, {

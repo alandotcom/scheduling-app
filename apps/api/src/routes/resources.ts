@@ -27,7 +27,7 @@ export const list = authed
 // Get single resource by ID
 export const get = authed
   .route({ method: "GET", path: "/resources/{id}" })
-  .input(z.object({ id: z.string().uuid() }))
+  .input(z.object({ id: z.uuid() }))
   .output(resourceResponseSchema)
   .handler(async ({ input, context }) => {
     return resourceService.get(input.id, {
@@ -53,7 +53,7 @@ export const update = authed
   .route({ method: "PATCH", path: "/resources/{id}" })
   .input(
     z.object({
-      id: z.string().uuid(),
+      id: z.uuid(),
       data: updateResourceSchema,
     }),
   )
@@ -68,7 +68,7 @@ export const update = authed
 // Delete resource
 export const remove = authed
   .route({ method: "DELETE", path: "/resources/{id}" })
-  .input(z.object({ id: z.string().uuid() }))
+  .input(z.object({ id: z.uuid() }))
   .output(successResponseSchema)
   .handler(async ({ input, context }) => {
     return resourceService.delete(input.id, {

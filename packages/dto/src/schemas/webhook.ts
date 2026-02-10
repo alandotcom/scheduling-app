@@ -5,14 +5,14 @@ import { appointmentStatusSchema } from "./appointment";
 export const webhookSessionResponseSchema = z.object({
   appId: z.string().min(1),
   token: z.string().min(1),
-  serverUrl: z.string().url().optional(),
+  serverUrl: z.url().optional(),
   expiresInSeconds: z.number().int().positive(),
 });
 export type WebhookSessionResponse = z.infer<
   typeof webhookSessionResponseSchema
 >;
 
-const isoDateTimeStringSchema = z.string().datetime();
+const isoDateTimeStringSchema = z.iso.datetime();
 
 export const webhookEventTypes = [
   "appointment.created",
@@ -73,7 +73,7 @@ const locationUpdateChangesSchema = z.object({
 const clientUpdateChangesSchema = z.object({
   firstName: z.string().min(1).max(255).optional(),
   lastName: z.string().min(1).max(255).optional(),
-  email: z.string().email().nullable().optional(),
+  email: z.email().nullable().optional(),
   phone: z.string().max(50).nullable().optional(),
 });
 
@@ -210,7 +210,7 @@ export const webhookEventDataSchemaByType = {
     clientId: uuidSchema,
     firstName: z.string().min(1).max(255),
     lastName: z.string().min(1).max(255),
-    email: z.string().email().nullable(),
+    email: z.email().nullable(),
   }),
   "client.updated": z.object({
     clientId: uuidSchema,
@@ -218,7 +218,7 @@ export const webhookEventDataSchemaByType = {
     previous: z.object({
       firstName: z.string().min(1).max(255),
       lastName: z.string().min(1).max(255),
-      email: z.string().email().nullable(),
+      email: z.email().nullable(),
       phone: z.string().max(50).nullable(),
     }),
   }),
@@ -226,10 +226,10 @@ export const webhookEventDataSchemaByType = {
     clientId: uuidSchema,
     firstName: z.string().min(1).max(255),
     lastName: z.string().min(1).max(255),
-    email: z.string().email().nullable(),
+    email: z.email().nullable(),
   }),
 } satisfies {
-  [TEventType in WebhookEventType]: z.ZodTypeAny;
+  [TEventType in WebhookEventType]: z.ZodType;
 };
 
 export type WebhookEventDataByType = {
@@ -288,7 +288,7 @@ export const webhookEventEnvelopeSchemaByType = {
   "client.updated": createWebhookEnvelopeSchema("client.updated"),
   "client.deleted": createWebhookEnvelopeSchema("client.deleted"),
 } satisfies {
-  [TEventType in WebhookEventType]: z.ZodTypeAny;
+  [TEventType in WebhookEventType]: z.ZodType;
 };
 
 export const webhookEventEnvelopeSchema = z.discriminatedUnion("type", [

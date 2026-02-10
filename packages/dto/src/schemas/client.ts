@@ -25,7 +25,7 @@ export const clientSchema = z.object({
     .string()
     .min(1, "Last name is required")
     .max(255, "Last name is too long"),
-  email: z.string().email("Invalid email address").nullable(),
+  email: z.email("Invalid email address").nullable(),
   phone: z.string().max(50, "Phone number is too long").nullable(),
   ...timestampsSchema.shape,
 });
@@ -40,7 +40,7 @@ export const createClientSchema = z.object({
     .string()
     .min(1, "Last name is required")
     .max(255, "Last name is too long"),
-  email: z.string().email("Invalid email address").optional().or(z.literal("")),
+  email: z.email("Invalid email address").optional().or(z.literal("")),
   phone: z.string().max(50, "Phone number is too long").optional(),
   phoneCountry: countryCodeSchema.optional(),
 });
@@ -58,7 +58,7 @@ export const updateClientSchema = z.object({
     .max(255, "Last name is too long")
     .optional(),
   email: z
-    .union([z.string().email("Invalid email address"), z.literal(""), z.null()])
+    .union([z.email("Invalid email address"), z.literal(""), z.null()])
     .optional(),
   phone: z.string().max(50, "Phone number is too long").nullable().optional(),
   phoneCountry: countryCodeSchema.optional(),

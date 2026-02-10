@@ -1,12 +1,8 @@
 // @scheduling/api - Bull Board server for BullMQ queue visibility
 
 import process from "node:process";
-import {
-  configure,
-  getAnsiColorFormatter,
-  getConsoleSink,
-  getLogger,
-} from "@logtape/logtape";
+import "./logger.js";
+import { getLogger } from "@logtape/logtape";
 import { createBullBoard } from "@bull-board/api";
 import { BullMQAdapter } from "@bull-board/api/bullMQAdapter";
 import { HonoAdapter } from "@bull-board/hono";
@@ -19,28 +15,6 @@ import {
   QUEUE_NAMES,
 } from "./services/jobs/queue.js";
 import { getRuntimeIntegrationConsumersForWorkers } from "./services/integrations/runtime.js";
-
-const isDev = process.env.NODE_ENV !== "production";
-
-await configure({
-  sinks: {
-    console: getConsoleSink({
-      formatter: getAnsiColorFormatter({ timestamp: "time" }),
-    }),
-  },
-  loggers: [
-    {
-      category: ["logtape", "meta"],
-      sinks: ["console"],
-      lowestLevel: "warning",
-    },
-    {
-      category: [],
-      sinks: ["console"],
-      lowestLevel: isDev ? "debug" : "info",
-    },
-  ],
-});
 
 const logger = getLogger(["bull-board"]);
 

@@ -28,7 +28,7 @@ export const list = authed
 // Get single calendar by ID
 export const get = authed
   .route({ method: "GET", path: "/calendars/{id}" })
-  .input(z.object({ id: z.string().uuid() }))
+  .input(z.object({ id: z.uuid() }))
   .output(calendarWithLocationSchema)
   .handler(async ({ input, context }) => {
     return calendarService.get(input.id, {
@@ -54,7 +54,7 @@ export const update = authed
   .route({ method: "PATCH", path: "/calendars/{id}" })
   .input(
     z.object({
-      id: z.string().uuid(),
+      id: z.uuid(),
       data: updateCalendarSchema,
     }),
   )
@@ -69,7 +69,7 @@ export const update = authed
 // Delete calendar
 export const remove = authed
   .route({ method: "DELETE", path: "/calendars/{id}" })
-  .input(z.object({ id: z.string().uuid() }))
+  .input(z.object({ id: z.uuid() }))
   .output(successResponseSchema)
   .handler(async ({ input, context }) => {
     return calendarService.delete(input.id, {

@@ -1,31 +1,8 @@
 // @scheduling/api - Hono + oRPC API server with BetterAuth
 // Dual transport: oRPC for UI (type-safe), OpenAPI for M2M (REST)
 
-import {
-  configure,
-  getConsoleSink,
-  getLogger,
-  getAnsiColorFormatter,
-} from "@logtape/logtape";
-
-const isDev = process.env.NODE_ENV !== "production";
-
-await configure({
-  sinks: {
-    console: getConsoleSink({
-      formatter: getAnsiColorFormatter({ timestamp: "time" }),
-    }),
-  },
-  loggers: [
-    {
-      category: ["logtape", "meta"],
-      sinks: ["console"],
-      lowestLevel: "warning",
-    },
-    { category: ["db"], sinks: ["console"], lowestLevel: "info" },
-    { category: [], sinks: ["console"], lowestLevel: isDev ? "debug" : "info" },
-  ],
-});
+import "./logger.js";
+import { getLogger } from "@logtape/logtape";
 
 const logger = getLogger(["api"]);
 

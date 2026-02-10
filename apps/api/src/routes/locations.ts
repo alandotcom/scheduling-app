@@ -27,7 +27,7 @@ export const list = authed
 // Get single location by ID
 export const get = authed
   .route({ method: "GET", path: "/locations/{id}" })
-  .input(z.object({ id: z.string().uuid() }))
+  .input(z.object({ id: z.uuid() }))
   .output(locationResponseSchema)
   .handler(async ({ input, context }) => {
     return locationService.get(input.id, {
@@ -53,7 +53,7 @@ export const update = authed
   .route({ method: "PATCH", path: "/locations/{id}" })
   .input(
     z.object({
-      id: z.string().uuid(),
+      id: z.uuid(),
       data: updateLocationSchema,
     }),
   )
@@ -68,7 +68,7 @@ export const update = authed
 // Delete location
 export const remove = authed
   .route({ method: "DELETE", path: "/locations/{id}" })
-  .input(z.object({ id: z.string().uuid() }))
+  .input(z.object({ id: z.uuid() }))
   .output(successResponseSchema)
   .handler(async ({ input, context }) => {
     return locationService.delete(input.id, {

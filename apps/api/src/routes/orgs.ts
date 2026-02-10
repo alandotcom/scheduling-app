@@ -50,7 +50,7 @@ export const listMemberships = authUser
 
 const createOrganizationInputSchema = createOrgSchema.extend({
   slug: z.string().min(1).max(255).optional(),
-  logo: z.string().url().optional(),
+  logo: z.url().optional(),
 });
 
 function buildOrganizationSlug(input: {
@@ -96,7 +96,7 @@ export const create = authUser
   });
 
 const setActiveOrgSchema = z.object({
-  organizationId: z.string().uuid(),
+  organizationId: z.uuid(),
 });
 
 // Set active organization for current session

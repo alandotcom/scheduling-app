@@ -9,7 +9,7 @@ import { listAuditEventsQuerySchema } from "@scheduling/dto";
 import { adminOnly } from "./base.js";
 import { withOrg } from "../lib/db.js";
 
-const idInput = z.object({ id: z.string().uuid() });
+const idInput = z.object({ id: z.uuid() });
 
 // ============================================================================
 // LIST AUDIT EVENTS

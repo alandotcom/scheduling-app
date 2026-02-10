@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 // Common validation patterns
-export const uuidSchema = z.string().uuid("Invalid ID format");
+export const uuidSchema = z.uuid("Invalid ID format");
 export const timestampSchema = z.coerce.date();
 export const timezoneSchema = z.string().min(1, "Timezone is required"); // IANA timezone, e.g., 'America/New_York'
 export const timeSchema = z
@@ -41,9 +41,7 @@ export const paginationSchema = z.object({
     .default(20),
 });
 
-export const paginatedResponseSchema = <T extends z.ZodTypeAny>(
-  itemSchema: T,
-) =>
+export const paginatedResponseSchema = <T extends z.ZodType>(itemSchema: T) =>
   z.object({
     items: z.array(itemSchema),
     nextCursor: uuidSchema.nullable(),

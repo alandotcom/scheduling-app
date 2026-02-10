@@ -1,4 +1,4 @@
-import { isCancelledError } from "@tanstack/react-query";
+import { CancelledError } from "@tanstack/react-query";
 
 const ACTIVE_ORGANIZATION_REQUIRED = "Active organization required";
 const AUTHENTICATION_REQUIRED = "Authentication required";
@@ -15,7 +15,7 @@ function getErrorMessage(error: unknown): string {
 }
 
 export function isQueryCancelledError(error: unknown): boolean {
-  return isCancelledError(error);
+  return error instanceof CancelledError;
 }
 
 export function isActiveOrganizationRequiredError(error: unknown): boolean {

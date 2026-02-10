@@ -16,7 +16,7 @@ import {
 import { authed } from "./base.js";
 import { appointmentService } from "../services/appointments.js";
 
-const idInput = z.object({ id: z.string().uuid() });
+const idInput = z.object({ id: z.uuid() });
 
 // List appointments with cursor pagination and filters
 export const list = authed
@@ -83,7 +83,7 @@ export const create = authed
 // Update appointment details (notes, clientId only)
 export const update = authed
   .route({ method: "PATCH", path: "/appointments/{id}" })
-  .input(idInput.merge(z.object({ data: updateAppointmentSchema })))
+  .input(idInput.extend({ data: updateAppointmentSchema }))
   .output(appointmentResponseSchema)
   .handler(async ({ input, context }) => {
     return appointmentService.update(input.id, input.data, {
@@ -96,7 +96,7 @@ export const update = authed
 // Cancel appointment
 export const cancel = authed
   .route({ method: "DELETE", path: "/appointments/{id}" })
-  .input(idInput.merge(z.object({ data: cancelAppointmentSchema.optional() })))
+  .input(idInput.extend({ data: cancelAppointmentSchema.optional() }))
   .output(appointmentResponseSchema)
   .handler(async ({ input, context }) => {
     return appointmentService.cancel(input.id, input.data, {
@@ -109,7 +109,7 @@ export const cancel = authed
 // Reschedule appointment to new time
 export const reschedule = authed
   .route({ method: "POST", path: "/appointments/{id}/reschedule" })
-  .input(idInput.merge(z.object({ data: rescheduleAppointmentSchema })))
+  .input(idInput.extend({ data: rescheduleAppointmentSchema }))
   .output(appointmentResponseSchema)
   .handler(async ({ input, context }) => {
     return appointmentService.reschedule(input.id, input.data, {

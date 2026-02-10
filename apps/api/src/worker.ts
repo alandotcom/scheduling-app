@@ -2,12 +2,8 @@
 // Runs BullMQ workers for outbox dispatch and integration consumers.
 
 import process from "node:process";
-import {
-  configure,
-  getConsoleSink,
-  getLogger,
-  getAnsiColorFormatter,
-} from "@logtape/logtape";
+import "./logger.js";
+import { getLogger } from "@logtape/logtape";
 import { closeAllQueues } from "./services/jobs/queue.js";
 import {
   processStaleOutboxEntries,
@@ -16,29 +12,6 @@ import {
 } from "./services/jobs/worker.js";
 import { backfillAppIntegrationDefaultsForAllOrgs } from "./services/integrations/defaults.js";
 import { bootstrapSvixEventCatalogOnStartup } from "./services/svix-event-catalog.js";
-
-const isDev = process.env.NODE_ENV !== "production";
-
-await configure({
-  sinks: {
-    console: getConsoleSink({
-      formatter: getAnsiColorFormatter({ timestamp: "time" }),
-    }),
-  },
-  loggers: [
-    {
-      category: ["logtape", "meta"],
-      sinks: ["console"],
-      lowestLevel: "warning",
-    },
-    { category: ["db"], sinks: ["console"], lowestLevel: "info" },
-    {
-      category: [],
-      sinks: ["console"],
-      lowestLevel: isDev ? "debug" : "info",
-    },
-  ],
-});
 
 const logger = getLogger(["worker"]);
 
