@@ -1,9 +1,11 @@
 import {
   afterAll,
+  afterEach,
   beforeAll,
   beforeEach,
   describe,
   expect,
+  mock,
   test,
 } from "bun:test";
 import { call } from "@orpc/server";
@@ -83,6 +85,7 @@ async function createWorkflowRunLink(input: {
 
 describe("Workflow Routes", () => {
   let db: Database;
+  const originalFetch = globalThis.fetch;
 
   beforeAll(async () => {
     db = (await createTestDb()) as Database;
@@ -90,6 +93,10 @@ describe("Workflow Routes", () => {
 
   afterAll(async () => {
     await closeTestDb();
+  });
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
   });
 
   beforeEach(async () => {
@@ -580,6 +587,11 @@ describe("Workflow Routes", () => {
       lastSeenAt: new Date("2026-02-11T08:05:00.000Z"),
     });
 
+    const fetchMock = mock(
+      async () => new Response(JSON.stringify({ id: "cancellation-1" }), { status: 200 }),
+    );
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+
     const cancelled = await call(
       workflowRoutes.cancelRun,
       { runId: "run-cancel-1" },
@@ -587,6 +599,10 @@ describe("Workflow Routes", () => {
     );
 
     expect(cancelled.success).toBe(true);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const fetchCalls = fetchMock.mock.calls as unknown[][];
+    expect(fetchCalls[0]).toBeDefined();
+    expect(String(fetchCalls[0]?.[0])).toContain("/v1/runs/run-cancel-1/cancel");
 
     await setTestOrgContext(db, org.id);
     try {
@@ -622,5 +638,56 @@ describe("Workflow Routes", () => {
         { context },
       ),
     ).rejects.toMatchObject({ code: "NOT_FOUND" });
+  });
+
+  test("cancelRun bubbles Inngest cancellation failures and does not mutate run status", async () => {
+    const { org, user } = await createOrg(db);
+    const context = createTestContext({
+      orgId: org.id,
+      userId: user.id,
+      role: "owner",
+    });
+
+    await createWorkflowRunLink({
+      db,
+      orgId: org.id,
+      runId: "run-cancel-fail",
+      workflowType: "appointment.reminder",
+      entityType: "appointment",
+      entityId: "0198d09f-ff07-7f46-a5d9-26a3f0d90151",
+      runStatus: "running",
+      runRevision: 2,
+      startedAt: new Date("2026-02-11T08:00:00.000Z"),
+      lastSeenAt: new Date("2026-02-11T08:05:00.000Z"),
+    });
+
+    const fetchMock = mock(async () => new Response("boom", { status: 500 }));
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+    await expect(
+      call(
+        workflowRoutes.cancelRun,
+        {
+          runId: "run-cancel-fail",
+        },
+        { context },
+      ),
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+
+    await setTestOrgContext(db, org.id);
+    try {
+      const [row] = await db
+        .select()
+        .from(workflowRunEntityLinks)
+        .where(eq(workflowRunEntityLinks.runId, "run-cancel-fail"))
+        .limit(1);
+
+      expect(row).toBeDefined();
+      expect(row?.runStatus).toBe("running");
+      expect(row?.cancelledAt).toBeNull();
+      expect(row?.runRevision).toBe(2);
+    } finally {
+      await clearTestOrgContext(db);
+    }
   });
 });

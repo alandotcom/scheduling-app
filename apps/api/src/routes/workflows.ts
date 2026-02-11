@@ -32,6 +32,10 @@ import { and, desc, eq, ilike, or, sql } from "drizzle-orm";
 import { createHash } from "node:crypto";
 import { adminOnly } from "./base.js";
 import { ApplicationError } from "../errors/application-error.js";
+import {
+  cancelInngestRunById,
+  InngestRuntimeError,
+} from "../inngest/runtime.js";
 import type { DbClient } from "../lib/db.js";
 import { withOrg } from "../lib/db.js";
 
@@ -569,7 +573,27 @@ export const cancelRun = adminOnly
           code: "NOT_FOUND",
         });
       }
+    });
 
+    try {
+      await cancelInngestRunById(input.runId);
+    } catch (error: unknown) {
+      if (error instanceof InngestRuntimeError && error.status === 404) {
+        throw new ApplicationError("Workflow run not found in Inngest", {
+          code: "NOT_FOUND",
+        });
+      }
+
+      if (error instanceof InngestRuntimeError) {
+        throw new ApplicationError(error.message, {
+          code: "BAD_REQUEST",
+        });
+      }
+
+      throw error;
+    }
+
+    await withOrg(context.orgId, async (tx) => {
       const now = new Date();
 
       await tx
