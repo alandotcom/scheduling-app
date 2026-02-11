@@ -1,6 +1,6 @@
 # Inngest Eventing + Workflow Runtime RFC (Unified)
 
-Status: In Progress (Phases 0-8 complete/in progress; Phase 9 custom workflow platform planned)
+Status: In Progress (Phases 0-8 complete/in progress; Phase 9 custom workflow platform in progress)
 Last Updated: 2026-02-11
 Owners: Product, `@scheduling/api`, `@scheduling/db`, `@scheduling/admin-ui`
 Related: `docs/ARCHITECTURE.md`, `docs/references/event-bus/synthesis.md`, `docs/references/event-bus/workflow-devkit-research.md`, `docs/references/event-bus/testing.md`
@@ -421,12 +421,12 @@ Exit criteria:
 
 #### 9.1 Product and Decision Context
 
-- [ ] Formalize first-party platform constraints:
+- [x] Formalize first-party platform constraints:
   - code-defined triggers/actions
   - no end-user schema authoring
   - mutable-entity correctness over open-ended flexibility
-- [ ] Finalize replacement/cancellation policies per domain event family.
-- [ ] Finalize trigger-level policy surface:
+- [x] Finalize replacement/cancellation policies per domain event family.
+- [x] Finalize trigger-level policy surface:
   - replacement policy
   - debounce/latest-wins window
   - retry policy (attempts + backoff preset)
@@ -434,11 +434,11 @@ Exit criteria:
 #### 9.2 Data and API Model Migration
 
 - [ ] Move workflow payload contracts from Workflow Kit-oriented naming to first-party graph naming.
-- [ ] Introduce typed workflow graph schema and validation contract.
+- [x] Introduce typed workflow graph schema and validation contract.
 - [ ] Compile graph to deterministic `compiled_plan` at publish-time.
 - [ ] Update route payloads/responses to first-party naming and shapes.
-- [ ] Update workflow route authorization to support member read and admin/owner mutation split.
-- [ ] Keep binding targets constrained to active versions only.
+- [x] Update workflow route authorization to support member read and admin/owner mutation split.
+- [x] Keep binding targets constrained to active versions only.
 
 #### 9.3 UI Platform Migration
 
@@ -455,8 +455,8 @@ Exit criteria:
 - [ ] Execute first-party compiled plans in Inngest workflow execution functions.
 - [ ] Preserve and verify run-revision guard + delivery dedupe semantics.
 - [ ] Enforce mutable-entity replacement/cancellation matrix under wait/delay operations.
-- [ ] Enforce per-step latest-model rehydration from DB by correlation identity.
-- [ ] End gracefully (non-retryable) when correlated model is missing at step execution time.
+- [x] Enforce per-step latest-model rehydration from DB by correlation identity.
+- [x] End gracefully (non-retryable) when correlated model is missing at step execution time.
 
 #### 9.5 Integration Extensibility Path
 
@@ -517,7 +517,7 @@ Current automated coverage snapshot:
 8. [ ] First-party builder tests cover graph editing, typed node config forms, and save/validate/publish flows.
 9. [ ] Mutable-entity race tests cover reschedule/cancel/delete while run is paused in wait/delay.
 10. [ ] Integration action catalog tests validate executor + schema wiring for at least Resend/Twilio/Slack.
-11. [ ] Member read-access coverage for workflow definitions/runs with mutation guard enforcement.
+11. [x] Member read-access coverage for workflow definitions/runs with mutation guard enforcement.
 
 Release acceptance:
 
