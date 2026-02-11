@@ -57,6 +57,11 @@ pnpm --filter @scheduling/db run migrate    # Run pending migrations
 pnpm --filter @scheduling/db run push       # Push schema to dev database
 ```
 
+## App-Level Guidance
+
+- API-specific testing guidance lives in `apps/api/AGENTS.md`.
+- Use it for `bun:test` conventions, `@inngest/test` patterns, and API test command examples.
+
 ### Typecheck Usage (Turbo)
 
 - **IMPORTANT:** Never run typecheck in individual projects/packages. Only run typecheck from the repo top level.

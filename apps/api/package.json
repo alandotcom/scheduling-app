@@ -61,6 +61,7 @@
   },
   "devDependencies": {
     "@faker-js/faker": "^10.3.0",
+    "@inngest/test": "^0.1.9",
     "@types/bun": "catalog:",
     "@types/luxon": "^3.7.1",
     "chokidar-cli": "^3.0.0",
