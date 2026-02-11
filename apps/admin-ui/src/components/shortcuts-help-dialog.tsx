@@ -43,6 +43,7 @@ const SHORTCUT_SECTIONS: ShortcutSection[] = [
       { shortcut: "g t", description: "Go to appointment types" },
       { shortcut: "g r", description: "Go to resources" },
       { shortcut: "g l", description: "Go to locations" },
+      { shortcut: "g w", description: "Go to workflows" },
       { shortcut: "g s", description: "Go to settings" },
       { shortcut: "meta+f", description: "Focus filter/search" },
       { shortcut: "meta+l", description: "Focus list panel" },

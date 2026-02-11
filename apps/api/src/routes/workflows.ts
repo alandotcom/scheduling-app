@@ -548,7 +548,9 @@ export const upsertBinding = adminOnly
         .returning();
 
       if (!binding) {
-        throw new Error("Unexpected empty result when upserting workflow binding");
+        throw new Error(
+          "Unexpected empty result when upserting workflow binding",
+        );
       }
 
       return toBinding(binding);
@@ -592,15 +594,21 @@ export const listRuns = adminOnly
       const conditions: SQL[] = [];
 
       if (input.definitionId) {
-        conditions.push(eq(workflowRunEntityLinks.definitionId, input.definitionId));
+        conditions.push(
+          eq(workflowRunEntityLinks.definitionId, input.definitionId),
+        );
       }
 
       if (input.workflowType) {
-        conditions.push(eq(workflowRunEntityLinks.workflowType, input.workflowType));
+        conditions.push(
+          eq(workflowRunEntityLinks.workflowType, input.workflowType),
+        );
       }
 
       if (input.entityType) {
-        conditions.push(eq(workflowRunEntityLinks.entityType, input.entityType));
+        conditions.push(
+          eq(workflowRunEntityLinks.entityType, input.entityType),
+        );
       }
 
       if (input.entityId) {

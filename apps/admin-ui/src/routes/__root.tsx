@@ -540,6 +540,7 @@ function RootLayout() {
     },
     { to: "/resources", icon: Package01Icon, label: "Resources" },
     { to: "/locations", icon: Location01Icon, label: "Locations" },
+    { to: "/workflows", icon: ArrowRight01Icon, label: "Workflows" },
   ];
 
   return (

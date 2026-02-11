@@ -153,15 +153,20 @@ function resolveEntityReference(
   };
 }
 
-function buildSourceEventId(eventType: WebhookEventType, event: {
-  id?: string | undefined;
-  ts?: number | undefined;
-  data: { orgId: string };
-}): string {
+function buildSourceEventId(
+  eventType: WebhookEventType,
+  event: {
+    id?: string | undefined;
+    ts?: number | undefined;
+    data: { orgId: string };
+  },
+): string {
   return event.id ?? `${eventType}:${event.data.orgId}:${event.ts ?? 0}`;
 }
 
-export function createWorkflowDispatchFunction<TEventType extends WebhookEventType>(
+export function createWorkflowDispatchFunction<
+  TEventType extends WebhookEventType,
+>(
   eventType: TEventType,
   resolveTargets: ResolveDispatchTargets = listEnabledWorkflowDispatchTargets,
   dispatchWorkflowTriggeredEvent: DispatchWorkflowTriggeredEvent = defaultDispatchWorkflowTriggeredEvent,
@@ -183,7 +188,9 @@ export function createWorkflowDispatchFunction<TEventType extends WebhookEventTy
 
       const payload = payloadValidation.data;
       const sourceEventId = buildSourceEventId(eventType, event);
-      const sourceEventTimestamp = new Date(event.ts ?? Date.now()).toISOString();
+      const sourceEventTimestamp = new Date(
+        event.ts ?? Date.now(),
+      ).toISOString();
       const entity = resolveEntityReference(eventType, payload);
 
       const targets = await step.run("resolve-workflow-bindings", async () => {

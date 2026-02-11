@@ -12,6 +12,7 @@ import {
   Layers01Icon,
   Location01Icon,
   Package01Icon,
+  ArrowRight01Icon,
   UserGroup02Icon,
   Settings01Icon,
 } from "@hugeicons/core-free-icons";
@@ -157,6 +158,21 @@ export function CommandPalette() {
           ),
         onHighlight: () => preloadRoute("/locations"),
       },
+      {
+        id: "create-workflow",
+        group: "Create",
+        label: "New Workflow",
+        icon: Add01Icon,
+        onSelect: () =>
+          runCommand(
+            () =>
+              void navigate({
+                to: "/workflows",
+                search: { create: "1" },
+              }),
+          ),
+        onHighlight: () => preloadRoute("/workflows"),
+      },
     ];
 
     const navActions: CommandAction[] = [
@@ -221,6 +237,16 @@ export function CommandPalette() {
         onSelect: () =>
           runCommand(() => void navigate({ to: "/locations", search: {} })),
         onHighlight: () => preloadRoute("/locations"),
+      },
+      {
+        id: "go-workflows",
+        group: "Navigate",
+        label: "Go to Workflows",
+        icon: ArrowRight01Icon,
+        shortcut: "g w",
+        onSelect: () =>
+          runCommand(() => void navigate({ to: "/workflows", search: {} })),
+        onHighlight: () => preloadRoute("/workflows"),
       },
       {
         id: "go-settings",

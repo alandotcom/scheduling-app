@@ -1,5 +1,9 @@
 import { webhookEventTypeSchema, type WebhookEventType } from "@scheduling/dto";
-import { workflowBindings, workflowDefinitions, workflowRunEntityLinks } from "@scheduling/db/schema";
+import {
+  workflowBindings,
+  workflowDefinitions,
+  workflowRunEntityLinks,
+} from "@scheduling/db/schema";
 import { and, eq } from "drizzle-orm";
 import { withOrg } from "../../lib/db.js";
 

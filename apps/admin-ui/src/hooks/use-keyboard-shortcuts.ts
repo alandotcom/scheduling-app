@@ -244,6 +244,11 @@ export function useNavigationShortcuts(enabled = true) {
       description: "Go to Locations",
     },
     {
+      key: "g w",
+      action: () => preloadAndNavigate("/workflows"),
+      description: "Go to Workflows",
+    },
+    {
       key: "g r",
       action: () => preloadAndNavigate("/resources"),
       description: "Go to Resources",

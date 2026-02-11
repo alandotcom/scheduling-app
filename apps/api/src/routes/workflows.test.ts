@@ -762,7 +762,11 @@ describe("Workflow Routes", () => {
     expect(run.definitionVersionId).toBeNull();
 
     await expect(
-      call(workflowRoutes.getRun, { runId: "run-detail-1" }, { context: otherContext }),
+      call(
+        workflowRoutes.getRun,
+        { runId: "run-detail-1" },
+        { context: otherContext },
+      ),
     ).rejects.toMatchObject({ code: "NOT_FOUND" });
   });
 
@@ -788,7 +792,8 @@ describe("Workflow Routes", () => {
     });
 
     const fetchMock = mock(
-      async () => new Response(JSON.stringify({ id: "cancellation-1" }), { status: 200 }),
+      async () =>
+        new Response(JSON.stringify({ id: "cancellation-1" }), { status: 200 }),
     );
     globalThis.fetch = fetchMock as unknown as typeof fetch;
 
@@ -802,7 +807,9 @@ describe("Workflow Routes", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const fetchCalls = fetchMock.mock.calls as unknown[][];
     expect(fetchCalls[0]).toBeDefined();
-    expect(String(fetchCalls[0]?.[0])).toContain("/v1/runs/run-cancel-1/cancel");
+    expect(String(fetchCalls[0]?.[0])).toContain(
+      "/v1/runs/run-cancel-1/cancel",
+    );
 
     await setTestOrgContext(db, org.id);
     try {

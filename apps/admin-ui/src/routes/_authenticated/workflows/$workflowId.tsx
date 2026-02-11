@@ -1,0 +1,753 @@
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { ArrowLeft01Icon, RefreshIcon } from "@hugeicons/core-free-icons";
+import { toast } from "sonner";
+
+import type {
+  WebhookEventType,
+  WorkflowDefinitionStatus,
+  WorkflowValidationResult,
+} from "@scheduling/dto";
+import { webhookEventTypes, workflowKitDocumentSchema } from "@scheduling/dto";
+import { PageHeader, PageScaffold } from "@/components/layout/page-scaffold";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Icon } from "@/components/ui/icon";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+} from "@/components/ui/select";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Textarea } from "@/components/ui/textarea";
+import { formatDisplayDateTime } from "@/lib/date-utils";
+import { getQueryClient, orpc } from "@/lib/query";
+import { swallowIgnorableRouteLoaderError } from "@/lib/query-cancellation";
+
+type WorkflowRunStatus =
+  | "pending"
+  | "running"
+  | "completed"
+  | "failed"
+  | "cancelled"
+  | "unknown";
+
+function definitionStatusBadgeVariant(status: WorkflowDefinitionStatus) {
+  if (status === "active") return "success";
+  if (status === "draft") return "warning";
+  return "outline";
+}
+
+function runStatusBadgeVariant(status: WorkflowRunStatus) {
+  if (status === "completed") return "success";
+  if (status === "pending" || status === "running") return "warning";
+  if (status === "failed") return "destructive";
+  return "outline";
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function stableStringify(value: unknown): string {
+  if (Array.isArray(value)) {
+    return `[${value.map((entry) => stableStringify(entry)).join(",")}]`;
+  }
+  if (isRecord(value)) {
+    const entries = Object.entries(value).toSorted(([left], [right]) =>
+      left.localeCompare(right),
+    );
+    return `{${entries
+      .map(
+        ([key, entryValue]) =>
+          `${JSON.stringify(key)}:${stableStringify(entryValue)}`,
+      )
+      .join(",")}}`;
+  }
+  return JSON.stringify(value);
+}
+
+function parseWorkflowKitText(text: string) {
+  try {
+    const parsed = JSON.parse(text);
+    const result = workflowKitDocumentSchema.safeParse(parsed);
+    if (!result.success) {
+      return {
+        ok: false as const,
+        message: "WorkflowKit JSON must be a valid object.",
+      };
+    }
+    return { ok: true as const, value: result.data };
+  } catch {
+    return {
+      ok: false as const,
+      message: "WorkflowKit JSON is invalid.",
+    };
+  }
+}
+
+function isWebhookEventType(value: string): value is WebhookEventType {
+  return webhookEventTypes.some((eventType) => eventType === value);
+}
+
+function WorkflowDetailPage() {
+  const queryClient = useQueryClient();
+  const { workflowId } = Route.useParams();
+  const [draftText, setDraftText] = useState("{}");
+  const [draftError, setDraftError] = useState<string | null>(null);
+  const [validationResult, setValidationResult] =
+    useState<WorkflowValidationResult | null>(null);
+  const [bindingEventType, setBindingEventType] = useState<WebhookEventType>(
+    webhookEventTypes[0],
+  );
+  const [bindingEnabled, setBindingEnabled] = useState(true);
+  const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
+  const [cancellingRunId, setCancellingRunId] = useState<string | null>(null);
+
+  const definitionQuery = useQuery({
+    ...orpc.workflows.getDefinition.queryOptions({
+      input: { id: workflowId },
+    }),
+    placeholderData: (previous) => previous,
+  });
+  const runsQuery = useQuery({
+    ...orpc.workflows.listRuns.queryOptions({
+      input: {
+        definitionId: workflowId,
+        limit: 50,
+      },
+    }),
+    placeholderData: (previous) => previous,
+  });
+  const selectedRunQuery = useQuery({
+    ...orpc.workflows.getRun.queryOptions({
+      input: { runId: selectedRunId! },
+    }),
+    enabled: !!selectedRunId,
+  });
+
+  const definition = definitionQuery.data;
+  const runs = runsQuery.data?.items ?? [];
+
+  useEffect(() => {
+    if (!definition) return;
+    setDraftText(JSON.stringify(definition.draftWorkflowKit, null, 2));
+    setDraftError(null);
+  }, [definition?.id, definition?.draftRevision]);
+
+  useEffect(() => {
+    if (!selectedRunId) return;
+    if (runs.some((run) => run.runId === selectedRunId)) return;
+    setSelectedRunId(null);
+  }, [runs, selectedRunId]);
+
+  const parsedDraft = useMemo(
+    () => parseWorkflowKitText(draftText),
+    [draftText],
+  );
+  const isDraftDirty = useMemo(() => {
+    if (!definition) return false;
+    if (!parsedDraft.ok) return true;
+    return (
+      stableStringify(parsedDraft.value) !==
+      stableStringify(definition.draftWorkflowKit)
+    );
+  }, [definition, parsedDraft]);
+
+  const updateDraftMutation = useMutation(
+    orpc.workflows.updateDraft.mutationOptions({
+      onSuccess: async (updated) => {
+        await queryClient.invalidateQueries({ queryKey: orpc.workflows.key() });
+        setDraftText(JSON.stringify(updated.draftWorkflowKit, null, 2));
+        setValidationResult(null);
+        toast.success("Draft saved");
+      },
+      onError: (error) => {
+        toast.error(error.message || "Failed to save draft");
+      },
+    }),
+  );
+
+  const validateMutation = useMutation(
+    orpc.workflows.validateDraft.mutationOptions({
+      onSuccess: (result) => {
+        setValidationResult(result);
+        if (result.valid) {
+          toast.success("Draft is valid");
+        } else {
+          toast.error("Draft validation failed");
+        }
+      },
+      onError: (error) => {
+        toast.error(error.message || "Failed to validate draft");
+      },
+    }),
+  );
+
+  const publishMutation = useMutation(
+    orpc.workflows.publishDraft.mutationOptions({
+      onSuccess: async () => {
+        await queryClient.invalidateQueries({ queryKey: orpc.workflows.key() });
+        setValidationResult(null);
+        toast.success("Workflow published");
+      },
+      onError: (error) => {
+        toast.error(error.message || "Failed to publish workflow");
+      },
+    }),
+  );
+
+  const upsertBindingMutation = useMutation(
+    orpc.workflows.bindings.upsert.mutationOptions({
+      onSuccess: async () => {
+        await queryClient.invalidateQueries({ queryKey: orpc.workflows.key() });
+        toast.success("Binding updated");
+      },
+      onError: (error) => {
+        toast.error(error.message || "Failed to upsert binding");
+      },
+    }),
+  );
+
+  const removeBindingMutation = useMutation(
+    orpc.workflows.bindings.remove.mutationOptions({
+      onSuccess: async () => {
+        await queryClient.invalidateQueries({ queryKey: orpc.workflows.key() });
+        toast.success("Binding removed");
+      },
+      onError: (error) => {
+        toast.error(error.message || "Failed to remove binding");
+      },
+    }),
+  );
+
+  const cancelRunMutation = useMutation(
+    orpc.workflows.cancelRun.mutationOptions({
+      onMutate: (input) => {
+        setCancellingRunId(input.runId);
+      },
+      onSuccess: async () => {
+        await queryClient.invalidateQueries({ queryKey: orpc.workflows.key() });
+        toast.success("Run cancellation requested");
+      },
+      onError: (error) => {
+        toast.error(error.message || "Failed to cancel run");
+      },
+      onSettled: () => {
+        setCancellingRunId(null);
+      },
+    }),
+  );
+
+  const ensureSavedDraft = useCallback(async () => {
+    if (!definition) return { ok: false as const };
+    const parsed = parseWorkflowKitText(draftText);
+    if (!parsed.ok) {
+      setDraftError(parsed.message);
+      return { ok: false as const };
+    }
+
+    setDraftError(null);
+    if (!isDraftDirty) {
+      return { ok: true as const, revision: definition.draftRevision };
+    }
+
+    try {
+      const updated = await updateDraftMutation.mutateAsync({
+        id: workflowId,
+        workflowKit: parsed.value,
+        expectedRevision: definition.draftRevision,
+      });
+      return { ok: true as const, revision: updated.draftRevision };
+    } catch {
+      return { ok: false as const };
+    }
+  }, [definition, draftText, isDraftDirty, updateDraftMutation, workflowId]);
+
+  const handleSaveDraft = useCallback(async () => {
+    const result = await ensureSavedDraft();
+    if (!result.ok && !draftError) {
+      toast.error("Unable to save draft");
+    }
+  }, [draftError, ensureSavedDraft]);
+
+  const handleValidateDraft = useCallback(async () => {
+    const result = await ensureSavedDraft();
+    if (!result.ok) return;
+    validateMutation.mutate({ id: workflowId });
+  }, [ensureSavedDraft, validateMutation, workflowId]);
+
+  const handlePublishDraft = useCallback(async () => {
+    const result = await ensureSavedDraft();
+    if (!result.ok) return;
+
+    publishMutation.mutate({
+      id: workflowId,
+      expectedRevision: result.revision,
+    });
+  }, [ensureSavedDraft, publishMutation, workflowId]);
+
+  if (definitionQuery.isLoading) {
+    return (
+      <PageScaffold>
+        <div className="text-sm text-muted-foreground">Loading workflow...</div>
+      </PageScaffold>
+    );
+  }
+
+  if (definitionQuery.error || !definition) {
+    return (
+      <PageScaffold>
+        <div className="text-sm text-destructive">Workflow not found</div>
+      </PageScaffold>
+    );
+  }
+
+  return (
+    <PageScaffold>
+      <PageHeader
+        title={definition.name}
+        description={definition.description ?? "No description"}
+        actions={
+          <div className="flex items-center gap-2">
+            <Button variant="outline" asChild>
+              <Link to="/workflows">
+                <Icon icon={ArrowLeft01Icon} data-icon="inline-start" />
+                Back
+              </Link>
+            </Button>
+          </div>
+        }
+      />
+
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        <Badge variant="outline">{definition.key}</Badge>
+        <Badge variant={definitionStatusBadgeVariant(definition.status)}>
+          {definition.status}
+        </Badge>
+        <Badge variant="secondary">Revision {definition.draftRevision}</Badge>
+        {definition.activeVersion ? (
+          <Badge variant="secondary">
+            Active v{definition.activeVersion.version}
+          </Badge>
+        ) : (
+          <Badge variant="outline">No active version</Badge>
+        )}
+      </div>
+
+      <Card className="mt-6">
+        <CardHeader className="border-b">
+          <CardTitle>Draft WorkflowKit</CardTitle>
+          <CardDescription>
+            Edit JSON, validate, and publish new workflow revisions.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4 py-4">
+          <Textarea
+            value={draftText}
+            onChange={(event) => {
+              setDraftText(event.target.value);
+              setDraftError(null);
+            }}
+            className="min-h-72 font-mono text-xs"
+          />
+          {draftError ? (
+            <p className="text-sm text-destructive">{draftError}</p>
+          ) : null}
+          {!parsedDraft.ok && !draftError ? (
+            <p className="text-sm text-destructive">{parsedDraft.message}</p>
+          ) : null}
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleSaveDraft}
+              disabled={
+                updateDraftMutation.isPending || publishMutation.isPending
+              }
+            >
+              {updateDraftMutation.isPending ? "Saving..." : "Save Draft"}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleValidateDraft}
+              disabled={
+                updateDraftMutation.isPending ||
+                validateMutation.isPending ||
+                publishMutation.isPending
+              }
+            >
+              {validateMutation.isPending ? "Validating..." : "Validate"}
+            </Button>
+            <Button
+              type="button"
+              onClick={handlePublishDraft}
+              disabled={
+                updateDraftMutation.isPending ||
+                publishMutation.isPending ||
+                validateMutation.isPending
+              }
+            >
+              {publishMutation.isPending ? "Publishing..." : "Publish Draft"}
+            </Button>
+            {isDraftDirty ? (
+              <Badge variant="warning">Unsaved changes</Badge>
+            ) : (
+              <Badge variant="success">Saved</Badge>
+            )}
+          </div>
+          {validationResult ? (
+            <div className="rounded-lg border border-border bg-muted/20 p-3">
+              <p className="text-sm font-medium">
+                Validation {validationResult.valid ? "passed" : "failed"}
+              </p>
+              {validationResult.issues.length > 0 ? (
+                <ul className="mt-2 space-y-1 text-sm">
+                  {validationResult.issues.map((issue, index) => (
+                    <li
+                      key={`${issue.code}-${issue.field ?? "field"}-${index}`}
+                    >
+                      <span className="font-medium">{issue.severity}</span>:{" "}
+                      {issue.message}
+                      {issue.field ? (
+                        <span className="text-muted-foreground">
+                          {" "}
+                          ({issue.field})
+                        </span>
+                      ) : null}
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+            </div>
+          ) : null}
+        </CardContent>
+      </Card>
+
+      <Card className="mt-6">
+        <CardHeader className="border-b">
+          <CardTitle>Event Bindings</CardTitle>
+          <CardDescription>
+            Attach webhook event types to this workflow definition.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4 py-4">
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr)_auto_auto] md:items-center">
+            <Select
+              value={bindingEventType}
+              onValueChange={(value) => {
+                if (!value || !isWebhookEventType(value)) return;
+                setBindingEventType(value);
+              }}
+            >
+              <SelectTrigger>{bindingEventType}</SelectTrigger>
+              <SelectContent>
+                {webhookEventTypes.map((eventType) => (
+                  <SelectItem key={eventType} value={eventType}>
+                    {eventType}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Checkbox
+              checked={bindingEnabled}
+              onChange={setBindingEnabled}
+              label="Enabled"
+            />
+            <Button
+              type="button"
+              variant="outline"
+              disabled={upsertBindingMutation.isPending}
+              onClick={() =>
+                upsertBindingMutation.mutate({
+                  id: workflowId,
+                  eventType: bindingEventType,
+                  enabled: bindingEnabled,
+                })
+              }
+            >
+              {upsertBindingMutation.isPending ? "Saving..." : "Upsert Binding"}
+            </Button>
+          </div>
+
+          {definition.bindings.length === 0 ? (
+            <div className="text-sm text-muted-foreground">
+              No bindings yet.
+            </div>
+          ) : (
+            <div className="overflow-x-auto rounded-lg border border-border">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Event Type</TableHead>
+                    <TableHead>Enabled</TableHead>
+                    <TableHead>Version</TableHead>
+                    <TableHead>Updated</TableHead>
+                    <TableHead className="w-[110px] text-right">
+                      Remove
+                    </TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {definition.bindings.map((binding) => (
+                    <TableRow key={binding.id}>
+                      <TableCell>
+                        <code className="text-xs">{binding.eventType}</code>
+                      </TableCell>
+                      <TableCell>
+                        <Badge
+                          variant={binding.enabled ? "success" : "outline"}
+                        >
+                          {binding.enabled ? "enabled" : "disabled"}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <code className="text-xs">{binding.versionId}</code>
+                      </TableCell>
+                      <TableCell>
+                        {formatDisplayDateTime(binding.updatedAt)}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          disabled={removeBindingMutation.isPending}
+                          onClick={() =>
+                            removeBindingMutation.mutate({
+                              id: workflowId,
+                              eventType: binding.eventType,
+                            })
+                          }
+                        >
+                          Remove
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card className="mt-6">
+        <CardHeader className="border-b">
+          <CardTitle>Runs</CardTitle>
+          <CardDescription>
+            Recent runs for this workflow and runtime status details.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4 py-4">
+          {runsQuery.isLoading ? (
+            <div className="text-sm text-muted-foreground">Loading runs...</div>
+          ) : runsQuery.error ? (
+            <div className="text-sm text-destructive">Failed to load runs</div>
+          ) : runs.length === 0 ? (
+            <div className="text-sm text-muted-foreground">
+              No runs for this workflow yet.
+            </div>
+          ) : (
+            <div className="overflow-x-auto rounded-lg border border-border">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Run</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Entity</TableHead>
+                    <TableHead>Started</TableHead>
+                    <TableHead>Updated</TableHead>
+                    <TableHead className="w-[170px] text-right">
+                      Actions
+                    </TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {runs.map((run) => {
+                    const canCancel =
+                      run.status === "pending" || run.status === "running";
+                    const isCancelling = cancellingRunId === run.runId;
+                    return (
+                      <TableRow key={run.runId}>
+                        <TableCell>
+                          <button
+                            type="button"
+                            className="text-left font-mono text-xs text-primary hover:underline"
+                            onClick={() => setSelectedRunId(run.runId)}
+                          >
+                            {run.runId}
+                          </button>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant={runStatusBadgeVariant(run.status)}>
+                            {run.status}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <div className="text-xs text-muted-foreground">
+                            {run.entityType}
+                          </div>
+                          <code className="text-xs">{run.entityId}</code>
+                        </TableCell>
+                        <TableCell>
+                          {formatDisplayDateTime(run.startedAt)}
+                        </TableCell>
+                        <TableCell>
+                          {formatDisplayDateTime(run.updatedAt)}
+                        </TableCell>
+                        <TableCell className="space-x-2 text-right">
+                          {canCancel ? (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              disabled={
+                                cancelRunMutation.isPending || isCancelling
+                              }
+                              onClick={() =>
+                                cancelRunMutation.mutate({ runId: run.runId })
+                              }
+                            >
+                              {isCancelling ? "Cancelling..." : "Cancel"}
+                            </Button>
+                          ) : null}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+
+          {selectedRunId ? (
+            <div className="rounded-lg border border-border bg-muted/20 p-4">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="text-sm font-medium">Run details</p>
+                <div className="flex items-center gap-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    disabled={selectedRunQuery.isFetching}
+                    onClick={() => void selectedRunQuery.refetch()}
+                  >
+                    <Icon icon={RefreshIcon} data-icon="inline-start" />
+                    Refresh
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => setSelectedRunId(null)}
+                  >
+                    Clear
+                  </Button>
+                </div>
+              </div>
+              {selectedRunQuery.isLoading ? (
+                <p className="mt-2 text-sm text-muted-foreground">
+                  Loading run details...
+                </p>
+              ) : selectedRunQuery.error ? (
+                <p className="mt-2 text-sm text-destructive">
+                  Failed to load run details
+                </p>
+              ) : selectedRunQuery.data ? (
+                <dl className="mt-3 grid grid-cols-1 gap-2 text-sm md:grid-cols-2">
+                  <div>
+                    <dt className="text-muted-foreground">Run ID</dt>
+                    <dd className="font-mono text-xs">
+                      {selectedRunQuery.data.runId}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-muted-foreground">Workflow Type</dt>
+                    <dd>{selectedRunQuery.data.workflowType}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-muted-foreground">Status</dt>
+                    <dd>
+                      <Badge
+                        variant={runStatusBadgeVariant(
+                          selectedRunQuery.data.status,
+                        )}
+                      >
+                        {selectedRunQuery.data.status}
+                      </Badge>
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-muted-foreground">Run Revision</dt>
+                    <dd>{selectedRunQuery.data.runRevision}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-muted-foreground">Started</dt>
+                    <dd>
+                      {formatDisplayDateTime(selectedRunQuery.data.startedAt)}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-muted-foreground">Updated</dt>
+                    <dd>
+                      {formatDisplayDateTime(selectedRunQuery.data.updatedAt)}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-muted-foreground">Entity Type</dt>
+                    <dd>{selectedRunQuery.data.entityType}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-muted-foreground">Entity ID</dt>
+                    <dd className="font-mono text-xs">
+                      {selectedRunQuery.data.entityId}
+                    </dd>
+                  </div>
+                </dl>
+              ) : null}
+            </div>
+          ) : null}
+        </CardContent>
+      </Card>
+    </PageScaffold>
+  );
+}
+
+export const Route = createFileRoute("/_authenticated/workflows/$workflowId")({
+  loader: async ({ params }) => {
+    const queryClient = getQueryClient();
+    await swallowIgnorableRouteLoaderError(
+      Promise.all([
+        queryClient.ensureQueryData(
+          orpc.workflows.getDefinition.queryOptions({
+            input: { id: params.workflowId },
+          }),
+        ),
+        queryClient.ensureQueryData(
+          orpc.workflows.listRuns.queryOptions({
+            input: { definitionId: params.workflowId, limit: 50 },
+          }),
+        ),
+      ]),
+    );
+  },
+  component: WorkflowDetailPage,
+});
