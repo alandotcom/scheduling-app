@@ -110,6 +110,49 @@ export const relations = defineRelations(schema, (r) => ({
 
 Relational queries: `db.query.calendars.findFirst({ with: { appointments: true } })`
 
+## Query Projection Patterns (Drizzle v1)
+
+When building query shapes for API/repository code, prefer projection at query time over reshaping after fetch.
+
+- Prefer `select({ ... })` with only the fields needed by the caller.
+- Avoid `select().from(table)` followed by `results.map((row) => ({ ... }))` when the map only renames/drops fields.
+- For join results, prefer nested select objects directly in Drizzle so nullability is inferred at object level.
+- Keep post-query maps only when doing real post-processing (for example grouping, aggregation merges, or constructing lookup maps).
+
+Examples:
+
+```typescript
+// Good: shape returned directly from DB
+const rules = await tx
+  .select({
+    id: availabilityRules.id,
+    calendarId: availabilityRules.calendarId,
+    weekday: availabilityRules.weekday,
+    startTime: availabilityRules.startTime,
+    endTime: availabilityRules.endTime,
+    intervalMin: availabilityRules.intervalMin,
+    groupId: availabilityRules.groupId,
+  })
+  .from(availabilityRules)
+  .where(inArray(availabilityRules.calendarId, calendarIds));
+```
+
+```typescript
+// Avoid when map is only projection
+const rows = await tx.select().from(availabilityRules);
+return rows.map((r) => ({
+  id: r.id,
+  calendarId: r.calendarId,
+  weekday: r.weekday,
+  startTime: r.startTime,
+  endTime: r.endTime,
+  intervalMin: r.intervalMin,
+  groupId: r.groupId,
+}));
+```
+
+Note: in Drizzle v1, `getColumns` is preferred over deprecated `getTableColumns` when spreading full table columns.
+
 ## RLS Model
 
 Three layers enforce tenant isolation:

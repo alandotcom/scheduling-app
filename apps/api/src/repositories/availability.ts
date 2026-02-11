@@ -34,23 +34,20 @@ export class AvailabilityRepository {
     id: string,
   ): Promise<AppointmentTypeData | null> {
     await setOrgContext(tx, orgId);
-    const result = await tx
-      .select()
+    const [appointmentType] = await tx
+      .select({
+        id: appointmentTypes.id,
+        name: appointmentTypes.name,
+        durationMin: appointmentTypes.durationMin,
+        paddingBeforeMin: appointmentTypes.paddingBeforeMin,
+        paddingAfterMin: appointmentTypes.paddingAfterMin,
+        capacity: appointmentTypes.capacity,
+      })
       .from(appointmentTypes)
       .where(eq(appointmentTypes.id, id))
       .limit(1);
 
-    if (result.length === 0) return null;
-
-    const at = result[0]!;
-    return {
-      id: at.id,
-      name: at.name,
-      durationMin: at.durationMin,
-      paddingBeforeMin: at.paddingBeforeMin,
-      paddingAfterMin: at.paddingAfterMin,
-      capacity: at.capacity,
-    };
+    return appointmentType ?? null;
   }
 
   async getValidCalendars(
@@ -74,7 +71,11 @@ export class AvailabilityRepository {
         ),
       );
 
-    return links.map((link) => link.calendarId);
+    const calendarIds: string[] = [];
+    for (const link of links) {
+      calendarIds.push(link.calendarId);
+    }
+    return calendarIds;
   }
 
   async loadSchedulingLimits(
@@ -145,20 +146,18 @@ export class AvailabilityRepository {
     calendarIds: string[],
   ): Promise<AvailabilityRule[]> {
     await setOrgContext(tx, orgId);
-    const results = await tx
-      .select()
+    return tx
+      .select({
+        id: availabilityRules.id,
+        calendarId: availabilityRules.calendarId,
+        weekday: availabilityRules.weekday,
+        startTime: availabilityRules.startTime,
+        endTime: availabilityRules.endTime,
+        intervalMin: availabilityRules.intervalMin,
+        groupId: availabilityRules.groupId,
+      })
       .from(availabilityRules)
       .where(inArray(availabilityRules.calendarId, calendarIds));
-
-    return results.map((r) => ({
-      id: r.id,
-      calendarId: r.calendarId,
-      weekday: r.weekday,
-      startTime: r.startTime,
-      endTime: r.endTime,
-      intervalMin: r.intervalMin,
-      groupId: r.groupId,
-    }));
   }
 
   async loadOverrides(
@@ -169,8 +168,15 @@ export class AvailabilityRepository {
     endDate: string,
   ): Promise<AvailabilityOverride[]> {
     await setOrgContext(tx, orgId);
-    const results = await tx
-      .select()
+    return tx
+      .select({
+        id: availabilityOverrides.id,
+        calendarId: availabilityOverrides.calendarId,
+        date: availabilityOverrides.date,
+        timeRanges: availabilityOverrides.timeRanges,
+        intervalMin: availabilityOverrides.intervalMin,
+        groupId: availabilityOverrides.groupId,
+      })
       .from(availabilityOverrides)
       .where(
         and(
@@ -179,15 +185,6 @@ export class AvailabilityRepository {
           lte(availabilityOverrides.date, endDate),
         ),
       );
-
-    return results.map((o) => ({
-      id: o.id,
-      calendarId: o.calendarId,
-      date: o.date,
-      timeRanges: o.timeRanges,
-      intervalMin: o.intervalMin,
-      groupId: o.groupId,
-    }));
   }
 
   async loadBlockedTimes(
@@ -210,8 +207,14 @@ export class AvailabilityRepository {
     const rangeStart = startDateTime.toJSDate();
     const rangeEnd = endDateTime.toJSDate();
 
-    const results = await tx
-      .select()
+    return tx
+      .select({
+        id: blockedTime.id,
+        calendarId: blockedTime.calendarId,
+        startAt: blockedTime.startAt,
+        endAt: blockedTime.endAt,
+        recurringRule: blockedTime.recurringRule,
+      })
       .from(blockedTime)
       .where(
         and(
@@ -222,14 +225,6 @@ export class AvailabilityRepository {
           ),
         ),
       );
-
-    return results.map((b) => ({
-      id: b.id,
-      calendarId: b.calendarId,
-      startAt: b.startAt,
-      endAt: b.endAt,
-      recurringRule: b.recurringRule,
-    }));
   }
 
   async loadExistingAppointments(
@@ -251,8 +246,15 @@ export class AvailabilityRepository {
     const rangeStart = startDateTime.toJSDate();
     const rangeEnd = endDateTime.toJSDate();
 
-    const results = await tx
-      .select()
+    return tx
+      .select({
+        id: appointments.id,
+        calendarId: appointments.calendarId,
+        appointmentTypeId: appointments.appointmentTypeId,
+        startAt: appointments.startAt,
+        endAt: appointments.endAt,
+        status: appointments.status,
+      })
       .from(appointments)
       .where(
         and(
@@ -261,15 +263,6 @@ export class AvailabilityRepository {
           sql`tstzrange(${appointments.startAt}, ${appointments.endAt}, '[)') && tstzrange(${rangeStart}, ${rangeEnd}, '[)')`,
         ),
       );
-
-    return results.map((a) => ({
-      id: a.id,
-      calendarId: a.calendarId,
-      appointmentTypeId: a.appointmentTypeId,
-      startAt: a.startAt,
-      endAt: a.endAt,
-      status: a.status,
-    }));
   }
 
   async loadResourceConstraints(
@@ -278,15 +271,13 @@ export class AvailabilityRepository {
     appointmentTypeId: string,
   ): Promise<ResourceConstraint[]> {
     await setOrgContext(tx, orgId);
-    const results = await tx
-      .select()
+    return tx
+      .select({
+        resourceId: appointmentTypeResources.resourceId,
+        quantityRequired: appointmentTypeResources.quantityRequired,
+      })
       .from(appointmentTypeResources)
       .where(eq(appointmentTypeResources.appointmentTypeId, appointmentTypeId));
-
-    return results.map((r) => ({
-      resourceId: r.resourceId,
-      quantityRequired: r.quantityRequired,
-    }));
   }
 
   async loadResourceConstraintsByAppointmentTypeIds(
@@ -329,16 +320,14 @@ export class AvailabilityRepository {
     if (resourceIds.length === 0) return [];
 
     await setOrgContext(tx, orgId);
-    const results = await tx
-      .select()
+    return tx
+      .select({
+        id: resources.id,
+        name: resources.name,
+        quantity: resources.quantity,
+      })
       .from(resources)
       .where(inArray(resources.id, resourceIds));
-
-    return results.map((r) => ({
-      id: r.id,
-      name: r.name,
-      quantity: r.quantity,
-    }));
   }
 }
 

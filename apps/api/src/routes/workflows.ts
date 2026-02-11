@@ -31,7 +31,8 @@ const DEFAULT_WORKFLOW_KIT_SCHEMA_VERSION = 1;
 const UNIQUE_CONSTRAINT_VIOLATION = "23505";
 
 type WorkflowDefinitionRow = typeof workflowDefinitions.$inferSelect;
-type WorkflowDefinitionVersionRow = typeof workflowDefinitionVersions.$inferSelect;
+type WorkflowDefinitionVersionRow =
+  typeof workflowDefinitionVersions.$inferSelect;
 type WorkflowBindingRow = typeof workflowBindings.$inferSelect;
 
 const updateWorkflowDraftInputSchema = idInputSchema.extend(
@@ -44,8 +45,8 @@ function stableStringify(value: unknown): string {
   }
 
   if (isRecord(value)) {
-    const entries = Object.entries(value).toSorted(
-      ([left], [right]) => left.localeCompare(right),
+    const entries = Object.entries(value).toSorted(([left], [right]) =>
+      left.localeCompare(right),
     );
 
     return `{${entries
@@ -175,10 +176,7 @@ async function getDefinitionById(
   return definition;
 }
 
-async function loadDefinitionDetail(
-  tx: DbClient,
-  definitionId: string,
-) {
+async function loadDefinitionDetail(tx: DbClient, definitionId: string) {
   const definition = await getDefinitionById(tx, definitionId);
   const activeVersion =
     definition.activeVersionId === null
@@ -193,7 +191,10 @@ async function loadDefinitionDetail(
     .select()
     .from(workflowBindings)
     .where(eq(workflowBindings.definitionId, definition.id))
-    .orderBy(desc(workflowBindings.updatedAt), desc(workflowBindings.createdAt));
+    .orderBy(
+      desc(workflowBindings.updatedAt),
+      desc(workflowBindings.createdAt),
+    );
 
   return workflowDefinitionDetailSchema.parse({
     ...toDefinitionSummary(definition),
@@ -244,7 +245,9 @@ export const getDefinition = adminOnly
   .input(idInputSchema)
   .output(workflowDefinitionDetailSchema)
   .handler(async ({ input, context }) => {
-    return withOrg(context.orgId, async (tx) => loadDefinitionDetail(tx, input.id));
+    return withOrg(context.orgId, async (tx) =>
+      loadDefinitionDetail(tx, input.id),
+    );
   });
 
 export const createDefinition = adminOnly
