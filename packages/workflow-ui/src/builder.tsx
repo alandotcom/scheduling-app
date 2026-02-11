@@ -1,5 +1,5 @@
 // oxlint-disable eslint-plugin-react/react-in-jsx-scope
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   addEdge,
   Background,
@@ -17,6 +17,7 @@ import {
   type NodeChange,
   type NodeProps,
   type NodeTypes,
+  type ReactFlowInstance,
 } from "@xyflow/react";
 import type {
   WorkflowActionCatalogItem,
@@ -345,20 +346,35 @@ function updateNodeGraphData(
 
 function WorkflowCanvasNode({ data, selected }: NodeProps) {
   const nodeData = isBuilderNodeData(data) ? data : null;
+  const kindLabel = nodeData?.graphNode.kind ?? "node";
 
   return (
     <div
-      className="min-w-[180px] rounded-lg border bg-card px-3 py-2 shadow-sm"
+      className="min-w-[220px] rounded-xl border bg-card px-4 py-3 shadow-sm transition"
       style={{
         borderColor: selected ? "hsl(var(--primary))" : "hsl(var(--border))",
+        boxShadow: selected
+          ? "0 0 0 1px hsl(var(--primary) / 0.5), 0 10px 20px hsl(var(--foreground) / 0.08)"
+          : "0 2px 8px hsl(var(--foreground) / 0.08)",
       }}
     >
-      <Handle type="target" position={Position.Top} />
-      <p className="text-sm font-medium">{nodeData?.title ?? "Node"}</p>
-      <p className="text-xs text-muted-foreground">
+      <Handle
+        type="target"
+        position={Position.Left}
+        className="!size-3 !border-2 !border-background !bg-foreground/70"
+      />
+      <div className="mb-1 inline-flex rounded-full border border-border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+        {kindLabel}
+      </div>
+      <p className="text-base font-semibold">{nodeData?.title ?? "Node"}</p>
+      <p className="text-sm text-muted-foreground">
         {nodeData?.subtitle ?? ""}
       </p>
-      <Handle type="source" position={Position.Bottom} />
+      <Handle
+        type="source"
+        position={Position.Right}
+        className="!size-3 !border-2 !border-background !bg-foreground/70"
+      />
     </div>
   );
 }
@@ -376,12 +392,21 @@ function parseInputJson(text: string): Record<string, unknown> | null {
   }
 }
 
+function documentSignature(document: WorkflowGraphDocument): string {
+  try {
+    return JSON.stringify(document);
+  } catch {
+    return "";
+  }
+}
+
 export function WorkflowBuilder({
   document,
   actionCatalog,
   onChange,
   readOnly = false,
 }: WorkflowBuilderProps) {
+  const lastEmittedSignatureRef = useRef<string | null>(null);
   const normalizedDocument = useMemo(() => {
     const parsed = workflowGraphDocumentSchema.safeParse(document);
     if (parsed.success) {
@@ -400,15 +425,36 @@ export function WorkflowBuilder({
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [inputJsonDraft, setInputJsonDraft] = useState<string>("");
   const [inputJsonError, setInputJsonError] = useState<string | null>(null);
+  const [reactFlowInstance, setReactFlowInstance] =
+    useState<ReactFlowInstance<BuilderNode> | null>(null);
+  const normalizedDocumentSignature = useMemo(
+    () => documentSignature(normalizedDocument),
+    [normalizedDocument],
+  );
 
   useEffect(() => {
+    if (lastEmittedSignatureRef.current === normalizedDocumentSignature) {
+      return;
+    }
+
     const flowNodes = normalizedDocument.nodes.map((node, index) =>
       toFlowNode(node, index, actionCatalog),
     );
     const flowEdges = normalizedDocument.edges.map((edge) => toFlowEdge(edge));
     setNodes(flowNodes);
     setEdges(flowEdges);
-  }, [actionCatalog, normalizedDocument.edges, normalizedDocument.nodes]);
+    setSelectedNodeId((currentSelectedId) => {
+      if (!currentSelectedId) return null;
+      return flowNodes.some((node) => node.id === currentSelectedId)
+        ? currentSelectedId
+        : null;
+    });
+  }, [
+    actionCatalog,
+    normalizedDocument.nodes,
+    normalizedDocument.edges,
+    normalizedDocumentSignature,
+  ]);
 
   const selectedNode = useMemo(
     () => nodes.find((node) => node.id === selectedNodeId) ?? null,
@@ -436,15 +482,61 @@ export function WorkflowBuilder({
 
   const emitChange = useCallback(
     (nextNodes: BuilderNode[], nextEdges: BuilderEdge[]) => {
-      onChange(
-        buildDocumentFromFlow({
-          currentDocument: normalizedDocument,
-          flowNodes: nextNodes,
-          flowEdges: nextEdges,
-        }),
-      );
+      const nextDocument = buildDocumentFromFlow({
+        currentDocument: normalizedDocument,
+        flowNodes: nextNodes,
+        flowEdges: nextEdges,
+      });
+      lastEmittedSignatureRef.current = documentSignature(nextDocument);
+      onChange(nextDocument);
     },
     [normalizedDocument, onChange],
+  );
+
+  const focusNodeInViewport = useCallback(
+    (nodeId: string) => {
+      if (!reactFlowInstance) return;
+      requestAnimationFrame(() => {
+        void reactFlowInstance.fitView({
+          nodes: [{ id: nodeId }],
+          padding: 0.4,
+          duration: 180,
+          includeHiddenNodes: true,
+        });
+      });
+    },
+    [reactFlowInstance],
+  );
+
+  const getSpawnPosition = useCallback(
+    (index: number): { x: number; y: number } => {
+      if (!reactFlowInstance) {
+        return {
+          x: 80 + (index % 3) * 260,
+          y: 80 + Math.floor(index / 3) * 160,
+        };
+      }
+
+      const pane = globalThis.document?.querySelector(".react-flow__pane");
+      if (!pane) {
+        return {
+          x: 80 + (index % 3) * 260,
+          y: 80 + Math.floor(index / 3) * 160,
+        };
+      }
+
+      const paneRect = pane.getBoundingClientRect();
+      const center = reactFlowInstance.screenToFlowPosition({
+        x: paneRect.left + paneRect.width * 0.5,
+        y: paneRect.top + paneRect.height * 0.42,
+      });
+
+      return {
+        x: center.x - 130 + (index % 2) * 36,
+        y: center.y - 58 + Math.floor(index / 2) * 28,
+      };
+    },
+    [reactFlowInstance],
   );
 
   const onNodesChange = useCallback(
@@ -496,6 +588,7 @@ export function WorkflowBuilder({
       actionId: action.id,
       integrationKey: action.integrationKey,
       input: {},
+      position: getSpawnPosition(nodes.length),
     };
     const nextNode = toFlowNode(nextGraphNode, nodes.length, actionCatalog);
     setNodes((currentNodes) => {
@@ -504,7 +597,15 @@ export function WorkflowBuilder({
       return nextNodes;
     });
     setSelectedNodeId(nextGraphNode.id);
-  }, [actionCatalog, edges, emitChange, nodes.length]);
+    focusNodeInViewport(nextGraphNode.id);
+  }, [
+    actionCatalog,
+    edges,
+    emitChange,
+    focusNodeInViewport,
+    getSpawnPosition,
+    nodes.length,
+  ]);
 
   const addWaitNode = useCallback(() => {
     const nextGraphNode: WorkflowBuilderNode = {
@@ -515,6 +616,7 @@ export function WorkflowBuilder({
         duration: "PT30M",
         offsetDirection: "after",
       },
+      position: getSpawnPosition(nodes.length),
     };
     const nextNode = toFlowNode(nextGraphNode, nodes.length, actionCatalog);
     setNodes((currentNodes) => {
@@ -523,13 +625,22 @@ export function WorkflowBuilder({
       return nextNodes;
     });
     setSelectedNodeId(nextGraphNode.id);
-  }, [actionCatalog, edges, emitChange, nodes.length]);
+    focusNodeInViewport(nextGraphNode.id);
+  }, [
+    actionCatalog,
+    edges,
+    emitChange,
+    focusNodeInViewport,
+    getSpawnPosition,
+    nodes.length,
+  ]);
 
   const addTerminalNode = useCallback(() => {
     const nextGraphNode: WorkflowBuilderNode = {
       id: createNodeId("terminal"),
       kind: "terminal",
       terminalType: "complete",
+      position: getSpawnPosition(nodes.length),
     };
     const nextNode = toFlowNode(nextGraphNode, nodes.length, actionCatalog);
     setNodes((currentNodes) => {
@@ -538,7 +649,15 @@ export function WorkflowBuilder({
       return nextNodes;
     });
     setSelectedNodeId(nextGraphNode.id);
-  }, [actionCatalog, edges, emitChange, nodes.length]);
+    focusNodeInViewport(nextGraphNode.id);
+  }, [
+    actionCatalog,
+    edges,
+    emitChange,
+    focusNodeInViewport,
+    getSpawnPosition,
+    nodes.length,
+  ]);
 
   const updateSelectedNode = useCallback(
     (updater: (node: WorkflowBuilderNode) => WorkflowBuilderNode) => {
@@ -572,10 +691,23 @@ export function WorkflowBuilder({
   return (
     <div className="grid h-full min-h-[560px] grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr)_280px]">
       <div className="relative overflow-hidden rounded-lg border border-border">
-        <ReactFlow
+        <ReactFlow<BuilderNode>
           nodes={nodes}
           edges={edges}
           nodeTypes={NODE_TYPES}
+          onInit={setReactFlowInstance}
+          defaultEdgeOptions={{
+            type: "smoothstep",
+            animated: false,
+            style: {
+              stroke: "hsl(var(--muted-foreground) / 0.45)",
+              strokeWidth: 2,
+            },
+          }}
+          connectionLineStyle={{
+            stroke: "hsl(var(--primary))",
+            strokeWidth: 2,
+          }}
           {...editableFlowHandlers}
           onSelectionChange={(selection) => {
             const selected = selection.nodes[0];
@@ -583,16 +715,20 @@ export function WorkflowBuilder({
           }}
           fitView
         >
-          <Background />
+          <Background
+            gap={18}
+            size={1}
+            color="hsl(var(--muted-foreground) / 0.22)"
+          />
           <MiniMap />
           <Controls />
         </ReactFlow>
 
         {!readOnly ? (
-          <div className="absolute left-3 top-3 z-10 flex gap-2">
+          <div className="absolute left-3 top-3 z-10 flex flex-wrap gap-2">
             <button
               type="button"
-              className="rounded-md border border-border bg-background px-2 py-1 text-xs"
+              className="rounded-lg border border-border bg-background px-2.5 py-1.5 text-xs font-medium shadow-sm"
               onClick={addActionNode}
               disabled={actionCatalog.length === 0}
             >
@@ -600,18 +736,53 @@ export function WorkflowBuilder({
             </button>
             <button
               type="button"
-              className="rounded-md border border-border bg-background px-2 py-1 text-xs"
+              className="rounded-lg border border-border bg-background px-2.5 py-1.5 text-xs font-medium shadow-sm"
               onClick={addWaitNode}
             >
               Add Wait
             </button>
             <button
               type="button"
-              className="rounded-md border border-border bg-background px-2 py-1 text-xs"
+              className="rounded-lg border border-border bg-background px-2.5 py-1.5 text-xs font-medium shadow-sm"
               onClick={addTerminalNode}
             >
               Add Terminal
             </button>
+          </div>
+        ) : null}
+
+        {!readOnly && nodes.length === 0 ? (
+          <div className="pointer-events-none absolute inset-0 z-[5] flex items-center justify-center px-4">
+            <div className="pointer-events-auto w-full max-w-md rounded-xl border border-border bg-background/95 p-4 text-center shadow-sm backdrop-blur-sm">
+              <p className="text-sm font-semibold">Start your workflow</p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Add a first node to begin building the flow.
+              </p>
+              <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
+                <button
+                  type="button"
+                  className="rounded-lg border border-border bg-background px-3 py-1.5 text-xs font-medium shadow-sm"
+                  onClick={addActionNode}
+                  disabled={actionCatalog.length === 0}
+                >
+                  Add Action
+                </button>
+                <button
+                  type="button"
+                  className="rounded-lg border border-border bg-background px-3 py-1.5 text-xs font-medium shadow-sm"
+                  onClick={addWaitNode}
+                >
+                  Add Wait
+                </button>
+                <button
+                  type="button"
+                  className="rounded-lg border border-border bg-background px-3 py-1.5 text-xs font-medium shadow-sm"
+                  onClick={addTerminalNode}
+                >
+                  Add Terminal
+                </button>
+              </div>
+            </div>
           </div>
         ) : null}
       </div>
