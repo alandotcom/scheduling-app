@@ -4,8 +4,11 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Add01Icon } from "@hugeicons/core-free-icons";
 import { toast } from "sonner";
 
-import type { WorkflowDefinitionStatus } from "@scheduling/dto";
-import { workflowKitDocumentSchema } from "@scheduling/dto";
+import type {
+  WebhookEventType,
+  WorkflowDefinitionStatus,
+} from "@scheduling/dto";
+import { webhookEventTypes } from "@scheduling/dto";
 import { EntityModal } from "@/components/entity-modal";
 import { PageHeader, PageScaffold } from "@/components/layout/page-scaffold";
 import { Badge } from "@/components/ui/badge";
@@ -35,16 +38,19 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Textarea } from "@/components/ui/textarea";
 import { formatDisplayDateTime } from "@/lib/date-utils";
 import { getQueryClient, orpc } from "@/lib/query";
 import { swallowIgnorableRouteLoaderError } from "@/lib/query-cancellation";
 
-const DEFAULT_WORKFLOW_KIT_JSON = `{
-  "trigger": {
-    "event": "appointment.created"
-  }
-}`;
+const DEFAULT_WORKFLOW_DRAFT = {
+  trigger: {
+    event: webhookEventTypes[0],
+  },
+  workflow: {
+    actions: [],
+    edges: [],
+  },
+} as const;
 
 type StatusFilter = WorkflowDefinitionStatus | "all";
 
@@ -69,23 +75,8 @@ function runStatusBadgeVariant(
   return "outline";
 }
 
-function parseWorkflowKitText(text: string) {
-  try {
-    const parsed = JSON.parse(text);
-    const result = workflowKitDocumentSchema.safeParse(parsed);
-    if (!result.success) {
-      return {
-        ok: false as const,
-        message: "WorkflowKit JSON must be a valid object.",
-      };
-    }
-    return { ok: true as const, value: result.data };
-  } catch {
-    return {
-      ok: false as const,
-      message: "WorkflowKit JSON is invalid.",
-    };
-  }
+function isWebhookEventType(value: string): value is WebhookEventType {
+  return webhookEventTypes.some((eventType) => eventType === value);
 }
 
 function WorkflowsIndexPage() {
@@ -98,10 +89,8 @@ function WorkflowsIndexPage() {
   const [newKey, setNewKey] = useState("");
   const [newName, setNewName] = useState("");
   const [newDescription, setNewDescription] = useState("");
-  const [newWorkflowKitText, setNewWorkflowKitText] = useState(
-    DEFAULT_WORKFLOW_KIT_JSON,
-  );
-  const [draftParseError, setDraftParseError] = useState<string | null>(null);
+  const [newTriggerEventType, setNewTriggerEventType] =
+    useState<WebhookEventType>(webhookEventTypes[0]);
   const [cancellingRunId, setCancellingRunId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -135,11 +124,10 @@ function WorkflowsIndexPage() {
         await queryClient.invalidateQueries({ queryKey: orpc.workflows.key() });
         toast.success("Workflow created");
         setShowCreateModal(false);
-        setDraftParseError(null);
         setNewKey("");
         setNewName("");
         setNewDescription("");
-        setNewWorkflowKitText(DEFAULT_WORKFLOW_KIT_JSON);
+        setNewTriggerEventType(webhookEventTypes[0]);
         await navigate({
           to: "/workflows/$workflowId",
           params: { workflowId: definition.id },
@@ -203,25 +191,21 @@ function WorkflowsIndexPage() {
       return;
     }
 
-    const parsedDraft = parseWorkflowKitText(newWorkflowKitText);
-    if (!parsedDraft.ok) {
-      setDraftParseError(parsedDraft.message);
-      return;
-    }
-    setDraftParseError(null);
-
     createDefinitionMutation.mutate({
       key,
       name,
       description: description || undefined,
-      workflowKit: parsedDraft.value,
+      workflowKit: {
+        ...DEFAULT_WORKFLOW_DRAFT,
+        trigger: { event: newTriggerEventType },
+      },
     });
   }, [
     createDefinitionMutation,
     newDescription,
     newKey,
     newName,
-    newWorkflowKitText,
+    newTriggerEventType,
   ]);
 
   return (
@@ -451,9 +435,6 @@ function WorkflowsIndexPage() {
         open={showCreateModal}
         onOpenChange={(open) => {
           setShowCreateModal(open);
-          if (!open) {
-            setDraftParseError(null);
-          }
         }}
         title="Create Workflow"
         description="Create a workflow definition and start a draft."
@@ -488,16 +469,29 @@ function WorkflowsIndexPage() {
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="workflow-kit-json">WorkflowKit JSON</Label>
-            <Textarea
-              id="workflow-kit-json"
-              value={newWorkflowKitText}
-              onChange={(event) => setNewWorkflowKitText(event.target.value)}
-              className="min-h-44 font-mono text-xs"
-            />
-            {draftParseError ? (
-              <p className="text-xs text-destructive">{draftParseError}</p>
-            ) : null}
+            <Label htmlFor="workflow-trigger-event">Trigger Event</Label>
+            <Select
+              value={newTriggerEventType}
+              onValueChange={(value) => {
+                if (!value || !isWebhookEventType(value)) return;
+                setNewTriggerEventType(value);
+              }}
+            >
+              <SelectTrigger id="workflow-trigger-event">
+                {newTriggerEventType}
+              </SelectTrigger>
+              <SelectContent>
+                {webhookEventTypes.map((eventType) => (
+                  <SelectItem key={eventType} value={eventType}>
+                    {eventType}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              Graph actions are edited in the workflow detail editor after
+              creation.
+            </p>
           </div>
           <div className="flex items-center gap-3 pt-2">
             <Button

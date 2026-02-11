@@ -2,6 +2,11 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft01Icon, RefreshIcon } from "@hugeicons/core-free-icons";
+import type {
+  PublicEngineAction,
+  Workflow as WorkflowKitWorkflow,
+} from "@inngest/workflow-kit";
+import { Editor, Provider, Sidebar } from "@inngest/workflow-kit/ui";
 import { toast } from "sonner";
 
 import type {
@@ -36,10 +41,13 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Textarea } from "@/components/ui/textarea";
 import { formatDisplayDateTime } from "@/lib/date-utils";
 import { getQueryClient, orpc } from "@/lib/query";
 import { swallowIgnorableRouteLoaderError } from "@/lib/query-cancellation";
+// oxlint-disable-next-line import/no-unassigned-import
+import "@inngest/workflow-kit/ui/ui.css";
+// oxlint-disable-next-line import/no-unassigned-import
+import "@xyflow/react/dist/style.css";
 
 type WorkflowRunStatus =
   | "pending"
@@ -62,8 +70,36 @@ function runStatusBadgeVariant(status: WorkflowRunStatus) {
   return "outline";
 }
 
+const WORKFLOW_EDITOR_ACTIONS: PublicEngineAction[] = [
+  {
+    kind: "wait_for_event",
+    name: "Wait for Event",
+    description: "Pause until a matching event arrives.",
+  },
+  {
+    kind: "delay",
+    name: "Delay",
+    description: "Pause for a configured duration before continuing.",
+  },
+  {
+    kind: "send_notification",
+    name: "Send Notification",
+    description: "Trigger an outbound notification or integration action.",
+  },
+];
+
+const EMPTY_WORKFLOW: WorkflowKitWorkflow = {
+  actions: [],
+  edges: [],
+};
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
+}
+
+function isWorkflowKitWorkflow(value: unknown): value is WorkflowKitWorkflow {
+  if (!isRecord(value)) return false;
+  return Array.isArray(value["actions"]) && Array.isArray(value["edges"]);
 }
 
 function stableStringify(value: unknown): string {
@@ -84,23 +120,58 @@ function stableStringify(value: unknown): string {
   return JSON.stringify(value);
 }
 
-function parseWorkflowKitText(text: string) {
-  try {
-    const parsed = JSON.parse(text);
-    const result = workflowKitDocumentSchema.safeParse(parsed);
-    if (!result.success) {
-      return {
-        ok: false as const,
-        message: "WorkflowKit JSON must be a valid object.",
-      };
-    }
-    return { ok: true as const, value: result.data };
-  } catch {
-    return {
-      ok: false as const,
-      message: "WorkflowKit JSON is invalid.",
-    };
+function getWorkflowFromDraft(workflowKit: Record<string, unknown>) {
+  const candidate = workflowKit["workflow"];
+  if (!isWorkflowKitWorkflow(candidate)) {
+    return EMPTY_WORKFLOW;
   }
+
+  return {
+    ...candidate,
+    actions: [...candidate.actions],
+    edges: [...candidate.edges],
+  };
+}
+
+function getTriggerEventTypeFromDraft(
+  workflowKit: Record<string, unknown>,
+  fallback: WebhookEventType,
+): WebhookEventType {
+  const candidate = workflowKit["trigger"];
+  if (!isRecord(candidate)) return fallback;
+  const eventType = candidate["event"];
+  return typeof eventType === "string" && isWebhookEventType(eventType)
+    ? eventType
+    : fallback;
+}
+
+function withDraftTriggerEventType(
+  workflowKit: Record<string, unknown>,
+  eventType: WebhookEventType,
+): Record<string, unknown> {
+  const currentTrigger = workflowKit["trigger"];
+  const nextTrigger = isRecord(currentTrigger)
+    ? { ...currentTrigger, event: eventType }
+    : { event: eventType };
+
+  return {
+    ...workflowKit,
+    trigger: nextTrigger,
+  };
+}
+
+function withDraftWorkflow(
+  workflowKit: Record<string, unknown>,
+  workflow: WorkflowKitWorkflow,
+): Record<string, unknown> {
+  return {
+    ...workflowKit,
+    workflow: {
+      ...workflow,
+      actions: [...workflow.actions],
+      edges: [...workflow.edges],
+    },
+  };
 }
 
 function isWebhookEventType(value: string): value is WebhookEventType {
@@ -110,7 +181,9 @@ function isWebhookEventType(value: string): value is WebhookEventType {
 function WorkflowDetailPage() {
   const queryClient = useQueryClient();
   const { workflowId } = Route.useParams();
-  const [draftText, setDraftText] = useState("{}");
+  const [draftWorkflowKit, setDraftWorkflowKit] = useState<
+    Record<string, unknown>
+  >({});
   const [draftError, setDraftError] = useState<string | null>(null);
   const [validationResult, setValidationResult] =
     useState<WorkflowValidationResult | null>(null);
@@ -148,7 +221,7 @@ function WorkflowDetailPage() {
 
   useEffect(() => {
     if (!definition) return;
-    setDraftText(JSON.stringify(definition.draftWorkflowKit, null, 2));
+    setDraftWorkflowKit(definition.draftWorkflowKit);
     setDraftError(null);
   }, [definition?.id, definition?.draftRevision]);
 
@@ -159,23 +232,38 @@ function WorkflowDetailPage() {
   }, [runs, selectedRunId]);
 
   const parsedDraft = useMemo(
-    () => parseWorkflowKitText(draftText),
-    [draftText],
+    () => workflowKitDocumentSchema.safeParse(draftWorkflowKit),
+    [draftWorkflowKit],
   );
   const isDraftDirty = useMemo(() => {
     if (!definition) return false;
-    if (!parsedDraft.ok) return true;
+    if (!parsedDraft.success) return true;
     return (
-      stableStringify(parsedDraft.value) !==
+      stableStringify(parsedDraft.data) !==
       stableStringify(definition.draftWorkflowKit)
     );
   }, [definition, parsedDraft]);
+  const triggerEventType = useMemo(
+    () =>
+      getTriggerEventTypeFromDraft(
+        parsedDraft.success ? parsedDraft.data : draftWorkflowKit,
+        definition?.bindings[0]?.eventType ?? webhookEventTypes[0],
+      ),
+    [definition, draftWorkflowKit, parsedDraft],
+  );
+  const workflowGraph = useMemo(
+    () =>
+      getWorkflowFromDraft(
+        parsedDraft.success ? parsedDraft.data : draftWorkflowKit,
+      ),
+    [draftWorkflowKit, parsedDraft],
+  );
 
   const updateDraftMutation = useMutation(
     orpc.workflows.updateDraft.mutationOptions({
       onSuccess: async (updated) => {
         await queryClient.invalidateQueries({ queryKey: orpc.workflows.key() });
-        setDraftText(JSON.stringify(updated.draftWorkflowKit, null, 2));
+        setDraftWorkflowKit(updated.draftWorkflowKit);
         setValidationResult(null);
         toast.success("Draft saved");
       },
@@ -258,9 +346,9 @@ function WorkflowDetailPage() {
 
   const ensureSavedDraft = useCallback(async () => {
     if (!definition) return { ok: false as const };
-    const parsed = parseWorkflowKitText(draftText);
-    if (!parsed.ok) {
-      setDraftError(parsed.message);
+    const parsed = workflowKitDocumentSchema.safeParse(draftWorkflowKit);
+    if (!parsed.success) {
+      setDraftError("Workflow draft is invalid.");
       return { ok: false as const };
     }
 
@@ -272,14 +360,20 @@ function WorkflowDetailPage() {
     try {
       const updated = await updateDraftMutation.mutateAsync({
         id: workflowId,
-        workflowKit: parsed.value,
+        workflowKit: parsed.data,
         expectedRevision: definition.draftRevision,
       });
       return { ok: true as const, revision: updated.draftRevision };
     } catch {
       return { ok: false as const };
     }
-  }, [definition, draftText, isDraftDirty, updateDraftMutation, workflowId]);
+  }, [
+    definition,
+    draftWorkflowKit,
+    isDraftDirty,
+    updateDraftMutation,
+    workflowId,
+  ]);
 
   const handleSaveDraft = useCallback(async () => {
     const result = await ensureSavedDraft();
@@ -356,23 +450,66 @@ function WorkflowDetailPage() {
         <CardHeader className="border-b">
           <CardTitle>Draft WorkflowKit</CardTitle>
           <CardDescription>
-            Edit JSON, validate, and publish new workflow revisions.
+            Edit visually, validate, and publish new workflow revisions.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4 py-4">
-          <Textarea
-            value={draftText}
-            onChange={(event) => {
-              setDraftText(event.target.value);
-              setDraftError(null);
-            }}
-            className="min-h-72 font-mono text-xs"
-          />
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-[220px_minmax(0,1fr)] md:items-center">
+            <span className="text-sm font-medium">Trigger event</span>
+            <Select
+              value={triggerEventType}
+              onValueChange={(value) => {
+                if (!value || !isWebhookEventType(value)) return;
+                setDraftWorkflowKit((current) =>
+                  withDraftTriggerEventType(current, value),
+                );
+                setDraftError(null);
+                setValidationResult(null);
+              }}
+            >
+              <SelectTrigger>{triggerEventType}</SelectTrigger>
+              <SelectContent>
+                {webhookEventTypes.map((eventType) => (
+                  <SelectItem key={eventType} value={eventType}>
+                    {eventType}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="h-[560px] overflow-hidden rounded-lg border border-border">
+            <Provider
+              key={`${definition.id}:${definition.draftRevision}:${triggerEventType}`}
+              workflow={workflowGraph}
+              trigger={{
+                event: {
+                  name: triggerEventType,
+                },
+              }}
+              availableActions={WORKFLOW_EDITOR_ACTIONS}
+              onChange={(updatedWorkflow) => {
+                setDraftWorkflowKit((current) =>
+                  withDraftWorkflow(
+                    withDraftTriggerEventType(current, triggerEventType),
+                    updatedWorkflow,
+                  ),
+                );
+                setDraftError(null);
+                setValidationResult(null);
+              }}
+            >
+              <Editor>
+                <Sidebar position="right" />
+              </Editor>
+            </Provider>
+          </div>
           {draftError ? (
             <p className="text-sm text-destructive">{draftError}</p>
           ) : null}
-          {!parsedDraft.ok && !draftError ? (
-            <p className="text-sm text-destructive">{parsedDraft.message}</p>
+          {!parsedDraft.success && !draftError ? (
+            <p className="text-sm text-destructive">
+              Workflow draft is invalid.
+            </p>
           ) : null}
           <div className="flex flex-wrap items-center gap-2">
             <Button
