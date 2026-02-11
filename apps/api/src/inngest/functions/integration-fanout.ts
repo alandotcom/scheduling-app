@@ -1,14 +1,9 @@
 import { forEachAsync } from "es-toolkit/array";
-import type {
-  AnyDomainEvent,
-  DomainEvent,
-  IntegrationConsumer,
-} from "@integrations/core";
+import type { AnyDomainEvent, IntegrationConsumer } from "@integrations/core";
 import { integrationSupportsEvent } from "@integrations/core";
 import {
   webhookEventDataSchemaByType,
   webhookEventTypes,
-  type WebhookEventData,
   type WebhookEventType,
 } from "@scheduling/dto";
 import { getEnabledIntegrationsForOrg } from "../../services/integrations/runtime.js";
@@ -18,13 +13,19 @@ type ResolveIntegrations = (
   orgId: string,
 ) => Promise<readonly IntegrationConsumer[]>;
 
-function parseWebhookPayload<TEventType extends WebhookEventType>(
-  eventType: TEventType,
-  payloadInput: unknown,
-): WebhookEventData<TEventType> {
-  return webhookEventDataSchemaByType[eventType].parse(
-    payloadInput,
-  ) as WebhookEventData<TEventType>;
+type DomainEventCandidate = {
+  id: string;
+  type: WebhookEventType;
+  orgId: string;
+  payload: unknown;
+  timestamp: string;
+};
+
+function isAnyDomainEvent(
+  event: DomainEventCandidate,
+): event is AnyDomainEvent {
+  return webhookEventDataSchemaByType[event.type].safeParse(event.payload)
+    .success;
 }
 
 export function createIntegrationFanoutFunction<
@@ -41,14 +42,19 @@ export function createIntegrationFanoutFunction<
     { event: eventType },
     async ({ event, step }) => {
       const { orgId, ...payloadInput } = event.data;
-      const payload = parseWebhookPayload(eventType, payloadInput);
-      const domainEvent: DomainEvent<TEventType> = {
+      const domainEventCandidate: DomainEventCandidate = {
         id: event.id ?? Bun.randomUUIDv7(),
         type: eventType,
         orgId,
-        payload,
         timestamp: new Date(event.ts ?? Date.now()).toISOString(),
+        payload: payloadInput,
       };
+
+      if (!isAnyDomainEvent(domainEventCandidate)) {
+        throw new Error(`Invalid payload for event type "${eventType}".`);
+      }
+
+      const domainEvent = domainEventCandidate;
 
       const dispatchedIntegrationNames = await step.run(
         "dispatch-integrations",
@@ -61,7 +67,7 @@ export function createIntegrationFanoutFunction<
           await forEachAsync(
             targetIntegrations,
             async (integration) => {
-              await integration.process(domainEvent as AnyDomainEvent);
+              await integration.process(domainEvent);
             },
             { concurrency: 1 },
           );

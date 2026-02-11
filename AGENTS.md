@@ -154,6 +154,15 @@ Dependency classification rule:
 - Root `tsconfig.json` intentionally does **not** define Bun global types.
 - Bun runtime packages (`apps/api`, `packages/db`, `packages/dto`) declare `@types/bun` in their own workspace `tsconfig.json` and `package.json`.
 
+## TypeScript Event Typing
+
+- For event models with a discriminator (`type`) and type-dependent payload, avoid using a generic over a union for the "any event" shape (for example `Event<EventType>`). This weakens narrowing and produces noisy IDE hovers.
+- Prefer a mapped discriminated union:
+  - `type EventByType = { [T in EventType]: BaseEvent & { type: T; payload: Payload<T> } }`
+  - `type AnyEvent = EventByType[EventType]`
+- Keep shared fields (`id`, `orgId`, `timestamp`) in a non-generic base type so hover info stays readable.
+- When converting unknown input into a discriminated union, prefer a type guard with `safeParse` over unsafe `as` assertions.
+
 ## Collection Utilities
 
 - Prefer `es-toolkit` helpers for non-trivial collection transforms instead of custom async loops/reducers/object-mapping logic.
