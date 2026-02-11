@@ -506,7 +506,7 @@ export const workflowDefinitions = pgTable.withRLS(
     name: text("name").notNull(),
     description: text("description"),
     status: workflowDefinitionStatusEnum("status").notNull().default("draft"),
-    draftGraph: jsonb("draft_graph")
+    draftWorkflowKit: jsonb("draft_graph")
       .$type<Record<string, unknown>>()
       .notNull()
       .default({}),
@@ -539,8 +539,10 @@ export const workflowDefinitionVersions = pgTable.withRLS(
       .notNull()
       .references(() => workflowDefinitions.id, { onDelete: "cascade" }),
     version: integer("version").notNull(),
-    graphSchemaVersion: integer("graph_schema_version").notNull().default(1),
-    graph: jsonb("graph").$type<Record<string, unknown>>().notNull(),
+    workflowKitSchemaVersion: integer("graph_schema_version")
+      .notNull()
+      .default(1),
+    workflowKit: jsonb("graph").$type<Record<string, unknown>>().notNull(),
     compiledPlan: jsonb("compiled_plan")
       .$type<Record<string, unknown>>()
       .notNull()

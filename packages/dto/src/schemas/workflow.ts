@@ -23,52 +23,7 @@ export const workflowDefinitionStatusSchema = z.enum([
   "archived",
 ]);
 
-export const workflowNodeTypeSchema = z.enum(["trigger", "action", "control"]);
-
-export const workflowNodeSchema = z.object({
-  id: z.string().min(1),
-  nodeType: workflowNodeTypeSchema,
-  typeKey: z.string().min(1),
-  position: z.object({
-    x: z.number(),
-    y: z.number(),
-  }),
-  label: z.string().min(1).max(255).optional(),
-  enabled: z.boolean(),
-  config: z.record(z.string(), z.unknown()),
-  ui: z
-    .object({
-      width: z.number().positive().optional(),
-      collapsed: z.boolean().optional(),
-    })
-    .optional(),
-});
-
-export const workflowEdgeConditionSchema = z.object({
-  kind: z.enum(["always", "expression"]),
-  expression: z.string().min(1).optional(),
-});
-
-export const workflowEdgeSchema = z.object({
-  id: z.string().min(1),
-  sourceNodeId: z.string().min(1),
-  sourcePort: z.string().min(1),
-  targetNodeId: z.string().min(1),
-  targetPort: z.string().min(1),
-  condition: workflowEdgeConditionSchema.optional(),
-  priority: z.number().int().optional(),
-});
-
-export const workflowGraphDocumentSchema = z.object({
-  schemaVersion: z.literal(1),
-  metadata: z.object({
-    name: z.string().min(1).max(255),
-    description: z.string().max(2000).optional(),
-    timezone: z.string().min(1).optional(),
-  }),
-  nodes: z.array(workflowNodeSchema),
-  edges: z.array(workflowEdgeSchema),
-});
+export const workflowKitDocumentSchema = z.record(z.string(), z.unknown());
 
 export const workflowValidationIssueCodeSchema = z.enum([
   "MISSING_REQUIRED_FIELD",
@@ -111,8 +66,8 @@ export const workflowDefinitionVersionSchema = z.object({
   orgId: uuidSchema,
   definitionId: uuidSchema,
   version: z.number().int().positive(),
-  graphSchemaVersion: z.number().int().positive(),
-  graph: workflowGraphDocumentSchema,
+  workflowKitSchemaVersion: z.number().int().positive(),
+  workflowKit: workflowKitDocumentSchema,
   compiledPlan: z.record(z.string(), z.unknown()),
   checksum: z.string().min(1),
   createdBy: uuidSchema.nullable(),
@@ -131,7 +86,7 @@ export const workflowBindingSchema = z.object({
 
 export const workflowDefinitionDetailSchema =
   workflowDefinitionSummarySchema.extend({
-    draftGraph: workflowGraphDocumentSchema,
+    draftWorkflowKit: workflowKitDocumentSchema,
     activeVersion: workflowDefinitionVersionSchema.nullable(),
     bindings: z.array(workflowBindingSchema),
   });
@@ -177,11 +132,11 @@ export const createWorkflowDefinitionSchema = z.object({
   key: workflowKeySchema,
   name: z.string().min(1).max(255),
   description: z.string().max(2000).optional(),
-  graph: workflowGraphDocumentSchema.optional(),
+  workflowKit: workflowKitDocumentSchema.optional(),
 });
 
-export const updateWorkflowDraftGraphSchema = z.object({
-  graph: workflowGraphDocumentSchema,
+export const updateWorkflowDraftWorkflowKitSchema = z.object({
+  workflowKit: workflowKitDocumentSchema,
   expectedRevision: z.number().int().positive().optional(),
 });
 
@@ -215,12 +170,7 @@ export const cancelWorkflowRunResponseSchema = successResponseSchema;
 export type WorkflowDefinitionStatus = z.infer<
   typeof workflowDefinitionStatusSchema
 >;
-export type WorkflowNodeType = z.infer<typeof workflowNodeTypeSchema>;
-export type WorkflowNodeV1 = z.infer<typeof workflowNodeSchema>;
-export type WorkflowEdgeV1 = z.infer<typeof workflowEdgeSchema>;
-export type WorkflowGraphDocumentV1 = z.infer<
-  typeof workflowGraphDocumentSchema
->;
+export type WorkflowKitDocument = z.infer<typeof workflowKitDocumentSchema>;
 export type WorkflowValidationIssueCode = z.infer<
   typeof workflowValidationIssueCodeSchema
 >;
@@ -255,8 +205,8 @@ export type ListWorkflowDefinitionsQuery = z.infer<
 export type CreateWorkflowDefinitionInput = z.infer<
   typeof createWorkflowDefinitionSchema
 >;
-export type UpdateWorkflowDraftGraphInput = z.infer<
-  typeof updateWorkflowDraftGraphSchema
+export type UpdateWorkflowDraftWorkflowKitInput = z.infer<
+  typeof updateWorkflowDraftWorkflowKitSchema
 >;
 export type ValidateWorkflowDraftInput = z.infer<
   typeof validateWorkflowDraftInputSchema
