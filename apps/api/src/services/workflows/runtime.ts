@@ -55,6 +55,7 @@ export type WorkflowCorrelatedEntityLoadResult =
       status: "found";
       entityType: string;
       entityId: string;
+      entity: Record<string, unknown>;
     }
   | {
       status: "missing";
@@ -342,124 +343,76 @@ export async function loadWorkflowCorrelatedEntity(input: {
   entityId: string;
 }): Promise<WorkflowCorrelatedEntityLoadResult> {
   return withOrg(input.orgId, async (tx) => {
+    const found = (entity: Record<string, unknown>) => ({
+      status: "found" as const,
+      entityType: input.entityType,
+      entityId: input.entityId,
+      entity,
+    });
+    const missing = () => ({
+      status: "missing" as const,
+      entityType: input.entityType,
+      entityId: input.entityId,
+    });
+
     if (input.entityType === "appointment") {
       const [row] = await tx
-        .select({ id: appointments.id })
+        .select()
         .from(appointments)
         .where(eq(appointments.id, input.entityId))
         .limit(1);
 
-      return row
-        ? {
-            status: "found" as const,
-            entityType: input.entityType,
-            entityId: input.entityId,
-          }
-        : {
-            status: "missing" as const,
-            entityType: input.entityType,
-            entityId: input.entityId,
-          };
+      return row ? found(row) : missing();
     }
 
     if (input.entityType === "calendar") {
       const [row] = await tx
-        .select({ id: calendars.id })
+        .select()
         .from(calendars)
         .where(eq(calendars.id, input.entityId))
         .limit(1);
 
-      return row
-        ? {
-            status: "found" as const,
-            entityType: input.entityType,
-            entityId: input.entityId,
-          }
-        : {
-            status: "missing" as const,
-            entityType: input.entityType,
-            entityId: input.entityId,
-          };
+      return row ? found(row) : missing();
     }
 
     if (input.entityType === "appointment_type") {
       const [row] = await tx
-        .select({ id: appointmentTypes.id })
+        .select()
         .from(appointmentTypes)
         .where(eq(appointmentTypes.id, input.entityId))
         .limit(1);
 
-      return row
-        ? {
-            status: "found" as const,
-            entityType: input.entityType,
-            entityId: input.entityId,
-          }
-        : {
-            status: "missing" as const,
-            entityType: input.entityType,
-            entityId: input.entityId,
-          };
+      return row ? found(row) : missing();
     }
 
     if (input.entityType === "resource") {
       const [row] = await tx
-        .select({ id: resources.id })
+        .select()
         .from(resources)
         .where(eq(resources.id, input.entityId))
         .limit(1);
 
-      return row
-        ? {
-            status: "found" as const,
-            entityType: input.entityType,
-            entityId: input.entityId,
-          }
-        : {
-            status: "missing" as const,
-            entityType: input.entityType,
-            entityId: input.entityId,
-          };
+      return row ? found(row) : missing();
     }
 
     if (input.entityType === "location") {
       const [row] = await tx
-        .select({ id: locations.id })
+        .select()
         .from(locations)
         .where(eq(locations.id, input.entityId))
         .limit(1);
 
-      return row
-        ? {
-            status: "found" as const,
-            entityType: input.entityType,
-            entityId: input.entityId,
-          }
-        : {
-            status: "missing" as const,
-            entityType: input.entityType,
-            entityId: input.entityId,
-          };
+      return row ? found(row) : missing();
     }
 
     if (input.entityType === "client") {
       const [row] = await tx
-        .select({ id: clients.id })
+        .select()
         .from(clients)
         .where(eq(clients.id, input.entityId))
         .limit(1);
 
-      return row
-        ? {
-            status: "found" as const,
-            entityType: input.entityType,
-            entityId: input.entityId,
-          }
-        : {
-            status: "missing" as const,
-            entityType: input.entityType,
-            entityId: input.entityId,
-          };
+      return row ? found(row) : missing();
     }
 
     return {

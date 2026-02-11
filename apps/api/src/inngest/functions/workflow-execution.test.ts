@@ -18,6 +18,7 @@ describe("workflow execution function", () => {
       status: "found" as const,
       entityType: "client",
       entityId: "0198d09f-ff07-7f46-a5d9-26a3f0d96003",
+      entity: {},
     }));
     const recordDeliveryWithGuard = mock(async () => "recorded" as const);
     const markRunStatus = mock(async () => {});
@@ -117,6 +118,7 @@ describe("workflow execution function", () => {
       status: "found" as const,
       entityType: "client",
       entityId: "0198d09f-ff07-7f46-a5d9-26a3f0d96013",
+      entity: {},
     }));
     const recordDeliveryWithGuard = mock(async () => "recorded" as const);
     const markRunStatus = mock(async () => {});
@@ -180,6 +182,7 @@ describe("workflow execution function", () => {
       status: "found" as const,
       entityType: "client",
       entityId: "0198d09f-ff07-7f46-a5d9-26a3f0d96023",
+      entity: {},
     }));
     const recordDeliveryWithGuard = mock(async () => "guard_blocked" as const);
     const markRunStatus = mock(async () => {});
@@ -332,6 +335,7 @@ describe("workflow execution function", () => {
       status: "found" as const,
       entityType: "client",
       entityId: "0198d09f-ff07-7f46-a5d9-26a3f0d96041",
+      entity: {},
     }));
     const recordDeliveryWithGuard = mock(async () => "recorded" as const);
     const markRunStatus = mock(async () => {});
@@ -405,6 +409,7 @@ describe("workflow execution function", () => {
       status: "found" as const,
       entityType: "client",
       entityId: "0198d09f-ff07-7f46-a5d9-26a3f0d96051",
+      entity: {},
     }));
     const recordDeliveryWithGuard = mock(async () => "recorded" as const);
     const markRunStatus = mock(async () => {});
@@ -458,6 +463,175 @@ describe("workflow execution function", () => {
     expect(recordDeliveryWithGuard).toHaveBeenCalledTimes(0);
   });
 
+  test("skips action delivery when node guard does not match latest model", async () => {
+    const recordRunStart = mock(async () => {});
+    const cancelReplacedRuns = mock(async () => 0);
+    const getRunGuard = mock(async () => ({
+      runRevision: 1,
+      runStatus: "running" as const,
+    }));
+    const loadCompiledPlan = mock(async () => ({
+      planVersion: 1,
+      entryNodeIds: ["node_a"],
+      nodes: [
+        {
+          id: "node_a",
+          kind: "action",
+          channel: "workflow.runtime",
+          guard: {
+            combinator: "all",
+            conditions: [
+              {
+                field: "client.email",
+                operator: "exists",
+              },
+            ],
+          },
+        },
+      ],
+      edges: [],
+    }));
+    const loadCorrelatedEntity = mock(async () => ({
+      status: "found" as const,
+      entityType: "client",
+      entityId: "0198d09f-ff07-7f46-a5d9-26a3f0d96054",
+      entity: {
+        email: null,
+      },
+    }));
+    const recordDeliveryWithGuard = mock(async () => "recorded" as const);
+    const markRunStatus = mock(async () => {});
+
+    const fn = createWorkflowExecutionFunction({
+      recordRunStart,
+      cancelReplacedRuns,
+      getRunGuard,
+      loadCompiledPlan,
+      loadCorrelatedEntity,
+      recordDeliveryWithGuard,
+      markRunStatus,
+    });
+    const t = new InngestTestEngine({ function: fn });
+
+    const { result } = await t.execute({
+      events: [
+        {
+          name: "scheduling/workflow.triggered",
+          data: {
+            orgId: "org_6",
+            workflow: {
+              definitionId: "0198d09f-ff07-7f46-a5d9-26a3f0d96055",
+              versionId: "0198d09f-ff07-7f46-a5d9-26a3f0d96056",
+              workflowType: "follow-up",
+            },
+            sourceEvent: {
+              id: "evt_6_guard_skip",
+              type: "client.updated",
+              timestamp: "2026-02-11T12:00:00.000Z",
+              payload: {
+                clientId: "0198d09f-ff07-7f46-a5d9-26a3f0d96054",
+              },
+            },
+            entity: {
+              type: "client",
+              id: "0198d09f-ff07-7f46-a5d9-26a3f0d96054",
+            },
+          },
+        },
+      ],
+    });
+
+    expect(result).toMatchObject({
+      orgId: "org_6",
+      status: "completed",
+    });
+    expect(loadCorrelatedEntity).toHaveBeenCalledTimes(1);
+    expect(recordDeliveryWithGuard).toHaveBeenCalledTimes(0);
+  });
+
+  test("uses latest model lookup for reference-based wait nodes", async () => {
+    const recordRunStart = mock(async () => {});
+    const cancelReplacedRuns = mock(async () => 0);
+    const getRunGuard = mock(async () => ({
+      runRevision: 1,
+      runStatus: "running" as const,
+    }));
+    const loadCompiledPlan = mock(async () => ({
+      planVersion: 1,
+      entryNodeIds: ["node_wait"],
+      nodes: [
+        {
+          id: "node_wait",
+          kind: "wait",
+          wait: {
+            mode: "relative",
+            duration: "PT1S",
+            referenceField: "appointment.startsAt",
+            offsetDirection: "before",
+          },
+        },
+        { id: "node_action", kind: "action", channel: "workflow.runtime" },
+      ],
+      edges: [{ id: "edge_1", source: "node_wait", target: "node_action" }],
+    }));
+    const loadCorrelatedEntity = mock(async () => ({
+      status: "found" as const,
+      entityType: "appointment",
+      entityId: "0198d09f-ff07-7f46-a5d9-26a3f0d96057",
+      entity: {
+        startsAt: new Date(Date.now() + 1_000).toISOString(),
+      },
+    }));
+    const recordDeliveryWithGuard = mock(async () => "recorded" as const);
+    const markRunStatus = mock(async () => {});
+
+    const fn = createWorkflowExecutionFunction({
+      recordRunStart,
+      cancelReplacedRuns,
+      getRunGuard,
+      loadCompiledPlan,
+      loadCorrelatedEntity,
+      recordDeliveryWithGuard,
+      markRunStatus,
+    });
+    const t = new InngestTestEngine({ function: fn });
+
+    const { result } = await t.execute({
+      events: [
+        {
+          name: "scheduling/workflow.triggered",
+          data: {
+            orgId: "org_6",
+            workflow: {
+              definitionId: "0198d09f-ff07-7f46-a5d9-26a3f0d96058",
+              versionId: "0198d09f-ff07-7f46-a5d9-26a3f0d96059",
+              workflowType: "appointment-reminder",
+            },
+            sourceEvent: {
+              id: "evt_6_wait_reference",
+              type: "appointment.updated",
+              timestamp: "2026-02-11T12:00:00.000Z",
+              payload: {
+                appointmentId: "0198d09f-ff07-7f46-a5d9-26a3f0d96057",
+              },
+            },
+            entity: {
+              type: "appointment",
+              id: "0198d09f-ff07-7f46-a5d9-26a3f0d96057",
+            },
+          },
+        },
+      ],
+    });
+
+    expect(result).toMatchObject({
+      orgId: "org_6",
+      status: "completed",
+    });
+    expect(loadCorrelatedEntity).toHaveBeenCalledTimes(2);
+    expect(recordDeliveryWithGuard).toHaveBeenCalledTimes(1);
+  });
+
   test("replacement allow_parallel skips cancelling active runs", async () => {
     const recordRunStart = mock(async () => {});
     const cancelReplacedRuns = mock(async () => 0);
@@ -476,6 +650,7 @@ describe("workflow execution function", () => {
       status: "found" as const,
       entityType: "client",
       entityId: "0198d09f-ff07-7f46-a5d9-26a3f0d96061",
+      entity: {},
     }));
     const recordDeliveryWithGuard = mock(async () => "recorded" as const);
     const markRunStatus = mock(async () => {});
@@ -545,6 +720,7 @@ describe("workflow execution function", () => {
       status: "found" as const,
       entityType: "client",
       entityId: "0198d09f-ff07-7f46-a5d9-26a3f0d96071",
+      entity: {},
     }));
     const recordDeliveryWithGuard = mock(async () => "recorded" as const);
     const markRunStatus = mock(async () => {});
@@ -623,6 +799,7 @@ describe("workflow execution function", () => {
       status: "found" as const,
       entityType: "client",
       entityId: "0198d09f-ff07-7f46-a5d9-26a3f0d96081",
+      entity: {},
     }));
     const recordDeliveryWithGuard = mock(async () => "recorded" as const);
     const markRunStatus = mock(async () => {});
