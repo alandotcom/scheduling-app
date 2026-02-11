@@ -47,8 +47,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { formatDisplayDateTime } from "@/lib/date-utils";
-import { getQueryClient, orpc } from "@/lib/query";
-import { swallowIgnorableRouteLoaderError } from "@/lib/query-cancellation";
+import { authClient } from "@/lib/auth-client";
+import { orpc } from "@/lib/query";
 // oxlint-disable-next-line import/no-unassigned-import
 import "@xyflow/react/dist/style.css";
 
@@ -80,6 +80,10 @@ function isWebhookEventType(value: string): value is WebhookEventType {
 function WorkflowDetailPage() {
   const queryClient = useQueryClient();
   const { workflowId } = Route.useParams();
+  const { data: session, isPending: isSessionPending } =
+    authClient.useSession();
+  const canQueryWorkflowData =
+    !isSessionPending && !!session?.session.activeOrganizationId;
   const [draftWorkflowKit, setDraftWorkflowKit] = useState<
     Record<string, unknown>
   >({});
@@ -97,6 +101,7 @@ function WorkflowDetailPage() {
     ...orpc.workflows.getDefinition.queryOptions({
       input: { id: workflowId },
     }),
+    enabled: canQueryWorkflowData,
     placeholderData: (previous) => previous,
   });
   const runsQuery = useQuery({
@@ -106,16 +111,18 @@ function WorkflowDetailPage() {
         limit: 50,
       },
     }),
+    enabled: canQueryWorkflowData,
     placeholderData: (previous) => previous,
   });
   const selectedRunQuery = useQuery({
     ...orpc.workflows.getRun.queryOptions({
       input: { runId: selectedRunId! },
     }),
-    enabled: !!selectedRunId,
+    enabled: canQueryWorkflowData && !!selectedRunId,
   });
   const catalogQuery = useQuery({
     ...orpc.workflows.catalog.queryOptions(),
+    enabled: canQueryWorkflowData,
     placeholderData: (previous) => previous,
   });
 
@@ -319,9 +326,19 @@ function WorkflowDetailPage() {
     });
   }, [ensureSavedDraft, publishMutation, workflowId]);
 
+  if (!canQueryWorkflowData) {
+    return (
+      <PageScaffold className="max-w-none">
+        <div className="text-sm text-muted-foreground">
+          Loading organization context...
+        </div>
+      </PageScaffold>
+    );
+  }
+
   if (definitionQuery.isLoading) {
     return (
-      <PageScaffold>
+      <PageScaffold className="max-w-none">
         <div className="text-sm text-muted-foreground">Loading workflow...</div>
       </PageScaffold>
     );
@@ -329,14 +346,14 @@ function WorkflowDetailPage() {
 
   if (definitionQuery.error || !definition) {
     return (
-      <PageScaffold>
+      <PageScaffold className="max-w-none">
         <div className="text-sm text-destructive">Workflow not found</div>
       </PageScaffold>
     );
   }
 
   return (
-    <PageScaffold>
+    <PageScaffold className="max-w-none">
       <PageHeader
         title={definition.name}
         description={definition.description ?? "No description"}
@@ -367,7 +384,7 @@ function WorkflowDetailPage() {
         )}
       </div>
 
-      <Card className="mt-6">
+      <Card className="mt-4">
         <CardHeader className="border-b">
           <CardTitle>Draft Workflow</CardTitle>
           <CardDescription>
@@ -375,30 +392,75 @@ function WorkflowDetailPage() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4 py-4">
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-[220px_minmax(0,1fr)] md:items-center">
-            <span className="text-sm font-medium">Trigger event</span>
-            <Select
-              value={triggerEventType}
-              onValueChange={(value) => {
-                if (!value || !isWebhookEventType(value)) return;
-                setDraftWorkflowKit((current) =>
-                  withDraftTriggerEventType(current, value),
-                );
-                setDraftError(null);
-                setValidationResult(null);
-              }}
-            >
-              <SelectTrigger>{triggerEventType}</SelectTrigger>
-              <SelectContent>
-                {availableTriggerEventTypes.map((eventType) => (
-                  <SelectItem key={eventType} value={eventType}>
-                    {eventType}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+          <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-[220px_minmax(0,1fr)] md:items-center xl:min-w-[34rem]">
+              <span className="text-sm font-medium">Trigger event</span>
+              <Select
+                value={triggerEventType}
+                onValueChange={(value) => {
+                  if (!value || !isWebhookEventType(value)) return;
+                  setDraftWorkflowKit((current) =>
+                    withDraftTriggerEventType(current, value),
+                  );
+                  setDraftError(null);
+                  setValidationResult(null);
+                }}
+              >
+                <SelectTrigger>{triggerEventType}</SelectTrigger>
+                <SelectContent>
+                  {availableTriggerEventTypes.map((eventType) => (
+                    <SelectItem key={eventType} value={eventType}>
+                      {eventType}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handleSaveDraft}
+                disabled={
+                  updateDraftMutation.isPending || publishMutation.isPending
+                }
+              >
+                {updateDraftMutation.isPending ? "Saving..." : "Save Draft"}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handleValidateDraft}
+                disabled={
+                  updateDraftMutation.isPending ||
+                  validateMutation.isPending ||
+                  publishMutation.isPending
+                }
+              >
+                {validateMutation.isPending ? "Validating..." : "Validate"}
+              </Button>
+              <Button
+                type="button"
+                onClick={handlePublishDraft}
+                disabled={
+                  updateDraftMutation.isPending ||
+                  publishMutation.isPending ||
+                  validateMutation.isPending
+                }
+              >
+                {publishMutation.isPending ? "Publishing..." : "Publish Draft"}
+              </Button>
+              {isDraftDirty ? (
+                <Badge variant="warning">Unsaved changes</Badge>
+              ) : (
+                <Badge variant="success">Saved</Badge>
+              )}
+            </div>
           </div>
-          <div className="h-[560px] overflow-hidden rounded-lg border border-border">
+          <div
+            className="overflow-hidden rounded-lg border border-border"
+            style={{ minHeight: "40rem", height: "calc(100dvh - 21rem)" }}
+          >
             <WorkflowBuilder
               document={workflowGraph}
               actionCatalog={catalogQuery.data?.actions ?? []}
@@ -422,46 +484,6 @@ function WorkflowDetailPage() {
               Workflow draft is invalid.
             </p>
           ) : null}
-          <div className="flex flex-wrap items-center gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={handleSaveDraft}
-              disabled={
-                updateDraftMutation.isPending || publishMutation.isPending
-              }
-            >
-              {updateDraftMutation.isPending ? "Saving..." : "Save Draft"}
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={handleValidateDraft}
-              disabled={
-                updateDraftMutation.isPending ||
-                validateMutation.isPending ||
-                publishMutation.isPending
-              }
-            >
-              {validateMutation.isPending ? "Validating..." : "Validate"}
-            </Button>
-            <Button
-              type="button"
-              onClick={handlePublishDraft}
-              disabled={
-                updateDraftMutation.isPending ||
-                publishMutation.isPending ||
-                validateMutation.isPending
-              }
-            >
-              {publishMutation.isPending ? "Publishing..." : "Publish Draft"}
-            </Button>
-            {isDraftDirty ? (
-              <Badge variant="warning">Unsaved changes</Badge>
-            ) : (
-              <Badge variant="success">Saved</Badge>
-            )}
-          </div>
           {validationResult ? (
             <div className="rounded-lg border border-border bg-muted/20 p-3">
               <p className="text-sm font-medium">
@@ -490,313 +512,303 @@ function WorkflowDetailPage() {
         </CardContent>
       </Card>
 
-      <Card className="mt-6">
-        <CardHeader className="border-b">
-          <CardTitle>Event Bindings</CardTitle>
-          <CardDescription>
-            Attach webhook event types to this workflow definition.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4 py-4">
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr)_auto_auto] md:items-center">
-            <Select
-              value={bindingEventType}
-              onValueChange={(value) => {
-                if (!value || !isWebhookEventType(value)) return;
-                setBindingEventType(value);
-              }}
-            >
-              <SelectTrigger>{bindingEventType}</SelectTrigger>
-              <SelectContent>
-                {availableTriggerEventTypes.map((eventType) => (
-                  <SelectItem key={eventType} value={eventType}>
-                    {eventType}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Checkbox
-              checked={bindingEnabled}
-              onChange={setBindingEnabled}
-              label="Enabled"
-            />
-            <Button
-              type="button"
-              variant="outline"
-              disabled={upsertBindingMutation.isPending}
-              onClick={() =>
-                upsertBindingMutation.mutate({
-                  id: workflowId,
-                  eventType: bindingEventType,
-                  enabled: bindingEnabled,
-                })
-              }
-            >
-              {upsertBindingMutation.isPending ? "Saving..." : "Upsert Binding"}
-            </Button>
-          </div>
-
-          {definition.bindings.length === 0 ? (
-            <div className="text-sm text-muted-foreground">
-              No bindings yet.
-            </div>
-          ) : (
-            <div className="overflow-x-auto rounded-lg border border-border">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Event Type</TableHead>
-                    <TableHead>Enabled</TableHead>
-                    <TableHead>Version</TableHead>
-                    <TableHead>Updated</TableHead>
-                    <TableHead className="w-[110px] text-right">
-                      Remove
-                    </TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {definition.bindings.map((binding) => (
-                    <TableRow key={binding.id}>
-                      <TableCell>
-                        <code className="text-xs">{binding.eventType}</code>
-                      </TableCell>
-                      <TableCell>
-                        <Badge
-                          variant={binding.enabled ? "success" : "outline"}
-                        >
-                          {binding.enabled ? "enabled" : "disabled"}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <code className="text-xs">{binding.versionId}</code>
-                      </TableCell>
-                      <TableCell>
-                        {formatDisplayDateTime(binding.updatedAt)}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="outline"
-                          disabled={removeBindingMutation.isPending}
-                          onClick={() =>
-                            removeBindingMutation.mutate({
-                              id: workflowId,
-                              eventType: binding.eventType,
-                            })
-                          }
-                        >
-                          Remove
-                        </Button>
-                      </TableCell>
-                    </TableRow>
+      <div className="mt-6 grid grid-cols-1 gap-6 2xl:grid-cols-2">
+        <Card>
+          <CardHeader className="border-b">
+            <CardTitle>Event Bindings</CardTitle>
+            <CardDescription>
+              Attach webhook event types to this workflow definition.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4 py-4">
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr)_auto_auto] md:items-center">
+              <Select
+                value={bindingEventType}
+                onValueChange={(value) => {
+                  if (!value || !isWebhookEventType(value)) return;
+                  setBindingEventType(value);
+                }}
+              >
+                <SelectTrigger>{bindingEventType}</SelectTrigger>
+                <SelectContent>
+                  {availableTriggerEventTypes.map((eventType) => (
+                    <SelectItem key={eventType} value={eventType}>
+                      {eventType}
+                    </SelectItem>
                   ))}
-                </TableBody>
-              </Table>
+                </SelectContent>
+              </Select>
+              <Checkbox
+                checked={bindingEnabled}
+                onChange={setBindingEnabled}
+                label="Enabled"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                disabled={upsertBindingMutation.isPending}
+                onClick={() =>
+                  upsertBindingMutation.mutate({
+                    id: workflowId,
+                    eventType: bindingEventType,
+                    enabled: bindingEnabled,
+                  })
+                }
+              >
+                {upsertBindingMutation.isPending
+                  ? "Saving..."
+                  : "Upsert Binding"}
+              </Button>
             </div>
-          )}
-        </CardContent>
-      </Card>
 
-      <Card className="mt-6">
-        <CardHeader className="border-b">
-          <CardTitle>Runs</CardTitle>
-          <CardDescription>
-            Recent runs for this workflow and runtime status details.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4 py-4">
-          {runsQuery.isLoading ? (
-            <div className="text-sm text-muted-foreground">Loading runs...</div>
-          ) : runsQuery.error ? (
-            <div className="text-sm text-destructive">Failed to load runs</div>
-          ) : runs.length === 0 ? (
-            <div className="text-sm text-muted-foreground">
-              No runs for this workflow yet.
-            </div>
-          ) : (
-            <div className="overflow-x-auto rounded-lg border border-border">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Run</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Entity</TableHead>
-                    <TableHead>Started</TableHead>
-                    <TableHead>Updated</TableHead>
-                    <TableHead className="w-[170px] text-right">
-                      Actions
-                    </TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {runs.map((run) => {
-                    const canCancel =
-                      run.status === "pending" || run.status === "running";
-                    const isCancelling = cancellingRunId === run.runId;
-                    return (
-                      <TableRow key={run.runId}>
+            {definition.bindings.length === 0 ? (
+              <div className="text-sm text-muted-foreground">
+                No bindings yet.
+              </div>
+            ) : (
+              <div className="overflow-x-auto rounded-lg border border-border">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Event Type</TableHead>
+                      <TableHead>Enabled</TableHead>
+                      <TableHead>Version</TableHead>
+                      <TableHead>Updated</TableHead>
+                      <TableHead className="w-[110px] text-right">
+                        Remove
+                      </TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {definition.bindings.map((binding) => (
+                      <TableRow key={binding.id}>
                         <TableCell>
-                          <button
-                            type="button"
-                            className="text-left font-mono text-xs text-primary hover:underline"
-                            onClick={() => setSelectedRunId(run.runId)}
-                          >
-                            {run.runId}
-                          </button>
+                          <code className="text-xs">{binding.eventType}</code>
                         </TableCell>
                         <TableCell>
-                          <Badge variant={runStatusBadgeVariant(run.status)}>
-                            {run.status}
+                          <Badge
+                            variant={binding.enabled ? "success" : "outline"}
+                          >
+                            {binding.enabled ? "enabled" : "disabled"}
                           </Badge>
                         </TableCell>
                         <TableCell>
-                          <div className="text-xs text-muted-foreground">
-                            {run.entityType}
-                          </div>
-                          <code className="text-xs">{run.entityId}</code>
+                          <code className="text-xs">{binding.versionId}</code>
                         </TableCell>
                         <TableCell>
-                          {formatDisplayDateTime(run.startedAt)}
+                          {formatDisplayDateTime(binding.updatedAt)}
                         </TableCell>
-                        <TableCell>
-                          {formatDisplayDateTime(run.updatedAt)}
-                        </TableCell>
-                        <TableCell className="space-x-2 text-right">
-                          {canCancel ? (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              disabled={
-                                cancelRunMutation.isPending || isCancelling
-                              }
-                              onClick={() =>
-                                cancelRunMutation.mutate({ runId: run.runId })
-                              }
-                            >
-                              {isCancelling ? "Cancelling..." : "Cancel"}
-                            </Button>
-                          ) : null}
+                        <TableCell className="text-right">
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            disabled={removeBindingMutation.isPending}
+                            onClick={() =>
+                              removeBindingMutation.mutate({
+                                id: workflowId,
+                                eventType: binding.eventType,
+                              })
+                            }
+                          >
+                            Remove
+                          </Button>
                         </TableCell>
                       </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            </div>
-          )}
-
-          {selectedRunId ? (
-            <div className="rounded-lg border border-border bg-muted/20 p-4">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <p className="text-sm font-medium">Run details</p>
-                <div className="flex items-center gap-2">
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    disabled={selectedRunQuery.isFetching}
-                    onClick={() => void selectedRunQuery.refetch()}
-                  >
-                    <Icon icon={RefreshIcon} data-icon="inline-start" />
-                    Refresh
-                  </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => setSelectedRunId(null)}
-                  >
-                    Clear
-                  </Button>
-                </div>
+                    ))}
+                  </TableBody>
+                </Table>
               </div>
-              {selectedRunQuery.isLoading ? (
-                <p className="mt-2 text-sm text-muted-foreground">
-                  Loading run details...
-                </p>
-              ) : selectedRunQuery.error ? (
-                <p className="mt-2 text-sm text-destructive">
-                  Failed to load run details
-                </p>
-              ) : selectedRunQuery.data ? (
-                <dl className="mt-3 grid grid-cols-1 gap-2 text-sm md:grid-cols-2">
-                  <div>
-                    <dt className="text-muted-foreground">Run ID</dt>
-                    <dd className="font-mono text-xs">
-                      {selectedRunQuery.data.runId}
-                    </dd>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="border-b">
+            <CardTitle>Runs</CardTitle>
+            <CardDescription>
+              Recent runs for this workflow and runtime status details.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4 py-4">
+            {runsQuery.isLoading ? (
+              <div className="text-sm text-muted-foreground">
+                Loading runs...
+              </div>
+            ) : runsQuery.error ? (
+              <div className="text-sm text-destructive">
+                Failed to load runs
+              </div>
+            ) : runs.length === 0 ? (
+              <div className="text-sm text-muted-foreground">
+                No runs for this workflow yet.
+              </div>
+            ) : (
+              <div className="overflow-x-auto rounded-lg border border-border">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Run</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Entity</TableHead>
+                      <TableHead>Started</TableHead>
+                      <TableHead>Updated</TableHead>
+                      <TableHead className="w-[170px] text-right">
+                        Actions
+                      </TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {runs.map((run) => {
+                      const canCancel =
+                        run.status === "pending" || run.status === "running";
+                      const isCancelling = cancellingRunId === run.runId;
+                      return (
+                        <TableRow key={run.runId}>
+                          <TableCell>
+                            <button
+                              type="button"
+                              className="text-left font-mono text-xs text-primary hover:underline"
+                              onClick={() => setSelectedRunId(run.runId)}
+                            >
+                              {run.runId}
+                            </button>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant={runStatusBadgeVariant(run.status)}>
+                              {run.status}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            <div className="text-xs text-muted-foreground">
+                              {run.entityType}
+                            </div>
+                            <code className="text-xs">{run.entityId}</code>
+                          </TableCell>
+                          <TableCell>
+                            {formatDisplayDateTime(run.startedAt)}
+                          </TableCell>
+                          <TableCell>
+                            {formatDisplayDateTime(run.updatedAt)}
+                          </TableCell>
+                          <TableCell className="space-x-2 text-right">
+                            {canCancel ? (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                disabled={
+                                  cancelRunMutation.isPending || isCancelling
+                                }
+                                onClick={() =>
+                                  cancelRunMutation.mutate({ runId: run.runId })
+                                }
+                              >
+                                {isCancelling ? "Cancelling..." : "Cancel"}
+                              </Button>
+                            ) : null}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+
+            {selectedRunId ? (
+              <div className="rounded-lg border border-border bg-muted/20 p-4">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-sm font-medium">Run details</p>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      disabled={selectedRunQuery.isFetching}
+                      onClick={() => void selectedRunQuery.refetch()}
+                    >
+                      <Icon icon={RefreshIcon} data-icon="inline-start" />
+                      Refresh
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => setSelectedRunId(null)}
+                    >
+                      Clear
+                    </Button>
                   </div>
-                  <div>
-                    <dt className="text-muted-foreground">Workflow Type</dt>
-                    <dd>{selectedRunQuery.data.workflowType}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-muted-foreground">Status</dt>
-                    <dd>
-                      <Badge
-                        variant={runStatusBadgeVariant(
-                          selectedRunQuery.data.status,
-                        )}
-                      >
-                        {selectedRunQuery.data.status}
-                      </Badge>
-                    </dd>
-                  </div>
-                  <div>
-                    <dt className="text-muted-foreground">Run Revision</dt>
-                    <dd>{selectedRunQuery.data.runRevision}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-muted-foreground">Started</dt>
-                    <dd>
-                      {formatDisplayDateTime(selectedRunQuery.data.startedAt)}
-                    </dd>
-                  </div>
-                  <div>
-                    <dt className="text-muted-foreground">Updated</dt>
-                    <dd>
-                      {formatDisplayDateTime(selectedRunQuery.data.updatedAt)}
-                    </dd>
-                  </div>
-                  <div>
-                    <dt className="text-muted-foreground">Entity Type</dt>
-                    <dd>{selectedRunQuery.data.entityType}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-muted-foreground">Entity ID</dt>
-                    <dd className="font-mono text-xs">
-                      {selectedRunQuery.data.entityId}
-                    </dd>
-                  </div>
-                </dl>
-              ) : null}
-            </div>
-          ) : null}
-        </CardContent>
-      </Card>
+                </div>
+                {selectedRunQuery.isLoading ? (
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    Loading run details...
+                  </p>
+                ) : selectedRunQuery.error ? (
+                  <p className="mt-2 text-sm text-destructive">
+                    Failed to load run details
+                  </p>
+                ) : selectedRunQuery.data ? (
+                  <dl className="mt-3 grid grid-cols-1 gap-2 text-sm md:grid-cols-2">
+                    <div>
+                      <dt className="text-muted-foreground">Run ID</dt>
+                      <dd className="font-mono text-xs">
+                        {selectedRunQuery.data.runId}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-muted-foreground">Workflow Type</dt>
+                      <dd>{selectedRunQuery.data.workflowType}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-muted-foreground">Status</dt>
+                      <dd>
+                        <Badge
+                          variant={runStatusBadgeVariant(
+                            selectedRunQuery.data.status,
+                          )}
+                        >
+                          {selectedRunQuery.data.status}
+                        </Badge>
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-muted-foreground">Run Revision</dt>
+                      <dd>{selectedRunQuery.data.runRevision}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-muted-foreground">Started</dt>
+                      <dd>
+                        {formatDisplayDateTime(selectedRunQuery.data.startedAt)}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-muted-foreground">Updated</dt>
+                      <dd>
+                        {formatDisplayDateTime(selectedRunQuery.data.updatedAt)}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-muted-foreground">Entity Type</dt>
+                      <dd>{selectedRunQuery.data.entityType}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-muted-foreground">Entity ID</dt>
+                      <dd className="font-mono text-xs">
+                        {selectedRunQuery.data.entityId}
+                      </dd>
+                    </div>
+                  </dl>
+                ) : null}
+              </div>
+            ) : null}
+          </CardContent>
+        </Card>
+      </div>
     </PageScaffold>
   );
 }
 
 export const Route = createFileRoute("/_authenticated/workflows/$workflowId")({
-  loader: async ({ params }) => {
-    const queryClient = getQueryClient();
-    await swallowIgnorableRouteLoaderError(
-      Promise.all([
-        queryClient.ensureQueryData(orpc.workflows.catalog.queryOptions()),
-        queryClient.ensureQueryData(
-          orpc.workflows.getDefinition.queryOptions({
-            input: { id: params.workflowId },
-          }),
-        ),
-        queryClient.ensureQueryData(
-          orpc.workflows.listRuns.queryOptions({
-            input: { definitionId: params.workflowId, limit: 50 },
-          }),
-        ),
-      ]),
-    );
-  },
   component: WorkflowDetailPage,
 });

@@ -4,6 +4,8 @@
 @import "@fontsource-variable/inter";
 @import "@fontsource-variable/noto-sans";
 
+@source "../../../packages/workflow-ui/src/**/*.{ts,tsx}";
+
 @custom-variant dark (&:is(.dark *));
 
 /* ============================================

@@ -43,8 +43,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { formatDisplayDateTime } from "@/lib/date-utils";
-import { getQueryClient, orpc } from "@/lib/query";
-import { swallowIgnorableRouteLoaderError } from "@/lib/query-cancellation";
+import { authClient } from "@/lib/auth-client";
+import { orpc } from "@/lib/query";
 
 function createDefaultWorkflowDraft(triggerEventType: WebhookEventType) {
   return {
@@ -87,6 +87,10 @@ function isWebhookEventType(value: string): value is WebhookEventType {
 function WorkflowsIndexPage() {
   const queryClient = useQueryClient();
   const navigate = useNavigate({ from: Route.fullPath });
+  const { data: session, isPending: isSessionPending } =
+    authClient.useSession();
+  const canQueryWorkflowData =
+    !isSessionPending && !!session?.session.activeOrganizationId;
   const { create } = Route.useSearch();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
@@ -114,16 +118,19 @@ function WorkflowsIndexPage() {
     ...orpc.workflows.listDefinitions.queryOptions({
       input: {},
     }),
+    enabled: canQueryWorkflowData,
     placeholderData: (previous) => previous,
   });
   const runsQuery = useQuery({
     ...orpc.workflows.listRuns.queryOptions({
       input: { limit: 25 },
     }),
+    enabled: canQueryWorkflowData,
     placeholderData: (previous) => previous,
   });
   const catalogQuery = useQuery({
     ...orpc.workflows.catalog.queryOptions(),
+    enabled: canQueryWorkflowData,
     placeholderData: (previous) => previous,
   });
 
@@ -245,6 +252,20 @@ function WorkflowsIndexPage() {
     newName,
     newTriggerEventType,
   ]);
+
+  if (!canQueryWorkflowData) {
+    return (
+      <PageScaffold>
+        <PageHeader
+          title="Workflows"
+          description="Define event-driven workflows, publish revisions, and monitor runs."
+        />
+        <div className="mt-6 text-sm text-muted-foreground">
+          Loading organization context...
+        </div>
+      </PageScaffold>
+    );
+  }
 
   return (
     <PageScaffold>
@@ -474,6 +495,7 @@ function WorkflowsIndexPage() {
         onOpenChange={(open) => {
           setShowCreateModal(open);
         }}
+        className="md:max-w-[min(96vw,80rem)] md:h-[calc(100dvh-2rem)] md:max-h-[calc(100dvh-2rem)] md:top-4"
         title="Create Workflow"
         description="Create a workflow definition and start a draft."
       >
@@ -569,20 +591,6 @@ export const Route = createFileRoute("/_authenticated/workflows/")({
   } => {
     const create = search.create === "1" ? "1" : undefined;
     return { create };
-  },
-  loader: async () => {
-    const queryClient = getQueryClient();
-    await swallowIgnorableRouteLoaderError(
-      Promise.all([
-        queryClient.ensureQueryData(orpc.workflows.catalog.queryOptions()),
-        queryClient.ensureQueryData(
-          orpc.workflows.listDefinitions.queryOptions({ input: {} }),
-        ),
-        queryClient.ensureQueryData(
-          orpc.workflows.listRuns.queryOptions({ input: { limit: 25 } }),
-        ),
-      ]),
-    );
   },
   component: WorkflowsIndexPage,
 });
