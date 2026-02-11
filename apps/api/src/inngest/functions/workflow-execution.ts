@@ -26,6 +26,7 @@ type ReplacementMode =
   | "replace_active"
   | "cancel_without_replacement"
   | "allow_parallel";
+type RetryBackoffMode = "none" | "fixed" | "exponential";
 
 type ParsedCompiledPlan = {
   entryNodeIds: string[];
@@ -154,6 +155,103 @@ function resolveReplacementMode(
   return "replace_active";
 }
 
+function parseDurationToMs(value: string): number | null {
+  const parsed = value.match(
+    /^P(?:(\d+)W)?(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?)?$/,
+  );
+  if (!parsed) {
+    return null;
+  }
+
+  const weeks = parsed[1] ? Number(parsed[1]) : 0;
+  const days = parsed[2] ? Number(parsed[2]) : 0;
+  const hours = parsed[3] ? Number(parsed[3]) : 0;
+  const minutes = parsed[4] ? Number(parsed[4]) : 0;
+  const seconds = parsed[5] ? Number(parsed[5]) : 0;
+  const totalDays = weeks * 7 + days;
+  const totalMs =
+    (((totalDays * 24 + hours) * 60 + minutes) * 60 + seconds) * 1000;
+
+  return Number.isFinite(totalMs) && totalMs > 0 ? totalMs : null;
+}
+
+function resolveRetryPolicy(compiledPlan: Record<string, unknown> | null): {
+  attempts: number;
+  backoff: RetryBackoffMode;
+  baseDelayMs: number;
+  maxDelayMs: number | null;
+} {
+  const defaults = {
+    attempts: 10,
+    backoff: "exponential" as const,
+    baseDelayMs: 1000,
+    maxDelayMs: null,
+  };
+
+  if (!isRecord(compiledPlan)) {
+    return defaults;
+  }
+
+  const trigger = compiledPlan["trigger"];
+  if (!isRecord(trigger)) {
+    return defaults;
+  }
+
+  const retryPolicy = trigger["retryPolicy"];
+  if (!isRecord(retryPolicy)) {
+    return defaults;
+  }
+
+  const attempts = retryPolicy["attempts"];
+  const backoff = retryPolicy["backoff"];
+  const baseDelay = retryPolicy["baseDelay"];
+  const maxDelay = retryPolicy["maxDelay"];
+
+  return {
+    attempts:
+      typeof attempts === "number" &&
+      Number.isInteger(attempts) &&
+      attempts >= 1 &&
+      attempts <= 20
+        ? attempts
+        : defaults.attempts,
+    backoff:
+      backoff === "none" || backoff === "fixed" || backoff === "exponential"
+        ? backoff
+        : defaults.backoff,
+    baseDelayMs:
+      typeof baseDelay === "string"
+        ? (parseDurationToMs(baseDelay) ?? defaults.baseDelayMs)
+        : defaults.baseDelayMs,
+    maxDelayMs:
+      typeof maxDelay === "string"
+        ? (parseDurationToMs(maxDelay) ?? null)
+        : null,
+  };
+}
+
+export function computeRetryDelayMs(input: {
+  attempt: number;
+  backoff: RetryBackoffMode;
+  baseDelayMs: number;
+  maxDelayMs: number | null;
+}): number {
+  if (input.attempt <= 0 || input.backoff === "none") {
+    return 0;
+  }
+
+  let delayMs =
+    input.backoff === "fixed"
+      ? input.baseDelayMs
+      : input.baseDelayMs * 2 ** Math.max(0, input.attempt - 1);
+
+  if (input.maxDelayMs !== null) {
+    delayMs = Math.min(delayMs, input.maxDelayMs);
+  }
+
+  return Math.max(0, Math.floor(delayMs));
+}
+
 function resolveWaitDuration(node: Record<string, unknown>): string | null {
   const wait = node["wait"];
   if (isRecord(wait)) {
@@ -229,7 +327,7 @@ export function createWorkflowExecutionFunction(
   return inngest.createFunction(
     {
       id: "workflow-execution",
-      retries: 10,
+      retries: 20,
       cancelOn: [
         {
           event: "scheduling/workflow.triggered",
@@ -239,7 +337,7 @@ export function createWorkflowExecutionFunction(
       ],
     },
     { event: "scheduling/workflow.triggered" },
-    async ({ event, runId, step }) => {
+    async ({ event, runId, step, attempt }) => {
       await step.run("record-workflow-run-start", async () => {
         await dependencies.recordRunStart({
           orgId: event.data.orgId,
@@ -263,6 +361,43 @@ export function createWorkflowExecutionFunction(
       );
       const parsedCompiledPlan = parseCompiledPlan(compiledPlanValue);
       const replacementMode = resolveReplacementMode(compiledPlanValue);
+      const retryPolicy = resolveRetryPolicy(compiledPlanValue);
+      const retryDelayMs = computeRetryDelayMs({
+        attempt,
+        backoff: retryPolicy.backoff,
+        baseDelayMs: retryPolicy.baseDelayMs,
+        maxDelayMs: retryPolicy.maxDelayMs,
+      });
+
+      if (attempt >= retryPolicy.attempts) {
+        await step.run("mark-workflow-run-failed-retry-exhausted", async () => {
+          await dependencies.markRunStatus({
+            orgId: event.data.orgId,
+            runId,
+            status: "failed",
+          });
+        });
+
+        return {
+          runId,
+          orgId: event.data.orgId,
+          definitionId: event.data.workflow.definitionId,
+          versionId: event.data.workflow.versionId,
+          workflowType: event.data.workflow.workflowType,
+          entityType: event.data.entity.type,
+          entityId: event.data.entity.id,
+          status: "failed" as const,
+          replacementSignalled: false,
+          terminalReason: null,
+        };
+      }
+
+      if (retryDelayMs > 0) {
+        await step.sleep(
+          `retry-policy-backoff-delay-${attempt}`,
+          `${retryDelayMs}ms`,
+        );
+      }
 
       if (replacementMode !== "allow_parallel") {
         await step.run("cancel-replaced-runs", async () => {

@@ -19,6 +19,7 @@ export type WorkflowDispatchTarget = {
   definitionId: string;
   versionId: string;
   workflowType: string;
+  compiledPlan: Record<string, unknown> | null;
 };
 
 export type RecordWorkflowRunStartInput = {
@@ -110,11 +111,16 @@ export async function listEnabledWorkflowDispatchTargets(
         definitionId: workflowBindings.definitionId,
         versionId: workflowBindings.versionId,
         workflowType: workflowDefinitions.key,
+        compiledPlan: workflowDefinitionVersions.compiledPlan,
       })
       .from(workflowBindings)
       .innerJoin(
         workflowDefinitions,
         eq(workflowDefinitions.id, workflowBindings.definitionId),
+      )
+      .innerJoin(
+        workflowDefinitionVersions,
+        eq(workflowDefinitionVersions.id, workflowBindings.versionId),
       )
       .where(
         and(

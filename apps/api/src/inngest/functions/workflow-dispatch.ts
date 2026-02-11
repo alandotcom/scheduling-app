@@ -164,6 +164,98 @@ function buildSourceEventId(
   return event.id ?? `${eventType}:${event.data.orgId}:${event.ts ?? 0}`;
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function parseDurationToMs(value: string): number | null {
+  const parsed = value.match(
+    /^P(?:(\d+)W)?(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?)?$/,
+  );
+  if (!parsed) {
+    return null;
+  }
+
+  const weeks = parsed[1] ? Number(parsed[1]) : 0;
+  const days = parsed[2] ? Number(parsed[2]) : 0;
+  const hours = parsed[3] ? Number(parsed[3]) : 0;
+  const minutes = parsed[4] ? Number(parsed[4]) : 0;
+  const seconds = parsed[5] ? Number(parsed[5]) : 0;
+  const totalDays = weeks * 7 + days;
+  const totalMs =
+    (((totalDays * 24 + hours) * 60 + minutes) * 60 + seconds) * 1000;
+
+  return Number.isFinite(totalMs) && totalMs > 0 ? totalMs : null;
+}
+
+function resolveDebounceConfig(compiledPlan: Record<string, unknown> | null): {
+  enabled: boolean;
+  strategy: "latest_only" | "coalesce";
+  windowMs: number;
+} | null {
+  if (!isRecord(compiledPlan)) {
+    return null;
+  }
+
+  const trigger = compiledPlan["trigger"];
+  if (!isRecord(trigger)) {
+    return null;
+  }
+
+  const debounce = trigger["debounce"];
+  if (!isRecord(debounce)) {
+    return null;
+  }
+
+  const enabled = debounce["enabled"];
+  const window = debounce["window"];
+  const strategy = debounce["strategy"];
+
+  if (enabled !== true || typeof window !== "string") {
+    return null;
+  }
+
+  const windowMs = parseDurationToMs(window);
+  if (!windowMs) {
+    return null;
+  }
+
+  return {
+    enabled: true,
+    strategy: strategy === "coalesce" ? "coalesce" : "latest_only",
+    windowMs,
+  };
+}
+
+function buildTriggeredEventId(input: {
+  sourceEventId: string;
+  sourceTimestampMs: number;
+  eventType: WebhookEventType;
+  target: WorkflowDispatchTarget;
+  entity: { type: string; id: string };
+}): string {
+  const debounceConfig = resolveDebounceConfig(input.target.compiledPlan);
+  if (!debounceConfig || !debounceConfig.enabled) {
+    return `${input.sourceEventId}:${input.target.definitionId}:${input.target.versionId}`;
+  }
+
+  const bucketStart =
+    Math.floor(input.sourceTimestampMs / debounceConfig.windowMs) *
+    debounceConfig.windowMs;
+
+  return [
+    "debounce",
+    input.eventType,
+    input.target.definitionId,
+    input.target.versionId,
+    input.entity.type,
+    input.entity.id,
+    debounceConfig.strategy,
+    String(debounceConfig.windowMs),
+    String(bucketStart),
+  ].join(":");
+}
+
 export function createWorkflowDispatchFunction<
   TEventType extends WebhookEventType,
 >(
@@ -188,9 +280,8 @@ export function createWorkflowDispatchFunction<
 
       const payload = payloadValidation.data;
       const sourceEventId = buildSourceEventId(eventType, event);
-      const sourceEventTimestamp = new Date(
-        event.ts ?? Date.now(),
-      ).toISOString();
+      const sourceTimestampMs = event.ts ?? Date.now();
+      const sourceEventTimestamp = new Date(sourceTimestampMs).toISOString();
       const entity = resolveEntityReference(eventType, payload);
 
       const targets = await step.run("resolve-workflow-bindings", async () => {
@@ -212,7 +303,13 @@ export function createWorkflowDispatchFunction<
           await forEachAsync(
             targets,
             async (target) => {
-              const triggeredEventId = `${sourceEventId}:${target.definitionId}:${target.versionId}`;
+              const triggeredEventId = buildTriggeredEventId({
+                sourceEventId,
+                sourceTimestampMs,
+                eventType,
+                target,
+                entity,
+              });
 
               await dispatchWorkflowTriggeredEvent({
                 id: triggeredEventId,

@@ -1,6 +1,9 @@
 import { describe, expect, mock, test } from "bun:test";
 import { InngestTestEngine } from "@inngest/test";
-import { createWorkflowExecutionFunction } from "./workflow-execution.js";
+import {
+  computeRetryDelayMs,
+  createWorkflowExecutionFunction,
+} from "./workflow-execution.js";
 
 describe("workflow execution function", () => {
   test("records run start and marks run completed", async () => {
@@ -600,5 +603,113 @@ describe("workflow execution function", () => {
         status: "cancelled",
       }),
     );
+  });
+
+  test("retry policy marks run failed when attempt exceeds configured attempts", async () => {
+    const recordRunStart = mock(async () => {});
+    const cancelReplacedRuns = mock(async () => 0);
+    const getRunGuard = mock(async () => ({
+      runRevision: 1,
+      runStatus: "running" as const,
+    }));
+    const loadCompiledPlan = mock(async () => ({
+      planVersion: 1,
+      trigger: { retryPolicy: { attempts: 1, backoff: "none" } },
+      entryNodeIds: ["node_a"],
+      nodes: [{ id: "node_a", kind: "action", channel: "workflow.runtime" }],
+      edges: [],
+    }));
+    const loadCorrelatedEntity = mock(async () => ({
+      status: "found" as const,
+      entityType: "client",
+      entityId: "0198d09f-ff07-7f46-a5d9-26a3f0d96081",
+    }));
+    const recordDeliveryWithGuard = mock(async () => "recorded" as const);
+    const markRunStatus = mock(async () => {});
+
+    const fn = createWorkflowExecutionFunction({
+      recordRunStart,
+      cancelReplacedRuns,
+      getRunGuard,
+      loadCompiledPlan,
+      loadCorrelatedEntity,
+      recordDeliveryWithGuard,
+      markRunStatus,
+    });
+    const t = new InngestTestEngine({ function: fn });
+
+    const output = await t.execute({
+      events: [
+        {
+          name: "scheduling/workflow.triggered",
+          data: {
+            orgId: "org_9",
+            workflow: {
+              definitionId: "0198d09f-ff07-7f46-a5d9-26a3f0d96082",
+              versionId: "0198d09f-ff07-7f46-a5d9-26a3f0d96083",
+              workflowType: "follow-up",
+            },
+            sourceEvent: {
+              id: "evt_9",
+              type: "client.updated",
+              timestamp: "2026-02-11T12:00:00.000Z",
+              payload: {
+                clientId: "0198d09f-ff07-7f46-a5d9-26a3f0d96081",
+              },
+            },
+            entity: {
+              type: "client",
+              id: "0198d09f-ff07-7f46-a5d9-26a3f0d96081",
+            },
+          },
+        },
+      ],
+      transformCtx: (ctx) => ({ ...ctx, attempt: 1 }),
+    });
+
+    expect(output.result).toMatchObject({
+      orgId: "org_9",
+      status: "failed",
+    });
+    expect(cancelReplacedRuns).toHaveBeenCalledTimes(0);
+    expect(loadCorrelatedEntity).toHaveBeenCalledTimes(0);
+    expect(getRunGuard).toHaveBeenCalledTimes(0);
+    expect(recordDeliveryWithGuard).toHaveBeenCalledTimes(0);
+    expect(markRunStatus).toHaveBeenCalledWith(
+      expect.objectContaining({
+        orgId: "org_9",
+        runId: expect.any(String),
+        status: "failed",
+      }),
+    );
+  });
+
+  test("retry delay helper computes fixed and exponential delays", () => {
+    expect(
+      computeRetryDelayMs({
+        attempt: 1,
+        backoff: "fixed",
+        baseDelayMs: 2000,
+        maxDelayMs: null,
+      }),
+    ).toBe(2000);
+
+    expect(
+      computeRetryDelayMs({
+        attempt: 2,
+        backoff: "exponential",
+        baseDelayMs: 1000,
+        maxDelayMs: null,
+      }),
+    ).toBe(2000);
+
+    expect(
+      computeRetryDelayMs({
+        attempt: 4,
+        backoff: "exponential",
+        baseDelayMs: 1000,
+        maxDelayMs: 5000,
+      }),
+    ).toBe(5000);
   });
 });
