@@ -4,7 +4,7 @@ This is the canonical place to start implementation work.
 
 ## Active Plans
 
-1. Workflow Runtime RFC (Unified)
+1. Inngest Eventing + Workflow Runtime RFC (Unified)
    - Plan: [`./workflow-runtime-rfc.md`](./workflow-runtime-rfc.md)
    - References:
      - [`../references/event-bus/synthesis.md`](../references/event-bus/synthesis.md)

@@ -1,233 +1,307 @@
-# Event Bus + Generalized Workflow Runtime RFC (Unified)
+# Inngest Eventing + Workflow Runtime RFC (Unified)
 
-Status: Pending Product Decisions (Unified)
+Status: Approved for Implementation
 Last Updated: 2026-02-11
 Owners: Product, `@scheduling/api`, `@scheduling/db`, `@scheduling/admin-ui`
 Related: `docs/ARCHITECTURE.md`, `docs/references/event-bus/synthesis.md`, `docs/references/event-bus/workflow-devkit-research.md`, `docs/references/event-bus/testing.md`
 
 ## 1. Summary
 
-We will keep the existing BullMQ/Valkey event bus and add a generalized workflow system backed by Workflow DevKit.
+We are replacing the current `event_outbox + BullMQ + Workflow DevKit` direction with a single Inngest-first architecture.
 
-This phase includes both:
-1. Runtime execution for durable, cancellable workflows.
-2. A frontend workflow utility in admin UI (React Flow style) for creating and publishing workflow definitions.
+This is a big-bang rewrite with no compatibility layer:
+
+1. Self-host Inngest using Postgres + Valkey/Redis.
+2. Replace outbox and BullMQ fanout with Inngest events/functions.
+3. Replace Workflow DevKit runtime with Inngest functions (`cancelOn`, `step.waitForEvent`, step retries).
+4. Use Inngest Workflow Kit for user-defined workflow authoring.
+5. Persist Workflow Kit JSON as the canonical workflow definition format.
 
 ## 2. Current State
 
-1. Domain writes create events in `event_outbox`.
-2. BullMQ workers claim and fan out events to integrations.
-3. Dedicated workflow runtime process exists: `apps/api/src/workflow-worker.ts`.
-4. No persisted workflow definitions, no builder UI, and no generalized trigger/cancel/replace run model yet.
+1. Domain writes emit events through `apps/api/src/services/jobs/emitter.ts`.
+2. Events are persisted in `event_outbox`.
+3. BullMQ workers dispatch and fan out events to integrations.
+4. A separate Workflow DevKit worker process exists (`apps/api/src/workflow-worker.ts`).
+5. Workflow definition tables exist, but route/UI runtime integration is incomplete.
 
-## 3. Decisions
+## 3. Final Decisions
 
-1. Keep BullMQ/Valkey as the event bus runtime for this phase.
-2. Use Workflow DevKit directly for durable workflow execution (run/wait/cancel/retry).
-3. Build generalized workflows, not a single hardcoded reminder flow.
-4. Expose workflow authoring as an admin UI utility (React Flow style graph editor).
-5. Use immutable workflow versioning and publish-time compilation.
-6. Enforce strict cancellation semantics.
-7. On appointment mutation events, cancel active run and replace with a new run revision.
-8. Replacement runs recompute future schedule from current appointment state.
-9. Keep process responsibilities explicit:
-   - API server: business and workflow CRUD routes.
-   - Worker: event bus processing.
-   - Workflow worker: Workflow protocol handlers + world polling.
+1. Runtime target: self-hosted Inngest.
+2. Migration style: big-bang cutover (no dual run).
+3. Workflow authoring model: Inngest Workflow Kit.
+4. Workflow persistence shape: Workflow Kit JSON (draft + published versions).
+5. `event_outbox` fate: delete entirely.
 
 ## 4. Goals
 
-1. Preserve existing fanout reliability.
-2. Enable generalized lifecycle automation flows (multi-step, delayed, cancellable).
-3. Provide a first-class authoring utility for non-code workflow configuration.
-4. Guarantee effectively-once external effects via deterministic idempotency + delivery ledger.
-5. Keep implementation incremental and testable.
+1. Use one durable execution and eventing platform for domain automation.
+2. Keep strict cancellation + replacement behavior for appointment lifecycle workflows.
+3. Reduce queue/worker operational complexity by removing BullMQ and Workflow DevKit runtime.
+4. Ship a usable workflow editor backed by Workflow Kit, not a custom graph compiler.
+5. Keep typed event contracts across API/UI/runtime using existing DTO schemas.
 
 ## 5. Non-Goals
 
-1. Replacing BullMQ in this phase.
-2. Arbitrary user-authored JavaScript execution in workflow expressions.
-3. A fully generic visual programming platform in v1.
-4. Mathematical exactly-once across third-party providers.
+1. Supporting old BullMQ/Workflow DevKit behavior during migration.
+2. Maintaining backward-compatible schema shims.
+3. Building a generic low-code platform beyond Workflow Kit v1 capabilities.
+4. Supporting Inngest Cloud in this phase.
 
-## 6. Architecture
+## 6. Target Architecture
 
-### 6.1 Event Plane (unchanged)
+### 6.1 Runtime Topology
 
-1. Domain writes persist events to `event_outbox`.
-2. Dispatch worker claims pending rows and enqueues fanout jobs.
-3. Integration workers process their queues.
+1. API server (`apps/api/src/index.ts`) serves business routes and `/api/inngest` endpoint.
+2. Self-hosted Inngest service runs as separate infra service.
+3. Inngest persists state in Postgres and uses Valkey/Redis for queueing internals.
+4. Dedicated app processes for BullMQ worker, Bull Board, and Workflow DevKit worker are removed.
 
-### 6.2 Workflow Definition Plane (new)
+### 6.2 Event Plane
 
-1. Persist org-scoped workflow definitions and immutable versions.
-2. Publish compiles graph definition to a normalized execution plan artifact.
-3. Event bindings map domain event type -> active workflow version.
+1. Domain mutations commit DB changes.
+2. API sends typed Inngest events (`inngest.send`) after successful mutation boundaries.
+3. Inngest triggers all matching functions (integration fanout, workflow runs, etc.).
 
-### 6.3 Workflow Execution Plane (new)
+### 6.3 Integration Plane
 
-1. Workflow trigger consumer resolves active bindings and starts runs with deterministic run keys.
-2. Cancellation consumer resolves active runs and enforces strict cancel + replace.
-3. Workflow steps perform side effects with deterministic delivery keys and send-time guards.
+1. Integration consumers are executed as Inngest functions.
+2. Existing org integration settings/secrets (`integrations` table) remain authoritative.
+3. Function-level flow control (`concurrency`, `throttle`, retries) replaces queue-level tuning.
 
-### 6.4 Runtime Topology
+### 6.4 Workflow Definition Plane
 
-1. `apps/api/src/index.ts`: API/oRPC server.
-2. `apps/api/src/worker.ts`: BullMQ event bus workers.
-3. `apps/api/src/workflow-worker.ts`: Workflow protocol handlers:
-   - `/.well-known/workflow/v1/flow`
-   - `/.well-known/workflow/v1/step`
-   - `/.well-known/workflow/v1/webhook/:token`
-4. `apps/api/src/workflow-worker.ts` also runs Postgres world polling (`getWorld().start?.()`).
+1. Keep org-scoped definitions and immutable versions.
+2. Store Workflow Kit JSON as canonical draft/published payload.
+3. Keep event bindings (`event_type -> active workflow version`) for explicit trigger control.
 
-### 6.5 UI Plane (new)
+### 6.5 Workflow Execution Plane
 
-1. Add workflows routes in admin UI:
-   - `/_authenticated/workflows`
-   - `/_authenticated/workflows/$workflowId`
-2. Use `@xyflow/react` for controlled graph canvas.
-3. Use existing TanStack Router/Query + oRPC patterns for data and mutations.
+1. Inngest functions implement workflow execution.
+2. `cancelOn` handles cancellation triggers.
+3. `step.waitForEvent` handles event-based waiting with explicit timeout behavior.
+4. Deterministic idempotency keys are still enforced for side effects.
 
 ## 7. Workflow Semantics
 
-### 7.1 Run Identity
+### 7.1 Trigger Identity and Dedupe
 
-Active run key baseline:
-`(org_id, workflow_type, appointment_id)`
+1. Domain event IDs are UUIDv7 and used as deterministic event identifiers when sending to Inngest.
+2. Trigger and side-effect handlers must treat retries as at-least-once and remain idempotent.
 
 ### 7.2 Cancellation and Replacement
 
-1. Cancel scope: any appointment mutation event (`updated`, `rescheduled`, `cancelled`, `no_show`).
-2. Guarantee level: strict.
-3. Behavior: cancel active run revision, then immediately start replacement revision.
-4. Replacement timing: recompute all delayed actions from latest appointment state.
+1. Appointment mutation events (`updated`, `rescheduled`, `cancelled`, `no_show`) cancel active runs.
+2. Cancellation guarantee target remains strict at workflow step boundaries.
+3. Replacement runs start immediately with current appointment state.
+4. Replacement runs increment a logical revision marker used by send-time guards.
 
-### 7.3 Idempotency and Delivery
+### 7.3 Wait Semantics
 
-1. Delivery dedupe is context-based, with baseline specificity:
-`org + workflow + appointment + run_revision + step + channel`.
-2. `workflow_delivery_log.delivery_key` is unique.
-3. Send step must re-check cancellation/version state immediately before side effects.
+1. `step.waitForEvent` is used for event-driven pauses.
+2. Timeout returns `null` and must be handled explicitly.
+3. Flows must avoid race-prone ordering assumptions (event must occur after wait starts).
 
-## 8. Data Changes
+### 7.4 Side-Effect Safety
 
-### 8.1 Keep
+1. External sends use deterministic delivery keys.
+2. Delivery ledger uniqueness continues to protect against duplicate sends.
+3. Steps re-check cancellation/version validity before side effects.
 
-1. Keep `event_outbox` as canonical domain event log for this phase.
+## 8. Data Model Changes
 
-### 8.2 Add
+### 8.1 Remove
+
+1. `event_outbox` table.
+2. Legacy outbox statuses/processing fields and worker-only concepts.
+
+### 8.2 Keep and Reshape
 
 1. `workflow_definitions`
 2. `workflow_definition_versions`
 3. `workflow_bindings`
-4. `workflow_run_entity_links`
-5. `workflow_delivery_log`
 
-All workflow tables are org-scoped and RLS protected.
+Required shape updates:
+1. Replace custom graph payloads with Workflow Kit JSON.
+2. Keep immutable publish versions.
+3. Keep org-scoped RLS on all workflow tables.
+
+### 8.3 Optional Runtime Tracking Tables
+
+`workflow_run_entity_links` and `workflow_delivery_log` remain if needed for product-facing run/delivery views and dedupe ledger.
 
 ## 9. API Surface (v1)
 
-Add workflow namespace on UI router:
+### 9.1 New/Updated Runtime Endpoint
+
+1. Add Inngest serve endpoint in API app:
+   - `GET|POST|PUT /api/inngest`
+
+### 9.2 Workflow Routes
+
+Keep workflow namespace and adapt payload contracts:
+
 1. `workflow.listDefinitions`
 2. `workflow.getDefinition`
 3. `workflow.createDefinition`
-4. `workflow.updateDraftGraph`
+4. `workflow.updateDraft`
 5. `workflow.validateDraft`
 6. `workflow.publishDraft`
 7. `workflow.listRuns`
 8. `workflow.getRun`
 9. `workflow.cancelRun`
 
-## 10. Builder v1 Scope
+## 10. Admin UI Scope (v1)
 
-1. Node catalog:
-   - `event.trigger`
-   - `wait.duration`
-   - `if.condition`
-   - `send.email`
-   - `send.sms`
-2. DAG-only validation (no cycles).
-3. Single trigger node requirement in v1.
-4. Publish blocked on validation errors.
+1. Implement workflow routes:
+   - `/_authenticated/workflows`
+   - `/_authenticated/workflows/$workflowId`
+2. Use `@inngest/workflow-kit/ui` components as editor foundation.
+3. Use controlled draft updates and persist Workflow Kit JSON through existing oRPC patterns.
+4. Remove custom React Flow compiler assumptions from plan and implementation.
 
-## 11. Implementation Plan
+## 11. Implementation Plan and Tasks
 
-### Phase A: Foundations (in progress)
+### Phase 0: Infra + Commands
 
-- [x] Dedicated workflow worker process (`apps/api/src/workflow-worker.ts`).
-- [x] Workflow worker scripts (`dev/build/start`).
-- [x] Local bootstrap command (`pnpm bootstrap:dev`) including workflow postgres setup.
-- [ ] Add workflow tables + DTO + oRPC contracts.
-- [ ] Add workflow definition/versioning APIs.
-- [ ] Add builder routes + basic React Flow editor scaffold.
+- [ ] Add self-hosted Inngest service configuration to local/deployment environments.
+- [ ] Add required env vars (`INNGEST_EVENT_KEY`, `INNGEST_SIGNING_KEY`, Inngest base URLs).
+- [ ] Add `dev:inngest` command using Inngest Dev Server.
+- [ ] Remove Workflow DevKit bootstrap requirement (`workflow-postgres-setup`) from `pnpm bootstrap:dev`.
 
 Exit criteria:
-1. Workflow definitions can be created, edited, validated, and published.
-2. Basic workflow editor route works in admin UI.
+1. Local API can register with running Inngest dev/self-host runtime.
+2. Team can run API + admin + Inngest locally with documented commands.
 
-### Phase B: Runtime Mapping
+### Phase 1: Inngest SDK Foundation
 
-- [ ] Add trigger consumer for published workflow bindings.
-- [ ] Add strict cancel + replace mapping from appointment mutation events.
-- [ ] Add deterministic run key and run revision behavior.
-- [ ] Add one end-to-end lifecycle test covering trigger/wait/send/cancel/replace.
-
-Exit criteria:
-1. Generalized workflow runs execute from real domain events.
-2. Cancellation and replacement behavior is deterministic and strict.
-
-### Phase C: Hardening
-
-- [ ] Send-time state/consent checks.
-- [ ] Retry/failure categorization and recovery paths.
-- [ ] Operational run views and failure diagnostics.
-- [ ] Replay/retry/late-cancel race tests.
+- [ ] Add typed Inngest client module in API app.
+- [ ] Add Inngest serve handler on `/api/inngest`.
+- [ ] Add typed event envelope helpers reusing `packages/dto/src/schemas/webhook.ts`.
+- [ ] Add baseline Inngest function registration structure.
 
 Exit criteria:
-1. Effectively-once behavior demonstrated under replay/retry.
-2. Operators can identify and recover failed/stuck runs.
+1. `/api/inngest` responds to Inngest sync/invoke calls.
+2. At least one test function is discoverable and invokable.
 
-## 12. Observability
+### Phase 2: Event Emission Cutover
 
-Use OpenTelemetry for traces/metrics/log correlation.
+- [ ] Replace `services/jobs/emitter.ts` with Inngest sender implementation.
+- [ ] Remove `JobQueue` abstraction and BullMQ enqueue calls.
+- [ ] Update domain services that currently emit inside transactions to post-commit send pattern.
+- [ ] Add failure logging/handling policy for post-commit send failures.
+
+Exit criteria:
+1. Domain mutations emit Inngest events only.
+2. No code path writes to `event_outbox`.
+
+### Phase 3: Integration Fanout on Inngest
+
+- [ ] Implement Inngest functions for integration dispatch.
+- [ ] Reuse existing integration registry/settings/secrets resolution.
+- [ ] Move Svix publish path to Inngest-triggered handler.
+- [ ] Add function flow-control config for integration workloads.
+
+Exit criteria:
+1. Svix and logger integrations receive events through Inngest.
+2. Integration retries and failures are visible in Inngest run history.
+
+### Phase 4: Workflow Runtime Migration
+
+- [ ] Remove Workflow DevKit worker and build pipeline.
+- [ ] Implement workflow execution functions with `cancelOn` and waits.
+- [ ] Encode strict cancel+replace run policy for appointment lifecycle.
+- [ ] Keep deterministic side-effect dedupe and send-time guards.
+
+Exit criteria:
+1. Appointment-triggered workflows run, wait, cancel, and replace deterministically.
+2. No Workflow DevKit runtime process remains in app scripts.
+
+### Phase 5: Workflow Kit Authoring Adoption
+
+- [ ] Replace custom graph assumptions with Workflow Kit JSON contracts in DTO/API.
+- [ ] Implement/complete workflow CRUD and publish routes against Workflow Kit model.
+- [ ] Build admin workflow editor routes using `@inngest/workflow-kit/ui`.
+- [ ] Persist draft and published versions as Workflow Kit JSON.
+
+Exit criteria:
+1. Users can create/edit/publish workflows via Workflow Kit editor.
+2. Published definitions are executable by Inngest runtime functions.
+
+### Phase 6: Schema Cleanup (No Backward Compatibility)
+
+- [ ] Update initial DB migration and schema to remove `event_outbox`.
+- [ ] Update schema/types for Workflow Kit JSON persistence.
+- [ ] Remove obsolete enums/indexes tied to outbox processing.
+- [ ] Update seed scripts and RLS tests for new schema shape.
+
+Exit criteria:
+1. `pnpm --filter @scheduling/db run push` creates schema without outbox.
+2. Seed and test setup run cleanly on rewritten schema.
+
+### Phase 7: Legacy Code and Docs Removal
+
+- [ ] Delete BullMQ worker code (`services/jobs/*`, `src/worker.ts`).
+- [ ] Delete Bull Board app (`src/bull-board.ts`) and scripts/deps.
+- [ ] Delete Workflow DevKit files/scripts/deps (`src/workflow-worker.ts`, plugin/build setup).
+- [ ] Update architecture and operations docs to Inngest-first topology.
+
+Exit criteria:
+1. No BullMQ/Workflow DevKit runtime dependencies remain.
+2. Docs and scripts reflect new runtime only.
+
+## 12. Testing Strategy and Acceptance Criteria
+
+Required automated coverage:
+
+1. Event emission
+   - one event emitted per domain mutation
+   - payload shape matches DTO schema
+2. Workflow semantics
+   - trigger -> wait -> send happy path
+   - cancelOn cancellation path
+   - cancel + replacement run behavior
+   - wait timeout returns null path
+3. Integration delivery
+   - Svix publish success/failure + retry behavior
+   - org-level integration enablement respected
+4. Idempotency
+   - duplicate event IDs do not create duplicate logical side effects
+   - delivery key uniqueness blocks duplicate sends
+
+Release acceptance:
+
+1. Local dev flow works with Inngest dev server.
+2. No outbox/BullMQ code paths are called.
+3. Workflow Kit editor can publish an executable workflow.
+4. Appointment lifecycle workflow runs correctly in end-to-end test.
+
+## 13. Observability
 
 Required signals:
-1. Event dispatch latency and retries.
-2. Workflow start latency and wake latency.
-3. Cancel + replace counts and failures.
-4. Delivery dedupe prevented count.
-5. External send success/failure by channel/provider.
-6. Workflow runtime health (handlers + world heartbeat).
 
-## 13. Guardrails
-
-1. Do not introduce speculative abstraction layers around Workflow DevKit unless duplicated usage is proven.
-2. Keep workflow expression engine constrained and safe (no arbitrary JS eval).
-3. Keep process boundaries explicit (API vs worker vs workflow worker).
-4. Prefer small, composable changes with end-to-end tests for behavior-critical paths.
+1. Event send failures by event type.
+2. Function start/latency/error by function ID.
+3. Cancellation and replacement counts.
+4. Wait timeout rates.
+5. Side-effect send success/failure by provider/channel.
+6. Correlation IDs across API logs and Inngest run IDs.
 
 ## 14. Risks and Mitigations
 
-1. Duplicate sends under retries/replays.
-   - Mitigation: deterministic delivery keys + unique ledger + send-time guards.
-2. Cancel/send race conditions.
-   - Mitigation: strict cancellation contract + pre-send run revision validation.
-3. Builder/runtime drift.
-   - Mitigation: publish-time compile artifacts and immutable version references.
-4. Operational complexity across planes.
-   - Mitigation: unified dashboards and explicit runbook ownership.
+1. Post-commit send gaps without outbox.
+   - Mitigation: explicit failure handling, retries where safe, operational alerting.
+2. Duplicate side effects due to at-least-once retries.
+   - Mitigation: deterministic delivery keys + unique ledger + pre-send guards.
+3. Wait-for-event race conditions.
+   - Mitigation: flow design constraints and explicit timeout/fallback branches.
+4. Migration breakage due to big-bang changes.
+   - Mitigation: enforce end-to-end acceptance gates before merge.
 
-## 15. Open Questions (Pending Product Decisions)
+## 15. References
 
-1. Initial channel/provider rollout order for send actions.
-2. Default template library and required variables for v1.
-3. Consent policy details required before enabling SMS sends per org.
-
-## 16. References
-
-1. `docs/references/event-bus/synthesis.md`
-2. `docs/references/event-bus/workflow-devkit-research.md`
-3. `docs/references/event-bus/testing.md`
-4. Workflow DevKit idempotency: https://useworkflow.dev/docs/foundations/idempotency
-5. Workflow DevKit worlds: https://useworkflow.dev/docs/worlds
-6. Workflow DevKit Postgres world: https://useworkflow.dev/worlds/postgres
+1. Inngest self-hosting: https://www.inngest.com/docs/self-hosting
+2. Inngest dev server: https://www.inngest.com/docs/dev-server
+3. Inngest `cancelOn`: https://www.inngest.com/docs/reference/typescript/functions/cancel-on
+4. Inngest `waitForEvent`: https://www.inngest.com/docs/features/inngest-functions/steps-workflows/wait-for-event
+5. Inngest Workflow Kit: https://www.inngest.com/docs/reference/workflow-kit

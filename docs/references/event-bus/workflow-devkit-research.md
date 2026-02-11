@@ -1,187 +1,119 @@
-# Workflow DevKit Deep Research
+# Inngest + Workflow Kit Deep Dive (Supersedes Workflow DevKit Direction)
 
-Date: 2026-02-10  
-Repo Context: `/Users/alancohen/projects/scheduling-app`  
-Topic: Workflow DevKit fit for EventBus + workflow orchestration architecture
+Status: Adopted Inputs
+Last Updated: 2026-02-11
+Topic: Inngest and Workflow Kit fit for eventing, integrations, and user-defined workflows
 
-## Executive Summary
+## 1. Executive Summary
 
-Workflow DevKit (WDK) is a strong fit for the orchestration layer in this repo when paired with a separate Domain Event Bus. It provides durable workflow execution primitives (`"use workflow"`, `"use step"`), built-in retry semantics, and explicit idempotency guidance based on stable `stepId`.
+Inngest covers the core runtime capabilities this project needs in one system:
 
-For your current plan, the key point is:
+1. Event-triggered durable function runs.
+2. Built-in retries and step-level checkpointing.
+3. Cancellation primitives via `cancelOn`.
+4. Event waits via `step.waitForEvent`.
+5. Flow control primitives (`concurrency`, `throttle`, etc.).
+6. Self-hosting on Postgres + Redis/Valkey.
+7. Workflow Kit for user-defined workflow UI + engine pattern.
 
-1. WDK is best used for long-lived orchestration, waits/sleeps, and stateful business processes.
-2. WDK Postgres World is explicitly documented as using PostgreSQL for durable state and **pg-boss** for job processing.
-3. You still need app-level event modeling and trigger-dedup strategy (especially for webhook/event retries) above workflow start boundaries.
+Conclusion: Inngest should replace BullMQ and Workflow DevKit runtime for this codebase.
 
-Inference for this codebase: keep DomainEvent/EventBus as the trigger plane, and use WDK as the execution plane for delayed/cancellable workflows.
+## 2. Why Inngest Fits This Repo
 
-## What WDK Is (and Is Not)
+1. Current architecture already models domain events and async fanout.
+2. Existing Postgres + Valkey infra maps cleanly to self-hosted Inngest requirements.
+3. Existing typed DTO event schemas can drive typed Inngest event contracts.
+4. Existing integration registry/settings model can be reused in Inngest handlers.
+5. Workflow Kit reduces custom editor/runtime compiler complexity.
 
-WDK is an open-source TypeScript framework for durable workflows that can suspend/resume and survive restarts/deploys.
+## 3. Capability Mapping to Project Needs
 
-It is not just a queue library:
+### 3.1 Event Fanout
 
-1. It gives a workflow programming model with orchestration semantics.
-2. It gives step-level retry semantics and error control.
-3. It provides inspection tooling and a web UI for runs.
+Need:
+- Domain events fan out to multiple downstream processors.
 
-It is also not a complete replacement for business event taxonomy:
+Inngest mapping:
+- Send one event; multiple functions subscribe by event name.
+- Per-function flow control and retries replace queue-specific fanout code.
 
-1. You still need your own DomainEvent definitions and trigger mappings.
-2. You still need your own guardrails (consent, quotas, domain state checks).
+### 3.2 Cancel + Replace
 
-## Runtime Model
+Need:
+- Appointment mutations cancel active automation and start replacement run.
 
-From WDK foundations docs:
+Inngest mapping:
+- Use `cancelOn` with matching expressions (`orgId`, `appointmentId`, workflow key).
+- Trigger replacement run from mutation event function.
 
-1. **Workflow functions** (`"use workflow"`) orchestrate logic and are intentionally constrained.
-2. **Step functions** (`"use step"`) execute units of work and are persisted/retried.
+### 3.3 Wait-for-event
 
-Important architectural implication:
+Need:
+- Pause workflows until future domain/user events or timeout.
 
-1. Keep workflow functions for control flow and deterministic orchestration.
-2. Put side effects (APIs, DB writes, notifications) in steps.
-3. Design steps to be idempotent under retry/replay.
+Inngest mapping:
+- Use `step.waitForEvent` with match expressions and explicit timeout branch handling.
 
-## Worlds and Postgres World
+### 3.4 Integration Delivery Reliability
 
-WDK exposes a world abstraction (local, Vercel, Postgres, etc.).
+Need:
+- Retry transient failures, prevent duplicate side effects.
 
-For your plan, Postgres World matters most:
+Inngest mapping:
+- Step retries + idempotent delivery keys + dedupe ledger checks.
 
-1. It is documented as a production-ready self-hosted world.
-2. It uses PostgreSQL durable storage.
-3. It uses pg-boss for reliable job processing.
+### 3.5 User-defined Workflows
 
-Operationally this aligns with your “single Postgres-centric substrate” direction.  
-It also means queue tuning and DB tuning become one operational surface, which simplifies topology but increases focus on Postgres capacity management.
+Need:
+- Admin editor and publishable workflow definitions.
 
-## Idempotency Semantics
+Inngest mapping:
+- Workflow Kit engine/actions on backend + prebuilt React editor components on frontend.
 
-The WDK idempotency guidance is explicit:
+## 4. Self-Hosting Model
 
-1. External side-effecting steps should use idempotency keys.
-2. `getStepMetadata().stepId` is stable across retries for the same step invocation.
-3. Recommended pattern is using `stepId` as provider idempotency key where supported.
+Key points for this repo:
 
-For this repo’s notification use cases:
+1. Inngest can be self-hosted.
+2. Runtime relies on Postgres and Redis/Valkey class store.
+3. Local dev can use Inngest dev server for fast iteration.
+4. API app only needs to serve Inngest endpoint and send events.
 
-1. Use `stepId` plus business context as deterministic idempotency key (`sms:{stepId}` or stricter).
-2. Persist an app-side delivery ledger keyed by deterministic key to prevent duplicate side effects even if provider behavior is ambiguous.
-3. Keep send-time domain checks in a step before side effects.
+## 5. Operational Implications
 
-## Retry and Error Controls
+1. Remove queue worker fleet complexity (`dispatch`, `fanout`, per-integration workers).
+2. Remove Workflow DevKit worker and build pipeline.
+3. Shift ops focus to function health, retries, and Inngest service health.
+4. Use Inngest run history as primary execution visibility.
 
-WDK defaults and controls:
+## 6. Risks and Controls
 
-1. Steps retry on arbitrary errors by default.
-2. Retry count can be customized (`maxRetries`).
-3. `FatalError` can stop retries for terminal conditions.
-4. `RetryableError` supports customized retry timing.
+1. At-least-once retries can duplicate effects.
+   - Control: deterministic delivery keys + unique ledger.
+2. Wait event ordering races.
+   - Control: design waits so events are emitted after wait begins; always implement timeout branch.
+3. Big-bang migration risk.
+   - Control: enforce strict acceptance suite and complete legacy deletion in one PR series.
+4. Loss of outbox atomicity.
+   - Control: explicit post-commit event send policy and failure alerting.
 
-Practical mapping for this repo:
+## 7. Recommended Adoption Pattern
 
-1. Use `FatalError` for policy failures (opt-out, quota exceeded, invalid state).
-2. Use retryable errors for transient provider/network failures.
-3. Make retry policy explicit by step type (SMS vs webhook vs internal sync).
+1. Foundation: add Inngest client + serve endpoint.
+2. Cutover event emission.
+3. Move integrations to Inngest handlers.
+4. Move workflows to Inngest functions + Workflow Kit.
+5. Remove legacy workers/outbox/runtime/deps.
 
-## Sleep, Suspense, and Scheduling
+## 8. Reference Links
 
-WDK exposes a workflow-level `sleep()` primitive and supports long pauses.  
-The docs position this for durable waiting and scheduling semantics.
-
-For your target example:
-
-1. Trigger on `appointment.created`.
-2. Sleep for relative/absolute delay.
-3. Re-check state and policy.
-4. Send message step with idempotency key.
-
-This is cleaner than hand-rolling delayed queue jobs and cancellation chains in queue-only infrastructure.
-
-## Observability and Debugging
-
-WDK ships with observability features:
-
-1. CLI inspection (`npx workflow inspect ...`).
-2. Local web UI via CLI (`--web`) for run exploration.
-3. World-aware inspection backends.
-
-Implication:
-
-1. You can get a workflow-run-native debug surface faster than custom instrumentation-only approaches.
-2. You should still integrate with app-level metrics and logs for business outcomes (sends, skips, consent blocks).
-
-## Deployment and Runtime Topology
-
-Postgres World deployment points in docs:
-
-1. Install world package and set `WORKFLOW_TARGET_WORLD`.
-2. Provide `WORKFLOW_POSTGRES_URL`.
-3. Run setup/migration command (`workflow-postgres-setup`).
-4. Start world on server start to subscribe to jobs.
-
-For this monorepo:
-
-1. Run WDK workers in API process only if load is low to moderate.
-2. Prefer separate worker process (or process group) for predictable scaling and fault isolation once workflow volume grows.
-3. Keep explicit health checks for both API and workflow worker roles.
-
-## Migration Implications for `scheduling-app`
-
-### Good fit points
-
-1. Existing domain events and outbox are already present.
-2. Existing integration abstraction maps naturally to “workflow starter” and “delivery adapters”.
-3. Existing admin/settings surface can evolve toward workflow definitions.
-
-### Required design decisions
-
-1. Trigger dedupe strategy at workflow start (event-id + workflow-id uniqueness).
-2. State model for workflow definitions/runs in your DB schema.
-3. Relationship between integration toggles and workflow-level actions.
-
-### Likely immediate tasks
-
-1. Introduce a `WorkflowStarter` integration consumer subscribing to selected domain events.
-2. Add deterministic run identity policy and uniqueness constraints.
-3. Add delivery ledger + provider idempotency key adapter layer.
-
-## Risks and Limitations
-
-1. WDK is in beta (as documented on site), so API/runtime changes may occur.
-2. Workflow start idempotency by custom run ID has been discussed publicly; verify current behavior/version before relying on assumptions.
-3. If workflow and queueing share same Postgres under heavy load, DB performance governance becomes critical.
-4. Durable orchestration does not remove need for business-level guardrails (consent, quota, and state validation).
-
-## Recommendation for This Repo
-
-1. Keep DomainEvent + EventBus as first-class architecture.
-2. Use WDK Postgres World for orchestration of delayed/cancellable workflows.
-3. Standardize idempotency:
-1. Trigger dedupe key at run creation.
-2. Step-level provider idempotency key from `stepId`.
-3. App-side delivery dedupe ledger with unique constraints.
-4. Build workflow v1 with curated blocks (`trigger`, `wait`, `send`) and strict policy checks.
-
-## Open Questions to Resolve Before Implementation
-
-1. Exact dedupe contract for workflow run creation across retries.
-2. Worker topology choice (co-located vs dedicated service).
-3. Operational SLOs for wake latency and retry latency.
-4. Multi-tenant scoping strategy for workflow metadata and inspection APIs.
-
-## Sources
-
-1. WDK home: [https://useworkflow.dev/](https://useworkflow.dev/)
-2. Workflows and steps: [https://useworkflow.dev/docs/foundations/workflows-and-steps](https://useworkflow.dev/docs/foundations/workflows-and-steps)
-3. Idempotency: [https://useworkflow.dev/docs/foundations/idempotency](https://useworkflow.dev/docs/foundations/idempotency)
-4. Errors and retries: [https://useworkflow.dev/docs/foundations/errors-and-retries](https://useworkflow.dev/docs/foundations/errors-and-retries)
-5. API reference (`getStepMetadata`, `sleep`): [https://useworkflow.dev/docs/api-reference/workflow](https://useworkflow.dev/docs/api-reference/workflow)
-6. Observability: [https://useworkflow.dev/docs/observability](https://useworkflow.dev/docs/observability)
-7. Worlds: [https://useworkflow.dev/worlds](https://useworkflow.dev/worlds)
-8. Postgres world: [https://useworkflow.dev/worlds/postgres](https://useworkflow.dev/worlds/postgres)
-9. Deploying with Postgres world: [https://useworkflow.dev/docs/deploying/world/postgres-world](https://useworkflow.dev/docs/deploying/world/postgres-world)
-10. Vercel Workflow docs (managed layer context): [https://vercel.com/docs/workflow](https://vercel.com/docs/workflow)
-11. Workflow repository (project status and issues): [https://github.com/vercel/workflow](https://github.com/vercel/workflow)
+1. Inngest TypeScript SDK: https://www.inngest.com/docs/typescript
+2. Inngest serve endpoint: https://www.inngest.com/docs/reference/serve
+3. Inngest send events: https://www.inngest.com/docs/reference/events/send
+4. Inngest cancelOn: https://www.inngest.com/docs/reference/typescript/functions/cancel-on
+5. Inngest waitForEvent: https://www.inngest.com/docs/features/inngest-functions/steps-workflows/wait-for-event
+6. Inngest self-hosting: https://www.inngest.com/docs/self-hosting
+7. Inngest dev server: https://www.inngest.com/docs/dev-server
+8. Workflow Kit overview: https://www.inngest.com/docs/reference/workflow-kit
+9. Workflow Kit engine: https://www.inngest.com/docs/reference/workflow-kit/engine
+10. Workflow Kit components API: https://www.inngest.com/docs/reference/workflow-kit/components-api
