@@ -21,6 +21,7 @@ import { requestLogger } from "./middleware/request-logger.js";
 import { config } from "./config.js";
 import { backfillAppIntegrationDefaultsForAllOrgs } from "./services/integrations/defaults.js";
 import { bootstrapSvixEventCatalogOnStartup } from "./services/svix-event-catalog.js";
+import { inngestServeHandler } from "./inngest/serve.js";
 
 const app = new Hono();
 
@@ -50,6 +51,9 @@ app.get("/api/v1/health", (c) => c.json({ status: "ok" }));
 app.on(["GET", "POST"], "/api/auth/*", (c) => {
   return auth.handler(c.req.raw);
 });
+
+// Inngest serve endpoint
+app.on(["GET", "POST", "PUT"], config.inngest.servePath, inngestServeHandler);
 
 // ============================================================================
 // oRPC HANDLER (Admin UI) - /v1/*

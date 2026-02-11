@@ -50,6 +50,7 @@
     "drizzle-orm": "catalog:",
     "es-toolkit": "^1.44.0",
     "hono": "^4.11.9",
+    "inngest": "^3.52.0",
     "libphonenumber-js": "^1.12.36",
     "luxon": "^3.7.2",
     "rrule": "^2.8.1",

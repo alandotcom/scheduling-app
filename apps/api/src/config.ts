@@ -150,6 +150,33 @@ export const config = envParse(Bun.env, {
       optional: true,
     },
   },
+  inngest: {
+    baseUrl: {
+      format: z.url(),
+      env: "INNGEST_BASE_URL",
+      ...(isDev ? { default: "http://127.0.0.1:8288" } : { optional: true }),
+    },
+    eventKey: {
+      format: z.string().min(1),
+      env: "INNGEST_EVENT_KEY",
+      ...(isDev ? { default: "dev" } : { optional: true }),
+    },
+    signingKey: {
+      format: z.string().min(1),
+      env: "INNGEST_SIGNING_KEY",
+      optional: true,
+    },
+    servePath: {
+      format: z.string(),
+      env: "INNGEST_SERVE_PATH",
+      default: "/api/inngest",
+    },
+    serveHost: {
+      format: z.url(),
+      env: "INNGEST_SERVE_HOST",
+      optional: true,
+    },
+  },
 });
 
 export const authBaseUrl =

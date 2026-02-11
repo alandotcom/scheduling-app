@@ -46,7 +46,7 @@ A multi-tenant appointment scheduling platform (Acuity-style) built with modern 
    docker compose up -d
    ```
 
-5. Bootstrap local database and workflow runtime tables:
+5. Bootstrap local database and seed demo data:
 
    ```bash
    pnpm bootstrap:dev
@@ -60,8 +60,15 @@ A multi-tenant appointment scheduling platform (Acuity-style) built with modern 
    pnpm dev
    ```
 
+   In a separate terminal, start the Inngest Dev Server:
+
+   ```bash
+   pnpm dev:inngest
+   ```
+
    - API: http://localhost:3000
    - Admin UI: http://localhost:5173
+   - Inngest Dev Server UI: http://localhost:8288
    - Workflow Worker health: http://127.0.0.1:3020/health
    - Bull Board: http://127.0.0.1:3010/
 
@@ -72,12 +79,13 @@ A multi-tenant appointment scheduling platform (Acuity-style) built with modern 
 ```bash
 # Development
 pnpm dev              # Run API + admin UI + worker + workflow-worker + Bull Board in parallel
+pnpm dev:inngest      # Run Inngest Dev Server and sync with /api/inngest
 pnpm dev:api          # Run API only with hot reload
 pnpm dev:worker       # Run worker only with hot reload
 pnpm dev:workflow-worker # Run workflow runtime worker only
 pnpm dev:admin        # Run admin UI only
 pnpm dev:bull-board   # Run only Bull Board as a separate server
-pnpm bootstrap:dev    # Push DB schema, seed data, and setup Workflow Postgres tables
+pnpm bootstrap:dev    # Push DB schema and seed demo data
 pnpm --filter @scheduling/api run sync:svix-event-catalog  # Manual Svix event schema sync
 
 # Testing
@@ -125,6 +133,11 @@ Commonly used variables:
 | `AUTH_SECRET`          | BetterAuth secret (change in production) | `dev-secret-change-in-production`                            |
 | `API_PORT`             | API server port alias for scripts         | `3000`                                                       |
 | `PORT`                 | API server port                          | `3000`                                                       |
+| `INNGEST_BASE_URL`     | Inngest runtime base URL                  | `http://127.0.0.1:8288` in non-production; _(unset)_ in production |
+| `INNGEST_EVENT_KEY`    | Inngest event key                         | `dev` in non-production; _(unset)_ in production            |
+| `INNGEST_SIGNING_KEY`  | Inngest signing key                       | _(unset)_                                                    |
+| `INNGEST_SERVE_PATH`   | Inngest serve endpoint path               | `/api/inngest`                                               |
+| `INNGEST_SERVE_HOST`   | Explicit host for Inngest serve endpoint  | _(unset)_                                                    |
 | `BULL_BOARD_HOST`      | Bull Board bind host                     | `127.0.0.1`                                                  |
 | `BULL_BOARD_PORT`      | Bull Board server port                   | `3010`                                                       |
 | `BULL_BOARD_BASE_PATH` | Bull Board UI base path                  | `/`                                                          |

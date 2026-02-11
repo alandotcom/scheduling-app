@@ -1,81 +1,49 @@
-// Event emitter service for scheduling domain events
-// Writes events to both the database outbox and the job queue
+// Event emitter service for scheduling domain events.
+// Sends typed events directly to Inngest.
 
-import { eventOutbox } from "@scheduling/db/schema";
+import { getLogger } from "@logtape/logtape";
 import type { WebhookEventData } from "@scheduling/dto";
 import type { DbClient } from "../../lib/db.js";
-import { withOrg } from "../../lib/db.js";
-import type { DomainEvent, EventType, JobQueue } from "./types.js";
-import { BullMQJobQueue } from "./queue.js";
+import { inngest } from "../../inngest/client.js";
+import type { EventType } from "./types.js";
 
-// Singleton job queue instance
-let jobQueue: JobQueue | null = null;
+const logger = getLogger(["events", "emitter"]);
 
-function getJobQueue(): JobQueue {
-  if (!jobQueue) {
-    jobQueue = new BullMQJobQueue();
-  }
-  return jobQueue;
-}
-
-// Generate a unique event ID
 function generateEventId(): string {
   return Bun.randomUUIDv7();
 }
 
-function toOutboxPayload(value: unknown): Record<string, unknown> {
-  if (typeof value === "object" && value !== null) {
-    return Object.fromEntries(Object.entries(value));
-  }
-  return { value };
-}
-
-// Emit an event (writes to outbox and enqueues for processing)
+// Emit an event to Inngest. The tx argument is retained temporarily so
+// existing call sites can migrate without a broad signature change.
 export async function emitEvent<TEventType extends EventType>(
   orgId: string,
   type: TEventType,
   payload: WebhookEventData<TEventType>,
-  tx?: DbClient,
+  _tx?: DbClient,
 ): Promise<string> {
   const eventId = generateEventId();
-  const timestamp = new Date().toISOString();
+  const timestampMs = Date.now();
 
-  const event: DomainEvent<TEventType> = {
-    id: eventId,
-    type,
-    orgId,
-    payload,
-    timestamp,
-  };
-
-  // Write to outbox within the provided transaction or a new one
-  const insertFn = async (database: DbClient) => {
-    await database.insert(eventOutbox).values({
+  try {
+    await inngest.send({
       id: eventId,
+      name: type,
+      data: {
+        orgId,
+        ...payload,
+      },
+      ts: timestampMs,
+    });
+  } catch (error) {
+    // Temporary migration behavior: preserve successful write paths even if the
+    // local Inngest runtime is unavailable.
+    logger.error("Failed sending event to Inngest: {error}", {
+      error,
+      eventId,
+      eventType: type,
       orgId,
-      type,
-      payload: toOutboxPayload(payload),
-      status: "pending",
-      nextAttemptAt: new Date(),
     });
-  };
-
-  if (tx) {
-    await insertFn(tx);
-  } else {
-    await withOrg(orgId, insertFn);
   }
-
-  // Enqueue for background processing (fire-and-forget so it never blocks
-  // the caller's database transaction — the outbox is the durable record)
-  getJobQueue()
-    .enqueue(event)
-    .catch((error) => {
-      console.error(
-        "Failed to enqueue event, will be picked up by outbox worker:",
-        error,
-      );
-    });
 
   return eventId;
 }
@@ -141,8 +109,5 @@ export const events = {
 
 // Close the job queue (for graceful shutdown)
 export async function closeEventEmitter(): Promise<void> {
-  if (jobQueue) {
-    await jobQueue.close();
-    jobQueue = null;
-  }
+  // No-op after Inngest migration; kept for compatibility with existing callers.
 }
