@@ -828,6 +828,61 @@ describe("Workflow Routes", () => {
     }
   });
 
+  test("cancelRun status transition is reflected by listRuns and getRun", async () => {
+    const { org, user } = await createOrg(db);
+    const context = createTestContext({
+      orgId: org.id,
+      userId: user.id,
+      role: "owner",
+    });
+
+    await createWorkflowRunLink({
+      db,
+      orgId: org.id,
+      runId: "run-cancel-transition-1",
+      workflowType: "appointment.reminder",
+      entityType: "appointment",
+      entityId: "0198d09f-ff07-7f46-a5d9-26a3f0d90132",
+      runStatus: "running",
+      runRevision: 1,
+      startedAt: new Date("2026-02-11T09:00:00.000Z"),
+      lastSeenAt: new Date("2026-02-11T09:05:00.000Z"),
+    });
+
+    const fetchMock = mock(
+      async () =>
+        new Response(JSON.stringify({ id: "cancellation-2" }), { status: 200 }),
+    );
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+    const cancelled = await call(
+      workflowRoutes.cancelRun,
+      { runId: "run-cancel-transition-1" },
+      { context },
+    );
+    expect(cancelled.success).toBe(true);
+
+    const listed = await call(
+      workflowRoutes.listRuns,
+      {
+        status: "cancelled",
+        limit: 50,
+      },
+      { context },
+    );
+    expect(
+      listed.items.some((item) => item.runId === "run-cancel-transition-1"),
+    ).toBe(true);
+
+    const run = await call(
+      workflowRoutes.getRun,
+      { runId: "run-cancel-transition-1" },
+      { context },
+    );
+    expect(run.status).toBe("cancelled");
+    expect(run.runRevision).toBe(2);
+  });
+
   test("cancelRun returns NOT_FOUND when run is missing", async () => {
     const { org, user } = await createOrg(db);
     const context = createTestContext({

@@ -225,7 +225,8 @@ Exit criteria:
 
 - [x] Replace custom graph assumptions with Workflow Kit JSON contracts in DTO/API.
 - [x] Implement/complete workflow CRUD, bindings, run management, and publish routes against Workflow Kit model.
-- [ ] Build admin workflow editor routes using `@inngest/workflow-kit/ui`.
+- [x] Build admin workflow management routes (definitions, draft editing, bindings, runs) in `admin-ui`.
+- [ ] Replace JSON draft editor with `@inngest/workflow-kit/ui` visual authoring components.
 - [x] Persist draft and published versions as Workflow Kit JSON.
 
 Exit criteria:
@@ -273,12 +274,23 @@ Required automated coverage:
    - duplicate event IDs do not create duplicate logical side effects
    - delivery key uniqueness blocks duplicate sends
 
+Current automated coverage snapshot:
+
+1. [x] Dispatch pipeline integration test covers `event -> binding resolution -> workflow execution -> workflow_run_entity_links` persistence.
+2. [x] Workflow cancel route test covers status transition visibility via `listRuns` and `getRun`.
+
 Release acceptance:
 
 1. Local dev flow works with Inngest dev server.
 2. No outbox/BullMQ code paths are called.
 3. Workflow Kit editor can publish an executable workflow.
 4. Appointment lifecycle workflow runs correctly in end-to-end test.
+
+Current manual smoke snapshot (2026-02-10):
+
+1. [x] `client.created` event emitted from UI (client creation) produces an Inngest workflow run visible in `/workflows`.
+2. [x] Workflow admin UI supports publish + binding management + run visibility in live dev stack.
+3. [ ] Runtime function currently completes immediately, so reliable UI cancel smoke for live runs is still pending richer execution semantics (`cancelOn`/wait steps).
 
 ## 13. Observability
 
