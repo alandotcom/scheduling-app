@@ -3,6 +3,7 @@ import {
   buildWorkflowDeliveryKey,
   cancelReplacedWorkflowRuns,
   getWorkflowRunGuard,
+  loadWorkflowCorrelatedEntity,
   markWorkflowRunStatus,
   recordWorkflowDeliveryWithGuard,
   recordWorkflowRunStart,
@@ -12,6 +13,7 @@ type WorkflowExecutionDependencies = {
   recordRunStart: typeof recordWorkflowRunStart;
   cancelReplacedRuns: typeof cancelReplacedWorkflowRuns;
   getRunGuard: typeof getWorkflowRunGuard;
+  loadCorrelatedEntity: typeof loadWorkflowCorrelatedEntity;
   recordDeliveryWithGuard: typeof recordWorkflowDeliveryWithGuard;
   markRunStatus: typeof markWorkflowRunStatus;
 };
@@ -21,6 +23,7 @@ function createDefaultDependencies(): WorkflowExecutionDependencies {
     recordRunStart: recordWorkflowRunStart,
     cancelReplacedRuns: cancelReplacedWorkflowRuns,
     getRunGuard: getWorkflowRunGuard,
+    loadCorrelatedEntity: loadWorkflowCorrelatedEntity,
     recordDeliveryWithGuard: recordWorkflowDeliveryWithGuard,
     markRunStatus: markWorkflowRunStatus,
   };
@@ -82,6 +85,8 @@ export function createWorkflowExecutionFunction(
 
       let status: "completed" | "cancelled" = "completed";
       let replacementSignal: unknown = null;
+      let terminalReason: "entity_missing" | "unsupported_entity_type" | null =
+        null;
 
       if (shouldWaitForReplacementSignal(event)) {
         replacementSignal = await step.waitForEvent(
@@ -99,6 +104,26 @@ export function createWorkflowExecutionFunction(
       }
 
       if (status === "completed") {
+        const correlatedEntity = await step.run(
+          "load-correlated-entity-latest",
+          async () => {
+            return dependencies.loadCorrelatedEntity({
+              orgId: event.data.orgId,
+              entityType: event.data.entity.type,
+              entityId: event.data.entity.id,
+            });
+          },
+        );
+
+        if (correlatedEntity.status !== "found") {
+          terminalReason =
+            correlatedEntity.status === "missing"
+              ? "entity_missing"
+              : "unsupported_entity_type";
+        }
+      }
+
+      if (status === "completed" && terminalReason === null) {
         const deliveryResult = await step.run(
           "record-workflow-side-effect-delivery",
           async () => {
@@ -157,6 +182,7 @@ export function createWorkflowExecutionFunction(
         entityId: event.data.entity.id,
         status,
         replacementSignalled: replacementSignal !== null,
+        terminalReason,
       };
     },
   );

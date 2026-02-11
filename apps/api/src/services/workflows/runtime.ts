@@ -1,5 +1,11 @@
 import { webhookEventTypeSchema, type WebhookEventType } from "@scheduling/dto";
 import {
+  appointmentTypes,
+  appointments,
+  calendars,
+  clients,
+  locations,
+  resources,
   workflowBindings,
   workflowDeliveryLog,
   workflowDefinitions,
@@ -41,6 +47,23 @@ export type WorkflowRunGuard = {
   runRevision: number;
   runStatus: WorkflowRunStatusValue;
 };
+
+export type WorkflowCorrelatedEntityLoadResult =
+  | {
+      status: "found";
+      entityType: string;
+      entityId: string;
+    }
+  | {
+      status: "missing";
+      entityType: string;
+      entityId: string;
+    }
+  | {
+      status: "unsupported_entity_type";
+      entityType: string;
+      entityId: string;
+    };
 
 export function buildWorkflowDeliveryKey(input: {
   runId: string;
@@ -284,5 +307,139 @@ export async function cancelReplacedWorkflowRuns(input: {
       .returning({ id: workflowRunEntityLinks.id });
 
     return updated.length;
+  });
+}
+
+export async function loadWorkflowCorrelatedEntity(input: {
+  orgId: string;
+  entityType: string;
+  entityId: string;
+}): Promise<WorkflowCorrelatedEntityLoadResult> {
+  return withOrg(input.orgId, async (tx) => {
+    if (input.entityType === "appointment") {
+      const [row] = await tx
+        .select({ id: appointments.id })
+        .from(appointments)
+        .where(eq(appointments.id, input.entityId))
+        .limit(1);
+
+      return row
+        ? {
+            status: "found" as const,
+            entityType: input.entityType,
+            entityId: input.entityId,
+          }
+        : {
+            status: "missing" as const,
+            entityType: input.entityType,
+            entityId: input.entityId,
+          };
+    }
+
+    if (input.entityType === "calendar") {
+      const [row] = await tx
+        .select({ id: calendars.id })
+        .from(calendars)
+        .where(eq(calendars.id, input.entityId))
+        .limit(1);
+
+      return row
+        ? {
+            status: "found" as const,
+            entityType: input.entityType,
+            entityId: input.entityId,
+          }
+        : {
+            status: "missing" as const,
+            entityType: input.entityType,
+            entityId: input.entityId,
+          };
+    }
+
+    if (input.entityType === "appointment_type") {
+      const [row] = await tx
+        .select({ id: appointmentTypes.id })
+        .from(appointmentTypes)
+        .where(eq(appointmentTypes.id, input.entityId))
+        .limit(1);
+
+      return row
+        ? {
+            status: "found" as const,
+            entityType: input.entityType,
+            entityId: input.entityId,
+          }
+        : {
+            status: "missing" as const,
+            entityType: input.entityType,
+            entityId: input.entityId,
+          };
+    }
+
+    if (input.entityType === "resource") {
+      const [row] = await tx
+        .select({ id: resources.id })
+        .from(resources)
+        .where(eq(resources.id, input.entityId))
+        .limit(1);
+
+      return row
+        ? {
+            status: "found" as const,
+            entityType: input.entityType,
+            entityId: input.entityId,
+          }
+        : {
+            status: "missing" as const,
+            entityType: input.entityType,
+            entityId: input.entityId,
+          };
+    }
+
+    if (input.entityType === "location") {
+      const [row] = await tx
+        .select({ id: locations.id })
+        .from(locations)
+        .where(eq(locations.id, input.entityId))
+        .limit(1);
+
+      return row
+        ? {
+            status: "found" as const,
+            entityType: input.entityType,
+            entityId: input.entityId,
+          }
+        : {
+            status: "missing" as const,
+            entityType: input.entityType,
+            entityId: input.entityId,
+          };
+    }
+
+    if (input.entityType === "client") {
+      const [row] = await tx
+        .select({ id: clients.id })
+        .from(clients)
+        .where(eq(clients.id, input.entityId))
+        .limit(1);
+
+      return row
+        ? {
+            status: "found" as const,
+            entityType: input.entityType,
+            entityId: input.entityId,
+          }
+        : {
+            status: "missing" as const,
+            entityType: input.entityType,
+            entityId: input.entityId,
+          };
+    }
+
+    return {
+      status: "unsupported_entity_type" as const,
+      entityType: input.entityType,
+      entityId: input.entityId,
+    };
   });
 }

@@ -35,7 +35,7 @@ import {
 import type { SQL } from "drizzle-orm";
 import { and, asc, desc, eq, ilike, or, sql } from "drizzle-orm";
 import { createHash } from "node:crypto";
-import { adminOnly } from "./base.js";
+import { adminOnly, authed } from "./base.js";
 import { ApplicationError } from "../errors/application-error.js";
 import {
   cancelInngestRunById,
@@ -249,7 +249,7 @@ async function loadDefinitionDetail(tx: DbClient, definitionId: string) {
   });
 }
 
-export const listDefinitions = adminOnly
+export const listDefinitions = authed
   .route({ method: "GET", path: "/workflows" })
   .input(listWorkflowDefinitionsQuerySchema)
   .output(workflowDefinitionListResponseSchema)
@@ -285,7 +285,7 @@ export const listDefinitions = adminOnly
     return { items };
   });
 
-export const getDefinition = adminOnly
+export const getDefinition = authed
   .route({ method: "GET", path: "/workflows/{id}" })
   .input(idInputSchema)
   .output(workflowDefinitionDetailSchema)
@@ -585,7 +585,7 @@ export const removeBinding = adminOnly
     return { success: true as const };
   });
 
-export const listRuns = adminOnly
+export const listRuns = authed
   .route({ method: "GET", path: "/workflows/runs" })
   .input(listWorkflowRunsQuerySchema)
   .output(workflowRunListResponseSchema)
@@ -636,7 +636,7 @@ export const listRuns = adminOnly
     return workflowRunListResponseSchema.parse({ items });
   });
 
-export const getRun = adminOnly
+export const getRun = authed
   .route({ method: "GET", path: "/workflows/runs/{runId}" })
   .input(getWorkflowRunInputSchema)
   .output(workflowRunDetailSchema)

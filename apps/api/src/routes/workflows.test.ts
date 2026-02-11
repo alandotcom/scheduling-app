@@ -112,11 +112,55 @@ describe("Workflow Routes", () => {
     ).rejects.toMatchObject({ code: "UNAUTHORIZED" });
   });
 
-  test("listDefinitions rejects non-admin roles", async () => {
+  test("listDefinitions allows member roles", async () => {
+    const { org, user } = await createOrg(db);
+    const ownerContext = createTestContext({
+      orgId: org.id,
+      userId: user.id,
+      role: "owner",
+    });
+
+    await call(
+      workflowRoutes.createDefinition,
+      {
+        key: "member_visible_workflow",
+        name: "Member Visible Workflow",
+        workflowKit: { trigger: { event: "appointment.created" } },
+      },
+      { context: ownerContext },
+    );
+
+    const memberContext = createTestContext({
+      orgId: org.id,
+      userId: user.id,
+      role: "member",
+    });
+
+    const listed = await call(
+      workflowRoutes.listDefinitions,
+      {},
+      {
+        context: memberContext,
+      },
+    );
+
+    expect(listed.items).toHaveLength(1);
+    expect(listed.items[0]?.key).toBe("member_visible_workflow");
+  });
+
+  test("createDefinition rejects non-admin roles", async () => {
     const context = createContext({ role: "member" });
 
     await expect(
-      call(workflowRoutes.listDefinitions, {}, { context }),
+      call(
+        workflowRoutes.createDefinition,
+        {
+          key: "member_cannot_create",
+          name: "Member Cannot Create",
+          workflowKit: { trigger: { event: "appointment.created" } },
+        },
+        { context },
+      ),
     ).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 
@@ -228,7 +272,7 @@ describe("Workflow Routes", () => {
     );
 
     expect(updated.draftRevision).toBe(2);
-    expect(updated.draftWorkflowKit).toEqual({
+    expect(updated.draftWorkflowKit).toMatchObject({
       trigger: { event: "appointment.updated" },
       steps: [{ id: "step_2", type: "notify" }],
     });
@@ -320,7 +364,7 @@ describe("Workflow Routes", () => {
     expect(firstPublish.status).toBe("active");
     expect(firstPublish.activeVersion).not.toBeNull();
     expect(firstPublish.activeVersion?.version).toBe(1);
-    expect(firstPublish.activeVersion?.workflowKit).toEqual({
+    expect(firstPublish.activeVersion?.workflowKit).toMatchObject({
       trigger: { event: "appointment.created" },
     });
     expect(firstPublish.activeVersion?.createdBy).toBe(user.id);
@@ -350,7 +394,7 @@ describe("Workflow Routes", () => {
     );
 
     expect(secondPublish.activeVersion?.version).toBe(2);
-    expect(secondPublish.activeVersion?.workflowKit).toEqual({
+    expect(secondPublish.activeVersion?.workflowKit).toMatchObject({
       trigger: { event: "appointment.updated" },
       steps: [{ id: "step_1", type: "notify" }],
     });
@@ -607,6 +651,11 @@ describe("Workflow Routes", () => {
       userId: user.id,
       role: "owner",
     });
+    const memberContext = createTestContext({
+      orgId: org.id,
+      userId: user.id,
+      role: "member",
+    });
 
     const workflowA = await call(
       workflowRoutes.createDefinition,
@@ -712,6 +761,19 @@ describe("Workflow Routes", () => {
     );
     expect(filteredByStatus.items).toHaveLength(1);
     expect(filteredByStatus.items[0]?.runId).toBe("run-newer");
+
+    const listedAsMember = await call(
+      workflowRoutes.listRuns,
+      {
+        workflowType: "appointment.reminder",
+        limit: 50,
+      },
+      { context: memberContext },
+    );
+    expect(listedAsMember.items.map((item) => item.runId)).toEqual([
+      "run-newer",
+      "run-older",
+    ]);
   });
 
   test("getRun returns run details and enforces org isolation", async () => {
@@ -721,6 +783,11 @@ describe("Workflow Routes", () => {
       orgId: org.id,
       userId: user.id,
       role: "owner",
+    });
+    const memberContext = createTestContext({
+      orgId: org.id,
+      userId: user.id,
+      role: "member",
     });
     const otherContext = createTestContext({
       orgId: otherOrg.id,
@@ -761,6 +828,13 @@ describe("Workflow Routes", () => {
     expect(run.status).toBe("running");
     expect(run.definitionVersionId).toBeNull();
 
+    const memberRun = await call(
+      workflowRoutes.getRun,
+      { runId: "run-detail-1" },
+      { context: memberContext },
+    );
+    expect(memberRun.runId).toBe("run-detail-1");
+
     await expect(
       call(
         workflowRoutes.getRun,
@@ -768,6 +842,52 @@ describe("Workflow Routes", () => {
         { context: otherContext },
       ),
     ).rejects.toMatchObject({ code: "NOT_FOUND" });
+  });
+
+  test("cancelRun rejects non-admin roles", async () => {
+    const { org, user } = await createOrg(db);
+    const ownerContext = createTestContext({
+      orgId: org.id,
+      userId: user.id,
+      role: "owner",
+    });
+    const memberContext = createTestContext({
+      orgId: org.id,
+      userId: user.id,
+      role: "member",
+    });
+
+    await createWorkflowRunLink({
+      db,
+      orgId: org.id,
+      runId: "run-member-cannot-cancel",
+      workflowType: "appointment.reminder",
+      entityType: "appointment",
+      entityId: "0198d09f-ff07-7f46-a5d9-26a3f0d90125",
+      runStatus: "running",
+    });
+
+    const fetchMock = mock(
+      async () =>
+        new Response(JSON.stringify({ id: "cancellation-member" }), {
+          status: 200,
+        }),
+    );
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+    await expect(
+      call(
+        workflowRoutes.cancelRun,
+        { runId: "run-member-cannot-cancel" },
+        { context: memberContext },
+      ),
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+
+    await call(
+      workflowRoutes.cancelRun,
+      { runId: "run-member-cannot-cancel" },
+      { context: ownerContext },
+    );
   });
 
   test("cancelRun marks run as cancelled and increments runRevision", async () => {

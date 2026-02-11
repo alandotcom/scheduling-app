@@ -23,7 +23,134 @@ export const workflowDefinitionStatusSchema = z.enum([
   "archived",
 ]);
 
-export const workflowKitDocumentSchema = z.record(z.string(), z.unknown());
+const workflowRelativeDurationSchema = z
+  .string()
+  .regex(
+    /^P(?!$)(\d+W|\d+D|T(\d+H)?(\d+M)?(\d+S)?|\d+D(T(\d+H)?(\d+M)?(\d+S)?)?)$/,
+    "Duration must be a relative ISO 8601 duration (for example: PT30M, P1D, P3DT2H)",
+  );
+
+export const workflowTriggerRetryPolicySchema = z.object({
+  attempts: z.number().int().min(1).max(25),
+  backoff: z.enum(["none", "fixed", "exponential"]).default("exponential"),
+  baseDelay: workflowRelativeDurationSchema.optional(),
+  maxDelay: workflowRelativeDurationSchema.optional(),
+});
+
+export const workflowTriggerDebouncePolicySchema = z.object({
+  enabled: z.boolean().default(false),
+  window: workflowRelativeDurationSchema,
+  strategy: z.enum(["latest_only", "coalesce"]).default("latest_only"),
+});
+
+export const workflowTriggerReplacementPolicySchema = z.object({
+  mode: z
+    .enum(["replace_active", "cancel_without_replacement", "allow_parallel"])
+    .default("replace_active"),
+  cancelOnTerminalState: z.boolean().default(true),
+});
+
+export const workflowTriggerConfigSchema = z.union([
+  z
+    .object({
+      event: webhookEventTypeSchema,
+      retryPolicy: workflowTriggerRetryPolicySchema.optional(),
+      debounce: workflowTriggerDebouncePolicySchema.optional(),
+      replacement: workflowTriggerReplacementPolicySchema.optional(),
+    })
+    .passthrough(),
+  z
+    .object({
+      eventType: webhookEventTypeSchema,
+      retryPolicy: workflowTriggerRetryPolicySchema.optional(),
+      debounce: workflowTriggerDebouncePolicySchema.optional(),
+      replacement: workflowTriggerReplacementPolicySchema.optional(),
+    })
+    .passthrough(),
+]);
+
+export const workflowGuardConditionSchema = z.object({
+  field: z.string().min(1),
+  operator: z.enum([
+    "eq",
+    "neq",
+    "lt",
+    "lte",
+    "gt",
+    "gte",
+    "in",
+    "not_in",
+    "exists",
+    "not_exists",
+  ]),
+  value: z.unknown().optional(),
+});
+
+export const workflowGuardSchema = z.object({
+  combinator: z.enum(["all", "any"]).default("all"),
+  conditions: z.array(workflowGuardConditionSchema).min(1),
+});
+
+export const workflowWaitNodeConfigSchema = z.object({
+  mode: z.literal("relative").default("relative"),
+  duration: workflowRelativeDurationSchema,
+  referenceField: z.string().min(1).optional(),
+  offsetDirection: z.enum(["before", "after"]).default("after"),
+});
+
+export const workflowActionNodeSchema = z
+  .object({
+    id: z.string().min(1),
+    kind: z.literal("action"),
+    actionId: z.string().min(1),
+    integrationKey: z.string().min(1),
+    input: z.record(z.string(), z.unknown()).default({}),
+    guard: workflowGuardSchema.optional(),
+  })
+  .passthrough();
+
+export const workflowWaitNodeSchema = z
+  .object({
+    id: z.string().min(1),
+    kind: z.literal("wait"),
+    wait: workflowWaitNodeConfigSchema,
+  })
+  .passthrough();
+
+export const workflowTerminalNodeSchema = z
+  .object({
+    id: z.string().min(1),
+    kind: z.literal("terminal"),
+    terminalType: z.enum(["complete", "cancel"]),
+  })
+  .passthrough();
+
+export const workflowGraphNodeSchema = z.discriminatedUnion("kind", [
+  workflowActionNodeSchema,
+  workflowWaitNodeSchema,
+  workflowTerminalNodeSchema,
+]);
+
+export const workflowGraphEdgeSchema = z
+  .object({
+    id: z.string().min(1),
+    source: z.string().min(1),
+    target: z.string().min(1),
+    branch: z.enum(["next", "timeout", "true", "false"]).optional(),
+  })
+  .passthrough();
+
+export const workflowGraphDocumentSchema = z
+  .object({
+    schemaVersion: z.number().int().positive().default(1),
+    trigger: workflowTriggerConfigSchema.optional(),
+    nodes: z.array(workflowGraphNodeSchema).default([]),
+    edges: z.array(workflowGraphEdgeSchema).default([]),
+  })
+  .passthrough();
+
+// Temporary alias while API/DB naming is migrated from "workflowKit" to first-party graph naming.
+export const workflowKitDocumentSchema = workflowGraphDocumentSchema;
 
 export const workflowValidationIssueCodeSchema = z.enum([
   "MISSING_REQUIRED_FIELD",
@@ -185,7 +312,30 @@ export const cancelWorkflowRunResponseSchema = successResponseSchema;
 export type WorkflowDefinitionStatus = z.infer<
   typeof workflowDefinitionStatusSchema
 >;
-export type WorkflowKitDocument = z.infer<typeof workflowKitDocumentSchema>;
+export type WorkflowTriggerRetryPolicy = z.infer<
+  typeof workflowTriggerRetryPolicySchema
+>;
+export type WorkflowTriggerDebouncePolicy = z.infer<
+  typeof workflowTriggerDebouncePolicySchema
+>;
+export type WorkflowTriggerReplacementPolicy = z.infer<
+  typeof workflowTriggerReplacementPolicySchema
+>;
+export type WorkflowTriggerConfig = z.infer<typeof workflowTriggerConfigSchema>;
+export type WorkflowGuardCondition = z.infer<
+  typeof workflowGuardConditionSchema
+>;
+export type WorkflowGuard = z.infer<typeof workflowGuardSchema>;
+export type WorkflowWaitNodeConfig = z.infer<
+  typeof workflowWaitNodeConfigSchema
+>;
+export type WorkflowActionNode = z.infer<typeof workflowActionNodeSchema>;
+export type WorkflowWaitNode = z.infer<typeof workflowWaitNodeSchema>;
+export type WorkflowTerminalNode = z.infer<typeof workflowTerminalNodeSchema>;
+export type WorkflowGraphNode = z.infer<typeof workflowGraphNodeSchema>;
+export type WorkflowGraphEdge = z.infer<typeof workflowGraphEdgeSchema>;
+export type WorkflowGraphDocument = z.input<typeof workflowGraphDocumentSchema>;
+export type WorkflowKitDocument = z.input<typeof workflowKitDocumentSchema>;
 export type WorkflowValidationIssueCode = z.infer<
   typeof workflowValidationIssueCodeSchema
 >;
