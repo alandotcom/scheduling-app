@@ -119,6 +119,11 @@ describe("RLS policy setup verification", () => {
       "integrations",
       "locations",
       "resources",
+      "workflow_bindings",
+      "workflow_definition_versions",
+      "workflow_definitions",
+      "workflow_delivery_log",
+      "workflow_run_entity_links",
     ];
 
     // Query pg_tables to verify RLS is enabled
@@ -126,7 +131,22 @@ describe("RLS policy setup verification", () => {
       SELECT tablename, rowsecurity
       FROM pg_tables
       WHERE schemaname = 'public'
-        AND tablename IN ('locations', 'calendars', 'appointment_types', 'resources', 'clients', 'appointments', 'event_outbox', 'audit_events', 'integrations')
+        AND tablename IN (
+          'locations',
+          'calendars',
+          'appointment_types',
+          'resources',
+          'clients',
+          'appointments',
+          'event_outbox',
+          'audit_events',
+          'integrations',
+          'workflow_definitions',
+          'workflow_definition_versions',
+          'workflow_bindings',
+          'workflow_run_entity_links',
+          'workflow_delivery_log'
+        )
       ORDER BY tablename
     `);
 
@@ -158,6 +178,11 @@ describe("RLS policy setup verification", () => {
       "integrations",
       "locations",
       "resources",
+      "workflow_bindings",
+      "workflow_definition_versions",
+      "workflow_definitions",
+      "workflow_delivery_log",
+      "workflow_run_entity_links",
     ];
 
     for (const tableName of expectedTables) {

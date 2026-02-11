@@ -49,6 +49,11 @@ export async function resetTestDb(): Promise<void> {
   // Truncate all tables in reverse dependency order
   await testClient.unsafe(`
     TRUNCATE TABLE
+      workflow_delivery_log,
+      workflow_run_entity_links,
+      workflow_bindings,
+      workflow_definition_versions,
+      workflow_definitions,
       audit_events,
       event_outbox,
       integrations,

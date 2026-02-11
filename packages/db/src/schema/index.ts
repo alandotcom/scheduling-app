@@ -33,6 +33,10 @@ export const invitationStatusEnum = pgEnum("invitation_status", [
   "rejected",
   "canceled",
 ]);
+export const workflowDefinitionStatusEnum = pgEnum(
+  "workflow_definition_status",
+  ["draft", "active", "archived"],
+);
 // Workflow Postgres world uses public enums for run/step status.
 // Keep these declared so drizzle-kit push does not attempt to drop them.
 export const workflowRunStatusEnum = pgEnum("status", [
@@ -506,6 +510,224 @@ export const integrations = pgTable.withRLS(
     uniqueIndex("integrations_org_key_unique_idx").on(table.orgId, table.key),
     index("integrations_org_key_idx").on(table.orgId, table.key),
     pgPolicy("org_isolation_integrations", {
+      for: "all",
+      using: sql`org_id = current_org_id()`,
+      withCheck: sql`org_id = current_org_id()`,
+    }),
+  ],
+);
+
+// ============================================================================
+// WORKFLOWS
+// ============================================================================
+
+export const workflowDefinitions = pgTable.withRLS(
+  "workflow_definitions",
+  {
+    id,
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => orgs.id),
+    key: text("key").notNull(),
+    name: text("name").notNull(),
+    description: text("description"),
+    status: workflowDefinitionStatusEnum("status").notNull().default("draft"),
+    draftGraph: jsonb("draft_graph")
+      .$type<Record<string, unknown>>()
+      .notNull()
+      .default({}),
+    draftRevision: integer("draft_revision").notNull().default(1),
+    activeVersionId: uuid("active_version_id"),
+    ...timestamps,
+  },
+  (table) => [
+    uniqueIndex("workflow_definitions_org_key_unique_idx").on(
+      table.orgId,
+      table.key,
+    ),
+    index("workflow_definitions_org_status_idx").on(table.orgId, table.status),
+    pgPolicy("org_isolation_workflow_definitions", {
+      for: "all",
+      using: sql`org_id = current_org_id()`,
+      withCheck: sql`org_id = current_org_id()`,
+    }),
+  ],
+);
+
+export const workflowDefinitionVersions = pgTable.withRLS(
+  "workflow_definition_versions",
+  {
+    id,
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => orgs.id),
+    definitionId: uuid("definition_id")
+      .notNull()
+      .references(() => workflowDefinitions.id, { onDelete: "cascade" }),
+    version: integer("version").notNull(),
+    graphSchemaVersion: integer("graph_schema_version").notNull().default(1),
+    graph: jsonb("graph").$type<Record<string, unknown>>().notNull(),
+    compiledPlan: jsonb("compiled_plan")
+      .$type<Record<string, unknown>>()
+      .notNull()
+      .default({}),
+    checksum: text("checksum").notNull(),
+    createdBy: uuid("created_by").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    ...timestamps,
+  },
+  (table) => [
+    uniqueIndex(
+      "workflow_definition_versions_definition_version_unique_idx",
+    ).on(table.definitionId, table.version),
+    index("workflow_definition_versions_org_definition_idx").on(
+      table.orgId,
+      table.definitionId,
+    ),
+    pgPolicy("org_isolation_workflow_definition_versions", {
+      for: "all",
+      using: sql`org_id = current_org_id()`,
+      withCheck: sql`org_id = current_org_id()`,
+    }),
+  ],
+);
+
+export const workflowBindings = pgTable.withRLS(
+  "workflow_bindings",
+  {
+    id,
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => orgs.id),
+    definitionId: uuid("definition_id")
+      .notNull()
+      .references(() => workflowDefinitions.id, { onDelete: "cascade" }),
+    versionId: uuid("version_id")
+      .notNull()
+      .references(() => workflowDefinitionVersions.id, { onDelete: "cascade" }),
+    eventType: text("event_type").notNull(),
+    enabled: boolean("enabled").notNull().default(true),
+    ...timestamps,
+  },
+  (table) => [
+    uniqueIndex("workflow_bindings_org_definition_event_unique_idx").on(
+      table.orgId,
+      table.definitionId,
+      table.eventType,
+    ),
+    index("workflow_bindings_org_event_enabled_idx").on(
+      table.orgId,
+      table.eventType,
+      table.enabled,
+    ),
+    pgPolicy("org_isolation_workflow_bindings", {
+      for: "all",
+      using: sql`org_id = current_org_id()`,
+      withCheck: sql`org_id = current_org_id()`,
+    }),
+  ],
+);
+
+export const workflowRunEntityLinks = pgTable.withRLS(
+  "workflow_run_entity_links",
+  {
+    id,
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => orgs.id),
+    definitionId: uuid("definition_id").references(
+      () => workflowDefinitions.id,
+      {
+        onDelete: "set null",
+      },
+    ),
+    versionId: uuid("version_id").references(
+      () => workflowDefinitionVersions.id,
+      {
+        onDelete: "set null",
+      },
+    ),
+    runId: text("run_id").notNull(),
+    workflowType: text("workflow_type").notNull(),
+    runRevision: integer("run_revision").notNull().default(1),
+    entityType: text("entity_type").notNull(),
+    entityId: uuid("entity_id").notNull(),
+    runStatus: text("run_status").notNull().default("unknown"),
+    cancelledAt: timestamp("cancelled_at", { withTimezone: true }),
+    startedAt: timestamp("started_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    lastSeenAt: timestamp("last_seen_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    ...timestamps,
+  },
+  (table) => [
+    uniqueIndex("workflow_run_entity_links_org_run_entity_unique_idx").on(
+      table.orgId,
+      table.runId,
+      table.entityType,
+      table.entityId,
+    ),
+    index("workflow_run_entity_links_org_entity_idx").on(
+      table.orgId,
+      table.entityType,
+      table.entityId,
+    ),
+    index("workflow_run_entity_links_org_run_idx").on(table.orgId, table.runId),
+    pgPolicy("org_isolation_workflow_run_entity_links", {
+      for: "all",
+      using: sql`org_id = current_org_id()`,
+      withCheck: sql`org_id = current_org_id()`,
+    }),
+  ],
+);
+
+export const workflowDeliveryLog = pgTable.withRLS(
+  "workflow_delivery_log",
+  {
+    id,
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => orgs.id),
+    definitionId: uuid("definition_id").references(
+      () => workflowDefinitions.id,
+      {
+        onDelete: "set null",
+      },
+    ),
+    versionId: uuid("version_id").references(
+      () => workflowDefinitionVersions.id,
+      {
+        onDelete: "set null",
+      },
+    ),
+    runId: text("run_id").notNull(),
+    runRevision: integer("run_revision").notNull().default(1),
+    workflowType: text("workflow_type").notNull(),
+    stepId: text("step_id").notNull(),
+    channel: text("channel").notNull(),
+    target: text("target"),
+    deliveryKey: text("delivery_key").notNull(),
+    providerMessageId: text("provider_message_id"),
+    status: text("status").notNull().default("sent"),
+    errorCode: text("error_code"),
+    errorMessage: text("error_message"),
+    sentAt: timestamp("sent_at", { withTimezone: true }).defaultNow().notNull(),
+    ...timestamps,
+  },
+  (table) => [
+    uniqueIndex("workflow_delivery_log_delivery_key_unique_idx").on(
+      table.deliveryKey,
+    ),
+    index("workflow_delivery_log_org_run_idx").on(table.orgId, table.runId),
+    index("workflow_delivery_log_org_workflow_idx").on(
+      table.orgId,
+      table.workflowType,
+      table.channel,
+    ),
+    pgPolicy("org_isolation_workflow_delivery_log", {
       for: "all",
       using: sql`org_id = current_org_id()`,
       withCheck: sql`org_id = current_org_id()`,

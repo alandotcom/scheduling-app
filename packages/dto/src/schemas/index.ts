@@ -16,3 +16,4 @@ export * from "./audit";
 export * from "./dashboard";
 export * from "./webhook";
 export * from "./integration";
+export * from "./workflow";
