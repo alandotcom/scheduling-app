@@ -11,8 +11,7 @@ This file gives local guidance for agents working in `integrations/`.
 - Do not create per-integration producer contracts. Producers are shared and upstream.
 - Implement integrations as thin adapters around external systems.
 - Create integrations with `createIntegration(...)` from `@integrations/core`.
-- Keep one derived queue per integration (`scheduling-events.integration.<name>`).
-- Throw errors on transient/failed delivery so BullMQ retry policy can apply.
+- Throw errors on transient/failed delivery so Inngest retry policy can apply.
 - Keep package boundaries simple: one package per integration.
 
 ## Adding a New Integration

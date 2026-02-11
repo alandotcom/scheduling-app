@@ -17,7 +17,7 @@ A multi-tenant appointment scheduling platform (Acuity-style) built with modern 
 
 - [Bun](https://bun.sh/) >= 1.0
 - [pnpm](https://pnpm.io/) >= 8.0
-- [Docker](https://www.docker.com/) (for Postgres and Valkey)
+- [Docker](https://www.docker.com/) (for Postgres and optional local Svix)
 
 ### Setup
 
@@ -69,8 +69,6 @@ A multi-tenant appointment scheduling platform (Acuity-style) built with modern 
    - API: http://localhost:3000
    - Admin UI: http://localhost:5173
    - Inngest Dev Server UI: http://localhost:8288
-   - Workflow Worker health: http://127.0.0.1:3020/health
-   - Bull Board: http://127.0.0.1:3010/
 
 ## Development
 
@@ -78,13 +76,10 @@ A multi-tenant appointment scheduling platform (Acuity-style) built with modern 
 
 ```bash
 # Development
-pnpm dev              # Run API + admin UI + worker + workflow-worker + Bull Board in parallel
+pnpm dev              # Run API + admin UI in parallel
 pnpm dev:inngest      # Run Inngest Dev Server and sync with /api/inngest
 pnpm dev:api          # Run API only with hot reload
-pnpm dev:worker       # Run worker only with hot reload
-pnpm dev:workflow-worker # Run workflow runtime worker only
 pnpm dev:admin        # Run admin UI only
-pnpm dev:bull-board   # Run only Bull Board as a separate server
 pnpm bootstrap:dev    # Push DB schema and seed demo data
 pnpm --filter @scheduling/api run sync:svix-event-catalog  # Manual Svix event schema sync
 
@@ -127,9 +122,6 @@ Commonly used variables:
 | ---------------------- | ---------------------------------------- | ------------------------------------------------------------ |
 | `DATABASE_URL`         | Postgres connection string               | `postgres://scheduling:scheduling@localhost:5433/scheduling` |
 | `DB_PUSH_DATABASE_URL` | Optional override for `bootstrap:dev` push/setup steps | `postgres://scheduling:scheduling@localhost:5433/scheduling` |
-| `REDIS_URL`            | Redis/Valkey URL (overrides host/port)   | _(unset)_                                                    |
-| `VALKEY_HOST`          | Valkey/Redis host                        | `localhost`                                                  |
-| `VALKEY_PORT`          | Valkey/Redis port                        | `6380`                                                       |
 | `AUTH_SECRET`          | BetterAuth secret (change in production) | `dev-secret-change-in-production`                            |
 | `API_PORT`             | API server port alias for scripts         | `3000`                                                       |
 | `PORT`                 | API server port                          | `3000`                                                       |
@@ -138,13 +130,6 @@ Commonly used variables:
 | `INNGEST_SIGNING_KEY`  | Inngest signing key                       | _(unset)_                                                    |
 | `INNGEST_SERVE_PATH`   | Inngest serve endpoint path               | `/api/inngest`                                               |
 | `INNGEST_SERVE_HOST`   | Explicit host for Inngest serve endpoint  | _(unset)_                                                    |
-| `BULL_BOARD_HOST`      | Bull Board bind host                     | `127.0.0.1`                                                  |
-| `BULL_BOARD_PORT`      | Bull Board server port                   | `3010`                                                       |
-| `BULL_BOARD_BASE_PATH` | Bull Board UI base path                  | `/`                                                          |
-| `WORKFLOW_WORKER_HOST` | Workflow worker bind host                | `127.0.0.1`                                                  |
-| `WORKFLOW_WORKER_PORT` | Workflow worker port                     | `3020`                                                       |
-| `WORKFLOW_TARGET_WORLD` | Workflow world target                   | `@workflow/world-postgres` (via workflow-worker scripts)    |
-| `WORKFLOW_POSTGRES_URL` | Workflow Postgres world connection URL  | Falls back to `DB_PUSH_DATABASE_URL` in `bootstrap:dev` and `DATABASE_URL` in workflow-worker scripts |
 | `INTEGRATIONS_ENABLED` | Comma-separated enabled integrations     | `svix`                                                       |
 | `SVIX_WEBHOOKS_ENABLED` | Enable Svix API usage for `svix` integration | `false`                                                    |
 | `SVIX_BASE_URL`        | Svix API base URL                        | _(unset)_                                                    |

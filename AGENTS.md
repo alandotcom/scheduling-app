@@ -20,13 +20,11 @@ This app is in active development — there are no production users yet. This me
 
 ```bash
 # Development
-pnpm dev              # Run API + admin UI + worker + workflow-worker + Bull Board in parallel
+pnpm dev              # Run API + admin UI in parallel
 pnpm dev:api          # Run API only with hot reload
-pnpm dev:worker       # Run worker only with hot reload
-pnpm dev:workflow-worker # Run workflow runtime worker only
+pnpm dev:inngest      # Run Inngest Dev Server and sync with /api/inngest
 pnpm dev:admin        # Run admin UI only
-pnpm dev:bull-board   # Run Bull Board only
-pnpm bootstrap:dev    # Push DB schema, seed demo data, and setup Workflow Postgres tables
+pnpm bootstrap:dev    # Push DB schema and seed demo data
 pnpm --filter @scheduling/api run sync:svix-event-catalog  # Manual Svix schema sync
 
 # Testing
@@ -88,19 +86,14 @@ pnpm --filter @scheduling/db run push       # Push schema to dev database
 **IMPORTANT:** Before starting a dev server, ALWAYS check if one is already running:
 
 ```bash
-# Check for running Vite (admin-ui) or Bun (api/worker/workflow-worker/bull-board) processes
-ps aux | grep -E "(vite|bun.*src/(index|worker|workflow-worker|bull-board))" | grep -v grep
+# Check for running Vite (admin-ui), API, or Inngest dev server processes
+ps aux | grep -E "(vite|bun.*src/index|inngest dev)" | grep -v grep
 
 # If stale processes exist, kill them first
 kill <pid>   # or: pkill -f "vite.*admin-ui"
 ```
 
 Multiple dev server instances cause race conditions (e.g., TanStack Router's `routeTree.gen.ts` gets corrupted when multiple Vite instances try to regenerate it simultaneously).
-
-### Workflow Watch Inputs
-
-- `apps/api` workflow rebuild watchers should scan `workflows/**/*`, `src/workflows/**/*`, and `**/*.workflow.ts` (scoped to `apps/api`).
-- Keep `dev:workflow-worker` wired as: initial `workflow:build`, then watch+rebuild in parallel with `bun --hot src/workflow-worker.ts`.
 
 ## Architecture
 
@@ -126,7 +119,7 @@ packages/
 - **Auth:** BetterAuth with Drizzle adapter
 - **Database:** Drizzle ORM + Bun SQL, Postgres 18 with native `uuidv7()`
 - **Webhooks:** Svix (self-hosted OSS or hosted cloud)
-- **Queueing:** BullMQ + Valkey for outbox processing and retries
+- **Async runtime:** Inngest (event fanout + workflow orchestration)
 - **Testing:** Real Postgres via Docker (test database auto-created on first test run)
 - **Linting:** oxlint (Rust-based, strict rules)
 - **Formatting:** Biome (spaces, no tabs)
@@ -188,15 +181,14 @@ export type CreateOrgInput = z.infer<typeof createOrgSchema>;
 
 Common validators in `packages/dto/src/common.ts`: UUID, timestamp, timezone, time (HH:MM), date (YYYY-MM-DD), weekday (0-6).
 
-## Webhook Delivery (Svix + Outbox)
+## Webhook Delivery (Svix + Inngest)
 
 - Canonical webhook event types and payload schemas live in `packages/dto/src/schemas/webhook.ts`.
-- API event types are sourced from DTO (`apps/api/src/services/jobs/types.ts`) to prevent drift.
+- API event payload validation is sourced from DTO (`apps/api/src/services/jobs/emitter.ts`) to prevent drift.
 - Event catalog sync logic lives in `apps/api/src/services/svix-event-catalog.ts`.
-- Catalog sync is idempotent (`create`, then `update` on 409) and runs on API + worker startup.
+- Catalog sync is idempotent (`create`, then `update` on 409) and runs on API startup.
 - Manual sync command: `pnpm --filter @scheduling/api run sync:svix-event-catalog`.
 - For self-hosted Svix OSS, the admin UI does not use hosted App Portal; it uses `svix-react` hooks with a short-lived session from `GET /v1/webhooks/session`.
-- Keep outbox atomicity guarantees: worker must only publish after successfully claiming `event_outbox` row from `pending` to `processing`.
 
 ## Agent Memories
 
@@ -276,10 +268,9 @@ Environment variables in `.env`:
 
 - `DATABASE_URL=postgres://scheduling:scheduling@localhost:5433/scheduling`
 - `DB_PUSH_DATABASE_URL=postgres://scheduling:scheduling@localhost:5433/scheduling` (optional; used by `pnpm bootstrap:dev`)
-- `REDIS_URL=redis://localhost:6380` (optional, overrides host/port)
-- `VALKEY_HOST=localhost`, `VALKEY_PORT=6380`
 - `AUTH_SECRET`, `API_PORT=3000` (optional), `PORT=3000`
-- `WORKFLOW_WORKER_HOST=127.0.0.1`, `WORKFLOW_WORKER_PORT=3020`
+- `INNGEST_BASE_URL=http://localhost:8288` (local default), `INNGEST_EVENT_KEY=dev` (local default)
+- `INNGEST_SIGNING_KEY=<required outside local dev>`
 - `SVIX_WEBHOOKS_ENABLED=true|false`
 - `SVIX_BASE_URL=http://localhost:8071` (self-hosted) or hosted Svix base URL
 - `SVIX_AUTH_TOKEN=<svix-token>`

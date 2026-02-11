@@ -21,7 +21,7 @@ packages/
 - Auth: BetterAuth with Drizzle adapter, API keys for server-to-server access
 - Database: Drizzle ORM + Bun SQL, Postgres 18 with native `uuidv7()`
 - Webhooks: Svix (self-hosted via Docker Compose or hosted Svix Cloud)
-- Event integrations: BullMQ + Valkey fanout to per-integration queues (`svix`, `logger`, future email/sms/internal)
+- Eventing + workflows: Inngest (self-hosted or dev server)
 - Testing: Real Postgres via Docker
 - Linting: oxlint (Rust-based, strict rules)
 
@@ -38,7 +38,6 @@ Key entities:
 - Availability rules and overrides
 - Blocked time entries (including RRULE)
 - Appointments and client records
-- Event outbox (`event_outbox`) for durable event dispatch
 - API keys for M2M auth
 - Audit events for mutation history
 
@@ -62,22 +61,21 @@ All org-scoped data uses PostgreSQL row-level security. Organization context is 
 
 ## Event and Integration System
 
-Current direction: see [`workflow-runtime-rfc.md`](./plans/workflow-runtime-rfc.md) for the unified plan: keep BullMQ/Valkey as the event bus runtime and add generalized workflow execution + builder authoring on top.
+Current direction: see [`workflow-runtime-rfc.md`](./plans/workflow-runtime-rfc.md) for the unified plan: Inngest is the runtime for both domain-event fanout and workflow execution.
 
 Domain events on mutations follow this path:
 
-1. Write durable row to `event_outbox`.
-2. Dispatch worker claims row atomically (`pending -> processing`).
-3. Dispatcher creates BullMQ Flow fanout.
-4. One child job is enqueued per enabled integration queue.
-5. Integration workers consume independently with isolated retry/backoff.
+1. Domain mutation commits successfully.
+2. API emits one typed Inngest event via `inngest.send`.
+3. Inngest triggers matching functions (integration fanout, workflow execution, etc.).
+4. Integration handlers execute independently with function-level retries and observability.
 
 Workflow orchestration and authoring follow this path:
 
 1. Workflow definitions are authored in admin UI (React Flow style utility).
 2. Definitions are validated, versioned, and published through workflow API routes.
-3. Runtime trigger consumers map domain events to workflow runs.
-4. Workflow worker executes waits/steps/cancellations with deterministic idempotency keys.
+3. Runtime trigger functions map domain events to workflow runs.
+4. Inngest executes waits/steps/cancellations with deterministic idempotency keys.
 5. Delivery effects are deduped through `workflow_delivery_log`.
 
 Current integration registry:

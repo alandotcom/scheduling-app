@@ -60,9 +60,9 @@ async function setupTestDatabase() {
     // even when the initial migration file is edited during active development.
     const proc = Bun.spawn(
       [
-        "pnpm",
-        "exec",
-        "drizzle-kit",
+        "bun",
+        "--bun",
+        "node_modules/drizzle-kit/bin.cjs",
         "push",
         "--force",
         "--config=drizzle.test.config.ts",

@@ -9,12 +9,8 @@
       "ignoreDependencies": ["@happy-dom/global-registrator"]
     },
     "apps/api": {
-      "entry": ["src/index.ts!", "src/worker.ts!", "src/bull-board.ts!"],
-      "ignoreBinaries": [
-        "dist/index.js",
-        "dist/worker.js",
-        "dist/bull-board.js"
-      ]
+      "entry": ["src/index.ts!"],
+      "ignoreBinaries": ["dist/index.js"]
     }
   }
 }

@@ -2,11 +2,10 @@ import { getLogger } from "@logtape/logtape";
 import { eq } from "drizzle-orm";
 import { ApiException, Svix } from "svix";
 import { orgs } from "@scheduling/db/schema";
-import type { WebhookEventData } from "@scheduling/dto";
+import type { WebhookEventData, WebhookEventType } from "@scheduling/dto";
 import { config } from "../config.js";
 import { ApplicationError } from "../errors/application-error.js";
 import { db } from "../lib/db.js";
-import type { EventType } from "./jobs/types.js";
 
 const logger = getLogger(["webhooks", "svix"]);
 const APP_PORTAL_ACCESS_TTL_SECONDS = 60 * 60;
@@ -38,7 +37,7 @@ function getSvixClient(): Svix {
       serverUrl?: string;
     } = {
       requestTimeout: 30_000,
-      // Let BullMQ own retry behavior.
+      // Let Inngest own retry behavior.
       retryScheduleInMs: [],
     };
     if (config.webhooks.baseUrl) {
@@ -116,7 +115,7 @@ export async function ensureSvixAppForOrg(
 }
 
 export interface PublishWebhookEventInput<
-  TEventType extends EventType = EventType,
+  TEventType extends WebhookEventType = WebhookEventType,
 > {
   eventId: string;
   eventType: TEventType;
@@ -125,7 +124,7 @@ export interface PublishWebhookEventInput<
   occurredAt: string;
 }
 
-export async function publishWebhookEvent<TEventType extends EventType>(
+export async function publishWebhookEvent<TEventType extends WebhookEventType>(
   input: PublishWebhookEventInput<TEventType>,
 ): Promise<void> {
   if (!isWebhooksEnabled()) {

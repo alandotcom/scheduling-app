@@ -1,4 +1,2 @@
-preload = ["./workflow-plugin.ts"]
-
 [test]
 preload = ["../../packages/db/src/test-setup.ts"]

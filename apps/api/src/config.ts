@@ -14,11 +14,6 @@ const logLevelSchema = z.enum([
   "fatal",
 ]);
 
-const redisUrlSchema = z.url().refine((value) => {
-  const protocol = new URL(value).protocol;
-  return protocol === "redis:" || protocol === "rediss:";
-}, "REDIS_URL must use redis:// or rediss://");
-
 export const config = envParse(Bun.env, {
   server: {
     port: {
@@ -37,35 +32,6 @@ export const config = envParse(Bun.env, {
       format: logLevelSchema,
       env: "DB_LOG_LEVEL",
       default: "info",
-    },
-  },
-  bullBoard: {
-    host: {
-      format: z.string(),
-      env: "BULL_BOARD_HOST",
-      default: "127.0.0.1",
-    },
-    port: {
-      format: z.coerce.number(),
-      env: "BULL_BOARD_PORT",
-      default: 3010,
-    },
-    basePath: {
-      format: z.string(),
-      env: "BULL_BOARD_BASE_PATH",
-      default: "/",
-    },
-  },
-  workflowWorker: {
-    host: {
-      format: z.string(),
-      env: "WORKFLOW_WORKER_HOST",
-      default: "127.0.0.1",
-    },
-    port: {
-      format: z.coerce.number(),
-      env: "WORKFLOW_WORKER_PORT",
-      default: 3020,
     },
   },
   db: {
@@ -102,23 +68,6 @@ export const config = envParse(Bun.env, {
       format: z.string(),
       env: "CORS_ORIGIN",
       default: "http://localhost:5173,http://localhost:4173",
-    },
-  },
-  valkey: {
-    url: {
-      format: redisUrlSchema,
-      env: "REDIS_URL",
-      optional: true,
-    },
-    host: {
-      format: z.string(),
-      env: "VALKEY_HOST",
-      default: "localhost",
-    },
-    port: {
-      format: z.coerce.number(),
-      env: "VALKEY_PORT",
-      default: 6380,
     },
   },
   webhooks: {

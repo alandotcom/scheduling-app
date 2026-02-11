@@ -6,10 +6,10 @@ import {
   webhookEventDataSchemaByType,
   webhookEventTypeSchema,
   type WebhookEventData,
+  type WebhookEventType,
 } from "@scheduling/dto";
 import { z } from "zod";
 import { webhookInngest } from "../../inngest/client.js";
-import type { EventType } from "./types.js";
 
 const logger = getLogger(["events", "emitter"]);
 
@@ -38,7 +38,7 @@ function isWebhookSendPayload(
   return webhookEventDataSchemaByType[name].safeParse(payload).success;
 }
 
-export async function emitEvent<TEventType extends EventType>(
+export async function emitEvent<TEventType extends WebhookEventType>(
   orgId: string,
   type: TEventType,
   payload: WebhookEventData<TEventType>,
@@ -76,7 +76,7 @@ export async function emitEvent<TEventType extends EventType>(
   return eventId;
 }
 
-function createTypedEmitter<TEventType extends EventType>(
+function createTypedEmitter<TEventType extends WebhookEventType>(
   eventType: TEventType,
 ) {
   return (orgId: string, payload: WebhookEventData<TEventType>) =>
@@ -88,18 +88,18 @@ type SnakeToCamel<TValue extends string> =
     ? `${Head}${Capitalize<SnakeToCamel<Tail>>}`
     : TValue;
 
-type EventTypeToEmitterKey<TEventType extends EventType> =
+type EventTypeToEmitterKey<TEventType extends WebhookEventType> =
   TEventType extends `${infer Entity}.${infer Action}`
     ? `${SnakeToCamel<Entity>}${Capitalize<SnakeToCamel<Action>>}`
     : never;
 
-type TypedEmitter<TEventType extends EventType> = (
+type TypedEmitter<TEventType extends WebhookEventType> = (
   orgId: string,
   payload: WebhookEventData<TEventType>,
 ) => Promise<string>;
 
 type EventEmitters = {
-  [TEventType in EventType as EventTypeToEmitterKey<TEventType>]: TypedEmitter<TEventType>;
+  [TEventType in WebhookEventType as EventTypeToEmitterKey<TEventType>]: TypedEmitter<TEventType>;
 };
 
 // Convenience methods for specific event types
@@ -151,7 +151,6 @@ export const events: EventEmitters = {
   clientDeleted: createTypedEmitter("client.deleted"),
 };
 
-// Close the job queue (for graceful shutdown)
 export async function closeEventEmitter(): Promise<void> {
   // No-op after Inngest migration; kept for compatibility with existing callers.
 }
