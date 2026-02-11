@@ -1,6 +1,6 @@
 # Inngest Eventing + Workflow Runtime RFC (Unified)
 
-Status: In Progress (Phases 0-7 complete; Phase 8 hardening in progress)
+Status: In Progress (Phases 0-7 complete; Phase 8 hardening + simplification in progress)
 Last Updated: 2026-02-11
 Owners: Product, `@scheduling/api`, `@scheduling/db`, `@scheduling/admin-ui`
 Related: `docs/ARCHITECTURE.md`, `docs/references/event-bus/synthesis.md`, `docs/references/event-bus/workflow-devkit-research.md`, `docs/references/event-bus/testing.md`
@@ -23,7 +23,8 @@ This is a big-bang rewrite with no compatibility layer:
 2. Events are sent directly to Inngest (`inngest.send`) after successful mutations.
 3. Integration fanout runs through Inngest functions (`apps/api/src/inngest/functions/integration-fanout.ts`).
 4. Legacy worker processes (`src/worker.ts`, `src/workflow-worker.ts`, `src/bull-board.ts`) and related scripts/deps are removed.
-5. Workflow definition CRUD/binding/run APIs are implemented; workflow dispatch/execution scaffolding exists, but Workflow Kit editor UI and advanced execution semantics (`cancelOn`, `step.waitForEvent`) remain incomplete.
+5. Workflow definition CRUD/binding/run APIs and Workflow Kit editor UI are implemented; runtime cancel/wait semantics exist with send-time guards.
+6. Remaining work is reliability/simplicity hardening: standardize Inngest-native primitives (`step.sendEvent`, function `idempotency`, `singleton`/`debounce` where applicable), central failure handling, and additional replay/cancellation race coverage.
 
 ## 3. Final Decisions
 
@@ -40,6 +41,7 @@ This is a big-bang rewrite with no compatibility layer:
 3. Reduce queue/worker operational complexity by removing BullMQ and Workflow DevKit runtime.
 4. Ship a usable workflow editor backed by Workflow Kit, not a custom graph compiler.
 5. Keep typed event contracts across API/UI/runtime using existing DTO schemas.
+6. Prefer Inngest-native primitives over custom orchestration when behavior is equivalent.
 
 ## 5. Non-Goals
 
@@ -257,18 +259,31 @@ Exit criteria:
 
 ### Phase 8: Inngest-Native Reliability Hardening
 
-- [ ] Replace `inngest.send()` calls inside Inngest functions with `step.sendEvent()` for replay-safe, step-aware event fanout.
-- [ ] Add explicit function `idempotency` keys (where appropriate) for handlers that can be re-triggered from duplicate upstream events.
+- [ ] Migrate all intra-function fanout from `inngest.send()` to `step.sendEvent()`.
+- [ ] Add explicit function-level `idempotency` keys where duplicate upstream delivery is possible.
 - [ ] Standardize deterministic producer event IDs for all domain emits that can trigger side effects.
-- [ ] Evaluate and adopt `singleton` with `mode: "cancel"` for latest-wins execution paths where cancellation/replacement currently requires custom orchestration.
-- [ ] Document final decision boundaries: where Inngest-native controls end and where app-level send-time guards remain mandatory.
-- [ ] Expand integration and workflow tests to cover replay, duplicate delivery, and cancellation-between-steps scenarios with expected side-effect suppression.
+- [ ] Add function `timeouts.start` / `timeouts.finish` on long-running workflow functions.
+- [ ] Add centralized failure/cancellation handling via `onFailure` and/or system events (`inngest/function.failed`, `inngest/function.cancelled`).
+- [ ] Expand integration and workflow tests to cover replay, duplicate delivery, cancellation-between-steps, and timeout/failure paths.
 
 Exit criteria:
 1. All intra-function event fanout paths use `step.sendEvent()` (or have a documented exception).
-2. Idempotency strategy is explicit per function: either function-level `idempotency`, deterministic event IDs, or both.
-3. Latest-wins paths have an explicit mechanism (`singleton` cancel mode or documented equivalent) and automated coverage.
+2. Idempotency strategy is explicit per function: function-level `idempotency`, deterministic event IDs, or both.
+3. Long-running functions define timeout policy and have failure/cancellation handling coverage.
 4. Replay/cancellation race tests pass without duplicate downstream side effects.
+
+### Phase 8.1: Simplicity-First Adoption (Prioritized)
+
+- [ ] Add Inngest validation middleware on the API client and remove duplicated per-function payload validation where schema coverage exists.
+- [ ] Evaluate `singleton` with `mode: "cancel"` for latest-wins lifecycle paths and adopt where it reduces custom run-replacement code.
+- [ ] Evaluate `debounce` for noisy update streams where delayed latest-state processing is acceptable.
+- [ ] Keep `batchEvents` and hard `rateLimit` out of core workflow-runtime paths unless a measured bottleneck requires them.
+- [ ] Document chosen boundaries per function family (dispatch, execution, fanout): which primitives are used and why.
+
+Exit criteria:
+1. Function code has minimal duplicated validation and delegates schema enforcement to shared middleware where possible.
+2. Latest-wins behavior is implemented with the simplest reliable primitive per path (`singleton` or explicit policy with rationale).
+3. Flow-control choices are intentional and documented; excluded features (`batchEvents` / hard `rateLimit`) are explicitly justified.
 
 ## 12. Testing Strategy and Acceptance Criteria
 
@@ -288,6 +303,9 @@ Required automated coverage:
 4. Idempotency
    - duplicate event IDs do not create duplicate logical side effects
    - delivery key uniqueness blocks duplicate sends
+5. Runtime safety
+   - timeout handling (`timeouts.start` / `timeouts.finish`) behaves as configured
+   - failure/cancellation handlers emit expected operational signals
 
 Current automated coverage snapshot:
 
@@ -296,6 +314,8 @@ Current automated coverage snapshot:
 3. [ ] Function-level replay and duplicate-trigger tests validate idempotent behavior using Inngest-native `idempotency` and/or deterministic IDs.
 4. [ ] Intra-function fanout tests verify `step.sendEvent()` behavior under retries/replays.
 5. [ ] Latest-wins concurrency tests validate selected policy (`singleton` cancel mode or explicit replacement orchestration).
+6. [ ] Validation middleware tests verify malformed incoming/outgoing events fail fast without per-function schema duplication.
+7. [ ] Timeout/failure/cancellation tests verify global and function-level handlers execute correctly.
 
 Release acceptance:
 
@@ -321,6 +341,7 @@ Required signals:
 5. Side-effect send success/failure by provider/channel.
 6. Correlation IDs across API logs and Inngest run IDs.
 7. Duplicate suppression counters (idempotency drops, delivery-ledger duplicate hits).
+8. Timeout and terminal-failure counts by function (`start_timeout`, `finish_timeout`, `failed`, `cancelled`).
 
 ## 14. Risks and Mitigations
 
@@ -336,6 +357,10 @@ Required signals:
    - Mitigation: migrate to `step.sendEvent()` for function-internal fanout and add replay coverage.
 6. Re-trigger storms causing concurrent duplicate executions.
    - Mitigation: function `idempotency` and selective `singleton` cancel mode for latest-wins flows.
+7. Excess custom logic drifting from platform primitives.
+   - Mitigation: prefer native Inngest features first and document any justified custom guards.
+8. Over-aggressive flow control dropping required work.
+   - Mitigation: avoid hard `rateLimit` in core runtime paths; use `throttle`/`concurrency` unless dropping events is explicitly desired.
 
 ## 15. References
 
@@ -349,3 +374,9 @@ Required signals:
 8. Inngest idempotency guide: https://www.inngest.com/docs/guides/handling-idempotency
 9. Inngest function options (`idempotency`, `singleton`): https://www.inngest.com/docs/reference/functions/create
 10. Inngest singleton guide: https://www.inngest.com/docs/guides/singleton
+11. Inngest debounce guide: https://www.inngest.com/docs/guides/debounce
+12. Inngest failure handlers: https://www.inngest.com/docs/features/inngest-functions/error-retries/failure-handlers
+13. Inngest `inngest/function.failed` system event: https://www.inngest.com/docs/reference/system-events/inngest-function-failed
+14. Inngest cancellation model: https://www.inngest.com/docs/features/inngest-functions/cancellation
+15. Inngest cleanup after cancellation example: https://www.inngest.com/docs/examples/cleanup-after-function-cancellation
+16. Inngest middleware overview: https://www.inngest.com/docs/reference/middleware/overview
