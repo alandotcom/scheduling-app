@@ -5,6 +5,7 @@ import {
   type WorkflowValidationIssue,
   type WorkflowValidationResult,
 } from "@scheduling/dto";
+import { getWorkflowActionDefinition } from "./registry.js";
 
 type WorkflowDocumentLike = {
   schemaVersion?: number;
@@ -238,6 +239,63 @@ export function compileWorkflowDocument(
         severity: "error",
         edgeId: edge.id,
         message: `Edge "${edge.id}" references missing node(s)`,
+      });
+    }
+  }
+
+  for (const node of nodes) {
+    if (node.kind !== "action") {
+      continue;
+    }
+
+    const actionId = node.config["actionId"];
+    if (typeof actionId !== "string" || actionId.length === 0) {
+      // Legacy action nodes without explicit action IDs are still allowed
+      // while we migrate editor payloads to first-party action contracts.
+      continue;
+    }
+
+    const actionDefinition = getWorkflowActionDefinition(actionId);
+    if (!actionDefinition) {
+      issues.push({
+        code: "MISSING_INTEGRATION",
+        severity: "error",
+        nodeId: node.id,
+        field: "actionId",
+        message: `Unknown workflow action "${actionId}"`,
+      });
+      continue;
+    }
+
+    const integrationKey = node.config["integrationKey"];
+    if (
+      typeof integrationKey === "string" &&
+      integrationKey.length > 0 &&
+      integrationKey !== actionDefinition.integrationKey
+    ) {
+      issues.push({
+        code: "MISSING_INTEGRATION",
+        severity: "error",
+        nodeId: node.id,
+        field: "integrationKey",
+        message: `Action "${actionId}" requires integration "${actionDefinition.integrationKey}"`,
+      });
+    }
+
+    const rawInput = node.config["input"];
+    const parsedInput = actionDefinition.inputSchema.safeParse(
+      isRecord(rawInput) ? rawInput : {},
+    );
+    if (!parsedInput.success) {
+      const firstIssue = parsedInput.error.issues[0];
+      issues.push({
+        code: "INVALID_EXPRESSION",
+        severity: "error",
+        nodeId: node.id,
+        field: "input",
+        message: firstIssue
+          ? `Invalid action input for "${actionId}": ${firstIssue.message}`
+          : `Invalid action input for "${actionId}"`,
       });
     }
   }

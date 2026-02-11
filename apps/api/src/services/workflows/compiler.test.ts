@@ -47,4 +47,91 @@ describe("workflow compiler", () => {
     );
     expect(result.compiledPlan).toBeNull();
   });
+
+  test("returns error for unknown action definitions", () => {
+    const result = compileWorkflowDocument({
+      trigger: { eventType: "client.created" },
+      nodes: [
+        {
+          id: "n1",
+          kind: "action",
+          actionId: "custom.unknownAction",
+          integrationKey: "custom",
+          input: {},
+        },
+      ],
+      edges: [],
+    });
+
+    expect(result.validation.valid).toBe(false);
+    expect(result.validation.issues).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: "MISSING_INTEGRATION",
+          nodeId: "n1",
+          field: "actionId",
+        }),
+      ]),
+    );
+  });
+
+  test("validates registered action input shape", () => {
+    const result = compileWorkflowDocument({
+      trigger: { eventType: "client.created" },
+      nodes: [
+        {
+          id: "n1",
+          kind: "action",
+          actionId: "resend.sendEmail",
+          integrationKey: "resend",
+          input: { to: "invalid-email", subject: "Hello", body: "Hi" },
+        },
+      ],
+      edges: [],
+    });
+
+    expect(result.validation.valid).toBe(false);
+    expect(result.validation.issues).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: "INVALID_EXPRESSION",
+          nodeId: "n1",
+          field: "input",
+        }),
+      ]),
+    );
+  });
+
+  test("accepts valid registered actions and emits deterministic compiled plan", () => {
+    const result = compileWorkflowDocument({
+      trigger: { eventType: "client.created" },
+      nodes: [
+        {
+          id: "n1",
+          kind: "action",
+          actionId: "resend.sendEmail",
+          integrationKey: "resend",
+          input: {
+            to: "user@example.com",
+            subject: "Welcome",
+            body: "Hello",
+          },
+        },
+      ],
+      edges: [],
+    });
+
+    expect(result.validation.valid).toBe(true);
+    expect(result.compiledPlan).toMatchObject({
+      trigger: { eventType: "client.created" },
+      nodes: [
+        {
+          id: "n1",
+          kind: "action",
+          actionId: "resend.sendEmail",
+          integrationKey: "resend",
+        },
+      ],
+    });
+  });
 });

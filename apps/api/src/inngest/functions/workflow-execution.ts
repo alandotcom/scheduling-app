@@ -11,6 +11,7 @@ import {
   recordWorkflowRunStart,
 } from "../../services/workflows/runtime.js";
 import { parseWorkflowDurationToMs } from "../../services/workflows/duration.js";
+import { executeWorkflowAction } from "../../services/workflows/registry.js";
 
 type WorkflowExecutionDependencies = {
   recordRunStart: typeof recordWorkflowRunStart;
@@ -20,9 +21,13 @@ type WorkflowExecutionDependencies = {
   loadCorrelatedEntity: typeof loadWorkflowCorrelatedEntity;
   recordDeliveryWithGuard: typeof recordWorkflowDeliveryWithGuard;
   markRunStatus: typeof markWorkflowRunStatus;
+  executeAction: typeof executeWorkflowAction;
 };
 
-type TerminalReason = "entity_missing" | "unsupported_entity_type";
+type TerminalReason =
+  | "entity_missing"
+  | "unsupported_entity_type"
+  | "invalid_action";
 type ReplacementMode =
   | "replace_active"
   | "cancel_without_replacement"
@@ -64,6 +69,7 @@ function createDefaultDependencies(): WorkflowExecutionDependencies {
     loadCorrelatedEntity: loadWorkflowCorrelatedEntity,
     recordDeliveryWithGuard: recordWorkflowDeliveryWithGuard,
     markRunStatus: markWorkflowRunStatus,
+    executeAction: executeWorkflowAction,
   };
 }
 
@@ -541,6 +547,27 @@ function resolveActionTarget(
     : fallbackTarget;
 }
 
+function resolveActionId(node: Record<string, unknown>): string | null {
+  const actionId = node["actionId"];
+  return typeof actionId === "string" && actionId.length > 0 ? actionId : null;
+}
+
+function resolveActionIntegrationKey(
+  node: Record<string, unknown>,
+): string | null {
+  const integrationKey = node["integrationKey"];
+  return typeof integrationKey === "string" && integrationKey.length > 0
+    ? integrationKey
+    : null;
+}
+
+function resolveActionInput(
+  node: Record<string, unknown>,
+): Record<string, unknown> {
+  const input = node["input"];
+  return isRecord(input) ? input : {};
+}
+
 function buildExecutionOrder(plan: ParsedCompiledPlan): string[] {
   const queue = [...plan.entryNodeIds];
   const visited = new Set<string>();
@@ -577,8 +604,13 @@ function shouldWaitForReplacementSignal(event: {
 }
 
 export function createWorkflowExecutionFunction(
-  dependencies: WorkflowExecutionDependencies = createDefaultDependencies(),
+  dependencies: Partial<WorkflowExecutionDependencies> = {},
 ) {
+  const resolvedDependencies: WorkflowExecutionDependencies = {
+    ...createDefaultDependencies(),
+    ...dependencies,
+  };
+
   return inngest.createFunction(
     {
       id: "workflow-execution",
@@ -594,7 +626,7 @@ export function createWorkflowExecutionFunction(
     { event: "scheduling/workflow.triggered" },
     async ({ event, runId, step, attempt }) => {
       await step.run("record-workflow-run-start", async () => {
-        await dependencies.recordRunStart({
+        await resolvedDependencies.recordRunStart({
           orgId: event.data.orgId,
           runId,
           definitionId: event.data.workflow.definitionId,
@@ -608,7 +640,7 @@ export function createWorkflowExecutionFunction(
       const compiledPlanValue = await step.run(
         "load-workflow-compiled-plan",
         async () => {
-          return dependencies.loadCompiledPlan({
+          return resolvedDependencies.loadCompiledPlan({
             orgId: event.data.orgId,
             versionId: event.data.workflow.versionId,
           });
@@ -629,7 +661,7 @@ export function createWorkflowExecutionFunction(
 
       if (attempt >= retryPolicy.attempts) {
         await step.run("mark-workflow-run-failed-retry-exhausted", async () => {
-          await dependencies.markRunStatus({
+          await resolvedDependencies.markRunStatus({
             orgId: event.data.orgId,
             runId,
             status: "failed",
@@ -659,7 +691,7 @@ export function createWorkflowExecutionFunction(
 
       if (replacementMode !== "allow_parallel") {
         await step.run("cancel-replaced-runs", async () => {
-          await dependencies.cancelReplacedRuns({
+          await resolvedDependencies.cancelReplacedRuns({
             orgId: event.data.orgId,
             definitionId: event.data.workflow.definitionId,
             entityType: event.data.entity.type,
@@ -696,6 +728,9 @@ export function createWorkflowExecutionFunction(
         channel: string;
         target: string;
         guard: ParsedGuard | null;
+        actionId: string | null;
+        integrationKey: string | null;
+        rawInput: Record<string, unknown>;
       }): Promise<
         | "recorded"
         | "duplicate"
@@ -707,7 +742,7 @@ export function createWorkflowExecutionFunction(
         const correlatedEntity = await step.run(
           `load-correlated-entity-latest-${stepIdSuffix}`,
           async () => {
-            return dependencies.loadCorrelatedEntity({
+            return resolvedDependencies.loadCorrelatedEntity({
               orgId: event.data.orgId,
               entityType: event.data.entity.type,
               entityId: event.data.entity.id,
@@ -730,10 +765,46 @@ export function createWorkflowExecutionFunction(
           return "guard_skipped";
         }
 
+        let channel = input.channel;
+        let target: string | null = input.target;
+        let providerMessageId: string | null = null;
+
+        if (input.actionId !== null) {
+          const actionExecution = await step.run(
+            `execute-workflow-action-${stepIdSuffix}`,
+            async () => {
+              const sourcePayload = event.data.sourceEvent.payload;
+              return resolvedDependencies.executeAction({
+                actionId: input.actionId!,
+                integrationKey: input.integrationKey,
+                rawInput: input.rawInput,
+                context: {
+                  orgId: event.data.orgId,
+                  entityType: correlatedEntity.entityType,
+                  entityId: correlatedEntity.entityId,
+                  sourceEventType: event.data.sourceEvent.type,
+                  sourceEventPayload: isRecord(sourcePayload)
+                    ? sourcePayload
+                    : {},
+                  entity: correlatedEntity.entity,
+                },
+              });
+            },
+          );
+
+          if (actionExecution.status !== "ok") {
+            return "invalid_action";
+          }
+
+          channel = actionExecution.channel;
+          target = actionExecution.target;
+          providerMessageId = actionExecution.providerMessageId ?? null;
+        }
+
         return step.run(
           `record-workflow-side-effect-delivery-${stepIdSuffix}`,
           async () => {
-            const runGuard = await dependencies.getRunGuard({
+            const runGuard = await resolvedDependencies.getRunGuard({
               orgId: event.data.orgId,
               runId,
             });
@@ -746,11 +817,11 @@ export function createWorkflowExecutionFunction(
               runId,
               runRevision: runGuard.runRevision,
               stepId: input.nodeId,
-              channel: input.channel,
-              target: input.target,
+              channel,
+              target,
             });
 
-            return dependencies.recordDeliveryWithGuard({
+            return resolvedDependencies.recordDeliveryWithGuard({
               orgId: event.data.orgId,
               definitionId: event.data.workflow.definitionId,
               versionId: event.data.workflow.versionId,
@@ -758,9 +829,10 @@ export function createWorkflowExecutionFunction(
               expectedRunRevision: runGuard.runRevision,
               workflowType: event.data.workflow.workflowType,
               stepId: input.nodeId,
-              channel: input.channel,
-              target: input.target,
+              channel,
+              target,
               deliveryKey,
+              providerMessageId,
             });
           },
         );
@@ -773,6 +845,9 @@ export function createWorkflowExecutionFunction(
             channel: WORKFLOW_SIDE_EFFECT_CHANNEL,
             target: `${event.data.entity.type}:${event.data.entity.id}`,
             guard: null,
+            actionId: null,
+            integrationKey: null,
+            rawInput: {},
           });
 
           if (fallbackResult === "guard_blocked") {
@@ -822,7 +897,7 @@ export function createWorkflowExecutionFunction(
                   const correlatedEntity = await step.run(
                     `load-correlated-entity-latest-for-wait-${waitStepIdSuffix}`,
                     async () => {
-                      return dependencies.loadCorrelatedEntity({
+                      return resolvedDependencies.loadCorrelatedEntity({
                         orgId: event.data.orgId,
                         entityType: event.data.entity.type,
                         entityId: event.data.entity.id,
@@ -882,6 +957,9 @@ export function createWorkflowExecutionFunction(
                   `${event.data.entity.type}:${event.data.entity.id}`,
                 ),
                 guard: resolveNodeGuard(node),
+                actionId: resolveActionId(node),
+                integrationKey: resolveActionIntegrationKey(node),
+                rawInput: resolveActionInput(node),
               });
 
               if (actionResult === "guard_blocked") {
@@ -895,6 +973,7 @@ export function createWorkflowExecutionFunction(
               }
 
               if (
+                actionResult === "invalid_action" ||
                 actionResult === "entity_missing" ||
                 actionResult === "unsupported_entity_type"
               ) {
@@ -908,7 +987,7 @@ export function createWorkflowExecutionFunction(
       }
 
       await step.run(`mark-workflow-run-${status}`, async () => {
-        await dependencies.markRunStatus({
+        await resolvedDependencies.markRunStatus({
           orgId: event.data.orgId,
           runId,
           status,

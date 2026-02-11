@@ -392,6 +392,188 @@ describe("workflow execution function", () => {
     expect(deliveryCalls[1]?.[0]).toMatchObject({ stepId: "node_b" });
   });
 
+  test("records delivery using registry action execution metadata", async () => {
+    const recordRunStart = mock(async () => {});
+    const cancelReplacedRuns = mock(async () => 0);
+    const getRunGuard = mock(async () => ({
+      runRevision: 1,
+      runStatus: "running" as const,
+    }));
+    const loadCompiledPlan = mock(async () => ({
+      planVersion: 1,
+      entryNodeIds: ["node_a"],
+      nodes: [
+        {
+          id: "node_a",
+          kind: "action",
+          actionId: "resend.sendEmail",
+          integrationKey: "resend",
+          input: {
+            to: "client@example.com",
+            subject: "Reminder",
+            body: "Hello",
+          },
+        },
+      ],
+      edges: [],
+    }));
+    const loadCorrelatedEntity = mock(async () => ({
+      status: "found" as const,
+      entityType: "client",
+      entityId: "0198d09f-ff07-7f46-a5d9-26a3f0d96049",
+      entity: {},
+    }));
+    const executeAction = mock(async () => ({
+      status: "ok" as const,
+      channel: "integration.resend.sendEmail",
+      target: "client@example.com",
+      providerMessageId: "provider-msg-1",
+    }));
+    const recordDeliveryWithGuard = mock(async () => "recorded" as const);
+    const markRunStatus = mock(async () => {});
+
+    const fn = createWorkflowExecutionFunction({
+      recordRunStart,
+      cancelReplacedRuns,
+      getRunGuard,
+      loadCompiledPlan,
+      loadCorrelatedEntity,
+      executeAction,
+      recordDeliveryWithGuard,
+      markRunStatus,
+    });
+    const t = new InngestTestEngine({ function: fn });
+
+    const { result } = await t.execute({
+      events: [
+        {
+          name: "scheduling/workflow.triggered",
+          data: {
+            orgId: "org_5",
+            workflow: {
+              definitionId: "0198d09f-ff07-7f46-a5d9-26a3f0d96044",
+              versionId: "0198d09f-ff07-7f46-a5d9-26a3f0d96045",
+              workflowType: "follow-up",
+            },
+            sourceEvent: {
+              id: "evt_5a",
+              type: "client.created",
+              timestamp: "2026-02-11T12:00:00.000Z",
+              payload: {
+                clientId: "0198d09f-ff07-7f46-a5d9-26a3f0d96049",
+              },
+            },
+            entity: {
+              type: "client",
+              id: "0198d09f-ff07-7f46-a5d9-26a3f0d96049",
+            },
+          },
+        },
+      ],
+    });
+
+    expect(result).toMatchObject({
+      orgId: "org_5",
+      status: "completed",
+    });
+    expect(executeAction).toHaveBeenCalledTimes(1);
+    expect(recordDeliveryWithGuard).toHaveBeenCalledWith(
+      expect.objectContaining({
+        stepId: "node_a",
+        channel: "integration.resend.sendEmail",
+        target: "client@example.com",
+        providerMessageId: "provider-msg-1",
+      }),
+    );
+  });
+
+  test("marks terminal reason when registry action execution is invalid", async () => {
+    const recordRunStart = mock(async () => {});
+    const cancelReplacedRuns = mock(async () => 0);
+    const getRunGuard = mock(async () => ({
+      runRevision: 1,
+      runStatus: "running" as const,
+    }));
+    const loadCompiledPlan = mock(async () => ({
+      planVersion: 1,
+      entryNodeIds: ["node_a"],
+      nodes: [
+        {
+          id: "node_a",
+          kind: "action",
+          actionId: "resend.sendEmail",
+          integrationKey: "resend",
+          input: {
+            to: "client@example.com",
+            subject: "Reminder",
+            body: "Hello",
+          },
+        },
+      ],
+      edges: [],
+    }));
+    const loadCorrelatedEntity = mock(async () => ({
+      status: "found" as const,
+      entityType: "client",
+      entityId: "0198d09f-ff07-7f46-a5d9-26a3f0d96050",
+      entity: {},
+    }));
+    const executeAction = mock(async () => ({
+      status: "invalid_action" as const,
+      message: "Action disabled",
+    }));
+    const recordDeliveryWithGuard = mock(async () => "recorded" as const);
+    const markRunStatus = mock(async () => {});
+
+    const fn = createWorkflowExecutionFunction({
+      recordRunStart,
+      cancelReplacedRuns,
+      getRunGuard,
+      loadCompiledPlan,
+      loadCorrelatedEntity,
+      executeAction,
+      recordDeliveryWithGuard,
+      markRunStatus,
+    });
+    const t = new InngestTestEngine({ function: fn });
+
+    const { result } = await t.execute({
+      events: [
+        {
+          name: "scheduling/workflow.triggered",
+          data: {
+            orgId: "org_5",
+            workflow: {
+              definitionId: "0198d09f-ff07-7f46-a5d9-26a3f0d96046",
+              versionId: "0198d09f-ff07-7f46-a5d9-26a3f0d96047",
+              workflowType: "follow-up",
+            },
+            sourceEvent: {
+              id: "evt_5b",
+              type: "client.created",
+              timestamp: "2026-02-11T12:00:00.000Z",
+              payload: {
+                clientId: "0198d09f-ff07-7f46-a5d9-26a3f0d96050",
+              },
+            },
+            entity: {
+              type: "client",
+              id: "0198d09f-ff07-7f46-a5d9-26a3f0d96050",
+            },
+          },
+        },
+      ],
+    });
+
+    expect(result).toMatchObject({
+      orgId: "org_5",
+      status: "completed",
+      terminalReason: "invalid_action",
+    });
+    expect(executeAction).toHaveBeenCalledTimes(1);
+    expect(recordDeliveryWithGuard).toHaveBeenCalledTimes(0);
+  });
+
   test("does not run legacy placeholder action for empty compiled plans", async () => {
     const recordRunStart = mock(async () => {});
     const cancelReplacedRuns = mock(async () => 0);

@@ -492,6 +492,55 @@ describe("Workflow Routes", () => {
         { context },
       ),
     ).rejects.toMatchObject({ code: "UNPROCESSABLE_CONTENT" });
+
+    const invalidAction = await call(
+      workflowRoutes.createDefinition,
+      {
+        key: "invalid_action",
+        name: "Invalid Action",
+        workflowKit: {
+          trigger: { eventType: "client.created" },
+          nodes: [
+            {
+              id: "node_1",
+              kind: "action",
+              actionId: "unknown.action",
+              integrationKey: "unknown",
+              input: {},
+            },
+          ],
+          edges: [],
+        },
+      },
+      { context },
+    );
+
+    const invalidActionValidation = await call(
+      workflowRoutes.validateDraft,
+      { id: invalidAction.id },
+      { context },
+    );
+    expect(invalidActionValidation.valid).toBe(false);
+    expect(invalidActionValidation.issues).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: "MISSING_INTEGRATION",
+          nodeId: "node_1",
+          field: "actionId",
+        }),
+      ]),
+    );
+
+    await expect(
+      call(
+        workflowRoutes.publishDraft,
+        {
+          id: invalidAction.id,
+          expectedRevision: 1,
+        },
+        { context },
+      ),
+    ).rejects.toMatchObject({ code: "UNPROCESSABLE_CONTENT" });
   });
 
   test("upsertBinding requires an active published version", async () => {

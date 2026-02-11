@@ -461,10 +461,14 @@ Exit criteria:
 #### 9.5 Integration Extensibility Path
 
 - [ ] Introduce trigger/action registry contracts consumed by UI/compiler/runtime.
+  - [x] Land API-side trigger/action registry consumed by compiler + runtime execution.
+  - [ ] Wire registry metadata into `packages/workflow-ui` inspector/node forms.
 - [ ] Document and test action onboarding path for integrations:
   - Resend `sendEmail`
   - Twilio `sendSMS`
   - Slack `sendMessage`
+  - [x] Add initial typed action definitions for Resend/Twilio/Slack in workflow registry.
+  - [ ] Add product docs/runbooks for adding new integration actions end-to-end.
 - [ ] Ensure new action onboarding requires no core runtime rewrites.
 
 Exit criteria:
