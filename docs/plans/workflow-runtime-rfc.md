@@ -56,6 +56,7 @@ Phase 9 extends this foundation from a Workflow Kit-oriented implementation to a
 14. Bindings continue to target active workflow versions only.
 15. Authorization model: admin/owner mutate; any org member can view definitions and runs.
 16. Guard authoring model in v1 is a structured predicate builder (no free-form code/DSL).
+17. Trigger bindings are system-managed from the trigger node configuration at publish time (no separate manual binding UI in v1).
 
 ## 4. Product Rationale and Goals
 
@@ -448,8 +449,12 @@ Exit criteria:
   - [x] Move draft/catalog helper logic into `packages/workflow-ui` and consume it from admin workflow routes.
   - [x] Replace Workflow Kit editor surface with first-party React Flow primitives from `packages/workflow-ui`.
 - [x] Redesign workflows index/detail UX around builder-first interaction.
+- [x] Model trigger as a first-class canvas node with inspector-driven trigger configuration.
 - [x] Implement structured guard builder for each action node.
-- [ ] Implement relative delay configuration UX with ISO 8601 offset-safe time handling.
+- [x] Implement relative delay configuration UX with ISO 8601 offset-safe time handling.
+  - [x] Accept user-friendly duration inputs (`30d`, `12h`, `PT30M`) and persist canonical ISO 8601 durations.
+  - [x] Show human-readable duration parsing feedback and sample-payload date resolution preview in wait inspector.
+- [x] Remove separate “Event Bindings” authoring UI and auto-sync active binding from selected trigger on publish.
 - [ ] Implement member view mode (read-only workflow pages).
 
 #### 9.4 Runtime Execution Model Migration
@@ -536,7 +541,7 @@ Release acceptance:
 Current manual smoke snapshot (2026-02-10):
 
 1. [x] `client.created` event emitted from UI (client creation) produces an Inngest workflow run visible in `/workflows`.
-2. [x] Workflow admin UI supports publish + binding management + run visibility in live dev stack.
+2. [x] Workflow admin UI supports publish + trigger-driven binding sync + run visibility in live dev stack.
 3. [ ] Runtime function currently completes immediately, so reliable UI cancel smoke for live runs is still pending richer execution semantics (`cancelOn`/wait steps).
 
 ## 13. Observability

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft01Icon, RefreshIcon } from "@hugeicons/core-free-icons";
+import { forEachAsync } from "es-toolkit/array";
 import { toast } from "sonner";
 import {
   getCatalogTriggerEventTypes,
@@ -30,14 +31,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Icon } from "@/components/ui/icon";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-} from "@/components/ui/select";
 import {
   Table,
   TableBody,
@@ -90,10 +84,6 @@ function WorkflowDetailPage() {
   const [draftError, setDraftError] = useState<string | null>(null);
   const [validationResult, setValidationResult] =
     useState<WorkflowValidationResult | null>(null);
-  const [bindingEventType, setBindingEventType] = useState<WebhookEventType>(
-    webhookEventTypes[0],
-  );
-  const [bindingEnabled, setBindingEnabled] = useState(true);
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
   const [cancellingRunId, setCancellingRunId] = useState<string | null>(null);
 
@@ -222,7 +212,6 @@ function WorkflowDetailPage() {
       onSuccess: async () => {
         await queryClient.invalidateQueries({ queryKey: orpc.workflows.key() });
         setValidationResult(null);
-        toast.success("Workflow published");
       },
       onError: (error) => {
         toast.error(error.message || "Failed to publish workflow");
@@ -234,22 +223,9 @@ function WorkflowDetailPage() {
     orpc.workflows.bindings.upsert.mutationOptions({
       onSuccess: async () => {
         await queryClient.invalidateQueries({ queryKey: orpc.workflows.key() });
-        toast.success("Binding updated");
       },
       onError: (error) => {
         toast.error(error.message || "Failed to upsert binding");
-      },
-    }),
-  );
-
-  const removeBindingMutation = useMutation(
-    orpc.workflows.bindings.remove.mutationOptions({
-      onSuccess: async () => {
-        await queryClient.invalidateQueries({ queryKey: orpc.workflows.key() });
-        toast.success("Binding removed");
-      },
-      onError: (error) => {
-        toast.error(error.message || "Failed to remove binding");
       },
     }),
   );
@@ -316,15 +292,70 @@ function WorkflowDetailPage() {
     validateMutation.mutate({ id: workflowId });
   }, [ensureSavedDraft, validateMutation, workflowId]);
 
+  const syncActiveBindingsWithTrigger = useCallback(async () => {
+    if (!definition) return;
+
+    await forEachAsync(
+      definition.bindings,
+      async (binding) => {
+        if (binding.eventType === triggerEventType && binding.enabled) {
+          return;
+        }
+
+        if (binding.eventType !== triggerEventType && !binding.enabled) {
+          return;
+        }
+
+        await upsertBindingMutation.mutateAsync({
+          id: workflowId,
+          eventType: binding.eventType,
+          enabled: binding.eventType === triggerEventType,
+        });
+      },
+      { concurrency: 1 },
+    );
+
+    if (
+      !definition.bindings.some(
+        (binding) => binding.eventType === triggerEventType,
+      )
+    ) {
+      await upsertBindingMutation.mutateAsync({
+        id: workflowId,
+        eventType: triggerEventType,
+        enabled: true,
+      });
+    }
+  }, [definition, triggerEventType, upsertBindingMutation, workflowId]);
+
   const handlePublishDraft = useCallback(async () => {
     const result = await ensureSavedDraft();
     if (!result.ok) return;
 
-    publishMutation.mutate({
-      id: workflowId,
-      expectedRevision: result.revision,
-    });
-  }, [ensureSavedDraft, publishMutation, workflowId]);
+    try {
+      await publishMutation.mutateAsync({
+        id: workflowId,
+        expectedRevision: result.revision,
+      });
+    } catch {
+      return;
+    }
+
+    try {
+      await syncActiveBindingsWithTrigger();
+      toast.success(`Workflow published for ${triggerEventType}`);
+    } catch {
+      toast.error(
+        `Workflow was published, but activating trigger '${triggerEventType}' failed.`,
+      );
+    }
+  }, [
+    ensureSavedDraft,
+    publishMutation,
+    syncActiveBindingsWithTrigger,
+    triggerEventType,
+    workflowId,
+  ]);
 
   if (!canQueryWorkflowData) {
     return (
@@ -393,36 +424,18 @@ function WorkflowDetailPage() {
         </CardHeader>
         <CardContent className="space-y-4 py-4">
           <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-[220px_minmax(0,1fr)] md:items-center xl:min-w-[34rem]">
-              <span className="text-sm font-medium">Trigger event</span>
-              <Select
-                value={triggerEventType}
-                onValueChange={(value) => {
-                  if (!value || !isWebhookEventType(value)) return;
-                  setDraftWorkflowKit((current) =>
-                    withDraftTriggerEventType(current, value),
-                  );
-                  setDraftError(null);
-                  setValidationResult(null);
-                }}
-              >
-                <SelectTrigger>{triggerEventType}</SelectTrigger>
-                <SelectContent>
-                  {availableTriggerEventTypes.map((eventType) => (
-                    <SelectItem key={eventType} value={eventType}>
-                      {eventType}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            <p className="text-sm text-muted-foreground">
+              Configure trigger and steps directly on the canvas.
+            </p>
             <div className="flex flex-wrap items-center gap-2">
               <Button
                 type="button"
                 variant="outline"
                 onClick={handleSaveDraft}
                 disabled={
-                  updateDraftMutation.isPending || publishMutation.isPending
+                  updateDraftMutation.isPending ||
+                  publishMutation.isPending ||
+                  upsertBindingMutation.isPending
                 }
               >
                 {updateDraftMutation.isPending ? "Saving..." : "Save Draft"}
@@ -434,7 +447,8 @@ function WorkflowDetailPage() {
                 disabled={
                   updateDraftMutation.isPending ||
                   validateMutation.isPending ||
-                  publishMutation.isPending
+                  publishMutation.isPending ||
+                  upsertBindingMutation.isPending
                 }
               >
                 {validateMutation.isPending ? "Validating..." : "Validate"}
@@ -445,10 +459,13 @@ function WorkflowDetailPage() {
                 disabled={
                   updateDraftMutation.isPending ||
                   publishMutation.isPending ||
-                  validateMutation.isPending
+                  validateMutation.isPending ||
+                  upsertBindingMutation.isPending
                 }
               >
-                {publishMutation.isPending ? "Publishing..." : "Publish Draft"}
+                {publishMutation.isPending || upsertBindingMutation.isPending
+                  ? "Publishing..."
+                  : "Publish Draft"}
               </Button>
               {isDraftDirty ? (
                 <Badge variant="warning">Unsaved changes</Badge>
@@ -464,6 +481,15 @@ function WorkflowDetailPage() {
             <WorkflowBuilder
               document={workflowGraph}
               actionCatalog={catalogQuery.data?.actions ?? []}
+              triggerEventType={triggerEventType}
+              availableTriggerEventTypes={availableTriggerEventTypes}
+              onTriggerEventTypeChange={(eventType) => {
+                setDraftWorkflowKit((current) =>
+                  withDraftTriggerEventType(current, eventType),
+                );
+                setDraftError(null);
+                setValidationResult(null);
+              }}
               onChange={(updatedWorkflow) => {
                 setDraftWorkflowKit((current) =>
                   withDraftGraphDocument(
@@ -512,117 +538,7 @@ function WorkflowDetailPage() {
         </CardContent>
       </Card>
 
-      <div className="mt-6 grid grid-cols-1 gap-6 2xl:grid-cols-2">
-        <Card>
-          <CardHeader className="border-b">
-            <CardTitle>Event Bindings</CardTitle>
-            <CardDescription>
-              Attach webhook event types to this workflow definition.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4 py-4">
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr)_auto_auto] md:items-center">
-              <Select
-                value={bindingEventType}
-                onValueChange={(value) => {
-                  if (!value || !isWebhookEventType(value)) return;
-                  setBindingEventType(value);
-                }}
-              >
-                <SelectTrigger>{bindingEventType}</SelectTrigger>
-                <SelectContent>
-                  {availableTriggerEventTypes.map((eventType) => (
-                    <SelectItem key={eventType} value={eventType}>
-                      {eventType}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Checkbox
-                checked={bindingEnabled}
-                onChange={setBindingEnabled}
-                label="Enabled"
-              />
-              <Button
-                type="button"
-                variant="outline"
-                disabled={upsertBindingMutation.isPending}
-                onClick={() =>
-                  upsertBindingMutation.mutate({
-                    id: workflowId,
-                    eventType: bindingEventType,
-                    enabled: bindingEnabled,
-                  })
-                }
-              >
-                {upsertBindingMutation.isPending
-                  ? "Saving..."
-                  : "Upsert Binding"}
-              </Button>
-            </div>
-
-            {definition.bindings.length === 0 ? (
-              <div className="text-sm text-muted-foreground">
-                No bindings yet.
-              </div>
-            ) : (
-              <div className="overflow-x-auto rounded-lg border border-border">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Event Type</TableHead>
-                      <TableHead>Enabled</TableHead>
-                      <TableHead>Version</TableHead>
-                      <TableHead>Updated</TableHead>
-                      <TableHead className="w-[110px] text-right">
-                        Remove
-                      </TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {definition.bindings.map((binding) => (
-                      <TableRow key={binding.id}>
-                        <TableCell>
-                          <code className="text-xs">{binding.eventType}</code>
-                        </TableCell>
-                        <TableCell>
-                          <Badge
-                            variant={binding.enabled ? "success" : "outline"}
-                          >
-                            {binding.enabled ? "enabled" : "disabled"}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <code className="text-xs">{binding.versionId}</code>
-                        </TableCell>
-                        <TableCell>
-                          {formatDisplayDateTime(binding.updatedAt)}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="outline"
-                            disabled={removeBindingMutation.isPending}
-                            onClick={() =>
-                              removeBindingMutation.mutate({
-                                id: workflowId,
-                                eventType: binding.eventType,
-                              })
-                            }
-                          >
-                            Remove
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
+      <div className="mt-6">
         <Card>
           <CardHeader className="border-b">
             <CardTitle>Runs</CardTitle>

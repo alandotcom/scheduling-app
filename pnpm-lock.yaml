@@ -116,6 +116,9 @@ importers:
       cmdk:
         specifier: ^1.1.1
         version: 1.1.1(@types/react-dom@19.2.3(@types/react@19.2.13))(@types/react@19.2.13)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
+      es-toolkit:
+        specifier: ^1.44.0
+        version: 1.44.0
       libphonenumber-js:
         specifier: ^1.12.36
         version: 1.12.36
@@ -356,6 +359,9 @@ importers:
       '@xyflow/react':
         specifier: ^12.10.0
         version: 12.10.0(@types/react@19.2.13)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
+      parse-duration:
+        specifier: ^2.1.5
+        version: 2.1.5
       react:
         specifier: ^19.2.4
         version: 19.2.4

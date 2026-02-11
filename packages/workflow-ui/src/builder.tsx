@@ -1,5 +1,6 @@
 // oxlint-disable eslint-plugin-react/react-in-jsx-scope
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import parseDuration from "parse-duration";
 import {
   addEdge,
   Background,
@@ -20,6 +21,7 @@ import {
   type ReactFlowInstance,
 } from "@xyflow/react";
 import type {
+  WebhookEventType,
   WorkflowActionCatalogItem,
   WorkflowGuardCondition,
   WorkflowGraphDocument,
@@ -31,6 +33,9 @@ import { workflowGraphDocumentSchema } from "@scheduling/dto";
 type WorkflowBuilderProps = {
   document: WorkflowGraphDocument;
   actionCatalog: readonly WorkflowActionCatalogItem[];
+  triggerEventType: WebhookEventType;
+  availableTriggerEventTypes: readonly WebhookEventType[];
+  onTriggerEventTypeChange: (eventType: WebhookEventType) => void;
   onChange: (next: WorkflowGraphDocument) => void;
   readOnly?: boolean;
 };
@@ -42,14 +47,25 @@ type WorkflowBuilderNode = WorkflowGraphNode & {
   };
 };
 
+type TriggerCanvasNode = {
+  id: typeof TRIGGER_NODE_ID;
+  kind: "trigger";
+  eventType: WebhookEventType;
+};
+
+type CanvasGraphNode = WorkflowBuilderNode | TriggerCanvasNode;
+
 type BuilderNodeData = {
-  graphNode: WorkflowBuilderNode;
+  graphNode: CanvasGraphNode;
   title: string;
   subtitle: string;
 };
 
 type BuilderNode = Node<BuilderNodeData>;
 type BuilderEdge = Edge;
+
+const TRIGGER_NODE_ID = "__trigger__";
+const TRIGGER_EDGE_PREFIX = "__trigger_edge__";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
@@ -195,9 +211,16 @@ function getActionLabel(
 }
 
 function getNodeTitle(
-  node: WorkflowBuilderNode,
+  node: CanvasGraphNode,
   actionCatalog: readonly WorkflowActionCatalogItem[],
 ): { title: string; subtitle: string } {
+  if (node.kind === "trigger") {
+    return {
+      title: "Trigger",
+      subtitle: node.eventType,
+    };
+  }
+
   if (node.kind === "action") {
     return {
       title: getActionLabel(node.actionId, actionCatalog),
@@ -216,6 +239,164 @@ function getNodeTitle(
     title: "Terminal",
     subtitle: node.terminalType === "cancel" ? "Cancel" : "Complete",
   };
+}
+
+function isWorkflowGraphNode(
+  node: CanvasGraphNode,
+): node is WorkflowBuilderNode {
+  return node.kind !== "trigger";
+}
+
+function normalizeIsoDurationForParse(value: string): string {
+  if (!value.startsWith("P")) {
+    return value;
+  }
+
+  const separatorIndex = value.indexOf("T");
+  if (separatorIndex <= 1 || separatorIndex >= value.length - 1) {
+    return value;
+  }
+
+  // parse-duration handles ISO date and time chunks, but combined strings
+  // like `P3DT2H` must be expressed as `P3D PT2H`.
+  const dateChunk = value.slice(0, separatorIndex);
+  const timeChunk = value.slice(separatorIndex + 1);
+  return `${dateChunk} PT${timeChunk}`;
+}
+
+function parseWorkflowDurationToMs(value: string): number | null {
+  const normalizedValue = value.trim();
+  if (normalizedValue.length === 0) {
+    return null;
+  }
+
+  const parsed = parseDuration(
+    normalizeIsoDurationForParse(normalizedValue.toUpperCase()),
+  );
+  if (typeof parsed !== "number" || !Number.isFinite(parsed) || parsed <= 0) {
+    return null;
+  }
+
+  return Math.floor(parsed);
+}
+
+function formatDurationMsAsIso8601(durationMs: number): string {
+  const totalSeconds = Math.max(1, Math.floor(durationMs / 1_000));
+  const days = Math.floor(totalSeconds / 86_400);
+  const hours = Math.floor((totalSeconds % 86_400) / 3_600);
+  const minutes = Math.floor((totalSeconds % 3_600) / 60);
+  const seconds = totalSeconds % 60;
+
+  if (days > 0 && hours === 0 && minutes === 0 && seconds === 0) {
+    return `P${days}D`;
+  }
+
+  const timeParts: string[] = [];
+  if (hours > 0) timeParts.push(`${hours}H`);
+  if (minutes > 0) timeParts.push(`${minutes}M`);
+  if (seconds > 0 || timeParts.length === 0) timeParts.push(`${seconds}S`);
+  return `P${days > 0 ? `${days}D` : ""}T${timeParts.join("")}`;
+}
+
+function humanizeDuration(durationMs: number): string {
+  const units = [
+    { label: "day", ms: 86_400_000 },
+    { label: "hour", ms: 3_600_000 },
+    { label: "minute", ms: 60_000 },
+    { label: "second", ms: 1_000 },
+  ] as const;
+
+  let remaining = durationMs;
+  const parts: string[] = [];
+  for (const unit of units) {
+    const amount = Math.floor(remaining / unit.ms);
+    if (amount <= 0) continue;
+    parts.push(`${amount} ${unit.label}${amount === 1 ? "" : "s"}`);
+    remaining -= amount * unit.ms;
+    if (parts.length >= 2) break;
+  }
+
+  if (parts.length === 0) {
+    return `${Math.floor(durationMs)} ms`;
+  }
+
+  return parts.join(" ");
+}
+
+function createTriggerFlowNode(eventType: WebhookEventType): BuilderNode {
+  const triggerNode: TriggerCanvasNode = {
+    id: TRIGGER_NODE_ID,
+    kind: "trigger",
+    eventType,
+  };
+  const titles = getNodeTitle(triggerNode, []);
+
+  return {
+    id: TRIGGER_NODE_ID,
+    type: "workflowNode",
+    draggable: false,
+    deletable: false,
+    connectable: false,
+    position: {
+      x: -260,
+      y: 120,
+    },
+    data: {
+      graphNode: triggerNode,
+      title: titles.title,
+      subtitle: titles.subtitle,
+    },
+  };
+}
+
+function getPathValue(payload: Record<string, unknown>, path: string): unknown {
+  const segments = path
+    .split(".")
+    .map((segment) => segment.trim())
+    .filter((segment) => segment.length > 0);
+
+  let current: unknown = payload;
+  for (const segment of segments) {
+    if (!isRecord(current) || !(segment in current)) {
+      return undefined;
+    }
+    current = current[segment];
+  }
+
+  return current;
+}
+
+function toTimestamp(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    if (value > 1_000_000_000_000) {
+      return Math.floor(value);
+    }
+
+    if (value > 1_000_000_000) {
+      return Math.floor(value * 1_000);
+    }
+  }
+
+  if (typeof value === "string" && value.trim().length > 0) {
+    const parsed = Date.parse(value);
+    if (!Number.isNaN(parsed)) {
+      return parsed;
+    }
+  }
+
+  return null;
+}
+
+function formatAbsoluteDateTime(valueMs: number): string {
+  return new Intl.DateTimeFormat(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    timeZoneName: "short",
+  }).format(new Date(valueMs));
 }
 
 function resolveNodePosition(
@@ -270,7 +451,7 @@ function toFlowEdge(edge: WorkflowGraphEdge): BuilderEdge {
 
 function toGraphNode(node: BuilderNode): WorkflowBuilderNode | null {
   const graphNode = node.data?.graphNode;
-  if (!graphNode) return null;
+  if (!graphNode || !isWorkflowGraphNode(graphNode)) return null;
 
   return {
     ...graphNode,
@@ -309,7 +490,16 @@ function buildDocumentFromFlow(input: {
     .map((node) => toGraphNode(node))
     .filter((node): node is WorkflowBuilderNode => node !== null);
 
-  const nextEdges = input.flowEdges.map((edge) => toGraphEdge(edge));
+  const graphNodeIds = new Set(nextNodes.map((node) => node.id));
+  const nextEdges = input.flowEdges
+    .filter(
+      (edge) =>
+        edge.source !== TRIGGER_NODE_ID &&
+        edge.target !== TRIGGER_NODE_ID &&
+        graphNodeIds.has(edge.source) &&
+        graphNodeIds.has(edge.target),
+    )
+    .map((edge) => toGraphEdge(edge));
 
   return {
     ...input.currentDocument,
@@ -330,6 +520,9 @@ function updateNodeGraphData(
     }
 
     const currentGraphNode = node.data.graphNode;
+    if (!isWorkflowGraphNode(currentGraphNode)) {
+      return node;
+    }
     const nextGraphNode = updater(currentGraphNode);
     const titles = getNodeTitle(nextGraphNode, actionCatalog);
 
@@ -347,22 +540,27 @@ function updateNodeGraphData(
 function WorkflowCanvasNode({ data, selected }: NodeProps) {
   const nodeData = isBuilderNodeData(data) ? data : null;
   const kindLabel = nodeData?.graphNode.kind ?? "node";
+  const isTrigger = nodeData?.graphNode.kind === "trigger";
+  const isTerminal = nodeData?.graphNode.kind === "terminal";
 
   return (
     <div
       className="min-w-[220px] rounded-xl border bg-card px-4 py-3 shadow-sm transition"
       style={{
-        borderColor: selected ? "hsl(var(--primary))" : "hsl(var(--border))",
+        borderColor:
+          selected || isTrigger ? "hsl(var(--primary))" : "hsl(var(--border))",
         boxShadow: selected
           ? "0 0 0 1px hsl(var(--primary) / 0.5), 0 10px 20px hsl(var(--foreground) / 0.08)"
           : "0 2px 8px hsl(var(--foreground) / 0.08)",
       }}
     >
-      <Handle
-        type="target"
-        position={Position.Left}
-        className="!size-3 !border-2 !border-background !bg-foreground/70"
-      />
+      {!isTrigger ? (
+        <Handle
+          type="target"
+          position={Position.Left}
+          className="!size-3 !border-2 !border-background !bg-foreground/70"
+        />
+      ) : null}
       <div className="mb-1 inline-flex rounded-full border border-border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
         {kindLabel}
       </div>
@@ -370,11 +568,14 @@ function WorkflowCanvasNode({ data, selected }: NodeProps) {
       <p className="text-sm text-muted-foreground">
         {nodeData?.subtitle ?? ""}
       </p>
-      <Handle
-        type="source"
-        position={Position.Right}
-        className="!size-3 !border-2 !border-background !bg-foreground/70"
-      />
+      {!isTerminal ? (
+        <Handle
+          type="source"
+          position={Position.Right}
+          className="!size-3 !border-2 !border-background !bg-foreground/70"
+          isConnectable={!isTrigger}
+        />
+      ) : null}
     </div>
   );
 }
@@ -403,6 +604,9 @@ function documentSignature(document: WorkflowGraphDocument): string {
 export function WorkflowBuilder({
   document,
   actionCatalog,
+  triggerEventType,
+  availableTriggerEventTypes,
+  onTriggerEventTypeChange,
   onChange,
   readOnly = false,
 }: WorkflowBuilderProps) {
@@ -425,6 +629,18 @@ export function WorkflowBuilder({
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [inputJsonDraft, setInputJsonDraft] = useState<string>("");
   const [inputJsonError, setInputJsonError] = useState<string | null>(null);
+  const [waitDurationDraft, setWaitDurationDraft] = useState<string>("");
+  const [waitDurationError, setWaitDurationError] = useState<string | null>(
+    null,
+  );
+  const [samplePayloadDraft, setSamplePayloadDraft] = useState<string>("{}");
+  const [samplePayloadError, setSamplePayloadError] = useState<string | null>(
+    null,
+  );
+  const [samplePayload, setSamplePayload] = useState<Record<
+    string,
+    unknown
+  > | null>(null);
   const [reactFlowInstance, setReactFlowInstance] =
     useState<ReactFlowInstance<BuilderNode> | null>(null);
   const normalizedDocumentSignature = useMemo(
@@ -437,9 +653,12 @@ export function WorkflowBuilder({
       return;
     }
 
-    const flowNodes = normalizedDocument.nodes.map((node, index) =>
-      toFlowNode(node, index, actionCatalog),
-    );
+    const flowNodes = [
+      createTriggerFlowNode(triggerEventType),
+      ...normalizedDocument.nodes.map((node, index) =>
+        toFlowNode(node, index, actionCatalog),
+      ),
+    ];
     const flowEdges = normalizedDocument.edges.map((edge) => toFlowEdge(edge));
     setNodes(flowNodes);
     setEdges(flowEdges);
@@ -451,6 +670,7 @@ export function WorkflowBuilder({
     });
   }, [
     actionCatalog,
+    triggerEventType,
     normalizedDocument.nodes,
     normalizedDocument.edges,
     normalizedDocumentSignature,
@@ -460,6 +680,7 @@ export function WorkflowBuilder({
     () => nodes.find((node) => node.id === selectedNodeId) ?? null,
     [nodes, selectedNodeId],
   );
+  const selectedGraphNode = selectedNode?.data.graphNode ?? null;
 
   useEffect(() => {
     if (!selectedNode) {
@@ -479,6 +700,17 @@ export function WorkflowBuilder({
     );
     setInputJsonError(null);
   }, [selectedNode]);
+
+  useEffect(() => {
+    if (!selectedNode || selectedNode.data.graphNode.kind !== "wait") {
+      setWaitDurationDraft("");
+      setWaitDurationError(null);
+      return;
+    }
+
+    setWaitDurationDraft(selectedNode.data.graphNode.wait.duration);
+    setWaitDurationError(null);
+  }, [selectedNodeId]);
 
   const emitChange = useCallback(
     (nextNodes: BuilderNode[], nextEdges: BuilderEdge[]) => {
@@ -563,6 +795,15 @@ export function WorkflowBuilder({
 
   const onConnect = useCallback(
     (connection: Connection) => {
+      if (
+        !connection.source ||
+        !connection.target ||
+        connection.source === TRIGGER_NODE_ID ||
+        connection.target === TRIGGER_NODE_ID
+      ) {
+        return;
+      }
+
       setEdges((currentEdges) => {
         const nextEdges = addEdge(
           {
@@ -582,20 +823,40 @@ export function WorkflowBuilder({
     const action = actionCatalog[0];
     if (!action) return;
 
+    const graphNodeCount = nodes.filter(
+      (node) => node.data.graphNode.kind !== "trigger",
+    ).length;
+
     const nextGraphNode: WorkflowBuilderNode = {
       id: createNodeId("action"),
       kind: "action",
       actionId: action.id,
       integrationKey: action.integrationKey,
       input: {},
-      position: getSpawnPosition(nodes.length),
+      position: getSpawnPosition(graphNodeCount),
     };
-    const nextNode = toFlowNode(nextGraphNode, nodes.length, actionCatalog);
-    setNodes((currentNodes) => {
-      const nextNodes = [...currentNodes, nextNode];
-      emitChange(nextNodes, edges);
-      return nextNodes;
-    });
+    const nextNode = toFlowNode(nextGraphNode, graphNodeCount, actionCatalog);
+    const sourceNodeId =
+      selectedGraphNode &&
+      selectedGraphNode.kind !== "trigger" &&
+      selectedGraphNode.kind !== "terminal"
+        ? selectedGraphNode.id
+        : null;
+    const nextNodes = [...nodes, nextNode];
+    const nextEdges =
+      sourceNodeId && !edges.some((edge) => edge.source === sourceNodeId)
+        ? [
+            ...edges,
+            {
+              id: createNodeId("edge"),
+              source: sourceNodeId,
+              target: nextGraphNode.id,
+            } satisfies BuilderEdge,
+          ]
+        : edges;
+    setNodes(nextNodes);
+    setEdges(nextEdges);
+    emitChange(nextNodes, nextEdges);
     setSelectedNodeId(nextGraphNode.id);
     focusNodeInViewport(nextGraphNode.id);
   }, [
@@ -604,10 +865,14 @@ export function WorkflowBuilder({
     emitChange,
     focusNodeInViewport,
     getSpawnPosition,
-    nodes.length,
+    nodes,
+    selectedGraphNode,
   ]);
 
   const addWaitNode = useCallback(() => {
+    const graphNodeCount = nodes.filter(
+      (node) => node.data.graphNode.kind !== "trigger",
+    ).length;
     const nextGraphNode: WorkflowBuilderNode = {
       id: createNodeId("wait"),
       kind: "wait",
@@ -616,14 +881,30 @@ export function WorkflowBuilder({
         duration: "PT30M",
         offsetDirection: "after",
       },
-      position: getSpawnPosition(nodes.length),
+      position: getSpawnPosition(graphNodeCount),
     };
-    const nextNode = toFlowNode(nextGraphNode, nodes.length, actionCatalog);
-    setNodes((currentNodes) => {
-      const nextNodes = [...currentNodes, nextNode];
-      emitChange(nextNodes, edges);
-      return nextNodes;
-    });
+    const nextNode = toFlowNode(nextGraphNode, graphNodeCount, actionCatalog);
+    const sourceNodeId =
+      selectedGraphNode &&
+      selectedGraphNode.kind !== "trigger" &&
+      selectedGraphNode.kind !== "terminal"
+        ? selectedGraphNode.id
+        : null;
+    const nextNodes = [...nodes, nextNode];
+    const nextEdges =
+      sourceNodeId && !edges.some((edge) => edge.source === sourceNodeId)
+        ? [
+            ...edges,
+            {
+              id: createNodeId("edge"),
+              source: sourceNodeId,
+              target: nextGraphNode.id,
+            } satisfies BuilderEdge,
+          ]
+        : edges;
+    setNodes(nextNodes);
+    setEdges(nextEdges);
+    emitChange(nextNodes, nextEdges);
     setSelectedNodeId(nextGraphNode.id);
     focusNodeInViewport(nextGraphNode.id);
   }, [
@@ -632,22 +913,42 @@ export function WorkflowBuilder({
     emitChange,
     focusNodeInViewport,
     getSpawnPosition,
-    nodes.length,
+    nodes,
+    selectedGraphNode,
   ]);
 
   const addTerminalNode = useCallback(() => {
+    const graphNodeCount = nodes.filter(
+      (node) => node.data.graphNode.kind !== "trigger",
+    ).length;
     const nextGraphNode: WorkflowBuilderNode = {
       id: createNodeId("terminal"),
       kind: "terminal",
       terminalType: "complete",
-      position: getSpawnPosition(nodes.length),
+      position: getSpawnPosition(graphNodeCount),
     };
-    const nextNode = toFlowNode(nextGraphNode, nodes.length, actionCatalog);
-    setNodes((currentNodes) => {
-      const nextNodes = [...currentNodes, nextNode];
-      emitChange(nextNodes, edges);
-      return nextNodes;
-    });
+    const nextNode = toFlowNode(nextGraphNode, graphNodeCount, actionCatalog);
+    const sourceNodeId =
+      selectedGraphNode &&
+      selectedGraphNode.kind !== "trigger" &&
+      selectedGraphNode.kind !== "terminal"
+        ? selectedGraphNode.id
+        : null;
+    const nextNodes = [...nodes, nextNode];
+    const nextEdges =
+      sourceNodeId && !edges.some((edge) => edge.source === sourceNodeId)
+        ? [
+            ...edges,
+            {
+              id: createNodeId("edge"),
+              source: sourceNodeId,
+              target: nextGraphNode.id,
+            } satisfies BuilderEdge,
+          ]
+        : edges;
+    setNodes(nextNodes);
+    setEdges(nextEdges);
+    emitChange(nextNodes, nextEdges);
     setSelectedNodeId(nextGraphNode.id);
     focusNodeInViewport(nextGraphNode.id);
   }, [
@@ -656,7 +957,8 @@ export function WorkflowBuilder({
     emitChange,
     focusNodeInViewport,
     getSpawnPosition,
-    nodes.length,
+    nodes,
+    selectedGraphNode,
   ]);
 
   const updateSelectedNode = useCallback(
@@ -679,7 +981,102 @@ export function WorkflowBuilder({
     [actionCatalog, edges, emitChange, selectedNodeId],
   );
 
-  const selectedGraphNode = selectedNode?.data.graphNode ?? null;
+  const triggerEdges = useMemo(() => {
+    const incomingTargets = new Set(edges.map((edge) => edge.target));
+    const rootNodes = nodes.filter(
+      (node) =>
+        node.data.graphNode.kind !== "trigger" && !incomingTargets.has(node.id),
+    );
+
+    return rootNodes.map((node) => ({
+      id: `${TRIGGER_EDGE_PREFIX}${node.id}`,
+      source: TRIGGER_NODE_ID,
+      target: node.id,
+      type: "smoothstep",
+      selectable: false,
+      focusable: false,
+      deletable: false,
+      reconnectable: false,
+      style: {
+        stroke: "hsl(var(--muted-foreground) / 0.35)",
+        strokeDasharray: "4 4",
+        strokeWidth: 2,
+      },
+    }));
+  }, [edges, nodes]);
+
+  const renderedEdges = useMemo(
+    () => [...edges, ...triggerEdges],
+    [edges, triggerEdges],
+  );
+  const graphNodeCount = useMemo(
+    () => nodes.filter((node) => node.data.graphNode.kind !== "trigger").length,
+    [nodes],
+  );
+
+  const parsedWaitDurationMs = useMemo(
+    () => parseWorkflowDurationToMs(waitDurationDraft),
+    [waitDurationDraft],
+  );
+
+  const waitDurationSummary = useMemo(() => {
+    if (parsedWaitDurationMs === null) {
+      return null;
+    }
+
+    return {
+      durationMs: parsedWaitDurationMs,
+      humanLabel: humanizeDuration(parsedWaitDurationMs),
+      iso8601: formatDurationMsAsIso8601(parsedWaitDurationMs),
+    };
+  }, [parsedWaitDurationMs]);
+
+  const waitReferencePreview = useMemo(() => {
+    if (!selectedGraphNode || selectedGraphNode.kind !== "wait") {
+      return null;
+    }
+
+    if (!selectedGraphNode.wait.referenceField || !waitDurationSummary) {
+      return null;
+    }
+
+    if (!samplePayload) {
+      return { error: "Add an example trigger payload to preview this wait." };
+    }
+
+    const referenceValue = getPathValue(
+      samplePayload,
+      selectedGraphNode.wait.referenceField,
+    );
+    if (referenceValue === undefined) {
+      return {
+        error: `Could not resolve '${selectedGraphNode.wait.referenceField}' in the sample payload.`,
+      };
+    }
+
+    const referenceMs = toTimestamp(referenceValue);
+    if (referenceMs === null) {
+      return {
+        error: `Resolved reference value is not a valid date/time: ${JSON.stringify(referenceValue)}`,
+      };
+    }
+
+    const scheduledMs =
+      selectedGraphNode.wait.offsetDirection === "before"
+        ? referenceMs - waitDurationSummary.durationMs
+        : referenceMs + waitDurationSummary.durationMs;
+
+    return {
+      referenceDate: formatAbsoluteDateTime(referenceMs),
+      scheduledDate: formatAbsoluteDateTime(scheduledMs),
+    };
+  }, [samplePayload, selectedGraphNode, waitDurationSummary]);
+  const isAvailableTriggerEventType = useCallback(
+    (value: string): value is WebhookEventType =>
+      availableTriggerEventTypes.some((eventType) => eventType === value),
+    [availableTriggerEventTypes],
+  );
+
   const editableFlowHandlers = readOnly
     ? {}
     : {
@@ -693,7 +1090,7 @@ export function WorkflowBuilder({
       <div className="relative overflow-hidden rounded-lg border border-border">
         <ReactFlow<BuilderNode>
           nodes={nodes}
-          edges={edges}
+          edges={renderedEdges}
           nodeTypes={NODE_TYPES}
           onInit={setReactFlowInstance}
           defaultEdgeOptions={{
@@ -751,7 +1148,7 @@ export function WorkflowBuilder({
           </div>
         ) : null}
 
-        {!readOnly && nodes.length === 0 ? (
+        {!readOnly && graphNodeCount === 0 ? (
           <div className="pointer-events-none absolute inset-0 z-[5] flex items-center justify-center px-4">
             <div className="pointer-events-auto w-full max-w-md rounded-xl border border-border bg-background/95 p-4 text-center shadow-sm backdrop-blur-sm">
               <p className="text-sm font-semibold">Start your workflow</p>
@@ -803,6 +1200,73 @@ export function WorkflowBuilder({
               <p className="text-xs text-muted-foreground">Kind</p>
               <p className="text-sm">{selectedGraphNode.kind}</p>
             </div>
+
+            {selectedGraphNode.kind === "trigger" ? (
+              <div className="space-y-2">
+                <label className="block text-xs text-muted-foreground">
+                  Trigger Event
+                </label>
+                <select
+                  className="w-full rounded-md border border-border bg-background px-2 py-1 text-sm"
+                  value={selectedGraphNode.eventType}
+                  disabled={readOnly}
+                  onChange={(event) => {
+                    const nextEventType = event.target.value;
+                    if (!isAvailableTriggerEventType(nextEventType)) {
+                      return;
+                    }
+                    onTriggerEventTypeChange(nextEventType);
+                  }}
+                >
+                  {availableTriggerEventTypes.map((eventType) => (
+                    <option key={eventType} value={eventType}>
+                      {eventType}
+                    </option>
+                  ))}
+                </select>
+
+                <label className="block text-xs text-muted-foreground">
+                  Example Payload (JSON, optional)
+                </label>
+                <textarea
+                  className="min-h-[140px] w-full rounded-md border border-border bg-background px-2 py-1 font-mono text-xs"
+                  value={samplePayloadDraft}
+                  disabled={readOnly}
+                  onChange={(event) => {
+                    setSamplePayloadDraft(event.target.value);
+                    setSamplePayloadError(null);
+                  }}
+                  onBlur={() => {
+                    const trimmed = samplePayloadDraft.trim();
+                    if (trimmed.length === 0) {
+                      setSamplePayload(null);
+                      setSamplePayloadError(null);
+                      return;
+                    }
+
+                    const parsed = parseInputJson(trimmed);
+                    if (!parsed) {
+                      setSamplePayloadError(
+                        "Example payload must be a JSON object.",
+                      );
+                      return;
+                    }
+
+                    setSamplePayload(parsed);
+                    setSamplePayloadError(null);
+                  }}
+                />
+                {samplePayloadError ? (
+                  <p className="text-xs text-destructive">
+                    {samplePayloadError}
+                  </p>
+                ) : (
+                  <p className="text-xs text-muted-foreground">
+                    Used for wait-date previews when a reference field is set.
+                  </p>
+                )}
+              </div>
+            ) : null}
 
             {selectedGraphNode.kind === "action" ? (
               <div className="space-y-2">
@@ -1199,13 +1663,28 @@ export function WorkflowBuilder({
             {selectedGraphNode.kind === "wait" ? (
               <div className="space-y-2">
                 <label className="block text-xs text-muted-foreground">
-                  Duration (ISO 8601)
+                  Duration
                 </label>
                 <input
                   className="w-full rounded-md border border-border bg-background px-2 py-1 text-sm"
-                  value={selectedGraphNode.wait.duration}
+                  value={waitDurationDraft}
                   disabled={readOnly}
-                  onChange={(event) =>
+                  placeholder="30d, 12h, PT30M"
+                  onChange={(event) => {
+                    setWaitDurationDraft(event.target.value);
+                    setWaitDurationError(null);
+                  }}
+                  onBlur={() => {
+                    const durationMs =
+                      parseWorkflowDurationToMs(waitDurationDraft);
+                    if (durationMs === null) {
+                      setWaitDurationError(
+                        "Enter a valid duration like 30d or PT30M.",
+                      );
+                      return;
+                    }
+
+                    const canonicalIso = formatDurationMsAsIso8601(durationMs);
                     updateSelectedNode((node) => {
                       if (node.kind !== "wait") {
                         return node;
@@ -1215,12 +1694,25 @@ export function WorkflowBuilder({
                         ...node,
                         wait: {
                           ...node.wait,
-                          duration: event.target.value,
+                          duration: canonicalIso,
                         },
                       };
-                    })
-                  }
+                    });
+                    setWaitDurationDraft(canonicalIso);
+                    setWaitDurationError(null);
+                  }}
                 />
+                {waitDurationError ? (
+                  <p className="text-xs text-destructive">
+                    {waitDurationError}
+                  </p>
+                ) : null}
+                {waitDurationSummary ? (
+                  <p className="text-xs text-muted-foreground">
+                    Parsed as {waitDurationSummary.humanLabel} (
+                    {waitDurationSummary.iso8601})
+                  </p>
+                ) : null}
                 <label className="block text-xs text-muted-foreground">
                   Reference Field (optional)
                 </label>
@@ -1247,6 +1739,21 @@ export function WorkflowBuilder({
                     })
                   }
                 />
+                {waitReferencePreview && "error" in waitReferencePreview ? (
+                  <p className="text-xs text-muted-foreground">
+                    {waitReferencePreview.error}
+                  </p>
+                ) : null}
+                {waitReferencePreview && !("error" in waitReferencePreview) ? (
+                  <div className="rounded-md border border-border bg-muted/20 p-2 text-xs">
+                    <p className="text-muted-foreground">
+                      Reference date: {waitReferencePreview.referenceDate}
+                    </p>
+                    <p className="font-medium">
+                      Scheduled send: {waitReferencePreview.scheduledDate}
+                    </p>
+                  </div>
+                ) : null}
                 <label className="block text-xs text-muted-foreground">
                   Offset Direction
                 </label>
