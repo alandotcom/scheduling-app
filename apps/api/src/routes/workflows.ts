@@ -24,7 +24,6 @@ import {
   type WorkflowRunStatus,
   workflowValidationResultSchema,
   type WorkflowKitDocument,
-  type WorkflowValidationResult,
 } from "@scheduling/dto";
 import {
   workflowBindings,
@@ -43,6 +42,7 @@ import {
 } from "../inngest/runtime.js";
 import type { DbClient } from "../lib/db.js";
 import { withOrg } from "../lib/db.js";
+import { compileWorkflowDocument } from "../services/workflows/compiler.js";
 
 const DEFAULT_WORKFLOW_KIT_SCHEMA_VERSION = 1;
 const UNIQUE_CONSTRAINT_VIOLATION = "23505";
@@ -177,29 +177,6 @@ function toRunSummary(row: WorkflowRunEntityLinkRow) {
     startedAt: row.startedAt,
     updatedAt: row.lastSeenAt,
   };
-}
-
-function validateWorkflowKitDraft(
-  workflowKit: WorkflowKitDocument,
-): WorkflowValidationResult {
-  if (Object.keys(workflowKit).length > 0) {
-    return workflowValidationResultSchema.parse({
-      valid: true,
-      issues: [],
-    });
-  }
-
-  return workflowValidationResultSchema.parse({
-    valid: false,
-    issues: [
-      {
-        code: "MISSING_REQUIRED_FIELD",
-        severity: "error",
-        field: "workflowKit",
-        message: "Workflow draft cannot be empty",
-      },
-    ],
-  });
 }
 
 async function getDefinitionById(
@@ -392,7 +369,7 @@ export const validateDraft = adminOnly
   .handler(async ({ input, context }) => {
     return withOrg(context.orgId, async (tx) => {
       const definition = await getDefinitionById(tx, input.id);
-      return validateWorkflowKitDraft(definition.draftWorkflowKit);
+      return compileWorkflowDocument(definition.draftWorkflowKit).validation;
     });
   });
 
@@ -417,7 +394,8 @@ export const publishDraft = adminOnly
         });
       }
 
-      const validation = validateWorkflowKitDraft(definition.draftWorkflowKit);
+      const compilation = compileWorkflowDocument(definition.draftWorkflowKit);
+      const validation = compilation.validation;
       if (!validation.valid) {
         throw new ApplicationError("Workflow draft is invalid", {
           code: "UNPROCESSABLE_CONTENT",
@@ -442,7 +420,7 @@ export const publishDraft = adminOnly
           version: (latestVersion?.version ?? 0) + 1,
           workflowKitSchemaVersion: DEFAULT_WORKFLOW_KIT_SCHEMA_VERSION,
           workflowKit: definition.draftWorkflowKit,
-          compiledPlan: {},
+          compiledPlan: compilation.compiledPlan ?? {},
           checksum: buildWorkflowChecksum(definition.draftWorkflowKit),
           createdBy: context.userId,
         })

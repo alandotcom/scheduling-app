@@ -435,7 +435,7 @@ Exit criteria:
 
 - [ ] Move workflow payload contracts from Workflow Kit-oriented naming to first-party graph naming.
 - [x] Introduce typed workflow graph schema and validation contract.
-- [ ] Compile graph to deterministic `compiled_plan` at publish-time.
+- [x] Compile graph to deterministic `compiled_plan` at publish-time.
 - [ ] Update route payloads/responses to first-party naming and shapes.
 - [x] Update workflow route authorization to support member read and admin/owner mutation split.
 - [x] Keep binding targets constrained to active versions only.

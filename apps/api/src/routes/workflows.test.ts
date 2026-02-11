@@ -367,6 +367,10 @@ describe("Workflow Routes", () => {
     expect(firstPublish.activeVersion?.workflowKit).toMatchObject({
       trigger: { event: "appointment.created" },
     });
+    expect(firstPublish.activeVersion?.compiledPlan).toMatchObject({
+      planVersion: 1,
+      trigger: { eventType: "appointment.created" },
+    });
     expect(firstPublish.activeVersion?.createdBy).toBe(user.id);
     expect(firstPublish.activeVersion?.checksum).toHaveLength(64);
 
@@ -436,6 +440,53 @@ describe("Workflow Routes", () => {
         workflowRoutes.publishDraft,
         {
           id: created.id,
+          expectedRevision: 1,
+        },
+        { context },
+      ),
+    ).rejects.toMatchObject({ code: "UNPROCESSABLE_CONTENT" });
+
+    const invalidGraph = await call(
+      workflowRoutes.createDefinition,
+      {
+        key: "invalid_edges",
+        name: "Invalid Edges",
+        workflowKit: {
+          trigger: { eventType: "client.created" },
+          nodes: [
+            {
+              id: "node_1",
+              kind: "action",
+              actionId: "send-email",
+              integrationKey: "resend",
+            },
+          ],
+          edges: [{ id: "edge_1", source: "node_1", target: "missing_node" }],
+        },
+      },
+      { context },
+    );
+
+    const invalidGraphValidation = await call(
+      workflowRoutes.validateDraft,
+      { id: invalidGraph.id },
+      { context },
+    );
+    expect(invalidGraphValidation.valid).toBe(false);
+    expect(invalidGraphValidation.issues).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: "INVALID_EDGE",
+          edgeId: "edge_1",
+        }),
+      ]),
+    );
+
+    await expect(
+      call(
+        workflowRoutes.publishDraft,
+        {
+          id: invalidGraph.id,
           expectedRevision: 1,
         },
         { context },
