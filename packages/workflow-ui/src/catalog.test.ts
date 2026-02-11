@@ -2,7 +2,6 @@ import { describe, expect, test } from "bun:test";
 import {
   getCatalogTriggerEventTypes,
   resolveDefaultCatalogTriggerEventType,
-  toLegacyWorkflowKitActions,
 } from "./catalog";
 
 describe("workflow-ui catalog helpers", () => {
@@ -28,24 +27,6 @@ describe("workflow-ui catalog helpers", () => {
         ["appointment.created", "client.created"],
       ),
     ).toEqual(["appointment.created", "client.created"]);
-  });
-
-  test("maps catalog actions to legacy workflow-kit actions", () => {
-    expect(
-      toLegacyWorkflowKitActions([
-        {
-          id: "resend.sendEmail",
-          integrationKey: "resend",
-          label: "Send Email",
-        },
-      ]),
-    ).toEqual([
-      {
-        kind: "resend_sendEmail",
-        name: "Send Email",
-        description: "Resend action: resend.sendEmail",
-      },
-    ]);
   });
 
   test("resolves first trigger event as default", () => {

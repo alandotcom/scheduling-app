@@ -1,7 +1,9 @@
 import { describe, expect, test } from "bun:test";
 import {
+  getWorkflowGraphDocumentFromDraft,
   getTriggerEventTypeFromDraft,
   stableStringify,
+  withDraftGraphDocument,
   withDraftTriggerEventType,
 } from "./draft";
 
@@ -34,5 +36,43 @@ describe("workflow-ui draft helpers", () => {
     const left = stableStringify({ b: 2, a: 1 });
     const right = stableStringify({ a: 1, b: 2 });
     expect(left).toBe(right);
+  });
+
+  test("extracts graph document from draft and defaults empty graph", () => {
+    expect(
+      getWorkflowGraphDocumentFromDraft({
+        schemaVersion: 1,
+        nodes: [{ id: "n1", kind: "terminal", terminalType: "complete" }],
+        edges: [],
+      }),
+    ).toMatchObject({
+      schemaVersion: 1,
+      nodes: [{ id: "n1", kind: "terminal" }],
+      edges: [],
+    });
+
+    expect(getWorkflowGraphDocumentFromDraft({})).toMatchObject({
+      schemaVersion: 1,
+      nodes: [],
+      edges: [],
+    });
+  });
+
+  test("writes graph document back into workflow draft", () => {
+    expect(
+      withDraftGraphDocument(
+        { trigger: { event: "client.created" } },
+        {
+          schemaVersion: 1,
+          trigger: { event: "client.created" },
+          nodes: [{ id: "n1", kind: "terminal", terminalType: "complete" }],
+          edges: [],
+        },
+      ),
+    ).toMatchObject({
+      schemaVersion: 1,
+      nodes: [{ id: "n1", kind: "terminal", terminalType: "complete" }],
+      edges: [],
+    });
   });
 });

@@ -443,10 +443,10 @@ Exit criteria:
 #### 9.3 UI Platform Migration
 
 - [x] Create `packages/workflow-ui` package for reusable builder primitives.
-- [ ] Implement React Flow-based canvas + inspector + toolbar primitives.
-- [ ] Migrate admin workflow routes to use `packages/workflow-ui`.
+- [x] Implement React Flow-based canvas + inspector + toolbar primitives.
+- [x] Migrate admin workflow routes to use `packages/workflow-ui`.
   - [x] Move draft/catalog helper logic into `packages/workflow-ui` and consume it from admin workflow routes.
-  - [ ] Replace Workflow Kit editor surface with first-party React Flow primitives from `packages/workflow-ui`.
+  - [x] Replace Workflow Kit editor surface with first-party React Flow primitives from `packages/workflow-ui`.
 - [ ] Redesign workflows index/detail UX around builder-first interaction.
 - [ ] Implement structured guard builder for each action node.
 - [ ] Implement relative delay configuration UX with ISO 8601 offset-safe time handling.
@@ -465,7 +465,7 @@ Exit criteria:
 - [ ] Introduce trigger/action registry contracts consumed by UI/compiler/runtime.
   - [x] Land API-side trigger/action registry consumed by compiler + runtime execution.
   - [x] Expose workflow catalog route and consume registry-backed trigger/action metadata in admin workflow routes.
-  - [ ] Wire registry metadata into `packages/workflow-ui` inspector/node forms for first-party node editors.
+  - [x] Wire registry metadata into `packages/workflow-ui` inspector/node forms for first-party node editors.
 - [ ] Document and test action onboarding path for integrations:
   - Resend `sendEmail`
   - Twilio `sendSMS`

@@ -1,4 +1,8 @@
 import { webhookEventTypes, type WebhookEventType } from "@scheduling/dto";
+import {
+  workflowGraphDocumentSchema,
+  type WorkflowGraphDocument,
+} from "@scheduling/dto";
 
 function isWebhookEventType(value: string): value is WebhookEventType {
   return (webhookEventTypes as readonly string[]).includes(value);
@@ -58,5 +62,32 @@ export function withDraftTriggerEventType(
   return {
     ...workflowKit,
     trigger: nextTrigger,
+  };
+}
+
+export function getWorkflowGraphDocumentFromDraft(
+  workflowKit: Record<string, unknown>,
+): WorkflowGraphDocument {
+  const parsed = workflowGraphDocumentSchema.safeParse(workflowKit);
+  if (parsed.success) {
+    return parsed.data;
+  }
+
+  return workflowGraphDocumentSchema.parse({
+    schemaVersion: 1,
+    nodes: [],
+    edges: [],
+  });
+}
+
+export function withDraftGraphDocument(
+  workflowKit: Record<string, unknown>,
+  document: WorkflowGraphDocument,
+): Record<string, unknown> {
+  return {
+    ...workflowKit,
+    schemaVersion: document.schemaVersion,
+    nodes: document.nodes,
+    edges: document.edges,
   };
 }

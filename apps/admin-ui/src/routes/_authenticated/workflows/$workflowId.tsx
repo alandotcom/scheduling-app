@@ -2,16 +2,15 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft01Icon, RefreshIcon } from "@hugeicons/core-free-icons";
-import type { Workflow as WorkflowKitWorkflow } from "@inngest/workflow-kit";
-import { Editor, Provider, Sidebar } from "@inngest/workflow-kit/ui";
 import { toast } from "sonner";
 import {
   getCatalogTriggerEventTypes,
+  getWorkflowGraphDocumentFromDraft,
   getTriggerEventTypeFromDraft,
-  isRecord,
   resolveDefaultCatalogTriggerEventType,
   stableStringify,
-  toLegacyWorkflowKitActions,
+  WorkflowBuilder,
+  withDraftGraphDocument,
   withDraftTriggerEventType,
 } from "@scheduling/workflow-ui";
 
@@ -51,8 +50,6 @@ import { formatDisplayDateTime } from "@/lib/date-utils";
 import { getQueryClient, orpc } from "@/lib/query";
 import { swallowIgnorableRouteLoaderError } from "@/lib/query-cancellation";
 // oxlint-disable-next-line import/no-unassigned-import
-import "@inngest/workflow-kit/ui/ui.css";
-// oxlint-disable-next-line import/no-unassigned-import
 import "@xyflow/react/dist/style.css";
 
 type WorkflowRunStatus =
@@ -74,43 +71,6 @@ function runStatusBadgeVariant(status: WorkflowRunStatus) {
   if (status === "pending" || status === "running") return "warning";
   if (status === "failed") return "destructive";
   return "outline";
-}
-
-const EMPTY_WORKFLOW: WorkflowKitWorkflow = {
-  actions: [],
-  edges: [],
-};
-
-function isWorkflowKitWorkflow(value: unknown): value is WorkflowKitWorkflow {
-  if (!isRecord(value)) return false;
-  return Array.isArray(value["actions"]) && Array.isArray(value["edges"]);
-}
-
-function getWorkflowFromDraft(workflowKit: Record<string, unknown>) {
-  const candidate = workflowKit["workflow"];
-  if (!isWorkflowKitWorkflow(candidate)) {
-    return EMPTY_WORKFLOW;
-  }
-
-  return {
-    ...candidate,
-    actions: [...candidate.actions],
-    edges: [...candidate.edges],
-  };
-}
-
-function withDraftWorkflow(
-  workflowKit: Record<string, unknown>,
-  workflow: WorkflowKitWorkflow,
-): Record<string, unknown> {
-  return {
-    ...workflowKit,
-    workflow: {
-      ...workflow,
-      actions: [...workflow.actions],
-      edges: [...workflow.edges],
-    },
-  };
 }
 
 function isWebhookEventType(value: string): value is WebhookEventType {
@@ -169,10 +129,6 @@ function WorkflowDetailPage() {
       ).filter(isWebhookEventType),
     [catalogQuery.data?.triggers],
   );
-  const availableEditorActions = useMemo(
-    () => [...toLegacyWorkflowKitActions(catalogQuery.data?.actions ?? [])],
-    [catalogQuery.data?.actions],
-  );
 
   useEffect(() => {
     if (!definition) return;
@@ -218,7 +174,7 @@ function WorkflowDetailPage() {
   );
   const workflowGraph = useMemo(
     () =>
-      getWorkflowFromDraft(
+      getWorkflowGraphDocumentFromDraft(
         parsedDraft.success ? parsedDraft.data : draftWorkflowKit,
       ),
     [draftWorkflowKit, parsedDraft],
@@ -413,7 +369,7 @@ function WorkflowDetailPage() {
 
       <Card className="mt-6">
         <CardHeader className="border-b">
-          <CardTitle>Draft WorkflowKit</CardTitle>
+          <CardTitle>Draft Workflow</CardTitle>
           <CardDescription>
             Edit visually, validate, and publish new workflow revisions.
           </CardDescription>
@@ -443,18 +399,12 @@ function WorkflowDetailPage() {
             </Select>
           </div>
           <div className="h-[560px] overflow-hidden rounded-lg border border-border">
-            <Provider
-              key={`${definition.id}:${definition.draftRevision}:${triggerEventType}`}
-              workflow={workflowGraph}
-              trigger={{
-                event: {
-                  name: triggerEventType,
-                },
-              }}
-              availableActions={availableEditorActions}
+            <WorkflowBuilder
+              document={workflowGraph}
+              actionCatalog={catalogQuery.data?.actions ?? []}
               onChange={(updatedWorkflow) => {
                 setDraftWorkflowKit((current) =>
-                  withDraftWorkflow(
+                  withDraftGraphDocument(
                     withDraftTriggerEventType(current, triggerEventType),
                     updatedWorkflow,
                   ),
@@ -462,11 +412,7 @@ function WorkflowDetailPage() {
                 setDraftError(null);
                 setValidationResult(null);
               }}
-            >
-              <Editor>
-                <Sidebar position="right" />
-              </Editor>
-            </Provider>
+            />
           </div>
           {draftError ? (
             <p className="text-sm text-destructive">{draftError}</p>

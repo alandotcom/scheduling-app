@@ -12,7 +12,9 @@
     "typecheck": "tsc -p tsconfig.typecheck.json --noEmit --incremental --tsBuildInfoFile node_modules/.cache.typecheck.tsbuildinfo --pretty false"
   },
   "dependencies": {
-    "@scheduling/dto": "workspace:*"
+    "@scheduling/dto": "workspace:*",
+    "@xyflow/react": "^12.10.0",
+    "react": "^19.2.4"
   },
   "devDependencies": {
     "@types/bun": "catalog:",
