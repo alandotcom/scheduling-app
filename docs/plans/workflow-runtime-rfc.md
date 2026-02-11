@@ -452,7 +452,7 @@ Exit criteria:
 
 #### 9.4 Runtime Execution Model Migration
 
-- [ ] Execute first-party compiled plans in Inngest workflow execution functions.
+- [x] Execute first-party compiled plans in Inngest workflow execution functions (with temporary legacy fallback for pre-compiled versions).
 - [ ] Preserve and verify run-revision guard + delivery dedupe semantics.
 - [ ] Enforce mutable-entity replacement/cancellation matrix under wait/delay operations.
 - [x] Enforce per-step latest-model rehydration from DB by correlation identity.

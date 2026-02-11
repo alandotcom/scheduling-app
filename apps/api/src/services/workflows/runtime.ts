@@ -7,6 +7,7 @@ import {
   locations,
   resources,
   workflowBindings,
+  workflowDefinitionVersions,
   workflowDeliveryLog,
   workflowDefinitions,
   workflowRunEntityLinks,
@@ -307,6 +308,25 @@ export async function cancelReplacedWorkflowRuns(input: {
       .returning({ id: workflowRunEntityLinks.id });
 
     return updated.length;
+  });
+}
+
+export async function loadWorkflowCompiledPlan(input: {
+  orgId: string;
+  versionId: string;
+}): Promise<Record<string, unknown> | null> {
+  return withOrg(input.orgId, async (tx) => {
+    const [row] = await tx
+      .select({ compiledPlan: workflowDefinitionVersions.compiledPlan })
+      .from(workflowDefinitionVersions)
+      .where(eq(workflowDefinitionVersions.id, input.versionId))
+      .limit(1);
+
+    if (!row) {
+      return null;
+    }
+
+    return row.compiledPlan;
   });
 }
 

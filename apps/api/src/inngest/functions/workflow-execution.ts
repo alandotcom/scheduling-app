@@ -3,6 +3,7 @@ import {
   buildWorkflowDeliveryKey,
   cancelReplacedWorkflowRuns,
   getWorkflowRunGuard,
+  loadWorkflowCompiledPlan,
   loadWorkflowCorrelatedEntity,
   markWorkflowRunStatus,
   recordWorkflowDeliveryWithGuard,
@@ -13,9 +14,18 @@ type WorkflowExecutionDependencies = {
   recordRunStart: typeof recordWorkflowRunStart;
   cancelReplacedRuns: typeof cancelReplacedWorkflowRuns;
   getRunGuard: typeof getWorkflowRunGuard;
+  loadCompiledPlan: typeof loadWorkflowCompiledPlan;
   loadCorrelatedEntity: typeof loadWorkflowCorrelatedEntity;
   recordDeliveryWithGuard: typeof recordWorkflowDeliveryWithGuard;
   markRunStatus: typeof markWorkflowRunStatus;
+};
+
+type TerminalReason = "entity_missing" | "unsupported_entity_type";
+
+type ParsedCompiledPlan = {
+  entryNodeIds: string[];
+  nodeById: Map<string, Record<string, unknown>>;
+  nextNodeIdsBySource: Map<string, string[]>;
 };
 
 function createDefaultDependencies(): WorkflowExecutionDependencies {
@@ -23,6 +33,7 @@ function createDefaultDependencies(): WorkflowExecutionDependencies {
     recordRunStart: recordWorkflowRunStart,
     cancelReplacedRuns: cancelReplacedWorkflowRuns,
     getRunGuard: getWorkflowRunGuard,
+    loadCompiledPlan: loadWorkflowCompiledPlan,
     loadCorrelatedEntity: loadWorkflowCorrelatedEntity,
     recordDeliveryWithGuard: recordWorkflowDeliveryWithGuard,
     markRunStatus: markWorkflowRunStatus,
@@ -33,6 +44,115 @@ const REPLACEMENT_TRIGGER_MATCH_EXPRESSION =
   "event.data.entity.type == 'appointment' && async.data.entity.type == 'appointment' && async.id != event.id && event.data.orgId == async.data.orgId && event.data.workflow.definitionId == async.data.workflow.definitionId && event.data.entity.type == async.data.entity.type && event.data.entity.id == async.data.entity.id";
 const WORKFLOW_SIDE_EFFECT_CHANNEL = "workflow.runtime";
 const WORKFLOW_SIDE_EFFECT_STEP_ID = "workflow.execution.completed";
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function normalizeStepIdSegment(value: string): string {
+  const normalized = value.replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 60);
+  return normalized.length > 0 ? normalized : "node";
+}
+
+function parseCompiledPlan(
+  value: Record<string, unknown> | null,
+): ParsedCompiledPlan | null {
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  const planVersion = value["planVersion"];
+  const nodesValue = value["nodes"];
+  const edgesValue = value["edges"];
+  const entryValue = value["entryNodeIds"];
+
+  if (
+    typeof planVersion !== "number" ||
+    !Array.isArray(nodesValue) ||
+    !Array.isArray(edgesValue) ||
+    !Array.isArray(entryValue)
+  ) {
+    return null;
+  }
+
+  const nodeById = new Map<string, Record<string, unknown>>();
+  for (const rawNode of nodesValue) {
+    if (!isRecord(rawNode)) continue;
+    const nodeId = rawNode["id"];
+    if (typeof nodeId !== "string" || nodeId.length === 0) continue;
+    nodeById.set(nodeId, rawNode);
+  }
+
+  const nextNodeIdsBySource = new Map<string, string[]>();
+  for (const rawEdge of edgesValue) {
+    if (!isRecord(rawEdge)) continue;
+    const source = rawEdge["source"];
+    const target = rawEdge["target"];
+    if (typeof source !== "string" || source.length === 0) continue;
+    if (typeof target !== "string" || target.length === 0) continue;
+    if (!nodeById.has(source) || !nodeById.has(target)) continue;
+
+    const existing = nextNodeIdsBySource.get(source) ?? [];
+    existing.push(target);
+    nextNodeIdsBySource.set(source, existing);
+  }
+
+  for (const [source, targets] of nextNodeIdsBySource) {
+    nextNodeIdsBySource.set(source, [...new Set(targets)].toSorted());
+  }
+
+  const entryNodeIds = entryValue
+    .flatMap((entry) => (typeof entry === "string" ? [entry] : []))
+    .filter((entry) => nodeById.has(entry));
+
+  if (entryNodeIds.length === 0 && nodeById.size > 0) {
+    return {
+      entryNodeIds: [...nodeById.keys()].toSorted().slice(0, 1),
+      nodeById,
+      nextNodeIdsBySource,
+    };
+  }
+
+  return {
+    entryNodeIds,
+    nodeById,
+    nextNodeIdsBySource,
+  };
+}
+
+function resolveWaitDuration(node: Record<string, unknown>): string | null {
+  const wait = node["wait"];
+  if (isRecord(wait)) {
+    const duration = wait["duration"];
+    if (typeof duration === "string" && duration.length > 0) {
+      return duration;
+    }
+  }
+
+  const duration = node["duration"];
+  if (typeof duration === "string" && duration.length > 0) {
+    return duration;
+  }
+
+  return null;
+}
+
+function resolveActionChannel(node: Record<string, unknown>): string {
+  const channel = node["channel"];
+  return typeof channel === "string" && channel.length > 0
+    ? channel
+    : WORKFLOW_SIDE_EFFECT_CHANNEL;
+}
+
+function resolveActionTarget(
+  node: Record<string, unknown>,
+  fallbackTarget: string,
+): string {
+  const target = node["target"];
+  return typeof target === "string" && target.length > 0
+    ? target
+    : fallbackTarget;
+}
 
 function shouldWaitForReplacementSignal(event: {
   data: { entity: { type: string }; sourceEvent: { type: string } };
@@ -83,10 +203,20 @@ export function createWorkflowExecutionFunction(
         });
       });
 
+      const compiledPlanValue = await step.run(
+        "load-workflow-compiled-plan",
+        async () => {
+          return dependencies.loadCompiledPlan({
+            orgId: event.data.orgId,
+            versionId: event.data.workflow.versionId,
+          });
+        },
+      );
+      const parsedCompiledPlan = parseCompiledPlan(compiledPlanValue);
+
       let status: "completed" | "cancelled" = "completed";
       let replacementSignal: unknown = null;
-      let terminalReason: "entity_missing" | "unsupported_entity_type" | null =
-        null;
+      let terminalReason: TerminalReason | null = null;
 
       if (shouldWaitForReplacementSignal(event)) {
         replacementSignal = await step.waitForEvent(
@@ -103,9 +233,16 @@ export function createWorkflowExecutionFunction(
         }
       }
 
-      if (status === "completed") {
+      const recordActionDelivery = async (input: {
+        nodeId: string;
+        channel: string;
+        target: string;
+      }): Promise<
+        "recorded" | "duplicate" | "guard_blocked" | TerminalReason
+      > => {
+        const stepIdSuffix = normalizeStepIdSegment(input.nodeId);
         const correlatedEntity = await step.run(
-          "load-correlated-entity-latest",
+          `load-correlated-entity-latest-${stepIdSuffix}`,
           async () => {
             return dependencies.loadCorrelatedEntity({
               orgId: event.data.orgId,
@@ -116,16 +253,13 @@ export function createWorkflowExecutionFunction(
         );
 
         if (correlatedEntity.status !== "found") {
-          terminalReason =
-            correlatedEntity.status === "missing"
-              ? "entity_missing"
-              : "unsupported_entity_type";
+          return correlatedEntity.status === "missing"
+            ? "entity_missing"
+            : "unsupported_entity_type";
         }
-      }
 
-      if (status === "completed" && terminalReason === null) {
-        const deliveryResult = await step.run(
-          "record-workflow-side-effect-delivery",
+        return step.run(
+          `record-workflow-side-effect-delivery-${stepIdSuffix}`,
           async () => {
             const runGuard = await dependencies.getRunGuard({
               orgId: event.data.orgId,
@@ -139,9 +273,9 @@ export function createWorkflowExecutionFunction(
             const deliveryKey = buildWorkflowDeliveryKey({
               runId,
               runRevision: runGuard.runRevision,
-              stepId: WORKFLOW_SIDE_EFFECT_STEP_ID,
-              channel: WORKFLOW_SIDE_EFFECT_CHANNEL,
-              target: `${event.data.entity.type}:${event.data.entity.id}`,
+              stepId: input.nodeId,
+              channel: input.channel,
+              target: input.target,
             });
 
             return dependencies.recordDeliveryWithGuard({
@@ -151,16 +285,104 @@ export function createWorkflowExecutionFunction(
               runId,
               expectedRunRevision: runGuard.runRevision,
               workflowType: event.data.workflow.workflowType,
-              stepId: WORKFLOW_SIDE_EFFECT_STEP_ID,
-              channel: WORKFLOW_SIDE_EFFECT_CHANNEL,
-              target: `${event.data.entity.type}:${event.data.entity.id}`,
+              stepId: input.nodeId,
+              channel: input.channel,
+              target: input.target,
               deliveryKey,
             });
           },
         );
+      };
 
-        if (deliveryResult === "guard_blocked") {
-          status = "cancelled";
+      if (status === "completed") {
+        if (parsedCompiledPlan === null) {
+          const fallbackResult = await recordActionDelivery({
+            nodeId: WORKFLOW_SIDE_EFFECT_STEP_ID,
+            channel: WORKFLOW_SIDE_EFFECT_CHANNEL,
+            target: `${event.data.entity.type}:${event.data.entity.id}`,
+          });
+
+          if (fallbackResult === "guard_blocked") {
+            status = "cancelled";
+          }
+
+          if (
+            fallbackResult === "entity_missing" ||
+            fallbackResult === "unsupported_entity_type"
+          ) {
+            terminalReason = fallbackResult;
+          }
+        } else {
+          const queue = [...parsedCompiledPlan.entryNodeIds];
+          const visited = new Set<string>();
+
+          while (
+            queue.length > 0 &&
+            status === "completed" &&
+            terminalReason === null
+          ) {
+            const currentNodeId = queue.shift();
+            if (!currentNodeId || visited.has(currentNodeId)) {
+              continue;
+            }
+
+            visited.add(currentNodeId);
+            const node = parsedCompiledPlan.nodeById.get(currentNodeId);
+            if (!node) {
+              continue;
+            }
+
+            const nodeKind = node["kind"];
+            if (nodeKind === "wait") {
+              const waitDuration = resolveWaitDuration(node);
+              if (waitDuration) {
+                await step.sleep(
+                  `wait-for-duration-${normalizeStepIdSegment(currentNodeId)}`,
+                  waitDuration,
+                );
+              }
+            } else if (nodeKind === "terminal") {
+              const terminalType = node["terminalType"];
+              if (terminalType === "cancel") {
+                status = "cancelled";
+                break;
+              }
+
+              if (terminalType === "complete") {
+                break;
+              }
+            } else {
+              const actionResult = await recordActionDelivery({
+                nodeId: currentNodeId,
+                channel: resolveActionChannel(node),
+                target: resolveActionTarget(
+                  node,
+                  `${event.data.entity.type}:${event.data.entity.id}`,
+                ),
+              });
+
+              if (actionResult === "guard_blocked") {
+                status = "cancelled";
+                break;
+              }
+
+              if (
+                actionResult === "entity_missing" ||
+                actionResult === "unsupported_entity_type"
+              ) {
+                terminalReason = actionResult;
+                break;
+              }
+            }
+
+            const nextNodeIds =
+              parsedCompiledPlan.nextNodeIdsBySource.get(currentNodeId) ?? [];
+            for (const nextNodeId of nextNodeIds) {
+              if (!visited.has(nextNodeId)) {
+                queue.push(nextNodeId);
+              }
+            }
+          }
         }
       }
 

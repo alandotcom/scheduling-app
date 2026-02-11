@@ -58,7 +58,7 @@ export const workflowTriggerConfigSchema = z.union([
       debounce: workflowTriggerDebouncePolicySchema.optional(),
       replacement: workflowTriggerReplacementPolicySchema.optional(),
     })
-    .passthrough(),
+    .loose(),
   z
     .object({
       eventType: webhookEventTypeSchema,
@@ -66,7 +66,7 @@ export const workflowTriggerConfigSchema = z.union([
       debounce: workflowTriggerDebouncePolicySchema.optional(),
       replacement: workflowTriggerReplacementPolicySchema.optional(),
     })
-    .passthrough(),
+    .loose(),
 ]);
 
 export const workflowGuardConditionSchema = z.object({
@@ -107,7 +107,7 @@ export const workflowActionNodeSchema = z
     input: z.record(z.string(), z.unknown()).default({}),
     guard: workflowGuardSchema.optional(),
   })
-  .passthrough();
+  .loose();
 
 export const workflowWaitNodeSchema = z
   .object({
@@ -115,7 +115,7 @@ export const workflowWaitNodeSchema = z
     kind: z.literal("wait"),
     wait: workflowWaitNodeConfigSchema,
   })
-  .passthrough();
+  .loose();
 
 export const workflowTerminalNodeSchema = z
   .object({
@@ -123,7 +123,7 @@ export const workflowTerminalNodeSchema = z
     kind: z.literal("terminal"),
     terminalType: z.enum(["complete", "cancel"]),
   })
-  .passthrough();
+  .loose();
 
 export const workflowGraphNodeSchema = z.discriminatedUnion("kind", [
   workflowActionNodeSchema,
@@ -138,7 +138,7 @@ export const workflowGraphEdgeSchema = z
     target: z.string().min(1),
     branch: z.enum(["next", "timeout", "true", "false"]).optional(),
   })
-  .passthrough();
+  .loose();
 
 export const workflowGraphDocumentSchema = z
   .object({
@@ -147,7 +147,7 @@ export const workflowGraphDocumentSchema = z
     nodes: z.array(workflowGraphNodeSchema).default([]),
     edges: z.array(workflowGraphEdgeSchema).default([]),
   })
-  .passthrough();
+  .loose();
 
 // Temporary alias while API/DB naming is migrated from "workflowKit" to first-party graph naming.
 export const workflowKitDocumentSchema = workflowGraphDocumentSchema;

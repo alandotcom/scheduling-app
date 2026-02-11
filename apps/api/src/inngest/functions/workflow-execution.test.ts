@@ -10,6 +10,7 @@ describe("workflow execution function", () => {
       runRevision: 1,
       runStatus: "running" as const,
     }));
+    const loadCompiledPlan = mock(async () => null);
     const loadCorrelatedEntity = mock(async () => ({
       status: "found" as const,
       entityType: "client",
@@ -22,6 +23,7 @@ describe("workflow execution function", () => {
       recordRunStart,
       cancelReplacedRuns,
       getRunGuard,
+      loadCompiledPlan,
       loadCorrelatedEntity,
       recordDeliveryWithGuard,
       markRunStatus,
@@ -107,6 +109,7 @@ describe("workflow execution function", () => {
       runRevision: 1,
       runStatus: "running" as const,
     }));
+    const loadCompiledPlan = mock(async () => null);
     const loadCorrelatedEntity = mock(async () => ({
       status: "found" as const,
       entityType: "client",
@@ -119,6 +122,7 @@ describe("workflow execution function", () => {
       recordRunStart,
       cancelReplacedRuns,
       getRunGuard,
+      loadCompiledPlan,
       loadCorrelatedEntity,
       recordDeliveryWithGuard,
       markRunStatus,
@@ -168,6 +172,7 @@ describe("workflow execution function", () => {
       runRevision: 2,
       runStatus: "running" as const,
     }));
+    const loadCompiledPlan = mock(async () => null);
     const loadCorrelatedEntity = mock(async () => ({
       status: "found" as const,
       entityType: "client",
@@ -180,6 +185,7 @@ describe("workflow execution function", () => {
       recordRunStart,
       cancelReplacedRuns,
       getRunGuard,
+      loadCompiledPlan,
       loadCorrelatedEntity,
       recordDeliveryWithGuard,
       markRunStatus,
@@ -235,6 +241,7 @@ describe("workflow execution function", () => {
       runRevision: 1,
       runStatus: "running" as const,
     }));
+    const loadCompiledPlan = mock(async () => null);
     const loadCorrelatedEntity = mock(async () => ({
       status: "missing" as const,
       entityType: "appointment",
@@ -247,6 +254,7 @@ describe("workflow execution function", () => {
       recordRunStart,
       cancelReplacedRuns,
       getRunGuard,
+      loadCompiledPlan,
       loadCorrelatedEntity,
       recordDeliveryWithGuard,
       markRunStatus,
@@ -299,5 +307,151 @@ describe("workflow execution function", () => {
         status: "completed",
       }),
     );
+  });
+
+  test("executes compiled plan action nodes in graph order", async () => {
+    const recordRunStart = mock(async () => {});
+    const cancelReplacedRuns = mock(async () => 0);
+    const getRunGuard = mock(async () => ({
+      runRevision: 1,
+      runStatus: "running" as const,
+    }));
+    const loadCompiledPlan = mock(async () => ({
+      planVersion: 1,
+      entryNodeIds: ["node_a"],
+      nodes: [
+        { id: "node_a", kind: "action", channel: "workflow.runtime" },
+        { id: "node_b", kind: "action", channel: "workflow.runtime" },
+      ],
+      edges: [{ id: "edge_1", source: "node_a", target: "node_b" }],
+    }));
+    const loadCorrelatedEntity = mock(async () => ({
+      status: "found" as const,
+      entityType: "client",
+      entityId: "0198d09f-ff07-7f46-a5d9-26a3f0d96041",
+    }));
+    const recordDeliveryWithGuard = mock(async () => "recorded" as const);
+    const markRunStatus = mock(async () => {});
+
+    const fn = createWorkflowExecutionFunction({
+      recordRunStart,
+      cancelReplacedRuns,
+      getRunGuard,
+      loadCompiledPlan,
+      loadCorrelatedEntity,
+      recordDeliveryWithGuard,
+      markRunStatus,
+    });
+    const t = new InngestTestEngine({ function: fn });
+
+    const { result } = await t.execute({
+      events: [
+        {
+          name: "scheduling/workflow.triggered",
+          data: {
+            orgId: "org_5",
+            workflow: {
+              definitionId: "0198d09f-ff07-7f46-a5d9-26a3f0d96042",
+              versionId: "0198d09f-ff07-7f46-a5d9-26a3f0d96043",
+              workflowType: "follow-up",
+            },
+            sourceEvent: {
+              id: "evt_5",
+              type: "client.created",
+              timestamp: "2026-02-11T12:00:00.000Z",
+              payload: {
+                clientId: "0198d09f-ff07-7f46-a5d9-26a3f0d96041",
+              },
+            },
+            entity: {
+              type: "client",
+              id: "0198d09f-ff07-7f46-a5d9-26a3f0d96041",
+            },
+          },
+        },
+      ],
+    });
+
+    expect(result).toMatchObject({
+      orgId: "org_5",
+      status: "completed",
+    });
+    expect(loadCompiledPlan).toHaveBeenCalledTimes(1);
+    expect(loadCorrelatedEntity).toHaveBeenCalledTimes(2);
+    expect(getRunGuard).toHaveBeenCalledTimes(2);
+    expect(recordDeliveryWithGuard).toHaveBeenCalledTimes(2);
+    const deliveryCalls = recordDeliveryWithGuard.mock.calls as unknown[][];
+    expect(deliveryCalls[0]?.[0]).toMatchObject({ stepId: "node_a" });
+    expect(deliveryCalls[1]?.[0]).toMatchObject({ stepId: "node_b" });
+  });
+
+  test("does not run legacy placeholder action for empty compiled plans", async () => {
+    const recordRunStart = mock(async () => {});
+    const cancelReplacedRuns = mock(async () => 0);
+    const getRunGuard = mock(async () => ({
+      runRevision: 1,
+      runStatus: "running" as const,
+    }));
+    const loadCompiledPlan = mock(async () => ({
+      planVersion: 1,
+      entryNodeIds: [],
+      nodes: [],
+      edges: [],
+    }));
+    const loadCorrelatedEntity = mock(async () => ({
+      status: "found" as const,
+      entityType: "client",
+      entityId: "0198d09f-ff07-7f46-a5d9-26a3f0d96051",
+    }));
+    const recordDeliveryWithGuard = mock(async () => "recorded" as const);
+    const markRunStatus = mock(async () => {});
+
+    const fn = createWorkflowExecutionFunction({
+      recordRunStart,
+      cancelReplacedRuns,
+      getRunGuard,
+      loadCompiledPlan,
+      loadCorrelatedEntity,
+      recordDeliveryWithGuard,
+      markRunStatus,
+    });
+    const t = new InngestTestEngine({ function: fn });
+
+    const { result } = await t.execute({
+      events: [
+        {
+          name: "scheduling/workflow.triggered",
+          data: {
+            orgId: "org_6",
+            workflow: {
+              definitionId: "0198d09f-ff07-7f46-a5d9-26a3f0d96052",
+              versionId: "0198d09f-ff07-7f46-a5d9-26a3f0d96053",
+              workflowType: "follow-up",
+            },
+            sourceEvent: {
+              id: "evt_6",
+              type: "client.created",
+              timestamp: "2026-02-11T12:00:00.000Z",
+              payload: {
+                clientId: "0198d09f-ff07-7f46-a5d9-26a3f0d96051",
+              },
+            },
+            entity: {
+              type: "client",
+              id: "0198d09f-ff07-7f46-a5d9-26a3f0d96051",
+            },
+          },
+        },
+      ],
+    });
+
+    expect(result).toMatchObject({
+      orgId: "org_6",
+      status: "completed",
+    });
+    expect(loadCompiledPlan).toHaveBeenCalledTimes(1);
+    expect(loadCorrelatedEntity).toHaveBeenCalledTimes(0);
+    expect(getRunGuard).toHaveBeenCalledTimes(0);
+    expect(recordDeliveryWithGuard).toHaveBeenCalledTimes(0);
   });
 });
