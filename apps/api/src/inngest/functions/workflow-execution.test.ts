@@ -632,6 +632,147 @@ describe("workflow execution function", () => {
     expect(recordDeliveryWithGuard).toHaveBeenCalledTimes(1);
   });
 
+  test("defaults terminal source events to cancel_without_replacement", async () => {
+    const recordRunStart = mock(async () => {});
+    const cancelReplacedRuns = mock(async () => 1);
+    const getRunGuard = mock(async () => ({
+      runRevision: 1,
+      runStatus: "running" as const,
+    }));
+    const loadCompiledPlan = mock(async () => ({
+      planVersion: 1,
+      entryNodeIds: ["node_a"],
+      nodes: [{ id: "node_a", kind: "action", channel: "workflow.runtime" }],
+      edges: [],
+    }));
+    const loadCorrelatedEntity = mock(async () => ({
+      status: "found" as const,
+      entityType: "appointment",
+      entityId: "0198d09f-ff07-7f46-a5d9-26a3f0d96060",
+      entity: {},
+    }));
+    const recordDeliveryWithGuard = mock(async () => "recorded" as const);
+    const markRunStatus = mock(async () => {});
+
+    const fn = createWorkflowExecutionFunction({
+      recordRunStart,
+      cancelReplacedRuns,
+      getRunGuard,
+      loadCompiledPlan,
+      loadCorrelatedEntity,
+      recordDeliveryWithGuard,
+      markRunStatus,
+    });
+    const t = new InngestTestEngine({ function: fn });
+
+    const { result } = await t.execute({
+      events: [
+        {
+          name: "scheduling/workflow.triggered",
+          data: {
+            orgId: "org_6",
+            workflow: {
+              definitionId: "0198d09f-ff07-7f46-a5d9-26a3f0d96061",
+              versionId: "0198d09f-ff07-7f46-a5d9-26a3f0d96062",
+              workflowType: "appointment-reminder",
+            },
+            sourceEvent: {
+              id: "evt_6_terminal_default",
+              type: "appointment.cancelled",
+              timestamp: "2026-02-11T12:00:00.000Z",
+              payload: {
+                appointmentId: "0198d09f-ff07-7f46-a5d9-26a3f0d96060",
+              },
+            },
+            entity: {
+              type: "appointment",
+              id: "0198d09f-ff07-7f46-a5d9-26a3f0d96060",
+            },
+          },
+        },
+      ],
+    });
+
+    expect(result).toMatchObject({
+      orgId: "org_6",
+      status: "cancelled",
+    });
+    expect(cancelReplacedRuns).toHaveBeenCalledTimes(1);
+    expect(loadCorrelatedEntity).toHaveBeenCalledTimes(0);
+    expect(recordDeliveryWithGuard).toHaveBeenCalledTimes(0);
+  });
+
+  test("allows terminal source events when cancelOnTerminalState is disabled", async () => {
+    const recordRunStart = mock(async () => {});
+    const cancelReplacedRuns = mock(async () => 0);
+    const getRunGuard = mock(async () => ({
+      runRevision: 1,
+      runStatus: "running" as const,
+    }));
+    const loadCompiledPlan = mock(async () => ({
+      planVersion: 1,
+      trigger: { replacement: { cancelOnTerminalState: false } },
+      entryNodeIds: ["node_a"],
+      nodes: [{ id: "node_a", kind: "action", channel: "workflow.runtime" }],
+      edges: [],
+    }));
+    const loadCorrelatedEntity = mock(async () => ({
+      status: "found" as const,
+      entityType: "appointment",
+      entityId: "0198d09f-ff07-7f46-a5d9-26a3f0d96063",
+      entity: {},
+    }));
+    const recordDeliveryWithGuard = mock(async () => "recorded" as const);
+    const markRunStatus = mock(async () => {});
+
+    const fn = createWorkflowExecutionFunction({
+      recordRunStart,
+      cancelReplacedRuns,
+      getRunGuard,
+      loadCompiledPlan,
+      loadCorrelatedEntity,
+      recordDeliveryWithGuard,
+      markRunStatus,
+    });
+    const t = new InngestTestEngine({ function: fn });
+
+    const { result } = await t.execute({
+      events: [
+        {
+          name: "scheduling/workflow.triggered",
+          data: {
+            orgId: "org_6",
+            workflow: {
+              definitionId: "0198d09f-ff07-7f46-a5d9-26a3f0d96064",
+              versionId: "0198d09f-ff07-7f46-a5d9-26a3f0d96065",
+              workflowType: "appointment-reminder",
+            },
+            sourceEvent: {
+              id: "evt_6_terminal_override",
+              type: "appointment.cancelled",
+              timestamp: "2026-02-11T12:00:00.000Z",
+              payload: {
+                appointmentId: "0198d09f-ff07-7f46-a5d9-26a3f0d96063",
+              },
+            },
+            entity: {
+              type: "appointment",
+              id: "0198d09f-ff07-7f46-a5d9-26a3f0d96063",
+            },
+          },
+        },
+      ],
+    });
+
+    expect(result).toMatchObject({
+      orgId: "org_6",
+      status: "completed",
+    });
+    expect(cancelReplacedRuns).toHaveBeenCalledTimes(1);
+    expect(loadCorrelatedEntity).toHaveBeenCalledTimes(1);
+    expect(recordDeliveryWithGuard).toHaveBeenCalledTimes(1);
+  });
+
   test("replacement allow_parallel skips cancelling active runs", async () => {
     const recordRunStart = mock(async () => {});
     const cancelReplacedRuns = mock(async () => 0);

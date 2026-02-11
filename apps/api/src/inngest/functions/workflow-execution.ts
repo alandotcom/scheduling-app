@@ -146,21 +146,34 @@ function parseCompiledPlan(
   };
 }
 
+function isTerminalSourceEvent(eventType: string): boolean {
+  return (
+    eventType.endsWith(".cancelled") ||
+    eventType.endsWith(".deleted") ||
+    eventType.endsWith(".no_show")
+  );
+}
+
 function resolveReplacementMode(
   compiledPlan: Record<string, unknown> | null,
+  sourceEventType: string,
 ): ReplacementMode {
+  const defaultMode = isTerminalSourceEvent(sourceEventType)
+    ? "cancel_without_replacement"
+    : "replace_active";
+
   if (!isRecord(compiledPlan)) {
-    return "replace_active";
+    return defaultMode;
   }
 
   const trigger = compiledPlan["trigger"];
   if (!isRecord(trigger)) {
-    return "replace_active";
+    return defaultMode;
   }
 
   const replacement = trigger["replacement"];
   if (!isRecord(replacement)) {
-    return "replace_active";
+    return defaultMode;
   }
 
   const mode = replacement["mode"];
@@ -172,7 +185,15 @@ function resolveReplacementMode(
     return mode;
   }
 
-  return "replace_active";
+  const cancelOnTerminalState = replacement["cancelOnTerminalState"];
+  if (typeof cancelOnTerminalState === "boolean") {
+    if (cancelOnTerminalState && isTerminalSourceEvent(sourceEventType)) {
+      return "cancel_without_replacement";
+    }
+    return "replace_active";
+  }
+
+  return defaultMode;
 }
 
 function parseDurationToMs(value: string): number | null {
@@ -200,10 +221,7 @@ function normalizeFieldPath(field: string, entityType: string): string {
   return field.startsWith(prefix) ? field.slice(prefix.length) : field;
 }
 
-function getPathValue(
-  source: Record<string, unknown>,
-  path: string,
-): unknown {
+function getPathValue(source: Record<string, unknown>, path: string): unknown {
   if (path.length === 0) {
     return source;
   }
@@ -616,7 +634,10 @@ export function createWorkflowExecutionFunction(
         },
       );
       const parsedCompiledPlan = parseCompiledPlan(compiledPlanValue);
-      const replacementMode = resolveReplacementMode(compiledPlanValue);
+      const replacementMode = resolveReplacementMode(
+        compiledPlanValue,
+        event.data.sourceEvent.type,
+      );
       const retryPolicy = resolveRetryPolicy(compiledPlanValue);
       const retryDelayMs = computeRetryDelayMs({
         attempt,
