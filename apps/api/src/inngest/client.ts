@@ -16,6 +16,26 @@ type SchedulingInternalEvents = {
       orgId: string;
     };
   };
+  "scheduling/workflow.triggered": {
+    data: {
+      orgId: string;
+      workflow: {
+        definitionId: string;
+        versionId: string;
+        workflowType: string;
+      };
+      sourceEvent: {
+        id: string;
+        type: WebhookEventType;
+        timestamp: string;
+        payload: Record<string, unknown>;
+      };
+      entity: {
+        type: string;
+        id: string;
+      };
+    };
+  };
 };
 
 type SchedulingInngestEvents = SchedulingWebhookEvents &
