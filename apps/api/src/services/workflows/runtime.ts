@@ -1,10 +1,11 @@
 import { webhookEventTypeSchema, type WebhookEventType } from "@scheduling/dto";
 import {
   workflowBindings,
+  workflowDeliveryLog,
   workflowDefinitions,
   workflowRunEntityLinks,
 } from "@scheduling/db/schema";
-import { and, eq, inArray, ne, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, ne, sql } from "drizzle-orm";
 import { withOrg } from "../../lib/db.js";
 
 export type WorkflowDispatchTarget = {
@@ -30,6 +31,47 @@ export type WorkflowRunStatusValue =
   | "failed"
   | "cancelled"
   | "unknown";
+
+export type WorkflowDeliveryRecordResult =
+  | "recorded"
+  | "duplicate"
+  | "guard_blocked";
+
+export type WorkflowRunGuard = {
+  runRevision: number;
+  runStatus: WorkflowRunStatusValue;
+};
+
+export function buildWorkflowDeliveryKey(input: {
+  runId: string;
+  runRevision: number;
+  stepId: string;
+  channel: string;
+  target?: string | null;
+}): string {
+  return [
+    "workflow_delivery",
+    input.runId,
+    String(input.runRevision),
+    input.stepId,
+    input.channel,
+    input.target ?? "_",
+  ].join(":");
+}
+
+function normalizeRunStatus(value: string): WorkflowRunStatusValue {
+  if (
+    value === "pending" ||
+    value === "running" ||
+    value === "completed" ||
+    value === "failed" ||
+    value === "cancelled"
+  ) {
+    return value;
+  }
+
+  return "unknown";
+}
 
 export async function listEnabledWorkflowDispatchTargets(
   orgId: string,
@@ -119,6 +161,95 @@ export async function markWorkflowRunStatus(input: {
         ...(input.status === "cancelled" ? { cancelledAt: now } : {}),
       })
       .where(eq(workflowRunEntityLinks.runId, input.runId));
+  });
+}
+
+export async function getWorkflowRunGuard(input: {
+  orgId: string;
+  runId: string;
+}): Promise<WorkflowRunGuard | null> {
+  return withOrg(input.orgId, async (tx) => {
+    const [runLink] = await tx
+      .select({
+        runRevision: workflowRunEntityLinks.runRevision,
+        runStatus: workflowRunEntityLinks.runStatus,
+      })
+      .from(workflowRunEntityLinks)
+      .where(eq(workflowRunEntityLinks.runId, input.runId))
+      .orderBy(
+        desc(workflowRunEntityLinks.lastSeenAt),
+        desc(workflowRunEntityLinks.startedAt),
+      )
+      .limit(1);
+
+    if (!runLink) {
+      return null;
+    }
+
+    return {
+      runRevision: runLink.runRevision,
+      runStatus: normalizeRunStatus(runLink.runStatus),
+    };
+  });
+}
+
+export async function recordWorkflowDeliveryWithGuard(input: {
+  orgId: string;
+  definitionId: string;
+  versionId: string;
+  runId: string;
+  expectedRunRevision: number;
+  workflowType: string;
+  stepId: string;
+  channel: string;
+  target?: string | null;
+  deliveryKey: string;
+  providerMessageId?: string | null;
+  status?: "sent" | "failed";
+  errorCode?: string | null;
+  errorMessage?: string | null;
+}): Promise<WorkflowDeliveryRecordResult> {
+  return withOrg(input.orgId, async (tx) => {
+    const [guard] = await tx
+      .select({ id: workflowRunEntityLinks.id })
+      .from(workflowRunEntityLinks)
+      .where(
+        and(
+          eq(workflowRunEntityLinks.runId, input.runId),
+          eq(workflowRunEntityLinks.runRevision, input.expectedRunRevision),
+          inArray(workflowRunEntityLinks.runStatus, ["pending", "running"]),
+        ),
+      )
+      .limit(1);
+
+    if (!guard) {
+      return "guard_blocked";
+    }
+
+    const [inserted] = await tx
+      .insert(workflowDeliveryLog)
+      .values({
+        orgId: input.orgId,
+        definitionId: input.definitionId,
+        versionId: input.versionId,
+        runId: input.runId,
+        runRevision: input.expectedRunRevision,
+        workflowType: input.workflowType,
+        stepId: input.stepId,
+        channel: input.channel,
+        target: input.target ?? null,
+        deliveryKey: input.deliveryKey,
+        providerMessageId: input.providerMessageId ?? null,
+        status: input.status ?? "sent",
+        errorCode: input.errorCode ?? null,
+        errorMessage: input.errorMessage ?? null,
+      })
+      .onConflictDoNothing({
+        target: workflowDeliveryLog.deliveryKey,
+      })
+      .returning({ id: workflowDeliveryLog.id });
+
+    return inserted ? "recorded" : "duplicate";
   });
 }
 

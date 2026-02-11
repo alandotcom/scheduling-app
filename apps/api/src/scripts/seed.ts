@@ -24,6 +24,11 @@ import {
   resources,
   schedulingLimits,
   users,
+  workflowBindings,
+  workflowDefinitionVersions,
+  workflowDefinitions,
+  workflowDeliveryLog,
+  workflowRunEntityLinks,
 } from "@scheduling/db/schema";
 import { auth } from "../lib/auth.js";
 import { ensureAppIntegrationDefaultsForOrg } from "../services/integrations/defaults.js";
@@ -663,6 +668,22 @@ async function seed() {
         .from(appointmentTypes)
         .where(eq(appointmentTypes.orgId, orgId));
       const appointmentTypeIds = existingAppointmentTypes.map((row) => row.id);
+
+      await tx
+        .delete(workflowDeliveryLog)
+        .where(eq(workflowDeliveryLog.orgId, orgId));
+      await tx
+        .delete(workflowRunEntityLinks)
+        .where(eq(workflowRunEntityLinks.orgId, orgId));
+      await tx
+        .delete(workflowBindings)
+        .where(eq(workflowBindings.orgId, orgId));
+      await tx
+        .delete(workflowDefinitionVersions)
+        .where(eq(workflowDefinitionVersions.orgId, orgId));
+      await tx
+        .delete(workflowDefinitions)
+        .where(eq(workflowDefinitions.orgId, orgId));
 
       await tx.delete(appointments).where(eq(appointments.orgId, orgId));
       await tx.delete(clients).where(eq(clients.orgId, orgId));

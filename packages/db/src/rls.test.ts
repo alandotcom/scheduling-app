@@ -27,6 +27,11 @@ import {
   appointmentTypes,
   resources,
   clients,
+  workflowDefinitions,
+  workflowDefinitionVersions,
+  workflowBindings,
+  workflowRunEntityLinks,
+  workflowDeliveryLog,
 } from "./schema/index.js";
 import { eq, sql } from "drizzle-orm";
 import type { BunSQLDatabase } from "drizzle-orm/bun-sql/postgres";
@@ -307,12 +312,82 @@ describe("CRUD operations with org context", () => {
       lastName: "Client",
     });
 
+    const [workflowDefinition] = await db
+      .insert(workflowDefinitions)
+      .values({
+        orgId: org.id,
+        key: "rls_workflow_test",
+        name: "RLS Workflow Test",
+        status: "active",
+        draftWorkflowKit: {
+          trigger: { event: "client.created" },
+        },
+      })
+      .returning();
+
+    const [workflowVersion] = await db
+      .insert(workflowDefinitionVersions)
+      .values({
+        orgId: org.id,
+        definitionId: workflowDefinition!.id,
+        version: 1,
+        workflowKitSchemaVersion: 1,
+        workflowKit: {
+          trigger: { event: "client.created" },
+          workflow: { actions: [], edges: [] },
+        },
+        compiledPlan: {},
+        checksum: "rls-workflow-test-v1",
+      })
+      .returning();
+
+    await db.insert(workflowBindings).values({
+      orgId: org.id,
+      definitionId: workflowDefinition!.id,
+      versionId: workflowVersion!.id,
+      eventType: "client.created",
+      enabled: true,
+    });
+
+    const runId = "rls-workflow-run-1";
+    await db.insert(workflowRunEntityLinks).values({
+      orgId: org.id,
+      definitionId: workflowDefinition!.id,
+      versionId: workflowVersion!.id,
+      runId,
+      workflowType: workflowDefinition!.key,
+      runRevision: 1,
+      entityType: "client",
+      entityId: Bun.randomUUIDv7(),
+      runStatus: "running",
+    });
+
+    await db.insert(workflowDeliveryLog).values({
+      orgId: org.id,
+      definitionId: workflowDefinition!.id,
+      versionId: workflowVersion!.id,
+      runId,
+      runRevision: 1,
+      workflowType: workflowDefinition!.key,
+      stepId: "workflow.execution.completed",
+      channel: "workflow.runtime",
+      deliveryKey: "rls_workflow_delivery_1",
+      status: "sent",
+    });
+
     // Verify all data exists
     expect(await db.query.locations.findMany()).toHaveLength(1);
     expect(await db.query.calendars.findMany()).toHaveLength(1);
     expect(await db.query.appointmentTypes.findMany()).toHaveLength(1);
     expect(await db.query.resources.findMany()).toHaveLength(1);
     expect(await db.query.clients.findMany()).toHaveLength(1);
+    expect(await db.query.workflowDefinitions.findMany()).toHaveLength(1);
+    expect(await db.query.workflowDefinitionVersions.findMany()).toHaveLength(
+      1,
+    );
+    expect(await db.query.workflowBindings.findMany()).toHaveLength(1);
+    expect(await db.query.workflowRunEntityLinks.findMany()).toHaveLength(1);
+    expect(await db.query.workflowDeliveryLog.findMany()).toHaveLength(1);
 
     await clearTestOrgContext(db);
   });

@@ -215,7 +215,7 @@ Exit criteria:
 - [x] Add workflow dispatch/execution scaffold functions and run tracking persistence.
 - [x] Implement workflow execution functions with `cancelOn` and waits.
 - [x] Encode strict cancel+replace run policy for appointment lifecycle.
-- [ ] Keep deterministic side-effect dedupe and send-time guards.
+- [x] Keep deterministic side-effect dedupe and send-time guards.
 
 Exit criteria:
 1. Appointment-triggered workflows run, wait, cancel, and replace deterministically.
@@ -238,7 +238,7 @@ Exit criteria:
 - [x] Update initial DB migration and schema to remove `event_outbox`.
 - [x] Update schema/types for Workflow Kit JSON persistence.
 - [x] Remove obsolete enums/indexes tied to outbox processing.
-- [ ] Update seed scripts and RLS tests for new schema shape.
+- [x] Update seed scripts and RLS tests for new schema shape.
 
 Exit criteria:
 1. `pnpm --filter @scheduling/db run push` creates schema without outbox.

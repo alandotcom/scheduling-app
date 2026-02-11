@@ -1,13 +1,18 @@
 import { inngest } from "../client.js";
 import {
+  buildWorkflowDeliveryKey,
   cancelReplacedWorkflowRuns,
+  getWorkflowRunGuard,
   markWorkflowRunStatus,
+  recordWorkflowDeliveryWithGuard,
   recordWorkflowRunStart,
 } from "../../services/workflows/runtime.js";
 
 type WorkflowExecutionDependencies = {
   recordRunStart: typeof recordWorkflowRunStart;
   cancelReplacedRuns: typeof cancelReplacedWorkflowRuns;
+  getRunGuard: typeof getWorkflowRunGuard;
+  recordDeliveryWithGuard: typeof recordWorkflowDeliveryWithGuard;
   markRunStatus: typeof markWorkflowRunStatus;
 };
 
@@ -15,12 +20,16 @@ function createDefaultDependencies(): WorkflowExecutionDependencies {
   return {
     recordRunStart: recordWorkflowRunStart,
     cancelReplacedRuns: cancelReplacedWorkflowRuns,
+    getRunGuard: getWorkflowRunGuard,
+    recordDeliveryWithGuard: recordWorkflowDeliveryWithGuard,
     markRunStatus: markWorkflowRunStatus,
   };
 }
 
 const REPLACEMENT_TRIGGER_MATCH_EXPRESSION =
   "event.data.entity.type == 'appointment' && async.data.entity.type == 'appointment' && async.id != event.id && event.data.orgId == async.data.orgId && event.data.workflow.definitionId == async.data.workflow.definitionId && event.data.entity.type == async.data.entity.type && event.data.entity.id == async.data.entity.id";
+const WORKFLOW_SIDE_EFFECT_CHANNEL = "workflow.runtime";
+const WORKFLOW_SIDE_EFFECT_STEP_ID = "workflow.execution.completed";
 
 function shouldWaitForReplacementSignal(event: {
   data: { entity: { type: string }; sourceEvent: { type: string } };
@@ -85,6 +94,47 @@ export function createWorkflowExecutionFunction(
         );
 
         if (replacementSignal !== null) {
+          status = "cancelled";
+        }
+      }
+
+      if (status === "completed") {
+        const deliveryResult = await step.run(
+          "record-workflow-side-effect-delivery",
+          async () => {
+            const runGuard = await dependencies.getRunGuard({
+              orgId: event.data.orgId,
+              runId,
+            });
+
+            if (!runGuard || runGuard.runStatus !== "running") {
+              return "guard_blocked" as const;
+            }
+
+            const deliveryKey = buildWorkflowDeliveryKey({
+              runId,
+              runRevision: runGuard.runRevision,
+              stepId: WORKFLOW_SIDE_EFFECT_STEP_ID,
+              channel: WORKFLOW_SIDE_EFFECT_CHANNEL,
+              target: `${event.data.entity.type}:${event.data.entity.id}`,
+            });
+
+            return dependencies.recordDeliveryWithGuard({
+              orgId: event.data.orgId,
+              definitionId: event.data.workflow.definitionId,
+              versionId: event.data.workflow.versionId,
+              runId,
+              expectedRunRevision: runGuard.runRevision,
+              workflowType: event.data.workflow.workflowType,
+              stepId: WORKFLOW_SIDE_EFFECT_STEP_ID,
+              channel: WORKFLOW_SIDE_EFFECT_CHANNEL,
+              target: `${event.data.entity.type}:${event.data.entity.id}`,
+              deliveryKey,
+            });
+          },
+        );
+
+        if (deliveryResult === "guard_blocked") {
           status = "cancelled";
         }
       }
