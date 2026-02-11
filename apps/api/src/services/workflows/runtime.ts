@@ -4,7 +4,7 @@ import {
   workflowDefinitions,
   workflowRunEntityLinks,
 } from "@scheduling/db/schema";
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray, ne, sql } from "drizzle-orm";
 import { withOrg } from "../../lib/db.js";
 
 export type WorkflowDispatchTarget = {
@@ -119,5 +119,39 @@ export async function markWorkflowRunStatus(input: {
         ...(input.status === "cancelled" ? { cancelledAt: now } : {}),
       })
       .where(eq(workflowRunEntityLinks.runId, input.runId));
+  });
+}
+
+export async function cancelReplacedWorkflowRuns(input: {
+  orgId: string;
+  definitionId: string;
+  entityType: string;
+  entityId: string;
+  replacementRunId: string;
+}): Promise<number> {
+  return withOrg(input.orgId, async (tx) => {
+    const now = new Date();
+
+    const updated = await tx
+      .update(workflowRunEntityLinks)
+      .set({
+        runStatus: "cancelled",
+        cancelledAt: now,
+        lastSeenAt: now,
+        updatedAt: now,
+        runRevision: sql`${workflowRunEntityLinks.runRevision} + 1`,
+      })
+      .where(
+        and(
+          eq(workflowRunEntityLinks.definitionId, input.definitionId),
+          eq(workflowRunEntityLinks.entityType, input.entityType),
+          eq(workflowRunEntityLinks.entityId, input.entityId),
+          ne(workflowRunEntityLinks.runId, input.replacementRunId),
+          inArray(workflowRunEntityLinks.runStatus, ["pending", "running"]),
+        ),
+      )
+      .returning({ id: workflowRunEntityLinks.id });
+
+    return updated.length;
   });
 }

@@ -5,10 +5,12 @@ import { createWorkflowExecutionFunction } from "./workflow-execution.js";
 describe("workflow execution function", () => {
   test("records run start and marks run completed", async () => {
     const recordRunStart = mock(async () => {});
+    const cancelReplacedRuns = mock(async () => 0);
     const markRunStatus = mock(async () => {});
 
     const fn = createWorkflowExecutionFunction({
       recordRunStart,
+      cancelReplacedRuns,
       markRunStatus,
     });
     const t = new InngestTestEngine({ function: fn });
@@ -26,14 +28,14 @@ describe("workflow execution function", () => {
             },
             sourceEvent: {
               id: "evt_1",
-              type: "appointment.created",
+              type: "client.created",
               timestamp: "2026-02-11T12:00:00.000Z",
               payload: {
-                appointmentId: "0198d09f-ff07-7f46-a5d9-26a3f0d96003",
+                clientId: "0198d09f-ff07-7f46-a5d9-26a3f0d96003",
               },
             },
             entity: {
-              type: "appointment",
+              type: "client",
               id: "0198d09f-ff07-7f46-a5d9-26a3f0d96003",
             },
           },
@@ -46,34 +48,42 @@ describe("workflow execution function", () => {
       definitionId: "0198d09f-ff07-7f46-a5d9-26a3f0d96001",
       versionId: "0198d09f-ff07-7f46-a5d9-26a3f0d96002",
       workflowType: "appointment-reminder",
-      entityType: "appointment",
+      entityType: "client",
       entityId: "0198d09f-ff07-7f46-a5d9-26a3f0d96003",
       status: "completed",
     });
 
     expect(recordRunStart).toHaveBeenCalledTimes(1);
+    expect(cancelReplacedRuns).toHaveBeenCalledTimes(1);
     expect(markRunStatus).toHaveBeenCalledTimes(1);
 
-    const startCalls = recordRunStart.mock.calls as unknown[][];
-    const statusCalls = markRunStatus.mock.calls as unknown[][];
-    const startInput = startCalls[0]?.[0] as Record<string, unknown>;
-    const statusInput = statusCalls[0]?.[0] as Record<string, unknown>;
-
-    expect(typeof startInput?.["runId"]).toBe("string");
-    expect(startInput?.["orgId"]).toBe("org_1");
-    expect(statusInput?.["orgId"]).toBe("org_1");
-    expect(statusInput?.["status"]).toBe("completed");
-    expect(typeof statusInput?.["runId"]).toBe("string");
+    expect(recordRunStart).toHaveBeenCalledWith(
+      expect.objectContaining({
+        orgId: "org_1",
+        runId: expect.any(String),
+        definitionId: "0198d09f-ff07-7f46-a5d9-26a3f0d96001",
+        entityType: "client",
+      }),
+    );
+    expect(markRunStatus).toHaveBeenCalledWith(
+      expect.objectContaining({
+        orgId: "org_1",
+        runId: expect.any(String),
+        status: "completed",
+      }),
+    );
   });
 
-  test("does not mark completed when recording run start fails", async () => {
+  test("does not advance run state when recording run start fails", async () => {
     const recordRunStart = mock(async () => {
       throw new Error("db write failed");
     });
+    const cancelReplacedRuns = mock(async () => 0);
     const markRunStatus = mock(async () => {});
 
     const fn = createWorkflowExecutionFunction({
       recordRunStart,
+      cancelReplacedRuns,
       markRunStatus,
     });
     const t = new InngestTestEngine({ function: fn });
@@ -107,6 +117,7 @@ describe("workflow execution function", () => {
     });
 
     expect(recordRunStart).toHaveBeenCalledTimes(1);
+    expect(cancelReplacedRuns).toHaveBeenCalledTimes(0);
     expect(markRunStatus).toHaveBeenCalledTimes(0);
   });
 });

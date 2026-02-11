@@ -139,8 +139,10 @@ describe("workflow dispatch pipeline integration", () => {
       expect(runLink.versionId).toBe(published.activeVersion?.id ?? null);
       expect(runLink.workflowType).toBe(created.key);
       expect(runLink.entityType).toBe("client");
-      expect(["running", "completed"]).toContain(runLink.runStatus);
-      expect(runLink.runRevision).toBe(1);
+      expect(["running", "completed", "cancelled"]).toContain(
+        runLink.runStatus,
+      );
+      expect(runLink.runRevision).toBeGreaterThanOrEqual(1);
       expect(typeof runLink.runId).toBe("string");
       expect(runLink.runId.length).toBeGreaterThan(0);
     } finally {
