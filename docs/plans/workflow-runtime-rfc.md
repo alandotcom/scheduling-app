@@ -1,6 +1,6 @@
 # Inngest Eventing + Workflow Runtime RFC (Unified)
 
-Status: In Progress (Phases 0-3 and 7 complete; phases 4-6 in progress)
+Status: In Progress (Phases 0-7 complete; Phase 8 hardening in progress)
 Last Updated: 2026-02-11
 Owners: Product, `@scheduling/api`, `@scheduling/db`, `@scheduling/admin-ui`
 Related: `docs/ARCHITECTURE.md`, `docs/references/event-bus/synthesis.md`, `docs/references/event-bus/workflow-devkit-research.md`, `docs/references/event-bus/testing.md`
@@ -255,6 +255,21 @@ Exit criteria:
 1. No BullMQ/Workflow DevKit runtime dependencies remain.
 2. Docs and scripts reflect new runtime only.
 
+### Phase 8: Inngest-Native Reliability Hardening
+
+- [ ] Replace `inngest.send()` calls inside Inngest functions with `step.sendEvent()` for replay-safe, step-aware event fanout.
+- [ ] Add explicit function `idempotency` keys (where appropriate) for handlers that can be re-triggered from duplicate upstream events.
+- [ ] Standardize deterministic producer event IDs for all domain emits that can trigger side effects.
+- [ ] Evaluate and adopt `singleton` with `mode: "cancel"` for latest-wins execution paths where cancellation/replacement currently requires custom orchestration.
+- [ ] Document final decision boundaries: where Inngest-native controls end and where app-level send-time guards remain mandatory.
+- [ ] Expand integration and workflow tests to cover replay, duplicate delivery, and cancellation-between-steps scenarios with expected side-effect suppression.
+
+Exit criteria:
+1. All intra-function event fanout paths use `step.sendEvent()` (or have a documented exception).
+2. Idempotency strategy is explicit per function: either function-level `idempotency`, deterministic event IDs, or both.
+3. Latest-wins paths have an explicit mechanism (`singleton` cancel mode or documented equivalent) and automated coverage.
+4. Replay/cancellation race tests pass without duplicate downstream side effects.
+
 ## 12. Testing Strategy and Acceptance Criteria
 
 Required automated coverage:
@@ -278,6 +293,9 @@ Current automated coverage snapshot:
 
 1. [x] Dispatch pipeline integration test covers `event -> binding resolution -> workflow execution -> workflow_run_entity_links` persistence.
 2. [x] Workflow cancel route test covers status transition visibility via `listRuns` and `getRun`.
+3. [ ] Function-level replay and duplicate-trigger tests validate idempotent behavior using Inngest-native `idempotency` and/or deterministic IDs.
+4. [ ] Intra-function fanout tests verify `step.sendEvent()` behavior under retries/replays.
+5. [ ] Latest-wins concurrency tests validate selected policy (`singleton` cancel mode or explicit replacement orchestration).
 
 Release acceptance:
 
@@ -302,6 +320,7 @@ Required signals:
 4. Wait timeout rates.
 5. Side-effect send success/failure by provider/channel.
 6. Correlation IDs across API logs and Inngest run IDs.
+7. Duplicate suppression counters (idempotency drops, delivery-ledger duplicate hits).
 
 ## 14. Risks and Mitigations
 
@@ -313,6 +332,10 @@ Required signals:
    - Mitigation: flow design constraints and explicit timeout/fallback branches.
 4. Migration breakage due to big-bang changes.
    - Mitigation: enforce end-to-end acceptance gates before merge.
+5. Hidden duplicate fanout when using non-step event sends in retried functions.
+   - Mitigation: migrate to `step.sendEvent()` for function-internal fanout and add replay coverage.
+6. Re-trigger storms causing concurrent duplicate executions.
+   - Mitigation: function `idempotency` and selective `singleton` cancel mode for latest-wins flows.
 
 ## 15. References
 
@@ -321,3 +344,8 @@ Required signals:
 3. Inngest `cancelOn`: https://www.inngest.com/docs/reference/typescript/functions/cancel-on
 4. Inngest `waitForEvent`: https://www.inngest.com/docs/features/inngest-functions/steps-workflows/wait-for-event
 5. Inngest Workflow Kit: https://www.inngest.com/docs/reference/workflow-kit
+6. Inngest `step.sendEvent`: https://www.inngest.com/docs/reference/functions/step-send-event
+7. Inngest send events from functions: https://www.inngest.com/docs/guides/sending-events-from-functions
+8. Inngest idempotency guide: https://www.inngest.com/docs/guides/handling-idempotency
+9. Inngest function options (`idempotency`, `singleton`): https://www.inngest.com/docs/reference/functions/create
+10. Inngest singleton guide: https://www.inngest.com/docs/guides/singleton
