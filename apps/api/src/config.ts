@@ -33,6 +33,11 @@ export const config = envParse(Bun.env, {
       env: "LOG_LEVEL",
       default: isDev ? "debug" : "info",
     },
+    dbLogLevel: {
+      format: logLevelSchema,
+      env: "DB_LOG_LEVEL",
+      default: "info",
+    },
   },
   bullBoard: {
     host: {

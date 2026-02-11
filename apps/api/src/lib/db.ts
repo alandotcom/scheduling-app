@@ -12,8 +12,8 @@ import { config } from "../config.js";
 const logger = getLogger(["db"]);
 const isDev = process.env.NODE_ENV !== "production";
 
-const SQL_POOL_MAX_CONNECTIONS = 5;
-const SQL_POOL_IDLE_TIMEOUT_SECONDS = 30;
+const SQL_POOL_MAX_CONNECTIONS = isDev ? 10 : 5;
+const SQL_POOL_IDLE_TIMEOUT_SECONDS = isDev ? 300 : 30;
 const SQL_POOL_CONNECTION_TIMEOUT_SECONDS = 30;
 
 type GlobalWithDbClient = typeof globalThis & {

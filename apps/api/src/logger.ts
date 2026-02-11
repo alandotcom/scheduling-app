@@ -6,6 +6,7 @@ import {
 import { config } from "./config.js";
 
 const rootLevel = config.logging.level;
+const dbLevel = config.logging.dbLogLevel;
 
 configureSync({
   sinks: {
@@ -22,7 +23,7 @@ configureSync({
     {
       category: ["db"],
       sinks: ["console"],
-      lowestLevel: rootLevel,
+      lowestLevel: dbLevel,
     },
     {
       category: [],
