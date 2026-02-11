@@ -10,7 +10,10 @@ import { call } from "@orpc/server";
 import type { BunSQLDatabase } from "drizzle-orm/bun-sql/postgres";
 import { eq } from "drizzle-orm";
 import type * as schema from "@scheduling/db/schema";
-import { workflowDefinitionVersions } from "@scheduling/db/schema";
+import {
+  workflowDefinitionVersions,
+  workflowRunEntityLinks,
+} from "@scheduling/db/schema";
 import type { relations } from "@scheduling/db/relations";
 import type { Context } from "../lib/orpc.js";
 import {
@@ -37,6 +40,45 @@ function createContext(overrides: Partial<Context> = {}): Context {
     headers: new Headers(),
     ...overrides,
   };
+}
+
+async function createWorkflowRunLink(input: {
+  db: Database;
+  orgId: string;
+  runId: string;
+  workflowType: string;
+  entityType: string;
+  entityId: string;
+  definitionId?: string | null;
+  versionId?: string | null;
+  runStatus?: string;
+  runRevision?: number;
+  startedAt?: Date;
+  lastSeenAt?: Date;
+}) {
+  await setTestOrgContext(input.db, input.orgId);
+  try {
+    const [created] = await input.db
+      .insert(workflowRunEntityLinks)
+      .values({
+        orgId: input.orgId,
+        definitionId: input.definitionId ?? null,
+        versionId: input.versionId ?? null,
+        runId: input.runId,
+        workflowType: input.workflowType,
+        runRevision: input.runRevision ?? 1,
+        entityType: input.entityType,
+        entityId: input.entityId,
+        runStatus: input.runStatus ?? "unknown",
+        startedAt: input.startedAt ?? new Date(),
+        lastSeenAt: input.lastSeenAt ?? new Date(),
+      })
+      .returning();
+
+    return created!;
+  } finally {
+    await clearTestOrgContext(input.db);
+  }
 }
 
 describe("Workflow Routes", () => {
@@ -347,5 +389,238 @@ describe("Workflow Routes", () => {
         { context },
       ),
     ).rejects.toMatchObject({ code: "UNPROCESSABLE_CONTENT" });
+  });
+
+  test("listRuns returns sorted and filtered runs", async () => {
+    const { org, user } = await createOrg(db);
+    const { org: otherOrg } = await createOrg(db);
+
+    const context = createTestContext({
+      orgId: org.id,
+      userId: user.id,
+      role: "owner",
+    });
+
+    const workflowA = await call(
+      workflowRoutes.createDefinition,
+      {
+        key: "workflow_a",
+        name: "Workflow A",
+        workflowKit: { trigger: { event: "appointment.created" } },
+      },
+      { context },
+    );
+    const workflowB = await call(
+      workflowRoutes.createDefinition,
+      {
+        key: "workflow_b",
+        name: "Workflow B",
+        workflowKit: { trigger: { event: "appointment.updated" } },
+      },
+      { context },
+    );
+
+    await createWorkflowRunLink({
+      db,
+      orgId: org.id,
+      runId: "run-older",
+      workflowType: "appointment.reminder",
+      entityType: "appointment",
+      entityId: "0198d09f-ff07-7f46-a5d9-26a3f0d90111",
+      definitionId: workflowA.id,
+      runStatus: "running",
+      startedAt: new Date("2026-02-10T10:00:00.000Z"),
+      lastSeenAt: new Date("2026-02-10T11:00:00.000Z"),
+    });
+
+    await createWorkflowRunLink({
+      db,
+      orgId: org.id,
+      runId: "run-newer",
+      workflowType: "appointment.reminder",
+      entityType: "appointment",
+      entityId: "0198d09f-ff07-7f46-a5d9-26a3f0d90112",
+      definitionId: workflowA.id,
+      runStatus: "failed",
+      startedAt: new Date("2026-02-11T10:00:00.000Z"),
+      lastSeenAt: new Date("2026-02-11T11:00:00.000Z"),
+    });
+
+    await createWorkflowRunLink({
+      db,
+      orgId: org.id,
+      runId: "run-other-workflow",
+      workflowType: "appointment.followup",
+      entityType: "appointment",
+      entityId: "0198d09f-ff07-7f46-a5d9-26a3f0d90113",
+      definitionId: workflowB.id,
+      runStatus: "completed",
+      startedAt: new Date("2026-02-09T10:00:00.000Z"),
+      lastSeenAt: new Date("2026-02-09T11:00:00.000Z"),
+    });
+
+    await createWorkflowRunLink({
+      db,
+      orgId: otherOrg.id,
+      runId: "run-other-org",
+      workflowType: "appointment.reminder",
+      entityType: "appointment",
+      entityId: "0198d09f-ff07-7f46-a5d9-26a3f0d90114",
+      runStatus: "running",
+    });
+
+    const listed = await call(
+      workflowRoutes.listRuns,
+      {
+        workflowType: "appointment.reminder",
+        limit: 50,
+      },
+      { context },
+    );
+
+    expect(listed.items).toHaveLength(2);
+    expect(listed.items.map((item) => item.runId)).toEqual([
+      "run-newer",
+      "run-older",
+    ]);
+
+    const filteredByDefinition = await call(
+      workflowRoutes.listRuns,
+      {
+        definitionId: workflowB.id,
+        limit: 50,
+      },
+      { context },
+    );
+    expect(filteredByDefinition.items).toHaveLength(1);
+    expect(filteredByDefinition.items[0]?.runId).toBe("run-other-workflow");
+
+    const filteredByStatus = await call(
+      workflowRoutes.listRuns,
+      {
+        status: "failed",
+        limit: 50,
+      },
+      { context },
+    );
+    expect(filteredByStatus.items).toHaveLength(1);
+    expect(filteredByStatus.items[0]?.runId).toBe("run-newer");
+  });
+
+  test("getRun returns run details and enforces org isolation", async () => {
+    const { org, user } = await createOrg(db);
+    const { org: otherOrg, user: otherUser } = await createOrg(db);
+    const context = createTestContext({
+      orgId: org.id,
+      userId: user.id,
+      role: "owner",
+    });
+    const otherContext = createTestContext({
+      orgId: otherOrg.id,
+      userId: otherUser.id,
+      role: "owner",
+    });
+
+    const workflow = await call(
+      workflowRoutes.createDefinition,
+      {
+        key: "run_detail_workflow",
+        name: "Run Detail Workflow",
+        workflowKit: { trigger: { event: "appointment.created" } },
+      },
+      { context },
+    );
+
+    await createWorkflowRunLink({
+      db,
+      orgId: org.id,
+      runId: "run-detail-1",
+      workflowType: "appointment.reminder",
+      entityType: "appointment",
+      entityId: "0198d09f-ff07-7f46-a5d9-26a3f0d90121",
+      definitionId: workflow.id,
+      versionId: null,
+      runStatus: "running",
+    });
+
+    const run = await call(
+      workflowRoutes.getRun,
+      { runId: "run-detail-1" },
+      { context },
+    );
+
+    expect(run.runId).toBe("run-detail-1");
+    expect(run.workflowType).toBe("appointment.reminder");
+    expect(run.status).toBe("running");
+    expect(run.definitionVersionId).toBeNull();
+
+    await expect(
+      call(workflowRoutes.getRun, { runId: "run-detail-1" }, { context: otherContext }),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+  });
+
+  test("cancelRun marks run as cancelled and increments runRevision", async () => {
+    const { org, user } = await createOrg(db);
+    const context = createTestContext({
+      orgId: org.id,
+      userId: user.id,
+      role: "owner",
+    });
+
+    await createWorkflowRunLink({
+      db,
+      orgId: org.id,
+      runId: "run-cancel-1",
+      workflowType: "appointment.reminder",
+      entityType: "appointment",
+      entityId: "0198d09f-ff07-7f46-a5d9-26a3f0d90131",
+      runStatus: "running",
+      runRevision: 3,
+      startedAt: new Date("2026-02-11T08:00:00.000Z"),
+      lastSeenAt: new Date("2026-02-11T08:05:00.000Z"),
+    });
+
+    const cancelled = await call(
+      workflowRoutes.cancelRun,
+      { runId: "run-cancel-1" },
+      { context },
+    );
+
+    expect(cancelled.success).toBe(true);
+
+    await setTestOrgContext(db, org.id);
+    try {
+      const [row] = await db
+        .select()
+        .from(workflowRunEntityLinks)
+        .where(eq(workflowRunEntityLinks.runId, "run-cancel-1"))
+        .limit(1);
+
+      expect(row).toBeDefined();
+      expect(row?.runStatus).toBe("cancelled");
+      expect(row?.cancelledAt).not.toBeNull();
+      expect(row?.runRevision).toBe(4);
+    } finally {
+      await clearTestOrgContext(db);
+    }
+  });
+
+  test("cancelRun returns NOT_FOUND when run is missing", async () => {
+    const { org, user } = await createOrg(db);
+    const context = createTestContext({
+      orgId: org.id,
+      userId: user.id,
+      role: "owner",
+    });
+
+    await expect(
+      call(
+        workflowRoutes.cancelRun,
+        {
+          runId: "missing-run",
+        },
+        { context },
+      ),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
   });
 });

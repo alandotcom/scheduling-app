@@ -1,6 +1,10 @@
 import {
+  cancelWorkflowRunInputSchema,
+  cancelWorkflowRunResponseSchema,
   createWorkflowDefinitionSchema,
+  getWorkflowRunInputSchema,
   idInputSchema,
+  listWorkflowRunsQuerySchema,
   listWorkflowDefinitionsQuerySchema,
   publishWorkflowDraftInputSchema,
   updateWorkflowDraftWorkflowKitSchema,
@@ -10,6 +14,9 @@ import {
   workflowDefinitionListResponseSchema,
   workflowDefinitionSummarySchema,
   workflowDefinitionVersionSchema,
+  workflowRunDetailSchema,
+  workflowRunListResponseSchema,
+  type WorkflowRunStatus,
   workflowValidationResultSchema,
   type WorkflowKitDocument,
   type WorkflowValidationResult,
@@ -18,9 +25,10 @@ import {
   workflowBindings,
   workflowDefinitions,
   workflowDefinitionVersions,
+  workflowRunEntityLinks,
 } from "@scheduling/db/schema";
 import type { SQL } from "drizzle-orm";
-import { and, desc, eq, ilike, or } from "drizzle-orm";
+import { and, desc, eq, ilike, or, sql } from "drizzle-orm";
 import { createHash } from "node:crypto";
 import { adminOnly } from "./base.js";
 import { ApplicationError } from "../errors/application-error.js";
@@ -34,6 +42,7 @@ type WorkflowDefinitionRow = typeof workflowDefinitions.$inferSelect;
 type WorkflowDefinitionVersionRow =
   typeof workflowDefinitionVersions.$inferSelect;
 type WorkflowBindingRow = typeof workflowBindings.$inferSelect;
+type WorkflowRunEntityLinkRow = typeof workflowRunEntityLinks.$inferSelect;
 
 const updateWorkflowDraftInputSchema = idInputSchema.extend(
   updateWorkflowDraftWorkflowKitSchema.shape,
@@ -132,6 +141,33 @@ function toBinding(row: WorkflowBindingRow) {
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   });
+}
+
+function toWorkflowRunStatus(value: string): WorkflowRunStatus {
+  if (
+    value === "pending" ||
+    value === "running" ||
+    value === "completed" ||
+    value === "failed" ||
+    value === "cancelled"
+  ) {
+    return value;
+  }
+
+  return "unknown";
+}
+
+function toRunSummary(row: WorkflowRunEntityLinkRow) {
+  return {
+    runId: row.runId,
+    workflowType: row.workflowType,
+    entityType: row.entityType,
+    entityId: row.entityId,
+    runRevision: row.runRevision,
+    status: toWorkflowRunStatus(row.runStatus),
+    startedAt: row.startedAt,
+    updatedAt: row.lastSeenAt,
+  };
 }
 
 function validateWorkflowKitDraft(
@@ -442,6 +478,115 @@ export const publishDraft = adminOnly
     });
   });
 
+export const listRuns = adminOnly
+  .route({ method: "GET", path: "/workflows/runs" })
+  .input(listWorkflowRunsQuerySchema)
+  .output(workflowRunListResponseSchema)
+  .handler(async ({ input, context }) => {
+    const items = await withOrg(context.orgId, async (tx) => {
+      const conditions: SQL[] = [];
+
+      if (input.definitionId) {
+        conditions.push(eq(workflowRunEntityLinks.definitionId, input.definitionId));
+      }
+
+      if (input.workflowType) {
+        conditions.push(eq(workflowRunEntityLinks.workflowType, input.workflowType));
+      }
+
+      if (input.entityType) {
+        conditions.push(eq(workflowRunEntityLinks.entityType, input.entityType));
+      }
+
+      if (input.entityId) {
+        conditions.push(eq(workflowRunEntityLinks.entityId, input.entityId));
+      }
+
+      if (input.status) {
+        conditions.push(eq(workflowRunEntityLinks.runStatus, input.status));
+      }
+
+      const query = tx.select().from(workflowRunEntityLinks);
+      const filteredQuery =
+        conditions.length > 0 ? query.where(and(...conditions)) : query;
+
+      const rows = await filteredQuery
+        .orderBy(
+          desc(workflowRunEntityLinks.lastSeenAt),
+          desc(workflowRunEntityLinks.startedAt),
+        )
+        .limit(input.limit);
+
+      return rows.map((row) => toRunSummary(row));
+    });
+
+    return workflowRunListResponseSchema.parse({ items });
+  });
+
+export const getRun = adminOnly
+  .route({ method: "GET", path: "/workflows/runs/{runId}" })
+  .input(getWorkflowRunInputSchema)
+  .output(workflowRunDetailSchema)
+  .handler(async ({ input, context }) => {
+    return withOrg(context.orgId, async (tx) => {
+      const [runLink] = await tx
+        .select()
+        .from(workflowRunEntityLinks)
+        .where(eq(workflowRunEntityLinks.runId, input.runId))
+        .orderBy(
+          desc(workflowRunEntityLinks.lastSeenAt),
+          desc(workflowRunEntityLinks.startedAt),
+        )
+        .limit(1);
+
+      if (!runLink) {
+        throw new ApplicationError("Workflow run not found", {
+          code: "NOT_FOUND",
+        });
+      }
+
+      return workflowRunDetailSchema.parse({
+        ...toRunSummary(runLink),
+        definitionVersionId: runLink.versionId,
+      });
+    });
+  });
+
+export const cancelRun = adminOnly
+  .route({ method: "POST", path: "/workflows/runs/{runId}/cancel" })
+  .input(cancelWorkflowRunInputSchema)
+  .output(cancelWorkflowRunResponseSchema)
+  .handler(async ({ input, context }) => {
+    await withOrg(context.orgId, async (tx) => {
+      const [runLink] = await tx
+        .select({ id: workflowRunEntityLinks.id })
+        .from(workflowRunEntityLinks)
+        .where(eq(workflowRunEntityLinks.runId, input.runId))
+        .limit(1);
+
+      if (!runLink) {
+        throw new ApplicationError("Workflow run not found", {
+          code: "NOT_FOUND",
+        });
+      }
+
+      const now = new Date();
+
+      await tx
+        .update(workflowRunEntityLinks)
+        .set({
+          runStatus: "cancelled",
+          cancelledAt: now,
+          lastSeenAt: now,
+          updatedAt: now,
+          runRevision: sql`${workflowRunEntityLinks.runRevision} + 1`,
+        })
+        .where(eq(workflowRunEntityLinks.runId, input.runId));
+    });
+
+    return { success: true as const };
+  });
+
 export const workflowRoutes = {
   listDefinitions,
   getDefinition,
@@ -449,4 +594,7 @@ export const workflowRoutes = {
   updateDraft,
   validateDraft,
   publishDraft,
+  listRuns,
+  getRun,
+  cancelRun,
 };
