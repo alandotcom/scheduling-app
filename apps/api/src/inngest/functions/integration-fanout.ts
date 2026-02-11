@@ -13,6 +13,12 @@ type ResolveIntegrations = (
   orgId: string,
 ) => Promise<readonly IntegrationConsumer[]>;
 
+export const INTEGRATION_FANOUT_FLOW_CONTROL = {
+  concurrencyLimit: 20,
+  throttleLimitPerMinute: 120,
+  throttleBurstPerMinute: 20,
+} as const;
+
 type DomainEventCandidate = {
   id: string;
   type: WebhookEventType;
@@ -38,6 +44,16 @@ export function createIntegrationFanoutFunction<
     {
       id: `integration-fanout-${eventType.replaceAll(".", "-")}`,
       retries: 10,
+      concurrency: {
+        key: "event.data.orgId",
+        limit: INTEGRATION_FANOUT_FLOW_CONTROL.concurrencyLimit,
+      },
+      throttle: {
+        key: "event.data.orgId",
+        limit: INTEGRATION_FANOUT_FLOW_CONTROL.throttleLimitPerMinute,
+        period: "1m",
+        burst: INTEGRATION_FANOUT_FLOW_CONTROL.throttleBurstPerMinute,
+      },
     },
     { event: eventType },
     async ({ event, step }) => {

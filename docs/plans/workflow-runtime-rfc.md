@@ -203,7 +203,7 @@ Exit criteria:
 - [x] Implement Inngest functions for integration dispatch.
 - [x] Reuse existing integration registry/settings/secrets resolution.
 - [x] Move Svix publish path to Inngest-triggered handler.
-- [ ] Add function flow-control config for integration workloads.
+- [x] Add function flow-control config for integration workloads.
 
 Exit criteria:
 1. Svix and logger integrations receive events through Inngest.
@@ -213,8 +213,8 @@ Exit criteria:
 
 - [x] Remove Workflow DevKit worker and build pipeline.
 - [x] Add workflow dispatch/execution scaffold functions and run tracking persistence.
-- [ ] Implement workflow execution functions with `cancelOn` and waits.
-- [ ] Encode strict cancel+replace run policy for appointment lifecycle.
+- [x] Implement workflow execution functions with `cancelOn` and waits.
+- [x] Encode strict cancel+replace run policy for appointment lifecycle.
 - [ ] Keep deterministic side-effect dedupe and send-time guards.
 
 Exit criteria:
@@ -226,7 +226,7 @@ Exit criteria:
 - [x] Replace custom graph assumptions with Workflow Kit JSON contracts in DTO/API.
 - [x] Implement/complete workflow CRUD, bindings, run management, and publish routes against Workflow Kit model.
 - [x] Build admin workflow management routes (definitions, draft editing, bindings, runs) in `admin-ui`.
-- [ ] Replace JSON draft editor with `@inngest/workflow-kit/ui` visual authoring components.
+- [x] Replace JSON draft editor with `@inngest/workflow-kit/ui` visual authoring components.
 - [x] Persist draft and published versions as Workflow Kit JSON.
 
 Exit criteria:

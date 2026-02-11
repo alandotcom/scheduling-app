@@ -1,7 +1,10 @@
 import { describe, expect, mock, test } from "bun:test";
 import { createIntegration } from "@integrations/core";
 import { InngestTestEngine } from "@inngest/test";
-import { createIntegrationFanoutFunction } from "./integration-fanout.js";
+import {
+  createIntegrationFanoutFunction,
+  INTEGRATION_FANOUT_FLOW_CONTROL,
+} from "./integration-fanout.js";
 
 describe("integration fanout function", () => {
   test("dispatches to enabled integrations that support the event", async () => {
@@ -109,5 +112,25 @@ describe("integration fanout function", () => {
       dispatchedIntegrationNames: [],
     });
     expect(appointmentOnlyProcess).not.toHaveBeenCalled();
+  });
+
+  test("applies per-org flow control settings", () => {
+    const fn = createIntegrationFanoutFunction(
+      "client.created",
+      async () => [],
+    );
+
+    expect(fn.opts).toMatchObject({
+      concurrency: {
+        key: "event.data.orgId",
+        limit: INTEGRATION_FANOUT_FLOW_CONTROL.concurrencyLimit,
+      },
+      throttle: {
+        key: "event.data.orgId",
+        limit: INTEGRATION_FANOUT_FLOW_CONTROL.throttleLimitPerMinute,
+        period: "1m",
+        burst: INTEGRATION_FANOUT_FLOW_CONTROL.throttleBurstPerMinute,
+      },
+    });
   });
 });
