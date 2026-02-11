@@ -17,7 +17,7 @@ The runtime is moving to self-hosted Inngest. This changes test focus from queue
 
 ## 3. Non-Goals
 
-1. Maintaining BullMQ-specific queue contract tests.
+1. Maintaining legacy queue-runtime-specific contract tests.
 2. Reproducing Inngest internal runtime behavior in unit tests.
 3. Building a generic test framework for external reuse.
 

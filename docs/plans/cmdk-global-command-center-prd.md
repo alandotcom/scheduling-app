@@ -45,7 +45,7 @@ We need a command center that prioritizes speed, relevance, and keyboard through
 
 ### 3.3 Existing infra that helps
 
-1. Event outbox and job worker infrastructure already exists and can support async indexing/sync models.
+1. Inngest eventing infrastructure already exists and can support async indexing/sync models.
 2. Strong route + query architecture (TanStack Router + Query) can support debounced global search cleanly.
 
 ## 4. Scope
@@ -154,7 +154,7 @@ Cons:
 Model:
 
 1. Keep Postgres as source of truth.
-2. Sync index asynchronously to Meilisearch via outbox worker.
+2. Sync index asynchronously to Meilisearch via Inngest-triggered indexing function.
 
 Pros:
 
@@ -170,7 +170,7 @@ Cons:
 
 Model:
 
-1. Sync index from outbox.
+1. Sync index from Inngest events.
 2. Serve command center queries from Typesense.
 
 Pros:
@@ -393,7 +393,7 @@ Current recommendation for implementation risk profile: start with UI-B or UI-A,
 | Search relevance underperforms | Low adoption | relevance fixtures, staged tuning loop |
 | Shortcut/modal interaction regressions | UX breakage | integration tests for dialog suppression + URL-state transitions |
 | Index lag/staleness | user mistrust | freshness SLO + lag alerts + replayable sync |
-| External engine drift | inconsistent results | outbox retry, reconciliation jobs, drift dashboards |
+| External engine drift | inconsistent results | Inngest retries, reconciliation jobs, drift dashboards |
 | Extension maturity concerns | delivery risk | fallback option, explicit go/no-go gates |
 
 ## 17. Open Questions (Need Owner + Date)
@@ -441,4 +441,3 @@ Current recommendation for implementation risk profile: start with UI-B or UI-A,
 7. `apps/api/src/routes/index.ts`
 8. `packages/db/src/schema/index.ts`
 9. `packages/db/src/migrations/20260208064434_init/migration.sql`
-

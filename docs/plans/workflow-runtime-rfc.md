@@ -1,6 +1,6 @@
 # Inngest Eventing + Workflow Runtime RFC (Unified)
 
-Status: Approved for Implementation
+Status: In Progress (Phases 0-4 and 7 largely complete; phases 5-6 pending)
 Last Updated: 2026-02-11
 Owners: Product, `@scheduling/api`, `@scheduling/db`, `@scheduling/admin-ui`
 Related: `docs/ARCHITECTURE.md`, `docs/references/event-bus/synthesis.md`, `docs/references/event-bus/workflow-devkit-research.md`, `docs/references/event-bus/testing.md`
@@ -20,10 +20,10 @@ This is a big-bang rewrite with no compatibility layer:
 ## 2. Current State
 
 1. Domain writes emit events through `apps/api/src/services/jobs/emitter.ts`.
-2. Events are persisted in `event_outbox`.
-3. BullMQ workers dispatch and fan out events to integrations.
-4. A separate Workflow DevKit worker process exists (`apps/api/src/workflow-worker.ts`).
-5. Workflow definition tables exist, but route/UI runtime integration is incomplete.
+2. Events are sent directly to Inngest (`inngest.send`) after successful mutations.
+3. Integration fanout runs through Inngest functions (`apps/api/src/inngest/functions/integration-fanout.ts`).
+4. Legacy worker processes (`src/worker.ts`, `src/workflow-worker.ts`, `src/bull-board.ts`) and related scripts/deps are removed.
+5. Workflow definition tables exist, but Workflow Kit authoring and execution routes remain incomplete.
 
 ## 3. Final Decisions
 
@@ -165,9 +165,9 @@ Keep workflow namespace and adapt payload contracts:
 ### Phase 0: Infra + Commands
 
 - [ ] Add self-hosted Inngest service configuration to local/deployment environments.
-- [ ] Add required env vars (`INNGEST_EVENT_KEY`, `INNGEST_SIGNING_KEY`, Inngest base URLs).
-- [ ] Add `dev:inngest` command using Inngest Dev Server.
-- [ ] Remove Workflow DevKit bootstrap requirement (`workflow-postgres-setup`) from `pnpm bootstrap:dev`.
+- [x] Add required env vars (`INNGEST_EVENT_KEY`, `INNGEST_SIGNING_KEY`, Inngest base URLs).
+- [x] Add `dev:inngest` command using Inngest Dev Server.
+- [x] Remove Workflow DevKit bootstrap requirement (`workflow-postgres-setup`) from `pnpm bootstrap:dev`.
 
 Exit criteria:
 1. Local API can register with running Inngest dev/self-host runtime.
@@ -175,10 +175,10 @@ Exit criteria:
 
 ### Phase 1: Inngest SDK Foundation
 
-- [ ] Add typed Inngest client module in API app.
-- [ ] Add Inngest serve handler on `/api/inngest`.
-- [ ] Add typed event envelope helpers reusing `packages/dto/src/schemas/webhook.ts`.
-- [ ] Add baseline Inngest function registration structure.
+- [x] Add typed Inngest client module in API app.
+- [x] Add Inngest serve handler on `/api/inngest`.
+- [x] Add typed event envelope helpers reusing `packages/dto/src/schemas/webhook.ts`.
+- [x] Add baseline Inngest function registration structure.
 
 Exit criteria:
 1. `/api/inngest` responds to Inngest sync/invoke calls.
@@ -186,10 +186,10 @@ Exit criteria:
 
 ### Phase 2: Event Emission Cutover
 
-- [ ] Replace `services/jobs/emitter.ts` with Inngest sender implementation.
-- [ ] Remove `JobQueue` abstraction and BullMQ enqueue calls.
-- [ ] Update domain services that currently emit inside transactions to post-commit send pattern.
-- [ ] Add failure logging/handling policy for post-commit send failures.
+- [x] Replace `services/jobs/emitter.ts` with Inngest sender implementation.
+- [x] Remove `JobQueue` abstraction and BullMQ enqueue calls.
+- [x] Update domain services that currently emit inside transactions to post-commit send pattern.
+- [x] Add failure logging/handling policy for post-commit send failures.
 
 Exit criteria:
 1. Domain mutations emit Inngest events only.
@@ -197,9 +197,9 @@ Exit criteria:
 
 ### Phase 3: Integration Fanout on Inngest
 
-- [ ] Implement Inngest functions for integration dispatch.
-- [ ] Reuse existing integration registry/settings/secrets resolution.
-- [ ] Move Svix publish path to Inngest-triggered handler.
+- [x] Implement Inngest functions for integration dispatch.
+- [x] Reuse existing integration registry/settings/secrets resolution.
+- [x] Move Svix publish path to Inngest-triggered handler.
 - [ ] Add function flow-control config for integration workloads.
 
 Exit criteria:
@@ -208,7 +208,7 @@ Exit criteria:
 
 ### Phase 4: Workflow Runtime Migration
 
-- [ ] Remove Workflow DevKit worker and build pipeline.
+- [x] Remove Workflow DevKit worker and build pipeline.
 - [ ] Implement workflow execution functions with `cancelOn` and waits.
 - [ ] Encode strict cancel+replace run policy for appointment lifecycle.
 - [ ] Keep deterministic side-effect dedupe and send-time guards.
@@ -241,10 +241,10 @@ Exit criteria:
 
 ### Phase 7: Legacy Code and Docs Removal
 
-- [ ] Delete BullMQ worker code (`services/jobs/*`, `src/worker.ts`).
-- [ ] Delete Bull Board app (`src/bull-board.ts`) and scripts/deps.
-- [ ] Delete Workflow DevKit files/scripts/deps (`src/workflow-worker.ts`, plugin/build setup).
-- [ ] Update architecture and operations docs to Inngest-first topology.
+- [x] Delete BullMQ worker code (`services/jobs/*`, `src/worker.ts`).
+- [x] Delete Bull Board app (`src/bull-board.ts`) and scripts/deps.
+- [x] Delete Workflow DevKit files/scripts/deps (`src/workflow-worker.ts`, plugin/build setup).
+- [x] Update architecture and operations docs to Inngest-first topology.
 
 Exit criteria:
 1. No BullMQ/Workflow DevKit runtime dependencies remain.

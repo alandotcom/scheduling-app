@@ -46,7 +46,7 @@ Build an API‑first scheduling platform that matches core Acuity capabilities f
 - Timezone‑aware data model; default timezone on location and calendar; appointment can override
 - REST API under `/v1` with simple path versioning
 - Admin/staff auth via BetterAuth (session) + API keys for server‑to‑server
-- Bun runtime; BullMQ for background jobs (behind an abstraction)
+- Bun runtime; Inngest for event fanout and workflow orchestration
 
 ## Architecture Overview
 
@@ -61,7 +61,7 @@ flowchart LR
     C[tRPC (internal type-sharing)]
     D[Auth (BetterAuth)]
     E[Availability Engine]
-    F[Job Queue Abstraction]
+    F[Inngest Event Runtime]
   end
 
   subgraph DB[Postgres]
@@ -69,7 +69,7 @@ flowchart LR
   end
 
   subgraph Infra[Background Services]
-    H[BullMQ Workers]
+    H[Inngest Functions]
   end
 
   A --> B
@@ -107,12 +107,12 @@ flowchart LR
 
 ### Webhook/Notification Framework
 - Domain events emitted on create/update/cancel/reschedule for appointments and on CRUD for calendars/types/resources/locations
-- Event outbox table for eventual webhook delivery
+- Typed Inngest events for eventual webhook delivery
 - Deferred actual webhook subscription API for v1 extension
 
 ### Background Jobs
-- Abstract `JobQueue` interface with BullMQ implementation
-- Jobs: webhook delivery, audit log compaction, availability cache refresh
+- Inngest functions handle integration fanout and retry behavior
+- Jobs/functions: webhook delivery, audit log compaction, availability cache refresh
 
 ### UI (Admin/Staff)
 - CRUD screens for appointments, appointment types, calendars, locations, resources
@@ -138,7 +138,7 @@ flowchart LR
 - `appointments` (org_id, calendar_id, appointment_type_id, client_id, start_at, end_at, timezone, status, notes)
 - `clients` (org_id, first_name, last_name, email, phone)
 - `appointment_audit_events` (org_id, appointment_id, action, payload)
-- `event_outbox` (org_id, type, payload, status, next_attempt_at)
+- `event_outbox` (legacy; retained temporarily, no longer on active runtime path)
 
 ### Relationships
 - One org → many locations, calendars, appointment types, resources
@@ -166,7 +166,7 @@ flowchart LR
 - Bun + Hono for API speed and TS‑first ergonomics
 - tRPC for shared types between backend and UI
 - Postgres with RLS for strong tenancy isolation
-- BullMQ behind abstraction for background jobs
+- Inngest for eventing, retries, and workflow orchestration
 
 ### Research Findings (Summary)
 - Acuity availability flow: dates → times → check‑times → book
@@ -178,7 +178,7 @@ flowchart LR
 - Pure tRPC API (rejected; need REST for external consumers)
 - Single‑tenant architecture (rejected; must support multi‑org)
 
-## Implementation Status (as of February 7, 2026)
+## Implementation Status (as of February 11, 2026)
 
 ### Database Schema: Complete
 All core scheduling tables are implemented with Postgres 18 `uuidv7()` IDs. `group_id` columns exist on availability/scheduling-limit records for future appointment-type grouping features.
@@ -192,14 +192,14 @@ All core scheduling tables are implemented with Postgres 18 `uuidv7()` IDs. `gro
 - **Dashboard Summary API**: Real metrics (appointments, clients, calendars, attention counts)
 - **API Keys**: Better Auth API key management with prefix, metadata, and expiration
 - **Audit Logging**: Entity audit trail with before/after snapshots
-- **Event Emission**: Domain events written to outbox and queued through BullMQ
+- **Event Emission**: Domain events sent directly to Inngest
 - **Auth**: BetterAuth session auth + API key auth for server-to-server
 
 #### Partially Implemented
 - **Appointment editing workflow**: Rescheduling is implemented; update is intentionally narrow (notes/client fields). No dedicated confirm endpoint/workflow.
 
 #### Not Yet Implemented
-- **Webhook Subscriptions API**: Events emit to outbox but there are no subscription management endpoints
+- **Webhook Subscriptions API**: Events emit to Inngest but there are no subscription management endpoints
 - **HMAC Webhook Signing**: Webhook delivery exists but request signing is not implemented
 - **Appointment Type Groups API**: Schema has `group_id`, but there are no group-management endpoints
 
@@ -220,19 +220,18 @@ All core scheduling tables are implemented with Postgres 18 `uuidv7()` IDs. `gro
 #### Partially Implemented
 - **Settings scope**: Org settings and API key management are implemented, but user profile settings are not yet present
 
-### Background Jobs: Partially Implemented
+### Async Runtime: Partially Implemented
 
 #### Implemented
-- BullMQ with Valkey backend
-- Event processor worker
-- Webhook delivery worker with retries/rate limit
-- Graceful shutdown and stale outbox recovery
+- Inngest SDK/runtime integration in API
+- Integration fanout function for enabled integrations
+- Webhook delivery path triggered from Inngest with retries
 
 #### Not Yet Implemented
-- **Webhook subscription fan-out** in worker processing
+- **Webhook subscription fan-out** in runtime processing
 - **HMAC webhook signature generation**
-- **Audit log compaction job**
-- **Availability cache refresh job**
+- **Audit log compaction function/job**
+- **Availability cache refresh function/job**
 
 ### Testing: In Progress
 - RLS isolation tests are implemented
@@ -244,7 +243,7 @@ All core scheduling tables are implemented with Postgres 18 `uuidv7()` IDs. `gro
 1. **Implement webhook subscriptions end-to-end**
    - Add `webhook_subscriptions` schema + migration (org-scoped, event filters, secret, status)
    - Add CRUD endpoints for subscription management
-   - Update event worker to fan out outbox events to matching subscriptions
+   - Add Inngest-triggered subscription fanout for matching subscriptions
 2. **Add HMAC-signed webhook delivery**
    - Sign raw payload with per-subscription secret
    - Include signature + timestamp headers and verification docs for consumers
@@ -253,7 +252,7 @@ All core scheduling tables are implemented with Postgres 18 `uuidv7()` IDs. `gro
    - Define group entity/schema and org-scoped routes
    - Wire `group_id` flows across availability rules, overrides, and scheduling limits
    - Add API and service tests for group-aware slot calculations
-4. **Finish remaining background jobs**
-   - Implement audit-log compaction worker/job
-   - Implement availability cache refresh worker/job (or remove from scope if not needed)
-   - Add operational metrics and runbook notes for all workers
+4. **Finish remaining async jobs/functions**
+   - Implement audit-log compaction function/job
+   - Implement availability cache refresh function/job (or remove from scope if not needed)
+   - Add operational metrics and runbook notes for all functions
