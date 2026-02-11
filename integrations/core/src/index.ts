@@ -6,15 +6,23 @@ import {
 
 export type EventType = WebhookEventType;
 
-export interface DomainEvent<TEventType extends EventType> {
+export interface DomainEventEnvelope {
   id: string;
-  type: TEventType;
-  orgId: string;
-  payload: WebhookEventData<TEventType>;
   timestamp: string;
+  orgId: string;
   attemptNumber?: number;
 }
-export type AnyDomainEvent = DomainEvent<EventType>;
+
+export type DomainEvent<TEventType extends EventType> = DomainEventEnvelope & {
+  type: TEventType;
+  payload: WebhookEventData<TEventType>;
+};
+
+type DomainEventByType = {
+  [TEventType in EventType]: DomainEvent<TEventType>;
+};
+
+export type AnyDomainEvent = DomainEventByType[EventType];
 
 export type IntegrationSupportedEventType = EventType | "*";
 export type IntegrationName = Lowercase<string>;
@@ -26,7 +34,7 @@ export type IntegrationEventTypeFromSupported<
   : Extract<TSupportedEventTypes[number], EventType>;
 export type IntegrationEvent<
   TSupportedEventTypes extends readonly IntegrationSupportedEventType[],
-> = DomainEvent<IntegrationEventTypeFromSupported<TSupportedEventTypes>>;
+> = DomainEventByType[IntegrationEventTypeFromSupported<TSupportedEventTypes>];
 
 export interface IntegrationConsumer {
   readonly name: IntegrationName;

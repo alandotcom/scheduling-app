@@ -1,9 +1,14 @@
 import { forEachAsync } from "es-toolkit/array";
-import type { AnyDomainEvent, IntegrationConsumer } from "@integrations/core";
+import type {
+  AnyDomainEvent,
+  DomainEvent,
+  IntegrationConsumer,
+} from "@integrations/core";
 import { integrationSupportsEvent } from "@integrations/core";
 import {
   webhookEventDataSchemaByType,
   webhookEventTypes,
+  type WebhookEventData,
   type WebhookEventType,
 } from "@scheduling/dto";
 import { getEnabledIntegrationsForOrg } from "../../services/integrations/runtime.js";
@@ -12,6 +17,15 @@ import { inngest } from "../client.js";
 type ResolveIntegrations = (
   orgId: string,
 ) => Promise<readonly IntegrationConsumer[]>;
+
+function parseWebhookPayload<TEventType extends WebhookEventType>(
+  eventType: TEventType,
+  payloadInput: unknown,
+): WebhookEventData<TEventType> {
+  return webhookEventDataSchemaByType[eventType].parse(
+    payloadInput,
+  ) as WebhookEventData<TEventType>;
+}
 
 export function createIntegrationFanoutFunction<
   TEventType extends WebhookEventType,
@@ -27,9 +41,8 @@ export function createIntegrationFanoutFunction<
     { event: eventType },
     async ({ event, step }) => {
       const { orgId, ...payloadInput } = event.data;
-      const payload =
-        webhookEventDataSchemaByType[eventType].parse(payloadInput);
-      const domainEvent: AnyDomainEvent = {
+      const payload = parseWebhookPayload(eventType, payloadInput);
+      const domainEvent: DomainEvent<TEventType> = {
         id: event.id ?? Bun.randomUUIDv7(),
         type: eventType,
         orgId,
@@ -48,7 +61,7 @@ export function createIntegrationFanoutFunction<
           await forEachAsync(
             targetIntegrations,
             async (integration) => {
-              await integration.process(domainEvent);
+              await integration.process(domainEvent as AnyDomainEvent);
             },
             { concurrency: 1 },
           );
