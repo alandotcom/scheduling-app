@@ -218,6 +218,37 @@ describe("Audit Routes", () => {
     expect(byDate.items[0]!.action).toBe("create");
   });
 
+  test("returns null actor for system audit events", async () => {
+    const { org, user } = await createOrg(db);
+    const ctx = createTestContext({ orgId: org.id, userId: user.id });
+
+    const event = await insertAuditEvent({
+      orgId: org.id,
+      actorId: null,
+      action: "create",
+      entityType: "appointment",
+      createdAt: DateTime.local(2026, 3, 1, 9, 0).toJSDate(),
+    });
+
+    const listed = await call(
+      auditRoutes.list,
+      { limit: 10 },
+      { context: ctx },
+    );
+
+    expect(listed.items).toHaveLength(1);
+    expect(listed.items[0]!.id).toBe(event.id);
+    expect(listed.items[0]!.actor).toBeNull();
+
+    const fetched = await call(
+      auditRoutes.get,
+      { id: event.id },
+      { context: ctx },
+    );
+
+    expect(fetched?.actor).toBeNull();
+  });
+
   test("returns null for missing audit events", async () => {
     const { org, user } = await createOrg(db);
     const ctx = createTestContext({ orgId: org.id, userId: user.id });

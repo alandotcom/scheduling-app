@@ -71,7 +71,18 @@ export const list = adminOnly
 
       return tx
         .select({
-          auditEvent: auditEvents,
+          id: auditEvents.id,
+          orgId: auditEvents.orgId,
+          actorId: auditEvents.actorId,
+          actorType: auditEvents.actorType,
+          action: auditEvents.action,
+          entityType: auditEvents.entityType,
+          entityId: auditEvents.entityId,
+          before: auditEvents.before,
+          after: auditEvents.after,
+          metadata: auditEvents.metadata,
+          createdAt: auditEvents.createdAt,
+          updatedAt: auditEvents.updatedAt,
           actor: {
             id: users.id,
             name: users.name,
@@ -88,17 +99,9 @@ export const list = adminOnly
     const hasMore = results.length > limit;
     const items = hasMore ? results.slice(0, limit) : results;
 
-    // Transform to response format
-    const transformedItems = items.map((row) => ({
-      ...row.auditEvent,
-      actor: row.actor ?? undefined,
-    }));
-
     return {
-      items: transformedItems,
-      nextCursor: hasMore
-        ? (items[items.length - 1]?.auditEvent.id ?? null)
-        : null,
+      items,
+      nextCursor: hasMore ? (items[items.length - 1]?.id ?? null) : null,
       hasMore,
     };
   });
@@ -116,7 +119,18 @@ export const get = adminOnly
     const results = await withOrg(orgId, async (tx) => {
       return tx
         .select({
-          auditEvent: auditEvents,
+          id: auditEvents.id,
+          orgId: auditEvents.orgId,
+          actorId: auditEvents.actorId,
+          actorType: auditEvents.actorType,
+          action: auditEvents.action,
+          entityType: auditEvents.entityType,
+          entityId: auditEvents.entityId,
+          before: auditEvents.before,
+          after: auditEvents.after,
+          metadata: auditEvents.metadata,
+          createdAt: auditEvents.createdAt,
+          updatedAt: auditEvents.updatedAt,
           actor: {
             id: users.id,
             name: users.name,
@@ -133,11 +147,7 @@ export const get = adminOnly
       return null;
     }
 
-    const row = results[0]!;
-    return {
-      ...row.auditEvent,
-      actor: row.actor ?? undefined,
-    };
+    return results[0]!;
   });
 
 // ============================================================================

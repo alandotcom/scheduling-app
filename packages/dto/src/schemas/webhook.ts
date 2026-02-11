@@ -238,8 +238,9 @@ export type WebhookEventDataByType = {
   >;
 };
 
-export type WebhookEventData<TEventType extends WebhookEventType> =
-  z.output<(typeof webhookEventDataSchemaByType)[TEventType]>;
+export type WebhookEventData<TEventType extends WebhookEventType> = z.output<
+  (typeof webhookEventDataSchemaByType)[TEventType]
+>;
 
 export const webhookEventTypeSchema = z.enum(webhookEventTypes);
 
