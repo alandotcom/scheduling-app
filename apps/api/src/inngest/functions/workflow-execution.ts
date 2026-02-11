@@ -22,6 +22,10 @@ type WorkflowExecutionDependencies = {
 };
 
 type TerminalReason = "entity_missing" | "unsupported_entity_type";
+type ReplacementMode =
+  | "replace_active"
+  | "cancel_without_replacement"
+  | "allow_parallel";
 
 type ParsedCompiledPlan = {
   entryNodeIds: string[];
@@ -119,6 +123,35 @@ function parseCompiledPlan(
     nodeById,
     nextNodeIdsBySource,
   };
+}
+
+function resolveReplacementMode(
+  compiledPlan: Record<string, unknown> | null,
+): ReplacementMode {
+  if (!isRecord(compiledPlan)) {
+    return "replace_active";
+  }
+
+  const trigger = compiledPlan["trigger"];
+  if (!isRecord(trigger)) {
+    return "replace_active";
+  }
+
+  const replacement = trigger["replacement"];
+  if (!isRecord(replacement)) {
+    return "replace_active";
+  }
+
+  const mode = replacement["mode"];
+  if (
+    mode === "replace_active" ||
+    mode === "cancel_without_replacement" ||
+    mode === "allow_parallel"
+  ) {
+    return mode;
+  }
+
+  return "replace_active";
 }
 
 function resolveWaitDuration(node: Record<string, unknown>): string | null {
@@ -219,16 +252,6 @@ export function createWorkflowExecutionFunction(
         });
       });
 
-      await step.run("cancel-replaced-runs", async () => {
-        await dependencies.cancelReplacedRuns({
-          orgId: event.data.orgId,
-          definitionId: event.data.workflow.definitionId,
-          entityType: event.data.entity.type,
-          entityId: event.data.entity.id,
-          replacementRunId: runId,
-        });
-      });
-
       const compiledPlanValue = await step.run(
         "load-workflow-compiled-plan",
         async () => {
@@ -239,12 +262,28 @@ export function createWorkflowExecutionFunction(
         },
       );
       const parsedCompiledPlan = parseCompiledPlan(compiledPlanValue);
+      const replacementMode = resolveReplacementMode(compiledPlanValue);
 
-      let status: "completed" | "cancelled" = "completed";
+      if (replacementMode !== "allow_parallel") {
+        await step.run("cancel-replaced-runs", async () => {
+          await dependencies.cancelReplacedRuns({
+            orgId: event.data.orgId,
+            definitionId: event.data.workflow.definitionId,
+            entityType: event.data.entity.type,
+            entityId: event.data.entity.id,
+            replacementRunId: runId,
+          });
+        });
+      }
+
+      let status: "completed" | "cancelled" =
+        replacementMode === "cancel_without_replacement"
+          ? "cancelled"
+          : "completed";
       let replacementSignal: unknown = null;
       let terminalReason: TerminalReason | null = null;
 
-      if (shouldWaitForReplacementSignal(event)) {
+      if (status === "completed" && shouldWaitForReplacementSignal(event)) {
         replacementSignal = await step.waitForEvent(
           "wait-for-workflow-replacement",
           {
