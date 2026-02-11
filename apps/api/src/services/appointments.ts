@@ -353,7 +353,7 @@ export class AppointmentService {
   ): Promise<Appointment> {
     const { orgId } = context;
 
-    return withOrg(orgId, async (tx) => {
+    const { existing, updated } = await withOrg(orgId, async (tx) => {
       // Get existing appointment
       const existing = await appointmentRepository.findById(tx, orgId, id);
       if (!existing) {
@@ -381,18 +381,6 @@ export class AppointmentService {
         });
       }
 
-      // Emit appointment updated event
-      await events.appointmentUpdated(
-        orgId,
-        {
-          appointmentId: updated.id,
-          changes: data,
-          previousClientId: existing.clientId,
-          previousNotes: existing.notes,
-        },
-        tx,
-      );
-
       // Record audit event
       const authMethod = this.mapAuthMethod(context.authMethod);
       await recordAudit(
@@ -407,8 +395,17 @@ export class AppointmentService {
         tx,
       );
 
-      return updated;
+      return { existing, updated };
     });
+
+    await events.appointmentUpdated(orgId, {
+      appointmentId: updated.id,
+      changes: data,
+      previousClientId: existing.clientId,
+      previousNotes: existing.notes,
+    });
+
+    return updated;
   }
 
   async cancel(
@@ -418,7 +415,7 @@ export class AppointmentService {
   ): Promise<Appointment> {
     const { orgId } = context;
 
-    return withOrg(orgId, async (tx) => {
+    const updated = await withOrg(orgId, async (tx) => {
       // Get existing appointment
       const existing = await appointmentRepository.findById(tx, orgId, id);
       if (!existing) {
@@ -452,21 +449,6 @@ export class AppointmentService {
         });
       }
 
-      // Emit appointment cancelled event
-      await events.appointmentCancelled(
-        orgId,
-        {
-          appointmentId: updated.id,
-          calendarId: updated.calendarId,
-          appointmentTypeId: updated.appointmentTypeId,
-          clientId: updated.clientId,
-          startAt: updated.startAt.toISOString(),
-          endAt: updated.endAt.toISOString(),
-          reason: data?.reason ?? undefined,
-        },
-        tx,
-      );
-
       // Record audit event
       const authMethod = this.mapAuthMethod(context.authMethod);
       await recordAudit(
@@ -485,6 +467,18 @@ export class AppointmentService {
 
       return updated;
     });
+
+    await events.appointmentCancelled(orgId, {
+      appointmentId: updated.id,
+      calendarId: updated.calendarId,
+      appointmentTypeId: updated.appointmentTypeId,
+      clientId: updated.clientId,
+      startAt: updated.startAt.toISOString(),
+      endAt: updated.endAt.toISOString(),
+      reason: data?.reason ?? undefined,
+    });
+
+    return updated;
   }
 
   async reschedule(
@@ -579,23 +573,6 @@ export class AppointmentService {
           });
         }
 
-        // Emit appointment rescheduled event within transaction
-        await events.appointmentRescheduled(
-          orgId,
-          {
-            appointmentId: result.id,
-            calendarId: result.calendarId,
-            appointmentTypeId: result.appointmentTypeId,
-            clientId: result.clientId,
-            previousStartAt: existing.startAt.toISOString(),
-            previousEndAt: existing.endAt.toISOString(),
-            newStartAt: result.startAt.toISOString(),
-            newEndAt: result.endAt.toISOString(),
-            timezone: result.timezone,
-          },
-          tx,
-        );
-
         // Record audit event within transaction
         const authMethod = this.mapAuthMethod(context.authMethod);
         await recordAudit(
@@ -623,6 +600,18 @@ export class AppointmentService {
       throw error;
     }
 
+    await events.appointmentRescheduled(orgId, {
+      appointmentId: updated.id,
+      calendarId: updated.calendarId,
+      appointmentTypeId: updated.appointmentTypeId,
+      clientId: updated.clientId,
+      previousStartAt: existing.startAt.toISOString(),
+      previousEndAt: existing.endAt.toISOString(),
+      newStartAt: updated.startAt.toISOString(),
+      newEndAt: updated.endAt.toISOString(),
+      timezone: updated.timezone,
+    });
+
     return updated;
   }
 
@@ -632,7 +621,7 @@ export class AppointmentService {
   ): Promise<Appointment> {
     const { orgId } = context;
 
-    return withOrg(orgId, async (tx) => {
+    const updated = await withOrg(orgId, async (tx) => {
       // Get existing appointment
       const existing = await appointmentRepository.findById(tx, orgId, id);
       if (!existing) {
@@ -667,20 +656,6 @@ export class AppointmentService {
         });
       }
 
-      // Emit appointment no_show event
-      await events.appointmentNoShow(
-        orgId,
-        {
-          appointmentId: updated.id,
-          calendarId: updated.calendarId,
-          appointmentTypeId: updated.appointmentTypeId,
-          clientId: updated.clientId,
-          startAt: updated.startAt.toISOString(),
-          endAt: updated.endAt.toISOString(),
-        },
-        tx,
-      );
-
       // Record audit event
       const authMethod = this.mapAuthMethod(context.authMethod);
       await recordAudit(
@@ -697,6 +672,17 @@ export class AppointmentService {
 
       return updated;
     });
+
+    await events.appointmentNoShow(orgId, {
+      appointmentId: updated.id,
+      calendarId: updated.calendarId,
+      appointmentTypeId: updated.appointmentTypeId,
+      clientId: updated.clientId,
+      startAt: updated.startAt.toISOString(),
+      endAt: updated.endAt.toISOString(),
+    });
+
+    return updated;
   }
 
   private mapAuthMethod(

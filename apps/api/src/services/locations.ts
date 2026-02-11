@@ -43,25 +43,23 @@ export class LocationService {
     input: LocationCreateInput,
     context: ServiceContext,
   ): Promise<Location> {
-    return withOrg(context.orgId, async (tx) => {
+    const location = await withOrg(context.orgId, async (tx) => {
       const location = await locationRepository.create(
         tx,
         context.orgId,
         input,
       );
 
-      await events.locationCreated(
-        context.orgId,
-        {
-          locationId: location.id,
-          name: location.name,
-          timezone: location.timezone,
-        },
-        tx,
-      );
-
       return location;
     });
+
+    await events.locationCreated(context.orgId, {
+      locationId: location.id,
+      name: location.name,
+      timezone: location.timezone,
+    });
+
+    return location;
   }
 
   async update(
@@ -69,7 +67,7 @@ export class LocationService {
     data: LocationUpdateInput,
     context: ServiceContext,
   ): Promise<Location> {
-    return withOrg(context.orgId, async (tx) => {
+    const { existing, updated } = await withOrg(context.orgId, async (tx) => {
       // Get existing for event payload
       const existing = await locationRepository.findById(tx, context.orgId, id);
 
@@ -88,28 +86,26 @@ export class LocationService {
         throw new ApplicationError("Location not found", { code: "NOT_FOUND" });
       }
 
-      await events.locationUpdated(
-        context.orgId,
-        {
-          locationId: updated.id,
-          changes: data,
-          previous: {
-            name: existing.name,
-            timezone: existing.timezone,
-          },
-        },
-        tx,
-      );
-
-      return updated;
+      return { existing, updated };
     });
+
+    await events.locationUpdated(context.orgId, {
+      locationId: updated.id,
+      changes: data,
+      previous: {
+        name: existing.name,
+        timezone: existing.timezone,
+      },
+    });
+
+    return updated;
   }
 
   async delete(
     id: string,
     context: ServiceContext,
   ): Promise<{ success: true }> {
-    return withOrg(context.orgId, async (tx) => {
+    const deleted = await withOrg(context.orgId, async (tx) => {
       // Get existing for event payload
       const existing = await locationRepository.findById(tx, context.orgId, id);
 
@@ -119,18 +115,16 @@ export class LocationService {
 
       await locationRepository.delete(tx, context.orgId, id);
 
-      await events.locationDeleted(
-        context.orgId,
-        {
-          locationId: id,
-          name: existing.name,
-          timezone: existing.timezone,
-        },
-        tx,
-      );
-
-      return { success: true };
+      return {
+        locationId: id,
+        name: existing.name,
+        timezone: existing.timezone,
+      };
     });
+
+    await events.locationDeleted(context.orgId, deleted);
+
+    return { success: true };
   }
 }
 

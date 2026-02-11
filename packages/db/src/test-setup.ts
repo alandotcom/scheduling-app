@@ -56,14 +56,15 @@ async function setupTestDatabase() {
   const testDbAdmin = new SQL(testDbAdminUrl);
 
   try {
-    // Always run migrations to ensure schema is up to date
-    // drizzle-kit migrate is idempotent - only applies pending migrations
+    // Always push schema in tests so the test database matches current schema,
+    // even when the initial migration file is edited during active development.
     const proc = Bun.spawn(
       [
         "pnpm",
         "exec",
         "drizzle-kit",
-        "migrate",
+        "push",
+        "--force",
         "--config=drizzle.test.config.ts",
       ],
       {
@@ -74,7 +75,7 @@ async function setupTestDatabase() {
     );
     await proc.exited;
     if (proc.exitCode !== 0) {
-      throw new Error("Failed to run migrations on test database");
+      throw new Error("Failed to push schema to test database");
     }
 
     // Grant permissions to app user on test database

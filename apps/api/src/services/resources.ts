@@ -40,7 +40,7 @@ export class ResourceService {
     input: ResourceCreateInput,
     context: ServiceContext,
   ): Promise<Resource> {
-    return withOrg(context.orgId, async (tx) => {
+    const resource = await withOrg(context.orgId, async (tx) => {
       // Validate location exists if provided
       if (input.locationId) {
         const location = await locationRepository.findById(
@@ -62,19 +62,17 @@ export class ResourceService {
         input,
       );
 
-      await events.resourceCreated(
-        context.orgId,
-        {
-          resourceId: resource.id,
-          name: resource.name,
-          quantity: resource.quantity,
-          locationId: resource.locationId,
-        },
-        tx,
-      );
-
       return resource;
     });
+
+    await events.resourceCreated(context.orgId, {
+      resourceId: resource.id,
+      name: resource.name,
+      quantity: resource.quantity,
+      locationId: resource.locationId,
+    });
+
+    return resource;
   }
 
   async update(
@@ -82,7 +80,7 @@ export class ResourceService {
     data: ResourceUpdateInput,
     context: ServiceContext,
   ): Promise<Resource> {
-    return withOrg(context.orgId, async (tx) => {
+    const { existing, updated } = await withOrg(context.orgId, async (tx) => {
       // Get existing for event payload
       const existing = await resourceRepository.findById(tx, context.orgId, id);
 
@@ -116,29 +114,27 @@ export class ResourceService {
         throw new ApplicationError("Resource not found", { code: "NOT_FOUND" });
       }
 
-      await events.resourceUpdated(
-        context.orgId,
-        {
-          resourceId: updated.id,
-          changes: data,
-          previous: {
-            name: existing.name,
-            quantity: existing.quantity,
-            locationId: existing.locationId,
-          },
-        },
-        tx,
-      );
-
-      return updated;
+      return { existing, updated };
     });
+
+    await events.resourceUpdated(context.orgId, {
+      resourceId: updated.id,
+      changes: data,
+      previous: {
+        name: existing.name,
+        quantity: existing.quantity,
+        locationId: existing.locationId,
+      },
+    });
+
+    return updated;
   }
 
   async delete(
     id: string,
     context: ServiceContext,
   ): Promise<{ success: true }> {
-    return withOrg(context.orgId, async (tx) => {
+    const deleted = await withOrg(context.orgId, async (tx) => {
       // Get existing for event payload
       const existing = await resourceRepository.findById(tx, context.orgId, id);
 
@@ -148,19 +144,17 @@ export class ResourceService {
 
       await resourceRepository.delete(tx, context.orgId, id);
 
-      await events.resourceDeleted(
-        context.orgId,
-        {
-          resourceId: id,
-          name: existing.name,
-          quantity: existing.quantity,
-          locationId: existing.locationId,
-        },
-        tx,
-      );
-
-      return { success: true };
+      return {
+        resourceId: id,
+        name: existing.name,
+        quantity: existing.quantity,
+        locationId: existing.locationId,
+      };
     });
+
+    await events.resourceDeleted(context.orgId, deleted);
+
+    return { success: true };
   }
 }
 

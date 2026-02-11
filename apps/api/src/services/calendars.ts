@@ -58,7 +58,7 @@ export class CalendarService {
   ): Promise<Calendar> {
     const { orgId } = context;
 
-    return withOrg(orgId, async (tx) => {
+    const calendar = await withOrg(orgId, async (tx) => {
       // Validate location if provided
       if (input.locationId) {
         const locationExists = await calendarRepository.verifyLocationAccess(
@@ -74,20 +74,17 @@ export class CalendarService {
       }
 
       const calendar = await calendarRepository.create(tx, orgId, input);
-
-      await events.calendarCreated(
-        orgId,
-        {
-          calendarId: calendar.id,
-          name: calendar.name,
-          timezone: calendar.timezone,
-          locationId: calendar.locationId,
-        },
-        tx,
-      );
-
       return calendar;
     });
+
+    await events.calendarCreated(orgId, {
+      calendarId: calendar.id,
+      name: calendar.name,
+      timezone: calendar.timezone,
+      locationId: calendar.locationId,
+    });
+
+    return calendar;
   }
 
   async update(
@@ -97,7 +94,7 @@ export class CalendarService {
   ): Promise<Calendar> {
     const { orgId } = context;
 
-    return withOrg(orgId, async (tx) => {
+    const { existing, updated } = await withOrg(orgId, async (tx) => {
       // Validate location if being updated
       if (data.locationId !== undefined && data.locationId !== null) {
         const locationExists = await calendarRepository.verifyLocationAccess(
@@ -124,29 +121,27 @@ export class CalendarService {
         throw new ApplicationError("Calendar not found", { code: "NOT_FOUND" });
       }
 
-      await events.calendarUpdated(
-        orgId,
-        {
-          calendarId: updated.id,
-          changes: data,
-          previous: {
-            name: existing.name,
-            timezone: existing.timezone,
-            locationId: existing.locationId,
-          },
-        },
-        tx,
-      );
-
-      return updated;
+      return { existing, updated };
     });
+
+    await events.calendarUpdated(orgId, {
+      calendarId: updated.id,
+      changes: data,
+      previous: {
+        name: existing.name,
+        timezone: existing.timezone,
+        locationId: existing.locationId,
+      },
+    });
+
+    return updated;
   }
 
   async delete(
     id: string,
     context: ServiceContext,
   ): Promise<{ success: true }> {
-    return withOrg(context.orgId, async (tx) => {
+    const deleted = await withOrg(context.orgId, async (tx) => {
       const existing = await calendarRepository.findById(tx, context.orgId, id);
 
       if (!existing) {
@@ -155,19 +150,17 @@ export class CalendarService {
 
       await calendarRepository.delete(tx, context.orgId, id);
 
-      await events.calendarDeleted(
-        context.orgId,
-        {
-          calendarId: id,
-          name: existing.name,
-          timezone: existing.timezone,
-          locationId: existing.locationId,
-        },
-        tx,
-      );
-
-      return { success: true };
+      return {
+        calendarId: id,
+        name: existing.name,
+        timezone: existing.timezone,
+        locationId: existing.locationId,
+      };
     });
+
+    await events.calendarDeleted(context.orgId, deleted);
+
+    return { success: true };
   }
 }
 

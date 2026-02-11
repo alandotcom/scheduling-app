@@ -2,13 +2,15 @@ import { EventSchemas, Inngest } from "inngest";
 import type { WebhookEventDataByType, WebhookEventType } from "@scheduling/dto";
 import { config } from "../config.js";
 
-type SchedulingInngestEvents = {
+type SchedulingWebhookEvents = {
   [K in WebhookEventType]: {
     data: {
       orgId: string;
     } & WebhookEventDataByType[K];
   };
-} & {
+};
+
+type SchedulingInternalEvents = {
   "scheduling/dev.ping": {
     data: {
       orgId: string;
@@ -16,9 +18,21 @@ type SchedulingInngestEvents = {
   };
 };
 
-export const inngest = new Inngest({
+type SchedulingInngestEvents = SchedulingWebhookEvents &
+  SchedulingInternalEvents;
+
+const inngestClientOptions = {
   id: "scheduling-api",
-  schemas: new EventSchemas().fromRecord<SchedulingInngestEvents>(),
   ...(config.inngest.eventKey ? { eventKey: config.inngest.eventKey } : {}),
   ...(config.inngest.baseUrl ? { baseUrl: config.inngest.baseUrl } : {}),
+} as const;
+
+export const inngest = new Inngest({
+  ...inngestClientOptions,
+  schemas: new EventSchemas().fromRecord<SchedulingInngestEvents>(),
+});
+
+export const webhookInngest = new Inngest({
+  ...inngestClientOptions,
+  schemas: new EventSchemas().fromRecord<SchedulingWebhookEvents>(),
 });

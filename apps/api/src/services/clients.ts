@@ -206,7 +206,7 @@ export class ClientService {
     input: CreateClientInput,
     context: ServiceContext,
   ): Promise<Client> {
-    return withOrg(context.orgId, async (tx) => {
+    const client = await withOrg(context.orgId, async (tx) => {
       const normalizedInput = normalizeCreateInput(input);
 
       let client: Client;
@@ -222,19 +222,17 @@ export class ClientService {
         throw error;
       }
 
-      await events.clientCreated(
-        context.orgId,
-        {
-          clientId: client.id,
-          firstName: client.firstName,
-          lastName: client.lastName,
-          email: client.email,
-        },
-        tx,
-      );
-
       return client;
     });
+
+    await events.clientCreated(context.orgId, {
+      clientId: client.id,
+      firstName: client.firstName,
+      lastName: client.lastName,
+      email: client.email,
+    });
+
+    return client;
   }
 
   async update(
@@ -242,58 +240,59 @@ export class ClientService {
     data: UpdateClientInput,
     context: ServiceContext,
   ): Promise<Client> {
-    return withOrg(context.orgId, async (tx) => {
-      // Get existing for event payload
-      const existing = await clientRepository.findById(tx, context.orgId, id);
+    const { existing, updated, normalizedChanges } = await withOrg(
+      context.orgId,
+      async (tx) => {
+        // Get existing for event payload
+        const existing = await clientRepository.findById(tx, context.orgId, id);
 
-      if (!existing) {
-        throw new ApplicationError("Client not found", { code: "NOT_FOUND" });
-      }
+        if (!existing) {
+          throw new ApplicationError("Client not found", { code: "NOT_FOUND" });
+        }
 
-      const normalizedChanges = normalizeUpdateInput(data);
+        const normalizedChanges = normalizeUpdateInput(data);
 
-      let updated: Client | null;
-      try {
-        updated = await clientRepository.update(
-          tx,
-          context.orgId,
-          id,
-          normalizedChanges,
-        );
-      } catch (error: unknown) {
-        const mappedError = mapClientWriteError(error);
-        if (mappedError) throw mappedError;
-        throw error;
-      }
+        let updated: Client | null;
+        try {
+          updated = await clientRepository.update(
+            tx,
+            context.orgId,
+            id,
+            normalizedChanges,
+          );
+        } catch (error: unknown) {
+          const mappedError = mapClientWriteError(error);
+          if (mappedError) throw mappedError;
+          throw error;
+        }
 
-      if (!updated) {
-        throw new ApplicationError("Client not found", { code: "NOT_FOUND" });
-      }
+        if (!updated) {
+          throw new ApplicationError("Client not found", { code: "NOT_FOUND" });
+        }
 
-      await events.clientUpdated(
-        context.orgId,
-        {
-          clientId: updated.id,
-          changes: normalizedChanges,
-          previous: {
-            firstName: existing.firstName,
-            lastName: existing.lastName,
-            email: existing.email,
-            phone: existing.phone,
-          },
-        },
-        tx,
-      );
+        return { existing, updated, normalizedChanges };
+      },
+    );
 
-      return updated;
+    await events.clientUpdated(context.orgId, {
+      clientId: updated.id,
+      changes: normalizedChanges,
+      previous: {
+        firstName: existing.firstName,
+        lastName: existing.lastName,
+        email: existing.email,
+        phone: existing.phone,
+      },
     });
+
+    return updated;
   }
 
   async delete(
     id: string,
     context: ServiceContext,
   ): Promise<{ success: true }> {
-    return withOrg(context.orgId, async (tx) => {
+    const deleted = await withOrg(context.orgId, async (tx) => {
       // Get existing for event payload
       const existing = await clientRepository.findById(tx, context.orgId, id);
 
@@ -303,19 +302,17 @@ export class ClientService {
 
       await clientRepository.delete(tx, context.orgId, id);
 
-      await events.clientDeleted(
-        context.orgId,
-        {
-          clientId: id,
-          firstName: existing.firstName,
-          lastName: existing.lastName,
-          email: existing.email,
-        },
-        tx,
-      );
-
-      return { success: true };
+      return {
+        clientId: id,
+        firstName: existing.firstName,
+        lastName: existing.lastName,
+        email: existing.email,
+      };
     });
+
+    await events.clientDeleted(context.orgId, deleted);
+
+    return { success: true };
   }
 
   async historySummary(

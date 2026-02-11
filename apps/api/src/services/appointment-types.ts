@@ -84,28 +84,26 @@ export class AppointmentTypeService {
     input: AppointmentTypeCreateInput,
     context: ServiceContext,
   ): Promise<AppointmentType> {
-    return withOrg(context.orgId, async (tx) => {
+    const appointmentType = await withOrg(context.orgId, async (tx) => {
       const appointmentType = await appointmentTypeRepository.create(
         tx,
         context.orgId,
         input,
       );
 
-      await events.appointmentTypeCreated(
-        context.orgId,
-        {
-          appointmentTypeId: appointmentType.id,
-          name: appointmentType.name,
-          durationMin: appointmentType.durationMin,
-          paddingBeforeMin: appointmentType.paddingBeforeMin,
-          paddingAfterMin: appointmentType.paddingAfterMin,
-          capacity: appointmentType.capacity,
-        },
-        tx,
-      );
-
       return appointmentType;
     });
+
+    await events.appointmentTypeCreated(context.orgId, {
+      appointmentTypeId: appointmentType.id,
+      name: appointmentType.name,
+      durationMin: appointmentType.durationMin,
+      paddingBeforeMin: appointmentType.paddingBeforeMin,
+      paddingAfterMin: appointmentType.paddingAfterMin,
+      capacity: appointmentType.capacity,
+    });
+
+    return appointmentType;
   }
 
   async update(
@@ -113,7 +111,7 @@ export class AppointmentTypeService {
     data: AppointmentTypeUpdateInput,
     context: ServiceContext,
   ): Promise<AppointmentType> {
-    return withOrg(context.orgId, async (tx) => {
+    const { existing, updated } = await withOrg(context.orgId, async (tx) => {
       const existing = await appointmentTypeRepository.findById(
         tx,
         context.orgId,
@@ -139,31 +137,29 @@ export class AppointmentTypeService {
         });
       }
 
-      await events.appointmentTypeUpdated(
-        context.orgId,
-        {
-          appointmentTypeId: updated.id,
-          changes: data,
-          previous: {
-            name: existing.name,
-            durationMin: existing.durationMin,
-            paddingBeforeMin: existing.paddingBeforeMin,
-            paddingAfterMin: existing.paddingAfterMin,
-            capacity: existing.capacity,
-          },
-        },
-        tx,
-      );
-
-      return updated;
+      return { existing, updated };
     });
+
+    await events.appointmentTypeUpdated(context.orgId, {
+      appointmentTypeId: updated.id,
+      changes: data,
+      previous: {
+        name: existing.name,
+        durationMin: existing.durationMin,
+        paddingBeforeMin: existing.paddingBeforeMin,
+        paddingAfterMin: existing.paddingAfterMin,
+        capacity: existing.capacity,
+      },
+    });
+
+    return updated;
   }
 
   async delete(
     id: string,
     context: ServiceContext,
   ): Promise<{ success: true }> {
-    return withOrg(context.orgId, async (tx) => {
+    const deleted = await withOrg(context.orgId, async (tx) => {
       const existing = await appointmentTypeRepository.findById(
         tx,
         context.orgId,
@@ -178,18 +174,16 @@ export class AppointmentTypeService {
 
       await appointmentTypeRepository.delete(tx, context.orgId, id);
 
-      await events.appointmentTypeDeleted(
-        context.orgId,
-        {
-          appointmentTypeId: id,
-          name: existing.name,
-          durationMin: existing.durationMin,
-        },
-        tx,
-      );
-
-      return { success: true };
+      return {
+        appointmentTypeId: id,
+        name: existing.name,
+        durationMin: existing.durationMin,
+      };
     });
+
+    await events.appointmentTypeDeleted(context.orgId, deleted);
+
+    return { success: true };
   }
 
   async listCalendars(

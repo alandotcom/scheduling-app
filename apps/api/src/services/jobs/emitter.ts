@@ -2,9 +2,13 @@
 // Sends typed events directly to Inngest.
 
 import { getLogger } from "@logtape/logtape";
-import type { WebhookEventData } from "@scheduling/dto";
-import type { DbClient } from "../../lib/db.js";
-import { inngest } from "../../inngest/client.js";
+import {
+  webhookEventDataSchemaByType,
+  webhookEventTypeSchema,
+  type WebhookEventData,
+} from "@scheduling/dto";
+import { z } from "zod";
+import { webhookInngest } from "../../inngest/client.js";
 import type { EventType } from "./types.js";
 
 const logger = getLogger(["events", "emitter"]);
@@ -13,19 +17,37 @@ function generateEventId(): string {
   return Bun.randomUUIDv7();
 }
 
-// Emit an event to Inngest. The tx argument is retained temporarily so
-// existing call sites can migrate without a broad signature change.
+const webhookSendPayloadBaseSchema = z.object({
+  id: z.string(),
+  name: webhookEventTypeSchema,
+  data: z.looseObject({ orgId: z.string() }),
+  ts: z.number(),
+});
+
+function isWebhookSendPayload(
+  value: unknown,
+): value is Parameters<typeof webhookInngest.send>[0] {
+  const parsed = webhookSendPayloadBaseSchema.safeParse(value);
+  if (!parsed.success) {
+    return false;
+  }
+
+  const { name, data } = parsed.data;
+  const { orgId: _orgId, ...payload } = data;
+
+  return webhookEventDataSchemaByType[name].safeParse(payload).success;
+}
+
 export async function emitEvent<TEventType extends EventType>(
   orgId: string,
   type: TEventType,
   payload: WebhookEventData<TEventType>,
-  _tx?: DbClient,
 ): Promise<string> {
   const eventId = generateEventId();
   const timestampMs = Date.now();
 
   try {
-    await inngest.send({
+    const sendPayload = {
       id: eventId,
       name: type,
       data: {
@@ -33,7 +55,13 @@ export async function emitEvent<TEventType extends EventType>(
         ...payload,
       },
       ts: timestampMs,
-    });
+    };
+
+    if (!isWebhookSendPayload(sendPayload)) {
+      throw new Error("Invalid webhook payload shape");
+    }
+
+    await webhookInngest.send(sendPayload);
   } catch (error) {
     // Temporary migration behavior: preserve successful write paths even if the
     // local Inngest runtime is unavailable.
@@ -51,15 +79,31 @@ export async function emitEvent<TEventType extends EventType>(
 function createTypedEmitter<TEventType extends EventType>(
   eventType: TEventType,
 ) {
-  return (
-    orgId: string,
-    payload: WebhookEventData<TEventType>,
-    tx?: DbClient,
-  ) => emitEvent(orgId, eventType, payload, tx);
+  return (orgId: string, payload: WebhookEventData<TEventType>) =>
+    emitEvent(orgId, eventType, payload);
 }
 
+type SnakeToCamel<TValue extends string> =
+  TValue extends `${infer Head}_${infer Tail}`
+    ? `${Head}${Capitalize<SnakeToCamel<Tail>>}`
+    : TValue;
+
+type EventTypeToEmitterKey<TEventType extends EventType> =
+  TEventType extends `${infer Entity}.${infer Action}`
+    ? `${SnakeToCamel<Entity>}${Capitalize<SnakeToCamel<Action>>}`
+    : never;
+
+type TypedEmitter<TEventType extends EventType> = (
+  orgId: string,
+  payload: WebhookEventData<TEventType>,
+) => Promise<string>;
+
+type EventEmitters = {
+  [TEventType in EventType as EventTypeToEmitterKey<TEventType>]: TypedEmitter<TEventType>;
+};
+
 // Convenience methods for specific event types
-export const events = {
+export const events: EventEmitters = {
   // Appointment events
   appointmentCreated: createTypedEmitter("appointment.created"),
 
