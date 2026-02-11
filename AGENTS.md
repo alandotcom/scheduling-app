@@ -167,6 +167,7 @@ Dependency classification rule:
 
 - Prefer `es-toolkit` helpers for non-trivial collection transforms instead of custom async loops/reducers/object-mapping logic.
 - For async arrays, default to `forEachAsync` / `mapAsync` / `reduceAsync` from `es-toolkit/array`, and set `concurrency` intentionally (`1` when order/transactional sequencing matters).
+- Avoid `await` inside `for`/`while` loops (`eslint/no-await-in-loop`). If sequential execution is required, precompute an ordered list and run it via `forEachAsync(..., { concurrency: 1 })` or `reduceAsync`.
 - For object value transforms, prefer `mapValues` from `es-toolkit/object`; use `es-toolkit/compat` only when lodash-compatible behavior is specifically needed.
 
 ## Database Schema Patterns

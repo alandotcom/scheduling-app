@@ -1,4 +1,5 @@
 import { inngest } from "../client.js";
+import { forEachAsync } from "es-toolkit/array";
 import {
   buildWorkflowDeliveryKey,
   cancelReplacedWorkflowRuns,
@@ -152,6 +153,31 @@ function resolveActionTarget(
   return typeof target === "string" && target.length > 0
     ? target
     : fallbackTarget;
+}
+
+function buildExecutionOrder(plan: ParsedCompiledPlan): string[] {
+  const queue = [...plan.entryNodeIds];
+  const visited = new Set<string>();
+  const orderedNodeIds: string[] = [];
+
+  while (queue.length > 0) {
+    const currentNodeId = queue.shift();
+    if (!currentNodeId || visited.has(currentNodeId)) {
+      continue;
+    }
+
+    visited.add(currentNodeId);
+    orderedNodeIds.push(currentNodeId);
+
+    const nextNodeIds = plan.nextNodeIdsBySource.get(currentNodeId) ?? [];
+    for (const nextNodeId of nextNodeIds) {
+      if (!visited.has(nextNodeId)) {
+        queue.push(nextNodeId);
+      }
+    }
+  }
+
+  return orderedNodeIds;
 }
 
 function shouldWaitForReplacementSignal(event: {
@@ -313,45 +339,53 @@ export function createWorkflowExecutionFunction(
             terminalReason = fallbackResult;
           }
         } else {
-          const queue = [...parsedCompiledPlan.entryNodeIds];
-          const visited = new Set<string>();
+          let shouldStop = false;
+          const orderedNodeIds = buildExecutionOrder(parsedCompiledPlan);
 
-          while (
-            queue.length > 0 &&
-            status === "completed" &&
-            terminalReason === null
-          ) {
-            const currentNodeId = queue.shift();
-            if (!currentNodeId || visited.has(currentNodeId)) {
-              continue;
-            }
-
-            visited.add(currentNodeId);
-            const node = parsedCompiledPlan.nodeById.get(currentNodeId);
-            if (!node) {
-              continue;
-            }
-
-            const nodeKind = node["kind"];
-            if (nodeKind === "wait") {
-              const waitDuration = resolveWaitDuration(node);
-              if (waitDuration) {
-                await step.sleep(
-                  `wait-for-duration-${normalizeStepIdSegment(currentNodeId)}`,
-                  waitDuration,
-                );
-              }
-            } else if (nodeKind === "terminal") {
-              const terminalType = node["terminalType"];
-              if (terminalType === "cancel") {
-                status = "cancelled";
-                break;
+          await forEachAsync(
+            orderedNodeIds,
+            async (currentNodeId) => {
+              if (
+                shouldStop ||
+                status !== "completed" ||
+                terminalReason !== null
+              ) {
+                return;
               }
 
-              if (terminalType === "complete") {
-                break;
+              const node = parsedCompiledPlan.nodeById.get(currentNodeId);
+              if (!node) {
+                return;
               }
-            } else {
+
+              const nodeKind = node["kind"];
+              if (nodeKind === "wait") {
+                const waitDuration = resolveWaitDuration(node);
+                if (waitDuration) {
+                  await step.sleep(
+                    `wait-for-duration-${normalizeStepIdSegment(currentNodeId)}`,
+                    waitDuration,
+                  );
+                }
+
+                return;
+              }
+
+              if (nodeKind === "terminal") {
+                const terminalType = node["terminalType"];
+                if (terminalType === "cancel") {
+                  status = "cancelled";
+                  shouldStop = true;
+                  return;
+                }
+
+                if (terminalType === "complete") {
+                  shouldStop = true;
+                }
+
+                return;
+              }
+
               const actionResult = await recordActionDelivery({
                 nodeId: currentNodeId,
                 channel: resolveActionChannel(node),
@@ -363,7 +397,8 @@ export function createWorkflowExecutionFunction(
 
               if (actionResult === "guard_blocked") {
                 status = "cancelled";
-                break;
+                shouldStop = true;
+                return;
               }
 
               if (
@@ -371,18 +406,11 @@ export function createWorkflowExecutionFunction(
                 actionResult === "unsupported_entity_type"
               ) {
                 terminalReason = actionResult;
-                break;
+                shouldStop = true;
               }
-            }
-
-            const nextNodeIds =
-              parsedCompiledPlan.nextNodeIdsBySource.get(currentNodeId) ?? [];
-            for (const nextNodeId of nextNodeIds) {
-              if (!visited.has(nextNodeId)) {
-                queue.push(nextNodeId);
-              }
-            }
-          }
+            },
+            { concurrency: 1 },
+          );
         }
       }
 
