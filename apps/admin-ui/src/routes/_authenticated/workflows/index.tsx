@@ -3,6 +3,10 @@ import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Add01Icon } from "@hugeicons/core-free-icons";
 import { toast } from "sonner";
+import {
+  getCatalogTriggerEventTypes,
+  resolveDefaultCatalogTriggerEventType,
+} from "@scheduling/workflow-ui";
 
 import type {
   WebhookEventType,
@@ -42,15 +46,16 @@ import { formatDisplayDateTime } from "@/lib/date-utils";
 import { getQueryClient, orpc } from "@/lib/query";
 import { swallowIgnorableRouteLoaderError } from "@/lib/query-cancellation";
 
-const DEFAULT_WORKFLOW_DRAFT = {
-  trigger: {
-    event: webhookEventTypes[0],
-  },
-  workflow: {
-    actions: [],
+function createDefaultWorkflowDraft(triggerEventType: WebhookEventType) {
+  return {
+    trigger: {
+      event: triggerEventType,
+      eventType: triggerEventType,
+    },
+    nodes: [],
     edges: [],
-  },
-} as const;
+  };
+}
 
 type StatusFilter = WorkflowDefinitionStatus | "all";
 
@@ -117,6 +122,40 @@ function WorkflowsIndexPage() {
     }),
     placeholderData: (previous) => previous,
   });
+  const catalogQuery = useQuery({
+    ...orpc.workflows.catalog.queryOptions(),
+    placeholderData: (previous) => previous,
+  });
+
+  const availableTriggerEventTypes = useMemo(
+    () =>
+      getCatalogTriggerEventTypes(
+        catalogQuery.data?.triggers ?? [],
+        webhookEventTypes,
+      ).filter(isWebhookEventType),
+    [catalogQuery.data?.triggers],
+  );
+
+  useEffect(() => {
+    if (availableTriggerEventTypes.length === 0) {
+      return;
+    }
+
+    if (availableTriggerEventTypes.includes(newTriggerEventType)) {
+      return;
+    }
+
+    setNewTriggerEventType(
+      resolveDefaultCatalogTriggerEventType(
+        catalogQuery.data?.triggers ?? [],
+        availableTriggerEventTypes[0] ?? webhookEventTypes[0],
+      ),
+    );
+  }, [
+    availableTriggerEventTypes,
+    catalogQuery.data?.triggers,
+    newTriggerEventType,
+  ]);
 
   const createDefinitionMutation = useMutation(
     orpc.workflows.createDefinition.mutationOptions({
@@ -196,8 +235,7 @@ function WorkflowsIndexPage() {
       name,
       description: description || undefined,
       workflowKit: {
-        ...DEFAULT_WORKFLOW_DRAFT,
-        trigger: { event: newTriggerEventType },
+        ...createDefaultWorkflowDraft(newTriggerEventType),
       },
     });
   }, [
@@ -481,7 +519,7 @@ function WorkflowsIndexPage() {
                 {newTriggerEventType}
               </SelectTrigger>
               <SelectContent>
-                {webhookEventTypes.map((eventType) => (
+                {availableTriggerEventTypes.map((eventType) => (
                   <SelectItem key={eventType} value={eventType}>
                     {eventType}
                   </SelectItem>
@@ -536,6 +574,7 @@ export const Route = createFileRoute("/_authenticated/workflows/")({
     const queryClient = getQueryClient();
     await swallowIgnorableRouteLoaderError(
       Promise.all([
+        queryClient.ensureQueryData(orpc.workflows.catalog.queryOptions()),
         queryClient.ensureQueryData(
           orpc.workflows.listDefinitions.queryOptions({ input: {} }),
         ),

@@ -25,6 +25,7 @@
     "@radix-ui/react-slot": "^1.2.4",
     "@scheduling/api": "workspace:*",
     "@scheduling/dto": "workspace:*",
+    "@scheduling/workflow-ui": "workspace:*",
     "@tanstack/react-query": "^5.90.20",
     "@tanstack/react-router": "^1.158.4",
     "@tanstack/react-table": "^8.21.3",

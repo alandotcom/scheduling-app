@@ -92,6 +92,9 @@ importers:
       '@scheduling/dto':
         specifier: workspace:*
         version: link:../../packages/dto
+      '@scheduling/workflow-ui':
+        specifier: workspace:*
+        version: link:../../packages/workflow-ui
       '@tanstack/react-query':
         specifier: ^5.90.20
         version: 5.90.20(react@19.2.4)
@@ -340,6 +343,19 @@ importers:
       zod:
         specifier: 'catalog:'
         version: 4.3.6
+    devDependencies:
+      '@types/bun':
+        specifier: 'catalog:'
+        version: 1.3.8
+      typescript:
+        specifier: 'catalog:'
+        version: 5.9.3
+
+  packages/workflow-ui:
+    dependencies:
+      '@scheduling/dto':
+        specifier: workspace:*
+        version: link:../dto
     devDependencies:
       '@types/bun':
         specifier: 'catalog:'

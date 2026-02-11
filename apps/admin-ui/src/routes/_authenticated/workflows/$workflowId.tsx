@@ -2,12 +2,18 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft01Icon, RefreshIcon } from "@hugeicons/core-free-icons";
-import type {
-  PublicEngineAction,
-  Workflow as WorkflowKitWorkflow,
-} from "@inngest/workflow-kit";
+import type { Workflow as WorkflowKitWorkflow } from "@inngest/workflow-kit";
 import { Editor, Provider, Sidebar } from "@inngest/workflow-kit/ui";
 import { toast } from "sonner";
+import {
+  getCatalogTriggerEventTypes,
+  getTriggerEventTypeFromDraft,
+  isRecord,
+  resolveDefaultCatalogTriggerEventType,
+  stableStringify,
+  toLegacyWorkflowKitActions,
+  withDraftTriggerEventType,
+} from "@scheduling/workflow-ui";
 
 import type {
   WebhookEventType,
@@ -70,54 +76,14 @@ function runStatusBadgeVariant(status: WorkflowRunStatus) {
   return "outline";
 }
 
-const WORKFLOW_EDITOR_ACTIONS: PublicEngineAction[] = [
-  {
-    kind: "wait_for_event",
-    name: "Wait for Event",
-    description: "Pause until a matching event arrives.",
-  },
-  {
-    kind: "delay",
-    name: "Delay",
-    description: "Pause for a configured duration before continuing.",
-  },
-  {
-    kind: "send_notification",
-    name: "Send Notification",
-    description: "Trigger an outbound notification or integration action.",
-  },
-];
-
 const EMPTY_WORKFLOW: WorkflowKitWorkflow = {
   actions: [],
   edges: [],
 };
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
-
 function isWorkflowKitWorkflow(value: unknown): value is WorkflowKitWorkflow {
   if (!isRecord(value)) return false;
   return Array.isArray(value["actions"]) && Array.isArray(value["edges"]);
-}
-
-function stableStringify(value: unknown): string {
-  if (Array.isArray(value)) {
-    return `[${value.map((entry) => stableStringify(entry)).join(",")}]`;
-  }
-  if (isRecord(value)) {
-    const entries = Object.entries(value).toSorted(([left], [right]) =>
-      left.localeCompare(right),
-    );
-    return `{${entries
-      .map(
-        ([key, entryValue]) =>
-          `${JSON.stringify(key)}:${stableStringify(entryValue)}`,
-      )
-      .join(",")}}`;
-  }
-  return JSON.stringify(value);
 }
 
 function getWorkflowFromDraft(workflowKit: Record<string, unknown>) {
@@ -130,33 +96,6 @@ function getWorkflowFromDraft(workflowKit: Record<string, unknown>) {
     ...candidate,
     actions: [...candidate.actions],
     edges: [...candidate.edges],
-  };
-}
-
-function getTriggerEventTypeFromDraft(
-  workflowKit: Record<string, unknown>,
-  fallback: WebhookEventType,
-): WebhookEventType {
-  const candidate = workflowKit["trigger"];
-  if (!isRecord(candidate)) return fallback;
-  const eventType = candidate["event"];
-  return typeof eventType === "string" && isWebhookEventType(eventType)
-    ? eventType
-    : fallback;
-}
-
-function withDraftTriggerEventType(
-  workflowKit: Record<string, unknown>,
-  eventType: WebhookEventType,
-): Record<string, unknown> {
-  const currentTrigger = workflowKit["trigger"];
-  const nextTrigger = isRecord(currentTrigger)
-    ? { ...currentTrigger, event: eventType }
-    : { event: eventType };
-
-  return {
-    ...workflowKit,
-    trigger: nextTrigger,
   };
 }
 
@@ -215,9 +154,25 @@ function WorkflowDetailPage() {
     }),
     enabled: !!selectedRunId,
   });
+  const catalogQuery = useQuery({
+    ...orpc.workflows.catalog.queryOptions(),
+    placeholderData: (previous) => previous,
+  });
 
   const definition = definitionQuery.data;
   const runs = runsQuery.data?.items ?? [];
+  const availableTriggerEventTypes = useMemo(
+    () =>
+      getCatalogTriggerEventTypes(
+        catalogQuery.data?.triggers ?? [],
+        webhookEventTypes,
+      ).filter(isWebhookEventType),
+    [catalogQuery.data?.triggers],
+  );
+  const availableEditorActions = useMemo(
+    () => [...toLegacyWorkflowKitActions(catalogQuery.data?.actions ?? [])],
+    [catalogQuery.data?.actions],
+  );
 
   useEffect(() => {
     if (!definition) return;
@@ -247,9 +202,19 @@ function WorkflowDetailPage() {
     () =>
       getTriggerEventTypeFromDraft(
         parsedDraft.success ? parsedDraft.data : draftWorkflowKit,
-        definition?.bindings[0]?.eventType ?? webhookEventTypes[0],
+        definition?.bindings[0]?.eventType ??
+          resolveDefaultCatalogTriggerEventType(
+            catalogQuery.data?.triggers ?? [],
+            availableTriggerEventTypes[0] ?? webhookEventTypes[0],
+          ),
       ),
-    [definition, draftWorkflowKit, parsedDraft],
+    [
+      availableTriggerEventTypes,
+      catalogQuery.data?.triggers,
+      definition,
+      draftWorkflowKit,
+      parsedDraft,
+    ],
   );
   const workflowGraph = useMemo(
     () =>
@@ -469,7 +434,7 @@ function WorkflowDetailPage() {
             >
               <SelectTrigger>{triggerEventType}</SelectTrigger>
               <SelectContent>
-                {webhookEventTypes.map((eventType) => (
+                {availableTriggerEventTypes.map((eventType) => (
                   <SelectItem key={eventType} value={eventType}>
                     {eventType}
                   </SelectItem>
@@ -486,7 +451,7 @@ function WorkflowDetailPage() {
                   name: triggerEventType,
                 },
               }}
-              availableActions={WORKFLOW_EDITOR_ACTIONS}
+              availableActions={availableEditorActions}
               onChange={(updatedWorkflow) => {
                 setDraftWorkflowKit((current) =>
                   withDraftWorkflow(
@@ -597,7 +562,7 @@ function WorkflowDetailPage() {
             >
               <SelectTrigger>{bindingEventType}</SelectTrigger>
               <SelectContent>
-                {webhookEventTypes.map((eventType) => (
+                {availableTriggerEventTypes.map((eventType) => (
                   <SelectItem key={eventType} value={eventType}>
                     {eventType}
                   </SelectItem>
@@ -873,6 +838,7 @@ export const Route = createFileRoute("/_authenticated/workflows/$workflowId")({
     const queryClient = getQueryClient();
     await swallowIgnorableRouteLoaderError(
       Promise.all([
+        queryClient.ensureQueryData(orpc.workflows.catalog.queryOptions()),
         queryClient.ensureQueryData(
           orpc.workflows.getDefinition.queryOptions({
             input: { id: params.workflowId },

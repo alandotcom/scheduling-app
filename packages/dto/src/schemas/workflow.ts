@@ -50,6 +50,12 @@ export const workflowTriggerReplacementPolicySchema = z.object({
   cancelOnTerminalState: z.boolean().default(true),
 });
 
+export const workflowReplacementModeSchema = z.enum([
+  "replace_active",
+  "cancel_without_replacement",
+  "allow_parallel",
+]);
+
 export const workflowTriggerConfigSchema = z.union([
   z
     .object({
@@ -226,6 +232,23 @@ export const workflowBindingListResponseSchema = z.object({
   items: z.array(workflowBindingSchema),
 });
 
+export const workflowTriggerCatalogItemSchema = z.object({
+  eventType: webhookEventTypeSchema,
+  entityType: z.string().min(1),
+  defaultReplacementMode: workflowReplacementModeSchema,
+});
+
+export const workflowActionCatalogItemSchema = z.object({
+  id: z.string().min(1),
+  integrationKey: z.string().min(1),
+  label: z.string().min(1),
+});
+
+export const workflowCatalogResponseSchema = z.object({
+  triggers: z.array(workflowTriggerCatalogItemSchema),
+  actions: z.array(workflowActionCatalogItemSchema),
+});
+
 export const workflowRunStatusSchema = z.enum([
   "pending",
   "running",
@@ -321,6 +344,9 @@ export type WorkflowTriggerDebouncePolicy = z.infer<
 export type WorkflowTriggerReplacementPolicy = z.infer<
   typeof workflowTriggerReplacementPolicySchema
 >;
+export type WorkflowReplacementMode = z.infer<
+  typeof workflowReplacementModeSchema
+>;
 export type WorkflowTriggerConfig = z.infer<typeof workflowTriggerConfigSchema>;
 export type WorkflowGuardCondition = z.infer<
   typeof workflowGuardConditionSchema
@@ -360,6 +386,15 @@ export type WorkflowDefinitionListResponse = z.infer<
 >;
 export type WorkflowBindingListResponse = z.infer<
   typeof workflowBindingListResponseSchema
+>;
+export type WorkflowTriggerCatalogItem = z.infer<
+  typeof workflowTriggerCatalogItemSchema
+>;
+export type WorkflowActionCatalogItem = z.infer<
+  typeof workflowActionCatalogItemSchema
+>;
+export type WorkflowCatalogResponse = z.infer<
+  typeof workflowCatalogResponseSchema
 >;
 export type WorkflowRunStatus = z.infer<typeof workflowRunStatusSchema>;
 export type WorkflowRunSummary = z.infer<typeof workflowRunSummarySchema>;

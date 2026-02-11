@@ -164,6 +164,37 @@ describe("Workflow Routes", () => {
     ).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 
+  test("catalog is readable by members and returns trigger/action definitions", async () => {
+    const { org, user } = await createOrg(db);
+    const context = createTestContext({
+      orgId: org.id,
+      userId: user.id,
+      role: "member",
+    });
+
+    const catalog = await call(workflowRoutes.catalog, undefined, { context });
+
+    expect(catalog.triggers.length).toBeGreaterThan(0);
+    expect(catalog.actions.length).toBeGreaterThan(0);
+    expect(catalog.triggers).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          eventType: "appointment.cancelled",
+          entityType: "appointment",
+          defaultReplacementMode: "cancel_without_replacement",
+        }),
+      ]),
+    );
+    expect(catalog.actions).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: "resend.sendEmail",
+          integrationKey: "resend",
+        }),
+      ]),
+    );
+  });
+
   test("createDefinition + listDefinitions + getDefinition roundtrip", async () => {
     const { org, user } = await createOrg(db);
     const context = createTestContext({

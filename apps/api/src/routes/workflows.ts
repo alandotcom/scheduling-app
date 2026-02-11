@@ -6,6 +6,7 @@ import {
   idInputSchema,
   listWorkflowBindingsInputSchema,
   workflowBindingListResponseSchema,
+  workflowCatalogResponseSchema,
   listWorkflowRunsQuerySchema,
   listWorkflowDefinitionsQuerySchema,
   publishWorkflowDraftInputSchema,
@@ -43,6 +44,10 @@ import {
 import type { DbClient } from "../lib/db.js";
 import { withOrg } from "../lib/db.js";
 import { compileWorkflowDocument } from "../services/workflows/compiler.js";
+import {
+  listWorkflowActionDefinitions,
+  listWorkflowTriggerDefinitions,
+} from "../services/workflows/registry.js";
 
 const DEFAULT_WORKFLOW_KIT_SCHEMA_VERSION = 1;
 const UNIQUE_CONSTRAINT_VIOLATION = "23505";
@@ -260,6 +265,20 @@ export const listDefinitions = authed
     });
 
     return { items };
+  });
+
+export const getCatalog = authed
+  .route({ method: "GET", path: "/workflows/catalog" })
+  .output(workflowCatalogResponseSchema)
+  .handler(async () => {
+    return workflowCatalogResponseSchema.parse({
+      triggers: listWorkflowTriggerDefinitions(),
+      actions: listWorkflowActionDefinitions().map((action) => ({
+        id: action.id,
+        integrationKey: action.integrationKey,
+        label: action.label,
+      })),
+    });
   });
 
 export const getDefinition = authed
@@ -699,6 +718,7 @@ export const cancelRun = adminOnly
   });
 
 export const workflowRoutes = {
+  catalog: getCatalog,
   listDefinitions,
   getDefinition,
   createDefinition,
