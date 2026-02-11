@@ -55,7 +55,6 @@ export async function resetTestDb(): Promise<void> {
       workflow_definition_versions,
       workflow_definitions,
       audit_events,
-      event_outbox,
       integrations,
       scheduling_limits,
       blocked_time,

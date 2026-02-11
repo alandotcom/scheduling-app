@@ -460,32 +460,6 @@ export const schedulingLimits = pgTable(
 );
 
 // ============================================================================
-// EVENT OUTBOX
-// ============================================================================
-
-export const eventOutbox = pgTable.withRLS(
-  "event_outbox",
-  {
-    id,
-    orgId: uuid("org_id")
-      .notNull()
-      .references(() => orgs.id),
-    type: text("type").notNull(),
-    payload: jsonb("payload").notNull(),
-    status: text("status").notNull(), // 'pending' | 'delivered' | 'failed'
-    nextAttemptAt: timestamp("next_attempt_at", { withTimezone: true }),
-    ...timestamps,
-  },
-  () => [
-    pgPolicy("org_isolation_event_outbox", {
-      for: "all",
-      using: sql`org_id = current_org_id()`,
-      withCheck: sql`org_id = current_org_id()`,
-    }),
-  ],
-);
-
-// ============================================================================
 // INTEGRATIONS
 // ============================================================================
 

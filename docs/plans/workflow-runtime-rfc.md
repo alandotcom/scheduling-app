@@ -230,9 +230,9 @@ Exit criteria:
 
 ### Phase 6: Schema Cleanup (No Backward Compatibility)
 
-- [ ] Update initial DB migration and schema to remove `event_outbox`.
+- [x] Update initial DB migration and schema to remove `event_outbox`.
 - [ ] Update schema/types for Workflow Kit JSON persistence.
-- [ ] Remove obsolete enums/indexes tied to outbox processing.
+- [x] Remove obsolete enums/indexes tied to outbox processing.
 - [ ] Update seed scripts and RLS tests for new schema shape.
 
 Exit criteria:

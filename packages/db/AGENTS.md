@@ -74,7 +74,7 @@ const timestamps = {
 `orgs`, `users`, `org_memberships`, `org_invitations`, `sessions`, `accounts`, `verifications`
 
 **RLS-protected (org-scoped):**
-`locations`, `calendars`, `appointment_types`, `resources`, `clients`, `appointments`, `event_outbox`, `audit_events`
+`locations`, `calendars`, `appointment_types`, `resources`, `clients`, `appointments`, `audit_events`
 
 **Join tables:**
 `appointment_type_calendars`, `appointment_type_resources`
@@ -173,7 +173,7 @@ Auto-runs via `bunfig.toml` preload before all tests:
 
 1. Creates `scheduling_test` database if missing
 2. Creates `scheduling_app` user **without BYPASSRLS** (enforces RLS in tests)
-3. Runs migrations against the test DB
+3. Pushes current schema against the test DB
 4. Grants permissions to `scheduling_app`
 5. Overrides `DATABASE_URL` to `postgres://scheduling_app:scheduling@localhost:5433/scheduling_test`
 

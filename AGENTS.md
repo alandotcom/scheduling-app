@@ -259,7 +259,7 @@ await resetTestDb();
 await closeTestDb();
 ```
 
-**RLS-Protected Tables:** `locations`, `calendars`, `appointment_types`, `resources`, `clients`, `appointments`, `event_outbox`, `api_tokens`
+**RLS-Protected Tables:** `locations`, `calendars`, `appointment_types`, `resources`, `clients`, `appointments`, `api_tokens`
 
 Factory functions in `apps/api/src/test-utils/factories.ts` automatically set org context.
 
