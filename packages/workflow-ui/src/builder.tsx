@@ -20,6 +20,7 @@ import {
 } from "@xyflow/react";
 import type {
   WorkflowActionCatalogItem,
+  WorkflowGuardCondition,
   WorkflowGraphDocument,
   WorkflowGraphEdge,
   WorkflowGraphNode,
@@ -69,6 +70,118 @@ function isBuilderNodeData(value: unknown): value is BuilderNodeData {
 
 function createNodeId(prefix: string) {
   return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`;
+}
+
+const GUARD_OPERATORS: readonly WorkflowGuardCondition["operator"][] = [
+  "eq",
+  "neq",
+  "lt",
+  "lte",
+  "gt",
+  "gte",
+  "in",
+  "not_in",
+  "exists",
+  "not_exists",
+];
+
+function isGuardOperator(
+  value: string,
+): value is WorkflowGuardCondition["operator"] {
+  return GUARD_OPERATORS.some((operator) => operator === value);
+}
+
+function createDefaultGuardCondition(): WorkflowGuardCondition {
+  return {
+    field: "id",
+    operator: "eq",
+    value: "",
+  };
+}
+
+function operatorNeedsValue(
+  operator: WorkflowGuardCondition["operator"],
+): boolean {
+  return operator !== "exists" && operator !== "not_exists";
+}
+
+function parseGuardScalar(input: string): unknown {
+  const trimmed = input.trim();
+  if (trimmed.length === 0) {
+    return "";
+  }
+
+  try {
+    return JSON.parse(trimmed) as unknown;
+  } catch {
+    return input;
+  }
+}
+
+function parseGuardValueInput(
+  input: string,
+  operator: WorkflowGuardCondition["operator"],
+): unknown {
+  if (!operatorNeedsValue(operator)) {
+    return undefined;
+  }
+
+  if (operator === "in" || operator === "not_in") {
+    return input
+      .split(",")
+      .map((entry) => entry.trim())
+      .filter((entry) => entry.length > 0)
+      .map((entry) => parseGuardScalar(entry));
+  }
+
+  return parseGuardScalar(input);
+}
+
+function formatGuardScalar(value: unknown): string {
+  if (value === undefined || value === null) {
+    return "";
+  }
+
+  if (typeof value === "string") {
+    return value;
+  }
+
+  try {
+    return JSON.stringify(value);
+  } catch {
+    if (
+      typeof value === "number" ||
+      typeof value === "boolean" ||
+      typeof value === "bigint"
+    ) {
+      return String(value);
+    }
+
+    if (typeof value === "symbol") {
+      return value.description ?? "";
+    }
+
+    return "";
+  }
+}
+
+function formatGuardValueInput(
+  value: unknown,
+  operator: WorkflowGuardCondition["operator"],
+): string {
+  if (!operatorNeedsValue(operator)) {
+    return "";
+  }
+
+  if (operator === "in" || operator === "not_in") {
+    if (!Array.isArray(value)) {
+      return "";
+    }
+
+    return value.map((entry) => formatGuardScalar(entry)).join(", ");
+  }
+
+  return formatGuardScalar(value);
 }
 
 function getActionLabel(
@@ -390,6 +503,7 @@ export function WorkflowBuilder({
       emitChange(nextNodes, edges);
       return nextNodes;
     });
+    setSelectedNodeId(nextGraphNode.id);
   }, [actionCatalog, edges, emitChange, nodes.length]);
 
   const addWaitNode = useCallback(() => {
@@ -408,6 +522,7 @@ export function WorkflowBuilder({
       emitChange(nextNodes, edges);
       return nextNodes;
     });
+    setSelectedNodeId(nextGraphNode.id);
   }, [actionCatalog, edges, emitChange, nodes.length]);
 
   const addTerminalNode = useCallback(() => {
@@ -422,6 +537,7 @@ export function WorkflowBuilder({
       emitChange(nextNodes, edges);
       return nextNodes;
     });
+    setSelectedNodeId(nextGraphNode.id);
   }, [actionCatalog, edges, emitChange, nodes.length]);
 
   const updateSelectedNode = useCallback(
@@ -525,6 +641,7 @@ export function WorkflowBuilder({
                 <select
                   className="w-full rounded-md border border-border bg-background px-2 py-1 text-sm"
                   value={selectedGraphNode.actionId}
+                  disabled={readOnly}
                   onChange={(event) => {
                     const action = actionCatalog.find(
                       (item) => item.id === event.target.value,
@@ -556,6 +673,7 @@ export function WorkflowBuilder({
                 <textarea
                   className="min-h-[120px] w-full rounded-md border border-border bg-background px-2 py-1 font-mono text-xs"
                   value={inputJsonDraft}
+                  disabled={readOnly}
                   onChange={(event) => {
                     setInputJsonDraft(event.target.value);
                     setInputJsonError(null);
@@ -583,6 +701,327 @@ export function WorkflowBuilder({
                 {inputJsonError ? (
                   <p className="text-xs text-destructive">{inputJsonError}</p>
                 ) : null}
+
+                <div className="space-y-2 rounded-md border border-border p-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-xs text-muted-foreground">Guard</p>
+                    {selectedGraphNode.guard ? (
+                      <button
+                        type="button"
+                        className="rounded-md border border-border bg-background px-2 py-1 text-xs"
+                        disabled={readOnly}
+                        onClick={() =>
+                          updateSelectedNode((node) => {
+                            if (node.kind !== "action") {
+                              return node;
+                            }
+
+                            return {
+                              ...node,
+                              guard: undefined,
+                            };
+                          })
+                        }
+                      >
+                        Disable Guard
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        className="rounded-md border border-border bg-background px-2 py-1 text-xs"
+                        disabled={readOnly}
+                        onClick={() =>
+                          updateSelectedNode((node) => {
+                            if (node.kind !== "action") {
+                              return node;
+                            }
+
+                            return {
+                              ...node,
+                              guard: {
+                                combinator: "all",
+                                conditions: [createDefaultGuardCondition()],
+                              },
+                            };
+                          })
+                        }
+                      >
+                        Enable Guard
+                      </button>
+                    )}
+                  </div>
+
+                  {selectedGraphNode.guard ? (
+                    <div className="space-y-2">
+                      <label className="block text-xs text-muted-foreground">
+                        Match
+                      </label>
+                      <select
+                        className="w-full rounded-md border border-border bg-background px-2 py-1 text-sm"
+                        value={selectedGraphNode.guard.combinator}
+                        disabled={readOnly}
+                        onChange={(event) =>
+                          updateSelectedNode((node) => {
+                            if (node.kind !== "action" || !node.guard) {
+                              return node;
+                            }
+
+                            return {
+                              ...node,
+                              guard: {
+                                ...node.guard,
+                                combinator:
+                                  event.target.value === "any" ? "any" : "all",
+                              },
+                            };
+                          })
+                        }
+                      >
+                        <option value="all">all conditions</option>
+                        <option value="any">any condition</option>
+                      </select>
+
+                      {selectedGraphNode.guard.conditions.map(
+                        (condition, index) => (
+                          <div
+                            key={`${selectedGraphNode.id}-guard-${index}`}
+                            className="space-y-2 rounded-md border border-border p-2"
+                          >
+                            <label className="block text-xs text-muted-foreground">
+                              Field Path
+                            </label>
+                            <input
+                              className="w-full rounded-md border border-border bg-background px-2 py-1 text-sm"
+                              value={condition.field}
+                              disabled={readOnly}
+                              placeholder="appointment.startAt"
+                              onChange={(event) =>
+                                updateSelectedNode((node) => {
+                                  if (node.kind !== "action" || !node.guard) {
+                                    return node;
+                                  }
+
+                                  const nextConditions =
+                                    node.guard.conditions.map(
+                                      (entry, conditionIndex) =>
+                                        conditionIndex === index
+                                          ? {
+                                              ...entry,
+                                              field:
+                                                event.target.value.length > 0
+                                                  ? event.target.value
+                                                  : "id",
+                                            }
+                                          : entry,
+                                    );
+
+                                  return {
+                                    ...node,
+                                    guard: {
+                                      ...node.guard,
+                                      conditions: nextConditions,
+                                    },
+                                  };
+                                })
+                              }
+                            />
+
+                            <label className="block text-xs text-muted-foreground">
+                              Operator
+                            </label>
+                            <select
+                              className="w-full rounded-md border border-border bg-background px-2 py-1 text-sm"
+                              value={condition.operator}
+                              disabled={readOnly}
+                              onChange={(event) => {
+                                if (!isGuardOperator(event.target.value)) {
+                                  return;
+                                }
+                                const nextOperator = event.target.value;
+
+                                updateSelectedNode((node) => {
+                                  if (node.kind !== "action" || !node.guard) {
+                                    return node;
+                                  }
+
+                                  const nextConditions =
+                                    node.guard.conditions.map(
+                                      (entry, conditionIndex) => {
+                                        if (conditionIndex !== index) {
+                                          return entry;
+                                        }
+
+                                        const baseCondition = {
+                                          field: entry.field,
+                                          operator: nextOperator,
+                                        } as const;
+
+                                        if (!operatorNeedsValue(nextOperator)) {
+                                          return baseCondition;
+                                        }
+
+                                        const normalizedValue =
+                                          nextOperator === "in" ||
+                                          nextOperator === "not_in"
+                                            ? Array.isArray(entry.value)
+                                              ? entry.value
+                                              : []
+                                            : Array.isArray(entry.value)
+                                              ? ""
+                                              : (entry.value ?? "");
+
+                                        return {
+                                          ...baseCondition,
+                                          value: normalizedValue,
+                                        };
+                                      },
+                                    );
+
+                                  return {
+                                    ...node,
+                                    guard: {
+                                      ...node.guard,
+                                      conditions: nextConditions,
+                                    },
+                                  };
+                                });
+                              }}
+                            >
+                              {GUARD_OPERATORS.map((operator) => (
+                                <option key={operator} value={operator}>
+                                  {operator}
+                                </option>
+                              ))}
+                            </select>
+
+                            {operatorNeedsValue(condition.operator) ? (
+                              <>
+                                <label className="block text-xs text-muted-foreground">
+                                  Value
+                                </label>
+                                <input
+                                  className="w-full rounded-md border border-border bg-background px-2 py-1 text-sm"
+                                  value={formatGuardValueInput(
+                                    condition.value,
+                                    condition.operator,
+                                  )}
+                                  disabled={readOnly}
+                                  placeholder={
+                                    condition.operator === "in" ||
+                                    condition.operator === "not_in"
+                                      ? "valueA, valueB"
+                                      : "example value"
+                                  }
+                                  onChange={(event) =>
+                                    updateSelectedNode((node) => {
+                                      if (
+                                        node.kind !== "action" ||
+                                        !node.guard
+                                      ) {
+                                        return node;
+                                      }
+
+                                      const nextConditions =
+                                        node.guard.conditions.map(
+                                          (entry, conditionIndex) =>
+                                            conditionIndex === index
+                                              ? {
+                                                  ...entry,
+                                                  value: parseGuardValueInput(
+                                                    event.target.value,
+                                                    entry.operator,
+                                                  ),
+                                                }
+                                              : entry,
+                                        );
+
+                                      return {
+                                        ...node,
+                                        guard: {
+                                          ...node.guard,
+                                          conditions: nextConditions,
+                                        },
+                                      };
+                                    })
+                                  }
+                                />
+                              </>
+                            ) : null}
+
+                            <div className="flex justify-end">
+                              <button
+                                type="button"
+                                className="rounded-md border border-border bg-background px-2 py-1 text-xs"
+                                disabled={
+                                  readOnly ||
+                                  (selectedGraphNode.guard?.conditions.length ??
+                                    0) <= 1
+                                }
+                                onClick={() =>
+                                  updateSelectedNode((node) => {
+                                    if (node.kind !== "action" || !node.guard) {
+                                      return node;
+                                    }
+
+                                    const nextConditions =
+                                      node.guard.conditions.filter(
+                                        (_entry, conditionIndex) =>
+                                          conditionIndex !== index,
+                                      );
+
+                                    return {
+                                      ...node,
+                                      guard: {
+                                        ...node.guard,
+                                        conditions:
+                                          nextConditions.length > 0
+                                            ? nextConditions
+                                            : [createDefaultGuardCondition()],
+                                      },
+                                    };
+                                  })
+                                }
+                              >
+                                Remove Condition
+                              </button>
+                            </div>
+                          </div>
+                        ),
+                      )}
+
+                      <button
+                        type="button"
+                        className="rounded-md border border-border bg-background px-2 py-1 text-xs"
+                        disabled={readOnly}
+                        onClick={() =>
+                          updateSelectedNode((node) => {
+                            if (node.kind !== "action" || !node.guard) {
+                              return node;
+                            }
+
+                            return {
+                              ...node,
+                              guard: {
+                                ...node.guard,
+                                conditions: [
+                                  ...node.guard.conditions,
+                                  createDefaultGuardCondition(),
+                                ],
+                              },
+                            };
+                          })
+                        }
+                      >
+                        Add Condition
+                      </button>
+                    </div>
+                  ) : (
+                    <p className="text-xs text-muted-foreground">
+                      No guard configured. Add a guard to conditionally run this
+                      action.
+                    </p>
+                  )}
+                </div>
               </div>
             ) : null}
 
@@ -594,6 +1033,7 @@ export function WorkflowBuilder({
                 <input
                   className="w-full rounded-md border border-border bg-background px-2 py-1 text-sm"
                   value={selectedGraphNode.wait.duration}
+                  disabled={readOnly}
                   onChange={(event) =>
                     updateSelectedNode((node) => {
                       if (node.kind !== "wait") {
@@ -616,6 +1056,7 @@ export function WorkflowBuilder({
                 <input
                   className="w-full rounded-md border border-border bg-background px-2 py-1 text-sm"
                   value={selectedGraphNode.wait.referenceField ?? ""}
+                  disabled={readOnly}
                   onChange={(event) =>
                     updateSelectedNode((node) => {
                       if (node.kind !== "wait") {
@@ -641,6 +1082,7 @@ export function WorkflowBuilder({
                 <select
                   className="w-full rounded-md border border-border bg-background px-2 py-1 text-sm"
                   value={selectedGraphNode.wait.offsetDirection}
+                  disabled={readOnly}
                   onChange={(event) =>
                     updateSelectedNode((node) => {
                       if (node.kind !== "wait") {
@@ -674,6 +1116,7 @@ export function WorkflowBuilder({
                 <select
                   className="w-full rounded-md border border-border bg-background px-2 py-1 text-sm"
                   value={selectedGraphNode.terminalType}
+                  disabled={readOnly}
                   onChange={(event) =>
                     updateSelectedNode((node) => {
                       if (node.kind !== "terminal") {

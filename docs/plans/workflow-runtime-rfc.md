@@ -448,7 +448,7 @@ Exit criteria:
   - [x] Move draft/catalog helper logic into `packages/workflow-ui` and consume it from admin workflow routes.
   - [x] Replace Workflow Kit editor surface with first-party React Flow primitives from `packages/workflow-ui`.
 - [ ] Redesign workflows index/detail UX around builder-first interaction.
-- [ ] Implement structured guard builder for each action node.
+- [x] Implement structured guard builder for each action node.
 - [ ] Implement relative delay configuration UX with ISO 8601 offset-safe time handling.
 - [ ] Implement member view mode (read-only workflow pages).
 
