@@ -4,9 +4,14 @@ import {
   createWorkflowDefinitionSchema,
   getWorkflowRunInputSchema,
   idInputSchema,
+  listWorkflowBindingsInputSchema,
+  workflowBindingListResponseSchema,
   listWorkflowRunsQuerySchema,
   listWorkflowDefinitionsQuerySchema,
   publishWorkflowDraftInputSchema,
+  removeWorkflowBindingInputSchema,
+  successResponseSchema,
+  upsertWorkflowBindingInputSchema,
   updateWorkflowDraftWorkflowKitSchema,
   validateWorkflowDraftInputSchema,
   workflowBindingSchema,
@@ -28,7 +33,7 @@ import {
   workflowRunEntityLinks,
 } from "@scheduling/db/schema";
 import type { SQL } from "drizzle-orm";
-import { and, desc, eq, ilike, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, ilike, or, sql } from "drizzle-orm";
 import { createHash } from "node:crypto";
 import { adminOnly } from "./base.js";
 import { ApplicationError } from "../errors/application-error.js";
@@ -482,6 +487,102 @@ export const publishDraft = adminOnly
     });
   });
 
+export const listBindings = adminOnly
+  .route({ method: "GET", path: "/workflows/{id}/bindings" })
+  .input(listWorkflowBindingsInputSchema)
+  .output(workflowBindingListResponseSchema)
+  .handler(async ({ input, context }) => {
+    const items = await withOrg(context.orgId, async (tx) => {
+      await getDefinitionById(tx, input.id);
+
+      const rows = await tx
+        .select()
+        .from(workflowBindings)
+        .where(eq(workflowBindings.definitionId, input.id))
+        .orderBy(asc(workflowBindings.eventType));
+
+      return rows.map((row) => toBinding(row));
+    });
+
+    return { items };
+  });
+
+export const upsertBinding = adminOnly
+  .route({ method: "PUT", path: "/workflows/{id}/bindings/{eventType}" })
+  .input(upsertWorkflowBindingInputSchema)
+  .output(workflowBindingSchema)
+  .handler(async ({ input, context }) => {
+    return withOrg(context.orgId, async (tx) => {
+      const definition = await getDefinitionById(tx, input.id);
+
+      if (!definition.activeVersionId) {
+        throw new ApplicationError(
+          "Publish the workflow before binding events",
+          {
+            code: "UNPROCESSABLE_CONTENT",
+          },
+        );
+      }
+
+      const [binding] = await tx
+        .insert(workflowBindings)
+        .values({
+          orgId: context.orgId,
+          definitionId: definition.id,
+          versionId: definition.activeVersionId,
+          eventType: input.eventType,
+          enabled: input.enabled,
+        })
+        .onConflictDoUpdate({
+          target: [
+            workflowBindings.orgId,
+            workflowBindings.definitionId,
+            workflowBindings.eventType,
+          ],
+          set: {
+            versionId: definition.activeVersionId,
+            enabled: input.enabled,
+            updatedAt: new Date(),
+          },
+        })
+        .returning();
+
+      if (!binding) {
+        throw new Error("Unexpected empty result when upserting workflow binding");
+      }
+
+      return toBinding(binding);
+    });
+  });
+
+export const removeBinding = adminOnly
+  .route({ method: "DELETE", path: "/workflows/{id}/bindings/{eventType}" })
+  .input(removeWorkflowBindingInputSchema)
+  .output(successResponseSchema)
+  .handler(async ({ input, context }) => {
+    await withOrg(context.orgId, async (tx) => {
+      await getDefinitionById(tx, input.id);
+
+      const [removed] = await tx
+        .delete(workflowBindings)
+        .where(
+          and(
+            eq(workflowBindings.definitionId, input.id),
+            eq(workflowBindings.eventType, input.eventType),
+          ),
+        )
+        .returning({ id: workflowBindings.id });
+
+      if (!removed) {
+        throw new ApplicationError("Workflow binding not found", {
+          code: "NOT_FOUND",
+        });
+      }
+    });
+
+    return { success: true as const };
+  });
+
 export const listRuns = adminOnly
   .route({ method: "GET", path: "/workflows/runs" })
   .input(listWorkflowRunsQuerySchema)
@@ -618,6 +719,11 @@ export const workflowRoutes = {
   updateDraft,
   validateDraft,
   publishDraft,
+  bindings: {
+    list: listBindings,
+    upsert: upsertBinding,
+    remove: removeBinding,
+  },
   listRuns,
   getRun,
   cancelRun,

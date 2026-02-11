@@ -3,10 +3,10 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "pnpm -w run --parallel \"/^dev:(api|admin)$/\"",
+    "dev": "pnpm -w run --parallel \"/^dev:(api|admin|inngest)$/\"",
     "dev:api": "pnpm --filter @scheduling/api run dev",
     "dev:admin": "pnpm --filter @scheduling/admin-ui run dev",
-    "dev:inngest": "pnpm exec inngest dev -u http://localhost:3000/api/inngest",
+    "dev:inngest": "pnpm exec inngest dev -u http://localhost:${PORT:-3000}/api/inngest",
     "preview:admin": "pnpm --filter @scheduling/admin-ui run build && pnpm --filter @scheduling/admin-ui run preview -- --host",
     "db:migrate": "pnpm --filter @scheduling/db run migrate",
     "db:reset": "pnpm --filter @scheduling/db run reset",

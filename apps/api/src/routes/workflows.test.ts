@@ -10,9 +10,10 @@ import {
 } from "bun:test";
 import { call } from "@orpc/server";
 import type { BunSQLDatabase } from "drizzle-orm/bun-sql/postgres";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import type * as schema from "@scheduling/db/schema";
 import {
+  workflowBindings,
   workflowDefinitionVersions,
   workflowRunEntityLinks,
 } from "@scheduling/db/schema";
@@ -396,6 +397,205 @@ describe("Workflow Routes", () => {
         { context },
       ),
     ).rejects.toMatchObject({ code: "UNPROCESSABLE_CONTENT" });
+  });
+
+  test("upsertBinding requires an active published version", async () => {
+    const { org, user } = await createOrg(db);
+    const context = createTestContext({
+      orgId: org.id,
+      userId: user.id,
+      role: "owner",
+    });
+
+    const workflow = await call(
+      workflowRoutes.createDefinition,
+      {
+        key: "binding_requires_publish",
+        name: "Binding Requires Publish",
+      },
+      { context },
+    );
+
+    await expect(
+      call(
+        workflowRoutes.bindings.upsert,
+        {
+          id: workflow.id,
+          eventType: "appointment.created",
+          enabled: true,
+        },
+        { context },
+      ),
+    ).rejects.toMatchObject({ code: "UNPROCESSABLE_CONTENT" });
+  });
+
+  test("binding lifecycle supports upsert, list, and remove", async () => {
+    const { org, user } = await createOrg(db);
+    const context = createTestContext({
+      orgId: org.id,
+      userId: user.id,
+      role: "owner",
+    });
+
+    const workflow = await call(
+      workflowRoutes.createDefinition,
+      {
+        key: "binding_lifecycle",
+        name: "Binding Lifecycle",
+        workflowKit: { trigger: { event: "appointment.created" } },
+      },
+      { context },
+    );
+    await call(
+      workflowRoutes.publishDraft,
+      {
+        id: workflow.id,
+        expectedRevision: 1,
+      },
+      { context },
+    );
+
+    const created = await call(
+      workflowRoutes.bindings.upsert,
+      {
+        id: workflow.id,
+        eventType: "appointment.created",
+        enabled: true,
+      },
+      { context },
+    );
+    expect(created.definitionId).toBe(workflow.id);
+    expect(created.eventType).toBe("appointment.created");
+    expect(created.enabled).toBe(true);
+
+    const updated = await call(
+      workflowRoutes.bindings.upsert,
+      {
+        id: workflow.id,
+        eventType: "appointment.created",
+        enabled: false,
+      },
+      { context },
+    );
+    expect(updated.id).toBe(created.id);
+    expect(updated.enabled).toBe(false);
+
+    const listed = await call(
+      workflowRoutes.bindings.list,
+      { id: workflow.id },
+      { context },
+    );
+    expect(listed.items).toHaveLength(1);
+    expect(listed.items[0]?.id).toBe(created.id);
+    expect(listed.items[0]?.enabled).toBe(false);
+
+    const removed = await call(
+      workflowRoutes.bindings.remove,
+      {
+        id: workflow.id,
+        eventType: "appointment.created",
+      },
+      { context },
+    );
+    expect(removed.success).toBe(true);
+
+    const listedAfterRemove = await call(
+      workflowRoutes.bindings.list,
+      { id: workflow.id },
+      { context },
+    );
+    expect(listedAfterRemove.items).toEqual([]);
+
+    await expect(
+      call(
+        workflowRoutes.bindings.remove,
+        {
+          id: workflow.id,
+          eventType: "appointment.created",
+        },
+        { context },
+      ),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+  });
+
+  test("publishDraft repoints existing bindings to newly published version", async () => {
+    const { org, user } = await createOrg(db);
+    const context = createTestContext({
+      orgId: org.id,
+      userId: user.id,
+      role: "owner",
+    });
+
+    const workflow = await call(
+      workflowRoutes.createDefinition,
+      {
+        key: "binding_repoint",
+        name: "Binding Repoint",
+        workflowKit: { trigger: { event: "appointment.created" } },
+      },
+      { context },
+    );
+
+    const firstPublish = await call(
+      workflowRoutes.publishDraft,
+      {
+        id: workflow.id,
+        expectedRevision: 1,
+      },
+      { context },
+    );
+    const firstVersionId = firstPublish.activeVersion?.id;
+    expect(firstVersionId).toBeDefined();
+
+    await call(
+      workflowRoutes.bindings.upsert,
+      {
+        id: workflow.id,
+        eventType: "appointment.updated",
+        enabled: true,
+      },
+      { context },
+    );
+
+    await call(
+      workflowRoutes.updateDraft,
+      {
+        id: workflow.id,
+        expectedRevision: 1,
+        workflowKit: { trigger: { event: "appointment.updated" } },
+      },
+      { context },
+    );
+    const secondPublish = await call(
+      workflowRoutes.publishDraft,
+      {
+        id: workflow.id,
+        expectedRevision: 2,
+      },
+      { context },
+    );
+
+    expect(secondPublish.activeVersion?.id).toBeDefined();
+    expect(secondPublish.activeVersion?.id).not.toBe(firstVersionId);
+
+    await setTestOrgContext(db, org.id);
+    try {
+      const [binding] = await db
+        .select()
+        .from(workflowBindings)
+        .where(
+          and(
+            eq(workflowBindings.definitionId, workflow.id),
+            eq(workflowBindings.eventType, "appointment.updated"),
+          ),
+        )
+        .limit(1);
+
+      expect(binding).toBeDefined();
+      expect(binding?.versionId).toBe(secondPublish.activeVersion?.id);
+    } finally {
+      await clearTestOrgContext(db);
+    }
   });
 
   test("listRuns returns sorted and filtered runs", async () => {

@@ -95,6 +95,10 @@ export const workflowDefinitionListResponseSchema = z.object({
   items: z.array(workflowDefinitionSummarySchema),
 });
 
+export const workflowBindingListResponseSchema = z.object({
+  items: z.array(workflowBindingSchema),
+});
+
 export const workflowRunStatusSchema = z.enum([
   "pending",
   "running",
@@ -150,6 +154,17 @@ export const publishWorkflowDraftInputSchema = idInputSchema.extend({
   expectedRevision: z.number().int().positive().optional(),
 });
 
+export const listWorkflowBindingsInputSchema = idInputSchema;
+
+export const upsertWorkflowBindingInputSchema = idInputSchema.extend({
+  eventType: webhookEventTypeSchema,
+  enabled: z.boolean().default(true),
+});
+
+export const removeWorkflowBindingInputSchema = idInputSchema.extend({
+  eventType: webhookEventTypeSchema,
+});
+
 export const listWorkflowRunsQuerySchema = z.object({
   definitionId: uuidSchema.optional(),
   workflowType: z.string().min(1).max(255).optional(),
@@ -193,6 +208,9 @@ export type WorkflowDefinitionDetail = z.infer<
 export type WorkflowDefinitionListResponse = z.infer<
   typeof workflowDefinitionListResponseSchema
 >;
+export type WorkflowBindingListResponse = z.infer<
+  typeof workflowBindingListResponseSchema
+>;
 export type WorkflowRunStatus = z.infer<typeof workflowRunStatusSchema>;
 export type WorkflowRunSummary = z.infer<typeof workflowRunSummarySchema>;
 export type WorkflowRunDetail = z.infer<typeof workflowRunDetailSchema>;
@@ -213,6 +231,15 @@ export type ValidateWorkflowDraftInput = z.infer<
 >;
 export type PublishWorkflowDraftInput = z.infer<
   typeof publishWorkflowDraftInputSchema
+>;
+export type ListWorkflowBindingsInput = z.infer<
+  typeof listWorkflowBindingsInputSchema
+>;
+export type UpsertWorkflowBindingInput = z.infer<
+  typeof upsertWorkflowBindingInputSchema
+>;
+export type RemoveWorkflowBindingInput = z.infer<
+  typeof removeWorkflowBindingInputSchema
 >;
 export type ListWorkflowRunsQuery = z.infer<typeof listWorkflowRunsQuerySchema>;
 export type GetWorkflowRunInput = z.infer<typeof getWorkflowRunInputSchema>;
