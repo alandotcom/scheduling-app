@@ -1,6 +1,6 @@
 # Inngest Eventing + Workflow Runtime RFC (Unified)
 
-Status: In Progress (Phases 0-4 and 7 largely complete; phases 5-6 pending)
+Status: In Progress (Phases 0-3 and 7 complete; phases 4-6 in progress)
 Last Updated: 2026-02-11
 Owners: Product, `@scheduling/api`, `@scheduling/db`, `@scheduling/admin-ui`
 Related: `docs/ARCHITECTURE.md`, `docs/references/event-bus/synthesis.md`, `docs/references/event-bus/workflow-devkit-research.md`, `docs/references/event-bus/testing.md`
@@ -23,7 +23,7 @@ This is a big-bang rewrite with no compatibility layer:
 2. Events are sent directly to Inngest (`inngest.send`) after successful mutations.
 3. Integration fanout runs through Inngest functions (`apps/api/src/inngest/functions/integration-fanout.ts`).
 4. Legacy worker processes (`src/worker.ts`, `src/workflow-worker.ts`, `src/bull-board.ts`) and related scripts/deps are removed.
-5. Workflow definition tables exist, but Workflow Kit authoring and execution routes remain incomplete.
+5. Workflow definition CRUD/binding/run APIs are implemented; workflow dispatch/execution scaffolding exists, but Workflow Kit editor UI and advanced execution semantics (`cancelOn`, `step.waitForEvent`) remain incomplete.
 
 ## 3. Final Decisions
 
@@ -147,9 +147,12 @@ Keep workflow namespace and adapt payload contracts:
 4. `workflow.updateDraft`
 5. `workflow.validateDraft`
 6. `workflow.publishDraft`
-7. `workflow.listRuns`
-8. `workflow.getRun`
-9. `workflow.cancelRun`
+7. `workflow.listBindings`
+8. `workflow.upsertBinding`
+9. `workflow.removeBinding`
+10. `workflow.listRuns`
+11. `workflow.getRun`
+12. `workflow.cancelRun`
 
 ## 10. Admin UI Scope (v1)
 
@@ -209,6 +212,7 @@ Exit criteria:
 ### Phase 4: Workflow Runtime Migration
 
 - [x] Remove Workflow DevKit worker and build pipeline.
+- [x] Add workflow dispatch/execution scaffold functions and run tracking persistence.
 - [ ] Implement workflow execution functions with `cancelOn` and waits.
 - [ ] Encode strict cancel+replace run policy for appointment lifecycle.
 - [ ] Keep deterministic side-effect dedupe and send-time guards.
@@ -219,10 +223,10 @@ Exit criteria:
 
 ### Phase 5: Workflow Kit Authoring Adoption
 
-- [ ] Replace custom graph assumptions with Workflow Kit JSON contracts in DTO/API.
-- [ ] Implement/complete workflow CRUD and publish routes against Workflow Kit model.
+- [x] Replace custom graph assumptions with Workflow Kit JSON contracts in DTO/API.
+- [x] Implement/complete workflow CRUD, bindings, run management, and publish routes against Workflow Kit model.
 - [ ] Build admin workflow editor routes using `@inngest/workflow-kit/ui`.
-- [ ] Persist draft and published versions as Workflow Kit JSON.
+- [x] Persist draft and published versions as Workflow Kit JSON.
 
 Exit criteria:
 1. Users can create/edit/publish workflows via Workflow Kit editor.
