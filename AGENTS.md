@@ -92,6 +92,11 @@ kill <pid>   # or: pkill -f "vite.*admin-ui"
 
 Multiple dev server instances cause race conditions (e.g., TanStack Router's `routeTree.gen.ts` gets corrupted when multiple Vite instances try to regenerate it simultaneously).
 
+### Workflow Watch Inputs
+
+- `apps/api` workflow rebuild watchers should scan `workflows/**/*`, `src/workflows/**/*`, and `**/*.workflow.ts` (scoped to `apps/api`).
+- Keep `dev:workflow-worker` wired as: initial `workflow:build`, then watch+rebuild in parallel with `bun --hot src/workflow-worker.ts`.
+
 ## Architecture
 
 This is a pnpm monorepo for an appointment scheduling platform (Acuity-style).

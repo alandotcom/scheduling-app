@@ -4,8 +4,9 @@ A multi-tenant appointment scheduling platform (Acuity-style) built with modern 
 
 ## Documentation
 
+- Implementation plans index: [`docs/plans/README.md`](docs/plans/README.md)
 - Architecture: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
-- Event bus/workflow runtime RFC (accepted): [`docs/event-bus-workflow-runtime-rfc.md`](docs/event-bus-workflow-runtime-rfc.md)
+- Event bus/workflow runtime RFC (accepted): [`docs/plans/workflow-runtime-rfc.md`](docs/plans/workflow-runtime-rfc.md)
 - Integration authoring guide: [`integrations/README.md`](integrations/README.md)
 - API docs (Scalar): [`http://localhost:3000/api/v1/docs`](http://localhost:3000/api/v1/docs)
 - OpenAPI spec JSON: [`http://localhost:3000/api/v1/openapi.json`](http://localhost:3000/api/v1/openapi.json)

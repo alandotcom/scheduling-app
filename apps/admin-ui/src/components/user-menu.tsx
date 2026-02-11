@@ -34,6 +34,8 @@ interface UserMenuProps {
     slug?: string;
   }) => Promise<void>;
   onSignOut: () => Promise<void>;
+  isOrganizationsLoading?: boolean;
+  onOpenChange?: (open: boolean) => void;
   popoverSide?: "top" | "bottom" | "left" | "right";
   popoverAlign?: "start" | "center" | "end";
 }
@@ -46,6 +48,8 @@ export function UserMenu({
   onSwitchOrganization,
   onCreateOrganization,
   onSignOut,
+  isOrganizationsLoading = false,
+  onOpenChange,
   popoverSide,
   popoverAlign = "end",
 }: UserMenuProps) {
@@ -79,7 +83,13 @@ export function UserMenu({
 
   return (
     <>
-      <Popover.Root open={open} onOpenChange={setOpen}>
+      <Popover.Root
+        open={open}
+        onOpenChange={(nextOpen) => {
+          setOpen(nextOpen);
+          onOpenChange?.(nextOpen);
+        }}
+      >
         <Popover.Trigger
           render={
             <Button variant="ghost" size="icon-sm" aria-label="Open user menu">
@@ -119,7 +129,11 @@ export function UserMenu({
                   Switch organization
                 </div>
                 <div className="max-h-44 overflow-y-auto">
-                  {organizations.length === 0 ? (
+                  {isOrganizationsLoading && organizations.length === 0 ? (
+                    <p className="px-2 py-1.5 text-sm text-muted-foreground">
+                      Loading organizations...
+                    </p>
+                  ) : organizations.length === 0 ? (
                     <p className="px-2 py-1.5 text-sm text-muted-foreground">
                       No organizations yet.
                     </p>

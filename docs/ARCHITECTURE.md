@@ -62,7 +62,7 @@ All org-scoped data uses PostgreSQL row-level security. Organization context is 
 
 ## Event and Integration System
 
-> Superseded direction: see [`event-bus-workflow-runtime-rfc.md`](./event-bus-workflow-runtime-rfc.md) for the accepted migration from BullMQ/Valkey to pg-boss + Workflow DevKit orchestration.
+Current direction: see [`workflow-runtime-rfc.md`](./plans/workflow-runtime-rfc.md) for the unified plan: keep BullMQ/Valkey as the event bus runtime and add generalized workflow execution + builder authoring on top.
 
 Domain events on mutations follow this path:
 
@@ -71,6 +71,14 @@ Domain events on mutations follow this path:
 3. Dispatcher creates BullMQ Flow fanout.
 4. One child job is enqueued per enabled integration queue.
 5. Integration workers consume independently with isolated retry/backoff.
+
+Workflow orchestration and authoring follow this path:
+
+1. Workflow definitions are authored in admin UI (React Flow style utility).
+2. Definitions are validated, versioned, and published through workflow API routes.
+3. Runtime trigger consumers map domain events to workflow runs.
+4. Workflow worker executes waits/steps/cancellations with deterministic idempotency keys.
+5. Delivery effects are deduped through `workflow_delivery_log`.
 
 Current integration registry:
 
@@ -93,6 +101,9 @@ pnpm --filter @scheduling/api run sync:svix-event-catalog
 
 ## Related Docs
 
+- Docs index: [`./README.md`](./README.md)
+- Implementation plans index: [`./plans/README.md`](./plans/README.md)
 - Integration authoring: [`../integrations/README.md`](../integrations/README.md)
 - Root setup/commands: [`../README.md`](../README.md)
-- Event bus/workflow runtime RFC: [`./event-bus-workflow-runtime-rfc.md`](./event-bus-workflow-runtime-rfc.md)
+- Event bus/workflow runtime RFC: [`./plans/workflow-runtime-rfc.md`](./plans/workflow-runtime-rfc.md)
+- Event bus synthesis (aligned): [`./references/event-bus/synthesis.md`](./references/event-bus/synthesis.md)

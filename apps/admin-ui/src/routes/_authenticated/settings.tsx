@@ -199,14 +199,25 @@ function SettingsPage() {
   const navigate = useNavigate({ from: Route.fullPath });
   const { data: session } = authClient.useSession();
   const activeOrganizationId = session?.session.activeOrganizationId ?? null;
-  const membershipsQuery = useQuery(orpc.org.listMemberships.queryOptions({}));
-  const activeOrganizationRole =
+  const authContextQuery = useQuery({
+    ...orpc.auth.me.queryOptions({}),
+    retry: false,
+  });
+  const membershipsQuery = useQuery({
+    ...orpc.org.listMemberships.queryOptions({}),
+    enabled: authContextQuery.isError && !!activeOrganizationId,
+  });
+  const fallbackRole =
     membershipsQuery.data?.find(
       (membership) => membership.orgId === activeOrganizationId,
     )?.role ?? null;
+  const activeOrganizationRole = authContextQuery.data?.role ?? fallbackRole;
   const canManageIntegrations = canManageIntegrationsForRole(
     activeOrganizationRole,
   );
+  const isLoadingIntegrationPermissions =
+    authContextQuery.isLoading ||
+    (authContextQuery.isError && membershipsQuery.isLoading);
 
   const webhookRouteState: WebhooksRouteState = useMemo(
     () => ({ webhookTab, endpointId, messageId, attemptFilter }),
@@ -316,7 +327,7 @@ function SettingsPage() {
 
       {activeTab === "integrations" ? (
         <div className="mt-6">
-          {membershipsQuery.isLoading ? (
+          {isLoadingIntegrationPermissions ? (
             <Card>
               <CardHeader>
                 <CardTitle>Integrations</CardTitle>

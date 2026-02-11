@@ -120,6 +120,6 @@ Likely code touchpoints for implementation:
    - `apps/api/src/services/jobs/worker.ts`
    - `apps/api/src/services/jobs/emitter.ts`
 2. Architecture synthesis:
-   - `docs/event-bus/synthesis.md`
+   - `docs/references/event-bus/synthesis.md`
 3. pg-boss testing inspiration:
    - [https://timgit.github.io/pg-boss/#/./api/testing](https://timgit.github.io/pg-boss/#/./api/testing)

@@ -70,13 +70,13 @@ interface OrganizationListItem {
   id: string;
   name: string;
   slug: string;
-  logo?: string | null;
-  metadata?: unknown;
-  createdAt: Date;
 }
 
 interface OrganizationMembershipListItem {
+  id: string;
   orgId: string;
+  orgName: string;
+  orgSlug: string;
   role: "owner" | "admin" | "member";
 }
 
@@ -197,35 +197,54 @@ function RootLayout() {
   const [pendingOrganizationName, setPendingOrganizationName] = useState<
     string | null
   >(null);
+  const [hasRequestedOrganizationList, setHasRequestedOrganizationList] =
+    useState(false);
   const organizationSwitchOverlayShownAtRef = useRef<number | null>(null);
 
-  const organizationsQuery = useQuery({
-    queryKey: ["auth", "organizations"],
+  const authContextQuery = useQuery({
+    ...orpc.auth.me.queryOptions({}),
     enabled: isAuthenticated,
-    queryFn: async () => {
-      const result = await authClient.organization.list();
-      if (result.error) {
-        throw new Error(
-          result.error.message ?? "Failed to load organizations.",
-        );
-      }
-      return (result.data ?? []) as OrganizationListItem[];
-    },
+    retry: false,
   });
+  const authContextUnavailable = !!authContextQuery.error;
+  const sessionActiveOrganizationId = session?.session.activeOrganizationId;
+  const activeOrganizationId =
+    authContextQuery.data?.orgId ?? sessionActiveOrganizationId ?? null;
+
+  const shouldFetchMemberships =
+    isAuthenticated &&
+    (authContextUnavailable ||
+      !activeOrganizationId ||
+      hasRequestedOrganizationList);
   const membershipsQuery = useQuery({
     ...orpc.org.listMemberships.queryOptions({}),
-    enabled: isAuthenticated,
+    enabled: shouldFetchMemberships,
   });
-  const {
-    isPending: isOrganizationsPending,
-    error: organizationsError,
-    refetch: refetchOrganizations,
-  } = organizationsQuery;
-
-  const organizations = organizationsQuery.data ?? [];
   const memberships =
     (membershipsQuery.data as OrganizationMembershipListItem[] | undefined) ??
     [];
+  const organizations = useMemo<OrganizationListItem[]>(
+    () =>
+      memberships.map((membership) => ({
+        id: membership.orgId,
+        name: membership.orgName,
+        slug: membership.orgSlug,
+      })),
+    [memberships],
+  );
+  const fallbackRole =
+    memberships.find((membership) => membership.orgId === activeOrganizationId)
+      ?.role ?? null;
+  const activeOrganizationRole = authContextQuery.data?.role ?? fallbackRole;
+  const canManageIntegrations = canManageIntegrationsForRole(
+    activeOrganizationRole,
+  );
+  const fallbackOrganization = activeOrganizationId
+    ? (organizations.find(
+        (organization) => organization.id === activeOrganizationId,
+      ) ?? null)
+    : null;
+  const activeOrganization = authContextQuery.data?.org ?? fallbackOrganization;
   const organizationMenuItems = useMemo<UserMenuOrganization[]>(
     () =>
       organizations.map((organization) => ({
@@ -235,31 +254,17 @@ function RootLayout() {
       })),
     [organizations],
   );
-
-  const activeOrganizationId = session?.session.activeOrganizationId ?? null;
-  const activeOrganizationRole = useMemo(() => {
-    if (!activeOrganizationId) {
-      return null;
-    }
-
-    return (
-      memberships.find(
-        (membership) => membership.orgId === activeOrganizationId,
-      )?.role ?? null
-    );
-  }, [activeOrganizationId, memberships]);
-  const canManageIntegrations = canManageIntegrationsForRole(
-    activeOrganizationRole,
-  );
-  const activeOrganization = useMemo(
-    () =>
-      activeOrganizationId
-        ? (organizations.find(
-            (organization) => organization.id === activeOrganizationId,
-          ) ?? null)
-        : null,
-    [activeOrganizationId, organizations],
-  );
+  const isSelectingOrganization = !activeOrganizationId;
+  const isOrganizationsPending = isSelectingOrganization
+    ? membershipsQuery.isPending
+    : authContextUnavailable
+      ? membershipsQuery.isPending
+      : authContextQuery.isPending;
+  const organizationsError = isSelectingOrganization
+    ? membershipsQuery.error
+    : authContextUnavailable
+      ? membershipsQuery.error
+      : authContextQuery.error;
   const hasValidActiveOrganization = !!activeOrganization;
   const displayActiveOrganization =
     activeOrganization ?? lastStableActiveOrganization;
@@ -338,10 +343,7 @@ function RootLayout() {
         );
       }
       await navigateToSanitizedOrganizationSearch();
-      await Promise.all([
-        queryClient.invalidateQueries(),
-        refetchOrganizations(),
-      ]);
+      await queryClient.invalidateQueries();
     } finally {
       await finishOrganizationSwitchTransition();
     }
@@ -372,6 +374,12 @@ function RootLayout() {
     }
 
     await switchOrganizationContext(createResult.data.id, input.name);
+  };
+
+  const onOrganizationMenuOpenChange = (open: boolean) => {
+    if (open) {
+      setHasRequestedOrganizationList(true);
+    }
   };
 
   const onSignOut = async () => {
@@ -554,8 +562,12 @@ function RootLayout() {
         canManageIntegrations={canManageIntegrations}
         navItems={navItems}
         organizationMenuItems={organizationMenuItems}
+        isOrganizationsLoading={
+          shouldFetchMemberships && membershipsQuery.isPending
+        }
         activeOrganizationId={activeOrganizationId}
         onSwitchOrganization={onSwitchOrganization}
+        onOrganizationMenuOpenChange={onOrganizationMenuOpenChange}
         onCreateOrganization={onCreateOrganization}
         onSignOut={onSignOut}
       />
@@ -617,8 +629,12 @@ function RootLayout() {
                 userName={user?.name}
                 userEmail={user?.email}
                 organizations={organizationMenuItems}
+                isOrganizationsLoading={
+                  shouldFetchMemberships && membershipsQuery.isPending
+                }
                 activeOrganizationId={activeOrganizationId}
                 onSwitchOrganization={onSwitchOrganization}
+                onOpenChange={onOrganizationMenuOpenChange}
                 onCreateOrganization={onCreateOrganization}
                 onSignOut={onSignOut}
               />
@@ -703,7 +719,12 @@ function RootLayout() {
                   type="button"
                   className="mt-3"
                   size="sm"
-                  onClick={() => void refetchOrganizations()}
+                  onClick={() =>
+                    void Promise.all([
+                      authContextQuery.refetch(),
+                      membershipsQuery.refetch(),
+                    ])
+                  }
                 >
                   Retry
                 </Button>
@@ -938,8 +959,10 @@ function AppSidebar({
   canManageIntegrations,
   navItems,
   organizationMenuItems,
+  isOrganizationsLoading,
   activeOrganizationId,
   onSwitchOrganization,
+  onOrganizationMenuOpenChange,
   onCreateOrganization,
   onSignOut,
 }: {
@@ -952,8 +975,10 @@ function AppSidebar({
     label: string;
   }[];
   organizationMenuItems: UserMenuOrganization[];
+  isOrganizationsLoading: boolean;
   activeOrganizationId: string | null;
   onSwitchOrganization: (organizationId: string) => Promise<void>;
+  onOrganizationMenuOpenChange: (open: boolean) => void;
   onCreateOrganization: (input: {
     name: string;
     slug?: string;
@@ -1159,8 +1184,10 @@ function AppSidebar({
             userName={user?.name}
             userEmail={user?.email}
             organizations={organizationMenuItems}
+            isOrganizationsLoading={isOrganizationsLoading}
             activeOrganizationId={activeOrganizationId}
             onSwitchOrganization={onSwitchOrganization}
+            onOpenChange={onOrganizationMenuOpenChange}
             onCreateOrganization={onCreateOrganization}
             onSignOut={onSignOut}
             popoverSide="right"

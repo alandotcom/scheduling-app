@@ -17,6 +17,7 @@ import { dashboardRoutes } from "./dashboard.js";
 import { apiKeyRoutes } from "./api-keys.js";
 import { webhookRoutes } from "./webhooks.js";
 import { integrationRoutes } from "./integrations.js";
+import { authRoutes } from "./auth.js";
 
 // Re-export authed and adminOnly from base for backwards compatibility
 export { authed, adminOnly } from "./base.js";
@@ -35,6 +36,7 @@ export const health = base
 // ============================================================================
 export const uiRouter = {
   health,
+  auth: authRoutes,
   dashboard: dashboardRoutes,
   org: orgRoutes,
   locations: locationRoutes,

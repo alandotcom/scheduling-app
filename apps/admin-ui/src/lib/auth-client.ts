@@ -15,6 +15,9 @@ const getAuthBaseUrl = () => {
 
 export const authClient = createAuthClient({
   baseURL: getAuthBaseUrl(), // Uses same origin in browser, localhost fallback in tests
+  sessionOptions: {
+    refetchOnWindowFocus: false,
+  },
   plugins: [organizationClient(), apiKeyClient()],
 });
 
