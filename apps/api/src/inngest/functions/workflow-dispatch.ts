@@ -9,6 +9,7 @@ import {
   listEnabledWorkflowDispatchTargets,
   type WorkflowDispatchTarget,
 } from "../../services/workflows/runtime.js";
+import { parseWorkflowDurationToMs } from "../../services/workflows/duration.js";
 
 type ResolveDispatchTargets = (
   orgId: string,
@@ -168,26 +169,6 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
 
-function parseDurationToMs(value: string): number | null {
-  const parsed = value.match(
-    /^P(?:(\d+)W)?(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?)?$/,
-  );
-  if (!parsed) {
-    return null;
-  }
-
-  const weeks = parsed[1] ? Number(parsed[1]) : 0;
-  const days = parsed[2] ? Number(parsed[2]) : 0;
-  const hours = parsed[3] ? Number(parsed[3]) : 0;
-  const minutes = parsed[4] ? Number(parsed[4]) : 0;
-  const seconds = parsed[5] ? Number(parsed[5]) : 0;
-  const totalDays = weeks * 7 + days;
-  const totalMs =
-    (((totalDays * 24 + hours) * 60 + minutes) * 60 + seconds) * 1000;
-
-  return Number.isFinite(totalMs) && totalMs > 0 ? totalMs : null;
-}
-
 function resolveDebounceConfig(compiledPlan: Record<string, unknown> | null): {
   enabled: boolean;
   strategy: "latest_only" | "coalesce";
@@ -215,7 +196,7 @@ function resolveDebounceConfig(compiledPlan: Record<string, unknown> | null): {
     return null;
   }
 
-  const windowMs = parseDurationToMs(window);
+  const windowMs = parseWorkflowDurationToMs(window);
   if (!windowMs) {
     return null;
   }

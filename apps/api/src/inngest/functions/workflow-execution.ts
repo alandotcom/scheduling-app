@@ -10,6 +10,7 @@ import {
   recordWorkflowDeliveryWithGuard,
   recordWorkflowRunStart,
 } from "../../services/workflows/runtime.js";
+import { parseWorkflowDurationToMs } from "../../services/workflows/duration.js";
 
 type WorkflowExecutionDependencies = {
   recordRunStart: typeof recordWorkflowRunStart;
@@ -194,26 +195,6 @@ function resolveReplacementMode(
   }
 
   return defaultMode;
-}
-
-function parseDurationToMs(value: string): number | null {
-  const parsed = value.match(
-    /^P(?:(\d+)W)?(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?)?$/,
-  );
-  if (!parsed) {
-    return null;
-  }
-
-  const weeks = parsed[1] ? Number(parsed[1]) : 0;
-  const days = parsed[2] ? Number(parsed[2]) : 0;
-  const hours = parsed[3] ? Number(parsed[3]) : 0;
-  const minutes = parsed[4] ? Number(parsed[4]) : 0;
-  const seconds = parsed[5] ? Number(parsed[5]) : 0;
-  const totalDays = weeks * 7 + days;
-  const totalMs =
-    (((totalDays * 24 + hours) * 60 + minutes) * 60 + seconds) * 1000;
-
-  return Number.isFinite(totalMs) && totalMs > 0 ? totalMs : null;
 }
 
 function normalizeFieldPath(field: string, entityType: string): string {
@@ -453,11 +434,11 @@ function resolveRetryPolicy(compiledPlan: Record<string, unknown> | null): {
         : defaults.backoff,
     baseDelayMs:
       typeof baseDelay === "string"
-        ? (parseDurationToMs(baseDelay) ?? defaults.baseDelayMs)
+        ? (parseWorkflowDurationToMs(baseDelay) ?? defaults.baseDelayMs)
         : defaults.baseDelayMs,
     maxDelayMs:
       typeof maxDelay === "string"
-        ? (parseDurationToMs(maxDelay) ?? null)
+        ? (parseWorkflowDurationToMs(maxDelay) ?? null)
         : null,
   };
 }
@@ -503,7 +484,7 @@ function resolveWaitDuration(
       wait["referenceField"].length > 0 &&
       correlatedEntity !== null
     ) {
-      const durationMs = parseDurationToMs(duration);
+      const durationMs = parseWorkflowDurationToMs(duration);
       const referenceValue = getPathValue(
         correlatedEntity.entity,
         normalizeFieldPath(wait["referenceField"], correlatedEntity.entityType),
