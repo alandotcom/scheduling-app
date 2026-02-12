@@ -25,7 +25,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Icon } from "@/components/ui/icon";
 import { Skeleton } from "@/components/ui/skeleton";
-import { PageHeader, PageScaffold } from "@/components/layout/page-scaffold";
+import { PageScaffold } from "@/components/layout/page-scaffold";
 import { ShortcutBadge } from "@/components/ui/shortcut-badge";
 import { AppointmentModal } from "@/components/appointment-modal";
 import { useKeyboardShortcuts } from "@/hooks/use-keyboard-shortcuts";
@@ -131,28 +131,16 @@ export function Dashboard() {
 
   return (
     <PageScaffold className="pb-24 sm:pb-6">
-      <PageHeader
-        title="Dashboard"
-        description={today.toLocaleString({
-          weekday: "long",
-          month: "long",
-          day: "numeric",
-          year: "numeric",
-        })}
-        actions={
-          <Button
-            className="hidden sm:inline-flex"
-            onClick={() => setAppointmentModalOpen(true)}
-          >
-            <Icon icon={Add01Icon} data-icon="inline-start" />
-            New Appointment
-            <ShortcutBadge
-              shortcut="c"
-              className="ml-2 hidden md:inline-flex"
-            />
-          </Button>
-        }
-      />
+      <div className="flex justify-end">
+        <Button
+          className="hidden sm:inline-flex"
+          onClick={() => setAppointmentModalOpen(true)}
+        >
+          <Icon icon={Add01Icon} data-icon="inline-start" />
+          New Appointment
+          <ShortcutBadge shortcut="c" className="ml-2 hidden md:inline-flex" />
+        </Button>
+      </div>
 
       {/* Stats Cards */}
       {isLoading ? (

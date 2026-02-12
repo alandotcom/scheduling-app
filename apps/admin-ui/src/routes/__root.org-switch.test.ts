@@ -1,6 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import {
+  getHeaderBreadcrumbItems,
   getRemainingMinimumVisibleMs,
+  getWorkflowIdFromPathname,
   sanitizeSearchParamsForOrganizationSwitch,
 } from "./__root";
 
@@ -53,5 +55,82 @@ describe("getRemainingMinimumVisibleMs", () => {
         minVisibleMs: 350,
       }),
     ).toBe(0);
+  });
+});
+
+describe("getWorkflowIdFromPathname", () => {
+  test("parses workflow id from detail route", () => {
+    expect(getWorkflowIdFromPathname("/workflows/workflow-123")).toBe(
+      "workflow-123",
+    );
+  });
+
+  test("returns null for workflows index route", () => {
+    expect(getWorkflowIdFromPathname("/workflows")).toBeNull();
+    expect(getWorkflowIdFromPathname("/workflows/")).toBeNull();
+  });
+});
+
+describe("getHeaderBreadcrumbItems", () => {
+  test("returns single breadcrumb for top-level clients page", () => {
+    expect(getHeaderBreadcrumbItems({ pathname: "/clients" })).toEqual([
+      { label: "Clients" },
+    ]);
+  });
+
+  test("returns fallback workflow detail breadcrumb when name is unavailable", () => {
+    expect(
+      getHeaderBreadcrumbItems({
+        pathname: "/workflows/workflow-123",
+      }),
+    ).toEqual([
+      { label: "Workflows", to: "/workflows" },
+      { label: "Workflow" },
+    ]);
+  });
+
+  test("uses workflow name in workflow detail breadcrumb", () => {
+    expect(
+      getHeaderBreadcrumbItems({
+        pathname: "/workflows/workflow-123",
+        workflowName: "Data Fetching",
+      }),
+    ).toEqual([
+      { label: "Workflows", to: "/workflows" },
+      { label: "Data Fetching" },
+    ]);
+  });
+
+  test("returns settings section breadcrumb for explicit section", () => {
+    expect(
+      getHeaderBreadcrumbItems({
+        pathname: "/settings",
+        searchStr: "?section=webhooks",
+      }),
+    ).toEqual([{ label: "Settings", to: "/settings" }, { label: "Webhooks" }]);
+  });
+
+  test("returns settings section breadcrumb for default section", () => {
+    expect(
+      getHeaderBreadcrumbItems({
+        pathname: "/settings",
+        searchStr: "",
+      }),
+    ).toEqual([
+      { label: "Settings", to: "/settings" },
+      { label: "Organization" },
+    ]);
+  });
+
+  test("maps legacy settings aliases to organization section", () => {
+    expect(
+      getHeaderBreadcrumbItems({
+        pathname: "/settings",
+        searchStr: "?section=scheduling",
+      }),
+    ).toEqual([
+      { label: "Settings", to: "/settings" },
+      { label: "Organization" },
+    ]);
   });
 });

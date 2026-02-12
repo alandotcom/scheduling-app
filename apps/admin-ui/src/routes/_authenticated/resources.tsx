@@ -25,7 +25,7 @@ import { FieldShortcutHint } from "@/components/ui/field-shortcut-hint";
 import { Icon } from "@/components/ui/icon";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { PageHeader, PageScaffold } from "@/components/layout/page-scaffold";
+import { PageScaffold } from "@/components/layout/page-scaffold";
 import { ResourcesListPresentation } from "@/components/resources/resources-list-presentation";
 import { ShortcutBadge } from "@/components/ui/shortcut-badge";
 import {
@@ -378,20 +378,13 @@ function ResourcesPage() {
 
   return (
     <PageScaffold className="pb-24 sm:pb-6">
-      <PageHeader
-        title="Resources"
-        description="Manage resources like rooms, equipment, or staff"
-        actions={
-          <Button className="hidden sm:inline-flex" onClick={crud.openCreate}>
-            <Icon icon={Add01Icon} data-icon="inline-start" />
-            Add Resource
-            <ShortcutBadge
-              shortcut="c"
-              className="ml-2 hidden md:inline-flex"
-            />
-          </Button>
-        }
-      />
+      <div className="flex justify-end">
+        <Button className="hidden sm:inline-flex" onClick={crud.openCreate}>
+          <Icon icon={Add01Icon} data-icon="inline-start" />
+          Add Resource
+          <ShortcutBadge shortcut="c" className="ml-2 hidden md:inline-flex" />
+        </Button>
+      </div>
 
       <div className="mt-6">
         {isLoading ? (

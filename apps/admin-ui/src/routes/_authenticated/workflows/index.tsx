@@ -14,7 +14,7 @@ import type {
 } from "@scheduling/dto";
 import { webhookEventTypes } from "@scheduling/dto";
 import { EntityModal } from "@/components/entity-modal";
-import { PageHeader, PageScaffold } from "@/components/layout/page-scaffold";
+import { PageScaffold } from "@/components/layout/page-scaffold";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -256,11 +256,7 @@ function WorkflowsIndexPage() {
   if (!canQueryWorkflowData) {
     return (
       <PageScaffold>
-        <PageHeader
-          title="Workflows"
-          description="Define event-driven workflows, publish revisions, and monitor runs."
-        />
-        <div className="mt-6 text-sm text-muted-foreground">
+        <div className="text-sm text-muted-foreground">
           Loading organization context...
         </div>
       </PageScaffold>
@@ -269,23 +265,16 @@ function WorkflowsIndexPage() {
 
   return (
     <PageScaffold>
-      <PageHeader
-        title="Workflows"
-        description="Define event-driven workflows, publish revisions, and monitor runs."
-        actions={
-          <Button
-            className="hidden sm:inline-flex"
-            onClick={() => setShowCreateModal(true)}
-          >
-            <Icon icon={Add01Icon} data-icon="inline-start" />
-            New Workflow
-            <ShortcutBadge
-              shortcut="c"
-              className="ml-2 hidden md:inline-flex"
-            />
-          </Button>
-        }
-      />
+      <div className="flex justify-end">
+        <Button
+          className="hidden sm:inline-flex"
+          onClick={() => setShowCreateModal(true)}
+        >
+          <Icon icon={Add01Icon} data-icon="inline-start" />
+          New Workflow
+          <ShortcutBadge shortcut="c" className="ml-2 hidden md:inline-flex" />
+        </Button>
+      </div>
 
       <Card className="mt-6">
         <CardHeader className="border-b">

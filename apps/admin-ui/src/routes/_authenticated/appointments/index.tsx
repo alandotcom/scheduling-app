@@ -52,7 +52,7 @@ import {
 import { AppointmentModal } from "@/components/appointment-modal";
 import { CopyIdHeaderAction } from "@/components/copy-id-header-action";
 import { EntityModal } from "@/components/entity-modal";
-import { PageHeader, PageScaffold } from "@/components/layout/page-scaffold";
+import { PageScaffold } from "@/components/layout/page-scaffold";
 import {
   useKeyboardShortcuts,
   useFocusZones,
@@ -709,23 +709,16 @@ function AppointmentsPage() {
 
   return (
     <PageScaffold className="pb-24 sm:pb-6">
-      <PageHeader
-        title="Appointments"
-        description="View and manage scheduled appointments"
-        actions={
-          <Button
-            className="hidden sm:inline-flex"
-            onClick={() => setModalOpen(true)}
-          >
-            <Icon icon={Add01Icon} data-icon="inline-start" />
-            New Appointment
-            <ShortcutBadge
-              shortcut="c"
-              className="ml-2 hidden md:inline-flex"
-            />
-          </Button>
-        }
-      />
+      <div className="flex justify-end">
+        <Button
+          className="hidden sm:inline-flex"
+          onClick={() => setModalOpen(true)}
+        >
+          <Icon icon={Add01Icon} data-icon="inline-start" />
+          New Appointment
+          <ShortcutBadge shortcut="c" className="ml-2 hidden md:inline-flex" />
+        </Button>
+      </div>
 
       <div className="mt-6 hidden flex-wrap items-center gap-2 sm:flex sm:gap-3">
         <ViewToggle view={currentView} onViewChange={setView} size="sm" />

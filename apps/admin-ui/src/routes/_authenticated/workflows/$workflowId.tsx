@@ -21,7 +21,7 @@ import type {
   WorkflowValidationResult,
 } from "@scheduling/dto";
 import { webhookEventTypes, workflowKitDocumentSchema } from "@scheduling/dto";
-import { PageHeader, PageScaffold } from "@/components/layout/page-scaffold";
+import { PageScaffold } from "@/components/layout/page-scaffold";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -385,20 +385,14 @@ function WorkflowDetailPage() {
 
   return (
     <PageScaffold className="max-w-none">
-      <PageHeader
-        title={definition.name}
-        description={definition.description ?? "No description"}
-        actions={
-          <div className="flex items-center gap-2">
-            <Button variant="outline" asChild>
-              <Link to="/workflows">
-                <Icon icon={ArrowLeft01Icon} data-icon="inline-start" />
-                Back
-              </Link>
-            </Button>
-          </div>
-        }
-      />
+      <div className="flex items-center justify-end">
+        <Button variant="outline" asChild>
+          <Link to="/workflows">
+            <Icon icon={ArrowLeft01Icon} data-icon="inline-start" />
+            Back
+          </Link>
+        </Button>
+      </div>
 
       <div className="mt-3 flex flex-wrap items-center gap-2">
         <Badge variant="outline">{definition.key}</Badge>

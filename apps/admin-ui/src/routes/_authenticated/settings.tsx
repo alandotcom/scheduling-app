@@ -44,7 +44,7 @@ import type {
   WebhookTab,
   WebhooksRouteState,
 } from "@/components/settings/webhooks/types";
-import { PageScaffold, PageHeader } from "@/components/layout/page-scaffold";
+import { PageScaffold } from "@/components/layout/page-scaffold";
 import { RowActions } from "@/components/row-actions";
 import {
   EntityCardField,
@@ -302,31 +302,26 @@ function SettingsPage() {
 
   return (
     <PageScaffold>
-      <PageHeader
-        title="Settings"
-        description="Configure organization and application settings."
-      />
-
       {activeTab === "organization" ? (
-        <div className="mt-6">
+        <div>
           <OrganizationTab />
         </div>
       ) : null}
 
       {activeTab === "users" ? (
-        <div className="mt-6">
+        <div>
           <UsersManagementSection />
         </div>
       ) : null}
 
       {activeTab === "developers" ? (
-        <div className="mt-6">
+        <div>
           <ApiKeysSection />
         </div>
       ) : null}
 
       {activeTab === "integrations" ? (
-        <div className="mt-6">
+        <div>
           {isLoadingIntegrationPermissions ? (
             <Card>
               <CardHeader>
@@ -355,7 +350,7 @@ function SettingsPage() {
       ) : null}
 
       {activeTab === "webhooks" ? (
-        <div className="mt-6">
+        <div>
           <WebhooksSection
             routeState={webhookRouteState}
             actions={webhookActions}

@@ -24,7 +24,7 @@ import type { ContextMenuItem } from "@/components/context-menu";
 import { CopyIdHeaderAction } from "@/components/copy-id-header-action";
 import { DeleteConfirmDialog } from "@/components/delete-confirm-dialog";
 import { EntityModal } from "@/components/entity-modal";
-import { PageHeader, PageScaffold } from "@/components/layout/page-scaffold";
+import { PageScaffold } from "@/components/layout/page-scaffold";
 import { AppointmentTypesListPresentation } from "@/components/appointment-types/appointment-types-list-presentation";
 import { Button } from "@/components/ui/button";
 import { FieldShortcutHint } from "@/components/ui/field-shortcut-hint";
@@ -463,20 +463,13 @@ function AppointmentTypesPage() {
 
   return (
     <PageScaffold className="pb-24 sm:pb-6">
-      <PageHeader
-        title="Appointment Types"
-        description="Configure the types of appointments that can be booked"
-        actions={
-          <Button className="hidden sm:inline-flex" onClick={crud.openCreate}>
-            <Icon icon={Add01Icon} data-icon="inline-start" />
-            Add Type
-            <ShortcutBadge
-              shortcut="c"
-              className="ml-2 hidden md:inline-flex"
-            />
-          </Button>
-        }
-      />
+      <div className="flex justify-end">
+        <Button className="hidden sm:inline-flex" onClick={crud.openCreate}>
+          <Icon icon={Add01Icon} data-icon="inline-start" />
+          Add Type
+          <ShortcutBadge shortcut="c" className="ml-2 hidden md:inline-flex" />
+        </Button>
+      </div>
 
       <div className="mt-6">
         {isLoading ? (

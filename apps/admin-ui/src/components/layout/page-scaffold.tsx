@@ -23,33 +23,3 @@ export function PageScaffold({
     </section>
   );
 }
-
-interface PageHeaderProps {
-  title: string;
-  description?: string;
-  actions?: ReactNode;
-  className?: string;
-}
-
-export function PageHeader({
-  title,
-  description,
-  actions,
-  className,
-}: PageHeaderProps) {
-  return (
-    <div className={cn("flex items-center justify-between gap-4", className)}>
-      <div className="min-w-0 flex-1">
-        <h1 className="truncate text-2xl font-semibold tracking-tight">
-          {title}
-        </h1>
-        {description ? (
-          <p className="mt-1 text-sm text-muted-foreground sm:truncate">
-            {description}
-          </p>
-        ) : null}
-      </div>
-      {actions ? <div className="shrink-0">{actions}</div> : null}
-    </div>
-  );
-}

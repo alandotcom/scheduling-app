@@ -80,6 +80,30 @@ interface OrganizationMembershipListItem {
   role: "owner" | "admin" | "member";
 }
 
+type HeaderBreadcrumbLink =
+  | "/"
+  | "/appointments"
+  | "/clients"
+  | "/calendars"
+  | "/appointment-types"
+  | "/resources"
+  | "/locations"
+  | "/workflows"
+  | "/settings"
+  | "/split-pane";
+
+interface HeaderBreadcrumbItem {
+  label: string;
+  to?: HeaderBreadcrumbLink;
+}
+
+type SettingsSection =
+  | "organization"
+  | "users"
+  | "developers"
+  | "integrations"
+  | "webhooks";
+
 type OrganizationGateState = "loading" | "selection" | "error" | "ready";
 
 export function getOrganizationGateState(input: {
@@ -112,6 +136,91 @@ const ORG_SWITCH_STRIPPED_SEARCH_KEYS = [
   "messageId",
   "create",
 ] as const;
+const HEADER_BREADCRUMB_LABELS: Record<string, HeaderBreadcrumbItem[]> = {
+  "/": [{ label: "Dashboard" }],
+  "/appointments": [{ label: "Appointments" }],
+  "/clients": [{ label: "Clients" }],
+  "/calendars": [{ label: "Calendars" }],
+  "/appointment-types": [{ label: "Appointment Types" }],
+  "/resources": [{ label: "Resources" }],
+  "/locations": [{ label: "Locations" }],
+  "/workflows": [{ label: "Workflows" }],
+  "/settings": [{ label: "Settings" }],
+  "/split-pane": [{ label: "Split Pane" }],
+};
+const SETTINGS_SECTION_LABELS: Record<SettingsSection, string> = {
+  organization: "Organization",
+  users: "Users",
+  developers: "Developers",
+  integrations: "Integrations",
+  webhooks: "Webhooks",
+};
+
+function normalizePathname(pathname: string): string {
+  if (!pathname || pathname === "/") return "/";
+  return pathname.endsWith("/") ? pathname.slice(0, -1) : pathname;
+}
+
+function formatPathSegmentLabel(segment: string): string {
+  if (!segment) return "Page";
+  return segment
+    .split("-")
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
+}
+
+function resolveSettingsSection(
+  raw: string | null | undefined,
+): SettingsSection {
+  if (
+    raw === "organization" ||
+    raw === "users" ||
+    raw === "developers" ||
+    raw === "integrations" ||
+    raw === "webhooks"
+  ) {
+    return raw;
+  }
+  if (raw === "general" || raw === "scheduling") return "organization";
+  return "organization";
+}
+
+export function getWorkflowIdFromPathname(pathname: string): string | null {
+  const normalizedPathname = normalizePathname(pathname);
+  const segments = normalizedPathname.split("/").filter(Boolean);
+  if (segments[0] !== "workflows" || segments.length !== 2) return null;
+  const workflowId = segments[1];
+  if (!workflowId) return null;
+  return decodeURIComponent(workflowId);
+}
+
+export function getHeaderBreadcrumbItems(input: {
+  pathname: string;
+  searchStr?: string;
+  workflowName?: string | null;
+}): HeaderBreadcrumbItem[] {
+  const normalizedPathname = normalizePathname(input.pathname);
+  const workflowId = getWorkflowIdFromPathname(normalizedPathname);
+  if (workflowId) {
+    const workflowLabel = input.workflowName?.trim() || "Workflow";
+    return [{ label: "Workflows", to: "/workflows" }, { label: workflowLabel }];
+  }
+  if (normalizedPathname === "/settings") {
+    const searchParams = new URLSearchParams(input.searchStr ?? "");
+    const activeSection = resolveSettingsSection(searchParams.get("section"));
+    return [
+      { label: "Settings", to: "/settings" },
+      { label: SETTINGS_SECTION_LABELS[activeSection] },
+    ];
+  }
+
+  const known = HEADER_BREADCRUMB_LABELS[normalizedPathname];
+  if (known) return known;
+
+  const segment = normalizedPathname.split("/").filter(Boolean).at(-1);
+  if (!segment) return [{ label: "Dashboard" }];
+  return [{ label: formatPathSegmentLabel(segment) }];
+}
 
 function canManageIntegrationsForRole(
   role: "owner" | "admin" | "member" | null,
@@ -210,6 +319,15 @@ function RootLayout() {
   const sessionActiveOrganizationId = session?.session.activeOrganizationId;
   const activeOrganizationId =
     authContextQuery.data?.orgId ?? sessionActiveOrganizationId ?? null;
+  const workflowBreadcrumbId = getWorkflowIdFromPathname(location.pathname);
+  const workflowBreadcrumbQuery = useQuery({
+    ...orpc.workflows.getDefinition.queryOptions({
+      input: { id: workflowBreadcrumbId ?? "" },
+    }),
+    enabled:
+      isAuthenticated && !!activeOrganizationId && !!workflowBreadcrumbId,
+    retry: false,
+  });
 
   const shouldFetchMemberships =
     isAuthenticated &&
@@ -542,6 +660,11 @@ function RootLayout() {
     { to: "/locations", icon: Location01Icon, label: "Locations" },
     { to: "/workflows", icon: ArrowRight01Icon, label: "Workflows" },
   ];
+  const headerBreadcrumbItems = getHeaderBreadcrumbItems({
+    pathname: location.pathname,
+    searchStr: location.searchStr,
+    workflowName: workflowBreadcrumbQuery.data?.name,
+  });
 
   return (
     <SidebarProvider
@@ -575,17 +698,11 @@ function RootLayout() {
 
       <SidebarInset>
         <header className="sticky top-0 z-10 flex h-14 items-center justify-between border-b border-border bg-background px-4 shrink-0 lg:px-6">
-          <div className="flex items-center gap-3">
+          <div className="flex min-w-0 items-center gap-3">
             <SidebarTrigger aria-label="Toggle navigation menu">
               <Icon icon={Menu01Icon} className="size-5" />
             </SidebarTrigger>
-            <Link
-              to="/"
-              preload="intent"
-              className="text-base font-semibold tracking-tight lg:hidden"
-            >
-              Scheduling
-            </Link>
+            <HeaderBreadcrumb items={headerBreadcrumbItems} />
           </div>
 
           {/* Search trigger */}
@@ -761,6 +878,47 @@ function RootLayout() {
         onOpenChange={setShortcutsHelpOpen}
       />
     </SidebarProvider>
+  );
+}
+
+function HeaderBreadcrumb({ items }: { items: HeaderBreadcrumbItem[] }) {
+  const currentItem = items[items.length - 1];
+
+  return (
+    <nav aria-label="Breadcrumb" className="min-w-0">
+      <ol className="hidden min-w-0 items-center gap-1 text-sm md:flex">
+        {items.map((item, index) => (
+          <li
+            key={`${item.label}-${index}`}
+            className="flex min-w-0 items-center gap-1"
+          >
+            {index > 0 ? (
+              <Icon
+                icon={ArrowRight01Icon}
+                className="size-3 text-muted-foreground"
+                aria-hidden="true"
+              />
+            ) : null}
+            {item.to ? (
+              <Link
+                to={item.to}
+                preload="intent"
+                className="truncate text-muted-foreground transition-colors hover:text-foreground"
+              >
+                {item.label}
+              </Link>
+            ) : (
+              <span className="truncate text-foreground font-medium">
+                {item.label}
+              </span>
+            )}
+          </li>
+        ))}
+      </ol>
+      <span className="block truncate text-sm font-medium md:hidden">
+        {currentItem?.label ?? ""}
+      </span>
+    </nav>
   );
 }
 

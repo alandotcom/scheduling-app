@@ -28,7 +28,7 @@ import { Button } from "@/components/ui/button";
 import { FieldShortcutHint } from "@/components/ui/field-shortcut-hint";
 import { Icon } from "@/components/ui/icon";
 import { Input } from "@/components/ui/input";
-import { PageHeader, PageScaffold } from "@/components/layout/page-scaffold";
+import { PageScaffold } from "@/components/layout/page-scaffold";
 import { Label } from "@/components/ui/label";
 import { LocationsListPresentation } from "@/components/locations/locations-list-presentation";
 import { ShortcutBadge } from "@/components/ui/shortcut-badge";
@@ -388,20 +388,13 @@ function LocationsPage() {
 
   return (
     <PageScaffold className="pb-24 sm:pb-6">
-      <PageHeader
-        title="Locations"
-        description="Manage physical locations for your calendars"
-        actions={
-          <Button className="hidden sm:inline-flex" onClick={crud.openCreate}>
-            <Icon icon={Add01Icon} data-icon="inline-start" />
-            Add Location
-            <ShortcutBadge
-              shortcut="c"
-              className="ml-2 hidden md:inline-flex"
-            />
-          </Button>
-        }
-      />
+      <div className="flex justify-end">
+        <Button className="hidden sm:inline-flex" onClick={crud.openCreate}>
+          <Icon icon={Add01Icon} data-icon="inline-start" />
+          Add Location
+          <ShortcutBadge shortcut="c" className="ml-2 hidden md:inline-flex" />
+        </Button>
+      </div>
 
       <div className="mt-6">
         {isLoading ? (
