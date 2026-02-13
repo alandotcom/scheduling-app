@@ -20,19 +20,19 @@ export function ConditionNode({ data, selected }: NodeProps) {
       }}
       selected={selected ?? false}
     >
-      <div className="flex flex-col items-center gap-1 px-3 py-3">
+      <div className="flex flex-col items-center justify-center gap-3 p-6 text-center">
         <HugeiconsIcon
           icon={GitBranchIcon}
           strokeWidth={1.5}
-          className="size-7 text-muted-foreground"
+          className="size-12 text-violet-500"
         />
-        <p className="text-xs font-semibold leading-tight">
+        <p className="text-base font-semibold leading-tight">
           {nodeData?.title ?? "Condition"}
         </p>
-        <p className="max-w-full truncate text-[10px] text-muted-foreground">
+        <p className="max-w-40 text-xs text-muted-foreground">
           {nodeData?.subtitle ?? ""}
         </p>
-        <div className="mt-0.5 flex gap-2 text-[9px] font-medium">
+        <div className="mt-1 flex gap-3 text-[10px] font-medium">
           <span className="text-green-600">true</span>
           <span className="text-red-600">false</span>
         </div>

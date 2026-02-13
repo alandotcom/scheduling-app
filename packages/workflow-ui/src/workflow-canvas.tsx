@@ -332,10 +332,10 @@ export function WorkflowCanvas({
       >
         <Controls />
         {!readOnly ? (
-          <Panel position="top-left">
+          <Panel position="top-left" className="m-4">
             <button
               type="button"
-              className="inline-flex h-8 items-center gap-1.5 rounded-md border bg-secondary px-2.5 text-xs font-medium text-secondary-foreground shadow-sm hover:bg-secondary/80"
+              className="inline-flex h-8 items-center gap-1.5 rounded-md border bg-card px-2.5 text-xs font-medium text-foreground shadow-sm hover:bg-secondary"
               onClick={openCenteredCommandMenu}
             >
               <HugeiconsIcon
@@ -351,12 +351,12 @@ export function WorkflowCanvas({
 
       {commandMenu ? (
         <div
-          className="absolute z-30 w-44 rounded-lg border border-border bg-background p-1 shadow-xl"
+          className="absolute z-30 w-44 rounded-md border border-border bg-card p-1 shadow-lg"
           style={{ left: commandMenu.left, top: commandMenu.top }}
         >
           <button
             type="button"
-            className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs hover:bg-accent"
+            className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs hover:bg-secondary"
             onClick={() => handleCreateNode("action")}
             disabled={!hasActions}
           >
@@ -369,7 +369,7 @@ export function WorkflowCanvas({
           </button>
           <button
             type="button"
-            className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs hover:bg-accent"
+            className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs hover:bg-secondary"
             onClick={() => handleCreateNode("wait")}
           >
             <HugeiconsIcon
@@ -381,7 +381,7 @@ export function WorkflowCanvas({
           </button>
           <button
             type="button"
-            className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs hover:bg-accent"
+            className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs hover:bg-secondary"
             onClick={() => handleCreateNode("condition")}
           >
             <HugeiconsIcon
@@ -393,7 +393,7 @@ export function WorkflowCanvas({
           </button>
           <button
             type="button"
-            className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs hover:bg-accent"
+            className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs hover:bg-secondary"
             onClick={() => handleCreateNode("terminal")}
           >
             <HugeiconsIcon

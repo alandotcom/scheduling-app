@@ -541,7 +541,7 @@ function WorkflowDetailPage() {
   );
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col bg-background">
+    <div className="workflow-editor-theme fixed inset-0 z-50 flex flex-col bg-background">
       {/* Top toolbar */}
       <div className="flex h-12 shrink-0 items-center justify-between border-b border-border px-3">
         <div className="flex items-center gap-3 min-w-0">

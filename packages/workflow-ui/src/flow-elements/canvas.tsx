@@ -11,6 +11,10 @@ export function Canvas({ children, ...props }: CanvasProps) {
     <ReactFlow<BuilderNode>
       deleteKeyCode={["Backspace", "Delete"]}
       fitView
+      panActivationKeyCode={null}
+      selectionOnDrag={false}
+      zoomOnDoubleClick={false}
+      zoomOnPinch
       className="h-full w-full"
       {...props}
     >

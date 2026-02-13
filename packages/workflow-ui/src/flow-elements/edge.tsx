@@ -1,5 +1,10 @@
 // oxlint-disable eslint-plugin-react/react-in-jsx-scope
-import { BaseEdge, getBezierPath, type EdgeProps } from "@xyflow/react";
+import {
+  BaseEdge,
+  getBezierPath,
+  getSimpleBezierPath,
+  type EdgeProps,
+} from "@xyflow/react";
 
 export function AnimatedEdge({
   id,
@@ -32,13 +37,10 @@ export function AnimatedEdge({
         id={id}
         path={edgePath}
         style={{
-          stroke: selected
-            ? "var(--sidebar-primary)"
-            : "var(--sidebar-foreground)",
+          stroke: selected ? "var(--muted-foreground)" : "var(--border)",
           strokeWidth: 2,
-          strokeOpacity: selected ? 1 : 0.45,
-          strokeDasharray: "6 3",
-          animation: "dash 0.5s linear infinite",
+          strokeDasharray: 5,
+          animation: "workflow-dashdraw 0.5s linear infinite",
         }}
       />
       {branch ? (
@@ -71,7 +73,7 @@ export function TemporaryEdge({
   sourcePosition,
   targetPosition,
 }: EdgeProps) {
-  const [edgePath] = getBezierPath({
+  const [edgePath] = getSimpleBezierPath({
     sourceX,
     sourceY,
     targetX,
@@ -85,10 +87,9 @@ export function TemporaryEdge({
       id={id}
       path={edgePath}
       style={{
-        stroke: "var(--sidebar-foreground)",
-        strokeWidth: 2,
-        strokeOpacity: 0.3,
-        strokeDasharray: "4 4",
+        stroke: "var(--border)",
+        strokeWidth: 1,
+        strokeDasharray: "5, 5",
       }}
     />
   );

@@ -28,8 +28,8 @@ export function NodeWrapper({
 }: NodeWrapperProps) {
   return (
     <div
-      className={`flex w-44 flex-col items-center rounded-md border bg-card shadow-sm transition ${
-        selected ? "border-primary ring-2 ring-primary/30" : "border-border"
+      className={`relative flex h-48 w-48 flex-col items-center justify-center rounded-md border bg-card shadow-none transition-all duration-150 ease-out ${
+        selected ? "border-primary" : "border-border"
       } ${className ?? ""}`}
     >
       {handles.target ? (

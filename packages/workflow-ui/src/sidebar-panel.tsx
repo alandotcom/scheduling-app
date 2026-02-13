@@ -18,9 +18,9 @@ type SidebarPanelProps = {
   children: ReactNode;
 };
 
-const MIN_WIDTH = 280;
-const MAX_WIDTH_RATIO = 0.5;
-const DEFAULT_WIDTH = 320;
+const MIN_WIDTH = 340;
+const MAX_WIDTH_RATIO = 0.46;
+const DEFAULT_WIDTH = 430;
 
 export function SidebarPanel({
   activeTab,
@@ -80,7 +80,7 @@ export function SidebarPanel({
       {!open ? (
         <button
           type="button"
-          className="absolute right-3 top-3 z-10 rounded-lg border border-border bg-background px-3 py-1.5 text-xs font-medium shadow-sm"
+          className="absolute right-3 top-3 z-10 rounded-md border border-border bg-card px-3 py-1.5 text-xs font-medium shadow-sm"
           onClick={() => onOpenChange(true)}
         >
           Properties
@@ -90,7 +90,7 @@ export function SidebarPanel({
       {/* Edge toggle */}
       <button
         type="button"
-        className="absolute top-3 z-30 flex h-10 w-5 items-center justify-center rounded-l-md border border-r-0 border-border bg-background text-muted-foreground hover:text-foreground"
+        className="absolute top-3 z-30 flex h-10 w-5 items-center justify-center rounded-l-md border border-r-0 border-border bg-card text-muted-foreground hover:text-foreground"
         style={{
           right: open ? width : 0,
           transition: "right 200ms ease",
@@ -112,7 +112,7 @@ export function SidebarPanel({
       {/* Panel */}
       <div
         ref={panelRef}
-        className="absolute inset-y-0 right-0 z-20 border-l border-border bg-background transition-transform duration-200"
+        className="absolute inset-y-0 right-0 z-20 border-l border-border bg-card transition-transform duration-200"
         style={{
           width,
           transform: open ? "translateX(0)" : "translateX(100%)",
@@ -128,8 +128,8 @@ export function SidebarPanel({
 
         <div className="flex h-full flex-col">
           {/* Tab switcher */}
-          <div className="flex shrink-0 items-center gap-2 px-3 py-2">
-            <div className="inline-flex h-8 flex-1 items-center justify-center rounded-lg bg-muted p-[3px]">
+          <div className="flex shrink-0 items-center gap-2 border-b border-border px-3 py-2">
+            <div className="inline-flex h-8 flex-1 items-center justify-center rounded-md bg-muted p-[2px]">
               <button
                 type="button"
                 className={`flex-1 rounded-md px-3 py-1 text-xs font-medium transition-colors ${

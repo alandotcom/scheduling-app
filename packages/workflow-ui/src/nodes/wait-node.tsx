@@ -13,16 +13,16 @@ export function WaitNode({ data, selected }: NodeProps) {
       handles={{ target: true, source: true }}
       selected={selected ?? false}
     >
-      <div className="flex flex-col items-center gap-1 px-3 py-3">
+      <div className="flex flex-col items-center justify-center gap-3 p-6 text-center">
         <HugeiconsIcon
           icon={Clock01Icon}
           strokeWidth={1.5}
-          className="size-7 text-muted-foreground"
+          className="size-12 text-amber-500"
         />
-        <p className="text-xs font-semibold leading-tight">
+        <p className="text-base font-semibold leading-tight">
           {nodeData?.title ?? "Wait"}
         </p>
-        <p className="max-w-full truncate text-[10px] text-muted-foreground">
+        <p className="max-w-40 text-xs text-muted-foreground">
           {nodeData?.subtitle ?? ""}
         </p>
       </div>
