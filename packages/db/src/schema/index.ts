@@ -506,7 +506,7 @@ export const workflowDefinitions = pgTable.withRLS(
     name: text("name").notNull(),
     description: text("description"),
     status: workflowDefinitionStatusEnum("status").notNull().default("draft"),
-    draftWorkflowKit: jsonb("draft_graph")
+    draftWorkflowGraph: jsonb("draft_graph")
       .$type<Record<string, unknown>>()
       .notNull()
       .default({}),
@@ -539,10 +539,10 @@ export const workflowDefinitionVersions = pgTable.withRLS(
       .notNull()
       .references(() => workflowDefinitions.id, { onDelete: "cascade" }),
     version: integer("version").notNull(),
-    workflowKitSchemaVersion: integer("graph_schema_version")
+    workflowGraphSchemaVersion: integer("graph_schema_version")
       .notNull()
       .default(1),
-    workflowKit: jsonb("graph").$type<Record<string, unknown>>().notNull(),
+    workflowGraph: jsonb("graph").$type<Record<string, unknown>>().notNull(),
     compiledPlan: jsonb("compiled_plan")
       .$type<Record<string, unknown>>()
       .notNull()
@@ -704,6 +704,41 @@ export const workflowDeliveryLog = pgTable.withRLS(
       table.channel,
     ),
     pgPolicy("org_isolation_workflow_delivery_log", {
+      for: "all",
+      using: sql`org_id = current_org_id()`,
+      withCheck: sql`org_id = current_org_id()`,
+    }),
+  ],
+);
+
+export const workflowStepLog = pgTable.withRLS(
+  "workflow_step_log",
+  {
+    id,
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => orgs.id),
+    runId: text("run_id").notNull(),
+    nodeId: text("node_id").notNull(),
+    nodeName: text("node_name").notNull(),
+    nodeType: text("node_type").notNull(),
+    status: text("status").notNull().default("pending"),
+    input: jsonb("input").$type<Record<string, unknown> | null>(),
+    output: jsonb("output").$type<Record<string, unknown> | null>(),
+    errorMessage: text("error_message"),
+    startedAt: timestamp("started_at", { withTimezone: true }),
+    completedAt: timestamp("completed_at", { withTimezone: true }),
+    durationMs: integer("duration_ms"),
+    ...timestamps,
+  },
+  (table) => [
+    index("workflow_step_log_org_run_idx").on(table.orgId, table.runId),
+    index("workflow_step_log_org_run_node_idx").on(
+      table.orgId,
+      table.runId,
+      table.nodeId,
+    ),
+    pgPolicy("org_isolation_workflow_step_log", {
       for: "all",
       using: sql`org_id = current_org_id()`,
       withCheck: sql`org_id = current_org_id()`,

@@ -5,6 +5,14 @@ import {
   createWorkflowExecutionFunction,
 } from "./workflow-execution.js";
 
+const noopStepLogging = () => ({
+  logStepStart: mock(async () => ({
+    logId: "log_test",
+    startTime: Date.now(),
+  })),
+  logStepComplete: mock(async () => {}),
+});
+
 describe("workflow execution function", () => {
   test("records run start and marks run completed", async () => {
     const recordRunStart = mock(async () => {});
@@ -24,6 +32,7 @@ describe("workflow execution function", () => {
     const markRunStatus = mock(async () => {});
 
     const fn = createWorkflowExecutionFunction({
+      ...noopStepLogging(),
       recordRunStart,
       cancelReplacedRuns,
       getRunGuard,
@@ -124,6 +133,7 @@ describe("workflow execution function", () => {
     const markRunStatus = mock(async () => {});
 
     const fn = createWorkflowExecutionFunction({
+      ...noopStepLogging(),
       recordRunStart,
       cancelReplacedRuns,
       getRunGuard,
@@ -188,6 +198,7 @@ describe("workflow execution function", () => {
     const markRunStatus = mock(async () => {});
 
     const fn = createWorkflowExecutionFunction({
+      ...noopStepLogging(),
       recordRunStart,
       cancelReplacedRuns,
       getRunGuard,
@@ -257,6 +268,7 @@ describe("workflow execution function", () => {
     const markRunStatus = mock(async () => {});
 
     const fn = createWorkflowExecutionFunction({
+      ...noopStepLogging(),
       recordRunStart,
       cancelReplacedRuns,
       getRunGuard,
@@ -341,6 +353,7 @@ describe("workflow execution function", () => {
     const markRunStatus = mock(async () => {});
 
     const fn = createWorkflowExecutionFunction({
+      ...noopStepLogging(),
       recordRunStart,
       cancelReplacedRuns,
       getRunGuard,
@@ -428,11 +441,17 @@ describe("workflow execution function", () => {
       channel: "integration.resend.sendEmail",
       target: "client@example.com",
       providerMessageId: "provider-msg-1",
+      output: {
+        channel: "integration.resend.sendEmail",
+        target: "client@example.com",
+        providerMessageId: "provider-msg-1",
+      },
     }));
     const recordDeliveryWithGuard = mock(async () => "recorded" as const);
     const markRunStatus = mock(async () => {});
 
     const fn = createWorkflowExecutionFunction({
+      ...noopStepLogging(),
       recordRunStart,
       cancelReplacedRuns,
       getRunGuard,
@@ -526,6 +545,7 @@ describe("workflow execution function", () => {
     const markRunStatus = mock(async () => {});
 
     const fn = createWorkflowExecutionFunction({
+      ...noopStepLogging(),
       recordRunStart,
       cancelReplacedRuns,
       getRunGuard,
@@ -597,6 +617,7 @@ describe("workflow execution function", () => {
     const markRunStatus = mock(async () => {});
 
     const fn = createWorkflowExecutionFunction({
+      ...noopStepLogging(),
       recordRunStart,
       cancelReplacedRuns,
       getRunGuard,
@@ -685,6 +706,7 @@ describe("workflow execution function", () => {
     const markRunStatus = mock(async () => {});
 
     const fn = createWorkflowExecutionFunction({
+      ...noopStepLogging(),
       recordRunStart,
       cancelReplacedRuns,
       getRunGuard,
@@ -768,6 +790,7 @@ describe("workflow execution function", () => {
     const markRunStatus = mock(async () => {});
 
     const fn = createWorkflowExecutionFunction({
+      ...noopStepLogging(),
       recordRunStart,
       cancelReplacedRuns,
       getRunGuard,
@@ -837,6 +860,7 @@ describe("workflow execution function", () => {
     const markRunStatus = mock(async () => {});
 
     const fn = createWorkflowExecutionFunction({
+      ...noopStepLogging(),
       recordRunStart,
       cancelReplacedRuns,
       getRunGuard,
@@ -908,6 +932,7 @@ describe("workflow execution function", () => {
     const markRunStatus = mock(async () => {});
 
     const fn = createWorkflowExecutionFunction({
+      ...noopStepLogging(),
       recordRunStart,
       cancelReplacedRuns,
       getRunGuard,
@@ -979,6 +1004,7 @@ describe("workflow execution function", () => {
     const markRunStatus = mock(async () => {});
 
     const fn = createWorkflowExecutionFunction({
+      ...noopStepLogging(),
       recordRunStart,
       cancelReplacedRuns,
       getRunGuard,
@@ -1049,6 +1075,7 @@ describe("workflow execution function", () => {
     const markRunStatus = mock(async () => {});
 
     const fn = createWorkflowExecutionFunction({
+      ...noopStepLogging(),
       recordRunStart,
       cancelReplacedRuns,
       getRunGuard,
@@ -1128,6 +1155,7 @@ describe("workflow execution function", () => {
     const markRunStatus = mock(async () => {});
 
     const fn = createWorkflowExecutionFunction({
+      ...noopStepLogging(),
       recordRunStart,
       cancelReplacedRuns,
       getRunGuard,

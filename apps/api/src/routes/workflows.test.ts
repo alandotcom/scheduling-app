@@ -125,7 +125,7 @@ describe("Workflow Routes", () => {
       {
         key: "member_visible_workflow",
         name: "Member Visible Workflow",
-        workflowKit: { trigger: { event: "appointment.created" } },
+        workflowGraph: { trigger: { event: "appointment.created" } },
       },
       { context: ownerContext },
     );
@@ -157,7 +157,7 @@ describe("Workflow Routes", () => {
         {
           key: "member_cannot_create",
           name: "Member Cannot Create",
-          workflowKit: { trigger: { event: "appointment.created" } },
+          workflowGraph: { trigger: { event: "appointment.created" } },
         },
         { context },
       ),
@@ -209,7 +209,7 @@ describe("Workflow Routes", () => {
         key: "appointment_reminders",
         name: "Appointment Reminders",
         description: "Sends reminders before upcoming appointments",
-        workflowKit: {
+        workflowGraph: {
           trigger: { event: "appointment.created" },
           steps: [{ id: "step_1", type: "wait" }],
         },
@@ -237,7 +237,7 @@ describe("Workflow Routes", () => {
       { context },
     );
     expect(fetched.id).toBe(created.id);
-    expect(fetched.draftWorkflowKit).toEqual(created.draftWorkflowKit);
+    expect(fetched.draftWorkflowGraph).toEqual(created.draftWorkflowGraph);
   });
 
   test("createDefinition rejects duplicate workflow keys within an org", async () => {
@@ -253,7 +253,7 @@ describe("Workflow Routes", () => {
       {
         key: "appointment_reminders",
         name: "First",
-        workflowKit: { trigger: { event: "appointment.created" } },
+        workflowGraph: { trigger: { event: "appointment.created" } },
       },
       { context },
     );
@@ -264,7 +264,7 @@ describe("Workflow Routes", () => {
         {
           key: "appointment_reminders",
           name: "Duplicate",
-          workflowKit: { trigger: { event: "appointment.updated" } },
+          workflowGraph: { trigger: { event: "appointment.updated" } },
         },
         { context },
       ),
@@ -284,7 +284,7 @@ describe("Workflow Routes", () => {
       {
         key: "followups",
         name: "Follow Ups",
-        workflowKit: { trigger: { event: "appointment.created" } },
+        workflowGraph: { trigger: { event: "appointment.created" } },
       },
       { context },
     );
@@ -294,7 +294,7 @@ describe("Workflow Routes", () => {
       {
         id: created.id,
         expectedRevision: 1,
-        workflowKit: {
+        workflowGraph: {
           trigger: { event: "appointment.updated" },
           steps: [{ id: "step_2", type: "notify" }],
         },
@@ -303,7 +303,7 @@ describe("Workflow Routes", () => {
     );
 
     expect(updated.draftRevision).toBe(2);
-    expect(updated.draftWorkflowKit).toMatchObject({
+    expect(updated.draftWorkflowGraph).toMatchObject({
       trigger: { event: "appointment.updated" },
       steps: [{ id: "step_2", type: "notify" }],
     });
@@ -314,7 +314,7 @@ describe("Workflow Routes", () => {
         {
           id: created.id,
           expectedRevision: 1,
-          workflowKit: { trigger: { event: "appointment.cancelled" } },
+          workflowGraph: { trigger: { event: "appointment.cancelled" } },
         },
         { context },
       ),
@@ -351,7 +351,7 @@ describe("Workflow Routes", () => {
       {
         id: created.id,
         expectedRevision: 1,
-        workflowKit: { trigger: { event: "appointment.created" } },
+        workflowGraph: { trigger: { event: "appointment.created" } },
       },
       { context },
     );
@@ -378,7 +378,7 @@ describe("Workflow Routes", () => {
       {
         key: "publish_flow",
         name: "Publish Flow",
-        workflowKit: { trigger: { event: "appointment.created" } },
+        workflowGraph: { trigger: { event: "appointment.created" } },
       },
       { context },
     );
@@ -395,7 +395,7 @@ describe("Workflow Routes", () => {
     expect(firstPublish.status).toBe("active");
     expect(firstPublish.activeVersion).not.toBeNull();
     expect(firstPublish.activeVersion?.version).toBe(1);
-    expect(firstPublish.activeVersion?.workflowKit).toMatchObject({
+    expect(firstPublish.activeVersion?.workflowGraph).toMatchObject({
       trigger: { event: "appointment.created" },
     });
     expect(firstPublish.activeVersion?.compiledPlan).toMatchObject({
@@ -410,7 +410,7 @@ describe("Workflow Routes", () => {
       {
         id: created.id,
         expectedRevision: 1,
-        workflowKit: {
+        workflowGraph: {
           trigger: { event: "appointment.updated" },
           steps: [{ id: "step_1", type: "notify" }],
         },
@@ -429,7 +429,7 @@ describe("Workflow Routes", () => {
     );
 
     expect(secondPublish.activeVersion?.version).toBe(2);
-    expect(secondPublish.activeVersion?.workflowKit).toMatchObject({
+    expect(secondPublish.activeVersion?.workflowGraph).toMatchObject({
       trigger: { event: "appointment.updated" },
       steps: [{ id: "step_1", type: "notify" }],
     });
@@ -482,7 +482,7 @@ describe("Workflow Routes", () => {
       {
         key: "invalid_edges",
         name: "Invalid Edges",
-        workflowKit: {
+        workflowGraph: {
           trigger: { eventType: "client.created" },
           nodes: [
             {
@@ -529,7 +529,7 @@ describe("Workflow Routes", () => {
       {
         key: "invalid_action",
         name: "Invalid Action",
-        workflowKit: {
+        workflowGraph: {
           trigger: { eventType: "client.created" },
           nodes: [
             {
@@ -617,7 +617,7 @@ describe("Workflow Routes", () => {
       {
         key: "binding_lifecycle",
         name: "Binding Lifecycle",
-        workflowKit: { trigger: { event: "appointment.created" } },
+        workflowGraph: { trigger: { event: "appointment.created" } },
       },
       { context },
     );
@@ -706,7 +706,7 @@ describe("Workflow Routes", () => {
       {
         key: "binding_repoint",
         name: "Binding Repoint",
-        workflowKit: { trigger: { event: "appointment.created" } },
+        workflowGraph: { trigger: { event: "appointment.created" } },
       },
       { context },
     );
@@ -737,7 +737,7 @@ describe("Workflow Routes", () => {
       {
         id: workflow.id,
         expectedRevision: 1,
-        workflowKit: { trigger: { event: "appointment.updated" } },
+        workflowGraph: { trigger: { event: "appointment.updated" } },
       },
       { context },
     );
@@ -793,7 +793,7 @@ describe("Workflow Routes", () => {
       {
         key: "workflow_a",
         name: "Workflow A",
-        workflowKit: { trigger: { event: "appointment.created" } },
+        workflowGraph: { trigger: { event: "appointment.created" } },
       },
       { context },
     );
@@ -802,7 +802,7 @@ describe("Workflow Routes", () => {
       {
         key: "workflow_b",
         name: "Workflow B",
-        workflowKit: { trigger: { event: "appointment.updated" } },
+        workflowGraph: { trigger: { event: "appointment.updated" } },
       },
       { context },
     );
@@ -931,7 +931,7 @@ describe("Workflow Routes", () => {
       {
         key: "run_detail_workflow",
         name: "Run Detail Workflow",
-        workflowKit: { trigger: { event: "appointment.created" } },
+        workflowGraph: { trigger: { event: "appointment.created" } },
       },
       { context },
     );

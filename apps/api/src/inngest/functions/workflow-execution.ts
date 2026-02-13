@@ -1,5 +1,4 @@
 import { inngest } from "../client.js";
-import { forEachAsync } from "es-toolkit/array";
 import {
   buildWorkflowDeliveryKey,
   cancelReplacedWorkflowRuns,
@@ -12,6 +11,14 @@ import {
 } from "../../services/workflows/runtime.js";
 import { parseWorkflowDurationToMs } from "../../services/workflows/duration.js";
 import { executeWorkflowAction } from "../../services/workflows/registry.js";
+import {
+  processTemplates,
+  type NodeOutputs,
+} from "../../services/workflows/templates.js";
+import {
+  logStepStart,
+  logStepComplete,
+} from "../../services/workflows/step-logging.js";
 
 type WorkflowExecutionDependencies = {
   recordRunStart: typeof recordWorkflowRunStart;
@@ -22,6 +29,8 @@ type WorkflowExecutionDependencies = {
   recordDeliveryWithGuard: typeof recordWorkflowDeliveryWithGuard;
   markRunStatus: typeof markWorkflowRunStatus;
   executeAction: typeof executeWorkflowAction;
+  logStepStart: typeof logStepStart;
+  logStepComplete: typeof logStepComplete;
 };
 
 type TerminalReason =
@@ -54,10 +63,17 @@ type ParsedGuard = {
   conditions: ParsedGuardCondition[];
 };
 
+type ParsedEdge = {
+  source: string;
+  target: string;
+  branch?: "next" | "timeout" | "true" | "false";
+};
+
 type ParsedCompiledPlan = {
   entryNodeIds: string[];
   nodeById: Map<string, Record<string, unknown>>;
   nextNodeIdsBySource: Map<string, string[]>;
+  edgesBySource: Map<string, ParsedEdge[]>;
 };
 
 function createDefaultDependencies(): WorkflowExecutionDependencies {
@@ -70,6 +86,8 @@ function createDefaultDependencies(): WorkflowExecutionDependencies {
     recordDeliveryWithGuard: recordWorkflowDeliveryWithGuard,
     markRunStatus: markWorkflowRunStatus,
     executeAction: executeWorkflowAction,
+    logStepStart,
+    logStepComplete,
   };
 }
 
@@ -117,6 +135,7 @@ function parseCompiledPlan(
   }
 
   const nextNodeIdsBySource = new Map<string, string[]>();
+  const edgesBySource = new Map<string, ParsedEdge[]>();
   for (const rawEdge of edgesValue) {
     if (!isRecord(rawEdge)) continue;
     const source = rawEdge["source"];
@@ -124,6 +143,21 @@ function parseCompiledPlan(
     if (typeof source !== "string" || source.length === 0) continue;
     if (typeof target !== "string" || target.length === 0) continue;
     if (!nodeById.has(source) || !nodeById.has(target)) continue;
+
+    const branch = rawEdge["branch"];
+    const parsedEdge: ParsedEdge = { source, target };
+    if (
+      branch === "next" ||
+      branch === "timeout" ||
+      branch === "true" ||
+      branch === "false"
+    ) {
+      parsedEdge.branch = branch;
+    }
+
+    const existingEdges = edgesBySource.get(source) ?? [];
+    existingEdges.push(parsedEdge);
+    edgesBySource.set(source, existingEdges);
 
     const existing = nextNodeIdsBySource.get(source) ?? [];
     existing.push(target);
@@ -143,6 +177,7 @@ function parseCompiledPlan(
       entryNodeIds: [...nodeById.keys()].toSorted().slice(0, 1),
       nodeById,
       nextNodeIdsBySource,
+      edgesBySource,
     };
   }
 
@@ -150,6 +185,7 @@ function parseCompiledPlan(
     entryNodeIds,
     nodeById,
     nextNodeIdsBySource,
+    edgesBySource,
   };
 }
 
@@ -593,6 +629,32 @@ function buildExecutionOrder(plan: ParsedCompiledPlan): string[] {
   return orderedNodeIds;
 }
 
+/**
+ * Get the next node IDs to execute after a condition node evaluates.
+ * Follows edges matching the branch result (true/false).
+ */
+function getConditionBranchTargets(
+  plan: ParsedCompiledPlan,
+  nodeId: string,
+  conditionResult: boolean,
+): string[] {
+  const edges = plan.edgesBySource.get(nodeId) ?? [];
+  const matchBranch = conditionResult ? "true" : "false";
+
+  const branchTargets = edges
+    .filter((e) => e.branch === matchBranch)
+    .map((e) => e.target);
+
+  // If no explicit branch edges, fall through to "next" edges on true only
+  if (branchTargets.length === 0 && conditionResult) {
+    return edges
+      .filter((e) => !e.branch || e.branch === "next")
+      .map((e) => e.target);
+  }
+
+  return branchTargets;
+}
+
 function shouldWaitForReplacementSignal(event: {
   data: { entity: { type: string }; sourceEvent: { type: string } };
 }) {
@@ -701,6 +763,15 @@ export function createWorkflowExecutionFunction(
         });
       }
 
+      // Initialize node outputs for template resolution.
+      // Trigger event payload is always the first entry.
+      const nodeOutputs: NodeOutputs = {};
+      const sourcePayloadRaw = event.data.sourceEvent.payload;
+      nodeOutputs["trigger"] = {
+        label: "Trigger",
+        data: isRecord(sourcePayloadRaw) ? sourcePayloadRaw : {},
+      };
+
       let status: "completed" | "cancelled" =
         replacementMode === "cancel_without_replacement"
           ? "cancelled"
@@ -723,6 +794,16 @@ export function createWorkflowExecutionFunction(
         }
       }
 
+      type ActionDeliveryResult = {
+        outcome:
+          | "recorded"
+          | "duplicate"
+          | "guard_blocked"
+          | "guard_skipped"
+          | TerminalReason;
+        actionOutput: Record<string, unknown> | null;
+      };
+
       const recordActionDelivery = async (input: {
         nodeId: string;
         channel: string;
@@ -731,13 +812,7 @@ export function createWorkflowExecutionFunction(
         actionId: string | null;
         integrationKey: string | null;
         rawInput: Record<string, unknown>;
-      }): Promise<
-        | "recorded"
-        | "duplicate"
-        | "guard_blocked"
-        | "guard_skipped"
-        | TerminalReason
-      > => {
+      }): Promise<ActionDeliveryResult> => {
         const stepIdSuffix = normalizeStepIdSegment(input.nodeId);
         const correlatedEntity = await step.run(
           `load-correlated-entity-latest-${stepIdSuffix}`,
@@ -751,9 +826,11 @@ export function createWorkflowExecutionFunction(
         );
 
         if (correlatedEntity.status !== "found") {
-          return correlatedEntity.status === "missing"
-            ? "entity_missing"
-            : "unsupported_entity_type";
+          const outcome =
+            correlatedEntity.status === "missing"
+              ? ("entity_missing" as const)
+              : ("unsupported_entity_type" as const);
+          return { outcome, actionOutput: null };
         }
 
         if (
@@ -762,12 +839,13 @@ export function createWorkflowExecutionFunction(
             entity: correlatedEntity.entity,
           })
         ) {
-          return "guard_skipped";
+          return { outcome: "guard_skipped" as const, actionOutput: null };
         }
 
         let channel = input.channel;
         let target: string | null = input.target;
         let providerMessageId: string | null = null;
+        let actionOutput: Record<string, unknown> | null = null;
 
         if (input.actionId !== null) {
           const actionExecution = await step.run(
@@ -793,15 +871,19 @@ export function createWorkflowExecutionFunction(
           );
 
           if (actionExecution.status !== "ok") {
-            return "invalid_action";
+            return {
+              outcome: "invalid_action" as const,
+              actionOutput: null,
+            };
           }
 
           channel = actionExecution.channel;
           target = actionExecution.target;
           providerMessageId = actionExecution.providerMessageId ?? null;
+          actionOutput = actionExecution.output;
         }
 
-        return step.run(
+        const deliveryOutcome = await step.run(
           `record-workflow-side-effect-delivery-${stepIdSuffix}`,
           async () => {
             const runGuard = await resolvedDependencies.getRunGuard({
@@ -836,6 +918,8 @@ export function createWorkflowExecutionFunction(
             });
           },
         );
+
+        return { outcome: deliveryOutcome, actionOutput };
       };
 
       if (status === "completed") {
@@ -850,139 +934,314 @@ export function createWorkflowExecutionFunction(
             rawInput: {},
           });
 
-          if (fallbackResult === "guard_blocked") {
+          if (fallbackResult.outcome === "guard_blocked") {
             status = "cancelled";
           }
 
           if (
-            fallbackResult === "entity_missing" ||
-            fallbackResult === "unsupported_entity_type"
+            fallbackResult.outcome === "entity_missing" ||
+            fallbackResult.outcome === "unsupported_entity_type"
           ) {
-            terminalReason = fallbackResult;
+            terminalReason = fallbackResult.outcome;
           }
         } else {
+          // Branch-aware graph execution: uses a queue that respects
+          // condition node branching instead of a flat BFS order.
+          const executionQueue = [...parsedCompiledPlan.entryNodeIds];
+          const visited = new Set<string>();
           let shouldStop = false;
-          const orderedNodeIds = buildExecutionOrder(parsedCompiledPlan);
 
-          await forEachAsync(
-            orderedNodeIds,
-            async (currentNodeId) => {
-              if (
-                shouldStop ||
-                status !== "completed" ||
-                terminalReason !== null
-              ) {
-                return;
-              }
+          while (
+            executionQueue.length > 0 &&
+            !shouldStop &&
+            status === "completed" &&
+            terminalReason === null
+          ) {
+            const currentNodeId = executionQueue.shift();
+            if (!currentNodeId || visited.has(currentNodeId)) {
+              continue;
+            }
+            visited.add(currentNodeId);
 
-              const node = parsedCompiledPlan.nodeById.get(currentNodeId);
-              if (!node) {
-                return;
-              }
+            const node = parsedCompiledPlan.nodeById.get(currentNodeId);
+            if (!node) {
+              continue;
+            }
 
-              const nodeKind = node["kind"];
-              if (nodeKind === "wait") {
-                const waitStepIdSuffix = normalizeStepIdSegment(currentNodeId);
-                const waitConfig = node["wait"];
-                const needsReferenceField =
-                  isRecord(waitConfig) &&
-                  typeof waitConfig["referenceField"] === "string" &&
-                  waitConfig["referenceField"].length > 0;
-                let correlatedEntityForWait: {
-                  entityType: string;
-                  entity: Record<string, unknown>;
-                } | null = null;
+            const nodeKind = node["kind"];
+            const nodeLabel =
+              typeof node["label"] === "string" ? node["label"] : currentNodeId;
+            const sanitizedId = currentNodeId.replace(/[^a-zA-Z0-9]/g, "_");
 
-                if (needsReferenceField) {
-                  const correlatedEntity = await step.run(
-                    `load-correlated-entity-latest-for-wait-${waitStepIdSuffix}`,
-                    async () => {
-                      return resolvedDependencies.loadCorrelatedEntity({
-                        orgId: event.data.orgId,
-                        entityType: event.data.entity.type,
-                        entityId: event.data.entity.id,
-                      });
-                    },
-                  );
-
-                  if (correlatedEntity.status !== "found") {
-                    terminalReason =
-                      correlatedEntity.status === "missing"
-                        ? "entity_missing"
-                        : "unsupported_entity_type";
-                    shouldStop = true;
-                    return;
-                  }
-
-                  correlatedEntityForWait = {
-                    entityType: correlatedEntity.entityType,
-                    entity: correlatedEntity.entity,
-                  };
-                }
-
-                const waitDuration = resolveWaitDuration(
-                  node,
-                  correlatedEntityForWait,
-                );
-                if (waitDuration) {
-                  await step.sleep(
-                    `wait-for-duration-${waitStepIdSuffix}`,
-                    waitDuration,
-                  );
-                }
-
-                return;
-              }
-
-              if (nodeKind === "terminal") {
-                const terminalType = node["terminalType"];
-                if (terminalType === "cancel") {
-                  status = "cancelled";
-                  shouldStop = true;
-                  return;
-                }
-
-                if (terminalType === "complete") {
-                  shouldStop = true;
-                }
-
-                return;
-              }
-
-              const actionResult = await recordActionDelivery({
+            if (nodeKind === "condition") {
+              const stepLog = await resolvedDependencies.logStepStart({
+                orgId: event.data.orgId,
+                runId,
                 nodeId: currentNodeId,
-                channel: resolveActionChannel(node),
-                target: resolveActionTarget(
-                  node,
-                  `${event.data.entity.type}:${event.data.entity.id}`,
-                ),
-                guard: resolveNodeGuard(node),
-                actionId: resolveActionId(node),
-                integrationKey: resolveActionIntegrationKey(node),
-                rawInput: resolveActionInput(node),
+                nodeName: nodeLabel,
+                nodeType: "condition",
+                input: null,
               });
 
-              if (actionResult === "guard_blocked") {
+              // Evaluate condition guard against correlated entity
+              const condStepIdSuffix = normalizeStepIdSegment(currentNodeId);
+              const correlatedEntity = await step.run(
+                `load-correlated-entity-latest-for-condition-${condStepIdSuffix}`,
+                async () => {
+                  return resolvedDependencies.loadCorrelatedEntity({
+                    orgId: event.data.orgId,
+                    entityType: event.data.entity.type,
+                    entityId: event.data.entity.id,
+                  });
+                },
+              );
+
+              if (correlatedEntity.status !== "found") {
+                terminalReason =
+                  correlatedEntity.status === "missing"
+                    ? "entity_missing"
+                    : "unsupported_entity_type";
+                await resolvedDependencies.logStepComplete({
+                  orgId: event.data.orgId,
+                  logId: stepLog.logId,
+                  status: "error",
+                  errorMessage: `Correlated entity ${correlatedEntity.status}`,
+                });
+                shouldStop = true;
+                continue;
+              }
+
+              const guard = resolveNodeGuard(node);
+              const conditionResult = evaluateGuard(guard, {
+                entityType: correlatedEntity.entityType,
+                entity: correlatedEntity.entity,
+              });
+
+              nodeOutputs[sanitizedId] = {
+                label: nodeLabel,
+                data: { result: conditionResult },
+              };
+
+              await resolvedDependencies.logStepComplete({
+                orgId: event.data.orgId,
+                logId: stepLog.logId,
+                status: "success",
+                output: { result: conditionResult },
+              });
+
+              // Only follow edges matching the condition result
+              const branchTargets = getConditionBranchTargets(
+                parsedCompiledPlan,
+                currentNodeId,
+                conditionResult,
+              );
+              for (const targetId of branchTargets) {
+                if (!visited.has(targetId)) {
+                  executionQueue.push(targetId);
+                }
+              }
+              continue;
+            }
+
+            if (nodeKind === "wait") {
+              const waitStepLog = await resolvedDependencies.logStepStart({
+                orgId: event.data.orgId,
+                runId,
+                nodeId: currentNodeId,
+                nodeName: nodeLabel,
+                nodeType: "wait",
+                input: null,
+              });
+
+              const waitStepIdSuffix = normalizeStepIdSegment(currentNodeId);
+              const waitConfig = node["wait"];
+              const needsReferenceField =
+                isRecord(waitConfig) &&
+                typeof waitConfig["referenceField"] === "string" &&
+                waitConfig["referenceField"].length > 0;
+              let correlatedEntityForWait: {
+                entityType: string;
+                entity: Record<string, unknown>;
+              } | null = null;
+
+              if (needsReferenceField) {
+                const correlatedEntity = await step.run(
+                  `load-correlated-entity-latest-for-wait-${waitStepIdSuffix}`,
+                  async () => {
+                    return resolvedDependencies.loadCorrelatedEntity({
+                      orgId: event.data.orgId,
+                      entityType: event.data.entity.type,
+                      entityId: event.data.entity.id,
+                    });
+                  },
+                );
+
+                if (correlatedEntity.status !== "found") {
+                  terminalReason =
+                    correlatedEntity.status === "missing"
+                      ? "entity_missing"
+                      : "unsupported_entity_type";
+                  await resolvedDependencies.logStepComplete({
+                    orgId: event.data.orgId,
+                    logId: waitStepLog.logId,
+                    status: "error",
+                    errorMessage: `Correlated entity ${correlatedEntity.status}`,
+                  });
+                  shouldStop = true;
+                  continue;
+                }
+
+                correlatedEntityForWait = {
+                  entityType: correlatedEntity.entityType,
+                  entity: correlatedEntity.entity,
+                };
+              }
+
+              const waitDuration = resolveWaitDuration(
+                node,
+                correlatedEntityForWait,
+              );
+              if (waitDuration) {
+                await step.sleep(
+                  `wait-for-duration-${waitStepIdSuffix}`,
+                  waitDuration,
+                );
+              }
+
+              nodeOutputs[sanitizedId] = {
+                label: nodeLabel,
+                data: { completedAt: new Date().toISOString() },
+              };
+
+              await resolvedDependencies.logStepComplete({
+                orgId: event.data.orgId,
+                logId: waitStepLog.logId,
+                status: "success",
+                output: { completedAt: new Date().toISOString() },
+              });
+
+              // Enqueue successors
+              const nextNodeIds =
+                parsedCompiledPlan.nextNodeIdsBySource.get(currentNodeId) ?? [];
+              for (const nextId of nextNodeIds) {
+                if (!visited.has(nextId)) {
+                  executionQueue.push(nextId);
+                }
+              }
+              continue;
+            }
+
+            if (nodeKind === "terminal") {
+              const terminalType = node["terminalType"];
+              const termStepLog = await resolvedDependencies.logStepStart({
+                orgId: event.data.orgId,
+                runId,
+                nodeId: currentNodeId,
+                nodeName: nodeLabel,
+                nodeType: "terminal",
+                input: null,
+              });
+              await resolvedDependencies.logStepComplete({
+                orgId: event.data.orgId,
+                logId: termStepLog.logId,
+                status: "success",
+                output: { terminalType },
+              });
+
+              if (terminalType === "cancel") {
                 status = "cancelled";
                 shouldStop = true;
-                return;
+                continue;
               }
 
-              if (actionResult === "guard_skipped") {
-                return;
-              }
-
-              if (
-                actionResult === "invalid_action" ||
-                actionResult === "entity_missing" ||
-                actionResult === "unsupported_entity_type"
-              ) {
-                terminalReason = actionResult;
+              if (terminalType === "complete") {
                 shouldStop = true;
               }
-            },
-            { concurrency: 1 },
-          );
+              continue;
+            }
+
+            // Action node — resolve templates and execute
+            const rawInput = resolveActionInput(node);
+            const resolvedInput = processTemplates(rawInput, nodeOutputs);
+
+            const actionStepLog = await resolvedDependencies.logStepStart({
+              orgId: event.data.orgId,
+              runId,
+              nodeId: currentNodeId,
+              nodeName: nodeLabel,
+              nodeType: "action",
+              input: resolvedInput,
+            });
+
+            const actionResult = await recordActionDelivery({
+              nodeId: currentNodeId,
+              channel: resolveActionChannel(node),
+              target: resolveActionTarget(
+                node,
+                `${event.data.entity.type}:${event.data.entity.id}`,
+              ),
+              guard: resolveNodeGuard(node),
+              actionId: resolveActionId(node),
+              integrationKey: resolveActionIntegrationKey(node),
+              rawInput: resolvedInput,
+            });
+
+            if (actionResult.outcome === "guard_blocked") {
+              await resolvedDependencies.logStepComplete({
+                orgId: event.data.orgId,
+                logId: actionStepLog.logId,
+                status: "error",
+                errorMessage: "Run guard blocked execution",
+              });
+              status = "cancelled";
+              shouldStop = true;
+              continue;
+            }
+
+            if (actionResult.outcome === "guard_skipped") {
+              await resolvedDependencies.logStepComplete({
+                orgId: event.data.orgId,
+                logId: actionStepLog.logId,
+                status: "skipped",
+                output: null,
+              });
+              nodeOutputs[sanitizedId] = { label: nodeLabel, data: null };
+            } else if (
+              actionResult.outcome === "invalid_action" ||
+              actionResult.outcome === "entity_missing" ||
+              actionResult.outcome === "unsupported_entity_type"
+            ) {
+              await resolvedDependencies.logStepComplete({
+                orgId: event.data.orgId,
+                logId: actionStepLog.logId,
+                status: "error",
+                errorMessage: `Action failed: ${actionResult.outcome}`,
+              });
+              terminalReason = actionResult.outcome;
+              shouldStop = true;
+              continue;
+            } else {
+              await resolvedDependencies.logStepComplete({
+                orgId: event.data.orgId,
+                logId: actionStepLog.logId,
+                status: "success",
+                output: actionResult.actionOutput ?? resolvedInput,
+              });
+              nodeOutputs[sanitizedId] = {
+                label: nodeLabel,
+                data: actionResult.actionOutput ?? resolvedInput,
+              };
+            }
+
+            // Enqueue successors for non-condition nodes
+            const nextNodeIds =
+              parsedCompiledPlan.nextNodeIdsBySource.get(currentNodeId) ?? [];
+            for (const nextId of nextNodeIds) {
+              if (!visited.has(nextId)) {
+                executionQueue.push(nextId);
+              }
+            }
+          }
         }
       }
 

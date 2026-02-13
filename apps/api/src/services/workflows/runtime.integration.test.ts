@@ -59,7 +59,7 @@ describe("workflow runtime delivery guards", () => {
           key: "delivery_guard_test",
           name: "Delivery Guard Test",
           status: "active",
-          draftWorkflowKit: {
+          draftWorkflowGraph: {
             trigger: { event: "client.created" },
           },
         })
@@ -75,8 +75,8 @@ describe("workflow runtime delivery guards", () => {
           orgId: org.id,
           definitionId: definition.id,
           version: 1,
-          workflowKitSchemaVersion: 1,
-          workflowKit: {
+          workflowGraphSchemaVersion: 1,
+          workflowGraph: {
             trigger: { event: "client.created" },
             workflow: { actions: [], edges: [] },
           },
@@ -163,7 +163,7 @@ describe("workflow runtime delivery guards", () => {
           key: "delivery_guard_block_test",
           name: "Delivery Guard Block Test",
           status: "active",
-          draftWorkflowKit: {
+          draftWorkflowGraph: {
             trigger: { event: "appointment.created" },
           },
         })
@@ -179,8 +179,8 @@ describe("workflow runtime delivery guards", () => {
           orgId: org.id,
           definitionId: definition.id,
           version: 1,
-          workflowKitSchemaVersion: 1,
-          workflowKit: {
+          workflowGraphSchemaVersion: 1,
+          workflowGraph: {
             trigger: { event: "appointment.created" },
             workflow: { actions: [], edges: [] },
           },

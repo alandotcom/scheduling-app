@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Add01Icon } from "@hugeicons/core-free-icons";
+import { Add01Icon, ArrowRight01Icon } from "@hugeicons/core-free-icons";
 import { toast } from "sonner";
 import {
   getCatalogTriggerEventTypes,
@@ -17,13 +17,6 @@ import { EntityModal } from "@/components/entity-modal";
 import { PageScaffold } from "@/components/layout/page-scaffold";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import { Icon } from "@/components/ui/icon";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -34,14 +27,6 @@ import {
   SelectTrigger,
 } from "@/components/ui/select";
 import { ShortcutBadge } from "@/components/ui/shortcut-badge";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { formatDisplayDateTime } from "@/lib/date-utils";
 import { authClient } from "@/lib/auth-client";
 import { orpc } from "@/lib/query";
@@ -241,7 +226,7 @@ function WorkflowsIndexPage() {
       key,
       name,
       description: description || undefined,
-      workflowKit: {
+      workflowGraph: {
         ...createDefaultWorkflowDraft(newTriggerEventType),
       },
     });
@@ -265,9 +250,37 @@ function WorkflowsIndexPage() {
 
   return (
     <PageScaffold>
-      <div className="flex justify-end">
+      <div className="flex items-center justify-between gap-3">
+        <div className="grid flex-1 grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr)_220px]">
+          <Input
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder="Search by key or name"
+          />
+          <Select
+            value={statusFilter}
+            onValueChange={(value) =>
+              setStatusFilter(
+                value === "all" ||
+                  value === "draft" ||
+                  value === "active" ||
+                  value === "archived"
+                  ? value
+                  : "all",
+              )
+            }
+          >
+            <SelectTrigger>{statusFilterLabel}</SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All statuses</SelectItem>
+              <SelectItem value="draft">Draft</SelectItem>
+              <SelectItem value="active">Active</SelectItem>
+              <SelectItem value="archived">Archived</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
         <Button
-          className="hidden sm:inline-flex"
+          className="hidden shrink-0 sm:inline-flex"
           onClick={() => setShowCreateModal(true)}
         >
           <Icon icon={Add01Icon} data-icon="inline-start" />
@@ -276,123 +289,65 @@ function WorkflowsIndexPage() {
         </Button>
       </div>
 
-      <Card className="mt-6">
-        <CardHeader className="border-b">
-          <CardTitle>Definitions</CardTitle>
-          <CardDescription>
-            Search and manage workflow definitions.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4 py-4">
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr)_220px]">
-            <Input
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder="Search by key or name"
-            />
-            <Select
-              value={statusFilter}
-              onValueChange={(value) =>
-                setStatusFilter(
-                  value === "all" ||
-                    value === "draft" ||
-                    value === "active" ||
-                    value === "archived"
-                    ? value
-                    : "all",
-                )
-              }
-            >
-              <SelectTrigger>{statusFilterLabel}</SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All statuses</SelectItem>
-                <SelectItem value="draft">Draft</SelectItem>
-                <SelectItem value="active">Active</SelectItem>
-                <SelectItem value="archived">Archived</SelectItem>
-              </SelectContent>
-            </Select>
+      {/* Definitions — clickable card list */}
+      <div className="mt-4 space-y-2">
+        {definitionsQuery.isLoading ? (
+          <div className="py-6 text-sm text-muted-foreground">
+            Loading workflows...
           </div>
+        ) : definitionsQuery.error ? (
+          <div className="py-6 text-sm text-destructive">
+            Failed to load workflows
+          </div>
+        ) : filteredDefinitions.length === 0 ? (
+          <div className="py-6 text-sm text-muted-foreground">
+            No workflows match the current filters.
+          </div>
+        ) : (
+          filteredDefinitions.map((definition) => (
+            <Link
+              key={definition.id}
+              to="/workflows/$workflowId"
+              params={{ workflowId: definition.id }}
+              preload="intent"
+              className="flex items-center justify-between rounded-lg border border-border bg-card p-4 transition-colors hover:bg-accent/50"
+            >
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2">
+                  <p className="truncate font-medium">{definition.name}</p>
+                  <Badge
+                    variant={definitionStatusBadgeVariant(definition.status)}
+                    className="shrink-0"
+                  >
+                    {definition.status}
+                  </Badge>
+                </div>
+                {definition.description ? (
+                  <p className="mt-0.5 truncate text-sm text-muted-foreground">
+                    {definition.description}
+                  </p>
+                ) : null}
+                <div className="mt-1 flex items-center gap-3 text-xs text-muted-foreground">
+                  <code>{definition.key}</code>
+                  <span>Rev {definition.draftRevision}</span>
+                  <span>{formatDisplayDateTime(definition.updatedAt)}</span>
+                </div>
+              </div>
+              <Icon
+                icon={ArrowRight01Icon}
+                className="ml-3 size-4 shrink-0 text-muted-foreground"
+              />
+            </Link>
+          ))
+        )}
+      </div>
 
-          {definitionsQuery.isLoading ? (
-            <div className="py-6 text-sm text-muted-foreground">
-              Loading workflows...
-            </div>
-          ) : definitionsQuery.error ? (
-            <div className="py-6 text-sm text-destructive">
-              Failed to load workflows
-            </div>
-          ) : filteredDefinitions.length === 0 ? (
-            <div className="py-6 text-sm text-muted-foreground">
-              No workflows match the current filters.
-            </div>
-          ) : (
-            <div className="overflow-x-auto rounded-lg border border-border">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Key</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Revision</TableHead>
-                    <TableHead>Updated</TableHead>
-                    <TableHead className="w-[110px] text-right">Open</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredDefinitions.map((definition) => (
-                    <TableRow key={definition.id}>
-                      <TableCell>
-                        <div className="font-medium">{definition.name}</div>
-                        {definition.description ? (
-                          <div className="text-xs text-muted-foreground">
-                            {definition.description}
-                          </div>
-                        ) : null}
-                      </TableCell>
-                      <TableCell>
-                        <code className="text-xs">{definition.key}</code>
-                      </TableCell>
-                      <TableCell>
-                        <Badge
-                          variant={definitionStatusBadgeVariant(
-                            definition.status,
-                          )}
-                        >
-                          {definition.status}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>{definition.draftRevision}</TableCell>
-                      <TableCell>
-                        {formatDisplayDateTime(definition.updatedAt)}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Button size="sm" variant="outline" asChild>
-                          <Link
-                            to="/workflows/$workflowId"
-                            params={{ workflowId: definition.id }}
-                            preload="intent"
-                          >
-                            Open
-                          </Link>
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      <Card className="mt-6">
-        <CardHeader className="border-b">
-          <CardTitle>Recent Runs</CardTitle>
-          <CardDescription>
-            Latest execution records across all workflow definitions.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="py-4">
+      {/* Recent Runs — compact list */}
+      <div className="mt-8">
+        <h3 className="text-sm font-medium text-muted-foreground">
+          Recent Runs
+        </h3>
+        <div className="mt-2 space-y-1">
           {runsQuery.isLoading ? (
             <div className="py-4 text-sm text-muted-foreground">
               Loading runs...
@@ -406,78 +361,47 @@ function WorkflowsIndexPage() {
               No workflow runs yet.
             </div>
           ) : (
-            <div className="overflow-x-auto rounded-lg border border-border">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Run</TableHead>
-                    <TableHead>Type</TableHead>
-                    <TableHead>Entity</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Started</TableHead>
-                    <TableHead>Updated</TableHead>
-                    <TableHead className="w-[130px] text-right">
-                      Actions
-                    </TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {runs.map((run) => {
-                    const canCancel =
-                      run.status === "pending" || run.status === "running";
-                    const isCancelling = cancellingRunId === run.runId;
-                    return (
-                      <TableRow key={run.runId}>
-                        <TableCell>
-                          <code className="text-xs">{run.runId}</code>
-                        </TableCell>
-                        <TableCell>{run.workflowType}</TableCell>
-                        <TableCell>
-                          <div className="text-xs text-muted-foreground">
-                            {run.entityType}
-                          </div>
-                          <code className="text-xs">{run.entityId}</code>
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant={runStatusBadgeVariant(run.status)}>
-                            {run.status}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          {formatDisplayDateTime(run.startedAt)}
-                        </TableCell>
-                        <TableCell>
-                          {formatDisplayDateTime(run.updatedAt)}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          {canCancel ? (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              disabled={
-                                isCancelling || cancelRunMutation.isPending
-                              }
-                              onClick={() =>
-                                cancelRunMutation.mutate({ runId: run.runId })
-                              }
-                            >
-                              {isCancelling ? "Cancelling..." : "Cancel"}
-                            </Button>
-                          ) : (
-                            <span className="text-xs text-muted-foreground">
-                              -
-                            </span>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            </div>
+            runs.map((run) => {
+              const canCancel =
+                run.status === "pending" || run.status === "running";
+              const isCancelling = cancellingRunId === run.runId;
+              return (
+                <div
+                  key={run.runId}
+                  className="flex items-center justify-between rounded-md px-3 py-2 text-sm"
+                >
+                  <div className="flex items-center gap-3">
+                    <Badge
+                      variant={runStatusBadgeVariant(run.status)}
+                      className="text-xs"
+                    >
+                      {run.status}
+                    </Badge>
+                    <span className="text-muted-foreground">
+                      {run.workflowType}
+                    </span>
+                    <span className="text-xs text-muted-foreground">
+                      {formatDisplayDateTime(run.startedAt)}
+                    </span>
+                  </div>
+                  {canCancel ? (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      disabled={isCancelling || cancelRunMutation.isPending}
+                      onClick={() =>
+                        cancelRunMutation.mutate({ runId: run.runId })
+                      }
+                    >
+                      {isCancelling ? "Cancelling..." : "Cancel"}
+                    </Button>
+                  ) : null}
+                </div>
+              );
+            })
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
       <EntityModal
         open={showCreateModal}

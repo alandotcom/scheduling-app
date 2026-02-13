@@ -319,7 +319,7 @@ describe("CRUD operations with org context", () => {
         key: "rls_workflow_test",
         name: "RLS Workflow Test",
         status: "active",
-        draftWorkflowKit: {
+        draftWorkflowGraph: {
           trigger: { event: "client.created" },
         },
       })
@@ -331,8 +331,8 @@ describe("CRUD operations with org context", () => {
         orgId: org.id,
         definitionId: workflowDefinition!.id,
         version: 1,
-        workflowKitSchemaVersion: 1,
-        workflowKit: {
+        workflowGraphSchemaVersion: 1,
+        workflowGraph: {
           trigger: { event: "client.created" },
           workflow: { actions: [], edges: [] },
         },

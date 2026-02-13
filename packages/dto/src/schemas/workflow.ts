@@ -131,10 +131,19 @@ export const workflowTerminalNodeSchema = z
   })
   .loose();
 
+export const workflowConditionNodeSchema = z
+  .object({
+    id: z.string().min(1),
+    kind: z.literal("condition"),
+    guard: workflowGuardSchema,
+  })
+  .loose();
+
 export const workflowGraphNodeSchema = z.discriminatedUnion("kind", [
   workflowActionNodeSchema,
   workflowWaitNodeSchema,
   workflowTerminalNodeSchema,
+  workflowConditionNodeSchema,
 ]);
 
 export const workflowGraphEdgeSchema = z
@@ -155,8 +164,8 @@ export const workflowGraphDocumentSchema = z
   })
   .loose();
 
-// Temporary alias while API/DB naming is migrated from "workflowKit" to first-party graph naming.
-export const workflowKitDocumentSchema = workflowGraphDocumentSchema;
+// Temporary alias while API/DB naming is migrated from "workflowGraph" to first-party graph naming.
+export const workflowGraphDocumentSchema = workflowGraphDocumentSchema;
 
 export const workflowValidationIssueCodeSchema = z.enum([
   "MISSING_REQUIRED_FIELD",
@@ -199,8 +208,8 @@ export const workflowDefinitionVersionSchema = z.object({
   orgId: uuidSchema,
   definitionId: uuidSchema,
   version: z.number().int().positive(),
-  workflowKitSchemaVersion: z.number().int().positive(),
-  workflowKit: workflowKitDocumentSchema,
+  workflowGraphSchemaVersion: z.number().int().positive(),
+  workflowGraph: workflowGraphDocumentSchema,
   compiledPlan: z.record(z.string(), z.unknown()),
   checksum: z.string().min(1),
   createdBy: uuidSchema.nullable(),
@@ -219,7 +228,7 @@ export const workflowBindingSchema = z.object({
 
 export const workflowDefinitionDetailSchema =
   workflowDefinitionSummarySchema.extend({
-    draftWorkflowKit: workflowKitDocumentSchema,
+    draftWorkflowGraph: workflowGraphDocumentSchema,
     activeVersion: workflowDefinitionVersionSchema.nullable(),
     bindings: z.array(workflowBindingSchema),
   });
@@ -238,10 +247,66 @@ export const workflowTriggerCatalogItemSchema = z.object({
   defaultReplacementMode: workflowReplacementModeSchema,
 });
 
+// ---------------------------------------------------------------------------
+// Template / Declarative Config Schemas
+// ---------------------------------------------------------------------------
+
+export const workflowOutputFieldSchema = z.object({
+  field: z.string().min(1),
+  description: z.string(),
+});
+
+export const workflowSelectOptionSchema = z.object({
+  value: z.string(),
+  label: z.string(),
+});
+
+const workflowActionConfigFieldTypeSchema = z.enum([
+  "template-input",
+  "template-textarea",
+  "text",
+  "number",
+  "select",
+]);
+
+export const workflowActionConfigFieldBaseSchema = z.object({
+  key: z.string().min(1),
+  label: z.string().min(1),
+  type: workflowActionConfigFieldTypeSchema,
+  placeholder: z.string().optional(),
+  defaultValue: z.union([z.string(), z.number()]).optional(),
+  options: z.array(workflowSelectOptionSchema).optional(),
+  rows: z.number().int().positive().optional(),
+  required: z.boolean().optional(),
+  showWhen: z
+    .object({ field: z.string().min(1), equals: z.string() })
+    .optional(),
+});
+
+export const workflowActionConfigFieldGroupSchema = z.object({
+  type: z.literal("group"),
+  label: z.string().min(1),
+  fields: z.array(workflowActionConfigFieldBaseSchema).min(1),
+  defaultExpanded: z.boolean().optional(),
+});
+
+export const workflowActionConfigFieldSchema = z.union([
+  workflowActionConfigFieldBaseSchema,
+  workflowActionConfigFieldGroupSchema,
+]);
+
+// ---------------------------------------------------------------------------
+// Catalog Schemas
+// ---------------------------------------------------------------------------
+
 export const workflowActionCatalogItemSchema = z.object({
   id: z.string().min(1),
   integrationKey: z.string().min(1),
   label: z.string().min(1),
+  description: z.string().optional(),
+  category: z.string().optional(),
+  configFields: z.array(workflowActionConfigFieldSchema).optional(),
+  outputFields: z.array(workflowOutputFieldSchema).optional(),
 });
 
 export const workflowCatalogResponseSchema = z.object({
@@ -286,11 +351,11 @@ export const createWorkflowDefinitionSchema = z.object({
   key: workflowKeySchema,
   name: z.string().min(1).max(255),
   description: z.string().max(2000).optional(),
-  workflowKit: workflowKitDocumentSchema.optional(),
+  workflowGraph: workflowGraphDocumentSchema.optional(),
 });
 
-export const updateWorkflowDraftWorkflowKitSchema = z.object({
-  workflowKit: workflowKitDocumentSchema,
+export const updateWorkflowDraftWorkflowGraphSchema = z.object({
+  workflowGraph: workflowGraphDocumentSchema,
   expectedRevision: z.number().int().positive().optional(),
 });
 
@@ -332,6 +397,43 @@ export const cancelWorkflowRunInputSchema = getWorkflowRunInputSchema;
 
 export const cancelWorkflowRunResponseSchema = successResponseSchema;
 
+// ---------------------------------------------------------------------------
+// Step Log Schemas
+// ---------------------------------------------------------------------------
+
+export const workflowStepLogStatusSchema = z.enum([
+  "pending",
+  "running",
+  "success",
+  "error",
+  "skipped",
+]);
+
+export const workflowStepLogEntrySchema = z.object({
+  id: uuidSchema,
+  orgId: uuidSchema,
+  runId: z.string().min(1),
+  nodeId: z.string().min(1),
+  nodeName: z.string(),
+  nodeType: z.string().min(1),
+  status: workflowStepLogStatusSchema,
+  input: z.record(z.string(), z.unknown()).nullable(),
+  output: z.record(z.string(), z.unknown()).nullable(),
+  errorMessage: z.string().nullable(),
+  startedAt: timestampSchema.nullable(),
+  completedAt: timestampSchema.nullable(),
+  durationMs: z.number().int().nullable(),
+  ...timestampsSchema.shape,
+});
+
+export const listWorkflowStepLogsInputSchema = z.object({
+  runId: z.string().min(1),
+});
+
+export const workflowStepLogListResponseSchema = z.object({
+  items: z.array(workflowStepLogEntrySchema),
+});
+
 export type WorkflowDefinitionStatus = z.infer<
   typeof workflowDefinitionStatusSchema
 >;
@@ -361,7 +463,7 @@ export type WorkflowTerminalNode = z.infer<typeof workflowTerminalNodeSchema>;
 export type WorkflowGraphNode = z.infer<typeof workflowGraphNodeSchema>;
 export type WorkflowGraphEdge = z.infer<typeof workflowGraphEdgeSchema>;
 export type WorkflowGraphDocument = z.input<typeof workflowGraphDocumentSchema>;
-export type WorkflowKitDocument = z.input<typeof workflowKitDocumentSchema>;
+export type WorkflowGraphDocument = z.input<typeof workflowGraphDocumentSchema>;
 export type WorkflowValidationIssueCode = z.infer<
   typeof workflowValidationIssueCodeSchema
 >;
@@ -408,8 +510,8 @@ export type ListWorkflowDefinitionsQuery = z.infer<
 export type CreateWorkflowDefinitionInput = z.infer<
   typeof createWorkflowDefinitionSchema
 >;
-export type UpdateWorkflowDraftWorkflowKitInput = z.infer<
-  typeof updateWorkflowDraftWorkflowKitSchema
+export type UpdateWorkflowDraftWorkflowGraphInput = z.infer<
+  typeof updateWorkflowDraftWorkflowGraphSchema
 >;
 export type ValidateWorkflowDraftInput = z.infer<
   typeof validateWorkflowDraftInputSchema
@@ -433,4 +535,24 @@ export type CancelWorkflowRunInput = z.infer<
 >;
 export type CancelWorkflowRunResponse = z.infer<
   typeof cancelWorkflowRunResponseSchema
+>;
+export type WorkflowOutputField = z.infer<typeof workflowOutputFieldSchema>;
+export type WorkflowSelectOption = z.infer<typeof workflowSelectOptionSchema>;
+export type WorkflowActionConfigFieldBase = z.infer<
+  typeof workflowActionConfigFieldBaseSchema
+>;
+export type WorkflowActionConfigFieldGroup = z.infer<
+  typeof workflowActionConfigFieldGroupSchema
+>;
+export type WorkflowActionConfigField = z.infer<
+  typeof workflowActionConfigFieldSchema
+>;
+export type WorkflowConditionNode = z.infer<typeof workflowConditionNodeSchema>;
+export type WorkflowStepLogStatus = z.infer<typeof workflowStepLogStatusSchema>;
+export type WorkflowStepLogEntry = z.infer<typeof workflowStepLogEntrySchema>;
+export type WorkflowStepLogListResponse = z.infer<
+  typeof workflowStepLogListResponseSchema
+>;
+export type ListWorkflowStepLogsInput = z.infer<
+  typeof listWorkflowStepLogsInputSchema
 >;

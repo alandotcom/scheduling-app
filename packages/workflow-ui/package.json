@@ -12,6 +12,8 @@
     "typecheck": "tsc -p tsconfig.typecheck.json --noEmit --incremental --tsBuildInfoFile node_modules/.cache.typecheck.tsbuildinfo --pretty false"
   },
   "dependencies": {
+    "@hugeicons/core-free-icons": "^3.1.1",
+    "@hugeicons/react": "^1.1.5",
     "@scheduling/dto": "workspace:*",
     "@xyflow/react": "^12.10.0",
     "parse-duration": "^2.1.5",

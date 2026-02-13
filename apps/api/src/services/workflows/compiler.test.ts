@@ -84,7 +84,7 @@ describe("workflow compiler", () => {
           kind: "action",
           actionId: "resend.sendEmail",
           integrationKey: "resend",
-          input: { to: "invalid-email", subject: "Hello", body: "Hi" },
+          input: { to: "", subject: "Hello", body: "Hi" },
         },
       ],
       edges: [],

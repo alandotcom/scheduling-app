@@ -57,7 +57,7 @@ describe("workflow dispatch pipeline integration", () => {
       {
         key: "client_created_pipeline",
         name: "Client Created Pipeline",
-        workflowKit: { trigger: { event: "client.created" } },
+        workflowGraph: { trigger: { event: "client.created" } },
       },
       { context },
     );

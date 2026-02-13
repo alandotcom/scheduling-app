@@ -5,6 +5,7 @@ import {
   getWorkflowRunInputSchema,
   idInputSchema,
   listWorkflowBindingsInputSchema,
+  listWorkflowStepLogsInputSchema,
   workflowBindingListResponseSchema,
   workflowCatalogResponseSchema,
   listWorkflowRunsQuerySchema,
@@ -13,7 +14,7 @@ import {
   removeWorkflowBindingInputSchema,
   successResponseSchema,
   upsertWorkflowBindingInputSchema,
-  updateWorkflowDraftWorkflowKitSchema,
+  updateWorkflowDraftWorkflowGraphSchema,
   validateWorkflowDraftInputSchema,
   workflowBindingSchema,
   workflowDefinitionDetailSchema,
@@ -22,9 +23,10 @@ import {
   workflowDefinitionVersionSchema,
   workflowRunDetailSchema,
   workflowRunListResponseSchema,
+  workflowStepLogListResponseSchema,
   type WorkflowRunStatus,
   workflowValidationResultSchema,
-  type WorkflowKitDocument,
+  type WorkflowGraphDocument,
 } from "@scheduling/dto";
 import {
   workflowBindings,
@@ -48,8 +50,9 @@ import {
   listWorkflowActionDefinitions,
   listWorkflowTriggerDefinitions,
 } from "../services/workflows/registry.js";
+import { listStepLogs } from "../services/workflows/step-logging.js";
 
-const DEFAULT_WORKFLOW_KIT_SCHEMA_VERSION = 1;
+const DEFAULT_WORKFLOW_GRAPH_SCHEMA_VERSION = 1;
 const UNIQUE_CONSTRAINT_VIOLATION = "23505";
 
 type WorkflowDefinitionRow = typeof workflowDefinitions.$inferSelect;
@@ -59,7 +62,7 @@ type WorkflowBindingRow = typeof workflowBindings.$inferSelect;
 type WorkflowRunEntityLinkRow = typeof workflowRunEntityLinks.$inferSelect;
 
 const updateWorkflowDraftInputSchema = idInputSchema.extend(
-  updateWorkflowDraftWorkflowKitSchema.shape,
+  updateWorkflowDraftWorkflowGraphSchema.shape,
 );
 
 function stableStringify(value: unknown): string {
@@ -87,9 +90,9 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
 
-function buildWorkflowChecksum(workflowKit: WorkflowKitDocument): string {
+function buildWorkflowChecksum(workflowGraph: WorkflowGraphDocument): string {
   return createHash("sha256")
-    .update(stableStringify(workflowKit))
+    .update(stableStringify(workflowGraph))
     .digest("hex");
 }
 
@@ -134,8 +137,8 @@ function toDefinitionVersion(row: WorkflowDefinitionVersionRow) {
     orgId: row.orgId,
     definitionId: row.definitionId,
     version: row.version,
-    workflowKitSchemaVersion: row.workflowKitSchemaVersion,
-    workflowKit: row.workflowKit,
+    workflowGraphSchemaVersion: row.workflowGraphSchemaVersion,
+    workflowGraph: row.workflowGraph,
     compiledPlan: row.compiledPlan,
     checksum: row.checksum,
     createdBy: row.createdBy,
@@ -225,7 +228,7 @@ async function loadDefinitionDetail(tx: DbClient, definitionId: string) {
 
   return workflowDefinitionDetailSchema.parse({
     ...toDefinitionSummary(definition),
-    draftWorkflowKit: definition.draftWorkflowKit,
+    draftWorkflowGraph: definition.draftWorkflowGraph,
     activeVersion: activeVersion ? toDefinitionVersion(activeVersion) : null,
     bindings: bindings.map((binding) => toBinding(binding)),
   });
@@ -277,6 +280,10 @@ export const getCatalog = authed
         id: action.id,
         integrationKey: action.integrationKey,
         label: action.label,
+        description: action.description,
+        category: action.category,
+        configFields: action.configFields,
+        outputFields: action.outputFields,
       })),
     });
   });
@@ -305,7 +312,7 @@ export const createDefinition = adminOnly
             key: input.key,
             name: input.name,
             description: input.description ?? null,
-            draftWorkflowKit: input.workflowKit ?? {},
+            draftWorkflowGraph: input.workflowGraph ?? {},
           })
           .returning();
 
@@ -329,7 +336,7 @@ export const createDefinition = adminOnly
 
     return workflowDefinitionDetailSchema.parse({
       ...toDefinitionSummary(definition),
-      draftWorkflowKit: definition.draftWorkflowKit,
+      draftWorkflowGraph: definition.draftWorkflowGraph,
       activeVersion: null,
       bindings: [],
     });
@@ -359,7 +366,7 @@ export const updateDraft = adminOnly
       const [updated] = await tx
         .update(workflowDefinitions)
         .set({
-          draftWorkflowKit: input.workflowKit,
+          draftWorkflowGraph: input.workflowGraph,
           draftRevision: definition.draftRevision + 1,
           updatedAt: new Date(),
         })
@@ -388,7 +395,7 @@ export const validateDraft = adminOnly
   .handler(async ({ input, context }) => {
     return withOrg(context.orgId, async (tx) => {
       const definition = await getDefinitionById(tx, input.id);
-      return compileWorkflowDocument(definition.draftWorkflowKit).validation;
+      return compileWorkflowDocument(definition.draftWorkflowGraph).validation;
     });
   });
 
@@ -413,7 +420,7 @@ export const publishDraft = adminOnly
         });
       }
 
-      const compilation = compileWorkflowDocument(definition.draftWorkflowKit);
+      const compilation = compileWorkflowDocument(definition.draftWorkflowGraph);
       const validation = compilation.validation;
       if (!validation.valid) {
         throw new ApplicationError("Workflow draft is invalid", {
@@ -437,10 +444,10 @@ export const publishDraft = adminOnly
           orgId: definition.orgId,
           definitionId: definition.id,
           version: (latestVersion?.version ?? 0) + 1,
-          workflowKitSchemaVersion: DEFAULT_WORKFLOW_KIT_SCHEMA_VERSION,
-          workflowKit: definition.draftWorkflowKit,
+          workflowGraphSchemaVersion: DEFAULT_WORKFLOW_GRAPH_SCHEMA_VERSION,
+          workflowGraph: definition.draftWorkflowGraph,
           compiledPlan: compilation.compiledPlan ?? {},
-          checksum: buildWorkflowChecksum(definition.draftWorkflowKit),
+          checksum: buildWorkflowChecksum(definition.draftWorkflowGraph),
           createdBy: context.userId,
         })
         .returning();
@@ -717,6 +724,37 @@ export const cancelRun = adminOnly
     return { success: true as const };
   });
 
+export const listRunSteps = authed
+  .route({ method: "GET", path: "/workflows/runs/{runId}/steps" })
+  .input(listWorkflowStepLogsInputSchema)
+  .output(workflowStepLogListResponseSchema)
+  .handler(async ({ input, context }) => {
+    const rows = await listStepLogs({
+      orgId: context.orgId,
+      runId: input.runId,
+    });
+
+    return workflowStepLogListResponseSchema.parse({
+      items: rows.map((row) => ({
+        id: row.id,
+        orgId: row.orgId,
+        runId: row.runId,
+        nodeId: row.nodeId,
+        nodeName: row.nodeName,
+        nodeType: row.nodeType,
+        status: row.status,
+        input: row.input,
+        output: row.output,
+        errorMessage: row.errorMessage,
+        startedAt: row.startedAt,
+        completedAt: row.completedAt,
+        durationMs: row.durationMs,
+        createdAt: row.createdAt,
+        updatedAt: row.updatedAt,
+      })),
+    });
+  });
+
 export const workflowRoutes = {
   catalog: getCatalog,
   listDefinitions,
@@ -733,4 +771,5 @@ export const workflowRoutes = {
   listRuns,
   getRun,
   cancelRun,
+  listRunSteps,
 };

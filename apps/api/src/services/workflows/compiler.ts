@@ -1,7 +1,7 @@
 import {
-  workflowKitDocumentSchema,
+  workflowGraphDocumentSchema,
   workflowValidationResultSchema,
-  type WorkflowKitDocument,
+  type WorkflowGraphDocument,
   type WorkflowValidationIssue,
   type WorkflowValidationResult,
 } from "@scheduling/dto";
@@ -187,9 +187,9 @@ function findCycleNode(
 }
 
 export function compileWorkflowDocument(
-  workflow: WorkflowKitDocument,
+  workflow: WorkflowGraphDocument,
 ): WorkflowCompilationResult {
-  const parsed = workflowKitDocumentSchema.safeParse(workflow);
+  const parsed = workflowGraphDocumentSchema.safeParse(workflow);
   if (!parsed.success) {
     return {
       validation: workflowValidationResultSchema.parse({
@@ -198,7 +198,7 @@ export function compileWorkflowDocument(
           {
             code: "INVALID_EXPRESSION",
             severity: "error",
-            field: "workflowKit",
+            field: "workflowGraph",
             message: "Workflow draft is not a valid workflow graph document",
           },
         ],
@@ -218,7 +218,7 @@ export function compileWorkflowDocument(
     issues.push({
       code: "MISSING_REQUIRED_FIELD",
       severity: "error",
-      field: "workflowKit",
+      field: "workflowGraph",
       message: "Workflow draft cannot be empty",
     });
   }
@@ -244,6 +244,31 @@ export function compileWorkflowDocument(
   }
 
   for (const node of nodes) {
+    if (node.kind === "condition") {
+      const guard = node.config["guard"];
+      if (!isRecord(guard)) {
+        issues.push({
+          code: "MISSING_REQUIRED_FIELD",
+          severity: "error",
+          nodeId: node.id,
+          field: "guard",
+          message: `Condition node "${node.id}" must have a guard with at least one condition`,
+        });
+      } else {
+        const conditions = guard["conditions"];
+        if (!Array.isArray(conditions) || conditions.length === 0) {
+          issues.push({
+            code: "MISSING_REQUIRED_FIELD",
+            severity: "error",
+            nodeId: node.id,
+            field: "guard.conditions",
+            message: `Condition node "${node.id}" must have at least one condition`,
+          });
+        }
+      }
+      continue;
+    }
+
     if (node.kind !== "action") {
       continue;
     }
@@ -283,20 +308,26 @@ export function compileWorkflowDocument(
     }
 
     const rawInput = node.config["input"];
-    const parsedInput = actionDefinition.inputSchema.safeParse(
-      isRecord(rawInput) ? rawInput : {},
+    const inputObj = isRecord(rawInput) ? rawInput : {};
+    // Skip strict schema validation when input contains template variables —
+    // templates like {{@nodeId:Label.field}} are resolved at runtime.
+    const hasTemplates = Object.values(inputObj).some(
+      (v) => typeof v === "string" && /\{\{@[^:]+:[^}]+\}\}/.test(v),
     );
-    if (!parsedInput.success) {
-      const firstIssue = parsedInput.error.issues[0];
-      issues.push({
-        code: "INVALID_EXPRESSION",
-        severity: "error",
-        nodeId: node.id,
-        field: "input",
-        message: firstIssue
-          ? `Invalid action input for "${actionId}": ${firstIssue.message}`
-          : `Invalid action input for "${actionId}"`,
-      });
+    if (!hasTemplates) {
+      const parsedInput = actionDefinition.inputSchema.safeParse(inputObj);
+      if (!parsedInput.success) {
+        const firstIssue = parsedInput.error.issues[0];
+        issues.push({
+          code: "INVALID_EXPRESSION",
+          severity: "error",
+          nodeId: node.id,
+          field: "input",
+          message: firstIssue
+            ? `Invalid action input for "${actionId}": ${firstIssue.message}`
+            : `Invalid action input for "${actionId}"`,
+        });
+      }
     }
   }
 
@@ -411,6 +442,10 @@ export function compileWorkflowDocument(
     nodes: sortedNodes.map((node) => ({
       id: node.id,
       kind: node.kind,
+      label:
+        typeof node.config["label"] === "string"
+          ? node.config["label"]
+          : node.id,
       ...node.config,
     })),
     edges: sortedEdges,

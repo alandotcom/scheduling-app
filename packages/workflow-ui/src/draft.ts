@@ -34,10 +34,10 @@ export function stableStringify(value: unknown): string {
 }
 
 export function getTriggerEventTypeFromDraft(
-  workflowKit: Record<string, unknown>,
+  workflowGraph: Record<string, unknown>,
   fallback: WebhookEventType,
 ): WebhookEventType {
-  const candidate = workflowKit["trigger"];
+  const candidate = workflowGraph["trigger"];
   if (!isRecord(candidate)) {
     return fallback;
   }
@@ -51,24 +51,24 @@ export function getTriggerEventTypeFromDraft(
 }
 
 export function withDraftTriggerEventType(
-  workflowKit: Record<string, unknown>,
+  workflowGraph: Record<string, unknown>,
   eventType: WebhookEventType,
 ): Record<string, unknown> {
-  const currentTrigger = workflowKit["trigger"];
+  const currentTrigger = workflowGraph["trigger"];
   const nextTrigger = isRecord(currentTrigger)
     ? { ...currentTrigger, event: eventType, eventType }
     : { event: eventType, eventType };
 
   return {
-    ...workflowKit,
+    ...workflowGraph,
     trigger: nextTrigger,
   };
 }
 
 export function getWorkflowGraphDocumentFromDraft(
-  workflowKit: Record<string, unknown>,
+  workflowGraph: Record<string, unknown>,
 ): WorkflowGraphDocument {
-  const parsed = workflowGraphDocumentSchema.safeParse(workflowKit);
+  const parsed = workflowGraphDocumentSchema.safeParse(workflowGraph);
   if (parsed.success) {
     return parsed.data;
   }
@@ -81,11 +81,11 @@ export function getWorkflowGraphDocumentFromDraft(
 }
 
 export function withDraftGraphDocument(
-  workflowKit: Record<string, unknown>,
+  workflowGraph: Record<string, unknown>,
   document: WorkflowGraphDocument,
 ): Record<string, unknown> {
   return {
-    ...workflowKit,
+    ...workflowGraph,
     schemaVersion: document.schemaVersion,
     nodes: document.nodes,
     edges: document.edges,
