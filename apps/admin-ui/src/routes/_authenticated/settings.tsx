@@ -51,6 +51,7 @@ import {
   EntityMobileCard,
   EntityMobileCardList,
 } from "@/components/entity-list";
+import { EntityModal } from "@/components/entity-modal";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
@@ -151,6 +152,13 @@ const isUserStatusFilter = (
 ): value is UserStatusFilter =>
   typeof value === "string" &&
   USER_STATUS_OPTIONS.some((option) => option.value === value);
+
+type ApiKeyPermissionFilter = "all" | OrgMembershipRole;
+
+const isApiKeyPermissionFilter = (
+  value: string | null | undefined,
+): value is ApiKeyPermissionFilter =>
+  value === "all" || isOrgMembershipRole(value);
 
 const parseBusinessDays = (days: unknown): number[] => {
   if (Array.isArray(days)) return days;
@@ -656,10 +664,78 @@ function formatDateTime(value: Date | string | null | undefined): string {
   return date.toLocaleString();
 }
 
+interface ApiKeyListItem {
+  id: string;
+  name: string | null;
+  prefix: string | null;
+  start: string | null;
+  scope: OrgMembershipRole;
+  organizationId: string;
+  expiresAt: Date | null;
+  lastUsedAt: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+function getApiKeyDisplayName(apiKey: Pick<ApiKeyListItem, "name">) {
+  const trimmedName = apiKey.name?.trim();
+  return trimmedName && trimmedName.length > 0 ? trimmedName : "Untitled key";
+}
+
+function getApiKeyTokenPreview(
+  apiKey: Pick<ApiKeyListItem, "start" | "prefix">,
+) {
+  const prefix = apiKey.prefix?.trim();
+  if (prefix && prefix.length > 0) return `${prefix}********`;
+
+  const start = apiKey.start?.trim();
+  return start && start.length > 0 ? `${start}********` : "********";
+}
+
+export function filterApiKeys<
+  T extends {
+    name: string | null;
+    scope: OrgMembershipRole;
+    start: string | null;
+    prefix: string | null;
+  },
+>(
+  apiKeys: readonly T[],
+  input: {
+    searchQuery: string;
+    permissionFilter: ApiKeyPermissionFilter;
+  },
+): T[] {
+  const query = input.searchQuery.trim().toLowerCase();
+  return apiKeys.filter((apiKey) => {
+    const name = apiKey.name?.toLowerCase() ?? "";
+    const tokenStart = apiKey.start?.toLowerCase() ?? "";
+    const tokenPrefix = apiKey.prefix?.toLowerCase() ?? "";
+    const matchesQuery =
+      query.length === 0 ||
+      name.includes(query) ||
+      tokenStart.includes(query) ||
+      tokenPrefix.includes(query);
+    const matchesPermission =
+      input.permissionFilter === "all" ||
+      apiKey.scope === input.permissionFilter;
+    return matchesQuery && matchesPermission;
+  });
+}
+
 function ApiKeysSection() {
   const queryClient = useQueryClient();
   const [revealedKey, setRevealedKey] = useState<string | null>(null);
   const [revokingKeyId, setRevokingKeyId] = useState<string | null>(null);
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [permissionFilter, setPermissionFilter] =
+    useState<ApiKeyPermissionFilter>("all");
+  const [sorting, setSorting] = useState<SortingState>([]);
+  const [pagination, setPagination] = useState<PaginationState>({
+    pageIndex: 0,
+    pageSize: 20,
+  });
 
   const {
     data: apiKeysResponse,
@@ -713,6 +789,7 @@ function ApiKeysSection() {
           scope: "member",
           expiresAt: undefined,
         });
+        setIsCreateModalOpen(false);
       },
     });
   };
@@ -729,190 +806,470 @@ function ApiKeysSection() {
     );
   };
 
-  const apiKeys = apiKeysResponse?.items ?? [];
+  const apiKeys = (apiKeysResponse?.items ?? []) as ApiKeyListItem[];
+
+  const permissionCounts = useMemo(
+    () => ({
+      owner: apiKeys.filter((apiKey) => apiKey.scope === "owner").length,
+      admin: apiKeys.filter((apiKey) => apiKey.scope === "admin").length,
+      member: apiKeys.filter((apiKey) => apiKey.scope === "member").length,
+    }),
+    [apiKeys],
+  );
+
+  const filteredApiKeys = useMemo(
+    () =>
+      filterApiKeys(apiKeys, {
+        searchQuery,
+        permissionFilter,
+      }),
+    [apiKeys, searchQuery, permissionFilter],
+  );
+
+  useEffect(() => {
+    setPagination((previousPagination) =>
+      resetPaginationToFirstPage(previousPagination),
+    );
+  }, [searchQuery, permissionFilter]);
+
+  const columns = useMemo<ColumnDef<ApiKeyListItem>[]>(
+    () => [
+      {
+        id: "name",
+        accessorFn: (row) => getApiKeyDisplayName(row),
+        header: ({ column }) => (
+          <DataTableColumnHeader column={column} title="Name" />
+        ),
+        cell: ({ row }) => (
+          <div className="font-medium">
+            {getApiKeyDisplayName(row.original)}
+          </div>
+        ),
+      },
+      {
+        id: "token",
+        accessorFn: (row) => getApiKeyTokenPreview(row),
+        header: ({ column }) => (
+          <DataTableColumnHeader column={column} title="Token" />
+        ),
+        cell: ({ row }) => (
+          <span className="inline-flex rounded-md bg-muted px-2 py-1 font-mono text-xs">
+            {getApiKeyTokenPreview(row.original)}
+          </span>
+        ),
+      },
+      {
+        id: "permission",
+        accessorFn: (row) => row.scope,
+        header: ({ column }) => (
+          <DataTableColumnHeader column={column} title="Permission" />
+        ),
+        cell: ({ row }) =>
+          resolveSelectValueLabel({
+            value: row.original.scope,
+            options: ORG_ROLE_OPTIONS,
+            getOptionValue: (option) => option.value,
+            getOptionLabel: (option) => option.label,
+          }) ?? row.original.scope,
+      },
+      {
+        id: "lastUsed",
+        accessorFn: (row) =>
+          row.lastUsedAt ? new Date(row.lastUsedAt).getTime() : 0,
+        header: ({ column }) => (
+          <DataTableColumnHeader column={column} title="Last Used" />
+        ),
+        cell: ({ row }) => formatDateTime(row.original.lastUsedAt),
+      },
+      {
+        id: "created",
+        accessorFn: (row) => new Date(row.createdAt).getTime(),
+        header: ({ column }) => (
+          <DataTableColumnHeader column={column} title="Created" />
+        ),
+        cell: ({ row }) => formatDate(row.original.createdAt),
+      },
+      {
+        id: "actions",
+        enableSorting: false,
+        header: () => <span className="sr-only">Actions</span>,
+        cell: ({ row }) => (
+          <RowActions
+            ariaLabel={`Actions for ${getApiKeyDisplayName(row.original)}`}
+            actions={[
+              {
+                label:
+                  revokeApiKeyMutation.isPending &&
+                  revokingKeyId === row.original.id
+                    ? "Revoking..."
+                    : "Revoke key",
+                onClick: () => onRevokeApiKey(row.original.id),
+                variant: "destructive",
+                disabled:
+                  revokeApiKeyMutation.isPending &&
+                  revokingKeyId === row.original.id,
+              },
+            ]}
+          />
+        ),
+      },
+    ],
+    [onRevokeApiKey, revokeApiKeyMutation.isPending, revokingKeyId],
+  );
+
+  const apiKeysTable = useReactTable({
+    data: filteredApiKeys,
+    columns,
+    state: {
+      sorting,
+      pagination,
+    },
+    onSortingChange: setSorting,
+    onPaginationChange: setPagination,
+    getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
+  });
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>API Keys</CardTitle>
-        <CardDescription>
-          Create scoped API keys for machine-to-machine integrations.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-5">
-        <form
-          onSubmit={handleSubmit(onCreateApiKey)}
-          className="grid gap-4 rounded-xl bg-muted/30 p-4 md:grid-cols-[1.4fr_180px_220px_auto]"
-        >
-          <div className="space-y-2">
-            <Label htmlFor="api-key-name">Name</Label>
-            <Input
-              id="api-key-name"
-              placeholder="Production integration"
-              disabled={createApiKeyMutation.isPending}
-              {...register("name")}
-            />
-            {errors.name ? (
-              <p className="mt-1 text-xs text-destructive">
-                {errors.name.message}
-              </p>
-            ) : null}
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="api-key-scope">Scope</Label>
-            <Controller
-              name="scope"
-              control={control}
-              render={({ field }) => (
-                <Select
-                  value={field.value}
-                  onValueChange={(value) => {
-                    if (isOrgMembershipRole(value)) {
-                      field.onChange(value);
-                    }
-                  }}
-                  disabled={createApiKeyMutation.isPending}
-                >
-                  <SelectTrigger id="api-key-scope">
-                    <SelectValue placeholder="Select scope" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {ORG_ROLE_OPTIONS.map((role) => (
-                      <SelectItem key={role.value} value={role.value}>
-                        {role.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
-            />
-            {errors.scope ? (
-              <p className="mt-1 text-xs text-destructive">
-                {errors.scope.message}
-              </p>
-            ) : null}
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="api-key-expires-at">Expires at (optional)</Label>
-            <Input
-              id="api-key-expires-at"
-              type="datetime-local"
-              disabled={createApiKeyMutation.isPending}
-              {...register("expiresAt", {
-                setValueAs: (value) => {
-                  if (typeof value !== "string") return value;
-                  if (value.trim().length === 0) return undefined;
-                  const parsed = new Date(value);
-                  return Number.isNaN(parsed.getTime()) ? undefined : parsed;
-                },
-              })}
-            />
-            {errors.expiresAt ? (
-              <p className="mt-1 text-xs text-destructive">
-                {errors.expiresAt.message}
-              </p>
-            ) : null}
-          </div>
-
-          <div className="flex items-end">
-            <Button type="submit" disabled={createApiKeyMutation.isPending}>
-              {createApiKeyMutation.isPending ? "Creating..." : "Create key"}
-            </Button>
-          </div>
-        </form>
-
-        {revealedKey ? (
-          <div className="rounded-xl bg-muted/30 p-4">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <p className="text-sm font-medium">New API key (shown once)</p>
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                onClick={async () => {
-                  try {
-                    await navigator.clipboard.writeText(revealedKey);
-                  } catch {
-                    toast.error("Failed to copy API key");
-                  }
-                }}
-              >
-                Copy
-              </Button>
-            </div>
-            <Input
-              readOnly
-              value={revealedKey}
-              className="mt-3 font-mono text-xs"
-              aria-label="Created API key"
-            />
+    <div className="space-y-5">
+      <div>
+        <h2 className="text-lg font-semibold tracking-tight">Developers</h2>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Manage API keys for machine-to-machine integrations.
+        </p>
+        {!isLoading && !error ? (
+          <div className="mt-2 flex flex-wrap gap-2">
+            <Badge variant="secondary">{apiKeys.length} keys</Badge>
+            <Badge variant="outline">{permissionCounts.owner} owner</Badge>
+            <Badge variant="outline">{permissionCounts.admin} admin</Badge>
+            <Badge variant="outline">{permissionCounts.member} member</Badge>
           </div>
         ) : null}
+      </div>
 
-        {isLoading ? (
-          <div className="text-sm text-muted-foreground">
-            Loading API keys...
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex flex-1 flex-col gap-3 sm:flex-row sm:items-center">
+          <div className="relative w-full sm:max-w-sm">
+            <Icon
+              icon={Search01Icon}
+              className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
+            />
+            <Input
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+              placeholder="Search by name or token"
+              className="pl-9"
+            />
           </div>
-        ) : error ? (
-          <div className="text-sm text-destructive">
-            Failed to load API keys.
+
+          <Select
+            value={permissionFilter}
+            onValueChange={(value) => {
+              if (isApiKeyPermissionFilter(value)) {
+                setPermissionFilter(value);
+              }
+            }}
+          >
+            <SelectTrigger className="w-full sm:w-[180px]">
+              <SelectValue placeholder="Permission" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All permissions</SelectItem>
+              {ORG_ROLE_OPTIONS.map((role) => (
+                <SelectItem key={role.value} value={role.value}>
+                  {role.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <Button type="button" onClick={() => setIsCreateModalOpen(true)}>
+          <Icon icon={Add01Icon} data-icon="inline-start" />
+          Create key
+        </Button>
+      </div>
+
+      {revealedKey ? (
+        <div className="rounded-xl bg-muted/30 p-4">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="text-sm font-medium">New API key (shown once)</p>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={async () => {
+                try {
+                  await navigator.clipboard.writeText(revealedKey);
+                } catch {
+                  toast.error("Failed to copy API key");
+                }
+              }}
+            >
+              Copy
+            </Button>
           </div>
-        ) : !apiKeys.length ? (
-          <div className="rounded-xl bg-muted/30 p-6 text-center text-sm text-muted-foreground">
-            No API keys yet.
-          </div>
-        ) : (
-          <div className="overflow-hidden rounded-xl">
+          <Input
+            readOnly
+            value={revealedKey}
+            className="mt-3 font-mono text-xs"
+            aria-label="Created API key"
+          />
+        </div>
+      ) : null}
+
+      {isLoading ? (
+        <div className="text-sm text-muted-foreground">Loading API keys...</div>
+      ) : error ? (
+        <div className="text-sm text-destructive">Failed to load API keys.</div>
+      ) : !apiKeys.length ? (
+        <div className="rounded-xl bg-muted/30 p-6 text-center text-sm text-muted-foreground">
+          No API keys yet.
+        </div>
+      ) : !filteredApiKeys.length ? (
+        <div className="rounded-xl bg-muted/30 p-6">
+          <p className="text-sm text-muted-foreground">
+            No API keys match the current filters.
+          </p>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="mt-3"
+            onClick={() => {
+              setSearchQuery("");
+              setPermissionFilter("all");
+            }}
+          >
+            Clear filters
+          </Button>
+        </div>
+      ) : (
+        <>
+          <EntityMobileCardList>
+            {apiKeysTable.getRowModel().rows.map((row) => (
+              <EntityMobileCard key={row.original.id}>
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <h3 className="truncate text-sm font-semibold text-foreground">
+                      {getApiKeyDisplayName(row.original)}
+                    </h3>
+                    <p className="mt-1 truncate font-mono text-xs text-muted-foreground">
+                      {getApiKeyTokenPreview(row.original)}
+                    </p>
+                  </div>
+                  <RowActions
+                    ariaLabel={`Actions for ${getApiKeyDisplayName(row.original)}`}
+                    actions={[
+                      {
+                        label:
+                          revokeApiKeyMutation.isPending &&
+                          revokingKeyId === row.original.id
+                            ? "Revoking..."
+                            : "Revoke key",
+                        onClick: () => onRevokeApiKey(row.original.id),
+                        variant: "destructive",
+                        disabled:
+                          revokeApiKeyMutation.isPending &&
+                          revokingKeyId === row.original.id,
+                      },
+                    ]}
+                  />
+                </div>
+
+                <dl className="mt-4 grid grid-cols-2 gap-3">
+                  <EntityCardField
+                    label="Permission"
+                    value={
+                      resolveSelectValueLabel({
+                        value: row.original.scope,
+                        options: ORG_ROLE_OPTIONS,
+                        getOptionValue: (option) => option.value,
+                        getOptionLabel: (option) => option.label,
+                      }) ?? row.original.scope
+                    }
+                  />
+                  <EntityCardField
+                    label="Last used"
+                    value={formatDateTime(row.original.lastUsedAt)}
+                  />
+                  <EntityCardField
+                    label="Created"
+                    value={formatDate(row.original.createdAt)}
+                  />
+                </dl>
+              </EntityMobileCard>
+            ))}
+          </EntityMobileCardList>
+
+          <DataTablePagination
+            table={apiKeysTable}
+            className="justify-center rounded-xl border border-border bg-card shadow-sm md:hidden"
+          />
+
+          <div className="hidden overflow-hidden rounded-xl border border-border/50 md:block">
             <Table>
               <TableHeader>
-                <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Scope</TableHead>
-                  <TableHead>Prefix</TableHead>
-                  <TableHead>Last used</TableHead>
-                  <TableHead>Expires</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {apiKeys.map((apiKey) => (
-                  <TableRow key={apiKey.id}>
-                    <TableCell className="font-medium">
-                      {apiKey.name?.trim() || "Untitled key"}
-                    </TableCell>
-                    <TableCell className="capitalize">{apiKey.scope}</TableCell>
-                    <TableCell className="font-mono text-xs">
-                      {apiKey.prefix ?? "—"}
-                    </TableCell>
-                    <TableCell>{formatDateTime(apiKey.lastUsedAt)}</TableCell>
-                    <TableCell>{formatDateTime(apiKey.expiresAt)}</TableCell>
-                    <TableCell className="text-right">
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        disabled={
-                          revokeApiKeyMutation.isPending &&
-                          revokingKeyId === apiKey.id
+                {apiKeysTable.getHeaderGroups().map((headerGroup) => (
+                  <TableRow key={headerGroup.id}>
+                    {headerGroup.headers.map((header) => (
+                      <TableHead
+                        key={header.id}
+                        className={
+                          header.id === "actions"
+                            ? "w-14 text-right"
+                            : undefined
                         }
-                        onClick={() => onRevokeApiKey(apiKey.id)}
                       >
-                        {revokeApiKeyMutation.isPending &&
-                        revokingKeyId === apiKey.id
-                          ? "Revoking..."
-                          : "Revoke"}
-                      </Button>
-                    </TableCell>
+                        {header.isPlaceholder
+                          ? null
+                          : flexRender(
+                              header.column.columnDef.header,
+                              header.getContext(),
+                            )}
+                      </TableHead>
+                    ))}
                   </TableRow>
                 ))}
+              </TableHeader>
+              <TableBody>
+                {apiKeysTable.getRowModel().rows.length > 0 ? (
+                  apiKeysTable.getRowModel().rows.map((row) => (
+                    <TableRow key={row.original.id}>
+                      {row.getVisibleCells().map((cell) => (
+                        <TableCell
+                          key={cell.id}
+                          className={
+                            cell.column.id === "actions"
+                              ? "text-right"
+                              : undefined
+                          }
+                        >
+                          {flexRender(
+                            cell.column.columnDef.cell,
+                            cell.getContext(),
+                          )}
+                        </TableCell>
+                      ))}
+                    </TableRow>
+                  ))
+                ) : (
+                  <TableRow>
+                    <TableCell
+                      colSpan={columns.length}
+                      className="h-24 text-center"
+                    >
+                      No API keys match the current filters.
+                    </TableCell>
+                  </TableRow>
+                )}
               </TableBody>
             </Table>
+            <DataTablePagination table={apiKeysTable} />
           </div>
-        )}
-      </CardContent>
-    </Card>
+        </>
+      )}
+
+      <EntityModal
+        open={isCreateModalOpen}
+        onOpenChange={setIsCreateModalOpen}
+        title="Create API key"
+        description="Create scoped API keys for machine-to-machine integrations."
+      >
+        <div className="p-6">
+          <form onSubmit={handleSubmit(onCreateApiKey)} className="space-y-4">
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="api-key-name">Name</Label>
+                <Input
+                  id="api-key-name"
+                  placeholder="Production integration"
+                  disabled={createApiKeyMutation.isPending}
+                  {...register("name")}
+                />
+                {errors.name ? (
+                  <p className="mt-1 text-xs text-destructive">
+                    {errors.name.message}
+                  </p>
+                ) : null}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="api-key-scope">Permission</Label>
+                <Controller
+                  name="scope"
+                  control={control}
+                  render={({ field }) => (
+                    <Select
+                      value={field.value}
+                      onValueChange={(value) => {
+                        if (isOrgMembershipRole(value)) {
+                          field.onChange(value);
+                        }
+                      }}
+                      disabled={createApiKeyMutation.isPending}
+                    >
+                      <SelectTrigger id="api-key-scope">
+                        <SelectValue placeholder="Select permission" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {ORG_ROLE_OPTIONS.map((role) => (
+                          <SelectItem key={role.value} value={role.value}>
+                            {role.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                />
+                {errors.scope ? (
+                  <p className="mt-1 text-xs text-destructive">
+                    {errors.scope.message}
+                  </p>
+                ) : null}
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="api-key-expires-at">Expires at (optional)</Label>
+              <Input
+                id="api-key-expires-at"
+                type="datetime-local"
+                disabled={createApiKeyMutation.isPending}
+                {...register("expiresAt", {
+                  setValueAs: (value) => {
+                    if (typeof value !== "string") return value;
+                    if (value.trim().length === 0) return undefined;
+                    const parsed = new Date(value);
+                    return Number.isNaN(parsed.getTime()) ? undefined : parsed;
+                  },
+                })}
+              />
+              {errors.expiresAt ? (
+                <p className="mt-1 text-xs text-destructive">
+                  {errors.expiresAt.message}
+                </p>
+              ) : null}
+            </div>
+
+            <div className="flex justify-end gap-3 pt-1">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setIsCreateModalOpen(false)}
+                disabled={createApiKeyMutation.isPending}
+              >
+                Cancel
+              </Button>
+              <Button type="submit" disabled={createApiKeyMutation.isPending}>
+                {createApiKeyMutation.isPending ? "Creating..." : "Create key"}
+              </Button>
+            </div>
+          </form>
+        </div>
+      </EntityModal>
+    </div>
   );
 }
 
@@ -972,7 +1329,7 @@ export function resetPaginationToFirstPage(
 function UsersManagementSection() {
   const queryClient = useQueryClient();
   const [updatingUserId, setUpdatingUserId] = useState<string | null>(null);
-  const [isCreateFormOpen, setIsCreateFormOpen] = useState(false);
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [roleFilter, setRoleFilter] = useState<OrgRoleFilter>("all");
   const [statusFilter, setStatusFilter] = useState<UserStatusFilter>("all");
@@ -1039,7 +1396,7 @@ function UsersManagementSection() {
             name: "",
             role: "member",
           });
-          setIsCreateFormOpen(false);
+          setIsCreateModalOpen(false);
         },
       },
     );
@@ -1298,108 +1655,11 @@ function UsersManagementSection() {
           </Select>
         </div>
 
-        <Button
-          type="button"
-          onClick={() => setIsCreateFormOpen((previousState) => !previousState)}
-          variant={isCreateFormOpen ? "outline" : "default"}
-        >
+        <Button type="button" onClick={() => setIsCreateModalOpen(true)}>
           <Icon icon={Add01Icon} data-icon="inline-start" />
-          {isCreateFormOpen ? "Close" : "Add user"}
+          Add user
         </Button>
       </div>
-
-      {isCreateFormOpen ? (
-        <div className="rounded-xl bg-muted/30 p-4">
-          <h3 className="text-sm font-semibold tracking-tight">Add user</h3>
-          <p className="mt-1 text-xs text-muted-foreground">
-            Add a user directly to this organization. Invite email delivery will
-            be introduced in a follow-up release.
-          </p>
-
-          <form
-            onSubmit={handleSubmit(onCreateUser)}
-            className="mt-4 grid gap-4 md:grid-cols-[1fr_1fr_180px_auto]"
-          >
-            <div className="space-y-2">
-              <Label htmlFor="new-user-email">Email</Label>
-              <Input
-                id="new-user-email"
-                type="email"
-                placeholder="new.user@example.com"
-                disabled={createUserMutation.isPending}
-                {...register("email")}
-              />
-              {errors.email ? (
-                <p className="mt-1 text-xs text-destructive">
-                  {errors.email.message}
-                </p>
-              ) : null}
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="new-user-name">Name (optional)</Label>
-              <Input
-                id="new-user-name"
-                placeholder="Full name"
-                disabled={createUserMutation.isPending}
-                {...register("name", {
-                  setValueAs: (value) => {
-                    if (typeof value !== "string") return value;
-                    const trimmedValue = value.trim();
-                    return trimmedValue.length > 0 ? trimmedValue : undefined;
-                  },
-                })}
-              />
-              {errors.name ? (
-                <p className="mt-1 text-xs text-destructive">
-                  {errors.name.message}
-                </p>
-              ) : null}
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="new-user-role">Role</Label>
-              <Controller
-                name="role"
-                control={control}
-                render={({ field }) => (
-                  <Select
-                    value={field.value}
-                    onValueChange={(value) => {
-                      if (isOrgMembershipRole(value)) {
-                        field.onChange(value);
-                      }
-                    }}
-                    disabled={createUserMutation.isPending}
-                  >
-                    <SelectTrigger id="new-user-role">
-                      <SelectValue placeholder="Select role" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {ORG_ROLE_OPTIONS.map((role) => (
-                        <SelectItem key={role.value} value={role.value}>
-                          {role.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )}
-              />
-              {errors.role ? (
-                <p className="mt-1 text-xs text-destructive">
-                  {errors.role.message}
-                </p>
-              ) : null}
-            </div>
-
-            <div className="flex items-end">
-              <Button type="submit" disabled={createUserMutation.isPending}>
-                {createUserMutation.isPending ? "Creating..." : "Create user"}
-              </Button>
-            </div>
-          </form>
-        </div>
-      ) : null}
 
       {isLoading ? (
         <div
@@ -1421,7 +1681,7 @@ function UsersManagementSection() {
             variant="outline"
             size="sm"
             className="mt-3"
-            onClick={() => setIsCreateFormOpen(true)}
+            onClick={() => setIsCreateModalOpen(true)}
           >
             Add first user
           </Button>
@@ -1615,6 +1875,105 @@ function UsersManagementSection() {
           </div>
         </>
       )}
+
+      <EntityModal
+        open={isCreateModalOpen}
+        onOpenChange={setIsCreateModalOpen}
+        title="Add user"
+        description="Add a user directly to this organization. Invite email delivery will be introduced in a follow-up release."
+      >
+        <div className="p-6">
+          <form onSubmit={handleSubmit(onCreateUser)} className="space-y-4">
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="new-user-email">Email</Label>
+                <Input
+                  id="new-user-email"
+                  type="email"
+                  placeholder="new.user@example.com"
+                  disabled={createUserMutation.isPending}
+                  {...register("email")}
+                />
+                {errors.email ? (
+                  <p className="mt-1 text-xs text-destructive">
+                    {errors.email.message}
+                  </p>
+                ) : null}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="new-user-name">Name (optional)</Label>
+                <Input
+                  id="new-user-name"
+                  placeholder="Full name"
+                  disabled={createUserMutation.isPending}
+                  {...register("name", {
+                    setValueAs: (value) => {
+                      if (typeof value !== "string") return value;
+                      const trimmedValue = value.trim();
+                      return trimmedValue.length > 0 ? trimmedValue : undefined;
+                    },
+                  })}
+                />
+                {errors.name ? (
+                  <p className="mt-1 text-xs text-destructive">
+                    {errors.name.message}
+                  </p>
+                ) : null}
+              </div>
+            </div>
+
+            <div className="max-w-[220px] space-y-2">
+              <Label htmlFor="new-user-role">Role</Label>
+              <Controller
+                name="role"
+                control={control}
+                render={({ field }) => (
+                  <Select
+                    value={field.value}
+                    onValueChange={(value) => {
+                      if (isOrgMembershipRole(value)) {
+                        field.onChange(value);
+                      }
+                    }}
+                    disabled={createUserMutation.isPending}
+                  >
+                    <SelectTrigger id="new-user-role">
+                      <SelectValue placeholder="Select role" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {ORG_ROLE_OPTIONS.map((role) => (
+                        <SelectItem key={role.value} value={role.value}>
+                          {role.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              />
+              {errors.role ? (
+                <p className="mt-1 text-xs text-destructive">
+                  {errors.role.message}
+                </p>
+              ) : null}
+            </div>
+
+            <div className="flex justify-end gap-3 pt-1">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setIsCreateModalOpen(false)}
+                disabled={createUserMutation.isPending}
+              >
+                Cancel
+              </Button>
+              <Button type="submit" disabled={createUserMutation.isPending}>
+                {createUserMutation.isPending ? "Creating..." : "Create user"}
+              </Button>
+            </div>
+          </form>
+        </div>
+      </EntityModal>
     </div>
   );
 }

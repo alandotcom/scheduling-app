@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-import { resetPaginationToFirstPage } from "./settings";
+import { filterApiKeys, resetPaginationToFirstPage } from "./settings";
 import { formatWebhookPayloadPreview } from "@/components/settings/webhooks/utils/format-webhook-payload-preview";
 
 describe("settings pagination helpers", () => {
@@ -27,6 +27,55 @@ describe("settings pagination helpers", () => {
       pageIndex: 0,
       pageSize: 20,
     });
+  });
+});
+
+describe("filterApiKeys", () => {
+  const apiKeys = [
+    { name: "Cloudflare", scope: "owner", start: "re_XNLYaE1x", prefix: "re_" },
+    { name: "Zapier", scope: "admin", start: null, prefix: "re_" },
+    { name: "Donor app", scope: "member", start: "re_VTB7WY2Y", prefix: "re_" },
+  ] as const;
+
+  test("returns all keys when query is empty and permission is all", () => {
+    const result = filterApiKeys(apiKeys, {
+      searchQuery: "",
+      permissionFilter: "all",
+    });
+
+    expect(result).toEqual([...apiKeys]);
+  });
+
+  test("filters keys by search query across name and token fields", () => {
+    const byName = filterApiKeys(apiKeys, {
+      searchQuery: "zap",
+      permissionFilter: "all",
+    });
+    const byToken = filterApiKeys(apiKeys, {
+      searchQuery: "vtb7w",
+      permissionFilter: "all",
+    });
+
+    expect(byName).toEqual([apiKeys[1]]);
+    expect(byToken).toEqual([apiKeys[2]]);
+  });
+
+  test("filters keys by permission", () => {
+    const result = filterApiKeys(apiKeys, {
+      searchQuery: "",
+      permissionFilter: "admin",
+    });
+
+    expect(result).toEqual([apiKeys[1]]);
+  });
+
+  test("applies query and permission filters together", () => {
+    const result = filterApiKeys(apiKeys, {
+      searchQuery: "re_",
+      permissionFilter: "owner",
+    });
+
+    expect(result).toEqual([apiKeys[0]]);
   });
 });
 
