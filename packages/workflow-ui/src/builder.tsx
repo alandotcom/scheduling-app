@@ -31,15 +31,30 @@ import {
   createNodeId,
   createTriggerFlowNode,
   documentSignature,
+  isRecord,
   toFlowEdge,
   toFlowNode,
   updateNodeGraphData,
+  TRIGGER_NODE_ID,
   type BuilderEdge,
   type BuilderNode,
   type WorkflowBuilderNode,
 } from "./utils";
 
-type WorkflowBuilderProps = {
+export type WorkflowNodeCreationKind =
+  | "action"
+  | "wait"
+  | "condition"
+  | "terminal";
+
+export type WorkflowNodeCreationRequest = {
+  kind: WorkflowNodeCreationKind;
+  sourceNodeId?: string | null | undefined;
+  sourceHandleId?: string | null | undefined;
+  position?: { x: number; y: number };
+};
+
+type WorkflowEditorProps = {
   document: WorkflowGraphDocument;
   actionCatalog: readonly WorkflowActionCatalogItem[];
   triggerEventType: WebhookEventType;
@@ -50,7 +65,16 @@ type WorkflowBuilderProps = {
   sidebarExtra?: ReactNode;
 };
 
-export function WorkflowBuilder({
+function getEdgeBranch(edge: BuilderEdge): string | undefined {
+  if (edge.sourceHandle === "true" || edge.sourceHandle === "false") {
+    return edge.sourceHandle;
+  }
+
+  const branch = isRecord(edge.data) ? edge.data["branch"] : undefined;
+  return typeof branch === "string" ? branch : undefined;
+}
+
+export function WorkflowEditor({
   document,
   actionCatalog,
   triggerEventType,
@@ -59,7 +83,7 @@ export function WorkflowBuilder({
   onChange,
   readOnly = false,
   sidebarExtra,
-}: WorkflowBuilderProps) {
+}: WorkflowEditorProps) {
   const lastEmittedSignatureRef = useRef<string | null>(null);
   const [inspectorOpen, setInspectorOpen] = useState(true);
   const [activeTab, setActiveTab] = useState<"properties" | "runs">(
@@ -87,7 +111,6 @@ export function WorkflowBuilder({
     [normalizedDocument],
   );
 
-  // Sync flow state from props
   useEffect(() => {
     if (lastEmittedSignatureRef.current === normalizedDocumentSig) return;
     const flowNodes = [
@@ -117,7 +140,6 @@ export function WorkflowBuilder({
   );
   const selectedGraphNode = selectedNode?.data.graphNode ?? null;
 
-  // Emit changes to parent
   const emitChange = useCallback(
     (nextNodes: BuilderNode[], nextEdges: BuilderEdge[]) => {
       const nextDoc = buildDocumentFromFlow({
@@ -174,32 +196,90 @@ export function WorkflowBuilder({
     [reactFlowInstance],
   );
 
-  // Generic add-node helper
+  const buildAutoEdge = useCallback(
+    (
+      sourceNodeId: string | null,
+      targetNodeId: string,
+      sourceHandleId?: string | null,
+    ): BuilderEdge | null => {
+      if (!sourceNodeId || sourceNodeId === TRIGGER_NODE_ID) {
+        return null;
+      }
+
+      const sourceNode = nodes.find((node) => node.id === sourceNodeId);
+      const sourceGraphNode = sourceNode?.data.graphNode;
+      if (!sourceGraphNode || sourceGraphNode.kind === "terminal") {
+        return null;
+      }
+
+      if (sourceGraphNode.kind === "condition") {
+        if (sourceHandleId !== "true" && sourceHandleId !== "false") {
+          return null;
+        }
+
+        const hasBranchEdge = edges.some(
+          (edge) =>
+            edge.source === sourceNodeId &&
+            getEdgeBranch(edge) === sourceHandleId,
+        );
+        if (hasBranchEdge) return null;
+
+        return {
+          id: createNodeId("edge"),
+          source: sourceNodeId,
+          target: targetNodeId,
+          sourceHandle: sourceHandleId,
+          type: "animated",
+          data: { branch: sourceHandleId },
+        } satisfies BuilderEdge;
+      }
+
+      if (edges.some((edge) => edge.source === sourceNodeId)) {
+        return null;
+      }
+
+      return {
+        id: createNodeId("edge"),
+        source: sourceNodeId,
+        target: targetNodeId,
+        type: "animated",
+      } satisfies BuilderEdge;
+    },
+    [edges, nodes],
+  );
+
   const addNode = useCallback(
-    (graphNode: WorkflowBuilderNode) => {
+    (
+      graphNode: WorkflowBuilderNode,
+      options?: {
+        sourceNodeId?: string | null | undefined;
+        sourceHandleId?: string | null | undefined;
+      },
+    ) => {
       const graphNodeCount = nodes.filter(
         (n) => n.data.graphNode.kind !== "trigger",
       ).length;
       const nextNode = toFlowNode(graphNode, graphNodeCount, actionCatalog);
-      const sourceNodeId =
+
+      const defaultSourceNodeId =
         selectedGraphNode &&
         selectedGraphNode.kind !== "trigger" &&
         selectedGraphNode.kind !== "terminal"
           ? selectedGraphNode.id
           : null;
+      const sourceNodeId =
+        options?.sourceNodeId === undefined
+          ? defaultSourceNodeId
+          : options.sourceNodeId;
+
+      const autoEdge = buildAutoEdge(
+        sourceNodeId,
+        graphNode.id,
+        options?.sourceHandleId,
+      );
+
       const nextNodes = [...nodes, nextNode];
-      const nextEdges =
-        sourceNodeId && !edges.some((e) => e.source === sourceNodeId)
-          ? [
-              ...edges,
-              {
-                id: createNodeId("edge"),
-                source: sourceNodeId,
-                target: graphNode.id,
-                type: "animated",
-              } satisfies BuilderEdge,
-            ]
-          : edges;
+      const nextEdges = autoEdge ? [...edges, autoEdge] : edges;
       setNodes(nextNodes);
       setEdges(nextEdges);
       emitChange(nextNodes, nextEdges);
@@ -208,6 +288,7 @@ export function WorkflowBuilder({
     },
     [
       actionCatalog,
+      buildAutoEdge,
       edges,
       emitChange,
       focusNodeInViewport,
@@ -216,60 +297,87 @@ export function WorkflowBuilder({
     ],
   );
 
-  const addActionNode = useCallback(() => {
-    const action = actionCatalog[0];
-    if (!action) return;
-    const graphNodeCount = nodes.filter(
-      (n) => n.data.graphNode.kind !== "trigger",
-    ).length;
-    addNode({
-      id: createNodeId("action"),
-      kind: "action",
-      actionId: action.id,
-      integrationKey: action.integrationKey,
-      input: {},
-      position: getSpawnPosition(graphNodeCount),
-    });
-  }, [actionCatalog, addNode, getSpawnPosition, nodes]);
+  const createNodeFromRequest = useCallback(
+    (request: WorkflowNodeCreationRequest) => {
+      const graphNodeCount = nodes.filter(
+        (n) => n.data.graphNode.kind !== "trigger",
+      ).length;
+      const position = request.position ?? getSpawnPosition(graphNodeCount);
 
-  const addWaitNode = useCallback(() => {
-    const graphNodeCount = nodes.filter(
-      (n) => n.data.graphNode.kind !== "trigger",
-    ).length;
-    addNode({
-      id: createNodeId("wait"),
-      kind: "wait",
-      wait: { mode: "relative", duration: "PT30M", offsetDirection: "after" },
-      position: getSpawnPosition(graphNodeCount),
-    });
-  }, [addNode, getSpawnPosition, nodes]);
+      if (request.kind === "action") {
+        const action = actionCatalog[0];
+        if (!action) return;
+        addNode(
+          {
+            id: createNodeId("action"),
+            kind: "action",
+            actionId: action.id,
+            integrationKey: action.integrationKey,
+            input: {},
+            position,
+          },
+          {
+            sourceNodeId: request.sourceNodeId,
+            sourceHandleId: request.sourceHandleId,
+          },
+        );
+        return;
+      }
 
-  const addConditionNode = useCallback(() => {
-    const graphNodeCount = nodes.filter(
-      (n) => n.data.graphNode.kind !== "trigger",
-    ).length;
-    addNode({
-      id: createNodeId("condition"),
-      kind: "condition",
-      guard: {
-        combinator: "all",
-        conditions: [createDefaultGuardCondition()],
-      },
-      position: getSpawnPosition(graphNodeCount),
-    });
-  }, [addNode, getSpawnPosition, nodes]);
+      if (request.kind === "wait") {
+        addNode(
+          {
+            id: createNodeId("wait"),
+            kind: "wait",
+            wait: {
+              mode: "relative",
+              duration: "PT30M",
+              offsetDirection: "after",
+            },
+            position,
+          },
+          {
+            sourceNodeId: request.sourceNodeId,
+            sourceHandleId: request.sourceHandleId,
+          },
+        );
+        return;
+      }
 
-  const addTerminalNode = useCallback(() => {
-    const graphNodeCount = nodes.filter(
-      (n) => n.data.graphNode.kind !== "trigger",
-    ).length;
-    addNode({
-      id: createNodeId("terminal"),
-      kind: "terminal",
-      terminalType: "complete",
-      position: getSpawnPosition(graphNodeCount),
-    });
-  }, [addNode, getSpawnPosition, nodes]);
+      if (request.kind === "condition") {
+        addNode(
+          {
+            id: createNodeId("condition"),
+            kind: "condition",
+            guard: {
+              combinator: "all",
+              conditions: [createDefaultGuardCondition()],
+            },
+            position,
+          },
+          {
+            sourceNodeId: request.sourceNodeId,
+            sourceHandleId: request.sourceHandleId,
+          },
+        );
+        return;
+      }
+
+      addNode(
+        {
+          id: createNodeId("terminal"),
+          kind: "terminal",
+          terminalType: "complete",
+          position,
+        },
+        {
+          sourceNodeId: request.sourceNodeId,
+          sourceHandleId: request.sourceHandleId,
+        },
+      );
+    },
+    [actionCatalog, addNode, getSpawnPosition, nodes],
+  );
 
   const updateSelectedNode = useCallback(
     (updater: (node: WorkflowBuilderNode) => WorkflowBuilderNode) => {
@@ -323,13 +431,13 @@ export function WorkflowBuilder({
         <div className="pointer-events-auto w-full max-w-md rounded-xl border border-border bg-background/95 p-4 text-center shadow-sm backdrop-blur-sm">
           <p className="text-sm font-semibold">Start your workflow</p>
           <p className="mt-1 text-sm text-muted-foreground">
-            Add a first node to begin building the flow.
+            Right-click the canvas to add your first step.
           </p>
           <div className="mt-3 flex items-center justify-center gap-2">
             <button
               type="button"
               className="inline-flex items-center gap-1.5 rounded-md border bg-secondary px-3 py-1.5 text-xs font-medium shadow-sm hover:bg-secondary/80"
-              onClick={addActionNode}
+              onClick={() => createNodeFromRequest({ kind: "action" })}
               disabled={actionCatalog.length === 0}
             >
               <HugeiconsIcon
@@ -342,7 +450,7 @@ export function WorkflowBuilder({
             <button
               type="button"
               className="inline-flex items-center gap-1.5 rounded-md border bg-secondary px-3 py-1.5 text-xs font-medium shadow-sm hover:bg-secondary/80"
-              onClick={addWaitNode}
+              onClick={() => createNodeFromRequest({ kind: "wait" })}
             >
               <HugeiconsIcon
                 icon={Clock01Icon}
@@ -354,7 +462,7 @@ export function WorkflowBuilder({
             <button
               type="button"
               className="inline-flex items-center gap-1.5 rounded-md border bg-secondary px-3 py-1.5 text-xs font-medium shadow-sm hover:bg-secondary/80"
-              onClick={addConditionNode}
+              onClick={() => createNodeFromRequest({ kind: "condition" })}
             >
               <HugeiconsIcon
                 icon={GitBranchIcon}
@@ -366,7 +474,7 @@ export function WorkflowBuilder({
             <button
               type="button"
               className="inline-flex items-center gap-1.5 rounded-md border bg-secondary px-3 py-1.5 text-xs font-medium shadow-sm hover:bg-secondary/80"
-              onClick={addTerminalNode}
+              onClick={() => createNodeFromRequest({ kind: "terminal" })}
             >
               <HugeiconsIcon
                 icon={StopCircleIcon}
@@ -386,14 +494,12 @@ export function WorkflowBuilder({
         nodes={nodes}
         edges={edges}
         readOnly={readOnly}
+        selectedNodeId={selectedNodeId}
         onNodesChange={handleNodesChange}
         onEdgesChange={handleEdgesChange}
         onSelectionChange={handleSelectionChange}
         onInit={setReactFlowInstance}
-        onAddAction={addActionNode}
-        onAddWait={addWaitNode}
-        onAddCondition={addConditionNode}
-        onAddTerminal={addTerminalNode}
+        onCreateNode={createNodeFromRequest}
         hasActions={actionCatalog.length > 0}
         emptyState={emptyState}
       />

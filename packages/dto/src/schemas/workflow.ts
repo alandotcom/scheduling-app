@@ -164,9 +164,6 @@ export const workflowGraphDocumentSchema = z
   })
   .loose();
 
-// Temporary alias while API/DB naming is migrated from "workflowGraph" to first-party graph naming.
-export const workflowGraphDocumentSchema = workflowGraphDocumentSchema;
-
 export const workflowValidationIssueCodeSchema = z.enum([
   "MISSING_REQUIRED_FIELD",
   "BROKEN_REFERENCE",
@@ -462,7 +459,6 @@ export type WorkflowWaitNode = z.infer<typeof workflowWaitNodeSchema>;
 export type WorkflowTerminalNode = z.infer<typeof workflowTerminalNodeSchema>;
 export type WorkflowGraphNode = z.infer<typeof workflowGraphNodeSchema>;
 export type WorkflowGraphEdge = z.infer<typeof workflowGraphEdgeSchema>;
-export type WorkflowGraphDocument = z.input<typeof workflowGraphDocumentSchema>;
 export type WorkflowGraphDocument = z.input<typeof workflowGraphDocumentSchema>;
 export type WorkflowValidationIssueCode = z.infer<
   typeof workflowValidationIssueCodeSchema

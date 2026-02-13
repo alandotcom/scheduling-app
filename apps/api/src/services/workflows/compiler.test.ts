@@ -2,13 +2,33 @@ import { describe, expect, test } from "bun:test";
 import { compileWorkflowDocument } from "./compiler.js";
 
 describe("workflow compiler", () => {
-  test("compiles legacy trigger + steps payload deterministically", () => {
+  test("compiles first-party graph payload deterministically", () => {
     const result = compileWorkflowDocument({
+      schemaVersion: 1,
       trigger: { event: "appointment.created" },
-      steps: [
-        { id: "step_b", type: "notify", channel: "sms" },
-        { id: "step_a", type: "wait", duration: "PT30M" },
+      nodes: [
+        {
+          id: "step_b",
+          kind: "action",
+          actionId: "resend.sendEmail",
+          integrationKey: "resend",
+          input: {
+            to: "ops@example.com",
+            subject: "Appointment created",
+            body: "New appointment",
+          },
+        },
+        {
+          id: "step_a",
+          kind: "wait",
+          wait: {
+            mode: "relative",
+            duration: "PT30M",
+            offsetDirection: "after",
+          },
+        },
       ],
+      edges: [{ id: "edge_2", source: "step_b", target: "step_a" }],
     });
 
     expect(result.validation.valid).toBe(true);
@@ -23,7 +43,7 @@ describe("workflow compiler", () => {
         { id: "step_a", kind: "wait" },
         { id: "step_b", kind: "action" },
       ],
-      edges: [{ source: "step_b", target: "step_a" }],
+      edges: [{ id: "edge_2", source: "step_b", target: "step_a" }],
     });
   });
 

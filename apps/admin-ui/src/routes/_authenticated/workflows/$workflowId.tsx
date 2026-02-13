@@ -6,21 +6,23 @@ import { forEachAsync } from "es-toolkit/array";
 import { toast } from "sonner";
 import {
   getCatalogTriggerEventTypes,
-  getWorkflowGraphDocumentFromDraft,
-  getTriggerEventTypeFromDraft,
   resolveDefaultCatalogTriggerEventType,
+  resolveTriggerEventType,
   stableStringify,
-  WorkflowBuilder,
-  withDraftGraphDocument,
-  withDraftTriggerEventType,
+  WorkflowEditor,
+  withWorkflowTriggerEventType,
 } from "@scheduling/workflow-ui";
 
 import type {
   WebhookEventType,
+  WorkflowGraphDocument,
   WorkflowDefinitionStatus,
   WorkflowValidationResult,
 } from "@scheduling/dto";
-import { webhookEventTypes, workflowGraphDocumentSchema } from "@scheduling/dto";
+import {
+  webhookEventTypes,
+  workflowGraphDocumentSchema,
+} from "@scheduling/dto";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
@@ -62,9 +64,14 @@ function WorkflowDetailPage() {
     authClient.useSession();
   const canQueryWorkflowData =
     !isSessionPending && !!session?.session.activeOrganizationId;
-  const [draftWorkflowGraph, setDraftWorkflowKit] = useState<
-    Record<string, unknown>
-  >({});
+  const [draftWorkflowGraph, setDraftWorkflowGraph] =
+    useState<WorkflowGraphDocument>(
+      workflowGraphDocumentSchema.parse({
+        schemaVersion: 1,
+        nodes: [],
+        edges: [],
+      }),
+    );
   const [draftError, setDraftError] = useState<string | null>(null);
   const [validationResult, setValidationResult] =
     useState<WorkflowValidationResult | null>(null);
@@ -113,8 +120,23 @@ function WorkflowDetailPage() {
 
   useEffect(() => {
     if (!definition) return;
-    setDraftWorkflowKit(definition.draftWorkflowGraph);
-    setDraftError(null);
+    const parsed = workflowGraphDocumentSchema.safeParse(
+      definition.draftWorkflowGraph,
+    );
+    if (parsed.success) {
+      setDraftWorkflowGraph(parsed.data);
+      setDraftError(null);
+      return;
+    }
+
+    setDraftWorkflowGraph(
+      workflowGraphDocumentSchema.parse({
+        schemaVersion: 1,
+        nodes: [],
+        edges: [],
+      }),
+    );
+    setDraftError("Workflow draft is invalid.");
   }, [definition?.id, definition?.draftRevision]);
 
   useEffect(() => {
@@ -123,22 +145,17 @@ function WorkflowDetailPage() {
     setSelectedRunId(null);
   }, [runs, selectedRunId]);
 
-  const parsedDraft = useMemo(
-    () => workflowGraphDocumentSchema.safeParse(draftWorkflowGraph),
-    [draftWorkflowGraph],
-  );
   const isDraftDirty = useMemo(() => {
     if (!definition) return false;
-    if (!parsedDraft.success) return true;
     return (
-      stableStringify(parsedDraft.data) !==
+      stableStringify(draftWorkflowGraph) !==
       stableStringify(definition.draftWorkflowGraph)
     );
-  }, [definition, parsedDraft]);
+  }, [definition, draftWorkflowGraph]);
   const triggerEventType = useMemo(
     () =>
-      getTriggerEventTypeFromDraft(
-        parsedDraft.success ? parsedDraft.data : draftWorkflowGraph,
+      resolveTriggerEventType(
+        draftWorkflowGraph,
         definition?.bindings[0]?.eventType ??
           resolveDefaultCatalogTriggerEventType(
             catalogQuery.data?.triggers ?? [],
@@ -150,22 +167,14 @@ function WorkflowDetailPage() {
       catalogQuery.data?.triggers,
       definition,
       draftWorkflowGraph,
-      parsedDraft,
     ],
-  );
-  const workflowGraph = useMemo(
-    () =>
-      getWorkflowGraphDocumentFromDraft(
-        parsedDraft.success ? parsedDraft.data : draftWorkflowGraph,
-      ),
-    [draftWorkflowGraph, parsedDraft],
   );
 
   const updateDraftMutation = useMutation(
     orpc.workflows.updateDraft.mutationOptions({
       onSuccess: async (updated) => {
         await queryClient.invalidateQueries({ queryKey: orpc.workflows.key() });
-        setDraftWorkflowKit(updated.draftWorkflowGraph);
+        setDraftWorkflowGraph(updated.draftWorkflowGraph);
         setValidationResult(null);
         toast.success("Draft saved");
       },
@@ -234,12 +243,6 @@ function WorkflowDetailPage() {
 
   const ensureSavedDraft = useCallback(async () => {
     if (!definition) return { ok: false as const };
-    const parsed = workflowGraphDocumentSchema.safeParse(draftWorkflowGraph);
-    if (!parsed.success) {
-      setDraftError("Workflow draft is invalid.");
-      return { ok: false as const };
-    }
-
     setDraftError(null);
     if (!isDraftDirty) {
       return { ok: true as const, revision: definition.draftRevision };
@@ -248,7 +251,7 @@ function WorkflowDetailPage() {
     try {
       const updated = await updateDraftMutation.mutateAsync({
         id: workflowId,
-        workflowGraph: parsed.data,
+        workflowGraph: draftWorkflowGraph,
         expectedRevision: definition.draftRevision,
       });
       return { ok: true as const, revision: updated.draftRevision };
@@ -597,25 +600,20 @@ function WorkflowDetailPage() {
 
       {/* Canvas fills remaining space */}
       <div className="relative min-h-0 flex-1 overflow-hidden">
-        <WorkflowBuilder
-          document={workflowGraph}
+        <WorkflowEditor
+          document={draftWorkflowGraph}
           actionCatalog={catalogQuery.data?.actions ?? []}
           triggerEventType={triggerEventType}
           availableTriggerEventTypes={availableTriggerEventTypes}
           onTriggerEventTypeChange={(eventType) => {
-            setDraftWorkflowKit((current) =>
-              withDraftTriggerEventType(current, eventType),
+            setDraftWorkflowGraph((current) =>
+              withWorkflowTriggerEventType(current, eventType),
             );
             setDraftError(null);
             setValidationResult(null);
           }}
           onChange={(updatedWorkflow) => {
-            setDraftWorkflowKit((current) =>
-              withDraftGraphDocument(
-                withDraftTriggerEventType(current, triggerEventType),
-                updatedWorkflow,
-              ),
-            );
+            setDraftWorkflowGraph(updatedWorkflow);
             setDraftError(null);
             setValidationResult(null);
           }}
@@ -624,9 +622,9 @@ function WorkflowDetailPage() {
       </div>
 
       {/* Draft error toast-style inline (only when not parseable) */}
-      {draftError || (!parsedDraft.success && !draftError) ? (
+      {draftError ? (
         <div className="absolute bottom-4 left-1/2 z-50 -translate-x-1/2 rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-2 text-sm text-destructive shadow-lg">
-          {draftError || "Workflow draft is invalid."}
+          {draftError}
         </div>
       ) : null}
     </div>

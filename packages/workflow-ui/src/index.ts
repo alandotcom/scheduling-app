@@ -1,6 +1,6 @@
 export * from "./catalog";
 export * from "./draft";
-export * from "./builder";
+export * from "./editor";
 export * from "./action-config-renderer";
 export * from "./action-selector";
 export * from "./template-badge-input";

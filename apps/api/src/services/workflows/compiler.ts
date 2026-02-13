@@ -12,7 +12,6 @@ type WorkflowDocumentLike = {
   trigger?: unknown;
   nodes?: unknown;
   edges?: unknown;
-  steps?: unknown;
   [key: string]: unknown;
 };
 
@@ -73,80 +72,48 @@ function getTriggerEventType(document: WorkflowDocumentLike): string | null {
 
 function buildCanonicalNodes(document: WorkflowDocumentLike): CanonicalNode[] {
   const nodes = Array.isArray(document.nodes) ? document.nodes : [];
-  if (nodes.length > 0) {
-    return nodes.flatMap((entry) => {
-      if (!isRecord(entry)) return [];
-
-      const id = entry["id"];
-      const kind = entry["kind"];
-      if (typeof id !== "string" || id.length === 0) return [];
-      if (typeof kind !== "string" || kind.length === 0) return [];
-
-      const config = { ...entry };
-      delete config["id"];
-      delete config["kind"];
-      return [{ id, kind, config }];
-    });
-  }
-
-  // Temporary bridge for legacy editor payloads that still use `steps`.
-  const legacySteps = Array.isArray(document.steps) ? document.steps : [];
-  return legacySteps.flatMap((entry) => {
+  return nodes.flatMap((entry) => {
     if (!isRecord(entry)) return [];
 
     const id = entry["id"];
-    const type = entry["type"];
+    const kind = entry["kind"];
     if (typeof id !== "string" || id.length === 0) return [];
-    if (typeof type !== "string" || type.length === 0) return [];
+    if (typeof kind !== "string" || kind.length === 0) return [];
 
-    const kind = type === "wait" ? "wait" : "action";
     const config = { ...entry };
     delete config["id"];
+    delete config["kind"];
     return [{ id, kind, config }];
   });
 }
 
 function buildCanonicalEdges(document: WorkflowDocumentLike): CanonicalEdge[] {
   const edges = Array.isArray(document.edges) ? document.edges : [];
-  if (edges.length > 0) {
-    return edges.flatMap((entry, index) => {
-      if (!isRecord(entry)) return [];
+  return edges.flatMap((entry, index) => {
+    if (!isRecord(entry)) return [];
 
-      const source = entry["source"];
-      const target = entry["target"];
-      const id = entry["id"];
-      const branch = entry["branch"];
+    const source = entry["source"];
+    const target = entry["target"];
+    const id = entry["id"];
+    const branch = entry["branch"];
 
-      if (typeof source !== "string" || source.length === 0) return [];
-      if (typeof target !== "string" || target.length === 0) return [];
+    if (typeof source !== "string" || source.length === 0) return [];
+    if (typeof target !== "string" || target.length === 0) return [];
 
-      const edgeId =
-        typeof id === "string" && id.length > 0 ? id : `edge_${index + 1}`;
+    const edgeId =
+      typeof id === "string" && id.length > 0 ? id : `edge_${index + 1}`;
 
-      if (
-        branch === "next" ||
-        branch === "timeout" ||
-        branch === "true" ||
-        branch === "false"
-      ) {
-        return [{ id: edgeId, source, target, branch }];
-      }
+    if (
+      branch === "next" ||
+      branch === "timeout" ||
+      branch === "true" ||
+      branch === "false"
+    ) {
+      return [{ id: edgeId, source, target, branch }];
+    }
 
-      return [{ id: edgeId, source, target }];
-    });
-  }
-
-  const nodes = buildCanonicalNodes(document);
-  if (nodes.length < 2) {
-    return [];
-  }
-
-  return nodes.slice(0, -1).map((node, index) => ({
-    id: `edge_${index + 1}`,
-    source: node.id,
-    target: nodes[index + 1]!.id,
-    branch: "next",
-  }));
+    return [{ id: edgeId, source, target }];
+  });
 }
 
 function findCycleNode(
@@ -275,8 +242,13 @@ export function compileWorkflowDocument(
 
     const actionId = node.config["actionId"];
     if (typeof actionId !== "string" || actionId.length === 0) {
-      // Legacy action nodes without explicit action IDs are still allowed
-      // while we migrate editor payloads to first-party action contracts.
+      issues.push({
+        code: "MISSING_REQUIRED_FIELD",
+        severity: "error",
+        nodeId: node.id,
+        field: "actionId",
+        message: `Action node \"${node.id}\" must declare an actionId`,
+      });
       continue;
     }
 

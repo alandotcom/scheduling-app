@@ -1,5 +1,5 @@
 // oxlint-disable eslint-plugin-react/react-in-jsx-scope
-import { useCallback, useMemo, type ReactNode } from "react";
+import { useCallback, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   addEdge,
   ConnectionMode,
@@ -13,13 +13,14 @@ import {
   type EdgeTypes,
   type NodeChange,
   type NodeTypes,
+  type OnConnectStartParams,
   type ReactFlowInstance,
 } from "@xyflow/react";
 import {
+  Add01Icon,
   Clock01Icon,
   GitBranchIcon,
   StopCircleIcon,
-  Add01Icon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 
@@ -52,20 +53,33 @@ const EDGE_TYPES: EdgeTypes = {
   temporary: TemporaryEdge,
 };
 
+type WorkflowNodeCreationKind = "action" | "wait" | "condition" | "terminal";
+
 type WorkflowCanvasProps = {
   nodes: BuilderNode[];
   edges: BuilderEdge[];
   readOnly: boolean;
+  selectedNodeId: string | null;
   onNodesChange: (nodes: BuilderNode[]) => void;
   onEdgesChange: (edges: BuilderEdge[]) => void;
   onSelectionChange: (nodeId: string | null) => void;
   onInit: (instance: ReactFlowInstance<BuilderNode>) => void;
-  onAddAction: () => void;
-  onAddWait: () => void;
-  onAddCondition: () => void;
-  onAddTerminal: () => void;
+  onCreateNode: (request: {
+    kind: WorkflowNodeCreationKind;
+    sourceNodeId?: string | null | undefined;
+    sourceHandleId?: string | null | undefined;
+    position?: { x: number; y: number };
+  }) => void;
   hasActions: boolean;
   emptyState?: ReactNode;
+};
+
+type CommandMenuState = {
+  left: number;
+  top: number;
+  flowPosition: { x: number; y: number };
+  sourceNodeId?: string | null | undefined;
+  sourceHandleId?: string | null | undefined;
 };
 
 function isValidConnection(connection: Edge | Connection): boolean {
@@ -75,21 +89,42 @@ function isValidConnection(connection: Edge | Connection): boolean {
   return true;
 }
 
+function getClientPosition(event: MouseEvent | TouchEvent): {
+  x: number;
+  y: number;
+} {
+  if ("changedTouches" in event) {
+    const touch = event.changedTouches[0];
+    return {
+      x: touch?.clientX ?? 0,
+      y: touch?.clientY ?? 0,
+    };
+  }
+
+  return { x: event.clientX, y: event.clientY };
+}
+
 export function WorkflowCanvas({
   nodes,
   edges,
   readOnly,
+  selectedNodeId,
   onNodesChange,
   onEdgesChange,
   onSelectionChange,
   onInit,
-  onAddAction,
-  onAddWait,
-  onAddCondition,
-  onAddTerminal,
+  onCreateNode,
   hasActions,
   emptyState,
 }: WorkflowCanvasProps) {
+  const [reactFlowInstance, setReactFlowInstance] =
+    useState<ReactFlowInstance<BuilderNode> | null>(null);
+  const [commandMenu, setCommandMenu] = useState<CommandMenuState | null>(null);
+  const connectContextRef = useRef<{
+    sourceNodeId: string | null;
+    sourceHandleId: string | null;
+  } | null>(null);
+
   const triggerEdges = useMemo(() => {
     const incomingTargets = new Set(edges.map((e) => e.target));
     const rootNodes = nodes.filter(
@@ -155,8 +190,64 @@ export function WorkflowCanvas({
         edges,
       );
       onEdgesChange(nextEdges);
+      setCommandMenu(null);
     },
     [edges, onEdgesChange],
+  );
+
+  const openCommandMenu = useCallback(
+    (input: {
+      left: number;
+      top: number;
+      flowPosition: { x: number; y: number };
+      sourceNodeId?: string | null | undefined;
+      sourceHandleId?: string | null | undefined;
+    }) => {
+      setCommandMenu({
+        left: input.left,
+        top: input.top,
+        flowPosition: input.flowPosition,
+        sourceNodeId: input.sourceNodeId,
+        sourceHandleId: input.sourceHandleId,
+      });
+    },
+    [],
+  );
+
+  const openCenteredCommandMenu = useCallback(() => {
+    if (!reactFlowInstance) return;
+
+    const pane = globalThis.document?.querySelector(".react-flow__pane");
+    if (!pane) return;
+
+    const rect = pane.getBoundingClientRect();
+    const left = rect.left + rect.width * 0.45;
+    const top = rect.top + rect.height * 0.4;
+    const flowPosition = reactFlowInstance.screenToFlowPosition({
+      x: left,
+      y: top,
+    });
+
+    openCommandMenu({
+      left,
+      top,
+      flowPosition,
+      sourceNodeId: selectedNodeId,
+    });
+  }, [openCommandMenu, reactFlowInstance, selectedNodeId]);
+
+  const handleCreateNode = useCallback(
+    (kind: WorkflowNodeCreationKind) => {
+      if (!commandMenu) return;
+      onCreateNode({
+        kind,
+        sourceNodeId: commandMenu.sourceNodeId,
+        sourceHandleId: commandMenu.sourceHandleId,
+        position: commandMenu.flowPosition,
+      });
+      setCommandMenu(null);
+    },
+    [commandMenu, onCreateNode],
   );
 
   const editableFlowHandlers = readOnly
@@ -168,7 +259,10 @@ export function WorkflowCanvas({
       };
 
   return (
-    <div className="relative h-full w-full">
+    <div
+      className="relative h-full w-full"
+      onContextMenu={(e) => e.preventDefault()}
+    >
       <Canvas
         nodes={nodes}
         edges={renderedEdges}
@@ -177,7 +271,10 @@ export function WorkflowCanvas({
         connectionLineComponent={ConnectionLine}
         connectionMode={ConnectionMode.Strict}
         isValidConnection={isValidConnection}
-        onInit={onInit}
+        onInit={(instance) => {
+          setReactFlowInstance(instance);
+          onInit(instance);
+        }}
         defaultEdgeOptions={{
           type: "animated",
         }}
@@ -185,65 +282,129 @@ export function WorkflowCanvas({
           const selected = selection.nodes[0];
           onSelectionChange(selected?.id ?? null);
         }}
+        onPaneClick={() => setCommandMenu(null)}
+        onPaneContextMenu={(event) => {
+          if (readOnly || !reactFlowInstance) return;
+          const flowPosition = reactFlowInstance.screenToFlowPosition({
+            x: event.clientX,
+            y: event.clientY,
+          });
+          openCommandMenu({
+            left: event.clientX,
+            top: event.clientY,
+            flowPosition,
+            sourceNodeId: selectedNodeId,
+          });
+        }}
+        onConnectStart={(_event, params: OnConnectStartParams) => {
+          connectContextRef.current = {
+            sourceNodeId: params.nodeId,
+            sourceHandleId: params.handleId ?? null,
+          };
+        }}
+        onConnectEnd={(event) => {
+          if (readOnly || !reactFlowInstance) {
+            connectContextRef.current = null;
+            return;
+          }
+
+          const target = event.target as HTMLElement | null;
+          const droppedOnPane =
+            target?.classList.contains("react-flow__pane") ??
+            Boolean(target?.closest(".react-flow__pane"));
+
+          const sourceContext = connectContextRef.current;
+          connectContextRef.current = null;
+
+          if (!droppedOnPane || !sourceContext?.sourceNodeId) return;
+
+          const { x, y } = getClientPosition(event);
+          const flowPosition = reactFlowInstance.screenToFlowPosition({ x, y });
+          openCommandMenu({
+            left: x,
+            top: y,
+            flowPosition,
+            sourceNodeId: sourceContext.sourceNodeId,
+            sourceHandleId: sourceContext.sourceHandleId,
+          });
+        }}
         {...editableFlowHandlers}
       >
         <Controls />
         {!readOnly ? (
           <Panel position="top-left">
-            <div className="flex [&>*:not(:first-child)]:rounded-l-none [&>*:not(:first-child)]:border-l-0 [&>*:not(:last-child)]:rounded-r-none">
-              <button
-                type="button"
-                className="inline-flex size-8 items-center justify-center rounded-md border bg-secondary text-secondary-foreground shadow-sm hover:bg-secondary/80"
-                onClick={onAddAction}
-                disabled={!hasActions}
-                title="Add Action"
-              >
-                <HugeiconsIcon
-                  icon={Add01Icon}
-                  className="size-4"
-                  strokeWidth={2}
-                />
-              </button>
-              <button
-                type="button"
-                className="inline-flex size-8 items-center justify-center rounded-md border bg-secondary text-secondary-foreground shadow-sm hover:bg-secondary/80"
-                onClick={onAddWait}
-                title="Add Wait"
-              >
-                <HugeiconsIcon
-                  icon={Clock01Icon}
-                  className="size-4"
-                  strokeWidth={2}
-                />
-              </button>
-              <button
-                type="button"
-                className="inline-flex size-8 items-center justify-center rounded-md border bg-secondary text-secondary-foreground shadow-sm hover:bg-secondary/80"
-                onClick={onAddCondition}
-                title="Add Condition"
-              >
-                <HugeiconsIcon
-                  icon={GitBranchIcon}
-                  className="size-4"
-                  strokeWidth={2}
-                />
-              </button>
-              <button
-                type="button"
-                className="inline-flex size-8 items-center justify-center rounded-md border bg-secondary text-secondary-foreground shadow-sm hover:bg-secondary/80"
-                onClick={onAddTerminal}
-                title="Add Terminal"
-              >
-                <HugeiconsIcon
-                  icon={StopCircleIcon}
-                  className="size-4"
-                  strokeWidth={2}
-                />
-              </button>
-            </div>
+            <button
+              type="button"
+              className="inline-flex h-8 items-center gap-1.5 rounded-md border bg-secondary px-2.5 text-xs font-medium text-secondary-foreground shadow-sm hover:bg-secondary/80"
+              onClick={openCenteredCommandMenu}
+            >
+              <HugeiconsIcon
+                icon={Add01Icon}
+                className="size-3.5"
+                strokeWidth={2}
+              />
+              Add Step
+            </button>
           </Panel>
         ) : null}
       </Canvas>
+
+      {commandMenu ? (
+        <div
+          className="absolute z-30 w-44 rounded-lg border border-border bg-background p-1 shadow-xl"
+          style={{ left: commandMenu.left, top: commandMenu.top }}
+        >
+          <button
+            type="button"
+            className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs hover:bg-accent"
+            onClick={() => handleCreateNode("action")}
+            disabled={!hasActions}
+          >
+            <HugeiconsIcon
+              icon={Add01Icon}
+              className="size-3.5"
+              strokeWidth={2}
+            />
+            Action
+          </button>
+          <button
+            type="button"
+            className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs hover:bg-accent"
+            onClick={() => handleCreateNode("wait")}
+          >
+            <HugeiconsIcon
+              icon={Clock01Icon}
+              className="size-3.5"
+              strokeWidth={2}
+            />
+            Wait
+          </button>
+          <button
+            type="button"
+            className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs hover:bg-accent"
+            onClick={() => handleCreateNode("condition")}
+          >
+            <HugeiconsIcon
+              icon={GitBranchIcon}
+              className="size-3.5"
+              strokeWidth={2}
+            />
+            Condition
+          </button>
+          <button
+            type="button"
+            className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs hover:bg-accent"
+            onClick={() => handleCreateNode("terminal")}
+          >
+            <HugeiconsIcon
+              icon={StopCircleIcon}
+              className="size-3.5"
+              strokeWidth={2}
+            />
+            Terminal
+          </button>
+        </div>
+      ) : null}
 
       {emptyState}
     </div>

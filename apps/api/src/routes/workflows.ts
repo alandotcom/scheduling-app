@@ -420,7 +420,9 @@ export const publishDraft = adminOnly
         });
       }
 
-      const compilation = compileWorkflowDocument(definition.draftWorkflowGraph);
+      const compilation = compileWorkflowDocument(
+        definition.draftWorkflowGraph,
+      );
       const validation = compilation.validation;
       if (!validation.valid) {
         throw new ApplicationError("Workflow draft is invalid", {
