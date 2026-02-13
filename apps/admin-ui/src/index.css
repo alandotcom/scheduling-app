@@ -4,8 +4,6 @@
 @import "@fontsource-variable/inter";
 @import "@fontsource-variable/noto-sans";
 
-@source "../../../packages/workflow-ui/src/**/*.{ts,tsx}";
-
 @custom-variant dark (&:is(.dark *));
 
 /* ============================================
@@ -198,106 +196,4 @@
   .transition-smooth {
     @apply transition-all duration-200 ease-out;
   }
-}
-
-/* ReactFlow handle styling */
-.react-flow__handle {
-  width: 12px !important;
-  height: 12px !important;
-  border: 2px solid var(--border) !important;
-  background: var(--primary) !important;
-  cursor: crosshair !important;
-  z-index: 20 !important;
-}
-
-.react-flow__handle::after {
-  content: "" !important;
-  position: absolute !important;
-  top: 50% !important;
-  left: 50% !important;
-  transform: translate(-50%, -50%) !important;
-  width: 24px !important;
-  height: 24px !important;
-}
-
-.react-flow__handle-left {
-  left: -0.5px !important;
-}
-
-.react-flow__handle-right {
-  right: -0.5px !important;
-}
-
-@keyframes dash {
-  to {
-    stroke-dashoffset: -9;
-  }
-}
-
-@keyframes workflow-dashdraw {
-  from {
-    stroke-dashoffset: 10;
-  }
-
-  to {
-    stroke-dashoffset: 0;
-  }
-}
-
-.workflow-editor-theme {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-}
-
-.workflow-editor-theme .react-flow__pane {
-  cursor: grab !important;
-}
-
-.workflow-editor-theme .react-flow__pane:active {
-  cursor: grabbing !important;
-}
-
-.workflow-editor-theme .react-flow__node {
-  cursor: pointer !important;
-}
-
-.workflow-editor-theme .react-flow__node.dragging {
-  cursor: grabbing !important;
-}
-
-.workflow-editor-theme .react-flow__edge {
-  cursor: pointer !important;
-}
-
-.workflow-editor-theme .react-flow__controls {
-  box-shadow: none !important;
-  border: none !important;
-  background: transparent !important;
-}
-
-.workflow-editor-theme .react-flow__controls-button {
-  border: 1px solid var(--border) !important;
-  background: var(--card) !important;
-  color: var(--foreground) !important;
-}
-
-.workflow-editor-theme .react-flow__attribution {
-  background: transparent !important;
-  color: var(--muted-foreground) !important;
-  opacity: 0.45 !important;
 }

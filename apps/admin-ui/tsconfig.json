@@ -18,9 +18,7 @@
     "paths": {
       "@/*": ["./src/*"],
       "@scheduling/dto": ["../../packages/dto/src/index.ts"],
-      "@scheduling/dto/*": ["../../packages/dto/src/*"],
-      "@scheduling/workflow-ui": ["../../packages/workflow-ui/src/index.ts"],
-      "@scheduling/workflow-ui/*": ["../../packages/workflow-ui/src/*"]
+      "@scheduling/dto/*": ["../../packages/dto/src/*"]
     }
   },
   "include": ["src", "vite.config.ts"]

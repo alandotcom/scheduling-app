@@ -1,46 +1,24 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
+import { useMemo, useState } from "react";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Add01Icon, ArrowRight01Icon } from "@hugeicons/core-free-icons";
 import { toast } from "sonner";
-import {
-  getCatalogTriggerEventTypes,
-  resolveDefaultCatalogTriggerEventType,
-} from "@scheduling/workflow-ui";
 
-import type {
-  WebhookEventType,
-  WorkflowDefinitionStatus,
-} from "@scheduling/dto";
-import { webhookEventTypes } from "@scheduling/dto";
-import { EntityModal } from "@/components/entity-modal";
+import type { WorkflowDefinitionStatus } from "@scheduling/dto";
 import { PageScaffold } from "@/components/layout/page-scaffold";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
 } from "@/components/ui/select";
-import { ShortcutBadge } from "@/components/ui/shortcut-badge";
 import { formatDisplayDateTime } from "@/lib/date-utils";
 import { authClient } from "@/lib/auth-client";
 import { orpc } from "@/lib/query";
-
-function createDefaultWorkflowDraft(triggerEventType: WebhookEventType) {
-  return {
-    trigger: {
-      event: triggerEventType,
-      eventType: triggerEventType,
-    },
-    nodes: [],
-    edges: [],
-  };
-}
 
 type StatusFilter = WorkflowDefinitionStatus | "all";
 
@@ -65,39 +43,16 @@ function runStatusBadgeVariant(
   return "outline";
 }
 
-function isWebhookEventType(value: string): value is WebhookEventType {
-  return webhookEventTypes.some((eventType) => eventType === value);
-}
-
 function WorkflowsIndexPage() {
   const queryClient = useQueryClient();
-  const navigate = useNavigate({ from: Route.fullPath });
   const { data: session, isPending: isSessionPending } =
     authClient.useSession();
   const canQueryWorkflowData =
     !isSessionPending && !!session?.session.activeOrganizationId;
-  const { create } = Route.useSearch();
+
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
-  const [showCreateModal, setShowCreateModal] = useState(false);
-  const [newKey, setNewKey] = useState("");
-  const [newName, setNewName] = useState("");
-  const [newDescription, setNewDescription] = useState("");
-  const [newTriggerEventType, setNewTriggerEventType] =
-    useState<WebhookEventType>(webhookEventTypes[0]);
   const [cancellingRunId, setCancellingRunId] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (create !== "1") return;
-    setShowCreateModal(true);
-    navigate({
-      search: (prev) => ({
-        ...prev,
-        create: undefined,
-      }),
-      replace: true,
-    });
-  }, [create, navigate]);
 
   const definitionsQuery = useQuery({
     ...orpc.workflows.listDefinitions.queryOptions({
@@ -106,6 +61,7 @@ function WorkflowsIndexPage() {
     enabled: canQueryWorkflowData,
     placeholderData: (previous) => previous,
   });
+
   const runsQuery = useQuery({
     ...orpc.workflows.listRuns.queryOptions({
       input: { limit: 25 },
@@ -113,62 +69,6 @@ function WorkflowsIndexPage() {
     enabled: canQueryWorkflowData,
     placeholderData: (previous) => previous,
   });
-  const catalogQuery = useQuery({
-    ...orpc.workflows.catalog.queryOptions(),
-    enabled: canQueryWorkflowData,
-    placeholderData: (previous) => previous,
-  });
-
-  const availableTriggerEventTypes = useMemo(
-    () =>
-      getCatalogTriggerEventTypes(
-        catalogQuery.data?.triggers ?? [],
-        webhookEventTypes,
-      ).filter(isWebhookEventType),
-    [catalogQuery.data?.triggers],
-  );
-
-  useEffect(() => {
-    if (availableTriggerEventTypes.length === 0) {
-      return;
-    }
-
-    if (availableTriggerEventTypes.includes(newTriggerEventType)) {
-      return;
-    }
-
-    setNewTriggerEventType(
-      resolveDefaultCatalogTriggerEventType(
-        catalogQuery.data?.triggers ?? [],
-        availableTriggerEventTypes[0] ?? webhookEventTypes[0],
-      ),
-    );
-  }, [
-    availableTriggerEventTypes,
-    catalogQuery.data?.triggers,
-    newTriggerEventType,
-  ]);
-
-  const createDefinitionMutation = useMutation(
-    orpc.workflows.createDefinition.mutationOptions({
-      onSuccess: async (definition) => {
-        await queryClient.invalidateQueries({ queryKey: orpc.workflows.key() });
-        toast.success("Workflow created");
-        setShowCreateModal(false);
-        setNewKey("");
-        setNewName("");
-        setNewDescription("");
-        setNewTriggerEventType(webhookEventTypes[0]);
-        await navigate({
-          to: "/workflows/$workflowId",
-          params: { workflowId: definition.id },
-        });
-      },
-      onError: (error) => {
-        toast.error(error.message || "Failed to create workflow");
-      },
-    }),
-  );
 
   const cancelRunMutation = useMutation(
     orpc.workflows.cancelRun.mutationOptions({
@@ -213,31 +113,6 @@ function WorkflowsIndexPage() {
           ? "Draft"
           : "Archived";
 
-  const handleCreateWorkflow = useCallback(() => {
-    const key = newKey.trim();
-    const name = newName.trim();
-    const description = newDescription.trim();
-    if (!key || !name) {
-      toast.error("Key and name are required");
-      return;
-    }
-
-    createDefinitionMutation.mutate({
-      key,
-      name,
-      description: description || undefined,
-      workflowGraph: {
-        ...createDefaultWorkflowDraft(newTriggerEventType),
-      },
-    });
-  }, [
-    createDefinitionMutation,
-    newDescription,
-    newKey,
-    newName,
-    newTriggerEventType,
-  ]);
-
   if (!canQueryWorkflowData) {
     return (
       <PageScaffold>
@@ -279,17 +154,14 @@ function WorkflowsIndexPage() {
             </SelectContent>
           </Select>
         </div>
-        <Button
-          className="hidden shrink-0 sm:inline-flex"
-          onClick={() => setShowCreateModal(true)}
-        >
-          <Icon icon={Add01Icon} data-icon="inline-start" />
-          New Workflow
-          <ShortcutBadge shortcut="c" className="ml-2 hidden md:inline-flex" />
+        <Button className="hidden shrink-0 sm:inline-flex" asChild>
+          <Link to="/workflows/$workflowId" params={{ workflowId: "new" }}>
+            <Icon icon={Add01Icon} data-icon="inline-start" />
+            New Workflow
+          </Link>
         </Button>
       </div>
 
-      {/* Definitions — clickable card list */}
       <div className="mt-4 space-y-2">
         {definitionsQuery.isLoading ? (
           <div className="py-6 text-sm text-muted-foreground">
@@ -342,7 +214,6 @@ function WorkflowsIndexPage() {
         )}
       </div>
 
-      {/* Recent Runs — compact list */}
       <div className="mt-8">
         <h3 className="text-sm font-medium text-muted-foreground">
           Recent Runs
@@ -403,93 +274,12 @@ function WorkflowsIndexPage() {
         </div>
       </div>
 
-      <EntityModal
-        open={showCreateModal}
-        onOpenChange={(open) => {
-          setShowCreateModal(open);
-        }}
-        className="md:max-w-[min(96vw,80rem)] md:h-[calc(100dvh-2rem)] md:max-h-[calc(100dvh-2rem)] md:top-4"
-        title="Create Workflow"
-        description="Create a workflow definition and start a draft."
-      >
-        <div className="space-y-5 px-4 py-4 sm:px-6 sm:py-5">
-          <div className="space-y-2">
-            <Label htmlFor="workflow-key">Key</Label>
-            <Input
-              id="workflow-key"
-              value={newKey}
-              onChange={(event) => setNewKey(event.target.value)}
-              placeholder="appointment_reminder"
-              autoFocus
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="workflow-name">Name</Label>
-            <Input
-              id="workflow-name"
-              value={newName}
-              onChange={(event) => setNewName(event.target.value)}
-              placeholder="Appointment reminder"
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="workflow-description">Description</Label>
-            <Input
-              id="workflow-description"
-              value={newDescription}
-              onChange={(event) => setNewDescription(event.target.value)}
-              placeholder="Optional description"
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="workflow-trigger-event">Trigger Event</Label>
-            <Select
-              value={newTriggerEventType}
-              onValueChange={(value) => {
-                if (!value || !isWebhookEventType(value)) return;
-                setNewTriggerEventType(value);
-              }}
-            >
-              <SelectTrigger id="workflow-trigger-event">
-                {newTriggerEventType}
-              </SelectTrigger>
-              <SelectContent>
-                {availableTriggerEventTypes.map((eventType) => (
-                  <SelectItem key={eventType} value={eventType}>
-                    {eventType}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <p className="text-xs text-muted-foreground">
-              Graph actions are edited in the workflow detail editor after
-              creation.
-            </p>
-          </div>
-          <div className="flex items-center gap-3 pt-2">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setShowCreateModal(false)}
-              disabled={createDefinitionMutation.isPending}
-            >
-              Cancel
-            </Button>
-            <Button
-              type="button"
-              onClick={handleCreateWorkflow}
-              disabled={createDefinitionMutation.isPending}
-            >
-              {createDefinitionMutation.isPending ? "Creating..." : "Create"}
-            </Button>
-          </div>
-        </div>
-      </EntityModal>
-
       <div className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background/95 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:hidden">
-        <Button className="w-full" onClick={() => setShowCreateModal(true)}>
-          <Icon icon={Add01Icon} data-icon="inline-start" />
-          New Workflow
+        <Button className="w-full" asChild>
+          <Link to="/workflows/$workflowId" params={{ workflowId: "new" }}>
+            <Icon icon={Add01Icon} data-icon="inline-start" />
+            New Workflow
+          </Link>
         </Button>
       </div>
     </PageScaffold>
@@ -497,13 +287,5 @@ function WorkflowsIndexPage() {
 }
 
 export const Route = createFileRoute("/_authenticated/workflows/")({
-  validateSearch: (
-    search: Record<string, unknown>,
-  ): {
-    create?: "1";
-  } => {
-    const create = search.create === "1" ? "1" : undefined;
-    return { create };
-  },
   component: WorkflowsIndexPage,
 });
