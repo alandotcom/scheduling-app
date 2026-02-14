@@ -9,6 +9,7 @@ import { Icon } from "@/components/ui/icon";
 import { PageScaffold } from "@/components/layout/page-scaffold";
 import { canManageWorkflowsForRole } from "@/features/workflows/workflow-list-page";
 import { WorkflowEditorCanvas } from "@/features/workflows/workflow-editor-canvas";
+import { WorkflowEditorSidebar } from "@/features/workflows/workflow-editor-sidebar";
 import {
   addWorkflowEditorActionNodeAtom,
   serializeWorkflowGraph,
@@ -19,7 +20,9 @@ import {
   workflowEditorIsReadOnlyAtom,
   workflowEditorIsSavingAtom,
   workflowEditorNodesAtom,
+  workflowEditorSelectedNodeIdAtom,
   workflowEditorWorkflowIdAtom,
+  updateWorkflowEditorNodeDataAtom,
 } from "@/features/workflows/workflow-editor-store";
 import { getQueryClient, orpc } from "@/lib/query";
 import { swallowIgnorableRouteLoaderError } from "@/lib/query-cancellation";
@@ -54,6 +57,7 @@ function WorkflowEditorPage() {
   const hasUnsavedChanges = useAtomValue(workflowEditorHasUnsavedChangesAtom);
   const isSaving = useAtomValue(workflowEditorIsSavingAtom);
   const isLoaded = useAtomValue(workflowEditorIsLoadedAtom);
+  const selectedNodeId = useAtomValue(workflowEditorSelectedNodeIdAtom);
 
   const setGraph = useSetAtom(setWorkflowEditorGraphAtom);
   const setIsReadOnly = useSetAtom(workflowEditorIsReadOnlyAtom);
@@ -61,6 +65,12 @@ function WorkflowEditorPage() {
   const setIsSaving = useSetAtom(workflowEditorIsSavingAtom);
   const setWorkflowId = useSetAtom(workflowEditorWorkflowIdAtom);
   const addActionNode = useSetAtom(addWorkflowEditorActionNodeAtom);
+  const updateNodeData = useSetAtom(updateWorkflowEditorNodeDataAtom);
+
+  const selectedNode = useMemo(
+    () => nodes.find((node) => node.id === selectedNodeId) ?? null,
+    [nodes, selectedNodeId],
+  );
 
   const canManageByRole = canManageWorkflowsForRole(
     authContextQuery.data?.role,
@@ -205,7 +215,15 @@ function WorkflowEditorPage() {
         </div>
       </header>
 
-      <WorkflowEditorCanvas canEdit={canManageWorkflow} />
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr),380px]">
+        <WorkflowEditorCanvas canEdit={canManageWorkflow} />
+        <WorkflowEditorSidebar
+          canManageWorkflow={canManageWorkflow}
+          onUpdateNodeData={updateNodeData}
+          selectedNode={selectedNode}
+          workflowId={workflowQuery.data?.id ?? null}
+        />
+      </div>
     </PageScaffold>
   );
 }

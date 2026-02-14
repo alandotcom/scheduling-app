@@ -4,6 +4,7 @@ import {
   onWorkflowEditorConnectAtom,
   onWorkflowEditorEdgesChangeAtom,
   onWorkflowEditorNodesChangeAtom,
+  setWorkflowEditorSelectionAtom,
   workflowEditorEdgesAtom,
   workflowEditorNodesAtom,
 } from "./workflow-editor-store";
@@ -18,6 +19,7 @@ export function WorkflowEditorCanvas({ canEdit }: WorkflowEditorCanvasProps) {
   const onNodesChange = useSetAtom(onWorkflowEditorNodesChangeAtom);
   const onEdgesChange = useSetAtom(onWorkflowEditorEdgesChangeAtom);
   const onConnect = useSetAtom(onWorkflowEditorConnectAtom);
+  const setSelection = useSetAtom(setWorkflowEditorSelectionAtom);
 
   return (
     <div className="h-[68vh] w-full overflow-hidden rounded-xl border border-border bg-background">
@@ -52,6 +54,12 @@ export function WorkflowEditorCanvas({ canEdit }: WorkflowEditorCanvasProps) {
               }
             : undefined
         }
+        onSelectionChange={({ nodes: selectedNodes, edges: selectedEdges }) => {
+          setSelection({
+            nodeId: selectedNodes.at(0)?.id ?? null,
+            edgeId: selectedEdges.at(0)?.id ?? null,
+          });
+        }}
       >
         <Background gap={20} size={1} />
         <MiniMap />

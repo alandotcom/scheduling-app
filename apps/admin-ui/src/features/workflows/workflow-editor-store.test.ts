@@ -8,6 +8,7 @@ import {
   onWorkflowEditorNodesChangeAtom,
   serializeWorkflowGraph,
   setWorkflowEditorGraphAtom,
+  updateWorkflowEditorNodeDataAtom,
   workflowEditorHasUnsavedChangesAtom,
   workflowEditorIsReadOnlyAtom,
   workflowEditorNodesAtom,
@@ -96,5 +97,23 @@ describe("workflow-editor-store", () => {
     const nodes = store.get(workflowEditorNodesAtom);
     expect(nodes.some((node) => node.id === "trigger-node")).toBe(true);
     expect(store.get(workflowEditorHasUnsavedChangesAtom)).toBe(true);
+  });
+
+  test("blocks node data updates while read-only", () => {
+    const store = createStore();
+    store.set(setWorkflowEditorGraphAtom, createGraphFixture());
+    store.set(workflowEditorIsReadOnlyAtom, true);
+
+    store.set(updateWorkflowEditorNodeDataAtom, {
+      id: "action-node",
+      data: { label: "Changed" },
+    });
+
+    const actionNode = store
+      .get(workflowEditorNodesAtom)
+      .find((node) => node.id === "action-node");
+
+    expect(actionNode?.data.label).toBe("Action");
+    expect(store.get(workflowEditorHasUnsavedChangesAtom)).toBe(false);
   });
 });

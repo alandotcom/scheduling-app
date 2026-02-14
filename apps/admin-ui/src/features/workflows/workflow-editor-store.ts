@@ -112,6 +112,8 @@ export const workflowEditorHasUnsavedChangesAtom = atom(false);
 export const workflowEditorIsSavingAtom = atom(false);
 export const workflowEditorIsLoadedAtom = atom(false);
 export const workflowEditorWorkflowIdAtom = atom<string | null>(null);
+export const workflowEditorSelectedNodeIdAtom = atom<string | null>(null);
+export const workflowEditorSelectedEdgeIdAtom = atom<string | null>(null);
 
 export const setWorkflowEditorGraphAtom = atom(
   null,
@@ -123,6 +125,54 @@ export const setWorkflowEditorGraphAtom = atom(
     set(workflowEditorEdgesAtom, edges);
     set(workflowEditorHasUnsavedChangesAtom, false);
     set(workflowEditorIsLoadedAtom, true);
+    set(workflowEditorSelectedNodeIdAtom, null);
+    set(workflowEditorSelectedEdgeIdAtom, null);
+  },
+);
+
+export const setWorkflowEditorSelectionAtom = atom(
+  null,
+  (
+    _get,
+    set,
+    selection: {
+      nodeId: string | null;
+      edgeId: string | null;
+    },
+  ) => {
+    set(workflowEditorSelectedNodeIdAtom, selection.nodeId);
+    set(workflowEditorSelectedEdgeIdAtom, selection.edgeId);
+  },
+);
+
+export const updateWorkflowEditorNodeDataAtom = atom(
+  null,
+  (
+    get,
+    set,
+    input: {
+      id: string;
+      data: Record<string, unknown>;
+    },
+  ) => {
+    if (get(workflowEditorIsReadOnlyAtom)) return;
+
+    const nextNodes = get(workflowEditorNodesAtom).map((node) => {
+      if (node.id !== input.id) return node;
+
+      return {
+        ...node,
+        data: {
+          ...(typeof node.data === "object" && node.data !== null
+            ? node.data
+            : {}),
+          ...input.data,
+        },
+      };
+    });
+
+    set(workflowEditorNodesAtom, nextNodes);
+    set(workflowEditorHasUnsavedChangesAtom, true);
   },
 );
 
