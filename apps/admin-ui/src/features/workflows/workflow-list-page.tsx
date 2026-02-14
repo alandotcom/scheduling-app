@@ -4,7 +4,10 @@ import { useNavigate } from "@tanstack/react-router";
 import { Add01Icon, ArrowRight02Icon } from "@hugeicons/core-free-icons";
 import { toast } from "sonner";
 import type { WorkflowDefinitionStatus } from "@scheduling/dto";
-import { EntityListEmptyState, EntityListLoadingState } from "@/components/entity-list";
+import {
+  EntityListEmptyState,
+  EntityListLoadingState,
+} from "@/components/entity-list";
 import { PageScaffold } from "@/components/layout/page-scaffold";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -103,7 +106,10 @@ export function WorkflowListPage() {
             schedules.
           </p>
         </div>
-        <Button onClick={handleCreateWorkflow} disabled={createMutation.isPending}>
+        <Button
+          onClick={handleCreateWorkflow}
+          disabled={createMutation.isPending}
+        >
           <Icon icon={Add01Icon} className="size-4" />
           {createMutation.isPending ? "Creating..." : "New workflow"}
         </Button>

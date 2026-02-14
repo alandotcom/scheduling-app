@@ -195,4 +195,65 @@ describe("Integration Routes", () => {
     expect(rowAfterClear?.secretsEncrypted).toBeNull();
     expect(rowAfterClear?.secretSalt).toBeNull();
   });
+
+  test("updateSecrets fails without mutating stored secrets when decrypt fails", async () => {
+    const { org, user } = await createOrg(db);
+    const context = createTestContext({
+      orgId: org.id,
+      userId: user.id,
+      role: "owner",
+    });
+
+    (
+      config.integrations as {
+        encryptionKey: string | undefined;
+      }
+    ).encryptionKey = "integration-test-encryption-key-a";
+
+    await call(
+      integrationRoutes.updateSecrets,
+      {
+        key: "logger",
+        set: {
+          TEST_TOKEN: "abc123",
+        },
+      },
+      { context },
+    );
+
+    const rowBeforeFailedUpdate = await withOrg(org.id, async (tx) => {
+      return integrationRepository.findByKey(tx, org.id, "logger");
+    });
+    expect(rowBeforeFailedUpdate?.secretsEncrypted).toBeTruthy();
+    expect(rowBeforeFailedUpdate?.secretSalt).toBeTruthy();
+
+    (
+      config.integrations as {
+        encryptionKey: string | undefined;
+      }
+    ).encryptionKey = "integration-test-encryption-key-b";
+
+    await expect(
+      call(
+        integrationRoutes.updateSecrets,
+        {
+          key: "logger",
+          set: {
+            TEST_TOKEN: "rotated-token",
+          },
+        },
+        { context },
+      ),
+    ).rejects.toMatchObject({ code: "CONFLICT" });
+
+    const rowAfterFailedUpdate = await withOrg(org.id, async (tx) => {
+      return integrationRepository.findByKey(tx, org.id, "logger");
+    });
+    expect(rowAfterFailedUpdate?.secretsEncrypted).toBe(
+      rowBeforeFailedUpdate?.secretsEncrypted,
+    );
+    expect(rowAfterFailedUpdate?.secretSalt).toBe(
+      rowBeforeFailedUpdate?.secretSalt,
+    );
+  });
 });

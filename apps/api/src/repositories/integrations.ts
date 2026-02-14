@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { integrations } from "@scheduling/db/schema";
 import type { AppIntegrationKey } from "@scheduling/dto";
 import type { DbClient } from "../lib/db.js";
@@ -43,6 +43,27 @@ export class IntegrationRepository {
 
   async listByOrg(tx: DbClient, orgId: string): Promise<IntegrationRow[]> {
     return tx.select().from(integrations).where(eq(integrations.orgId, orgId));
+  }
+
+  async listByKeys(
+    tx: DbClient,
+    orgId: string,
+    keys: readonly AppIntegrationKey[],
+  ): Promise<IntegrationRow[]> {
+    const uniqueKeys = [...new Set(keys)];
+    if (uniqueKeys.length === 0) {
+      return [];
+    }
+
+    return tx
+      .select()
+      .from(integrations)
+      .where(
+        and(
+          eq(integrations.orgId, orgId),
+          inArray(integrations.key, uniqueKeys),
+        ),
+      );
   }
 
   async findByKey(

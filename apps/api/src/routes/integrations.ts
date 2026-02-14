@@ -218,6 +218,14 @@ export const updateSecrets = adminOnly
               error,
             },
           );
+
+          throw new ApplicationError(
+            "Stored integration secrets could not be decrypted",
+            {
+              code: "CONFLICT",
+              cause: error,
+            },
+          );
         }
       }
 

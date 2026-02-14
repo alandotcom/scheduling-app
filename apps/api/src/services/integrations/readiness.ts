@@ -136,7 +136,11 @@ export async function getAppIntegrationStatesByKeys(input: {
     return new Map();
   }
 
-  const rows = await integrationRepository.listByOrg(input.tx, input.orgId);
+  const rows = await integrationRepository.listByKeys(
+    input.tx,
+    input.orgId,
+    uniqueKeys,
+  );
   const rowByKey = new Map(rows.map((row) => [row.key, row]));
 
   const result = new Map<AppIntegrationKey, AppManagedIntegrationState>();
@@ -153,13 +157,12 @@ export async function getAppIntegrationState(input: {
   orgId: string;
   key: AppIntegrationKey;
 }): Promise<AppManagedIntegrationState> {
-  const states = await getAppIntegrationStatesByKeys({
-    tx: input.tx,
-    orgId: input.orgId,
-    keys: [input.key],
-  });
-
-  return states.get(input.key) ?? toStateFromRow(input.key, null);
+  const row = await integrationRepository.findByKey(
+    input.tx,
+    input.orgId,
+    input.key,
+  );
+  return toStateFromRow(input.key, row);
 }
 
 export async function getAppIntegrationStateForOrg(
