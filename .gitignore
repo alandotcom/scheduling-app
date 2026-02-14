@@ -46,3 +46,4 @@ tmp/
 .agent
 
 .pnpm-store/
+.inngest/
