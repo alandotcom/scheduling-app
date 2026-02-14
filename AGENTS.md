@@ -16,6 +16,22 @@ This app is in active development — there are no production users yet. This me
 - **Match existing patterns before inventing new ones.** Before building a new page, route, or component, look at how a similar one is already built and follow the same structure.
 - **Prefer inline/co-located code.** Keep related code together. Don't split into separate files prematurely. A 200-line component file is fine.
 
+
+## Code Cleanliness
+
+- Remove unused imports, variables, and functions.
+- Prefer `es-toolkit` helpers for common object/collection cleanup instead of ad-hoc chains.
+- Use `omitBy(..., isNil)` (or equivalent predicate) to shape API/update payloads instead of deeply nested conditional spreads.
+- Use `compact(...)` instead of `filter(Boolean)` for clearer intent and better typing.
+- Use `uniq(...)` and `partition(...)` instead of manual `new Set(...)`/multi-pass `some(...)` patterns when that simplifies logic.
+- If `es-toolkit` usage requires unsafe casting, prefer a small typed helper function over repeated inline `as` assertions.
+- Use the correct Jotai hook for intent:
+  - `useAtom` for read/write
+  - `useAtomValue` for read-only
+  - `useSetAtom` for write-only
+- Do not add compatibility shims for old architecture during active refactors.
+- IMPORTANT: After a set of changes, always make sure tests, formatting, typechecking and linting pass. If not, they must be fixed. Suppressing tests or lint rules is not an appropriate fix.
+
 ## Commands
 
 ```bash
