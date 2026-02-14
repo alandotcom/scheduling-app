@@ -101,8 +101,8 @@ export class IntegrationRepository {
     tx: DbClient,
     orgId: string,
     key: AppIntegrationKey,
-    secretsEncrypted: string,
-    secretSalt: string,
+    secretsEncrypted: string | null,
+    secretSalt: string | null,
   ): Promise<IntegrationRow | null> {
     const [row] = await tx
       .update(integrations)

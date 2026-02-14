@@ -29,6 +29,7 @@ import {
   closeTestDb,
   setTestOrgContext,
 } from "../test-utils/index.js";
+import { integrationRoutes } from "./integrations.js";
 import { workflowRoutes } from "./workflows.js";
 
 type Database = BunSQLDatabase<typeof schema, typeof relations>;
@@ -215,6 +216,13 @@ describe("Workflow Routes", () => {
       expect.arrayContaining([
         expect.objectContaining({
           id: "core.emitInternalEvent",
+        }),
+        expect.objectContaining({
+          id: "logger.logMessage",
+          requiresIntegration: {
+            key: "logger",
+            mode: "enabled_and_configured",
+          },
         }),
       ]),
     );
@@ -446,6 +454,99 @@ describe("Workflow Routes", () => {
     );
     expect(validResult.valid).toBe(true);
     expect(validResult.issues).toEqual([]);
+  });
+
+  test("validateDraft and publishDraft fail when required integration is disabled", async () => {
+    const { org, user } = await createOrg(db);
+    const context = createTestContext({
+      orgId: org.id,
+      userId: user.id,
+      role: "owner",
+    });
+
+    const workflow = await call(
+      workflowRoutes.createDefinition,
+      {
+        key: "integration_required_validation",
+        name: "Integration Required Validation",
+        workflowGraph: {
+          trigger: {
+            type: "domain_event",
+            domain: "client",
+            startEvents: ["client.created"],
+            restartEvents: [],
+            stopEvents: [],
+          },
+          nodes: [
+            {
+              id: "log_action",
+              kind: "action",
+              actionId: "logger.logMessage",
+              input: {
+                message: "Client created",
+                level: "info",
+              },
+            },
+          ],
+          edges: [],
+        },
+      },
+      { context },
+    );
+
+    const validation = await call(
+      workflowRoutes.validateDraft,
+      { id: workflow.id },
+      { context },
+    );
+
+    expect(validation.valid).toBe(false);
+    expect(validation.issues).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: "INTEGRATION_NOT_CONFIGURED",
+          nodeId: "log_action",
+          field: "actionId",
+        }),
+      ]),
+    );
+
+    await expect(
+      call(
+        workflowRoutes.publishDraft,
+        {
+          id: workflow.id,
+          expectedRevision: 1,
+        },
+        { context },
+      ),
+    ).rejects.toMatchObject({ code: "UNPROCESSABLE_CONTENT" });
+
+    await call(
+      integrationRoutes.update,
+      {
+        key: "logger",
+        enabled: true,
+      },
+      { context },
+    );
+
+    const validationAfterEnable = await call(
+      workflowRoutes.validateDraft,
+      { id: workflow.id },
+      { context },
+    );
+    expect(validationAfterEnable.valid).toBe(true);
+
+    const published = await call(
+      workflowRoutes.publishDraft,
+      {
+        id: workflow.id,
+        expectedRevision: 1,
+      },
+      { context },
+    );
+    expect(published.activeVersion).not.toBeNull();
   });
 
   test("publishDraft creates immutable versions and updates active version", async () => {
@@ -1035,6 +1136,57 @@ describe("Workflow Routes", () => {
           id: workflow.id,
           entityType: "client",
           entityId: "0198d09f-ff07-7f46-a5d9-26a3f0d90388",
+        },
+        { context },
+      ),
+    ).rejects.toMatchObject({ code: "UNPROCESSABLE_CONTENT" });
+  });
+
+  test("runDraft rejects when an action requires a disabled integration", async () => {
+    const { org, user } = await createOrg(db);
+    const context = createTestContext({
+      orgId: org.id,
+      userId: user.id,
+      role: "owner",
+    });
+
+    const workflow = await call(
+      workflowRoutes.createDefinition,
+      {
+        key: "integration_required_run",
+        name: "Integration Required Run",
+        workflowGraph: {
+          trigger: {
+            type: "domain_event",
+            domain: "client",
+            startEvents: ["client.created"],
+            restartEvents: [],
+            stopEvents: [],
+          },
+          nodes: [
+            {
+              id: "log_action",
+              kind: "action",
+              actionId: "logger.logMessage",
+              input: {
+                message: "Run me",
+                level: "warning",
+              },
+            },
+          ],
+          edges: [],
+        },
+      },
+      { context },
+    );
+
+    await expect(
+      call(
+        workflowRoutes.runDraft,
+        {
+          id: workflow.id,
+          entityType: "client",
+          entityId: "0198d09f-ff07-7f46-a5d9-26a3f0d90321",
         },
         { context },
       ),

@@ -26,13 +26,20 @@ describe("workflow registry", () => {
         category: "Core",
       },
     );
+    expect(getWorkflowActionDefinition("logger.logMessage")).toMatchObject({
+      id: "logger.logMessage",
+      category: "Integrations",
+      requiresIntegration: {
+        key: "logger",
+      },
+    });
 
     expect(getWorkflowActionDefinition("missing.action")).toBeNull();
     expect(
       listWorkflowActionDefinitions().some(
-        (action) => action.id === "resend.sendEmail",
+        (action) => action.id === "logger.logMessage",
       ),
-    ).toBe(false);
+    ).toBe(true);
   });
 
   test("executes registered actions with validated input", async () => {

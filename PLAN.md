@@ -355,6 +355,16 @@ Exit criteria:
 - [ ] E4 Perform desktop + mobile parity QA.
 - [ ] E5 Run lint/typecheck/tests and fix all failures.
 
+### 10.6 Integration Wiring
+- [ ] I1 Add integration settings metadata contract (`configSchema`, `secretSchema`) to DTO/API responses.
+- [ ] I2 Replace integration modal panel registry with metadata-driven config/secret form rendering.
+- [ ] I3 Add write-only secret update operations (`set` + `clear`) and preserve encrypted-at-rest storage.
+- [ ] I4 Add workflow action integration requirements in action catalog metadata.
+- [ ] I5 Block validate/publish/run-draft when required integration is disabled or unconfigured.
+- [ ] I6 Fail runtime action execution when integration readiness drifts after publish.
+- [ ] I7 Keep credentials out of workflow graph, step input, and step output payloads (reference-only runtime fetch).
+- [ ] I8 Add backend tests for integration secret set/clear and workflow integration-gated validation/runtime behavior.
+
 ---
 
 ## 10. Definition of Done
@@ -374,3 +384,8 @@ Exit criteria:
 
 5. Quality:
 - `pnpm lint` and `pnpm typecheck` pass.
+
+6. Integration credential flow:
+- Org admins can configure integration settings/secrets in Settings.
+- Workflow actions that require integrations are blocked until ready.
+- Runtime fails explicitly when integration readiness regresses.

@@ -1,6 +1,10 @@
 import type { IntegrationConsumer } from "@integrations/core";
 import { loggerIntegration } from "@integrations/logger";
-import type { AppIntegrationKey } from "@scheduling/dto";
+import type {
+  AppIntegrationKey,
+  IntegrationConfigField,
+  IntegrationSecretField,
+} from "@scheduling/dto";
 
 export interface AppManagedIntegrationDefinition {
   key: AppIntegrationKey;
@@ -10,6 +14,8 @@ export interface AppManagedIntegrationDefinition {
   hasSettingsPanel: boolean;
   defaultEnabled: boolean;
   defaultConfig: Record<string, unknown>;
+  configSchema: readonly IntegrationConfigField[];
+  secretSchema: readonly IntegrationSecretField[];
   requiredConfigKeys: readonly string[];
   requiredSecretKeys: readonly string[];
   consumer: IntegrationConsumer;
@@ -25,6 +31,8 @@ const appManagedIntegrations: readonly AppManagedIntegrationDefinition[] = [
     hasSettingsPanel: true,
     defaultEnabled: false,
     defaultConfig: {},
+    configSchema: [],
+    secretSchema: [],
     requiredConfigKeys: [],
     requiredSecretKeys: [],
     consumer: loggerIntegration,

@@ -1,6 +1,7 @@
 import {
   domainEventDomains,
   domainEventTypesByDomain,
+  type AppIntegrationKey,
   type DomainEventDomain,
   type DomainEventType,
   type WorkflowActionConfigField,
@@ -45,11 +46,17 @@ export type WorkflowActionExecutionResult =
       message: string;
     };
 
+export type WorkflowActionIntegrationRequirement = {
+  key: AppIntegrationKey;
+  mode: "enabled_and_configured";
+};
+
 export type WorkflowActionDefinition = {
   id: string;
   label: string;
   description: string;
   category: string;
+  requiresIntegration?: WorkflowActionIntegrationRequirement;
   configFields: WorkflowActionConfigField[];
   outputFields: WorkflowOutputField[];
   inputSchema: z.ZodType<Record<string, unknown>>;
@@ -162,6 +169,68 @@ const workflowActionRegistry = [
             entityId: context.entityId,
             sourceEventType: context.sourceEventType,
           },
+        },
+      };
+    },
+  },
+  {
+    id: "logger.logMessage",
+    label: "Log Message",
+    description: "Write a structured message to the integration logger",
+    category: "Integrations",
+    requiresIntegration: {
+      key: "logger",
+      mode: "enabled_and_configured",
+    },
+    configFields: [
+      {
+        key: "message",
+        label: "Message",
+        type: "template-textarea" as const,
+        placeholder: "Appointment {{@trigger:appointmentId}} was updated",
+        rows: 4,
+        required: true,
+      },
+      {
+        key: "level",
+        label: "Level",
+        type: "select" as const,
+        options: [
+          { value: "info", label: "Info" },
+          { value: "warning", label: "Warning" },
+          { value: "error", label: "Error" },
+        ],
+      },
+    ],
+    outputFields: [
+      { field: "channel", description: "Execution channel" },
+      { field: "target", description: "Correlated entity target" },
+      { field: "level", description: "Message severity level" },
+      { field: "message", description: "Logged message" },
+    ],
+    inputSchema: z
+      .object({
+        message: z.string().trim().min(1),
+        level: z.enum(["info", "warning", "error"]).default("info"),
+      })
+      .loose(),
+    execute: async ({ parsedInput, context }) => {
+      const rawMessage = parsedInput["message"];
+      const message = typeof rawMessage === "string" ? rawMessage.trim() : "";
+      const rawLevel = parsedInput["level"];
+      const level =
+        rawLevel === "warning" || rawLevel === "error" ? rawLevel : "info";
+      const target = `${context.entityType}:${context.entityId}`;
+
+      return {
+        channel: "logger.logMessage",
+        target,
+        providerMessageId: null,
+        output: {
+          channel: "logger.logMessage",
+          target,
+          level,
+          message,
         },
       };
     },

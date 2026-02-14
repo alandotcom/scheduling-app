@@ -327,6 +327,108 @@ describe("workflow execution function", () => {
     );
   });
 
+  test("fails action execution when required integration is unavailable at runtime", async () => {
+    const recordRunStart = mock(async () => {});
+    const cancelReplacedRuns = mock(async () => 0);
+    const getRunGuard = mock(async () => ({
+      runRevision: 1,
+      runStatus: "running" as const,
+    }));
+    const loadCompiledPlan = mock(async () => ({
+      planVersion: 1,
+      entryNodeIds: ["node_action"],
+      nodes: [
+        {
+          id: "node_action",
+          kind: "action",
+          actionId: "logger.logMessage",
+          input: {
+            message: "hello",
+            level: "info",
+          },
+        },
+      ],
+      edges: [],
+    }));
+    const loadCorrelatedEntity = mock(async () => ({
+      status: "found" as const,
+      entityType: "client",
+      entityId: "0198d09f-ff07-7f46-a5d9-26a3f0d96041",
+      entity: {},
+    }));
+    const recordDeliveryWithGuard = mock(async () => "recorded" as const);
+    const markRunStatus = mock(async () => {});
+    const executeAction = mock(async () => ({
+      status: "ok" as const,
+      channel: "logger.logMessage",
+      target: "client:0198d09f-ff07-7f46-a5d9-26a3f0d96041",
+      providerMessageId: null,
+      output: { message: "hello" },
+    }));
+    const resolveActionIntegrationReadiness = mock(async () => ({
+      status: "integration_unavailable" as const,
+      message:
+        'Action "logger.logMessage" requires integration "logger" to be enabled and configured.',
+    }));
+
+    const fn = createWorkflowExecutionFunction({
+      ...noopStepLogging(),
+      recordRunStart,
+      cancelReplacedRuns,
+      getRunGuard,
+      loadCompiledPlan,
+      loadCorrelatedEntity,
+      recordDeliveryWithGuard,
+      markRunStatus,
+      executeAction,
+      resolveActionIntegrationReadiness,
+    });
+    const t = new InngestTestEngine({ function: fn });
+
+    const { result } = await t.execute({
+      events: [
+        {
+          name: "scheduling/workflow.triggered",
+          data: {
+            orgId: "org_5",
+            workflow: {
+              definitionId: "0198d09f-ff07-7f46-a5d9-26a3f0d96042",
+              versionId: "0198d09f-ff07-7f46-a5d9-26a3f0d96043",
+              workflowType: "integration-required",
+            },
+            sourceEvent: {
+              id: "evt_5",
+              type: "client.created",
+              timestamp: "2026-02-11T12:00:00.000Z",
+              payload: {
+                clientId: "0198d09f-ff07-7f46-a5d9-26a3f0d96041",
+              },
+            },
+            entity: {
+              type: "client",
+              id: "0198d09f-ff07-7f46-a5d9-26a3f0d96041",
+            },
+          },
+        },
+      ],
+    });
+
+    expect(result).toMatchObject({
+      orgId: "org_5",
+      status: "failed",
+      terminalReason: "integration_unavailable",
+    });
+    expect(resolveActionIntegrationReadiness).toHaveBeenCalledTimes(1);
+    expect(executeAction).toHaveBeenCalledTimes(0);
+    expect(recordDeliveryWithGuard).toHaveBeenCalledTimes(0);
+    expect(markRunStatus).toHaveBeenCalledWith(
+      expect.objectContaining({
+        orgId: "org_5",
+        status: "failed",
+      }),
+    );
+  });
+
   test("executes compiled plan action nodes in graph order", async () => {
     const recordRunStart = mock(async () => {});
     const cancelReplacedRuns = mock(async () => 0);

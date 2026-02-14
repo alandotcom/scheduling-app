@@ -10,7 +10,11 @@ import {
   recordWorkflowRunStart,
 } from "../../services/workflows/runtime.js";
 import { parseWorkflowDurationToMs } from "../../services/workflows/duration.js";
-import { executeWorkflowAction } from "../../services/workflows/registry.js";
+import {
+  executeWorkflowAction,
+  getWorkflowActionDefinition,
+} from "../../services/workflows/registry.js";
+import { getAppIntegrationStateForOrg } from "../../services/integrations/readiness.js";
 import {
   processTemplates,
   type NodeOutputs,
@@ -29,14 +33,23 @@ type WorkflowExecutionDependencies = {
   recordDeliveryWithGuard: typeof recordWorkflowDeliveryWithGuard;
   markRunStatus: typeof markWorkflowRunStatus;
   executeAction: typeof executeWorkflowAction;
+  resolveActionIntegrationReadiness: typeof resolveActionIntegrationReadiness;
   logStepStart: typeof logStepStart;
   logStepComplete: typeof logStepComplete;
 };
 
+type WorkflowActionIntegrationReadinessResult =
+  | { status: "ok" }
+  | {
+      status: "integration_unavailable";
+      message: string;
+    };
+
 type TerminalReason =
   | "entity_missing"
   | "unsupported_entity_type"
-  | "invalid_action";
+  | "invalid_action"
+  | "integration_unavailable";
 type ReplacementMode =
   | "replace_active"
   | "cancel_without_replacement"
@@ -76,6 +89,30 @@ type ParsedCompiledPlan = {
   edgesBySource: Map<string, ParsedEdge[]>;
 };
 
+async function resolveActionIntegrationReadiness(input: {
+  orgId: string;
+  actionId: string;
+}): Promise<WorkflowActionIntegrationReadinessResult> {
+  const actionDefinition = getWorkflowActionDefinition(input.actionId);
+  const requirement = actionDefinition?.requiresIntegration;
+  if (!requirement) {
+    return { status: "ok" };
+  }
+
+  const integrationState = await getAppIntegrationStateForOrg(
+    input.orgId,
+    requirement.key,
+  );
+  if (integrationState.enabled && integrationState.configured) {
+    return { status: "ok" };
+  }
+
+  return {
+    status: "integration_unavailable",
+    message: `Action "${input.actionId}" requires integration "${requirement.key}" to be enabled and configured.`,
+  };
+}
+
 function createDefaultDependencies(): WorkflowExecutionDependencies {
   return {
     recordRunStart: recordWorkflowRunStart,
@@ -86,6 +123,7 @@ function createDefaultDependencies(): WorkflowExecutionDependencies {
     recordDeliveryWithGuard: recordWorkflowDeliveryWithGuard,
     markRunStatus: markWorkflowRunStatus,
     executeAction: executeWorkflowAction,
+    resolveActionIntegrationReadiness,
     logStepStart,
     logStepComplete,
   };
@@ -747,7 +785,7 @@ export function createWorkflowExecutionFunction(
         data: isRecord(sourcePayloadRaw) ? sourcePayloadRaw : {},
       };
 
-      let status: "completed" | "cancelled" =
+      let status: "completed" | "cancelled" | "failed" =
         replacementMode === "cancel_without_replacement"
           ? "cancelled"
           : "completed";
@@ -777,6 +815,7 @@ export function createWorkflowExecutionFunction(
           | "guard_skipped"
           | TerminalReason;
         actionOutput: Record<string, unknown> | null;
+        errorMessage?: string;
       };
 
       const recordActionDelivery = async (input: {
@@ -822,6 +861,26 @@ export function createWorkflowExecutionFunction(
         let actionOutput: Record<string, unknown> | null = null;
 
         if (input.actionId !== null) {
+          const integrationReadiness = await step.run(
+            `check-workflow-action-integration-${stepIdSuffix}`,
+            async () => {
+              return resolvedDependencies.resolveActionIntegrationReadiness({
+                orgId: event.data.orgId,
+                actionId: input.actionId!,
+              });
+            },
+          );
+          if (integrationReadiness.status !== "ok") {
+            return {
+              outcome: "integration_unavailable" as const,
+              actionOutput: {
+                reason: "integration_unavailable",
+                message: integrationReadiness.message,
+              },
+              errorMessage: integrationReadiness.message,
+            };
+          }
+
           const actionExecution = await step.run(
             `execute-workflow-action-${stepIdSuffix}`,
             async () => {
@@ -847,6 +906,7 @@ export function createWorkflowExecutionFunction(
             return {
               outcome: "invalid_action" as const,
               actionOutput: null,
+              errorMessage: actionExecution.message,
             };
           }
 
@@ -1151,6 +1211,7 @@ export function createWorkflowExecutionFunction(
               nodeOutputs[sanitizedId] = { label: nodeLabel, data: null };
             } else if (
               actionResult.outcome === "invalid_action" ||
+              actionResult.outcome === "integration_unavailable" ||
               actionResult.outcome === "entity_missing" ||
               actionResult.outcome === "unsupported_entity_type"
             ) {
@@ -1158,9 +1219,14 @@ export function createWorkflowExecutionFunction(
                 orgId: event.data.orgId,
                 logId: actionStepLog.logId,
                 status: "error",
-                errorMessage: `Action failed: ${actionResult.outcome}`,
+                errorMessage:
+                  actionResult.errorMessage ??
+                  `Action failed: ${actionResult.outcome}`,
               });
               terminalReason = actionResult.outcome;
+              if (actionResult.outcome === "integration_unavailable") {
+                status = "failed";
+              }
               shouldStop = true;
               continue;
             } else {

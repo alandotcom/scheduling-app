@@ -5,6 +5,7 @@ import {
   getDomainForDomainEventType,
   type DomainEventType,
 } from "./domain-event";
+import { appIntegrationKeySchema } from "./integration";
 import {
   successResponseSchema,
   timestampSchema,
@@ -234,6 +235,7 @@ export const workflowValidationIssueCodeSchema = z.enum([
   "UNREACHABLE_NODE",
   "INVALID_EXPRESSION",
   "UNKNOWN_ACTION",
+  "INTEGRATION_NOT_CONFIGURED",
 ]);
 
 export const workflowValidationIssueSchema = z.object({
@@ -391,6 +393,14 @@ export const workflowActionCatalogItemSchema = z.object({
   label: z.string().min(1),
   description: z.string().optional(),
   category: z.string().optional(),
+  requiresIntegration: z
+    .object({
+      key: appIntegrationKeySchema,
+      mode: z
+        .literal("enabled_and_configured")
+        .default("enabled_and_configured"),
+    })
+    .optional(),
   configFields: z.array(workflowActionConfigFieldSchema).optional(),
   outputFields: z.array(workflowOutputFieldSchema).optional(),
 });

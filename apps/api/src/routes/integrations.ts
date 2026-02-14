@@ -15,7 +15,6 @@ import { ApplicationError } from "../errors/application-error.js";
 import { withOrg } from "../lib/db.js";
 import { integrationRepository } from "../repositories/integrations.js";
 import {
-  createDefaultIntegrationConfig,
   getAppManagedIntegrationDefinition,
   getAppManagedIntegrationDefinitions,
 } from "../services/integrations/app-managed.js";
@@ -24,131 +23,38 @@ import {
   encryptIntegrationSecrets,
 } from "../services/integrations/crypto.js";
 import { ensureAppIntegrationDefaultsForOrg } from "../services/integrations/defaults.js";
+import {
+  getAppIntegrationState,
+  isAppIntegrationConfigured,
+  resolveSecretFields,
+  toConfig,
+} from "../services/integrations/readiness.js";
 import { invalidateEnabledIntegrationsForOrgCache } from "../services/integrations/runtime.js";
 
 const logger = getLogger(["integrations", "routes"]);
-
-function hasConfiguredValue(value: unknown): boolean {
-  if (typeof value === "string") {
-    return value.trim().length > 0;
-  }
-
-  return value !== null && value !== undefined;
-}
-
-function toConfig(value: unknown): Record<string, unknown> {
-  if (typeof value === "object" && value !== null && !Array.isArray(value)) {
-    const config: Record<string, unknown> = {};
-
-    for (const [key, entryValue] of Object.entries(value)) {
-      config[key] = entryValue;
-    }
-
-    return config;
-  }
-
-  return {};
-}
-
-function getFallbackSecretFields(
-  key: readonly string[],
-): Record<string, boolean> {
-  return Object.fromEntries(key.map((secretKey) => [secretKey, false]));
-}
-
-function resolveSecretFields(input: {
-  integrationKey: AppIntegrationKey;
-  secretsEncrypted: string | null;
-  secretSalt: string | null;
-}): Record<string, boolean> {
-  const definition = getAppManagedIntegrationDefinition(input.integrationKey);
-
-  if (definition.requiredSecretKeys.length === 0) {
-    return {};
-  }
-
-  if (!input.secretsEncrypted || !input.secretSalt) {
-    return getFallbackSecretFields(definition.requiredSecretKeys);
-  }
-
-  const pepper = config.integrations.encryptionKey;
-  if (!pepper) {
-    return getFallbackSecretFields(definition.requiredSecretKeys);
-  }
-
-  try {
-    const decrypted = decryptIntegrationSecrets({
-      secretsEncrypted: input.secretsEncrypted,
-      secretSalt: input.secretSalt,
-      pepper,
-    });
-
-    return Object.fromEntries(
-      definition.requiredSecretKeys.map((secretKey) => [
-        secretKey,
-        hasConfiguredValue(decrypted[secretKey]),
-      ]),
-    );
-  } catch (error) {
-    logger.warn(
-      "Failed to decrypt integration secrets when resolving settings",
-      {
-        integrationKey: input.integrationKey,
-        error,
-      },
-    );
-
-    return getFallbackSecretFields(definition.requiredSecretKeys);
-  }
-}
-
-function isIntegrationConfigured(input: {
-  integrationKey: AppIntegrationKey;
-  config: Record<string, unknown>;
-  secretFields: Record<string, boolean>;
-}): boolean {
-  const definition = getAppManagedIntegrationDefinition(input.integrationKey);
-
-  const hasRequiredConfig = definition.requiredConfigKeys.every((configKey) =>
-    hasConfiguredValue(input.config[configKey]),
-  );
-
-  const hasRequiredSecrets = definition.requiredSecretKeys.every(
-    (secretKey) => input.secretFields[secretKey] === true,
-  );
-
-  return hasRequiredConfig && hasRequiredSecrets;
-}
-
 async function loadIntegrationSettings(orgId: string, key: AppIntegrationKey) {
-  const row = await withOrg(orgId, (tx) =>
-    integrationRepository.findByKey(tx, orgId, key),
+  const state = await withOrg(orgId, (tx) =>
+    getAppIntegrationState({
+      tx,
+      orgId,
+      key,
+    }),
   );
 
   const definition = getAppManagedIntegrationDefinition(key);
-  const integrationConfig = row
-    ? toConfig(row.config)
-    : createDefaultIntegrationConfig(key);
-  const secretFields = resolveSecretFields({
-    integrationKey: key,
-    secretsEncrypted: row?.secretsEncrypted ?? null,
-    secretSalt: row?.secretSalt ?? null,
-  });
 
   return integrationSettingsSchema.parse({
     key: definition.key,
     name: definition.name,
     description: definition.description,
     logoUrl: definition.logoUrl,
-    enabled: row?.enabled ?? definition.defaultEnabled,
-    configured: isIntegrationConfigured({
-      integrationKey: key,
-      config: integrationConfig,
-      secretFields,
-    }),
+    enabled: state.enabled,
+    configured: state.configured,
     hasSettingsPanel: definition.hasSettingsPanel,
-    config: integrationConfig,
-    secretFields,
+    config: state.config,
+    secretFields: state.secretFields,
+    configSchema: definition.configSchema,
+    secretSchema: definition.secretSchema,
   });
 }
 
@@ -177,7 +83,7 @@ export const list = adminOnly
         description: definition.description,
         logoUrl: definition.logoUrl,
         enabled: row?.enabled ?? definition.defaultEnabled,
-        configured: isIntegrationConfigured({
+        configured: isAppIntegrationConfigured({
           integrationKey: definition.key,
           config: integrationConfig,
           secretFields,
@@ -255,7 +161,7 @@ export const update = adminOnly
       description: definition.description,
       logoUrl: definition.logoUrl,
       enabled: updated.enabled,
-      configured: isIntegrationConfigured({
+      configured: isAppIntegrationConfigured({
         integrationKey: input.key,
         config: toConfig(updated.config),
         secretFields,
@@ -294,7 +200,7 @@ export const updateSecrets = adminOnly
         });
       }
 
-      let mergedSecrets = input.secrets;
+      let mergedSecrets: Record<string, string> = {};
 
       if (current.secretsEncrypted && current.secretSalt) {
         try {
@@ -303,10 +209,7 @@ export const updateSecrets = adminOnly
             secretSalt: current.secretSalt,
             pepper,
           });
-          mergedSecrets = {
-            ...existingSecrets,
-            ...input.secrets,
-          };
+          mergedSecrets = existingSecrets;
         } catch (error) {
           logger.warn(
             "Failed to decrypt existing integration secrets before update",
@@ -318,17 +221,32 @@ export const updateSecrets = adminOnly
         }
       }
 
-      const { secretsEncrypted, secretSalt } = encryptIntegrationSecrets({
-        secrets: mergedSecrets,
-        pepper,
-      });
+      const clearKeys = new Set(input.clear ?? []);
+      for (const clearKey of clearKeys) {
+        delete mergedSecrets[clearKey];
+      }
+
+      if (input.set) {
+        mergedSecrets = {
+          ...mergedSecrets,
+          ...input.set,
+        };
+      }
+
+      const hasSecrets = Object.keys(mergedSecrets).length > 0;
+      const encrypted = hasSecrets
+        ? encryptIntegrationSecrets({
+            secrets: mergedSecrets,
+            pepper,
+          })
+        : null;
 
       const updated = await integrationRepository.updateSecrets(
         tx,
         context.orgId,
         input.key,
-        secretsEncrypted,
-        secretSalt,
+        encrypted?.secretsEncrypted ?? null,
+        encrypted?.secretSalt ?? null,
       );
 
       if (!updated) {

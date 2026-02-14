@@ -24,9 +24,12 @@ import {
   workflowRunListResponseSchema,
   workflowScheduleBindingSchema,
   workflowStepLogListResponseSchema,
+  workflowGraphDocumentSchema,
   type WorkflowRunStatus,
   workflowValidationResultSchema,
+  type WorkflowValidationIssue,
   type WorkflowGraphDocument,
+  type AppIntegrationKey,
 } from "@scheduling/dto";
 import {
   workflowBindings,
@@ -50,9 +53,11 @@ import type { DbClient } from "../lib/db.js";
 import { withOrg } from "../lib/db.js";
 import { compileWorkflowDocument } from "../services/workflows/compiler.js";
 import {
+  getWorkflowActionDefinition,
   listWorkflowActionDefinitions,
   listWorkflowTriggerDefinitions,
 } from "../services/workflows/registry.js";
+import { getAppIntegrationStatesByKeys } from "../services/integrations/readiness.js";
 import { listStepLogs } from "../services/workflows/step-logging.js";
 
 const DEFAULT_WORKFLOW_GRAPH_SCHEMA_VERSION = 1;
@@ -222,6 +227,111 @@ function toRunSummary(row: WorkflowRunEntityLinkRow) {
   };
 }
 
+type WorkflowActionIntegrationRequirement = {
+  nodeId: string;
+  actionId: string;
+  integrationKey: AppIntegrationKey;
+};
+
+function collectWorkflowActionIntegrationRequirements(
+  workflowGraph: WorkflowGraphDocument,
+): WorkflowActionIntegrationRequirement[] {
+  const parsed = workflowGraphDocumentSchema.safeParse(workflowGraph);
+  if (!parsed.success) {
+    return [];
+  }
+
+  const requirements: WorkflowActionIntegrationRequirement[] = [];
+
+  for (const node of parsed.data.nodes) {
+    if (node.kind !== "action") {
+      continue;
+    }
+
+    const actionDefinition = getWorkflowActionDefinition(node.actionId);
+    const requirement = actionDefinition?.requiresIntegration;
+    if (!requirement) {
+      continue;
+    }
+
+    requirements.push({
+      nodeId: node.id,
+      actionId: node.actionId,
+      integrationKey: requirement.key,
+    });
+  }
+
+  return requirements;
+}
+
+async function buildIntegrationValidationIssues(input: {
+  tx: DbClient;
+  orgId: string;
+  workflowGraph: WorkflowGraphDocument;
+}): Promise<WorkflowValidationIssue[]> {
+  const actionRequirements = collectWorkflowActionIntegrationRequirements(
+    input.workflowGraph,
+  );
+  if (actionRequirements.length === 0) {
+    return [];
+  }
+
+  const integrationStates = await getAppIntegrationStatesByKeys({
+    tx: input.tx,
+    orgId: input.orgId,
+    keys: actionRequirements.map((requirement) => requirement.integrationKey),
+  });
+
+  const issues: WorkflowValidationIssue[] = [];
+  for (const requirement of actionRequirements) {
+    const state = integrationStates.get(requirement.integrationKey);
+    const enabled = state?.enabled ?? false;
+    const configured = state?.configured ?? false;
+
+    if (enabled && configured) {
+      continue;
+    }
+
+    issues.push({
+      code: "INTEGRATION_NOT_CONFIGURED",
+      severity: "error",
+      nodeId: requirement.nodeId,
+      field: "actionId",
+      message: `Action "${requirement.actionId}" requires integration "${requirement.integrationKey}" to be enabled and configured.`,
+    });
+  }
+
+  return issues;
+}
+
+async function compileWorkflowDocumentForOrg(input: {
+  tx: DbClient;
+  orgId: string;
+  workflowGraph: WorkflowGraphDocument;
+}) {
+  const compilation = compileWorkflowDocument(input.workflowGraph);
+  const integrationIssues = await buildIntegrationValidationIssues({
+    tx: input.tx,
+    orgId: input.orgId,
+    workflowGraph: input.workflowGraph,
+  });
+
+  if (integrationIssues.length === 0) {
+    return compilation;
+  }
+
+  const issues = [...compilation.validation.issues, ...integrationIssues];
+  const hasErrors = issues.some((issue) => issue.severity === "error");
+
+  return {
+    validation: workflowValidationResultSchema.parse({
+      valid: !hasErrors,
+      issues,
+    }),
+    compiledPlan: hasErrors ? null : compilation.compiledPlan,
+  };
+}
+
 async function getDefinitionById(
   tx: DbClient,
   definitionId: string,
@@ -324,6 +434,7 @@ export const getCatalog = authed
         label: action.label,
         description: action.description,
         category: action.category,
+        requiresIntegration: action.requiresIntegration,
         configFields: action.configFields,
         outputFields: action.outputFields,
       })),
@@ -441,7 +552,12 @@ export const validateDraft = adminOnly
   .handler(async ({ input, context }) => {
     return withOrg(context.orgId, async (tx) => {
       const definition = await getDefinitionById(tx, input.id);
-      return compileWorkflowDocument(definition.draftWorkflowGraph).validation;
+      const compilation = await compileWorkflowDocumentForOrg({
+        tx,
+        orgId: context.orgId,
+        workflowGraph: definition.draftWorkflowGraph,
+      });
+      return compilation.validation;
     });
   });
 
@@ -466,9 +582,11 @@ export const publishDraft = adminOnly
         });
       }
 
-      const compilation = compileWorkflowDocument(
-        definition.draftWorkflowGraph,
-      );
+      const compilation = await compileWorkflowDocumentForOrg({
+        tx,
+        orgId: context.orgId,
+        workflowGraph: definition.draftWorkflowGraph,
+      });
       const validation = compilation.validation;
       if (!validation.valid) {
         throw new ApplicationError("Workflow draft is invalid", {
@@ -629,9 +747,11 @@ export const runDraft = adminOnly
 
     const workflow = await withOrg(context.orgId, async (tx) => {
       const definition = await getDefinitionById(tx, input.id);
-      const compilation = compileWorkflowDocument(
-        definition.draftWorkflowGraph,
-      );
+      const compilation = await compileWorkflowDocumentForOrg({
+        tx,
+        orgId: context.orgId,
+        workflowGraph: definition.draftWorkflowGraph,
+      });
       const validation = compilation.validation;
 
       if (!validation.valid || !compilation.compiledPlan) {
