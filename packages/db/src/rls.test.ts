@@ -27,6 +27,7 @@ import {
   appointmentTypes,
   resources,
   clients,
+  workflows,
 } from "./schema/index.js";
 import { eq, sql } from "drizzle-orm";
 import type { BunSQLDatabase } from "drizzle-orm/bun-sql/postgres";
@@ -118,6 +119,11 @@ describe("RLS policy setup verification", () => {
       "integrations",
       "locations",
       "resources",
+      "workflow_execution_events",
+      "workflow_execution_logs",
+      "workflow_executions",
+      "workflow_wait_states",
+      "workflows",
     ];
 
     // Query pg_tables to verify RLS is enabled
@@ -133,7 +139,12 @@ describe("RLS policy setup verification", () => {
           'clients',
           'appointments',
           'audit_events',
-          'integrations'
+          'integrations',
+          'workflows',
+          'workflow_executions',
+          'workflow_execution_logs',
+          'workflow_execution_events',
+          'workflow_wait_states'
         )
       ORDER BY tablename
     `);
@@ -165,6 +176,11 @@ describe("RLS policy setup verification", () => {
       "integrations",
       "locations",
       "resources",
+      "workflow_execution_events",
+      "workflow_execution_logs",
+      "workflow_executions",
+      "workflow_wait_states",
+      "workflows",
     ];
 
     for (const tableName of expectedTables) {
@@ -292,12 +308,24 @@ describe("CRUD operations with org context", () => {
       lastName: "Client",
     });
 
+    await db.insert(workflows).values({
+      orgId: org.id,
+      name: "Test Workflow",
+      graph: {
+        nodes: [],
+        edges: [],
+        viewport: { x: 0, y: 0, zoom: 1 },
+      },
+      visibility: "private",
+    });
+
     // Verify all data exists
     expect(await db.query.locations.findMany()).toHaveLength(1);
     expect(await db.query.calendars.findMany()).toHaveLength(1);
     expect(await db.query.appointmentTypes.findMany()).toHaveLength(1);
     expect(await db.query.resources.findMany()).toHaveLength(1);
     expect(await db.query.clients.findMany()).toHaveLength(1);
+    expect(await db.query.workflows.findMany()).toHaveLength(1);
 
     await clearTestOrgContext(db);
   });
@@ -333,6 +361,39 @@ describe("CRUD operations with org context", () => {
     const locationsB = await db.query.locations.findMany();
     expect(locationsB).toHaveLength(1);
     expect(locationsB[0]!.name).toBe("Location B");
+
+    await clearTestOrgContext(db);
+  });
+
+  test("RLS filters workflows by org context", async () => {
+    const { org: orgA } = await seedTestOrg(db);
+    const { org: orgB } = await seedSecondTestOrg(db);
+
+    await setTestOrgContext(db, orgA.id);
+    await db.insert(workflows).values({
+      orgId: orgA.id,
+      name: "Workflow A",
+      graph: { nodes: [], edges: [], viewport: { x: 0, y: 0, zoom: 1 } },
+      visibility: "private",
+    });
+
+    await setTestOrgContext(db, orgB.id);
+    await db.insert(workflows).values({
+      orgId: orgB.id,
+      name: "Workflow B",
+      graph: { nodes: [], edges: [], viewport: { x: 0, y: 0, zoom: 1 } },
+      visibility: "private",
+    });
+
+    await setTestOrgContext(db, orgA.id);
+    const workflowsA = await db.query.workflows.findMany();
+    expect(workflowsA).toHaveLength(1);
+    expect(workflowsA[0]!.name).toBe("Workflow A");
+
+    await setTestOrgContext(db, orgB.id);
+    const workflowsB = await db.query.workflows.findMany();
+    expect(workflowsB).toHaveLength(1);
+    expect(workflowsB[0]!.name).toBe("Workflow B");
 
     await clearTestOrgContext(db);
   });

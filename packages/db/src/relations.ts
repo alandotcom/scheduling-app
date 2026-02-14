@@ -16,6 +16,11 @@ export const relations = defineRelations(schema, (r) => ({
     appointments: r.many.appointments(),
     integrations: r.many.integrations(),
     auditEvents: r.many.auditEvents(),
+    workflows: r.many.workflows(),
+    workflowExecutions: r.many.workflowExecutions(),
+    workflowExecutionLogs: r.many.workflowExecutionLogs(),
+    workflowExecutionEvents: r.many.workflowExecutionEvents(),
+    workflowWaitStates: r.many.workflowWaitStates(),
   },
 
   users: {
@@ -179,6 +184,72 @@ export const relations = defineRelations(schema, (r) => ({
     org: r.one.orgs({
       from: r.integrations.orgId,
       to: r.orgs.id,
+    }),
+  },
+
+  // Workflows
+  workflows: {
+    org: r.one.orgs({
+      from: r.workflows.orgId,
+      to: r.orgs.id,
+    }),
+    executions: r.many.workflowExecutions(),
+    executionEvents: r.many.workflowExecutionEvents(),
+    waitStates: r.many.workflowWaitStates(),
+  },
+
+  workflowExecutions: {
+    org: r.one.orgs({
+      from: r.workflowExecutions.orgId,
+      to: r.orgs.id,
+    }),
+    workflow: r.one.workflows({
+      from: r.workflowExecutions.workflowId,
+      to: r.workflows.id,
+    }),
+    logs: r.many.workflowExecutionLogs(),
+    events: r.many.workflowExecutionEvents(),
+    waitStates: r.many.workflowWaitStates(),
+  },
+
+  workflowExecutionLogs: {
+    org: r.one.orgs({
+      from: r.workflowExecutionLogs.orgId,
+      to: r.orgs.id,
+    }),
+    execution: r.one.workflowExecutions({
+      from: r.workflowExecutionLogs.executionId,
+      to: r.workflowExecutions.id,
+    }),
+  },
+
+  workflowExecutionEvents: {
+    org: r.one.orgs({
+      from: r.workflowExecutionEvents.orgId,
+      to: r.orgs.id,
+    }),
+    workflow: r.one.workflows({
+      from: r.workflowExecutionEvents.workflowId,
+      to: r.workflows.id,
+    }),
+    execution: r.one.workflowExecutions({
+      from: r.workflowExecutionEvents.executionId,
+      to: r.workflowExecutions.id,
+    }),
+  },
+
+  workflowWaitStates: {
+    org: r.one.orgs({
+      from: r.workflowWaitStates.orgId,
+      to: r.orgs.id,
+    }),
+    workflow: r.one.workflows({
+      from: r.workflowWaitStates.workflowId,
+      to: r.workflows.id,
+    }),
+    execution: r.one.workflowExecutions({
+      from: r.workflowWaitStates.executionId,
+      to: r.workflowExecutions.id,
     }),
   },
 

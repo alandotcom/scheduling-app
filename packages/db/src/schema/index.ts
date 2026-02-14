@@ -440,6 +440,225 @@ export const schedulingLimits = pgTable(
 );
 
 // ============================================================================
+// WORKFLOWS
+// ============================================================================
+
+export const workflows = pgTable.withRLS(
+  "workflows",
+  {
+    id,
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => orgs.id),
+    name: text("name").notNull(),
+    description: text("description"),
+    graph: jsonb("graph").notNull().$type<Record<string, unknown>>(),
+    visibility: text("visibility").notNull().default("private"),
+    ...timestamps,
+  },
+  (table) => [
+    uniqueIndex("workflows_org_name_ci_uidx").on(
+      table.orgId,
+      sql`lower(${table.name})`,
+    ),
+    index("workflows_org_updated_at_id_idx").on(
+      table.orgId,
+      table.updatedAt,
+      table.id,
+    ),
+    pgPolicy("org_isolation_workflows", {
+      for: "all",
+      using: sql`org_id = current_org_id()`,
+      withCheck: sql`org_id = current_org_id()`,
+    }),
+  ],
+);
+
+export const workflowExecutions = pgTable.withRLS(
+  "workflow_executions",
+  {
+    id,
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => orgs.id),
+    workflowId: uuid("workflow_id")
+      .notNull()
+      .references(() => workflows.id, { onDelete: "cascade" }),
+    workflowRunId: text("workflow_run_id"),
+    status: text("status").notNull(),
+    triggerType: text("trigger_type"),
+    isDryRun: boolean("is_dry_run").notNull().default(false),
+    triggerEventType: text("trigger_event_type"),
+    correlationKey: text("correlation_key"),
+    input: jsonb("input").$type<Record<string, unknown>>(),
+    output: jsonb("output"),
+    error: text("error"),
+    startedAt: timestamp("started_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    waitingAt: timestamp("waiting_at", { withTimezone: true }),
+    cancelledAt: timestamp("cancelled_at", { withTimezone: true }),
+    completedAt: timestamp("completed_at", { withTimezone: true }),
+    duration: text("duration"),
+  },
+  (table) => [
+    uniqueIndex("workflow_executions_org_workflow_run_id_uidx")
+      .on(table.orgId, table.workflowRunId)
+      .where(sql`${table.workflowRunId} IS NOT NULL`),
+    index("workflow_executions_org_workflow_started_at_idx").on(
+      table.orgId,
+      table.workflowId,
+      table.startedAt,
+    ),
+    index("workflow_executions_org_workflow_correlation_key_idx").on(
+      table.orgId,
+      table.workflowId,
+      table.correlationKey,
+    ),
+    pgPolicy("org_isolation_workflow_executions", {
+      for: "all",
+      using: sql`org_id = current_org_id()`,
+      withCheck: sql`org_id = current_org_id()`,
+    }),
+  ],
+);
+
+export const workflowExecutionLogs = pgTable.withRLS(
+  "workflow_execution_logs",
+  {
+    id,
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => orgs.id),
+    executionId: uuid("execution_id")
+      .notNull()
+      .references(() => workflowExecutions.id, { onDelete: "cascade" }),
+    nodeId: text("node_id").notNull(),
+    nodeName: text("node_name").notNull(),
+    nodeType: text("node_type").notNull(),
+    status: text("status").notNull(),
+    input: jsonb("input"),
+    output: jsonb("output"),
+    error: text("error"),
+    startedAt: timestamp("started_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    completedAt: timestamp("completed_at", { withTimezone: true }),
+    duration: text("duration"),
+    timestamp: timestamp("timestamp", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    index("workflow_execution_logs_org_execution_id_idx").on(
+      table.orgId,
+      table.executionId,
+    ),
+    index("workflow_execution_logs_org_execution_timestamp_idx").on(
+      table.orgId,
+      table.executionId,
+      table.timestamp,
+    ),
+    pgPolicy("org_isolation_workflow_execution_logs", {
+      for: "all",
+      using: sql`org_id = current_org_id()`,
+      withCheck: sql`org_id = current_org_id()`,
+    }),
+  ],
+);
+
+export const workflowExecutionEvents = pgTable.withRLS(
+  "workflow_execution_events",
+  {
+    id,
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => orgs.id),
+    workflowId: uuid("workflow_id")
+      .notNull()
+      .references(() => workflows.id, { onDelete: "cascade" }),
+    executionId: uuid("execution_id").references(() => workflowExecutions.id, {
+      onDelete: "set null",
+    }),
+    eventType: text("event_type").notNull(),
+    message: text("message").notNull(),
+    metadata: jsonb("metadata").$type<Record<string, unknown>>(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    index("workflow_execution_events_org_workflow_created_at_idx").on(
+      table.orgId,
+      table.workflowId,
+      table.createdAt,
+    ),
+    index("workflow_execution_events_org_execution_created_at_idx").on(
+      table.orgId,
+      table.executionId,
+      table.createdAt,
+    ),
+    pgPolicy("org_isolation_workflow_execution_events", {
+      for: "all",
+      using: sql`org_id = current_org_id()`,
+      withCheck: sql`org_id = current_org_id()`,
+    }),
+  ],
+);
+
+export const workflowWaitStates = pgTable.withRLS(
+  "workflow_wait_states",
+  {
+    id,
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => orgs.id),
+    executionId: uuid("execution_id")
+      .notNull()
+      .references(() => workflowExecutions.id, { onDelete: "cascade" }),
+    workflowId: uuid("workflow_id")
+      .notNull()
+      .references(() => workflows.id, { onDelete: "cascade" }),
+    runId: text("run_id").notNull(),
+    nodeId: text("node_id").notNull(),
+    nodeName: text("node_name").notNull(),
+    waitType: text("wait_type").notNull(),
+    status: text("status").notNull(),
+    hookToken: text("hook_token"),
+    waitUntil: timestamp("wait_until", { withTimezone: true }),
+    correlationKey: text("correlation_key"),
+    metadata: jsonb("metadata").$type<Record<string, unknown>>(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    resumedAt: timestamp("resumed_at", { withTimezone: true }),
+    cancelledAt: timestamp("cancelled_at", { withTimezone: true }),
+  },
+  (table) => [
+    uniqueIndex("workflow_wait_states_hook_token_uidx")
+      .on(table.hookToken)
+      .where(sql`${table.hookToken} IS NOT NULL`),
+    index("workflow_wait_states_org_execution_status_idx").on(
+      table.orgId,
+      table.executionId,
+      table.status,
+    ),
+    index("workflow_wait_states_org_workflow_correlation_status_idx").on(
+      table.orgId,
+      table.workflowId,
+      table.correlationKey,
+      table.status,
+    ),
+    index("workflow_wait_states_org_run_id_idx").on(table.orgId, table.runId),
+    pgPolicy("org_isolation_workflow_wait_states", {
+      for: "all",
+      using: sql`org_id = current_org_id()`,
+      withCheck: sql`org_id = current_org_id()`,
+    }),
+  ],
+);
+
+// ============================================================================
 // INTEGRATIONS
 // ============================================================================
 
