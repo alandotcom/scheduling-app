@@ -26,6 +26,16 @@ export type TriggerEvaluation = {
   };
 };
 
+export type WorkflowTriggerDefinition = {
+  type: string;
+  executionType: "domain_event";
+  evaluate: (input: {
+    config: Record<string, unknown> | undefined;
+    eventType: DomainEventType | undefined;
+    payload: Record<string, unknown>;
+  }) => TriggerEvaluation;
+};
+
 const DOMAIN_CORRELATION_KEY_BY_PREFIX: Record<string, string> = {
   appointment: "appointmentId",
   calendar: "calendarId",
@@ -118,6 +128,89 @@ function decideRouting(input: {
   return { kind: "ignore", reason: "event_not_configured" };
 }
 
+function createUnknownTriggerDefinition(
+  triggerType: string,
+): WorkflowTriggerDefinition {
+  return {
+    type: triggerType,
+    executionType: "domain_event",
+    evaluate(input) {
+      return {
+        triggerType,
+        executionType: "domain_event",
+        eventType: input.eventType,
+        correlationKey: undefined,
+        routingDecision: decideRouting({
+          eventType: input.eventType,
+          config: undefined,
+        }),
+      };
+    },
+  };
+}
+
+const domainEventTriggerDefinition: WorkflowTriggerDefinition = {
+  type: "DomainEvent",
+  executionType: "domain_event",
+  evaluate(input) {
+    const parsedConfig = workflowDomainEventTriggerConfigSchema.safeParse(
+      input.config,
+    );
+    const config = parsedConfig.success ? parsedConfig.data : undefined;
+    const routingDecision = decideRouting({
+      eventType: input.eventType,
+      config,
+    });
+    const correlationPath = config?.domainEventCorrelationPath;
+    const correlationKey =
+      input.eventType === undefined
+        ? undefined
+        : deriveCorrelationKey({
+            eventType: input.eventType,
+            payload: input.payload,
+            correlationPath,
+          });
+
+    return {
+      triggerType: config?.triggerType ?? "DomainEvent",
+      executionType: "domain_event",
+      eventType: input.eventType,
+      correlationKey,
+      routingDecision,
+      ...(correlationPath ? { metadata: { correlationPath } } : {}),
+    };
+  },
+};
+
+const triggerRegistry = new Map<string, WorkflowTriggerDefinition>([
+  [domainEventTriggerDefinition.type, domainEventTriggerDefinition],
+]);
+
+export function createTrigger(
+  definition: WorkflowTriggerDefinition,
+): WorkflowTriggerDefinition {
+  return definition;
+}
+
+export function registerWorkflowTrigger(definition: WorkflowTriggerDefinition) {
+  triggerRegistry.set(definition.type, definition);
+}
+
+export function resolveWorkflowTriggerDefinition(
+  config: Record<string, unknown> | undefined,
+): WorkflowTriggerDefinition {
+  const triggerType = asNonEmptyString(config?.["triggerType"]);
+
+  if (!triggerType) {
+    return domainEventTriggerDefinition;
+  }
+
+  return (
+    triggerRegistry.get(triggerType) ??
+    createUnknownTriggerDefinition(triggerType)
+  );
+}
+
 function getTriggerConfigFromNodeData(
   data: WorkflowNodeData,
 ): WorkflowDomainEventTriggerConfig | undefined {
@@ -153,27 +246,13 @@ export function evaluateWorkflowDomainEventTrigger(input: {
   eventType: DomainEventType | undefined;
   payload: Record<string, unknown>;
 }): TriggerEvaluation {
-  const routingDecision = decideRouting({
-    eventType: input.eventType,
-    config: input.config,
-  });
-  const correlationPath = input.config?.domainEventCorrelationPath;
+  return evaluateWorkflowTrigger(input);
+}
 
-  const correlationKey =
-    input.eventType === undefined
-      ? undefined
-      : deriveCorrelationKey({
-          eventType: input.eventType,
-          payload: input.payload,
-          correlationPath,
-        });
-
-  return {
-    triggerType: input.config?.triggerType ?? "DomainEvent",
-    executionType: "domain_event",
-    eventType: input.eventType,
-    correlationKey,
-    routingDecision,
-    ...(correlationPath ? { metadata: { correlationPath } } : {}),
-  };
+export function evaluateWorkflowTrigger(input: {
+  config: Record<string, unknown> | undefined;
+  eventType: DomainEventType | undefined;
+  payload: Record<string, unknown>;
+}): TriggerEvaluation {
+  return resolveWorkflowTriggerDefinition(input.config).evaluate(input);
 }

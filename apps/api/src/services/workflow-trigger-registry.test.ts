@@ -6,8 +6,12 @@ import type {
   WorkflowDomainEventTriggerConfig,
 } from "@scheduling/dto";
 import {
+  createTrigger,
+  evaluateWorkflowTrigger,
   evaluateWorkflowDomainEventTrigger,
   getWorkflowTriggerConfig,
+  registerWorkflowTrigger,
+  resolveWorkflowTriggerDefinition,
 } from "./workflow-trigger-registry.js";
 
 const DOMAIN_CORRELATION_CASES = [
@@ -131,6 +135,43 @@ function createPayload<TEventType extends DomainEventType>(
 }
 
 describe("workflow trigger registry", () => {
+  test("falls back to DomainEvent trigger when config is missing", () => {
+    const trigger = resolveWorkflowTriggerDefinition(undefined);
+
+    expect(trigger.type).toBe("DomainEvent");
+    expect(trigger.executionType).toBe("domain_event");
+  });
+
+  test("supports registering a custom trigger definition", () => {
+    registerWorkflowTrigger(
+      createTrigger({
+        type: "InternalQueue",
+        executionType: "domain_event",
+        evaluate(input) {
+          return {
+            triggerType: "InternalQueue",
+            executionType: "domain_event",
+            eventType: input.eventType,
+            correlationKey: "queue-job-1",
+            routingDecision: { kind: "start" },
+          };
+        },
+      }),
+    );
+
+    const evaluation = evaluateWorkflowTrigger({
+      config: {
+        triggerType: "InternalQueue",
+      } as Record<string, unknown>,
+      eventType: "client.created",
+      payload: createPayload("client.created") as Record<string, unknown>,
+    });
+
+    expect(evaluation.triggerType).toBe("InternalQueue");
+    expect(evaluation.routingDecision).toEqual({ kind: "start" });
+    expect(evaluation.correlationKey).toBe("queue-job-1");
+  });
+
   test("extracts domain-event trigger config from workflow graph", () => {
     const graph: SerializedWorkflowGraph = {
       attributes: {},
@@ -278,6 +319,21 @@ describe("workflow trigger registry", () => {
     expect(evaluation.routingDecision).toEqual({
       kind: "ignore",
       reason: "missing_event_type",
+    });
+    expect(evaluation.correlationKey).toBeUndefined();
+  });
+
+  test("returns ignore when unknown trigger type is configured", () => {
+    const evaluation = evaluateWorkflowTrigger({
+      config: { triggerType: "UnknownTrigger" } as Record<string, unknown>,
+      eventType: "client.created",
+      payload: createPayload("client.created") as Record<string, unknown>,
+    });
+
+    expect(evaluation.triggerType).toBe("UnknownTrigger");
+    expect(evaluation.routingDecision).toEqual({
+      kind: "ignore",
+      reason: "event_not_configured",
     });
     expect(evaluation.correlationKey).toBeUndefined();
   });
