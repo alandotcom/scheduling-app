@@ -2,8 +2,11 @@
 
 import {
   createWorkflowSchema,
+  listWorkflowExecutionsQuerySchema,
   updateWorkflowSchema,
+  type ListWorkflowExecutionsQuery,
   type CreateWorkflowInput,
+  type WorkflowExecutionCancelResponse,
   type UpdateWorkflowInput,
 } from "@scheduling/dto";
 import { withOrg } from "../lib/db.js";
@@ -11,8 +14,12 @@ import { ApplicationError } from "../errors/application-error.js";
 import {
   workflowRepository,
   type Workflow,
+  type WorkflowExecution,
+  type WorkflowExecutionEvent,
+  type WorkflowExecutionLog,
 } from "../repositories/workflows.js";
 import type { ServiceContext } from "./locations.js";
+import { sendWorkflowCancelRequested } from "../inngest/runtime-events.js";
 
 const UNIQUE_CONSTRAINT_VIOLATION = "23505";
 const WORKFLOW_NAME_UNIQUE_CONSTRAINT = "workflows_org_name_ci_uidx";
@@ -216,6 +223,215 @@ export class WorkflowService {
 
       await workflowRepository.delete(tx, context.orgId, id);
       return { success: true };
+    });
+  }
+
+  async listExecutions(
+    workflowId: string,
+    query: ListWorkflowExecutionsQuery,
+    context: ServiceContext,
+  ): Promise<WorkflowExecution[]> {
+    const parsed = listWorkflowExecutionsQuerySchema.parse(query);
+
+    return withOrg(context.orgId, async (tx) => {
+      const workflow = await workflowRepository.findById(
+        tx,
+        context.orgId,
+        workflowId,
+      );
+      if (!workflow) {
+        throw new ApplicationError("Workflow not found", { code: "NOT_FOUND" });
+      }
+
+      const executions = await workflowRepository.listExecutionsByWorkflow(
+        tx,
+        context.orgId,
+        workflowId,
+        parsed.limit,
+      );
+
+      return executions;
+    });
+  }
+
+  async getExecution(
+    executionId: string,
+    context: ServiceContext,
+  ): Promise<WorkflowExecution> {
+    return withOrg(context.orgId, async (tx) => {
+      const execution = await workflowRepository.findExecutionById(
+        tx,
+        context.orgId,
+        executionId,
+      );
+
+      if (!execution) {
+        throw new ApplicationError("Execution not found", {
+          code: "NOT_FOUND",
+        });
+      }
+
+      return execution;
+    });
+  }
+
+  async getExecutionLogs(
+    executionId: string,
+    context: ServiceContext,
+  ): Promise<{ execution: WorkflowExecution; logs: WorkflowExecutionLog[] }> {
+    return withOrg(context.orgId, async (tx) => {
+      const execution = await workflowRepository.findExecutionById(
+        tx,
+        context.orgId,
+        executionId,
+      );
+
+      if (!execution) {
+        throw new ApplicationError("Execution not found", {
+          code: "NOT_FOUND",
+        });
+      }
+
+      const logs = await workflowRepository.listExecutionLogs(
+        tx,
+        context.orgId,
+        executionId,
+      );
+
+      return { execution, logs };
+    });
+  }
+
+  async getExecutionEvents(
+    executionId: string,
+    context: ServiceContext,
+  ): Promise<{ events: WorkflowExecutionEvent[] }> {
+    return withOrg(context.orgId, async (tx) => {
+      const execution = await workflowRepository.findExecutionById(
+        tx,
+        context.orgId,
+        executionId,
+      );
+
+      if (!execution) {
+        throw new ApplicationError("Execution not found", {
+          code: "NOT_FOUND",
+        });
+      }
+
+      const events = await workflowRepository.listExecutionEvents(
+        tx,
+        context.orgId,
+        executionId,
+      );
+
+      return { events };
+    });
+  }
+
+  async getExecutionStatus(
+    executionId: string,
+    context: ServiceContext,
+  ): Promise<{
+    status: string;
+    nodeStatuses: Array<{ nodeId: string; status: string }>;
+  }> {
+    return withOrg(context.orgId, async (tx) => {
+      const execution = await workflowRepository.findExecutionById(
+        tx,
+        context.orgId,
+        executionId,
+      );
+
+      if (!execution) {
+        throw new ApplicationError("Execution not found", {
+          code: "NOT_FOUND",
+        });
+      }
+
+      const logs = await workflowRepository.listExecutionLogs(
+        tx,
+        context.orgId,
+        executionId,
+      );
+
+      const nodeStatuses = logs.map((log) => ({
+        nodeId: log.nodeId,
+        status:
+          execution.status === "cancelled" &&
+          (log.status === "pending" || log.status === "running")
+            ? "cancelled"
+            : log.status,
+      }));
+
+      return {
+        status: execution.status,
+        nodeStatuses,
+      };
+    });
+  }
+
+  async cancelExecution(
+    executionId: string,
+    context: ServiceContext,
+  ): Promise<WorkflowExecutionCancelResponse> {
+    return withOrg(context.orgId, async (tx) => {
+      const execution = await workflowRepository.findExecutionById(
+        tx,
+        context.orgId,
+        executionId,
+      );
+
+      if (!execution) {
+        throw new ApplicationError("Execution not found", {
+          code: "NOT_FOUND",
+        });
+      }
+
+      const waitingStates = await workflowRepository.listExecutionWaitingStates(
+        tx,
+        context.orgId,
+        executionId,
+      );
+
+      if (waitingStates.length === 0) {
+        throw new ApplicationError("Execution is not currently waiting", {
+          code: "CONFLICT",
+        });
+      }
+
+      await sendWorkflowCancelRequested({
+        executionId,
+        workflowId: execution.workflowId,
+        reason: "Cancelled manually",
+        requestedBy: context.userId,
+      });
+
+      const cancelledWaitStateIds =
+        await workflowRepository.markWaitingStatesCancelled(
+          tx,
+          context.orgId,
+          waitingStates.map((state) => state.id),
+        );
+
+      if (cancelledWaitStateIds.length === 0) {
+        throw new ApplicationError("Execution is no longer waiting", {
+          code: "CONFLICT",
+        });
+      }
+
+      await workflowRepository.markExecutionCancelled(
+        tx,
+        context.orgId,
+        executionId,
+        "Cancelled manually",
+      );
+
+      return {
+        success: true,
+        status: "cancelled",
+        cancelledWaitStates: cancelledWaitStateIds.length,
+      };
     });
   }
 }

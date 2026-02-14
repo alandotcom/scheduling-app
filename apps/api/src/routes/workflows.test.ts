@@ -4,13 +4,22 @@ import {
   beforeEach,
   describe,
   expect,
+  mock,
   test,
 } from "bun:test";
 import { call } from "@orpc/server";
+import { eq } from "drizzle-orm";
 import type { SerializedWorkflowGraph } from "@scheduling/dto";
 import type { BunSQLDatabase } from "drizzle-orm/bun-sql/postgres";
 import type * as schema from "@scheduling/db/schema";
 import type { relations } from "@scheduling/db/relations";
+import {
+  workflowExecutionEvents,
+  workflowExecutionLogs,
+  workflowExecutions,
+  workflowWaitStates,
+} from "@scheduling/db/schema";
+import { inngest } from "../inngest/client.js";
 import {
   closeTestDb,
   createOrg,
@@ -18,6 +27,7 @@ import {
   createTestContext,
   createTestDb,
   resetTestDb,
+  setTestOrgContext,
 } from "../test-utils/index.js";
 import * as workflowRoutes from "./workflows.js";
 
@@ -50,8 +60,33 @@ function createTestGraph(triggerId = "trigger-1"): SerializedWorkflowGraph {
   };
 }
 
+async function seedExecutionArtifacts(input: {
+  db: Database;
+  orgId: string;
+  workflowId: string;
+  status?: "running" | "waiting" | "cancelled" | "success";
+  startedAt?: Date;
+}): Promise<{ executionId: string }> {
+  const startedAt = input.startedAt ?? new Date();
+  await setTestOrgContext(input.db, input.orgId);
+  const [execution] = await input.db
+    .insert(workflowExecutions)
+    .values({
+      orgId: input.orgId,
+      workflowId: input.workflowId,
+      status: input.status ?? "running",
+      triggerType: "domain_event",
+      triggerEventType: "appointment.created",
+      startedAt,
+    })
+    .returning({ id: workflowExecutions.id });
+
+  return { executionId: execution!.id };
+}
+
 describe("Workflow Routes", () => {
   let db: Database;
+  const originalInngestSend = inngest.send.bind(inngest);
 
   beforeAll(async () => {
     db = (await createTestDb()) as Database;
@@ -63,6 +98,14 @@ describe("Workflow Routes", () => {
 
   beforeEach(async () => {
     await resetTestDb();
+    (inngest as unknown as { send: typeof inngest.send }).send = mock(
+      async () => ({ ids: ["cancel-event-id"] }),
+    );
+  });
+
+  afterAll(async () => {
+    (inngest as unknown as { send: typeof inngest.send }).send =
+      originalInngestSend;
   });
 
   test("member can list and get workflows in their org", async () => {
@@ -261,6 +304,307 @@ describe("Workflow Routes", () => {
       call(
         workflowRoutes.remove,
         { id: workflowInOrgB.id },
+        { context: contextA },
+      ),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+  });
+
+  test("member can read execution history/details/logs/events/status", async () => {
+    const { org, user: owner } = await createOrg(db, { name: "Exec Read Org" });
+    const member = await createOrgMember(db, org.id, {
+      role: "member",
+      email: "member@exec-read.org",
+    });
+
+    const ownerContext = createTestContext({
+      orgId: org.id,
+      userId: owner.id,
+      role: "owner",
+    });
+    const memberContext = createTestContext({
+      orgId: org.id,
+      userId: member.id,
+      role: "member",
+    });
+
+    const workflow = await call(
+      workflowRoutes.create,
+      {
+        name: "Execution Workflow",
+        graph: createTestGraph("trigger-exec-read"),
+      },
+      { context: ownerContext },
+    );
+
+    const older = await seedExecutionArtifacts({
+      db,
+      orgId: org.id,
+      workflowId: workflow.id,
+      status: "running",
+      startedAt: new Date("2026-01-01T10:00:00.000Z"),
+    });
+    const newer = await seedExecutionArtifacts({
+      db,
+      orgId: org.id,
+      workflowId: workflow.id,
+      status: "cancelled",
+      startedAt: new Date("2026-01-01T11:00:00.000Z"),
+    });
+
+    await setTestOrgContext(db, org.id);
+    await db.insert(workflowExecutionLogs).values([
+      {
+        orgId: org.id,
+        executionId: newer.executionId,
+        nodeId: "node-b",
+        nodeName: "Node B",
+        nodeType: "action-node",
+        status: "running",
+        timestamp: new Date("2026-01-01T11:01:00.000Z"),
+      },
+      {
+        orgId: org.id,
+        executionId: newer.executionId,
+        nodeId: "node-a",
+        nodeName: "Node A",
+        nodeType: "action-node",
+        status: "success",
+        timestamp: new Date("2026-01-01T11:00:00.000Z"),
+      },
+    ]);
+
+    await db.insert(workflowExecutionEvents).values([
+      {
+        orgId: org.id,
+        workflowId: workflow.id,
+        executionId: newer.executionId,
+        eventType: "run.cancel_requested",
+        message: "Cancel requested",
+        createdAt: new Date("2026-01-01T11:02:00.000Z"),
+      },
+      {
+        orgId: org.id,
+        workflowId: workflow.id,
+        executionId: newer.executionId,
+        eventType: "run.started",
+        message: "Run started",
+        createdAt: new Date("2026-01-01T11:00:30.000Z"),
+      },
+    ]);
+
+    const executions = await call(
+      workflowRoutes.listExecutions,
+      { id: workflow.id, limit: 10 },
+      { context: memberContext },
+    );
+    expect(executions).toHaveLength(2);
+    expect(executions[0]!.id).toBe(newer.executionId);
+    expect(executions[1]!.id).toBe(older.executionId);
+
+    const execution = await call(
+      workflowRoutes.getExecution,
+      { executionId: newer.executionId },
+      { context: memberContext },
+    );
+    expect(execution.id).toBe(newer.executionId);
+
+    const logs = await call(
+      workflowRoutes.getExecutionLogs,
+      { executionId: newer.executionId },
+      { context: memberContext },
+    );
+    expect(logs.execution.id).toBe(newer.executionId);
+    expect(logs.logs.map((log) => log.nodeId)).toEqual(["node-b", "node-a"]);
+
+    const events = await call(
+      workflowRoutes.getExecutionEvents,
+      { executionId: newer.executionId },
+      { context: memberContext },
+    );
+    expect(events.events.map((event) => event.eventType)).toEqual([
+      "run.cancel_requested",
+      "run.started",
+    ]);
+
+    const status = await call(
+      workflowRoutes.getExecutionStatus,
+      { executionId: newer.executionId },
+      { context: memberContext },
+    );
+    expect(status.status).toBe("cancelled");
+    expect(status.nodeStatuses).toEqual([
+      { nodeId: "node-b", status: "cancelled" },
+      { nodeId: "node-a", status: "success" },
+    ]);
+  });
+
+  test("admin can cancel a waiting execution and member cannot", async () => {
+    const { org, user: owner } = await createOrg(db, {
+      name: "Execution Cancel Org",
+    });
+    const member = await createOrgMember(db, org.id, {
+      role: "member",
+      email: "member@exec-cancel.org",
+    });
+
+    const ownerContext = createTestContext({
+      orgId: org.id,
+      userId: owner.id,
+      role: "owner",
+    });
+    const memberContext = createTestContext({
+      orgId: org.id,
+      userId: member.id,
+      role: "member",
+    });
+
+    const workflow = await call(
+      workflowRoutes.create,
+      {
+        name: "Cancellation Workflow",
+        graph: createTestGraph("trigger-exec-cancel"),
+      },
+      { context: ownerContext },
+    );
+
+    const seeded = await seedExecutionArtifacts({
+      db,
+      orgId: org.id,
+      workflowId: workflow.id,
+      status: "waiting",
+    });
+
+    await setTestOrgContext(db, org.id);
+    await db.insert(workflowWaitStates).values({
+      orgId: org.id,
+      executionId: seeded.executionId,
+      workflowId: workflow.id,
+      runId: "run-1",
+      nodeId: "wait-node",
+      nodeName: "Wait Node",
+      waitType: "event",
+      status: "waiting",
+      hookToken: "token-1",
+      correlationKey: "appointment-1",
+    });
+
+    await expect(
+      call(
+        workflowRoutes.cancelExecution,
+        { executionId: seeded.executionId },
+        { context: memberContext },
+      ),
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+
+    const cancelled = await call(
+      workflowRoutes.cancelExecution,
+      { executionId: seeded.executionId },
+      { context: ownerContext },
+    );
+
+    expect(cancelled).toEqual({
+      success: true,
+      status: "cancelled",
+      cancelledWaitStates: 1,
+    });
+
+    const [updatedExecution] = await db
+      .select({ status: workflowExecutions.status })
+      .from(workflowExecutions)
+      .where(eq(workflowExecutions.id, seeded.executionId));
+    expect(updatedExecution!.status).toBe("cancelled");
+  });
+
+  test("execution endpoints enforce org isolation and not found behavior", async () => {
+    const { org: orgA, user: ownerA } = await createOrg(db, {
+      name: "Execution Org A",
+      email: "owner-a@exec-org.test",
+    });
+    const { org: orgB, user: ownerB } = await createOrg(db, {
+      name: "Execution Org B",
+      email: "owner-b@exec-org.test",
+    });
+
+    const contextA = createTestContext({
+      orgId: orgA.id,
+      userId: ownerA.id,
+      role: "owner",
+    });
+    const contextB = createTestContext({
+      orgId: orgB.id,
+      userId: ownerB.id,
+      role: "owner",
+    });
+
+    const workflowInOrgB = await call(
+      workflowRoutes.create,
+      {
+        name: "Org B Execution Workflow",
+        graph: createTestGraph("trigger-org-b-exec"),
+      },
+      { context: contextB },
+    );
+    const seededInOrgB = await seedExecutionArtifacts({
+      db,
+      orgId: orgB.id,
+      workflowId: workflowInOrgB.id,
+      status: "waiting",
+    });
+
+    await expect(
+      call(
+        workflowRoutes.listExecutions,
+        { id: workflowInOrgB.id, limit: 5 },
+        { context: contextA },
+      ),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+
+    await expect(
+      call(
+        workflowRoutes.getExecution,
+        { executionId: seededInOrgB.executionId },
+        { context: contextA },
+      ),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+
+    await expect(
+      call(
+        workflowRoutes.getExecutionLogs,
+        { executionId: seededInOrgB.executionId },
+        { context: contextA },
+      ),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+
+    await expect(
+      call(
+        workflowRoutes.getExecutionEvents,
+        { executionId: seededInOrgB.executionId },
+        { context: contextA },
+      ),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+
+    await expect(
+      call(
+        workflowRoutes.getExecutionStatus,
+        { executionId: seededInOrgB.executionId },
+        { context: contextA },
+      ),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+
+    await expect(
+      call(
+        workflowRoutes.cancelExecution,
+        { executionId: seededInOrgB.executionId },
+        { context: contextA },
+      ),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+
+    await expect(
+      call(
+        workflowRoutes.getExecution,
+        {
+          executionId: "00000000-0000-7000-8000-000000000001",
+        },
         { context: contextA },
       ),
     ).rejects.toMatchObject({ code: "NOT_FOUND" });

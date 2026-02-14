@@ -2,6 +2,8 @@
 
 import { and, desc, eq, inArray, ne, sql, type SQL } from "drizzle-orm";
 import {
+  workflowExecutionEvents,
+  workflowExecutionLogs,
   workflowExecutions,
   workflows,
   workflowWaitStates,
@@ -39,9 +41,13 @@ export interface WorkflowUpdateInput {
 }
 
 type WorkflowExecutionRow = typeof workflowExecutions.$inferSelect;
+type WorkflowExecutionLogRow = typeof workflowExecutionLogs.$inferSelect;
+type WorkflowExecutionEventRow = typeof workflowExecutionEvents.$inferSelect;
 type WorkflowWaitStateRow = typeof workflowWaitStates.$inferSelect;
 
 export type WorkflowExecution = WorkflowExecutionRow;
+export type WorkflowExecutionLog = WorkflowExecutionLogRow;
+export type WorkflowExecutionEvent = WorkflowExecutionEventRow;
 export type WorkflowWaitState = WorkflowWaitStateRow;
 
 export interface WorkflowExecutionCreateInput {
@@ -197,6 +203,92 @@ export class WorkflowRepository {
       .returning();
 
     return row!;
+  }
+
+  async listExecutionsByWorkflow(
+    tx: DbClient,
+    orgId: string,
+    workflowId: string,
+    limit: number,
+  ): Promise<WorkflowExecution[]> {
+    await setOrgContext(tx, orgId);
+
+    return await tx
+      .select()
+      .from(workflowExecutions)
+      .where(eq(workflowExecutions.workflowId, workflowId))
+      .orderBy(desc(workflowExecutions.startedAt), desc(workflowExecutions.id))
+      .limit(limit);
+  }
+
+  async findExecutionById(
+    tx: DbClient,
+    orgId: string,
+    executionId: string,
+  ): Promise<WorkflowExecution | null> {
+    await setOrgContext(tx, orgId);
+
+    const [execution] = await tx
+      .select()
+      .from(workflowExecutions)
+      .where(eq(workflowExecutions.id, executionId))
+      .limit(1);
+
+    return execution ?? null;
+  }
+
+  async listExecutionLogs(
+    tx: DbClient,
+    orgId: string,
+    executionId: string,
+  ): Promise<WorkflowExecutionLog[]> {
+    await setOrgContext(tx, orgId);
+
+    return await tx
+      .select()
+      .from(workflowExecutionLogs)
+      .where(eq(workflowExecutionLogs.executionId, executionId))
+      .orderBy(
+        desc(workflowExecutionLogs.timestamp),
+        desc(workflowExecutionLogs.id),
+      );
+  }
+
+  async listExecutionEvents(
+    tx: DbClient,
+    orgId: string,
+    executionId: string,
+  ): Promise<WorkflowExecutionEvent[]> {
+    await setOrgContext(tx, orgId);
+
+    return await tx
+      .select()
+      .from(workflowExecutionEvents)
+      .where(eq(workflowExecutionEvents.executionId, executionId))
+      .orderBy(
+        desc(workflowExecutionEvents.createdAt),
+        desc(workflowExecutionEvents.id),
+      )
+      .limit(200);
+  }
+
+  async listExecutionWaitingStates(
+    tx: DbClient,
+    orgId: string,
+    executionId: string,
+  ): Promise<WorkflowWaitState[]> {
+    await setOrgContext(tx, orgId);
+
+    return await tx
+      .select()
+      .from(workflowWaitStates)
+      .where(
+        and(
+          eq(workflowWaitStates.executionId, executionId),
+          eq(workflowWaitStates.status, "waiting"),
+        ),
+      )
+      .orderBy(desc(workflowWaitStates.createdAt), desc(workflowWaitStates.id));
   }
 
   async setExecutionRunId(
