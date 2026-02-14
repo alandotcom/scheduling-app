@@ -1,32 +1,23 @@
-# Workflow Port Preset (Spec-Driven)
-#
-# Tuned for:
-#   specs/workflow-engine-domain-triggering/
-#
-# Usage:
-#   ralph run --config ralph.yml
-#   ralph run --config ralph.yml --prompt "Continue from current checkpoint"
-
 event_loop:
-  prompt_file: "specs/workflow-engine-domain-triggering/PROMPT.md"
-  completion_promise: "LOOP_COMPLETE"
+  prompt_file: specs/workflow-engine-domain-triggering/PROMPT.md
+  completion_promise: LOOP_COMPLETE
   max_iterations: 140
   max_runtime_seconds: 21600
   checkpoint_interval: 4
-
 cli:
-  backend: "codex"
-
+  backend: codex
 core:
-  specs_dir: "./specs/"
-
+  specs_dir: ./specs/
 hats:
   builder:
-    name: "Builder"
-    description: "Implements one task with project quality gates. One task, one commit."
-    triggers: ["build.task"]
-    publishes: ["build.done", "build.blocked"]
-    default_publishes: "build.done"
+    name: Builder
+    description: Implements one task with project quality gates. One task, one commit.
+    triggers:
+    - build.task
+    publishes:
+    - build.done
+    - build.blocked
+    default_publishes: build.done
     instructions: |
       ## BUILDER MODE
 
@@ -104,14 +95,15 @@ hats:
       - ❌ Run multiple dev servers simultaneously
       - ❌ Add migration shims/feature flags for old behavior
       - ❌ Introduce webhook-trigger workflow ingress as the primary trigger path
-
-
   reviewer:
-    name: "Reviewer"
-    description: "Reviews implementation for quality. Does NOT modify code."
-    triggers: ["review.request"]
-    publishes: ["review.approved", "review.changes_requested"]
-    default_publishes: "review.approved"
+    name: Reviewer
+    description: Reviews implementation for quality. Does NOT modify code.
+    triggers:
+    - review.request
+    publishes:
+    - review.approved
+    - review.changes_requested
+    default_publishes: review.approved
     instructions: |
       ## REVIEWER MODE
 
@@ -145,3 +137,6 @@ hats:
       - ❌ Make code changes yourself
       - ❌ Be vague about what's wrong
       - ❌ Block on style nitpicks
+RObot:
+  enabled: true
+  timeout_seconds: 120
