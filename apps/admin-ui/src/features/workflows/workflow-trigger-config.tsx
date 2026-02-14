@@ -49,6 +49,8 @@ export function WorkflowTriggerConfig({
   const [startEventsValue, setStartEventsValue] = useState("");
   const [restartEventsValue, setRestartEventsValue] = useState("");
   const [stopEventsValue, setStopEventsValue] = useState("");
+  const [correlationPathValue, setCorrelationPathValue] = useState("");
+  const [mockEventValue, setMockEventValue] = useState("");
   const [eventErrors, setEventErrors] = useState<
     Partial<Record<TriggerConfigFieldKey, string>>
   >({});
@@ -57,7 +59,24 @@ export function WorkflowTriggerConfig({
     setStartEventsValue(toInputValue(config.startEvents));
     setRestartEventsValue(toInputValue(config.restartEvents));
     setStopEventsValue(toInputValue(config.stopEvents));
-  }, [config.restartEvents, config.startEvents, config.stopEvents]);
+    setCorrelationPathValue(
+      typeof config.domainEventCorrelationPath === "string"
+        ? config.domainEventCorrelationPath
+        : "",
+    );
+    setMockEventValue(
+      typeof config.domainEventMockEvent === "string"
+        ? config.domainEventMockEvent
+        : "",
+    );
+    setEventErrors({});
+  }, [
+    config.domainEventCorrelationPath,
+    config.domainEventMockEvent,
+    config.restartEvents,
+    config.startEvents,
+    config.stopEvents,
+  ]);
 
   const overlapWarnings = useMemo(() => {
     const start = new Set(parseDomainEventInput(startEventsValue).values);
@@ -167,18 +186,17 @@ export function WorkflowTriggerConfig({
         <Input
           disabled={disabled}
           id="workflow-trigger-correlation-path"
-          onBlur={(event) =>
+          onBlur={() =>
             onUpdate({
               domainEventCorrelationPath:
-                event.target.value.trim() || undefined,
+                correlationPathValue.trim() || undefined,
             })
           }
-          defaultValue={
-            typeof config.domainEventCorrelationPath === "string"
-              ? config.domainEventCorrelationPath
-              : ""
-          }
+          onChange={(event) => {
+            setCorrelationPathValue(event.target.value);
+          }}
           placeholder="data.appointmentId"
+          value={correlationPathValue}
         />
       </div>
 
@@ -187,17 +205,16 @@ export function WorkflowTriggerConfig({
         <Input
           disabled={disabled}
           id="workflow-trigger-mock-event"
-          onBlur={(event) =>
+          onBlur={() =>
             onUpdate({
-              domainEventMockEvent: event.target.value.trim() || undefined,
+              domainEventMockEvent: mockEventValue.trim() || undefined,
             })
           }
-          defaultValue={
-            typeof config.domainEventMockEvent === "string"
-              ? config.domainEventMockEvent
-              : ""
-          }
+          onChange={(event) => {
+            setMockEventValue(event.target.value);
+          }}
           placeholder="appointment.created"
+          value={mockEventValue}
         />
       </div>
 

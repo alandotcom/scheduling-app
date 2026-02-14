@@ -1,5 +1,5 @@
 import type { Node } from "@xyflow/react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -56,6 +56,13 @@ export function WorkflowEditorSidebar({
 }: WorkflowEditorSidebarProps) {
   const [activeTab, setActiveTab] =
     useState<WorkflowEditorSidebarTab>("properties");
+  const [labelValue, setLabelValue] = useState("");
+  const [descriptionValue, setDescriptionValue] = useState("");
+
+  useEffect(() => {
+    setLabelValue(toNodeLabel(selectedNode));
+    setDescriptionValue(toNodeDescription(selectedNode));
+  }, [selectedNode]);
 
   const selectedNodeType =
     selectedNode &&
@@ -99,24 +106,29 @@ export function WorkflowEditorSidebar({
                 <div className="space-y-2">
                   <Label htmlFor="workflow-node-label">Label</Label>
                   <Input
-                    defaultValue={toNodeLabel(selectedNode)}
                     disabled={!canManageWorkflow}
                     id="workflow-node-label"
+                    onChange={(event) => {
+                      setLabelValue(event.target.value);
+                    }}
                     onBlur={(event) => {
                       onUpdateNodeData({
                         id: selectedNode.id,
                         data: { label: event.target.value },
                       });
                     }}
+                    value={labelValue}
                   />
                 </div>
 
                 <div className="space-y-2">
                   <Label htmlFor="workflow-node-description">Description</Label>
                   <Input
-                    defaultValue={toNodeDescription(selectedNode)}
                     disabled={!canManageWorkflow}
                     id="workflow-node-description"
+                    onChange={(event) => {
+                      setDescriptionValue(event.target.value);
+                    }}
                     onBlur={(event) => {
                       onUpdateNodeData({
                         id: selectedNode.id,
@@ -125,6 +137,7 @@ export function WorkflowEditorSidebar({
                         },
                       });
                     }}
+                    value={descriptionValue}
                   />
                 </div>
 

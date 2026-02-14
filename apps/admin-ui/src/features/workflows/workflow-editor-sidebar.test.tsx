@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, mock, test } from "bun:test";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import type { Node } from "@xyflow/react";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { createTestQueryClient } from "@/test-utils/render";
@@ -17,6 +17,24 @@ function createNodeFixture(): Node {
       type: "trigger",
       label: "Trigger",
       description: "Trigger node",
+      config: {
+        triggerType: "DomainEvent",
+        startEvents: ["appointment.created"],
+        restartEvents: [],
+        stopEvents: [],
+      },
+    },
+  };
+}
+
+function createNodeFixtureWithId(id: string, label: string): Node {
+  return {
+    id,
+    position: { x: 0, y: 0 },
+    data: {
+      type: "trigger",
+      label,
+      description: `${label} description`,
       config: {
         triggerType: "DomainEvent",
         startEvents: ["appointment.created"],
@@ -73,5 +91,51 @@ describe("WorkflowEditorSidebar role behavior", () => {
 
     expect(labelInput.disabled).toBe(false);
     expect(startEventsInput.disabled).toBe(false);
+  });
+
+  test("re-syncs selected node inputs when switching nodes", () => {
+    const queryClient = createTestQueryClient();
+    const onUpdateNodeData = mock(() => {});
+    const firstNode = createNodeFixtureWithId("trigger-a", "Trigger A");
+    const secondNode = createNodeFixtureWithId("trigger-b", "Trigger B");
+
+    const view = render(
+      <QueryClientProvider client={queryClient}>
+        <WorkflowEditorSidebar
+          canManageWorkflow={true}
+          onUpdateNodeData={onUpdateNodeData}
+          selectedNode={firstNode}
+          workflowId={null}
+        />
+      </QueryClientProvider>,
+    );
+
+    const labelInput = screen.getByLabelText("Label") as HTMLInputElement;
+    fireEvent.change(labelInput, { target: { value: "Unsaved A" } });
+    expect(labelInput.value).toBe("Unsaved A");
+
+    view.rerender(
+      <QueryClientProvider client={queryClient}>
+        <WorkflowEditorSidebar
+          canManageWorkflow={true}
+          onUpdateNodeData={onUpdateNodeData}
+          selectedNode={secondNode}
+          workflowId={null}
+        />
+      </QueryClientProvider>,
+    );
+
+    const switchedLabelInput = screen.getByLabelText(
+      "Label",
+    ) as HTMLInputElement;
+    expect(switchedLabelInput.value).toBe("Trigger B");
+
+    fireEvent.change(switchedLabelInput, { target: { value: "Edited B" } });
+    fireEvent.blur(switchedLabelInput);
+
+    expect(onUpdateNodeData).toHaveBeenCalledWith({
+      id: "trigger-b",
+      data: { label: "Edited B" },
+    });
   });
 });
