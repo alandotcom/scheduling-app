@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Settings01Icon } from "@hugeicons/core-free-icons";
 import { toast } from "sonner";
 import type {
   AppIntegrationKey,
@@ -11,65 +10,10 @@ import type {
 import { orpc } from "@/lib/query";
 
 import { EntityModal } from "@/components/entity-modal";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Icon } from "@/components/ui/icon";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
-
-function IntegrationCardHeader({
-  integration,
-}: {
-  integration: IntegrationSummary;
-}) {
-  return (
-    <div className="flex items-start justify-between gap-3">
-      <div className="flex min-w-0 items-center gap-3">
-        {integration.logoUrl ? (
-          <img
-            src={integration.logoUrl}
-            alt=""
-            className="size-8 rounded-md border border-border object-cover"
-          />
-        ) : (
-          <div className="flex size-8 items-center justify-center rounded-md border border-border bg-muted">
-            <Icon
-              icon={Settings01Icon}
-              className="size-4 text-muted-foreground"
-            />
-          </div>
-        )}
-
-        <div className="min-w-0">
-          <p className="truncate text-sm font-medium">{integration.name}</p>
-          <p className="mt-0.5 text-xs text-muted-foreground">
-            {integration.description}
-          </p>
-        </div>
-      </div>
-
-      <div className="flex shrink-0 items-center gap-2">
-        <Badge variant={integration.enabled ? "success" : "secondary"}>
-          {integration.enabled ? "Enabled" : "Disabled"}
-        </Badge>
-        {integration.configured ? (
-          <Badge variant="outline">Configured</Badge>
-        ) : (
-          <Badge variant="warning">Setup needed</Badge>
-        )}
-      </div>
-    </div>
-  );
-}
 
 function normalizeConfigValue(value: unknown): string {
   if (typeof value === "string") {
@@ -139,15 +83,204 @@ function buildSecretUpdatePayload(input: {
   };
 }
 
+export function getOrderedIntegrationsForDisplay(input: {
+  integrations: readonly IntegrationSummary[];
+  searchQuery: string;
+}): IntegrationSummary[] {
+  const normalizedQuery = input.searchQuery.trim().toLowerCase();
+
+  return [...input.integrations]
+    .filter((integration) => {
+      if (!normalizedQuery) {
+        return true;
+      }
+
+      return (
+        integration.name.toLowerCase().includes(normalizedQuery) ||
+        integration.description.toLowerCase().includes(normalizedQuery) ||
+        integration.key.toLowerCase().includes(normalizedQuery)
+      );
+    })
+    .toSorted((left, right) => {
+      if (left.enabled !== right.enabled) {
+        return left.enabled ? -1 : 1;
+      }
+      if (left.configured !== right.configured) {
+        return left.configured ? -1 : 1;
+      }
+      return left.name.localeCompare(right.name);
+    });
+}
+
+export function splitIntegrationsByEnabled(
+  integrations: readonly IntegrationSummary[],
+): {
+  enabledIntegrations: IntegrationSummary[];
+  disabledIntegrations: IntegrationSummary[];
+} {
+  const enabledIntegrations: IntegrationSummary[] = [];
+  const disabledIntegrations: IntegrationSummary[] = [];
+
+  for (const integration of integrations) {
+    if (integration.enabled) {
+      enabledIntegrations.push(integration);
+      continue;
+    }
+
+    disabledIntegrations.push(integration);
+  }
+
+  return { enabledIntegrations, disabledIntegrations };
+}
+
+export function shouldHydrateIntegrationDrafts(input: {
+  selectedIntegrationKey: AppIntegrationKey | null;
+  selectedIntegrationSettings: IntegrationSettings | undefined;
+  draftHydratedForKey: AppIntegrationKey | null;
+}): boolean {
+  if (
+    input.selectedIntegrationKey === null ||
+    input.selectedIntegrationSettings === undefined
+  ) {
+    return false;
+  }
+
+  return input.draftHydratedForKey !== input.selectedIntegrationKey;
+}
+
+function IntegrationRow({
+  integration,
+  disabled,
+  onSetEnabled,
+  onConfigure,
+}: {
+  integration: IntegrationSummary;
+  disabled: boolean;
+  onSetEnabled: (enabled: boolean) => void;
+  onConfigure: () => void;
+}) {
+  const setupLabel = integration.configured ? "Configured" : "Needs setup";
+
+  return (
+    <div className="flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex min-w-0 items-start gap-3">
+        <div className="shrink-0">
+          {integration.logoUrl ? (
+            <img
+              src={integration.logoUrl}
+              alt=""
+              className="size-8 rounded object-cover"
+            />
+          ) : (
+            <div className="flex size-8 items-center justify-center rounded bg-muted text-xs font-semibold text-muted-foreground">
+              {integration.name.charAt(0).toUpperCase()}
+            </div>
+          )}
+        </div>
+
+        <div className="min-w-0">
+          <p className="truncate text-sm font-medium">{integration.name}</p>
+          <p className="mt-0.5 text-sm text-muted-foreground">
+            {integration.description}
+          </p>
+          <p className="mt-1 text-xs font-medium text-foreground">Enabled</p>
+          <p className="mt-0.5 text-xs text-muted-foreground">{setupLabel}</p>
+        </div>
+      </div>
+
+      <div className="flex items-center gap-2 sm:shrink-0">
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          onClick={() => onSetEnabled(!integration.enabled)}
+          disabled={disabled}
+        >
+          {integration.enabled ? "Disable" : "Enable"}
+        </Button>
+        {integration.hasSettingsPanel ? (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={onConfigure}
+            disabled={disabled}
+          >
+            Configure
+          </Button>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+function AddConnectionList({
+  integrations,
+  onSelect,
+  disabled,
+}: {
+  integrations: readonly IntegrationSummary[];
+  onSelect: (integration: IntegrationSummary) => void;
+  disabled: boolean;
+}) {
+  if (integrations.length === 0) {
+    return (
+      <div className="rounded-lg bg-muted/30 p-4 text-sm text-muted-foreground">
+        No services match your search.
+      </div>
+    );
+  }
+
+  return (
+    <div className="max-h-[420px] space-y-1 overflow-y-auto">
+      {integrations.map((integration) => (
+        <button
+          key={integration.key}
+          type="button"
+          onClick={() => onSelect(integration)}
+          disabled={disabled}
+          className="flex w-full items-start gap-3 rounded-md px-3 py-2 text-left transition hover:bg-muted/40 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          <div className="shrink-0">
+            {integration.logoUrl ? (
+              <img
+                src={integration.logoUrl}
+                alt=""
+                className="size-8 rounded object-cover"
+              />
+            ) : (
+              <div className="flex size-8 items-center justify-center rounded bg-muted text-xs font-semibold text-muted-foreground">
+                {integration.name.charAt(0).toUpperCase()}
+              </div>
+            )}
+          </div>
+
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm font-medium">{integration.name}</p>
+            <p className="truncate text-sm text-muted-foreground">
+              {integration.description}
+            </p>
+          </div>
+        </button>
+      ))}
+    </div>
+  );
+}
+
 export function IntegrationsSection() {
   const queryClient = useQueryClient();
-  const [selectedIntegrationKey, setSelectedIntegrationKey] =
-    useState<AppIntegrationKey | null>(null);
   const [updatingIntegrationKey, setUpdatingIntegrationKey] =
+    useState<AppIntegrationKey | null>(null);
+  const [pageSearchQuery, setPageSearchQuery] = useState("");
+  const [addSearchQuery, setAddSearchQuery] = useState("");
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [selectedIntegrationKey, setSelectedIntegrationKey] =
     useState<AppIntegrationKey | null>(null);
   const [draftConfig, setDraftConfig] = useState<Record<string, string>>({});
   const [draftSecrets, setDraftSecrets] = useState<Record<string, string>>({});
   const [clearSecretKeys, setClearSecretKeys] = useState<string[]>([]);
+  const [draftHydratedForKey, setDraftHydratedForKey] =
+    useState<AppIntegrationKey | null>(null);
 
   const {
     data: integrationsResponse,
@@ -199,22 +332,69 @@ export function IntegrationsSection() {
   const selectedIntegrationHasSettingsPanel =
     selectedIntegration?.hasSettingsPanel ?? false;
 
+  const { enabledIntegrations, disabledIntegrations } = useMemo(
+    () => splitIntegrationsByEnabled(integrations),
+    [integrations],
+  );
+  const filteredEnabledIntegrations = useMemo(
+    () =>
+      getOrderedIntegrationsForDisplay({
+        integrations: enabledIntegrations,
+        searchQuery: pageSearchQuery,
+      }),
+    [enabledIntegrations, pageSearchQuery],
+  );
+  const addableIntegrations = useMemo(
+    () =>
+      getOrderedIntegrationsForDisplay({
+        integrations: disabledIntegrations,
+        searchQuery: addSearchQuery,
+      }),
+    [disabledIntegrations, addSearchQuery],
+  );
+
   useEffect(() => {
-    if (!selectedIntegrationSettings) {
+    if (selectedIntegrationKey === null) {
+      setDraftHydratedForKey(null);
+      setDraftConfig({});
+      setDraftSecrets({});
+      setClearSecretKeys([]);
+      return;
+    }
+  }, [selectedIntegrationKey]);
+
+  useEffect(() => {
+    const settings = selectedIntegrationSettings;
+    if (!settings) {
+      return;
+    }
+
+    if (
+      !shouldHydrateIntegrationDrafts({
+        selectedIntegrationKey,
+        selectedIntegrationSettings: settings,
+        draftHydratedForKey,
+      })
+    ) {
       return;
     }
 
     const nextDraftConfig: Record<string, string> = {};
-    for (const field of selectedIntegrationSettings.configSchema) {
+    for (const field of settings.configSchema) {
       nextDraftConfig[field.key] = normalizeConfigValue(
-        selectedIntegrationSettings.config[field.key],
+        settings.config[field.key],
       );
     }
 
     setDraftConfig(nextDraftConfig);
     setDraftSecrets({});
     setClearSecretKeys([]);
-  }, [selectedIntegrationSettings]);
+    setDraftHydratedForKey(selectedIntegrationKey);
+  }, [
+    selectedIntegrationSettings,
+    selectedIntegrationKey,
+    draftHydratedForKey,
+  ]);
 
   const isSavingSettings =
     updateIntegrationMutation.isPending ||
@@ -289,34 +469,75 @@ export function IntegrationsSection() {
     }
   };
 
+  const openAddModal = () => {
+    setAddSearchQuery("");
+    setIsAddModalOpen(true);
+  };
+
+  const onSelectIntegrationFromAddModal = (integration: IntegrationSummary) => {
+    setIsAddModalOpen(false);
+
+    if (integration.hasSettingsPanel) {
+      setSelectedIntegrationKey(integration.key);
+      return;
+    }
+
+    void onToggleEnabled(integration, true);
+  };
+
   return (
     <>
-      <Card>
-        <CardHeader>
-          <CardTitle>Integrations</CardTitle>
-          <CardDescription>
-            Manage app-level integrations for this organization.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3">
+      <div className="space-y-5">
+        <div>
+          <h2 className="text-lg font-semibold tracking-tight">Integrations</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Connect tools and services used by your workflows.
+          </p>
+          {!isLoading && !error ? (
+            <p className="mt-2 text-sm text-muted-foreground">
+              {enabledIntegrations.length} enabled of {integrations.length}{" "}
+              integrations
+            </p>
+          ) : null}
+        </div>
+
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="w-full sm:max-w-sm">
+            <Input
+              value={pageSearchQuery}
+              onChange={(event) => setPageSearchQuery(event.target.value)}
+              placeholder="Search enabled integrations"
+            />
+          </div>
+
+          <Button
+            type="button"
+            variant="outline"
+            onClick={openAddModal}
+            disabled={disabledIntegrations.length === 0}
+          >
+            Add Connection
+          </Button>
+        </div>
+
+        <div>
           {isLoading ? (
-            Array.from({ length: 2 }, (_, i) => (
-              <div
-                key={`integration-skeleton-${i}`}
-                className="rounded-xl border border-border p-4"
-              >
-                <div className="flex items-center justify-between gap-4">
-                  <div className="flex items-center gap-3">
-                    <Skeleton className="size-8 rounded-md" />
-                    <div className="space-y-1.5">
-                      <Skeleton className="h-4 w-36" />
-                      <Skeleton className="h-3 w-56" />
+            <div className="divide-y rounded-lg border border-border">
+              {Array.from({ length: 4 }, (_, index) => (
+                <div key={`integration-skeleton-${index}`} className="p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                      <Skeleton className="size-8 rounded" />
+                      <div className="space-y-1.5">
+                        <Skeleton className="h-4 w-32" />
+                        <Skeleton className="h-3 w-56" />
+                      </div>
                     </div>
+                    <Skeleton className="h-8 w-24 rounded-md" />
                   </div>
-                  <Skeleton className="h-6 w-24 rounded-full" />
                 </div>
-              </div>
-            ))
+              ))}
+            </div>
           ) : error ? (
             <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-4 text-sm text-destructive">
               Failed to load integrations.
@@ -325,47 +546,71 @@ export function IntegrationsSection() {
             <div className="rounded-lg border border-border bg-muted/30 p-4 text-sm text-muted-foreground">
               No app-managed integrations are registered.
             </div>
-          ) : (
-            integrations.map((integration) => (
-              <div
-                key={integration.key}
-                className="space-y-3 rounded-xl border border-border p-4"
+          ) : enabledIntegrations.length === 0 ? (
+            <div className="rounded-lg border border-border bg-muted/30 p-6 text-sm">
+              <p className="text-muted-foreground">
+                No enabled integrations yet.
+              </p>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="mt-3"
+                onClick={openAddModal}
+                disabled={disabledIntegrations.length === 0}
               >
-                <IntegrationCardHeader integration={integration} />
-
-                <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border pt-3">
-                  <Checkbox
-                    checked={integration.enabled}
-                    onChange={(checked) =>
-                      void onToggleEnabled(integration, checked)
-                    }
+                Add Connection
+              </Button>
+            </div>
+          ) : filteredEnabledIntegrations.length === 0 ? (
+            <div className="rounded-lg border border-border bg-muted/30 p-4 text-sm text-muted-foreground">
+              No enabled integrations match your search.
+            </div>
+          ) : (
+            <div className="divide-y rounded-lg border border-border">
+              {filteredEnabledIntegrations.map((integration) => (
+                <div key={integration.key} className="px-4">
+                  <IntegrationRow
+                    integration={integration}
                     disabled={
-                      updatingIntegrationKey === integration.key ||
-                      isSavingSettings
+                      isSavingSettings ||
+                      updatingIntegrationKey === integration.key
                     }
-                    label="Enabled"
+                    onSetEnabled={(enabled) =>
+                      void onToggleEnabled(integration, enabled)
+                    }
+                    onConfigure={() =>
+                      setSelectedIntegrationKey(integration.key)
+                    }
                   />
-
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      if (!integration.hasSettingsPanel) {
-                        return;
-                      }
-                      setSelectedIntegrationKey(integration.key);
-                    }}
-                    disabled={!integration.hasSettingsPanel || isSavingSettings}
-                  >
-                    {integration.hasSettingsPanel ? "Configure" : "No settings"}
-                  </Button>
                 </div>
-              </div>
-            ))
+              ))}
+            </div>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </div>
+
+      <EntityModal
+        open={isAddModalOpen}
+        onOpenChange={setIsAddModalOpen}
+        title="Add Connection"
+        description="Select a service to connect"
+      >
+        <div className="space-y-4 px-4 py-4 sm:px-6 sm:py-5">
+          <Input
+            autoFocus
+            value={addSearchQuery}
+            onChange={(event) => setAddSearchQuery(event.target.value)}
+            placeholder="Search services..."
+          />
+
+          <AddConnectionList
+            integrations={addableIntegrations}
+            onSelect={onSelectIntegrationFromAddModal}
+            disabled={isSavingSettings}
+          />
+        </div>
+      </EntityModal>
 
       <EntityModal
         open={
@@ -376,8 +621,14 @@ export function IntegrationsSection() {
             setSelectedIntegrationKey(null);
           }
         }}
-        title={selectedIntegration?.name ?? "Integration Settings"}
-        description={selectedIntegration?.description}
+        title={
+          selectedIntegration
+            ? `Configure ${selectedIntegration.name}`
+            : "Integration Settings"
+        }
+        description={
+          selectedIntegration?.description ?? "Enter credentials and settings."
+        }
       >
         <div className="space-y-4 px-4 py-4 sm:px-6 sm:py-5">
           {selectedIntegrationKey ===
@@ -393,6 +644,34 @@ export function IntegrationsSection() {
             </div>
           ) : (
             <>
+              {selectedIntegration ? (
+                <div className="flex items-center justify-between gap-3 rounded-md bg-muted/30 px-3 py-2">
+                  <p className="text-xs text-muted-foreground">
+                    {selectedIntegration.enabled ? "Enabled" : "Disabled"} ·{" "}
+                    {selectedIntegrationSettings.configured
+                      ? "Configured"
+                      : "Needs setup"}
+                  </p>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() =>
+                      void onToggleEnabled(
+                        selectedIntegration,
+                        !selectedIntegration.enabled,
+                      )
+                    }
+                    disabled={
+                      isSavingSettings ||
+                      updatingIntegrationKey === selectedIntegration.key
+                    }
+                  >
+                    {selectedIntegration.enabled ? "Disable" : "Enable"}
+                  </Button>
+                </div>
+              ) : null}
+
               {selectedIntegrationSettings.configSchema.length === 0 &&
               selectedIntegrationSettings.secretSchema.length === 0 ? (
                 <div className="rounded-lg border border-border bg-muted/30 p-4 text-sm text-muted-foreground">
@@ -447,10 +726,7 @@ export function IntegrationsSection() {
                         );
 
                         return (
-                          <div
-                            key={field.key}
-                            className="space-y-1.5 rounded-md border border-border p-3"
-                          >
+                          <div key={field.key} className="space-y-1.5">
                             <div className="flex items-center justify-between gap-3">
                               <Label
                                 htmlFor={`integration-secret-${field.key}`}
@@ -458,21 +734,13 @@ export function IntegrationsSection() {
                                 {field.label}
                                 {field.required ? " *" : ""}
                               </Label>
-                              <Badge
-                                variant={
-                                  markedForClear
-                                    ? "warning"
-                                    : configured
-                                      ? "outline"
-                                      : "secondary"
-                                }
-                              >
+                              <span className="text-xs text-muted-foreground">
                                 {markedForClear
                                   ? "Will clear"
                                   : configured
                                     ? "Configured"
                                     : "Not set"}
-                              </Badge>
+                              </span>
                             </div>
 
                             <Input
@@ -538,14 +806,6 @@ export function IntegrationsSection() {
               )}
 
               <div className="flex justify-end gap-2 border-t border-border pt-3">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setSelectedIntegrationKey(null)}
-                  disabled={isSavingSettings}
-                >
-                  Cancel
-                </Button>
                 <Button
                   type="button"
                   onClick={() => void onSaveSettings()}
