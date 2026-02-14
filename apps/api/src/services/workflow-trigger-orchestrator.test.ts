@@ -113,6 +113,47 @@ describe("workflow trigger orchestrator", () => {
     });
   });
 
+  test("dry-run restart simulates cancellation summary before replacement run", async () => {
+    const startExecution = mock(async () => ({
+      executionId: "exec_restart_dry",
+      runId: "run_restart_dry",
+      dryRun: true,
+    }));
+    const cancelWaitStates = mock(async () => ({
+      cancelledExecutions: 9,
+      cancelledWaits: 9,
+    }));
+
+    const result = await orchestrateTriggerExecution({
+      dryRun: true,
+      eventType: "client.updated",
+      correlationKey: "abc",
+      eventTypePath: "event",
+      routingDecision: { kind: "restart" },
+      waitStates: [
+        createWaitState("1", "exec_wait_1"),
+        createWaitState("2", "exec_wait_1"),
+        createWaitState("3", "exec_wait_2"),
+      ],
+      enableResumes: true,
+      startExecution,
+      cancelWaitStates,
+      resumeWaitStates: mock(async () => 0),
+    });
+
+    expect(cancelWaitStates).toHaveBeenCalledTimes(0);
+    expect(startExecution).toHaveBeenCalledTimes(1);
+    expect(result).toEqual({
+      status: "running",
+      executionId: "exec_restart_dry",
+      runId: "run_restart_dry",
+      dryRun: true,
+      cancelledExecutions: 2,
+      cancelledWaits: 3,
+      simulated: true,
+    });
+  });
+
   test("stop cancels waits and does not start a new run", async () => {
     const startExecution = mock(async () => ({
       executionId: "exec_start",
@@ -180,6 +221,35 @@ describe("workflow trigger orchestrator", () => {
     expect(result).toEqual({
       status: "resumed",
       resumedCount: 1,
+    });
+  });
+
+  test("starts a run when event type is missing for event_not_configured routing", async () => {
+    const startExecution = mock(async () => ({
+      executionId: "exec_fallback",
+      runId: "run_fallback",
+      dryRun: false,
+    }));
+
+    const result = await orchestrateTriggerExecution({
+      dryRun: false,
+      routingDecision: { kind: "ignore", reason: "event_not_configured" },
+      waitStates: [],
+      enableResumes: true,
+      startExecution,
+      cancelWaitStates: mock(async () => ({
+        cancelledExecutions: 0,
+        cancelledWaits: 0,
+      })),
+      resumeWaitStates: mock(async () => 0),
+    });
+
+    expect(startExecution).toHaveBeenCalledTimes(1);
+    expect(result).toEqual({
+      status: "running",
+      executionId: "exec_fallback",
+      runId: "run_fallback",
+      dryRun: false,
     });
   });
 });

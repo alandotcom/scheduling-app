@@ -237,7 +237,8 @@ export async function orchestrateTriggerExecution(
 
   if (
     input.routingDecision.kind === "ignore" &&
-    input.routingDecision.reason === "event_not_configured"
+    input.routingDecision.reason === "event_not_configured" &&
+    input.eventType
   ) {
     return ignored("event_not_configured");
   }
