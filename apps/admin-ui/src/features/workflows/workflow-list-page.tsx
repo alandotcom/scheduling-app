@@ -1,4 +1,5 @@
 import { Add01Icon } from "@hugeicons/core-free-icons";
+import { Link } from "@tanstack/react-router";
 import type { WorkflowListResponse } from "@scheduling/dto";
 import {
   EntityListEmptyState,
@@ -60,9 +61,14 @@ export function WorkflowListPage({
           ) : null}
         </div>
         {canManageWorkflows ? (
-          <Button disabled>
-            <Icon icon={Add01Icon} className="size-4" />
-            New workflow
+          <Button asChild>
+            <Link
+              to="/workflows/$workflowId"
+              params={{ workflowId: "current" }}
+            >
+              <Icon icon={Add01Icon} className="size-4" />
+              New workflow
+            </Link>
           </Button>
         ) : null}
       </header>
@@ -106,7 +112,16 @@ export function WorkflowListPage({
                   {formatDisplayDateTime(workflow.updatedAt)}
                 </p>
               </CardContent>
-              <CardFooter />
+              <CardFooter className="justify-end">
+                <Button asChild size="sm" variant="outline">
+                  <Link
+                    to="/workflows/$workflowId"
+                    params={{ workflowId: workflow.id }}
+                  >
+                    Open editor
+                  </Link>
+                </Button>
+              </CardFooter>
             </Card>
           ))}
         </div>
