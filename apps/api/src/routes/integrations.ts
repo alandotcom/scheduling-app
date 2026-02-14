@@ -130,6 +130,25 @@ export const update = adminOnly
         input.config !== undefined
           ? { ...currentConfig, ...input.config }
           : currentConfig;
+      const secretFields = resolveSecretFields({
+        integrationKey: input.key,
+        secretsEncrypted: current.secretsEncrypted,
+        secretSalt: current.secretSalt,
+      });
+      const nextConfigured = isAppIntegrationConfigured({
+        integrationKey: input.key,
+        config: nextConfig,
+        secretFields,
+      });
+
+      if (input.enabled === true && !nextConfigured) {
+        throw new ApplicationError(
+          "Integration must be fully configured before it can be enabled",
+          {
+            code: "BAD_REQUEST",
+          },
+        );
+      }
 
       const updateInput = {
         ...(input.enabled !== undefined ? { enabled: input.enabled } : {}),

@@ -148,6 +148,38 @@ export function shouldHydrateIntegrationDrafts(input: {
   return input.draftHydratedForKey !== input.selectedIntegrationKey;
 }
 
+function IntegrationLogo({
+  integration,
+  sizeClass = "size-8",
+}: {
+  integration: IntegrationSummary;
+  sizeClass?: string;
+}) {
+  if (integration.logoUrl) {
+    return (
+      <div
+        className={`flex shrink-0 items-center justify-center overflow-hidden rounded-md border border-border bg-white p-1 ${sizeClass}`}
+      >
+        <img
+          src={integration.logoUrl}
+          alt={`${integration.name} logo`}
+          className="h-full w-full object-contain"
+          loading="lazy"
+        />
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className={`flex shrink-0 items-center justify-center rounded-md bg-muted text-xs font-semibold text-muted-foreground ${sizeClass}`}
+      aria-hidden="true"
+    >
+      {integration.name.charAt(0).toUpperCase()}
+    </div>
+  );
+}
+
 function IntegrationRow({
   integration,
   disabled,
@@ -164,19 +196,7 @@ function IntegrationRow({
   return (
     <div className="flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between">
       <div className="flex min-w-0 items-start gap-3">
-        <div className="shrink-0">
-          {integration.logoUrl ? (
-            <img
-              src={integration.logoUrl}
-              alt=""
-              className="size-8 rounded object-cover"
-            />
-          ) : (
-            <div className="flex size-8 items-center justify-center rounded bg-muted text-xs font-semibold text-muted-foreground">
-              {integration.name.charAt(0).toUpperCase()}
-            </div>
-          )}
-        </div>
+        <IntegrationLogo integration={integration} sizeClass="size-9" />
 
         <div className="min-w-0">
           <p className="truncate text-sm font-medium">{integration.name}</p>
@@ -241,19 +261,7 @@ function AddConnectionList({
           disabled={disabled}
           className="flex w-full items-start gap-3 rounded-md px-3 py-2 text-left transition hover:bg-muted/40 disabled:cursor-not-allowed disabled:opacity-60"
         >
-          <div className="shrink-0">
-            {integration.logoUrl ? (
-              <img
-                src={integration.logoUrl}
-                alt=""
-                className="size-8 rounded object-cover"
-              />
-            ) : (
-              <div className="flex size-8 items-center justify-center rounded bg-muted text-xs font-semibold text-muted-foreground">
-                {integration.name.charAt(0).toUpperCase()}
-              </div>
-            )}
-          </div>
+          <IntegrationLogo integration={integration} />
 
           <div className="min-w-0 flex-1">
             <p className="truncate text-sm font-medium">{integration.name}</p>
@@ -646,29 +654,42 @@ export function IntegrationsSection() {
             <>
               {selectedIntegration ? (
                 <div className="flex items-center justify-between gap-3 rounded-md bg-muted/30 px-3 py-2">
-                  <p className="text-xs text-muted-foreground">
-                    {selectedIntegration.enabled ? "Enabled" : "Disabled"} ·{" "}
-                    {selectedIntegrationSettings.configured
-                      ? "Configured"
-                      : "Needs setup"}
-                  </p>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() =>
-                      void onToggleEnabled(
-                        selectedIntegration,
-                        !selectedIntegration.enabled,
-                      )
-                    }
-                    disabled={
-                      isSavingSettings ||
-                      updatingIntegrationKey === selectedIntegration.key
-                    }
-                  >
-                    {selectedIntegration.enabled ? "Disable" : "Enable"}
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    <IntegrationLogo integration={selectedIntegration} />
+                    <p className="text-xs text-muted-foreground">
+                      {selectedIntegration.enabled ? "Enabled" : "Disabled"} ·{" "}
+                      {selectedIntegrationSettings.configured
+                        ? "Configured"
+                        : "Needs setup"}
+                    </p>
+                  </div>
+                  <div className="flex flex-col items-end gap-1">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() =>
+                        void onToggleEnabled(
+                          selectedIntegration,
+                          !selectedIntegration.enabled,
+                        )
+                      }
+                      disabled={
+                        isSavingSettings ||
+                        updatingIntegrationKey === selectedIntegration.key ||
+                        (!selectedIntegration.enabled &&
+                          !selectedIntegrationSettings.configured)
+                      }
+                    >
+                      {selectedIntegration.enabled ? "Disable" : "Enable"}
+                    </Button>
+                    {!selectedIntegration.enabled &&
+                    !selectedIntegrationSettings.configured ? (
+                      <p className="text-xs text-muted-foreground">
+                        Save required settings before enabling.
+                      </p>
+                    ) : null}
+                  </div>
                 </div>
               ) : null}
 

@@ -41,7 +41,7 @@ const appManagedIntegrations: readonly AppManagedIntegrationDefinition[] = [
     key: "resend",
     name: "Resend",
     description: "Send workflow emails with Resend.",
-    logoUrl: "https://cdn.resend.com/brand/resend-icon-black.png",
+    logoUrl: "https://cdn.resend.com/brand/resend-icon-black.svg",
     hasSettingsPanel: true,
     defaultEnabled: false,
     defaultConfig: {

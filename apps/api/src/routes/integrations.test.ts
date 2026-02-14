@@ -171,6 +171,80 @@ describe("Integration Routes", () => {
     });
   });
 
+  test("resend cannot be enabled until required settings are complete", async () => {
+    const { org, user } = await createOrg(db);
+    const context = createTestContext({
+      orgId: org.id,
+      userId: user.id,
+      role: "owner",
+    });
+
+    await expect(
+      call(
+        integrationRoutes.update,
+        {
+          key: "resend",
+          enabled: true,
+        },
+        { context },
+      ),
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+
+    await call(
+      integrationRoutes.update,
+      {
+        key: "resend",
+        config: {
+          fromEmail: "notifications@example.com",
+        },
+      },
+      { context },
+    );
+
+    await expect(
+      call(
+        integrationRoutes.update,
+        {
+          key: "resend",
+          enabled: true,
+        },
+        { context },
+      ),
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+
+    (
+      config.integrations as {
+        encryptionKey: string | undefined;
+      }
+    ).encryptionKey = "integration-test-encryption-key";
+
+    await call(
+      integrationRoutes.updateSecrets,
+      {
+        key: "resend",
+        set: {
+          apiKey: "re_test_key",
+        },
+      },
+      { context },
+    );
+
+    const enabled = await call(
+      integrationRoutes.update,
+      {
+        key: "resend",
+        enabled: true,
+      },
+      { context },
+    );
+
+    expect(enabled).toMatchObject({
+      key: "resend",
+      enabled: true,
+      configured: true,
+    });
+  });
+
   test("resend requires fromEmail config and apiKey secret to be configured", async () => {
     const { org, user } = await createOrg(db);
     const context = createTestContext({
