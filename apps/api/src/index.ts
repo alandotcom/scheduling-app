@@ -22,6 +22,7 @@ import { config } from "./config.js";
 import { backfillAppIntegrationDefaultsForAllOrgs } from "./services/integrations/defaults.js";
 import { bootstrapSvixEventCatalogOnStartup } from "./services/svix-event-catalog.js";
 import { inngestServeHandler } from "./inngest/serve.js";
+import { integrationOAuthRouter } from "./routes/integration-oauth.js";
 
 const app = new Hono();
 
@@ -51,6 +52,9 @@ app.get("/api/v1/health", (c) => c.json({ status: "ok" }));
 app.on(["GET", "POST"], "/api/auth/*", (c) => {
   return auth.handler(c.req.raw);
 });
+
+// Org-level OAuth integration routes (Slack, etc)
+app.route("/api/integrations/oauth", integrationOAuthRouter);
 
 // Inngest serve endpoint
 app.on(["GET", "POST", "PUT"], config.inngest.servePath, inngestServeHandler);

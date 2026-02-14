@@ -1,4 +1,7 @@
-import type { AppIntegrationKey } from "@scheduling/dto";
+import type {
+  AppIntegrationKey,
+  IntegrationOAuthStatus,
+} from "@scheduling/dto";
 import type { DbClient } from "../../lib/db.js";
 import { config } from "../../config.js";
 import { withOrg } from "../../lib/db.js";
@@ -18,6 +21,10 @@ export type AppManagedIntegrationState = {
   secretFields: Record<string, boolean>;
 };
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
 export function hasConfiguredValue(value: unknown): boolean {
   if (typeof value === "string") {
     return value.trim().length > 0;
@@ -27,7 +34,7 @@ export function hasConfiguredValue(value: unknown): boolean {
 }
 
 export function toConfig(value: unknown): Record<string, unknown> {
-  if (typeof value === "object" && value !== null && !Array.isArray(value)) {
+  if (isRecord(value)) {
     const config: Record<string, unknown> = {};
     for (const [key, entryValue] of Object.entries(value)) {
       config[key] = entryValue;
@@ -97,6 +104,36 @@ export function isAppIntegrationConfigured(input: {
   );
 
   return hasRequiredConfig && hasRequiredSecrets;
+}
+
+export function resolveOAuthStatus(input: {
+  integrationKey: AppIntegrationKey;
+  config: Record<string, unknown>;
+  secretFields: Record<string, boolean>;
+}): IntegrationOAuthStatus | undefined {
+  const definition = getAppManagedIntegrationDefinition(input.integrationKey);
+  if (definition.authStrategy !== "oauth") {
+    return undefined;
+  }
+
+  const oauthValue = input.config["oauth"];
+  const oauthConfig = isRecord(oauthValue) ? oauthValue : {};
+  const connected = definition.requiredSecretKeys.every(
+    (secretKey) => input.secretFields[secretKey] === true,
+  );
+
+  return {
+    connected,
+    connectedAt:
+      typeof oauthConfig["connectedAt"] === "string"
+        ? oauthConfig["connectedAt"]
+        : null,
+    accountLabel:
+      typeof oauthConfig["accountLabel"] === "string"
+        ? oauthConfig["accountLabel"]
+        : null,
+    canDisconnect: true,
+  };
 }
 
 function toStateFromRow(

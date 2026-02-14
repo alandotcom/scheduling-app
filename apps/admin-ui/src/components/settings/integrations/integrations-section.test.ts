@@ -14,6 +14,7 @@ const loggerSettings: IntegrationSettings = {
   enabled: true,
   configured: true,
   hasSettingsPanel: true,
+  authStrategy: "manual",
   config: {},
   secretFields: {},
   configSchema: [],
@@ -31,6 +32,7 @@ function makeIntegration(
     enabled: false,
     configured: false,
     hasSettingsPanel: true,
+    authStrategy: "manual",
     ...overrides,
   };
 }

@@ -131,10 +131,27 @@ Commonly used variables:
 | `INNGEST_SERVE_PATH`   | Inngest serve endpoint path               | `/api/inngest`                                               |
 | `INNGEST_SERVE_HOST`   | Explicit host for Inngest serve endpoint  | _(unset)_                                                    |
 | `INTEGRATIONS_ENABLED` | Comma-separated enabled integrations     | `svix`                                                       |
+| `INTEGRATIONS_ENCRYPTION_KEY` | Encrypts integration secrets (API keys/OAuth tokens) | _(unset)_                                       |
+| `INTEGRATIONS_OAUTH_STATE_SIGNING_KEY` | Signs OAuth state for org-level integrations | _(unset)_                                      |
+| `INTEGRATIONS_SLACK_CLIENT_ID` | Slack OAuth app client ID          | _(unset)_                                                    |
+| `INTEGRATIONS_SLACK_CLIENT_SECRET` | Slack OAuth app client secret  | _(unset)_                                                    |
+| `INTEGRATIONS_SLACK_REDIRECT_URI` | Slack OAuth callback URL        | _(unset)_                                                    |
+| `INTEGRATIONS_SLACK_SCOPES` | Slack bot scopes for OAuth installs   | `chat:write`                                                 |
 | `SVIX_WEBHOOKS_ENABLED` | Enable Svix API usage for `svix` integration | `false`                                                    |
 | `SVIX_BASE_URL`        | Svix API base URL                        | _(unset)_                                                    |
 | `SVIX_AUTH_TOKEN`      | Svix auth token for API access           | _(unset)_                                                    |
 | `SVIX_JWT_SECRET`      | Svix server JWT secret (self-hosted only)| _(unset)_                                                    |
+
+### Org-Level OAuth Integrations
+
+The app supports org-scoped OAuth integrations in Settings > Integrations.
+
+- Slack is implemented as the first OAuth provider.
+- OAuth credentials are stored per-org in the `integrations` table, with secrets encrypted using `INTEGRATIONS_ENCRYPTION_KEY`.
+- OAuth connect flow uses signed state tokens via `INTEGRATIONS_OAUTH_STATE_SIGNING_KEY`.
+- OAuth routes:
+  - `GET /api/integrations/oauth/:provider/start`
+  - `GET /api/integrations/oauth/:provider/callback`
 
 ## License
 

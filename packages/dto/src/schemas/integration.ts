@@ -1,8 +1,23 @@
 import { z } from "zod";
 import { successResponseSchema } from "./common";
 
-export const appIntegrationKeySchema = z.enum(["logger", "resend"]);
+export const appIntegrationKeySchema = z.enum(["logger", "resend", "slack"]);
 export type AppIntegrationKey = z.infer<typeof appIntegrationKeySchema>;
+
+export const integrationAuthStrategySchema = z.enum(["manual", "oauth"]);
+export type IntegrationAuthStrategy = z.infer<
+  typeof integrationAuthStrategySchema
+>;
+
+export const integrationOAuthStatusSchema = z.object({
+  connected: z.boolean(),
+  connectedAt: z.string().nullable(),
+  accountLabel: z.string().nullable(),
+  canDisconnect: z.boolean().default(true),
+});
+export type IntegrationOAuthStatus = z.infer<
+  typeof integrationOAuthStatusSchema
+>;
 
 export const integrationSummarySchema = z.object({
   key: appIntegrationKeySchema,
@@ -12,6 +27,7 @@ export const integrationSummarySchema = z.object({
   enabled: z.boolean(),
   configured: z.boolean(),
   hasSettingsPanel: z.boolean(),
+  authStrategy: integrationAuthStrategySchema.default("manual"),
 });
 export type IntegrationSummary = z.infer<typeof integrationSummarySchema>;
 
@@ -59,6 +75,7 @@ export const integrationSettingsSchema = integrationSummarySchema.extend({
   secretFields: z.record(z.string(), z.boolean()),
   configSchema: z.array(integrationConfigFieldSchema).default([]),
   secretSchema: z.array(integrationSecretFieldSchema).default([]),
+  oauth: integrationOAuthStatusSchema.optional(),
 });
 export type IntegrationSettings = z.infer<typeof integrationSettingsSchema>;
 
@@ -110,4 +127,16 @@ export type UpdateIntegrationSecretsInput = z.infer<
 export const updateIntegrationSecretsResponseSchema = successResponseSchema;
 export type UpdateIntegrationSecretsResponse = z.infer<
   typeof updateIntegrationSecretsResponseSchema
+>;
+
+export const disconnectIntegrationOAuthInputSchema = z.object({
+  key: appIntegrationKeySchema,
+});
+export type DisconnectIntegrationOAuthInput = z.infer<
+  typeof disconnectIntegrationOAuthInputSchema
+>;
+
+export const disconnectIntegrationOAuthResponseSchema = successResponseSchema;
+export type DisconnectIntegrationOAuthResponse = z.infer<
+  typeof disconnectIntegrationOAuthResponseSchema
 >;

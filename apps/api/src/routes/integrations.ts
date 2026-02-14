@@ -1,4 +1,6 @@
 import {
+  disconnectIntegrationOAuthInputSchema,
+  disconnectIntegrationOAuthResponseSchema,
   getIntegrationSettingsInputSchema,
   integrationSettingsSchema,
   integrationSummarySchema,
@@ -26,6 +28,7 @@ import { ensureAppIntegrationDefaultsForOrg } from "../services/integrations/def
 import {
   getAppIntegrationState,
   isAppIntegrationConfigured,
+  resolveOAuthStatus,
   resolveSecretFields,
   toConfig,
 } from "../services/integrations/readiness.js";
@@ -51,10 +54,16 @@ async function loadIntegrationSettings(orgId: string, key: AppIntegrationKey) {
     enabled: state.enabled,
     configured: state.configured,
     hasSettingsPanel: definition.hasSettingsPanel,
+    authStrategy: definition.authStrategy,
     config: state.config,
     secretFields: state.secretFields,
     configSchema: definition.configSchema,
     secretSchema: definition.secretSchema,
+    oauth: resolveOAuthStatus({
+      integrationKey: key,
+      config: state.config,
+      secretFields: state.secretFields,
+    }),
   });
 }
 
@@ -89,6 +98,7 @@ export const list = adminOnly
           secretFields,
         }),
         hasSettingsPanel: definition.hasSettingsPanel,
+        authStrategy: definition.authStrategy,
       });
     });
 
@@ -186,6 +196,7 @@ export const update = adminOnly
         secretFields,
       }),
       hasSettingsPanel: definition.hasSettingsPanel,
+      authStrategy: definition.authStrategy,
     });
   });
 
@@ -288,9 +299,77 @@ export const updateSecrets = adminOnly
     return { success: true as const };
   });
 
+export const disconnectOAuth = adminOnly
+  .route({ method: "POST", path: "/integrations/{key}/oauth/disconnect" })
+  .input(disconnectIntegrationOAuthInputSchema)
+  .output(disconnectIntegrationOAuthResponseSchema)
+  .handler(async ({ context, input }) => {
+    const definition = getAppManagedIntegrationDefinition(input.key);
+    if (definition.authStrategy !== "oauth") {
+      throw new ApplicationError(
+        "OAuth disconnect is only supported for OAuth integrations",
+        {
+          code: "BAD_REQUEST",
+        },
+      );
+    }
+
+    await ensureAppIntegrationDefaultsForOrg(context.orgId);
+
+    await withOrg(context.orgId, async (tx) => {
+      const current = await integrationRepository.findByKey(
+        tx,
+        context.orgId,
+        input.key,
+      );
+
+      if (!current) {
+        throw new ApplicationError("Integration not found", {
+          code: "NOT_FOUND",
+        });
+      }
+
+      const nextConfig = toConfig(current.config);
+      delete nextConfig["oauth"];
+
+      const updated = await integrationRepository.update(
+        tx,
+        context.orgId,
+        input.key,
+        {
+          enabled: false,
+          config: nextConfig,
+        },
+      );
+      if (!updated) {
+        throw new ApplicationError("Integration not found", {
+          code: "NOT_FOUND",
+        });
+      }
+
+      const cleared = await integrationRepository.updateSecrets(
+        tx,
+        context.orgId,
+        input.key,
+        null,
+        null,
+      );
+      if (!cleared) {
+        throw new ApplicationError("Integration not found", {
+          code: "NOT_FOUND",
+        });
+      }
+    });
+
+    invalidateEnabledIntegrationsForOrgCache(context.orgId);
+
+    return { success: true as const };
+  });
+
 export const integrationRoutes = {
   list,
   getSettings,
   update,
   updateSecrets,
+  disconnectOAuth,
 };

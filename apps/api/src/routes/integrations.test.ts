@@ -94,11 +94,19 @@ describe("Integration Routes", () => {
           key: "logger",
           enabled: false,
           configured: true,
+          authStrategy: "manual",
         }),
         expect.objectContaining({
           key: "resend",
           enabled: false,
           configured: false,
+          authStrategy: "manual",
+        }),
+        expect.objectContaining({
+          key: "slack",
+          enabled: false,
+          configured: false,
+          authStrategy: "oauth",
         }),
       ]),
     );
@@ -116,6 +124,7 @@ describe("Integration Routes", () => {
       configSchema: [],
       secretSchema: [],
       secretFields: {},
+      authStrategy: "manual",
     });
 
     const resendSettings = await call(
@@ -128,6 +137,7 @@ describe("Integration Routes", () => {
       key: "resend",
       enabled: false,
       configured: false,
+      authStrategy: "manual",
       configSchema: expect.arrayContaining([
         expect.objectContaining({
           key: "fromEmail",
@@ -168,6 +178,7 @@ describe("Integration Routes", () => {
       key: "logger",
       enabled: true,
       configured: true,
+      authStrategy: "manual",
     });
   });
 
@@ -242,6 +253,7 @@ describe("Integration Routes", () => {
       key: "resend",
       enabled: true,
       configured: true,
+      authStrategy: "manual",
     });
   });
 
@@ -423,5 +435,65 @@ describe("Integration Routes", () => {
     expect(rowAfterFailedUpdate?.secretSalt).toBe(
       rowBeforeFailedUpdate?.secretSalt,
     );
+  });
+
+  test("disconnectOAuth clears oauth secrets/config and disables integration", async () => {
+    const { org, user } = await createOrg(db);
+    const context = createTestContext({
+      orgId: org.id,
+      userId: user.id,
+      role: "owner",
+    });
+
+    (
+      config.integrations as {
+        encryptionKey: string | undefined;
+      }
+    ).encryptionKey = "integration-test-encryption-key";
+
+    await call(
+      integrationRoutes.updateSecrets,
+      {
+        key: "slack",
+        set: {
+          accessToken: "xoxb-test-token",
+        },
+      },
+      { context },
+    );
+
+    await call(
+      integrationRoutes.update,
+      {
+        key: "slack",
+        config: {
+          oauth: {
+            connectedAt: new Date().toISOString(),
+            accountLabel: "Acme Workspace",
+          },
+        },
+      },
+      { context },
+    );
+
+    await call(
+      integrationRoutes.disconnectOAuth,
+      {
+        key: "slack",
+      },
+      { context },
+    );
+
+    const row = await withOrg(org.id, async (tx) =>
+      integrationRepository.findByKey(tx, org.id, "slack"),
+    );
+    expect(row?.enabled).toBe(false);
+    expect(row?.secretsEncrypted).toBeNull();
+    expect(row?.secretSalt).toBeNull();
+
+    const integrationConfig = row?.config as
+      | Record<string, unknown>
+      | undefined;
+    expect(integrationConfig?.["oauth"]).toBeUndefined();
   });
 });

@@ -41,6 +41,63 @@ function toErrorMessage(error: unknown, fallback: string): string {
   return fallback;
 }
 
+function toProviderLabel(value: string | null): string {
+  if (!value || value.trim().length === 0) {
+    return "Integration";
+  }
+
+  const normalized = value.trim();
+  return normalized.charAt(0).toUpperCase() + normalized.slice(1);
+}
+
+const oauthErrorMessageByReason: Record<string, string> = {
+  unauthorized: "Sign in as an admin and try connecting again.",
+  forbidden: "Only organization admins can connect this integration.",
+  oauth_not_configured: "OAuth is not configured for this environment.",
+  provider_not_supported: "This integration does not support OAuth yet.",
+  provider_not_configured: "This provider is not configured yet.",
+  provider_denied: "Connection was canceled by the provider.",
+  state_missing: "OAuth state was missing. Please try again.",
+  state_invalid: "OAuth state was invalid or expired. Please try again.",
+  state_provider_mismatch:
+    "OAuth callback provider did not match the requested integration.",
+  code_missing: "OAuth code was missing. Please try again.",
+  session_mismatch:
+    "Your session changed during OAuth. Please retry from settings.",
+  token_exchange_failed:
+    "Could not exchange OAuth code for a token. Please try again.",
+  encryption_not_configured:
+    "Integration token encryption is not configured on the API server.",
+  persist_failed: "Could not save integration credentials. Please try again.",
+};
+
+function getOAuthErrorMessage(reason: string | null): string {
+  if (!reason) {
+    return "Failed to connect integration.";
+  }
+
+  return oauthErrorMessageByReason[reason] ?? "Failed to connect integration.";
+}
+
+function startOAuthConnect(integration: IntegrationSummary): void {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  const returnTo = new URL(window.location.href);
+  returnTo.searchParams.set("section", "integrations");
+  returnTo.searchParams.delete("integration_oauth");
+  returnTo.searchParams.delete("integration_provider");
+  returnTo.searchParams.delete("integration_reason");
+
+  const startUrl = new URL(
+    `/api/integrations/oauth/${integration.key}/start`,
+    window.location.origin,
+  );
+  startUrl.searchParams.set("returnTo", returnTo.toString());
+  window.location.assign(startUrl.toString());
+}
+
 function buildConfigUpdates(input: {
   settings: IntegrationSettings;
   draftConfig: Record<string, string>;
@@ -341,7 +398,56 @@ export function IntegrationsSection() {
     }),
   );
 
+  const disconnectOAuthMutation = useMutation(
+    orpc.integrations.disconnectOAuth.mutationOptions({
+      onSuccess: async () => {
+        await queryClient.invalidateQueries({
+          queryKey: orpc.integrations.key(),
+        });
+      },
+    }),
+  );
+
   const integrations = integrationsResponse?.items ?? [];
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const url = new URL(window.location.href);
+    const status = url.searchParams.get("integration_oauth");
+    if (!status) {
+      return;
+    }
+
+    const provider = url.searchParams.get("integration_provider");
+    const reason = url.searchParams.get("integration_reason");
+    const providerLabel = toProviderLabel(provider);
+
+    if (status === "success") {
+      toast.success(`${providerLabel} connected`);
+    } else {
+      toast.error(getOAuthErrorMessage(reason));
+    }
+
+    if (
+      provider === "logger" ||
+      provider === "resend" ||
+      provider === "slack"
+    ) {
+      setSelectedIntegrationKey(provider);
+    }
+
+    url.searchParams.delete("integration_oauth");
+    url.searchParams.delete("integration_provider");
+    url.searchParams.delete("integration_reason");
+    window.history.replaceState(
+      {},
+      "",
+      `${url.pathname}${url.search}${url.hash}`,
+    );
+  }, []);
 
   const selectedIntegration = useMemo(
     () =>
@@ -419,7 +525,8 @@ export function IntegrationsSection() {
 
   const isSavingSettings =
     updateIntegrationMutation.isPending ||
-    updateIntegrationSecretsMutation.isPending;
+    updateIntegrationSecretsMutation.isPending ||
+    disconnectOAuthMutation.isPending;
 
   const onToggleEnabled = async (
     integration: IntegrationSummary,
@@ -486,6 +593,23 @@ export function IntegrationsSection() {
     } catch (mutationError) {
       toast.error(
         toErrorMessage(mutationError, "Failed to save integration settings"),
+      );
+    }
+  };
+
+  const onDisconnectOAuth = async () => {
+    if (!selectedIntegrationKey) {
+      return;
+    }
+
+    try {
+      await disconnectOAuthMutation.mutateAsync({
+        key: selectedIntegrationKey,
+      });
+      toast.success("Integration disconnected");
+    } catch (mutationError) {
+      toast.error(
+        toErrorMessage(mutationError, "Failed to disconnect integration"),
       );
     }
   };
@@ -706,8 +830,57 @@ export function IntegrationsSection() {
                 </div>
               ) : null}
 
-              {selectedIntegrationSettings.configSchema.length === 0 &&
-              selectedIntegrationSettings.secretSchema.length === 0 ? (
+              {selectedIntegrationSettings.authStrategy === "oauth" ? (
+                <div className="space-y-4 rounded-lg border border-border bg-muted/30 p-4">
+                  <div className="space-y-1">
+                    <p className="text-sm font-medium">OAuth connection</p>
+                    <p className="text-sm text-muted-foreground">
+                      {selectedIntegrationSettings.oauth?.connected
+                        ? "Connected"
+                        : "Not connected"}
+                      {selectedIntegrationSettings.oauth?.accountLabel
+                        ? ` · ${selectedIntegrationSettings.oauth.accountLabel}`
+                        : ""}
+                    </p>
+                    {selectedIntegrationSettings.oauth?.connectedAt ? (
+                      <p className="text-xs text-muted-foreground">
+                        Connected at{" "}
+                        {new Date(
+                          selectedIntegrationSettings.oauth.connectedAt,
+                        ).toLocaleString()}
+                      </p>
+                    ) : null}
+                  </div>
+
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      type="button"
+                      onClick={() => {
+                        if (selectedIntegration) {
+                          startOAuthConnect(selectedIntegration);
+                        }
+                      }}
+                      disabled={isSavingSettings || !selectedIntegration}
+                    >
+                      {selectedIntegrationSettings.oauth?.connected
+                        ? "Reconnect"
+                        : `Connect ${selectedIntegration?.name ?? "Integration"}`}
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => void onDisconnectOAuth()}
+                      disabled={
+                        isSavingSettings ||
+                        !selectedIntegrationSettings.oauth?.connected
+                      }
+                    >
+                      Disconnect
+                    </Button>
+                  </div>
+                </div>
+              ) : selectedIntegrationSettings.configSchema.length === 0 &&
+                selectedIntegrationSettings.secretSchema.length === 0 ? (
                 <div className="rounded-lg border border-border bg-muted/30 p-4 text-sm text-muted-foreground">
                   This integration does not require credentials or additional
                   setup.
@@ -839,15 +1012,17 @@ export function IntegrationsSection() {
                 </>
               )}
 
-              <div className="flex justify-end gap-2 border-t border-border pt-3">
-                <Button
-                  type="button"
-                  onClick={() => void onSaveSettings()}
-                  disabled={isSavingSettings}
-                >
-                  Save settings
-                </Button>
-              </div>
+              {selectedIntegrationSettings.authStrategy !== "oauth" ? (
+                <div className="flex justify-end gap-2 border-t border-border pt-3">
+                  <Button
+                    type="button"
+                    onClick={() => void onSaveSettings()}
+                    disabled={isSavingSettings}
+                  >
+                    Save settings
+                  </Button>
+                </div>
+              ) : null}
             </>
           )}
         </div>

@@ -98,6 +98,35 @@ export const config = envParse(Bun.env, {
       env: "INTEGRATIONS_ENCRYPTION_KEY",
       optional: true,
     },
+    oauth: {
+      stateSigningKey: {
+        format: z.string().min(1),
+        env: "INTEGRATIONS_OAUTH_STATE_SIGNING_KEY",
+        optional: true,
+      },
+      slack: {
+        clientId: {
+          format: z.string().min(1),
+          env: "INTEGRATIONS_SLACK_CLIENT_ID",
+          optional: true,
+        },
+        clientSecret: {
+          format: z.string().min(1),
+          env: "INTEGRATIONS_SLACK_CLIENT_SECRET",
+          optional: true,
+        },
+        redirectUri: {
+          format: z.url(),
+          env: "INTEGRATIONS_SLACK_REDIRECT_URI",
+          optional: true,
+        },
+        scopes: {
+          format: z.string().min(1),
+          env: "INTEGRATIONS_SLACK_SCOPES",
+          default: "chat:write",
+        },
+      },
+    },
   },
   inngest: {
     baseUrl: {

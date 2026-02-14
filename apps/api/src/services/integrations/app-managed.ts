@@ -2,6 +2,7 @@ import type { IntegrationConsumer } from "@integrations/core";
 import { loggerIntegration } from "@integrations/logger";
 import type {
   AppIntegrationKey,
+  IntegrationAuthStrategy,
   IntegrationConfigField,
   IntegrationSecretField,
 } from "@scheduling/dto";
@@ -12,6 +13,7 @@ export interface AppManagedIntegrationDefinition {
   description: string;
   logoUrl: string | null;
   hasSettingsPanel: boolean;
+  authStrategy: IntegrationAuthStrategy;
   defaultEnabled: boolean;
   defaultConfig: Record<string, unknown>;
   configSchema: readonly IntegrationConfigField[];
@@ -29,6 +31,7 @@ const appManagedIntegrations: readonly AppManagedIntegrationDefinition[] = [
       "Writes outbound domain events to structured logs for debugging and traceability.",
     logoUrl: null,
     hasSettingsPanel: true,
+    authStrategy: "manual",
     defaultEnabled: false,
     defaultConfig: {},
     configSchema: [],
@@ -43,6 +46,7 @@ const appManagedIntegrations: readonly AppManagedIntegrationDefinition[] = [
     description: "Send workflow emails with Resend.",
     logoUrl: "https://cdn.resend.com/brand/resend-icon-black.svg",
     hasSettingsPanel: true,
+    authStrategy: "manual",
     defaultEnabled: false,
     defaultConfig: {
       fromEmail: "",
@@ -88,6 +92,32 @@ const appManagedIntegrations: readonly AppManagedIntegrationDefinition[] = [
     ],
     requiredConfigKeys: ["fromEmail"],
     requiredSecretKeys: ["apiKey"],
+  },
+  {
+    key: "slack",
+    name: "Slack",
+    description: "Send workflow notifications to Slack channels.",
+    logoUrl:
+      "https://a.slack-edge.com/80588/marketing/img/meta/slack_hash_256.png",
+    hasSettingsPanel: true,
+    authStrategy: "oauth",
+    defaultEnabled: false,
+    defaultConfig: {
+      oauth: {
+        connectedAt: null,
+        accountLabel: null,
+        scope: null,
+        tokenType: null,
+        accessTokenExpiresAt: null,
+        teamId: null,
+        teamName: null,
+        botUserId: null,
+      },
+    },
+    configSchema: [],
+    secretSchema: [],
+    requiredConfigKeys: [],
+    requiredSecretKeys: ["accessToken"],
   },
 ] as const;
 
