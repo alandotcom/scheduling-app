@@ -5,7 +5,7 @@ event_loop:
   max_runtime_seconds: 21600
   checkpoint_interval: 4
 cli:
-  backend: codex
+  backend: opencode
 core:
   specs_dir: ./specs/
 hats:
