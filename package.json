@@ -7,6 +7,8 @@
     "dev:api": "pnpm --filter @scheduling/api run dev",
     "dev:admin": "pnpm --filter @scheduling/admin-ui run dev",
     "dev:inngest": "DO_NOT_TRACK=1 pnpm exec inngest dev -u http://localhost:${PORT:-3000}/api/inngest --persist",
+    "compile:api": "pnpm --filter @scheduling/api run compile",
+    "start:api:compiled": "pnpm --filter @scheduling/api run start:compiled",
     "preview:admin": "pnpm --filter @scheduling/admin-ui run build && pnpm --filter @scheduling/admin-ui run preview -- --host",
     "db:migrate": "pnpm --filter @scheduling/db run migrate",
     "db:reset": "pnpm --filter @scheduling/db run reset",
