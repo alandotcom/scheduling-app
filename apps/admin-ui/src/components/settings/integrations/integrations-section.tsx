@@ -83,6 +83,17 @@ function buildSecretUpdatePayload(input: {
   };
 }
 
+const integrationLogoFallbackByKey: Partial<Record<AppIntegrationKey, string>> =
+  {
+    resend: "https://cdn.resend.com/brand/resend-icon-black.svg",
+  };
+
+function getIntegrationLogoUrl(integration: IntegrationSummary): string | null {
+  return (
+    integration.logoUrl ?? integrationLogoFallbackByKey[integration.key] ?? null
+  );
+}
+
 export function getOrderedIntegrationsForDisplay(input: {
   integrations: readonly IntegrationSummary[];
   searchQuery: string;
@@ -155,13 +166,15 @@ function IntegrationLogo({
   integration: IntegrationSummary;
   sizeClass?: string;
 }) {
-  if (integration.logoUrl) {
+  const logoUrl = getIntegrationLogoUrl(integration);
+
+  if (logoUrl) {
     return (
       <div
         className={`flex shrink-0 items-center justify-center overflow-hidden rounded-md border border-border bg-white p-1 ${sizeClass}`}
       >
         <img
-          src={integration.logoUrl}
+          src={logoUrl}
           alt={`${integration.name} logo`}
           className="h-full w-full object-contain"
           loading="lazy"

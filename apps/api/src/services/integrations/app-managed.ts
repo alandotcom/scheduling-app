@@ -53,7 +53,8 @@ const appManagedIntegrations: readonly AppManagedIntegrationDefinition[] = [
       {
         key: "fromEmail",
         label: "From email",
-        description: "Default sender address for Resend emails.",
+        description:
+          'Sender email address. When From name is set, emails are sent as "From name <from email>".',
         placeholder: "notifications@example.com",
         required: true,
         inputType: "email",
@@ -61,7 +62,8 @@ const appManagedIntegrations: readonly AppManagedIntegrationDefinition[] = [
       {
         key: "fromName",
         label: "From name",
-        description: "Optional display name shown to recipients.",
+        description:
+          "Optional display name prepended to From email (Name <email@domain.com>).",
         placeholder: "Acme Scheduling",
         required: false,
         inputType: "text",
