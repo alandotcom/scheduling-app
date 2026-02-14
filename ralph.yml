@@ -1,17 +1,18 @@
-# Feature Development Preset
+# Workflow Port Preset (Spec-Driven)
 #
-# Enhanced default workflow with integrated code review.
-# Planner → Builder → Reviewer cycle ensures quality.
+# Tuned for:
+#   specs/workflow-engine-domain-triggering/
 #
 # Usage:
-#   ralph run --config presets/feature.yml --prompt "Add user authentication"
+#   ralph run --config ralph.yml
+#   ralph run --config ralph.yml --prompt "Continue from current checkpoint"
 
 event_loop:
-  prompt_file: "PROMPT.md"
+  prompt_file: "specs/workflow-engine-domain-triggering/PROMPT.md"
   completion_promise: "LOOP_COMPLETE"
-  max_iterations: 100
-  max_runtime_seconds: 14400
-  checkpoint_interval: 5
+  max_iterations: 140
+  max_runtime_seconds: 21600
+  checkpoint_interval: 4
 
 cli:
   backend: "codex"
@@ -31,6 +32,14 @@ hats:
 
       You're building, not planning. One task, then exit.
 
+      ### Mission Context (Current Spec)
+      - Implement only from:
+        - `specs/workflow-engine-domain-triggering/design.md`
+        - `specs/workflow-engine-domain-triggering/plan.md`
+        - `specs/workflow-engine-domain-triggering/requirements.md`
+      - Execute steps in `plan.md` order unless explicitly blocked.
+      - Preserve parity with `../notifications-workflow` `main` where technically compatible.
+
       ### Project Context (Scheduling App Monorepo)
       - Runtime/tooling: Bun + pnpm workspaces (not Cargo/Jest)
       - Apps: `apps/api` (Hono/oRPC), `apps/admin-ui` (React + TanStack), shared `packages/db` + `packages/dto`
@@ -39,6 +48,11 @@ hats:
         - No new incremental DB migrations; update initial SQL and push schema in dev
         - Delete dead code rather than commenting it out
       - Always follow nearest `AGENTS.md`/`CLAUDE.md` instructions before implementing
+      - Workflow-specific non-negotiables:
+        - Trigger ingress must be canonical domain events, not webhook trigger requests
+        - Keep webhook delivery feature behavior intact
+        - Add `org_id` + org-scoped RLS on all workflow tables
+        - Enforce admin-only writes and member read-only workflow access
 
       ### Process: Explore → Plan → Implement → Verify → Commit
 
@@ -67,6 +81,8 @@ hats:
            - `pnpm format`
            - `pnpm lint`
            - `pnpm typecheck` (never package-level typecheck)
+         - Run dependency hygiene check when dependencies/schema contracts change:
+           - `pnpm knip:deps`
          - Run tests for impacted scope:
            - API changes: `pnpm --filter @scheduling/api run test`
            - DB changes: `pnpm --filter @scheduling/db run test`
@@ -87,6 +103,7 @@ hats:
       - ❌ Skip formatting/lint/typecheck/tests
       - ❌ Run multiple dev servers simultaneously
       - ❌ Add migration shims/feature flags for old behavior
+      - ❌ Introduce webhook-trigger workflow ingress as the primary trigger path
 
 
   reviewer:
@@ -109,6 +126,11 @@ hats:
       - [ ] **Repo Gates:** Were `pnpm format`, `pnpm lint`, and root `pnpm typecheck` run?
       - [ ] **DB Rules:** If schema changed, was dev schema pushed (not incremental migration)?
       - [ ] **UI QA:** For UI changes, was `agent-browser` used to validate critical flow?
+      - [ ] **Trigger Model:** Uses canonical domain event trigger ingress (not webhook-trigger route model)
+      - [ ] **RLS:** All workflow tables include `org_id` and enforce org-scoped RLS
+      - [ ] **AuthZ:** Admin-only writes and member read-only behavior are both enforced
+      - [ ] **Parity:** Runtime routing semantics match reference (`start/restart/stop/ignore`)
+      - [ ] **No Regressions:** Existing webhook delivery behavior remains intact
 
       ### Required Review Style
       - Findings first, ordered by severity, with file/line references
