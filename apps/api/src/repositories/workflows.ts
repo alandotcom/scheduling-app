@@ -124,6 +124,26 @@ export class WorkflowRepository {
     return toWorkflow(row);
   }
 
+  async findByName(
+    tx: DbClient,
+    orgId: string,
+    name: string,
+  ): Promise<Workflow | null> {
+    await setOrgContext(tx, orgId);
+
+    const [row] = await tx
+      .select()
+      .from(workflows)
+      .where(eq(workflows.name, name))
+      .limit(1);
+
+    if (!row) {
+      return null;
+    }
+
+    return toWorkflow(row);
+  }
+
   async create(
     tx: DbClient,
     orgId: string,

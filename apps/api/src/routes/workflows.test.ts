@@ -18,6 +18,7 @@ import {
   workflowExecutionLogs,
   workflowExecutions,
   workflowWaitStates,
+  workflows,
 } from "@scheduling/db/schema";
 import { inngest } from "../inngest/client.js";
 import {
@@ -57,6 +58,71 @@ function createTestGraph(triggerId = "trigger-1"): SerializedWorkflowGraph {
       },
     ],
     edges: [],
+  };
+}
+
+function createGraphWithIntegrationConfig(): SerializedWorkflowGraph {
+  return {
+    attributes: {},
+    options: {
+      type: "directed",
+    },
+    nodes: [
+      {
+        key: "trigger-source",
+        attributes: {
+          id: "trigger-source",
+          type: "trigger-node",
+          position: {
+            x: 0,
+            y: 0,
+          },
+          data: {
+            label: "Trigger",
+            type: "trigger",
+            status: "running",
+            config: {
+              triggerType: "DomainEvent",
+              startEvents: ["appointment.created"],
+              restartEvents: [],
+              stopEvents: [],
+            },
+          },
+        },
+      },
+      {
+        key: "action-source",
+        attributes: {
+          id: "action-source",
+          type: "action-node",
+          position: {
+            x: 100,
+            y: 80,
+          },
+          data: {
+            label: "Action",
+            type: "action",
+            status: "success",
+            config: {
+              integrationId: "integration-1",
+              operation: "send_email",
+            },
+          },
+        },
+      },
+    ],
+    edges: [
+      {
+        key: "edge-source",
+        source: "trigger-source",
+        target: "action-source",
+        attributes: {
+          id: "edge-source",
+          source: "trigger-source",
+          target: "action-source",
+        },
+      },
+    ],
   };
 }
 
@@ -142,6 +208,7 @@ describe("Workflow Routes", () => {
     });
     expect(listed).toHaveLength(1);
     expect(listed[0]!.id).toBe(created.id);
+    expect(listed[0]!.isOwner).toBeFalse();
 
     const fetched = await call(
       workflowRoutes.get,
@@ -149,6 +216,7 @@ describe("Workflow Routes", () => {
       { context: memberContext },
     );
     expect(fetched.id).toBe(created.id);
+    expect(fetched.isOwner).toBeFalse();
   });
 
   test("member cannot create, update, or delete workflows", async () => {
@@ -228,6 +296,7 @@ describe("Workflow Routes", () => {
       { context: ownerContext },
     );
     expect(created.name).toBe("Owner Workflow");
+    expect(created.isOwner).toBeTrue();
 
     const updated = await call(
       workflowRoutes.update,
@@ -242,6 +311,7 @@ describe("Workflow Routes", () => {
     );
     expect(updated.name).toBe("Owner Workflow Updated");
     expect(updated.description).toBe("Updated by owner");
+    expect(updated.isOwner).toBeTrue();
 
     const removed = await call(
       workflowRoutes.remove,
@@ -307,6 +377,160 @@ describe("Workflow Routes", () => {
         { context: contextA },
       ),
     ).rejects.toMatchObject({ code: "NOT_FOUND" });
+  });
+
+  test("current workflow autosave creates and updates the org draft", async () => {
+    const { org, user: owner } = await createOrg(db, {
+      name: "Current Workflow Org",
+    });
+    const member = await createOrgMember(db, org.id, {
+      role: "member",
+      email: "member@current.org",
+    });
+
+    const ownerContext = createTestContext({
+      orgId: org.id,
+      userId: owner.id,
+      role: "owner",
+    });
+    const memberContext = createTestContext({
+      orgId: org.id,
+      userId: member.id,
+      role: "member",
+    });
+
+    const emptyCurrent = await call(
+      workflowRoutes.getCurrent,
+      undefined as never,
+      {
+        context: memberContext,
+      },
+    );
+    expect(emptyCurrent.id).toBeUndefined();
+    expect(emptyCurrent.graph.nodes).toHaveLength(0);
+
+    await expect(
+      call(
+        workflowRoutes.saveCurrent,
+        { graph: createTestGraph("forbidden-save") },
+        { context: memberContext },
+      ),
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+
+    const created = await call(
+      workflowRoutes.saveCurrent,
+      {
+        graph: {
+          attributes: {},
+          options: { type: "directed" },
+          nodes: [],
+          edges: [],
+        },
+      },
+      { context: ownerContext },
+    );
+    expect(created.id).toBeDefined();
+    expect(created.graph.nodes).toHaveLength(1);
+
+    const updated = await call(
+      workflowRoutes.saveCurrent,
+      { graph: createTestGraph("updated-current") },
+      { context: ownerContext },
+    );
+    expect(updated.id).toBe(created.id);
+    expect(updated.graph.nodes[0]!.key).toBe("updated-current");
+
+    const fetched = await call(workflowRoutes.getCurrent, undefined as never, {
+      context: memberContext,
+    });
+    expect(fetched.id).toBe(created.id);
+    expect(fetched.graph.nodes[0]!.key).toBe("updated-current");
+  });
+
+  test("duplicate creates a private copied workflow and detects name conflicts", async () => {
+    const { org, user: owner } = await createOrg(db, {
+      name: "Duplicate Workflow Org",
+    });
+    const member = await createOrgMember(db, org.id, {
+      role: "member",
+      email: "member@duplicate.org",
+    });
+
+    const ownerContext = createTestContext({
+      orgId: org.id,
+      userId: owner.id,
+      role: "owner",
+    });
+    const memberContext = createTestContext({
+      orgId: org.id,
+      userId: member.id,
+      role: "member",
+    });
+
+    const source = await call(
+      workflowRoutes.create,
+      {
+        name: "Source Workflow",
+        description: "To be duplicated",
+        graph: createGraphWithIntegrationConfig(),
+        visibility: "public",
+      },
+      { context: ownerContext },
+    );
+
+    await expect(
+      call(
+        workflowRoutes.duplicate,
+        { id: source.id },
+        { context: memberContext },
+      ),
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+
+    const duplicated = await call(
+      workflowRoutes.duplicate,
+      { id: source.id },
+      { context: ownerContext },
+    );
+
+    expect(duplicated.id).not.toBe(source.id);
+    expect(duplicated.name).toBe("Source Workflow (Copy)");
+    expect(duplicated.description).toBe("To be duplicated");
+    expect(duplicated.visibility).toBe("private");
+    expect(duplicated.isOwner).toBeTrue();
+
+    const sourceNodeIds = new Set(source.graph.nodes.map((node) => node.key));
+    const duplicatedNodeIds = duplicated.graph.nodes.map((node) => node.key);
+    expect(duplicatedNodeIds.some((id) => sourceNodeIds.has(id))).toBeFalse();
+    for (const node of duplicated.graph.nodes) {
+      expect(node.attributes.id).toBe(node.key);
+      expect(node.attributes.data.status).toBe("idle");
+      if (node.attributes.data.type === "action") {
+        const config = node.attributes.data.config ?? {};
+        expect("integrationId" in config).toBeFalse();
+      }
+    }
+
+    expect(duplicated.graph.edges).toHaveLength(1);
+    const [duplicatedEdge] = duplicated.graph.edges;
+    const duplicatedNodeIdSet = new Set(duplicatedNodeIds);
+    expect(duplicatedEdge!.key).not.toBe("edge-source");
+    expect(duplicatedNodeIdSet.has(duplicatedEdge!.source)).toBeTrue();
+    expect(duplicatedNodeIdSet.has(duplicatedEdge!.target)).toBeTrue();
+
+    await expect(
+      call(
+        workflowRoutes.duplicate,
+        { id: source.id },
+        { context: ownerContext },
+      ),
+    ).rejects.toMatchObject({ code: "CONFLICT" });
+
+    await setTestOrgContext(db, org.id);
+    const allWorkflows = await db
+      .select()
+      .from(workflows)
+      .where(eq(workflows.orgId, org.id));
+    expect(allWorkflows).toHaveLength(2);
   });
 
   test("member can read execution history/details/logs/events/status", async () => {
@@ -435,6 +659,78 @@ describe("Workflow Routes", () => {
     expect(status.nodeStatuses).toEqual([
       { nodeId: "node-b", status: "cancelled" },
       { nodeId: "node-a", status: "success" },
+    ]);
+  });
+
+  test("execution status endpoint returns latest node status per node", async () => {
+    const { org, user: owner } = await createOrg(db, {
+      name: "Execution Status Org",
+    });
+
+    const ownerContext = createTestContext({
+      orgId: org.id,
+      userId: owner.id,
+      role: "owner",
+    });
+
+    const workflow = await call(
+      workflowRoutes.create,
+      {
+        name: "Execution Status Workflow",
+        graph: createTestGraph("trigger-exec-status"),
+      },
+      { context: ownerContext },
+    );
+
+    const seeded = await seedExecutionArtifacts({
+      db,
+      orgId: org.id,
+      workflowId: workflow.id,
+      status: "running",
+      startedAt: new Date("2026-01-02T09:00:00.000Z"),
+    });
+
+    await setTestOrgContext(db, org.id);
+    await db.insert(workflowExecutionLogs).values([
+      {
+        orgId: org.id,
+        executionId: seeded.executionId,
+        nodeId: "node-a",
+        nodeName: "Node A",
+        nodeType: "action-node",
+        status: "success",
+        timestamp: new Date("2026-01-02T09:00:00.000Z"),
+      },
+      {
+        orgId: org.id,
+        executionId: seeded.executionId,
+        nodeId: "node-a",
+        nodeName: "Node A",
+        nodeType: "action-node",
+        status: "running",
+        timestamp: new Date("2026-01-02T09:00:30.000Z"),
+      },
+      {
+        orgId: org.id,
+        executionId: seeded.executionId,
+        nodeId: "node-b",
+        nodeName: "Node B",
+        nodeType: "action-node",
+        status: "pending",
+        timestamp: new Date("2026-01-02T09:00:10.000Z"),
+      },
+    ]);
+
+    const status = await call(
+      workflowRoutes.getExecutionStatus,
+      { executionId: seeded.executionId },
+      { context: ownerContext },
+    );
+
+    expect(status.status).toBe("running");
+    expect(status.nodeStatuses).toEqual([
+      { nodeId: "node-a", status: "running" },
+      { nodeId: "node-b", status: "pending" },
     ]);
   });
 

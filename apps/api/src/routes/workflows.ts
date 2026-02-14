@@ -4,6 +4,8 @@ import { z } from "zod";
 import {
   createWorkflowSchema,
   listWorkflowExecutionsQuerySchema,
+  saveCurrentWorkflowSchema,
+  workflowCurrentResponseSchema,
   updateWorkflowSchema,
   workflowExecutionCancelResponseSchema,
   workflowExecutionEventsResponseSchema,
@@ -21,12 +23,47 @@ import { workflowService } from "../services/workflows.js";
 const workflowIdInputSchema = z.object({ id: z.uuid() });
 const executionIdInputSchema = z.object({ executionId: z.uuid() });
 
+function withOwnership<T extends Record<string, unknown>>(
+  value: T,
+  role: "owner" | "admin" | "member" | null,
+): T & { isOwner: boolean } {
+  return {
+    ...value,
+    isOwner: role !== "member",
+  };
+}
+
 // List workflows
 export const list = authed
   .route({ method: "GET", path: "/workflows" })
   .output(workflowListResponseSchema)
   .handler(async ({ context }) => {
-    return workflowService.list({
+    const workflows = await workflowService.list({
+      orgId: context.orgId,
+      userId: context.userId,
+    });
+
+    return workflows.map((workflow) => withOwnership(workflow, context.role));
+  });
+
+// Get current workflow draft (read-only for authenticated users)
+export const getCurrent = authed
+  .route({ method: "GET", path: "/workflows/current" })
+  .output(workflowCurrentResponseSchema)
+  .handler(async ({ context }) => {
+    return workflowService.getCurrent({
+      orgId: context.orgId,
+      userId: context.userId,
+    });
+  });
+
+// Save current workflow draft (admin only)
+export const saveCurrent = adminOnly
+  .route({ method: "POST", path: "/workflows/current" })
+  .input(saveCurrentWorkflowSchema)
+  .output(workflowCurrentResponseSchema)
+  .handler(async ({ input, context }) => {
+    return workflowService.saveCurrent(input, {
       orgId: context.orgId,
       userId: context.userId,
     });
@@ -38,10 +75,12 @@ export const get = authed
   .input(workflowIdInputSchema)
   .output(workflowResponseSchema)
   .handler(async ({ input, context }) => {
-    return workflowService.get(input.id, {
+    const workflow = await workflowService.get(input.id, {
       orgId: context.orgId,
       userId: context.userId,
     });
+
+    return withOwnership(workflow, context.role);
   });
 
 // Create a workflow (admin only)
@@ -50,10 +89,12 @@ export const create = adminOnly
   .input(createWorkflowSchema)
   .output(workflowResponseSchema)
   .handler(async ({ input, context }) => {
-    return workflowService.create(input, {
+    const workflow = await workflowService.create(input, {
       orgId: context.orgId,
       userId: context.userId,
     });
+
+    return withOwnership(workflow, context.role);
   });
 
 // Update a workflow (admin only)
@@ -67,10 +108,30 @@ export const update = adminOnly
   )
   .output(workflowResponseSchema)
   .handler(async ({ input, context }) => {
-    return workflowService.update(input.id, input.data, {
+    const workflow = await workflowService.update(input.id, input.data, {
       orgId: context.orgId,
       userId: context.userId,
     });
+
+    return withOwnership(workflow, context.role);
+  });
+
+// Duplicate workflow (admin only)
+export const duplicate = adminOnly
+  .route({
+    method: "POST",
+    path: "/workflows/{id}/duplicate",
+    successStatus: 201,
+  })
+  .input(workflowIdInputSchema)
+  .output(workflowResponseSchema)
+  .handler(async ({ input, context }) => {
+    const workflow = await workflowService.duplicate(input.id, {
+      orgId: context.orgId,
+      userId: context.userId,
+    });
+
+    return withOwnership(workflow, context.role);
   });
 
 // Delete a workflow (admin only)
@@ -193,11 +254,19 @@ export const executions = {
   cancel: cancelExecution,
 };
 
+export const current = {
+  get: getCurrent,
+  save: saveCurrent,
+};
+
 export const workflowRoutes = {
   list,
+  getCurrent,
+  saveCurrent,
   get,
   create,
   update,
+  duplicate,
   remove,
   listExecutions,
   getExecution,
@@ -205,5 +274,6 @@ export const workflowRoutes = {
   getExecutionEvents,
   getExecutionStatus,
   cancelExecution,
+  current,
   executions,
 };

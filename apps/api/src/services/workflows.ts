@@ -3,10 +3,15 @@
 import {
   createWorkflowSchema,
   listWorkflowExecutionsQuerySchema,
+  saveCurrentWorkflowSchema,
+  serializedWorkflowGraphSchema,
   updateWorkflowSchema,
   type ListWorkflowExecutionsQuery,
   type CreateWorkflowInput,
+  type SaveCurrentWorkflowInput,
+  type WorkflowCurrentResponse,
   type WorkflowExecutionCancelResponse,
+  type SerializedWorkflowGraph,
   type UpdateWorkflowInput,
 } from "@scheduling/dto";
 import { withOrg } from "../lib/db.js";
@@ -23,6 +28,114 @@ import { sendWorkflowCancelRequested } from "../inngest/runtime-events.js";
 
 const UNIQUE_CONSTRAINT_VIOLATION = "23505";
 const WORKFLOW_NAME_UNIQUE_CONSTRAINT = "workflows_org_name_ci_uidx";
+const CURRENT_WORKFLOW_NAME = "~~__CURRENT__~~";
+
+function createDefaultCurrentGraph(): SerializedWorkflowGraph {
+  const triggerId = crypto.randomUUID();
+
+  return {
+    attributes: {},
+    options: {
+      type: "directed",
+    },
+    nodes: [
+      {
+        key: triggerId,
+        attributes: {
+          id: triggerId,
+          type: "trigger-node",
+          position: {
+            x: 0,
+            y: 0,
+          },
+          data: {
+            label: "",
+            description: "",
+            type: "trigger",
+            status: "idle",
+            config: {
+              triggerType: "DomainEvent",
+              startEvents: [],
+              restartEvents: [],
+              stopEvents: [],
+            },
+          },
+        },
+      },
+    ],
+    edges: [],
+  };
+}
+
+function createEmptyCurrentGraph(): SerializedWorkflowGraph {
+  return {
+    attributes: {},
+    options: {
+      type: "directed",
+    },
+    nodes: [],
+    edges: [],
+  };
+}
+
+function duplicateGraphWithReset(
+  graph: SerializedWorkflowGraph,
+): SerializedWorkflowGraph {
+  const duplicatedGraph = structuredClone(graph);
+  const nodeIdMap = new Map<string, string>();
+
+  const duplicatedNodes = duplicatedGraph.nodes.map((sourceNode) => {
+    const newId = crypto.randomUUID();
+    const duplicatedNode = {
+      ...sourceNode,
+      key: newId,
+      attributes: {
+        ...sourceNode.attributes,
+        id: newId,
+        data: {
+          ...sourceNode.attributes.data,
+          status: "idle" as const,
+        },
+      },
+    };
+
+    const config = duplicatedNode.attributes.data.config;
+    if (config && typeof config === "object" && !Array.isArray(config)) {
+      delete (config as Record<string, unknown>)["integrationId"];
+    }
+
+    nodeIdMap.set(sourceNode.key, duplicatedNode.key);
+    nodeIdMap.set(sourceNode.attributes.id, duplicatedNode.attributes.id);
+
+    return duplicatedNode;
+  });
+
+  const duplicatedEdges = duplicatedGraph.edges.map((edge) => {
+    const source = nodeIdMap.get(edge.source) ?? edge.source;
+    const target = nodeIdMap.get(edge.target) ?? edge.target;
+    const newId = crypto.randomUUID();
+
+    return {
+      ...edge,
+      key: newId,
+      source,
+      target,
+      attributes: {
+        ...edge.attributes,
+        id: newId,
+        source,
+        target,
+      },
+    };
+  });
+
+  return {
+    attributes: duplicatedGraph.attributes,
+    options: duplicatedGraph.options,
+    nodes: duplicatedNodes,
+    edges: duplicatedEdges,
+  };
+}
 
 function isUniqueConstraintViolation(error: unknown): boolean {
   if (!error || typeof error !== "object") return false;
@@ -93,6 +206,20 @@ function validateCreateInput(input: CreateWorkflowInput): CreateWorkflowInput {
 
 function validateUpdateInput(input: UpdateWorkflowInput): UpdateWorkflowInput {
   const parsed = updateWorkflowSchema.safeParse(input);
+  if (!parsed.success) {
+    throw new ApplicationError("Invalid workflow payload", {
+      code: "BAD_REQUEST",
+      details: { issues: parsed.error.issues },
+    });
+  }
+
+  return parsed.data;
+}
+
+function validateSaveCurrentInput(
+  input: SaveCurrentWorkflowInput,
+): SaveCurrentWorkflowInput {
+  const parsed = saveCurrentWorkflowSchema.safeParse(input);
   if (!parsed.success) {
     throw new ApplicationError("Invalid workflow payload", {
       code: "BAD_REQUEST",
@@ -226,6 +353,116 @@ export class WorkflowService {
     });
   }
 
+  async getCurrent(context: ServiceContext): Promise<WorkflowCurrentResponse> {
+    return withOrg(context.orgId, async (tx) => {
+      const workflow = await workflowRepository.findByName(
+        tx,
+        context.orgId,
+        CURRENT_WORKFLOW_NAME,
+      );
+
+      if (!workflow) {
+        return { graph: createEmptyCurrentGraph() };
+      }
+
+      return {
+        id: workflow.id,
+        graph: workflow.graph,
+      };
+    });
+  }
+
+  async saveCurrent(
+    input: SaveCurrentWorkflowInput,
+    context: ServiceContext,
+  ): Promise<WorkflowCurrentResponse> {
+    const parsed = validateSaveCurrentInput(input);
+    const graph =
+      parsed.graph.nodes.length === 0
+        ? createDefaultCurrentGraph()
+        : parsed.graph;
+
+    return withOrg(context.orgId, async (tx) => {
+      const existing = await workflowRepository.findByName(
+        tx,
+        context.orgId,
+        CURRENT_WORKFLOW_NAME,
+      );
+
+      if (existing) {
+        const updated = await workflowRepository.update(
+          tx,
+          context.orgId,
+          existing.id,
+          {
+            graph,
+          },
+        );
+
+        if (!updated) {
+          throw new ApplicationError("Workflow not found", {
+            code: "NOT_FOUND",
+          });
+        }
+
+        return {
+          id: updated.id,
+          graph: updated.graph,
+        };
+      }
+
+      const created = await workflowRepository.create(tx, context.orgId, {
+        name: CURRENT_WORKFLOW_NAME,
+        description: "Auto-saved current workflow",
+        graph,
+        visibility: "private",
+      });
+
+      return {
+        id: created.id,
+        graph: created.graph,
+      };
+    });
+  }
+
+  async duplicate(id: string, context: ServiceContext): Promise<Workflow> {
+    return withOrg(context.orgId, async (tx) => {
+      const source = await workflowRepository.findById(tx, context.orgId, id);
+      if (!source) {
+        throw new ApplicationError("Workflow not found", { code: "NOT_FOUND" });
+      }
+
+      const name = `${source.name} (Copy)`;
+      const conflict = await workflowRepository.findByNameInsensitive(
+        tx,
+        context.orgId,
+        name,
+      );
+      if (conflict) {
+        throw workflowNameConflictError();
+      }
+
+      const graph = serializedWorkflowGraphSchema.parse(
+        duplicateGraphWithReset(source.graph),
+      );
+
+      try {
+        return await workflowRepository.create(tx, context.orgId, {
+          name,
+          description: source.description,
+          graph,
+          visibility: "private",
+        });
+      } catch (error: unknown) {
+        const mapped = mapWorkflowWriteError(error);
+        if (mapped) {
+          throw mapped;
+        }
+        throw error;
+      }
+    });
+  }
+
   async listExecutions(
     workflowId: string,
     query: ListWorkflowExecutionsQuery,
@@ -355,14 +592,24 @@ export class WorkflowService {
         executionId,
       );
 
-      const nodeStatuses = logs.map((log) => ({
-        nodeId: log.nodeId,
-        status:
-          execution.status === "cancelled" &&
-          (log.status === "pending" || log.status === "running")
-            ? "cancelled"
-            : log.status,
-      }));
+      const nodeStatuses = Array.from(
+        logs.reduce((latestByNode, log) => {
+          if (latestByNode.has(log.nodeId)) {
+            return latestByNode;
+          }
+
+          latestByNode.set(log.nodeId, {
+            nodeId: log.nodeId,
+            status:
+              execution.status === "cancelled" &&
+              (log.status === "pending" || log.status === "running")
+                ? "cancelled"
+                : log.status,
+          });
+
+          return latestByNode;
+        }, new Map<string, { nodeId: string; status: string }>()),
+      ).map(([, nodeStatus]) => nodeStatus);
 
       return {
         status: execution.status,
