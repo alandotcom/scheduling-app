@@ -8,7 +8,7 @@ import {
   test,
 } from "bun:test";
 import { eq, inArray } from "drizzle-orm";
-import { workflowExecutions } from "@scheduling/db/schema";
+import { workflowExecutions, workflowWaitStates } from "@scheduling/db/schema";
 import type {
   DomainEventData,
   DomainEventType,
@@ -27,6 +27,8 @@ import { processWorkflowDomainEvent } from "./workflow-domain-triggers.js";
 
 function createGraphWithDomainEventTrigger(
   startEvents: DomainEventType[],
+  restartEvents: DomainEventType[] = [],
+  stopEvents: DomainEventType[] = [],
 ): SerializedWorkflowGraph {
   return {
     attributes: {},
@@ -44,8 +46,8 @@ function createGraphWithDomainEventTrigger(
             config: {
               triggerType: "DomainEvent",
               startEvents,
-              restartEvents: [],
-              stopEvents: [],
+              restartEvents,
+              stopEvents,
             },
           },
         },
@@ -61,6 +63,21 @@ function createClientCreatedPayload(): DomainEventData<"client.created"> {
     firstName: "Ada",
     lastName: "Lovelace",
     email: null,
+  };
+}
+
+function createClientUpdatedPayload(): DomainEventData<"client.updated"> {
+  return {
+    clientId: "018f4d3a-6d80-7c5b-8a4a-6cb8f8d57d11",
+    changes: {
+      firstName: "Ada",
+    },
+    previous: {
+      firstName: "Ada",
+      lastName: "Lovelace",
+      email: null,
+      phone: null,
+    },
   };
 }
 
@@ -105,7 +122,7 @@ describe("workflow domain triggers", () => {
         payload: createClientCreatedPayload(),
         timestamp: new Date().toISOString(),
       },
-      runRequester,
+      { runRequester },
     );
 
     expect(result.startedExecutionIds).toHaveLength(1);
@@ -159,7 +176,7 @@ describe("workflow domain triggers", () => {
         payload: createClientCreatedPayload(),
         timestamp: new Date().toISOString(),
       },
-      runRequester,
+      { runRequester },
     );
 
     expect(result.startedExecutionIds).toHaveLength(0);
@@ -216,7 +233,7 @@ describe("workflow domain triggers", () => {
         payload: createClientCreatedPayload(),
         timestamp: new Date().toISOString(),
       },
-      runRequester,
+      { runRequester },
     );
 
     expect(result.startedExecutionIds).toHaveLength(1);
@@ -296,7 +313,7 @@ describe("workflow domain triggers", () => {
         payload: createClientCreatedPayload(),
         timestamp: new Date().toISOString(),
       },
-      runRequester,
+      { runRequester },
     );
 
     expect(result.startedExecutionIds).toHaveLength(1);
@@ -319,5 +336,172 @@ describe("workflow domain triggers", () => {
       .where(eq(workflowExecutions.workflowId, workflowB.id));
 
     expect(orgBExecutions).toHaveLength(0);
+  });
+
+  test("restart routing cancels waiting executions and starts a replacement run", async () => {
+    const { org, user } = await createOrg(db as any, {
+      name: "Workflow Restart Org",
+      email: "restart-org@example.com",
+    });
+
+    const workflow = await workflowService.create(
+      {
+        name: "Restart Workflow",
+        graph: createGraphWithDomainEventTrigger([], ["client.updated"]),
+      },
+      {
+        orgId: org.id,
+        userId: user.id,
+      },
+    );
+
+    await setTestOrgContext(db, org.id);
+    const [existingExecution] = await db
+      .insert(workflowExecutions)
+      .values({
+        orgId: org.id,
+        workflowId: workflow.id,
+        status: "waiting",
+        triggerType: "domain_event",
+        triggerEventType: "client.created",
+        correlationKey: "018f4d3a-6d80-7c5b-8a4a-6cb8f8d57d11",
+      })
+      .returning();
+
+    await db.insert(workflowWaitStates).values({
+      orgId: org.id,
+      workflowId: workflow.id,
+      executionId: existingExecution!.id,
+      runId: "run_wait_1",
+      nodeId: "wait-node-1",
+      nodeName: "Wait for client updates",
+      waitType: "hook",
+      status: "waiting",
+      hookToken: "token_wait_1",
+      correlationKey: "018f4d3a-6d80-7c5b-8a4a-6cb8f8d57d11",
+      metadata: { waitForEvents: "client.updated" },
+    });
+
+    const runRequester = mock(async () => ({ eventId: "run-event-restart" }));
+    const cancelRequester = mock(async () => ({ eventId: "cancel-event-1" }));
+
+    const result = await processWorkflowDomainEvent(
+      {
+        id: "event-client-updated-1",
+        orgId: org.id,
+        type: "client.updated",
+        payload: createClientUpdatedPayload(),
+        timestamp: new Date().toISOString(),
+      },
+      {
+        runRequester,
+        cancelRequester,
+      },
+    );
+
+    expect(result.startedExecutionIds).toHaveLength(1);
+    expect(result.erroredWorkflowIds).toHaveLength(0);
+    expect(cancelRequester).toHaveBeenCalledTimes(1);
+    expect(runRequester).toHaveBeenCalledTimes(1);
+
+    const [cancelledExecution] = await db
+      .select()
+      .from(workflowExecutions)
+      .where(eq(workflowExecutions.id, existingExecution!.id));
+
+    expect(cancelledExecution?.status).toBe("cancelled");
+
+    const [waitState] = await db
+      .select()
+      .from(workflowWaitStates)
+      .where(eq(workflowWaitStates.executionId, existingExecution!.id));
+
+    expect(waitState?.status).toBe("cancelled");
+  });
+
+  test("start routing resumes matching wait states without creating a new execution", async () => {
+    const { org, user } = await createOrg(db as any, {
+      name: "Workflow Resume Org",
+      email: "resume-org@example.com",
+    });
+
+    const workflow = await workflowService.create(
+      {
+        name: "Resume Workflow",
+        graph: createGraphWithDomainEventTrigger(["client.updated"]),
+      },
+      {
+        orgId: org.id,
+        userId: user.id,
+      },
+    );
+
+    await setTestOrgContext(db, org.id);
+    const [existingExecution] = await db
+      .insert(workflowExecutions)
+      .values({
+        orgId: org.id,
+        workflowId: workflow.id,
+        status: "waiting",
+        triggerType: "domain_event",
+        triggerEventType: "client.created",
+        correlationKey: "018f4d3a-6d80-7c5b-8a4a-6cb8f8d57d11",
+      })
+      .returning();
+
+    const [waitState] = await db
+      .insert(workflowWaitStates)
+      .values({
+        orgId: org.id,
+        workflowId: workflow.id,
+        executionId: existingExecution!.id,
+        runId: "run_wait_resume_1",
+        nodeId: "wait-node-2",
+        nodeName: "Wait for client updates",
+        waitType: "hook",
+        status: "waiting",
+        hookToken: "token_wait_resume_1",
+        correlationKey: "018f4d3a-6d80-7c5b-8a4a-6cb8f8d57d11",
+        metadata: { waitForEvents: "client.updated" },
+      })
+      .returning();
+
+    const runRequester = mock(async () => ({ eventId: "run-event-unused" }));
+    const waitSignalRequester = mock(async () => ({
+      eventId: "signal-event-1",
+    }));
+
+    const result = await processWorkflowDomainEvent(
+      {
+        id: "event-client-updated-2",
+        orgId: org.id,
+        type: "client.updated",
+        payload: createClientUpdatedPayload(),
+        timestamp: new Date().toISOString(),
+      },
+      {
+        runRequester,
+        waitSignalRequester,
+      },
+    );
+
+    expect(result.startedExecutionIds).toHaveLength(0);
+    expect(result.resumedWorkflowIds).toEqual([workflow.id]);
+    expect(runRequester).toHaveBeenCalledTimes(0);
+    expect(waitSignalRequester).toHaveBeenCalledTimes(1);
+
+    const [updatedWaitState] = await db
+      .select()
+      .from(workflowWaitStates)
+      .where(eq(workflowWaitStates.id, waitState!.id));
+
+    expect(updatedWaitState?.status).toBe("resumed");
+
+    const [updatedExecution] = await db
+      .select()
+      .from(workflowExecutions)
+      .where(eq(workflowExecutions.id, existingExecution!.id));
+
+    expect(updatedExecution?.status).toBe("running");
   });
 });

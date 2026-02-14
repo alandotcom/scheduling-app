@@ -15,6 +15,24 @@ export type WorkflowRunRequestedEventData = {
   };
 };
 
+export type WorkflowCancelRequestedEventData = {
+  executionId: string;
+  workflowId: string;
+  reason: string;
+  requestedBy: string;
+  eventType?: DomainEventType;
+  correlationKey?: string;
+};
+
+export type WorkflowWaitSignalEventData = {
+  executionId: string;
+  nodeId: string;
+  token?: string | null;
+  eventType?: DomainEventType;
+  correlationKey?: string;
+  payload?: Record<string, unknown>;
+};
+
 type InngestSendResult =
   | {
       eventId?: string;
@@ -78,6 +96,43 @@ export async function sendWorkflowRunRequested(
 
   const eventId = getEventId(response);
 
+  if (eventId) {
+    return { eventId };
+  }
+
+  return {};
+}
+
+export async function sendWorkflowCancelRequested(
+  input: WorkflowCancelRequestedEventData,
+): Promise<{ eventId?: string }> {
+  const response = await inngest.send({
+    id: `workflow-cancel-${input.executionId}-${Date.now()}`,
+    name: "workflow/run.cancel.requested",
+    data: input,
+  });
+
+  const eventId = getEventId(response);
+  if (eventId) {
+    return { eventId };
+  }
+
+  return {};
+}
+
+export async function sendWorkflowWaitSignal(
+  input: WorkflowWaitSignalEventData,
+): Promise<{ eventId?: string }> {
+  const response = await inngest.send({
+    id: `workflow-wait-signal-${input.executionId}-${input.nodeId}-${Date.now()}`,
+    name: "workflow/wait.signal",
+    data: {
+      ...input,
+      signalType: "wait-resume",
+    },
+  });
+
+  const eventId = getEventId(response);
   if (eventId) {
     return { eventId };
   }

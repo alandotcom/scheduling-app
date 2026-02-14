@@ -1,7 +1,11 @@
 // Workflow repository - data access layer for workflow CRUD
 
-import { and, desc, eq, ne, sql, type SQL } from "drizzle-orm";
-import { workflowExecutions, workflows } from "@scheduling/db/schema";
+import { and, desc, eq, inArray, ne, sql, type SQL } from "drizzle-orm";
+import {
+  workflowExecutions,
+  workflows,
+  workflowWaitStates,
+} from "@scheduling/db/schema";
 import {
   serializedWorkflowGraphSchema,
   workflowVisibilitySchema,
@@ -35,8 +39,10 @@ export interface WorkflowUpdateInput {
 }
 
 type WorkflowExecutionRow = typeof workflowExecutions.$inferSelect;
+type WorkflowWaitStateRow = typeof workflowWaitStates.$inferSelect;
 
 export type WorkflowExecution = WorkflowExecutionRow;
+export type WorkflowWaitState = WorkflowWaitStateRow;
 
 export interface WorkflowExecutionCreateInput {
   workflowId: string;
@@ -223,6 +229,124 @@ export class WorkflowRepository {
         completedAt: sql`now()`,
       })
       .where(eq(workflowExecutions.id, executionId));
+  }
+
+  async listWorkflowWaitingStatesByCorrelation(
+    tx: DbClient,
+    orgId: string,
+    input: {
+      workflowId: string;
+      correlationKey: string;
+    },
+  ): Promise<WorkflowWaitState[]> {
+    await setOrgContext(tx, orgId);
+
+    return await tx
+      .select()
+      .from(workflowWaitStates)
+      .where(
+        and(
+          eq(workflowWaitStates.workflowId, input.workflowId),
+          eq(workflowWaitStates.correlationKey, input.correlationKey),
+          eq(workflowWaitStates.status, "waiting"),
+        ),
+      );
+  }
+
+  async markWaitingStatesCancelled(
+    tx: DbClient,
+    orgId: string,
+    waitStateIds: string[],
+  ): Promise<string[]> {
+    if (waitStateIds.length === 0) {
+      return [];
+    }
+
+    await setOrgContext(tx, orgId);
+
+    const updated = await tx
+      .update(workflowWaitStates)
+      .set({
+        status: "cancelled",
+        cancelledAt: sql`now()`,
+      })
+      .where(
+        and(
+          inArray(workflowWaitStates.id, waitStateIds),
+          eq(workflowWaitStates.status, "waiting"),
+        ),
+      )
+      .returning({ id: workflowWaitStates.id });
+
+    return updated.map((row) => row.id);
+  }
+
+  async markExecutionCancelled(
+    tx: DbClient,
+    orgId: string,
+    executionId: string,
+    reason: string,
+  ): Promise<void> {
+    await setOrgContext(tx, orgId);
+
+    await tx
+      .update(workflowExecutions)
+      .set({
+        status: "cancelled",
+        waitingAt: null,
+        cancelledAt: sql`now()`,
+        completedAt: sql`now()`,
+        error: reason,
+      })
+      .where(eq(workflowExecutions.id, executionId));
+  }
+
+  async markExecutionRunning(
+    tx: DbClient,
+    orgId: string,
+    executionId: string,
+  ): Promise<boolean> {
+    await setOrgContext(tx, orgId);
+
+    const updated = await tx
+      .update(workflowExecutions)
+      .set({
+        status: "running",
+        waitingAt: null,
+      })
+      .where(
+        and(
+          eq(workflowExecutions.id, executionId),
+          eq(workflowExecutions.status, "waiting"),
+        ),
+      )
+      .returning({ id: workflowExecutions.id });
+
+    return updated.length > 0;
+  }
+
+  async markWaitStateResumed(
+    tx: DbClient,
+    orgId: string,
+    waitStateId: string,
+  ): Promise<boolean> {
+    await setOrgContext(tx, orgId);
+
+    const updated = await tx
+      .update(workflowWaitStates)
+      .set({
+        status: "resumed",
+        resumedAt: sql`now()`,
+      })
+      .where(
+        and(
+          eq(workflowWaitStates.id, waitStateId),
+          eq(workflowWaitStates.status, "waiting"),
+        ),
+      )
+      .returning({ id: workflowWaitStates.id });
+
+    return updated.length > 0;
   }
 }
 
