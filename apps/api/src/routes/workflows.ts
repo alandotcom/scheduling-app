@@ -409,6 +409,9 @@ export const updateDraft = adminOnly
       const [updated] = await tx
         .update(workflowDefinitions)
         .set({
+          ...(input.name !== undefined
+            ? { name: input.name.trim() || definition.name }
+            : {}),
           draftWorkflowGraph: input.workflowGraph,
           draftRevision: definition.draftRevision + 1,
           updatedAt: new Date(),

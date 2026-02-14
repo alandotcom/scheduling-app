@@ -441,6 +441,7 @@ export const createWorkflowDefinitionSchema = z.object({
 });
 
 export const updateWorkflowDraftWorkflowGraphSchema = z.object({
+  name: z.string().min(1).max(255).optional(),
   workflowGraph: workflowGraphDocumentSchema,
   expectedRevision: z.number().int().positive().optional(),
 });
