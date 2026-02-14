@@ -2,7 +2,6 @@ import { describe, expect, test } from "bun:test";
 import {
   getHeaderBreadcrumbItems,
   getRemainingMinimumVisibleMs,
-  getWorkflowIdFromPathname,
   sanitizeSearchParamsForOrganizationSwitch,
 } from "./__root";
 
@@ -58,50 +57,10 @@ describe("getRemainingMinimumVisibleMs", () => {
   });
 });
 
-describe("getWorkflowIdFromPathname", () => {
-  test("parses workflow id from detail route", () => {
-    expect(getWorkflowIdFromPathname("/workflows/workflow-123")).toBe(
-      "workflow-123",
-    );
-  });
-
-  test("returns null for workflows index route", () => {
-    expect(getWorkflowIdFromPathname("/workflows")).toBeNull();
-    expect(getWorkflowIdFromPathname("/workflows/")).toBeNull();
-  });
-
-  test("returns null for new workflow route", () => {
-    expect(getWorkflowIdFromPathname("/workflows/new")).toBeNull();
-  });
-});
-
 describe("getHeaderBreadcrumbItems", () => {
   test("returns single breadcrumb for top-level clients page", () => {
     expect(getHeaderBreadcrumbItems({ pathname: "/clients" })).toEqual([
       { label: "Clients" },
-    ]);
-  });
-
-  test("returns fallback workflow detail breadcrumb when name is unavailable", () => {
-    expect(
-      getHeaderBreadcrumbItems({
-        pathname: "/workflows/workflow-123",
-      }),
-    ).toEqual([
-      { label: "Workflows", to: "/workflows" },
-      { label: "Workflow" },
-    ]);
-  });
-
-  test("uses workflow name in workflow detail breadcrumb", () => {
-    expect(
-      getHeaderBreadcrumbItems({
-        pathname: "/workflows/workflow-123",
-        workflowName: "Data Fetching",
-      }),
-    ).toEqual([
-      { label: "Workflows", to: "/workflows" },
-      { label: "Data Fetching" },
     ]);
   });
 

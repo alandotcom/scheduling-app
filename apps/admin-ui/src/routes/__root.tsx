@@ -88,7 +88,6 @@ type HeaderBreadcrumbLink =
   | "/appointment-types"
   | "/resources"
   | "/locations"
-  | "/workflows"
   | "/settings"
   | "/split-pane";
 
@@ -185,26 +184,11 @@ function resolveSettingsSection(
   return "organization";
 }
 
-export function getWorkflowIdFromPathname(pathname: string): string | null {
-  const normalizedPathname = normalizePathname(pathname);
-  const segments = normalizedPathname.split("/").filter(Boolean);
-  if (segments[0] !== "workflows" || segments.length !== 2) return null;
-  const workflowId = segments[1];
-  if (!workflowId || workflowId === "new") return null;
-  return decodeURIComponent(workflowId);
-}
-
 export function getHeaderBreadcrumbItems(input: {
   pathname: string;
   searchStr?: string;
-  workflowName?: string | null;
 }): HeaderBreadcrumbItem[] {
   const normalizedPathname = normalizePathname(input.pathname);
-  const workflowId = getWorkflowIdFromPathname(normalizedPathname);
-  if (workflowId) {
-    const workflowLabel = input.workflowName?.trim() || "Workflow";
-    return [{ label: "Workflows", to: "/workflows" }, { label: workflowLabel }];
-  }
   if (normalizedPathname === "/settings") {
     const searchParams = new URLSearchParams(input.searchStr ?? "");
     const activeSection = resolveSettingsSection(searchParams.get("section"));
@@ -321,16 +305,6 @@ function RootLayout() {
   const sessionActiveOrganizationId = session?.session.activeOrganizationId;
   const activeOrganizationId =
     authContextQuery.data?.orgId ?? sessionActiveOrganizationId ?? null;
-  const workflowBreadcrumbId = getWorkflowIdFromPathname(location.pathname);
-  const workflowBreadcrumbQuery = useQuery({
-    ...orpc.workflows.getDefinition.queryOptions({
-      input: { id: workflowBreadcrumbId ?? "" },
-    }),
-    enabled:
-      isAuthenticated && !!activeOrganizationId && !!workflowBreadcrumbId,
-    retry: false,
-  });
-
   const shouldFetchMemberships =
     isAuthenticated &&
     (authContextUnavailable ||
@@ -665,7 +639,6 @@ function RootLayout() {
   const headerBreadcrumbItems = getHeaderBreadcrumbItems({
     pathname: location.pathname,
     searchStr: location.searchStr,
-    workflowName: workflowBreadcrumbQuery.data?.name,
   });
 
   return (

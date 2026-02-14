@@ -1,12 +1,4 @@
-import { useMemo, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useNavigate } from "@tanstack/react-router";
-import { Add01Icon, ArrowRight02Icon } from "@hugeicons/core-free-icons";
-import type { WorkflowDefinitionStatus } from "@scheduling/dto";
-import {
-  EntityListEmptyState,
-  EntityListLoadingState,
-} from "@/components/entity-list";
+import { Add01Icon } from "@hugeicons/core-free-icons";
 import { PageScaffold } from "@/components/layout/page-scaffold";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -20,84 +12,70 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Icon } from "@/components/ui/icon";
-import {
-  createDefaultReferenceWorkflowGraph,
-  referenceGraphToCanonicalGraph,
-} from "@/lib/workflows/reference-adapter";
-import { orpc } from "@/lib/query";
 
-function formatDateTime(value: Date | string): string {
-  const parsed = value instanceof Date ? value : new Date(value);
-  if (Number.isNaN(parsed.getTime())) {
-    return value instanceof Date ? value.toISOString() : value;
-  }
-  return parsed.toLocaleString();
+type StubStatus = "active" | "draft" | "archived";
+
+interface StubWorkflow {
+  id: string;
+  name: string;
+  description: string | null;
+  key: string;
+  status: StubStatus;
+  updatedAt: string;
 }
 
+const STUB_WORKFLOWS: StubWorkflow[] = [
+  {
+    id: "1",
+    name: "New Client Welcome",
+    description: "Send welcome email when a new client is created",
+    key: "new-client-welcome",
+    status: "active",
+    updatedAt: "2/14/2026, 11:18:19 AM",
+  },
+  {
+    id: "2",
+    name: "Appointment Reminder",
+    description: "Remind clients 24h before their appointment",
+    key: "appointment-reminder",
+    status: "active",
+    updatedAt: "2/14/2026, 8:49:33 AM",
+  },
+  {
+    id: "3",
+    name: "No-Show Follow Up",
+    description: null,
+    key: "no-show-follow-up",
+    status: "draft",
+    updatedAt: "2/14/2026, 8:33:24 AM",
+  },
+  {
+    id: "4",
+    name: "Cancellation Survey",
+    description: null,
+    key: "cancellation-survey",
+    status: "draft",
+    updatedAt: "2/14/2026, 12:44:56 AM",
+  },
+  {
+    id: "5",
+    name: "Weekly Digest",
+    description: "Send a weekly summary to org admins",
+    key: "weekly-digest",
+    status: "draft",
+    updatedAt: "2/14/2026, 12:43:28 AM",
+  },
+];
+
 function toStatusBadgeVariant(
-  status: WorkflowDefinitionStatus,
+  status: StubStatus,
 ): "default" | "secondary" | "warning" {
   if (status === "active") return "default";
   if (status === "draft") return "warning";
   return "secondary";
 }
 
-function buildWorkflowName(index: number): string {
-  return `Workflow ${index + 1}`;
-}
-
-function buildWorkflowKey(index: number): string {
-  const suffix = `${Date.now().toString(36)}${Math.floor(
-    Math.random() * 10000,
-  ).toString(36)}`;
-  return `workflow-${index + 1}-${suffix}`;
-}
-
 export function WorkflowListPage() {
-  const navigate = useNavigate();
-  const queryClient = useQueryClient();
-  const [createError, setCreateError] = useState<string | null>(null);
-
-  const listQuery = useQuery(
-    orpc.workflows.listDefinitions.queryOptions({
-      input: {},
-    }),
-  );
-
-  const workflows = useMemo(
-    () => listQuery.data?.items ?? [],
-    [listQuery.data?.items],
-  );
-
-  const createMutation = useMutation(
-    orpc.workflows.createDefinition.mutationOptions({
-      onSuccess: async (created) => {
-        setCreateError(null);
-        await queryClient.invalidateQueries({ queryKey: orpc.workflows.key() });
-        await navigate({
-          to: "/workflows/$workflowId",
-          params: { workflowId: created.id },
-        });
-      },
-      onError: (error) => {
-        setCreateError(error.message || "Failed to create workflow.");
-      },
-    }),
-  );
-
-  const handleCreateWorkflow = () => {
-    setCreateError(null);
-    const workflowGraph = referenceGraphToCanonicalGraph(
-      createDefaultReferenceWorkflowGraph(),
-    );
-    const nextIndex = workflows.length;
-    createMutation.mutate({
-      key: buildWorkflowKey(nextIndex),
-      name: buildWorkflowName(nextIndex),
-      workflowGraph,
-    });
-  };
-
   return (
     <PageScaffold className="space-y-6">
       <header className="flex flex-wrap items-center justify-between gap-3">
@@ -108,84 +86,40 @@ export function WorkflowListPage() {
             schedules.
           </p>
         </div>
-        <Button
-          onClick={handleCreateWorkflow}
-          disabled={createMutation.isPending}
-        >
+        <Button disabled>
           <Icon icon={Add01Icon} className="size-4" />
-          {createMutation.isPending ? "Creating..." : "New workflow"}
+          New workflow
         </Button>
       </header>
 
-      {createError ? (
-        <div className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
-          {createError}
-        </div>
-      ) : null}
-
-      {listQuery.isLoading ? (
-        <EntityListLoadingState rows={5} cols={4} />
-      ) : listQuery.error ? (
-        <EntityListEmptyState>
-          Failed to load workflows. Refresh the page and try again.
-        </EntityListEmptyState>
-      ) : workflows.length === 0 ? (
-        <EntityListEmptyState>
-          <div className="space-y-3">
-            <p>No workflows yet.</p>
-            <Button
-              variant="outline"
-              onClick={handleCreateWorkflow}
-              disabled={createMutation.isPending}
-            >
-              <Icon icon={Add01Icon} className="size-4" />
-              Create your first workflow
-            </Button>
-          </div>
-        </EntityListEmptyState>
-      ) : (
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {workflows.map((workflow) => (
-            <Card key={workflow.id}>
-              <CardHeader>
-                <CardTitle className="line-clamp-1">{workflow.name}</CardTitle>
-                <CardDescription className="line-clamp-2">
-                  {workflow.description || "No description"}
-                </CardDescription>
-                <CardAction>
-                  <Badge variant={toStatusBadgeVariant(workflow.status)}>
-                    {workflow.status}
-                  </Badge>
-                </CardAction>
-              </CardHeader>
-              <CardContent className="space-y-2 text-sm">
-                <p className="text-muted-foreground">
-                  <span className="font-medium text-foreground">Key:</span>{" "}
-                  {workflow.key}
-                </p>
-                <p className="text-muted-foreground">
-                  <span className="font-medium text-foreground">Updated:</span>{" "}
-                  {formatDateTime(workflow.updatedAt)}
-                </p>
-              </CardContent>
-              <CardFooter className="justify-end">
-                <Button
-                  variant="outline"
-                  onClick={() =>
-                    navigate({
-                      to: "/workflows/$workflowId",
-                      params: { workflowId: workflow.id },
-                    })
-                  }
-                >
-                  Open
-                  <Icon icon={ArrowRight02Icon} className="size-4" />
-                </Button>
-              </CardFooter>
-            </Card>
-          ))}
-        </div>
-      )}
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        {STUB_WORKFLOWS.map((workflow) => (
+          <Card key={workflow.id}>
+            <CardHeader>
+              <CardTitle className="line-clamp-1">{workflow.name}</CardTitle>
+              <CardDescription className="line-clamp-2">
+                {workflow.description || "No description"}
+              </CardDescription>
+              <CardAction>
+                <Badge variant={toStatusBadgeVariant(workflow.status)}>
+                  {workflow.status}
+                </Badge>
+              </CardAction>
+            </CardHeader>
+            <CardContent className="space-y-2 text-sm">
+              <p className="text-muted-foreground">
+                <span className="font-medium text-foreground">Key:</span>{" "}
+                {workflow.key}
+              </p>
+              <p className="text-muted-foreground">
+                <span className="font-medium text-foreground">Updated:</span>{" "}
+                {workflow.updatedAt}
+              </p>
+            </CardContent>
+            <CardFooter />
+          </Card>
+        ))}
+      </div>
     </PageScaffold>
   );
 }

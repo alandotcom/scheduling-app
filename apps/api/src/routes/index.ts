@@ -18,7 +18,6 @@ import { apiKeyRoutes } from "./api-keys.js";
 import { webhookRoutes } from "./webhooks.js";
 import { integrationRoutes } from "./integrations.js";
 import { authRoutes } from "./auth.js";
-import { workflowRoutes } from "./workflows.js";
 
 // Re-export authed and adminOnly from base for backwards compatibility
 export { authed, adminOnly } from "./base.js";
@@ -51,7 +50,6 @@ export const uiRouter = {
   apiKeys: apiKeyRoutes,
   integrations: integrationRoutes,
   webhooks: webhookRoutes,
-  workflows: workflowRoutes,
 };
 
 // ============================================================================

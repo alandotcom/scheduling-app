@@ -16,27 +16,6 @@ type SchedulingInternalEvents = {
       orgId: string;
     };
   };
-  "scheduling/workflow.triggered": {
-    data: {
-      orgId: string;
-      workflow: {
-        definitionId: string;
-        versionId: string | null;
-        workflowType: string;
-        compiledPlan?: Record<string, unknown> | null;
-      };
-      sourceEvent: {
-        id: string;
-        type: DomainEventType | "schedule.triggered" | "manual.triggered";
-        timestamp: string;
-        payload: Record<string, unknown>;
-      };
-      entity: {
-        type: string;
-        id: string;
-      };
-    };
-  };
 };
 
 type SchedulingInngestEvents = SchedulingDomainEvents &

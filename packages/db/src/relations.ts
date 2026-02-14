@@ -16,12 +16,6 @@ export const relations = defineRelations(schema, (r) => ({
     appointments: r.many.appointments(),
     integrations: r.many.integrations(),
     auditEvents: r.many.auditEvents(),
-    workflowDefinitions: r.many.workflowDefinitions(),
-    workflowDefinitionVersions: r.many.workflowDefinitionVersions(),
-    workflowBindings: r.many.workflowBindings(),
-    workflowScheduleBindings: r.many.workflowScheduleBindings(),
-    workflowRunEntityLinks: r.many.workflowRunEntityLinks(),
-    workflowDeliveryLog: r.many.workflowDeliveryLog(),
   },
 
   users: {
@@ -30,7 +24,6 @@ export const relations = defineRelations(schema, (r) => ({
     sessions: r.many.sessions(),
     accounts: r.many.accounts(),
     apiKeys: r.many.apiKeys(),
-    workflowDefinitionVersions: r.many.workflowDefinitionVersions(),
   },
 
   orgMemberships: {
@@ -186,97 +179,6 @@ export const relations = defineRelations(schema, (r) => ({
     org: r.one.orgs({
       from: r.integrations.orgId,
       to: r.orgs.id,
-    }),
-  },
-
-  workflowDefinitions: {
-    org: r.one.orgs({
-      from: r.workflowDefinitions.orgId,
-      to: r.orgs.id,
-    }),
-    versions: r.many.workflowDefinitionVersions(),
-    bindings: r.many.workflowBindings(),
-    scheduleBindings: r.many.workflowScheduleBindings(),
-    runEntityLinks: r.many.workflowRunEntityLinks(),
-    deliveryLog: r.many.workflowDeliveryLog(),
-  },
-
-  workflowDefinitionVersions: {
-    org: r.one.orgs({
-      from: r.workflowDefinitionVersions.orgId,
-      to: r.orgs.id,
-    }),
-    definition: r.one.workflowDefinitions({
-      from: r.workflowDefinitionVersions.definitionId,
-      to: r.workflowDefinitions.id,
-    }),
-    createdByUser: r.one.users({
-      from: r.workflowDefinitionVersions.createdBy,
-      to: r.users.id,
-    }),
-    bindings: r.many.workflowBindings(),
-    scheduleBindings: r.many.workflowScheduleBindings(),
-    runEntityLinks: r.many.workflowRunEntityLinks(),
-    deliveryLog: r.many.workflowDeliveryLog(),
-  },
-
-  workflowBindings: {
-    org: r.one.orgs({
-      from: r.workflowBindings.orgId,
-      to: r.orgs.id,
-    }),
-    definition: r.one.workflowDefinitions({
-      from: r.workflowBindings.definitionId,
-      to: r.workflowDefinitions.id,
-    }),
-    version: r.one.workflowDefinitionVersions({
-      from: r.workflowBindings.versionId,
-      to: r.workflowDefinitionVersions.id,
-    }),
-  },
-
-  workflowScheduleBindings: {
-    org: r.one.orgs({
-      from: r.workflowScheduleBindings.orgId,
-      to: r.orgs.id,
-    }),
-    definition: r.one.workflowDefinitions({
-      from: r.workflowScheduleBindings.definitionId,
-      to: r.workflowDefinitions.id,
-    }),
-    version: r.one.workflowDefinitionVersions({
-      from: r.workflowScheduleBindings.versionId,
-      to: r.workflowDefinitionVersions.id,
-    }),
-  },
-
-  workflowRunEntityLinks: {
-    org: r.one.orgs({
-      from: r.workflowRunEntityLinks.orgId,
-      to: r.orgs.id,
-    }),
-    definition: r.one.workflowDefinitions({
-      from: r.workflowRunEntityLinks.definitionId,
-      to: r.workflowDefinitions.id,
-    }),
-    version: r.one.workflowDefinitionVersions({
-      from: r.workflowRunEntityLinks.versionId,
-      to: r.workflowDefinitionVersions.id,
-    }),
-  },
-
-  workflowDeliveryLog: {
-    org: r.one.orgs({
-      from: r.workflowDeliveryLog.orgId,
-      to: r.orgs.id,
-    }),
-    definition: r.one.workflowDefinitions({
-      from: r.workflowDeliveryLog.definitionId,
-      to: r.workflowDefinitions.id,
-    }),
-    version: r.one.workflowDefinitionVersions({
-      from: r.workflowDeliveryLog.versionId,
-      to: r.workflowDefinitionVersions.id,
     }),
   },
 
