@@ -14,7 +14,7 @@ event_loop:
   checkpoint_interval: 5
 
 cli:
-  backend: "claude"
+  backend: "codex"
 
 core:
   specs_dir: "./specs/"
@@ -22,7 +22,7 @@ core:
 hats:
   builder:
     name: "Builder"
-    description: "Implements one task with quality gates. One task, one commit."
+    description: "Implements one task with project quality gates. One task, one commit."
     triggers: ["build.task"]
     publishes: ["build.done", "build.blocked"]
     default_publishes: "build.done"
@@ -31,33 +31,62 @@ hats:
 
       You're building, not planning. One task, then exit.
 
-      ### Process: Explore → Plan → Implement → Commit
+      ### Project Context (Scheduling App Monorepo)
+      - Runtime/tooling: Bun + pnpm workspaces (not Cargo/Jest)
+      - Apps: `apps/api` (Hono/oRPC), `apps/admin-ui` (React + TanStack), shared `packages/db` + `packages/dto`
+      - Active development rules:
+        - No backwards-compatibility shims
+        - No new incremental DB migrations; update initial SQL and push schema in dev
+        - Delete dead code rather than commenting it out
+      - Always follow nearest `AGENTS.md`/`CLAUDE.md` instructions before implementing
+
+      ### Process: Explore → Plan → Implement → Verify → Commit
 
       1. **EXPLORE** — Understand before changing
          - Pick ONE task (highest priority from task list)
          - Read relevant files and understand current implementation
          - Search for similar patterns in the codebase
          - Identify integration points and dependencies
+         - Determine scope: API, admin UI, db, dto, or cross-package
 
       2. **PLAN** — Think before coding
          - Outline the specific changes needed
          - Identify files to create/modify
          - Consider edge cases and error handling
+         - Keep solutions simple and consistent with existing patterns
 
       3. **IMPLEMENT** — Execute the plan
          - Write the code following existing patterns
-         - Run verification: `cargo check && cargo test && cargo clippy -- -D warnings`
-         - Must pass before proceeding
+         - Prefer direct changes over compatibility layers
+         - For DB schema changes: update initial migration/schema and run:
+           - `pnpm --filter @scheduling/db run push`
+           - `pnpm db:seed` if seed data needs alignment
 
-      4. **COMMIT** — Document the change
+      4. **VERIFY** — Must pass before commit
+         - Run formatting and quality gates from repo root:
+           - `pnpm format`
+           - `pnpm lint`
+           - `pnpm typecheck` (never package-level typecheck)
+         - Run tests for impacted scope:
+           - API changes: `pnpm --filter @scheduling/api run test`
+           - DB changes: `pnpm --filter @scheduling/db run test`
+           - Cross-cutting/risky changes: `pnpm test`
+         - For admin UI changes, run browser QA with `agent-browser`:
+           - Validate changed flow end-to-end (including login when relevant)
+           - Capture at least one screenshot and verify no regressions
+           - Check modal open/close behavior and keyboard interactions when touched
+
+      5. **COMMIT** — Document the change
          - One task, one commit
-         - Publish event with evidence
+         - Publish event with evidence: commands run + pass/fail summary + QA notes
 
       ### DON'T
       - ❌ Decide what tasks to add
       - ❌ Output the completion promise
       - ❌ Skip the explore step
-      - ❌ Skip tests
+      - ❌ Skip formatting/lint/typecheck/tests
+      - ❌ Run multiple dev servers simultaneously
+      - ❌ Add migration shims/feature flags for old behavior
 
 
   reviewer:
@@ -77,9 +106,18 @@ hats:
       - [ ] **Patterns:** Does it follow existing codebase patterns?
       - [ ] **Errors:** Is error handling appropriate?
       - [ ] **Security:** Any obvious vulnerabilities?
+      - [ ] **Repo Gates:** Were `pnpm format`, `pnpm lint`, and root `pnpm typecheck` run?
+      - [ ] **DB Rules:** If schema changed, was dev schema pushed (not incremental migration)?
+      - [ ] **UI QA:** For UI changes, was `agent-browser` used to validate critical flow?
 
-      - [ ] Use the senior-review skill
-      - [ ] Use the agent-browser skill to QA UI changes
+      ### Required Review Style
+      - Findings first, ordered by severity, with file/line references
+      - Focus on bugs/regressions/risk, not style nits
+      - Explicitly state if no findings were identified
+
+      ### Skills / Tools
+      - Use the `senior-review` skill for code review rigor
+      - Use the `agent-browser` skill for admin-ui validation when UI changed
 
       ### DON'T
       - ❌ Make code changes yourself
