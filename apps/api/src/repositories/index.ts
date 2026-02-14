@@ -10,3 +10,4 @@ export * from "./appointment-types.js";
 export * from "./availability-management.js";
 export * from "./dashboard.js";
 export * from "./integrations.js";
+export * from "./workflows.js";

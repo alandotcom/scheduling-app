@@ -1,4 +1,9 @@
 import { Add01Icon } from "@hugeicons/core-free-icons";
+import type { WorkflowListResponse } from "@scheduling/dto";
+import {
+  EntityListEmptyState,
+  EntityListLoadingState,
+} from "@/components/entity-list";
 import { PageScaffold } from "@/components/layout/page-scaffold";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -12,70 +17,33 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Icon } from "@/components/ui/icon";
+import { formatDisplayDateTime } from "@/lib/date-utils";
 
-type StubStatus = "active" | "draft" | "archived";
+type OrgRole = "owner" | "admin" | "member" | null | undefined;
 
-interface StubWorkflow {
-  id: string;
-  name: string;
-  description: string | null;
-  key: string;
-  status: StubStatus;
-  updatedAt: string;
+export function canManageWorkflowsForRole(role: OrgRole): boolean {
+  return role === "owner" || role === "admin";
 }
 
-const STUB_WORKFLOWS: StubWorkflow[] = [
-  {
-    id: "1",
-    name: "New Client Welcome",
-    description: "Send welcome email when a new client is created",
-    key: "new-client-welcome",
-    status: "active",
-    updatedAt: "2/14/2026, 11:18:19 AM",
-  },
-  {
-    id: "2",
-    name: "Appointment Reminder",
-    description: "Remind clients 24h before their appointment",
-    key: "appointment-reminder",
-    status: "active",
-    updatedAt: "2/14/2026, 8:49:33 AM",
-  },
-  {
-    id: "3",
-    name: "No-Show Follow Up",
-    description: null,
-    key: "no-show-follow-up",
-    status: "draft",
-    updatedAt: "2/14/2026, 8:33:24 AM",
-  },
-  {
-    id: "4",
-    name: "Cancellation Survey",
-    description: null,
-    key: "cancellation-survey",
-    status: "draft",
-    updatedAt: "2/14/2026, 12:44:56 AM",
-  },
-  {
-    id: "5",
-    name: "Weekly Digest",
-    description: "Send a weekly summary to org admins",
-    key: "weekly-digest",
-    status: "draft",
-    updatedAt: "2/14/2026, 12:43:28 AM",
-  },
-];
-
-function toStatusBadgeVariant(
-  status: StubStatus,
-): "default" | "secondary" | "warning" {
-  if (status === "active") return "default";
-  if (status === "draft") return "warning";
-  return "secondary";
+interface WorkflowListPageProps {
+  workflows: WorkflowListResponse;
+  isLoading: boolean;
+  errorMessage?: string | null;
+  canManageWorkflows: boolean;
 }
 
-export function WorkflowListPage() {
+function toVisibilityBadgeVariant(
+  visibility: "private" | "public",
+): "default" | "secondary" {
+  return visibility === "public" ? "default" : "secondary";
+}
+
+export function WorkflowListPage({
+  workflows,
+  isLoading,
+  errorMessage,
+  canManageWorkflows,
+}: WorkflowListPageProps) {
   return (
     <PageScaffold className="space-y-6">
       <header className="flex flex-wrap items-center justify-between gap-3">
@@ -85,41 +53,64 @@ export function WorkflowListPage() {
             Create and manage orchestration flows for domain events and
             schedules.
           </p>
+          {!canManageWorkflows ? (
+            <p className="text-xs text-muted-foreground">
+              Read-only access for your role.
+            </p>
+          ) : null}
         </div>
-        <Button disabled>
-          <Icon icon={Add01Icon} className="size-4" />
-          New workflow
-        </Button>
+        {canManageWorkflows ? (
+          <Button disabled>
+            <Icon icon={Add01Icon} className="size-4" />
+            New workflow
+          </Button>
+        ) : null}
       </header>
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        {STUB_WORKFLOWS.map((workflow) => (
-          <Card key={workflow.id}>
-            <CardHeader>
-              <CardTitle className="line-clamp-1">{workflow.name}</CardTitle>
-              <CardDescription className="line-clamp-2">
-                {workflow.description || "No description"}
-              </CardDescription>
-              <CardAction>
-                <Badge variant={toStatusBadgeVariant(workflow.status)}>
-                  {workflow.status}
-                </Badge>
-              </CardAction>
-            </CardHeader>
-            <CardContent className="space-y-2 text-sm">
-              <p className="text-muted-foreground">
-                <span className="font-medium text-foreground">Key:</span>{" "}
-                {workflow.key}
-              </p>
-              <p className="text-muted-foreground">
-                <span className="font-medium text-foreground">Updated:</span>{" "}
-                {workflow.updatedAt}
-              </p>
-            </CardContent>
-            <CardFooter />
-          </Card>
-        ))}
-      </div>
+      {isLoading ? <EntityListLoadingState rows={4} cols={3} /> : null}
+
+      {!isLoading && errorMessage ? (
+        <EntityListEmptyState>
+          <p className="text-sm text-destructive">{errorMessage}</p>
+        </EntityListEmptyState>
+      ) : null}
+
+      {!isLoading && !errorMessage && workflows.length === 0 ? (
+        <EntityListEmptyState>
+          {canManageWorkflows
+            ? "No workflows yet. Create your first workflow to get started."
+            : "No workflows have been created for this organization yet."}
+        </EntityListEmptyState>
+      ) : null}
+
+      {!isLoading && !errorMessage && workflows.length > 0 ? (
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          {workflows.map((workflow) => (
+            <Card key={workflow.id}>
+              <CardHeader>
+                <CardTitle className="line-clamp-1">{workflow.name}</CardTitle>
+                <CardDescription className="line-clamp-2">
+                  {workflow.description || "No description"}
+                </CardDescription>
+                <CardAction>
+                  <Badge
+                    variant={toVisibilityBadgeVariant(workflow.visibility)}
+                  >
+                    {workflow.visibility}
+                  </Badge>
+                </CardAction>
+              </CardHeader>
+              <CardContent className="space-y-2 text-sm">
+                <p className="text-muted-foreground">
+                  <span className="font-medium text-foreground">Updated:</span>{" "}
+                  {formatDisplayDateTime(workflow.updatedAt)}
+                </p>
+              </CardContent>
+              <CardFooter />
+            </Card>
+          ))}
+        </div>
+      ) : null}
     </PageScaffold>
   );
 }

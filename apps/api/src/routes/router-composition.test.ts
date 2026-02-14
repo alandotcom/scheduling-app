@@ -43,11 +43,13 @@ describe("API vs UI Router", () => {
     expect(uiRouterAny.apiKeys).toBeDefined();
     expect(uiRouterAny.integrations).toBeDefined();
     expect(uiRouterAny.webhooks).toBeDefined();
+    expect(uiRouterAny.workflows).toBeDefined();
     expect(apiRouterAny.audit).toBeUndefined();
     expect(apiRouterAny.dashboard).toBeUndefined();
     expect(apiRouterAny.apiKeys).toBeUndefined();
     expect(apiRouterAny.integrations).toBeUndefined();
     expect(apiRouterAny.webhooks).toBeDefined();
+    expect(apiRouterAny.workflows).toBeUndefined();
   });
 
   test("apiRouter exposes only availability engine routes", async () => {

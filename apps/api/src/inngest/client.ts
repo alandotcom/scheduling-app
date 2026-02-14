@@ -1,5 +1,9 @@
 import { EventSchemas, Inngest } from "inngest";
-import type { DomainEventDataByType, DomainEventType } from "@scheduling/dto";
+import type {
+  DomainEventDataByType,
+  DomainEventType,
+  SerializedWorkflowGraph,
+} from "@scheduling/dto";
 import { config } from "../config.js";
 
 type SchedulingDomainEvents = {
@@ -14,6 +18,20 @@ type SchedulingInternalEvents = {
   "scheduling/dev.ping": {
     data: {
       orgId: string;
+    };
+  };
+  "workflow/run.requested": {
+    data: {
+      orgId: string;
+      workflowId: string;
+      workflowName: string;
+      executionId: string;
+      graph: SerializedWorkflowGraph;
+      triggerInput: Record<string, unknown>;
+      eventContext: {
+        eventType: DomainEventType;
+        correlationKey?: string;
+      };
     };
   };
 };
