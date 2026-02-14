@@ -103,16 +103,16 @@ function decideRouting(input: {
     return { kind: "ignore", reason: "event_not_configured" };
   }
 
-  if (input.config.startEvents.includes(input.eventType)) {
-    return { kind: "start" };
+  if (input.config.stopEvents.includes(input.eventType)) {
+    return { kind: "stop" };
   }
 
   if (input.config.restartEvents.includes(input.eventType)) {
     return { kind: "restart" };
   }
 
-  if (input.config.stopEvents.includes(input.eventType)) {
-    return { kind: "stop" };
+  if (input.config.startEvents.includes(input.eventType)) {
+    return { kind: "start" };
   }
 
   return { kind: "ignore", reason: "event_not_configured" };

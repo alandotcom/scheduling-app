@@ -197,6 +197,36 @@ describe("workflow trigger registry", () => {
     });
   });
 
+  test("prioritizes stop over restart/start for overlapping routing sets", () => {
+    const eventType = "appointment.updated" as const;
+    const evaluation = evaluateWorkflowDomainEventTrigger({
+      config: createTriggerConfig({
+        startEvents: [eventType],
+        restartEvents: [eventType],
+        stopEvents: [eventType],
+      }),
+      eventType,
+      payload: createPayload(eventType) as Record<string, unknown>,
+    });
+
+    expect(evaluation.routingDecision).toEqual({ kind: "stop" });
+  });
+
+  test("prioritizes restart over start for overlapping routing sets", () => {
+    const eventType = "appointment.updated" as const;
+    const evaluation = evaluateWorkflowDomainEventTrigger({
+      config: createTriggerConfig({
+        startEvents: [eventType],
+        restartEvents: [eventType],
+        stopEvents: [],
+      }),
+      eventType,
+      payload: createPayload(eventType) as Record<string, unknown>,
+    });
+
+    expect(evaluation.routingDecision).toEqual({ kind: "restart" });
+  });
+
   test("returns missing_event_type when event type is undefined", () => {
     const evaluation = evaluateWorkflowDomainEventTrigger({
       config: createTriggerConfig(),
