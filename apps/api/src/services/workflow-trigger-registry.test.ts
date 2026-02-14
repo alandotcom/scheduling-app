@@ -2,9 +2,13 @@ import { describe, expect, test } from "bun:test";
 import type {
   DomainEventData,
   DomainEventType,
+  SerializedWorkflowGraph,
   WorkflowDomainEventTriggerConfig,
 } from "@scheduling/dto";
-import { evaluateWorkflowDomainEventTrigger } from "./workflow-trigger-registry.js";
+import {
+  evaluateWorkflowDomainEventTrigger,
+  getWorkflowTriggerConfig,
+} from "./workflow-trigger-registry.js";
 
 const DOMAIN_CORRELATION_CASES = [
   {
@@ -127,6 +131,43 @@ function createPayload<TEventType extends DomainEventType>(
 }
 
 describe("workflow trigger registry", () => {
+  test("extracts domain-event trigger config from workflow graph", () => {
+    const graph: SerializedWorkflowGraph = {
+      attributes: {},
+      options: { type: "directed" },
+      nodes: [
+        {
+          key: "trigger-1",
+          attributes: {
+            id: "trigger-1",
+            type: "trigger-node",
+            position: { x: 0, y: 0 },
+            data: {
+              label: "Trigger",
+              type: "trigger",
+              config: {
+                triggerType: "DomainEvent",
+                startEvents: ["client.created"],
+                restartEvents: ["client.updated"],
+                stopEvents: ["client.deleted"],
+              },
+            },
+          },
+        },
+      ],
+      edges: [],
+    };
+
+    const config = getWorkflowTriggerConfig(graph);
+
+    expect(config).toEqual({
+      triggerType: "DomainEvent",
+      startEvents: ["client.created"],
+      restartEvents: ["client.updated"],
+      stopEvents: ["client.deleted"],
+    });
+  });
+
   test.each(
     DOMAIN_CORRELATION_CASES,
   )("derives default correlation key for $eventType", ({

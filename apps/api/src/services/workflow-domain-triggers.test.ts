@@ -252,4 +252,72 @@ describe("workflow domain triggers", () => {
     expect(startedExecution?.status).toBe("running");
     expect(startedExecution?.workflowRunId).toBe("run-event-success");
   });
+
+  test("only starts workflows in the event org", async () => {
+    const { org: orgA, user: userA } = await createOrg(db as any, {
+      name: "Workflow Org A",
+      email: "workflow-org-a@example.com",
+    });
+    const { org: orgB, user: userB } = await createOrg(db as any, {
+      name: "Workflow Org B",
+      email: "workflow-org-b@example.com",
+    });
+
+    const [workflowA, workflowB] = await Promise.all([
+      workflowService.create(
+        {
+          name: "Org A Workflow",
+          graph: createGraphWithDomainEventTrigger(["client.created"]),
+        },
+        {
+          orgId: orgA.id,
+          userId: userA.id,
+        },
+      ),
+      workflowService.create(
+        {
+          name: "Org B Workflow",
+          graph: createGraphWithDomainEventTrigger(["client.created"]),
+        },
+        {
+          orgId: orgB.id,
+          userId: userB.id,
+        },
+      ),
+    ]);
+
+    const runRequester = mock(async () => ({ eventId: "run-event-org-a" }));
+
+    const result = await processWorkflowDomainEvent(
+      {
+        id: "event-client-created-org-a",
+        orgId: orgA.id,
+        type: "client.created",
+        payload: createClientCreatedPayload(),
+        timestamp: new Date().toISOString(),
+      },
+      runRequester,
+    );
+
+    expect(result.startedExecutionIds).toHaveLength(1);
+    expect(result.erroredWorkflowIds).toHaveLength(0);
+    expect(runRequester).toHaveBeenCalledTimes(1);
+
+    await setTestOrgContext(db, orgA.id);
+    const orgAExecutions = await db
+      .select()
+      .from(workflowExecutions)
+      .where(eq(workflowExecutions.workflowId, workflowA.id));
+
+    expect(orgAExecutions).toHaveLength(1);
+    expect(orgAExecutions[0]?.workflowRunId).toBe("run-event-org-a");
+
+    await setTestOrgContext(db, orgB.id);
+    const orgBExecutions = await db
+      .select()
+      .from(workflowExecutions)
+      .where(eq(workflowExecutions.workflowId, workflowB.id));
+
+    expect(orgBExecutions).toHaveLength(0);
+  });
 });
