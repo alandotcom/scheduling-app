@@ -141,7 +141,86 @@ Research sources (via Exa):
 
 ---
 
-## 7. Detailed Implementation Phases
+## 7. Reference Second-Pass Findings (notifications-workflow)
+
+Goal of this section: keep copy parity as high as possible while explicitly defining the minimal intentional divergences.
+
+## 7.1 High-Impact Mismatches Identified
+
+1. Graph document shape mismatch:
+   - Reference stores React Flow node/edge JSON with trigger/action config nested in node payloads.
+   - Scheduling backend expects canonical typed workflow graph with top-level `trigger` and typed node kinds.
+2. Trigger model mismatch:
+   - Reference trigger model is `Webhook | Schedule`.
+   - Scheduling target model is `domain_event | schedule`.
+3. Integration model mismatch:
+   - Reference editor/runtime is integration/plugin-centric.
+   - Scheduling target is first-party workflow actions with no workflow-level integration dependency.
+4. API contract mismatch:
+   - Reference UI expects webhook-trigger-centric methods and payloads.
+   - Scheduling backend uses draft/validate/publish/bind/run-draft with domain event dispatch.
+5. UI baseline mismatch:
+   - Scheduling app workflow pages are currently placeholder "removed" views.
+
+## 7.2 Intentional Divergences (Locked)
+
+1. Trigger semantics:
+   - Replace reference `Webhook` trigger with `domain_event`.
+   - Keep `schedule` trigger.
+2. Canonical backend model:
+   - Keep scheduling typed graph contract as persistence/runtime source of truth.
+   - Do not reshape backend to raw reference graph payloads.
+3. Workflow action coupling:
+   - Remove `integrationKey` from workflow graph/catalog/compiler/runtime.
+   - Keep Svix as a separate subsystem.
+
+Everything else (editor UX, graph interactions, authoring flow, run visibility behavior) should be copied as closely as possible.
+
+## 7.3 UI/API Compatibility Strategy
+
+Use adapters, not backend compatibility shims.
+
+1. Frontend graph adapter:
+   - `referenceGraph -> canonicalGraph` before save/validate/publish.
+   - `canonicalGraph -> referenceGraph` after load.
+   - Trigger node exists in UI state only; backend keeps top-level canonical trigger.
+2. Frontend API facade:
+   - Provide reference-like client methods in admin UI layer.
+   - Map internally to scheduling workflow routes/payloads.
+3. Catalog adapter:
+   - Transform backend trigger/action catalog into reference selector/config format.
+   - Remove integration selectors and map to first-party action config fields.
+4. Run status adapter:
+   - Normalize backend statuses to reference UI status presentation.
+   - Add backend status support only if reference parity requires it and adapter cannot represent it safely.
+
+## 7.4 Contract-First Deliverables Before Porting UI
+
+1. `Reference UI -> Backend DTO` field mapping table.
+2. `Backend DTO -> Reference UI` field mapping table.
+3. Trigger/action catalog mapping table.
+4. Golden fixture tests for round-trip conversion (`A -> B -> A`) on:
+   - domain-event start/restart/stop workflow
+   - schedule workflow
+   - condition + wait branching workflow
+
+---
+
+## 8. Detailed Implementation Phases
+
+## Phase 0: Adapter Contract Freeze (Before Backend Refactor)
+
+### Changes
+
+1. Write explicit mapping specs for graph, trigger, and catalog transformations.
+2. Add fixture-based round-trip adapter tests and freeze expected snapshots.
+3. Confirm which reference UI behaviors require backend extension vs adapter-only mapping.
+
+### Exit Criteria
+
+- Mapping spec approved and checked in.
+- Round-trip fixture tests passing.
+- No unresolved shape ambiguity between copied UI and backend DTO.
 
 ## Phase A: DTO Contract Rewrite
 
@@ -286,22 +365,25 @@ Before finalizing this phase, validate implementation choices against current In
 
 ---
 
-## 8. Testing Plan (Execution Order)
+## 9. Testing Plan (Execution Order)
 
 1. Targeted unit tests while refactoring:
    - `pnpm --filter @scheduling/api run test -- workflow registry/compiler/runtime`
-2. Route tests:
+2. Adapter fixture tests:
+   - round-trip graph conversion (`reference -> canonical -> reference`)
+   - catalog mapping (trigger/action forms)
+3. Route tests:
    - `pnpm --filter @scheduling/api run test -- workflows`
-3. Full API package tests:
+4. Full API package tests:
    - `pnpm --filter @scheduling/api run test`
-4. Monorepo typecheck:
+5. Monorepo typecheck:
    - `pnpm typecheck`
 
 If failures surface in unrelated legacy integration modules, isolate and fix only where rewrite caused interface breakage.
 
 ---
 
-## 9. Acceptance Criteria
+## 10. Acceptance Criteria
 
 1. Workflow graph DTO has no `integrationKey` requirement.
 2. Workflow registry/runtime executes actions without integration dependencies.
@@ -309,10 +391,12 @@ If failures surface in unrelated legacy integration modules, isolate and fix onl
 4. Workflow catalog API returns action definitions without integration metadata.
 5. Workflow run lifecycle tests pass (start, status, logs, cancel).
 6. Svix subsystem behavior remains unchanged.
+7. Reference-compatible UI adapter exists with fixture-tested round-trip mapping.
+8. Trigger difference is only `Webhook -> domain_event`; schedule remains functionally equivalent.
 
 ---
 
-## 10. Risks and Mitigations
+## 11. Risks and Mitigations
 
 ## Risk: Hidden coupling to old integration actions in tests or runtime
 
@@ -330,20 +414,26 @@ If failures surface in unrelated legacy integration modules, isolate and fix onl
 
 - Mitigation: add explicit regression tests around retries, cancel, and guard-block behavior.
 
+## Risk: UI copy drifts because of adapter edge cases
+
+- Mitigation: freeze mapping tables and fixture snapshots before UI port; require parity checks for any adapter change.
+
 ---
 
-## 11. Deliverables
+## 12. Deliverables
 
 1. Updated DTO schemas/types for integration-free workflow graph.
 2. Rewritten workflow action registry with `core.emitInternalEvent`.
 3. Compiler/runtime/route updates and passing tests.
 4. This `PLAN.md` as implementation baseline for backend-first work.
+5. Checked-in mapping spec + adapter fixture suite for reference UI compatibility.
 
 ---
 
-## 12. Implementation Start Checklist
+## 13. Implementation Start Checklist
 
 - [ ] Confirm current branch is clean
+- [ ] Complete Phase 0 (adapter contract freeze)
 - [ ] Complete Phase A (DTO)
 - [ ] Complete Phase B (registry)
 - [ ] Complete Phase C (compiler)
