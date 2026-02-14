@@ -6,6 +6,90 @@ import type {
 } from "@scheduling/dto";
 import { evaluateWorkflowDomainEventTrigger } from "./workflow-trigger-registry.js";
 
+const DOMAIN_CORRELATION_CASES = [
+  {
+    eventType: "appointment.created" as const,
+    payload: {
+      appointmentId: "018f4d3a-6d80-7c5b-8a4a-6cb8f8d57d21",
+      calendarId: "018f4d3a-6d80-7c5b-8a4a-6cb8f8d57d22",
+      appointmentTypeId: "018f4d3a-6d80-7c5b-8a4a-6cb8f8d57d23",
+      clientId: null,
+      startAt: new Date("2026-01-01T10:00:00.000Z").toISOString(),
+      endAt: new Date("2026-01-01T10:30:00.000Z").toISOString(),
+      timezone: "UTC",
+      status: "scheduled",
+    },
+    expectedCorrelationKey: "018f4d3a-6d80-7c5b-8a4a-6cb8f8d57d21",
+  },
+  {
+    eventType: "calendar.created" as const,
+    payload: {
+      calendarId: "018f4d3a-6d80-7c5b-8a4a-6cb8f8d57d24",
+      locationId: null,
+      name: "Main calendar",
+      color: null,
+      timezone: "UTC",
+    },
+    expectedCorrelationKey: "018f4d3a-6d80-7c5b-8a4a-6cb8f8d57d24",
+  },
+  {
+    eventType: "appointment_type.created" as const,
+    payload: {
+      appointmentTypeId: "018f4d3a-6d80-7c5b-8a4a-6cb8f8d57d25",
+      name: "Follow up",
+      slug: "follow-up",
+      durationMinutes: 30,
+      color: null,
+      isActive: true,
+      category: null,
+      description: null,
+      requiresConfirmation: false,
+      bufferBeforeMinutes: 0,
+      bufferAfterMinutes: 0,
+      maxAdvanceBookingDays: null,
+      minAdvanceBookingMinutes: null,
+      cancellationPolicyHours: null,
+      metadata: null,
+    },
+    expectedCorrelationKey: "018f4d3a-6d80-7c5b-8a4a-6cb8f8d57d25",
+  },
+  {
+    eventType: "resource.created" as const,
+    payload: {
+      resourceId: "018f4d3a-6d80-7c5b-8a4a-6cb8f8d57d26",
+      name: "Room A",
+      type: "room",
+      quantity: 1,
+      color: null,
+      description: null,
+      isActive: true,
+      metadata: null,
+    },
+    expectedCorrelationKey: "018f4d3a-6d80-7c5b-8a4a-6cb8f8d57d26",
+  },
+  {
+    eventType: "location.created" as const,
+    payload: {
+      locationId: "018f4d3a-6d80-7c5b-8a4a-6cb8f8d57d27",
+      name: "HQ",
+      address: null,
+      timezone: "UTC",
+      isActive: true,
+    },
+    expectedCorrelationKey: "018f4d3a-6d80-7c5b-8a4a-6cb8f8d57d27",
+  },
+  {
+    eventType: "client.created" as const,
+    payload: {
+      clientId: "018f4d3a-6d80-7c5b-8a4a-6cb8f8d57d28",
+      firstName: "Ada",
+      lastName: "Lovelace",
+      email: null,
+    },
+    expectedCorrelationKey: "018f4d3a-6d80-7c5b-8a4a-6cb8f8d57d28",
+  },
+];
+
 function createTriggerConfig(
   overrides: Partial<WorkflowDomainEventTriggerConfig> = {},
 ): WorkflowDomainEventTriggerConfig {
@@ -43,6 +127,27 @@ function createPayload<TEventType extends DomainEventType>(
 }
 
 describe("workflow trigger registry", () => {
+  test.each(
+    DOMAIN_CORRELATION_CASES,
+  )("derives default correlation key for $eventType", ({
+    eventType,
+    payload,
+    expectedCorrelationKey,
+  }) => {
+    const evaluation = evaluateWorkflowDomainEventTrigger({
+      config: createTriggerConfig({
+        startEvents: [eventType],
+        restartEvents: [],
+        stopEvents: [],
+      }),
+      eventType,
+      payload,
+    });
+
+    expect(evaluation.routingDecision).toEqual({ kind: "start" });
+    expect(evaluation.correlationKey).toBe(expectedCorrelationKey);
+  });
+
   test("maps domain prefix to default correlation field", () => {
     const evaluation = evaluateWorkflowDomainEventTrigger({
       config: createTriggerConfig({
@@ -90,5 +195,19 @@ describe("workflow trigger registry", () => {
       kind: "ignore",
       reason: "event_not_configured",
     });
+  });
+
+  test("returns missing_event_type when event type is undefined", () => {
+    const evaluation = evaluateWorkflowDomainEventTrigger({
+      config: createTriggerConfig(),
+      eventType: undefined,
+      payload: createPayload("appointment.created") as Record<string, unknown>,
+    });
+
+    expect(evaluation.routingDecision).toEqual({
+      kind: "ignore",
+      reason: "missing_event_type",
+    });
+    expect(evaluation.correlationKey).toBeUndefined();
   });
 });
