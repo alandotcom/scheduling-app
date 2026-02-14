@@ -372,9 +372,9 @@ describe("reference workflow adapter", () => {
       domain: "appointment",
       webhookEventPath: "event",
       webhookCorrelationPath: "data.id",
-      webhookCreateEvents: "appointment.created",
-      webhookUpdateEvents: "",
-      webhookDeleteEvents: "",
+      webhookCreateEvents: ["appointment.created"],
+      webhookUpdateEvents: [],
+      webhookDeleteEvents: [],
     });
   });
 
@@ -396,9 +396,9 @@ describe("reference workflow adapter", () => {
               domain: "appointment",
               webhookEventPath: "event",
               webhookCorrelationPath: "data.id",
-              webhookCreateEvents: "appointment.created",
-              webhookUpdateEvents: "",
-              webhookDeleteEvents: "",
+              webhookCreateEvents: ["appointment.created"],
+              webhookUpdateEvents: [],
+              webhookDeleteEvents: [],
             },
           },
         },
@@ -452,9 +452,9 @@ describe("reference workflow adapter", () => {
       domain: "appointment",
       webhookEventPath: "event",
       webhookCorrelationPath: "data.id",
-      webhookCreateEvents: "appointment.created",
-      webhookUpdateEvents: "",
-      webhookDeleteEvents: "",
+      webhookCreateEvents: ["appointment.created"],
+      webhookUpdateEvents: [],
+      webhookDeleteEvents: [],
     });
 
     const canonical = referenceGraphToCanonicalGraph(reference);

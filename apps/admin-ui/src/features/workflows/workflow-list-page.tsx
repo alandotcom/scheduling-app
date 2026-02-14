@@ -1,8 +1,7 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { Add01Icon, ArrowRight02Icon } from "@hugeicons/core-free-icons";
-import { toast } from "sonner";
 import type { WorkflowDefinitionStatus } from "@scheduling/dto";
 import {
   EntityListEmptyState,
@@ -57,6 +56,7 @@ function buildWorkflowKey(index: number): string {
 export function WorkflowListPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const [createError, setCreateError] = useState<string | null>(null);
 
   const listQuery = useQuery(
     orpc.workflows.listDefinitions.queryOptions({
@@ -72,6 +72,7 @@ export function WorkflowListPage() {
   const createMutation = useMutation(
     orpc.workflows.createDefinition.mutationOptions({
       onSuccess: async (created) => {
+        setCreateError(null);
         await queryClient.invalidateQueries({ queryKey: orpc.workflows.key() });
         await navigate({
           to: "/workflows/$workflowId",
@@ -79,12 +80,13 @@ export function WorkflowListPage() {
         });
       },
       onError: (error) => {
-        toast.error(error.message || "Failed to create workflow");
+        setCreateError(error.message || "Failed to create workflow.");
       },
     }),
   );
 
   const handleCreateWorkflow = () => {
+    setCreateError(null);
     const workflowGraph = referenceGraphToCanonicalGraph(
       createDefaultReferenceWorkflowGraph(),
     );
@@ -114,6 +116,12 @@ export function WorkflowListPage() {
           {createMutation.isPending ? "Creating..." : "New workflow"}
         </Button>
       </header>
+
+      {createError ? (
+        <div className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+          {createError}
+        </div>
+      ) : null}
 
       {listQuery.isLoading ? (
         <EntityListLoadingState rows={5} cols={4} />

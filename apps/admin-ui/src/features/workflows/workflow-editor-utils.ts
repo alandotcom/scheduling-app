@@ -1,8 +1,4 @@
-import type {
-  WorkflowGraphDocument,
-  WorkflowRunStatus,
-  WorkflowStepLogStatus,
-} from "@scheduling/dto";
+import type { WorkflowRunStatus, WorkflowStepLogStatus } from "@scheduling/dto";
 import { nanoid } from "nanoid";
 import {
   mapCanonicalRunStatusToReferenceRunStatus,
@@ -40,19 +36,6 @@ export function isRunEntityType(value: string): value is RunEntityType {
 
 export function isUuid(value: string): boolean {
   return UUID_PATTERN.test(value);
-}
-
-export function getTriggerSummary(graph: WorkflowGraphDocument): string {
-  const trigger = graph.trigger;
-  if (!trigger) {
-    return "No trigger configured";
-  }
-
-  if (trigger.type === "schedule") {
-    return `Schedule: ${trigger.expression} (${trigger.timezone})`;
-  }
-
-  return `Domain: ${trigger.domain} (${(trigger.startEvents ?? []).length} start / ${(trigger.restartEvents ?? []).length} restart / ${(trigger.stopEvents ?? []).length} stop)`;
 }
 
 export function formatDateTime(value: Date | string): string {
@@ -119,10 +102,6 @@ function toEditorNode(node: ReferenceWorkflowNode, index: number): EditorNode {
   const config = isRecord(rawConfig) ? rawConfig : {};
   const isTriggerNode =
     node.type === "trigger" || nodeData["type"] === "trigger";
-  const triggerType =
-    typeof config["triggerType"] === "string"
-      ? config["triggerType"]
-      : "Webhook";
   const actionType =
     typeof config["actionType"] === "string" ? config["actionType"] : "Action";
 
@@ -130,7 +109,7 @@ function toEditorNode(node: ReferenceWorkflowNode, index: number): EditorNode {
     typeof nodeData["label"] === "string" && nodeData["label"].trim().length > 0
       ? nodeData["label"]
       : isTriggerNode
-        ? triggerType
+        ? "Trigger"
         : actionType;
 
   return {

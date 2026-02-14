@@ -1,5 +1,8 @@
 import { useMemo, useState } from "react";
-import type { WorkflowActionCatalogItem } from "@scheduling/dto";
+import type {
+  WorkflowActionCatalogItem,
+  WorkflowTriggerCatalogItem,
+} from "@scheduling/dto";
 import { Delete01Icon } from "@hugeicons/core-free-icons";
 import { Icon } from "@/components/ui/icon";
 import { Badge } from "@/components/ui/badge";
@@ -28,6 +31,7 @@ type NodeConfigPanelProps = {
   selectedNode: EditorNode | null;
   selectedEdge: EditorEdge | null;
   actions: WorkflowActionCatalogItem[];
+  triggerCatalog: WorkflowTriggerCatalogItem[];
   onUpdateNode: (updater: (node: EditorNode) => EditorNode) => void;
   onDeleteNode: () => void;
   onUpdateEdgeBranch: (branch: WorkflowBranch | undefined) => void;
@@ -48,6 +52,7 @@ export function NodeConfigPanel({
   selectedNode,
   selectedEdge,
   actions,
+  triggerCatalog,
   onUpdateNode,
   onDeleteNode,
   onUpdateEdgeBranch,
@@ -194,6 +199,7 @@ export function NodeConfigPanel({
             {isTrigger ? (
               <TriggerConfig
                 config={selectedNodeConfig}
+                triggerCatalog={triggerCatalog}
                 onChange={(config) =>
                   onUpdateNode((node) => ({
                     ...node,

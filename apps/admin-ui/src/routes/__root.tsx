@@ -808,7 +808,7 @@ function RootLayout() {
         <main
           id="main-content"
           aria-busy={isOrganizationSwitchPending}
-          className="relative flex-1 min-w-0 overflow-y-auto [scrollbar-gutter:stable]"
+          className="relative flex-1 min-w-0 overflow-x-hidden overflow-y-auto [scrollbar-gutter:stable]"
         >
           {isResolvingActiveOrganization ? (
             <section className="mx-auto w-full max-w-7xl px-4 pt-6 sm:px-6 lg:px-8 animate-skeleton-fade-in">

@@ -6,7 +6,6 @@ import type {
   WorkflowGraphDocument,
   WorkflowValidationResult,
 } from "@scheduling/dto";
-import { toast } from "sonner";
 import { ArrowLeft01Icon } from "@hugeicons/core-free-icons";
 import { EntityListLoadingState } from "@/components/entity-list";
 import { Button } from "@/components/ui/button";
@@ -33,7 +32,6 @@ import type {
 import {
   defaultActionNode,
   editorFlowToReferenceGraph,
-  getTriggerSummary,
   isWorkflowBranch,
   referenceGraphToEditorFlow,
 } from "./workflow-editor-utils";
@@ -46,6 +44,11 @@ import "@xyflow/react/dist/style.css";
 interface WorkflowEditorShellProps {
   workflowId: string;
 }
+
+type FeedbackState = {
+  variant: "success" | "error" | "info";
+  message: string;
+} | null;
 
 function getErrorMessage(error: unknown): string {
   if (error instanceof Error && error.message) {
@@ -100,15 +103,13 @@ export function WorkflowEditorShell({ workflowId }: WorkflowEditorShellProps) {
   const [adapterError, setAdapterError] = useState<string | null>(null);
   const [validationResult, setValidationResult] =
     useState<WorkflowValidationResult | null>(null);
+  const [feedback, setFeedback] = useState<FeedbackState>(null);
 
   const saveMutation = useMutation(
     orpc.workflows.updateDraft.mutationOptions(),
   );
   const validateMutation = useMutation(
     orpc.workflows.validateDraft.mutationOptions(),
-  );
-  const publishMutation = useMutation(
-    orpc.workflows.publishDraft.mutationOptions(),
   );
   const runDraftMutation = useMutation(
     orpc.workflows.runDraft.mutationOptions(),
@@ -140,6 +141,7 @@ export function WorkflowEditorShell({ workflowId }: WorkflowEditorShellProps) {
   );
   const runs = runsQuery.data?.items ?? [];
   const actions = catalogQuery.data?.actions ?? [];
+  const triggerCatalog = catalogQuery.data?.triggers ?? [];
 
   const appointmentOptions = useMemo(() => {
     const appointments = appointmentsQuery.data?.items ?? [];
@@ -191,6 +193,7 @@ export function WorkflowEditorShell({ workflowId }: WorkflowEditorShellProps) {
     setSelectedEdgeId(null);
     setSelectedRunId(null);
     setValidationResult(null);
+    setFeedback(null);
     setIsDirty(false);
   }, [definitionQuery.data?.id, definitionQuery.data?.draftRevision]);
 
@@ -208,6 +211,7 @@ export function WorkflowEditorShell({ workflowId }: WorkflowEditorShellProps) {
   const markDirty = useCallback(() => {
     setIsDirty(true);
     setValidationResult(null);
+    setFeedback(null);
   }, []);
 
   const updateNode = useCallback(
@@ -259,7 +263,10 @@ export function WorkflowEditorShell({ workflowId }: WorkflowEditorShellProps) {
 
       const trimmedName = workflowName.trim();
       if (trimmedName.length === 0) {
-        toast.error("Workflow name is required");
+        setFeedback({
+          variant: "error",
+          message: "Workflow name is required.",
+        });
         return null;
       }
 
@@ -272,7 +279,7 @@ export function WorkflowEditorShell({ workflowId }: WorkflowEditorShellProps) {
         const message =
           error instanceof Error ? error.message : "Failed to convert graph";
         setAdapterError(message);
-        toast.error(message);
+        setFeedback({ variant: "error", message });
         return null;
       }
 
@@ -287,10 +294,10 @@ export function WorkflowEditorShell({ workflowId }: WorkflowEditorShellProps) {
         await queryClient.invalidateQueries({ queryKey: orpc.workflows.key() });
         setIsDirty(false);
         setWorkflowName(updated.name);
-        toast.success("Draft saved");
+        setFeedback({ variant: "success", message: "Draft saved." });
         return updated;
       } catch (error) {
-        toast.error(getErrorMessage(error));
+        setFeedback({ variant: "error", message: getErrorMessage(error) });
         return null;
       }
     }, [
@@ -315,40 +322,20 @@ export function WorkflowEditorShell({ workflowId }: WorkflowEditorShellProps) {
       const result = await validateMutation.mutateAsync({ id: workflowId });
       setValidationResult(result);
       if (result.valid) {
-        toast.success("Workflow is valid");
+        setFeedback({
+          variant: "success",
+          message: "Validation completed with no issues.",
+        });
       } else {
-        toast.error(`Validation returned ${result.issues.length} issue(s)`);
+        setFeedback({
+          variant: "error",
+          message: `Validation returned ${result.issues.length} issue(s).`,
+        });
       }
     } catch (error) {
-      toast.error(getErrorMessage(error));
+      setFeedback({ variant: "error", message: getErrorMessage(error) });
     }
   }, [saveDraft, validateMutation, workflowId]);
-
-  const publishDraft = useCallback(async () => {
-    const saved = await saveDraft();
-    if (!saved) {
-      return;
-    }
-
-    try {
-      const published = await publishMutation.mutateAsync({
-        id: workflowId,
-        expectedRevision: saved.draftRevision,
-      });
-      queryClient.setQueryData(definitionQueryOptions.queryKey, published);
-      await queryClient.invalidateQueries({ queryKey: orpc.workflows.key() });
-      setIsDirty(false);
-      toast.success("Workflow published");
-    } catch (error) {
-      toast.error(getErrorMessage(error));
-    }
-  }, [
-    definitionQueryOptions.queryKey,
-    publishMutation,
-    queryClient,
-    saveDraft,
-    workflowId,
-  ]);
 
   const runDraft = useCallback(
     async (input: { entityType: RunEntityType; entityId: string }) => {
@@ -370,9 +357,12 @@ export function WorkflowEditorShell({ workflowId }: WorkflowEditorShellProps) {
         if (refreshedRuns.data?.items[0]) {
           setSelectedRunId(refreshedRuns.data.items[0].runId);
         }
-        toast.success(`Draft run queued (${response.triggerEventId})`);
+        setFeedback({
+          variant: "success",
+          message: `Draft run queued (${response.triggerEventId}).`,
+        });
       } catch (error) {
-        toast.error(getErrorMessage(error));
+        setFeedback({ variant: "error", message: getErrorMessage(error) });
       }
     },
     [
@@ -397,9 +387,12 @@ export function WorkflowEditorShell({ workflowId }: WorkflowEditorShellProps) {
       });
       await runsQuery.refetch();
       await stepLogsQuery.refetch();
-      toast.success("Run cancellation requested");
+      setFeedback({
+        variant: "info",
+        message: "Run cancellation requested.",
+      });
     } catch (error) {
-      toast.error(getErrorMessage(error));
+      setFeedback({ variant: "error", message: getErrorMessage(error) });
     }
   }, [
     cancelRunMutation,
@@ -414,10 +407,9 @@ export function WorkflowEditorShell({ workflowId }: WorkflowEditorShellProps) {
     try {
       await deleteMutation.mutateAsync({ id: workflowId });
       await queryClient.invalidateQueries({ queryKey: orpc.workflows.key() });
-      toast.success("Workflow deleted");
       await navigate({ to: "/workflows" });
     } catch (error) {
-      toast.error(getErrorMessage(error));
+      setFeedback({ variant: "error", message: getErrorMessage(error) });
     }
   }, [deleteMutation, navigate, queryClient, workflowId]);
 
@@ -453,13 +445,10 @@ export function WorkflowEditorShell({ workflowId }: WorkflowEditorShellProps) {
   }
 
   const workflow = definitionQuery.data;
-  const isMutating =
-    saveMutation.isPending ||
-    validateMutation.isPending ||
-    publishMutation.isPending;
+  const isMutating = saveMutation.isPending || validateMutation.isPending;
 
   return (
-    <section className="flex min-h-[calc(100dvh-3.5rem)] w-full min-w-0 flex-col">
+    <section className="flex h-full w-full min-w-0 flex-col overflow-hidden">
       <WorkflowToolbar
         appointmentOptions={appointmentOptions}
         isAppointmentsLoading={appointmentsQuery.isLoading}
@@ -468,17 +457,30 @@ export function WorkflowEditorShell({ workflowId }: WorkflowEditorShellProps) {
         isMutating={isMutating}
         isRunningDraft={runDraftMutation.isPending}
         onDelete={deleteWorkflow}
-        onPublish={publishDraft}
         onRunDraft={runDraft}
         onSave={saveDraft}
         onValidate={validateDraft}
         onWorkflowNameChange={(name) => {
           setWorkflowName(name);
-          setIsDirty(true);
+          markDirty();
         }}
         status={workflow.status}
         workflowName={workflowName}
       />
+
+      {feedback ? (
+        <div
+          className={
+            feedback.variant === "success"
+              ? "border-b border-green-500/30 bg-green-500/5 px-4 py-2 text-sm text-green-700 lg:px-6 dark:text-green-300"
+              : feedback.variant === "error"
+                ? "border-b border-destructive/30 bg-destructive/5 px-4 py-2 text-sm text-destructive lg:px-6"
+                : "border-b border-border px-4 py-2 text-sm text-muted-foreground lg:px-6"
+          }
+        >
+          {feedback.message}
+        </div>
+      ) : null}
 
       {adapterError ? (
         <div className="border-b border-destructive/30 bg-destructive/5 px-4 py-2 text-sm text-destructive lg:px-6">
@@ -493,7 +495,7 @@ export function WorkflowEditorShell({ workflowId }: WorkflowEditorShellProps) {
         </div>
       ) : null}
 
-      <div className="flex min-h-0 flex-1">
+      <div className="flex min-h-0 flex-1 overflow-hidden">
         <div className="min-h-0 min-w-0 flex-1 bg-muted/20">
           <WorkflowCanvas
             edges={edges}
@@ -530,6 +532,7 @@ export function WorkflowEditorShell({ workflowId }: WorkflowEditorShellProps) {
           selectedNode={selectedNode}
           selectedRunId={selectedRunId}
           stepLogs={stepLogsQuery.data?.items ?? []}
+          triggerCatalog={triggerCatalog}
           onCancelRun={() => void cancelSelectedRun()}
           onDeleteEdge={() => {
             if (!selectedEdgeId) {
@@ -563,10 +566,6 @@ export function WorkflowEditorShell({ workflowId }: WorkflowEditorShellProps) {
           onUpdateNode={updateNode}
         />
       </div>
-
-      <footer className="shrink-0 border-t bg-background px-4 py-2 text-xs text-muted-foreground lg:px-6">
-        {getTriggerSummary(workflow.draftWorkflowGraph)}
-      </footer>
     </section>
   );
 }

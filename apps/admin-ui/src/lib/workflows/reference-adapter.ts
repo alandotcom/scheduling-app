@@ -78,6 +78,15 @@ function uniqueStrings(values: string[]): string[] {
 }
 
 function parseCsvSet(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return uniqueStrings(
+      value
+        .filter((entry): entry is string => typeof entry === "string")
+        .map((entry) => entry.trim())
+        .filter((entry) => entry.length > 0),
+    );
+  }
+
   if (typeof value !== "string") {
     return [];
   }
@@ -88,10 +97,6 @@ function parseCsvSet(value: unknown): string[] {
       .map((entry) => entry.trim())
       .filter((entry) => entry.length > 0),
   );
-}
-
-function toCsvSet(values: readonly string[]): string {
-  return values.join(", ");
 }
 
 function isDomainEventType(value: string): value is DomainEventType {
@@ -300,9 +305,9 @@ export function createDefaultReferenceTriggerConfig(): Record<string, unknown> {
     domain: DEFAULT_DOMAIN_EVENT_TRIGGER_DOMAIN,
     webhookEventPath: DEFAULT_WEBHOOK_EVENT_PATH,
     webhookCorrelationPath: DEFAULT_WEBHOOK_CORRELATION_PATH,
-    webhookCreateEvents: DEFAULT_DOMAIN_EVENT_START_EVENT,
-    webhookUpdateEvents: "",
-    webhookDeleteEvents: "",
+    webhookCreateEvents: [DEFAULT_DOMAIN_EVENT_START_EVENT],
+    webhookUpdateEvents: [],
+    webhookDeleteEvents: [],
   };
 }
 
@@ -581,9 +586,9 @@ function mapCanonicalTriggerToReference(
           : DEFAULT_DOMAIN_EVENT_TRIGGER_DOMAIN,
       webhookEventPath: DEFAULT_WEBHOOK_EVENT_PATH,
       webhookCorrelationPath: DEFAULT_WEBHOOK_CORRELATION_PATH,
-      webhookCreateEvents: toCsvSet(startEvents),
-      webhookUpdateEvents: toCsvSet(restartEvents),
-      webhookDeleteEvents: toCsvSet(stopEvents),
+      webhookCreateEvents: [...startEvents],
+      webhookUpdateEvents: [...restartEvents],
+      webhookDeleteEvents: [...stopEvents],
     };
   }
 

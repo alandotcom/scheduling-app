@@ -3,6 +3,7 @@ import type {
   WorkflowActionCatalogItem,
   WorkflowRunSummary,
   WorkflowStepLogEntry,
+  WorkflowTriggerCatalogItem,
 } from "@scheduling/dto";
 import { ArrowLeft01Icon, ArrowRight01Icon } from "@hugeicons/core-free-icons";
 import { Icon } from "@/components/ui/icon";
@@ -19,6 +20,7 @@ type WorkflowSidebarPanelProps = {
   selectedNode: EditorNode | null;
   selectedEdge: EditorEdge | null;
   actions: WorkflowActionCatalogItem[];
+  triggerCatalog: WorkflowTriggerCatalogItem[];
   runs: WorkflowRunSummary[];
   selectedRunId: string | null;
   stepLogs: WorkflowStepLogEntry[];
@@ -37,6 +39,7 @@ export function WorkflowSidebarPanel({
   selectedNode,
   selectedEdge,
   actions,
+  triggerCatalog,
   runs,
   selectedRunId,
   stepLogs,
@@ -69,7 +72,7 @@ export function WorkflowSidebarPanel({
   }
 
   return (
-    <aside className="flex h-full w-[26rem] min-w-[22rem] flex-col border-l bg-background">
+    <aside className="flex h-full w-[24rem] min-w-[20rem] shrink-0 flex-col border-l bg-background">
       <div className="flex items-center justify-between border-b px-3 py-2">
         <div className="flex gap-2">
           <Button
@@ -102,6 +105,7 @@ export function WorkflowSidebarPanel({
             actions={actions}
             selectedEdge={selectedEdge}
             selectedNode={selectedNode}
+            triggerCatalog={triggerCatalog}
             onDeleteEdge={onDeleteEdge}
             onDeleteNode={onDeleteNode}
             onUpdateEdgeBranch={onUpdateEdgeBranch}

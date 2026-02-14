@@ -6,7 +6,6 @@ import {
   PlayIcon,
   Delete01Icon,
   CheckmarkCircle03Icon,
-  Rocket01Icon,
 } from "@hugeicons/core-free-icons";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -55,7 +54,6 @@ type WorkflowToolbarProps = {
   isMutating: boolean;
   onSave: () => Promise<unknown>;
   onValidate: () => Promise<void>;
-  onPublish: () => Promise<void>;
   onDelete: () => Promise<void>;
   isDeleting: boolean;
   onRunDraft: (input: {
@@ -75,7 +73,6 @@ export function WorkflowToolbar({
   isMutating,
   onSave,
   onValidate,
-  onPublish,
   onDelete,
   isDeleting,
   onRunDraft,
@@ -142,21 +139,8 @@ export function WorkflowToolbar({
           <Button
             disabled={!isDirty || isMutating}
             onClick={() => void onSave()}
-            variant="outline"
           >
             Save
-          </Button>
-          <Button
-            disabled={isMutating}
-            onClick={() => void onValidate()}
-            variant="outline"
-          >
-            <Icon icon={CheckmarkCircle03Icon} className="size-4" />
-            Validate
-          </Button>
-          <Button disabled={isMutating} onClick={() => void onPublish()}>
-            <Icon icon={Rocket01Icon} className="size-4" />
-            Publish
           </Button>
 
           <DropdownMenu>
@@ -166,6 +150,14 @@ export function WorkflowToolbar({
               <Icon icon={MoreHorizontalIcon} className="size-4" />
             </DropdownMenuTrigger>
             <DropdownMenuContent side="bottom">
+              <DropdownMenuItem
+                disabled={isMutating}
+                onClick={() => void onValidate()}
+              >
+                <Icon icon={CheckmarkCircle03Icon} className="size-4" />
+                Validate
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
               <DropdownMenuItem
                 onClick={() => {
                   setIsDeleteOpen(true);

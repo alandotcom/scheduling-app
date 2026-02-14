@@ -1,13 +1,10 @@
 import { memo } from "react";
 import type { NodeProps } from "@xyflow/react";
+import { Clock01Icon, PlayIcon } from "@hugeicons/core-free-icons";
+import { Icon } from "@/components/ui/icon";
 import type { EditorNodeData } from "../workflow-editor-types";
-import {
-  Node,
-  NodeContent,
-  NodeDescription,
-  NodeHeader,
-  NodeTitle,
-} from "../flow-elements/node";
+import { Node, NodeDescription, NodeTitle } from "../flow-elements/node";
+import { cn } from "@/lib/utils";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
@@ -57,22 +54,39 @@ export const TriggerNode = memo(({ data, selected }: NodeProps) => {
     typeof payload.config.triggerType === "string"
       ? payload.config.triggerType
       : "Webhook";
+  const startEvents =
+    Array.isArray(payload.config.webhookCreateEvents) &&
+    payload.config.webhookCreateEvents.every(
+      (entry) => typeof entry === "string",
+    )
+      ? payload.config.webhookCreateEvents
+      : [];
+  const triggerSummary =
+    triggerType === "Schedule"
+      ? "Schedule trigger"
+      : (startEvents[0] ?? "Domain event trigger");
+  const TriggerIcon = triggerType === "Schedule" ? Clock01Icon : PlayIcon;
 
   return (
     <Node
-      className={selected ? "ring-2 ring-ring" : undefined}
+      className={cn(
+        "flex h-48 w-48 min-w-0 flex-col items-center justify-center shadow-none transition-all duration-150 ease-out",
+        selected ? "border-primary ring-2 ring-ring" : undefined,
+      )}
       handles={{ target: false, source: true }}
       status={toNodeStatus(payload.status)}
     >
-      <NodeHeader>
-        <NodeTitle className="text-sm">
-          {payload.label || triggerType}
-        </NodeTitle>
-        <NodeDescription>{payload.description || "Trigger"}</NodeDescription>
-      </NodeHeader>
-      <NodeContent className="text-xs text-muted-foreground">
-        Type: {triggerType}
-      </NodeContent>
+      <div className="flex flex-col items-center justify-center gap-3 p-6 text-center">
+        <Icon icon={TriggerIcon} className="size-12 text-blue-500" />
+        <div className="flex flex-col items-center gap-1">
+          <NodeTitle className="text-base">
+            {payload.label || "Trigger"}
+          </NodeTitle>
+          <NodeDescription className="text-xs">
+            {payload.description || triggerSummary}
+          </NodeDescription>
+        </div>
+      </div>
     </Node>
   );
 });

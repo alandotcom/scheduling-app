@@ -11,13 +11,21 @@ export function Canvas({ children, ...props }: WorkflowCanvasRootProps) {
     <ReactFlow
       deleteKeyCode={["Backspace", "Delete"]}
       fitView
+      fitViewOptions={{ maxZoom: 1, minZoom: 0.5, padding: 0.2, duration: 0 }}
+      minZoom={0.35}
+      maxZoom={1.5}
       panActivationKeyCode={null}
       selectionOnDrag={false}
       zoomOnDoubleClick={false}
       zoomOnPinch
       {...props}
     >
-      <Background gap={24} size={1.5} />
+      <Background
+        bgColor="var(--sidebar)"
+        color="var(--border)"
+        gap={24}
+        size={2}
+      />
       {children}
     </ReactFlow>
   );

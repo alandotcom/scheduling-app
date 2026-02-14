@@ -1,5 +1,47 @@
 # Workflow UI Migration Plan (Reset + Copy-First)
 
+## 0. Current Status (2026-02-14)
+
+Implemented in commit `7101c9d`:
+- Workflow editor split from monolithic shell into reference-shaped surfaces:
+  - `workflow-canvas`, `workflow-toolbar`, `workflow-sidebar-panel`, `node-config-panel`, `workflow-context-menu`, `workflow-runs`
+  - `nodes/*`, `flow-elements/*`, `config/*`
+- Required UI primitives added:
+  - `ui/button-group.tsx`
+  - `ui/dropdown-menu.tsx`
+- Seam wiring completed for:
+  - `orpc.workflows.*` load/save/validate/publish/run/list-runs/list-run-steps/cancel-run
+  - canonical graph <-> reference graph adapter conversions
+  - workflow name persistence through draft update
+  - run modal with entity type selector + searchable appointment selector
+  - non-appointment run disabled with TODO messaging
+- Delete workflow implemented end-to-end:
+  - DTO input/output schemas
+  - API delete route (`DELETE /workflows/{id}`)
+  - UI delete action wiring
+  - backend route tests
+
+Verification completed:
+- `pnpm typecheck` pass
+- `pnpm lint` pass
+- `pnpm test` pass
+
+Feedback correction pass implemented (current working tree, 2026-02-14):
+- Removed workflow minimap and minimap toggle; fit view now opens with bounded zoom.
+- Updated trigger node card to reference-style centered layout and removed default "Webhook" title.
+- Replaced trigger event CSV inputs with domain-driven multi-select dropdown pickers.
+- Added explicit canvas "Add step" affordance so action creation is visible without context menu.
+- Removed workflow toasts and switched workflow list/editor feedback to inline banners/messages.
+- Simplified toolbar semantics to Save-first (removed publish from primary workflow editor actions).
+- Tightened workflow layout overflow behavior to prevent horizontal scroll bleed.
+
+Still open:
+- Manual desktop/mobile parity QA pass against reference screens
+- Additional workflow-specific UI tests for run modal and editor lifecycle
+- Explicit deviation sign-off (listed in Phase D)
+
+---
+
 ## 1. Goal
 
 Copy the workflow editor UI from `../notifications-workflow` into `apps/admin-ui` with **literal UI/interaction parity first**, then adapt only the minimum seams needed for scheduling-app backend contracts.
@@ -283,6 +325,17 @@ Tasks:
 Exit criteria:
 - Approved deviation list exists and is implemented.
 
+Current deviation log (2026-02-14):
+1. Node/action configuration is simplified.
+- Current state: action grid + renderer + raw JSON editing are wired, but not all reference affordances are mirrored.
+- Impact: core functionality is present; some reference UX density/details differ.
+- Follow-up: parity pass on node config interactions and field rendering.
+
+2. Duplicate/public/read-only actions are present as disabled TODO actions.
+- Current state: menu items rendered; unsupported backend capabilities are intentionally disabled.
+- Impact: intentional temporary deviation.
+- Follow-up: enable when backend capability is available or formally remove from parity scope.
+
 ### Phase E: Hardening
 
 Tasks:
@@ -296,7 +349,7 @@ Tasks:
 - Keep round-trip adapter fixtures green.
 
 3. UI tests (route/component level)
-- Save/validate/publish success and failure states.
+- Save/validate success and failure states.
 - Run modal behavior:
   - appointment search select -> run enabled
   - non-appointment type -> run disabled + TODO message
@@ -326,34 +379,35 @@ Exit criteria:
 - [ ] A4 Verify clean baseline commit exists.
 
 ### 10.2 Copy
-- [ ] B1 Copy workflow surface files.
-- [ ] B2 Copy node files.
-- [ ] B3 Copy flow-element files.
-- [ ] B4 Copy workflow config files.
-- [ ] B5 Copy missing UI primitives from reference.
-- [ ] B6 Resolve imports/dependencies.
-- [ ] B7 Ensure copied structure is file-split like reference.
+- [x] B1 Copy workflow surface files.
+- [x] B2 Copy node files.
+- [x] B3 Copy flow-element files.
+- [x] B4 Copy workflow config files.
+- [x] B5 Copy missing UI primitives from reference.
+- [x] B6 Resolve imports/dependencies.
+- [x] B7 Ensure copied structure is file-split like reference.
 
 ### 10.3 Seam Wiring
-- [ ] C1 Connect copied store/actions to `orpc` workflow APIs.
-- [ ] C2 Wire adapter load/save conversions.
-- [ ] C3 Enforce default trigger + fail-closed trigger errors.
-- [ ] C4 Wire create/list/get/update/validate/publish.
-- [ ] C5 Wire run/runs/step logs/cancel.
-- [ ] C6 Implement run modal with appointment search + non-appointment TODO disabled state.
-- [ ] C7 Persist workflow name on save.
-- [ ] C8 Add delete workflow backend route + wire delete UI action.
+- [x] C1 Connect copied store/actions to `orpc` workflow APIs.
+- [x] C2 Wire adapter load/save conversions.
+- [x] C3 Enforce default trigger + fail-closed trigger errors.
+- [x] C4 Wire create/list/get/update/validate/publish.
+- [x] C5 Wire run/runs/step logs/cancel.
+- [x] C6 Implement run modal with appointment search + non-appointment TODO disabled state.
+- [x] C7 Persist workflow name on save.
+- [x] C8 Add delete workflow backend route + wire delete UI action.
 
 ### 10.4 Decision Application
-- [ ] D1 Apply resolved Section 7 decisions without drift.
-- [ ] D2 Record any temporary deviations explicitly.
+- [x] D1 Apply resolved Section 7 decisions without drift.
+- [x] D2 Record any temporary deviations explicitly.
 
 ### 10.5 Hardening
 - [ ] E1 Add backend tests for delete + naming update.
-- [ ] E2 Keep adapter tests green and expand if needed.
+  - Status: delete route test added; dedicated naming update assertion still pending.
+- [x] E2 Keep adapter tests green and expand if needed.
 - [ ] E3 Add UI tests for run modal + draft lifecycle + run/log panels.
 - [ ] E4 Perform desktop + mobile parity QA.
-- [ ] E5 Run lint/typecheck/tests and fix all failures.
+- [x] E5 Run lint/typecheck/tests and fix all failures.
 
 ### 10.6 Integration Wiring
 - [ ] I1 Add integration settings metadata contract (`configSchema`, `secretSchema`) to DTO/API responses.

@@ -1,6 +1,5 @@
 import { useMemo, useState } from "react";
 import {
-  MiniMap,
   addEdge,
   applyEdgeChanges,
   applyNodeChanges,
@@ -11,7 +10,10 @@ import {
   useReactFlow,
   ReactFlowProvider,
 } from "@xyflow/react";
+import { Add01Icon } from "@hugeicons/core-free-icons";
 import { nanoid } from "nanoid";
+import { Button } from "@/components/ui/button";
+import { Icon } from "@/components/ui/icon";
 import type { EditorEdge, EditorNode } from "./workflow-editor-types";
 import { ActionNode } from "./nodes/action-node";
 import { TriggerNode } from "./nodes/trigger-node";
@@ -50,7 +52,6 @@ function WorkflowCanvasInner({
   onSelectEdge,
   onAddActionAt,
 }: WorkflowCanvasProps) {
-  const [showMinimap, setShowMinimap] = useState(false);
   const [menuState, setMenuState] = useState<ContextMenuState>(null);
   const { screenToFlowPosition } = useReactFlow();
 
@@ -141,12 +142,25 @@ function WorkflowCanvasInner({
         }}
         onPaneContextMenu={onPaneContextMenu}
       >
-        {showMinimap ? <MiniMap pannable zoomable /> : null}
+        <Panel className="p-2" position="top-left">
+          <Button
+            onClick={() => {
+              onAddActionAt(
+                screenToFlowPosition({
+                  x: window.innerWidth / 2,
+                  y: window.innerHeight / 2,
+                }),
+              );
+            }}
+            size="sm"
+            variant="secondary"
+          >
+            <Icon icon={Add01Icon} className="size-4" />
+            Add step
+          </Button>
+        </Panel>
         <Panel position="bottom-left">
-          <Controls
-            showMinimap={showMinimap}
-            onToggleMinimap={() => setShowMinimap((current) => !current)}
-          />
+          <Controls />
         </Panel>
       </Canvas>
 
