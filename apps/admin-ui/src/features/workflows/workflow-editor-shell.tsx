@@ -110,7 +110,7 @@ export function WorkflowEditorShell({ workflowId }: WorkflowEditorShellProps) {
 
   if (definitionQuery.isLoading) {
     return (
-      <section className="mx-auto w-full max-w-7xl px-4 pt-6 sm:px-6 lg:px-8">
+      <section className="h-full w-full p-4">
         <EntityListLoadingState rows={6} cols={6} />
       </section>
     );
@@ -143,9 +143,9 @@ export function WorkflowEditorShell({ workflowId }: WorkflowEditorShellProps) {
   const triggerSummary = buildTriggerSummary(workflow.draftWorkflowGraph);
 
   return (
-    <section className="mx-auto flex w-full max-w-[1400px] flex-col gap-4 px-4 pb-6 pt-6 sm:px-6 lg:px-8">
-      <header className="flex flex-wrap items-start justify-between gap-3">
-        <div className="space-y-1">
+    <section className="flex h-full min-h-full w-full min-w-0 flex-col">
+      <header className="flex shrink-0 flex-wrap items-start justify-between gap-3 border-b border-border bg-background px-4 py-3 lg:px-6">
+        <div className="min-w-0 space-y-1">
           <div className="flex items-center gap-2">
             <Button asChild variant="ghost" size="sm">
               <Link to="/workflows">
@@ -157,10 +157,10 @@ export function WorkflowEditorShell({ workflowId }: WorkflowEditorShellProps) {
               {workflow.status}
             </Badge>
           </div>
-          <h1 className="text-2xl font-semibold tracking-tight">
+          <h1 className="truncate text-xl font-semibold tracking-tight">
             {workflow.name}
           </h1>
-          <p className="text-sm text-muted-foreground">
+          <p className="truncate text-sm text-muted-foreground">
             {workflow.description || "No description"}
           </p>
         </div>
@@ -170,16 +170,9 @@ export function WorkflowEditorShell({ workflowId }: WorkflowEditorShellProps) {
         </div>
       </header>
 
-      <div className="grid gap-4 xl:grid-cols-[1fr_320px]">
-        <Card className="min-h-[560px]">
-          <CardHeader className="border-b">
-            <CardTitle className="text-base">Workflow Canvas</CardTitle>
-            <CardDescription>
-              Phase 1 shell: read-only graph preview while editor interactions
-              are migrated.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="h-[500px] p-0">
+      <div className="flex min-h-0 flex-1">
+        <div className="min-h-0 min-w-0 flex-1 bg-muted/20">
+          <div className="h-full w-full">
             <ReactFlow
               nodes={flow.nodes}
               edges={flow.edges}
@@ -189,15 +182,16 @@ export function WorkflowEditorShell({ workflowId }: WorkflowEditorShellProps) {
               nodesDraggable={false}
               nodesConnectable={false}
               elementsSelectable={false}
+              className="h-full w-full"
             >
               <Background />
               <MiniMap pannable zoomable />
               <Controls showInteractive={false} />
             </ReactFlow>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
 
-        <div className="space-y-4">
+        <aside className="hidden h-full w-[320px] shrink-0 space-y-4 overflow-y-auto border-l border-border bg-background p-4 xl:block">
           <Card>
             <CardHeader>
               <CardTitle className="text-base">Trigger</CardTitle>
@@ -244,7 +238,7 @@ export function WorkflowEditorShell({ workflowId }: WorkflowEditorShellProps) {
               </p>
             </CardContent>
           </Card>
-        </div>
+        </aside>
       </div>
     </section>
   );
