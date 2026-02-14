@@ -460,6 +460,9 @@ export const idInputSchema = z.object({
   id: uuidSchema,
 });
 
+export const deleteWorkflowDefinitionInputSchema = idInputSchema;
+export const deleteWorkflowDefinitionResponseSchema = successResponseSchema;
+
 export const validateWorkflowDraftInputSchema = idInputSchema;
 
 export const publishWorkflowDraftInputSchema = idInputSchema.extend({
@@ -632,6 +635,12 @@ export type UpdateWorkflowDraftWorkflowGraphInput = z.infer<
 >;
 export type ValidateWorkflowDraftInput = z.infer<
   typeof validateWorkflowDraftInputSchema
+>;
+export type DeleteWorkflowDefinitionInput = z.infer<
+  typeof deleteWorkflowDefinitionInputSchema
+>;
+export type DeleteWorkflowDefinitionResponse = z.infer<
+  typeof deleteWorkflowDefinitionResponseSchema
 >;
 export type PublishWorkflowDraftInput = z.infer<
   typeof publishWorkflowDraftInputSchema

@@ -2,6 +2,8 @@ import {
   cancelWorkflowRunInputSchema,
   cancelWorkflowRunResponseSchema,
   createWorkflowDefinitionSchema,
+  deleteWorkflowDefinitionInputSchema,
+  deleteWorkflowDefinitionResponseSchema,
   getWorkflowRunInputSchema,
   idInputSchema,
   listWorkflowBindingsInputSchema,
@@ -493,6 +495,29 @@ export const createDefinition = adminOnly
       activeVersion: null,
       bindings: [],
       scheduleBindings: [],
+    });
+  });
+
+export const deleteDefinition = adminOnly
+  .route({ method: "DELETE", path: "/workflows/{id}" })
+  .input(deleteWorkflowDefinitionInputSchema)
+  .output(deleteWorkflowDefinitionResponseSchema)
+  .handler(async ({ input, context }) => {
+    return withOrg(context.orgId, async (tx) => {
+      await getDefinitionById(tx, input.id);
+
+      const [deleted] = await tx
+        .delete(workflowDefinitions)
+        .where(eq(workflowDefinitions.id, input.id))
+        .returning({ id: workflowDefinitions.id });
+
+      if (!deleted) {
+        throw new ApplicationError("Workflow definition not found", {
+          code: "NOT_FOUND",
+        });
+      }
+
+      return { success: true as const };
     });
   });
 
@@ -1009,6 +1034,7 @@ export const workflowRoutes = {
   listDefinitions,
   getDefinition,
   createDefinition,
+  deleteDefinition,
   updateDraft,
   validateDraft,
   publishDraft,

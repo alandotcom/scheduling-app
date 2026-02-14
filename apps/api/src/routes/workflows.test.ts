@@ -14,6 +14,7 @@ import { and, eq } from "drizzle-orm";
 import type * as schema from "@scheduling/db/schema";
 import {
   workflowBindings,
+  workflowDefinitions,
   workflowDefinitionVersions,
   workflowRunEntityLinks,
 } from "@scheduling/db/schema";
@@ -284,6 +285,119 @@ describe("Workflow Routes", () => {
     );
     expect(fetched.id).toBe(created.id);
     expect(fetched.draftWorkflowGraph).toEqual(created.draftWorkflowGraph);
+  });
+
+  test("deleteDefinition removes workflow and cascades related records", async () => {
+    const { org, user } = await createOrg(db);
+    const ownerContext = createTestContext({
+      orgId: org.id,
+      userId: user.id,
+      role: "owner",
+    });
+
+    const created = await call(
+      workflowRoutes.createDefinition,
+      {
+        key: "delete_definition",
+        name: "Delete Definition",
+        workflowGraph: {
+          trigger: {
+            type: "domain_event",
+            domain: "appointment",
+            startEvents: ["appointment.created"],
+            restartEvents: [],
+            stopEvents: [],
+          },
+        },
+      },
+      { context: ownerContext },
+    );
+
+    await call(
+      workflowRoutes.publishDraft,
+      {
+        id: created.id,
+        expectedRevision: 1,
+      },
+      { context: ownerContext },
+    );
+
+    const deleted = await call(
+      workflowRoutes.deleteDefinition,
+      { id: created.id },
+      { context: ownerContext },
+    );
+    expect(deleted.success).toBe(true);
+
+    await expect(
+      call(
+        workflowRoutes.getDefinition,
+        { id: created.id },
+        { context: ownerContext },
+      ),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+
+    const listed = await call(
+      workflowRoutes.listDefinitions,
+      {},
+      { context: ownerContext },
+    );
+    expect(listed.items).toEqual([]);
+
+    await setTestOrgContext(db, org.id);
+    try {
+      const [definition] = await db
+        .select()
+        .from(workflowDefinitions)
+        .where(eq(workflowDefinitions.id, created.id))
+        .limit(1);
+      expect(definition).toBeUndefined();
+
+      const versions = await db
+        .select()
+        .from(workflowDefinitionVersions)
+        .where(eq(workflowDefinitionVersions.definitionId, created.id));
+      expect(versions).toEqual([]);
+
+      const bindings = await db
+        .select()
+        .from(workflowBindings)
+        .where(eq(workflowBindings.definitionId, created.id));
+      expect(bindings).toEqual([]);
+    } finally {
+      await clearTestOrgContext(db);
+    }
+  });
+
+  test("deleteDefinition rejects non-admin roles", async () => {
+    const { org, user } = await createOrg(db);
+    const ownerContext = createTestContext({
+      orgId: org.id,
+      userId: user.id,
+      role: "owner",
+    });
+    const memberContext = createTestContext({
+      orgId: org.id,
+      userId: user.id,
+      role: "member",
+    });
+
+    const created = await call(
+      workflowRoutes.createDefinition,
+      {
+        key: "delete_forbidden",
+        name: "Delete Forbidden",
+      },
+      { context: ownerContext },
+    );
+
+    await expect(
+      call(
+        workflowRoutes.deleteDefinition,
+        { id: created.id },
+        { context: memberContext },
+      ),
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 
   test("createDefinition rejects duplicate workflow keys within an org", async () => {
