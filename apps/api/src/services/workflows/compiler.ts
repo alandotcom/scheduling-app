@@ -2,6 +2,7 @@ import {
   workflowGraphDocumentSchema,
   workflowValidationResultSchema,
   type WorkflowGraphDocument,
+  type WorkflowTriggerConfig,
   type WorkflowValidationIssue,
   type WorkflowValidationResult,
 } from "@scheduling/dto";
@@ -9,7 +10,7 @@ import { getWorkflowActionDefinition } from "./registry.js";
 
 type WorkflowDocumentLike = {
   schemaVersion?: number;
-  trigger?: unknown;
+  trigger?: WorkflowTriggerConfig;
   nodes?: unknown;
   edges?: unknown;
   [key: string]: unknown;
@@ -49,25 +50,6 @@ function sortEdgesDeterministically(edges: CanonicalEdge[]): CanonicalEdge[] {
 
 function sortNodesDeterministically(nodes: CanonicalNode[]): CanonicalNode[] {
   return [...nodes].toSorted((left, right) => left.id.localeCompare(right.id));
-}
-
-function getTriggerEventType(document: WorkflowDocumentLike): string | null {
-  const trigger = document.trigger;
-  if (!isRecord(trigger)) {
-    return null;
-  }
-
-  const eventType = trigger["eventType"];
-  if (typeof eventType === "string" && eventType.length > 0) {
-    return eventType;
-  }
-
-  const event = trigger["event"];
-  if (typeof event === "string" && event.length > 0) {
-    return event;
-  }
-
-  return null;
 }
 
 function buildCanonicalNodes(document: WorkflowDocumentLike): CanonicalNode[] {
@@ -153,6 +135,36 @@ function findCycleNode(
   return null;
 }
 
+function buildCompiledTrigger(trigger: WorkflowTriggerConfig | undefined) {
+  if (!trigger) {
+    return null;
+  }
+
+  if (trigger.type === "domain_event") {
+    return {
+      type: "domain_event" as const,
+      domain: trigger.domain,
+      startEvents: [...trigger.startEvents],
+      restartEvents: [...trigger.restartEvents],
+      stopEvents: [...trigger.stopEvents],
+      retryPolicy: trigger.retryPolicy ?? null,
+      debounce: trigger.debounce ?? null,
+      replacement: trigger.replacement ?? null,
+    };
+  }
+
+  return {
+    type: "schedule" as const,
+    expression: trigger.expression,
+    timezone: trigger.timezone,
+    retryPolicy: trigger.retryPolicy ?? null,
+    replacement: trigger.replacement ?? {
+      mode: "allow_parallel",
+      cancelOnTerminalState: false,
+    },
+  };
+}
+
 export function compileWorkflowDocument(
   workflow: WorkflowGraphDocument,
 ): WorkflowCompilationResult {
@@ -176,7 +188,6 @@ export function compileWorkflowDocument(
 
   const document = parsed.data as WorkflowDocumentLike;
   const issues: WorkflowValidationIssue[] = [];
-  const triggerEventType = getTriggerEventType(document);
   const nodes = buildCanonicalNodes(document);
   const edges = buildCanonicalEdges(document);
   const nodeIdSet = new Set(nodes.map((node) => node.id));
@@ -190,12 +201,12 @@ export function compileWorkflowDocument(
     });
   }
 
-  if (!triggerEventType) {
+  if (!document.trigger) {
     issues.push({
       code: "MISSING_REQUIRED_FIELD",
       severity: "error",
-      field: "trigger.eventType",
-      message: "Workflow trigger event type is required",
+      field: "trigger",
+      message: "Workflow trigger is required",
     });
   }
 
@@ -247,7 +258,7 @@ export function compileWorkflowDocument(
         severity: "error",
         nodeId: node.id,
         field: "actionId",
-        message: `Action node \"${node.id}\" must declare an actionId`,
+        message: `Action node "${node.id}" must declare an actionId`,
       });
       continue;
     }
@@ -281,11 +292,12 @@ export function compileWorkflowDocument(
 
     const rawInput = node.config["input"];
     const inputObj = isRecord(rawInput) ? rawInput : {};
-    // Skip strict schema validation when input contains template variables —
-    // templates like {{@nodeId:Label.field}} are resolved at runtime.
+    // Skip strict schema validation when input contains template variables.
     const hasTemplates = Object.values(inputObj).some(
-      (v) => typeof v === "string" && /\{\{@[^:]+:[^}]+\}\}/.test(v),
+      (value) =>
+        typeof value === "string" && /\{\{@[^:]+:[^}]+\}\}/.test(value),
     );
+
     if (!hasTemplates) {
       const parsedInput = actionDefinition.inputSchema.safeParse(inputObj);
       if (!parsedInput.success) {
@@ -388,28 +400,13 @@ export function compileWorkflowDocument(
     };
   }
 
-  const trigger = isRecord(document.trigger) ? document.trigger : null;
   const sortedNodes = sortNodesDeterministically(nodes);
   const sortedEdges = sortEdgesDeterministically(edges);
   const compiledPlan = {
-    planVersion: 1,
+    planVersion: 2,
     graphSchemaVersion:
       typeof document.schemaVersion === "number" ? document.schemaVersion : 1,
-    trigger: {
-      eventType: triggerEventType,
-      retryPolicy:
-        trigger !== null && isRecord(trigger["retryPolicy"])
-          ? trigger["retryPolicy"]
-          : null,
-      debounce:
-        trigger !== null && isRecord(trigger["debounce"])
-          ? trigger["debounce"]
-          : null,
-      replacement:
-        trigger !== null && isRecord(trigger["replacement"])
-          ? trigger["replacement"]
-          : null,
-    },
+    trigger: buildCompiledTrigger(document.trigger),
     entryNodeIds,
     nodes: sortedNodes.map((node) => ({
       id: node.id,

@@ -207,7 +207,7 @@ export class ClientRepository {
       .update(clients)
       .set({
         ...input,
-        updatedAt: new Date(),
+        updatedAt: sql`now()`,
       })
       .where(eq(clients.id, id))
       .returning();

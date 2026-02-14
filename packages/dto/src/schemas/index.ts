@@ -14,6 +14,7 @@ export * from "./availability";
 export * from "./api-key";
 export * from "./audit";
 export * from "./dashboard";
+export * from "./domain-event";
 export * from "./webhook";
 export * from "./integration";
 export * from "./workflow";

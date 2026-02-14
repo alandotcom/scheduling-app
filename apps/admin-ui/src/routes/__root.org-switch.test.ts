@@ -69,6 +69,10 @@ describe("getWorkflowIdFromPathname", () => {
     expect(getWorkflowIdFromPathname("/workflows")).toBeNull();
     expect(getWorkflowIdFromPathname("/workflows/")).toBeNull();
   });
+
+  test("returns null for new workflow route", () => {
+    expect(getWorkflowIdFromPathname("/workflows/new")).toBeNull();
+  });
 });
 
 describe("getHeaderBreadcrumbItems", () => {

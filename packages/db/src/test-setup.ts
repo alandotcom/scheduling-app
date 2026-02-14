@@ -5,6 +5,9 @@
 
 import "./test-matchers.js";
 import { SQL } from "bun";
+import { drizzle } from "drizzle-orm/bun-sql";
+import { migrate } from "drizzle-orm/bun-sql/migrator";
+import { join } from "node:path";
 
 const ADMIN_DATABASE_URL =
   process.env["DATABASE_URL"] ??
@@ -56,27 +59,15 @@ async function setupTestDatabase() {
   const testDbAdmin = new SQL(testDbAdminUrl);
 
   try {
-    // Always push schema in tests so the test database matches current schema,
-    // even when the initial migration file is edited during active development.
-    const proc = Bun.spawn(
-      [
-        "bun",
-        "--bun",
-        "node_modules/drizzle-kit/bin.cjs",
-        "push",
-        "--force",
-        "--config=drizzle.test.config.ts",
-      ],
-      {
-        cwd: import.meta.dir + "/..",
-        stdout: "inherit",
-        stderr: "inherit",
-      },
-    );
-    await proc.exited;
-    if (proc.exitCode !== 0) {
-      throw new Error("Failed to push schema to test database");
-    }
+    // Always rebuild schema from migrations to avoid drift from stale objects.
+    await testDbAdmin.unsafe("DROP SCHEMA IF EXISTS public CASCADE");
+    await testDbAdmin.unsafe("DROP SCHEMA IF EXISTS drizzle CASCADE");
+    await testDbAdmin.unsafe("CREATE SCHEMA public");
+
+    const migrationDb = drizzle({ client: testDbAdmin });
+    await migrate(migrationDb, {
+      migrationsFolder: join(import.meta.dir, "migrations"),
+    });
 
     // Grant permissions to app user on test database
     await testDbAdmin.unsafe(`GRANT ALL ON SCHEMA public TO ${APP_USER}`);

@@ -1,7 +1,12 @@
 import { mock } from "bun:test";
-import { webhookInngest } from "../inngest/client.js";
+import { domainEventInngest } from "../inngest/client.js";
 
 const sendMock = mock(async () => ({ ids: ["test-event-id"] }));
 
-(webhookInngest as unknown as { send: typeof webhookInngest.send }).send =
-  sendMock;
+(
+  domainEventInngest as unknown as {
+    send: typeof domainEventInngest.send;
+  }
+).send = sendMock;
+
+export { sendMock };

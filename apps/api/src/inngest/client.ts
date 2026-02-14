@@ -1,12 +1,12 @@
 import { EventSchemas, Inngest } from "inngest";
-import type { WebhookEventDataByType, WebhookEventType } from "@scheduling/dto";
+import type { DomainEventDataByType, DomainEventType } from "@scheduling/dto";
 import { config } from "../config.js";
 
-type SchedulingWebhookEvents = {
-  [K in WebhookEventType]: {
+type SchedulingDomainEvents = {
+  [K in DomainEventType]: {
     data: {
       orgId: string;
-    } & WebhookEventDataByType[K];
+    } & DomainEventDataByType[K];
   };
 };
 
@@ -21,12 +21,13 @@ type SchedulingInternalEvents = {
       orgId: string;
       workflow: {
         definitionId: string;
-        versionId: string;
+        versionId: string | null;
         workflowType: string;
+        compiledPlan?: Record<string, unknown> | null;
       };
       sourceEvent: {
         id: string;
-        type: WebhookEventType;
+        type: DomainEventType | "schedule.triggered" | "manual.triggered";
         timestamp: string;
         payload: Record<string, unknown>;
       };
@@ -38,7 +39,7 @@ type SchedulingInternalEvents = {
   };
 };
 
-type SchedulingInngestEvents = SchedulingWebhookEvents &
+type SchedulingInngestEvents = SchedulingDomainEvents &
   SchedulingInternalEvents;
 
 const inngestClientOptions = {
@@ -52,7 +53,7 @@ export const inngest = new Inngest({
   schemas: new EventSchemas().fromRecord<SchedulingInngestEvents>(),
 });
 
-export const webhookInngest = new Inngest({
+export const domainEventInngest = new Inngest({
   ...inngestClientOptions,
-  schemas: new EventSchemas().fromRecord<SchedulingWebhookEvents>(),
+  schemas: new EventSchemas().fromRecord<SchedulingDomainEvents>(),
 });

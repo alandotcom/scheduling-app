@@ -605,6 +605,43 @@ export const workflowBindings = pgTable.withRLS(
   ],
 );
 
+export const workflowScheduleBindings = pgTable.withRLS(
+  "workflow_schedule_bindings",
+  {
+    id,
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => orgs.id),
+    definitionId: uuid("definition_id")
+      .notNull()
+      .references(() => workflowDefinitions.id, { onDelete: "cascade" }),
+    versionId: uuid("version_id")
+      .notNull()
+      .references(() => workflowDefinitionVersions.id, { onDelete: "cascade" }),
+    scheduleExpression: text("schedule_expression").notNull(),
+    scheduleTimezone: text("schedule_timezone").notNull(),
+    nextRunAt: timestamp("next_run_at", { withTimezone: true }),
+    enabled: boolean("enabled").notNull().default(true),
+    ...timestamps,
+  },
+  (table) => [
+    uniqueIndex("workflow_schedule_bindings_org_definition_unique_idx").on(
+      table.orgId,
+      table.definitionId,
+    ),
+    index("workflow_schedule_bindings_org_due_idx").on(
+      table.orgId,
+      table.nextRunAt,
+      table.enabled,
+    ),
+    pgPolicy("org_isolation_workflow_schedule_bindings", {
+      for: "all",
+      using: sql`org_id = current_org_id()`,
+      withCheck: sql`org_id = current_org_id()`,
+    }),
+  ],
+);
+
 export const workflowRunEntityLinks = pgTable.withRLS(
   "workflow_run_entity_links",
   {

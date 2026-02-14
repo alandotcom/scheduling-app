@@ -51,6 +51,7 @@ export async function resetTestDb(): Promise<void> {
     TRUNCATE TABLE
       workflow_delivery_log,
       workflow_run_entity_links,
+      workflow_schedule_bindings,
       workflow_bindings,
       workflow_definition_versions,
       workflow_definitions,

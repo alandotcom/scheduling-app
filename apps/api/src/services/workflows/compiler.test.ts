@@ -5,7 +5,13 @@ describe("workflow compiler", () => {
   test("compiles first-party graph payload deterministically", () => {
     const result = compileWorkflowDocument({
       schemaVersion: 1,
-      trigger: { event: "appointment.created" },
+      trigger: {
+        type: "domain_event",
+        domain: "appointment",
+        startEvents: ["appointment.created"],
+        restartEvents: [],
+        stopEvents: [],
+      },
       nodes: [
         {
           id: "step_b",
@@ -34,9 +40,13 @@ describe("workflow compiler", () => {
     expect(result.validation.valid).toBe(true);
     expect(result.compiledPlan).not.toBeNull();
     expect(result.compiledPlan).toMatchObject({
-      planVersion: 1,
+      planVersion: 2,
       trigger: {
-        eventType: "appointment.created",
+        type: "domain_event",
+        domain: "appointment",
+        startEvents: ["appointment.created"],
+        restartEvents: [],
+        stopEvents: [],
       },
       entryNodeIds: ["step_b"],
       nodes: [
@@ -49,7 +59,13 @@ describe("workflow compiler", () => {
 
   test("returns invalid edge issues for dangling references", () => {
     const result = compileWorkflowDocument({
-      trigger: { eventType: "client.created" },
+      trigger: {
+        type: "domain_event",
+        domain: "client",
+        startEvents: ["client.created"],
+        restartEvents: [],
+        stopEvents: [],
+      },
       nodes: [
         { id: "n1", kind: "action", actionId: "send", integrationKey: "x" },
       ],
@@ -70,7 +86,13 @@ describe("workflow compiler", () => {
 
   test("returns error for unknown action definitions", () => {
     const result = compileWorkflowDocument({
-      trigger: { eventType: "client.created" },
+      trigger: {
+        type: "domain_event",
+        domain: "client",
+        startEvents: ["client.created"],
+        restartEvents: [],
+        stopEvents: [],
+      },
       nodes: [
         {
           id: "n1",
@@ -97,7 +119,13 @@ describe("workflow compiler", () => {
 
   test("validates registered action input shape", () => {
     const result = compileWorkflowDocument({
-      trigger: { eventType: "client.created" },
+      trigger: {
+        type: "domain_event",
+        domain: "client",
+        startEvents: ["client.created"],
+        restartEvents: [],
+        stopEvents: [],
+      },
       nodes: [
         {
           id: "n1",
@@ -124,7 +152,13 @@ describe("workflow compiler", () => {
 
   test("accepts valid registered actions and emits deterministic compiled plan", () => {
     const result = compileWorkflowDocument({
-      trigger: { eventType: "client.created" },
+      trigger: {
+        type: "domain_event",
+        domain: "client",
+        startEvents: ["client.created"],
+        restartEvents: [],
+        stopEvents: [],
+      },
       nodes: [
         {
           id: "n1",
@@ -143,7 +177,13 @@ describe("workflow compiler", () => {
 
     expect(result.validation.valid).toBe(true);
     expect(result.compiledPlan).toMatchObject({
-      trigger: { eventType: "client.created" },
+      trigger: {
+        type: "domain_event",
+        domain: "client",
+        startEvents: ["client.created"],
+        restartEvents: [],
+        stopEvents: [],
+      },
       nodes: [
         {
           id: "n1",

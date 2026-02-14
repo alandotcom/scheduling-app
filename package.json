@@ -6,7 +6,7 @@
     "dev": "pnpm -w run --parallel \"/^dev:(api|admin|inngest)$/\"",
     "dev:api": "pnpm --filter @scheduling/api run dev",
     "dev:admin": "pnpm --filter @scheduling/admin-ui run dev",
-    "dev:inngest": "pnpm exec inngest dev -u http://localhost:${PORT:-3000}/api/inngest",
+    "dev:inngest": "DO_NOT_TRACK=1 pnpm exec inngest dev -u http://localhost:${PORT:-3000}/api/inngest --persist",
     "preview:admin": "pnpm --filter @scheduling/admin-ui run build && pnpm --filter @scheduling/admin-ui run preview -- --host",
     "db:migrate": "pnpm --filter @scheduling/db run migrate",
     "db:reset": "pnpm --filter @scheduling/db run reset",
@@ -31,7 +31,7 @@
   },
   "devDependencies": {
     "@biomejs/biome": "2.3.14",
-    "inngest-cli": "^1.16.3",
+    "inngest-cli": "^1.17.0",
     "knip": "^5.83.1",
     "oxlint": "^1.43.0",
     "oxlint-tsgolint": "^0.11.5",

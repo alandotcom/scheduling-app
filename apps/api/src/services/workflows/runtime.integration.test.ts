@@ -60,7 +60,13 @@ describe("workflow runtime delivery guards", () => {
           name: "Delivery Guard Test",
           status: "active",
           draftWorkflowGraph: {
-            trigger: { event: "client.created" },
+            trigger: {
+              type: "domain_event",
+              domain: "client",
+              startEvents: ["client.created"],
+              restartEvents: [],
+              stopEvents: [],
+            },
           },
         })
         .returning();
@@ -77,7 +83,13 @@ describe("workflow runtime delivery guards", () => {
           version: 1,
           workflowGraphSchemaVersion: 1,
           workflowGraph: {
-            trigger: { event: "client.created" },
+            trigger: {
+              type: "domain_event",
+              domain: "client",
+              startEvents: ["client.created"],
+              restartEvents: [],
+              stopEvents: [],
+            },
             workflow: { actions: [], edges: [] },
           },
           compiledPlan: {},
@@ -164,7 +176,13 @@ describe("workflow runtime delivery guards", () => {
           name: "Delivery Guard Block Test",
           status: "active",
           draftWorkflowGraph: {
-            trigger: { event: "appointment.created" },
+            trigger: {
+              type: "domain_event",
+              domain: "appointment",
+              startEvents: ["appointment.created"],
+              restartEvents: [],
+              stopEvents: [],
+            },
           },
         })
         .returning();
@@ -181,7 +199,13 @@ describe("workflow runtime delivery guards", () => {
           version: 1,
           workflowGraphSchemaVersion: 1,
           workflowGraph: {
-            trigger: { event: "appointment.created" },
+            trigger: {
+              type: "domain_event",
+              domain: "appointment",
+              startEvents: ["appointment.created"],
+              restartEvents: [],
+              stopEvents: [],
+            },
             workflow: { actions: [], edges: [] },
           },
           compiledPlan: {},

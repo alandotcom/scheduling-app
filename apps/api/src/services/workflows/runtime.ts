@@ -1,4 +1,4 @@
-import { webhookEventTypeSchema, type WebhookEventType } from "@scheduling/dto";
+import { domainEventTypeSchema, type DomainEventType } from "@scheduling/dto";
 import {
   appointmentTypes,
   appointments,
@@ -11,6 +11,7 @@ import {
   workflowDeliveryLog,
   workflowDefinitions,
   workflowRunEntityLinks,
+  workflowScheduleBindings,
 } from "@scheduling/db/schema";
 import { and, desc, eq, inArray, ne, sql } from "drizzle-orm";
 import { withOrg } from "../../lib/db.js";
@@ -22,11 +23,22 @@ export type WorkflowDispatchTarget = {
   compiledPlan: Record<string, unknown> | null;
 };
 
+export type WorkflowScheduleDispatchTarget = {
+  bindingId: string;
+  definitionId: string;
+  versionId: string;
+  workflowType: string;
+  scheduleExpression: string;
+  scheduleTimezone: string;
+  nextRunAt: Date | string | null;
+  compiledPlan: Record<string, unknown> | null;
+};
+
 export type RecordWorkflowRunStartInput = {
   orgId: string;
   runId: string;
   definitionId: string;
-  versionId: string;
+  versionId: string | null;
   workflowType: string;
   entityType: string;
   entityId: string;
@@ -101,10 +113,10 @@ function normalizeRunStatus(value: string): WorkflowRunStatusValue {
 
 export async function listEnabledWorkflowDispatchTargets(
   orgId: string,
-  eventType: WebhookEventType,
+  eventType: DomainEventType,
 ): Promise<readonly WorkflowDispatchTarget[]> {
   // Guard event type values at runtime for any non-typed callsites.
-  webhookEventTypeSchema.parse(eventType);
+  domainEventTypeSchema.parse(eventType);
 
   return withOrg(orgId, async (tx) => {
     const rows = await tx
@@ -132,6 +144,85 @@ export async function listEnabledWorkflowDispatchTargets(
       );
 
     return rows;
+  });
+}
+
+export async function listDueWorkflowScheduleDispatchTargets(input: {
+  orgId: string;
+  now: Date;
+}): Promise<readonly WorkflowScheduleDispatchTarget[]> {
+  return withOrg(input.orgId, async (tx) => {
+    const rows = await tx
+      .select({
+        bindingId: workflowScheduleBindings.id,
+        definitionId: workflowScheduleBindings.definitionId,
+        versionId: workflowScheduleBindings.versionId,
+        workflowType: workflowDefinitions.key,
+        scheduleExpression: workflowScheduleBindings.scheduleExpression,
+        scheduleTimezone: workflowScheduleBindings.scheduleTimezone,
+        nextRunAt: workflowScheduleBindings.nextRunAt,
+        compiledPlan: workflowDefinitionVersions.compiledPlan,
+      })
+      .from(workflowScheduleBindings)
+      .innerJoin(
+        workflowDefinitions,
+        eq(workflowDefinitions.id, workflowScheduleBindings.definitionId),
+      )
+      .innerJoin(
+        workflowDefinitionVersions,
+        eq(workflowDefinitionVersions.id, workflowScheduleBindings.versionId),
+      )
+      .where(
+        and(
+          eq(workflowScheduleBindings.enabled, true),
+          eq(workflowDefinitions.status, "active"),
+          sql`${workflowScheduleBindings.nextRunAt} <= ${input.now}`,
+        ),
+      );
+
+    return rows;
+  });
+}
+
+export async function updateWorkflowScheduleBindingNextRunAt(input: {
+  orgId: string;
+  bindingId: string;
+  nextRunAt: Date | null;
+}): Promise<void> {
+  await withOrg(input.orgId, async (tx) => {
+    await tx
+      .update(workflowScheduleBindings)
+      .set({
+        nextRunAt: input.nextRunAt,
+        updatedAt: new Date(),
+      })
+      .where(eq(workflowScheduleBindings.id, input.bindingId));
+  });
+}
+
+export async function listWorkflowScheduleBindings(input: {
+  orgId: string;
+  definitionId: string;
+}): Promise<
+  readonly {
+    id: string;
+    orgId: string;
+    definitionId: string;
+    versionId: string;
+    scheduleExpression: string;
+    scheduleTimezone: string;
+    nextRunAt: Date | null;
+    enabled: boolean;
+    createdAt: Date;
+    updatedAt: Date;
+  }[]
+> {
+  return withOrg(input.orgId, async (tx) => {
+    return tx
+      .select()
+      .from(workflowScheduleBindings)
+      .where(eq(workflowScheduleBindings.definitionId, input.definitionId))
+      .orderBy(desc(workflowScheduleBindings.updatedAt));
   });
 }
 
@@ -227,7 +318,7 @@ export async function getWorkflowRunGuard(input: {
 export async function recordWorkflowDeliveryWithGuard(input: {
   orgId: string;
   definitionId: string;
-  versionId: string;
+  versionId: string | null;
   runId: string;
   expectedRunRevision: number;
   workflowType: string;
@@ -413,6 +504,11 @@ export async function loadWorkflowCorrelatedEntity(input: {
         .limit(1);
 
       return row ? found(row) : missing();
+    }
+
+    // Schedule-triggered runs correlate to the workflow definition itself.
+    if (input.entityType === "workflow") {
+      return found({ workflowId: input.entityId });
     }
 
     return {

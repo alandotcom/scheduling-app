@@ -320,7 +320,13 @@ describe("CRUD operations with org context", () => {
         name: "RLS Workflow Test",
         status: "active",
         draftWorkflowGraph: {
-          trigger: { event: "client.created" },
+          trigger: {
+            type: "domain_event",
+            domain: "client",
+            startEvents: ["client.created"],
+            restartEvents: [],
+            stopEvents: [],
+          },
         },
       })
       .returning();
@@ -333,7 +339,13 @@ describe("CRUD operations with org context", () => {
         version: 1,
         workflowGraphSchemaVersion: 1,
         workflowGraph: {
-          trigger: { event: "client.created" },
+          trigger: {
+            type: "domain_event",
+            domain: "client",
+            startEvents: ["client.created"],
+            restartEvents: [],
+            stopEvents: [],
+          },
           workflow: { actions: [], edges: [] },
         },
         compiledPlan: {},

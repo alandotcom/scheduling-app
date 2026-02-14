@@ -57,7 +57,15 @@ describe("workflow dispatch pipeline integration", () => {
       {
         key: "client_created_pipeline",
         name: "Client Created Pipeline",
-        workflowGraph: { trigger: { event: "client.created" } },
+        workflowGraph: {
+          trigger: {
+            type: "domain_event",
+            domain: "client",
+            startEvents: ["client.created"],
+            restartEvents: [],
+            stopEvents: [],
+          },
+        },
       },
       { context },
     );
@@ -70,16 +78,9 @@ describe("workflow dispatch pipeline integration", () => {
       { context },
     );
     expect(published.activeVersion?.id).toBeDefined();
-
-    await call(
-      workflowRoutes.bindings.upsert,
-      {
-        id: created.id,
-        eventType: "client.created",
-        enabled: true,
-      },
-      { context },
-    );
+    expect(
+      published.bindings.map((binding) => binding.eventType).toSorted(),
+    ).toEqual(["client.created"]);
 
     const executionEngine = new InngestTestEngine({
       function: createWorkflowExecutionFunction(),

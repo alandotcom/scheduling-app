@@ -1,25 +1,33 @@
 import {
-  webhookEventTypes,
-  type WebhookEventType,
+  domainEventDomains,
+  domainEventTypesByDomain,
+  type DomainEventDomain,
+  type DomainEventType,
   type WorkflowActionConfigField,
   type WorkflowOutputField,
 } from "@scheduling/dto";
 import { z } from "zod";
 
-export type WorkflowTriggerDefinition = {
-  eventType: WebhookEventType;
-  entityType: string;
-  defaultReplacementMode:
-    | "replace_active"
-    | "cancel_without_replacement"
-    | "allow_parallel";
-};
+export type WorkflowTriggerDefinition =
+  | {
+      type: "domain_event";
+      domain: DomainEventDomain;
+      events: readonly DomainEventType[];
+      defaultStartEvents: readonly DomainEventType[];
+      defaultRestartEvents: readonly DomainEventType[];
+      defaultStopEvents: readonly DomainEventType[];
+    }
+  | {
+      type: "schedule";
+      label: string;
+      defaultTimezone: string;
+    };
 
 type WorkflowActionExecutionContext = {
   orgId: string;
   entityType: string;
   entityId: string;
-  sourceEventType: WebhookEventType;
+  sourceEventType: DomainEventType | "schedule.triggered" | "manual.triggered";
   sourceEventPayload: Record<string, unknown>;
   entity: Record<string, unknown>;
 };
@@ -57,25 +65,7 @@ export type WorkflowActionDefinition = {
   }>;
 };
 
-const TRIGGER_ENTITY_BY_PREFIX: Record<string, string> = {
-  appointment: "appointment",
-  calendar: "calendar",
-  appointment_type: "appointment_type",
-  resource: "resource",
-  location: "location",
-  client: "client",
-};
-
-function getEntityTypeForEventType(eventType: WebhookEventType): string {
-  const [prefix] = eventType.split(".");
-  if (!prefix) {
-    return "unknown";
-  }
-
-  return TRIGGER_ENTITY_BY_PREFIX[prefix] ?? "unknown";
-}
-
-function isTerminalEventType(eventType: WebhookEventType): boolean {
+function isTerminalEventType(eventType: DomainEventType): boolean {
   return (
     eventType.endsWith(".cancelled") ||
     eventType.endsWith(".deleted") ||
@@ -83,14 +73,32 @@ function isTerminalEventType(eventType: WebhookEventType): boolean {
   );
 }
 
-const workflowTriggerRegistry: readonly WorkflowTriggerDefinition[] =
-  webhookEventTypes.map((eventType) => ({
-    eventType,
-    entityType: getEntityTypeForEventType(eventType),
-    defaultReplacementMode: isTerminalEventType(eventType)
-      ? "cancel_without_replacement"
-      : "replace_active",
-  }));
+const workflowTriggerRegistry: readonly WorkflowTriggerDefinition[] = [
+  ...domainEventDomains.map((domain) => {
+    const events = domainEventTypesByDomain[domain];
+    return {
+      type: "domain_event" as const,
+      domain,
+      events,
+      defaultStartEvents: events.filter(
+        (eventType) =>
+          !isTerminalEventType(eventType) && !eventType.endsWith(".updated"),
+      ),
+      defaultRestartEvents: events.filter(
+        (eventType) =>
+          eventType.endsWith(".updated") || eventType.endsWith(".rescheduled"),
+      ),
+      defaultStopEvents: events.filter((eventType) =>
+        isTerminalEventType(eventType),
+      ),
+    };
+  }),
+  {
+    type: "schedule",
+    label: "Schedule",
+    defaultTimezone: "America/New_York",
+  },
+];
 
 const workflowActionRegistry = [
   {

@@ -1,11 +1,16 @@
 import { z } from "zod";
 import {
+  domainEventDomainSchema,
+  domainEventTypeSchema,
+  getDomainForDomainEventType,
+  type DomainEventType,
+} from "./domain-event";
+import {
   successResponseSchema,
   timestampSchema,
   timestampsSchema,
   uuidSchema,
 } from "./common";
-import { webhookEventTypeSchema } from "./webhook";
 
 const workflowKeySchema = z
   .string()
@@ -56,23 +61,90 @@ export const workflowReplacementModeSchema = z.enum([
   "allow_parallel",
 ]);
 
+function hasIntersection<T>(left: readonly T[], right: readonly T[]): boolean {
+  return left.some((entry) => right.includes(entry));
+}
+
+export const workflowDomainEventTriggerConfigSchema = z
+  .object({
+    type: z.literal("domain_event"),
+    domain: domainEventDomainSchema,
+    startEvents: z.array(domainEventTypeSchema).default([]),
+    restartEvents: z.array(domainEventTypeSchema).default([]),
+    stopEvents: z.array(domainEventTypeSchema).default([]),
+    retryPolicy: workflowTriggerRetryPolicySchema.optional(),
+    debounce: workflowTriggerDebouncePolicySchema.optional(),
+    replacement: workflowTriggerReplacementPolicySchema.optional(),
+  })
+  .loose()
+  .superRefine((value, ctx) => {
+    const events = [
+      ...value.startEvents,
+      ...value.restartEvents,
+      ...value.stopEvents,
+    ];
+
+    if (events.length === 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["startEvents"],
+        message:
+          "Select at least one domain event across start, restart, or stop sets",
+      });
+    }
+
+    const mismatchedDomainEvents = events.filter(
+      (eventType) => getDomainForDomainEventType(eventType) !== value.domain,
+    );
+
+    if (mismatchedDomainEvents.length > 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["domain"],
+        message: `All events must belong to the "${value.domain}" domain`,
+      });
+    }
+
+    if (hasIntersection(value.startEvents, value.restartEvents)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["restartEvents"],
+        message: "Start and restart event sets must not overlap",
+      });
+    }
+
+    if (hasIntersection(value.startEvents, value.stopEvents)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["stopEvents"],
+        message: "Start and stop event sets must not overlap",
+      });
+    }
+
+    if (hasIntersection(value.restartEvents, value.stopEvents)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["stopEvents"],
+        message: "Restart and stop event sets must not overlap",
+      });
+    }
+  });
+
+export const workflowScheduleTriggerConfigSchema = z
+  .object({
+    type: z.literal("schedule"),
+    expression: z.string().trim().min(1),
+    timezone: z.string().trim().min(1),
+    retryPolicy: workflowTriggerRetryPolicySchema.optional(),
+    replacement: workflowTriggerReplacementPolicySchema
+      .optional()
+      .default({ mode: "allow_parallel", cancelOnTerminalState: false }),
+  })
+  .loose();
+
 export const workflowTriggerConfigSchema = z.union([
-  z
-    .object({
-      event: webhookEventTypeSchema,
-      retryPolicy: workflowTriggerRetryPolicySchema.optional(),
-      debounce: workflowTriggerDebouncePolicySchema.optional(),
-      replacement: workflowTriggerReplacementPolicySchema.optional(),
-    })
-    .loose(),
-  z
-    .object({
-      eventType: webhookEventTypeSchema,
-      retryPolicy: workflowTriggerRetryPolicySchema.optional(),
-      debounce: workflowTriggerDebouncePolicySchema.optional(),
-      replacement: workflowTriggerReplacementPolicySchema.optional(),
-    })
-    .loose(),
+  workflowDomainEventTriggerConfigSchema,
+  workflowScheduleTriggerConfigSchema,
 ]);
 
 export const workflowGuardConditionSchema = z.object({
@@ -123,14 +195,6 @@ export const workflowWaitNodeSchema = z
   })
   .loose();
 
-export const workflowTerminalNodeSchema = z
-  .object({
-    id: z.string().min(1),
-    kind: z.literal("terminal"),
-    terminalType: z.enum(["complete", "cancel"]),
-  })
-  .loose();
-
 export const workflowConditionNodeSchema = z
   .object({
     id: z.string().min(1),
@@ -142,7 +206,6 @@ export const workflowConditionNodeSchema = z
 export const workflowGraphNodeSchema = z.discriminatedUnion("kind", [
   workflowActionNodeSchema,
   workflowWaitNodeSchema,
-  workflowTerminalNodeSchema,
   workflowConditionNodeSchema,
 ]);
 
@@ -218,7 +281,19 @@ export const workflowBindingSchema = z.object({
   orgId: uuidSchema,
   definitionId: uuidSchema,
   versionId: uuidSchema,
-  eventType: webhookEventTypeSchema,
+  eventType: domainEventTypeSchema,
+  enabled: z.boolean(),
+  ...timestampsSchema.shape,
+});
+
+export const workflowScheduleBindingSchema = z.object({
+  id: uuidSchema,
+  orgId: uuidSchema,
+  definitionId: uuidSchema,
+  versionId: uuidSchema,
+  scheduleExpression: z.string().min(1),
+  scheduleTimezone: z.string().min(1),
+  nextRunAt: timestampSchema.nullable(),
   enabled: z.boolean(),
   ...timestampsSchema.shape,
 });
@@ -228,6 +303,7 @@ export const workflowDefinitionDetailSchema =
     draftWorkflowGraph: workflowGraphDocumentSchema,
     activeVersion: workflowDefinitionVersionSchema.nullable(),
     bindings: z.array(workflowBindingSchema),
+    scheduleBindings: z.array(workflowScheduleBindingSchema).default([]),
   });
 
 export const workflowDefinitionListResponseSchema = z.object({
@@ -236,13 +312,28 @@ export const workflowDefinitionListResponseSchema = z.object({
 
 export const workflowBindingListResponseSchema = z.object({
   items: z.array(workflowBindingSchema),
+  schedules: z.array(workflowScheduleBindingSchema).default([]),
 });
 
-export const workflowTriggerCatalogItemSchema = z.object({
-  eventType: webhookEventTypeSchema,
-  entityType: z.string().min(1),
-  defaultReplacementMode: workflowReplacementModeSchema,
+export const workflowDomainTriggerCatalogItemSchema = z.object({
+  type: z.literal("domain_event"),
+  domain: domainEventDomainSchema,
+  events: z.array(domainEventTypeSchema).min(1),
+  defaultStartEvents: z.array(domainEventTypeSchema).default([]),
+  defaultRestartEvents: z.array(domainEventTypeSchema).default([]),
+  defaultStopEvents: z.array(domainEventTypeSchema).default([]),
 });
+
+export const workflowScheduleTriggerCatalogItemSchema = z.object({
+  type: z.literal("schedule"),
+  label: z.string().default("Schedule"),
+  defaultTimezone: z.string().default("America/New_York"),
+});
+
+export const workflowTriggerCatalogItemSchema = z.discriminatedUnion("type", [
+  workflowDomainTriggerCatalogItemSchema,
+  workflowScheduleTriggerCatalogItemSchema,
+]);
 
 // ---------------------------------------------------------------------------
 // Template / Declarative Config Schemas
@@ -366,16 +457,25 @@ export const publishWorkflowDraftInputSchema = idInputSchema.extend({
   expectedRevision: z.number().int().positive().optional(),
 });
 
+export const runWorkflowDraftInputSchema = idInputSchema.extend({
+  entityType: z.enum([
+    "appointment",
+    "calendar",
+    "appointment_type",
+    "resource",
+    "location",
+    "client",
+    "workflow",
+  ]),
+  entityId: uuidSchema,
+});
+
+export const runWorkflowDraftResponseSchema = z.object({
+  success: z.literal(true),
+  triggerEventId: z.string().min(1),
+});
+
 export const listWorkflowBindingsInputSchema = idInputSchema;
-
-export const upsertWorkflowBindingInputSchema = idInputSchema.extend({
-  eventType: webhookEventTypeSchema,
-  enabled: z.boolean().default(true),
-});
-
-export const removeWorkflowBindingInputSchema = idInputSchema.extend({
-  eventType: webhookEventTypeSchema,
-});
 
 export const listWorkflowRunsQuerySchema = z.object({
   definitionId: uuidSchema.optional(),
@@ -446,6 +546,12 @@ export type WorkflowTriggerReplacementPolicy = z.infer<
 export type WorkflowReplacementMode = z.infer<
   typeof workflowReplacementModeSchema
 >;
+export type WorkflowDomainEventTriggerConfig = z.infer<
+  typeof workflowDomainEventTriggerConfigSchema
+>;
+export type WorkflowScheduleTriggerConfig = z.infer<
+  typeof workflowScheduleTriggerConfigSchema
+>;
 export type WorkflowTriggerConfig = z.infer<typeof workflowTriggerConfigSchema>;
 export type WorkflowGuardCondition = z.infer<
   typeof workflowGuardConditionSchema
@@ -456,7 +562,6 @@ export type WorkflowWaitNodeConfig = z.infer<
 >;
 export type WorkflowActionNode = z.infer<typeof workflowActionNodeSchema>;
 export type WorkflowWaitNode = z.infer<typeof workflowWaitNodeSchema>;
-export type WorkflowTerminalNode = z.infer<typeof workflowTerminalNodeSchema>;
 export type WorkflowGraphNode = z.infer<typeof workflowGraphNodeSchema>;
 export type WorkflowGraphEdge = z.infer<typeof workflowGraphEdgeSchema>;
 export type WorkflowGraphDocument = z.input<typeof workflowGraphDocumentSchema>;
@@ -476,6 +581,9 @@ export type WorkflowDefinitionVersion = z.infer<
   typeof workflowDefinitionVersionSchema
 >;
 export type WorkflowBinding = z.infer<typeof workflowBindingSchema>;
+export type WorkflowScheduleBinding = z.infer<
+  typeof workflowScheduleBindingSchema
+>;
 export type WorkflowDefinitionDetail = z.infer<
   typeof workflowDefinitionDetailSchema
 >;
@@ -487,6 +595,10 @@ export type WorkflowBindingListResponse = z.infer<
 >;
 export type WorkflowTriggerCatalogItem = z.infer<
   typeof workflowTriggerCatalogItemSchema
+>;
+export type WorkflowOutputField = z.infer<typeof workflowOutputFieldSchema>;
+export type WorkflowActionConfigField = z.infer<
+  typeof workflowActionConfigFieldSchema
 >;
 export type WorkflowActionCatalogItem = z.infer<
   typeof workflowActionCatalogItemSchema
@@ -515,40 +627,27 @@ export type ValidateWorkflowDraftInput = z.infer<
 export type PublishWorkflowDraftInput = z.infer<
   typeof publishWorkflowDraftInputSchema
 >;
+export type RunWorkflowDraftInput = z.infer<typeof runWorkflowDraftInputSchema>;
+export type RunWorkflowDraftResponse = z.infer<
+  typeof runWorkflowDraftResponseSchema
+>;
 export type ListWorkflowBindingsInput = z.infer<
   typeof listWorkflowBindingsInputSchema
->;
-export type UpsertWorkflowBindingInput = z.infer<
-  typeof upsertWorkflowBindingInputSchema
->;
-export type RemoveWorkflowBindingInput = z.infer<
-  typeof removeWorkflowBindingInputSchema
 >;
 export type ListWorkflowRunsQuery = z.infer<typeof listWorkflowRunsQuerySchema>;
 export type GetWorkflowRunInput = z.infer<typeof getWorkflowRunInputSchema>;
 export type CancelWorkflowRunInput = z.infer<
   typeof cancelWorkflowRunInputSchema
 >;
-export type CancelWorkflowRunResponse = z.infer<
-  typeof cancelWorkflowRunResponseSchema
->;
-export type WorkflowOutputField = z.infer<typeof workflowOutputFieldSchema>;
-export type WorkflowSelectOption = z.infer<typeof workflowSelectOptionSchema>;
-export type WorkflowActionConfigFieldBase = z.infer<
-  typeof workflowActionConfigFieldBaseSchema
->;
-export type WorkflowActionConfigFieldGroup = z.infer<
-  typeof workflowActionConfigFieldGroupSchema
->;
-export type WorkflowActionConfigField = z.infer<
-  typeof workflowActionConfigFieldSchema
->;
-export type WorkflowConditionNode = z.infer<typeof workflowConditionNodeSchema>;
 export type WorkflowStepLogStatus = z.infer<typeof workflowStepLogStatusSchema>;
 export type WorkflowStepLogEntry = z.infer<typeof workflowStepLogEntrySchema>;
-export type WorkflowStepLogListResponse = z.infer<
-  typeof workflowStepLogListResponseSchema
->;
 export type ListWorkflowStepLogsInput = z.infer<
   typeof listWorkflowStepLogsInputSchema
 >;
+export type WorkflowStepLogListResponse = z.infer<
+  typeof workflowStepLogListResponseSchema
+>;
+
+// Local helper schema export for non-workflow packages that need parsing.
+export { workflowRelativeDurationSchema };
+export { domainEventTypeSchema, type DomainEventType };

@@ -190,7 +190,7 @@ export function getWorkflowIdFromPathname(pathname: string): string | null {
   const segments = normalizedPathname.split("/").filter(Boolean);
   if (segments[0] !== "workflows" || segments.length !== 2) return null;
   const workflowId = segments[1];
-  if (!workflowId) return null;
+  if (!workflowId || workflowId === "new") return null;
   return decodeURIComponent(workflowId);
 }
 

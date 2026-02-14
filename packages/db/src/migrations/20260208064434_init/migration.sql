@@ -14,6 +14,9 @@ $$ LANGUAGE SQL STABLE;
 CREATE TYPE "appointment_status" AS ENUM('scheduled', 'confirmed', 'cancelled', 'no_show');--> statement-breakpoint
 CREATE TYPE "invitation_status" AS ENUM('pending', 'accepted', 'rejected', 'canceled');--> statement-breakpoint
 CREATE TYPE "org_role" AS ENUM('owner', 'admin', 'member');--> statement-breakpoint
+CREATE TYPE "workflow_definition_status" AS ENUM('draft', 'active', 'archived');--> statement-breakpoint
+CREATE TYPE "status" AS ENUM('pending', 'running', 'completed', 'failed', 'cancelled');--> statement-breakpoint
+CREATE TYPE "step_status" AS ENUM('pending', 'running', 'completed', 'failed', 'cancelled');--> statement-breakpoint
 CREATE TABLE "accounts" (
 	"id" uuid PRIMARY KEY DEFAULT uuidv7(),
 	"user_id" uuid NOT NULL,
@@ -234,6 +237,122 @@ CREATE TABLE "resources" (
 );
 --> statement-breakpoint
 ALTER TABLE "resources" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
+CREATE TABLE "workflow_definitions" (
+	"id" uuid PRIMARY KEY DEFAULT uuidv7(),
+	"org_id" uuid NOT NULL,
+	"key" text NOT NULL,
+	"name" text NOT NULL,
+	"description" text,
+	"status" "workflow_definition_status" DEFAULT 'draft'::"workflow_definition_status" NOT NULL,
+	"draft_graph" jsonb DEFAULT '{}'::jsonb NOT NULL,
+	"draft_revision" integer DEFAULT 1 NOT NULL,
+	"active_version_id" uuid,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+ALTER TABLE "workflow_definitions" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
+CREATE TABLE "workflow_definition_versions" (
+	"id" uuid PRIMARY KEY DEFAULT uuidv7(),
+	"org_id" uuid NOT NULL,
+	"definition_id" uuid NOT NULL,
+	"version" integer NOT NULL,
+	"graph_schema_version" integer DEFAULT 1 NOT NULL,
+	"graph" jsonb NOT NULL,
+	"compiled_plan" jsonb DEFAULT '{}'::jsonb NOT NULL,
+	"checksum" text NOT NULL,
+	"created_by" uuid,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+ALTER TABLE "workflow_definition_versions" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
+CREATE TABLE "workflow_bindings" (
+	"id" uuid PRIMARY KEY DEFAULT uuidv7(),
+	"org_id" uuid NOT NULL,
+	"definition_id" uuid NOT NULL,
+	"version_id" uuid NOT NULL,
+	"event_type" text NOT NULL,
+	"enabled" boolean DEFAULT true NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+ALTER TABLE "workflow_bindings" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
+CREATE TABLE "workflow_schedule_bindings" (
+	"id" uuid PRIMARY KEY DEFAULT uuidv7(),
+	"org_id" uuid NOT NULL,
+	"definition_id" uuid NOT NULL,
+	"version_id" uuid NOT NULL,
+	"schedule_expression" text NOT NULL,
+	"schedule_timezone" text NOT NULL,
+	"next_run_at" timestamp with time zone,
+	"enabled" boolean DEFAULT true NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+ALTER TABLE "workflow_schedule_bindings" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
+CREATE TABLE "workflow_run_entity_links" (
+	"id" uuid PRIMARY KEY DEFAULT uuidv7(),
+	"org_id" uuid NOT NULL,
+	"definition_id" uuid,
+	"version_id" uuid,
+	"run_id" text NOT NULL,
+	"workflow_type" text NOT NULL,
+	"run_revision" integer DEFAULT 1 NOT NULL,
+	"entity_type" text NOT NULL,
+	"entity_id" uuid NOT NULL,
+	"run_status" text DEFAULT 'unknown' NOT NULL,
+	"cancelled_at" timestamp with time zone,
+	"started_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"last_seen_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+ALTER TABLE "workflow_run_entity_links" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
+CREATE TABLE "workflow_delivery_log" (
+	"id" uuid PRIMARY KEY DEFAULT uuidv7(),
+	"org_id" uuid NOT NULL,
+	"definition_id" uuid,
+	"version_id" uuid,
+	"run_id" text NOT NULL,
+	"run_revision" integer DEFAULT 1 NOT NULL,
+	"workflow_type" text NOT NULL,
+	"step_id" text NOT NULL,
+	"channel" text NOT NULL,
+	"target" text,
+	"delivery_key" text NOT NULL,
+	"provider_message_id" text,
+	"status" text DEFAULT 'sent' NOT NULL,
+	"error_code" text,
+	"error_message" text,
+	"sent_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+ALTER TABLE "workflow_delivery_log" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
+CREATE TABLE "workflow_step_log" (
+	"id" uuid PRIMARY KEY DEFAULT uuidv7(),
+	"org_id" uuid NOT NULL,
+	"run_id" text NOT NULL,
+	"node_id" text NOT NULL,
+	"node_name" text NOT NULL,
+	"node_type" text NOT NULL,
+	"status" text DEFAULT 'pending' NOT NULL,
+	"input" jsonb,
+	"output" jsonb,
+	"error_message" text,
+	"started_at" timestamp with time zone,
+	"completed_at" timestamp with time zone,
+	"duration_ms" integer,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+ALTER TABLE "workflow_step_log" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
 CREATE TABLE "scheduling_limits" (
 	"id" uuid PRIMARY KEY DEFAULT uuidv7(),
 	"calendar_id" uuid,
@@ -303,6 +422,22 @@ CREATE UNIQUE INDEX "integrations_org_key_unique_idx" ON "integrations" ("org_id
 CREATE INDEX "integrations_org_key_idx" ON "integrations" ("org_id","key");--> statement-breakpoint
 CREATE UNIQUE INDEX "org_memberships_org_user_idx" ON "org_memberships" ("org_id","user_id");--> statement-breakpoint
 CREATE INDEX "scheduling_limits_calendar_id_idx" ON "scheduling_limits" ("calendar_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "workflow_definitions_org_key_unique_idx" ON "workflow_definitions" ("org_id","key");--> statement-breakpoint
+CREATE INDEX "workflow_definitions_org_status_idx" ON "workflow_definitions" ("org_id","status");--> statement-breakpoint
+CREATE UNIQUE INDEX "workflow_definition_versions_definition_version_unique_idx" ON "workflow_definition_versions" ("definition_id","version");--> statement-breakpoint
+CREATE INDEX "workflow_definition_versions_org_definition_idx" ON "workflow_definition_versions" ("org_id","definition_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "workflow_bindings_org_definition_event_unique_idx" ON "workflow_bindings" ("org_id","definition_id","event_type");--> statement-breakpoint
+CREATE INDEX "workflow_bindings_org_event_enabled_idx" ON "workflow_bindings" ("org_id","event_type","enabled");--> statement-breakpoint
+CREATE UNIQUE INDEX "workflow_schedule_bindings_org_definition_unique_idx" ON "workflow_schedule_bindings" ("org_id","definition_id");--> statement-breakpoint
+CREATE INDEX "workflow_schedule_bindings_org_due_idx" ON "workflow_schedule_bindings" ("org_id","next_run_at","enabled");--> statement-breakpoint
+CREATE UNIQUE INDEX "workflow_run_entity_links_org_run_entity_unique_idx" ON "workflow_run_entity_links" ("org_id","run_id","entity_type","entity_id");--> statement-breakpoint
+CREATE INDEX "workflow_run_entity_links_org_entity_idx" ON "workflow_run_entity_links" ("org_id","entity_type","entity_id");--> statement-breakpoint
+CREATE INDEX "workflow_run_entity_links_org_run_idx" ON "workflow_run_entity_links" ("org_id","run_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "workflow_delivery_log_delivery_key_unique_idx" ON "workflow_delivery_log" ("delivery_key");--> statement-breakpoint
+CREATE INDEX "workflow_delivery_log_org_run_idx" ON "workflow_delivery_log" ("org_id","run_id");--> statement-breakpoint
+CREATE INDEX "workflow_delivery_log_org_workflow_idx" ON "workflow_delivery_log" ("org_id","definition_id","version_id");--> statement-breakpoint
+CREATE INDEX "workflow_step_log_org_run_idx" ON "workflow_step_log" ("org_id","run_id");--> statement-breakpoint
+CREATE INDEX "workflow_step_log_org_run_node_idx" ON "workflow_step_log" ("org_id","run_id","node_id");--> statement-breakpoint
 ALTER TABLE "accounts" ADD CONSTRAINT "accounts_user_id_users_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE;--> statement-breakpoint
 ALTER TABLE "apikey" ADD CONSTRAINT "apikey_user_id_users_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE;--> statement-breakpoint
 ALTER TABLE "appointment_type_calendars" ADD CONSTRAINT "appointment_type_calendars_gHcf7toxCUtt_fkey" FOREIGN KEY ("appointment_type_id") REFERENCES "appointment_types"("id") ON DELETE CASCADE;--> statement-breakpoint
@@ -333,6 +468,23 @@ ALTER TABLE "resources" ADD CONSTRAINT "resources_location_id_locations_id_fkey"
 ALTER TABLE "scheduling_limits" ADD CONSTRAINT "scheduling_limits_calendar_id_calendars_id_fkey" FOREIGN KEY ("calendar_id") REFERENCES "calendars"("id") ON DELETE CASCADE;--> statement-breakpoint
 ALTER TABLE "sessions" ADD CONSTRAINT "sessions_user_id_users_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE;--> statement-breakpoint
 ALTER TABLE "sessions" ADD CONSTRAINT "sessions_impersonated_by_users_id_fkey" FOREIGN KEY ("impersonated_by") REFERENCES "users"("id") ON DELETE SET NULL;--> statement-breakpoint
+ALTER TABLE "workflow_definitions" ADD CONSTRAINT "workflow_definitions_org_id_orgs_id_fkey" FOREIGN KEY ("org_id") REFERENCES "orgs"("id");--> statement-breakpoint
+ALTER TABLE "workflow_definition_versions" ADD CONSTRAINT "workflow_definition_versions_org_id_orgs_id_fkey" FOREIGN KEY ("org_id") REFERENCES "orgs"("id");--> statement-breakpoint
+ALTER TABLE "workflow_definition_versions" ADD CONSTRAINT "workflow_definition_versions_definition_id_workflow_definitions_id_fkey" FOREIGN KEY ("definition_id") REFERENCES "workflow_definitions"("id") ON DELETE CASCADE;--> statement-breakpoint
+ALTER TABLE "workflow_definition_versions" ADD CONSTRAINT "workflow_definition_versions_created_by_users_id_fkey" FOREIGN KEY ("created_by") REFERENCES "users"("id") ON DELETE SET NULL;--> statement-breakpoint
+ALTER TABLE "workflow_bindings" ADD CONSTRAINT "workflow_bindings_org_id_orgs_id_fkey" FOREIGN KEY ("org_id") REFERENCES "orgs"("id");--> statement-breakpoint
+ALTER TABLE "workflow_bindings" ADD CONSTRAINT "workflow_bindings_definition_id_workflow_definitions_id_fkey" FOREIGN KEY ("definition_id") REFERENCES "workflow_definitions"("id") ON DELETE CASCADE;--> statement-breakpoint
+ALTER TABLE "workflow_bindings" ADD CONSTRAINT "workflow_bindings_version_id_workflow_definition_versions_id_fkey" FOREIGN KEY ("version_id") REFERENCES "workflow_definition_versions"("id") ON DELETE CASCADE;--> statement-breakpoint
+ALTER TABLE "workflow_schedule_bindings" ADD CONSTRAINT "workflow_schedule_bindings_org_id_orgs_id_fkey" FOREIGN KEY ("org_id") REFERENCES "orgs"("id");--> statement-breakpoint
+ALTER TABLE "workflow_schedule_bindings" ADD CONSTRAINT "workflow_schedule_bindings_definition_id_workflow_definitions_id_fkey" FOREIGN KEY ("definition_id") REFERENCES "workflow_definitions"("id") ON DELETE CASCADE;--> statement-breakpoint
+ALTER TABLE "workflow_schedule_bindings" ADD CONSTRAINT "workflow_schedule_bindings_version_id_workflow_definition_versions_id_fkey" FOREIGN KEY ("version_id") REFERENCES "workflow_definition_versions"("id") ON DELETE CASCADE;--> statement-breakpoint
+ALTER TABLE "workflow_run_entity_links" ADD CONSTRAINT "workflow_run_entity_links_org_id_orgs_id_fkey" FOREIGN KEY ("org_id") REFERENCES "orgs"("id");--> statement-breakpoint
+ALTER TABLE "workflow_run_entity_links" ADD CONSTRAINT "workflow_run_entity_links_definition_id_workflow_definitions_id_fkey" FOREIGN KEY ("definition_id") REFERENCES "workflow_definitions"("id") ON DELETE SET NULL;--> statement-breakpoint
+ALTER TABLE "workflow_run_entity_links" ADD CONSTRAINT "workflow_run_entity_links_version_id_workflow_definition_versions_id_fkey" FOREIGN KEY ("version_id") REFERENCES "workflow_definition_versions"("id") ON DELETE SET NULL;--> statement-breakpoint
+ALTER TABLE "workflow_delivery_log" ADD CONSTRAINT "workflow_delivery_log_org_id_orgs_id_fkey" FOREIGN KEY ("org_id") REFERENCES "orgs"("id");--> statement-breakpoint
+ALTER TABLE "workflow_delivery_log" ADD CONSTRAINT "workflow_delivery_log_definition_id_workflow_definitions_id_fkey" FOREIGN KEY ("definition_id") REFERENCES "workflow_definitions"("id") ON DELETE SET NULL;--> statement-breakpoint
+ALTER TABLE "workflow_delivery_log" ADD CONSTRAINT "workflow_delivery_log_version_id_workflow_definition_versions_id_fkey" FOREIGN KEY ("version_id") REFERENCES "workflow_definition_versions"("id") ON DELETE SET NULL;--> statement-breakpoint
+ALTER TABLE "workflow_step_log" ADD CONSTRAINT "workflow_step_log_org_id_orgs_id_fkey" FOREIGN KEY ("org_id") REFERENCES "orgs"("id");--> statement-breakpoint
 CREATE POLICY "org_isolation_appointment_types" ON "appointment_types" AS PERMISSIVE FOR ALL TO public USING (org_id = current_org_id()) WITH CHECK (org_id = current_org_id());--> statement-breakpoint
 CREATE POLICY "org_isolation_appointments" ON "appointments" AS PERMISSIVE FOR ALL TO public USING (org_id = current_org_id()) WITH CHECK (org_id = current_org_id());--> statement-breakpoint
 CREATE POLICY "org_isolation_audit_events" ON "audit_events" AS PERMISSIVE FOR ALL TO public USING (org_id = current_org_id()) WITH CHECK (org_id = current_org_id());--> statement-breakpoint
@@ -340,4 +492,11 @@ CREATE POLICY "org_isolation_calendars" ON "calendars" AS PERMISSIVE FOR ALL TO 
 CREATE POLICY "org_isolation_clients" ON "clients" AS PERMISSIVE FOR ALL TO public USING (org_id = current_org_id()) WITH CHECK (org_id = current_org_id());--> statement-breakpoint
 CREATE POLICY "org_isolation_integrations" ON "integrations" AS PERMISSIVE FOR ALL TO public USING (org_id = current_org_id()) WITH CHECK (org_id = current_org_id());--> statement-breakpoint
 CREATE POLICY "org_isolation_locations" ON "locations" AS PERMISSIVE FOR ALL TO public USING (org_id = current_org_id()) WITH CHECK (org_id = current_org_id());--> statement-breakpoint
-CREATE POLICY "org_isolation_resources" ON "resources" AS PERMISSIVE FOR ALL TO public USING (org_id = current_org_id()) WITH CHECK (org_id = current_org_id());
+CREATE POLICY "org_isolation_resources" ON "resources" AS PERMISSIVE FOR ALL TO public USING (org_id = current_org_id()) WITH CHECK (org_id = current_org_id());--> statement-breakpoint
+CREATE POLICY "org_isolation_workflow_definitions" ON "workflow_definitions" AS PERMISSIVE FOR ALL TO public USING (org_id = current_org_id()) WITH CHECK (org_id = current_org_id());--> statement-breakpoint
+CREATE POLICY "org_isolation_workflow_definition_versions" ON "workflow_definition_versions" AS PERMISSIVE FOR ALL TO public USING (org_id = current_org_id()) WITH CHECK (org_id = current_org_id());--> statement-breakpoint
+CREATE POLICY "org_isolation_workflow_bindings" ON "workflow_bindings" AS PERMISSIVE FOR ALL TO public USING (org_id = current_org_id()) WITH CHECK (org_id = current_org_id());--> statement-breakpoint
+CREATE POLICY "org_isolation_workflow_schedule_bindings" ON "workflow_schedule_bindings" AS PERMISSIVE FOR ALL TO public USING (org_id = current_org_id()) WITH CHECK (org_id = current_org_id());--> statement-breakpoint
+CREATE POLICY "org_isolation_workflow_run_entity_links" ON "workflow_run_entity_links" AS PERMISSIVE FOR ALL TO public USING (org_id = current_org_id()) WITH CHECK (org_id = current_org_id());--> statement-breakpoint
+CREATE POLICY "org_isolation_workflow_delivery_log" ON "workflow_delivery_log" AS PERMISSIVE FOR ALL TO public USING (org_id = current_org_id()) WITH CHECK (org_id = current_org_id());--> statement-breakpoint
+CREATE POLICY "org_isolation_workflow_step_log" ON "workflow_step_log" AS PERMISSIVE FOR ALL TO public USING (org_id = current_org_id()) WITH CHECK (org_id = current_org_id());

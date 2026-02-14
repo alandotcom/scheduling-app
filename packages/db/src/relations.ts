@@ -19,6 +19,7 @@ export const relations = defineRelations(schema, (r) => ({
     workflowDefinitions: r.many.workflowDefinitions(),
     workflowDefinitionVersions: r.many.workflowDefinitionVersions(),
     workflowBindings: r.many.workflowBindings(),
+    workflowScheduleBindings: r.many.workflowScheduleBindings(),
     workflowRunEntityLinks: r.many.workflowRunEntityLinks(),
     workflowDeliveryLog: r.many.workflowDeliveryLog(),
   },
@@ -195,6 +196,7 @@ export const relations = defineRelations(schema, (r) => ({
     }),
     versions: r.many.workflowDefinitionVersions(),
     bindings: r.many.workflowBindings(),
+    scheduleBindings: r.many.workflowScheduleBindings(),
     runEntityLinks: r.many.workflowRunEntityLinks(),
     deliveryLog: r.many.workflowDeliveryLog(),
   },
@@ -213,6 +215,7 @@ export const relations = defineRelations(schema, (r) => ({
       to: r.users.id,
     }),
     bindings: r.many.workflowBindings(),
+    scheduleBindings: r.many.workflowScheduleBindings(),
     runEntityLinks: r.many.workflowRunEntityLinks(),
     deliveryLog: r.many.workflowDeliveryLog(),
   },
@@ -228,6 +231,21 @@ export const relations = defineRelations(schema, (r) => ({
     }),
     version: r.one.workflowDefinitionVersions({
       from: r.workflowBindings.versionId,
+      to: r.workflowDefinitionVersions.id,
+    }),
+  },
+
+  workflowScheduleBindings: {
+    org: r.one.orgs({
+      from: r.workflowScheduleBindings.orgId,
+      to: r.orgs.id,
+    }),
+    definition: r.one.workflowDefinitions({
+      from: r.workflowScheduleBindings.definitionId,
+      to: r.workflowDefinitions.id,
+    }),
+    version: r.one.workflowDefinitionVersions({
+      from: r.workflowScheduleBindings.versionId,
       to: r.workflowDefinitionVersions.id,
     }),
   },

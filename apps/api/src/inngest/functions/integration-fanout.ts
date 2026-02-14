@@ -2,9 +2,9 @@ import { forEachAsync } from "es-toolkit/array";
 import type { AnyDomainEvent, IntegrationConsumer } from "@integrations/core";
 import { integrationSupportsEvent } from "@integrations/core";
 import {
-  webhookEventDataSchemaByType,
-  webhookEventTypes,
-  type WebhookEventType,
+  domainEventDataSchemaByType,
+  domainEventTypes,
+  type DomainEventType,
 } from "@scheduling/dto";
 import { getEnabledIntegrationsForOrg } from "../../services/integrations/runtime.js";
 import { inngest } from "../client.js";
@@ -21,7 +21,7 @@ export const INTEGRATION_FANOUT_FLOW_CONTROL = {
 
 type DomainEventCandidate = {
   id: string;
-  type: WebhookEventType;
+  type: DomainEventType;
   orgId: string;
   payload: unknown;
   timestamp: string;
@@ -30,12 +30,12 @@ type DomainEventCandidate = {
 function isAnyDomainEvent(
   event: DomainEventCandidate,
 ): event is AnyDomainEvent {
-  return webhookEventDataSchemaByType[event.type].safeParse(event.payload)
+  return domainEventDataSchemaByType[event.type].safeParse(event.payload)
     .success;
 }
 
 export function createIntegrationFanoutFunction<
-  TEventType extends WebhookEventType,
+  TEventType extends DomainEventType,
 >(
   eventType: TEventType,
   resolveIntegrations: ResolveIntegrations = getEnabledIntegrationsForOrg,
@@ -102,6 +102,6 @@ export function createIntegrationFanoutFunction<
   );
 }
 
-export const integrationFanoutFunctions = webhookEventTypes.map((eventType) =>
+export const integrationFanoutFunctions = domainEventTypes.map((eventType) =>
   createIntegrationFanoutFunction(eventType),
 );

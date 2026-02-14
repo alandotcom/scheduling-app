@@ -197,3 +197,96 @@
     @apply transition-all duration-200 ease-out;
   }
 }
+
+@keyframes dashdraw {
+  from {
+    stroke-dashoffset: 10;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+/* React Flow attribution styling */
+.react-flow__attribution {
+  background: transparent !important;
+  padding: 2px 4px !important;
+  font-size: 10px !important;
+  opacity: 0.4 !important;
+}
+
+.dark .react-flow__attribution {
+  background: transparent !important;
+  color: rgba(255, 255, 255, 0.5) !important;
+}
+
+.dark .react-flow__attribution a {
+  color: rgba(255, 255, 255, 0.5) !important;
+}
+
+/* React Flow pane cursor */
+.react-flow__pane {
+  cursor: grab !important;
+}
+
+.react-flow__pane:active {
+  cursor: grabbing !important;
+}
+
+/* React Flow node and edge cursor */
+.react-flow__node {
+  cursor: pointer !important;
+}
+
+/* When dragging a node, show grabbing cursor */
+.react-flow__node.dragging {
+  cursor: grabbing !important;
+}
+
+.react-flow__edge {
+  cursor: pointer !important;
+}
+
+/* React Flow handle positioning and styling */
+.react-flow__handle {
+  width: 12px !important;
+  height: 12px !important;
+  border: 2px solid var(--border) !important;
+  background: var(--primary) !important;
+  cursor: crosshair !important;
+  z-index: 20 !important;
+}
+
+/* Invisible hit area for desktop */
+.react-flow__handle::after {
+  content: "" !important;
+  position: absolute !important;
+  top: 50% !important;
+  left: 50% !important;
+  transform: translate(-50%, -50%) !important;
+  width: 24px !important;
+  height: 24px !important;
+}
+
+@media (max-width: 768px) {
+  /* Invisible hit area for mobile with WCAG minimum target size */
+  .react-flow__handle::after {
+    width: 44px !important;
+    height: 44px !important;
+  }
+}
+
+.react-flow__handle-left {
+  left: -0.5px !important;
+}
+
+.react-flow__handle-right {
+  right: -0.5px !important;
+}
+
+/* Safe area support for mobile devices */
+@media (max-width: 768px) {
+  .workflow-controls-panel {
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 5.5rem) !important;
+  }
+}

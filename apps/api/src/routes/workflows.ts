@@ -11,9 +11,8 @@ import {
   listWorkflowRunsQuerySchema,
   listWorkflowDefinitionsQuerySchema,
   publishWorkflowDraftInputSchema,
-  removeWorkflowBindingInputSchema,
-  successResponseSchema,
-  upsertWorkflowBindingInputSchema,
+  runWorkflowDraftInputSchema,
+  runWorkflowDraftResponseSchema,
   updateWorkflowDraftWorkflowGraphSchema,
   validateWorkflowDraftInputSchema,
   workflowBindingSchema,
@@ -23,6 +22,7 @@ import {
   workflowDefinitionVersionSchema,
   workflowRunDetailSchema,
   workflowRunListResponseSchema,
+  workflowScheduleBindingSchema,
   workflowStepLogListResponseSchema,
   type WorkflowRunStatus,
   workflowValidationResultSchema,
@@ -33,12 +33,15 @@ import {
   workflowDefinitions,
   workflowDefinitionVersions,
   workflowRunEntityLinks,
+  workflowScheduleBindings,
 } from "@scheduling/db/schema";
 import type { SQL } from "drizzle-orm";
 import { and, asc, desc, eq, ilike, or, sql } from "drizzle-orm";
-import { createHash } from "node:crypto";
+import { CronExpressionParser } from "cron-parser";
+import { createHash, randomUUID } from "node:crypto";
 import { adminOnly, authed } from "./base.js";
 import { ApplicationError } from "../errors/application-error.js";
+import { inngest } from "../inngest/client.js";
 import {
   cancelInngestRunById,
   InngestRuntimeError,
@@ -59,6 +62,7 @@ type WorkflowDefinitionRow = typeof workflowDefinitions.$inferSelect;
 type WorkflowDefinitionVersionRow =
   typeof workflowDefinitionVersions.$inferSelect;
 type WorkflowBindingRow = typeof workflowBindings.$inferSelect;
+type WorkflowScheduleBindingRow = typeof workflowScheduleBindings.$inferSelect;
 type WorkflowRunEntityLinkRow = typeof workflowRunEntityLinks.$inferSelect;
 
 const updateWorkflowDraftInputSchema = idInputSchema.extend(
@@ -160,6 +164,37 @@ function toBinding(row: WorkflowBindingRow) {
   });
 }
 
+function toScheduleBinding(row: WorkflowScheduleBindingRow) {
+  return workflowScheduleBindingSchema.parse({
+    id: row.id,
+    orgId: row.orgId,
+    definitionId: row.definitionId,
+    versionId: row.versionId,
+    scheduleExpression: row.scheduleExpression,
+    scheduleTimezone: row.scheduleTimezone,
+    nextRunAt: row.nextRunAt,
+    enabled: row.enabled,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+  });
+}
+
+function computeNextScheduleRunAt(input: {
+  expression: string;
+  timezone: string;
+  currentDate: Date;
+}): Date | null {
+  try {
+    const parsed = CronExpressionParser.parse(input.expression, {
+      currentDate: input.currentDate,
+      tz: input.timezone,
+    });
+    return parsed.next().toDate();
+  } catch {
+    return null;
+  }
+}
+
 function toWorkflowRunStatus(value: string): WorkflowRunStatus {
   if (
     value === "pending" ||
@@ -225,12 +260,20 @@ async function loadDefinitionDetail(tx: DbClient, definitionId: string) {
       desc(workflowBindings.updatedAt),
       desc(workflowBindings.createdAt),
     );
+  const scheduleBindings = await tx
+    .select()
+    .from(workflowScheduleBindings)
+    .where(eq(workflowScheduleBindings.definitionId, definition.id))
+    .orderBy(desc(workflowScheduleBindings.updatedAt));
 
   return workflowDefinitionDetailSchema.parse({
     ...toDefinitionSummary(definition),
     draftWorkflowGraph: definition.draftWorkflowGraph,
     activeVersion: activeVersion ? toDefinitionVersion(activeVersion) : null,
     bindings: bindings.map((binding) => toBinding(binding)),
+    scheduleBindings: scheduleBindings.map((binding) =>
+      toScheduleBinding(binding),
+    ),
   });
 }
 
@@ -339,6 +382,7 @@ export const createDefinition = adminOnly
       draftWorkflowGraph: definition.draftWorkflowGraph,
       activeVersion: null,
       bindings: [],
+      scheduleBindings: [],
     });
   });
 
@@ -482,18 +526,171 @@ export const publishDraft = adminOnly
       }
 
       await tx
-        .update(workflowBindings)
-        .set({
-          versionId: publishedVersion.id,
-          updatedAt: new Date(),
-        })
+        .delete(workflowBindings)
         .where(eq(workflowBindings.definitionId, definition.id));
+
+      await tx
+        .delete(workflowScheduleBindings)
+        .where(eq(workflowScheduleBindings.definitionId, definition.id));
+
+      const trigger =
+        typeof compilation.compiledPlan === "object" &&
+        compilation.compiledPlan !== null &&
+        "trigger" in compilation.compiledPlan
+          ? (compilation.compiledPlan["trigger"] as Record<
+              string,
+              unknown
+            > | null)
+          : null;
+
+      if (trigger?.["type"] === "domain_event") {
+        const startEvents = Array.isArray(trigger["startEvents"])
+          ? trigger["startEvents"].filter(
+              (entry): entry is string => typeof entry === "string",
+            )
+          : [];
+        const restartEvents = Array.isArray(trigger["restartEvents"])
+          ? trigger["restartEvents"].filter(
+              (entry): entry is string => typeof entry === "string",
+            )
+          : [];
+        const stopEvents = Array.isArray(trigger["stopEvents"])
+          ? trigger["stopEvents"].filter(
+              (entry): entry is string => typeof entry === "string",
+            )
+          : [];
+        const allEvents = [
+          ...new Set([...startEvents, ...restartEvents, ...stopEvents]),
+        ];
+
+        if (allEvents.length > 0) {
+          await tx.insert(workflowBindings).values(
+            allEvents.map((eventType) => ({
+              orgId: context.orgId,
+              definitionId: definition.id,
+              versionId: publishedVersion.id,
+              eventType,
+              enabled: true,
+            })),
+          );
+        }
+      } else if (trigger?.["type"] === "schedule") {
+        const scheduleExpression =
+          typeof trigger["expression"] === "string"
+            ? trigger["expression"].trim()
+            : "";
+        const scheduleTimezone =
+          typeof trigger["timezone"] === "string"
+            ? trigger["timezone"].trim()
+            : "";
+
+        if (!scheduleExpression || !scheduleTimezone) {
+          throw new ApplicationError(
+            "Schedule trigger is missing configuration",
+            {
+              code: "UNPROCESSABLE_CONTENT",
+            },
+          );
+        }
+
+        const nextRunAt = computeNextScheduleRunAt({
+          expression: scheduleExpression,
+          timezone: scheduleTimezone,
+          currentDate: new Date(),
+        });
+
+        if (!nextRunAt) {
+          throw new ApplicationError("Schedule expression is invalid", {
+            code: "UNPROCESSABLE_CONTENT",
+          });
+        }
+
+        await tx.insert(workflowScheduleBindings).values({
+          orgId: context.orgId,
+          definitionId: definition.id,
+          versionId: publishedVersion.id,
+          scheduleExpression,
+          scheduleTimezone,
+          nextRunAt,
+          enabled: true,
+        });
+      }
 
       return loadDefinitionDetail(tx, updatedDefinition.id);
     });
   });
 
-export const listBindings = adminOnly
+export const runDraft = adminOnly
+  .route({ method: "POST", path: "/workflows/{id}/run-draft" })
+  .input(runWorkflowDraftInputSchema)
+  .output(runWorkflowDraftResponseSchema)
+  .handler(async ({ input, context }) => {
+    const eventTimestamp = new Date().toISOString();
+
+    const workflow = await withOrg(context.orgId, async (tx) => {
+      const definition = await getDefinitionById(tx, input.id);
+      const compilation = compileWorkflowDocument(
+        definition.draftWorkflowGraph,
+      );
+      const validation = compilation.validation;
+
+      if (!validation.valid || !compilation.compiledPlan) {
+        throw new ApplicationError("Workflow draft is invalid", {
+          code: "UNPROCESSABLE_CONTENT",
+          details: {
+            issues: validation.issues,
+          },
+        });
+      }
+
+      return {
+        definitionId: definition.id,
+        workflowType: definition.key,
+        compiledPlan: compilation.compiledPlan,
+      };
+    });
+
+    const triggerEventId = [
+      "manual",
+      context.orgId,
+      workflow.definitionId,
+      randomUUID(),
+    ].join(":");
+
+    await inngest.send({
+      id: triggerEventId,
+      name: "scheduling/workflow.triggered",
+      data: {
+        orgId: context.orgId,
+        workflow: {
+          definitionId: workflow.definitionId,
+          versionId: null,
+          workflowType: workflow.workflowType,
+          compiledPlan: workflow.compiledPlan,
+        },
+        sourceEvent: {
+          id: triggerEventId,
+          type: "manual.triggered",
+          timestamp: eventTimestamp,
+          payload: {
+            triggeredByUserId: context.userId,
+            triggerMode: "draft_manual",
+          },
+        },
+        entity: {
+          type: input.entityType,
+          id: input.entityId,
+        },
+      },
+    });
+
+    return runWorkflowDraftResponseSchema.parse({
+      success: true,
+      triggerEventId,
+    });
+  });
+
+export const listBindings = authed
   .route({ method: "GET", path: "/workflows/{id}/bindings" })
   .input(listWorkflowBindingsInputSchema)
   .output(workflowBindingListResponseSchema)
@@ -506,89 +703,19 @@ export const listBindings = adminOnly
         .from(workflowBindings)
         .where(eq(workflowBindings.definitionId, input.id))
         .orderBy(asc(workflowBindings.eventType));
+      const scheduleRows = await tx
+        .select()
+        .from(workflowScheduleBindings)
+        .where(eq(workflowScheduleBindings.definitionId, input.id))
+        .orderBy(desc(workflowScheduleBindings.updatedAt));
 
-      return rows.map((row) => toBinding(row));
+      return {
+        items: rows.map((row) => toBinding(row)),
+        schedules: scheduleRows.map((row) => toScheduleBinding(row)),
+      };
     });
 
-    return { items };
-  });
-
-export const upsertBinding = adminOnly
-  .route({ method: "PUT", path: "/workflows/{id}/bindings/{eventType}" })
-  .input(upsertWorkflowBindingInputSchema)
-  .output(workflowBindingSchema)
-  .handler(async ({ input, context }) => {
-    return withOrg(context.orgId, async (tx) => {
-      const definition = await getDefinitionById(tx, input.id);
-
-      if (!definition.activeVersionId) {
-        throw new ApplicationError(
-          "Publish the workflow before binding events",
-          {
-            code: "UNPROCESSABLE_CONTENT",
-          },
-        );
-      }
-
-      const [binding] = await tx
-        .insert(workflowBindings)
-        .values({
-          orgId: context.orgId,
-          definitionId: definition.id,
-          versionId: definition.activeVersionId,
-          eventType: input.eventType,
-          enabled: input.enabled,
-        })
-        .onConflictDoUpdate({
-          target: [
-            workflowBindings.orgId,
-            workflowBindings.definitionId,
-            workflowBindings.eventType,
-          ],
-          set: {
-            versionId: definition.activeVersionId,
-            enabled: input.enabled,
-            updatedAt: new Date(),
-          },
-        })
-        .returning();
-
-      if (!binding) {
-        throw new Error(
-          "Unexpected empty result when upserting workflow binding",
-        );
-      }
-
-      return toBinding(binding);
-    });
-  });
-
-export const removeBinding = adminOnly
-  .route({ method: "DELETE", path: "/workflows/{id}/bindings/{eventType}" })
-  .input(removeWorkflowBindingInputSchema)
-  .output(successResponseSchema)
-  .handler(async ({ input, context }) => {
-    await withOrg(context.orgId, async (tx) => {
-      await getDefinitionById(tx, input.id);
-
-      const [removed] = await tx
-        .delete(workflowBindings)
-        .where(
-          and(
-            eq(workflowBindings.definitionId, input.id),
-            eq(workflowBindings.eventType, input.eventType),
-          ),
-        )
-        .returning({ id: workflowBindings.id });
-
-      if (!removed) {
-        throw new ApplicationError("Workflow binding not found", {
-          code: "NOT_FOUND",
-        });
-      }
-    });
-
-    return { success: true as const };
+    return items;
   });
 
 export const listRuns = authed
@@ -765,10 +892,9 @@ export const workflowRoutes = {
   updateDraft,
   validateDraft,
   publishDraft,
+  runDraft,
   bindings: {
     list: listBindings,
-    upsert: upsertBinding,
-    remove: removeBinding,
   },
   listRuns,
   getRun,

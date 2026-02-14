@@ -7,12 +7,16 @@ import {
 } from "./registry.js";
 
 describe("workflow registry", () => {
-  test("exposes trigger definitions for all webhook events", () => {
+  test("exposes domain-event and schedule trigger definitions", () => {
     const triggers = listWorkflowTriggerDefinitions();
     expect(triggers.length).toBeGreaterThan(0);
     expect(
-      triggers.some((trigger) => trigger.eventType === "client.created"),
+      triggers.some(
+        (trigger) =>
+          trigger.type === "domain_event" && trigger.domain === "client",
+      ),
     ).toBe(true);
+    expect(triggers.some((trigger) => trigger.type === "schedule")).toBe(true);
   });
 
   test("resolves registered action definitions", () => {

@@ -1,15 +1,12 @@
-// Event emitter service for scheduling domain events.
-// Sends typed events directly to Inngest.
-
 import { getLogger } from "@logtape/logtape";
 import {
-  webhookEventDataSchemaByType,
-  webhookEventTypeSchema,
-  type WebhookEventData,
-  type WebhookEventType,
+  domainEventDataSchemaByType,
+  domainEventTypeSchema,
+  type DomainEventData,
+  type DomainEventType,
 } from "@scheduling/dto";
 import { z } from "zod";
-import { webhookInngest } from "../../inngest/client.js";
+import { domainEventInngest } from "../../inngest/client.js";
 
 const logger = getLogger(["events", "emitter"]);
 
@@ -17,17 +14,17 @@ function generateEventId(): string {
   return Bun.randomUUIDv7();
 }
 
-const webhookSendPayloadBaseSchema = z.object({
+const domainEventSendPayloadBaseSchema = z.object({
   id: z.string(),
-  name: webhookEventTypeSchema,
+  name: domainEventTypeSchema,
   data: z.looseObject({ orgId: z.string() }),
   ts: z.number(),
 });
 
-function isWebhookSendPayload(
+function isDomainEventSendPayload(
   value: unknown,
-): value is Parameters<typeof webhookInngest.send>[0] {
-  const parsed = webhookSendPayloadBaseSchema.safeParse(value);
+): value is Parameters<typeof domainEventInngest.send>[0] {
+  const parsed = domainEventSendPayloadBaseSchema.safeParse(value);
   if (!parsed.success) {
     return false;
   }
@@ -35,13 +32,13 @@ function isWebhookSendPayload(
   const { name, data } = parsed.data;
   const { orgId: _orgId, ...payload } = data;
 
-  return webhookEventDataSchemaByType[name].safeParse(payload).success;
+  return domainEventDataSchemaByType[name].safeParse(payload).success;
 }
 
-export async function emitEvent<TEventType extends WebhookEventType>(
+export async function emitEvent<TEventType extends DomainEventType>(
   orgId: string,
   type: TEventType,
-  payload: WebhookEventData<TEventType>,
+  payload: DomainEventData<TEventType>,
 ): Promise<string> {
   const eventId = generateEventId();
   const timestampMs = Date.now();
@@ -57,14 +54,12 @@ export async function emitEvent<TEventType extends WebhookEventType>(
       ts: timestampMs,
     };
 
-    if (!isWebhookSendPayload(sendPayload)) {
-      throw new Error("Invalid webhook payload shape");
+    if (!isDomainEventSendPayload(sendPayload)) {
+      throw new Error("Invalid domain event payload shape");
     }
 
-    await webhookInngest.send(sendPayload);
+    await domainEventInngest.send(sendPayload);
   } catch (error) {
-    // Temporary migration behavior: preserve successful write paths even if the
-    // local Inngest runtime is unavailable.
     logger.error("Failed sending event to Inngest: {error}", {
       error,
       eventId,
@@ -76,10 +71,10 @@ export async function emitEvent<TEventType extends WebhookEventType>(
   return eventId;
 }
 
-function createTypedEmitter<TEventType extends WebhookEventType>(
+function createTypedEmitter<TEventType extends DomainEventType>(
   eventType: TEventType,
 ) {
-  return (orgId: string, payload: WebhookEventData<TEventType>) =>
+  return (orgId: string, payload: DomainEventData<TEventType>) =>
     emitEvent(orgId, eventType, payload);
 }
 
@@ -88,69 +83,39 @@ type SnakeToCamel<TValue extends string> =
     ? `${Head}${Capitalize<SnakeToCamel<Tail>>}`
     : TValue;
 
-type EventTypeToEmitterKey<TEventType extends WebhookEventType> =
+type EventTypeToEmitterKey<TEventType extends DomainEventType> =
   TEventType extends `${infer Entity}.${infer Action}`
     ? `${SnakeToCamel<Entity>}${Capitalize<SnakeToCamel<Action>>}`
     : never;
 
-type TypedEmitter<TEventType extends WebhookEventType> = (
+type TypedEmitter<TEventType extends DomainEventType> = (
   orgId: string,
-  payload: WebhookEventData<TEventType>,
+  payload: DomainEventData<TEventType>,
 ) => Promise<string>;
 
 type EventEmitters = {
-  [TEventType in WebhookEventType as EventTypeToEmitterKey<TEventType>]: TypedEmitter<TEventType>;
+  [TEventType in DomainEventType as EventTypeToEmitterKey<TEventType>]: TypedEmitter<TEventType>;
 };
 
-// Convenience methods for specific event types
 export const events: EventEmitters = {
-  // Appointment events
   appointmentCreated: createTypedEmitter("appointment.created"),
-
   appointmentUpdated: createTypedEmitter("appointment.updated"),
-
   appointmentCancelled: createTypedEmitter("appointment.cancelled"),
-
   appointmentRescheduled: createTypedEmitter("appointment.rescheduled"),
-
   appointmentNoShow: createTypedEmitter("appointment.no_show"),
-
-  // Calendar events
   calendarCreated: createTypedEmitter("calendar.created"),
-
   calendarUpdated: createTypedEmitter("calendar.updated"),
-
   calendarDeleted: createTypedEmitter("calendar.deleted"),
-
-  // Appointment type events
   appointmentTypeCreated: createTypedEmitter("appointment_type.created"),
-
   appointmentTypeUpdated: createTypedEmitter("appointment_type.updated"),
-
   appointmentTypeDeleted: createTypedEmitter("appointment_type.deleted"),
-
-  // Resource events
   resourceCreated: createTypedEmitter("resource.created"),
-
   resourceUpdated: createTypedEmitter("resource.updated"),
-
   resourceDeleted: createTypedEmitter("resource.deleted"),
-
-  // Location events
   locationCreated: createTypedEmitter("location.created"),
-
   locationUpdated: createTypedEmitter("location.updated"),
-
   locationDeleted: createTypedEmitter("location.deleted"),
-
-  // Client events
   clientCreated: createTypedEmitter("client.created"),
-
   clientUpdated: createTypedEmitter("client.updated"),
-
   clientDeleted: createTypedEmitter("client.deleted"),
 };
-
-export async function closeEventEmitter(): Promise<void> {
-  // No-op after Inngest migration; kept for compatibility with existing callers.
-}

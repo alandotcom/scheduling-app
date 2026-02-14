@@ -1,8 +1,8 @@
 import { forEachAsync } from "es-toolkit/array";
 import {
-  webhookEventDataSchemaByType,
-  webhookEventTypes,
-  type WebhookEventType,
+  domainEventDataSchemaByType,
+  domainEventTypes,
+  type DomainEventType,
 } from "@scheduling/dto";
 import { inngest } from "../client.js";
 import {
@@ -13,7 +13,7 @@ import { parseWorkflowDurationToMs } from "../../services/workflows/duration.js"
 
 type ResolveDispatchTargets = (
   orgId: string,
-  eventType: WebhookEventType,
+  eventType: DomainEventType,
 ) => Promise<readonly WorkflowDispatchTarget[]>;
 
 type WorkflowTriggeredEventPayload = {
@@ -28,7 +28,7 @@ type WorkflowTriggeredEventPayload = {
     };
     sourceEvent: {
       id: string;
-      type: WebhookEventType;
+      type: DomainEventType;
       timestamp: string;
       payload: Record<string, unknown>;
     };
@@ -44,7 +44,7 @@ type DispatchWorkflowTriggeredEvent = (
 ) => Promise<void>;
 
 const ENTITY_BY_EVENT_TYPE: Record<
-  WebhookEventType,
+  DomainEventType,
   { entityType: string; idField: string }
 > = {
   "appointment.created": {
@@ -136,7 +136,7 @@ function defaultDispatchWorkflowTriggeredEvent(
 }
 
 function resolveEntityReference(
-  eventType: WebhookEventType,
+  eventType: DomainEventType,
   payload: Record<string, unknown>,
 ): { type: string; id: string } {
   const entityConfig = ENTITY_BY_EVENT_TYPE[eventType];
@@ -155,7 +155,7 @@ function resolveEntityReference(
 }
 
 function buildSourceEventId(
-  eventType: WebhookEventType,
+  eventType: DomainEventType,
   event: {
     id?: string | undefined;
     ts?: number | undefined;
@@ -211,7 +211,7 @@ function resolveDebounceConfig(compiledPlan: Record<string, unknown> | null): {
 function buildTriggeredEventId(input: {
   sourceEventId: string;
   sourceTimestampMs: number;
-  eventType: WebhookEventType;
+  eventType: DomainEventType;
   target: WorkflowDispatchTarget;
   entity: { type: string; id: string };
 }): string {
@@ -238,7 +238,7 @@ function buildTriggeredEventId(input: {
 }
 
 export function createWorkflowDispatchFunction<
-  TEventType extends WebhookEventType,
+  TEventType extends DomainEventType,
 >(
   eventType: TEventType,
   resolveTargets: ResolveDispatchTargets = listEnabledWorkflowDispatchTargets,
@@ -253,7 +253,7 @@ export function createWorkflowDispatchFunction<
     async ({ event, step }) => {
       const { orgId, ...payloadInput } = event.data;
       const payloadValidation =
-        webhookEventDataSchemaByType[eventType].safeParse(payloadInput);
+        domainEventDataSchemaByType[eventType].safeParse(payloadInput);
 
       if (!payloadValidation.success) {
         throw new Error(`Invalid payload for event type "${eventType}".`);
@@ -329,6 +329,6 @@ export function createWorkflowDispatchFunction<
   );
 }
 
-export const workflowDispatchFunctions = webhookEventTypes.map((eventType) =>
+export const workflowDispatchFunctions = domainEventTypes.map((eventType) =>
   createWorkflowDispatchFunction(eventType),
 );

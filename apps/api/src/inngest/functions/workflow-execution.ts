@@ -702,6 +702,15 @@ export function createWorkflowExecutionFunction(
       const compiledPlanValue = await step.run(
         "load-workflow-compiled-plan",
         async () => {
+          const inlineCompiledPlan = event.data.workflow.compiledPlan;
+          if (isRecord(inlineCompiledPlan)) {
+            return inlineCompiledPlan;
+          }
+
+          if (event.data.workflow.versionId === null) {
+            return null;
+          }
+
           return resolvedDependencies.loadCompiledPlan({
             orgId: event.data.orgId,
             versionId: event.data.workflow.versionId,
@@ -1127,35 +1136,6 @@ export function createWorkflowExecutionFunction(
                 if (!visited.has(nextId)) {
                   executionQueue.push(nextId);
                 }
-              }
-              continue;
-            }
-
-            if (nodeKind === "terminal") {
-              const terminalType = node["terminalType"];
-              const termStepLog = await resolvedDependencies.logStepStart({
-                orgId: event.data.orgId,
-                runId,
-                nodeId: currentNodeId,
-                nodeName: nodeLabel,
-                nodeType: "terminal",
-                input: null,
-              });
-              await resolvedDependencies.logStepComplete({
-                orgId: event.data.orgId,
-                logId: termStepLog.logId,
-                status: "success",
-                output: { terminalType },
-              });
-
-              if (terminalType === "cancel") {
-                status = "cancelled";
-                shouldStop = true;
-                continue;
-              }
-
-              if (terminalType === "complete") {
-                shouldStop = true;
               }
               continue;
             }

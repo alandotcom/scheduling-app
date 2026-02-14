@@ -18,6 +18,7 @@ import {
   workflowRunEntityLinks,
 } from "@scheduling/db/schema";
 import type { relations } from "@scheduling/db/relations";
+import { inngest } from "../inngest/client.js";
 import type { Context } from "../lib/orpc.js";
 import {
   clearTestOrgContext,
@@ -87,6 +88,7 @@ async function createWorkflowRunLink(input: {
 describe("Workflow Routes", () => {
   let db: Database;
   const originalFetch = globalThis.fetch;
+  const originalInngestSend = inngest.send.bind(inngest);
 
   beforeAll(async () => {
     db = (await createTestDb()) as Database;
@@ -98,6 +100,11 @@ describe("Workflow Routes", () => {
 
   afterEach(() => {
     globalThis.fetch = originalFetch;
+    (
+      inngest as unknown as {
+        send: typeof inngest.send;
+      }
+    ).send = originalInngestSend;
   });
 
   beforeEach(async () => {
@@ -125,7 +132,15 @@ describe("Workflow Routes", () => {
       {
         key: "member_visible_workflow",
         name: "Member Visible Workflow",
-        workflowGraph: { trigger: { event: "appointment.created" } },
+        workflowGraph: {
+          trigger: {
+            type: "domain_event",
+            domain: "appointment",
+            startEvents: ["appointment.created"],
+            restartEvents: [],
+            stopEvents: [],
+          },
+        },
       },
       { context: ownerContext },
     );
@@ -157,7 +172,15 @@ describe("Workflow Routes", () => {
         {
           key: "member_cannot_create",
           name: "Member Cannot Create",
-          workflowGraph: { trigger: { event: "appointment.created" } },
+          workflowGraph: {
+            trigger: {
+              type: "domain_event",
+              domain: "appointment",
+              startEvents: ["appointment.created"],
+              restartEvents: [],
+              stopEvents: [],
+            },
+          },
         },
         { context },
       ),
@@ -179,9 +202,12 @@ describe("Workflow Routes", () => {
     expect(catalog.triggers).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          eventType: "appointment.cancelled",
-          entityType: "appointment",
-          defaultReplacementMode: "cancel_without_replacement",
+          type: "domain_event",
+          domain: "appointment",
+        }),
+        expect.objectContaining({
+          type: "schedule",
+          label: "Schedule",
         }),
       ]),
     );
@@ -210,7 +236,13 @@ describe("Workflow Routes", () => {
         name: "Appointment Reminders",
         description: "Sends reminders before upcoming appointments",
         workflowGraph: {
-          trigger: { event: "appointment.created" },
+          trigger: {
+            type: "domain_event",
+            domain: "appointment",
+            startEvents: ["appointment.created"],
+            restartEvents: [],
+            stopEvents: [],
+          },
           steps: [{ id: "step_1", type: "wait" }],
         },
       },
@@ -253,7 +285,15 @@ describe("Workflow Routes", () => {
       {
         key: "appointment_reminders",
         name: "First",
-        workflowGraph: { trigger: { event: "appointment.created" } },
+        workflowGraph: {
+          trigger: {
+            type: "domain_event",
+            domain: "appointment",
+            startEvents: ["appointment.created"],
+            restartEvents: [],
+            stopEvents: [],
+          },
+        },
       },
       { context },
     );
@@ -264,7 +304,15 @@ describe("Workflow Routes", () => {
         {
           key: "appointment_reminders",
           name: "Duplicate",
-          workflowGraph: { trigger: { event: "appointment.updated" } },
+          workflowGraph: {
+            trigger: {
+              type: "domain_event",
+              domain: "appointment",
+              startEvents: ["appointment.updated"],
+              restartEvents: [],
+              stopEvents: [],
+            },
+          },
         },
         { context },
       ),
@@ -284,7 +332,15 @@ describe("Workflow Routes", () => {
       {
         key: "followups",
         name: "Follow Ups",
-        workflowGraph: { trigger: { event: "appointment.created" } },
+        workflowGraph: {
+          trigger: {
+            type: "domain_event",
+            domain: "appointment",
+            startEvents: ["appointment.created"],
+            restartEvents: [],
+            stopEvents: [],
+          },
+        },
       },
       { context },
     );
@@ -295,7 +351,13 @@ describe("Workflow Routes", () => {
         id: created.id,
         expectedRevision: 1,
         workflowGraph: {
-          trigger: { event: "appointment.updated" },
+          trigger: {
+            type: "domain_event",
+            domain: "appointment",
+            startEvents: ["appointment.updated"],
+            restartEvents: [],
+            stopEvents: [],
+          },
           steps: [{ id: "step_2", type: "notify" }],
         },
       },
@@ -304,7 +366,13 @@ describe("Workflow Routes", () => {
 
     expect(updated.draftRevision).toBe(2);
     expect(updated.draftWorkflowGraph).toMatchObject({
-      trigger: { event: "appointment.updated" },
+      trigger: {
+        type: "domain_event",
+        domain: "appointment",
+        startEvents: ["appointment.updated"],
+        restartEvents: [],
+        stopEvents: [],
+      },
       steps: [{ id: "step_2", type: "notify" }],
     });
 
@@ -314,7 +382,15 @@ describe("Workflow Routes", () => {
         {
           id: created.id,
           expectedRevision: 1,
-          workflowGraph: { trigger: { event: "appointment.cancelled" } },
+          workflowGraph: {
+            trigger: {
+              type: "domain_event",
+              domain: "appointment",
+              startEvents: ["appointment.cancelled"],
+              restartEvents: [],
+              stopEvents: [],
+            },
+          },
         },
         { context },
       ),
@@ -351,7 +427,15 @@ describe("Workflow Routes", () => {
       {
         id: created.id,
         expectedRevision: 1,
-        workflowGraph: { trigger: { event: "appointment.created" } },
+        workflowGraph: {
+          trigger: {
+            type: "domain_event",
+            domain: "appointment",
+            startEvents: ["appointment.created"],
+            restartEvents: [],
+            stopEvents: [],
+          },
+        },
       },
       { context },
     );
@@ -378,7 +462,15 @@ describe("Workflow Routes", () => {
       {
         key: "publish_flow",
         name: "Publish Flow",
-        workflowGraph: { trigger: { event: "appointment.created" } },
+        workflowGraph: {
+          trigger: {
+            type: "domain_event",
+            domain: "appointment",
+            startEvents: ["appointment.created"],
+            restartEvents: [],
+            stopEvents: [],
+          },
+        },
       },
       { context },
     );
@@ -396,11 +488,23 @@ describe("Workflow Routes", () => {
     expect(firstPublish.activeVersion).not.toBeNull();
     expect(firstPublish.activeVersion?.version).toBe(1);
     expect(firstPublish.activeVersion?.workflowGraph).toMatchObject({
-      trigger: { event: "appointment.created" },
+      trigger: {
+        type: "domain_event",
+        domain: "appointment",
+        startEvents: ["appointment.created"],
+        restartEvents: [],
+        stopEvents: [],
+      },
     });
     expect(firstPublish.activeVersion?.compiledPlan).toMatchObject({
-      planVersion: 1,
-      trigger: { eventType: "appointment.created" },
+      planVersion: 2,
+      trigger: {
+        type: "domain_event",
+        domain: "appointment",
+        startEvents: ["appointment.created"],
+        restartEvents: [],
+        stopEvents: [],
+      },
     });
     expect(firstPublish.activeVersion?.createdBy).toBe(user.id);
     expect(firstPublish.activeVersion?.checksum).toHaveLength(64);
@@ -411,7 +515,13 @@ describe("Workflow Routes", () => {
         id: created.id,
         expectedRevision: 1,
         workflowGraph: {
-          trigger: { event: "appointment.updated" },
+          trigger: {
+            type: "domain_event",
+            domain: "appointment",
+            startEvents: ["appointment.updated"],
+            restartEvents: [],
+            stopEvents: [],
+          },
           steps: [{ id: "step_1", type: "notify" }],
         },
       },
@@ -430,7 +540,13 @@ describe("Workflow Routes", () => {
 
     expect(secondPublish.activeVersion?.version).toBe(2);
     expect(secondPublish.activeVersion?.workflowGraph).toMatchObject({
-      trigger: { event: "appointment.updated" },
+      trigger: {
+        type: "domain_event",
+        domain: "appointment",
+        startEvents: ["appointment.updated"],
+        restartEvents: [],
+        stopEvents: [],
+      },
       steps: [{ id: "step_1", type: "notify" }],
     });
 
@@ -483,7 +599,13 @@ describe("Workflow Routes", () => {
         key: "invalid_edges",
         name: "Invalid Edges",
         workflowGraph: {
-          trigger: { eventType: "client.created" },
+          trigger: {
+            type: "domain_event",
+            domain: "client",
+            startEvents: ["client.created"],
+            restartEvents: [],
+            stopEvents: [],
+          },
           nodes: [
             {
               id: "node_1",
@@ -530,7 +652,13 @@ describe("Workflow Routes", () => {
         key: "invalid_action",
         name: "Invalid Action",
         workflowGraph: {
-          trigger: { eventType: "client.created" },
+          trigger: {
+            type: "domain_event",
+            domain: "client",
+            startEvents: ["client.created"],
+            restartEvents: [],
+            stopEvents: [],
+          },
           nodes: [
             {
               id: "node_1",
@@ -574,7 +702,7 @@ describe("Workflow Routes", () => {
     ).rejects.toMatchObject({ code: "UNPROCESSABLE_CONTENT" });
   });
 
-  test("upsertBinding requires an active published version", async () => {
+  test("publishDraft derives event bindings from domain trigger config", async () => {
     const { org, user } = await createOrg(db);
     const context = createTestContext({
       orgId: org.id,
@@ -587,24 +715,39 @@ describe("Workflow Routes", () => {
       {
         key: "binding_requires_publish",
         name: "Binding Requires Publish",
+        workflowGraph: {
+          trigger: {
+            type: "domain_event",
+            domain: "appointment",
+            startEvents: ["appointment.created"],
+            restartEvents: ["appointment.rescheduled"],
+            stopEvents: ["appointment.cancelled"],
+          },
+        },
       },
       { context },
     );
 
-    await expect(
-      call(
-        workflowRoutes.bindings.upsert,
-        {
-          id: workflow.id,
-          eventType: "appointment.created",
-          enabled: true,
-        },
-        { context },
-      ),
-    ).rejects.toMatchObject({ code: "UNPROCESSABLE_CONTENT" });
+    const published = await call(
+      workflowRoutes.publishDraft,
+      {
+        id: workflow.id,
+        expectedRevision: 1,
+      },
+      { context },
+    );
+
+    expect(
+      published.bindings.map((binding) => binding.eventType).toSorted(),
+    ).toEqual([
+      "appointment.cancelled",
+      "appointment.created",
+      "appointment.rescheduled",
+    ]);
+    expect(published.scheduleBindings).toEqual([]);
   });
 
-  test("binding lifecycle supports upsert, list, and remove", async () => {
+  test("bindings list returns system-managed event and schedule projections", async () => {
     const { org, user } = await createOrg(db);
     const context = createTestContext({
       orgId: org.id,
@@ -617,7 +760,15 @@ describe("Workflow Routes", () => {
       {
         key: "binding_lifecycle",
         name: "Binding Lifecycle",
-        workflowGraph: { trigger: { event: "appointment.created" } },
+        workflowGraph: {
+          trigger: {
+            type: "domain_event",
+            domain: "appointment",
+            startEvents: ["appointment.created"],
+            restartEvents: [],
+            stopEvents: [],
+          },
+        },
       },
       { context },
     );
@@ -630,70 +781,61 @@ describe("Workflow Routes", () => {
       { context },
     );
 
-    const created = await call(
-      workflowRoutes.bindings.upsert,
-      {
-        id: workflow.id,
-        eventType: "appointment.created",
-        enabled: true,
-      },
-      { context },
-    );
-    expect(created.definitionId).toBe(workflow.id);
-    expect(created.eventType).toBe("appointment.created");
-    expect(created.enabled).toBe(true);
-
-    const updated = await call(
-      workflowRoutes.bindings.upsert,
-      {
-        id: workflow.id,
-        eventType: "appointment.created",
-        enabled: false,
-      },
-      { context },
-    );
-    expect(updated.id).toBe(created.id);
-    expect(updated.enabled).toBe(false);
-
     const listed = await call(
       workflowRoutes.bindings.list,
       { id: workflow.id },
       { context },
     );
     expect(listed.items).toHaveLength(1);
-    expect(listed.items[0]?.id).toBe(created.id);
-    expect(listed.items[0]?.enabled).toBe(false);
+    expect(listed.items[0]?.eventType).toBe("appointment.created");
+    expect(listed.schedules).toEqual([]);
+  });
 
-    const removed = await call(
-      workflowRoutes.bindings.remove,
+  test("publishDraft creates schedule bindings for schedule triggers", async () => {
+    const { org, user } = await createOrg(db);
+    const context = createTestContext({
+      orgId: org.id,
+      userId: user.id,
+      role: "owner",
+    });
+
+    const workflow = await call(
+      workflowRoutes.createDefinition,
       {
-        id: workflow.id,
-        eventType: "appointment.created",
+        key: "schedule_binding_publish",
+        name: "Schedule Binding Publish",
+        workflowGraph: {
+          trigger: {
+            type: "schedule",
+            expression: "*/15 * * * *",
+            timezone: "America/New_York",
+          },
+        },
       },
       { context },
     );
-    expect(removed.success).toBe(true);
 
-    const listedAfterRemove = await call(
-      workflowRoutes.bindings.list,
-      { id: workflow.id },
+    const published = await call(
+      workflowRoutes.publishDraft,
+      {
+        id: workflow.id,
+        expectedRevision: 1,
+      },
       { context },
     );
-    expect(listedAfterRemove.items).toEqual([]);
 
-    await expect(
-      call(
-        workflowRoutes.bindings.remove,
-        {
-          id: workflow.id,
-          eventType: "appointment.created",
-        },
-        { context },
-      ),
-    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+    expect(published.bindings).toEqual([]);
+    expect(published.scheduleBindings).toHaveLength(1);
+    expect(published.scheduleBindings[0]?.scheduleExpression).toBe(
+      "*/15 * * * *",
+    );
+    expect(published.scheduleBindings[0]?.scheduleTimezone).toBe(
+      "America/New_York",
+    );
+    expect(published.scheduleBindings[0]?.nextRunAt).not.toBeNull();
   });
 
-  test("publishDraft repoints existing bindings to newly published version", async () => {
+  test("publishDraft replaces binding projection when trigger events change", async () => {
     const { org, user } = await createOrg(db);
     const context = createTestContext({
       orgId: org.id,
@@ -706,7 +848,15 @@ describe("Workflow Routes", () => {
       {
         key: "binding_repoint",
         name: "Binding Repoint",
-        workflowGraph: { trigger: { event: "appointment.created" } },
+        workflowGraph: {
+          trigger: {
+            type: "domain_event",
+            domain: "appointment",
+            startEvents: ["appointment.created"],
+            restartEvents: [],
+            stopEvents: [],
+          },
+        },
       },
       { context },
     );
@@ -719,25 +869,24 @@ describe("Workflow Routes", () => {
       },
       { context },
     );
-    const firstVersionId = firstPublish.activeVersion?.id;
-    expect(firstVersionId).toBeDefined();
-
-    await call(
-      workflowRoutes.bindings.upsert,
-      {
-        id: workflow.id,
-        eventType: "appointment.updated",
-        enabled: true,
-      },
-      { context },
-    );
+    expect(firstPublish.bindings.map((binding) => binding.eventType)).toEqual([
+      "appointment.created",
+    ]);
 
     await call(
       workflowRoutes.updateDraft,
       {
         id: workflow.id,
         expectedRevision: 1,
-        workflowGraph: { trigger: { event: "appointment.updated" } },
+        workflowGraph: {
+          trigger: {
+            type: "domain_event",
+            domain: "appointment",
+            startEvents: ["appointment.updated"],
+            restartEvents: [],
+            stopEvents: [],
+          },
+        },
       },
       { context },
     );
@@ -750,8 +899,9 @@ describe("Workflow Routes", () => {
       { context },
     );
 
-    expect(secondPublish.activeVersion?.id).toBeDefined();
-    expect(secondPublish.activeVersion?.id).not.toBe(firstVersionId);
+    expect(secondPublish.bindings.map((binding) => binding.eventType)).toEqual([
+      "appointment.updated",
+    ]);
 
     await setTestOrgContext(db, org.id);
     try {
@@ -771,6 +921,127 @@ describe("Workflow Routes", () => {
     } finally {
       await clearTestOrgContext(db);
     }
+  });
+
+  test("runDraft dispatches manual workflow trigger events with compiled draft plan", async () => {
+    const { org, user } = await createOrg(db);
+    const context = createTestContext({
+      orgId: org.id,
+      userId: user.id,
+      role: "owner",
+    });
+
+    const sendMock = mock(async () => ({ ids: ["evt_manual_1"] }));
+    (
+      inngest as unknown as {
+        send: typeof inngest.send;
+      }
+    ).send = sendMock;
+
+    const workflow = await call(
+      workflowRoutes.createDefinition,
+      {
+        key: "manual_run_draft",
+        name: "Manual Run Draft",
+        workflowGraph: {
+          trigger: {
+            type: "domain_event",
+            domain: "client",
+            startEvents: ["client.created"],
+            restartEvents: [],
+            stopEvents: [],
+          },
+          nodes: [
+            {
+              id: "action_1",
+              kind: "action",
+              actionId: "resend.sendEmail",
+              integrationKey: "resend",
+              input: {
+                to: "admin@example.com",
+                subject: "Test",
+                body: "Manual run",
+              },
+            },
+          ],
+          edges: [],
+        },
+      },
+      { context },
+    );
+
+    const runResponse = await call(
+      workflowRoutes.runDraft,
+      {
+        id: workflow.id,
+        entityType: "client",
+        entityId: "0198d09f-ff07-7f46-a5d9-26a3f0d90299",
+      },
+      { context },
+    );
+
+    expect(runResponse.success).toBe(true);
+    expect(runResponse.triggerEventId).toContain("manual:");
+    expect(sendMock).toHaveBeenCalledTimes(1);
+    expect(sendMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: runResponse.triggerEventId,
+        name: "scheduling/workflow.triggered",
+        data: expect.objectContaining({
+          orgId: org.id,
+          workflow: expect.objectContaining({
+            definitionId: workflow.id,
+            workflowType: "manual_run_draft",
+            versionId: null,
+            compiledPlan: expect.objectContaining({
+              planVersion: 2,
+            }),
+          }),
+          sourceEvent: expect.objectContaining({
+            id: runResponse.triggerEventId,
+            type: "manual.triggered",
+          }),
+          entity: {
+            type: "client",
+            id: "0198d09f-ff07-7f46-a5d9-26a3f0d90299",
+          },
+        }),
+      }),
+    );
+  });
+
+  test("runDraft rejects invalid workflow drafts", async () => {
+    const { org, user } = await createOrg(db);
+    const context = createTestContext({
+      orgId: org.id,
+      userId: user.id,
+      role: "owner",
+    });
+
+    const workflow = await call(
+      workflowRoutes.createDefinition,
+      {
+        key: "invalid_manual_run_draft",
+        name: "Invalid Manual Run Draft",
+        workflowGraph: {
+          nodes: [],
+          edges: [],
+        },
+      },
+      { context },
+    );
+
+    await expect(
+      call(
+        workflowRoutes.runDraft,
+        {
+          id: workflow.id,
+          entityType: "client",
+          entityId: "0198d09f-ff07-7f46-a5d9-26a3f0d90388",
+        },
+        { context },
+      ),
+    ).rejects.toMatchObject({ code: "UNPROCESSABLE_CONTENT" });
   });
 
   test("listRuns returns sorted and filtered runs", async () => {
@@ -793,7 +1064,15 @@ describe("Workflow Routes", () => {
       {
         key: "workflow_a",
         name: "Workflow A",
-        workflowGraph: { trigger: { event: "appointment.created" } },
+        workflowGraph: {
+          trigger: {
+            type: "domain_event",
+            domain: "appointment",
+            startEvents: ["appointment.created"],
+            restartEvents: [],
+            stopEvents: [],
+          },
+        },
       },
       { context },
     );
@@ -802,7 +1081,15 @@ describe("Workflow Routes", () => {
       {
         key: "workflow_b",
         name: "Workflow B",
-        workflowGraph: { trigger: { event: "appointment.updated" } },
+        workflowGraph: {
+          trigger: {
+            type: "domain_event",
+            domain: "appointment",
+            startEvents: ["appointment.updated"],
+            restartEvents: [],
+            stopEvents: [],
+          },
+        },
       },
       { context },
     );
@@ -931,7 +1218,15 @@ describe("Workflow Routes", () => {
       {
         key: "run_detail_workflow",
         name: "Run Detail Workflow",
-        workflowGraph: { trigger: { event: "appointment.created" } },
+        workflowGraph: {
+          trigger: {
+            type: "domain_event",
+            domain: "appointment",
+            startEvents: ["appointment.created"],
+            restartEvents: [],
+            stopEvents: [],
+          },
+        },
       },
       { context },
     );
