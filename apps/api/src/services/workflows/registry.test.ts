@@ -19,23 +19,28 @@ describe("workflow registry", () => {
     expect(triggers.some((trigger) => trigger.type === "schedule")).toBe(true);
   });
 
-  test("resolves registered action definitions", () => {
-    expect(getWorkflowActionDefinition("resend.sendEmail")).toMatchObject({
-      id: "resend.sendEmail",
-      integrationKey: "resend",
-    });
+  test("resolves registered first-party action definitions", () => {
+    expect(getWorkflowActionDefinition("core.emitInternalEvent")).toMatchObject(
+      {
+        id: "core.emitInternalEvent",
+        category: "Core",
+      },
+    );
 
     expect(getWorkflowActionDefinition("missing.action")).toBeNull();
+    expect(
+      listWorkflowActionDefinitions().some(
+        (action) => action.id === "resend.sendEmail",
+      ),
+    ).toBe(false);
   });
 
   test("executes registered actions with validated input", async () => {
     const result = await executeWorkflowAction({
-      actionId: "resend.sendEmail",
-      integrationKey: "resend",
+      actionId: "core.emitInternalEvent",
       rawInput: {
-        to: "user@example.com",
-        subject: "Welcome",
-        body: "Hello",
+        eventType: "workflow.intent.created",
+        payload: { clientId: "client_1" },
       },
       context: {
         orgId: "org_1",
@@ -49,15 +54,17 @@ describe("workflow registry", () => {
 
     expect(result).toMatchObject({
       status: "ok",
-      channel: "integration.resend.sendEmail",
-      target: "user@example.com",
+      channel: "core.emitInternalEvent",
+      target: "client:entity_1",
+      output: {
+        eventType: "workflow.intent.created",
+      },
     });
   });
 
   test("returns invalid_action for unknown action IDs", async () => {
     const result = await executeWorkflowAction({
       actionId: "unknown.action",
-      integrationKey: null,
       rawInput: {},
       context: {
         orgId: "org_1",
@@ -74,18 +81,11 @@ describe("workflow registry", () => {
     });
   });
 
-  test("returns invalid_action for integration mismatch", async () => {
-    const action = listWorkflowActionDefinitions().find(
-      (definition) => definition.id === "twilio.sendSms",
-    );
-    expect(action).toBeDefined();
-
+  test("returns invalid_action for invalid action input", async () => {
     const result = await executeWorkflowAction({
-      actionId: "twilio.sendSms",
-      integrationKey: "resend",
+      actionId: "core.emitInternalEvent",
       rawInput: {
-        to: "+15555555555",
-        body: "Hi",
+        payload: { any: "value" },
       },
       context: {
         orgId: "org_1",

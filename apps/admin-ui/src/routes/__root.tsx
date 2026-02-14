@@ -217,7 +217,9 @@ export function getHeaderBreadcrumbItems(input: {
   const known = HEADER_BREADCRUMB_LABELS[normalizedPathname];
   if (known) return known;
 
-  const segment = normalizedPathname.split("/").filter(Boolean).at(-1);
+  const segment = normalizedPathname
+    .split("/")
+    .findLast((pathSegment) => pathSegment.length > 0);
   if (!segment) return [{ label: "Dashboard" }];
   return [{ label: formatPathSegmentLabel(segment) }];
 }

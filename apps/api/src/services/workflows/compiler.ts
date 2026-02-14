@@ -8,14 +8,6 @@ import {
 } from "@scheduling/dto";
 import { getWorkflowActionDefinition } from "./registry.js";
 
-type WorkflowDocumentLike = {
-  schemaVersion?: number;
-  trigger?: WorkflowTriggerConfig;
-  nodes?: unknown;
-  edges?: unknown;
-  [key: string]: unknown;
-};
-
 type CanonicalNode = {
   id: string;
   kind: string;
@@ -52,7 +44,7 @@ function sortNodesDeterministically(nodes: CanonicalNode[]): CanonicalNode[] {
   return [...nodes].toSorted((left, right) => left.id.localeCompare(right.id));
 }
 
-function buildCanonicalNodes(document: WorkflowDocumentLike): CanonicalNode[] {
+function buildCanonicalNodes(document: WorkflowGraphDocument): CanonicalNode[] {
   const nodes = Array.isArray(document.nodes) ? document.nodes : [];
   return nodes.flatMap((entry) => {
     if (!isRecord(entry)) return [];
@@ -62,14 +54,12 @@ function buildCanonicalNodes(document: WorkflowDocumentLike): CanonicalNode[] {
     if (typeof id !== "string" || id.length === 0) return [];
     if (typeof kind !== "string" || kind.length === 0) return [];
 
-    const config = { ...entry };
-    delete config["id"];
-    delete config["kind"];
+    const { id: _id, kind: _kind, ...config } = entry;
     return [{ id, kind, config }];
   });
 }
 
-function buildCanonicalEdges(document: WorkflowDocumentLike): CanonicalEdge[] {
+function buildCanonicalEdges(document: WorkflowGraphDocument): CanonicalEdge[] {
   const edges = Array.isArray(document.edges) ? document.edges : [];
   return edges.flatMap((entry, index) => {
     if (!isRecord(entry)) return [];
@@ -186,7 +176,7 @@ export function compileWorkflowDocument(
     };
   }
 
-  const document = parsed.data as WorkflowDocumentLike;
+  const document = parsed.data;
   const issues: WorkflowValidationIssue[] = [];
   const nodes = buildCanonicalNodes(document);
   const edges = buildCanonicalEdges(document);
@@ -266,28 +256,13 @@ export function compileWorkflowDocument(
     const actionDefinition = getWorkflowActionDefinition(actionId);
     if (!actionDefinition) {
       issues.push({
-        code: "MISSING_INTEGRATION",
+        code: "UNKNOWN_ACTION",
         severity: "error",
         nodeId: node.id,
         field: "actionId",
         message: `Unknown workflow action "${actionId}"`,
       });
       continue;
-    }
-
-    const integrationKey = node.config["integrationKey"];
-    if (
-      typeof integrationKey === "string" &&
-      integrationKey.length > 0 &&
-      integrationKey !== actionDefinition.integrationKey
-    ) {
-      issues.push({
-        code: "MISSING_INTEGRATION",
-        severity: "error",
-        nodeId: node.id,
-        field: "integrationKey",
-        message: `Action "${actionId}" requires integration "${actionDefinition.integrationKey}"`,
-      });
     }
 
     const rawInput = node.config["input"];

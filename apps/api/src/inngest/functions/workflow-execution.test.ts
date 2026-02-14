@@ -419,12 +419,12 @@ describe("workflow execution function", () => {
         {
           id: "node_a",
           kind: "action",
-          actionId: "resend.sendEmail",
-          integrationKey: "resend",
+          actionId: "core.emitInternalEvent",
           input: {
-            to: "client@example.com",
-            subject: "Reminder",
-            body: "Hello",
+            eventType: "workflow.intent.created",
+            payload: {
+              clientId: "0198d09f-ff07-7f46-a5d9-26a3f0d96049",
+            },
           },
         },
       ],
@@ -438,12 +438,12 @@ describe("workflow execution function", () => {
     }));
     const executeAction = mock(async () => ({
       status: "ok" as const,
-      channel: "integration.resend.sendEmail",
-      target: "client@example.com",
+      channel: "core.emitInternalEvent",
+      target: "client:0198d09f-ff07-7f46-a5d9-26a3f0d96049",
       providerMessageId: "provider-msg-1",
       output: {
-        channel: "integration.resend.sendEmail",
-        target: "client@example.com",
+        channel: "core.emitInternalEvent",
+        target: "client:0198d09f-ff07-7f46-a5d9-26a3f0d96049",
         providerMessageId: "provider-msg-1",
       },
     }));
@@ -499,8 +499,8 @@ describe("workflow execution function", () => {
     expect(recordDeliveryWithGuard).toHaveBeenCalledWith(
       expect.objectContaining({
         stepId: "node_a",
-        channel: "integration.resend.sendEmail",
-        target: "client@example.com",
+        channel: "core.emitInternalEvent",
+        target: "client:0198d09f-ff07-7f46-a5d9-26a3f0d96049",
         providerMessageId: "provider-msg-1",
       }),
     );
@@ -520,12 +520,12 @@ describe("workflow execution function", () => {
         {
           id: "node_a",
           kind: "action",
-          actionId: "resend.sendEmail",
-          integrationKey: "resend",
+          actionId: "core.emitInternalEvent",
           input: {
-            to: "client@example.com",
-            subject: "Reminder",
-            body: "Hello",
+            eventType: "workflow.intent.created",
+            payload: {
+              clientId: "0198d09f-ff07-7f46-a5d9-26a3f0d96050",
+            },
           },
         },
       ],

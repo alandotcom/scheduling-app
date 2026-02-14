@@ -214,8 +214,7 @@ describe("Workflow Routes", () => {
     expect(catalog.actions).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          id: "resend.sendEmail",
-          integrationKey: "resend",
+          id: "core.emitInternalEvent",
         }),
       ]),
     );
@@ -611,7 +610,6 @@ describe("Workflow Routes", () => {
               id: "node_1",
               kind: "action",
               actionId: "send-email",
-              integrationKey: "resend",
             },
           ],
           edges: [{ id: "edge_1", source: "node_1", target: "missing_node" }],
@@ -664,7 +662,6 @@ describe("Workflow Routes", () => {
               id: "node_1",
               kind: "action",
               actionId: "unknown.action",
-              integrationKey: "unknown",
               input: {},
             },
           ],
@@ -683,7 +680,7 @@ describe("Workflow Routes", () => {
     expect(invalidActionValidation.issues).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          code: "MISSING_INTEGRATION",
+          code: "UNKNOWN_ACTION",
           nodeId: "node_1",
           field: "actionId",
         }),
@@ -955,12 +952,12 @@ describe("Workflow Routes", () => {
             {
               id: "action_1",
               kind: "action",
-              actionId: "resend.sendEmail",
-              integrationKey: "resend",
+              actionId: "core.emitInternalEvent",
               input: {
-                to: "admin@example.com",
-                subject: "Test",
-                body: "Manual run",
+                eventType: "workflow.intent.manualRun",
+                payload: {
+                  note: "Manual run",
+                },
               },
             },
           ],

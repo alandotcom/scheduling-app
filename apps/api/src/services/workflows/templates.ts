@@ -22,13 +22,10 @@ function resolveFieldPath(data: unknown, fields: string[]): unknown {
   let current: unknown = data;
 
   for (const field of fields) {
-    if (current === null || current === undefined) {
+    if (!isRecord(current)) {
       return undefined;
     }
-    if (typeof current !== "object") {
-      return undefined;
-    }
-    current = (current as Record<string, unknown>)[field];
+    current = current[field];
   }
 
   return current;
@@ -38,10 +35,23 @@ function valueToString(value: unknown): string {
   if (value === null || value === undefined) {
     return "";
   }
+  if (typeof value === "string") {
+    return value;
+  }
+  if (
+    typeof value === "number" ||
+    typeof value === "boolean" ||
+    typeof value === "bigint"
+  ) {
+    return `${value}`;
+  }
+  if (typeof value === "symbol") {
+    return value.description ?? "";
+  }
   if (typeof value === "object") {
     return JSON.stringify(value);
   }
-  return String(value);
+  return "";
 }
 
 const TEMPLATE_PATTERN = /\{\{@([^:]+):([^}]+)\}\}/g;

@@ -16,12 +16,12 @@ describe("workflow compiler", () => {
         {
           id: "step_b",
           kind: "action",
-          actionId: "resend.sendEmail",
-          integrationKey: "resend",
+          actionId: "core.emitInternalEvent",
           input: {
-            to: "ops@example.com",
-            subject: "Appointment created",
-            body: "New appointment",
+            eventType: "workflow.intent.created",
+            payload: {
+              workflow: "appointment_created",
+            },
           },
         },
         {
@@ -66,9 +66,7 @@ describe("workflow compiler", () => {
         restartEvents: [],
         stopEvents: [],
       },
-      nodes: [
-        { id: "n1", kind: "action", actionId: "send", integrationKey: "x" },
-      ],
+      nodes: [{ id: "n1", kind: "action", actionId: "core.emitInternalEvent" }],
       edges: [{ id: "e1", source: "n1", target: "missing" }],
     });
 
@@ -98,7 +96,6 @@ describe("workflow compiler", () => {
           id: "n1",
           kind: "action",
           actionId: "custom.unknownAction",
-          integrationKey: "custom",
           input: {},
         },
       ],
@@ -109,7 +106,7 @@ describe("workflow compiler", () => {
     expect(result.validation.issues).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          code: "MISSING_INTEGRATION",
+          code: "UNKNOWN_ACTION",
           nodeId: "n1",
           field: "actionId",
         }),
@@ -130,9 +127,8 @@ describe("workflow compiler", () => {
         {
           id: "n1",
           kind: "action",
-          actionId: "resend.sendEmail",
-          integrationKey: "resend",
-          input: { to: "", subject: "Hello", body: "Hi" },
+          actionId: "core.emitInternalEvent",
+          input: { eventType: "", payload: {} },
         },
       ],
       edges: [],
@@ -163,12 +159,10 @@ describe("workflow compiler", () => {
         {
           id: "n1",
           kind: "action",
-          actionId: "resend.sendEmail",
-          integrationKey: "resend",
+          actionId: "core.emitInternalEvent",
           input: {
-            to: "user@example.com",
-            subject: "Welcome",
-            body: "Hello",
+            eventType: "workflow.intent.created",
+            payload: { clientId: "client_1" },
           },
         },
       ],
@@ -188,8 +182,7 @@ describe("workflow compiler", () => {
         {
           id: "n1",
           kind: "action",
-          actionId: "resend.sendEmail",
-          integrationKey: "resend",
+          actionId: "core.emitInternalEvent",
         },
       ],
     });

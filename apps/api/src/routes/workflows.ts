@@ -321,7 +321,6 @@ export const getCatalog = authed
       triggers: listWorkflowTriggerDefinitions(),
       actions: listWorkflowActionDefinitions().map((action) => ({
         id: action.id,
-        integrationKey: action.integrationKey,
         label: action.label,
         description: action.description,
         category: action.category,
@@ -533,87 +532,85 @@ export const publishDraft = adminOnly
         .delete(workflowScheduleBindings)
         .where(eq(workflowScheduleBindings.definitionId, definition.id));
 
-      const trigger =
-        typeof compilation.compiledPlan === "object" &&
-        compilation.compiledPlan !== null &&
-        "trigger" in compilation.compiledPlan
-          ? (compilation.compiledPlan["trigger"] as Record<
-              string,
-              unknown
-            > | null)
-          : null;
+      const trigger = isRecord(compilation.compiledPlan)
+        ? compilation.compiledPlan["trigger"]
+        : null;
 
-      if (trigger?.["type"] === "domain_event") {
-        const startEvents = Array.isArray(trigger["startEvents"])
-          ? trigger["startEvents"].filter(
-              (entry): entry is string => typeof entry === "string",
-            )
-          : [];
-        const restartEvents = Array.isArray(trigger["restartEvents"])
-          ? trigger["restartEvents"].filter(
-              (entry): entry is string => typeof entry === "string",
-            )
-          : [];
-        const stopEvents = Array.isArray(trigger["stopEvents"])
-          ? trigger["stopEvents"].filter(
-              (entry): entry is string => typeof entry === "string",
-            )
-          : [];
-        const allEvents = [
-          ...new Set([...startEvents, ...restartEvents, ...stopEvents]),
-        ];
+      if (isRecord(trigger)) {
+        const triggerType = trigger["type"];
 
-        if (allEvents.length > 0) {
-          await tx.insert(workflowBindings).values(
-            allEvents.map((eventType) => ({
-              orgId: context.orgId,
-              definitionId: definition.id,
-              versionId: publishedVersion.id,
-              eventType,
-              enabled: true,
-            })),
-          );
-        }
-      } else if (trigger?.["type"] === "schedule") {
-        const scheduleExpression =
-          typeof trigger["expression"] === "string"
-            ? trigger["expression"].trim()
-            : "";
-        const scheduleTimezone =
-          typeof trigger["timezone"] === "string"
-            ? trigger["timezone"].trim()
-            : "";
+        if (triggerType === "domain_event") {
+          const startEvents = Array.isArray(trigger["startEvents"])
+            ? trigger["startEvents"].filter(
+                (entry): entry is string => typeof entry === "string",
+              )
+            : [];
+          const restartEvents = Array.isArray(trigger["restartEvents"])
+            ? trigger["restartEvents"].filter(
+                (entry): entry is string => typeof entry === "string",
+              )
+            : [];
+          const stopEvents = Array.isArray(trigger["stopEvents"])
+            ? trigger["stopEvents"].filter(
+                (entry): entry is string => typeof entry === "string",
+              )
+            : [];
+          const allEvents = [
+            ...new Set([...startEvents, ...restartEvents, ...stopEvents]),
+          ];
 
-        if (!scheduleExpression || !scheduleTimezone) {
-          throw new ApplicationError(
-            "Schedule trigger is missing configuration",
-            {
+          if (allEvents.length > 0) {
+            await tx.insert(workflowBindings).values(
+              allEvents.map((eventType) => ({
+                orgId: context.orgId,
+                definitionId: definition.id,
+                versionId: publishedVersion.id,
+                eventType,
+                enabled: true,
+              })),
+            );
+          }
+        } else if (triggerType === "schedule") {
+          const scheduleExpression =
+            typeof trigger["expression"] === "string"
+              ? trigger["expression"].trim()
+              : "";
+          const scheduleTimezone =
+            typeof trigger["timezone"] === "string"
+              ? trigger["timezone"].trim()
+              : "";
+
+          if (!scheduleExpression || !scheduleTimezone) {
+            throw new ApplicationError(
+              "Schedule trigger is missing configuration",
+              {
+                code: "UNPROCESSABLE_CONTENT",
+              },
+            );
+          }
+
+          const nextRunAt = computeNextScheduleRunAt({
+            expression: scheduleExpression,
+            timezone: scheduleTimezone,
+            currentDate: new Date(),
+          });
+
+          if (!nextRunAt) {
+            throw new ApplicationError("Schedule expression is invalid", {
               code: "UNPROCESSABLE_CONTENT",
-            },
-          );
-        }
+            });
+          }
 
-        const nextRunAt = computeNextScheduleRunAt({
-          expression: scheduleExpression,
-          timezone: scheduleTimezone,
-          currentDate: new Date(),
-        });
-
-        if (!nextRunAt) {
-          throw new ApplicationError("Schedule expression is invalid", {
-            code: "UNPROCESSABLE_CONTENT",
+          await tx.insert(workflowScheduleBindings).values({
+            orgId: context.orgId,
+            definitionId: definition.id,
+            versionId: publishedVersion.id,
+            scheduleExpression,
+            scheduleTimezone,
+            nextRunAt,
+            enabled: true,
           });
         }
-
-        await tx.insert(workflowScheduleBindings).values({
-          orgId: context.orgId,
-          definitionId: definition.id,
-          versionId: publishedVersion.id,
-          scheduleExpression,
-          scheduleTimezone,
-          nextRunAt,
-          enabled: true,
-        });
       }
 
       return loadDefinitionDetail(tx, updatedDefinition.id);

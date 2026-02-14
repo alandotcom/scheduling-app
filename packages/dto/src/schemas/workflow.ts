@@ -86,7 +86,7 @@ export const workflowDomainEventTriggerConfigSchema = z
 
     if (events.length === 0) {
       ctx.addIssue({
-        code: z.ZodIssueCode.custom,
+        code: "custom",
         path: ["startEvents"],
         message:
           "Select at least one domain event across start, restart, or stop sets",
@@ -99,7 +99,7 @@ export const workflowDomainEventTriggerConfigSchema = z
 
     if (mismatchedDomainEvents.length > 0) {
       ctx.addIssue({
-        code: z.ZodIssueCode.custom,
+        code: "custom",
         path: ["domain"],
         message: `All events must belong to the "${value.domain}" domain`,
       });
@@ -107,7 +107,7 @@ export const workflowDomainEventTriggerConfigSchema = z
 
     if (hasIntersection(value.startEvents, value.restartEvents)) {
       ctx.addIssue({
-        code: z.ZodIssueCode.custom,
+        code: "custom",
         path: ["restartEvents"],
         message: "Start and restart event sets must not overlap",
       });
@@ -115,7 +115,7 @@ export const workflowDomainEventTriggerConfigSchema = z
 
     if (hasIntersection(value.startEvents, value.stopEvents)) {
       ctx.addIssue({
-        code: z.ZodIssueCode.custom,
+        code: "custom",
         path: ["stopEvents"],
         message: "Start and stop event sets must not overlap",
       });
@@ -123,7 +123,7 @@ export const workflowDomainEventTriggerConfigSchema = z
 
     if (hasIntersection(value.restartEvents, value.stopEvents)) {
       ctx.addIssue({
-        code: z.ZodIssueCode.custom,
+        code: "custom",
         path: ["stopEvents"],
         message: "Restart and stop event sets must not overlap",
       });
@@ -181,7 +181,6 @@ export const workflowActionNodeSchema = z
     id: z.string().min(1),
     kind: z.literal("action"),
     actionId: z.string().min(1),
-    integrationKey: z.string().min(1),
     input: z.record(z.string(), z.unknown()).default({}),
     guard: workflowGuardSchema.optional(),
   })
@@ -234,7 +233,7 @@ export const workflowValidationIssueCodeSchema = z.enum([
   "CYCLE_DETECTED",
   "UNREACHABLE_NODE",
   "INVALID_EXPRESSION",
-  "MISSING_INTEGRATION",
+  "UNKNOWN_ACTION",
 ]);
 
 export const workflowValidationIssueSchema = z.object({
@@ -389,7 +388,6 @@ export const workflowActionConfigFieldSchema = z.union([
 
 export const workflowActionCatalogItemSchema = z.object({
   id: z.string().min(1),
-  integrationKey: z.string().min(1),
   label: z.string().min(1),
   description: z.string().optional(),
   category: z.string().optional(),

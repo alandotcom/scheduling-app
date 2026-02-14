@@ -143,6 +143,9 @@ Research sources (via Exa):
 
 ## 7. Reference Second-Pass Findings (notifications-workflow)
 
+SEE:
+../notifications-workflow/
+
 Goal of this section: keep copy parity as high as possible while explicitly defining the minimal intentional divergences.
 
 ## 7.1 High-Impact Mismatches Identified
@@ -434,10 +437,10 @@ If failures surface in unrelated legacy integration modules, isolate and fix onl
 
 - [ ] Confirm current branch is clean
 - [ ] Complete Phase 0 (adapter contract freeze)
-- [ ] Complete Phase A (DTO)
-- [ ] Complete Phase B (registry)
-- [ ] Complete Phase C (compiler)
-- [ ] Complete Phase D (runtime + Inngest best-practice verification)
-- [ ] Complete Phase E (routes)
-- [ ] Complete Phase F (cleanup)
-- [ ] Run full API tests + root typecheck
+- [x] Complete Phase A (DTO)
+- [x] Complete Phase B (registry)
+- [x] Complete Phase C (compiler)
+- [x] Complete Phase D (runtime + Inngest best-practice verification)
+- [x] Complete Phase E (routes)
+- [x] Complete Phase F (cleanup)
+- [x] Run full API tests + root typecheck

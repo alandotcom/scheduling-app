@@ -47,7 +47,6 @@ export type WorkflowActionExecutionResult =
 
 export type WorkflowActionDefinition = {
   id: string;
-  integrationKey: string;
   label: string;
   description: string;
   category: string;
@@ -62,8 +61,13 @@ export type WorkflowActionDefinition = {
     channel: string;
     target: string | null;
     providerMessageId?: string | null;
+    output?: Record<string, unknown>;
   }>;
 };
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
 
 function isTerminalEventType(eventType: DomainEventType): boolean {
   return (
@@ -102,149 +106,65 @@ const workflowTriggerRegistry: readonly WorkflowTriggerDefinition[] = [
 
 const workflowActionRegistry = [
   {
-    id: "resend.sendEmail",
-    integrationKey: "resend",
-    label: "Send Email",
-    description: "Send an email via Resend",
-    category: "Email",
+    id: "core.emitInternalEvent",
+    label: "Emit Internal Event",
+    description:
+      "Emit a structured internal workflow event intent for downstream processing",
+    category: "Core",
     configFields: [
       {
-        key: "to",
-        label: "To",
+        key: "eventType",
+        label: "Event Type",
         type: "template-input" as const,
-        placeholder: "recipient@example.com",
+        placeholder: "workflow.intent.created",
         required: true,
       },
       {
-        key: "subject",
-        label: "Subject",
-        type: "template-input" as const,
-        placeholder: "Email subject",
-        required: true,
-      },
-      {
-        key: "body",
-        label: "Body",
+        key: "payload",
+        label: "Payload",
         type: "template-textarea" as const,
-        placeholder: "Email body",
-        rows: 5,
-        required: true,
-      },
-      {
-        key: "from",
-        label: "From",
-        type: "template-input" as const,
-        placeholder: "sender@example.com (optional)",
+        placeholder: '{"key":"value"}',
+        rows: 6,
       },
     ],
     outputFields: [
-      { field: "channel", description: "Delivery channel" },
-      { field: "target", description: "Recipient email address" },
-      {
-        field: "providerMessageId",
-        description: "Provider message ID from Resend",
-      },
+      { field: "channel", description: "Execution channel" },
+      { field: "target", description: "Correlated entity target" },
+      { field: "eventType", description: "Internal event type" },
+      { field: "payload", description: "Internal event payload" },
     ],
     inputSchema: z
       .object({
-        to: z.string().trim().min(1),
-        subject: z.string().trim().min(1),
-        body: z.string().trim().min(1),
-        from: z.string().trim().optional(),
+        eventType: z.string().trim().min(1),
+        payload: z.record(z.string(), z.unknown()).default({}),
       })
       .loose(),
-    execute: async ({ parsedInput }) => ({
-      channel: "integration.resend.sendEmail",
-      target: typeof parsedInput["to"] === "string" ? parsedInput["to"] : null,
-      providerMessageId: null,
-    }),
-  },
-  {
-    id: "twilio.sendSms",
-    integrationKey: "twilio",
-    label: "Send SMS",
-    description: "Send an SMS message via Twilio",
-    category: "SMS",
-    configFields: [
-      {
-        key: "to",
-        label: "To",
-        type: "template-input" as const,
-        placeholder: "+1234567890",
-        required: true,
-      },
-      {
-        key: "body",
-        label: "Body",
-        type: "template-textarea" as const,
-        placeholder: "SMS message body",
-        required: true,
-      },
-    ],
-    outputFields: [
-      { field: "channel", description: "Delivery channel" },
-      { field: "target", description: "Recipient phone number" },
-      {
-        field: "providerMessageId",
-        description: "Provider message ID from Twilio",
-      },
-    ],
-    inputSchema: z
-      .object({
-        to: z.string().trim().min(1),
-        body: z.string().trim().min(1),
-      })
-      .loose(),
-    execute: async ({ parsedInput }) => ({
-      channel: "integration.twilio.sendSms",
-      target: typeof parsedInput["to"] === "string" ? parsedInput["to"] : null,
-      providerMessageId: null,
-    }),
-  },
-  {
-    id: "slack.sendMessage",
-    integrationKey: "slack",
-    label: "Send Slack Message",
-    description: "Post a message to a Slack channel",
-    category: "Chat",
-    configFields: [
-      {
-        key: "channel",
-        label: "Channel",
-        type: "template-input" as const,
-        placeholder: "#general",
-        required: true,
-      },
-      {
-        key: "text",
-        label: "Message",
-        type: "template-textarea" as const,
-        placeholder: "Message text",
-        required: true,
-      },
-    ],
-    outputFields: [
-      { field: "channel", description: "Delivery channel" },
-      { field: "target", description: "Slack channel name" },
-      {
-        field: "providerMessageId",
-        description: "Provider message ID from Slack",
-      },
-    ],
-    inputSchema: z
-      .object({
-        channel: z.string().trim().min(1),
-        text: z.string().trim().min(1),
-      })
-      .loose(),
-    execute: async ({ parsedInput }) => ({
-      channel: "integration.slack.sendMessage",
-      target:
-        typeof parsedInput["channel"] === "string"
-          ? parsedInput["channel"]
-          : null,
-      providerMessageId: null,
-    }),
+    execute: async ({ parsedInput, context }) => {
+      const rawEventType = parsedInput["eventType"];
+      const eventType =
+        typeof rawEventType === "string" ? rawEventType.trim() : "";
+      const payloadValue = parsedInput["payload"];
+      const payload = isRecord(payloadValue) ? payloadValue : {};
+      const target = `${context.entityType}:${context.entityId}`;
+
+      return {
+        channel: "core.emitInternalEvent",
+        target,
+        providerMessageId: null,
+        output: {
+          channel: "core.emitInternalEvent",
+          target,
+          eventType,
+          payload,
+          intent: {
+            orgId: context.orgId,
+            entityType: context.entityType,
+            entityId: context.entityId,
+            sourceEventType: context.sourceEventType,
+          },
+        },
+      };
+    },
   },
 ] satisfies readonly WorkflowActionDefinition[];
 
@@ -268,7 +188,6 @@ export function getWorkflowActionDefinition(
 
 export async function executeWorkflowAction(input: {
   actionId: string;
-  integrationKey: string | null;
   rawInput: unknown;
   context: WorkflowActionExecutionContext;
 }): Promise<WorkflowActionExecutionResult> {
@@ -277,16 +196,6 @@ export async function executeWorkflowAction(input: {
     return {
       status: "invalid_action",
       message: `Unknown workflow action "${input.actionId}"`,
-    };
-  }
-
-  if (
-    input.integrationKey !== null &&
-    input.integrationKey !== definition.integrationKey
-  ) {
-    return {
-      status: "invalid_action",
-      message: `Action "${input.actionId}" requires integration "${definition.integrationKey}"`,
     };
   }
 
@@ -312,7 +221,7 @@ export async function executeWorkflowAction(input: {
     channel: executed.channel,
     target: executed.target,
     providerMessageId: executed.providerMessageId ?? null,
-    output: {
+    output: executed.output ?? {
       channel: executed.channel,
       target: executed.target,
       providerMessageId: executed.providerMessageId ?? null,

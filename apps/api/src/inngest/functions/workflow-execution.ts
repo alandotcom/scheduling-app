@@ -588,45 +588,11 @@ function resolveActionId(node: Record<string, unknown>): string | null {
   return typeof actionId === "string" && actionId.length > 0 ? actionId : null;
 }
 
-function resolveActionIntegrationKey(
-  node: Record<string, unknown>,
-): string | null {
-  const integrationKey = node["integrationKey"];
-  return typeof integrationKey === "string" && integrationKey.length > 0
-    ? integrationKey
-    : null;
-}
-
 function resolveActionInput(
   node: Record<string, unknown>,
 ): Record<string, unknown> {
   const input = node["input"];
   return isRecord(input) ? input : {};
-}
-
-function buildExecutionOrder(plan: ParsedCompiledPlan): string[] {
-  const queue = [...plan.entryNodeIds];
-  const visited = new Set<string>();
-  const orderedNodeIds: string[] = [];
-
-  while (queue.length > 0) {
-    const currentNodeId = queue.shift();
-    if (!currentNodeId || visited.has(currentNodeId)) {
-      continue;
-    }
-
-    visited.add(currentNodeId);
-    orderedNodeIds.push(currentNodeId);
-
-    const nextNodeIds = plan.nextNodeIdsBySource.get(currentNodeId) ?? [];
-    for (const nextNodeId of nextNodeIds) {
-      if (!visited.has(nextNodeId)) {
-        queue.push(nextNodeId);
-      }
-    }
-  }
-
-  return orderedNodeIds;
 }
 
 /**
@@ -819,7 +785,6 @@ export function createWorkflowExecutionFunction(
         target: string;
         guard: ParsedGuard | null;
         actionId: string | null;
-        integrationKey: string | null;
         rawInput: Record<string, unknown>;
       }): Promise<ActionDeliveryResult> => {
         const stepIdSuffix = normalizeStepIdSegment(input.nodeId);
@@ -863,7 +828,6 @@ export function createWorkflowExecutionFunction(
               const sourcePayload = event.data.sourceEvent.payload;
               return resolvedDependencies.executeAction({
                 actionId: input.actionId!,
-                integrationKey: input.integrationKey,
                 rawInput: input.rawInput,
                 context: {
                   orgId: event.data.orgId,
@@ -939,7 +903,6 @@ export function createWorkflowExecutionFunction(
             target: `${event.data.entity.type}:${event.data.entity.id}`,
             guard: null,
             actionId: null,
-            integrationKey: null,
             rawInput: {},
           });
 
@@ -960,6 +923,7 @@ export function createWorkflowExecutionFunction(
           const visited = new Set<string>();
           let shouldStop = false;
 
+          /* eslint-disable no-await-in-loop */
           while (
             executionQueue.length > 0 &&
             !shouldStop &&
@@ -1162,7 +1126,6 @@ export function createWorkflowExecutionFunction(
               ),
               guard: resolveNodeGuard(node),
               actionId: resolveActionId(node),
-              integrationKey: resolveActionIntegrationKey(node),
               rawInput: resolvedInput,
             });
 
@@ -1222,6 +1185,7 @@ export function createWorkflowExecutionFunction(
               }
             }
           }
+          /* eslint-enable no-await-in-loop */
         }
       }
 
