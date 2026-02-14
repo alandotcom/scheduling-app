@@ -18,7 +18,7 @@ export interface AppManagedIntegrationDefinition {
   secretSchema: readonly IntegrationSecretField[];
   requiredConfigKeys: readonly string[];
   requiredSecretKeys: readonly string[];
-  consumer: IntegrationConsumer;
+  consumer?: IntegrationConsumer;
 }
 
 const appManagedIntegrations: readonly AppManagedIntegrationDefinition[] = [
@@ -36,6 +36,56 @@ const appManagedIntegrations: readonly AppManagedIntegrationDefinition[] = [
     requiredConfigKeys: [],
     requiredSecretKeys: [],
     consumer: loggerIntegration,
+  },
+  {
+    key: "resend",
+    name: "Resend",
+    description: "Send workflow emails with Resend.",
+    logoUrl: "https://cdn.resend.com/brand/resend-icon-black.png",
+    hasSettingsPanel: true,
+    defaultEnabled: false,
+    defaultConfig: {
+      fromEmail: "",
+      fromName: "",
+      replyTo: "",
+    },
+    configSchema: [
+      {
+        key: "fromEmail",
+        label: "From email",
+        description: "Default sender address for Resend emails.",
+        placeholder: "notifications@example.com",
+        required: true,
+        inputType: "email",
+      },
+      {
+        key: "fromName",
+        label: "From name",
+        description: "Optional display name shown to recipients.",
+        placeholder: "Acme Scheduling",
+        required: false,
+        inputType: "text",
+      },
+      {
+        key: "replyTo",
+        label: "Reply-to email",
+        description: "Optional default reply-to address.",
+        placeholder: "support@example.com",
+        required: false,
+        inputType: "email",
+      },
+    ],
+    secretSchema: [
+      {
+        key: "apiKey",
+        label: "API key",
+        description: "Resend API key (starts with re_).",
+        placeholder: "re_...",
+        required: true,
+      },
+    ],
+    requiredConfigKeys: ["fromEmail"],
+    requiredSecretKeys: ["apiKey"],
   },
 ] as const;
 
@@ -84,7 +134,12 @@ export function getAppManagedIntegrationConsumersByKeys(
 }
 
 export function getAllAppManagedIntegrationConsumers(): readonly IntegrationConsumer[] {
-  return appManagedIntegrations.map((integration) => integration.consumer);
+  return appManagedIntegrations
+    .map((integration) => integration.consumer)
+    .filter(
+      (integration): integration is IntegrationConsumer =>
+        integration !== undefined,
+    );
 }
 
 export function createDefaultIntegrationConfig(

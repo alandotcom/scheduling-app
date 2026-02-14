@@ -224,6 +224,13 @@ describe("Workflow Routes", () => {
             mode: "enabled_and_configured",
           },
         }),
+        expect.objectContaining({
+          id: "resend.sendEmail",
+          requiresIntegration: {
+            key: "resend",
+            mode: "enabled_and_configured",
+          },
+        }),
       ]),
     );
   });

@@ -7,7 +7,12 @@ import {
   type WorkflowActionConfigField,
   type WorkflowOutputField,
 } from "@scheduling/dto";
+import { Resend } from "resend";
 import { z } from "zod";
+import {
+  getAppIntegrationSecretsForOrg,
+  getAppIntegrationStateForOrg,
+} from "../integrations/readiness.js";
 
 export type WorkflowTriggerDefinition =
   | {
@@ -74,6 +79,74 @@ export type WorkflowActionDefinition = {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
+}
+
+const emailSchema = z.email();
+
+function toTrimmedStringOrNull(value: unknown): string | null {
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+function isValidEmail(value: string): boolean {
+  return emailSchema.safeParse(value).success;
+}
+
+function parseTemplateData(value: unknown): Record<string, unknown> {
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (trimmed.length === 0) {
+      return {};
+    }
+
+    const parsed = JSON.parse(trimmed) as unknown;
+    if (!isRecord(parsed)) {
+      throw new Error("Template data must be a JSON object");
+    }
+    return parsed;
+  }
+
+  if (value === undefined || value === null) {
+    return {};
+  }
+
+  if (!isRecord(value)) {
+    throw new Error("Template data must be an object");
+  }
+
+  return value;
+}
+
+function toResendTemplateVariables(
+  value: unknown,
+): Record<string, string | number> {
+  const parsed = parseTemplateData(value);
+  const variables: Record<string, string | number> = {};
+
+  for (const [key, rawValue] of Object.entries(parsed)) {
+    if (typeof rawValue === "string" || typeof rawValue === "number") {
+      variables[key] = rawValue;
+      continue;
+    }
+
+    if (typeof rawValue === "boolean" || typeof rawValue === "bigint") {
+      variables[key] = `${rawValue}`;
+      continue;
+    }
+
+    if (rawValue === null || rawValue === undefined) {
+      variables[key] = "";
+      continue;
+    }
+
+    variables[key] = JSON.stringify(rawValue);
+  }
+
+  return variables;
 }
 
 function isTerminalEventType(eventType: DomainEventType): boolean {
@@ -231,6 +304,284 @@ const workflowActionRegistry = [
           target,
           level,
           message,
+        },
+      };
+    },
+  },
+  {
+    id: "resend.sendEmail",
+    label: "Send Email (Resend)",
+    description: "Send an email through Resend",
+    category: "Integrations",
+    requiresIntegration: {
+      key: "resend",
+      mode: "enabled_and_configured",
+    },
+    configFields: [
+      {
+        key: "to",
+        label: "To",
+        type: "template-input" as const,
+        placeholder: "client@example.com",
+        required: true,
+      },
+      {
+        key: "subject",
+        label: "Subject",
+        type: "template-input" as const,
+        placeholder: "Appointment update",
+        required: true,
+      },
+      {
+        key: "mode",
+        label: "Content mode",
+        type: "select" as const,
+        options: [
+          { value: "content", label: "Content" },
+          { value: "template", label: "Template" },
+        ],
+      },
+      {
+        key: "text",
+        label: "Text body",
+        type: "template-textarea" as const,
+        placeholder: "Plain-text body",
+        rows: 5,
+        showWhen: { field: "mode", equals: "content" },
+      },
+      {
+        key: "html",
+        label: "HTML body",
+        type: "template-textarea" as const,
+        placeholder: "<p>HTML body</p>",
+        rows: 8,
+        showWhen: { field: "mode", equals: "content" },
+      },
+      {
+        key: "templateId",
+        label: "Template ID",
+        type: "text" as const,
+        placeholder: "tmpl_xxx",
+        showWhen: { field: "mode", equals: "template" },
+      },
+      {
+        key: "templateData",
+        label: "Template variables (JSON)",
+        type: "template-textarea" as const,
+        placeholder: '{"firstName":"Taylor","time":"10:00 AM"}',
+        rows: 6,
+        showWhen: { field: "mode", equals: "template" },
+      },
+      {
+        key: "fromEmail",
+        label: "From email override",
+        type: "template-input" as const,
+        placeholder: "notifications@example.com",
+      },
+      {
+        key: "fromName",
+        label: "From name override",
+        type: "template-input" as const,
+        placeholder: "Acme Scheduling",
+      },
+      {
+        key: "replyTo",
+        label: "Reply-to override",
+        type: "template-input" as const,
+        placeholder: "support@example.com",
+      },
+    ],
+    outputFields: [
+      { field: "channel", description: "Execution channel" },
+      { field: "target", description: "Correlated entity target" },
+      { field: "providerMessageId", description: "Resend message id" },
+      { field: "mode", description: "Send mode used for delivery" },
+      { field: "to", description: "Recipient email address" },
+      { field: "subject", description: "Email subject line" },
+    ],
+    inputSchema: z
+      .object({
+        to: z.string().trim().min(1),
+        subject: z.string().trim().min(1),
+        mode: z.enum(["content", "template"]).default("content"),
+        text: z.string().optional(),
+        html: z.string().optional(),
+        templateId: z.string().optional(),
+        templateData: z
+          .union([z.string(), z.record(z.string(), z.unknown())])
+          .optional(),
+        fromEmail: z.string().optional(),
+        fromName: z.string().optional(),
+        replyTo: z.string().optional(),
+      })
+      .loose()
+      .superRefine((value, ctx) => {
+        const toEmail = toTrimmedStringOrNull(value.to);
+        if (!toEmail || !isValidEmail(toEmail)) {
+          ctx.addIssue({
+            code: "custom",
+            path: ["to"],
+            message: "To must be a valid email address",
+          });
+        }
+
+        const fromEmail = toTrimmedStringOrNull(value.fromEmail);
+        if (fromEmail && !isValidEmail(fromEmail)) {
+          ctx.addIssue({
+            code: "custom",
+            path: ["fromEmail"],
+            message: "From email override must be a valid email address",
+          });
+        }
+
+        const replyTo = toTrimmedStringOrNull(value.replyTo);
+        if (replyTo && !isValidEmail(replyTo)) {
+          ctx.addIssue({
+            code: "custom",
+            path: ["replyTo"],
+            message: "Reply-to override must be a valid email address",
+          });
+        }
+
+        if (value.mode === "content") {
+          const text = toTrimmedStringOrNull(value.text);
+          const html = toTrimmedStringOrNull(value.html);
+          if (!text && !html) {
+            ctx.addIssue({
+              code: "custom",
+              path: ["text"],
+              message: "Provide text or html when mode is content",
+            });
+          }
+          return;
+        }
+
+        const templateId = toTrimmedStringOrNull(value.templateId);
+        if (!templateId) {
+          ctx.addIssue({
+            code: "custom",
+            path: ["templateId"],
+            message: "Template ID is required when mode is template",
+          });
+        }
+
+        if (value.templateData !== undefined) {
+          try {
+            parseTemplateData(value.templateData);
+          } catch (error) {
+            ctx.addIssue({
+              code: "custom",
+              path: ["templateData"],
+              message:
+                error instanceof Error
+                  ? error.message
+                  : "Template data must be a JSON object",
+            });
+          }
+        }
+      }),
+    execute: async ({ parsedInput, context }) => {
+      const target = `${context.entityType}:${context.entityId}`;
+      const state = await getAppIntegrationStateForOrg(context.orgId, "resend");
+      const secrets = await getAppIntegrationSecretsForOrg({
+        orgId: context.orgId,
+        key: "resend",
+      });
+
+      const apiKey = toTrimmedStringOrNull(secrets["apiKey"]);
+      if (!apiKey) {
+        throw new Error("Resend integration API key is not configured");
+      }
+
+      const fromEmail =
+        toTrimmedStringOrNull(parsedInput["fromEmail"]) ??
+        toTrimmedStringOrNull(state.config["fromEmail"]);
+      if (!fromEmail || !isValidEmail(fromEmail)) {
+        throw new Error("Resend integration fromEmail is not configured");
+      }
+
+      const fromName =
+        toTrimmedStringOrNull(parsedInput["fromName"]) ??
+        toTrimmedStringOrNull(state.config["fromName"]);
+      const replyTo =
+        toTrimmedStringOrNull(parsedInput["replyTo"]) ??
+        toTrimmedStringOrNull(state.config["replyTo"]);
+
+      const to = toTrimmedStringOrNull(parsedInput["to"]);
+      const subject = toTrimmedStringOrNull(parsedInput["subject"]);
+      if (!to || !subject) {
+        throw new Error("Resend action requires to and subject");
+      }
+
+      const from = fromName ? `${fromName} <${fromEmail}>` : fromEmail;
+      const resend = new Resend(apiKey);
+      const mode = parsedInput["mode"] === "template" ? "template" : "content";
+      const text = toTrimmedStringOrNull(parsedInput["text"]);
+      const html = toTrimmedStringOrNull(parsedInput["html"]);
+
+      const response = await (() => {
+        if (mode === "template") {
+          return resend.emails.send({
+            from,
+            to,
+            subject,
+            ...(replyTo ? { replyTo } : {}),
+            template: {
+              id: toTrimmedStringOrNull(parsedInput["templateId"])!,
+              variables: toResendTemplateVariables(parsedInput["templateData"]),
+            },
+          });
+        }
+
+        if (text && html) {
+          return resend.emails.send({
+            from,
+            to,
+            subject,
+            ...(replyTo ? { replyTo } : {}),
+            text,
+            html,
+          });
+        }
+
+        if (text) {
+          return resend.emails.send({
+            from,
+            to,
+            subject,
+            ...(replyTo ? { replyTo } : {}),
+            text,
+          });
+        }
+
+        if (html) {
+          return resend.emails.send({
+            from,
+            to,
+            subject,
+            ...(replyTo ? { replyTo } : {}),
+            html,
+          });
+        }
+
+        throw new Error("Provide text or html when mode is content");
+      })();
+
+      if (response.error) {
+        throw new Error(`Resend send failed: ${response.error.message}`);
+      }
+
+      return {
+        channel: "resend.sendEmail",
+        target,
+        providerMessageId: response.data?.id ?? null,
+        output: {
+          channel: "resend.sendEmail",
+          target,
+          mode,
+          to,
+          subject,
+          providerMessageId: response.data?.id ?? null,
         },
       };
     },

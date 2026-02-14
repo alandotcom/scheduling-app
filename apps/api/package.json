@@ -39,6 +39,7 @@
     "libphonenumber-js": "^1.12.36",
     "luxon": "^3.7.2",
     "parse-duration": "^2.1.5",
+    "resend": "^6.9.2",
     "rrule": "^2.8.1",
     "standardenv": "^0.0.2",
     "svix": "^1.84.1",

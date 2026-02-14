@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { successResponseSchema } from "./common";
 
-export const appIntegrationKeySchema = z.enum(["logger"]);
+export const appIntegrationKeySchema = z.enum(["logger", "resend"]);
 export type AppIntegrationKey = z.infer<typeof appIntegrationKeySchema>;
 
 export const integrationSummarySchema = z.object({

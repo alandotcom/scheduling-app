@@ -95,6 +95,11 @@ describe("Integration Routes", () => {
           enabled: false,
           configured: true,
         }),
+        expect.objectContaining({
+          key: "resend",
+          enabled: false,
+          configured: false,
+        }),
       ]),
     );
 
@@ -111,6 +116,34 @@ describe("Integration Routes", () => {
       configSchema: [],
       secretSchema: [],
       secretFields: {},
+    });
+
+    const resendSettings = await call(
+      integrationRoutes.getSettings,
+      { key: "resend" },
+      { context },
+    );
+
+    expect(resendSettings).toMatchObject({
+      key: "resend",
+      enabled: false,
+      configured: false,
+      configSchema: expect.arrayContaining([
+        expect.objectContaining({
+          key: "fromEmail",
+          required: true,
+          inputType: "email",
+        }),
+      ]),
+      secretSchema: expect.arrayContaining([
+        expect.objectContaining({
+          key: "apiKey",
+          required: true,
+        }),
+      ]),
+      secretFields: {
+        apiKey: false,
+      },
     });
   });
 
@@ -135,6 +168,67 @@ describe("Integration Routes", () => {
       key: "logger",
       enabled: true,
       configured: true,
+    });
+  });
+
+  test("resend requires fromEmail config and apiKey secret to be configured", async () => {
+    const { org, user } = await createOrg(db);
+    const context = createTestContext({
+      orgId: org.id,
+      userId: user.id,
+      role: "owner",
+    });
+
+    const initial = await call(
+      integrationRoutes.getSettings,
+      { key: "resend" },
+      { context },
+    );
+    expect(initial.configured).toBe(false);
+
+    await call(
+      integrationRoutes.update,
+      {
+        key: "resend",
+        config: {
+          fromEmail: "notifications@example.com",
+        },
+      },
+      { context },
+    );
+
+    const afterConfig = await call(
+      integrationRoutes.getSettings,
+      { key: "resend" },
+      { context },
+    );
+    expect(afterConfig.configured).toBe(false);
+
+    (
+      config.integrations as {
+        encryptionKey: string | undefined;
+      }
+    ).encryptionKey = "integration-test-encryption-key";
+
+    await call(
+      integrationRoutes.updateSecrets,
+      {
+        key: "resend",
+        set: {
+          apiKey: "re_test_key",
+        },
+      },
+      { context },
+    );
+
+    const afterSecret = await call(
+      integrationRoutes.getSettings,
+      { key: "resend" },
+      { context },
+    );
+    expect(afterSecret.configured).toBe(true);
+    expect(afterSecret.secretFields).toMatchObject({
+      apiKey: true,
     });
   });
 

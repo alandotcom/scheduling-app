@@ -177,3 +177,31 @@ export async function getAppIntegrationStateForOrg(
     }),
   );
 }
+
+export async function getAppIntegrationSecretsForOrg(input: {
+  orgId: string;
+  key: AppIntegrationKey;
+}): Promise<Record<string, string>> {
+  const row = await withOrg(input.orgId, async (tx) =>
+    integrationRepository.findByKey(tx, input.orgId, input.key),
+  );
+
+  if (!row?.secretsEncrypted || !row.secretSalt) {
+    return {};
+  }
+
+  const pepper = config.integrations.encryptionKey;
+  if (!pepper) {
+    return {};
+  }
+
+  try {
+    return decryptIntegrationSecrets({
+      secretsEncrypted: row.secretsEncrypted,
+      secretSalt: row.secretSalt,
+      pepper,
+    });
+  } catch {
+    return {};
+  }
+}

@@ -33,11 +33,23 @@ describe("workflow registry", () => {
         key: "logger",
       },
     });
+    expect(getWorkflowActionDefinition("resend.sendEmail")).toMatchObject({
+      id: "resend.sendEmail",
+      category: "Integrations",
+      requiresIntegration: {
+        key: "resend",
+      },
+    });
 
     expect(getWorkflowActionDefinition("missing.action")).toBeNull();
     expect(
       listWorkflowActionDefinitions().some(
         (action) => action.id === "logger.logMessage",
+      ),
+    ).toBe(true);
+    expect(
+      listWorkflowActionDefinitions().some(
+        (action) => action.id === "resend.sendEmail",
       ),
     ).toBe(true);
   });
@@ -105,6 +117,52 @@ describe("workflow registry", () => {
     });
 
     expect(result).toMatchObject({
+      status: "invalid_action",
+    });
+  });
+
+  test("validates resend action mode-specific input requirements", async () => {
+    const missingBodyResult = await executeWorkflowAction({
+      actionId: "resend.sendEmail",
+      rawInput: {
+        to: "client@example.com",
+        subject: "Hello",
+        mode: "content",
+      },
+      context: {
+        orgId: "org_1",
+        entityType: "client",
+        entityId: "entity_1",
+        sourceEventType: "client.updated",
+        sourceEventPayload: {},
+        entity: {},
+      },
+    });
+
+    expect(missingBodyResult).toMatchObject({
+      status: "invalid_action",
+    });
+
+    const invalidTemplateResult = await executeWorkflowAction({
+      actionId: "resend.sendEmail",
+      rawInput: {
+        to: "client@example.com",
+        subject: "Hello",
+        mode: "template",
+        templateId: "tmpl_123",
+        templateData: "not-json",
+      },
+      context: {
+        orgId: "org_1",
+        entityType: "client",
+        entityId: "entity_1",
+        sourceEventType: "client.updated",
+        sourceEventPayload: {},
+        entity: {},
+      },
+    });
+
+    expect(invalidTemplateResult).toMatchObject({
       status: "invalid_action",
     });
   });
