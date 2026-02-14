@@ -10,6 +10,7 @@ describe("workflow domain trigger function", () => {
       orgId: "org_1",
       startedExecutionIds: ["exec_1"],
       ignoredWorkflowIds: [],
+      erroredWorkflowIds: [],
     }));
 
     const fn = createWorkflowDomainTriggerFunction(
@@ -64,6 +65,7 @@ describe("workflow domain trigger function", () => {
       orgId: "org_1",
       startedExecutionIds: [],
       ignoredWorkflowIds: [],
+      erroredWorkflowIds: [],
     }));
 
     const fn = createWorkflowDomainTriggerFunction(

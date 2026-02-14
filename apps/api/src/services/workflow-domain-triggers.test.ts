@@ -7,7 +7,7 @@ import {
   mock,
   test,
 } from "bun:test";
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { workflowExecutions } from "@scheduling/db/schema";
 import type {
   DomainEventData,
@@ -110,6 +110,7 @@ describe("workflow domain triggers", () => {
 
     expect(result.startedExecutionIds).toHaveLength(1);
     expect(result.ignoredWorkflowIds).toHaveLength(0);
+    expect(result.erroredWorkflowIds).toHaveLength(0);
     expect(runRequester).toHaveBeenCalledTimes(1);
 
     await setTestOrgContext(db, org.id);
@@ -163,6 +164,92 @@ describe("workflow domain triggers", () => {
 
     expect(result.startedExecutionIds).toHaveLength(0);
     expect(result.ignoredWorkflowIds).toHaveLength(1);
+    expect(result.erroredWorkflowIds).toHaveLength(0);
     expect(runRequester).toHaveBeenCalledTimes(0);
+  });
+
+  test("continues processing other workflows when one enqueue fails", async () => {
+    const { org, user } = await createOrg(db as any, {
+      name: "Workflow Partial Failure Org",
+      email: "partial-failure@example.com",
+    });
+
+    const [firstWorkflow, secondWorkflow] = await Promise.all([
+      workflowService.create(
+        {
+          name: "First Workflow",
+          graph: createGraphWithDomainEventTrigger(["client.created"]),
+        },
+        {
+          orgId: org.id,
+          userId: user.id,
+        },
+      ),
+      workflowService.create(
+        {
+          name: "Second Workflow",
+          graph: createGraphWithDomainEventTrigger(["client.created"]),
+        },
+        {
+          orgId: org.id,
+          userId: user.id,
+        },
+      ),
+    ]);
+
+    let callCount = 0;
+    const runRequester = mock(async () => {
+      callCount += 1;
+
+      if (callCount === 1) {
+        throw new Error("enqueue failed");
+      }
+
+      return { eventId: "run-event-success" };
+    });
+
+    const result = await processWorkflowDomainEvent(
+      {
+        id: "event-client-created-3",
+        orgId: org.id,
+        type: "client.created",
+        payload: createClientCreatedPayload(),
+        timestamp: new Date().toISOString(),
+      },
+      runRequester,
+    );
+
+    expect(result.startedExecutionIds).toHaveLength(1);
+    expect(result.ignoredWorkflowIds).toHaveLength(0);
+    expect(result.erroredWorkflowIds).toHaveLength(1);
+    expect(runRequester).toHaveBeenCalledTimes(2);
+
+    await setTestOrgContext(db, org.id);
+    const executions = await db
+      .select()
+      .from(workflowExecutions)
+      .where(
+        inArray(workflowExecutions.workflowId, [
+          firstWorkflow.id,
+          secondWorkflow.id,
+        ]),
+      );
+
+    const workflowIds = [firstWorkflow.id, secondWorkflow.id];
+    expect(workflowIds).toContain(result.erroredWorkflowIds[0]!);
+
+    const erroredExecution = executions.find(
+      (execution) => execution.workflowId === result.erroredWorkflowIds[0],
+    );
+    const startedExecution = executions.find(
+      (execution) => execution.workflowId !== result.erroredWorkflowIds[0],
+    );
+
+    expect(erroredExecution).toBeDefined();
+    expect(erroredExecution?.status).toBe("error");
+    expect(erroredExecution?.error).toBe("enqueue failed");
+    expect(startedExecution).toBeDefined();
+    expect(startedExecution?.status).toBe("running");
+    expect(startedExecution?.workflowRunId).toBe("run-event-success");
   });
 });

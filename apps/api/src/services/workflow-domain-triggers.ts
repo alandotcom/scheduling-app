@@ -34,6 +34,7 @@ export type WorkflowDomainEventProcessingResult = {
   orgId: string;
   startedExecutionIds: string[];
   ignoredWorkflowIds: string[];
+  erroredWorkflowIds: string[];
 };
 
 async function startWorkflowExecution(input: {
@@ -106,6 +107,7 @@ export async function processWorkflowDomainEvent(
     const workflows = await workflowRepository.findMany(tx, event.orgId);
     const startedExecutionIds: string[] = [];
     const ignoredWorkflowIds: string[] = [];
+    const erroredWorkflowIds: string[] = [];
 
     await forEachAsync(
       workflows,
@@ -122,15 +124,19 @@ export async function processWorkflowDomainEvent(
           return;
         }
 
-        const execution = await startWorkflowExecution({
-          tx,
-          event,
-          workflow,
-          correlationKey: evaluation.correlationKey,
-          runRequester,
-        });
+        try {
+          const execution = await startWorkflowExecution({
+            tx,
+            event,
+            workflow,
+            correlationKey: evaluation.correlationKey,
+            runRequester,
+          });
 
-        startedExecutionIds.push(execution.id);
+          startedExecutionIds.push(execution.id);
+        } catch {
+          erroredWorkflowIds.push(workflow.id);
+        }
       },
       { concurrency: 1 },
     );
@@ -141,6 +147,7 @@ export async function processWorkflowDomainEvent(
       orgId: event.orgId,
       startedExecutionIds,
       ignoredWorkflowIds,
+      erroredWorkflowIds,
     };
   });
 }
