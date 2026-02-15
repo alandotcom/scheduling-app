@@ -41,7 +41,7 @@ describe("Workflow domain-event trigger config schema", () => {
   test("rejects non-canonical event types", () => {
     const result = workflowDomainEventTriggerConfigSchema.safeParse({
       triggerType: "DomainEvent",
-      startEvents: ["appointment.deleted"],
+      startEvents: ["appointment.archived"],
       restartEvents: [],
       stopEvents: [],
     });

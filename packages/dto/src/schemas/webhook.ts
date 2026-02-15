@@ -17,6 +17,7 @@ const isoDateTimeStringSchema = z.iso.datetime();
 export const webhookEventTypes = [
   "appointment.created",
   "appointment.updated",
+  "appointment.deleted",
   "calendar.created",
   "calendar.updated",
   "calendar.deleted",
@@ -91,6 +92,7 @@ export const webhookEventDataSchemaByType = {
   "appointment.updated": appointmentSnapshotSchema.extend({
     previous: appointmentSnapshotSchema,
   }),
+  "appointment.deleted": appointmentSnapshotSchema,
   "calendar.created": calendarSnapshotSchema,
   "calendar.updated": calendarSnapshotSchema.extend({
     previous: calendarSnapshotSchema,
@@ -150,6 +152,7 @@ function createWebhookEnvelopeSchema<TEventType extends WebhookEventType>(
 export const webhookEventEnvelopeSchemaByType = {
   "appointment.created": createWebhookEnvelopeSchema("appointment.created"),
   "appointment.updated": createWebhookEnvelopeSchema("appointment.updated"),
+  "appointment.deleted": createWebhookEnvelopeSchema("appointment.deleted"),
   "calendar.created": createWebhookEnvelopeSchema("calendar.created"),
   "calendar.updated": createWebhookEnvelopeSchema("calendar.updated"),
   "calendar.deleted": createWebhookEnvelopeSchema("calendar.deleted"),
@@ -178,6 +181,7 @@ export const webhookEventEnvelopeSchemaByType = {
 export const webhookEventEnvelopeSchema = z.discriminatedUnion("type", [
   webhookEventEnvelopeSchemaByType["appointment.created"],
   webhookEventEnvelopeSchemaByType["appointment.updated"],
+  webhookEventEnvelopeSchemaByType["appointment.deleted"],
   webhookEventEnvelopeSchemaByType["calendar.created"],
   webhookEventEnvelopeSchemaByType["calendar.updated"],
   webhookEventEnvelopeSchemaByType["calendar.deleted"],
