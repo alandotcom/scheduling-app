@@ -203,7 +203,7 @@ function WorkflowEditorPage() {
   }
 
   return (
-    <div className="relative flex h-[calc(100dvh-var(--header-height,3.5rem))] w-full overflow-hidden">
+    <div className="relative flex h-full min-h-0 w-full overflow-hidden">
       <WorkflowEditorCanvas canEdit={canManageWorkflow}>
         {/* Back button - top left */}
         <Panel position="top-left" className="flex items-center gap-2">

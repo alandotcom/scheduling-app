@@ -438,6 +438,27 @@ export const onWorkflowEditorConnectAtom = atom(
   },
 );
 
+export const addWorkflowEditorNodeAtom = atom(
+  null,
+  (get, set, node: WorkflowCanvasNode) => {
+    if (get(workflowEditorIsReadOnlyAtom)) return;
+
+    const currentNodes = get(workflowEditorNodesAtom);
+    const currentEdges = get(workflowEditorEdgesAtom);
+    const history = get(historyAtom);
+    set(historyAtom, [
+      ...history,
+      { nodes: currentNodes, edges: currentEdges },
+    ]);
+    set(futureAtom, []);
+
+    set(workflowEditorNodesAtom, [...currentNodes, node]);
+    set(workflowEditorSelectedNodeIdAtom, node.id);
+    set(workflowEditorSelectedEdgeIdAtom, null);
+    set(workflowEditorHasUnsavedChangesAtom, true);
+  },
+);
+
 export const addWorkflowEditorActionNodeAtom = atom(null, (get, set) => {
   if (get(workflowEditorIsReadOnlyAtom)) return;
 

@@ -5,12 +5,17 @@ import {
 } from "@xyflow/react";
 import { useAtomValue, useSetAtom } from "jotai";
 import { nanoid } from "nanoid";
-import { useCallback, useMemo, useRef } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { Canvas } from "@/components/flow-elements/canvas";
 import { Connection } from "@/components/flow-elements/connection";
 import { Controls } from "@/components/flow-elements/controls";
 import { Edge } from "@/components/flow-elements/edge";
 import { Panel } from "@/components/flow-elements/panel";
+import {
+  type ContextMenuState,
+  useWorkflowEditorContextMenuHandlers,
+  WorkflowEditorContextMenu,
+} from "./workflow-editor-context-menu";
 import { ActionNode } from "./nodes/action-node";
 import { AddNode } from "./nodes/add-node";
 import { TriggerNode } from "./nodes/trigger-node";
@@ -52,6 +57,8 @@ export function WorkflowEditorCanvas({
   children,
 }: WorkflowEditorCanvasProps) {
   const { screenToFlowPosition } = useReactFlow();
+  const [contextMenuState, setContextMenuState] =
+    useState<ContextMenuState>(null);
 
   const nodes = useAtomValue(workflowEditorNodesAtom);
   const edges = useAtomValue(workflowEditorEdgesAtom);
@@ -65,6 +72,15 @@ export function WorkflowEditorCanvas({
   const setEdges = useSetAtom(workflowEditorEdgesAtom);
   const setHasUnsavedChanges = useSetAtom(workflowEditorHasUnsavedChangesAtom);
   const addInitialTrigger = useSetAtom(addInitialTriggerNodeAtom);
+  const { onNodeContextMenu, onEdgeContextMenu, onPaneContextMenu } =
+    useWorkflowEditorContextMenuHandlers(
+      screenToFlowPosition,
+      setContextMenuState,
+    );
+
+  const closeContextMenu = useCallback(() => {
+    setContextMenuState(null);
+  }, []);
 
   // Show empty-state placeholder when canvas is empty and editable
   const displayNodes = useMemo(() => {
@@ -207,8 +223,9 @@ export function WorkflowEditorCanvas({
   );
 
   const handlePaneClick = useCallback(() => {
+    closeContextMenu();
     setSelection({ nodeId: null, edgeId: null });
-  }, [setSelection]);
+  }, [closeContextMenu, setSelection]);
 
   return (
     <div
@@ -240,9 +257,12 @@ export function WorkflowEditorCanvas({
         }
         onConnect={canEdit ? (connection) => onConnect(connection) : undefined}
         onNodeClick={handleNodeClick}
+        onNodeContextMenu={canEdit ? onNodeContextMenu : undefined}
         onConnectStart={canEdit ? handleConnectStart : undefined}
         onConnectEnd={canEdit ? handleConnectEnd : undefined}
+        onEdgeContextMenu={canEdit ? onEdgeContextMenu : undefined}
         onPaneClick={handlePaneClick}
+        onPaneContextMenu={canEdit ? onPaneContextMenu : undefined}
         onSelectionChange={({ nodes: selectedNodes, edges: selectedEdges }) => {
           setSelection({
             nodeId: selectedNodes.at(0)?.id ?? null,
@@ -255,6 +275,11 @@ export function WorkflowEditorCanvas({
         </Panel>
         {children}
       </Canvas>
+
+      <WorkflowEditorContextMenu
+        menuState={canEdit ? contextMenuState : null}
+        onClose={closeContextMenu}
+      />
     </div>
   );
 }

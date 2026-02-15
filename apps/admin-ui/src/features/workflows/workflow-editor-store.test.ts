@@ -4,6 +4,7 @@ import { describe, expect, test } from "bun:test";
 import type { SerializedWorkflowGraph } from "@scheduling/dto";
 import { createStore } from "jotai";
 import {
+  addWorkflowEditorNodeAtom,
   deleteNodeAtom,
   deserializeWorkflowGraph,
   onWorkflowEditorNodesChangeAtom,
@@ -15,6 +16,8 @@ import {
   workflowEditorHasUnsavedChangesAtom,
   workflowEditorIsReadOnlyAtom,
   workflowEditorNodesAtom,
+  workflowEditorSelectedEdgeIdAtom,
+  workflowEditorSelectedNodeIdAtom,
 } from "./workflow-editor-store";
 
 function createGraphFixture(): SerializedWorkflowGraph {
@@ -225,5 +228,29 @@ describe("workflow-editor-store", () => {
 
     expect(remainingNodeIds).toEqual(["trigger-node"]);
     expect(remainingEdges).toHaveLength(0);
+  });
+
+  test("adds node via addWorkflowEditorNodeAtom and updates selection", () => {
+    const store = createStore();
+    store.set(setWorkflowEditorGraphAtom, createGraphFixture());
+    store.set(workflowEditorIsReadOnlyAtom, false);
+
+    store.set(addWorkflowEditorNodeAtom, {
+      id: "new-action",
+      type: "action",
+      position: { x: 640, y: 180 },
+      data: {
+        type: "action",
+        label: "Action",
+        status: "idle",
+        config: {},
+      },
+    });
+
+    const nodes = store.get(workflowEditorNodesAtom);
+    expect(nodes.some((node) => node.id === "new-action")).toBe(true);
+    expect(store.get(workflowEditorSelectedNodeIdAtom)).toBe("new-action");
+    expect(store.get(workflowEditorSelectedEdgeIdAtom)).toBe(null);
+    expect(store.get(workflowEditorHasUnsavedChangesAtom)).toBe(true);
   });
 });
