@@ -200,8 +200,8 @@ withTestContext(db, orgId, userId, fn)    // Execute fn with both contexts, then
 const db = await createTestDb();
 const { org, user } = await seedTestOrg(db);
 
-beforeEach(async () => { await resetTestDb(); });
-afterAll(async () => { await closeTestDb(); });
+beforeEach(async () => { await resetTestDb(db); });
+afterAll(async () => { await closeTestDb(db); });
 
 test("query with RLS", async () => {
   await setTestOrgContext(db, org.id);

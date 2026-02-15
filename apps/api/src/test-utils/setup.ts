@@ -5,45 +5,34 @@
 // in your test files with beforeAll/beforeEach/afterAll.
 
 import {
-  createTestDb,
-  resetTestDb,
-  closeTestDb,
+  getTestDb as getRawTestDb,
+  resetTestDb as resetRawTestDb,
+  closeTestDb as closeRawTestDb,
   setTestOrgContext,
   clearTestOrgContext,
-  getTestDb,
+  type TestDatabase,
 } from "@scheduling/db/test-utils";
-import { sql } from "drizzle-orm";
-import type { BunSQLDatabase } from "drizzle-orm/bun-sql/postgres";
-import type * as schema from "@scheduling/db/schema";
-import type { relations } from "@scheduling/db/relations";
 
-export type TestDatabase = BunSQLDatabase<typeof schema, typeof relations>;
+export type { TestDatabase };
 
-// Re-export db utilities for convenience
-export {
-  createTestDb,
-  resetTestDb,
-  closeTestDb,
-  setTestOrgContext,
-  clearTestOrgContext,
-};
-
-/**
- * Truncate only workflow-related tables, preserving orgs/users/memberships.
- * Use in workflow test files where org fixtures are created once in beforeAll.
- */
-export async function resetWorkflowTables(): Promise<void> {
-  const db = getTestDb();
-  await db.execute(sql`
-    TRUNCATE TABLE
-      workflow_execution_logs,
-      workflow_execution_events,
-      workflow_wait_states,
-      workflow_executions,
-      workflows
-    CASCADE
-  `);
+export function getTestDb(): TestDatabase {
+  return getRawTestDb();
 }
+
+export async function createTestDb(): Promise<TestDatabase> {
+  return getRawTestDb();
+}
+
+export async function resetTestDb(db?: TestDatabase): Promise<void> {
+  await resetRawTestDb(db ?? getRawTestDb());
+}
+
+export async function closeTestDb(db?: TestDatabase): Promise<void> {
+  if (!db) return;
+  await closeRawTestDb(db);
+}
+
+export { setTestOrgContext, clearTestOrgContext };
 
 /**
  * Setup helper that initializes the test database and provides
@@ -69,15 +58,12 @@ export async function resetWorkflowTables(): Promise<void> {
  * ```
  */
 export function setupTestDb() {
-  let db: TestDatabase | null = null;
-
   return {
     /**
      * Initialize the test database. Call in beforeAll.
      */
     async init(): Promise<TestDatabase> {
-      db = (await createTestDb()) as TestDatabase;
-      return db;
+      return getRawTestDb();
     },
 
     /**
@@ -85,12 +71,7 @@ export function setupTestDb() {
      * Throws if init() hasn't been called.
      */
     getDb(): TestDatabase {
-      if (!db) {
-        throw new Error(
-          "Test database not initialized. Call init() in beforeAll first.",
-        );
-      }
-      return db;
+      return getRawTestDb();
     },
 
     /**
@@ -105,28 +86,22 @@ export function setupTestDb() {
      * Close the database connection. Call in afterAll.
      */
     async close(): Promise<void> {
-      await closeTestDb();
-      db = null;
+      // Managed by test preload lifecycle.
+      return;
     },
 
     /**
      * Set org context for RLS. Call before queries that need org scope.
      */
     async setOrgContext(orgId: string): Promise<void> {
-      if (!db) {
-        throw new Error("Test database not initialized.");
-      }
-      await setTestOrgContext(db, orgId);
+      await setTestOrgContext(getRawTestDb(), orgId);
     },
 
     /**
      * Clear org context. Call after org-scoped operations.
      */
     async clearOrgContext(): Promise<void> {
-      if (!db) {
-        throw new Error("Test database not initialized.");
-      }
-      await clearTestOrgContext(db);
+      await clearTestOrgContext(getRawTestDb());
     },
   };
 }

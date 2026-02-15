@@ -27,6 +27,20 @@ function generateTemporaryPassword(): string {
   return randomBytes(18).toString("base64url");
 }
 
+function assertSessionMutationAccess(context: {
+  authMethod: AuthMethod;
+  headers: Headers;
+}): void {
+  if (context.authMethod === "session" && context.headers.has("cookie")) {
+    return;
+  }
+
+  throw new ApplicationError(
+    "Organization user mutations require a session-authenticated admin",
+    { code: "FORBIDDEN" },
+  );
+}
+
 function getErrorMessage(error: unknown, fallback: string): string {
   if (error instanceof Error && error.message) {
     return error.message;
@@ -147,28 +161,10 @@ async function assertOwnerRoleTransitionAllowed(params: {
 }
 
 async function updateMembershipRole(params: {
-  orgId: string;
   membershipId: string;
   role: OrgMembershipRole;
-  authMethod: AuthMethod;
-  headers: Headers;
 }) {
-  const { orgId, membershipId, role, authMethod, headers } = params;
-
-  const canUseOrganizationApi =
-    authMethod === "session" && headers.has("cookie");
-
-  if (canUseOrganizationApi) {
-    await auth.api.updateMemberRole({
-      headers,
-      body: {
-        memberId: membershipId,
-        organizationId: orgId,
-        role,
-      },
-    });
-    return;
-  }
+  const { membershipId, role } = params;
 
   await db
     .update(orgMemberships)
@@ -205,6 +201,8 @@ export const create = adminOnly
   .route({ method: "POST", path: "/org/users" })
   .input(createOrgUserSchema)
   .handler(async ({ input, context }) => {
+    assertSessionMutationAccess(context);
+
     const email = normalizeEmail(input.email);
     const name = input.name?.trim();
 
@@ -284,11 +282,8 @@ export const create = adminOnly
 
       try {
         await updateMembershipRole({
-          orgId: context.orgId,
           membershipId: membership.id,
           role: input.role,
-          authMethod: context.authMethod,
-          headers: context.headers,
         });
       } catch (error) {
         throw new ApplicationError(
@@ -312,6 +307,8 @@ export const updateRole = adminOnly
   .route({ method: "PATCH", path: "/org/users/role" })
   .input(updateOrgUserRoleSchema)
   .handler(async ({ input, context }) => {
+    assertSessionMutationAccess(context);
+
     const membership = await findMembership(context.orgId, input.userId);
     if (!membership) {
       throw new ApplicationError("User is not a member of this organization", {
@@ -338,11 +335,8 @@ export const updateRole = adminOnly
 
     try {
       await updateMembershipRole({
-        orgId: context.orgId,
         membershipId: membership.id,
         role: input.role,
-        authMethod: context.authMethod,
-        headers: context.headers,
       });
     } catch (error) {
       throw new ApplicationError(

@@ -1,7 +1,4 @@
 import {
-  afterAll,
-  beforeAll,
-  beforeEach,
   describe,
   expect,
   test,
@@ -15,10 +12,8 @@ import {
   createClient,
   createOrg,
   createTestContext,
-  createTestDb,
-  resetTestDb,
-  closeTestDb,
-} from "../test-utils/index.js";
+  getTestDb,
+  } from "../test-utils/index.js";
 import { summary } from "./dashboard.js";
 import type { BunSQLDatabase } from "drizzle-orm/bun-sql/postgres";
 import type * as schema from "@scheduling/db/schema";
@@ -29,19 +24,7 @@ type Database = BunSQLDatabase<typeof schema, typeof relations>;
 const DASHBOARD_TZ = "America/New_York";
 
 describe("Dashboard Routes", () => {
-  let db: Database;
-
-  beforeAll(async () => {
-    db = (await createTestDb()) as Database;
-  });
-
-  afterAll(async () => {
-    await closeTestDb();
-  });
-
-  beforeEach(async () => {
-    await resetTestDb();
-  });
+  const db = getTestDb() as Database;
 
   test("returns accurate summary counts for the org and date window", async () => {
     const { org, user } = await createOrg(db);

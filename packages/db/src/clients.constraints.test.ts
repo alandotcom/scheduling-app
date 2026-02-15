@@ -1,40 +1,19 @@
 import {
-  afterAll,
-  beforeAll,
-  beforeEach,
   describe,
   expect,
   test,
 } from "bun:test";
-import type { BunSQLDatabase } from "drizzle-orm/bun-sql/postgres";
 import {
-  closeTestDb,
-  createTestDb,
-  resetTestDb,
+  getTestDb,
+  type TestDatabase,
   seedSecondTestOrg,
   seedTestOrg,
   setTestOrgContext,
 } from "./test-utils.js";
 import { clients } from "./schema/index.js";
-import type * as schema from "./schema/index.js";
-import type { relations } from "./relations.js";
-
-type Database = BunSQLDatabase<typeof schema, typeof relations>;
 
 describe("clients table constraints", () => {
-  let db: Database;
-
-  beforeAll(async () => {
-    db = (await createTestDb()) as Database;
-  });
-
-  afterAll(async () => {
-    await closeTestDb();
-  });
-
-  beforeEach(async () => {
-    await resetTestDb();
-  });
+  const db: TestDatabase = getTestDb();
 
   test("accepts valid E.164 phone format", async () => {
     const { org } = await seedTestOrg(db);

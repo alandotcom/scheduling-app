@@ -2,10 +2,7 @@ import {
   describe,
   test,
   expect,
-  beforeAll,
-  afterAll,
-  beforeEach,
-} from "bun:test";
+  } from "bun:test";
 import { call } from "@orpc/server";
 import { DateTime } from "luxon";
 import {
@@ -15,10 +12,8 @@ import {
   createAvailabilityRule,
   createAvailabilityOverride,
   createBlockedTime,
-  createTestDb,
-  resetTestDb,
-  closeTestDb,
-} from "../test-utils/index.js";
+  getTestDb,
+  } from "../test-utils/index.js";
 import {
   defaultTimezone,
   getAvailabilityRoutes,
@@ -26,19 +21,7 @@ import {
 } from "../test-utils/availability-test-helpers.js";
 
 describe("Availability Feed", () => {
-  let db: AvailabilityTestDb;
-
-  beforeAll(async () => {
-    db = (await createTestDb()) as AvailabilityTestDb;
-  });
-
-  afterAll(async () => {
-    await closeTestDb();
-  });
-
-  beforeEach(async () => {
-    await resetTestDb();
-  });
+  const db = getTestDb() as AvailabilityTestDb;
 
   test("returns rules, overrides, and blocked time in range", async () => {
     const { org, user } = await createOrg(db);

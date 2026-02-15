@@ -17,7 +17,7 @@ import type {
   LimitsUpdateInput,
 } from "../repositories/availability-management.js";
 import type { PaginationInput, PaginatedResult } from "../repositories/base.js";
-import { withOrg } from "../lib/db.js";
+import { withOrg, type DbClient } from "../lib/db.js";
 import { ApplicationError } from "../errors/application-error.js";
 import type { ServiceContext } from "./locations.js";
 import type {
@@ -48,14 +48,21 @@ export class AvailabilityManagementService {
   private async ensureCalendarAccess(
     orgId: string,
     calendarId: string,
+    tx?: DbClient,
   ): Promise<void> {
-    const exists = await withOrg(orgId, (tx) =>
-      availabilityManagementRepository.verifyCalendarAccess(
-        tx,
-        orgId,
-        calendarId,
-      ),
-    );
+    const exists = tx
+      ? await availabilityManagementRepository.verifyCalendarAccess(
+          tx,
+          orgId,
+          calendarId,
+        )
+      : await withOrg(orgId, (orgTx) =>
+          availabilityManagementRepository.verifyCalendarAccess(
+            orgTx,
+            orgId,
+            calendarId,
+          ),
+        );
     if (!exists) {
       throw new ApplicationError("Calendar not found", { code: "NOT_FOUND" });
     }
@@ -96,7 +103,7 @@ export class AvailabilityManagementService {
           code: "NOT_FOUND",
         });
       }
-      await this.ensureCalendarAccess(context.orgId, rule.calendarId);
+      await this.ensureCalendarAccess(context.orgId, rule.calendarId, tx);
       return rule;
     });
   }
@@ -160,7 +167,7 @@ export class AvailabilityManagementService {
         });
       }
 
-      await this.ensureCalendarAccess(context.orgId, existing.calendarId);
+      await this.ensureCalendarAccess(context.orgId, existing.calendarId, tx);
 
       // Check for overlaps with new values
       const newWeekday = input.weekday ?? existing.weekday;
@@ -221,7 +228,7 @@ export class AvailabilityManagementService {
           code: "NOT_FOUND",
         });
       }
-      await this.ensureCalendarAccess(context.orgId, existing.calendarId);
+      await this.ensureCalendarAccess(context.orgId, existing.calendarId, tx);
       await availabilityManagementRepository.deleteRule(tx, context.orgId, id);
       return { success: true };
     });
@@ -302,7 +309,7 @@ export class AvailabilityManagementService {
           code: "NOT_FOUND",
         });
       }
-      await this.ensureCalendarAccess(context.orgId, override.calendarId);
+      await this.ensureCalendarAccess(context.orgId, override.calendarId, tx);
       return override;
     });
   }
@@ -353,7 +360,7 @@ export class AvailabilityManagementService {
           code: "NOT_FOUND",
         });
       }
-      await this.ensureCalendarAccess(context.orgId, existing.calendarId);
+      await this.ensureCalendarAccess(context.orgId, existing.calendarId, tx);
 
       // Check for date conflicts if changing date
       if (input.date && input.date !== existing.date) {
@@ -409,7 +416,7 @@ export class AvailabilityManagementService {
           code: "NOT_FOUND",
         });
       }
-      await this.ensureCalendarAccess(context.orgId, existing.calendarId);
+      await this.ensureCalendarAccess(context.orgId, existing.calendarId, tx);
       await availabilityManagementRepository.deleteOverride(
         tx,
         context.orgId,
@@ -454,7 +461,7 @@ export class AvailabilityManagementService {
           code: "NOT_FOUND",
         });
       }
-      await this.ensureCalendarAccess(context.orgId, block.calendarId);
+      await this.ensureCalendarAccess(context.orgId, block.calendarId, tx);
       return block;
     });
   }
@@ -492,7 +499,7 @@ export class AvailabilityManagementService {
           code: "NOT_FOUND",
         });
       }
-      await this.ensureCalendarAccess(context.orgId, existing.calendarId);
+      await this.ensureCalendarAccess(context.orgId, existing.calendarId, tx);
 
       const updated = await availabilityManagementRepository.updateBlockedTime(
         tx,
@@ -527,7 +534,7 @@ export class AvailabilityManagementService {
           code: "NOT_FOUND",
         });
       }
-      await this.ensureCalendarAccess(context.orgId, existing.calendarId);
+      await this.ensureCalendarAccess(context.orgId, existing.calendarId, tx);
       await availabilityManagementRepository.deleteBlockedTime(
         tx,
         context.orgId,
@@ -573,7 +580,7 @@ export class AvailabilityManagementService {
         });
       }
       if (limits.calendarId) {
-        await this.ensureCalendarAccess(context.orgId, limits.calendarId);
+        await this.ensureCalendarAccess(context.orgId, limits.calendarId, tx);
       }
       return limits;
     });
@@ -608,7 +615,7 @@ export class AvailabilityManagementService {
         });
       }
       if (existing.calendarId) {
-        await this.ensureCalendarAccess(context.orgId, existing.calendarId);
+        await this.ensureCalendarAccess(context.orgId, existing.calendarId, tx);
       }
 
       const updated = await availabilityManagementRepository.updateLimits(
@@ -658,7 +665,7 @@ export class AvailabilityManagementService {
         });
       }
       if (existing.calendarId) {
-        await this.ensureCalendarAccess(context.orgId, existing.calendarId);
+        await this.ensureCalendarAccess(context.orgId, existing.calendarId, tx);
       }
       await availabilityManagementRepository.deleteLimits(
         tx,

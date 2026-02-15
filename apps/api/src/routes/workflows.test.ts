@@ -1,6 +1,5 @@
 import {
   afterAll,
-  beforeAll,
   beforeEach,
   describe,
   expect,
@@ -22,13 +21,10 @@ import {
 } from "@scheduling/db/schema";
 import { inngest } from "../inngest/client.js";
 import {
-  closeTestDb,
   createOrg,
   createOrgMember,
   createTestContext,
-  createTestDb,
-  resetTestDb,
-  resetWorkflowTables,
+  getTestDb,
   setTestOrgContext,
 } from "../test-utils/index.js";
 import * as workflowRoutes from "./workflows.js";
@@ -152,10 +148,9 @@ async function seedExecutionArtifacts(input: {
 }
 
 describe("Workflow Routes", () => {
-  let db: Database;
+  const db = getTestDb() as Database;
   const originalInngestSend = inngest.send.bind(inngest);
 
-  // Shared fixtures created once in beforeAll
   let orgA: { id: string };
   let ownerA: { id: string };
   let memberA: { id: string };
@@ -166,11 +161,10 @@ describe("Workflow Routes", () => {
   let contextA: ReturnType<typeof createTestContext>;
   let contextB: ReturnType<typeof createTestContext>;
 
-  beforeAll(async () => {
-    db = (await createTestDb()) as Database;
-
-    // Full reset once to start clean, then create shared org fixtures
-    await resetTestDb();
+  beforeEach(async () => {
+    (inngest as unknown as { send: typeof inngest.send }).send = mock(
+      async () => ({ ids: ["cancel-event-id"] }),
+    );
 
     const primaryResult = await createOrg(db, { name: "Primary Org" });
     orgA = primaryResult.org;
@@ -208,14 +202,6 @@ describe("Workflow Routes", () => {
   afterAll(async () => {
     (inngest as unknown as { send: typeof inngest.send }).send =
       originalInngestSend;
-    await closeTestDb();
-  });
-
-  beforeEach(async () => {
-    await resetWorkflowTables();
-    (inngest as unknown as { send: typeof inngest.send }).send = mock(
-      async () => ({ ids: ["cancel-event-id"] }),
-    );
   });
 
   test("member can list and get workflows in their org", async () => {

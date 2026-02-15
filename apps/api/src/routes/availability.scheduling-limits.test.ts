@@ -2,19 +2,14 @@ import {
   describe,
   test,
   expect,
-  beforeAll,
-  afterAll,
-  beforeEach,
-} from "bun:test";
+  } from "bun:test";
 import { call } from "@orpc/server";
 import {
   createTestContext,
   createOrg,
   createCalendar,
-  createTestDb,
-  resetTestDb,
-  closeTestDb,
-} from "../test-utils/index.js";
+  getTestDb,
+  } from "../test-utils/index.js";
 import {
   createCalendarFixture,
   getAvailabilityRoutes,
@@ -22,19 +17,7 @@ import {
 } from "../test-utils/availability-test-helpers.js";
 
 describe("Scheduling Limits", () => {
-  let db: AvailabilityTestDb;
-
-  beforeAll(async () => {
-    db = (await createTestDb()) as AvailabilityTestDb;
-  });
-
-  afterAll(async () => {
-    await closeTestDb();
-  });
-
-  beforeEach(async () => {
-    await resetTestDb();
-  });
+  const db = getTestDb() as AvailabilityTestDb;
 
   test("creates, lists, gets, updates, and deletes limits", async () => {
     const { org, user, calendar } = await createCalendarFixture(db);

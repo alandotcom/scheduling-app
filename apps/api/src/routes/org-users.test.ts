@@ -1,11 +1,4 @@
-import {
-  afterAll,
-  beforeAll,
-  beforeEach,
-  describe,
-  expect,
-  test,
-} from "bun:test";
+import { describe, expect, test } from "bun:test";
 import { call } from "@orpc/server";
 import type { BunSQLDatabase } from "drizzle-orm/bun-sql/postgres";
 import type * as schema from "@scheduling/db/schema";
@@ -16,28 +9,15 @@ import {
   createOrg,
   createOrgMember,
   createTestContext,
-  createTestDb,
-  resetTestDb,
-  closeTestDb,
+  createTokenContext,
+  getTestDb,
 } from "../test-utils/index.js";
 import { orgUserRoutes } from "./org-users.js";
 
 type Database = BunSQLDatabase<typeof schema, typeof relations>;
 
 describe("Org User Routes", () => {
-  let db: Database;
-
-  beforeAll(async () => {
-    db = (await createTestDb()) as Database;
-  });
-
-  afterAll(async () => {
-    await closeTestDb();
-  });
-
-  beforeEach(async () => {
-    await resetTestDb();
-  });
+  const db = getTestDb() as Database;
 
   test("list returns members for active organization only", async () => {
     const { org, user: owner } = await createOrg(db, {
@@ -244,5 +224,53 @@ describe("Org User Routes", () => {
 
     expect(updated.userId).toBe(memberUser.id);
     expect(updated.role).toBe("admin");
+  });
+
+  test("token-authenticated admin cannot create users", async () => {
+    const { org, user: owner } = await createOrg(db, {
+      email: "owner@example.com",
+    });
+    const tokenCtx = createTokenContext({
+      orgId: org.id,
+      userId: owner.id,
+      role: "owner",
+      tokenId: "token-1",
+    });
+
+    await expect(
+      call(
+        orgUserRoutes.create,
+        {
+          email: "token-create@example.com",
+          name: "Token Create",
+          role: "member",
+        },
+        { context: tokenCtx },
+      ),
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+
+  test("token-authenticated admin cannot update membership role", async () => {
+    const { org, user: owner } = await createOrg(db, {
+      email: "owner@example.com",
+    });
+    const memberUser = await createOrgMember(db, org.id, {
+      email: "member@example.com",
+      role: "member",
+    });
+    const tokenCtx = createTokenContext({
+      orgId: org.id,
+      userId: owner.id,
+      role: "owner",
+      tokenId: "token-2",
+    });
+
+    await expect(
+      call(
+        orgUserRoutes.updateRole,
+        { userId: memberUser.id, role: "admin" },
+        { context: tokenCtx },
+      ),
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 });

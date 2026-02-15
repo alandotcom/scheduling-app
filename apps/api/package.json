@@ -46,6 +46,7 @@
     "zod": "catalog:"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.3.15",
     "@faker-js/faker": "^10.3.0",
     "@inngest/test": "^0.1.9",
     "@types/bun": "catalog:",

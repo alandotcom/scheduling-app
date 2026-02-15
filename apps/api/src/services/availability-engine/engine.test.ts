@@ -10,12 +10,10 @@ import {
   setSystemTime,
 } from "bun:test";
 import {
-  createTestDb,
-  resetTestDb,
-  closeTestDb,
+  getTestDb,
   seedTestOrg,
   setTestOrgContext,
-} from "@scheduling/db/test-utils";
+} from "../../test-utils/index.js";
 import {
   locations,
   calendars,
@@ -39,7 +37,7 @@ import type { ServiceContext } from "../locations.js";
 type Database = BunSQLDatabase<typeof schema, typeof relations>;
 
 describe("AvailabilityService", () => {
-  let db: Database;
+  const db = getTestDb() as Database;
   let org: { id: string; name: string };
   let user: { id: string };
   let location: { id: string };
@@ -48,17 +46,14 @@ describe("AvailabilityService", () => {
   let testContext: ServiceContext;
 
   beforeAll(async () => {
-    db = (await createTestDb()) as Database;
     setSystemTime(new Date("2026-01-20T15:00:00.000Z"));
   });
 
   afterAll(async () => {
     setSystemTime();
-    await closeTestDb();
   });
 
   beforeEach(async () => {
-    await resetTestDb();
     const seed = await seedTestOrg(db as any);
     org = seed.org;
     user = seed.user;

@@ -18,7 +18,7 @@
     "build": "turbo run build",
     "build:all": "turbo run build --force",
     "build:changed": "turbo run build --filter='...[origin/main]'",
-    "test": "pnpm -r run test",
+    "test": "pnpm -r --parallel run test",
     "test:coverage": "pnpm -r --workspace-concurrency=1 --stream run test:coverage",
     "knip": "knip --cache",
     "knip:deps": "knip --strict --dependencies --cache",

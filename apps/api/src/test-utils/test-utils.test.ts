@@ -7,9 +7,6 @@ import {
   describe,
   test,
   expect,
-  beforeAll,
-  afterAll,
-  beforeEach,
 } from "bun:test";
 import {
   createTestContext,
@@ -22,9 +19,8 @@ import {
   createResource,
   createClient,
   createTestFixture,
-  createTestDb,
+  getTestDb,
   resetTestDb,
-  closeTestDb,
   setTestOrgContext,
   clearTestOrgContext,
 } from "./index.js";
@@ -36,19 +32,7 @@ import type { relations } from "@scheduling/db/relations";
 type Database = BunSQLDatabase<typeof schema, typeof relations>;
 
 describe("Test Utilities", () => {
-  let db: Database;
-
-  beforeAll(async () => {
-    db = (await createTestDb()) as Database;
-  });
-
-  afterAll(async () => {
-    await closeTestDb();
-  });
-
-  beforeEach(async () => {
-    await resetTestDb();
-  });
+  const db = getTestDb() as Database;
 
   describe("createTestContext", () => {
     test("creates context with required fields", () => {
@@ -216,7 +200,7 @@ describe("Test Utilities", () => {
       await clearTestOrgContext(db);
 
       // Reset simulates next test's beforeEach
-      await resetTestDb();
+      await resetTestDb(db);
 
       // Data should be gone (no context needed for empty check)
       const after = await db.select().from(locations);

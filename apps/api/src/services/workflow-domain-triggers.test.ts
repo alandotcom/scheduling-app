@@ -1,6 +1,4 @@
 import {
-  afterAll,
-  beforeAll,
   beforeEach,
   describe,
   expect,
@@ -15,10 +13,7 @@ import type {
   SerializedWorkflowGraph,
 } from "@scheduling/dto";
 import {
-  closeTestDb,
-  createTestDb,
-  resetTestDb,
-  resetWorkflowTables,
+  getTestDb,
   setTestOrgContext,
   type TestDatabase,
 } from "../test-utils/index.js";
@@ -86,20 +81,14 @@ function createClientUpdatedPayload(): DomainEventData<"client.updated"> {
 }
 
 describe("workflow domain triggers", () => {
-  let db: TestDatabase;
+  const db: TestDatabase = getTestDb();
 
-  // Shared fixtures created once in beforeAll
   let orgA: { id: string };
   let userA: { id: string };
   let orgB: { id: string };
   let userB: { id: string };
 
-  beforeAll(async () => {
-    db = await createTestDb();
-
-    // Full reset once, then create shared org fixtures
-    await resetTestDb();
-
+  beforeEach(async () => {
     const primaryResult = await createOrg(db as any, {
       name: "Workflow Org A",
       email: "workflow-org-a@example.com",
@@ -113,14 +102,6 @@ describe("workflow domain triggers", () => {
     });
     orgB = secondaryResult.org;
     userB = secondaryResult.user;
-  });
-
-  afterAll(async () => {
-    await closeTestDb();
-  });
-
-  beforeEach(async () => {
-    await resetWorkflowTables();
   });
 
   test("starts execution and enqueues workflow run for matching domain event", async () => {
@@ -270,10 +251,12 @@ describe("workflow domain triggers", () => {
     expect(workflowIds).toContain(result.erroredWorkflowIds[0]!);
 
     const erroredExecution = executions.find(
-      (execution) => execution.workflowId === result.erroredWorkflowIds[0],
+      (execution: (typeof executions)[number]) =>
+        execution.workflowId === result.erroredWorkflowIds[0],
     );
     const startedExecution = executions.find(
-      (execution) => execution.workflowId !== result.erroredWorkflowIds[0],
+      (execution: (typeof executions)[number]) =>
+        execution.workflowId !== result.erroredWorkflowIds[0],
     );
 
     expect(erroredExecution).toBeDefined();

@@ -4,10 +4,7 @@ import {
   describe,
   test,
   expect,
-  beforeAll,
-  afterAll,
-  beforeEach,
-} from "bun:test";
+  } from "bun:test";
 import { call } from "@orpc/server";
 import { DateTime } from "luxon";
 import { randomUUID } from "crypto";
@@ -15,14 +12,10 @@ import {
   createTestContext,
   createOrg,
   createOrgMember,
-  createTestDb,
-  resetTestDb,
-  closeTestDb,
-} from "../test-utils/index.js";
-import {
+  getTestDb,
   setTestOrgContext,
   clearTestOrgContext,
-} from "@scheduling/db/test-utils";
+} from "../test-utils/index.js";
 import * as auditRoutes from "./audit.js";
 import { auditEvents } from "@scheduling/db/schema";
 import type { BunSQLDatabase } from "drizzle-orm/bun-sql/postgres";
@@ -32,19 +25,7 @@ import type { relations } from "@scheduling/db/relations";
 type Database = BunSQLDatabase<typeof schema, typeof relations>;
 
 describe("Audit Routes", () => {
-  let db: Database;
-
-  beforeAll(async () => {
-    db = (await createTestDb()) as Database;
-  });
-
-  afterAll(async () => {
-    await closeTestDb();
-  });
-
-  beforeEach(async () => {
-    await resetTestDb();
-  });
+  const db = getTestDb() as Database;
 
   async function insertAuditEvent(options: {
     orgId: string;

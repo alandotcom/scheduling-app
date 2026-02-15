@@ -1,8 +1,5 @@
 import {
-  afterAll,
   afterEach,
-  beforeAll,
-  beforeEach,
   describe,
   expect,
   mock,
@@ -14,31 +11,17 @@ import type { relations } from "@scheduling/db/relations";
 import server from "./index.js";
 import { auth } from "./lib/auth.js";
 import {
-  closeTestDb,
   createLocation,
   createOrg,
-  createTestDb,
-  resetTestDb,
-} from "./test-utils/index.js";
+  getTestDb,
+  } from "./test-utils/index.js";
 
 type Database = BunSQLDatabase<typeof schema, typeof relations>;
 
 describe("OpenAPI API key security", () => {
-  let db: Database;
+  const db = getTestDb() as Database;
   const originalGetSession = auth.api.getSession;
   const originalVerifyApiKey = auth.api.verifyApiKey;
-
-  beforeAll(async () => {
-    db = (await createTestDb()) as Database;
-  });
-
-  afterAll(async () => {
-    await closeTestDb();
-  });
-
-  beforeEach(async () => {
-    await resetTestDb();
-  });
 
   afterEach(() => {
     (auth.api as typeof auth.api).getSession = originalGetSession;

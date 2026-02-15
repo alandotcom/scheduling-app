@@ -2,20 +2,15 @@ import {
   describe,
   test,
   expect,
-  beforeAll,
-  afterAll,
-  beforeEach,
-} from "bun:test";
+  } from "bun:test";
 import { call } from "@orpc/server";
 import { DateTime } from "luxon";
 import {
   createTestContext,
   createCalendar,
   createAvailabilityRule,
-  createTestDb,
-  resetTestDb,
-  closeTestDb,
-} from "../test-utils/index.js";
+  getTestDb,
+  } from "../test-utils/index.js";
 import {
   createAvailabilityFixture,
   getAvailabilityRoutes,
@@ -23,19 +18,7 @@ import {
 } from "../test-utils/availability-test-helpers.js";
 
 describe("Availability Engine", () => {
-  let db: AvailabilityTestDb;
-
-  beforeAll(async () => {
-    db = (await createTestDb()) as AvailabilityTestDb;
-  });
-
-  afterAll(async () => {
-    await closeTestDb();
-  });
-
-  beforeEach(async () => {
-    await resetTestDb();
-  });
+  const db = getTestDb() as AvailabilityTestDb;
 
   test("getDates returns available dates", async () => {
     const { org, user, calendar, appointmentType, timezone } =

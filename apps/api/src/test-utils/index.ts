@@ -31,9 +31,9 @@ export {
 // Setup utilities
 export {
   setupTestDb,
+  getTestDb,
   createTestDb,
   resetTestDb,
-  resetWorkflowTables,
   closeTestDb,
   setTestOrgContext,
   clearTestOrgContext,

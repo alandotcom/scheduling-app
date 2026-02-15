@@ -1,16 +1,21 @@
-import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { describe, expect, test } from "bun:test";
 import { sql } from "drizzle-orm";
-import { closeTestDb, createTestDb } from "./test-utils.js";
+import { getTestDb } from "./test-utils.js";
 
-let db: Awaited<ReturnType<typeof createTestDb>>;
+const db = getTestDb();
 
-beforeAll(async () => {
-  db = await createTestDb();
-});
-
-afterAll(async () => {
-  await closeTestDb();
-});
+function resultRows<T extends Record<string, unknown>>(result: unknown): T[] {
+  if (Array.isArray(result)) return result as T[];
+  if (
+    result &&
+    typeof result === "object" &&
+    "rows" in result &&
+    Array.isArray((result as { rows?: unknown }).rows)
+  ) {
+    return (result as { rows: T[] }).rows;
+  }
+  return [];
+}
 
 describe("test bootstrap migrations", () => {
   test("creates appointment capacity function and triggers from migrations", async () => {
@@ -19,7 +24,8 @@ describe("test bootstrap migrations", () => {
       FROM pg_proc
       WHERE proname = 'check_appointment_capacity'
     `);
-    expect(functions).toHaveLength(1);
+    const functionRows = resultRows<{ proname: string }>(functions);
+    expect(functionRows).toHaveLength(1);
 
     const triggers = await db.execute(sql`
       SELECT tgname
@@ -34,7 +40,9 @@ describe("test bootstrap migrations", () => {
       ORDER BY tgname
     `);
 
-    expect(triggers.map((row) => row["tgname"])).toEqual([
+    const triggerRows = resultRows<{ tgname: string }>(triggers);
+
+    expect(triggerRows.map((row) => row.tgname)).toEqual([
       "check_appointment_capacity_insert",
       "check_appointment_capacity_update",
     ]);

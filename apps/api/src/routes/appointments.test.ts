@@ -5,9 +5,6 @@ import {
   describe,
   test,
   expect,
-  beforeAll,
-  afterAll,
-  beforeEach,
 } from "bun:test";
 import { call } from "@orpc/server";
 import { DateTime } from "luxon";
@@ -21,9 +18,7 @@ import {
   createClient,
   createAppointment,
   createAvailabilityRule,
-  createTestDb,
-  resetTestDb,
-  closeTestDb,
+  getTestDb,
   setTestOrgContext,
 } from "../test-utils/index.js";
 import * as appointmentRoutes from "./appointments.js";
@@ -35,24 +30,7 @@ import type { relations } from "@scheduling/db/relations";
 type Database = BunSQLDatabase<typeof schema, typeof relations>;
 
 describe("Appointment Routes", () => {
-  let db: Database;
-
-  beforeAll(async () => {
-    // Debug: Check what DATABASE_URL the service is using
-    const { config } = await import("../config.js");
-    console.log("DEBUG: Service DATABASE_URL:", config.db.url);
-    console.log("DEBUG: Env DATABASE_URL:", process.env["DATABASE_URL"]);
-
-    db = (await createTestDb()) as Database;
-  });
-
-  afterAll(async () => {
-    await closeTestDb();
-  });
-
-  beforeEach(async () => {
-    await resetTestDb();
-  });
+  const db = getTestDb() as Database;
 
   // Helper to create a complete test fixture with availability
   async function createFixtureWithAvailability() {

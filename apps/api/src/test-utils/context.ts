@@ -30,6 +30,11 @@ export interface TestContextOptions {
  * ```
  */
 export function createTestContext(options: TestContextOptions): Context {
+  const headers = new Headers();
+  if ((options.authMethod ?? "session") === "session") {
+    headers.set("cookie", "scheduling_session=test-session");
+  }
+
   return {
     orgId: options.orgId,
     userId: options.userId,
@@ -37,7 +42,7 @@ export function createTestContext(options: TestContextOptions): Context {
     sessionId: options.sessionId ?? "test-session-id",
     tokenId: options.tokenId ?? null,
     authMethod: options.authMethod ?? "session",
-    headers: new Headers(),
+    headers,
   };
 }
 

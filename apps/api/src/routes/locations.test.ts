@@ -5,10 +5,7 @@ import {
   describe,
   test,
   expect,
-  beforeAll,
-  afterAll,
-  beforeEach,
-} from "bun:test";
+  } from "bun:test";
 import { call } from "@orpc/server";
 import {
   createTestContext,
@@ -16,9 +13,7 @@ import {
   createLocation,
   createCalendar,
   createResource,
-  createTestDb,
-  resetTestDb,
-  closeTestDb,
+  getTestDb,
   setTestOrgContext,
 } from "../test-utils/index.js";
 import * as locationRoutes from "./locations.js";
@@ -30,19 +25,7 @@ import type { relations } from "@scheduling/db/relations";
 type Database = BunSQLDatabase<typeof schema, typeof relations>;
 
 describe("Location Routes", () => {
-  let db: Database;
-
-  beforeAll(async () => {
-    db = (await createTestDb()) as Database;
-  });
-
-  afterAll(async () => {
-    await closeTestDb();
-  });
-
-  beforeEach(async () => {
-    await resetTestDb();
-  });
+  const db = getTestDb() as Database;
 
   describe("list", () => {
     test("returns empty list when no locations exist", async () => {

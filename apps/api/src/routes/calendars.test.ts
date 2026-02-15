@@ -5,10 +5,7 @@ import {
   describe,
   test,
   expect,
-  beforeAll,
-  afterAll,
-  beforeEach,
-} from "bun:test";
+  } from "bun:test";
 import { call } from "@orpc/server";
 import { DateTime } from "luxon";
 import {
@@ -18,9 +15,7 @@ import {
   createCalendar,
   createAppointmentType,
   createAppointment,
-  createTestDb,
-  resetTestDb,
-  closeTestDb,
+  getTestDb,
   setTestOrgContext,
 } from "../test-utils/index.js";
 import * as calendarRoutes from "./calendars.js";
@@ -32,19 +27,7 @@ import type { relations } from "@scheduling/db/relations";
 type Database = BunSQLDatabase<typeof schema, typeof relations>;
 
 describe("Calendar Routes", () => {
-  let db: Database;
-
-  beforeAll(async () => {
-    db = (await createTestDb()) as Database;
-  });
-
-  afterAll(async () => {
-    await closeTestDb();
-  });
-
-  beforeEach(async () => {
-    await resetTestDb();
-  });
+  const db = getTestDb() as Database;
 
   describe("list", () => {
     test("returns empty list when no calendars exist", async () => {

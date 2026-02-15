@@ -1,16 +1,11 @@
 import {
-  afterAll,
-  beforeAll,
   beforeEach,
   describe,
   expect,
   test,
 } from "bun:test";
 import {
-  closeTestDb,
-  createTestDb,
-  resetTestDb,
-  resetWorkflowTables,
+  getTestDb,
   type TestDatabase,
 } from "../test-utils/index.js";
 import { createOrg } from "../test-utils/factories.js";
@@ -46,29 +41,16 @@ function createTestGraph(triggerId = "trigger-1"): SerializedWorkflowGraph {
 }
 
 describe("WorkflowService", () => {
-  let db: TestDatabase;
+  const db: TestDatabase = getTestDb();
   let context: ServiceContext;
   let otherContext: ServiceContext;
 
-  beforeAll(async () => {
-    db = await createTestDb();
-
-    // Full reset once, then create shared org fixtures
-    await resetTestDb();
-
+  beforeEach(async () => {
     const primary = await createOrg(db as any, { name: "Primary Org" });
     context = { orgId: primary.org.id, userId: primary.user.id };
 
     const secondary = await createOrg(db as any, { name: "Secondary Org" });
     otherContext = { orgId: secondary.org.id, userId: secondary.user.id };
-  });
-
-  afterAll(async () => {
-    await closeTestDb();
-  });
-
-  beforeEach(async () => {
-    await resetWorkflowTables();
   });
 
   describe("validation and conflict handling", () => {

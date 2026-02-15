@@ -1,8 +1,5 @@
 import {
-  afterAll,
   afterEach,
-  beforeAll,
-  beforeEach,
   describe,
   expect,
   test,
@@ -16,9 +13,7 @@ import { decryptIntegrationSecrets } from "../services/integrations/crypto.js";
 import {
   createOrg,
   createTestContext,
-  createTestDb,
-  resetTestDb,
-  closeTestDb,
+  getTestDb,
   type TestDatabase,
 } from "../test-utils/index.js";
 import { integrationRoutes } from "./integrations.js";
@@ -37,20 +32,8 @@ function createContext(overrides: Partial<Context> = {}): Context {
 }
 
 describe("Integration Routes", () => {
-  let db: TestDatabase;
+  const db = getTestDb() as TestDatabase;
   const originalEncryptionKey = config.integrations.encryptionKey;
-
-  beforeAll(async () => {
-    db = await createTestDb();
-  });
-
-  afterAll(async () => {
-    await closeTestDb();
-  });
-
-  beforeEach(async () => {
-    await resetTestDb();
-  });
 
   afterEach(() => {
     (

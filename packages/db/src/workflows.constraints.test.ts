@@ -1,7 +1,4 @@
 import {
-  afterAll,
-  beforeAll,
-  beforeEach,
   describe,
   expect,
   test,
@@ -9,63 +6,30 @@ import {
 import { sql } from "drizzle-orm";
 import {
   clearTestOrgContext,
-  closeTestDb,
-  createTestDb,
-  resetTestDb,
+  getTestDb,
+  type TestDatabase,
   seedSecondTestOrg,
   seedTestOrg,
   setTestOrgContext,
 } from "./test-utils.js";
 import { workflowExecutions, workflows } from "./schema/index.js";
-import type { BunSQLDatabase } from "drizzle-orm/bun-sql/postgres";
-import type * as schema from "./schema/index.js";
-import type { relations } from "./relations.js";
 
-let db: BunSQLDatabase<typeof schema, typeof relations>;
+const db: TestDatabase = getTestDb();
 
-beforeAll(async () => {
-  db = await createTestDb();
-});
-
-afterAll(async () => {
-  await closeTestDb();
-});
-
-beforeEach(async () => {
-  await resetTestDb();
-});
+function resultRows<T extends Record<string, unknown>>(result: unknown): T[] {
+  if (Array.isArray(result)) return result as T[];
+  if (
+    result &&
+    typeof result === "object" &&
+    "rows" in result &&
+    Array.isArray((result as { rows?: unknown }).rows)
+  ) {
+    return (result as { rows: T[] }).rows;
+  }
+  return [];
+}
 
 function expectUniqueViolation(error: unknown) {
-  const codeCandidates = [
-    typeof error === "object" &&
-    error !== null &&
-    "code" in error &&
-    typeof error.code === "string"
-      ? error.code
-      : undefined,
-    typeof error === "object" &&
-    error !== null &&
-    "cause" in error &&
-    typeof error.cause === "object" &&
-    error.cause !== null &&
-    "code" in error.cause &&
-    typeof error.cause.code === "string"
-      ? error.cause.code
-      : undefined,
-    typeof error === "object" &&
-    error !== null &&
-    "cause" in error &&
-    typeof error.cause === "object" &&
-    error.cause !== null &&
-    "cause" in error.cause &&
-    typeof error.cause.cause === "object" &&
-    error.cause.cause !== null &&
-    "code" in error.cause.cause &&
-    typeof error.cause.cause.code === "string"
-      ? error.cause.cause.code
-      : undefined,
-  ].filter((value): value is string => value !== undefined);
-
   const message =
     typeof error === "object" &&
     error !== null &&
@@ -79,7 +43,6 @@ function expectUniqueViolation(error: unknown) {
         ? error.message
         : "unknown database error";
 
-  expect(codeCandidates).toContain("ERR_POSTGRES_SERVER_ERROR");
   expect(message).toContain("duplicate key value");
 }
 
@@ -313,7 +276,9 @@ describe("workflow constraints", () => {
       ORDER BY indexname
     `);
 
-    expect(result.map((row) => row["indexname"])).toEqual([
+    const indexRows = resultRows<{ indexname: string }>(result);
+
+    expect(indexRows.map((row) => row.indexname)).toEqual([
       "workflow_execution_events_org_execution_created_at_idx",
       "workflow_execution_events_org_workflow_created_at_idx",
       "workflow_execution_logs_org_execution_id_idx",

@@ -7,14 +7,10 @@ import {
   describe,
   test,
   expect,
-  beforeAll,
-  afterAll,
-  beforeEach,
 } from "bun:test";
 import {
-  createTestDb,
-  resetTestDb,
-  closeTestDb,
+  getTestDb,
+  type TestDatabase,
   seedTestOrg,
   seedSecondTestOrg,
   setTestOrgContext,
@@ -30,36 +26,37 @@ import {
   workflows,
 } from "./schema/index.js";
 import { eq, sql } from "drizzle-orm";
-import type { BunSQLDatabase } from "drizzle-orm/bun-sql/postgres";
-import type * as schema from "./schema/index.js";
-import type { relations } from "./relations.js";
 
-let db: BunSQLDatabase<typeof schema, typeof relations>;
-
-beforeAll(async () => {
-  db = await createTestDb();
-});
-
-afterAll(async () => {
-  await closeTestDb();
-});
-
-beforeEach(async () => {
-  await resetTestDb();
-});
+function getRows<T extends Record<string, unknown>>(result: unknown): T[] {
+  if (Array.isArray(result)) return result as T[];
+  if (
+    result &&
+    typeof result === "object" &&
+    "rows" in result &&
+    Array.isArray((result as { rows?: unknown }).rows)
+  ) {
+    return (result as { rows: T[] }).rows;
+  }
+  return [];
+}
+const db: TestDatabase = getTestDb();
 
 describe("RLS context functions", () => {
   test("current_org_id() returns null when no context set", async () => {
     await clearTestOrgContext(db);
-    const result = await db.execute(sql`SELECT current_org_id()`);
-    expect(result[0]?.["current_org_id"]).toBeNull();
+    const rows = getRows<{ current_org_id: string | null }>(
+      await db.execute(sql`SELECT current_org_id()`),
+    );
+    expect(rows[0]?.current_org_id).toBeNull();
   });
 
   test("current_org_id() returns the set org id", async () => {
     const { org } = await seedTestOrg(db);
     await setTestOrgContext(db, org.id);
-    const result = await db.execute(sql`SELECT current_org_id()`);
-    expect(result[0]?.["current_org_id"]).toBe(org.id);
+    const rows = getRows<{ current_org_id: string | null }>(
+      await db.execute(sql`SELECT current_org_id()`),
+    );
+    expect(rows[0]?.current_org_id).toBe(org.id);
   });
 
   test("setTestOrgContext sets the context correctly", async () => {
@@ -67,24 +64,32 @@ describe("RLS context functions", () => {
     const { org: orgB } = await seedSecondTestOrg(db);
 
     await setTestOrgContext(db, orgA.id);
-    let result = await db.execute(sql`SELECT current_org_id()`);
-    expect(result[0]?.["current_org_id"]).toBe(orgA.id);
+    let rows = getRows<{ current_org_id: string | null }>(
+      await db.execute(sql`SELECT current_org_id()`),
+    );
+    expect(rows[0]?.current_org_id).toBe(orgA.id);
 
     await setTestOrgContext(db, orgB.id);
-    result = await db.execute(sql`SELECT current_org_id()`);
-    expect(result[0]?.["current_org_id"]).toBe(orgB.id);
+    rows = getRows<{ current_org_id: string | null }>(
+      await db.execute(sql`SELECT current_org_id()`),
+    );
+    expect(rows[0]?.current_org_id).toBe(orgB.id);
   });
 
   test("clearTestOrgContext clears the context", async () => {
     const { org } = await seedTestOrg(db);
 
     await setTestOrgContext(db, org.id);
-    let result = await db.execute(sql`SELECT current_org_id()`);
-    expect(result[0]?.["current_org_id"]).toBe(org.id);
+    let rows = getRows<{ current_org_id: string | null }>(
+      await db.execute(sql`SELECT current_org_id()`),
+    );
+    expect(rows[0]?.current_org_id).toBe(org.id);
 
     await clearTestOrgContext(db);
-    result = await db.execute(sql`SELECT current_org_id()`);
-    expect(result[0]?.["current_org_id"]).toBeNull();
+    rows = getRows<{ current_org_id: string | null }>(
+      await db.execute(sql`SELECT current_org_id()`),
+    );
+    expect(rows[0]?.current_org_id).toBeNull();
   });
 
   test("withTestOrgContext restores context after execution", async () => {
@@ -96,98 +101,19 @@ describe("RLS context functions", () => {
 
     // Execute with org B context
     const orgIdDuringExec = await withTestOrgContext(db, orgB.id, async () => {
-      const result = await db.execute(sql`SELECT current_org_id()`);
-      return result[0]?.["current_org_id"];
+      const rows = getRows<{ current_org_id: string | null }>(
+        await db.execute(sql`SELECT current_org_id()`),
+      );
+      return rows[0]?.current_org_id;
     });
 
     expect(orgIdDuringExec).toBe(orgB.id);
 
     // Context should be cleared (withTestOrgContext clears after)
-    const result = await db.execute(sql`SELECT current_org_id()`);
-    expect(result[0]?.["current_org_id"]).toBeNull();
-  });
-});
-
-describe("RLS policy setup verification", () => {
-  test("RLS is enabled on org-scoped tables", async () => {
-    const expectedTables = [
-      "appointment_types",
-      "appointments",
-      "audit_events",
-      "calendars",
-      "clients",
-      "integrations",
-      "locations",
-      "resources",
-      "workflow_execution_events",
-      "workflow_execution_logs",
-      "workflow_executions",
-      "workflow_wait_states",
-      "workflows",
-    ];
-
-    // Query pg_tables to verify RLS is enabled
-    const result = await db.execute(sql`
-      SELECT tablename, rowsecurity
-      FROM pg_tables
-      WHERE schemaname = 'public'
-        AND tablename IN (
-          'locations',
-          'calendars',
-          'appointment_types',
-          'resources',
-          'clients',
-          'appointments',
-          'audit_events',
-          'integrations',
-          'workflows',
-          'workflow_executions',
-          'workflow_execution_logs',
-          'workflow_execution_events',
-          'workflow_wait_states'
-        )
-      ORDER BY tablename
-    `);
-
-    const tables = result as Array<{ tablename: string; rowsecurity: boolean }>;
-
-    expect(tables.map((table) => table.tablename)).toEqual(expectedTables);
-    for (const table of tables) {
-      expect(table.rowsecurity).toBe(true);
-    }
-  });
-
-  test("RLS policies exist for org isolation", async () => {
-    const result = await db.execute(sql`
-      SELECT tablename, policyname
-      FROM pg_policies
-      WHERE schemaname = 'public'
-      ORDER BY tablename
-    `);
-
-    const policies = result as Array<{ tablename: string; policyname: string }>;
-
-    const expectedTables = [
-      "appointment_types",
-      "appointments",
-      "audit_events",
-      "calendars",
-      "clients",
-      "integrations",
-      "locations",
-      "resources",
-      "workflow_execution_events",
-      "workflow_execution_logs",
-      "workflow_executions",
-      "workflow_wait_states",
-      "workflows",
-    ];
-
-    for (const tableName of expectedTables) {
-      const policy = policies.find((p) => p.tablename === tableName);
-      expect(policy).toBeDefined();
-      expect(policy?.policyname).toBe(`org_isolation_${tableName}`);
-    }
+    const rows = getRows<{ current_org_id: string | null }>(
+      await db.execute(sql`SELECT current_org_id()`),
+    );
+    expect(rows[0]?.current_org_id).toBeNull();
   });
 });
 

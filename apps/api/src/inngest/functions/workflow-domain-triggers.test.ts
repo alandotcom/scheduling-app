@@ -75,19 +75,25 @@ describe("workflow domain trigger function", () => {
       processEvent,
     );
     const t = new InngestTestEngine({ function: fn });
+    const originalConsoleError = console.error;
+    console.error = () => {};
 
-    const execution = await t.execute({
-      events: [
-        {
-          name: "client.created",
-          data: {
-            orgId: "org_1",
-            clientId: "018f4d3a-6d80-7c5b-8a4a-6cb8f8d57d32",
-            firstName: "Ada",
+    const execution = await t
+      .execute({
+        events: [
+          {
+            name: "client.created",
+            data: {
+              orgId: "org_1",
+              clientId: "018f4d3a-6d80-7c5b-8a4a-6cb8f8d57d32",
+              firstName: "Ada",
+            },
           },
-        },
-      ],
-    });
+        ],
+      })
+      .finally(() => {
+        console.error = originalConsoleError;
+      });
 
     expect(execution.error).toBeDefined();
     expect(execution.error).toEqual(
