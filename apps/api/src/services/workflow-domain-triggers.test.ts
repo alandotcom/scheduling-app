@@ -143,6 +143,7 @@ describe("workflow domain triggers", () => {
     expect(execution!.status).toBe("running");
     expect(execution!.triggerType).toBe("domain_event");
     expect(execution!.triggerEventType).toBe("client.created");
+    expect(execution!.triggerEventId).toBe("event-client-created-1");
     expect(execution!.correlationKey).toBe(
       "018f4d3a-6d80-7c5b-8a4a-6cb8f8d57d11",
     );
@@ -503,5 +504,53 @@ describe("workflow domain triggers", () => {
       .where(eq(workflowExecutions.id, existingExecution!.id));
 
     expect(updatedExecution?.status).toBe("running");
+  });
+
+  test("ignores duplicate domain events by event id per workflow", async () => {
+    const { org, user } = await createOrg(db as any, {
+      name: "Workflow Dedupe Org",
+      email: "dedupe-org@example.com",
+    });
+
+    await workflowService.create(
+      {
+        name: "Dedupe Workflow",
+        graph: createGraphWithDomainEventTrigger(["client.created"]),
+      },
+      {
+        orgId: org.id,
+        userId: user.id,
+      },
+    );
+
+    const runRequester = mock(async () => ({ eventId: "run-event-dedupe-1" }));
+
+    const event = {
+      id: "event-client-created-dedupe-1",
+      orgId: org.id,
+      type: "client.created" as const,
+      payload: createClientCreatedPayload(),
+      timestamp: new Date().toISOString(),
+    };
+
+    const first = await processWorkflowDomainEvent(event, { runRequester });
+    const second = await processWorkflowDomainEvent(event, { runRequester });
+
+    expect(first.startedExecutionIds).toHaveLength(1);
+    expect(second.startedExecutionIds).toHaveLength(0);
+    expect(second.ignoredWorkflowIds).toHaveLength(1);
+    expect(second.erroredWorkflowIds).toHaveLength(0);
+    expect(second.ignored).toHaveLength(1);
+    expect(second.ignored?.[0]?.workflowId).toBe(second.ignoredWorkflowIds[0]);
+    expect(second.ignored?.[0]?.reason).toBe("duplicate_event");
+    expect(runRequester).toHaveBeenCalledTimes(1);
+
+    await setTestOrgContext(db, org.id);
+    const executions = await db
+      .select()
+      .from(workflowExecutions)
+      .where(eq(workflowExecutions.orgId, org.id));
+    expect(executions).toHaveLength(1);
+    expect(executions[0]?.triggerEventId).toBe(event.id);
   });
 });

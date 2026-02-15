@@ -64,6 +64,64 @@ type TriggerWaitStateRef = Pick<
   "id" | "executionId" | "nodeId" | "hookToken" | "metadata"
 >;
 
+const UNIQUE_CONSTRAINT_VIOLATION = "23505";
+
+class DuplicateTriggerEventError extends Error {
+  constructor() {
+    super("Duplicate domain event already processed for workflow");
+  }
+}
+
+function getConstraintName(error: unknown): string | null {
+  if (!error || typeof error !== "object") {
+    return null;
+  }
+
+  if ("constraint" in error && typeof error.constraint === "string") {
+    return error.constraint;
+  }
+
+  if ("cause" in error && error.cause && typeof error.cause === "object") {
+    const cause = error.cause as { constraint?: unknown };
+    if (typeof cause.constraint === "string") {
+      return cause.constraint;
+    }
+  }
+
+  return null;
+}
+
+function isUniqueConstraintViolation(error: unknown): boolean {
+  if (!error || typeof error !== "object") {
+    return false;
+  }
+
+  if ("code" in error && error.code === UNIQUE_CONSTRAINT_VIOLATION) {
+    return true;
+  }
+
+  if ("cause" in error && error.cause && typeof error.cause === "object") {
+    const cause = error.cause as { code?: unknown; errno?: unknown };
+    return (
+      cause.code === UNIQUE_CONSTRAINT_VIOLATION ||
+      cause.errno === UNIQUE_CONSTRAINT_VIOLATION
+    );
+  }
+
+  return false;
+}
+
+function isDuplicateTriggerEventConstraint(error: unknown): boolean {
+  if (!isUniqueConstraintViolation(error)) {
+    return false;
+  }
+
+  return (
+    getConstraintName(error) ===
+    "workflow_executions_org_workflow_trigger_event_uidx"
+  );
+}
+
 export type WorkflowDomainEventProcessingResult = {
   eventId: string;
   eventType: DomainEventType;
@@ -114,19 +172,24 @@ async function startWorkflowExecution(input: {
 }): Promise<WorkflowExecution> {
   const triggerInput = input.event.payload;
   const correlationKey: string | null = input.correlationKey ?? null;
-  const execution = await workflowRepository.createExecution(
-    input.tx,
-    input.event.orgId,
-    {
+  const execution = await workflowRepository
+    .createExecution(input.tx, input.event.orgId, {
       workflowId: input.workflow.id,
       status: "running",
       triggerType: "domain_event",
       isDryRun: false,
       triggerEventType: input.event.type,
+      triggerEventId: input.event.id,
       correlationKey,
       input: triggerInput,
-    },
-  );
+    })
+    .catch((error: unknown) => {
+      if (isDuplicateTriggerEventConstraint(error)) {
+        throw new DuplicateTriggerEventError();
+      }
+
+      throw error;
+    });
 
   try {
     const run = await input.runRequester({
@@ -322,6 +385,25 @@ export async function processWorkflowDomainEvent(
         });
 
         try {
+          const existingExecution =
+            await workflowRepository.findExecutionByTriggerEventId(
+              tx,
+              event.orgId,
+              {
+                workflowId: workflow.id,
+                triggerEventId: event.id,
+              },
+            );
+
+          if (existingExecution) {
+            ignoredWorkflowIds.push(workflow.id);
+            ignored.push({
+              workflowId: workflow.id,
+              reason: "duplicate_event",
+            });
+            return;
+          }
+
           const waitStates = evaluation.correlationKey
             ? await workflowRepository.listWorkflowWaitingStatesByCorrelation(
                 tx,
@@ -422,7 +504,16 @@ export async function processWorkflowDomainEvent(
             workflowId: workflow.id,
             reason: outcome.reason,
           });
-        } catch {
+        } catch (error: unknown) {
+          if (error instanceof DuplicateTriggerEventError) {
+            ignoredWorkflowIds.push(workflow.id);
+            ignored.push({
+              workflowId: workflow.id,
+              reason: "duplicate_event",
+            });
+            return;
+          }
+
           erroredWorkflowIds.push(workflow.id);
         }
       },

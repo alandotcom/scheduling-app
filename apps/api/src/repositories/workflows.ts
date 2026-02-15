@@ -56,6 +56,7 @@ export interface WorkflowExecutionCreateInput {
   triggerType?: string | null;
   isDryRun?: boolean;
   triggerEventType?: string | null;
+  triggerEventId?: string | null;
   correlationKey?: string | null;
   input?: Record<string, unknown>;
 }
@@ -217,6 +218,7 @@ export class WorkflowRepository {
         triggerType: input.triggerType ?? null,
         isDryRun: input.isDryRun ?? false,
         triggerEventType: input.triggerEventType ?? null,
+        triggerEventId: input.triggerEventId ?? null,
         correlationKey: input.correlationKey ?? null,
         input: input.input,
       })
@@ -252,6 +254,32 @@ export class WorkflowRepository {
       .select()
       .from(workflowExecutions)
       .where(eq(workflowExecutions.id, executionId))
+      .limit(1);
+
+    return execution ?? null;
+  }
+
+  async findExecutionByTriggerEventId(
+    tx: DbClient,
+    orgId: string,
+    input: {
+      workflowId: string;
+      triggerEventId: string;
+    },
+  ): Promise<WorkflowExecution | null> {
+    await setOrgContext(tx, orgId);
+
+    const [execution] = await tx
+      .select()
+      .from(workflowExecutions)
+      .where(
+        and(
+          eq(workflowExecutions.workflowId, input.workflowId),
+          eq(workflowExecutions.triggerEventId, input.triggerEventId),
+          eq(workflowExecutions.triggerType, "domain_event"),
+        ),
+      )
+      .orderBy(desc(workflowExecutions.startedAt), desc(workflowExecutions.id))
       .limit(1);
 
     return execution ?? null;

@@ -216,6 +216,7 @@ CREATE TABLE "workflow_executions" (
 	"trigger_type" text,
 	"is_dry_run" boolean DEFAULT false NOT NULL,
 	"trigger_event_type" text,
+	"trigger_event_id" text,
 	"correlation_key" text,
 	"input" jsonb,
 	"output" jsonb,
@@ -391,6 +392,7 @@ CREATE INDEX "workflow_execution_events_org_execution_created_at_idx" ON "workfl
 CREATE INDEX "workflow_execution_logs_org_execution_id_idx" ON "workflow_execution_logs" ("org_id","execution_id");--> statement-breakpoint
 CREATE INDEX "workflow_execution_logs_org_execution_timestamp_idx" ON "workflow_execution_logs" ("org_id","execution_id","timestamp");--> statement-breakpoint
 CREATE UNIQUE INDEX "workflow_executions_org_workflow_run_id_uidx" ON "workflow_executions" ("org_id","workflow_run_id") WHERE "workflow_run_id" IS NOT NULL;--> statement-breakpoint
+CREATE UNIQUE INDEX "workflow_executions_org_workflow_trigger_event_uidx" ON "workflow_executions" ("org_id","workflow_id","trigger_event_id") WHERE "trigger_type" = 'domain_event' AND "trigger_event_id" IS NOT NULL;--> statement-breakpoint
 CREATE INDEX "workflow_executions_org_workflow_started_at_idx" ON "workflow_executions" ("org_id","workflow_id","started_at");--> statement-breakpoint
 CREATE INDEX "workflow_executions_org_workflow_correlation_key_idx" ON "workflow_executions" ("org_id","workflow_id","correlation_key");--> statement-breakpoint
 CREATE UNIQUE INDEX "workflow_wait_states_hook_token_uidx" ON "workflow_wait_states" ("hook_token") WHERE "hook_token" IS NOT NULL;--> statement-breakpoint

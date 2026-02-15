@@ -489,6 +489,7 @@ export const workflowExecutions = pgTable.withRLS(
     triggerType: text("trigger_type"),
     isDryRun: boolean("is_dry_run").notNull().default(false),
     triggerEventType: text("trigger_event_type"),
+    triggerEventId: text("trigger_event_id"),
     correlationKey: text("correlation_key"),
     input: jsonb("input").$type<Record<string, unknown>>(),
     output: jsonb("output"),
@@ -505,6 +506,11 @@ export const workflowExecutions = pgTable.withRLS(
     uniqueIndex("workflow_executions_org_workflow_run_id_uidx")
       .on(table.orgId, table.workflowRunId)
       .where(sql`${table.workflowRunId} IS NOT NULL`),
+    uniqueIndex("workflow_executions_org_workflow_trigger_event_uidx")
+      .on(table.orgId, table.workflowId, table.triggerEventId)
+      .where(
+        sql`${table.triggerType} = 'domain_event' AND ${table.triggerEventId} IS NOT NULL`,
+      ),
     index("workflow_executions_org_workflow_started_at_idx").on(
       table.orgId,
       table.workflowId,

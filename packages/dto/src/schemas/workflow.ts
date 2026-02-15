@@ -180,6 +180,7 @@ export const workflowExecutionIgnoredReasonSchema = z.enum([
   "missing_event_type",
   "event_not_configured",
   "no_waiting_runs",
+  "duplicate_event",
 ]);
 
 export const workflowExecutionRunningResponseSchema = z.object({
