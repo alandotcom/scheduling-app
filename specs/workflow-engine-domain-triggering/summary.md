@@ -24,9 +24,14 @@ Confirmed scope includes:
 - no workflow seed data by default
 - active-dev DB approach (update initial schema directly)
 
-## Recommended Next Steps
-1. Execute Step 1 from `plan.md`: add workflow DTO schemas/contracts and tests.
-2. Execute Step 2 from `plan.md`: add workflow DB tables + RLS + migration snapshot updates.
-3. Execute Step 3-4 from `plan.md`: workflow repositories/services and oRPC CRUD routes, then wire list UI.
-4. Continue through runtime/orchestration and full editor port steps (5-12).
+## Implementation Status
+The plan is complete through Step 12. Workflow engine and editor parity is now implemented with required adaptations for this repo:
 
+- Canonical domain-event trigger ingress (`packages/dto/src/schemas/domain-event.ts`) drives workflow orchestration.
+- Workflow management and execution APIs are exposed through oRPC with admin-only mutations and authenticated read access.
+- Workflow persistence is org-scoped with RLS enforcement across all workflow tables.
+- Admin UI includes workflow list, editor, trigger configuration, autosave, and runs/logs/events/status panels.
+
+## Operational Notes
+- Architecture and runtime behavior are documented in `docs/ARCHITECTURE.md`.
+- Workflow-specific usage and smoke-validation guidance are documented in `docs/guides/workflow-engine-domain-events.md`.

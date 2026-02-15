@@ -72,11 +72,11 @@ Domain events on mutations follow this path:
 
 Workflow orchestration and authoring follow this path:
 
-1. Workflow definitions are authored in admin UI (React Flow style utility).
-2. Definitions are validated, versioned, and published through workflow API routes.
-3. Runtime trigger functions map domain events to workflow runs.
-4. Inngest executes waits/steps/cancellations with deterministic idempotency keys.
-5. Delivery effects are deduped through `workflow_delivery_log`.
+1. Workflow definitions are authored in admin UI and persisted through oRPC workflow routes.
+2. Trigger configs use canonical domain event type routing sets (`startEvents`, `restartEvents`, `stopEvents`).
+3. Domain event consumer evaluates trigger routing and applies `start`/`restart`/`stop`/`ignore` orchestration.
+4. Inngest executes workflow runs and updates execution artifacts (logs, events, status, wait states).
+5. Duplicate event delivery is ignored through event-id dedupe and execution-level `trigger_event_id` uniqueness.
 
 Current integration registry:
 
@@ -100,6 +100,7 @@ pnpm --filter @scheduling/api run sync:svix-event-catalog
 ## Related Docs
 
 - Docs index: [`./README.md`](./README.md)
+- Workflow engine guide: [`./guides/workflow-engine-domain-events.md`](./guides/workflow-engine-domain-events.md)
 - Implementation plans index: [`./plans/README.md`](./plans/README.md)
 - Integration authoring: [`../integrations/README.md`](../integrations/README.md)
 - Root setup/commands: [`../README.md`](../README.md)

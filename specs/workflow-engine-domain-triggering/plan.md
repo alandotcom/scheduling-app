@@ -1,18 +1,18 @@
 # Implementation Plan
 
 ## Checklist
-- [ ] Step 1: Add workflow DTO schemas and contracts
-- [ ] Step 2: Add workflow DB schema with org-scoped RLS
-- [ ] Step 3: Implement minimal workflow repositories and CRUD services
-- [ ] Step 4: Expose workflow CRUD via oRPC and wire basic admin UI list
-- [ ] Step 5: Add domain-event trigger evaluation and minimal run start path
-- [ ] Step 6: Add full trigger orchestration (start/restart/stop/ignore + wait-state resume)
-- [ ] Step 7: Add execution history/logs/events/status/cancel APIs
-- [ ] Step 8: Add current-workflow autosave and duplicate/visibility parity APIs
-- [ ] Step 9: Port workflow editor core UI (routes, store, canvas, autosave)
-- [ ] Step 10: Port workflow config, trigger UI, and run panels with role-aware behavior
-- [ ] Step 11: Complete authorization hardening and idempotency/dedupe safeguards
-- [ ] Step 12: End-to-end validation, regression tests, and documentation updates
+- [x] Step 1: Add workflow DTO schemas and contracts
+- [x] Step 2: Add workflow DB schema with org-scoped RLS
+- [x] Step 3: Implement minimal workflow repositories and CRUD services
+- [x] Step 4: Expose workflow CRUD via oRPC and wire basic admin UI list
+- [x] Step 5: Add domain-event trigger evaluation and minimal run start path
+- [x] Step 6: Add full trigger orchestration (start/restart/stop/ignore + wait-state resume)
+- [x] Step 7: Add execution history/logs/events/status/cancel APIs
+- [x] Step 8: Add current-workflow autosave and duplicate/visibility parity APIs
+- [x] Step 9: Port workflow editor core UI (routes, store, canvas, autosave)
+- [x] Step 10: Port workflow config, trigger UI, and run panels with role-aware behavior
+- [x] Step 11: Complete authorization hardening and idempotency/dedupe safeguards
+- [x] Step 12: End-to-end validation, regression tests, and documentation updates
 
 ## Step 1: Add workflow DTO schemas and contracts
 ### Objective
