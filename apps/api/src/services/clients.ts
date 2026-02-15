@@ -240,43 +240,43 @@ export class ClientService {
     data: UpdateClientInput,
     context: ServiceContext,
   ): Promise<Client> {
-    const { existing, updated, normalizedChanges } = await withOrg(
-      context.orgId,
-      async (tx) => {
-        // Get existing for event payload
-        const existing = await clientRepository.findById(tx, context.orgId, id);
+    const { existing, updated } = await withOrg(context.orgId, async (tx) => {
+      // Get existing for event payload
+      const existing = await clientRepository.findById(tx, context.orgId, id);
 
-        if (!existing) {
-          throw new ApplicationError("Client not found", { code: "NOT_FOUND" });
-        }
+      if (!existing) {
+        throw new ApplicationError("Client not found", { code: "NOT_FOUND" });
+      }
 
-        const normalizedChanges = normalizeUpdateInput(data);
+      const normalizedChanges = normalizeUpdateInput(data);
 
-        let updated: Client | null;
-        try {
-          updated = await clientRepository.update(
-            tx,
-            context.orgId,
-            id,
-            normalizedChanges,
-          );
-        } catch (error: unknown) {
-          const mappedError = mapClientWriteError(error);
-          if (mappedError) throw mappedError;
-          throw error;
-        }
+      let updated: Client | null;
+      try {
+        updated = await clientRepository.update(
+          tx,
+          context.orgId,
+          id,
+          normalizedChanges,
+        );
+      } catch (error: unknown) {
+        const mappedError = mapClientWriteError(error);
+        if (mappedError) throw mappedError;
+        throw error;
+      }
 
-        if (!updated) {
-          throw new ApplicationError("Client not found", { code: "NOT_FOUND" });
-        }
+      if (!updated) {
+        throw new ApplicationError("Client not found", { code: "NOT_FOUND" });
+      }
 
-        return { existing, updated, normalizedChanges };
-      },
-    );
+      return { existing, updated };
+    });
 
     await events.clientUpdated(context.orgId, {
       clientId: updated.id,
-      changes: normalizedChanges,
+      firstName: updated.firstName,
+      lastName: updated.lastName,
+      email: updated.email,
+      phone: updated.phone,
       previous: {
         firstName: existing.firstName,
         lastName: existing.lastName,

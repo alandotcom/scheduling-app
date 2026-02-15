@@ -22,6 +22,7 @@ export function DropdownMenuTrigger(
 export function DropdownMenuContent({
   className,
   sideOffset = 4,
+  children,
   ...props
 }: React.ComponentProps<typeof DropdownMenuPrimitive.Positioner> & {
   sideOffset?: number;
@@ -34,7 +35,9 @@ export function DropdownMenuContent({
             "z-50 min-w-[10rem] rounded-md border bg-popover p-1 text-popover-foreground shadow-md outline-none",
             className,
           )}
-        />
+        >
+          {children}
+        </DropdownMenuPrimitive.Popup>
       </DropdownMenuPrimitive.Positioner>
     </DropdownMenuPrimitive.Portal>
   );

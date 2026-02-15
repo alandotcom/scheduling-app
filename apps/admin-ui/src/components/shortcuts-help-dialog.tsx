@@ -51,6 +51,36 @@ const SHORTCUT_SECTIONS: ShortcutSection[] = [
     ],
   },
   {
+    title: "Workflow Editor",
+    rows: [
+      {
+        shortcut: "meta+b",
+        description: "Toggle sidebar",
+        searchTerms: ["sidebar", "panel", "collapse"],
+      },
+      {
+        shortcut: "meta+s",
+        description: "Save workflow",
+        searchTerms: ["save"],
+      },
+      {
+        shortcut: "meta+z",
+        description: "Undo",
+        searchTerms: ["undo"],
+      },
+      {
+        shortcut: "meta+shift+z",
+        description: "Redo",
+        searchTerms: ["redo"],
+      },
+      {
+        shortcut: "meta+enter",
+        description: "Run workflow",
+        searchTerms: ["run", "execute"],
+      },
+    ],
+  },
+  {
     title: "Lists",
     rows: [
       {

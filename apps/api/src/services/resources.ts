@@ -119,7 +119,9 @@ export class ResourceService {
 
     await events.resourceUpdated(context.orgId, {
       resourceId: updated.id,
-      changes: data,
+      name: updated.name,
+      quantity: updated.quantity,
+      locationId: updated.locationId,
       previous: {
         name: existing.name,
         quantity: existing.quantity,

@@ -91,7 +91,8 @@ export class LocationService {
 
     await events.locationUpdated(context.orgId, {
       locationId: updated.id,
-      changes: data,
+      name: updated.name,
+      timezone: updated.timezone,
       previous: {
         name: existing.name,
         timezone: existing.timezone,

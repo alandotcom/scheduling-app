@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { domainEventTypeSchema } from "./domain-event";
 
-export const workflowNodeTypeSchema = z.enum(["trigger", "action", "add"]);
+export const workflowNodeTypeSchema = z.enum(["trigger", "action"]);
 export const workflowNodeRuntimeStatusSchema = z.enum([
   "idle",
   "running",
@@ -88,7 +88,7 @@ const workflowTriggerNodeDataSchema = workflowNodeDataBaseSchema
 
 const workflowNonTriggerNodeDataSchema = workflowNodeDataBaseSchema
   .extend({
-    type: z.enum(["action", "add"]),
+    type: z.literal("action"),
     config: z.record(z.string(), z.unknown()).optional(),
   })
   .loose();

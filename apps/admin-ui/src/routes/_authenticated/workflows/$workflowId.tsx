@@ -1,33 +1,40 @@
-import { useEffect, useMemo } from "react";
+import { useCallback, useEffect, useMemo } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Add01Icon } from "@hugeicons/core-free-icons";
+import { ArrowLeft02Icon } from "@hugeicons/core-free-icons";
+import { ReactFlowProvider } from "@xyflow/react";
 import { toast } from "sonner";
 import { useAtomValue, useSetAtom } from "jotai";
 import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
+import { Panel } from "@/components/flow-elements/panel";
 import { PageScaffold } from "@/components/layout/page-scaffold";
+import { useKeyboardShortcuts } from "@/hooks/use-keyboard-shortcuts";
 import { canManageWorkflowsForRole } from "@/features/workflows/workflow-list-page";
 import { WorkflowEditorCanvas } from "@/features/workflows/workflow-editor-canvas";
 import { WorkflowEditorSidebar } from "@/features/workflows/workflow-editor-sidebar";
+import { WorkflowSidebarPanel } from "@/features/workflows/workflow-sidebar-panel";
+import { WorkflowToolbar } from "@/features/workflows/workflow-toolbar";
 import {
-  addWorkflowEditorActionNodeAtom,
+  deleteEdgeAtom,
+  deleteNodeAtom,
+  redoAtom,
   serializeWorkflowGraph,
   setWorkflowEditorGraphAtom,
+  undoAtom,
   workflowEditorEdgesAtom,
   workflowEditorHasUnsavedChangesAtom,
   workflowEditorIsLoadedAtom,
   workflowEditorIsReadOnlyAtom,
   workflowEditorIsSavingAtom,
   workflowEditorNodesAtom,
+  workflowEditorSelectedEdgeIdAtom,
   workflowEditorSelectedNodeIdAtom,
   workflowEditorWorkflowIdAtom,
   updateWorkflowEditorNodeDataAtom,
 } from "@/features/workflows/workflow-editor-store";
 import { getQueryClient, orpc } from "@/lib/query";
 import { swallowIgnorableRouteLoaderError } from "@/lib/query-cancellation";
-
-const AUTOSAVE_DELAY_MS = 1000;
 
 function resolveErrorMessage(error: unknown): string {
   if (error instanceof Error && error.message) return error.message;
@@ -58,18 +65,27 @@ function WorkflowEditorPage() {
   const isSaving = useAtomValue(workflowEditorIsSavingAtom);
   const isLoaded = useAtomValue(workflowEditorIsLoadedAtom);
   const selectedNodeId = useAtomValue(workflowEditorSelectedNodeIdAtom);
+  const selectedEdgeId = useAtomValue(workflowEditorSelectedEdgeIdAtom);
 
   const setGraph = useSetAtom(setWorkflowEditorGraphAtom);
   const setIsReadOnly = useSetAtom(workflowEditorIsReadOnlyAtom);
   const setHasUnsavedChanges = useSetAtom(workflowEditorHasUnsavedChangesAtom);
   const setIsSaving = useSetAtom(workflowEditorIsSavingAtom);
   const setWorkflowId = useSetAtom(workflowEditorWorkflowIdAtom);
-  const addActionNode = useSetAtom(addWorkflowEditorActionNodeAtom);
   const updateNodeData = useSetAtom(updateWorkflowEditorNodeDataAtom);
+  const deleteNode = useSetAtom(deleteNodeAtom);
+  const deleteEdge = useSetAtom(deleteEdgeAtom);
+  const undo = useSetAtom(undoAtom);
+  const redo = useSetAtom(redoAtom);
 
   const selectedNode = useMemo(
     () => nodes.find((node) => node.id === selectedNodeId) ?? null,
     [nodes, selectedNodeId],
+  );
+
+  const selectedEdge = useMemo(
+    () => edges.find((edge) => edge.id === selectedEdgeId) ?? null,
+    [edges, selectedEdgeId],
   );
 
   const canManageByRole = canManageWorkflowsForRole(
@@ -115,42 +131,30 @@ function WorkflowEditorPage() {
   );
 
   const graph = useMemo(
-    () =>
-      serializeWorkflowGraph({
-        nodes,
-        edges,
-      }),
+    () => serializeWorkflowGraph({ nodes, edges }),
     [nodes, edges],
   );
 
-  useEffect(() => {
-    if (!isLoaded || !hasUnsavedChanges || !canManageWorkflow) return;
-
-    const timeoutId = setTimeout(async () => {
-      setIsSaving(true);
-      try {
-        if (isCurrentWorkflowDraft) {
-          const saved = await saveCurrentMutation.mutateAsync({ graph });
-          setWorkflowId(saved.id ?? null);
-        } else {
-          await updateMutation.mutateAsync({
-            id: workflowId,
-            data: { graph },
-          });
-        }
-        setHasUnsavedChanges(false);
-      } finally {
-        setIsSaving(false);
+  const saveWorkflow = useCallback(async () => {
+    if (!isLoaded || !canManageWorkflow) return;
+    setIsSaving(true);
+    try {
+      if (isCurrentWorkflowDraft) {
+        const saved = await saveCurrentMutation.mutateAsync({ graph });
+        setWorkflowId(saved.id ?? null);
+      } else {
+        await updateMutation.mutateAsync({
+          id: workflowId,
+          data: { graph },
+        });
       }
-    }, AUTOSAVE_DELAY_MS);
-
-    return () => {
-      clearTimeout(timeoutId);
-    };
+      setHasUnsavedChanges(false);
+    } finally {
+      setIsSaving(false);
+    }
   }, [
     canManageWorkflow,
     graph,
-    hasUnsavedChanges,
     isCurrentWorkflowDraft,
     isLoaded,
     saveCurrentMutation,
@@ -160,6 +164,43 @@ function WorkflowEditorPage() {
     updateMutation,
     workflowId,
   ]);
+
+  const handleExecute = useCallback((_options?: { dryRun?: boolean }) => {
+    toast.error("Workflow execution is not yet implemented.");
+  }, []);
+
+  // Keyboard shortcuts for the workflow editor
+  useKeyboardShortcuts({
+    shortcuts: [
+      {
+        key: ["meta+s", "ctrl+s"],
+        action: () => {
+          if (hasUnsavedChanges) void saveWorkflow();
+        },
+        description: "Save workflow",
+        ignoreInputs: false,
+      },
+      {
+        key: ["meta+z", "ctrl+z"],
+        action: () => undo(),
+        description: "Undo",
+        ignoreInputs: false,
+      },
+      {
+        key: ["meta+shift+z", "ctrl+shift+z"],
+        action: () => redo(),
+        description: "Redo",
+        ignoreInputs: false,
+      },
+      {
+        key: ["meta+enter", "ctrl+enter"],
+        action: () => handleExecute(),
+        description: "Run workflow",
+        ignoreInputs: false,
+      },
+    ],
+    enabled: canManageWorkflow,
+  });
 
   if (workflowQuery.isLoading || authContextQuery.isLoading) {
     return (
@@ -185,46 +226,52 @@ function WorkflowEditorPage() {
   }
 
   return (
-    <PageScaffold className="space-y-4 pb-8">
-      <header className="flex flex-wrap items-center justify-between gap-3">
-        <div className="space-y-1">
-          <h1 className="text-2xl font-semibold tracking-tight">
-            Workflow editor
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            {canManageWorkflow
-              ? isSaving
-                ? "Autosaving changes..."
-                : hasUnsavedChanges
-                  ? "Unsaved changes"
-                  : "All changes saved"
-              : "Read-only access for your role."}
-          </p>
-        </div>
-
-        <div className="flex items-center gap-2">
-          {canManageWorkflow ? (
-            <Button onClick={() => addActionNode()} size="sm" variant="outline">
-              <Icon icon={Add01Icon} className="size-4" />
-              Add action node
-            </Button>
-          ) : null}
-          <Button asChild size="sm" variant="outline">
-            <Link to="/workflows">Back</Link>
+    <div className="relative flex h-[calc(100dvh-var(--header-height,3.5rem))] w-full overflow-hidden">
+      <WorkflowEditorCanvas canEdit={canManageWorkflow}>
+        {/* Back button - top left */}
+        <Panel position="top-left" className="flex items-center gap-2">
+          <Button
+            asChild
+            size="icon-sm"
+            variant="outline"
+            title="Back to workflows"
+          >
+            <Link to="/workflows">
+              <Icon icon={ArrowLeft02Icon} />
+            </Link>
           </Button>
-        </div>
-      </header>
+        </Panel>
 
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr),380px]">
-        <WorkflowEditorCanvas canEdit={canManageWorkflow} />
+        {/* Toolbar - top right */}
+        <WorkflowToolbar
+          canManageWorkflow={canManageWorkflow}
+          isSaving={isSaving}
+          onSave={() => void saveWorkflow()}
+          onExecute={handleExecute}
+        />
+      </WorkflowEditorCanvas>
+
+      {/* Sidebar panel overlay */}
+      <WorkflowSidebarPanel>
         <WorkflowEditorSidebar
           canManageWorkflow={canManageWorkflow}
+          onDeleteEdge={canManageWorkflow ? deleteEdge : undefined}
+          onDeleteNode={canManageWorkflow ? deleteNode : undefined}
           onUpdateNodeData={updateNodeData}
+          selectedEdge={selectedEdge}
           selectedNode={selectedNode}
           workflowId={workflowQuery.data?.id ?? null}
         />
-      </div>
-    </PageScaffold>
+      </WorkflowSidebarPanel>
+    </div>
+  );
+}
+
+function WorkflowEditorPageWrapper() {
+  return (
+    <ReactFlowProvider>
+      <WorkflowEditorPage />
+    </ReactFlowProvider>
   );
 }
 
@@ -246,5 +293,5 @@ export const Route = createFileRoute("/_authenticated/workflows/$workflowId")({
       ]),
     );
   },
-  component: WorkflowEditorPage,
+  component: WorkflowEditorPageWrapper,
 });

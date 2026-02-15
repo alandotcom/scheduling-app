@@ -1,0 +1,129 @@
+import { describe, expect, test } from "bun:test";
+import { domainEventDataSchemaByType, type WebhookEventType } from "./index";
+
+const updatedEventFixtures: Array<{
+  type: WebhookEventType;
+  payload: Record<string, unknown>;
+}> = [
+  {
+    type: "appointment.updated",
+    payload: {
+      appointmentId: "018f4d3a-6d80-7c5b-8a4a-6cb8f8d57d01",
+      calendarId: "018f4d3a-6d80-7c5b-8a4a-6cb8f8d57d02",
+      appointmentTypeId: "018f4d3a-6d80-7c5b-8a4a-6cb8f8d57d03",
+      clientId: "018f4d3a-6d80-7c5b-8a4a-6cb8f8d57d04",
+      startAt: "2026-02-15T09:00:00Z",
+      endAt: "2026-02-15T09:30:00Z",
+      timezone: "America/New_York",
+      status: "scheduled",
+      notes: "Updated note",
+      previous: {
+        calendarId: "018f4d3a-6d80-7c5b-8a4a-6cb8f8d57d02",
+        appointmentTypeId: "018f4d3a-6d80-7c5b-8a4a-6cb8f8d57d03",
+        clientId: null,
+        startAt: "2026-02-15T08:00:00Z",
+        endAt: "2026-02-15T08:30:00Z",
+        timezone: "America/New_York",
+        status: "scheduled",
+        notes: null,
+      },
+    },
+  },
+  {
+    type: "calendar.updated",
+    payload: {
+      calendarId: "018f4d3a-6d80-7c5b-8a4a-6cb8f8d57d11",
+      name: "Updated Calendar",
+      timezone: "America/New_York",
+      locationId: null,
+      previous: {
+        name: "Old Calendar",
+        timezone: "UTC",
+        locationId: null,
+      },
+    },
+  },
+  {
+    type: "appointment_type.updated",
+    payload: {
+      appointmentTypeId: "018f4d3a-6d80-7c5b-8a4a-6cb8f8d57d21",
+      name: "Updated Type",
+      durationMin: 60,
+      paddingBeforeMin: 10,
+      paddingAfterMin: 5,
+      capacity: null,
+      metadata: { mode: "telehealth" },
+      previous: {
+        name: "Old Type",
+        durationMin: 45,
+        paddingBeforeMin: null,
+        paddingAfterMin: null,
+        capacity: 1,
+        metadata: null,
+      },
+    },
+  },
+  {
+    type: "resource.updated",
+    payload: {
+      resourceId: "018f4d3a-6d80-7c5b-8a4a-6cb8f8d57d31",
+      name: "Room",
+      quantity: 5,
+      locationId: "018f4d3a-6d80-7c5b-8a4a-6cb8f8d57d32",
+      previous: {
+        name: "Old Room",
+        quantity: 2,
+        locationId: null,
+      },
+    },
+  },
+  {
+    type: "location.updated",
+    payload: {
+      locationId: "018f4d3a-6d80-7c5b-8a4a-6cb8f8d57d41",
+      name: "Updated Office",
+      timezone: "America/Chicago",
+      previous: {
+        name: "Old Office",
+        timezone: "America/New_York",
+      },
+    },
+  },
+  {
+    type: "client.updated",
+    payload: {
+      clientId: "018f4d3a-6d80-7c5b-8a4a-6cb8f8d57d51",
+      firstName: "Ada",
+      lastName: "Lovelace",
+      email: null,
+      phone: null,
+      previous: {
+        firstName: "Ada",
+        lastName: "Lovelace",
+        email: "ada@example.com",
+        phone: "+15551234567",
+      },
+    },
+  },
+];
+
+describe("webhook updated event schemas", () => {
+  test.each(
+    updatedEventFixtures,
+  )("accepts %s payload as full snapshot + previous", ({ type, payload }) => {
+    expect(domainEventDataSchemaByType[type].safeParse(payload).success).toBe(
+      true,
+    );
+  });
+
+  test("rejects legacy appointment.updated payload with changes object", () => {
+    expect(
+      domainEventDataSchemaByType["appointment.updated"].safeParse({
+        appointmentId: "018f4d3a-6d80-7c5b-8a4a-6cb8f8d57d01",
+        changes: { notes: "Updated note" },
+        previousClientId: null,
+        previousNotes: null,
+      }).success,
+    ).toBe(false);
+  });
+});

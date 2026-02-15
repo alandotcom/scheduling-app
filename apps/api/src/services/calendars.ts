@@ -126,7 +126,9 @@ export class CalendarService {
 
     await events.calendarUpdated(orgId, {
       calendarId: updated.id,
-      changes: data,
+      name: updated.name,
+      timezone: updated.timezone,
+      locationId: updated.locationId,
       previous: {
         name: existing.name,
         timezone: existing.timezone,

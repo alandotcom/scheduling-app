@@ -142,13 +142,19 @@ export class AppointmentTypeService {
 
     await events.appointmentTypeUpdated(context.orgId, {
       appointmentTypeId: updated.id,
-      changes: data,
+      name: updated.name,
+      durationMin: updated.durationMin,
+      paddingBeforeMin: updated.paddingBeforeMin,
+      paddingAfterMin: updated.paddingAfterMin,
+      capacity: updated.capacity,
+      metadata: updated.metadata as Record<string, unknown> | null,
       previous: {
         name: existing.name,
         durationMin: existing.durationMin,
         paddingBeforeMin: existing.paddingBeforeMin,
         paddingAfterMin: existing.paddingAfterMin,
         capacity: existing.capacity,
+        metadata: existing.metadata as Record<string, unknown> | null,
       },
     });
 

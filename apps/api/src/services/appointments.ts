@@ -400,9 +400,24 @@ export class AppointmentService {
 
     await events.appointmentUpdated(orgId, {
       appointmentId: updated.id,
-      changes: data,
-      previousClientId: existing.clientId,
-      previousNotes: existing.notes,
+      calendarId: updated.calendarId,
+      appointmentTypeId: updated.appointmentTypeId,
+      clientId: updated.clientId,
+      startAt: updated.startAt.toISOString(),
+      endAt: updated.endAt.toISOString(),
+      timezone: updated.timezone,
+      status: updated.status,
+      notes: updated.notes,
+      previous: {
+        calendarId: existing.calendarId,
+        appointmentTypeId: existing.appointmentTypeId,
+        clientId: existing.clientId,
+        startAt: existing.startAt.toISOString(),
+        endAt: existing.endAt.toISOString(),
+        timezone: existing.timezone,
+        status: existing.status,
+        notes: existing.notes,
+      },
     });
 
     return updated;

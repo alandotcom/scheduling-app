@@ -113,6 +113,8 @@ import { Calendar02Icon } from "@hugeicons/core-free-icons";
 
 **Loading:** `<Skeleton />` and `<TableSkeleton />` from `@/components/ui/skeleton`.
 
+**Delete buttons:** Always style delete buttons with destructive color: `className="text-destructive hover:bg-destructive/10 hover:text-destructive"`.
+
 ## Modal & Drawer Patterns
 
 URL-driven detail modals use two hooks together:

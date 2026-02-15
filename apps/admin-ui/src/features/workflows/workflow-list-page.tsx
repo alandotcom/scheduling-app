@@ -1,10 +1,14 @@
-import { Add01Icon } from "@hugeicons/core-free-icons";
+import { useState } from "react";
+import { Add01Icon, Delete01Icon } from "@hugeicons/core-free-icons";
 import { Link } from "@tanstack/react-router";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import type { WorkflowListResponse } from "@scheduling/dto";
 import {
   EntityListEmptyState,
   EntityListLoadingState,
 } from "@/components/entity-list";
+import { DeleteConfirmDialog } from "@/components/delete-confirm-dialog";
 import { PageScaffold } from "@/components/layout/page-scaffold";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -19,6 +23,7 @@ import {
 } from "@/components/ui/card";
 import { Icon } from "@/components/ui/icon";
 import { formatDisplayDateTime } from "@/lib/date-utils";
+import { orpc } from "@/lib/query";
 
 type OrgRole = "owner" | "admin" | "member" | null | undefined;
 
@@ -45,6 +50,24 @@ export function WorkflowListPage({
   errorMessage,
   canManageWorkflows,
 }: WorkflowListPageProps) {
+  const queryClient = useQueryClient();
+  const [deleteTarget, setDeleteTarget] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
+
+  const deleteMutation = useMutation(
+    orpc.workflows.remove.mutationOptions({
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: orpc.workflows.key() });
+        setDeleteTarget(null);
+      },
+      onError: (error) => {
+        toast.error(error.message || "Failed to delete workflow");
+      },
+    }),
+  );
+
   return (
     <PageScaffold className="space-y-6">
       <header className="flex flex-wrap items-center justify-between gap-3">
@@ -112,7 +135,23 @@ export function WorkflowListPage({
                   {formatDisplayDateTime(workflow.updatedAt)}
                 </p>
               </CardContent>
-              <CardFooter className="justify-end">
+              <CardFooter className="justify-end gap-2">
+                {canManageWorkflows ? (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                    onClick={() =>
+                      setDeleteTarget({
+                        id: workflow.id,
+                        name: workflow.name,
+                      })
+                    }
+                  >
+                    <Icon icon={Delete01Icon} className="size-4" />
+                    Delete
+                  </Button>
+                ) : null}
                 <Button asChild size="sm" variant="outline">
                   <Link
                     to="/workflows/$workflowId"
@@ -126,6 +165,19 @@ export function WorkflowListPage({
           ))}
         </div>
       ) : null}
+
+      <DeleteConfirmDialog
+        open={!!deleteTarget}
+        onOpenChange={(open) => {
+          if (!open) setDeleteTarget(null);
+        }}
+        onConfirm={() => {
+          if (deleteTarget) deleteMutation.mutate({ id: deleteTarget.id });
+        }}
+        title={`Delete "${deleteTarget?.name ?? "workflow"}"?`}
+        description="This will permanently delete this workflow. This action cannot be undone."
+        isPending={deleteMutation.isPending}
+      />
     </PageScaffold>
   );
 }

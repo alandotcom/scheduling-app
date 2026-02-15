@@ -2,11 +2,13 @@ import { useEffect, useMemo, useState } from "react";
 import { domainEventTypes } from "@scheduling/dto";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
+import { MultiSelectCombobox } from "@/components/ui/multi-select-combobox";
 
-const DOMAIN_EVENT_TYPE_MAP: Record<string, true> = Object.fromEntries(
-  domainEventTypes.map((eventType) => [eventType, true]),
-);
+function toStringArray(value: unknown): string[] {
+  return Array.isArray(value)
+    ? value.filter((v): v is string => typeof v === "string")
+    : [];
+}
 
 type TriggerConfigShape = {
   startEvents?: string[];
@@ -15,25 +17,6 @@ type TriggerConfigShape = {
   domainEventCorrelationPath?: string;
   domainEventMockEvent?: string;
 };
-
-type TriggerConfigFieldKey = "startEvents" | "restartEvents" | "stopEvents";
-
-export function parseDomainEventInput(value: string): {
-  values: string[];
-  invalid: string[];
-} {
-  const values = [...new Set(value.split(/[\n,]/).map((item) => item.trim()))]
-    .filter((item) => item.length > 0)
-    .toSorted((left, right) => left.localeCompare(right));
-
-  const invalid = values.filter((item) => !DOMAIN_EVENT_TYPE_MAP[item]);
-
-  return { values, invalid };
-}
-
-function toInputValue(value: unknown): string {
-  return Array.isArray(value) ? value.join(", ") : "";
-}
 
 interface WorkflowTriggerConfigProps {
   config: Record<string, unknown>;
@@ -46,19 +29,10 @@ export function WorkflowTriggerConfig({
   disabled,
   onUpdate,
 }: WorkflowTriggerConfigProps) {
-  const [startEventsValue, setStartEventsValue] = useState("");
-  const [restartEventsValue, setRestartEventsValue] = useState("");
-  const [stopEventsValue, setStopEventsValue] = useState("");
   const [correlationPathValue, setCorrelationPathValue] = useState("");
   const [mockEventValue, setMockEventValue] = useState("");
-  const [eventErrors, setEventErrors] = useState<
-    Partial<Record<TriggerConfigFieldKey, string>>
-  >({});
 
   useEffect(() => {
-    setStartEventsValue(toInputValue(config.startEvents));
-    setRestartEventsValue(toInputValue(config.restartEvents));
-    setStopEventsValue(toInputValue(config.stopEvents));
     setCorrelationPathValue(
       typeof config.domainEventCorrelationPath === "string"
         ? config.domainEventCorrelationPath
@@ -69,52 +43,19 @@ export function WorkflowTriggerConfig({
         ? config.domainEventMockEvent
         : "",
     );
-    setEventErrors({});
-  }, [
-    config.domainEventCorrelationPath,
-    config.domainEventMockEvent,
-    config.restartEvents,
-    config.startEvents,
-    config.stopEvents,
-  ]);
+  }, [config.domainEventCorrelationPath, config.domainEventMockEvent]);
 
   const overlapWarnings = useMemo(() => {
-    const start = new Set(parseDomainEventInput(startEventsValue).values);
-    const restart = new Set(parseDomainEventInput(restartEventsValue).values);
-    const stop = new Set(parseDomainEventInput(stopEventsValue).values);
-
-    const startRestart = [...start].filter((eventType) =>
-      restart.has(eventType),
-    );
-    const startStop = [...start].filter((eventType) => stop.has(eventType));
-    const restartStop = [...restart].filter((eventType) => stop.has(eventType));
+    const start = new Set(toStringArray(config.startEvents));
+    const restart = new Set(toStringArray(config.restartEvents));
+    const stop = new Set(toStringArray(config.stopEvents));
 
     return {
-      startRestart,
-      startStop,
-      restartStop,
+      startRestart: [...start].filter((e) => restart.has(e)),
+      startStop: [...start].filter((e) => stop.has(e)),
+      restartStop: [...restart].filter((e) => stop.has(e)),
     };
-  }, [restartEventsValue, startEventsValue, stopEventsValue]);
-
-  function commitRoutingSet(field: TriggerConfigFieldKey, value: string) {
-    const parsed = parseDomainEventInput(value);
-
-    if (parsed.invalid.length > 0) {
-      setEventErrors((current) => ({
-        ...current,
-        [field]: `Unknown event type: ${parsed.invalid[0]}`,
-      }));
-      return;
-    }
-
-    setEventErrors((current) => {
-      const next = { ...current };
-      delete next[field];
-      return next;
-    });
-
-    onUpdate({ [field]: parsed.values });
-  }
+  }, [config.startEvents, config.restartEvents, config.stopEvents]);
 
   return (
     <section className="space-y-4">
@@ -127,56 +68,43 @@ export function WorkflowTriggerConfig({
 
       <div className="space-y-2">
         <Label htmlFor="workflow-trigger-start-events">Start events</Label>
-        <Textarea
+        <MultiSelectCombobox
           disabled={disabled}
-          id="workflow-trigger-start-events"
-          onBlur={(event) =>
-            commitRoutingSet("startEvents", event.target.value)
+          options={domainEventTypes}
+          value={
+            Array.isArray(config.startEvents)
+              ? (config.startEvents as string[])
+              : []
           }
-          onChange={(event) => setStartEventsValue(event.target.value)}
-          placeholder="appointment.created, appointment.confirmed"
-          rows={3}
-          value={startEventsValue}
+          onChange={(values) => onUpdate({ startEvents: values })}
+          placeholder="Select events..."
         />
-        {eventErrors.startEvents ? (
-          <p className="text-destructive text-xs">{eventErrors.startEvents}</p>
-        ) : null}
       </div>
 
       <div className="space-y-2">
         <Label htmlFor="workflow-trigger-restart-events">Restart events</Label>
-        <Textarea
+        <MultiSelectCombobox
           disabled={disabled}
-          id="workflow-trigger-restart-events"
-          onBlur={(event) =>
-            commitRoutingSet("restartEvents", event.target.value)
-          }
-          onChange={(event) => setRestartEventsValue(event.target.value)}
-          placeholder="appointment.rescheduled"
-          rows={3}
-          value={restartEventsValue}
+          options={domainEventTypes}
+          value={toStringArray(config.restartEvents)}
+          onChange={(values) => onUpdate({ restartEvents: values })}
+          placeholder="Select events..."
         />
-        {eventErrors.restartEvents ? (
-          <p className="text-destructive text-xs">
-            {eventErrors.restartEvents}
-          </p>
-        ) : null}
       </div>
 
       <div className="space-y-2">
         <Label htmlFor="workflow-trigger-stop-events">Stop events</Label>
-        <Textarea
+        <MultiSelectCombobox
           disabled={disabled}
-          id="workflow-trigger-stop-events"
-          onBlur={(event) => commitRoutingSet("stopEvents", event.target.value)}
-          onChange={(event) => setStopEventsValue(event.target.value)}
-          placeholder="appointment.cancelled"
-          rows={3}
-          value={stopEventsValue}
+          options={domainEventTypes}
+          value={
+            Array.isArray(config.stopEvents)
+              ? (config.stopEvents as string[])
+              : []
+          }
+          onChange={(values) => onUpdate({ stopEvents: values })}
+          placeholder="Select events..."
         />
-        {eventErrors.stopEvents ? (
-          <p className="text-destructive text-xs">{eventErrors.stopEvents}</p>
-        ) : null}
       </div>
 
       <div className="space-y-2">
@@ -241,10 +169,6 @@ export function WorkflowTriggerConfig({
           ) : null}
         </div>
       ) : null}
-
-      <p className="text-muted-foreground text-xs">
-        Available event types: {domainEventTypes.join(", ")}
-      </p>
     </section>
   );
 }

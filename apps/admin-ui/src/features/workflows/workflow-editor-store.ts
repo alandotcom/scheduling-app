@@ -23,35 +23,6 @@ type WorkflowGraphState = {
   edges: WorkflowCanvasEdge[];
 };
 
-export function createDefaultWorkflowGraph(): SerializedWorkflowGraph {
-  return {
-    attributes: {},
-    options: { type: "directed", allowSelfLoops: false, multi: false },
-    nodes: [
-      {
-        key: "trigger-node",
-        attributes: {
-          id: "trigger-node",
-          type: "trigger",
-          position: { x: 140, y: 180 },
-          data: {
-            type: "trigger",
-            label: "Trigger",
-            status: "idle",
-            config: {
-              triggerType: "DomainEvent",
-              startEvents: [],
-              restartEvents: [],
-              stopEvents: [],
-            },
-          },
-        },
-      },
-    ],
-    edges: [],
-  };
-}
-
 export function deserializeWorkflowGraph(
   graph: SerializedWorkflowGraph,
 ): WorkflowGraphState {
@@ -115,18 +86,69 @@ export const workflowEditorWorkflowIdAtom = atom<string | null>(null);
 export const workflowEditorSelectedNodeIdAtom = atom<string | null>(null);
 export const workflowEditorSelectedEdgeIdAtom = atom<string | null>(null);
 
+// Sidebar/Panel State
+export const rightPanelWidthAtom = atom<string | null>(null);
+export const isSidebarCollapsedAtom = atom(false);
+export const propertiesPanelActiveTabAtom = atom<string>("properties");
+
+// Execution State
+export const isExecutingAtom = atom(false);
+export const selectedExecutionIdAtom = atom<string | null>(null);
+
+// Undo/Redo System
+type HistoryState = {
+  nodes: WorkflowCanvasNode[];
+  edges: WorkflowCanvasEdge[];
+};
+
+const historyAtom = atom<HistoryState[]>([]);
+const futureAtom = atom<HistoryState[]>([]);
+
+export const undoAtom = atom(null, (get, set) => {
+  const history = get(historyAtom);
+  if (history.length === 0) return;
+  const currentNodes = get(workflowEditorNodesAtom);
+  const currentEdges = get(workflowEditorEdgesAtom);
+  const future = get(futureAtom);
+  set(futureAtom, [...future, { nodes: currentNodes, edges: currentEdges }]);
+  const newHistory = [...history];
+  const previousState = newHistory.pop()!;
+  set(historyAtom, newHistory);
+  set(workflowEditorNodesAtom, previousState.nodes);
+  set(workflowEditorEdgesAtom, previousState.edges);
+  set(workflowEditorHasUnsavedChangesAtom, true);
+});
+
+export const redoAtom = atom(null, (get, set) => {
+  const future = get(futureAtom);
+  if (future.length === 0) return;
+  const currentNodes = get(workflowEditorNodesAtom);
+  const currentEdges = get(workflowEditorEdgesAtom);
+  const history = get(historyAtom);
+  set(historyAtom, [...history, { nodes: currentNodes, edges: currentEdges }]);
+  const newFuture = [...future];
+  const nextState = newFuture.pop()!;
+  set(futureAtom, newFuture);
+  set(workflowEditorNodesAtom, nextState.nodes);
+  set(workflowEditorEdgesAtom, nextState.edges);
+  set(workflowEditorHasUnsavedChangesAtom, true);
+});
+
+export const canUndoAtom = atom((get) => get(historyAtom).length > 0);
+export const canRedoAtom = atom((get) => get(futureAtom).length > 0);
+
 export const setWorkflowEditorGraphAtom = atom(
   null,
   (_get, set, graph: SerializedWorkflowGraph) => {
-    const nextGraph =
-      graph.nodes.length === 0 ? createDefaultWorkflowGraph() : graph;
-    const { nodes, edges } = deserializeWorkflowGraph(nextGraph);
+    const { nodes, edges } = deserializeWorkflowGraph(graph);
     set(workflowEditorNodesAtom, nodes);
     set(workflowEditorEdgesAtom, edges);
     set(workflowEditorHasUnsavedChangesAtom, false);
     set(workflowEditorIsLoadedAtom, true);
     set(workflowEditorSelectedNodeIdAtom, null);
     set(workflowEditorSelectedEdgeIdAtom, null);
+    set(historyAtom, []);
+    set(futureAtom, []);
   },
 );
 
@@ -229,6 +251,11 @@ export const addWorkflowEditorActionNodeAtom = atom(null, (get, set) => {
   if (get(workflowEditorIsReadOnlyAtom)) return;
 
   const currentNodes = get(workflowEditorNodesAtom);
+  const currentEdges = get(workflowEditorEdgesAtom);
+  const history = get(historyAtom);
+  set(historyAtom, [...history, { nodes: currentNodes, edges: currentEdges }]);
+  set(futureAtom, []);
+
   const actionNodesCount = currentNodes.filter(
     (node) => node.data.type === "action",
   ).length;
@@ -249,5 +276,78 @@ export const addWorkflowEditorActionNodeAtom = atom(null, (get, set) => {
   };
 
   set(workflowEditorNodesAtom, [...currentNodes, nextNode]);
+  set(workflowEditorHasUnsavedChangesAtom, true);
+});
+
+// Delete atoms
+export const deleteNodeAtom = atom(null, (get, set, nodeId: string) => {
+  const currentNodes = get(workflowEditorNodesAtom);
+  const nodeToDelete = currentNodes.find((node) => node.id === nodeId);
+  if (nodeToDelete?.data.type === "trigger") return;
+
+  const currentEdges = get(workflowEditorEdgesAtom);
+  const history = get(historyAtom);
+  set(historyAtom, [...history, { nodes: currentNodes, edges: currentEdges }]);
+  set(futureAtom, []);
+
+  set(
+    workflowEditorNodesAtom,
+    currentNodes.filter((n) => n.id !== nodeId),
+  );
+  set(
+    workflowEditorEdgesAtom,
+    currentEdges.filter((e) => e.source !== nodeId && e.target !== nodeId),
+  );
+  if (get(workflowEditorSelectedNodeIdAtom) === nodeId) {
+    set(workflowEditorSelectedNodeIdAtom, null);
+  }
+  set(workflowEditorHasUnsavedChangesAtom, true);
+});
+
+export const addInitialTriggerNodeAtom = atom(null, (get, set) => {
+  const currentNodes = get(workflowEditorNodesAtom);
+  if (currentNodes.length > 0) return;
+
+  const currentEdges = get(workflowEditorEdgesAtom);
+  const history = get(historyAtom);
+  set(historyAtom, [...history, { nodes: currentNodes, edges: currentEdges }]);
+  set(futureAtom, []);
+
+  const triggerNode: WorkflowCanvasNode = {
+    id: "trigger-node",
+    type: "trigger",
+    position: { x: 140, y: 180 },
+    data: {
+      type: "trigger",
+      label: "Trigger",
+      status: "idle",
+      config: {
+        triggerType: "DomainEvent",
+        startEvents: [],
+        restartEvents: [],
+        stopEvents: [],
+      },
+    },
+  };
+
+  set(workflowEditorNodesAtom, [triggerNode]);
+  set(workflowEditorSelectedNodeIdAtom, triggerNode.id);
+  set(workflowEditorHasUnsavedChangesAtom, true);
+});
+
+export const deleteEdgeAtom = atom(null, (get, set, edgeId: string) => {
+  const currentNodes = get(workflowEditorNodesAtom);
+  const currentEdges = get(workflowEditorEdgesAtom);
+  const history = get(historyAtom);
+  set(historyAtom, [...history, { nodes: currentNodes, edges: currentEdges }]);
+  set(futureAtom, []);
+
+  set(
+    workflowEditorEdgesAtom,
+    currentEdges.filter((e) => e.id !== edgeId),
+  );
+  if (get(workflowEditorSelectedEdgeIdAtom) === edgeId) {
+    set(workflowEditorSelectedEdgeIdAtom, null);
+  }
   set(workflowEditorHasUnsavedChangesAtom, true);
 });
