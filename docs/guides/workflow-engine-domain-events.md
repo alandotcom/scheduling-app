@@ -18,7 +18,7 @@ Workflow trigger config uses domain event routing sets:
 ## Authorization and Org Isolation
 
 - Read operations (`list/get/runs/logs/events/status`) are available to authenticated org members.
-- Write operations (`create/update/delete/duplicate/execute/cancel/current.save`) are admin-only.
+- Write operations (`create/update/duplicate/remove/cancelExecution/saveCurrent`) are admin-only.
 - All workflow tables are org-scoped with RLS (`org_id` + policy), and service queries run within org context.
 
 ## Idempotency and Dedupe
