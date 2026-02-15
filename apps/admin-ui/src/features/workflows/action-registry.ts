@@ -27,6 +27,8 @@ type ActionDefinition = {
   description: string;
   category: string;
   icon: string;
+  devOnly?: boolean;
+  outputAttributes?: string[];
   configFields: ActionConfigField[];
 };
 
@@ -209,6 +211,26 @@ registerAction({
       type: "text",
       placeholder: "UTC",
       helpText: "Used when the target date/time does not include an offset.",
+    },
+  ],
+});
+
+registerAction({
+  id: "logger",
+  label: "Logger",
+  description: "Log a workflow message for development and debugging.",
+  category: "Development",
+  icon: "flash",
+  devOnly: true,
+  configFields: [
+    {
+      key: "message",
+      label: "Message",
+      type: "expression",
+      placeholder: "Workflow log message (@Action1.createdAt)",
+      helpText:
+        "Type freeform text and use @ to autocomplete upstream node outputs.",
+      required: true,
     },
   ],
 });

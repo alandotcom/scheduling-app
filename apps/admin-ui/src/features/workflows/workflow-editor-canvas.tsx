@@ -24,6 +24,7 @@ import {
   onWorkflowEditorConnectAtom,
   onWorkflowEditorEdgesChangeAtom,
   onWorkflowEditorNodesChangeAtom,
+  propertiesPanelActiveTabAtom,
   rightPanelWidthAtom,
   setWorkflowEditorSelectionAtom,
   workflowEditorEdgesAtom,
@@ -68,6 +69,7 @@ export function WorkflowEditorCanvas({
   const onEdgesChange = useSetAtom(onWorkflowEditorEdgesChangeAtom);
   const onConnect = useSetAtom(onWorkflowEditorConnectAtom);
   const setSelection = useSetAtom(setWorkflowEditorSelectionAtom);
+  const setPropertiesPanelTab = useSetAtom(propertiesPanelActiveTabAtom);
   const setNodes = useSetAtom(workflowEditorNodesAtom);
   const setEdges = useSetAtom(workflowEditorEdgesAtom);
   const setHasUnsavedChanges = useSetAtom(workflowEditorHasUnsavedChangesAtom);
@@ -207,6 +209,7 @@ export function WorkflowEditorCanvas({
         },
       ]);
       setHasUnsavedChanges(true);
+      setPropertiesPanelTab("properties");
       setSelection({ nodeId: newNodeId, edgeId: null });
 
       connectingNodeId.current = null;
@@ -218,6 +221,7 @@ export function WorkflowEditorCanvas({
       setNodes,
       setEdges,
       setHasUnsavedChanges,
+      setPropertiesPanelTab,
       setSelection,
     ],
   );

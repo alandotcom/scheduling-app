@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Label } from "@/components/ui/label";
 import { type EventAttributeSuggestion } from "./event-attribute-suggestions";
 import {
@@ -8,8 +8,33 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { getAction, getActionsByCategory } from "../action-registry";
+import {
+  type ActionDefinition,
+  getAction,
+  getActionsByCategory,
+} from "../action-registry";
 import { ActionConfigRenderer } from "./action-config-renderer";
+
+function filterActionsByEnvironment(input: {
+  categoryMap: Map<string, ActionDefinition[]>;
+  isDev: boolean;
+}): Map<string, ActionDefinition[]> {
+  const filtered = new Map<string, ActionDefinition[]>();
+
+  for (const [category, actions] of input.categoryMap.entries()) {
+    const visibleActions = actions.filter(
+      (action) => !action.devOnly || input.isDev,
+    );
+
+    if (visibleActions.length === 0) {
+      continue;
+    }
+
+    filtered.set(category, visibleActions);
+  }
+
+  return filtered;
+}
 
 interface ActionConfigProps {
   config: Record<string, unknown>;
@@ -26,22 +51,65 @@ export function ActionConfig({
   expressionSuggestions = [],
   selectOptionsByKey = {},
 }: ActionConfigProps) {
-  const categoryMap = useMemo(() => getActionsByCategory(), []);
+  const isDev = String(import.meta.env.DEV) === "true";
+
+  const fullCategoryMap = useMemo(() => getActionsByCategory(), []);
+  const categoryMap = useMemo(
+    () =>
+      filterActionsByEnvironment({
+        categoryMap: fullCategoryMap,
+        isDev,
+      }),
+    [fullCategoryMap, isDev],
+  );
   const categories = useMemo(() => [...categoryMap.keys()], [categoryMap]);
 
   const currentAction =
     typeof config.actionType === "string"
       ? getAction(config.actionType)
       : undefined;
+  const canSelectCurrentAction = !currentAction?.devOnly || isDev;
 
-  const [selectedCategory, setSelectedCategory] = useState(
-    () => currentAction?.category ?? categories[0] ?? "System",
+  const selectedCategoryFallback = categories[0] ?? "System";
+
+  const [selectedCategory, setSelectedCategory] = useState(() =>
+    canSelectCurrentAction && currentAction
+      ? currentAction.category
+      : selectedCategoryFallback,
   );
+
+  useEffect(() => {
+    if (canSelectCurrentAction && currentAction) {
+      setSelectedCategory(currentAction.category);
+      return;
+    }
+
+    if (!categories.includes(selectedCategory)) {
+      setSelectedCategory(selectedCategoryFallback);
+    }
+  }, [
+    canSelectCurrentAction,
+    categories,
+    currentAction,
+    selectedCategory,
+    selectedCategoryFallback,
+  ]);
 
   const actionsInCategory = useMemo(
     () => categoryMap.get(selectedCategory) ?? [],
     [categoryMap, selectedCategory],
   );
+  const actionOptions = useMemo(() => {
+    if (!currentAction) {
+      return actionsInCategory;
+    }
+
+    if (actionsInCategory.some((action) => action.id === currentAction.id)) {
+      return actionsInCategory;
+    }
+
+    return [currentAction, ...actionsInCategory];
+  }, [actionsInCategory, canSelectCurrentAction, currentAction]);
 
   return (
     <section className="space-y-4">
@@ -80,7 +148,7 @@ export function ActionConfig({
               <SelectValue placeholder="Action" />
             </SelectTrigger>
             <SelectContent>
-              {actionsInCategory.map((action) => (
+              {actionOptions.map((action) => (
                 <SelectItem key={action.id} value={action.id}>
                   {action.label}
                 </SelectItem>

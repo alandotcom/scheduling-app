@@ -1,9 +1,12 @@
 import { afterEach, describe, expect, mock, test } from "bun:test";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
-import type { Node } from "@xyflow/react";
+import type { Edge, Node } from "@xyflow/react";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { createTestQueryClient } from "@/test-utils/render";
-import { WorkflowEditorSidebar } from "./workflow-editor-sidebar";
+import {
+  buildUpstreamOutputSuggestions,
+  WorkflowEditorSidebar,
+} from "./workflow-editor-sidebar";
 
 afterEach(() => {
   cleanup();
@@ -47,7 +50,51 @@ function createNodeFixtureWithId(id: string, label: string): Node {
   };
 }
 
-function renderSidebar(canManageWorkflow: boolean) {
+function createActionNodeFixture(input: {
+  id: string;
+  label: string;
+  actionType: string;
+  outputAttributes?: string;
+}): Node {
+  return {
+    id: input.id,
+    position: { x: 0, y: 0 },
+    data: {
+      type: "action",
+      label: input.label,
+      description: `${input.label} description`,
+      config: {
+        actionType: input.actionType,
+        ...(input.outputAttributes
+          ? { outputAttributes: input.outputAttributes }
+          : {}),
+      },
+    },
+  };
+}
+
+function createUnconfiguredActionNodeFixture(): Node {
+  return {
+    id: "action-node",
+    position: { x: 0, y: 0 },
+    data: {
+      type: "action",
+      label: "Action",
+      description: "",
+      config: {},
+    },
+  };
+}
+
+function renderSidebar({
+  canManageWorkflow,
+  onSetActionType,
+  selectedNode = createNodeFixture(),
+}: {
+  canManageWorkflow: boolean;
+  onSetActionType?: (input: { nodeId: string; actionType: string }) => void;
+  selectedNode?: Node;
+}) {
   const queryClient = createTestQueryClient();
   const onUpdateNodeData = mock(() => {});
 
@@ -55,8 +102,9 @@ function renderSidebar(canManageWorkflow: boolean) {
     <QueryClientProvider client={queryClient}>
       <WorkflowEditorSidebar
         canManageWorkflow={canManageWorkflow}
+        onSetActionType={onSetActionType}
         onUpdateNodeData={onUpdateNodeData}
-        selectedNode={createNodeFixture()}
+        selectedNode={selectedNode}
         workflowId={null}
       />
     </QueryClientProvider>,
@@ -67,7 +115,7 @@ function renderSidebar(canManageWorkflow: boolean) {
 
 describe("WorkflowEditorSidebar role behavior", () => {
   test("disables config inputs in read-only mode", () => {
-    renderSidebar(false);
+    renderSidebar({ canManageWorkflow: false });
 
     const labelInput = screen.getByLabelText("Label") as HTMLInputElement;
     const startEventsInput = screen.getByLabelText(
@@ -84,7 +132,7 @@ describe("WorkflowEditorSidebar role behavior", () => {
   });
 
   test("keeps config inputs enabled for admins", () => {
-    renderSidebar(true);
+    renderSidebar({ canManageWorkflow: true });
 
     const labelInput = screen.getByLabelText("Label") as HTMLInputElement;
     const startEventsInput = screen.getByLabelText(
@@ -138,6 +186,85 @@ describe("WorkflowEditorSidebar role behavior", () => {
     expect(onUpdateNodeData).toHaveBeenCalledWith({
       id: "trigger-b",
       data: { label: "Edited B" },
+    });
+  });
+
+  test("does not expose logger output attributes in upstream suggestions", () => {
+    const triggerNode = createNodeFixture();
+    const upstreamAction = createActionNodeFixture({
+      id: "action-upstream",
+      label: "Action1",
+      actionType: "logger",
+      outputAttributes: "createdAt, requestId",
+    });
+    const selectedAction = createActionNodeFixture({
+      id: "action-selected",
+      label: "Logger step",
+      actionType: "logger",
+    });
+    const unrelatedAction = createActionNodeFixture({
+      id: "action-unrelated",
+      label: "Action3",
+      actionType: "logger",
+      outputAttributes: "secret",
+    });
+
+    const edges: Edge[] = [
+      {
+        id: "edge-trigger-upstream",
+        source: triggerNode.id,
+        target: upstreamAction.id,
+      },
+      {
+        id: "edge-upstream-selected",
+        source: upstreamAction.id,
+        target: selectedAction.id,
+      },
+    ];
+
+    const suggestions = buildUpstreamOutputSuggestions({
+      selectedNodeId: selectedAction.id,
+      nodes: [triggerNode, upstreamAction, selectedAction, unrelatedAction],
+      edges,
+    });
+
+    expect(
+      suggestions.some(
+        (suggestion) => suggestion.value === "Action1.createdAt",
+      ),
+    ).toBeFalse();
+    expect(
+      suggestions.some((suggestion) => suggestion.value === "Action3.secret"),
+    ).toBeFalse();
+  });
+
+  test("shows searchable grouped action list for unconfigured actions", () => {
+    renderSidebar({
+      canManageWorkflow: true,
+      selectedNode: createUnconfiguredActionNodeFixture(),
+    });
+
+    expect(screen.getByPlaceholderText("Search actions...")).toBeTruthy();
+    expect(screen.getByText("System")).toBeTruthy();
+    expect(screen.getByText("HTTP Request")).toBeTruthy();
+  });
+
+  test("selecting an action calls onSetActionType", () => {
+    const onSetActionType = mock(
+      (_input: { nodeId: string; actionType: string }) => {},
+    );
+
+    renderSidebar({
+      canManageWorkflow: true,
+      onSetActionType,
+      selectedNode: createUnconfiguredActionNodeFixture(),
+    });
+
+    fireEvent.click(screen.getByTestId("action-option-http-request"));
+
+    expect(onSetActionType).toHaveBeenCalledWith({
+      nodeId: "action-node",
+      actionType: "http-request",
     });
   });
 });

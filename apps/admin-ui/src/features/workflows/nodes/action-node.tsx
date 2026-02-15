@@ -291,6 +291,12 @@ function getActionIconAndColor(actionType?: string): {
         colorClass: "text-orange-500",
         bgClass: "bg-orange-500/10",
       };
+    case "logger":
+      return {
+        icon: FlashIcon,
+        colorClass: "text-sky-500",
+        bgClass: "bg-sky-500/10",
+      };
     default:
       return {
         icon: FlashIcon,

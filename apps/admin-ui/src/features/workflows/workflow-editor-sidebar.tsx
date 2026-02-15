@@ -18,8 +18,10 @@ import { Button } from "@/components/ui/button";
 import { DeleteConfirmDialog } from "@/components/delete-confirm-dialog";
 import { WorkflowRunsPanel } from "./workflow-runs-panel";
 import { WorkflowTriggerConfig } from "./workflow-trigger-config";
+import { ActionGrid } from "./config/action-grid";
 import { ActionConfig } from "./config/action-config";
 import { buildEventAttributeSuggestions } from "./config/event-attribute-suggestions";
+import { getAction } from "./action-registry";
 
 type SwitchBranch = "created" | "updated" | "deleted";
 
@@ -171,6 +173,153 @@ function getUpstreamSwitchBranch(
   return null;
 }
 
+function toNodeReferenceName(node: Node): string {
+  if (typeof node.data !== "object" || node.data === null) {
+    return node.id;
+  }
+
+  const label = typeof node.data.label === "string" ? node.data.label : "";
+  const compactLabel = label.replace(/[^A-Za-z0-9_]/g, "");
+  if (compactLabel.length > 0) {
+    return compactLabel;
+  }
+
+  const compactId = node.id.replace(/[^A-Za-z0-9_]/g, "");
+  if (compactId.length > 0) {
+    return compactId;
+  }
+
+  return `Node${node.id}`;
+}
+
+function parseOutputAttributes(value: unknown): string[] {
+  if (typeof value !== "string") {
+    return [];
+  }
+
+  const outputAttributes: string[] = [];
+  const seen = new Set<string>();
+  const segments = value
+    .split(/[,\n]/)
+    .map((segment) => segment.trim())
+    .filter((segment) => segment.length > 0);
+
+  for (const segment of segments) {
+    if (
+      !/^[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*$/.test(segment)
+    ) {
+      continue;
+    }
+
+    if (seen.has(segment)) {
+      continue;
+    }
+
+    seen.add(segment);
+    outputAttributes.push(segment);
+  }
+
+  return outputAttributes;
+}
+
+function isDateTimeOutputAttribute(path: string): boolean {
+  const normalizedPath = path.toLowerCase();
+  return (
+    normalizedPath.endsWith("at") ||
+    normalizedPath.endsWith("time") ||
+    normalizedPath.endsWith("timestamp") ||
+    normalizedPath.endsWith("date")
+  );
+}
+
+function getUpstreamNodes(
+  nodeId: string,
+  nodes: Node[],
+  edges: Edge[],
+): Node[] {
+  const nodeById = new Map(nodes.map((node) => [node.id, node]));
+  const queue = [nodeId];
+  const visited = new Set<string>([nodeId]);
+  const upstreamNodes: Node[] = [];
+
+  while (queue.length > 0) {
+    const currentNodeId = queue.shift();
+    if (!currentNodeId) {
+      continue;
+    }
+
+    for (const edge of edges) {
+      if (edge.target !== currentNodeId || visited.has(edge.source)) {
+        continue;
+      }
+
+      visited.add(edge.source);
+      queue.push(edge.source);
+
+      const upstreamNode = nodeById.get(edge.source);
+      if (upstreamNode) {
+        upstreamNodes.push(upstreamNode);
+      }
+    }
+  }
+
+  return upstreamNodes;
+}
+
+export function buildUpstreamOutputSuggestions(input: {
+  selectedNodeId: string;
+  nodes: Node[];
+  edges: Edge[];
+}) {
+  const suggestions = new Map<
+    string,
+    { value: string; type: string; isDateTime: boolean }
+  >();
+
+  const upstreamNodes = getUpstreamNodes(
+    input.selectedNodeId,
+    input.nodes,
+    input.edges,
+  );
+
+  for (const node of upstreamNodes) {
+    if (getNodeType(node) !== "action") {
+      continue;
+    }
+
+    const nodeConfig = toNodeConfig(node);
+    const actionType =
+      typeof nodeConfig.actionType === "string" ? nodeConfig.actionType : null;
+    const action = actionType ? getAction(actionType) : undefined;
+    const staticAttributes = action?.outputAttributes ?? [];
+    const configuredAttributes =
+      actionType === "logger"
+        ? []
+        : parseOutputAttributes(nodeConfig.outputAttributes);
+    const allOutputAttributes = [...staticAttributes, ...configuredAttributes];
+
+    if (allOutputAttributes.length === 0) {
+      continue;
+    }
+
+    const referenceName = toNodeReferenceName(node);
+    for (const attribute of allOutputAttributes) {
+      const value = `${referenceName}.${attribute}`;
+      if (suggestions.has(value)) {
+        continue;
+      }
+
+      suggestions.set(value, {
+        value,
+        type: "node output",
+        isDateTime: isDateTimeOutputAttribute(attribute),
+      });
+    }
+  }
+
+  return [...suggestions.values()];
+}
+
 function toScopedDomainEventType(
   domain: DomainEventDomain,
   branch: SwitchBranch,
@@ -223,6 +372,13 @@ export function WorkflowEditorSidebar({
   }, [selectedNode]);
 
   const selectedNodeType = getNodeType(selectedNode);
+  const selectedNodeConfig = toNodeConfig(selectedNode);
+  const selectedActionType =
+    typeof selectedNodeConfig.actionType === "string"
+      ? selectedNodeConfig.actionType
+      : "";
+  const isActionNodeWithoutType =
+    selectedNodeType === "action" && selectedActionType.length === 0;
   const nodeEnabled = isNodeEnabled(selectedNode);
   const triggerDomain = getTriggerDomain(nodes);
   const triggerEventTypes = getConfiguredTriggerEventTypes(nodes);
@@ -230,17 +386,42 @@ export function WorkflowEditorSidebar({
     ? getUpstreamSwitchBranch(selectedNode.id, edges)
     : null;
   const actionExpressionSuggestions = useMemo(() => {
-    if (!(selectedNodeType === "action" && triggerDomain)) {
+    if (selectedNodeType !== "action") {
       return [];
     }
 
-    return buildEventAttributeSuggestions({
-      domain: triggerDomain,
-      eventTypes: selectedNodeBranch
-        ? [toScopedDomainEventType(triggerDomain, selectedNodeBranch)]
-        : triggerEventTypes,
-    });
-  }, [selectedNodeBranch, selectedNodeType, triggerDomain, triggerEventTypes]);
+    const eventSuggestions = triggerDomain
+      ? buildEventAttributeSuggestions({
+          domain: triggerDomain,
+          eventTypes: selectedNodeBranch
+            ? [toScopedDomainEventType(triggerDomain, selectedNodeBranch)]
+            : triggerEventTypes,
+        })
+      : [];
+    const outputSuggestions = selectedNode
+      ? buildUpstreamOutputSuggestions({
+          selectedNodeId: selectedNode.id,
+          nodes,
+          edges,
+        })
+      : [];
+    const mergedSuggestions = new Map(
+      [...eventSuggestions, ...outputSuggestions].map((suggestion) => [
+        suggestion.value,
+        suggestion,
+      ]),
+    );
+
+    return [...mergedSuggestions.values()];
+  }, [
+    edges,
+    nodes,
+    selectedNode,
+    selectedNodeBranch,
+    selectedNodeType,
+    triggerDomain,
+    triggerEventTypes,
+  ]);
 
   const handleToggleEnabled = () => {
     if (!selectedNode || !canManageWorkflow) return;
@@ -260,6 +441,30 @@ export function WorkflowEditorSidebar({
     if (!selectedEdge || !onDeleteEdge) return;
     onDeleteEdge(selectedEdge.id);
     setShowDeleteEdgeDialog(false);
+  };
+
+  const handleSelectActionType = (actionType: string) => {
+    if (!selectedNode || !canManageWorkflow) {
+      return;
+    }
+
+    if (onSetActionType) {
+      onSetActionType({
+        nodeId: selectedNode.id,
+        actionType,
+      });
+      return;
+    }
+
+    onUpdateNodeData({
+      id: selectedNode.id,
+      data: {
+        config: {
+          ...selectedNodeConfig,
+          actionType,
+        },
+      },
+    });
   };
 
   return (
@@ -362,164 +567,180 @@ export function WorkflowEditorSidebar({
             {/* Node selected */}
             {selectedNode ? (
               <>
-                <div className="space-y-2">
-                  <Label htmlFor="workflow-node-label">Label</Label>
-                  <Input
-                    disabled={!canManageWorkflow}
-                    id="workflow-node-label"
-                    onChange={(event) => {
-                      setLabelValue(event.target.value);
-                    }}
-                    onBlur={(event) => {
-                      onUpdateNodeData({
-                        id: selectedNode.id,
-                        data: { label: event.target.value },
-                      });
-                    }}
-                    value={labelValue}
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="workflow-node-description">Description</Label>
-                  <Input
-                    disabled={!canManageWorkflow}
-                    id="workflow-node-description"
-                    onChange={(event) => {
-                      setDescriptionValue(event.target.value);
-                    }}
-                    onBlur={(event) => {
-                      onUpdateNodeData({
-                        id: selectedNode.id,
-                        data: {
-                          description: event.target.value.trim() || undefined,
-                        },
-                      });
-                    }}
-                    value={descriptionValue}
-                  />
-                </div>
-
-                {selectedNodeType === "trigger" ? (
-                  <WorkflowTriggerConfig
-                    config={toNodeConfig(selectedNode)}
-                    disabled={!canManageWorkflow}
-                    onUpdate={(next) => {
-                      onUpdateNodeData({
-                        id: selectedNode.id,
-                        data: {
-                          config: {
-                            ...toNodeConfig(selectedNode),
-                            triggerType: "DomainEvent",
-                            domain:
-                              toNodeConfig(selectedNode).domain ??
-                              "appointment",
-                            ...next,
-                          },
-                        },
-                      });
-                    }}
-                  />
+                {isActionNodeWithoutType ? (
+                  canManageWorkflow ? (
+                    <ActionGrid
+                      disabled={!canManageWorkflow}
+                      onSelectAction={handleSelectActionType}
+                    />
+                  ) : (
+                    <p className="text-muted-foreground text-sm">
+                      No action configured for this step.
+                    </p>
+                  )
                 ) : (
                   <>
-                    <ActionConfig
-                      config={toNodeConfig(selectedNode)}
-                      onUpdateConfig={(key, value) => {
-                        if (
-                          key === "actionType" &&
-                          typeof value === "string" &&
-                          onSetActionType
-                        ) {
-                          onSetActionType({
-                            nodeId: selectedNode.id,
-                            actionType: value,
+                    <div className="space-y-2">
+                      <Label htmlFor="workflow-node-label">Label</Label>
+                      <Input
+                        disabled={!canManageWorkflow}
+                        id="workflow-node-label"
+                        onChange={(event) => {
+                          setLabelValue(event.target.value);
+                        }}
+                        onBlur={(event) => {
+                          onUpdateNodeData({
+                            id: selectedNode.id,
+                            data: { label: event.target.value },
                           });
-                          return;
-                        }
+                        }}
+                        value={labelValue}
+                      />
+                    </div>
 
-                        const nodeConfig = toNodeConfig(selectedNode);
-                        const actionType =
-                          typeof nodeConfig.actionType === "string"
-                            ? nodeConfig.actionType
-                            : "";
-
-                        if (
-                          actionType === "wait" &&
-                          key === "waitDelayTimingMode" &&
-                          typeof value === "string"
-                        ) {
-                          if (value === "duration") {
-                            onUpdateNodeData({
-                              id: selectedNode.id,
-                              data: {
-                                config: {
-                                  ...nodeConfig,
-                                  waitDelayTimingMode: "duration",
-                                  waitUntil: "",
-                                  waitOffset: "",
-                                },
-                              },
-                            });
-                            return;
-                          }
-
-                          if (value === "until") {
-                            onUpdateNodeData({
-                              id: selectedNode.id,
-                              data: {
-                                config: {
-                                  ...nodeConfig,
-                                  waitDelayTimingMode: "until",
-                                  waitDuration: "",
-                                },
-                              },
-                            });
-                            return;
-                          }
-                        }
-
-                        onUpdateNodeData({
-                          id: selectedNode.id,
-                          data: {
-                            config: {
-                              ...nodeConfig,
-                              [key]: value,
+                    <div className="space-y-2">
+                      <Label htmlFor="workflow-node-description">
+                        Description
+                      </Label>
+                      <Input
+                        disabled={!canManageWorkflow}
+                        id="workflow-node-description"
+                        onChange={(event) => {
+                          setDescriptionValue(event.target.value);
+                        }}
+                        onBlur={(event) => {
+                          onUpdateNodeData({
+                            id: selectedNode.id,
+                            data: {
+                              description:
+                                event.target.value.trim() || undefined,
                             },
-                          },
-                        });
-                      }}
-                      disabled={!canManageWorkflow}
-                      expressionSuggestions={actionExpressionSuggestions}
-                    />
+                          });
+                        }}
+                        value={descriptionValue}
+                      />
+                    </div>
 
-                    {/* Enable/disable toggle for action nodes */}
-                    {canManageWorkflow ? (
-                      <div className="flex items-center gap-2">
-                        <Button
-                          onClick={handleToggleEnabled}
-                          size="sm"
-                          variant="outline"
-                        >
-                          <Icon
-                            icon={nodeEnabled ? ViewOffIcon : ViewIcon}
-                            className="size-4"
-                          />
-                          {nodeEnabled ? "Disable" : "Enable"}
-                        </Button>
+                    {selectedNodeType === "trigger" ? (
+                      <WorkflowTriggerConfig
+                        config={selectedNodeConfig}
+                        disabled={!canManageWorkflow}
+                        onUpdate={(next) => {
+                          onUpdateNodeData({
+                            id: selectedNode.id,
+                            data: {
+                              config: {
+                                ...selectedNodeConfig,
+                                triggerType: "DomainEvent",
+                                domain:
+                                  selectedNodeConfig.domain ?? "appointment",
+                                ...next,
+                              },
+                            },
+                          });
+                        }}
+                      />
+                    ) : (
+                      <>
+                        <ActionConfig
+                          config={selectedNodeConfig}
+                          onUpdateConfig={(key, value) => {
+                            if (
+                              key === "actionType" &&
+                              typeof value === "string" &&
+                              onSetActionType
+                            ) {
+                              onSetActionType({
+                                nodeId: selectedNode.id,
+                                actionType: value,
+                              });
+                              return;
+                            }
 
-                        {/* Delete button for action nodes */}
-                        {onDeleteNode ? (
-                          <Button
-                            onClick={() => setShowDeleteNodeDialog(true)}
-                            size="sm"
-                            variant="destructive"
-                          >
-                            <Icon icon={Delete01Icon} className="size-4" />
-                            Delete
-                          </Button>
+                            const actionType =
+                              typeof selectedNodeConfig.actionType === "string"
+                                ? selectedNodeConfig.actionType
+                                : "";
+
+                            if (
+                              actionType === "wait" &&
+                              key === "waitDelayTimingMode" &&
+                              typeof value === "string"
+                            ) {
+                              if (value === "duration") {
+                                onUpdateNodeData({
+                                  id: selectedNode.id,
+                                  data: {
+                                    config: {
+                                      ...selectedNodeConfig,
+                                      waitDelayTimingMode: "duration",
+                                      waitUntil: "",
+                                      waitOffset: "",
+                                    },
+                                  },
+                                });
+                                return;
+                              }
+
+                              if (value === "until") {
+                                onUpdateNodeData({
+                                  id: selectedNode.id,
+                                  data: {
+                                    config: {
+                                      ...selectedNodeConfig,
+                                      waitDelayTimingMode: "until",
+                                      waitDuration: "",
+                                    },
+                                  },
+                                });
+                                return;
+                              }
+                            }
+
+                            onUpdateNodeData({
+                              id: selectedNode.id,
+                              data: {
+                                config: {
+                                  ...selectedNodeConfig,
+                                  [key]: value,
+                                },
+                              },
+                            });
+                          }}
+                          disabled={!canManageWorkflow}
+                          expressionSuggestions={actionExpressionSuggestions}
+                        />
+
+                        {/* Enable/disable toggle for action nodes */}
+                        {canManageWorkflow ? (
+                          <div className="flex items-center gap-2">
+                            <Button
+                              onClick={handleToggleEnabled}
+                              size="sm"
+                              variant="outline"
+                            >
+                              <Icon
+                                icon={nodeEnabled ? ViewOffIcon : ViewIcon}
+                                className="size-4"
+                              />
+                              {nodeEnabled ? "Disable" : "Enable"}
+                            </Button>
+
+                            {/* Delete button for action nodes */}
+                            {onDeleteNode ? (
+                              <Button
+                                onClick={() => setShowDeleteNodeDialog(true)}
+                                size="sm"
+                                variant="destructive"
+                              >
+                                <Icon icon={Delete01Icon} className="size-4" />
+                                Delete
+                              </Button>
+                            ) : null}
+                          </div>
                         ) : null}
-                      </div>
-                    ) : null}
+                      </>
+                    )}
                   </>
                 )}
               </>
