@@ -111,6 +111,7 @@ describe("workflow domain triggers", () => {
       {
         name: "Client Workflow",
         graph: createGraphWithDomainEventTrigger(["client.created"]),
+        isEnabled: true,
       },
       {
         orgId: orgA.id,
@@ -156,11 +157,44 @@ describe("workflow domain triggers", () => {
     expect(execution!.workflowRunId).toBe("run-event-1");
   });
 
+  test("does not start disabled workflows", async () => {
+    await workflowService.create(
+      {
+        name: "Disabled Client Workflow",
+        graph: createGraphWithDomainEventTrigger(["client.created"]),
+        isEnabled: false,
+      },
+      {
+        orgId: orgA.id,
+        userId: userA.id,
+      },
+    );
+
+    const runRequester = mock(async () => ({ eventId: "run-event-disabled" }));
+
+    const result = await processWorkflowDomainEvent(
+      {
+        id: "event-client-created-disabled-1",
+        orgId: orgA.id,
+        type: "client.created",
+        payload: createClientCreatedPayload(),
+        timestamp: new Date().toISOString(),
+      },
+      { runRequester },
+    );
+
+    expect(result.startedExecutionIds).toHaveLength(0);
+    expect(result.ignoredWorkflowIds).toHaveLength(0);
+    expect(result.erroredWorkflowIds).toHaveLength(0);
+    expect(runRequester).toHaveBeenCalledTimes(0);
+  });
+
   test("ignores workflows without matching start routing", async () => {
     await workflowService.create(
       {
         name: "Appointment Workflow",
         graph: createGraphWithDomainEventTrigger(["appointment.created"]),
+        isEnabled: true,
       },
       {
         orgId: orgA.id,
@@ -193,6 +227,7 @@ describe("workflow domain triggers", () => {
         {
           name: "First Workflow",
           graph: createGraphWithDomainEventTrigger(["client.created"]),
+          isEnabled: true,
         },
         {
           orgId: orgA.id,
@@ -203,6 +238,7 @@ describe("workflow domain triggers", () => {
         {
           name: "Second Workflow",
           graph: createGraphWithDomainEventTrigger(["client.created"]),
+          isEnabled: true,
         },
         {
           orgId: orgA.id,
@@ -275,6 +311,7 @@ describe("workflow domain triggers", () => {
         {
           name: "Org A Workflow",
           graph: createGraphWithDomainEventTrigger(["client.created"]),
+          isEnabled: true,
         },
         {
           orgId: orgA.id,
@@ -285,6 +322,7 @@ describe("workflow domain triggers", () => {
         {
           name: "Org B Workflow",
           graph: createGraphWithDomainEventTrigger(["client.created"]),
+          isEnabled: true,
         },
         {
           orgId: orgB.id,
@@ -333,6 +371,7 @@ describe("workflow domain triggers", () => {
       {
         name: "Restart Workflow",
         graph: createGraphWithDomainEventTrigger([], ["client.updated"]),
+        isEnabled: true,
       },
       {
         orgId: orgA.id,
@@ -407,6 +446,7 @@ describe("workflow domain triggers", () => {
       {
         name: "Dedupe Workflow",
         graph: createGraphWithDomainEventTrigger(["client.created"]),
+        isEnabled: true,
       },
       {
         orgId: orgA.id,

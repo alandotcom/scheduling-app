@@ -33,7 +33,7 @@ describe("WorkflowTriggerConfig", () => {
     });
   });
 
-  test("re-syncs correlation and mock inputs when config changes", () => {
+  test("re-syncs correlation input when config changes", () => {
     const onUpdate = mock(() => {});
 
     const view = render(
@@ -42,7 +42,6 @@ describe("WorkflowTriggerConfig", () => {
           triggerType: "DomainEvent",
           domain: "appointment",
           domainEventCorrelationPath: "data.firstId",
-          domainEventMockEvent: "appointment.created",
         }}
         disabled={false}
         onUpdate={onUpdate}
@@ -52,15 +51,9 @@ describe("WorkflowTriggerConfig", () => {
     const correlationInput = screen.getByLabelText(
       "Correlation path",
     ) as HTMLInputElement;
-    const mockEventInput = screen.getByLabelText(
-      "Mock event name",
-    ) as HTMLInputElement;
 
     fireEvent.change(correlationInput, {
       target: { value: "unsaved.first" },
-    });
-    fireEvent.change(mockEventInput, {
-      target: { value: "unsaved.event" },
     });
 
     view.rerender(
@@ -69,7 +62,6 @@ describe("WorkflowTriggerConfig", () => {
           triggerType: "DomainEvent",
           domain: "appointment",
           domainEventCorrelationPath: "data.secondId",
-          domainEventMockEvent: "appointment.updated",
         }}
         disabled={false}
         onUpdate={onUpdate}
@@ -79,21 +71,13 @@ describe("WorkflowTriggerConfig", () => {
     const switchedCorrelationInput = screen.getByLabelText(
       "Correlation path",
     ) as HTMLInputElement;
-    const switchedMockEventInput = screen.getByLabelText(
-      "Mock event name",
-    ) as HTMLInputElement;
 
     expect(switchedCorrelationInput.value).toBe("data.secondId");
-    expect(switchedMockEventInput.value).toBe("appointment.updated");
 
     fireEvent.blur(switchedCorrelationInput);
-    fireEvent.blur(switchedMockEventInput);
 
     expect(onUpdate).toHaveBeenCalledWith({
       domainEventCorrelationPath: "data.secondId",
-    });
-    expect(onUpdate).toHaveBeenCalledWith({
-      domainEventMockEvent: "appointment.updated",
     });
   });
 

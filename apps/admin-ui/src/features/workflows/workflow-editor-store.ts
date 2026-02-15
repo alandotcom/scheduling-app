@@ -13,6 +13,7 @@ import {
   type EdgeChange,
   type Node,
   type NodeChange,
+  reconnectEdge,
 } from "@xyflow/react";
 import { atom } from "jotai";
 import { nanoid } from "nanoid";
@@ -77,6 +78,52 @@ function getTriggerDomain(nodes: WorkflowCanvasNode[]): DomainEventDomain {
   const triggerData = asRecord(triggerNode.data);
   const triggerConfig = asRecord(triggerData?.config);
   return toDomain(triggerConfig?.domain);
+}
+
+function isSwitchActionNode(node: WorkflowCanvasNode | undefined): boolean {
+  if (!node) {
+    return false;
+  }
+
+  const nodeData = asRecord(node.data);
+  if (nodeData?.type !== "action") {
+    return false;
+  }
+
+  const config = asRecord(nodeData.config);
+  return config?.actionType === "switch";
+}
+
+export function isSwitchNodeEdge(
+  edge: WorkflowCanvasEdge,
+  nodes: WorkflowCanvasNode[],
+): boolean {
+  const edgeData = asRecord(edge.data);
+  if (isSwitchBranch(edgeData?.switchBranch)) {
+    return true;
+  }
+
+  const sourceNode = nodes.find((node) => node.id === edge.source);
+  if (isSwitchActionNode(sourceNode)) {
+    return true;
+  }
+
+  const targetNode = nodes.find((node) => node.id === edge.target);
+  return isSwitchActionNode(targetNode);
+}
+
+export function isSwitchBranchNode(
+  nodeId: string,
+  edges: WorkflowCanvasEdge[],
+): boolean {
+  return edges.some((edge) => {
+    if (edge.target !== nodeId) {
+      return false;
+    }
+
+    const edgeData = asRecord(edge.data);
+    return isSwitchBranch(edgeData?.switchBranch);
+  });
 }
 
 function getSwitchBranchesForNode(
@@ -373,7 +420,16 @@ export const onWorkflowEditorNodesChangeAtom = atom(
     const filteredChanges = changes.filter((change) => {
       if (change.type !== "remove") return true;
       const node = currentNodes.find((candidate) => candidate.id === change.id);
-      return node?.data.type !== "trigger";
+
+      if (node?.data.type === "trigger") {
+        return false;
+      }
+
+      if (isSwitchBranchNode(change.id, currentEdges)) {
+        return false;
+      }
+
+      return true;
     });
 
     const removedNodeIds = new Set(
@@ -412,8 +468,27 @@ export const onWorkflowEditorEdgesChangeAtom = atom(
   (get, set, changes: EdgeChange[]) => {
     if (get(workflowEditorIsReadOnlyAtom)) return;
 
+    const currentNodes = get(workflowEditorNodesAtom);
     const currentEdges = get(workflowEditorEdgesAtom);
-    const nextEdges = applyEdgeChanges(changes, currentEdges);
+    const protectedEdgeIds = new Set(
+      currentEdges
+        .filter((edge) => isSwitchNodeEdge(edge, currentNodes))
+        .map((edge) => edge.id),
+    );
+
+    const filteredChanges = changes.filter((change) => {
+      if (change.type !== "remove" && change.type !== "replace") {
+        return true;
+      }
+
+      return !protectedEdgeIds.has(change.id);
+    });
+
+    if (filteredChanges.length === 0) {
+      return;
+    }
+
+    const nextEdges = applyEdgeChanges(filteredChanges, currentEdges);
     set(workflowEditorEdgesAtom, nextEdges);
     set(workflowEditorHasUnsavedChangesAtom, true);
   },
@@ -424,15 +499,79 @@ export const onWorkflowEditorConnectAtom = atom(
   (get, set, connection: Connection) => {
     if (get(workflowEditorIsReadOnlyAtom)) return;
 
+    const currentNodes = get(workflowEditorNodesAtom);
     const currentEdges = get(workflowEditorEdgesAtom);
-    const nextEdges = addEdge(
-      {
-        ...connection,
-        id: nanoid(),
-        animated: true,
-      },
-      currentEdges,
+    const selectedEdgeId = get(workflowEditorSelectedEdgeIdAtom);
+    const selectedEdge = selectedEdgeId
+      ? currentEdges.find((edge) => edge.id === selectedEdgeId)
+      : undefined;
+
+    const existingIncomingEdges = currentEdges.filter(
+      (edge) =>
+        edge.target === connection.target &&
+        (edge.targetHandle ?? null) === (connection.targetHandle ?? null),
     );
+
+    const incomingReconnectCandidate =
+      existingIncomingEdges.length === 1 ? existingIncomingEdges[0] : undefined;
+
+    const selectedReconnectCandidate =
+      selectedEdge !== undefined && selectedEdge.target === connection.target;
+
+    const reconnectCandidate = selectedReconnectCandidate
+      ? selectedEdge
+      : incomingReconnectCandidate;
+
+    if (
+      reconnectCandidate &&
+      isSwitchNodeEdge(reconnectCandidate, currentNodes)
+    ) {
+      return;
+    }
+
+    const nextEdges = reconnectCandidate
+      ? reconnectEdge(reconnectCandidate, connection, currentEdges, {
+          shouldReplaceId: false,
+        })
+      : addEdge(
+          {
+            ...connection,
+            id: nanoid(),
+            animated: true,
+          },
+          currentEdges,
+        );
+
+    set(workflowEditorEdgesAtom, nextEdges);
+    set(workflowEditorHasUnsavedChangesAtom, true);
+  },
+);
+
+export const onWorkflowEditorReconnectAtom = atom(
+  null,
+  (
+    get,
+    set,
+    input: {
+      oldEdge: WorkflowCanvasEdge;
+      newConnection: Connection;
+    },
+  ) => {
+    if (get(workflowEditorIsReadOnlyAtom)) return;
+
+    const currentNodes = get(workflowEditorNodesAtom);
+    if (isSwitchNodeEdge(input.oldEdge, currentNodes)) {
+      return;
+    }
+
+    const currentEdges = get(workflowEditorEdgesAtom);
+    const nextEdges = reconnectEdge(
+      input.oldEdge,
+      input.newConnection,
+      currentEdges,
+      { shouldReplaceId: false },
+    );
+
     set(workflowEditorEdgesAtom, nextEdges);
     set(workflowEditorHasUnsavedChangesAtom, true);
   },
@@ -593,10 +732,11 @@ export const setWorkflowEditorActionTypeAtom = atom(
 // Delete atoms
 export const deleteNodeAtom = atom(null, (get, set, nodeId: string) => {
   const currentNodes = get(workflowEditorNodesAtom);
+  const currentEdges = get(workflowEditorEdgesAtom);
   const nodeToDelete = currentNodes.find((node) => node.id === nodeId);
   if (nodeToDelete?.data.type === "trigger") return;
+  if (isSwitchBranchNode(nodeId, currentEdges)) return;
 
-  const currentEdges = get(workflowEditorEdgesAtom);
   const nodeIdsToDelete = getSwitchCascadeNodeIds(currentNodes, currentEdges, [
     nodeId,
   ]);
@@ -655,6 +795,11 @@ export const addInitialTriggerNodeAtom = atom(null, (get, set) => {
 export const deleteEdgeAtom = atom(null, (get, set, edgeId: string) => {
   const currentNodes = get(workflowEditorNodesAtom);
   const currentEdges = get(workflowEditorEdgesAtom);
+  const edgeToDelete = currentEdges.find((edge) => edge.id === edgeId);
+  if (edgeToDelete && isSwitchNodeEdge(edgeToDelete, currentNodes)) {
+    return;
+  }
+
   const history = get(historyAtom);
   set(historyAtom, [...history, { nodes: currentNodes, edges: currentEdges }]);
   set(futureAtom, []);

@@ -13,7 +13,10 @@ import {
   deleteEdgeAtom,
   deleteNodeAtom,
   isSidebarCollapsedAtom,
+  isSwitchBranchNode,
+  isSwitchNodeEdge,
   propertiesPanelActiveTabAtom,
+  workflowEditorEdgesAtom,
   workflowEditorNodesAtom,
   type WorkflowCanvasNode,
 } from "./workflow-editor-store";
@@ -63,6 +66,7 @@ export function WorkflowEditorContextMenu({
   onClose,
 }: WorkflowEditorContextMenuProps) {
   const nodes = useAtomValue(workflowEditorNodesAtom);
+  const edges = useAtomValue(workflowEditorEdgesAtom);
   const deleteNode = useSetAtom(deleteNodeAtom);
   const deleteEdge = useSetAtom(deleteEdgeAtom);
   const addNode = useSetAtom(addWorkflowEditorNodeAtom);
@@ -76,7 +80,14 @@ export function WorkflowEditorContextMenu({
   const selectedNode = menuState?.nodeId
     ? nodes.find((node) => node.id === menuState.nodeId)
     : undefined;
+  const selectedEdge = menuState?.edgeId
+    ? edges.find((edge) => edge.id === menuState.edgeId)
+    : undefined;
   const isTriggerNode = getNodeType(selectedNode) === "trigger";
+  const isSwitchBranchChildNode =
+    selectedNode !== undefined && isSwitchBranchNode(selectedNode.id, edges);
+  const isSwitchEdge =
+    selectedEdge !== undefined && isSwitchNodeEdge(selectedEdge, nodes);
   const hasRealNodes = nodes.length > 0;
 
   const closeDeleteDialog = useCallback(
@@ -100,16 +111,16 @@ export function WorkflowEditorContextMenu({
   }, [deleteEdge, deleteNode, deleteTarget]);
 
   const handleDeleteNode = useCallback(() => {
-    if (!menuState?.nodeId || isTriggerNode) return;
+    if (!menuState?.nodeId || isTriggerNode || isSwitchBranchChildNode) return;
     setDeleteTarget({ type: "node", id: menuState.nodeId });
     onClose();
-  }, [isTriggerNode, menuState?.nodeId, onClose]);
+  }, [isSwitchBranchChildNode, isTriggerNode, menuState?.nodeId, onClose]);
 
   const handleDeleteEdge = useCallback(() => {
-    if (!menuState?.edgeId) return;
+    if (!(menuState?.edgeId && !isSwitchEdge)) return;
     setDeleteTarget({ type: "edge", id: menuState.edgeId });
     onClose();
-  }, [menuState?.edgeId, onClose]);
+  }, [isSwitchEdge, menuState?.edgeId, onClose]);
 
   const handleAddAction = useCallback(() => {
     if (!menuState?.flowPosition) return;
@@ -183,52 +194,51 @@ export function WorkflowEditorContextMenu({
     };
   }, [menuState, onClose]);
 
-  if (!menuState) {
-    return null;
-  }
-
   return (
     <>
-      <div
-        className="fade-in-0 zoom-in-95 fixed z-50 min-w-[10rem] animate-in overflow-hidden rounded-md border bg-popover p-1 text-popover-foreground shadow-md"
-        ref={menuRef}
-        style={{ left: menuState.position.x, top: menuState.position.y }}
-      >
-        {menuState.type === "node" ? (
-          <MenuItem
-            disabled={isTriggerNode}
-            icon={Delete01Icon}
-            label={`Delete ${getNodeLabel(selectedNode)}`}
-            onClick={handleDeleteNode}
-            variant="destructive"
-          />
-        ) : null}
-
-        {menuState.type === "edge" ? (
-          <MenuItem
-            icon={Delete01Icon}
-            label="Delete edge"
-            onClick={handleDeleteEdge}
-            variant="destructive"
-          />
-        ) : null}
-
-        {menuState.type === "pane" ? (
-          hasRealNodes ? (
+      {menuState ? (
+        <div
+          className="fade-in-0 zoom-in-95 fixed z-50 min-w-[10rem] animate-in overflow-hidden rounded-md border bg-popover p-1 text-popover-foreground shadow-md"
+          ref={menuRef}
+          style={{ left: menuState.position.x, top: menuState.position.y }}
+        >
+          {menuState.type === "node" ? (
             <MenuItem
-              icon={Add01Icon}
-              label="Add action"
-              onClick={handleAddAction}
+              disabled={isTriggerNode || isSwitchBranchChildNode}
+              icon={Delete01Icon}
+              label={`Delete ${getNodeLabel(selectedNode)}`}
+              onClick={handleDeleteNode}
+              variant="destructive"
             />
-          ) : (
+          ) : null}
+
+          {menuState.type === "edge" ? (
             <MenuItem
-              icon={Add01Icon}
-              label="Add trigger"
-              onClick={handleAddTrigger}
+              disabled={isSwitchEdge}
+              icon={Delete01Icon}
+              label="Delete edge"
+              onClick={handleDeleteEdge}
+              variant="destructive"
             />
-          )
-        ) : null}
-      </div>
+          ) : null}
+
+          {menuState.type === "pane" ? (
+            hasRealNodes ? (
+              <MenuItem
+                icon={Add01Icon}
+                label="Add action"
+                onClick={handleAddAction}
+              />
+            ) : (
+              <MenuItem
+                icon={Add01Icon}
+                label="Add trigger"
+                onClick={handleAddTrigger}
+              />
+            )
+          ) : null}
+        </div>
+      ) : null}
 
       <DeleteConfirmDialog
         description="Are you sure you want to delete this action node? This will also remove all connected edges. This action cannot be undone."

@@ -4,6 +4,11 @@ import {
   workflowDomainEventTriggerConfigSchema,
 } from "./workflow-graph";
 import {
+  createWorkflowSchema,
+  updateWorkflowSchema,
+  workflowExecuteInputSchema,
+  workflowExecutionSampleListResponseSchema,
+  workflowSchema,
   workflowExecuteResponseSchema,
   workflowTriggerExecutionResponseSchema,
 } from "./workflow";
@@ -175,5 +180,86 @@ describe("Workflow execution response contracts", () => {
 
     expect(triggerResponse.success).toBe(false);
     expect(executeResponse.success).toBe(false);
+  });
+});
+
+describe("Workflow runtime toggle schema contracts", () => {
+  test("includes isEnabled in workflow payloads", () => {
+    const result = workflowSchema.safeParse({
+      id: "550e8400-e29b-41d4-a716-446655440000",
+      orgId: "550e8400-e29b-41d4-a716-446655440001",
+      name: "Client Workflow",
+      description: null,
+      graph: {
+        nodes: [],
+        edges: [],
+      },
+      isEnabled: false,
+      visibility: "private",
+      createdAt: "2026-02-01T00:00:00.000Z",
+      updatedAt: "2026-02-01T00:00:00.000Z",
+    });
+
+    expect(result.success).toBe(true);
+  });
+
+  test("accepts optional isEnabled in create and update payloads", () => {
+    const createResult = createWorkflowSchema.safeParse({
+      name: "Runtime Toggle Workflow",
+      graph: { nodes: [], edges: [] },
+      isEnabled: true,
+    });
+
+    const updateResult = updateWorkflowSchema.safeParse({
+      isEnabled: false,
+    });
+
+    expect(createResult.success).toBe(true);
+    expect(updateResult.success).toBe(true);
+  });
+});
+
+describe("Workflow execute input and sample event schemas", () => {
+  test("requires eventType and payload for execute input", () => {
+    const valid = workflowExecuteInputSchema.safeParse({
+      eventType: "appointment.created",
+      payload: { appointmentId: "550e8400-e29b-41d4-a716-446655440010" },
+      dryRun: true,
+    });
+
+    const invalid = workflowExecuteInputSchema.safeParse({
+      dryRun: true,
+    });
+
+    expect(valid.success).toBe(true);
+    expect(invalid.success).toBe(false);
+  });
+
+  test("accepts workflow execution sample list response payload", () => {
+    const result = workflowExecutionSampleListResponseSchema.safeParse({
+      samples: [
+        {
+          eventType: "client.updated",
+          recordId: "550e8400-e29b-41d4-a716-446655440020",
+          label: "Ada Lovelace",
+          payload: {
+            clientId: "550e8400-e29b-41d4-a716-446655440020",
+            firstName: "Ada",
+            lastName: "Lovelace",
+            email: null,
+            phone: null,
+            previous: {
+              clientId: "550e8400-e29b-41d4-a716-446655440020",
+              firstName: "Ada",
+              lastName: "Lovelace",
+              email: null,
+              phone: null,
+            },
+          },
+        },
+      ],
+    });
+
+    expect(result.success).toBe(true);
   });
 });

@@ -5,10 +5,13 @@ import {
   createWorkflowSchema,
   listWorkflowExecutionsQuerySchema,
   updateWorkflowSchema,
+  workflowExecuteInputSchema,
+  workflowExecuteResponseSchema,
   workflowExecutionCancelResponseSchema,
   workflowExecutionEventsResponseSchema,
   workflowExecutionListResponseSchema,
   workflowExecutionLogsResponseSchema,
+  workflowExecutionSampleListResponseSchema,
   workflowExecutionSchema,
   workflowExecutionStatusResponseSchema,
   workflowListResponseSchema,
@@ -119,6 +122,39 @@ export const remove = adminOnly
       orgId: context.orgId,
       userId: context.userId,
     });
+  });
+
+// List sample execution events based on current workflow trigger configuration.
+export const listExecutionSamples = authed
+  .route({ method: "GET", path: "/workflows/{id}/execution-samples" })
+  .input(workflowIdInputSchema)
+  .output(workflowExecutionSampleListResponseSchema)
+  .handler(async ({ input, context }) => {
+    const samples = await workflowService.listExecutionSamples(input.id, {
+      orgId: context.orgId,
+      userId: context.userId,
+    });
+
+    return workflowExecutionSampleListResponseSchema.parse(samples);
+  });
+
+// Execute workflow manually with selected event payload (admin only).
+export const execute = adminOnly
+  .route({ method: "POST", path: "/workflows/{id}/execute" })
+  .input(
+    z.object({
+      id: z.uuid(),
+      data: workflowExecuteInputSchema,
+    }),
+  )
+  .output(workflowExecuteResponseSchema)
+  .handler(async ({ input, context }) => {
+    const result = await workflowService.execute(input.id, input.data, {
+      orgId: context.orgId,
+      userId: context.userId,
+    });
+
+    return workflowExecuteResponseSchema.parse(result);
   });
 
 // List workflow executions (read-only for authenticated users)
@@ -236,6 +272,8 @@ export const workflowRoutes = {
   update,
   duplicate,
   remove,
+  listExecutionSamples,
+  execute,
   listExecutions,
   getExecution,
   getExecutionLogs,

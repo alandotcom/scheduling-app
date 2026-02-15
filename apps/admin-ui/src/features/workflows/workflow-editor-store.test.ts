@@ -5,8 +5,11 @@ import type { SerializedWorkflowGraph } from "@scheduling/dto";
 import { createStore } from "jotai";
 import {
   addWorkflowEditorNodeAtom,
+  deleteEdgeAtom,
   deleteNodeAtom,
   deserializeWorkflowGraph,
+  onWorkflowEditorEdgesChangeAtom,
+  onWorkflowEditorReconnectAtom,
   onWorkflowEditorNodesChangeAtom,
   setWorkflowEditorActionTypeAtom,
   serializeWorkflowGraph,
@@ -252,5 +255,188 @@ describe("workflow-editor-store", () => {
     expect(store.get(workflowEditorSelectedNodeIdAtom)).toBe("new-action");
     expect(store.get(workflowEditorSelectedEdgeIdAtom)).toBe(null);
     expect(store.get(workflowEditorHasUnsavedChangesAtom)).toBe(true);
+  });
+
+  test("prevents deleting switch branch edge", () => {
+    const store = createStore();
+    store.set(setWorkflowEditorGraphAtom, createGraphFixture());
+    store.set(workflowEditorIsReadOnlyAtom, false);
+
+    store.set(setWorkflowEditorActionTypeAtom, {
+      nodeId: "action-node",
+      actionType: "switch",
+    });
+
+    const switchEdge = store.get(workflowEditorEdgesAtom).find((edge) => {
+      if (!(edge.source === "action-node" && edge.data)) {
+        return false;
+      }
+
+      return (
+        typeof edge.data === "object" &&
+        edge.data !== null &&
+        "switchBranch" in edge.data
+      );
+    });
+
+    expect(switchEdge).toBeTruthy();
+
+    store.set(deleteEdgeAtom, switchEdge!.id);
+
+    expect(
+      store
+        .get(workflowEditorEdgesAtom)
+        .some((edge) => edge.id === switchEdge!.id),
+    ).toBeTrue();
+  });
+
+  test("prevents remove changes for switch branch edges", () => {
+    const store = createStore();
+    store.set(setWorkflowEditorGraphAtom, createGraphFixture());
+    store.set(workflowEditorIsReadOnlyAtom, false);
+
+    store.set(setWorkflowEditorActionTypeAtom, {
+      nodeId: "action-node",
+      actionType: "switch",
+    });
+
+    const switchEdge = store.get(workflowEditorEdgesAtom).find((edge) => {
+      if (!(edge.source === "action-node" && edge.data)) {
+        return false;
+      }
+
+      return (
+        typeof edge.data === "object" &&
+        edge.data !== null &&
+        "switchBranch" in edge.data
+      );
+    });
+
+    expect(switchEdge).toBeTruthy();
+
+    store.set(onWorkflowEditorEdgesChangeAtom, [
+      {
+        id: switchEdge!.id,
+        type: "remove",
+      },
+    ]);
+
+    expect(
+      store
+        .get(workflowEditorEdgesAtom)
+        .some((edge) => edge.id === switchEdge!.id),
+    ).toBeTrue();
+  });
+
+  test("prevents reconnecting switch branch edges", () => {
+    const store = createStore();
+    store.set(setWorkflowEditorGraphAtom, createGraphFixture());
+    store.set(workflowEditorIsReadOnlyAtom, false);
+
+    store.set(setWorkflowEditorActionTypeAtom, {
+      nodeId: "action-node",
+      actionType: "switch",
+    });
+
+    const switchEdge = store.get(workflowEditorEdgesAtom).find((edge) => {
+      if (!(edge.source === "action-node" && edge.data)) {
+        return false;
+      }
+
+      return (
+        typeof edge.data === "object" &&
+        edge.data !== null &&
+        "switchBranch" in edge.data
+      );
+    });
+
+    expect(switchEdge).toBeTruthy();
+
+    store.set(onWorkflowEditorReconnectAtom, {
+      oldEdge: switchEdge!,
+      newConnection: {
+        source: "trigger-node",
+        sourceHandle: null,
+        target: switchEdge!.target,
+        targetHandle: null,
+      },
+    });
+
+    const preservedEdge = store
+      .get(workflowEditorEdgesAtom)
+      .find((edge) => edge.id === switchEdge!.id);
+
+    expect(preservedEdge?.source).toBe("action-node");
+  });
+
+  test("prevents deleting switch branch child nodes directly", () => {
+    const store = createStore();
+    store.set(setWorkflowEditorGraphAtom, createGraphFixture());
+    store.set(workflowEditorIsReadOnlyAtom, false);
+
+    store.set(setWorkflowEditorActionTypeAtom, {
+      nodeId: "action-node",
+      actionType: "switch",
+    });
+
+    const switchBranchEdge = store.get(workflowEditorEdgesAtom).find((edge) => {
+      if (!(edge.source === "action-node" && edge.data)) {
+        return false;
+      }
+
+      return (
+        typeof edge.data === "object" &&
+        edge.data !== null &&
+        "switchBranch" in edge.data
+      );
+    });
+
+    expect(switchBranchEdge).toBeTruthy();
+
+    store.set(deleteNodeAtom, switchBranchEdge!.target);
+
+    expect(
+      store
+        .get(workflowEditorNodesAtom)
+        .some((node) => node.id === switchBranchEdge!.target),
+    ).toBeTrue();
+  });
+
+  test("ignores node remove changes for switch branch child nodes", () => {
+    const store = createStore();
+    store.set(setWorkflowEditorGraphAtom, createGraphFixture());
+    store.set(workflowEditorIsReadOnlyAtom, false);
+
+    store.set(setWorkflowEditorActionTypeAtom, {
+      nodeId: "action-node",
+      actionType: "switch",
+    });
+
+    const switchBranchEdge = store.get(workflowEditorEdgesAtom).find((edge) => {
+      if (!(edge.source === "action-node" && edge.data)) {
+        return false;
+      }
+
+      return (
+        typeof edge.data === "object" &&
+        edge.data !== null &&
+        "switchBranch" in edge.data
+      );
+    });
+
+    expect(switchBranchEdge).toBeTruthy();
+
+    store.set(onWorkflowEditorNodesChangeAtom, [
+      {
+        id: switchBranchEdge!.target,
+        type: "remove",
+      },
+    ]);
+
+    expect(
+      store
+        .get(workflowEditorNodesAtom)
+        .some((node) => node.id === switchBranchEdge!.target),
+    ).toBeTrue();
   });
 });

@@ -18,6 +18,7 @@ export const workflowSchema = z.object({
   name: z.string().trim().min(1).max(255),
   description: z.string().nullable(),
   graph: serializedWorkflowGraphSchema,
+  isEnabled: z.boolean(),
   visibility: workflowVisibilitySchema,
   ...timestampsSchema.shape,
 });
@@ -31,6 +32,7 @@ export const createWorkflowSchema = z.object({
     .optional(),
   description: z.string().trim().max(2000).optional(),
   graph: serializedWorkflowGraphSchema,
+  isEnabled: z.boolean().optional(),
   visibility: workflowVisibilitySchema.optional(),
 });
 
@@ -44,6 +46,7 @@ export const updateWorkflowSchema = z
       .optional(),
     description: z.string().trim().max(2000).nullable().optional(),
     graph: serializedWorkflowGraphSchema.optional(),
+    isEnabled: z.boolean().optional(),
     visibility: workflowVisibilitySchema.optional(),
   })
   .refine((value) => Object.keys(value).length > 0, {
@@ -66,8 +69,20 @@ export const workflowResponseSchema = workflowSchema.extend({
 export const workflowListResponseSchema = z.array(workflowResponseSchema);
 
 export const workflowExecuteInputSchema = z.object({
-  input: z.record(z.string(), z.unknown()).optional(),
+  eventType: domainEventTypeSchema,
+  payload: z.record(z.string(), z.unknown()),
   dryRun: z.boolean().optional(),
+});
+
+export const workflowExecutionSampleSchema = z.object({
+  eventType: domainEventTypeSchema,
+  recordId: uuidSchema,
+  label: z.string().trim().min(1),
+  payload: z.record(z.string(), z.unknown()),
+});
+
+export const workflowExecutionSampleListResponseSchema = z.object({
+  samples: z.array(workflowExecutionSampleSchema),
 });
 
 export const workflowExecutionStatusSchema = z.enum([
@@ -233,6 +248,12 @@ export type ListWorkflowsQuery = z.infer<typeof listWorkflowsQuerySchema>;
 export type WorkflowResponse = z.infer<typeof workflowResponseSchema>;
 export type WorkflowListResponse = z.infer<typeof workflowListResponseSchema>;
 export type WorkflowExecuteInput = z.infer<typeof workflowExecuteInputSchema>;
+export type WorkflowExecutionSample = z.infer<
+  typeof workflowExecutionSampleSchema
+>;
+export type WorkflowExecutionSampleListResponse = z.infer<
+  typeof workflowExecutionSampleListResponseSchema
+>;
 export type WorkflowExecutionStatus = z.infer<
   typeof workflowExecutionStatusSchema
 >;

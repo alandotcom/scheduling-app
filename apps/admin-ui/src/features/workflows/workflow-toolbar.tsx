@@ -36,8 +36,11 @@ import {
 
 interface WorkflowToolbarProps {
   canManageWorkflow: boolean;
+  isEnabled: boolean;
   isSaving: boolean;
+  isTogglingEnabled: boolean;
   onSave: () => void;
+  onToggleEnabled: () => void;
   onExecute: (options?: { dryRun?: boolean }) => void;
 }
 
@@ -47,8 +50,11 @@ const OVERLAP_NUDGE = 40;
 
 export function WorkflowToolbar({
   canManageWorkflow,
+  isEnabled,
   isSaving,
+  isTogglingEnabled,
   onSave,
+  onToggleEnabled,
   onExecute,
 }: WorkflowToolbarProps) {
   const { screenToFlowPosition } = useReactFlow();
@@ -188,12 +194,28 @@ export function WorkflowToolbar({
         </Button>
       </ButtonGroup>
 
+      {/* Workflow On / Off */}
+      <ButtonGroup>
+        <Button
+          onClick={onToggleEnabled}
+          disabled={isTogglingEnabled}
+          size="sm"
+          variant={isEnabled ? "default" : "outline"}
+          title={isEnabled ? "Turn workflow off" : "Turn workflow on"}
+        >
+          {isTogglingEnabled ? (
+            <Icon icon={Loading03Icon} className="animate-spin" />
+          ) : null}
+          <span>{isEnabled ? "On" : "Off"}</span>
+        </Button>
+      </ButtonGroup>
+
       {/* Run / Dry Run */}
       <DropdownMenu>
         <ButtonGroup>
           <Button
             onClick={() => onExecute()}
-            disabled={isExecuting}
+            disabled={isExecuting || !isEnabled}
             size="sm"
             variant="default"
             title="Run workflow"
@@ -206,13 +228,13 @@ export function WorkflowToolbar({
             <span>Run</span>
           </Button>
           <DropdownMenuTrigger
-            disabled={isExecuting}
+            disabled={isExecuting || !isEnabled}
             render={
               <Button
                 size="icon-sm"
                 variant="default"
                 title="Run options"
-                disabled={isExecuting}
+                disabled={isExecuting || !isEnabled}
               />
             }
           >

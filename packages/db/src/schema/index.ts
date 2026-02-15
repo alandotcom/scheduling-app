@@ -453,6 +453,7 @@ export const workflows = pgTable.withRLS(
     name: text("name").notNull(),
     description: text("description"),
     graph: jsonb("graph").notNull().$type<Record<string, unknown>>(),
+    isEnabled: boolean("is_enabled").notNull().default(false),
     visibility: text("visibility").notNull().default("private"),
     ...timestamps,
   },

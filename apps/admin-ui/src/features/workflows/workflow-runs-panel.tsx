@@ -47,6 +47,15 @@ export function WorkflowRunsPanel({
       },
     }),
     enabled: Boolean(workflowId),
+    refetchInterval: (query) => {
+      const hasActiveRuns =
+        query.state.data?.some(
+          (execution) =>
+            execution.status === "running" || execution.status === "waiting",
+        ) ?? false;
+
+      return hasActiveRuns ? 2000 : false;
+    },
   });
 
   const executionLogsQuery = useQuery({
@@ -57,6 +66,7 @@ export function WorkflowRunsPanel({
       },
     }),
     enabled: Boolean(selectedExecutionId),
+    refetchInterval: 2000,
   });
 
   const executionEventsQuery = useQuery({
@@ -67,6 +77,7 @@ export function WorkflowRunsPanel({
       },
     }),
     enabled: Boolean(selectedExecutionId),
+    refetchInterval: 2000,
   });
 
   const executionStatusQuery = useQuery({
@@ -78,7 +89,10 @@ export function WorkflowRunsPanel({
     }),
     enabled: Boolean(selectedExecutionId),
     refetchInterval: (query) => {
-      if (query.state.data?.status === "running") {
+      if (
+        query.state.data?.status === "running" ||
+        query.state.data?.status === "waiting"
+      ) {
         return 2000;
       }
 
@@ -107,6 +121,22 @@ export function WorkflowRunsPanel({
     [executionsQuery.data, selectedExecutionId],
   );
 
+  const otherExecutions = useMemo(
+    () =>
+      executionsQuery.data?.filter(
+        (execution) => execution.id !== selectedExecutionId,
+      ) ?? [],
+    [executionsQuery.data, selectedExecutionId],
+  );
+
+  useEffect(
+    () => () => {
+      setSelectedExecutionId(null);
+      setExecutionLogsByNodeId({});
+    },
+    [setExecutionLogsByNodeId, setSelectedExecutionId],
+  );
+
   useEffect(() => {
     if (!selectedExecutionId) {
       setExecutionLogsByNodeId({});
@@ -118,6 +148,9 @@ export function WorkflowRunsPanel({
       setExecutionLogsByNodeId({});
       return;
     }
+
+    const executionStatus =
+      executionStatusQuery.data?.status ?? selectedExecution?.status;
 
     const latestByNode = logs.reduce<
       Record<
@@ -131,9 +164,15 @@ export function WorkflowRunsPanel({
       >
     >((acc, log) => {
       if (!acc[log.nodeId]) {
+        const status =
+          executionStatus === "cancelled" &&
+          (log.status === "pending" || log.status === "running")
+            ? "cancelled"
+            : log.status;
+
         acc[log.nodeId] = {
           nodeId: log.nodeId,
-          status: log.status,
+          status,
           input: log.input,
           startedAt: log.startedAt,
         };
@@ -145,6 +184,8 @@ export function WorkflowRunsPanel({
     setExecutionLogsByNodeId(latestByNode);
   }, [
     executionLogsQuery.data?.logs,
+    executionStatusQuery.data?.status,
+    selectedExecution?.status,
     selectedExecutionId,
     setExecutionLogsByNodeId,
   ]);
@@ -161,17 +202,28 @@ export function WorkflowRunsPanel({
     <section className="space-y-3">
       <div className="flex items-center justify-between gap-2">
         <h2 className="font-medium text-sm">Runs</h2>
-        <Button
-          onClick={() => {
-            queryClient.invalidateQueries({
-              queryKey: orpc.workflows.executions.list.key(),
-            });
-          }}
-          size="sm"
-          variant="outline"
-        >
-          Refresh
-        </Button>
+        <div className="flex items-center gap-2">
+          {selectedExecutionId ? (
+            <Button
+              onClick={() => setSelectedExecutionId(null)}
+              size="sm"
+              variant="ghost"
+            >
+              Clear
+            </Button>
+          ) : null}
+          <Button
+            onClick={() => {
+              queryClient.invalidateQueries({
+                queryKey: orpc.workflows.executions.list.key(),
+              });
+            }}
+            size="sm"
+            variant="outline"
+          >
+            Refresh
+          </Button>
+        </div>
       </div>
 
       {executionsQuery.isLoading ? (
@@ -180,29 +232,6 @@ export function WorkflowRunsPanel({
 
       {executionsQuery.data?.length === 0 ? (
         <p className="text-muted-foreground text-sm">No runs yet.</p>
-      ) : null}
-
-      {executionsQuery.data?.length ? (
-        <div className="space-y-2">
-          {executionsQuery.data.map((execution) => (
-            <button
-              className="w-full rounded-md border p-3 text-left hover:bg-muted/30"
-              key={execution.id}
-              onClick={() => setSelectedExecutionId(execution.id)}
-              type="button"
-            >
-              <div className="flex items-center justify-between gap-2">
-                <span className="font-medium text-sm">{execution.id}</span>
-                <Badge variant={toStatusBadgeVariant(execution.status)}>
-                  {execution.status}
-                </Badge>
-              </div>
-              <p className="mt-1 text-muted-foreground text-xs">
-                Started {formatDisplayDateTime(execution.startedAt)}
-              </p>
-            </button>
-          ))}
-        </div>
       ) : null}
 
       {selectedExecution ? (
@@ -214,18 +243,25 @@ export function WorkflowRunsPanel({
                 {selectedExecution.id}
               </p>
             </div>
-            {canManageWorkflow && selectedExecution.status === "waiting" ? (
-              <Button
-                disabled={cancelMutation.isPending}
-                onClick={() => {
-                  cancelMutation.mutate({ executionId: selectedExecution.id });
-                }}
-                size="sm"
-                variant="outline"
-              >
-                Cancel run
-              </Button>
-            ) : null}
+            <div className="flex items-center gap-2">
+              <Badge variant={toStatusBadgeVariant(selectedExecution.status)}>
+                {selectedExecution.status}
+              </Badge>
+              {canManageWorkflow && selectedExecution.status === "waiting" ? (
+                <Button
+                  disabled={cancelMutation.isPending}
+                  onClick={() => {
+                    cancelMutation.mutate({
+                      executionId: selectedExecution.id,
+                    });
+                  }}
+                  size="sm"
+                  variant="outline"
+                >
+                  Cancel run
+                </Button>
+              ) : null}
+            </div>
           </div>
 
           {executionStatusQuery.data ? (
@@ -283,6 +319,29 @@ export function WorkflowRunsPanel({
               ))}
             </div>
           ) : null}
+        </div>
+      ) : null}
+
+      {otherExecutions.length ? (
+        <div className="space-y-2">
+          {otherExecutions.map((execution) => (
+            <button
+              className="w-full rounded-md border p-3 text-left hover:bg-muted/30"
+              key={execution.id}
+              onClick={() => setSelectedExecutionId(execution.id)}
+              type="button"
+            >
+              <div className="flex items-center justify-between gap-2">
+                <span className="font-medium text-sm">{execution.id}</span>
+                <Badge variant={toStatusBadgeVariant(execution.status)}>
+                  {execution.status}
+                </Badge>
+              </div>
+              <p className="mt-1 text-muted-foreground text-xs">
+                Started {formatDisplayDateTime(execution.startedAt)}
+              </p>
+            </button>
+          ))}
         </div>
       ) : null}
 

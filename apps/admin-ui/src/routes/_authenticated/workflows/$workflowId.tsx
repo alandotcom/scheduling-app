@@ -1,14 +1,32 @@
-import { useCallback, useEffect, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft02Icon } from "@hugeicons/core-free-icons";
 import { ReactFlowProvider } from "@xyflow/react";
 import { toast } from "sonner";
 import { useAtomValue, useSetAtom } from "jotai";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
+import { Label } from "@/components/ui/label";
 import { Panel } from "@/components/flow-elements/panel";
 import { PageScaffold } from "@/components/layout/page-scaffold";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useKeyboardShortcuts } from "@/hooks/use-keyboard-shortcuts";
 import { canManageWorkflowsForRole } from "@/features/workflows/workflow-list-page";
 import { WorkflowEditorCanvas } from "@/features/workflows/workflow-editor-canvas";
@@ -22,6 +40,7 @@ import {
   serializeWorkflowGraph,
   setWorkflowEditorGraphAtom,
   setWorkflowEditorActionTypeAtom,
+  selectedExecutionIdAtom,
   undoAtom,
   workflowEditorEdgesAtom,
   workflowEditorHasUnsavedChangesAtom,
@@ -45,6 +64,14 @@ function resolveErrorMessage(error: unknown): string {
 function WorkflowEditorPage() {
   const { workflowId } = Route.useParams();
   const queryClient = useQueryClient();
+  const [isExecuteModalOpen, setIsExecuteModalOpen] = useState(false);
+  const [executeDryRun, setExecuteDryRun] = useState(false);
+  const [selectedEventType, setSelectedEventType] = useState<string | null>(
+    null,
+  );
+  const [selectedSampleRecordId, setSelectedSampleRecordId] = useState<
+    string | null
+  >(null);
 
   const authContextQuery = useQuery({
     ...orpc.auth.me.queryOptions({}),
@@ -53,6 +80,12 @@ function WorkflowEditorPage() {
   const workflowQuery = useQuery({
     ...orpc.workflows.get.queryOptions({ input: { id: workflowId } }),
     retry: false,
+  });
+  const executionSamplesQuery = useQuery({
+    ...orpc.workflows.listExecutionSamples.queryOptions({
+      input: { id: workflowId },
+    }),
+    enabled: isExecuteModalOpen,
   });
 
   const nodes = useAtomValue(workflowEditorNodesAtom);
@@ -68,6 +101,7 @@ function WorkflowEditorPage() {
   const setHasUnsavedChanges = useSetAtom(workflowEditorHasUnsavedChangesAtom);
   const setIsSaving = useSetAtom(workflowEditorIsSavingAtom);
   const setWorkflowId = useSetAtom(workflowEditorWorkflowIdAtom);
+  const setSelectedExecutionId = useSetAtom(selectedExecutionIdAtom);
   const updateNodeData = useSetAtom(updateWorkflowEditorNodeDataAtom);
   const setActionType = useSetAtom(setWorkflowEditorActionTypeAtom);
   const deleteNode = useSetAtom(deleteNodeAtom);
@@ -114,11 +148,109 @@ function WorkflowEditorPage() {
       },
     }),
   );
+  const toggleEnabledMutation = useMutation(
+    orpc.workflows.update.mutationOptions({
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: orpc.workflows.key() });
+      },
+      onError: (error) => {
+        toast.error(error.message || "Failed to update workflow state");
+      },
+    }),
+  );
+  const executeMutation = useMutation(
+    orpc.workflows.execute.mutationOptions({
+      onSuccess: async (result, variables) => {
+        await queryClient.invalidateQueries({
+          queryKey: orpc.workflows.executions.list.key(),
+        });
+
+        if ("executionId" in result && typeof result.executionId === "string") {
+          setSelectedExecutionId(result.executionId);
+        }
+
+        setIsExecuteModalOpen(false);
+
+        if (result.status === "running") {
+          toast.message(
+            variables.data.dryRun ? "Dry run started" : "Workflow run started",
+          );
+          return;
+        }
+
+        if (result.status === "cancelled") {
+          toast.message("Workflow run cancelled");
+          return;
+        }
+
+        toast.message(`Workflow run ignored: ${result.reason}`);
+      },
+      onError: (error) => {
+        toast.error(error.message || "Failed to execute workflow");
+      },
+    }),
+  );
 
   const graph = useMemo(
     () => serializeWorkflowGraph({ nodes, edges }),
     [nodes, edges],
   );
+  const availableSamples = executionSamplesQuery.data?.samples ?? [];
+  const availableEventTypes = useMemo(
+    () =>
+      Array.from(new Set(availableSamples.map((sample) => sample.eventType))),
+    [availableSamples],
+  );
+  const samplesForSelectedEventType = useMemo(
+    () =>
+      selectedEventType
+        ? availableSamples.filter(
+            (sample) => sample.eventType === selectedEventType,
+          )
+        : [],
+    [availableSamples, selectedEventType],
+  );
+  const selectedSample = useMemo(
+    () =>
+      samplesForSelectedEventType.find(
+        (sample) => sample.recordId === selectedSampleRecordId,
+      ) ?? null,
+    [samplesForSelectedEventType, selectedSampleRecordId],
+  );
+
+  useEffect(() => {
+    if (!isExecuteModalOpen) return;
+
+    if (availableEventTypes.length === 0) {
+      setSelectedEventType(null);
+      return;
+    }
+
+    if (
+      !selectedEventType ||
+      !availableEventTypes.some((eventType) => eventType === selectedEventType)
+    ) {
+      setSelectedEventType(availableEventTypes[0]!);
+    }
+  }, [availableEventTypes, isExecuteModalOpen, selectedEventType]);
+
+  useEffect(() => {
+    if (!selectedEventType) {
+      setSelectedSampleRecordId(null);
+      return;
+    }
+
+    if (
+      !selectedSampleRecordId ||
+      !samplesForSelectedEventType.some(
+        (sample) => sample.recordId === selectedSampleRecordId,
+      )
+    ) {
+      setSelectedSampleRecordId(
+        samplesForSelectedEventType[0]?.recordId ?? null,
+      );
+    }
+  }, [selectedEventType, selectedSampleRecordId, samplesForSelectedEventType]);
 
   const saveWorkflow = useCallback(async () => {
     if (!isLoaded || !canManageWorkflow) return;
@@ -138,13 +270,52 @@ function WorkflowEditorPage() {
     isLoaded,
     setHasUnsavedChanges,
     setIsSaving,
+    setSelectedExecutionId,
     updateMutation,
     workflowId,
   ]);
 
-  const handleExecute = useCallback((_options?: { dryRun?: boolean }) => {
-    toast.error("Workflow execution is not yet implemented.");
-  }, []);
+  const handleExecute = useCallback(
+    (options?: { dryRun?: boolean }) => {
+      if (!canManageWorkflow) return;
+      if (!workflowQuery.data?.isEnabled) {
+        toast.error("Turn workflow on before running.");
+        return;
+      }
+      setExecuteDryRun(options?.dryRun ?? false);
+      setIsExecuteModalOpen(true);
+    },
+    [canManageWorkflow, workflowQuery.data?.isEnabled],
+  );
+
+  const handleToggleEnabled = useCallback(async () => {
+    if (!canManageWorkflow || !workflowQuery.data) return;
+
+    await toggleEnabledMutation.mutateAsync({
+      id: workflowId,
+      data: { isEnabled: !workflowQuery.data.isEnabled },
+    });
+  }, [
+    canManageWorkflow,
+    toggleEnabledMutation,
+    workflowId,
+    workflowQuery.data,
+  ]);
+
+  const handleExecuteConfirm = useCallback(async () => {
+    if (!selectedSample) {
+      return;
+    }
+
+    await executeMutation.mutateAsync({
+      id: workflowId,
+      data: {
+        eventType: selectedSample.eventType,
+        payload: selectedSample.payload,
+        dryRun: executeDryRun,
+      },
+    });
+  }, [executeDryRun, executeMutation, selectedSample, workflowId]);
 
   // Keyboard shortcuts for the workflow editor
   useKeyboardShortcuts({
@@ -222,8 +393,11 @@ function WorkflowEditorPage() {
         {/* Toolbar - top right */}
         <WorkflowToolbar
           canManageWorkflow={canManageWorkflow}
+          isEnabled={workflowQuery.data?.isEnabled ?? false}
           isSaving={isSaving}
+          isTogglingEnabled={toggleEnabledMutation.isPending}
           onSave={() => void saveWorkflow()}
+          onToggleEnabled={() => void handleToggleEnabled()}
           onExecute={handleExecute}
         />
       </WorkflowEditorCanvas>
@@ -243,6 +417,114 @@ function WorkflowEditorPage() {
           workflowId={workflowQuery.data?.id ?? null}
         />
       </WorkflowSidebarPanel>
+
+      <AlertDialog
+        open={isExecuteModalOpen}
+        onOpenChange={(open) => {
+          setIsExecuteModalOpen(open);
+          if (!open) {
+            setSelectedEventType(null);
+            setSelectedSampleRecordId(null);
+          }
+        }}
+      >
+        <AlertDialogContent size="lg" className="min-h-[75dvh]">
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {executeDryRun ? "Dry run workflow" : "Run workflow"}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Select a real event record generated from your current trigger
+              configuration.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+
+          {executionSamplesQuery.isLoading ? (
+            <p className="text-muted-foreground text-sm">
+              Loading sample events...
+            </p>
+          ) : null}
+
+          {!executionSamplesQuery.isLoading && availableSamples.length === 0 ? (
+            <p className="text-muted-foreground text-sm">
+              No sample records are available for the configured trigger yet.
+            </p>
+          ) : null}
+
+          {availableSamples.length > 0 ? (
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="workflow-execute-event-type">Event type</Label>
+                <Select
+                  value={selectedEventType ?? ""}
+                  onValueChange={(value) => setSelectedEventType(value)}
+                >
+                  <SelectTrigger id="workflow-execute-event-type" size="sm">
+                    <SelectValue placeholder="Select event type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availableEventTypes.map((eventType) => (
+                      <SelectItem key={eventType} value={eventType}>
+                        {eventType}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="workflow-execute-record">Record</Label>
+                <Select
+                  value={selectedSampleRecordId ?? ""}
+                  onValueChange={(value) => setSelectedSampleRecordId(value)}
+                >
+                  <SelectTrigger id="workflow-execute-record" size="sm">
+                    <SelectValue placeholder="Select record">
+                      {selectedSample?.label ?? "Select record"}
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    {samplesForSelectedEventType.map((sample) => (
+                      <SelectItem key={sample.recordId} value={sample.recordId}>
+                        {sample.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {selectedSample ? (
+                <div className="space-y-2">
+                  <Label>Sample payload preview</Label>
+                  <pre className="max-h-52 overflow-auto rounded-md border bg-muted/40 p-2 text-[11px] whitespace-pre-wrap">
+                    {JSON.stringify(selectedSample.payload, null, 2)}
+                  </pre>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={
+                executeMutation.isPending ||
+                executionSamplesQuery.isLoading ||
+                !selectedSample
+              }
+              onClick={() => void handleExecuteConfirm()}
+            >
+              {executeMutation.isPending
+                ? executeDryRun
+                  ? "Dry running..."
+                  : "Running..."
+                : executeDryRun
+                  ? "Dry run"
+                  : "Run"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

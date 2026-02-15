@@ -6,6 +6,7 @@ import type { BunSQLDatabase } from "drizzle-orm/bun-sql/postgres";
 import type * as schema from "@scheduling/db/schema";
 import type { relations } from "@scheduling/db/relations";
 import {
+  clients,
   workflowExecutionEvents,
   workflowExecutionLogs,
   workflowExecutions,
@@ -114,6 +115,42 @@ function createGraphWithIntegrationConfig(): SerializedWorkflowGraph {
         },
       },
     ],
+  };
+}
+
+function createGraphWithDomainTrigger(
+  eventType: "client.created" | "client.updated" | "client.deleted",
+): SerializedWorkflowGraph {
+  return {
+    attributes: {},
+    options: {
+      type: "directed",
+    },
+    nodes: [
+      {
+        key: "trigger-source",
+        attributes: {
+          id: "trigger-source",
+          type: "trigger-node",
+          position: {
+            x: 0,
+            y: 0,
+          },
+          data: {
+            label: "Trigger",
+            type: "trigger",
+            config: {
+              triggerType: "DomainEvent",
+              domain: "client",
+              startEvents: [eventType],
+              restartEvents: [],
+              stopEvents: [],
+            },
+          },
+        },
+      },
+    ],
+    edges: [],
   };
 }
 
@@ -272,6 +309,7 @@ describe("Workflow Routes", () => {
       { context: ownerContext },
     );
     expect(created.name).toBe("Owner Workflow");
+    expect(created.isEnabled).toBeFalse();
     expect(created.isOwner).toBeTrue();
 
     const updated = await call(
@@ -281,12 +319,14 @@ describe("Workflow Routes", () => {
         data: {
           name: "Owner Workflow Updated",
           description: "Updated by owner",
+          isEnabled: true,
         },
       },
       { context: ownerContext },
     );
     expect(updated.name).toBe("Owner Workflow Updated");
     expect(updated.description).toBe("Updated by owner");
+    expect(updated.isEnabled).toBeTrue();
     expect(updated.isOwner).toBeTrue();
 
     const removed = await call(
@@ -364,6 +404,7 @@ describe("Workflow Routes", () => {
     expect(duplicated.id).not.toBe(source.id);
     expect(duplicated.name).toBe("Source Workflow (Copy)");
     expect(duplicated.description).toBe("To be duplicated");
+    expect(duplicated.isEnabled).toBeFalse();
     expect(duplicated.visibility).toBe("private");
     expect(duplicated.isOwner).toBeTrue();
 
@@ -400,6 +441,112 @@ describe("Workflow Routes", () => {
       .from(workflows)
       .where(eq(workflows.orgId, orgA.id));
     expect(allWorkflows).toHaveLength(2);
+  });
+
+  test("lists execution samples from real records based on trigger domain", async () => {
+    const workflow = await call(
+      workflowRoutes.create,
+      {
+        name: "Sample Event Workflow",
+        graph: createGraphWithDomainTrigger("client.updated"),
+      },
+      { context: ownerContext },
+    );
+
+    await setTestOrgContext(db, orgA.id);
+    const [client] = await db
+      .insert(clients)
+      .values({
+        orgId: orgA.id,
+        firstName: "Ada",
+        lastName: "Lovelace",
+        email: "ada@example.com",
+        phone: null,
+      })
+      .returning();
+
+    const samples = await call(
+      workflowRoutes.listExecutionSamples,
+      { id: workflow.id },
+      { context: memberContext },
+    );
+
+    expect(samples.samples.length).toBeGreaterThan(0);
+    expect(samples.samples[0]?.eventType).toBe("client.updated");
+    expect(samples.samples[0]?.recordId).toBe(client!.id);
+    expect(samples.samples[0]?.payload).toMatchObject({
+      clientId: client!.id,
+      firstName: "Ada",
+      lastName: "Lovelace",
+      previous: {
+        clientId: client!.id,
+      },
+    });
+  });
+
+  test("execute runs for admins and is forbidden for members", async () => {
+    const workflow = await call(
+      workflowRoutes.create,
+      {
+        name: "Manual Execute Workflow",
+        graph: createGraphWithDomainTrigger("client.created"),
+        isEnabled: true,
+      },
+      { context: ownerContext },
+    );
+
+    await expect(
+      call(
+        workflowRoutes.execute,
+        {
+          id: workflow.id,
+          data: {
+            eventType: "client.created",
+            payload: {
+              clientId: "018f4d3a-6d80-7c5b-8a4a-6cb8f8d57d11",
+              firstName: "Ada",
+              lastName: "Lovelace",
+              email: null,
+              phone: null,
+            },
+            dryRun: true,
+          },
+        },
+        { context: memberContext },
+      ),
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+
+    const result = await call(
+      workflowRoutes.execute,
+      {
+        id: workflow.id,
+        data: {
+          eventType: "client.created",
+          payload: {
+            clientId: "018f4d3a-6d80-7c5b-8a4a-6cb8f8d57d11",
+            firstName: "Ada",
+            lastName: "Lovelace",
+            email: null,
+            phone: null,
+          },
+          dryRun: true,
+        },
+      },
+      { context: ownerContext },
+    );
+
+    expect(result.status).toBe("running");
+    expect(result.dryRun).toBeTrue();
+
+    await setTestOrgContext(db, orgA.id);
+    const [execution] = await db
+      .select()
+      .from(workflowExecutions)
+      .where(eq(workflowExecutions.id, result.executionId))
+      .limit(1);
+    expect(execution?.status).toBe("success");
+    expect(execution?.isDryRun).toBeTrue();
+    expect(execution?.triggerType).toBe("manual");
   });
 
   test("member can read execution history/details/logs/events/status", async () => {

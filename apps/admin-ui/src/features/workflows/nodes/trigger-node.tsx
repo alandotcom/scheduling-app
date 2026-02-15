@@ -5,6 +5,7 @@ import {
   PlayIcon,
   Tick02Icon,
 } from "@hugeicons/core-free-icons";
+import { useAtomValue } from "jotai";
 import { Icon } from "@/components/ui/icon";
 import { memo } from "react";
 import {
@@ -13,6 +14,11 @@ import {
   NodeTitle,
 } from "@/components/flow-elements/node";
 import { cn } from "@/lib/utils";
+import {
+  selectedExecutionIdAtom,
+  workflowExecutionLogsByNodeIdAtom,
+  type WorkflowExecutionNodeLogPreview,
+} from "../workflow-editor-store";
 
 type TriggerNodeData = {
   label?: string;
@@ -25,6 +31,16 @@ type TriggerNodeData = {
     stopEvents?: string[];
   };
 };
+
+function toRuntimeNodeStatus(
+  status: WorkflowExecutionNodeLogPreview["status"] | undefined,
+): TriggerNodeData["status"] {
+  if (!status || status === "pending") {
+    return "idle";
+  }
+
+  return status;
+}
 
 function StatusBadge({ status }: { status: TriggerNodeData["status"] }) {
   if (!status || status === "idle" || status === "running") return null;
@@ -52,11 +68,21 @@ function StatusBadge({ status }: { status: TriggerNodeData["status"] }) {
   );
 }
 
-const TriggerNode = memo(function TriggerNode({ data, selected }: NodeProps) {
+const TriggerNode = memo(function TriggerNode({
+  id,
+  data,
+  selected,
+}: NodeProps) {
   const nodeData = data as TriggerNodeData;
+  const selectedExecutionId = useAtomValue(selectedExecutionIdAtom);
+  const executionLogsByNodeId = useAtomValue(workflowExecutionLogsByNodeIdAtom);
   const title = nodeData.label || "Trigger";
   const description = nodeData.description || "Trigger";
-  const status = nodeData.status;
+  const runtimeStatus =
+    selectedExecutionId !== null
+      ? toRuntimeNodeStatus(executionLogsByNodeId[id]?.status)
+      : undefined;
+  const status = runtimeStatus ?? nodeData.status;
 
   return (
     <Node

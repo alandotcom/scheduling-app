@@ -60,6 +60,16 @@ type RuntimeWaitInput = {
   waitTimezone?: unknown;
 };
 
+function toRuntimeNodeStatus(
+  status: WorkflowExecutionNodeLogPreview["status"] | undefined,
+): ActionNodeData["status"] {
+  if (!status || status === "pending") {
+    return "idle";
+  }
+
+  return status;
+}
+
 function getWaitDelayTimingMode(
   config: ActionNodeData["config"],
 ): "duration" | "until" {
@@ -350,7 +360,11 @@ const ActionNode = memo(function ActionNode({ id, data, selected }: NodeProps) {
   const title = nodeData.label || actionDef?.label || "Action";
   const description =
     nodeData.description || actionDef?.description || "Select an action";
-  const status = nodeData.status;
+  const runtimeStatus =
+    selectedExecutionId !== null
+      ? toRuntimeNodeStatus(executionLogsByNodeId[id]?.status)
+      : undefined;
+  const status = runtimeStatus ?? nodeData.status;
 
   return (
     <Node

@@ -44,7 +44,6 @@ export const workflowDomainEventTriggerConfigSchema = z
     restartEvents: workflowDomainEventRoutingSetSchema,
     stopEvents: workflowDomainEventRoutingSetSchema,
     domainEventCorrelationPath: z.string().trim().min(1).optional(),
-    domainEventMockEvent: z.string().trim().min(1).optional(),
   })
   .superRefine((value, ctx) => {
     const routingSets = [

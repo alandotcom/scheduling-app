@@ -80,6 +80,10 @@ function toVisibilityBadgeVariant(
   return visibility === "public" ? "default" : "secondary";
 }
 
+function toRuntimeBadgeVariant(isEnabled: boolean): "success" | "outline" {
+  return isEnabled ? "success" : "outline";
+}
+
 export function WorkflowListPage({
   workflows,
   isLoading,
@@ -92,6 +96,9 @@ export function WorkflowListPage({
     id: string;
     name: string;
   } | null>(null);
+  const [toggleTargetWorkflowId, setToggleTargetWorkflowId] = useState<
+    string | null
+  >(null);
 
   const createMutation = useMutation(
     orpc.workflows.create.mutationOptions({
@@ -116,6 +123,19 @@ export function WorkflowListPage({
       },
       onError: (error) => {
         toast.error(error.message || "Failed to delete workflow");
+      },
+    }),
+  );
+  const toggleEnabledMutation = useMutation(
+    orpc.workflows.update.mutationOptions({
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: orpc.workflows.key() });
+      },
+      onError: (error) => {
+        toast.error(error.message || "Failed to update workflow state");
+      },
+      onSettled: () => {
+        setToggleTargetWorkflowId(null);
       },
     }),
   );
@@ -176,11 +196,16 @@ export function WorkflowListPage({
                   {workflow.description || "No description"}
                 </CardDescription>
                 <CardAction>
-                  <Badge
-                    variant={toVisibilityBadgeVariant(workflow.visibility)}
-                  >
-                    {workflow.visibility}
-                  </Badge>
+                  <div className="flex items-center gap-2">
+                    <Badge variant={toRuntimeBadgeVariant(workflow.isEnabled)}>
+                      {workflow.isEnabled ? "On" : "Off"}
+                    </Badge>
+                    <Badge
+                      variant={toVisibilityBadgeVariant(workflow.visibility)}
+                    >
+                      {workflow.visibility}
+                    </Badge>
+                  </div>
                 </CardAction>
               </CardHeader>
               <CardContent className="space-y-2 text-sm">
@@ -190,6 +215,27 @@ export function WorkflowListPage({
                 </p>
               </CardContent>
               <CardFooter className="justify-end gap-2">
+                {canManageWorkflows ? (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={toggleEnabledMutation.isPending}
+                    onClick={() => {
+                      setToggleTargetWorkflowId(workflow.id);
+                      toggleEnabledMutation.mutate({
+                        id: workflow.id,
+                        data: { isEnabled: !workflow.isEnabled },
+                      });
+                    }}
+                  >
+                    {toggleEnabledMutation.isPending &&
+                    toggleTargetWorkflowId === workflow.id
+                      ? "Updating..."
+                      : workflow.isEnabled
+                        ? "Turn off"
+                        : "Turn on"}
+                  </Button>
+                ) : null}
                 {canManageWorkflows ? (
                   <Button
                     size="sm"

@@ -27,7 +27,6 @@ type TriggerConfigShape = {
   restartEvents?: string[];
   stopEvents?: string[];
   domainEventCorrelationPath?: string;
-  domainEventMockEvent?: string;
 };
 
 function isDomainEventDomain(value: unknown): value is DomainEventDomain {
@@ -71,7 +70,6 @@ export function WorkflowTriggerConfig({
   const domainEvents = domainEventTypesByDomain[selectedDomain];
 
   const [correlationPathValue, setCorrelationPathValue] = useState("");
-  const [mockEventValue, setMockEventValue] = useState("");
 
   useEffect(() => {
     setCorrelationPathValue(
@@ -79,12 +77,7 @@ export function WorkflowTriggerConfig({
         ? config.domainEventCorrelationPath
         : "",
     );
-    setMockEventValue(
-      typeof config.domainEventMockEvent === "string"
-        ? config.domainEventMockEvent
-        : "",
-    );
-  }, [config.domainEventCorrelationPath, config.domainEventMockEvent]);
+  }, [config.domainEventCorrelationPath]);
 
   const overlapWarnings = useMemo(() => {
     const start = new Set(
@@ -224,24 +217,6 @@ export function WorkflowTriggerConfig({
           }}
           placeholder="data.appointmentId"
           value={correlationPathValue}
-        />
-      </div>
-
-      <div className="space-y-2">
-        <Label htmlFor="workflow-trigger-mock-event">Mock event name</Label>
-        <Input
-          disabled={disabled}
-          id="workflow-trigger-mock-event"
-          onBlur={() =>
-            onUpdate({
-              domainEventMockEvent: mockEventValue.trim() || undefined,
-            })
-          }
-          onChange={(event) => {
-            setMockEventValue(event.target.value);
-          }}
-          placeholder="appointment.created"
-          value={mockEventValue}
         />
       </div>
 

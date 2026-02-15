@@ -267,7 +267,9 @@ export async function processWorkflowDomainEvent(
     dependencies.cancelRequester ?? sendWorkflowCancelRequested;
 
   return withOrg(event.orgId, async (tx) => {
-    const workflows = await workflowRepository.findMany(tx, event.orgId);
+    const workflows = (
+      await workflowRepository.findMany(tx, event.orgId)
+    ).filter((workflow) => workflow.isEnabled);
     const startedExecutionIds: string[] = [];
     const ignoredWorkflowIds: string[] = [];
     const ignored: Array<{

@@ -30,6 +30,7 @@ export interface WorkflowCreateInput {
   name: string;
   description?: string | null | undefined;
   graph: SerializedWorkflowGraph;
+  isEnabled?: boolean | undefined;
   visibility?: WorkflowVisibility | undefined;
 }
 
@@ -37,6 +38,7 @@ export interface WorkflowUpdateInput {
   name?: string | undefined;
   description?: string | null | undefined;
   graph?: SerializedWorkflowGraph | undefined;
+  isEnabled?: boolean | undefined;
   visibility?: WorkflowVisibility | undefined;
 }
 
@@ -59,6 +61,50 @@ export interface WorkflowExecutionCreateInput {
   triggerEventId?: string | null;
   correlationKey?: string | null;
   input?: Record<string, unknown>;
+}
+
+export interface WorkflowExecutionLogCreateInput {
+  executionId: string;
+  nodeId: string;
+  nodeName: string;
+  nodeType: string;
+  status: "pending" | "running" | "success" | "error" | "cancelled";
+  input?: unknown;
+  startedAt?: Date;
+  timestamp?: Date;
+}
+
+export interface WorkflowExecutionLogCompleteInput {
+  logId: string;
+  status: "pending" | "running" | "success" | "error" | "cancelled";
+  output?: unknown;
+  error?: string | null;
+  completedAt?: Date;
+  duration?: string | null;
+  timestamp?: Date;
+}
+
+export interface WorkflowExecutionEventCreateInput {
+  workflowId: string;
+  executionId?: string | null;
+  eventType: string;
+  message: string;
+  metadata?: Record<string, unknown>;
+  createdAt?: Date;
+}
+
+export interface WorkflowWaitStateCreateInput {
+  executionId: string;
+  workflowId: string;
+  runId: string;
+  nodeId: string;
+  nodeName: string;
+  waitType: string;
+  status: string;
+  hookToken?: string | null;
+  waitUntil?: Date | null;
+  correlationKey?: string | null;
+  metadata?: Record<string, unknown>;
 }
 
 function toWorkflow(row: WorkflowRow): Workflow {
@@ -154,6 +200,7 @@ export class WorkflowRepository {
         name: input.name,
         description: input.description ?? null,
         graph: input.graph as Record<string, unknown>,
+        isEnabled: input.isEnabled ?? false,
         visibility: input.visibility ?? "private",
       })
       .returning();
@@ -298,6 +345,88 @@ export class WorkflowRepository {
       );
   }
 
+  async findLatestExecutionLogByNodeId(
+    tx: DbClient,
+    orgId: string,
+    input: {
+      executionId: string;
+      nodeId: string;
+    },
+  ): Promise<WorkflowExecutionLog | null> {
+    await setOrgContext(tx, orgId);
+
+    const [row] = await tx
+      .select()
+      .from(workflowExecutionLogs)
+      .where(
+        and(
+          eq(workflowExecutionLogs.executionId, input.executionId),
+          eq(workflowExecutionLogs.nodeId, input.nodeId),
+        ),
+      )
+      .orderBy(
+        desc(workflowExecutionLogs.timestamp),
+        desc(workflowExecutionLogs.id),
+      )
+      .limit(1);
+
+    return row ?? null;
+  }
+
+  async createExecutionLog(
+    tx: DbClient,
+    orgId: string,
+    input: WorkflowExecutionLogCreateInput,
+  ): Promise<WorkflowExecutionLog> {
+    await setOrgContext(tx, orgId);
+
+    const [row] = await tx
+      .insert(workflowExecutionLogs)
+      .values({
+        orgId,
+        executionId: input.executionId,
+        nodeId: input.nodeId,
+        nodeName: input.nodeName,
+        nodeType: input.nodeType,
+        status: input.status,
+        input: input.input,
+        ...(input.startedAt ? { startedAt: input.startedAt } : {}),
+        ...(input.timestamp ? { timestamp: input.timestamp } : {}),
+      })
+      .returning();
+
+    return row!;
+  }
+
+  async completeExecutionLog(
+    tx: DbClient,
+    orgId: string,
+    executionId: string,
+    input: WorkflowExecutionLogCompleteInput,
+  ): Promise<boolean> {
+    await setOrgContext(tx, orgId);
+
+    const updated = await tx
+      .update(workflowExecutionLogs)
+      .set({
+        status: input.status,
+        output: input.output,
+        error: input.error,
+        completedAt: input.completedAt ?? sql`now()`,
+        duration: input.duration,
+        timestamp: input.timestamp ?? sql`now()`,
+      })
+      .where(
+        and(
+          eq(workflowExecutionLogs.id, input.logId),
+          eq(workflowExecutionLogs.executionId, executionId),
+        ),
+      )
+      .returning({ id: workflowExecutionLogs.id });
+
+    return updated.length > 0;
+  }
+
   async listExecutionEvents(
     tx: DbClient,
     orgId: string,
@@ -314,6 +443,53 @@ export class WorkflowRepository {
         desc(workflowExecutionEvents.id),
       )
       .limit(200);
+  }
+
+  async createExecutionEvent(
+    tx: DbClient,
+    orgId: string,
+    input: WorkflowExecutionEventCreateInput,
+  ): Promise<WorkflowExecutionEvent> {
+    await setOrgContext(tx, orgId);
+
+    const [row] = await tx
+      .insert(workflowExecutionEvents)
+      .values({
+        orgId,
+        workflowId: input.workflowId,
+        executionId: input.executionId ?? null,
+        eventType: input.eventType,
+        message: input.message,
+        metadata: input.metadata,
+        ...(input.createdAt ? { createdAt: input.createdAt } : {}),
+      })
+      .returning();
+
+    return row!;
+  }
+
+  async hasExecutionEventType(
+    tx: DbClient,
+    orgId: string,
+    input: {
+      executionId: string;
+      eventType: string;
+    },
+  ): Promise<boolean> {
+    await setOrgContext(tx, orgId);
+
+    const [row] = await tx
+      .select({ id: workflowExecutionEvents.id })
+      .from(workflowExecutionEvents)
+      .where(
+        and(
+          eq(workflowExecutionEvents.executionId, input.executionId),
+          eq(workflowExecutionEvents.eventType, input.eventType),
+        ),
+      )
+      .limit(1);
+
+    return row !== undefined;
   }
 
   async listExecutionWaitingStates(
@@ -333,6 +509,34 @@ export class WorkflowRepository {
         ),
       )
       .orderBy(desc(workflowWaitStates.createdAt), desc(workflowWaitStates.id));
+  }
+
+  async createWaitState(
+    tx: DbClient,
+    orgId: string,
+    input: WorkflowWaitStateCreateInput,
+  ): Promise<WorkflowWaitState> {
+    await setOrgContext(tx, orgId);
+
+    const [row] = await tx
+      .insert(workflowWaitStates)
+      .values({
+        orgId,
+        executionId: input.executionId,
+        workflowId: input.workflowId,
+        runId: input.runId,
+        nodeId: input.nodeId,
+        nodeName: input.nodeName,
+        waitType: input.waitType,
+        status: input.status,
+        hookToken: input.hookToken ?? null,
+        waitUntil: input.waitUntil ?? null,
+        correlationKey: input.correlationKey ?? null,
+        metadata: input.metadata,
+      })
+      .returning();
+
+    return row!;
   }
 
   async setExecutionRunId(
@@ -364,7 +568,59 @@ export class WorkflowRepository {
         error: errorMessage,
         completedAt: sql`now()`,
       })
-      .where(eq(workflowExecutions.id, executionId));
+      .where(
+        and(
+          eq(workflowExecutions.id, executionId),
+          ne(workflowExecutions.status, "cancelled"),
+        ),
+      );
+  }
+
+  async markExecutionSucceeded(
+    tx: DbClient,
+    orgId: string,
+    executionId: string,
+    output: unknown,
+  ): Promise<void> {
+    await setOrgContext(tx, orgId);
+
+    await tx
+      .update(workflowExecutions)
+      .set({
+        status: "success",
+        output,
+        completedAt: sql`now()`,
+      })
+      .where(
+        and(
+          eq(workflowExecutions.id, executionId),
+          ne(workflowExecutions.status, "cancelled"),
+        ),
+      );
+  }
+
+  async markExecutionWaiting(
+    tx: DbClient,
+    orgId: string,
+    executionId: string,
+  ): Promise<boolean> {
+    await setOrgContext(tx, orgId);
+
+    const updated = await tx
+      .update(workflowExecutions)
+      .set({
+        status: "waiting",
+        waitingAt: sql`now()`,
+      })
+      .where(
+        and(
+          eq(workflowExecutions.id, executionId),
+          eq(workflowExecutions.status, "running"),
+        ),
+      )
+      .returning({ id: workflowExecutions.id });
+
+    return updated.length > 0;
   }
 
   async listWorkflowWaitingStatesByCorrelation(
