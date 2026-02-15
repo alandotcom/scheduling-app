@@ -94,6 +94,7 @@ export class LocationService {
       name: updated.name,
       timezone: updated.timezone,
       previous: {
+        locationId: existing.id,
         name: existing.name,
         timezone: existing.timezone,
       },

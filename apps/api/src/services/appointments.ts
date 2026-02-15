@@ -117,6 +117,20 @@ function toAppointmentScheduleEvent(
   };
 }
 
+function toAppointmentEventSnapshot(appointment: Appointment) {
+  return {
+    appointmentId: appointment.id,
+    calendarId: appointment.calendarId,
+    appointmentTypeId: appointment.appointmentTypeId,
+    clientId: appointment.clientId,
+    startAt: appointment.startAt.toISOString(),
+    endAt: appointment.endAt.toISOString(),
+    timezone: appointment.timezone,
+    status: appointment.status,
+    notes: appointment.notes,
+  };
+}
+
 export class AppointmentService {
   async list(
     input: AppointmentListInput,
@@ -322,16 +336,10 @@ export class AppointmentService {
     }
 
     // Emit appointment created event
-    await events.appointmentCreated(orgId, {
-      appointmentId: appointment.id,
-      calendarId: appointment.calendarId,
-      appointmentTypeId: appointment.appointmentTypeId,
-      clientId: appointment.clientId,
-      startAt: appointment.startAt.toISOString(),
-      endAt: appointment.endAt.toISOString(),
-      timezone: appointment.timezone,
-      status: appointment.status,
-    });
+    await events.appointmentCreated(
+      orgId,
+      toAppointmentEventSnapshot(appointment),
+    );
 
     // Record audit event
     const authMethod = this.mapAuthMethod(context.authMethod);
@@ -399,25 +407,8 @@ export class AppointmentService {
     });
 
     await events.appointmentUpdated(orgId, {
-      appointmentId: updated.id,
-      calendarId: updated.calendarId,
-      appointmentTypeId: updated.appointmentTypeId,
-      clientId: updated.clientId,
-      startAt: updated.startAt.toISOString(),
-      endAt: updated.endAt.toISOString(),
-      timezone: updated.timezone,
-      status: updated.status,
-      notes: updated.notes,
-      previous: {
-        calendarId: existing.calendarId,
-        appointmentTypeId: existing.appointmentTypeId,
-        clientId: existing.clientId,
-        startAt: existing.startAt.toISOString(),
-        endAt: existing.endAt.toISOString(),
-        timezone: existing.timezone,
-        status: existing.status,
-        notes: existing.notes,
-      },
+      ...toAppointmentEventSnapshot(updated),
+      previous: toAppointmentEventSnapshot(existing),
     });
 
     return updated;
@@ -430,7 +421,7 @@ export class AppointmentService {
   ): Promise<Appointment> {
     const { orgId } = context;
 
-    const updated = await withOrg(orgId, async (tx) => {
+    const { existing, updated } = await withOrg(orgId, async (tx) => {
       // Get existing appointment
       const existing = await appointmentRepository.findById(tx, orgId, id);
       if (!existing) {
@@ -480,17 +471,12 @@ export class AppointmentService {
         tx,
       );
 
-      return updated;
+      return { existing, updated };
     });
 
-    await events.appointmentCancelled(orgId, {
-      appointmentId: updated.id,
-      calendarId: updated.calendarId,
-      appointmentTypeId: updated.appointmentTypeId,
-      clientId: updated.clientId,
-      startAt: updated.startAt.toISOString(),
-      endAt: updated.endAt.toISOString(),
-      reason: data?.reason ?? undefined,
+    await events.appointmentUpdated(orgId, {
+      ...toAppointmentEventSnapshot(updated),
+      previous: toAppointmentEventSnapshot(existing),
     });
 
     return updated;
@@ -615,16 +601,9 @@ export class AppointmentService {
       throw error;
     }
 
-    await events.appointmentRescheduled(orgId, {
-      appointmentId: updated.id,
-      calendarId: updated.calendarId,
-      appointmentTypeId: updated.appointmentTypeId,
-      clientId: updated.clientId,
-      previousStartAt: existing.startAt.toISOString(),
-      previousEndAt: existing.endAt.toISOString(),
-      newStartAt: updated.startAt.toISOString(),
-      newEndAt: updated.endAt.toISOString(),
-      timezone: updated.timezone,
+    await events.appointmentUpdated(orgId, {
+      ...toAppointmentEventSnapshot(updated),
+      previous: toAppointmentEventSnapshot(existing),
     });
 
     return updated;
@@ -636,7 +615,7 @@ export class AppointmentService {
   ): Promise<Appointment> {
     const { orgId } = context;
 
-    const updated = await withOrg(orgId, async (tx) => {
+    const { existing, updated } = await withOrg(orgId, async (tx) => {
       // Get existing appointment
       const existing = await appointmentRepository.findById(tx, orgId, id);
       if (!existing) {
@@ -685,16 +664,12 @@ export class AppointmentService {
         tx,
       );
 
-      return updated;
+      return { existing, updated };
     });
 
-    await events.appointmentNoShow(orgId, {
-      appointmentId: updated.id,
-      calendarId: updated.calendarId,
-      appointmentTypeId: updated.appointmentTypeId,
-      clientId: updated.clientId,
-      startAt: updated.startAt.toISOString(),
-      endAt: updated.endAt.toISOString(),
+    await events.appointmentUpdated(orgId, {
+      ...toAppointmentEventSnapshot(updated),
+      previous: toAppointmentEventSnapshot(existing),
     });
 
     return updated;

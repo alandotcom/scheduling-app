@@ -130,6 +130,7 @@ export class CalendarService {
       timezone: updated.timezone,
       locationId: updated.locationId,
       previous: {
+        calendarId: existing.id,
         name: existing.name,
         timezone: existing.timezone,
         locationId: existing.locationId,

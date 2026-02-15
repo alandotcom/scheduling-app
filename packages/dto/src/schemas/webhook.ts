@@ -17,9 +17,6 @@ const isoDateTimeStringSchema = z.iso.datetime();
 export const webhookEventTypes = [
   "appointment.created",
   "appointment.updated",
-  "appointment.cancelled",
-  "appointment.rescheduled",
-  "appointment.no_show",
   "calendar.created",
   "calendar.updated",
   "calendar.deleted",
@@ -39,7 +36,7 @@ export const webhookEventTypes = [
 
 export type WebhookEventType = (typeof webhookEventTypes)[number];
 
-const appointmentUpdatedPayloadSchema = z.object({
+const appointmentSnapshotSchema = z.object({
   appointmentId: uuidSchema,
   calendarId: uuidSchema,
   appointmentTypeId: uuidSchema,
@@ -50,21 +47,15 @@ const appointmentUpdatedPayloadSchema = z.object({
   status: appointmentStatusSchema,
   notes: z.string().nullable(),
 });
-const appointmentUpdatedPreviousSchema = appointmentUpdatedPayloadSchema.omit({
-  appointmentId: true,
-});
 
-const calendarUpdatedPayloadSchema = z.object({
+const calendarSnapshotSchema = z.object({
   calendarId: uuidSchema,
   name: z.string().min(1).max(255),
   timezone: z.string().min(1),
   locationId: uuidSchema.nullable(),
 });
-const calendarUpdatedPreviousSchema = calendarUpdatedPayloadSchema.omit({
-  calendarId: true,
-});
 
-const appointmentTypeUpdatedPayloadSchema = z.object({
+const appointmentTypeSnapshotSchema = z.object({
   appointmentTypeId: uuidSchema,
   name: z.string().min(1).max(255),
   durationMin: z.number().int().positive(),
@@ -73,157 +64,58 @@ const appointmentTypeUpdatedPayloadSchema = z.object({
   capacity: z.number().int().positive().nullable(),
   metadata: z.record(z.string(), z.unknown()).nullable(),
 });
-const appointmentTypeUpdatedPreviousSchema =
-  appointmentTypeUpdatedPayloadSchema.omit({
-    appointmentTypeId: true,
-  });
 
-const resourceUpdatedPayloadSchema = z.object({
+const resourceSnapshotSchema = z.object({
   resourceId: uuidSchema,
   name: z.string().min(1).max(255),
   quantity: z.number().int().positive(),
   locationId: uuidSchema.nullable(),
 });
-const resourceUpdatedPreviousSchema = resourceUpdatedPayloadSchema.omit({
-  resourceId: true,
-});
 
-const locationUpdatedPayloadSchema = z.object({
+const locationSnapshotSchema = z.object({
   locationId: uuidSchema,
   name: z.string().min(1).max(255),
   timezone: z.string().min(1),
 });
-const locationUpdatedPreviousSchema = locationUpdatedPayloadSchema.omit({
-  locationId: true,
-});
 
-const clientUpdatedPayloadSchema = z.object({
+const clientSnapshotSchema = z.object({
   clientId: uuidSchema,
   firstName: z.string().min(1).max(255),
   lastName: z.string().min(1).max(255),
   email: z.email().nullable(),
   phone: z.string().max(50).nullable(),
 });
-const clientUpdatedPreviousSchema = clientUpdatedPayloadSchema.omit({
-  clientId: true,
-});
 
 export const webhookEventDataSchemaByType = {
-  "appointment.created": z.object({
-    appointmentId: uuidSchema,
-    calendarId: uuidSchema,
-    appointmentTypeId: uuidSchema,
-    clientId: uuidSchema.nullable(),
-    startAt: isoDateTimeStringSchema,
-    endAt: isoDateTimeStringSchema,
-    timezone: z.string().min(1),
-    status: appointmentStatusSchema,
+  "appointment.created": appointmentSnapshotSchema,
+  "appointment.updated": appointmentSnapshotSchema.extend({
+    previous: appointmentSnapshotSchema,
   }),
-  "appointment.updated": appointmentUpdatedPayloadSchema.extend({
-    previous: appointmentUpdatedPreviousSchema,
+  "calendar.created": calendarSnapshotSchema,
+  "calendar.updated": calendarSnapshotSchema.extend({
+    previous: calendarSnapshotSchema,
   }),
-  "appointment.cancelled": z.object({
-    appointmentId: uuidSchema,
-    calendarId: uuidSchema,
-    appointmentTypeId: uuidSchema,
-    clientId: uuidSchema.nullable(),
-    startAt: isoDateTimeStringSchema,
-    endAt: isoDateTimeStringSchema,
-    reason: z.string().optional(),
+  "calendar.deleted": calendarSnapshotSchema,
+  "appointment_type.created": appointmentTypeSnapshotSchema,
+  "appointment_type.updated": appointmentTypeSnapshotSchema.extend({
+    previous: appointmentTypeSnapshotSchema,
   }),
-  "appointment.rescheduled": z.object({
-    appointmentId: uuidSchema,
-    calendarId: uuidSchema,
-    appointmentTypeId: uuidSchema,
-    clientId: uuidSchema.nullable(),
-    previousStartAt: isoDateTimeStringSchema,
-    previousEndAt: isoDateTimeStringSchema,
-    newStartAt: isoDateTimeStringSchema,
-    newEndAt: isoDateTimeStringSchema,
-    timezone: z.string().min(1),
+  "appointment_type.deleted": appointmentTypeSnapshotSchema,
+  "resource.created": resourceSnapshotSchema,
+  "resource.updated": resourceSnapshotSchema.extend({
+    previous: resourceSnapshotSchema,
   }),
-  "appointment.no_show": z.object({
-    appointmentId: uuidSchema,
-    calendarId: uuidSchema,
-    appointmentTypeId: uuidSchema,
-    clientId: uuidSchema.nullable(),
-    startAt: isoDateTimeStringSchema,
-    endAt: isoDateTimeStringSchema,
+  "resource.deleted": resourceSnapshotSchema,
+  "location.created": locationSnapshotSchema,
+  "location.updated": locationSnapshotSchema.extend({
+    previous: locationSnapshotSchema,
   }),
-  "calendar.created": z.object({
-    calendarId: uuidSchema,
-    name: z.string().min(1).max(255),
-    timezone: z.string().min(1),
-    locationId: uuidSchema.nullable(),
+  "location.deleted": locationSnapshotSchema,
+  "client.created": clientSnapshotSchema,
+  "client.updated": clientSnapshotSchema.extend({
+    previous: clientSnapshotSchema,
   }),
-  "calendar.updated": calendarUpdatedPayloadSchema.extend({
-    previous: calendarUpdatedPreviousSchema,
-  }),
-  "calendar.deleted": z.object({
-    calendarId: uuidSchema,
-    name: z.string().min(1).max(255),
-    timezone: z.string().min(1),
-    locationId: uuidSchema.nullable(),
-  }),
-  "appointment_type.created": z.object({
-    appointmentTypeId: uuidSchema,
-    name: z.string().min(1).max(255),
-    durationMin: z.number().int().positive(),
-    paddingBeforeMin: z.number().int().nonnegative().nullable(),
-    paddingAfterMin: z.number().int().nonnegative().nullable(),
-    capacity: z.number().int().positive().nullable(),
-  }),
-  "appointment_type.updated": appointmentTypeUpdatedPayloadSchema.extend({
-    previous: appointmentTypeUpdatedPreviousSchema,
-  }),
-  "appointment_type.deleted": z.object({
-    appointmentTypeId: uuidSchema,
-    name: z.string().min(1).max(255),
-    durationMin: z.number().int().positive(),
-  }),
-  "resource.created": z.object({
-    resourceId: uuidSchema,
-    name: z.string().min(1).max(255),
-    quantity: z.number().int().positive(),
-    locationId: uuidSchema.nullable(),
-  }),
-  "resource.updated": resourceUpdatedPayloadSchema.extend({
-    previous: resourceUpdatedPreviousSchema,
-  }),
-  "resource.deleted": z.object({
-    resourceId: uuidSchema,
-    name: z.string().min(1).max(255),
-    quantity: z.number().int().positive(),
-    locationId: uuidSchema.nullable(),
-  }),
-  "location.created": z.object({
-    locationId: uuidSchema,
-    name: z.string().min(1).max(255),
-    timezone: z.string().min(1),
-  }),
-  "location.updated": locationUpdatedPayloadSchema.extend({
-    previous: locationUpdatedPreviousSchema,
-  }),
-  "location.deleted": z.object({
-    locationId: uuidSchema,
-    name: z.string().min(1).max(255),
-    timezone: z.string().min(1),
-  }),
-  "client.created": z.object({
-    clientId: uuidSchema,
-    firstName: z.string().min(1).max(255),
-    lastName: z.string().min(1).max(255),
-    email: z.email().nullable(),
-  }),
-  "client.updated": clientUpdatedPayloadSchema.extend({
-    previous: clientUpdatedPreviousSchema,
-  }),
-  "client.deleted": z.object({
-    clientId: uuidSchema,
-    firstName: z.string().min(1).max(255),
-    lastName: z.string().min(1).max(255),
-    email: z.email().nullable(),
-  }),
+  "client.deleted": clientSnapshotSchema,
 } satisfies {
   [TEventType in WebhookEventType]: z.ZodType;
 };
@@ -258,11 +150,6 @@ function createWebhookEnvelopeSchema<TEventType extends WebhookEventType>(
 export const webhookEventEnvelopeSchemaByType = {
   "appointment.created": createWebhookEnvelopeSchema("appointment.created"),
   "appointment.updated": createWebhookEnvelopeSchema("appointment.updated"),
-  "appointment.cancelled": createWebhookEnvelopeSchema("appointment.cancelled"),
-  "appointment.rescheduled": createWebhookEnvelopeSchema(
-    "appointment.rescheduled",
-  ),
-  "appointment.no_show": createWebhookEnvelopeSchema("appointment.no_show"),
   "calendar.created": createWebhookEnvelopeSchema("calendar.created"),
   "calendar.updated": createWebhookEnvelopeSchema("calendar.updated"),
   "calendar.deleted": createWebhookEnvelopeSchema("calendar.deleted"),
@@ -291,9 +178,6 @@ export const webhookEventEnvelopeSchemaByType = {
 export const webhookEventEnvelopeSchema = z.discriminatedUnion("type", [
   webhookEventEnvelopeSchemaByType["appointment.created"],
   webhookEventEnvelopeSchemaByType["appointment.updated"],
-  webhookEventEnvelopeSchemaByType["appointment.cancelled"],
-  webhookEventEnvelopeSchemaByType["appointment.rescheduled"],
-  webhookEventEnvelopeSchemaByType["appointment.no_show"],
   webhookEventEnvelopeSchemaByType["calendar.created"],
   webhookEventEnvelopeSchemaByType["calendar.updated"],
   webhookEventEnvelopeSchemaByType["calendar.deleted"],

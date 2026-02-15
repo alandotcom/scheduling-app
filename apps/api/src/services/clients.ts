@@ -230,6 +230,7 @@ export class ClientService {
       firstName: client.firstName,
       lastName: client.lastName,
       email: client.email,
+      phone: client.phone,
     });
 
     return client;
@@ -278,6 +279,7 @@ export class ClientService {
       email: updated.email,
       phone: updated.phone,
       previous: {
+        clientId: existing.id,
         firstName: existing.firstName,
         lastName: existing.lastName,
         email: existing.email,
@@ -307,6 +309,7 @@ export class ClientService {
         firstName: existing.firstName,
         lastName: existing.lastName,
         email: existing.email,
+        phone: existing.phone,
       };
     });
 

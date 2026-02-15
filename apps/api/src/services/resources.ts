@@ -123,6 +123,7 @@ export class ResourceService {
       quantity: updated.quantity,
       locationId: updated.locationId,
       previous: {
+        resourceId: existing.id,
         name: existing.name,
         quantity: existing.quantity,
         locationId: existing.locationId,

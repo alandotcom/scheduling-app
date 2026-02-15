@@ -16,7 +16,7 @@ describe("Workflow domain-event trigger config schema", () => {
       triggerType: "DomainEvent",
       startEvents: ["appointment.created", "client.created"],
       restartEvents: ["appointment.updated"],
-      stopEvents: ["appointment.cancelled", "client.deleted"],
+      stopEvents: ["appointment.updated", "client.deleted"],
     });
 
     expect(result.success).toBe(true);
@@ -27,7 +27,7 @@ describe("Workflow domain-event trigger config schema", () => {
       triggerType: "DomainEvent",
       startEvents: "appointment.created, appointment.created, client.created",
       restartEvents: "",
-      stopEvents: "appointment.cancelled",
+      stopEvents: "appointment.updated",
     });
 
     expect(parsed.startEvents).toEqual([
@@ -35,7 +35,7 @@ describe("Workflow domain-event trigger config schema", () => {
       "client.created",
     ]);
     expect(parsed.restartEvents).toEqual([]);
-    expect(parsed.stopEvents).toEqual(["appointment.cancelled"]);
+    expect(parsed.stopEvents).toEqual(["appointment.updated"]);
   });
 
   test("rejects non-canonical event types", () => {
@@ -66,7 +66,7 @@ describe("Serialized workflow graph schema", () => {
                 triggerType: "DomainEvent",
                 startEvents: ["appointment.created"],
                 restartEvents: ["appointment.updated"],
-                stopEvents: ["appointment.cancelled"],
+                stopEvents: ["appointment.updated"],
               },
             },
           },

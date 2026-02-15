@@ -101,6 +101,7 @@ export class AppointmentTypeService {
       paddingBeforeMin: appointmentType.paddingBeforeMin,
       paddingAfterMin: appointmentType.paddingAfterMin,
       capacity: appointmentType.capacity,
+      metadata: appointmentType.metadata,
     });
 
     return appointmentType;
@@ -149,6 +150,7 @@ export class AppointmentTypeService {
       capacity: updated.capacity,
       metadata: updated.metadata,
       previous: {
+        appointmentTypeId: existing.id,
         name: existing.name,
         durationMin: existing.durationMin,
         paddingBeforeMin: existing.paddingBeforeMin,
@@ -184,6 +186,10 @@ export class AppointmentTypeService {
         appointmentTypeId: id,
         name: existing.name,
         durationMin: existing.durationMin,
+        paddingBeforeMin: existing.paddingBeforeMin,
+        paddingAfterMin: existing.paddingAfterMin,
+        capacity: existing.capacity,
+        metadata: existing.metadata,
       };
     });
 

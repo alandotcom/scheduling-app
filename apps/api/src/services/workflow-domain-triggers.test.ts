@@ -64,6 +64,7 @@ function createClientCreatedPayload(): DomainEventData<"client.created"> {
     firstName: "Ada",
     lastName: "Lovelace",
     email: null,
+    phone: null,
   };
 }
 
@@ -75,6 +76,7 @@ function createClientUpdatedPayload(): DomainEventData<"client.updated"> {
     email: null,
     phone: null,
     previous: {
+      clientId: "018f4d3a-6d80-7c5b-8a4a-6cb8f8d57d11",
       firstName: "Ada",
       lastName: "Lovelace",
       email: null,

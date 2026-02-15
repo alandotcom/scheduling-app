@@ -18,6 +18,7 @@ const updatedEventFixtures: Array<{
       status: "scheduled",
       notes: "Updated note",
       previous: {
+        appointmentId: "018f4d3a-6d80-7c5b-8a4a-6cb8f8d57d01",
         calendarId: "018f4d3a-6d80-7c5b-8a4a-6cb8f8d57d02",
         appointmentTypeId: "018f4d3a-6d80-7c5b-8a4a-6cb8f8d57d03",
         clientId: null,
@@ -37,6 +38,7 @@ const updatedEventFixtures: Array<{
       timezone: "America/New_York",
       locationId: null,
       previous: {
+        calendarId: "018f4d3a-6d80-7c5b-8a4a-6cb8f8d57d11",
         name: "Old Calendar",
         timezone: "UTC",
         locationId: null,
@@ -54,6 +56,7 @@ const updatedEventFixtures: Array<{
       capacity: null,
       metadata: { mode: "telehealth" },
       previous: {
+        appointmentTypeId: "018f4d3a-6d80-7c5b-8a4a-6cb8f8d57d21",
         name: "Old Type",
         durationMin: 45,
         paddingBeforeMin: null,
@@ -71,6 +74,7 @@ const updatedEventFixtures: Array<{
       quantity: 5,
       locationId: "018f4d3a-6d80-7c5b-8a4a-6cb8f8d57d32",
       previous: {
+        resourceId: "018f4d3a-6d80-7c5b-8a4a-6cb8f8d57d31",
         name: "Old Room",
         quantity: 2,
         locationId: null,
@@ -84,6 +88,7 @@ const updatedEventFixtures: Array<{
       name: "Updated Office",
       timezone: "America/Chicago",
       previous: {
+        locationId: "018f4d3a-6d80-7c5b-8a4a-6cb8f8d57d41",
         name: "Old Office",
         timezone: "America/New_York",
       },
@@ -98,6 +103,7 @@ const updatedEventFixtures: Array<{
       email: null,
       phone: null,
       previous: {
+        clientId: "018f4d3a-6d80-7c5b-8a4a-6cb8f8d57d51",
         firstName: "Ada",
         lastName: "Lovelace",
         email: "ada@example.com",

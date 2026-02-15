@@ -26,6 +26,7 @@ const DOMAIN_CORRELATION_CASES = [
       endAt: new Date("2026-01-01T10:30:00.000Z").toISOString(),
       timezone: "UTC",
       status: "scheduled",
+      notes: null,
     },
     expectedCorrelationKey: "018f4d3a-6d80-7c5b-8a4a-6cb8f8d57d21",
   },
@@ -93,6 +94,7 @@ const DOMAIN_CORRELATION_CASES = [
       firstName: "Ada",
       lastName: "Lovelace",
       email: null,
+      phone: null,
     },
     expectedCorrelationKey: "018f4d3a-6d80-7c5b-8a4a-6cb8f8d57d28",
   },
@@ -105,7 +107,7 @@ function createTriggerConfig(
     triggerType: "DomainEvent",
     startEvents: ["appointment.created"],
     restartEvents: ["appointment.updated"],
-    stopEvents: ["appointment.cancelled"],
+    stopEvents: ["client.deleted"],
     ...overrides,
   };
 }
@@ -123,6 +125,7 @@ function createPayload<TEventType extends DomainEventType>(
       endAt: new Date("2026-01-01T10:30:00.000Z").toISOString(),
       timezone: "UTC",
       status: "scheduled",
+      notes: null,
     } as DomainEventData<TEventType>;
   }
 
@@ -131,6 +134,7 @@ function createPayload<TEventType extends DomainEventType>(
     firstName: "Ada",
     lastName: "Lovelace",
     email: null,
+    phone: null,
   } as DomainEventData<TEventType>;
 }
 

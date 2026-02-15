@@ -10,6 +10,7 @@ describe("emitEvent", () => {
     firstName: "Ada",
     lastName: "Lovelace",
     email: null,
+    phone: null,
   };
 
   const originalSend = domainEventInngest.send.bind(domainEventInngest);
