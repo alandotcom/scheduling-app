@@ -18,6 +18,7 @@ import {
   closeTestDb,
   createTestDb,
   resetTestDb,
+  resetWorkflowTables,
   setTestOrgContext,
   type TestDatabase,
 } from "../test-utils/index.js";
@@ -85,8 +86,31 @@ function createClientUpdatedPayload(): DomainEventData<"client.updated"> {
 describe("workflow domain triggers", () => {
   let db: TestDatabase;
 
+  // Shared fixtures created once in beforeAll
+  let orgA: { id: string };
+  let userA: { id: string };
+  let orgB: { id: string };
+  let userB: { id: string };
+
   beforeAll(async () => {
     db = await createTestDb();
+
+    // Full reset once, then create shared org fixtures
+    await resetTestDb();
+
+    const primaryResult = await createOrg(db as any, {
+      name: "Workflow Org A",
+      email: "workflow-org-a@example.com",
+    });
+    orgA = primaryResult.org;
+    userA = primaryResult.user;
+
+    const secondaryResult = await createOrg(db as any, {
+      name: "Workflow Org B",
+      email: "workflow-org-b@example.com",
+    });
+    orgB = secondaryResult.org;
+    userB = secondaryResult.user;
   });
 
   afterAll(async () => {
@@ -94,22 +118,18 @@ describe("workflow domain triggers", () => {
   });
 
   beforeEach(async () => {
-    await resetTestDb();
+    await resetWorkflowTables();
   });
 
   test("starts execution and enqueues workflow run for matching domain event", async () => {
-    const { org, user } = await createOrg(db as any, {
-      name: "Workflow Trigger Org",
-    });
-
     const workflow = await workflowService.create(
       {
         name: "Client Workflow",
         graph: createGraphWithDomainEventTrigger(["client.created"]),
       },
       {
-        orgId: org.id,
-        userId: user.id,
+        orgId: orgA.id,
+        userId: userA.id,
       },
     );
 
@@ -118,7 +138,7 @@ describe("workflow domain triggers", () => {
     const result = await processWorkflowDomainEvent(
       {
         id: "event-client-created-1",
-        orgId: org.id,
+        orgId: orgA.id,
         type: "client.created",
         payload: createClientCreatedPayload(),
         timestamp: new Date().toISOString(),
@@ -131,7 +151,7 @@ describe("workflow domain triggers", () => {
     expect(result.erroredWorkflowIds).toHaveLength(0);
     expect(runRequester).toHaveBeenCalledTimes(1);
 
-    await setTestOrgContext(db, org.id);
+    await setTestOrgContext(db, orgA.id);
     const executionId = result.startedExecutionIds[0]!;
     const [execution] = await db
       .select()
@@ -152,19 +172,14 @@ describe("workflow domain triggers", () => {
   });
 
   test("ignores workflows without matching start routing", async () => {
-    const { org, user } = await createOrg(db as any, {
-      name: "Workflow Ignore Org",
-      email: "ignore-org@example.com",
-    });
-
     await workflowService.create(
       {
         name: "Appointment Workflow",
         graph: createGraphWithDomainEventTrigger(["appointment.created"]),
       },
       {
-        orgId: org.id,
-        userId: user.id,
+        orgId: orgA.id,
+        userId: userA.id,
       },
     );
 
@@ -173,7 +188,7 @@ describe("workflow domain triggers", () => {
     const result = await processWorkflowDomainEvent(
       {
         id: "event-client-created-2",
-        orgId: org.id,
+        orgId: orgA.id,
         type: "client.created",
         payload: createClientCreatedPayload(),
         timestamp: new Date().toISOString(),
@@ -188,11 +203,6 @@ describe("workflow domain triggers", () => {
   });
 
   test("continues processing other workflows when one enqueue fails", async () => {
-    const { org, user } = await createOrg(db as any, {
-      name: "Workflow Partial Failure Org",
-      email: "partial-failure@example.com",
-    });
-
     const [firstWorkflow, secondWorkflow] = await Promise.all([
       workflowService.create(
         {
@@ -200,8 +210,8 @@ describe("workflow domain triggers", () => {
           graph: createGraphWithDomainEventTrigger(["client.created"]),
         },
         {
-          orgId: org.id,
-          userId: user.id,
+          orgId: orgA.id,
+          userId: userA.id,
         },
       ),
       workflowService.create(
@@ -210,8 +220,8 @@ describe("workflow domain triggers", () => {
           graph: createGraphWithDomainEventTrigger(["client.created"]),
         },
         {
-          orgId: org.id,
-          userId: user.id,
+          orgId: orgA.id,
+          userId: userA.id,
         },
       ),
     ]);
@@ -230,7 +240,7 @@ describe("workflow domain triggers", () => {
     const result = await processWorkflowDomainEvent(
       {
         id: "event-client-created-3",
-        orgId: org.id,
+        orgId: orgA.id,
         type: "client.created",
         payload: createClientCreatedPayload(),
         timestamp: new Date().toISOString(),
@@ -243,7 +253,7 @@ describe("workflow domain triggers", () => {
     expect(result.erroredWorkflowIds).toHaveLength(1);
     expect(runRequester).toHaveBeenCalledTimes(2);
 
-    await setTestOrgContext(db, org.id);
+    await setTestOrgContext(db, orgA.id);
     const executions = await db
       .select()
       .from(workflowExecutions)
@@ -273,15 +283,6 @@ describe("workflow domain triggers", () => {
   });
 
   test("only starts workflows in the event org", async () => {
-    const { org: orgA, user: userA } = await createOrg(db as any, {
-      name: "Workflow Org A",
-      email: "workflow-org-a@example.com",
-    });
-    const { org: orgB, user: userB } = await createOrg(db as any, {
-      name: "Workflow Org B",
-      email: "workflow-org-b@example.com",
-    });
-
     const [workflowA, workflowB] = await Promise.all([
       workflowService.create(
         {
@@ -341,27 +342,22 @@ describe("workflow domain triggers", () => {
   });
 
   test("restart routing cancels waiting executions and starts a replacement run", async () => {
-    const { org, user } = await createOrg(db as any, {
-      name: "Workflow Restart Org",
-      email: "restart-org@example.com",
-    });
-
     const workflow = await workflowService.create(
       {
         name: "Restart Workflow",
         graph: createGraphWithDomainEventTrigger([], ["client.updated"]),
       },
       {
-        orgId: org.id,
-        userId: user.id,
+        orgId: orgA.id,
+        userId: userA.id,
       },
     );
 
-    await setTestOrgContext(db, org.id);
+    await setTestOrgContext(db, orgA.id);
     const [existingExecution] = await db
       .insert(workflowExecutions)
       .values({
-        orgId: org.id,
+        orgId: orgA.id,
         workflowId: workflow.id,
         status: "waiting",
         triggerType: "domain_event",
@@ -371,7 +367,7 @@ describe("workflow domain triggers", () => {
       .returning();
 
     await db.insert(workflowWaitStates).values({
-      orgId: org.id,
+      orgId: orgA.id,
       workflowId: workflow.id,
       executionId: existingExecution!.id,
       runId: "run_wait_1",
@@ -390,7 +386,7 @@ describe("workflow domain triggers", () => {
     const result = await processWorkflowDomainEvent(
       {
         id: "event-client-updated-1",
-        orgId: org.id,
+        orgId: orgA.id,
         type: "client.updated",
         payload: createClientUpdatedPayload(),
         timestamp: new Date().toISOString(),
@@ -422,27 +418,22 @@ describe("workflow domain triggers", () => {
   });
 
   test("start routing resumes matching wait states without creating a new execution", async () => {
-    const { org, user } = await createOrg(db as any, {
-      name: "Workflow Resume Org",
-      email: "resume-org@example.com",
-    });
-
     const workflow = await workflowService.create(
       {
         name: "Resume Workflow",
         graph: createGraphWithDomainEventTrigger(["client.updated"]),
       },
       {
-        orgId: org.id,
-        userId: user.id,
+        orgId: orgA.id,
+        userId: userA.id,
       },
     );
 
-    await setTestOrgContext(db, org.id);
+    await setTestOrgContext(db, orgA.id);
     const [existingExecution] = await db
       .insert(workflowExecutions)
       .values({
-        orgId: org.id,
+        orgId: orgA.id,
         workflowId: workflow.id,
         status: "waiting",
         triggerType: "domain_event",
@@ -454,7 +445,7 @@ describe("workflow domain triggers", () => {
     const [waitState] = await db
       .insert(workflowWaitStates)
       .values({
-        orgId: org.id,
+        orgId: orgA.id,
         workflowId: workflow.id,
         executionId: existingExecution!.id,
         runId: "run_wait_resume_1",
@@ -476,7 +467,7 @@ describe("workflow domain triggers", () => {
     const result = await processWorkflowDomainEvent(
       {
         id: "event-client-updated-2",
-        orgId: org.id,
+        orgId: orgA.id,
         type: "client.updated",
         payload: createClientUpdatedPayload(),
         timestamp: new Date().toISOString(),
@@ -508,19 +499,14 @@ describe("workflow domain triggers", () => {
   });
 
   test("ignores duplicate domain events by event id per workflow", async () => {
-    const { org, user } = await createOrg(db as any, {
-      name: "Workflow Dedupe Org",
-      email: "dedupe-org@example.com",
-    });
-
     await workflowService.create(
       {
         name: "Dedupe Workflow",
         graph: createGraphWithDomainEventTrigger(["client.created"]),
       },
       {
-        orgId: org.id,
-        userId: user.id,
+        orgId: orgA.id,
+        userId: userA.id,
       },
     );
 
@@ -528,7 +514,7 @@ describe("workflow domain triggers", () => {
 
     const event = {
       id: "event-client-created-dedupe-1",
-      orgId: org.id,
+      orgId: orgA.id,
       type: "client.created" as const,
       payload: createClientCreatedPayload(),
       timestamp: new Date().toISOString(),
@@ -546,11 +532,11 @@ describe("workflow domain triggers", () => {
     expect(second.ignored?.[0]?.reason).toBe("duplicate_event");
     expect(runRequester).toHaveBeenCalledTimes(1);
 
-    await setTestOrgContext(db, org.id);
+    await setTestOrgContext(db, orgA.id);
     const executions = await db
       .select()
       .from(workflowExecutions)
-      .where(eq(workflowExecutions.orgId, org.id));
+      .where(eq(workflowExecutions.orgId, orgA.id));
     expect(executions).toHaveLength(1);
     expect(executions[0]?.triggerEventId).toBe(event.id);
   });

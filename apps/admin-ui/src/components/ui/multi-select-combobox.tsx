@@ -3,6 +3,7 @@ import { useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 
 interface MultiSelectComboboxProps {
+  id?: string;
   options: readonly string[];
   value: string[];
   onChange: (values: string[]) => void;
@@ -10,7 +11,12 @@ interface MultiSelectComboboxProps {
   disabled?: boolean;
 }
 
+function handleDropdownMouseDown(event: React.MouseEvent) {
+  event.preventDefault();
+}
+
 export function MultiSelectCombobox({
+  id,
   options,
   value,
   onChange,
@@ -54,10 +60,6 @@ export function MultiSelectCombobox({
     }, 150);
   }
 
-  function handleDropdownMouseDown(event: React.MouseEvent) {
-    event.preventDefault();
-  }
-
   return (
     <div
       ref={containerRef}
@@ -90,6 +92,7 @@ export function MultiSelectCombobox({
           </span>
         ))}
         <input
+          id={id}
           className="min-w-[120px] flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground/70 disabled:cursor-not-allowed"
           value={filterText}
           onChange={(event) => setFilterText(event.target.value)}

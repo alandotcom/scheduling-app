@@ -10,7 +10,9 @@ import {
   closeTestDb,
   setTestOrgContext,
   clearTestOrgContext,
+  getTestDb,
 } from "@scheduling/db/test-utils";
+import { sql } from "drizzle-orm";
 import type { BunSQLDatabase } from "drizzle-orm/bun-sql/postgres";
 import type * as schema from "@scheduling/db/schema";
 import type { relations } from "@scheduling/db/relations";
@@ -25,6 +27,23 @@ export {
   setTestOrgContext,
   clearTestOrgContext,
 };
+
+/**
+ * Truncate only workflow-related tables, preserving orgs/users/memberships.
+ * Use in workflow test files where org fixtures are created once in beforeAll.
+ */
+export async function resetWorkflowTables(): Promise<void> {
+  const db = getTestDb();
+  await db.execute(sql`
+    TRUNCATE TABLE
+      workflow_execution_logs,
+      workflow_execution_events,
+      workflow_wait_states,
+      workflow_executions,
+      workflows
+    CASCADE
+  `);
+}
 
 /**
  * Setup helper that initializes the test database and provides

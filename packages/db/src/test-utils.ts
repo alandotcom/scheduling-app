@@ -17,7 +17,7 @@ const TEST_DATABASE_URL =
 
 let testClient: SQL | null = null;
 let testDb: BunSQLDatabase<typeof schema, typeof relations> | null = null;
-const TEST_SQL_POOL_MAX_CONNECTIONS = 2;
+const TEST_SQL_POOL_MAX_CONNECTIONS = 10;
 const TEST_SQL_POOL_IDLE_TIMEOUT_SECONDS = 5;
 const TEST_SQL_POOL_CONNECTION_TIMEOUT_SECONDS = 30;
 

@@ -56,7 +56,8 @@
       "files": [
         "apps/api/src/index.ts",
         "apps/api/src/worker.ts",
-        "apps/api/src/bull-board.ts"
+        "apps/api/src/bull-board.ts",
+        "apps/admin-ui/src/components/flow-elements/canvas.tsx"
       ],
       "rules": {
         "import/no-unassigned-import": "off"

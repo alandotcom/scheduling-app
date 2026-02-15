@@ -1,9 +1,12 @@
 import { useState } from "react";
 import { Add01Icon, Delete01Icon } from "@hugeicons/core-free-icons";
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import type { WorkflowListResponse } from "@scheduling/dto";
+import type {
+  SerializedWorkflowGraph,
+  WorkflowListResponse,
+} from "@scheduling/dto";
 import {
   EntityListEmptyState,
   EntityListLoadingState,
@@ -31,6 +34,38 @@ export function canManageWorkflowsForRole(role: OrgRole): boolean {
   return role === "owner" || role === "admin";
 }
 
+function createDefaultWorkflowGraph(): SerializedWorkflowGraph {
+  const triggerId = crypto.randomUUID();
+
+  return {
+    attributes: {},
+    options: { type: "directed" },
+    nodes: [
+      {
+        key: triggerId,
+        attributes: {
+          id: triggerId,
+          type: "trigger",
+          position: { x: 0, y: 0 },
+          data: {
+            label: "",
+            description: "",
+            type: "trigger",
+            status: "idle",
+            config: {
+              triggerType: "DomainEvent",
+              startEvents: [],
+              restartEvents: [],
+              stopEvents: [],
+            },
+          },
+        },
+      },
+    ],
+    edges: [],
+  };
+}
+
 interface WorkflowListPageProps {
   workflows: WorkflowListResponse;
   isLoading: boolean;
@@ -50,11 +85,27 @@ export function WorkflowListPage({
   errorMessage,
   canManageWorkflows,
 }: WorkflowListPageProps) {
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [deleteTarget, setDeleteTarget] = useState<{
     id: string;
     name: string;
   } | null>(null);
+
+  const createMutation = useMutation(
+    orpc.workflows.create.mutationOptions({
+      onSuccess: (data) => {
+        queryClient.invalidateQueries({ queryKey: orpc.workflows.key() });
+        navigate({
+          to: "/workflows/$workflowId",
+          params: { workflowId: data.id },
+        });
+      },
+      onError: (error) => {
+        toast.error(error.message || "Failed to create workflow");
+      },
+    }),
+  );
 
   const deleteMutation = useMutation(
     orpc.workflows.remove.mutationOptions({
@@ -84,14 +135,16 @@ export function WorkflowListPage({
           ) : null}
         </div>
         {canManageWorkflows ? (
-          <Button asChild>
-            <Link
-              to="/workflows/$workflowId"
-              params={{ workflowId: "current" }}
-            >
-              <Icon icon={Add01Icon} className="size-4" />
-              New workflow
-            </Link>
+          <Button
+            onClick={() =>
+              createMutation.mutate({
+                graph: createDefaultWorkflowGraph(),
+              })
+            }
+            disabled={createMutation.isPending}
+          >
+            <Icon icon={Add01Icon} className="size-4" />
+            {createMutation.isPending ? "Creating..." : "New workflow"}
           </Button>
         ) : null}
       </header>

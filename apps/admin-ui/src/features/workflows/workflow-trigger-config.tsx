@@ -69,13 +69,10 @@ export function WorkflowTriggerConfig({
       <div className="space-y-2">
         <Label htmlFor="workflow-trigger-start-events">Start events</Label>
         <MultiSelectCombobox
+          id="workflow-trigger-start-events"
           disabled={disabled}
           options={domainEventTypes}
-          value={
-            Array.isArray(config.startEvents)
-              ? (config.startEvents as string[])
-              : []
-          }
+          value={toStringArray(config.startEvents)}
           onChange={(values) => onUpdate({ startEvents: values })}
           placeholder="Select events..."
         />
@@ -84,6 +81,7 @@ export function WorkflowTriggerConfig({
       <div className="space-y-2">
         <Label htmlFor="workflow-trigger-restart-events">Restart events</Label>
         <MultiSelectCombobox
+          id="workflow-trigger-restart-events"
           disabled={disabled}
           options={domainEventTypes}
           value={toStringArray(config.restartEvents)}
@@ -95,13 +93,10 @@ export function WorkflowTriggerConfig({
       <div className="space-y-2">
         <Label htmlFor="workflow-trigger-stop-events">Stop events</Label>
         <MultiSelectCombobox
+          id="workflow-trigger-stop-events"
           disabled={disabled}
           options={domainEventTypes}
-          value={
-            Array.isArray(config.stopEvents)
-              ? (config.stopEvents as string[])
-              : []
-          }
+          value={toStringArray(config.stopEvents)}
           onChange={(values) => onUpdate({ stopEvents: values })}
           placeholder="Select events..."
         />

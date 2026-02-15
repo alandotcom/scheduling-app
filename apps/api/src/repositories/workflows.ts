@@ -1,6 +1,6 @@
 // Workflow repository - data access layer for workflow CRUD
 
-import { and, desc, eq, inArray, ne, sql, type SQL } from "drizzle-orm";
+import { and, desc, eq, ilike, inArray, ne, sql, type SQL } from "drizzle-orm";
 import {
   workflowExecutionEvents,
   workflowExecutionLogs,
@@ -78,6 +78,7 @@ export class WorkflowRepository {
     const rows = await tx
       .select()
       .from(workflows)
+      .where(ne(workflows.name, "~~__CURRENT__~~"))
       .orderBy(desc(workflows.updatedAt), desc(workflows.id));
     return rows.map(toWorkflow);
   }
@@ -125,24 +126,19 @@ export class WorkflowRepository {
     return toWorkflow(row);
   }
 
-  async findByName(
+  async findNamesByPrefix(
     tx: DbClient,
     orgId: string,
-    name: string,
-  ): Promise<Workflow | null> {
+    prefix: string,
+  ): Promise<string[]> {
     await setOrgContext(tx, orgId);
 
-    const [row] = await tx
-      .select()
+    const rows = await tx
+      .select({ name: workflows.name })
       .from(workflows)
-      .where(eq(workflows.name, name))
-      .limit(1);
+      .where(ilike(workflows.name, `${prefix}%`));
 
-    if (!row) {
-      return null;
-    }
-
-    return toWorkflow(row);
+    return rows.map((row) => row.name);
   }
 
   async create(

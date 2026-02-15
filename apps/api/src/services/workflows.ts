@@ -3,13 +3,10 @@
 import {
   createWorkflowSchema,
   listWorkflowExecutionsQuerySchema,
-  saveCurrentWorkflowSchema,
   serializedWorkflowGraphSchema,
   updateWorkflowSchema,
   type ListWorkflowExecutionsQuery,
   type CreateWorkflowInput,
-  type SaveCurrentWorkflowInput,
-  type WorkflowCurrentResponse,
   type WorkflowExecutionCancelResponse,
   type SerializedWorkflowGraph,
   type UpdateWorkflowInput,
@@ -28,55 +25,6 @@ import { sendWorkflowCancelRequested } from "../inngest/runtime-events.js";
 
 const UNIQUE_CONSTRAINT_VIOLATION = "23505";
 const WORKFLOW_NAME_UNIQUE_CONSTRAINT = "workflows_org_name_ci_uidx";
-const CURRENT_WORKFLOW_NAME = "~~__CURRENT__~~";
-
-function createDefaultCurrentGraph(): SerializedWorkflowGraph {
-  const triggerId = crypto.randomUUID();
-
-  return {
-    attributes: {},
-    options: {
-      type: "directed",
-    },
-    nodes: [
-      {
-        key: triggerId,
-        attributes: {
-          id: triggerId,
-          type: "trigger-node",
-          position: {
-            x: 0,
-            y: 0,
-          },
-          data: {
-            label: "",
-            description: "",
-            type: "trigger",
-            status: "idle",
-            config: {
-              triggerType: "DomainEvent",
-              startEvents: [],
-              restartEvents: [],
-              stopEvents: [],
-            },
-          },
-        },
-      },
-    ],
-    edges: [],
-  };
-}
-
-function createEmptyCurrentGraph(): SerializedWorkflowGraph {
-  return {
-    attributes: {},
-    options: {
-      type: "directed",
-    },
-    nodes: [],
-    edges: [],
-  };
-}
 
 function duplicateGraphWithReset(
   graph: SerializedWorkflowGraph,
@@ -216,20 +164,6 @@ function validateUpdateInput(input: UpdateWorkflowInput): UpdateWorkflowInput {
   return parsed.data;
 }
 
-function validateSaveCurrentInput(
-  input: SaveCurrentWorkflowInput,
-): SaveCurrentWorkflowInput {
-  const parsed = saveCurrentWorkflowSchema.safeParse(input);
-  if (!parsed.success) {
-    throw new ApplicationError("Invalid workflow payload", {
-      code: "BAD_REQUEST",
-      details: { issues: parsed.error.issues },
-    });
-  }
-
-  return parsed.data;
-}
-
 function workflowNameConflictError(): ApplicationError {
   return new ApplicationError("Workflow name already exists", {
     code: "CONFLICT",
@@ -262,10 +196,13 @@ export class WorkflowService {
     const parsed = validateCreateInput(input);
 
     return withOrg(context.orgId, async (tx) => {
+      const name =
+        parsed.name ?? (await this.generateUntitledName(tx, context.orgId));
+
       const existing = await workflowRepository.findByNameInsensitive(
         tx,
         context.orgId,
-        parsed.name,
+        name,
       );
 
       if (existing) {
@@ -274,7 +211,7 @@ export class WorkflowService {
 
       try {
         return await workflowRepository.create(tx, context.orgId, {
-          name: parsed.name,
+          name,
           description: parsed.description ?? null,
           graph: parsed.graph,
           visibility: parsed.visibility ?? "private",
@@ -287,6 +224,28 @@ export class WorkflowService {
         throw error;
       }
     });
+  }
+
+  private async generateUntitledName(
+    tx: Parameters<typeof workflowRepository.findNamesByPrefix>[0],
+    orgId: string,
+  ): Promise<string> {
+    const baseName = "Untitled workflow";
+    const existingNames = await workflowRepository.findNamesByPrefix(
+      tx,
+      orgId,
+      baseName,
+    );
+
+    const lowerNames = new Set(existingNames.map((n) => n.toLowerCase()));
+    if (!lowerNames.has(baseName.toLowerCase())) return baseName;
+
+    for (let i = 2; i <= 100; i++) {
+      const candidate = `${baseName} (${i})`;
+      if (!lowerNames.has(candidate.toLowerCase())) return candidate;
+    }
+
+    return `${baseName} (${crypto.randomUUID().slice(0, 8)})`;
   }
 
   async update(
@@ -350,78 +309,6 @@ export class WorkflowService {
 
       await workflowRepository.delete(tx, context.orgId, id);
       return { success: true };
-    });
-  }
-
-  async getCurrent(context: ServiceContext): Promise<WorkflowCurrentResponse> {
-    return withOrg(context.orgId, async (tx) => {
-      const workflow = await workflowRepository.findByName(
-        tx,
-        context.orgId,
-        CURRENT_WORKFLOW_NAME,
-      );
-
-      if (!workflow) {
-        return { graph: createEmptyCurrentGraph() };
-      }
-
-      return {
-        id: workflow.id,
-        graph: workflow.graph,
-      };
-    });
-  }
-
-  async saveCurrent(
-    input: SaveCurrentWorkflowInput,
-    context: ServiceContext,
-  ): Promise<WorkflowCurrentResponse> {
-    const parsed = validateSaveCurrentInput(input);
-    const graph =
-      parsed.graph.nodes.length === 0
-        ? createDefaultCurrentGraph()
-        : parsed.graph;
-
-    return withOrg(context.orgId, async (tx) => {
-      const existing = await workflowRepository.findByName(
-        tx,
-        context.orgId,
-        CURRENT_WORKFLOW_NAME,
-      );
-
-      if (existing) {
-        const updated = await workflowRepository.update(
-          tx,
-          context.orgId,
-          existing.id,
-          {
-            graph,
-          },
-        );
-
-        if (!updated) {
-          throw new ApplicationError("Workflow not found", {
-            code: "NOT_FOUND",
-          });
-        }
-
-        return {
-          id: updated.id,
-          graph: updated.graph,
-        };
-      }
-
-      const created = await workflowRepository.create(tx, context.orgId, {
-        name: CURRENT_WORKFLOW_NAME,
-        description: "Auto-saved current workflow",
-        graph,
-        visibility: "private",
-      });
-
-      return {
-        id: created.id,
-        graph: created.graph,
-      };
     });
   }
 

@@ -10,6 +10,7 @@ import {
   closeTestDb,
   createTestDb,
   resetTestDb,
+  resetWorkflowTables,
   type TestDatabase,
 } from "../test-utils/index.js";
 import { createOrg } from "../test-utils/factories.js";
@@ -51,13 +52,8 @@ describe("WorkflowService", () => {
 
   beforeAll(async () => {
     db = await createTestDb();
-  });
 
-  afterAll(async () => {
-    await closeTestDb();
-  });
-
-  beforeEach(async () => {
+    // Full reset once, then create shared org fixtures
     await resetTestDb();
 
     const primary = await createOrg(db as any, { name: "Primary Org" });
@@ -65,6 +61,14 @@ describe("WorkflowService", () => {
 
     const secondary = await createOrg(db as any, { name: "Secondary Org" });
     otherContext = { orgId: secondary.org.id, userId: secondary.user.id };
+  });
+
+  afterAll(async () => {
+    await closeTestDb();
+  });
+
+  beforeEach(async () => {
+    await resetWorkflowTables();
   });
 
   describe("validation and conflict handling", () => {

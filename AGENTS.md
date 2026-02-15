@@ -31,6 +31,7 @@ This app is in active development — there are no production users yet. This me
   - `useSetAtom` for write-only
 - Do not add compatibility shims for old architecture during active refactors.
 - IMPORTANT: After a set of changes, always make sure tests, formatting, typechecking and linting pass. If not, they must be fixed. Suppressing tests or lint rules is not an appropriate fix.
+- **Work is NOT DONE until ALL tests pass.** Run `pnpm test` before declaring any task complete. Every failing test must be fixed — no exceptions.
 
 ## Commands
 

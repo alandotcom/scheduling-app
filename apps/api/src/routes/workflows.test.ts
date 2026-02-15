@@ -28,6 +28,7 @@ import {
   createTestContext,
   createTestDb,
   resetTestDb,
+  resetWorkflowTables,
   setTestOrgContext,
 } from "../test-utils/index.js";
 import * as workflowRoutes from "./workflows.js";
@@ -154,46 +155,70 @@ describe("Workflow Routes", () => {
   let db: Database;
   const originalInngestSend = inngest.send.bind(inngest);
 
+  // Shared fixtures created once in beforeAll
+  let orgA: { id: string };
+  let ownerA: { id: string };
+  let memberA: { id: string };
+  let orgB: { id: string };
+  let ownerB: { id: string };
+  let ownerContext: ReturnType<typeof createTestContext>;
+  let memberContext: ReturnType<typeof createTestContext>;
+  let contextA: ReturnType<typeof createTestContext>;
+  let contextB: ReturnType<typeof createTestContext>;
+
   beforeAll(async () => {
     db = (await createTestDb()) as Database;
-  });
 
-  afterAll(async () => {
-    await closeTestDb();
-  });
-
-  beforeEach(async () => {
+    // Full reset once to start clean, then create shared org fixtures
     await resetTestDb();
-    (inngest as unknown as { send: typeof inngest.send }).send = mock(
-      async () => ({ ids: ["cancel-event-id"] }),
-    );
+
+    const primaryResult = await createOrg(db, { name: "Primary Org" });
+    orgA = primaryResult.org;
+    ownerA = primaryResult.user;
+    memberA = await createOrgMember(db, orgA.id, {
+      role: "member",
+      email: "member@primary.org",
+    });
+
+    const secondaryResult = await createOrg(db, {
+      name: "Secondary Org",
+      email: "owner-b@org.test",
+    });
+    orgB = secondaryResult.org;
+    ownerB = secondaryResult.user;
+
+    ownerContext = createTestContext({
+      orgId: orgA.id,
+      userId: ownerA.id,
+      role: "owner",
+    });
+    memberContext = createTestContext({
+      orgId: orgA.id,
+      userId: memberA.id,
+      role: "member",
+    });
+    contextA = ownerContext;
+    contextB = createTestContext({
+      orgId: orgB.id,
+      userId: ownerB.id,
+      role: "owner",
+    });
   });
 
   afterAll(async () => {
     (inngest as unknown as { send: typeof inngest.send }).send =
       originalInngestSend;
+    await closeTestDb();
+  });
+
+  beforeEach(async () => {
+    await resetWorkflowTables();
+    (inngest as unknown as { send: typeof inngest.send }).send = mock(
+      async () => ({ ids: ["cancel-event-id"] }),
+    );
   });
 
   test("member can list and get workflows in their org", async () => {
-    const { org, user: owner } = await createOrg(db, {
-      name: "Primary Org",
-    });
-    const member = await createOrgMember(db, org.id, {
-      role: "member",
-      email: "member@primary.org",
-    });
-
-    const ownerContext = createTestContext({
-      orgId: org.id,
-      userId: owner.id,
-      role: "owner",
-    });
-    const memberContext = createTestContext({
-      orgId: org.id,
-      userId: member.id,
-      role: "member",
-    });
-
     const created = await call(
       workflowRoutes.create,
       {
@@ -220,25 +245,6 @@ describe("Workflow Routes", () => {
   });
 
   test("member cannot create, update, or delete workflows", async () => {
-    const { org, user: owner } = await createOrg(db, {
-      name: "Write Guard Org",
-    });
-    const member = await createOrgMember(db, org.id, {
-      role: "member",
-      email: "member@write-guard.org",
-    });
-
-    const ownerContext = createTestContext({
-      orgId: org.id,
-      userId: owner.id,
-      role: "owner",
-    });
-    const memberContext = createTestContext({
-      orgId: org.id,
-      userId: member.id,
-      role: "member",
-    });
-
     const created = await call(
       workflowRoutes.create,
       {
@@ -277,16 +283,6 @@ describe("Workflow Routes", () => {
   });
 
   test("admin can create, update, and delete workflows", async () => {
-    const { org, user: owner } = await createOrg(db, {
-      name: "Admin CRUD Org",
-    });
-
-    const ownerContext = createTestContext({
-      orgId: org.id,
-      userId: owner.id,
-      role: "owner",
-    });
-
     const created = await call(
       workflowRoutes.create,
       {
@@ -322,26 +318,6 @@ describe("Workflow Routes", () => {
   });
 
   test("cross-org workflow IDs are isolated for reads and writes", async () => {
-    const { org: orgA, user: ownerA } = await createOrg(db, {
-      name: "Org A",
-      email: "owner-a@org.test",
-    });
-    const { org: orgB, user: ownerB } = await createOrg(db, {
-      name: "Org B",
-      email: "owner-b@org.test",
-    });
-
-    const contextA = createTestContext({
-      orgId: orgA.id,
-      userId: ownerA.id,
-      role: "owner",
-    });
-    const contextB = createTestContext({
-      orgId: orgB.id,
-      userId: ownerB.id,
-      role: "owner",
-    });
-
     const workflowInOrgB = await call(
       workflowRoutes.create,
       {
@@ -379,94 +355,7 @@ describe("Workflow Routes", () => {
     ).rejects.toMatchObject({ code: "NOT_FOUND" });
   });
 
-  test("current workflow autosave creates and updates the org draft", async () => {
-    const { org, user: owner } = await createOrg(db, {
-      name: "Current Workflow Org",
-    });
-    const member = await createOrgMember(db, org.id, {
-      role: "member",
-      email: "member@current.org",
-    });
-
-    const ownerContext = createTestContext({
-      orgId: org.id,
-      userId: owner.id,
-      role: "owner",
-    });
-    const memberContext = createTestContext({
-      orgId: org.id,
-      userId: member.id,
-      role: "member",
-    });
-
-    const emptyCurrent = await call(
-      workflowRoutes.getCurrent,
-      undefined as never,
-      {
-        context: memberContext,
-      },
-    );
-    expect(emptyCurrent.id).toBeUndefined();
-    expect(emptyCurrent.graph.nodes).toHaveLength(0);
-
-    await expect(
-      call(
-        workflowRoutes.saveCurrent,
-        { graph: createTestGraph("forbidden-save") },
-        { context: memberContext },
-      ),
-    ).rejects.toMatchObject({ code: "FORBIDDEN" });
-
-    const created = await call(
-      workflowRoutes.saveCurrent,
-      {
-        graph: {
-          attributes: {},
-          options: { type: "directed" },
-          nodes: [],
-          edges: [],
-        },
-      },
-      { context: ownerContext },
-    );
-    expect(created.id).toBeDefined();
-    expect(created.graph.nodes).toHaveLength(1);
-
-    const updated = await call(
-      workflowRoutes.saveCurrent,
-      { graph: createTestGraph("updated-current") },
-      { context: ownerContext },
-    );
-    expect(updated.id).toBe(created.id);
-    expect(updated.graph.nodes[0]!.key).toBe("updated-current");
-
-    const fetched = await call(workflowRoutes.getCurrent, undefined as never, {
-      context: memberContext,
-    });
-    expect(fetched.id).toBe(created.id);
-    expect(fetched.graph.nodes[0]!.key).toBe("updated-current");
-  });
-
   test("duplicate creates a private copied workflow and detects name conflicts", async () => {
-    const { org, user: owner } = await createOrg(db, {
-      name: "Duplicate Workflow Org",
-    });
-    const member = await createOrgMember(db, org.id, {
-      role: "member",
-      email: "member@duplicate.org",
-    });
-
-    const ownerContext = createTestContext({
-      orgId: org.id,
-      userId: owner.id,
-      role: "owner",
-    });
-    const memberContext = createTestContext({
-      orgId: org.id,
-      userId: member.id,
-      role: "member",
-    });
-
     const source = await call(
       workflowRoutes.create,
       {
@@ -525,32 +414,15 @@ describe("Workflow Routes", () => {
       ),
     ).rejects.toMatchObject({ code: "CONFLICT" });
 
-    await setTestOrgContext(db, org.id);
+    await setTestOrgContext(db, orgA.id);
     const allWorkflows = await db
       .select()
       .from(workflows)
-      .where(eq(workflows.orgId, org.id));
+      .where(eq(workflows.orgId, orgA.id));
     expect(allWorkflows).toHaveLength(2);
   });
 
   test("member can read execution history/details/logs/events/status", async () => {
-    const { org, user: owner } = await createOrg(db, { name: "Exec Read Org" });
-    const member = await createOrgMember(db, org.id, {
-      role: "member",
-      email: "member@exec-read.org",
-    });
-
-    const ownerContext = createTestContext({
-      orgId: org.id,
-      userId: owner.id,
-      role: "owner",
-    });
-    const memberContext = createTestContext({
-      orgId: org.id,
-      userId: member.id,
-      role: "member",
-    });
-
     const workflow = await call(
       workflowRoutes.create,
       {
@@ -562,23 +434,23 @@ describe("Workflow Routes", () => {
 
     const older = await seedExecutionArtifacts({
       db,
-      orgId: org.id,
+      orgId: orgA.id,
       workflowId: workflow.id,
       status: "running",
       startedAt: new Date("2026-01-01T10:00:00.000Z"),
     });
     const newer = await seedExecutionArtifacts({
       db,
-      orgId: org.id,
+      orgId: orgA.id,
       workflowId: workflow.id,
       status: "cancelled",
       startedAt: new Date("2026-01-01T11:00:00.000Z"),
     });
 
-    await setTestOrgContext(db, org.id);
+    await setTestOrgContext(db, orgA.id);
     await db.insert(workflowExecutionLogs).values([
       {
-        orgId: org.id,
+        orgId: orgA.id,
         executionId: newer.executionId,
         nodeId: "node-b",
         nodeName: "Node B",
@@ -587,7 +459,7 @@ describe("Workflow Routes", () => {
         timestamp: new Date("2026-01-01T11:01:00.000Z"),
       },
       {
-        orgId: org.id,
+        orgId: orgA.id,
         executionId: newer.executionId,
         nodeId: "node-a",
         nodeName: "Node A",
@@ -599,7 +471,7 @@ describe("Workflow Routes", () => {
 
     await db.insert(workflowExecutionEvents).values([
       {
-        orgId: org.id,
+        orgId: orgA.id,
         workflowId: workflow.id,
         executionId: newer.executionId,
         eventType: "run.cancel_requested",
@@ -607,7 +479,7 @@ describe("Workflow Routes", () => {
         createdAt: new Date("2026-01-01T11:02:00.000Z"),
       },
       {
-        orgId: org.id,
+        orgId: orgA.id,
         workflowId: workflow.id,
         executionId: newer.executionId,
         eventType: "run.started",
@@ -663,16 +535,6 @@ describe("Workflow Routes", () => {
   });
 
   test("execution status endpoint returns latest node status per node", async () => {
-    const { org, user: owner } = await createOrg(db, {
-      name: "Execution Status Org",
-    });
-
-    const ownerContext = createTestContext({
-      orgId: org.id,
-      userId: owner.id,
-      role: "owner",
-    });
-
     const workflow = await call(
       workflowRoutes.create,
       {
@@ -684,16 +546,16 @@ describe("Workflow Routes", () => {
 
     const seeded = await seedExecutionArtifacts({
       db,
-      orgId: org.id,
+      orgId: orgA.id,
       workflowId: workflow.id,
       status: "running",
       startedAt: new Date("2026-01-02T09:00:00.000Z"),
     });
 
-    await setTestOrgContext(db, org.id);
+    await setTestOrgContext(db, orgA.id);
     await db.insert(workflowExecutionLogs).values([
       {
-        orgId: org.id,
+        orgId: orgA.id,
         executionId: seeded.executionId,
         nodeId: "node-a",
         nodeName: "Node A",
@@ -702,7 +564,7 @@ describe("Workflow Routes", () => {
         timestamp: new Date("2026-01-02T09:00:00.000Z"),
       },
       {
-        orgId: org.id,
+        orgId: orgA.id,
         executionId: seeded.executionId,
         nodeId: "node-a",
         nodeName: "Node A",
@@ -711,7 +573,7 @@ describe("Workflow Routes", () => {
         timestamp: new Date("2026-01-02T09:00:30.000Z"),
       },
       {
-        orgId: org.id,
+        orgId: orgA.id,
         executionId: seeded.executionId,
         nodeId: "node-b",
         nodeName: "Node B",
@@ -735,25 +597,6 @@ describe("Workflow Routes", () => {
   });
 
   test("admin can cancel a waiting execution and member cannot", async () => {
-    const { org, user: owner } = await createOrg(db, {
-      name: "Execution Cancel Org",
-    });
-    const member = await createOrgMember(db, org.id, {
-      role: "member",
-      email: "member@exec-cancel.org",
-    });
-
-    const ownerContext = createTestContext({
-      orgId: org.id,
-      userId: owner.id,
-      role: "owner",
-    });
-    const memberContext = createTestContext({
-      orgId: org.id,
-      userId: member.id,
-      role: "member",
-    });
-
     const workflow = await call(
       workflowRoutes.create,
       {
@@ -765,14 +608,14 @@ describe("Workflow Routes", () => {
 
     const seeded = await seedExecutionArtifacts({
       db,
-      orgId: org.id,
+      orgId: orgA.id,
       workflowId: workflow.id,
       status: "waiting",
     });
 
-    await setTestOrgContext(db, org.id);
+    await setTestOrgContext(db, orgA.id);
     await db.insert(workflowWaitStates).values({
-      orgId: org.id,
+      orgId: orgA.id,
       executionId: seeded.executionId,
       workflowId: workflow.id,
       runId: "run-1",
@@ -812,26 +655,6 @@ describe("Workflow Routes", () => {
   });
 
   test("execution endpoints enforce org isolation and not found behavior", async () => {
-    const { org: orgA, user: ownerA } = await createOrg(db, {
-      name: "Execution Org A",
-      email: "owner-a@exec-org.test",
-    });
-    const { org: orgB, user: ownerB } = await createOrg(db, {
-      name: "Execution Org B",
-      email: "owner-b@exec-org.test",
-    });
-
-    const contextA = createTestContext({
-      orgId: orgA.id,
-      userId: ownerA.id,
-      role: "owner",
-    });
-    const contextB = createTestContext({
-      orgId: orgB.id,
-      userId: ownerB.id,
-      role: "owner",
-    });
-
     const workflowInOrgB = await call(
       workflowRoutes.create,
       {

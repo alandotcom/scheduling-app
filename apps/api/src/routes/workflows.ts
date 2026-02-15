@@ -4,8 +4,6 @@ import { z } from "zod";
 import {
   createWorkflowSchema,
   listWorkflowExecutionsQuerySchema,
-  saveCurrentWorkflowSchema,
-  workflowCurrentResponseSchema,
   updateWorkflowSchema,
   workflowExecutionCancelResponseSchema,
   workflowExecutionEventsResponseSchema,
@@ -44,29 +42,6 @@ export const list = authed
     });
 
     return workflows.map((workflow) => withOwnership(workflow, context.role));
-  });
-
-// Get current workflow draft (read-only for authenticated users)
-export const getCurrent = authed
-  .route({ method: "GET", path: "/workflows/current" })
-  .output(workflowCurrentResponseSchema)
-  .handler(async ({ context }) => {
-    return workflowService.getCurrent({
-      orgId: context.orgId,
-      userId: context.userId,
-    });
-  });
-
-// Save current workflow draft (admin only)
-export const saveCurrent = adminOnly
-  .route({ method: "POST", path: "/workflows/current" })
-  .input(saveCurrentWorkflowSchema)
-  .output(workflowCurrentResponseSchema)
-  .handler(async ({ input, context }) => {
-    return workflowService.saveCurrent(input, {
-      orgId: context.orgId,
-      userId: context.userId,
-    });
   });
 
 // Get a workflow by ID
@@ -254,15 +229,8 @@ export const executions = {
   cancel: cancelExecution,
 };
 
-export const current = {
-  get: getCurrent,
-  save: saveCurrent,
-};
-
 export const workflowRoutes = {
   list,
-  getCurrent,
-  saveCurrent,
   get,
   create,
   update,
@@ -274,6 +242,5 @@ export const workflowRoutes = {
   getExecutionEvents,
   getExecutionStatus,
   cancelExecution,
-  current,
   executions,
 };

@@ -43,7 +43,6 @@ function resolveErrorMessage(error: unknown): string {
 
 function WorkflowEditorPage() {
   const { workflowId } = Route.useParams();
-  const isCurrentWorkflowDraft = workflowId === "current";
   const queryClient = useQueryClient();
 
   const authContextQuery = useQuery({
@@ -51,11 +50,7 @@ function WorkflowEditorPage() {
     retry: false,
   });
   const workflowQuery = useQuery({
-    ...(isCurrentWorkflowDraft
-      ? orpc.workflows.current.get.queryOptions({})
-      : orpc.workflows.get.queryOptions({
-          input: { id: workflowId },
-        })),
+    ...orpc.workflows.get.queryOptions({ input: { id: workflowId } }),
     retry: false,
   });
 
@@ -92,10 +87,9 @@ function WorkflowEditorPage() {
     authContextQuery.data?.role,
   );
   const workflowOwnershipAllowsEdit =
-    isCurrentWorkflowDraft ||
-    (workflowQuery.data && "isOwner" in workflowQuery.data
+    workflowQuery.data && "isOwner" in workflowQuery.data
       ? workflowQuery.data.isOwner !== false
-      : true);
+      : true;
   const canManageWorkflow = canManageByRole && workflowOwnershipAllowsEdit;
 
   useEffect(() => {
@@ -105,22 +99,11 @@ function WorkflowEditorPage() {
   useEffect(() => {
     if (!workflowQuery.data) return;
     setGraph(workflowQuery.data.graph);
-    setWorkflowId(workflowQuery.data.id ?? null);
+    setWorkflowId(workflowQuery.data.id);
   }, [setGraph, setWorkflowId, workflowQuery.data]);
 
   const updateMutation = useMutation(
     orpc.workflows.update.mutationOptions({
-      onSuccess: () => {
-        queryClient.invalidateQueries({ queryKey: orpc.workflows.key() });
-      },
-      onError: (error) => {
-        toast.error(error.message || "Failed to save workflow draft");
-      },
-    }),
-  );
-
-  const saveCurrentMutation = useMutation(
-    orpc.workflows.current.save.mutationOptions({
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: orpc.workflows.key() });
       },
@@ -139,15 +122,10 @@ function WorkflowEditorPage() {
     if (!isLoaded || !canManageWorkflow) return;
     setIsSaving(true);
     try {
-      if (isCurrentWorkflowDraft) {
-        const saved = await saveCurrentMutation.mutateAsync({ graph });
-        setWorkflowId(saved.id ?? null);
-      } else {
-        await updateMutation.mutateAsync({
-          id: workflowId,
-          data: { graph },
-        });
-      }
+      await updateMutation.mutateAsync({
+        id: workflowId,
+        data: { graph },
+      });
       setHasUnsavedChanges(false);
     } finally {
       setIsSaving(false);
@@ -155,12 +133,9 @@ function WorkflowEditorPage() {
   }, [
     canManageWorkflow,
     graph,
-    isCurrentWorkflowDraft,
     isLoaded,
-    saveCurrentMutation,
     setHasUnsavedChanges,
     setIsSaving,
-    setWorkflowId,
     updateMutation,
     workflowId,
   ]);
@@ -281,15 +256,11 @@ export const Route = createFileRoute("/_authenticated/workflows/$workflowId")({
     await swallowIgnorableRouteLoaderError(
       Promise.all([
         queryClient.ensureQueryData(orpc.auth.me.queryOptions({})),
-        params.workflowId === "current"
-          ? queryClient.ensureQueryData(
-              orpc.workflows.current.get.queryOptions({}),
-            )
-          : queryClient.ensureQueryData(
-              orpc.workflows.get.queryOptions({
-                input: { id: params.workflowId },
-              }),
-            ),
+        queryClient.ensureQueryData(
+          orpc.workflows.get.queryOptions({
+            input: { id: params.workflowId },
+          }),
+        ),
       ]),
     );
   },

@@ -33,6 +33,7 @@ export {
   setupTestDb,
   createTestDb,
   resetTestDb,
+  resetWorkflowTables,
   closeTestDb,
   setTestOrgContext,
   clearTestOrgContext,

@@ -147,14 +147,14 @@ export class AppointmentTypeService {
       paddingBeforeMin: updated.paddingBeforeMin,
       paddingAfterMin: updated.paddingAfterMin,
       capacity: updated.capacity,
-      metadata: updated.metadata as Record<string, unknown> | null,
+      metadata: updated.metadata,
       previous: {
         name: existing.name,
         durationMin: existing.durationMin,
         paddingBeforeMin: existing.paddingBeforeMin,
         paddingAfterMin: existing.paddingAfterMin,
         capacity: existing.capacity,
-        metadata: existing.metadata as Record<string, unknown> | null,
+        metadata: existing.metadata,
       },
     });
 

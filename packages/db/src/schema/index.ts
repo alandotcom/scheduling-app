@@ -179,7 +179,7 @@ export const appointmentTypes = pgTable.withRLS(
     paddingBeforeMin: integer("padding_before_min").default(0),
     paddingAfterMin: integer("padding_after_min").default(0),
     capacity: integer("capacity").default(1),
-    metadata: jsonb("metadata"),
+    metadata: jsonb("metadata").$type<Record<string, unknown>>(),
     ...timestamps,
   },
   () => [

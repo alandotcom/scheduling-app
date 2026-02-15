@@ -23,7 +23,12 @@ export const workflowSchema = z.object({
 });
 
 export const createWorkflowSchema = z.object({
-  name: z.string().trim().min(1, "Workflow name is required").max(255),
+  name: z
+    .string()
+    .trim()
+    .min(1, "Workflow name is required")
+    .max(255)
+    .optional(),
   description: z.string().trim().max(2000).optional(),
   graph: serializedWorkflowGraphSchema,
   visibility: workflowVisibilitySchema.optional(),
@@ -45,9 +50,7 @@ export const updateWorkflowSchema = z
     message: "At least one field must be provided",
   });
 
-export const listWorkflowsQuerySchema = paginationSchema.extend({
-  includeCurrent: z.boolean().optional(),
-});
+export const listWorkflowsQuerySchema = paginationSchema;
 
 export const workflowIdParamsSchema = z.object({
   workflowId: uuidSchema,
@@ -61,15 +64,6 @@ export const workflowResponseSchema = workflowSchema.extend({
   isOwner: z.boolean().optional(),
 });
 export const workflowListResponseSchema = z.array(workflowResponseSchema);
-
-export const workflowCurrentResponseSchema = z.object({
-  id: uuidSchema.optional(),
-  graph: serializedWorkflowGraphSchema,
-});
-
-export const saveCurrentWorkflowSchema = z.object({
-  graph: serializedWorkflowGraphSchema,
-});
 
 export const workflowExecuteInputSchema = z.object({
   input: z.record(z.string(), z.unknown()).optional(),
@@ -246,12 +240,6 @@ export type UpdateWorkflowInput = z.infer<typeof updateWorkflowSchema>;
 export type ListWorkflowsQuery = z.infer<typeof listWorkflowsQuerySchema>;
 export type WorkflowResponse = z.infer<typeof workflowResponseSchema>;
 export type WorkflowListResponse = z.infer<typeof workflowListResponseSchema>;
-export type WorkflowCurrentResponse = z.infer<
-  typeof workflowCurrentResponseSchema
->;
-export type SaveCurrentWorkflowInput = z.infer<
-  typeof saveCurrentWorkflowSchema
->;
 export type WorkflowExecuteInput = z.infer<typeof workflowExecuteInputSchema>;
 export type WorkflowExecutionStatus = z.infer<
   typeof workflowExecutionStatusSchema
