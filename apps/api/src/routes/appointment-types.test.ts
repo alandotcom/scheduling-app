@@ -1,11 +1,7 @@
 // Integration tests for appointment type routes
 // Tests actual handler logic with database operations including calendar and resource associations
 
-import {
-  describe,
-  test,
-  expect,
-  } from "bun:test";
+import { describe, test, expect } from "bun:test";
 import { call } from "@orpc/server";
 import {
   createTestContext,

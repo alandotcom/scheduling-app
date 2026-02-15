@@ -44,17 +44,6 @@ type SchedulingInternalEvents = {
       correlationKey?: string;
     };
   };
-  "workflow/wait.signal": {
-    data: {
-      executionId: string;
-      nodeId: string;
-      token?: string | null;
-      eventType?: DomainEventType;
-      correlationKey?: string;
-      payload?: Record<string, unknown>;
-      signalType: "wait-resume";
-    };
-  };
 };
 
 type SchedulingInngestEvents = SchedulingDomainEvents &

@@ -19,10 +19,8 @@ import {
 import {
   sendWorkflowCancelRequested,
   sendWorkflowRunRequested,
-  sendWorkflowWaitSignal,
   type WorkflowCancelRequestedEventData,
   type WorkflowRunRequestedEventData,
-  type WorkflowWaitSignalEventData,
 } from "../inngest/runtime-events.js";
 import { orchestrateTriggerExecution } from "./workflow-trigger-orchestrator.js";
 
@@ -42,15 +40,9 @@ type CancelRequester = (
   payload: WorkflowCancelRequestedEventData,
 ) => Promise<{ eventId?: string }>;
 
-type WaitSignalRequester = (
-  payload: WorkflowWaitSignalEventData,
-) => Promise<{ eventId?: string }>;
-
 export type WorkflowDomainTriggerDependencies = {
   runRequester?: RunRequester;
   cancelRequester?: CancelRequester;
-  waitSignalRequester?: WaitSignalRequester;
-  enableResumes?: boolean;
 };
 
 type CancellationSummary = {
@@ -58,11 +50,6 @@ type CancellationSummary = {
   cancelledWaits: number;
   failedExecutions?: string[];
 };
-
-type TriggerWaitStateRef = Pick<
-  WorkflowWaitState,
-  "id" | "executionId" | "nodeId" | "hookToken" | "metadata"
->;
 
 const UNIQUE_CONSTRAINT_VIOLATION = "23505";
 
@@ -133,35 +120,8 @@ export type WorkflowDomainEventProcessingResult = {
     reason: WorkflowExecutionIgnoredReason;
   }>;
   cancelledWorkflowIds?: string[];
-  resumedWorkflowIds?: string[];
   erroredWorkflowIds: string[];
 };
-
-function parseCsvSet(value: unknown): Set<string> {
-  if (typeof value !== "string") {
-    return new Set();
-  }
-
-  return new Set(
-    value
-      .split(",")
-      .map((entry) => entry.trim())
-      .filter((entry) => entry.length > 0),
-  );
-}
-
-function isWaitStateResumableForEvent(
-  waitState: TriggerWaitStateRef,
-  eventType: DomainEventType,
-): boolean {
-  if (!waitState.hookToken) {
-    return false;
-  }
-
-  const metadata = waitState.metadata ?? {};
-  const waitForEvents = parseCsvSet(metadata["waitForEvents"]);
-  return waitForEvents.size === 0 || waitForEvents.has(eventType);
-}
 
 async function startWorkflowExecution(input: {
   tx: DbClient;
@@ -298,59 +258,6 @@ async function cancelWaitingRuns(input: {
   };
 }
 
-async function resumeWaitingRuns(input: {
-  tx: DbClient;
-  orgId: string;
-  eventType: DomainEventType;
-  correlationKey: string;
-  payload: Record<string, unknown>;
-  waitStates: TriggerWaitStateRef[];
-  waitSignalRequester: WaitSignalRequester;
-}): Promise<number> {
-  const resumableWaitStates = input.waitStates.filter((waitState) =>
-    isWaitStateResumableForEvent(waitState, input.eventType),
-  );
-  let resumedCount = 0;
-
-  await forEachAsync(
-    resumableWaitStates,
-    async (waitState) => {
-      try {
-        await input.waitSignalRequester({
-          executionId: waitState.executionId,
-          nodeId: waitState.nodeId,
-          token: waitState.hookToken,
-          eventType: input.eventType,
-          correlationKey: input.correlationKey,
-          payload: input.payload,
-        });
-      } catch {
-        return;
-      }
-
-      const waitUpdated = await workflowRepository.markWaitStateResumed(
-        input.tx,
-        input.orgId,
-        waitState.id,
-      );
-
-      if (!waitUpdated) {
-        return;
-      }
-
-      resumedCount += 1;
-      await workflowRepository.markExecutionRunning(
-        input.tx,
-        input.orgId,
-        waitState.executionId,
-      );
-    },
-    { concurrency: 1 },
-  );
-
-  return resumedCount;
-}
-
 export async function processWorkflowDomainEvent(
   event: WorkflowDomainEventEnvelope<DomainEventType>,
   dependencies: WorkflowDomainTriggerDependencies = {},
@@ -358,9 +265,6 @@ export async function processWorkflowDomainEvent(
   const runRequester = dependencies.runRequester ?? sendWorkflowRunRequested;
   const cancelRequester =
     dependencies.cancelRequester ?? sendWorkflowCancelRequested;
-  const waitSignalRequester =
-    dependencies.waitSignalRequester ?? sendWorkflowWaitSignal;
-  const enableResumes = dependencies.enableResumes ?? true;
 
   return withOrg(event.orgId, async (tx) => {
     const workflows = await workflowRepository.findMany(tx, event.orgId);
@@ -371,7 +275,6 @@ export async function processWorkflowDomainEvent(
       reason: WorkflowExecutionIgnoredReason;
     }> = [];
     const cancelledWorkflowIds: string[] = [];
-    const resumedWorkflowIds: string[] = [];
     const erroredWorkflowIds: string[] = [];
 
     await forEachAsync(
@@ -421,7 +324,6 @@ export async function processWorkflowDomainEvent(
               eventType: event.type,
               routingDecision: evaluation.routingDecision,
               waitStates,
-              enableResumes,
               ...(evaluation.correlationKey
                 ? { correlationKey: evaluation.correlationKey }
                 : {}),
@@ -467,21 +369,6 @@ export async function processWorkflowDomainEvent(
                   cancelRequester,
                 });
               },
-              resumeWaitStates: async (eventType) => {
-                if (!evaluation.correlationKey) {
-                  return 0;
-                }
-
-                return await resumeWaitingRuns({
-                  tx,
-                  orgId: event.orgId,
-                  eventType,
-                  correlationKey: evaluation.correlationKey,
-                  payload: event.payload,
-                  waitStates,
-                  waitSignalRequester,
-                });
-              },
             });
 
           if (outcome.status === "running") {
@@ -491,11 +378,6 @@ export async function processWorkflowDomainEvent(
 
           if (outcome.status === "cancelled") {
             cancelledWorkflowIds.push(workflow.id);
-            return;
-          }
-
-          if (outcome.status === "resumed") {
-            resumedWorkflowIds.push(workflow.id);
             return;
           }
 
@@ -528,7 +410,6 @@ export async function processWorkflowDomainEvent(
       ignoredWorkflowIds,
       ignored,
       cancelledWorkflowIds,
-      resumedWorkflowIds,
       erroredWorkflowIds,
     };
   });

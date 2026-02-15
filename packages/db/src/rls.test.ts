@@ -3,11 +3,7 @@
 // These tests verify RLS policies and context functions work correctly.
 // With real Postgres, RLS is enforced natively when org context is set.
 
-import {
-  describe,
-  test,
-  expect,
-} from "bun:test";
+import { describe, test, expect } from "bun:test";
 import {
   getTestDb,
   type TestDatabase,

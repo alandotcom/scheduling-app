@@ -1,5 +1,9 @@
 import { z } from "zod";
-import { domainEventTypeSchema } from "./domain-event";
+import {
+  domainEventDomainSchema,
+  domainEventTypeSchema,
+  getDomainForDomainEventType,
+} from "./domain-event";
 
 export const workflowNodeTypeSchema = z.enum(["trigger", "action"]);
 export const workflowNodeRuntimeStatusSchema = z.enum([
@@ -35,11 +39,33 @@ export const workflowDomainEventRoutingSetSchema = z.preprocess(
 export const workflowDomainEventTriggerConfigSchema = z
   .object({
     triggerType: z.literal("DomainEvent"),
+    domain: domainEventDomainSchema,
     startEvents: workflowDomainEventRoutingSetSchema,
     restartEvents: workflowDomainEventRoutingSetSchema,
     stopEvents: workflowDomainEventRoutingSetSchema,
     domainEventCorrelationPath: z.string().trim().min(1).optional(),
     domainEventMockEvent: z.string().trim().min(1).optional(),
+  })
+  .superRefine((value, ctx) => {
+    const routingSets = [
+      { key: "startEvents", values: value.startEvents },
+      { key: "restartEvents", values: value.restartEvents },
+      { key: "stopEvents", values: value.stopEvents },
+    ] as const;
+
+    for (const set of routingSets) {
+      for (const [index, eventType] of set.values.entries()) {
+        if (getDomainForDomainEventType(eventType) === value.domain) {
+          continue;
+        }
+
+        ctx.addIssue({
+          code: "custom",
+          message: `Event "${eventType}" does not match selected domain "${value.domain}"`,
+          path: [set.key, index],
+        });
+      }
+    }
   })
   .strict();
 

@@ -1,5 +1,6 @@
 import type { NodeProps } from "@xyflow/react";
 import type { IconSvgElement } from "@hugeicons/react";
+import { useAtomValue } from "jotai";
 import {
   BlockedIcon,
   CancelCircleIcon,
@@ -10,7 +11,7 @@ import {
   ViewOffIcon,
 } from "@hugeicons/core-free-icons";
 import { Icon } from "@/components/ui/icon";
-import { memo } from "react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 import {
   Node,
   NodeDescription,
@@ -18,6 +19,18 @@ import {
 } from "@/components/flow-elements/node";
 import { cn } from "@/lib/utils";
 import { getAction } from "../action-registry";
+import {
+  selectedExecutionIdAtom,
+  workflowExecutionLogsByNodeIdAtom,
+  type WorkflowExecutionNodeLogPreview,
+} from "../workflow-editor-store";
+import {
+  formatCountdown,
+  formatTriggerTime,
+  hasDynamicExpression,
+  parseTimestampWithTimezone,
+  resolveWaitUntil,
+} from "../wait-time";
 
 type ActionNodeData = {
   label?: string;
@@ -26,8 +39,227 @@ type ActionNodeData = {
   enabled?: boolean;
   config?: {
     actionType?: string;
+    waitDelayTimingMode?: string;
+    waitDuration?: unknown;
+    waitUntil?: unknown;
+    waitOffset?: unknown;
+    waitTimezone?: unknown;
   };
 };
+
+type WaitPreviewData = {
+  countdown: string;
+  triggerTimeMain: string;
+  triggerTimeZone?: string;
+};
+
+type RuntimeWaitInput = {
+  waitDuration?: unknown;
+  waitUntil?: unknown;
+  waitOffset?: unknown;
+  waitTimezone?: unknown;
+};
+
+function getWaitDelayTimingMode(
+  config: ActionNodeData["config"],
+): "duration" | "until" {
+  const configured =
+    typeof config?.waitDelayTimingMode === "string"
+      ? config.waitDelayTimingMode
+      : "";
+
+  if (configured === "duration" || configured === "until") {
+    return configured;
+  }
+
+  const waitUntil =
+    typeof config?.waitUntil === "string" ? config.waitUntil.trim() : "";
+  return waitUntil ? "until" : "duration";
+}
+
+function toSignaturePart(value: unknown): string {
+  if (typeof value === "string") {
+    return value;
+  }
+
+  if (
+    typeof value === "number" ||
+    typeof value === "boolean" ||
+    value === null ||
+    value === undefined
+  ) {
+    return String(value ?? "");
+  }
+
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return "";
+  }
+}
+
+function useConfigWaitPreview(
+  actionType: string | undefined,
+  config: ActionNodeData["config"],
+): WaitPreviewData | null {
+  const shouldShowWaitPreview = actionType === "wait";
+  const delayTimingMode = getWaitDelayTimingMode(config);
+  const waitDuration = config?.waitDuration;
+  const waitUntil = config?.waitUntil;
+  const waitOffset = config?.waitOffset;
+  const waitTimezone =
+    typeof config?.waitTimezone === "string" && config.waitTimezone.trim()
+      ? config.waitTimezone.trim()
+      : undefined;
+
+  const hasDynamicValue =
+    hasDynamicExpression(waitDuration) ||
+    hasDynamicExpression(waitUntil) ||
+    hasDynamicExpression(waitOffset);
+
+  const previewBaseNowMsRef = useRef(Date.now());
+  const waitSignatureRef = useRef("");
+  const waitSignature = [
+    delayTimingMode,
+    toSignaturePart(waitDuration),
+    toSignaturePart(waitUntil),
+    toSignaturePart(waitOffset),
+    toSignaturePart(waitTimezone),
+  ].join("|");
+
+  if (shouldShowWaitPreview && waitSignatureRef.current !== waitSignature) {
+    waitSignatureRef.current = waitSignature;
+    previewBaseNowMsRef.current = Date.now();
+  }
+
+  const resolution = useMemo(() => {
+    if (!(shouldShowWaitPreview && !hasDynamicValue)) {
+      return null;
+    }
+
+    return resolveWaitUntil({
+      now: new Date(previewBaseNowMsRef.current),
+      waitDuration: delayTimingMode === "duration" ? waitDuration : undefined,
+      waitUntil: delayTimingMode === "until" ? waitUntil : undefined,
+      waitOffset: delayTimingMode === "until" ? waitOffset : undefined,
+      waitTimezone,
+    });
+  }, [
+    shouldShowWaitPreview,
+    hasDynamicValue,
+    delayTimingMode,
+    waitDuration,
+    waitUntil,
+    waitOffset,
+    waitTimezone,
+  ]);
+
+  if (!shouldShowWaitPreview) {
+    return null;
+  }
+
+  if (hasDynamicValue) {
+    return {
+      countdown: "Runtime-calculated",
+      triggerTimeMain: "Trigger time comes from workflow data",
+    };
+  }
+
+  if (!resolution?.waitUntil) {
+    return {
+      countdown: "Set wait duration",
+      triggerTimeMain: "Add a valid wait time",
+    };
+  }
+
+  const triggerTime = formatTriggerTime(resolution.waitUntil, waitTimezone);
+  return {
+    countdown: formatCountdown(
+      resolution.waitUntil.getTime() - previewBaseNowMsRef.current,
+    ),
+    triggerTimeMain: triggerTime.main,
+    triggerTimeZone: triggerTime.timezone,
+  };
+}
+
+function useRuntimeWaitPreview(
+  actionType: string | undefined,
+  selectedExecutionId: string | null,
+  nodeLog: WorkflowExecutionNodeLogPreview | undefined,
+): WaitPreviewData | null {
+  const shouldShowRuntimeWaitPreview =
+    actionType === "wait" &&
+    selectedExecutionId !== null &&
+    nodeLog !== undefined &&
+    (nodeLog.status === "running" || nodeLog.status === "pending");
+
+  const [nowMs, setNowMs] = useState(() => Date.now());
+
+  useEffect(() => {
+    if (!shouldShowRuntimeWaitPreview) {
+      return;
+    }
+
+    const intervalId = window.setInterval(() => {
+      setNowMs(Date.now());
+    }, 1000);
+
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, [shouldShowRuntimeWaitPreview]);
+
+  const runtimeInput = useMemo(() => {
+    if (
+      !(shouldShowRuntimeWaitPreview && nodeLog?.input) ||
+      typeof nodeLog.input !== "object"
+    ) {
+      return null;
+    }
+
+    return nodeLog.input as RuntimeWaitInput;
+  }, [shouldShowRuntimeWaitPreview, nodeLog?.input]);
+
+  const startedAt = useMemo(() => {
+    if (!shouldShowRuntimeWaitPreview) {
+      return null;
+    }
+
+    return parseTimestampWithTimezone(nodeLog?.startedAt);
+  }, [nodeLog?.startedAt, shouldShowRuntimeWaitPreview]);
+
+  if (!(shouldShowRuntimeWaitPreview && runtimeInput && startedAt)) {
+    return null;
+  }
+
+  const waitTimezone =
+    typeof runtimeInput.waitTimezone === "string" &&
+    runtimeInput.waitTimezone.trim()
+      ? runtimeInput.waitTimezone.trim()
+      : undefined;
+
+  const resolution = resolveWaitUntil({
+    now: startedAt,
+    waitDuration: runtimeInput.waitDuration,
+    waitUntil: runtimeInput.waitUntil,
+    waitOffset: runtimeInput.waitOffset,
+    waitTimezone,
+  });
+
+  if (!resolution.waitUntil) {
+    return {
+      countdown: "Runtime-calculated",
+      triggerTimeMain: "Waiting timestamp unavailable",
+    };
+  }
+
+  const triggerTime = formatTriggerTime(resolution.waitUntil, waitTimezone);
+  return {
+    countdown: formatCountdown(resolution.waitUntil.getTime() - nowMs),
+    triggerTimeMain: triggerTime.main,
+    triggerTimeZone: triggerTime.timezone,
+  };
+}
 
 function getActionIconAndColor(actionType?: string): {
   icon: IconSvgElement;
@@ -46,6 +278,12 @@ function getActionIconAndColor(actionType?: string): {
         icon: GitBranchIcon,
         colorClass: "text-pink-500",
         bgClass: "bg-pink-500/10",
+      };
+    case "switch":
+      return {
+        icon: GitBranchIcon,
+        colorClass: "text-cyan-500",
+        bgClass: "bg-cyan-500/10",
       };
     case "wait":
       return {
@@ -88,11 +326,20 @@ function StatusBadge({ status }: { status: ActionNodeData["status"] }) {
   );
 }
 
-const ActionNode = memo(function ActionNode({ data, selected }: NodeProps) {
+const ActionNode = memo(function ActionNode({ id, data, selected }: NodeProps) {
   const nodeData = data as ActionNodeData;
   const isDisabled = nodeData.enabled === false;
   const actionType = nodeData.config?.actionType;
   const actionDef = actionType ? getAction(actionType) : undefined;
+  const selectedExecutionId = useAtomValue(selectedExecutionIdAtom);
+  const executionLogsByNodeId = useAtomValue(workflowExecutionLogsByNodeIdAtom);
+  const runtimeWaitPreview = useRuntimeWaitPreview(
+    actionType,
+    selectedExecutionId,
+    executionLogsByNodeId[id],
+  );
+  const configWaitPreview = useConfigWaitPreview(actionType, nodeData.config);
+  const waitPreview = runtimeWaitPreview ?? configWaitPreview;
   const { icon, colorClass, bgClass } = getActionIconAndColor(actionType);
   const title = nodeData.label || actionDef?.label || "Action";
   const description =
@@ -125,7 +372,23 @@ const ActionNode = memo(function ActionNode({ data, selected }: NodeProps) {
           <Icon icon={icon} className={cn("size-6", colorClass)} />
         </div>
         <NodeTitle className="text-base font-medium">{title}</NodeTitle>
-        <NodeDescription className="text-xs">{description}</NodeDescription>
+        {waitPreview ? (
+          <div className="flex flex-col items-center gap-0.5">
+            <NodeDescription className="font-medium text-[11px] tabular-nums">
+              {waitPreview.countdown}
+            </NodeDescription>
+            <NodeDescription className="max-w-[10.5rem] text-[10px] leading-tight">
+              {waitPreview.triggerTimeMain}
+            </NodeDescription>
+            {waitPreview.triggerTimeZone ? (
+              <NodeDescription className="text-[10px] leading-tight">
+                {waitPreview.triggerTimeZone}
+              </NodeDescription>
+            ) : null}
+          </div>
+        ) : (
+          <NodeDescription className="text-xs">{description}</NodeDescription>
+        )}
       </div>
     </Node>
   );

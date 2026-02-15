@@ -1,10 +1,4 @@
-import {
-  beforeEach,
-  describe,
-  expect,
-  mock,
-  test,
-} from "bun:test";
+import { beforeEach, describe, expect, mock, test } from "bun:test";
 import { eq, inArray } from "drizzle-orm";
 import { workflowExecutions, workflowWaitStates } from "@scheduling/db/schema";
 import type {
@@ -12,6 +6,7 @@ import type {
   DomainEventType,
   SerializedWorkflowGraph,
 } from "@scheduling/dto";
+import { getDomainForDomainEventType } from "@scheduling/dto";
 import {
   getTestDb,
   setTestOrgContext,
@@ -26,6 +21,12 @@ function createGraphWithDomainEventTrigger(
   restartEvents: DomainEventType[] = [],
   stopEvents: DomainEventType[] = [],
 ): SerializedWorkflowGraph {
+  const domainEvent =
+    startEvents[0] ??
+    restartEvents[0] ??
+    stopEvents[0] ??
+    "appointment.created";
+
   return {
     attributes: {},
     options: { type: "directed" },
@@ -41,6 +42,7 @@ function createGraphWithDomainEventTrigger(
             type: "trigger",
             config: {
               triggerType: "DomainEvent",
+              domain: getDomainForDomainEventType(domainEvent),
               startEvents,
               restartEvents,
               stopEvents,
@@ -358,11 +360,9 @@ describe("workflow domain triggers", () => {
       runId: "run_wait_1",
       nodeId: "wait-node-1",
       nodeName: "Wait for client updates",
-      waitType: "hook",
+      waitType: "time",
       status: "waiting",
-      hookToken: "token_wait_1",
       correlationKey: "018f4d3a-6d80-7c5b-8a4a-6cb8f8d57d11",
-      metadata: { waitForEvents: "client.updated" },
     });
 
     const runRequester = mock(async () => ({ eventId: "run-event-restart" }));
@@ -400,87 +400,6 @@ describe("workflow domain triggers", () => {
       .where(eq(workflowWaitStates.executionId, existingExecution!.id));
 
     expect(waitState?.status).toBe("cancelled");
-  });
-
-  test("start routing resumes matching wait states without creating a new execution", async () => {
-    const workflow = await workflowService.create(
-      {
-        name: "Resume Workflow",
-        graph: createGraphWithDomainEventTrigger(["client.updated"]),
-      },
-      {
-        orgId: orgA.id,
-        userId: userA.id,
-      },
-    );
-
-    await setTestOrgContext(db, orgA.id);
-    const [existingExecution] = await db
-      .insert(workflowExecutions)
-      .values({
-        orgId: orgA.id,
-        workflowId: workflow.id,
-        status: "waiting",
-        triggerType: "domain_event",
-        triggerEventType: "client.created",
-        correlationKey: "018f4d3a-6d80-7c5b-8a4a-6cb8f8d57d11",
-      })
-      .returning();
-
-    const [waitState] = await db
-      .insert(workflowWaitStates)
-      .values({
-        orgId: orgA.id,
-        workflowId: workflow.id,
-        executionId: existingExecution!.id,
-        runId: "run_wait_resume_1",
-        nodeId: "wait-node-2",
-        nodeName: "Wait for client updates",
-        waitType: "hook",
-        status: "waiting",
-        hookToken: "token_wait_resume_1",
-        correlationKey: "018f4d3a-6d80-7c5b-8a4a-6cb8f8d57d11",
-        metadata: { waitForEvents: "client.updated" },
-      })
-      .returning();
-
-    const runRequester = mock(async () => ({ eventId: "run-event-unused" }));
-    const waitSignalRequester = mock(async () => ({
-      eventId: "signal-event-1",
-    }));
-
-    const result = await processWorkflowDomainEvent(
-      {
-        id: "event-client-updated-2",
-        orgId: orgA.id,
-        type: "client.updated",
-        payload: createClientUpdatedPayload(),
-        timestamp: new Date().toISOString(),
-      },
-      {
-        runRequester,
-        waitSignalRequester,
-      },
-    );
-
-    expect(result.startedExecutionIds).toHaveLength(0);
-    expect(result.resumedWorkflowIds).toEqual([workflow.id]);
-    expect(runRequester).toHaveBeenCalledTimes(0);
-    expect(waitSignalRequester).toHaveBeenCalledTimes(1);
-
-    const [updatedWaitState] = await db
-      .select()
-      .from(workflowWaitStates)
-      .where(eq(workflowWaitStates.id, waitState!.id));
-
-    expect(updatedWaitState?.status).toBe("resumed");
-
-    const [updatedExecution] = await db
-      .select()
-      .from(workflowExecutions)
-      .where(eq(workflowExecutions.id, existingExecution!.id));
-
-    expect(updatedExecution?.status).toBe("running");
   });
 
   test("ignores duplicate domain events by event id per workflow", async () => {

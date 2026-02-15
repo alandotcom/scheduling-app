@@ -1,9 +1,14 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useAtom } from "jotai";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { formatDisplayDateTime } from "@/lib/date-utils";
 import { orpc } from "@/lib/query";
+import {
+  selectedExecutionIdAtom,
+  workflowExecutionLogsByNodeIdAtom,
+} from "./workflow-editor-store";
 
 interface WorkflowRunsPanelProps {
   workflowId: string | null;
@@ -26,8 +31,11 @@ export function WorkflowRunsPanel({
   workflowId,
   canManageWorkflow,
 }: WorkflowRunsPanelProps) {
-  const [selectedExecutionId, setSelectedExecutionId] = useState<string | null>(
-    null,
+  const [selectedExecutionId, setSelectedExecutionId] = useAtom(
+    selectedExecutionIdAtom,
+  );
+  const [, setExecutionLogsByNodeId] = useAtom(
+    workflowExecutionLogsByNodeIdAtom,
   );
   const queryClient = useQueryClient();
 
@@ -98,6 +106,48 @@ export function WorkflowRunsPanel({
       ) ?? null,
     [executionsQuery.data, selectedExecutionId],
   );
+
+  useEffect(() => {
+    if (!selectedExecutionId) {
+      setExecutionLogsByNodeId({});
+      return;
+    }
+
+    const logs = executionLogsQuery.data?.logs;
+    if (!logs?.length) {
+      setExecutionLogsByNodeId({});
+      return;
+    }
+
+    const latestByNode = logs.reduce<
+      Record<
+        string,
+        {
+          nodeId: string;
+          status: "pending" | "running" | "success" | "error" | "cancelled";
+          input?: unknown;
+          startedAt?: string | Date;
+        }
+      >
+    >((acc, log) => {
+      if (!acc[log.nodeId]) {
+        acc[log.nodeId] = {
+          nodeId: log.nodeId,
+          status: log.status,
+          input: log.input,
+          startedAt: log.startedAt,
+        };
+      }
+
+      return acc;
+    }, {});
+
+    setExecutionLogsByNodeId(latestByNode);
+  }, [
+    executionLogsQuery.data?.logs,
+    selectedExecutionId,
+    setExecutionLogsByNodeId,
+  ]);
 
   if (!workflowId) {
     return (

@@ -23,7 +23,7 @@ export type NodeProps = ComponentProps<typeof Card> & {
 export const Node = ({ handles, className, status, ...props }: NodeProps) => (
   <Card
     className={cn(
-      "node-container relative size-full h-auto w-sm gap-0 rounded-md bg-card p-0 transition-all duration-200",
+      "node-container relative overflow-visible size-full h-auto w-sm gap-0 rounded-md bg-card p-0 transition-all duration-200",
       status === "success" && "border-2 border-green-500",
       status === "error" && "border-2 border-red-500",
       status === "cancelled" && "border-2 border-slate-500",

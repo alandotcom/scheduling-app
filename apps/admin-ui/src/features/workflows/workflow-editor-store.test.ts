@@ -4,11 +4,14 @@ import { describe, expect, test } from "bun:test";
 import type { SerializedWorkflowGraph } from "@scheduling/dto";
 import { createStore } from "jotai";
 import {
+  deleteNodeAtom,
   deserializeWorkflowGraph,
   onWorkflowEditorNodesChangeAtom,
+  setWorkflowEditorActionTypeAtom,
   serializeWorkflowGraph,
   setWorkflowEditorGraphAtom,
   updateWorkflowEditorNodeDataAtom,
+  workflowEditorEdgesAtom,
   workflowEditorHasUnsavedChangesAtom,
   workflowEditorIsReadOnlyAtom,
   workflowEditorNodesAtom,
@@ -31,6 +34,7 @@ function createGraphFixture(): SerializedWorkflowGraph {
             status: "idle",
             config: {
               triggerType: "DomainEvent",
+              domain: "appointment",
               startEvents: [],
               restartEvents: [],
               stopEvents: [],
@@ -64,6 +68,7 @@ function createGraphFixture(): SerializedWorkflowGraph {
           source: "trigger-node",
           target: "action-node",
           type: "default",
+          label: "Start",
         },
       },
     ],
@@ -80,6 +85,7 @@ describe("workflow-editor-store", () => {
     expect(serialized.edges.length).toBe(1);
     expect(serialized.nodes[0]?.attributes.data.label).toBe("Trigger");
     expect(serialized.edges[0]?.attributes.source).toBe("trigger-node");
+    expect(serialized.edges[0]?.attributes.label).toBe("Start");
   });
 
   test("does not remove trigger nodes on node remove changes", () => {
@@ -115,5 +121,109 @@ describe("workflow-editor-store", () => {
 
     expect(actionNode?.data.label).toBe("Action");
     expect(store.get(workflowEditorHasUnsavedChangesAtom)).toBe(false);
+  });
+
+  test("creates created/updated/deleted branches when setting action type to switch", () => {
+    const store = createStore();
+    store.set(setWorkflowEditorGraphAtom, createGraphFixture());
+    store.set(workflowEditorIsReadOnlyAtom, false);
+
+    store.set(setWorkflowEditorActionTypeAtom, {
+      nodeId: "action-node",
+      actionType: "switch",
+    });
+
+    const nodes = store.get(workflowEditorNodesAtom);
+    const edges = store.get(workflowEditorEdgesAtom);
+    const switchNode = nodes.find((node) => node.id === "action-node");
+
+    expect(switchNode?.data.config).toMatchObject({ actionType: "switch" });
+    expect(nodes.length).toBe(5);
+
+    const switchBranchEdges = edges.filter((edge) => {
+      if (edge.source !== "action-node") {
+        return false;
+      }
+
+      if (!edge.data || typeof edge.data !== "object") {
+        return false;
+      }
+
+      return "switchBranch" in edge.data;
+    });
+
+    const branchNames = switchBranchEdges
+      .map((edge) => {
+        if (!edge.data || typeof edge.data !== "object") {
+          return null;
+        }
+
+        return typeof edge.data.switchBranch === "string"
+          ? edge.data.switchBranch
+          : null;
+      })
+      .filter((value): value is string => value !== null)
+      .sort();
+
+    const branchLabels = switchBranchEdges
+      .map((edge) =>
+        typeof edge.label === "string" && edge.label.length > 0
+          ? edge.label
+          : null,
+      )
+      .filter((value): value is string => value !== null)
+      .sort();
+
+    expect(branchNames).toEqual(["created", "deleted", "updated"]);
+    expect(branchLabels).toEqual(["Created", "Deleted", "Updated"]);
+  });
+
+  test("deleting a switch node also deletes its branch child nodes", () => {
+    const store = createStore();
+    store.set(setWorkflowEditorGraphAtom, createGraphFixture());
+    store.set(workflowEditorIsReadOnlyAtom, false);
+
+    store.set(setWorkflowEditorActionTypeAtom, {
+      nodeId: "action-node",
+      actionType: "switch",
+    });
+
+    store.set(deleteNodeAtom, "action-node");
+
+    const remainingNodeIds = store
+      .get(workflowEditorNodesAtom)
+      .map((node) => node.id)
+      .sort();
+    const remainingEdges = store.get(workflowEditorEdgesAtom);
+
+    expect(remainingNodeIds).toEqual(["trigger-node"]);
+    expect(remainingEdges).toHaveLength(0);
+  });
+
+  test("node remove changes cascade switch branch child nodes", () => {
+    const store = createStore();
+    store.set(setWorkflowEditorGraphAtom, createGraphFixture());
+    store.set(workflowEditorIsReadOnlyAtom, false);
+
+    store.set(setWorkflowEditorActionTypeAtom, {
+      nodeId: "action-node",
+      actionType: "switch",
+    });
+
+    store.set(onWorkflowEditorNodesChangeAtom, [
+      {
+        id: "action-node",
+        type: "remove",
+      },
+    ]);
+
+    const remainingNodeIds = store
+      .get(workflowEditorNodesAtom)
+      .map((node) => node.id)
+      .sort();
+    const remainingEdges = store.get(workflowEditorEdgesAtom);
+
+    expect(remainingNodeIds).toEqual(["trigger-node"]);
+    expect(remainingEdges).toHaveLength(0);
   });
 });

@@ -19,6 +19,7 @@ function createNodeFixture(): Node {
       description: "Trigger node",
       config: {
         triggerType: "DomainEvent",
+        domain: "appointment",
         startEvents: ["appointment.created"],
         restartEvents: [],
         stopEvents: [],
@@ -37,6 +38,7 @@ function createNodeFixtureWithId(id: string, label: string): Node {
       description: `${label} description`,
       config: {
         triggerType: "DomainEvent",
+        domain: "appointment",
         startEvents: ["appointment.created"],
         restartEvents: [],
         stopEvents: [],

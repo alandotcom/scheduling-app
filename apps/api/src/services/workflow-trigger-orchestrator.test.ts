@@ -1,17 +1,10 @@
 import { describe, expect, mock, test } from "bun:test";
 import { orchestrateTriggerExecution } from "./workflow-trigger-orchestrator.js";
 
-function createWaitState(
-  id: string,
-  executionId: string,
-  waitForEvents?: string,
-) {
+function createWaitState(id: string, executionId: string) {
   return {
     id,
     executionId,
-    nodeId: `node_${id}`,
-    hookToken: `token_${id}`,
-    metadata: waitForEvents ? { waitForEvents } : null,
   };
 }
 
@@ -27,13 +20,11 @@ describe("workflow trigger orchestrator", () => {
       eventTypePath: "payload.type",
       routingDecision: { kind: "ignore", reason: "missing_event_type" },
       waitStates: [],
-      enableResumes: true,
       startExecution,
       cancelWaitStates: mock(async () => ({
         cancelledExecutions: 0,
         cancelledWaits: 0,
       })),
-      resumeWaitStates: mock(async () => 0),
     });
 
     expect(result).toEqual({
@@ -56,13 +47,11 @@ describe("workflow trigger orchestrator", () => {
       eventTypePath: "event",
       routingDecision: { kind: "restart" },
       waitStates: [],
-      enableResumes: true,
       startExecution,
       cancelWaitStates: mock(async () => ({
         cancelledExecutions: 0,
         cancelledWaits: 0,
       })),
-      resumeWaitStates: mock(async () => 0),
     });
 
     expect(result).toEqual({
@@ -95,10 +84,8 @@ describe("workflow trigger orchestrator", () => {
         createWaitState("2", "exec_wait_1"),
         createWaitState("3", "exec_wait_2"),
       ],
-      enableResumes: true,
       startExecution,
       cancelWaitStates,
-      resumeWaitStates: mock(async () => 0),
     });
 
     expect(cancelWaitStates).toHaveBeenCalledTimes(1);
@@ -135,10 +122,8 @@ describe("workflow trigger orchestrator", () => {
         createWaitState("2", "exec_wait_1"),
         createWaitState("3", "exec_wait_2"),
       ],
-      enableResumes: true,
       startExecution,
       cancelWaitStates,
-      resumeWaitStates: mock(async () => 0),
     });
 
     expect(cancelWaitStates).toHaveBeenCalledTimes(0);
@@ -175,10 +160,8 @@ describe("workflow trigger orchestrator", () => {
         createWaitState("2", "exec_wait_1"),
         createWaitState("3", "exec_wait_2"),
       ],
-      enableResumes: true,
       startExecution,
       cancelWaitStates,
-      resumeWaitStates: mock(async () => 0),
     });
 
     expect(cancelWaitStates).toHaveBeenCalledTimes(1);
@@ -188,39 +171,6 @@ describe("workflow trigger orchestrator", () => {
       dryRun: false,
       cancelledExecutions: 2,
       cancelledWaits: 3,
-    });
-  });
-
-  test("resumes waiting hooks for start routing before creating new run", async () => {
-    const startExecution = mock(async () => ({
-      executionId: "exec_start",
-      dryRun: false,
-    }));
-    const resumeWaitStates = mock(async () => 1);
-
-    const result = await orchestrateTriggerExecution({
-      dryRun: false,
-      eventType: "client.updated",
-      correlationKey: "abc",
-      eventTypePath: "event",
-      routingDecision: { kind: "start" },
-      waitStates: [
-        createWaitState("1", "exec_wait_1", "client.updated,client.created"),
-      ],
-      enableResumes: true,
-      startExecution,
-      cancelWaitStates: mock(async () => ({
-        cancelledExecutions: 0,
-        cancelledWaits: 0,
-      })),
-      resumeWaitStates,
-    });
-
-    expect(resumeWaitStates).toHaveBeenCalledTimes(1);
-    expect(startExecution).toHaveBeenCalledTimes(0);
-    expect(result).toEqual({
-      status: "resumed",
-      resumedCount: 1,
     });
   });
 
@@ -235,13 +185,11 @@ describe("workflow trigger orchestrator", () => {
       dryRun: false,
       routingDecision: { kind: "ignore", reason: "event_not_configured" },
       waitStates: [],
-      enableResumes: true,
       startExecution,
       cancelWaitStates: mock(async () => ({
         cancelledExecutions: 0,
         cancelledWaits: 0,
       })),
-      resumeWaitStates: mock(async () => 0),
     });
 
     expect(startExecution).toHaveBeenCalledTimes(1);

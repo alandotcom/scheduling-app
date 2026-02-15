@@ -14,26 +14,37 @@ describe("Workflow domain-event trigger config schema", () => {
   test("accepts canonical domain event routing sets", () => {
     const result = workflowDomainEventTriggerConfigSchema.safeParse({
       triggerType: "DomainEvent",
-      startEvents: ["appointment.created", "client.created"],
+      domain: "appointment",
+      startEvents: ["appointment.created"],
       restartEvents: ["appointment.updated"],
-      stopEvents: ["appointment.updated", "client.deleted"],
+      stopEvents: ["appointment.deleted"],
     });
 
     expect(result.success).toBe(true);
   });
 
+  test("rejects events outside the selected domain", () => {
+    const result = workflowDomainEventTriggerConfigSchema.safeParse({
+      triggerType: "DomainEvent",
+      domain: "appointment",
+      startEvents: ["appointment.created", "client.created"],
+      restartEvents: [],
+      stopEvents: [],
+    });
+
+    expect(result.success).toBe(false);
+  });
+
   test("normalizes comma-separated routing sets", () => {
     const parsed = workflowDomainEventTriggerConfigSchema.parse({
       triggerType: "DomainEvent",
-      startEvents: "appointment.created, appointment.created, client.created",
+      domain: "appointment",
+      startEvents: "appointment.created, appointment.created",
       restartEvents: "",
       stopEvents: "appointment.updated",
     });
 
-    expect(parsed.startEvents).toEqual([
-      "appointment.created",
-      "client.created",
-    ]);
+    expect(parsed.startEvents).toEqual(["appointment.created"]);
     expect(parsed.restartEvents).toEqual([]);
     expect(parsed.stopEvents).toEqual(["appointment.updated"]);
   });
@@ -41,6 +52,7 @@ describe("Workflow domain-event trigger config schema", () => {
   test("rejects non-canonical event types", () => {
     const result = workflowDomainEventTriggerConfigSchema.safeParse({
       triggerType: "DomainEvent",
+      domain: "appointment",
       startEvents: ["appointment.archived"],
       restartEvents: [],
       stopEvents: [],
@@ -64,6 +76,7 @@ describe("Serialized workflow graph schema", () => {
               type: "trigger",
               config: {
                 triggerType: "DomainEvent",
+                domain: "appointment",
                 startEvents: ["appointment.created"],
                 restartEvents: ["appointment.updated"],
                 stopEvents: ["appointment.updated"],
@@ -147,7 +160,7 @@ describe("Workflow execution response contracts", () => {
     expect(result.success).toBe(false);
   });
 
-  test("accepts resumed response only in trigger execution union", () => {
+  test("rejects resumed response in trigger execution union", () => {
     const triggerResponse = workflowTriggerExecutionResponseSchema.safeParse({
       status: "resumed",
       resumedCount: 2,
@@ -160,7 +173,7 @@ describe("Workflow execution response contracts", () => {
       dryRun: false,
     });
 
-    expect(triggerResponse.success).toBe(true);
+    expect(triggerResponse.success).toBe(false);
     expect(executeResponse.success).toBe(false);
   });
 });

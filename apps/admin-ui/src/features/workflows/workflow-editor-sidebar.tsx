@@ -1,5 +1,11 @@
 import type { Edge, Node } from "@xyflow/react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import {
+  domainEventTypes,
+  domainEventDomains,
+  type DomainEventDomain,
+  type DomainEventType,
+} from "@scheduling/dto";
 import {
   Delete01Icon,
   ViewIcon,
@@ -13,6 +19,9 @@ import { DeleteConfirmDialog } from "@/components/delete-confirm-dialog";
 import { WorkflowRunsPanel } from "./workflow-runs-panel";
 import { WorkflowTriggerConfig } from "./workflow-trigger-config";
 import { ActionConfig } from "./config/action-config";
+import { buildEventAttributeSuggestions } from "./config/event-attribute-suggestions";
+
+type SwitchBranch = "created" | "updated" | "deleted";
 
 type WorkflowEditorSidebarTab = "properties" | "runs";
 
@@ -20,11 +29,14 @@ interface WorkflowEditorSidebarProps {
   workflowId: string | null;
   selectedNode: Node | null;
   selectedEdge?: Edge | null;
+  nodes?: Node[];
+  edges?: Edge[];
   canManageWorkflow: boolean;
   onUpdateNodeData: (input: {
     id: string;
     data: Record<string, unknown>;
   }) => void;
+  onSetActionType?: (input: { nodeId: string; actionType: string }) => void;
   onDeleteNode?: (nodeId: string) => void;
   onDeleteEdge?: (edgeId: string) => void;
 }
@@ -59,6 +71,114 @@ function toNodeConfig(node: Node | null): Record<string, unknown> {
   return { ...node.data.config };
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function toStringArray(value: unknown): string[] {
+  return Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === "string")
+    : [];
+}
+
+function isDomainEventDomain(value: unknown): value is DomainEventDomain {
+  return (
+    typeof value === "string" &&
+    domainEventDomains.some((domain) => domain === value)
+  );
+}
+
+function isSwitchBranch(value: unknown): value is SwitchBranch {
+  return value === "created" || value === "updated" || value === "deleted";
+}
+
+function isDomainEventType(value: unknown): value is DomainEventType {
+  return (
+    typeof value === "string" &&
+    domainEventTypes.some((eventType) => eventType === value)
+  );
+}
+
+function getTriggerDomain(nodes: Node[]): DomainEventDomain | null {
+  const trigger = nodes.find((node) => getNodeType(node) === "trigger");
+  if (!trigger) {
+    return null;
+  }
+
+  const triggerConfig = toNodeConfig(trigger);
+  return isDomainEventDomain(triggerConfig.domain)
+    ? triggerConfig.domain
+    : "appointment";
+}
+
+function getConfiguredTriggerEventTypes(nodes: Node[]): DomainEventType[] {
+  const trigger = nodes.find((node) => getNodeType(node) === "trigger");
+  if (!trigger) {
+    return [];
+  }
+
+  const config = toNodeConfig(trigger);
+  const configuredEventTypes = [
+    ...toStringArray(config.startEvents),
+    ...toStringArray(config.restartEvents),
+    ...toStringArray(config.stopEvents),
+  ];
+
+  const allowedEventTypes = new Set<string>(domainEventTypes);
+  return configuredEventTypes.filter(
+    (eventType): eventType is DomainEventType =>
+      allowedEventTypes.has(eventType),
+  );
+}
+
+function getSwitchBranchFromEdge(edge: Edge): SwitchBranch | null {
+  if (!isRecord(edge.data)) {
+    return null;
+  }
+
+  const branch = edge.data.switchBranch;
+  return isSwitchBranch(branch) ? branch : null;
+}
+
+function getUpstreamSwitchBranch(
+  nodeId: string,
+  edges: Edge[],
+): SwitchBranch | null {
+  const queue = [nodeId];
+  const visited = new Set<string>();
+
+  while (queue.length > 0) {
+    const currentNodeId = queue.shift();
+    if (!currentNodeId || visited.has(currentNodeId)) {
+      continue;
+    }
+
+    visited.add(currentNodeId);
+    const incomingEdges = edges.filter((edge) => edge.target === currentNodeId);
+
+    for (const edge of incomingEdges) {
+      const branch = getSwitchBranchFromEdge(edge);
+      if (branch) {
+        return branch;
+      }
+
+      if (!visited.has(edge.source)) {
+        queue.push(edge.source);
+      }
+    }
+  }
+
+  return null;
+}
+
+function toScopedDomainEventType(
+  domain: DomainEventDomain,
+  branch: SwitchBranch,
+): DomainEventType {
+  const eventType = `${domain}.${branch}`;
+  return isDomainEventType(eventType) ? eventType : "appointment.created";
+}
+
 function getNodeType(node: Node | null): string | null {
   if (
     !node ||
@@ -82,8 +202,11 @@ export function WorkflowEditorSidebar({
   workflowId,
   selectedNode,
   selectedEdge = null,
+  nodes = [],
+  edges = [],
   canManageWorkflow,
   onUpdateNodeData,
+  onSetActionType,
   onDeleteNode,
   onDeleteEdge,
 }: WorkflowEditorSidebarProps) {
@@ -101,6 +224,23 @@ export function WorkflowEditorSidebar({
 
   const selectedNodeType = getNodeType(selectedNode);
   const nodeEnabled = isNodeEnabled(selectedNode);
+  const triggerDomain = getTriggerDomain(nodes);
+  const triggerEventTypes = getConfiguredTriggerEventTypes(nodes);
+  const selectedNodeBranch = selectedNode
+    ? getUpstreamSwitchBranch(selectedNode.id, edges)
+    : null;
+  const actionExpressionSuggestions = useMemo(() => {
+    if (!(selectedNodeType === "action" && triggerDomain)) {
+      return [];
+    }
+
+    return buildEventAttributeSuggestions({
+      domain: triggerDomain,
+      eventTypes: selectedNodeBranch
+        ? [toScopedDomainEventType(triggerDomain, selectedNodeBranch)]
+        : triggerEventTypes,
+    });
+  }, [selectedNodeBranch, selectedNodeType, triggerDomain, triggerEventTypes]);
 
   const handleToggleEnabled = () => {
     if (!selectedNode || !canManageWorkflow) return;
@@ -271,6 +411,9 @@ export function WorkflowEditorSidebar({
                           config: {
                             ...toNodeConfig(selectedNode),
                             triggerType: "DomainEvent",
+                            domain:
+                              toNodeConfig(selectedNode).domain ??
+                              "appointment",
                             ...next,
                           },
                         },
@@ -282,17 +425,71 @@ export function WorkflowEditorSidebar({
                     <ActionConfig
                       config={toNodeConfig(selectedNode)}
                       onUpdateConfig={(key, value) => {
+                        if (
+                          key === "actionType" &&
+                          typeof value === "string" &&
+                          onSetActionType
+                        ) {
+                          onSetActionType({
+                            nodeId: selectedNode.id,
+                            actionType: value,
+                          });
+                          return;
+                        }
+
+                        const nodeConfig = toNodeConfig(selectedNode);
+                        const actionType =
+                          typeof nodeConfig.actionType === "string"
+                            ? nodeConfig.actionType
+                            : "";
+
+                        if (
+                          actionType === "wait" &&
+                          key === "waitDelayTimingMode" &&
+                          typeof value === "string"
+                        ) {
+                          if (value === "duration") {
+                            onUpdateNodeData({
+                              id: selectedNode.id,
+                              data: {
+                                config: {
+                                  ...nodeConfig,
+                                  waitDelayTimingMode: "duration",
+                                  waitUntil: "",
+                                  waitOffset: "",
+                                },
+                              },
+                            });
+                            return;
+                          }
+
+                          if (value === "until") {
+                            onUpdateNodeData({
+                              id: selectedNode.id,
+                              data: {
+                                config: {
+                                  ...nodeConfig,
+                                  waitDelayTimingMode: "until",
+                                  waitDuration: "",
+                                },
+                              },
+                            });
+                            return;
+                          }
+                        }
+
                         onUpdateNodeData({
                           id: selectedNode.id,
                           data: {
                             config: {
-                              ...toNodeConfig(selectedNode),
+                              ...nodeConfig,
                               [key]: value,
                             },
                           },
                         });
                       }}
                       disabled={!canManageWorkflow}
+                      expressionSuggestions={actionExpressionSuggestions}
                     />
 
                     {/* Enable/disable toggle for action nodes */}

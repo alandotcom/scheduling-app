@@ -2,7 +2,6 @@ import type {
   DomainEventType,
   WorkflowExecutionCancelledResponse,
   WorkflowExecutionIgnoredResponse,
-  WorkflowExecutionResumedResponse,
   WorkflowExecutionRunningResponse,
 } from "@scheduling/dto";
 import type { TriggerRoutingDecision } from "./workflow-trigger-registry.js";
@@ -15,9 +14,6 @@ type TriggerIgnoreReason =
 type TriggerWaitState = {
   id: string;
   executionId: string;
-  nodeId: string;
-  hookToken: string | null;
-  metadata: Record<string, unknown> | null;
 };
 
 type CancellationSummary = {
@@ -39,7 +35,6 @@ type TriggerOrchestratorInput = {
   correlationKey?: string;
   routingDecision: TriggerRoutingDecision;
   waitStates: TriggerWaitState[];
-  enableResumes: boolean;
   startExecution: () => Promise<{
     executionId: string;
     runId?: string;
@@ -48,30 +43,12 @@ type TriggerOrchestratorInput = {
   cancelWaitStates: (
     eventType: DomainEventType,
   ) => Promise<CancellationSummary>;
-  resumeWaitStates: (
-    eventType: DomainEventType,
-    waitStates: TriggerWaitState[],
-  ) => Promise<number>;
 };
 
 export type TriggerOrchestratorResult =
   | WorkflowExecutionRunningResponse
   | WorkflowExecutionCancelledResponse
-  | WorkflowExecutionIgnoredResponse
-  | WorkflowExecutionResumedResponse;
-
-function parseCsvSet(value: unknown): Set<string> {
-  if (typeof value !== "string") {
-    return new Set();
-  }
-
-  return new Set(
-    value
-      .split(",")
-      .map((item) => item.trim())
-      .filter((item) => item.length > 0),
-  );
-}
+  | WorkflowExecutionIgnoredResponse;
 
 function toCancellationSummary(waitStates: TriggerWaitState[]): {
   cancelledExecutions: number;
@@ -82,21 +59,6 @@ function toCancellationSummary(waitStates: TriggerWaitState[]): {
       .size,
     cancelledWaits: waitStates.length,
   };
-}
-
-function countResumableWaitStates(
-  waitStates: TriggerWaitState[],
-  eventType: DomainEventType,
-): number {
-  return waitStates.filter((waitState) => {
-    if (!waitState.hookToken) {
-      return false;
-    }
-
-    const metadata = waitState.metadata ?? {};
-    const waitForEvents = parseCsvSet(metadata["waitForEvents"]);
-    return waitForEvents.size === 0 || waitForEvents.has(eventType);
-  }).length;
 }
 
 function ignored(
@@ -168,50 +130,6 @@ async function handleStopOrRestart(
   };
 }
 
-async function handleResumes(
-  input: TriggerOrchestratorInput,
-): Promise<WorkflowExecutionResumedResponse | undefined> {
-  if (!input.enableResumes) {
-    return;
-  }
-
-  if (
-    !(input.eventType && input.correlationKey) ||
-    input.waitStates.length === 0
-  ) {
-    return;
-  }
-
-  if (input.dryRun) {
-    const resumedCount = countResumableWaitStates(
-      input.waitStates,
-      input.eventType,
-    );
-    if (resumedCount > 0) {
-      return {
-        status: "resumed",
-        resumedCount,
-        dryRun: true,
-        simulated: true,
-      };
-    }
-    return;
-  }
-
-  const resumedCount = await input.resumeWaitStates(
-    input.eventType,
-    input.waitStates,
-  );
-  if (resumedCount > 0) {
-    return {
-      status: "resumed",
-      resumedCount,
-    };
-  }
-
-  return;
-}
-
 export async function orchestrateTriggerExecution(
   input: TriggerOrchestratorInput,
 ): Promise<TriggerOrchestratorResult> {
@@ -228,11 +146,6 @@ export async function orchestrateTriggerExecution(
   const stopOrRestartOutcome = await handleStopOrRestart(input);
   if (stopOrRestartOutcome) {
     return stopOrRestartOutcome;
-  }
-
-  const resumeOutcome = await handleResumes(input);
-  if (resumeOutcome) {
-    return resumeOutcome;
   }
 
   if (

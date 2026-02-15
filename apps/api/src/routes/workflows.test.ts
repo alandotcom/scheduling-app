@@ -1,11 +1,4 @@
-import {
-  afterAll,
-  beforeEach,
-  describe,
-  expect,
-  mock,
-  test,
-} from "bun:test";
+import { afterAll, beforeEach, describe, expect, mock, test } from "bun:test";
 import { call } from "@orpc/server";
 import { eq } from "drizzle-orm";
 import type { SerializedWorkflowGraph } from "@scheduling/dto";
@@ -80,6 +73,7 @@ function createGraphWithIntegrationConfig(): SerializedWorkflowGraph {
             status: "running",
             config: {
               triggerType: "DomainEvent",
+              domain: "appointment",
               startEvents: ["appointment.created"],
               restartEvents: [],
               stopEvents: [],

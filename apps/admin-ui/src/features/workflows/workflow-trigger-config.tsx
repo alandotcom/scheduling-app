@@ -1,8 +1,19 @@
 import { useEffect, useMemo, useState } from "react";
-import { domainEventTypes } from "@scheduling/dto";
+import {
+  domainEventDomains,
+  domainEventTypesByDomain,
+  type DomainEventDomain,
+} from "@scheduling/dto";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { MultiSelectCombobox } from "@/components/ui/multi-select-combobox";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 function toStringArray(value: unknown): string[] {
   return Array.isArray(value)
@@ -11,12 +22,39 @@ function toStringArray(value: unknown): string[] {
 }
 
 type TriggerConfigShape = {
+  domain?: DomainEventDomain;
   startEvents?: string[];
   restartEvents?: string[];
   stopEvents?: string[];
   domainEventCorrelationPath?: string;
   domainEventMockEvent?: string;
 };
+
+function isDomainEventDomain(value: unknown): value is DomainEventDomain {
+  return (
+    typeof value === "string" &&
+    domainEventDomains.some((domain) => domain === value)
+  );
+}
+
+function toDomainLabel(domain: DomainEventDomain): string {
+  return domain
+    .split("_")
+    .map((segment) => segment[0]?.toUpperCase() + segment.slice(1))
+    .join(" ");
+}
+
+function getSelectedDomain(config: Record<string, unknown>): DomainEventDomain {
+  return isDomainEventDomain(config.domain) ? config.domain : "appointment";
+}
+
+function filterEventsToDomain(
+  values: string[],
+  domain: DomainEventDomain,
+): string[] {
+  const allowed = new Set<string>(domainEventTypesByDomain[domain]);
+  return values.filter((value) => allowed.has(value));
+}
 
 interface WorkflowTriggerConfigProps {
   config: Record<string, unknown>;
@@ -29,6 +67,9 @@ export function WorkflowTriggerConfig({
   disabled,
   onUpdate,
 }: WorkflowTriggerConfigProps) {
+  const selectedDomain = getSelectedDomain(config);
+  const domainEvents = domainEventTypesByDomain[selectedDomain];
+
   const [correlationPathValue, setCorrelationPathValue] = useState("");
   const [mockEventValue, setMockEventValue] = useState("");
 
@@ -46,16 +87,27 @@ export function WorkflowTriggerConfig({
   }, [config.domainEventCorrelationPath, config.domainEventMockEvent]);
 
   const overlapWarnings = useMemo(() => {
-    const start = new Set(toStringArray(config.startEvents));
-    const restart = new Set(toStringArray(config.restartEvents));
-    const stop = new Set(toStringArray(config.stopEvents));
+    const start = new Set(
+      filterEventsToDomain(toStringArray(config.startEvents), selectedDomain),
+    );
+    const restart = new Set(
+      filterEventsToDomain(toStringArray(config.restartEvents), selectedDomain),
+    );
+    const stop = new Set(
+      filterEventsToDomain(toStringArray(config.stopEvents), selectedDomain),
+    );
 
     return {
       startRestart: [...start].filter((e) => restart.has(e)),
       startStop: [...start].filter((e) => stop.has(e)),
       restartStop: [...restart].filter((e) => stop.has(e)),
     };
-  }, [config.startEvents, config.restartEvents, config.stopEvents]);
+  }, [
+    config.startEvents,
+    config.restartEvents,
+    config.stopEvents,
+    selectedDomain,
+  ]);
 
   return (
     <section className="space-y-4">
@@ -67,13 +119,51 @@ export function WorkflowTriggerConfig({
       </div>
 
       <div className="space-y-2">
+        <Label htmlFor="workflow-trigger-domain">Domain</Label>
+        <Select
+          disabled={disabled}
+          value={selectedDomain}
+          onValueChange={(nextDomain) => {
+            if (!isDomainEventDomain(nextDomain)) {
+              return;
+            }
+
+            onUpdate({
+              domain: nextDomain,
+              startEvents: [],
+              restartEvents: [],
+              stopEvents: [],
+            });
+          }}
+        >
+          <SelectTrigger id="workflow-trigger-domain" size="sm">
+            <SelectValue placeholder="Select domain" />
+          </SelectTrigger>
+          <SelectContent>
+            {domainEventDomains.map((domain) => (
+              <SelectItem key={domain} value={domain}>
+                {toDomainLabel(domain)}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div className="space-y-2">
         <Label htmlFor="workflow-trigger-start-events">Start events</Label>
         <MultiSelectCombobox
           id="workflow-trigger-start-events"
           disabled={disabled}
-          options={domainEventTypes}
-          value={toStringArray(config.startEvents)}
-          onChange={(values) => onUpdate({ startEvents: values })}
+          options={domainEvents}
+          value={filterEventsToDomain(
+            toStringArray(config.startEvents),
+            selectedDomain,
+          )}
+          onChange={(values) =>
+            onUpdate({
+              startEvents: filterEventsToDomain(values, selectedDomain),
+            })
+          }
           placeholder="Select events..."
         />
       </div>
@@ -83,9 +173,16 @@ export function WorkflowTriggerConfig({
         <MultiSelectCombobox
           id="workflow-trigger-restart-events"
           disabled={disabled}
-          options={domainEventTypes}
-          value={toStringArray(config.restartEvents)}
-          onChange={(values) => onUpdate({ restartEvents: values })}
+          options={domainEvents}
+          value={filterEventsToDomain(
+            toStringArray(config.restartEvents),
+            selectedDomain,
+          )}
+          onChange={(values) =>
+            onUpdate({
+              restartEvents: filterEventsToDomain(values, selectedDomain),
+            })
+          }
           placeholder="Select events..."
         />
       </div>
@@ -95,9 +192,16 @@ export function WorkflowTriggerConfig({
         <MultiSelectCombobox
           id="workflow-trigger-stop-events"
           disabled={disabled}
-          options={domainEventTypes}
-          value={toStringArray(config.stopEvents)}
-          onChange={(values) => onUpdate({ stopEvents: values })}
+          options={domainEvents}
+          value={filterEventsToDomain(
+            toStringArray(config.stopEvents),
+            selectedDomain,
+          )}
+          onChange={(values) =>
+            onUpdate({
+              stopEvents: filterEventsToDomain(values, selectedDomain),
+            })
+          }
           placeholder="Select events..."
         />
       </div>

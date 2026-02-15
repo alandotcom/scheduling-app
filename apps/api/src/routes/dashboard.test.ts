@@ -1,8 +1,4 @@
-import {
-  describe,
-  expect,
-  test,
-} from "bun:test";
+import { describe, expect, test } from "bun:test";
 import { call } from "@orpc/server";
 import { DateTime } from "luxon";
 import {
@@ -13,7 +9,7 @@ import {
   createOrg,
   createTestContext,
   getTestDb,
-  } from "../test-utils/index.js";
+} from "../test-utils/index.js";
 import { summary } from "./dashboard.js";
 import type { BunSQLDatabase } from "drizzle-orm/bun-sql/postgres";
 import type * as schema from "@scheduling/db/schema";

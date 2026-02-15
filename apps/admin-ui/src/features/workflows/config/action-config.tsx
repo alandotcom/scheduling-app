@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { Label } from "@/components/ui/label";
+import { type EventAttributeSuggestion } from "./event-attribute-suggestions";
 import {
   Select,
   SelectContent,
@@ -14,12 +15,16 @@ interface ActionConfigProps {
   config: Record<string, unknown>;
   onUpdateConfig: (key: string, value: unknown) => void;
   disabled?: boolean;
+  expressionSuggestions?: EventAttributeSuggestion[];
+  selectOptionsByKey?: Record<string, Array<{ value: string; label: string }>>;
 }
 
 export function ActionConfig({
   config,
   onUpdateConfig,
   disabled,
+  expressionSuggestions = [],
+  selectOptionsByKey = {},
 }: ActionConfigProps) {
   const categoryMap = useMemo(() => getActionsByCategory(), []);
   const categories = useMemo(() => [...categoryMap.keys()], [categoryMap]);
@@ -91,6 +96,8 @@ export function ActionConfig({
           config={config}
           onUpdateConfig={onUpdateConfig}
           disabled={disabled}
+          expressionSuggestions={expressionSuggestions}
+          selectOptionsByKey={selectOptionsByKey}
         />
       ) : (
         <p className="text-muted-foreground text-xs">

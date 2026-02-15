@@ -56,11 +56,22 @@ function createDefaultDb(): Database {
   }) as Database;
 }
 
+function isDatabaseOverride(value: object | undefined): value is Database {
+  return (
+    value !== undefined &&
+    "transaction" in value &&
+    "select" in value &&
+    "execute" in value
+  );
+}
+
 const defaultDb = createDefaultDb();
-const testDbOverride = getApiTestDbOverride() as Database | undefined;
+const testDbOverride = getApiTestDbOverride();
 
 // Bound once at module load so all imports in this runtime share one DB handle.
-export const db: Database = testDbOverride ?? defaultDb;
+export const db: Database = isDatabaseOverride(testDbOverride)
+  ? testDbOverride
+  : defaultDb;
 
 // Helper to run queries with org context (RLS)
 export async function withOrg<T>(

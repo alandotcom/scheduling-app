@@ -205,13 +205,6 @@ export const workflowExecutionIgnoredResponseSchema = z.object({
   eventType: domainEventTypeSchema.optional(),
 });
 
-export const workflowExecutionResumedResponseSchema = z.object({
-  status: z.literal("resumed"),
-  resumedCount: nonNegativeIntSchema,
-  dryRun: z.boolean().optional(),
-  simulated: z.boolean().optional(),
-});
-
 export const workflowExecuteResponseSchema = z.union([
   workflowExecutionRunningResponseSchema,
   workflowExecutionCancelledResponseSchema.extend({
@@ -229,7 +222,6 @@ export const workflowTriggerExecutionResponseSchema = z.discriminatedUnion(
     workflowExecutionRunningResponseSchema,
     workflowExecutionCancelledResponseSchema,
     workflowExecutionIgnoredResponseSchema,
-    workflowExecutionResumedResponseSchema,
   ],
 );
 
@@ -287,9 +279,6 @@ export type WorkflowExecutionCancelledResponse = z.infer<
 >;
 export type WorkflowExecutionIgnoredResponse = z.infer<
   typeof workflowExecutionIgnoredResponseSchema
->;
-export type WorkflowExecutionResumedResponse = z.infer<
-  typeof workflowExecutionResumedResponseSchema
 >;
 export type WorkflowExecuteResponse = z.infer<
   typeof workflowExecuteResponseSchema

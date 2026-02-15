@@ -1,20 +1,10 @@
-import {
-  afterEach,
-  describe,
-  expect,
-  mock,
-  test,
-} from "bun:test";
+import { afterEach, describe, expect, mock, test } from "bun:test";
 import type { BunSQLDatabase } from "drizzle-orm/bun-sql/postgres";
 import type * as schema from "@scheduling/db/schema";
 import type { relations } from "@scheduling/db/relations";
 import server from "./index.js";
 import { auth } from "./lib/auth.js";
-import {
-  createLocation,
-  createOrg,
-  getTestDb,
-  } from "./test-utils/index.js";
+import { createLocation, createOrg, getTestDb } from "./test-utils/index.js";
 
 type Database = BunSQLDatabase<typeof schema, typeof relations>;
 

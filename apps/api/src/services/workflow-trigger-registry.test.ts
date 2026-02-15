@@ -5,6 +5,7 @@ import type {
   SerializedWorkflowGraph,
   WorkflowDomainEventTriggerConfig,
 } from "@scheduling/dto";
+import { getDomainForDomainEventType } from "@scheduling/dto";
 import {
   createTrigger,
   evaluateWorkflowTrigger,
@@ -103,12 +104,29 @@ const DOMAIN_CORRELATION_CASES = [
 function createTriggerConfig(
   overrides: Partial<WorkflowDomainEventTriggerConfig> = {},
 ): WorkflowDomainEventTriggerConfig {
-  return {
+  const defaultConfig: WorkflowDomainEventTriggerConfig = {
     triggerType: "DomainEvent",
+    domain: "appointment",
     startEvents: ["appointment.created"],
     restartEvents: ["appointment.updated"],
-    stopEvents: ["client.deleted"],
+    stopEvents: ["appointment.deleted"],
+  };
+
+  const merged = {
+    ...defaultConfig,
     ...overrides,
+  };
+
+  const inferredDomainEvent =
+    merged.startEvents[0] ?? merged.restartEvents[0] ?? merged.stopEvents[0];
+
+  return {
+    ...merged,
+    domain:
+      overrides.domain ??
+      (inferredDomainEvent
+        ? getDomainForDomainEventType(inferredDomainEvent)
+        : defaultConfig.domain),
   };
 }
 
@@ -192,6 +210,7 @@ describe("workflow trigger registry", () => {
               type: "trigger",
               config: {
                 triggerType: "DomainEvent",
+                domain: "client",
                 startEvents: ["client.created"],
                 restartEvents: ["client.updated"],
                 stopEvents: ["client.deleted"],
@@ -207,6 +226,7 @@ describe("workflow trigger registry", () => {
 
     expect(config).toEqual({
       triggerType: "DomainEvent",
+      domain: "client",
       startEvents: ["client.created"],
       restartEvents: ["client.updated"],
       stopEvents: ["client.deleted"],
@@ -275,6 +295,24 @@ describe("workflow trigger registry", () => {
       payload: {
         calendarId: "018f4d3a-6d80-7c5b-8a4a-6cb8f8d57d05",
       },
+    });
+
+    expect(evaluation.routingDecision).toEqual({
+      kind: "ignore",
+      reason: "event_not_configured",
+    });
+  });
+
+  test("returns ignore when event domain differs from configured domain", () => {
+    const evaluation = evaluateWorkflowDomainEventTrigger({
+      config: createTriggerConfig({
+        domain: "client",
+        startEvents: ["client.created"],
+        restartEvents: ["client.updated"],
+        stopEvents: ["client.deleted"],
+      }),
+      eventType: "appointment.created",
+      payload: createPayload("appointment.created") as Record<string, unknown>,
     });
 
     expect(evaluation.routingDecision).toEqual({

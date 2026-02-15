@@ -12,7 +12,11 @@ describe("WorkflowTriggerConfig", () => {
 
     render(
       <WorkflowTriggerConfig
-        config={{ triggerType: "DomainEvent", startEvents: [] }}
+        config={{
+          triggerType: "DomainEvent",
+          domain: "appointment",
+          startEvents: [],
+        }}
         disabled={false}
         onUpdate={onUpdate}
       />,
@@ -36,6 +40,7 @@ describe("WorkflowTriggerConfig", () => {
       <WorkflowTriggerConfig
         config={{
           triggerType: "DomainEvent",
+          domain: "appointment",
           domainEventCorrelationPath: "data.firstId",
           domainEventMockEvent: "appointment.created",
         }}
@@ -62,6 +67,7 @@ describe("WorkflowTriggerConfig", () => {
       <WorkflowTriggerConfig
         config={{
           triggerType: "DomainEvent",
+          domain: "appointment",
           domainEventCorrelationPath: "data.secondId",
           domainEventMockEvent: "appointment.updated",
         }}
@@ -89,5 +95,25 @@ describe("WorkflowTriggerConfig", () => {
     expect(onUpdate).toHaveBeenCalledWith({
       domainEventMockEvent: "appointment.updated",
     });
+  });
+
+  test("filters displayed routing events to the selected domain", () => {
+    const onUpdate = mock(() => {});
+
+    render(
+      <WorkflowTriggerConfig
+        config={{
+          triggerType: "DomainEvent",
+          domain: "appointment",
+          startEvents: ["client.created"],
+          restartEvents: ["appointment.updated"],
+          stopEvents: ["appointment.deleted"],
+        }}
+        disabled={false}
+        onUpdate={onUpdate}
+      />,
+    );
+
+    expect(screen.queryByLabelText("Remove client.created")).toBeNull();
   });
 });

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ArrowDown01Icon } from "@hugeicons/core-free-icons";
 import { Icon } from "@/components/ui/icon";
 import { Input } from "@/components/ui/input";
@@ -18,12 +18,100 @@ import type {
   ActionConfigFieldGroup,
 } from "../action-registry";
 import { isFieldGroup } from "../action-registry";
+import type { EventAttributeSuggestion } from "./event-attribute-suggestions";
+import { ExpressionInput } from "./expression-input";
+import { parseTimestampWithTimezone } from "../wait-time";
 
 interface ActionConfigRendererProps {
   fields: ActionConfigField[];
   config: Record<string, unknown>;
   onUpdateConfig: (key: string, value: unknown) => void;
   disabled?: boolean;
+  expressionSuggestions?: EventAttributeSuggestion[];
+  selectOptionsByKey?: Record<string, Array<{ value: string; label: string }>>;
+}
+
+function collectFieldDefaults(
+  fields: ActionConfigField[],
+): Record<string, string> {
+  const defaults: Record<string, string> = {};
+
+  for (const field of fields) {
+    if (isFieldGroup(field)) {
+      const nestedDefaults = collectFieldDefaults(field.fields);
+      for (const [key, value] of Object.entries(nestedDefaults)) {
+        defaults[key] = value;
+      }
+      continue;
+    }
+
+    if (typeof field.defaultValue === "string") {
+      defaults[field.key] = field.defaultValue;
+    }
+  }
+
+  return defaults;
+}
+
+function normalizeAttributeReference(value: string): string {
+  return value.startsWith("@") ? value.slice(1) : value;
+}
+
+function extractAttributeReferences(value: string): string[] {
+  const pattern = /@?[A-Z][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)+/g;
+  return Array.from(value.matchAll(pattern), (match) =>
+    normalizeAttributeReference(match[0]),
+  );
+}
+
+function getExpressionSuggestionsForField(
+  fieldKey: string,
+  suggestions: EventAttributeSuggestion[],
+): EventAttributeSuggestion[] {
+  if (fieldKey === "waitUntil") {
+    return suggestions.filter((suggestion) => suggestion.isDateTime);
+  }
+
+  if (fieldKey === "waitDuration" || fieldKey === "waitOffset") {
+    return [];
+  }
+
+  return suggestions;
+}
+
+function validateWaitUntilValue(
+  value: string,
+  suggestions: EventAttributeSuggestion[],
+): string | null {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  if (parseTimestampWithTimezone(trimmed)) {
+    return null;
+  }
+
+  const datetimeAttributes = new Set(
+    suggestions
+      .filter((suggestion) => suggestion.isDateTime)
+      .map((suggestion) => suggestion.value),
+  );
+  const references = extractAttributeReferences(trimmed);
+
+  if (references.length === 0) {
+    return "Use an ISO timestamp or a datetime attribute reference.";
+  }
+
+  const invalidReference = references.find(
+    (reference) => !datetimeAttributes.has(reference),
+  );
+
+  if (!invalidReference) {
+    return null;
+  }
+
+  return `"${invalidReference}" is not a datetime attribute.`;
 }
 
 function TextFieldRenderer({
@@ -57,6 +145,9 @@ function TextFieldRenderer({
         placeholder={field.placeholder}
         value={localValue}
       />
+      {field.helpText ? (
+        <p className="text-muted-foreground text-xs">{field.helpText}</p>
+      ) : null}
     </div>
   );
 }
@@ -93,6 +184,9 @@ function TextareaFieldRenderer({
         rows={field.rows}
         value={localValue}
       />
+      {field.helpText ? (
+        <p className="text-muted-foreground text-xs">{field.helpText}</p>
+      ) : null}
     </div>
   );
 }
@@ -130,6 +224,9 @@ function NumberFieldRenderer({
         type="number"
         value={localValue}
       />
+      {field.helpText ? (
+        <p className="text-muted-foreground text-xs">{field.helpText}</p>
+      ) : null}
     </div>
   );
 }
@@ -139,16 +236,28 @@ function SelectFieldRenderer({
   config,
   onUpdateConfig,
   disabled,
+  selectOptionsByKey,
 }: {
   field: ActionConfigFieldBase;
   config: Record<string, unknown>;
   onUpdateConfig: (key: string, value: unknown) => void;
   disabled?: boolean;
+  selectOptionsByKey: Record<string, Array<{ value: string; label: string }>>;
 }) {
   const currentValue =
     typeof config[field.key] === "string"
       ? String(config[field.key])
       : (field.defaultValue ?? "");
+
+  const options =
+    field.options && field.options.length > 0
+      ? field.options
+      : (selectOptionsByKey[field.key] ?? []);
+  const optionsWithCurrent =
+    currentValue.length > 0 &&
+    !options.some((option) => option.value === currentValue)
+      ? [{ value: currentValue, label: currentValue }, ...options]
+      : options;
 
   return (
     <div className="space-y-2">
@@ -162,13 +271,77 @@ function SelectFieldRenderer({
           <SelectValue placeholder={field.placeholder ?? "Select..."} />
         </SelectTrigger>
         <SelectContent>
-          {field.options?.map((option) => (
+          {optionsWithCurrent.map((option) => (
             <SelectItem key={option.value} value={option.value}>
               {option.label}
             </SelectItem>
           ))}
         </SelectContent>
       </Select>
+      {field.helpText ? (
+        <p className="text-muted-foreground text-xs">{field.helpText}</p>
+      ) : null}
+    </div>
+  );
+}
+
+function ExpressionFieldRenderer({
+  field,
+  config,
+  onUpdateConfig,
+  disabled,
+  suggestions,
+}: {
+  field: ActionConfigFieldBase;
+  config: Record<string, unknown>;
+  onUpdateConfig: (key: string, value: unknown) => void;
+  disabled?: boolean;
+  suggestions: EventAttributeSuggestion[];
+}) {
+  const configValue =
+    typeof config[field.key] === "string"
+      ? String(config[field.key])
+      : (field.defaultValue ?? "");
+  const [localValue, setLocalValue] = useState(configValue);
+  const scopedSuggestions = useMemo(
+    () => getExpressionSuggestionsForField(field.key, suggestions),
+    [field.key, suggestions],
+  );
+  const validationError = useMemo(() => {
+    if (field.key !== "waitUntil") {
+      return null;
+    }
+
+    return validateWaitUntilValue(localValue, suggestions);
+  }, [field.key, localValue, suggestions]);
+
+  useEffect(() => {
+    setLocalValue(configValue);
+  }, [configValue]);
+
+  return (
+    <div className="space-y-2">
+      <Label>{field.label}</Label>
+      <ExpressionInput
+        disabled={disabled}
+        onBlur={() => {
+          if (validationError) {
+            return;
+          }
+
+          onUpdateConfig(field.key, localValue);
+        }}
+        onChange={(nextValue) => setLocalValue(nextValue)}
+        placeholder={field.placeholder}
+        suggestions={scopedSuggestions}
+        value={localValue}
+      />
+      {validationError ? (
+        <p className="text-destructive text-xs">{validationError}</p>
+      ) : null}
+      {field.helpText ? (
+        <p className="text-muted-foreground text-xs">{field.helpText}</p>
+      ) : null}
     </div>
   );
 }
@@ -178,11 +351,17 @@ function GroupFieldRenderer({
   config,
   onUpdateConfig,
   disabled,
+  expressionSuggestions,
+  selectOptionsByKey,
+  fieldDefaults,
 }: {
   group: ActionConfigFieldGroup;
   config: Record<string, unknown>;
   onUpdateConfig: (key: string, value: unknown) => void;
   disabled?: boolean;
+  expressionSuggestions: EventAttributeSuggestion[];
+  selectOptionsByKey: Record<string, Array<{ value: string; label: string }>>;
+  fieldDefaults: Record<string, string>;
 }) {
   const [expanded, setExpanded] = useState(group.defaultExpanded ?? true);
 
@@ -211,6 +390,9 @@ function GroupFieldRenderer({
               config={config}
               onUpdateConfig={onUpdateConfig}
               disabled={disabled}
+              expressionSuggestions={expressionSuggestions}
+              selectOptionsByKey={selectOptionsByKey}
+              fieldDefaults={fieldDefaults}
             />
           ))}
         </div>
@@ -224,11 +406,17 @@ function FieldRenderer({
   config,
   onUpdateConfig,
   disabled,
+  expressionSuggestions,
+  selectOptionsByKey,
+  fieldDefaults,
 }: {
   field: ActionConfigField;
   config: Record<string, unknown>;
   onUpdateConfig: (key: string, value: unknown) => void;
   disabled?: boolean;
+  expressionSuggestions: EventAttributeSuggestion[];
+  selectOptionsByKey: Record<string, Array<{ value: string; label: string }>>;
+  fieldDefaults: Record<string, string>;
 }) {
   if (isFieldGroup(field)) {
     return (
@@ -237,6 +425,9 @@ function FieldRenderer({
         config={config}
         onUpdateConfig={onUpdateConfig}
         disabled={disabled}
+        expressionSuggestions={expressionSuggestions}
+        selectOptionsByKey={selectOptionsByKey}
+        fieldDefaults={fieldDefaults}
       />
     );
   }
@@ -244,7 +435,10 @@ function FieldRenderer({
   // Check showWhen condition
   if (field.showWhen) {
     const raw = config[field.showWhen.field];
-    const val = typeof raw === "string" ? raw : "";
+    const val =
+      typeof raw === "string"
+        ? raw
+        : (fieldDefaults[field.showWhen.field] ?? "");
     if (val !== field.showWhen.equals) return null;
   }
 
@@ -283,6 +477,17 @@ function FieldRenderer({
           config={config}
           onUpdateConfig={onUpdateConfig}
           disabled={disabled}
+          selectOptionsByKey={selectOptionsByKey}
+        />
+      );
+    case "expression":
+      return (
+        <ExpressionFieldRenderer
+          field={field}
+          config={config}
+          onUpdateConfig={onUpdateConfig}
+          disabled={disabled}
+          suggestions={expressionSuggestions}
         />
       );
   }
@@ -293,7 +498,11 @@ export function ActionConfigRenderer({
   config,
   onUpdateConfig,
   disabled,
+  expressionSuggestions = [],
+  selectOptionsByKey = {},
 }: ActionConfigRendererProps) {
+  const fieldDefaults = collectFieldDefaults(fields);
+
   return (
     <div className="space-y-3">
       {fields.map((field) => (
@@ -303,6 +512,9 @@ export function ActionConfigRenderer({
           config={config}
           onUpdateConfig={onUpdateConfig}
           disabled={disabled}
+          expressionSuggestions={expressionSuggestions}
+          selectOptionsByKey={selectOptionsByKey}
+          fieldDefaults={fieldDefaults}
         />
       ))}
     </div>

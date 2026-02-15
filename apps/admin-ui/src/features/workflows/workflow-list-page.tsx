@@ -54,6 +54,7 @@ function createDefaultWorkflowGraph(): SerializedWorkflowGraph {
             status: "idle",
             config: {
               triggerType: "DomainEvent",
+              domain: "appointment",
               startEvents: [],
               restartEvents: [],
               stopEvents: [],

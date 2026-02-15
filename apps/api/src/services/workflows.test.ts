@@ -1,13 +1,5 @@
-import {
-  beforeEach,
-  describe,
-  expect,
-  test,
-} from "bun:test";
-import {
-  getTestDb,
-  type TestDatabase,
-} from "../test-utils/index.js";
+import { beforeEach, describe, expect, test } from "bun:test";
+import { getTestDb, type TestDatabase } from "../test-utils/index.js";
 import { createOrg } from "../test-utils/factories.js";
 import { workflowService } from "./workflows.js";
 import type { ServiceContext } from "./locations.js";

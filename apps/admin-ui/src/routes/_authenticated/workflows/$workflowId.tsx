@@ -21,6 +21,7 @@ import {
   redoAtom,
   serializeWorkflowGraph,
   setWorkflowEditorGraphAtom,
+  setWorkflowEditorActionTypeAtom,
   undoAtom,
   workflowEditorEdgesAtom,
   workflowEditorHasUnsavedChangesAtom,
@@ -68,6 +69,7 @@ function WorkflowEditorPage() {
   const setIsSaving = useSetAtom(workflowEditorIsSavingAtom);
   const setWorkflowId = useSetAtom(workflowEditorWorkflowIdAtom);
   const updateNodeData = useSetAtom(updateWorkflowEditorNodeDataAtom);
+  const setActionType = useSetAtom(setWorkflowEditorActionTypeAtom);
   const deleteNode = useSetAtom(deleteNodeAtom);
   const deleteEdge = useSetAtom(deleteEdgeAtom);
   const undo = useSetAtom(undoAtom);
@@ -230,8 +232,11 @@ function WorkflowEditorPage() {
       <WorkflowSidebarPanel>
         <WorkflowEditorSidebar
           canManageWorkflow={canManageWorkflow}
+          edges={edges}
+          nodes={nodes}
           onDeleteEdge={canManageWorkflow ? deleteEdge : undefined}
           onDeleteNode={canManageWorkflow ? deleteNode : undefined}
+          onSetActionType={setActionType}
           onUpdateNodeData={updateNodeData}
           selectedEdge={selectedEdge}
           selectedNode={selectedNode}

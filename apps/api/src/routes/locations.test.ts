@@ -1,11 +1,7 @@
 // Integration tests for location routes
 // Tests actual handler logic with database operations
 
-import {
-  describe,
-  test,
-  expect,
-  } from "bun:test";
+import { describe, test, expect } from "bun:test";
 import { call } from "@orpc/server";
 import {
   createTestContext,

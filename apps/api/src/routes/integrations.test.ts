@@ -1,9 +1,4 @@
-import {
-  afterEach,
-  describe,
-  expect,
-  test,
-} from "bun:test";
+import { afterEach, describe, expect, test } from "bun:test";
 import { call } from "@orpc/server";
 import type { Context } from "../lib/orpc.js";
 import { withOrg } from "../lib/db.js";

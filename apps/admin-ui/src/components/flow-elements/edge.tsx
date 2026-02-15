@@ -8,6 +8,44 @@ import {
   useInternalNode,
 } from "@xyflow/react";
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === "object" && !Array.isArray(value);
+}
+
+function getSwitchBranchLabel(value: unknown): string | null {
+  if (value === "created") {
+    return "Created";
+  }
+
+  if (value === "updated") {
+    return "Updated";
+  }
+
+  if (value === "deleted") {
+    return "Deleted";
+  }
+
+  return null;
+}
+
+function getEdgeLabel({
+  label,
+  data,
+}: {
+  label: EdgeProps["label"];
+  data: EdgeProps["data"];
+}): string | undefined {
+  if (typeof label === "string" && label.trim().length > 0) {
+    return label;
+  }
+
+  if (!isRecord(data)) {
+    return undefined;
+  }
+
+  return getSwitchBranchLabel(data.switchBranch) ?? undefined;
+}
+
 const Temporary = ({
   id,
   sourceX,
@@ -94,7 +132,15 @@ const getEdgeParams = (source: InternalNode, target: InternalNode) => {
   };
 };
 
-const Animated = ({ id, source, target, style, selected }: EdgeProps) => {
+const Animated = ({
+  id,
+  source,
+  target,
+  style,
+  selected,
+  label,
+  data,
+}: EdgeProps) => {
   const sourceNode = useInternalNode(source);
   const targetNode = useInternalNode(target);
 
@@ -107,7 +153,7 @@ const Animated = ({ id, source, target, style, selected }: EdgeProps) => {
     targetNode,
   );
 
-  const [edgePath] = getBezierPath({
+  const [edgePath, labelX, labelY] = getBezierPath({
     sourceX: sx,
     sourceY: sy,
     sourcePosition: sourcePos,
@@ -116,9 +162,18 @@ const Animated = ({ id, source, target, style, selected }: EdgeProps) => {
     targetPosition: targetPos,
   });
 
+  const edgeLabel = getEdgeLabel({ label, data });
+
   return (
     <BaseEdge
       id={id}
+      label={edgeLabel}
+      labelBgPadding={[10, 4]}
+      labelBgStyle={{ fill: "var(--card)", stroke: "var(--border)" }}
+      labelStyle={{ fill: "var(--muted-foreground)", fontSize: 11 }}
+      labelX={labelX}
+      labelY={labelY}
+      labelShowBg={!!edgeLabel}
       path={edgePath}
       style={{
         ...style,

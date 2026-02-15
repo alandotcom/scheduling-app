@@ -1,8 +1,4 @@
-import {
-  describe,
-  test,
-  expect,
-  } from "bun:test";
+import { describe, test, expect } from "bun:test";
 import { call } from "@orpc/server";
 import {
   createTestContext,
@@ -11,7 +7,7 @@ import {
   createCalendar,
   createAvailabilityRule,
   getTestDb,
-  } from "../test-utils/index.js";
+} from "../test-utils/index.js";
 import {
   createCalendarFixture,
   getAvailabilityRoutes,

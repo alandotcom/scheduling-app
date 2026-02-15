@@ -1,8 +1,9 @@
 type ActionConfigFieldBase = {
   key: string;
   label: string;
-  type: "text" | "textarea" | "number" | "select";
+  type: "text" | "textarea" | "number" | "select" | "expression";
   placeholder?: string;
+  helpText?: string;
   defaultValue?: string;
   options?: { value: string; label: string }[];
   rows?: number;
@@ -122,7 +123,7 @@ registerAction({
     {
       key: "condition",
       label: "Condition",
-      type: "text",
+      type: "expression",
       placeholder: "e.g., {{data.status}} === 'confirmed'",
       required: true,
     },
@@ -130,42 +131,84 @@ registerAction({
 });
 
 registerAction({
+  id: "switch",
+  label: "Switch",
+  description: "Fork execution into created, updated, and deleted branches.",
+  category: "System",
+  icon: "git-branch",
+  configFields: [
+    {
+      key: "switchMode",
+      label: "Switch mode",
+      type: "select",
+      defaultValue: "event-type",
+      options: [{ value: "event-type", label: "Event type" }],
+    },
+  ],
+});
+
+registerAction({
   id: "wait",
   label: "Wait",
-  description: "Pause execution for a duration or until an event arrives.",
+  description: "Pause execution using time-based scheduling.",
   category: "System",
   icon: "hourglass",
   configFields: [
     {
-      key: "waitMode",
-      label: "Wait Mode",
+      key: "waitDelayTimingMode",
+      label: "Time Input Mode",
       type: "select",
-      defaultValue: "delay",
+      defaultValue: "duration",
+      helpText:
+        "Pick one mode. Switching modes clears fields that do not apply.",
       options: [
-        { value: "delay", label: "Delay" },
-        { value: "hook", label: "Wait for Event" },
+        { value: "duration", label: "Wait for duration" },
+        { value: "until", label: "Wait until date/time" },
       ],
     },
     {
       key: "waitDuration",
-      label: "Duration",
-      type: "text",
-      placeholder: "24h, 90m, 3600000",
-      showWhen: { field: "waitMode", equals: "delay" },
+      label: "Wait for (duration)",
+      type: "expression",
+      placeholder: "24h, 90m, 3600000, or P1D",
+      helpText: "Example: use 24h to continue one day later.",
+      showWhen: { field: "waitDelayTimingMode", equals: "duration" },
     },
     {
-      key: "waitForEvents",
-      label: "Wait for Events",
-      type: "text",
-      placeholder: "event.update, event.confirmed",
-      showWhen: { field: "waitMode", equals: "hook" },
+      key: "waitUntil",
+      label: "Wait until this date/time",
+      type: "expression",
+      placeholder: "2026-03-10T09:00:00-05:00 or @Appointment.data.startAt",
+      helpText:
+        "Use this when timing comes from payload data, like an appointment start time.",
+      showWhen: { field: "waitDelayTimingMode", equals: "until" },
     },
     {
-      key: "waitTimeout",
-      label: "Timeout",
+      key: "waitOffset",
+      label: "Send before/after that time (optional)",
+      type: "expression",
+      placeholder: "-1d, 6h, 30m",
+      helpText: "Example: -1d sends one day before the target time.",
+      showWhen: { field: "waitDelayTimingMode", equals: "until" },
+    },
+    {
+      key: "waitGateMode",
+      label: "Continue only if time actually elapsed",
+      type: "select",
+      defaultValue: "off",
+      options: [
+        { value: "off", label: "Off (continue immediately)" },
+        { value: "require_actual_wait", label: "Skip branch when already due" },
+      ],
+      helpText:
+        "Prevents immediate sends when computed time is now or in the past after an update.",
+    },
+    {
+      key: "waitTimezone",
+      label: "Timezone (optional)",
       type: "text",
-      placeholder: "48h (optional)",
-      showWhen: { field: "waitMode", equals: "hook" },
+      placeholder: "UTC",
+      helpText: "Used when the target date/time does not include an offset.",
     },
   ],
 });

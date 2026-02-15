@@ -113,6 +113,10 @@ function decideRouting(input: {
     return { kind: "ignore", reason: "event_not_configured" };
   }
 
+  if (getDomainForDomainEventType(input.eventType) !== input.config.domain) {
+    return { kind: "ignore", reason: "event_not_configured" };
+  }
+
   if (input.config.stopEvents.includes(input.eventType)) {
     return { kind: "stop" };
   }
