@@ -4,6 +4,12 @@
 
 Make workflow execution order deterministic and understandable, make Inngest traces useful for node-level debugging, and align Runs UI behavior with the reference experience.
 
+## Current Status
+
+- ✅ Phase 1 complete
+- ✅ Phase 2 complete
+- ✅ Phase 3 complete (consolidation + cleanup)
+
 ## Problem Summary
 
 - Current `workflow/run.requested` executes as one long handler with limited step segmentation.
@@ -40,6 +46,25 @@ Make workflow execution order deterministic and understandable, make Inngest tra
 - Logger events clearly indicate which node produced them.
 - Inngest UI shows per-node step boundaries instead of only one long function segment.
 - `pnpm lint`, `pnpm typecheck`, `pnpm test` all pass.
+
+### Completion Snapshot (Implemented)
+
+- [x] Runs timeline ordering and presentation updates are in place
+  - Oldest -> newest ordering for selected execution events/logs in `apps/admin-ui/src/features/workflows/workflow-runs-panel.tsx`
+  - Selected execution details render above other runs in `apps/admin-ui/src/features/workflows/workflow-runs-panel.tsx`
+  - Run overlays reset when leaving Runs tab via panel cleanup + tab unmount in `apps/admin-ui/src/features/workflows/workflow-runs-panel.tsx` and `apps/admin-ui/src/features/workflows/workflow-editor-sidebar.tsx`
+- [x] Audit event clarity is improved for logger activity
+  - `run.log` includes `nodeId` and `nodeName` metadata in `apps/api/src/services/workflow-run-requested.ts`
+  - Logger event messages include node label context in `apps/api/src/services/workflow-run-requested.ts`
+- [x] Inngest trace segmentation is no longer one opaque span
+  - Runtime step boundaries are wired via `step.run(...)` bridge in `apps/api/src/inngest/functions/workflow-run-requested.ts`
+  - Node and wait lifecycle steps are emitted from `apps/api/src/services/workflow-run-requested.ts`
+
+### Validation Status
+
+- [x] `pnpm lint`
+- [x] `pnpm typecheck`
+- [x] `pnpm test`
 
 ---
 
@@ -80,6 +105,33 @@ Make workflow execution order deterministic and understandable, make Inngest tra
 - Inngest trace and DB logs agree on node order/state transitions.
 - New integration tests cover parallel branch + wait + logger scenarios.
 
+### Completion Snapshot (Implemented)
+
+- [x] Scheduler layer extracted and used by runtime orchestration
+  - `apps/api/src/services/workflow-runtime/scheduler.ts`
+  - Readiness is dependency-gated; fan-out can execute ready siblings in parallel; fan-in waits for all incoming nodes.
+- [x] Execution responsibilities split into explicit modules
+  - Orchestration entrypoint: `apps/api/src/services/workflow-run-requested.ts`
+  - Scheduler: `apps/api/src/services/workflow-runtime/scheduler.ts`
+  - Action executors: `apps/api/src/services/workflow-runtime/action-executors.ts`
+  - Persistence adapter: `apps/api/src/services/workflow-runtime/persistence.ts`
+  - Runtime contracts/types: `apps/api/src/services/workflow-runtime/contracts.ts`, `apps/api/src/services/workflow-runtime/types.ts`
+- [x] Wait handling redesign implemented
+  - Wait state persistence + waiting/resumed event lifecycle in `action-executors.ts`
+  - Resume continues through normal readiness scheduling without duplicating wait state transitions.
+- [x] Idempotency + ordering guarantees strengthened
+  - Deterministic node step IDs from stable node-label slugs in `workflow-run-requested.ts`
+  - Re-entry reuses prior successful node logs instead of re-running successful nodes.
+- [x] Test coverage includes parallel branch + wait + logger + fan-in gating
+  - `apps/api/src/services/workflow-run-requested.test.ts`
+  - Includes: sibling wait/logger behavior, resumed wait without duplicate semantics, and fan-in join waiting for both parents.
+
+### Validation Status
+
+- [x] `pnpm lint`
+- [x] `pnpm typecheck`
+- [x] `pnpm test`
+
 ---
 
 ## Phase 3: Consolidation + Cleanup
@@ -109,6 +161,32 @@ Make workflow execution order deterministic and understandable, make Inngest tra
 - Event vocabulary and ordering are documented and consistent.
 - No dead or duplicate execution pathways remain.
 - Full repo quality gates remain green.
+
+### Completion Snapshot (Implemented)
+
+- [x] Obsolete and transitional runtime logic removed or consolidated
+  - Removed duplicate domain-event pre-check path in `apps/api/src/services/workflow-domain-triggers.ts` and now rely on DB uniqueness + insert handling.
+  - Removed unused repository helper `findExecutionByTriggerEventId` from `apps/api/src/repositories/workflows.ts`.
+  - Consolidated cancellation request and persistence flows in `apps/api/src/services/workflow-cancellation.ts`, reused by `workflows.ts` and `workflow-domain-triggers.ts`.
+- [x] Execution event taxonomy normalized and centralized
+  - Added shared execution event constants in `apps/api/src/services/workflow-execution-events.ts`.
+  - Standardized persisted cancellation event naming to `run.cancel.requested`.
+- [x] Cancellation/replay edge-case tests expanded
+  - Added runtime terminal/replay/cancel-during-wait tests in `apps/api/src/services/workflow-run-requested.test.ts`.
+  - Added stop-routing partial-cancel boundary coverage in `apps/api/src/services/workflow-domain-triggers.test.ts`.
+  - Added cancellation conflict and send-failure route coverage in `apps/api/src/routes/workflows.test.ts`.
+  - Added `retries: 0` assertion in `apps/api/src/inngest/functions/workflow-run-requested.test.ts`.
+- [x] Workflow runtime lifecycle docs added and stale links cleaned up
+  - Added `docs/guides/workflow-execution-lifecycle.md` with lifecycle/status/event/ordering guarantees.
+  - Linked lifecycle guide from `docs/guides/workflow-engine-domain-events.md`.
+  - Updated broken runtime plan/reference links in `docs/ARCHITECTURE.md`, `docs/README.md`, and `docs/plans/README.md`.
+
+### Validation Status
+
+- [x] `pnpm format`
+- [x] `pnpm lint`
+- [x] `pnpm typecheck`
+- [x] `pnpm test`
 
 ---
 

@@ -32,6 +32,21 @@ function createGraph() {
 }
 
 describe("workflow run requested function", () => {
+  test("configures cancelOn for execution cancellation events", () => {
+    const fn = createWorkflowRunRequestedFunction(async () => {});
+
+    expect(fn["opts"]).toMatchObject({
+      id: "workflow-run-requested",
+      retries: 0,
+      cancelOn: [
+        {
+          event: "workflow/run.cancel.requested",
+          if: "async.data.executionId == event.data.executionId",
+        },
+      ],
+    });
+  });
+
   test("forwards runtime event payload to workflow runner", async () => {
     const executeRun = mock(async () => {});
     const fn = createWorkflowRunRequestedFunction(executeRun);

@@ -10,6 +10,12 @@ export function createWorkflowRunRequestedFunction(
     {
       id: "workflow-run-requested",
       retries: 0,
+      cancelOn: [
+        {
+          event: "workflow/run.cancel.requested",
+          if: "async.data.executionId == event.data.executionId",
+        },
+      ],
       concurrency: {
         key: "event.data.orgId",
         limit: 20,

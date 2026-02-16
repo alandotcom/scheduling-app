@@ -67,6 +67,48 @@ describe("ExpressionInput", () => {
     expect(input.value).toBe("Before  after");
   });
 
+  test("typing at chip boundary inserts a space before the character", () => {
+    function Harness() {
+      const [value, setValue] = useState("Before Webhook.data.startsAt");
+
+      return (
+        <ExpressionInput
+          onBlur={() => {}}
+          onChange={setValue}
+          suggestions={[]}
+          value={value}
+        />
+      );
+    }
+
+    render(<Harness />);
+
+    const input = screen.getByRole("textbox") as HTMLInputElement;
+    const tokenEnd = "Before Webhook.data.startsAt".length;
+    input.focus();
+    input.setSelectionRange(tokenEnd, tokenEnd);
+
+    fireEvent.keyDown(input, { key: "x" });
+
+    expect(input.value).toBe("Before Webhook.data.startsAt x");
+  });
+
+  test("text after chip with space does not extend the chip", () => {
+    const { container } = render(
+      <ExpressionInput
+        onBlur={() => {}}
+        onChange={() => {}}
+        suggestions={[]}
+        value="Webhook.data.startsAt hello"
+      />,
+    );
+
+    const tokens = container.querySelectorAll("[data-expression-token='true']");
+
+    expect(tokens.length).toBe(1);
+    expect(tokens[0]?.textContent).toBe("Webhook.data.startsAt");
+  });
+
   test("snaps selection out of the middle of a token", () => {
     render(
       <ExpressionInput

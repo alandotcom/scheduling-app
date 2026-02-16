@@ -601,7 +601,7 @@ describe("Workflow Routes", () => {
         orgId: orgA.id,
         workflowId: workflow.id,
         executionId: newer.executionId,
-        eventType: "run.cancel_requested",
+        eventType: "run.cancel.requested",
         message: "Cancel requested",
         createdAt: new Date("2026-01-01T11:02:00.000Z"),
       },
@@ -645,7 +645,7 @@ describe("Workflow Routes", () => {
       { context: memberContext },
     );
     expect(events.events.map((event) => event.eventType)).toEqual([
-      "run.cancel_requested",
+      "run.cancel.requested",
       "run.started",
     ]);
 
@@ -779,6 +779,74 @@ describe("Workflow Routes", () => {
       .from(workflowExecutions)
       .where(eq(workflowExecutions.id, seeded.executionId));
     expect(updatedExecution!.status).toBe("cancelled");
+
+    await expect(
+      call(
+        workflowRoutes.cancelExecution,
+        { executionId: seeded.executionId },
+        { context: ownerContext },
+      ),
+    ).rejects.toMatchObject({ code: "CONFLICT" });
+  });
+
+  test("cancel execution surfaces send failure and preserves waiting state", async () => {
+    const workflow = await call(
+      workflowRoutes.create,
+      {
+        name: "Cancellation Failure Workflow",
+        graph: createTestGraph("trigger-exec-cancel-failure"),
+      },
+      { context: ownerContext },
+    );
+
+    const seeded = await seedExecutionArtifacts({
+      db,
+      orgId: orgA.id,
+      workflowId: workflow.id,
+      status: "waiting",
+    });
+
+    await setTestOrgContext(db, orgA.id);
+    await db.insert(workflowWaitStates).values({
+      orgId: orgA.id,
+      executionId: seeded.executionId,
+      workflowId: workflow.id,
+      runId: "run-failure-1",
+      nodeId: "wait-node",
+      nodeName: "Wait Node",
+      waitType: "event",
+      status: "waiting",
+      hookToken: "token-failure-1",
+      correlationKey: "appointment-failure-1",
+    });
+
+    (inngest as unknown as { send: typeof inngest.send }).send = mock(
+      async () => {
+        throw new Error("send failed");
+      },
+    );
+
+    await expect(
+      call(
+        workflowRoutes.cancelExecution,
+        { executionId: seeded.executionId },
+        { context: ownerContext },
+      ),
+    ).rejects.toThrow("send failed");
+
+    const [execution] = await db
+      .select()
+      .from(workflowExecutions)
+      .where(eq(workflowExecutions.id, seeded.executionId))
+      .limit(1);
+    expect(execution?.status).toBe("waiting");
+
+    const [waitState] = await db
+      .select()
+      .from(workflowWaitStates)
+      .where(eq(workflowWaitStates.executionId, seeded.executionId))
+      .limit(1);
+    expect(waitState?.status).toBe("waiting");
   });
 
   test("execution endpoints enforce org isolation and not found behavior", async () => {

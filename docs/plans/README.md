@@ -4,12 +4,8 @@ This is the canonical place to start implementation work.
 
 ## Active Plans
 
-1. Inngest Eventing + Workflow Runtime RFC (Unified)
-   - Plan: [`./workflow-runtime-rfc.md`](./workflow-runtime-rfc.md)
-   - References:
-     - [`../references/event-bus/synthesis.md`](../references/event-bus/synthesis.md)
-     - [`../references/event-bus/workflow-devkit-research.md`](../references/event-bus/workflow-devkit-research.md)
-     - [`../references/event-bus/testing.md`](../references/event-bus/testing.md)
+1. Workflow Runtime + Runs UI Refactor Plan
+   - Plan: [`../../PLAN.md`](../../PLAN.md)
 2. Cmd+K Global Command Center PRD
    - Plan: [`./cmdk-global-command-center-prd.md`](./cmdk-global-command-center-prd.md)
    - References:
@@ -23,4 +19,4 @@ This is the canonical place to start implementation work.
 ## Notes
 
 1. Put implementation specs and decision docs in `docs/plans/`.
-2. Put deep research and historical analysis in `docs/references/`.
+2. Keep active implementation sequencing in `PLAN.md` when work spans multiple phases.

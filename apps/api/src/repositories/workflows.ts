@@ -302,32 +302,6 @@ export class WorkflowRepository {
     return execution ?? null;
   }
 
-  async findExecutionByTriggerEventId(
-    tx: DbClient,
-    orgId: string,
-    input: {
-      workflowId: string;
-      triggerEventId: string;
-    },
-  ): Promise<WorkflowExecution | null> {
-    await setOrgContext(tx, orgId);
-
-    const [execution] = await tx
-      .select()
-      .from(workflowExecutions)
-      .where(
-        and(
-          eq(workflowExecutions.workflowId, input.workflowId),
-          eq(workflowExecutions.triggerEventId, input.triggerEventId),
-          eq(workflowExecutions.triggerType, "domain_event"),
-        ),
-      )
-      .orderBy(desc(workflowExecutions.startedAt), desc(workflowExecutions.id))
-      .limit(1);
-
-    return execution ?? null;
-  }
-
   async listExecutionLogs(
     tx: DbClient,
     orgId: string,

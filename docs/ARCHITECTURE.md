@@ -61,7 +61,7 @@ All org-scoped data uses PostgreSQL row-level security. Organization context is 
 
 ## Event and Integration System
 
-Current direction: see [`workflow-runtime-rfc.md`](./plans/workflow-runtime-rfc.md) for the unified plan: Inngest is the runtime for both domain-event fanout and workflow execution.
+Current direction: see [`../PLAN.md`](../PLAN.md) for the active workflow runtime plan series. Inngest is the runtime for both domain-event fanout and workflow execution.
 
 Domain events on mutations follow this path:
 
@@ -101,8 +101,8 @@ pnpm --filter @scheduling/api run sync:svix-event-catalog
 
 - Docs index: [`./README.md`](./README.md)
 - Workflow engine guide: [`./guides/workflow-engine-domain-events.md`](./guides/workflow-engine-domain-events.md)
+- Workflow lifecycle guide: [`./guides/workflow-execution-lifecycle.md`](./guides/workflow-execution-lifecycle.md)
 - Implementation plans index: [`./plans/README.md`](./plans/README.md)
 - Integration authoring: [`../integrations/README.md`](../integrations/README.md)
 - Root setup/commands: [`../README.md`](../README.md)
-- Event bus/workflow runtime RFC: [`./plans/workflow-runtime-rfc.md`](./plans/workflow-runtime-rfc.md)
-- Event bus synthesis (aligned): [`./references/event-bus/synthesis.md`](./references/event-bus/synthesis.md)
+- Workflow runtime plan: [`../PLAN.md`](../PLAN.md)

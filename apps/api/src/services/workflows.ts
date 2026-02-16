@@ -19,7 +19,6 @@ import {
   type UpdateWorkflowInput,
 } from "@scheduling/dto";
 import { and, desc, eq } from "drizzle-orm";
-import { forEachAsync } from "es-toolkit/array";
 import {
   appointmentTypes,
   appointments,
@@ -32,7 +31,6 @@ import { withOrg } from "../lib/db.js";
 import { ApplicationError } from "../errors/application-error.js";
 import {
   workflowRepository,
-  type WorkflowWaitState,
   type Workflow,
   type WorkflowExecution,
   type WorkflowExecutionEvent,
@@ -44,11 +42,16 @@ import {
   sendWorkflowRunRequested,
 } from "../inngest/runtime-events.js";
 import {
+  cancelWaitingExecutionsInDatabase,
+  requestWorkflowExecutionCancellations,
+} from "./workflow-cancellation.js";
+import {
   evaluateWorkflowDomainEventTrigger,
   getWorkflowTriggerConfig,
 } from "./workflow-trigger-registry.js";
 import { orchestrateTriggerExecution } from "./workflow-trigger-orchestrator.js";
 import type { DbClient } from "../lib/db.js";
+import { workflowExecutionEventType } from "./workflow-execution-events.js";
 
 const UNIQUE_CONSTRAINT_VIOLATION = "23505";
 const WORKFLOW_NAME_UNIQUE_CONSTRAINT = "workflows_org_name_ci_uidx";
@@ -623,56 +626,6 @@ async function listDomainSamples(input: {
   return [];
 }
 
-async function cancelWaitingExecutions(input: {
-  tx: DbClient;
-  orgId: string;
-  waitStates: WorkflowWaitState[];
-  reason: string;
-}): Promise<{
-  cancelledExecutions: number;
-  cancelledWaits: number;
-}> {
-  if (input.waitStates.length === 0) {
-    return {
-      cancelledExecutions: 0,
-      cancelledWaits: 0,
-    };
-  }
-
-  const cancelledWaitStateIds =
-    await workflowRepository.markWaitingStatesCancelled(
-      input.tx,
-      input.orgId,
-      input.waitStates.map((state) => state.id),
-    );
-  const cancelledWaitStateIdSet = new Set(cancelledWaitStateIds);
-  const executionIds = Array.from(
-    new Set(
-      input.waitStates
-        .filter((state) => cancelledWaitStateIdSet.has(state.id))
-        .map((state) => state.executionId),
-    ),
-  );
-
-  await forEachAsync(
-    executionIds,
-    async (executionId) => {
-      await workflowRepository.markExecutionCancelled(
-        input.tx,
-        input.orgId,
-        executionId,
-        input.reason,
-      );
-    },
-    { concurrency: 1 },
-  );
-
-  return {
-    cancelledExecutions: executionIds.length,
-    cancelledWaits: cancelledWaitStateIds.length,
-  };
-}
-
 export class WorkflowService {
   async list(context: ServiceContext): Promise<Workflow[]> {
     return withOrg(context.orgId, (tx) =>
@@ -997,7 +950,7 @@ export class WorkflowService {
             const message =
               error instanceof Error
                 ? error.message
-                : "Failed to enqueue workflow run";
+                : "Failed to request workflow run";
             await workflowRepository.markExecutionErrored(
               tx,
               context.orgId,
@@ -1024,31 +977,34 @@ export class WorkflowService {
             };
           }
 
-          await forEachAsync(
-            Array.from(
-              new Set(waitStates.map((waitState) => waitState.executionId)),
-            ),
-            async (executionId) => {
-              await sendWorkflowCancelRequested({
-                executionId,
-                workflowId: workflow.id,
-                reason: `Cancelled by ${eventType} (${evaluation.correlationKey})`,
-                requestedBy: context.userId,
-                eventType,
-                ...(evaluation.correlationKey
-                  ? { correlationKey: evaluation.correlationKey }
-                  : {}),
-              });
-            },
-            { concurrency: 1 },
+          const executionIds = Array.from(
+            new Set(waitStates.map((waitState) => waitState.executionId)),
           );
+          const requestedCancellations =
+            await requestWorkflowExecutionCancellations({
+              executionIds,
+              workflowId: workflow.id,
+              reason: `Cancelled by ${eventType} (${evaluation.correlationKey})`,
+              requestedBy: context.userId,
+              cancelRequester: sendWorkflowCancelRequested,
+              eventType,
+              ...(evaluation.correlationKey
+                ? { correlationKey: evaluation.correlationKey }
+                : {}),
+            });
 
-          return cancelWaitingExecutions({
+          const cancelled = await cancelWaitingExecutionsInDatabase({
             tx,
             orgId: context.orgId,
             waitStates,
             reason: `Cancelled by ${eventType} (${evaluation.correlationKey})`,
+            executionIds: requestedCancellations.successfulExecutionIds,
           });
+
+          return {
+            cancelledExecutions: cancelled.cancelledExecutions,
+            cancelledWaits: cancelled.cancelledWaits,
+          };
         },
       });
 
@@ -1249,54 +1205,50 @@ export class WorkflowService {
         });
       }
 
-      await sendWorkflowCancelRequested({
-        executionId,
-        workflowId: execution.workflowId,
-        reason: "Cancelled manually",
-        requestedBy: context.userId,
-      });
+      const requestedCancellations =
+        await requestWorkflowExecutionCancellations({
+          executionIds: [executionId],
+          workflowId: execution.workflowId,
+          reason: "Cancelled manually",
+          requestedBy: context.userId,
+          cancelRequester: sendWorkflowCancelRequested,
+        });
 
       await workflowRepository.createExecutionEvent(tx, context.orgId, {
         workflowId: execution.workflowId,
         executionId,
-        eventType: "run.cancel_requested",
+        eventType: workflowExecutionEventType.runCancelRequested,
         message: "Manual cancellation requested",
         metadata: {
           requestedBy: context.userId,
         },
       });
 
-      const cancelledWaitStateIds =
-        await workflowRepository.markWaitingStatesCancelled(
-          tx,
-          context.orgId,
-          waitingStates.map((state) => state.id),
-        );
+      const cancelled = await cancelWaitingExecutionsInDatabase({
+        tx,
+        orgId: context.orgId,
+        waitStates: waitingStates,
+        reason: "Cancelled manually",
+        executionIds: requestedCancellations.successfulExecutionIds,
+      });
 
-      if (cancelledWaitStateIds.length === 0) {
+      if (cancelled.cancelledWaits === 0) {
         throw new ApplicationError("Execution is no longer waiting", {
           code: "CONFLICT",
         });
       }
 
-      await workflowRepository.markExecutionCancelled(
-        tx,
-        context.orgId,
-        executionId,
-        "Cancelled manually",
-      );
-
       await workflowRepository.createExecutionEvent(tx, context.orgId, {
         workflowId: execution.workflowId,
         executionId,
-        eventType: "run.cancelled",
+        eventType: workflowExecutionEventType.runCancelled,
         message: "Run cancelled manually while waiting",
       });
 
       return {
         success: true,
         status: "cancelled",
-        cancelledWaitStates: cancelledWaitStateIds.length,
+        cancelledWaitStates: cancelled.cancelledWaits,
       };
     });
   }

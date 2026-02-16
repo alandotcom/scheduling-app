@@ -441,6 +441,125 @@ describe("workflow domain triggers", () => {
     expect(waitState?.status).toBe("cancelled");
   });
 
+  test("stop routing cancels successful cancellation requests and leaves failed ones waiting", async () => {
+    const workflow = await workflowService.create(
+      {
+        name: "Stop Workflow",
+        graph: createGraphWithDomainEventTrigger([], [], ["client.deleted"]),
+        isEnabled: true,
+      },
+      {
+        orgId: orgA.id,
+        userId: userA.id,
+      },
+    );
+
+    await setTestOrgContext(db, orgA.id);
+    const [firstExecution] = await db
+      .insert(workflowExecutions)
+      .values({
+        orgId: orgA.id,
+        workflowId: workflow.id,
+        status: "waiting",
+        triggerType: "domain_event",
+        triggerEventType: "client.created",
+        correlationKey: "018f4d3a-6d80-7c5b-8a4a-6cb8f8d57d11",
+      })
+      .returning();
+    const [secondExecution] = await db
+      .insert(workflowExecutions)
+      .values({
+        orgId: orgA.id,
+        workflowId: workflow.id,
+        status: "waiting",
+        triggerType: "domain_event",
+        triggerEventType: "client.created",
+        correlationKey: "018f4d3a-6d80-7c5b-8a4a-6cb8f8d57d11",
+      })
+      .returning();
+
+    await db.insert(workflowWaitStates).values([
+      {
+        orgId: orgA.id,
+        workflowId: workflow.id,
+        executionId: firstExecution!.id,
+        runId: "run_wait_stop_1",
+        nodeId: "wait-node-1",
+        nodeName: "Wait for deletion",
+        waitType: "event",
+        status: "waiting",
+        correlationKey: "018f4d3a-6d80-7c5b-8a4a-6cb8f8d57d11",
+      },
+      {
+        orgId: orgA.id,
+        workflowId: workflow.id,
+        executionId: secondExecution!.id,
+        runId: "run_wait_stop_2",
+        nodeId: "wait-node-2",
+        nodeName: "Wait for deletion",
+        waitType: "event",
+        status: "waiting",
+        correlationKey: "018f4d3a-6d80-7c5b-8a4a-6cb8f8d57d11",
+      },
+    ]);
+
+    const runRequester = mock(async () => ({
+      eventId: "run-event-stop-unused",
+    }));
+    let cancelCallCount = 0;
+    const cancelRequester = mock(async () => {
+      cancelCallCount += 1;
+
+      if (cancelCallCount === 1) {
+        throw new Error("cancel failed");
+      }
+
+      return { eventId: "cancel-event-success" };
+    });
+
+    const result = await processWorkflowDomainEvent(
+      {
+        id: "event-client-deleted-1",
+        orgId: orgA.id,
+        type: "client.deleted",
+        payload: createClientCreatedPayload(),
+        timestamp: new Date().toISOString(),
+      },
+      {
+        runRequester,
+        cancelRequester,
+      },
+    );
+
+    expect(result.startedExecutionIds).toHaveLength(0);
+    expect(result.ignoredWorkflowIds).toHaveLength(0);
+    expect(result.cancelledWorkflowIds).toEqual([workflow.id]);
+    expect(cancelRequester).toHaveBeenCalledTimes(2);
+    expect(runRequester).toHaveBeenCalledTimes(0);
+
+    const executions = await db
+      .select()
+      .from(workflowExecutions)
+      .where(eq(workflowExecutions.workflowId, workflow.id));
+    expect(
+      executions.filter((execution) => execution.status === "cancelled"),
+    ).toHaveLength(1);
+    expect(
+      executions.filter((execution) => execution.status === "waiting"),
+    ).toHaveLength(1);
+
+    const waitStates = await db
+      .select()
+      .from(workflowWaitStates)
+      .where(eq(workflowWaitStates.workflowId, workflow.id));
+    expect(
+      waitStates.filter((waitState) => waitState.status === "cancelled"),
+    ).toHaveLength(1);
+    expect(
+      waitStates.filter((waitState) => waitState.status === "waiting"),
+    ).toHaveLength(1);
+  });
+
   test("ignores duplicate domain events by event id per workflow", async () => {
     await workflowService.create(
       {

@@ -39,6 +39,12 @@ Workflow runtime persistence is split across:
 
 The runs panel in admin UI reads these artifacts through oRPC execution endpoints.
 
+## Execution Lifecycle Contract
+
+For event taxonomy, status transitions, ordering guarantees, and cancellation semantics, see:
+
+- [`./workflow-execution-lifecycle.md`](./workflow-execution-lifecycle.md)
+
 ## Manual Smoke Validation
 
 From repo root:

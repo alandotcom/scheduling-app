@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import type { EventAttributeSuggestion } from "./event-attribute-suggestions";
@@ -170,7 +170,16 @@ export function ExpressionInput({
   const [activeIndex, setActiveIndex] = useState(0);
   const [mentionState, setMentionState] = useState<MentionState | null>(null);
   const [scrollLeft, setScrollLeft] = useState(0);
+  const [pendingSelection, setPendingSelection] = useState<number | null>(null);
   const blurTimeoutRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+
+  useLayoutEffect(() => {
+    if (pendingSelection !== null && inputRef.current) {
+      inputRef.current.setSelectionRange(pendingSelection, pendingSelection);
+      setPendingSelection(null);
+    }
+  }, [pendingSelection]);
+
   const expressionSegments = useMemo(
     () => toExpressionSegments(value),
     [value],
@@ -202,21 +211,15 @@ export function ExpressionInput({
       return;
     }
 
-    const nextValue = `${value.slice(0, mentionState.start)}${suggestion.value}${value.slice(mentionState.end)}`;
-    const nextCursor = mentionState.start + suggestion.value.length;
+    const inserted = `${suggestion.value} `;
+    const nextValue = `${value.slice(0, mentionState.start)}${inserted}${value.slice(mentionState.end)}`;
+    const nextCursor = mentionState.start + inserted.length;
 
     onChange(nextValue);
     setOpen(false);
     setMentionState(null);
-
-    requestAnimationFrame(() => {
-      if (!inputRef.current) {
-        return;
-      }
-
-      inputRef.current.focus();
-      inputRef.current.setSelectionRange(nextCursor, nextCursor);
-    });
+    setPendingSelection(nextCursor);
+    inputRef.current?.focus();
   }
 
   return (
@@ -309,6 +312,26 @@ export function ExpressionInput({
             }
           }
 
+          if (
+            selectionStart !== null &&
+            selectionEnd !== null &&
+            selectionStart === selectionEnd &&
+            event.key.length === 1 &&
+            !event.metaKey &&
+            !event.ctrlKey
+          ) {
+            const range = referenceRanges.find(
+              (item) => item.end === selectionStart,
+            );
+            if (range) {
+              event.preventDefault();
+              const nextValue = `${value.slice(0, selectionStart)} ${event.key}${value.slice(selectionStart)}`;
+              onChange(nextValue);
+              setPendingSelection(selectionStart + 2);
+              return;
+            }
+          }
+
           if (!open || filteredSuggestions.length === 0) {
             return;
           }
@@ -395,7 +418,7 @@ export function ExpressionInput({
             {expressionSegments.map((segment, index) =>
               segment.isReference ? (
                 <span
-                  className="inline-flex items-center rounded-md border border-sky-300/90 bg-sky-500/10 px-1.5 font-medium text-sky-700 dark:border-sky-400/50 dark:text-sky-300"
+                  className="inline-flex items-center rounded bg-sky-500/10 shadow-[0_0_0_3px_rgb(14_165_233_/_0.1)] outline outline-1 outline-offset-[3px] outline-sky-300/90 font-medium text-sky-700 dark:outline-sky-400/50 dark:text-sky-300"
                   data-expression-token="true"
                   key={`${segment.value}-${index}`}
                 >

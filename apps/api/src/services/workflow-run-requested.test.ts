@@ -392,6 +392,129 @@ function createParallelWaitLoggerGraph(): SerializedWorkflowGraph {
   };
 }
 
+function createFanInWaitJoinGraph(): SerializedWorkflowGraph {
+  return {
+    attributes: {},
+    options: { type: "directed" },
+    nodes: [
+      {
+        key: "trigger-node",
+        attributes: {
+          id: "trigger-node",
+          type: "trigger",
+          position: { x: 0, y: 0 },
+          data: {
+            type: "trigger",
+            label: "Webhook",
+            config: {
+              triggerType: "DomainEvent",
+              domain: "client",
+              startEvents: ["client.created"],
+              restartEvents: [],
+              stopEvents: [],
+            },
+          },
+        },
+      },
+      {
+        key: "wait-node",
+        attributes: {
+          id: "wait-node",
+          type: "action",
+          position: { x: 320, y: -80 },
+          data: {
+            type: "action",
+            label: "Wait",
+            config: {
+              actionType: "wait",
+              waitDuration: "5s",
+              waitGateMode: "off",
+            },
+          },
+        },
+      },
+      {
+        key: "fast-node",
+        attributes: {
+          id: "fast-node",
+          type: "action",
+          position: { x: 320, y: 80 },
+          data: {
+            type: "action",
+            label: "Fast log",
+            config: {
+              actionType: "logger",
+              message: "Fast branch",
+            },
+          },
+        },
+      },
+      {
+        key: "join-node",
+        attributes: {
+          id: "join-node",
+          type: "action",
+          position: { x: 640, y: 0 },
+          data: {
+            type: "action",
+            label: "Join log",
+            config: {
+              actionType: "logger",
+              message: "Join branch",
+            },
+          },
+        },
+      },
+    ],
+    edges: [
+      {
+        key: "edge-trigger-wait",
+        source: "trigger-node",
+        target: "wait-node",
+        undirected: false,
+        attributes: {
+          id: "edge-trigger-wait",
+          source: "trigger-node",
+          target: "wait-node",
+        },
+      },
+      {
+        key: "edge-trigger-fast",
+        source: "trigger-node",
+        target: "fast-node",
+        undirected: false,
+        attributes: {
+          id: "edge-trigger-fast",
+          source: "trigger-node",
+          target: "fast-node",
+        },
+      },
+      {
+        key: "edge-wait-join",
+        source: "wait-node",
+        target: "join-node",
+        undirected: false,
+        attributes: {
+          id: "edge-wait-join",
+          source: "wait-node",
+          target: "join-node",
+        },
+      },
+      {
+        key: "edge-fast-join",
+        source: "fast-node",
+        target: "join-node",
+        undirected: false,
+        attributes: {
+          id: "edge-fast-join",
+          source: "fast-node",
+          target: "join-node",
+        },
+      },
+    ],
+  };
+}
+
 describe("workflow run requested service", () => {
   const db: TestDatabase = getTestDb();
 
@@ -478,6 +601,62 @@ describe("workflow run requested service", () => {
     const eventTypes = events.map((event) => event.eventType);
     expect(eventTypes).toContain("run.started");
     expect(eventTypes).toContain("run.completed");
+  });
+
+  test("returns early for cancelled executions without emitting run lifecycle", async () => {
+    const workflow = await workflowService.create(
+      {
+        name: "Cancelled Execution Workflow",
+        graph: createConditionGraph(),
+        isEnabled: true,
+      },
+      { orgId, userId },
+    );
+
+    const execution = await withOrg(orgId, async (tx) =>
+      workflowRepository.createExecution(tx, orgId, {
+        workflowId: workflow.id,
+        status: "cancelled",
+        triggerType: "manual",
+        isDryRun: false,
+        triggerEventType: "client.created",
+      }),
+    );
+
+    await executeWorkflowRunRequested(
+      {
+        orgId,
+        workflowId: workflow.id,
+        workflowName: workflow.name,
+        executionId: execution.id,
+        graph: workflow.graph,
+        triggerInput: {
+          clientId: "018f4d3a-6d80-7c5b-8a4a-6cb8f8d57d19",
+          firstName: "Ada",
+        },
+        eventContext: {
+          eventType: "client.created",
+        },
+      },
+      {
+        runStep: async (_stepId, fn) => fn(),
+        sleep: async () => {},
+      },
+    );
+
+    await setTestOrgContext(db, orgId);
+
+    const logs = await db
+      .select()
+      .from(workflowExecutionLogs)
+      .where(eq(workflowExecutionLogs.executionId, execution.id));
+    expect(logs).toHaveLength(0);
+
+    const events = await db
+      .select()
+      .from(workflowExecutionEvents)
+      .where(eq(workflowExecutionEvents.executionId, execution.id));
+    expect(events).toHaveLength(0);
   });
 
   test("condition false halts downstream branch", async () => {
@@ -759,6 +938,79 @@ describe("workflow run requested service", () => {
     expect(sleepCalled).toBeTrue();
   });
 
+  test("cancellation during wait sleep does not append resumed or completed events", async () => {
+    const workflow = await workflowService.create(
+      {
+        name: "Wait Cancellation Workflow",
+        graph: createWaitGraph(),
+        isEnabled: true,
+      },
+      { orgId, userId },
+    );
+
+    const execution = await withOrg(orgId, async (tx) =>
+      workflowRepository.createExecution(tx, orgId, {
+        workflowId: workflow.id,
+        status: "running",
+        triggerType: "manual",
+        isDryRun: false,
+        triggerEventType: "client.created",
+        input: {
+          clientId: "018f4d3a-6d80-7c5b-8a4a-6cb8f8d57d31",
+        },
+      }),
+    );
+
+    await executeWorkflowRunRequested(
+      {
+        orgId,
+        workflowId: workflow.id,
+        workflowName: workflow.name,
+        executionId: execution.id,
+        graph: workflow.graph,
+        triggerInput: {
+          clientId: "018f4d3a-6d80-7c5b-8a4a-6cb8f8d57d31",
+        },
+        eventContext: {
+          eventType: "client.created",
+          correlationKey: "018f4d3a-6d80-7c5b-8a4a-6cb8f8d57d31",
+        },
+      },
+      {
+        runStep: async (_stepId, fn) => fn(),
+        sleep: async () => {
+          await withOrg(orgId, async (tx) =>
+            workflowRepository.markExecutionCancelled(
+              tx,
+              orgId,
+              execution.id,
+              "Cancelled in sleep",
+            ),
+          );
+        },
+      },
+    );
+
+    await setTestOrgContext(db, orgId);
+
+    const [storedExecution] = await db
+      .select()
+      .from(workflowExecutions)
+      .where(eq(workflowExecutions.id, execution.id))
+      .limit(1);
+    expect(storedExecution?.status).toBe("cancelled");
+
+    const events = await db
+      .select()
+      .from(workflowExecutionEvents)
+      .where(eq(workflowExecutionEvents.executionId, execution.id));
+    const eventTypes = events.map((event) => event.eventType);
+    expect(eventTypes).toContain("run.started");
+    expect(eventTypes).toContain("run.waiting");
+    expect(eventTypes).not.toContain("run.resumed");
+    expect(eventTypes).not.toContain("run.completed");
+  });
+
   test("resumed wait execution continues to downstream logger without duplicate wait logs", async () => {
     const workflow = await workflowService.create(
       {
@@ -930,7 +1182,7 @@ describe("workflow run requested service", () => {
       {
         runStep: async (stepId, fn) => {
           stepTrace.push(`run:${stepId}`);
-          if (stepId.includes("node-log-event-logger-node")) {
+          if (stepId.includes("node-log-event")) {
             loggerStepSeenBeforeSleep = true;
           }
 
@@ -961,10 +1213,172 @@ describe("workflow run requested service", () => {
     );
 
     expect(
-      stepTrace.some((entry) => entry.includes("node-log-event-logger-node")),
+      stepTrace.some((entry) => entry.includes("node-log-event")),
     ).toBeTrue();
+    expect(stepTrace.some((entry) => entry.includes("node-wait"))).toBeTrue();
     expect(
-      stepTrace.some((entry) => entry.includes("node-wait-wait-node")),
+      stepTrace.every((entry) => !entry.includes(execution.id)),
     ).toBeTrue();
+  });
+
+  test("fan-in logger waits for both upstream branches to complete", async () => {
+    const workflow = await workflowService.create(
+      {
+        name: "Fan-in Wait Join Workflow",
+        graph: createFanInWaitJoinGraph(),
+        isEnabled: true,
+      },
+      { orgId, userId },
+    );
+
+    const execution = await withOrg(orgId, async (tx) =>
+      workflowRepository.createExecution(tx, orgId, {
+        workflowId: workflow.id,
+        status: "running",
+        triggerType: "manual",
+        isDryRun: false,
+        triggerEventType: "client.created",
+        input: {
+          clientId: "018f4d3a-6d80-7c5b-8a4a-6cb8f8d57d82",
+        },
+      }),
+    );
+
+    const stepTrace: string[] = [];
+
+    await executeWorkflowRunRequested(
+      {
+        orgId,
+        workflowId: workflow.id,
+        workflowName: workflow.name,
+        executionId: execution.id,
+        graph: workflow.graph,
+        triggerInput: {
+          firstName: "Ada",
+          clientId: "018f4d3a-6d80-7c5b-8a4a-6cb8f8d57d82",
+        },
+        eventContext: {
+          eventType: "client.created",
+        },
+      },
+      {
+        runStep: async (stepId, fn) => {
+          stepTrace.push(`run:${stepId}`);
+          return fn();
+        },
+        sleep: async () => {
+          stepTrace.push("sleep");
+          await new Promise((resolve) => setTimeout(resolve, 25));
+        },
+      },
+    );
+
+    await setTestOrgContext(db, orgId);
+
+    const logs = await db
+      .select()
+      .from(workflowExecutionLogs)
+      .where(eq(workflowExecutionLogs.executionId, execution.id));
+
+    const waitLog = logs.find((log) => log.nodeId === "wait-node");
+    const fastLog = logs.find((log) => log.nodeId === "fast-node");
+    const joinLog = logs.find((log) => log.nodeId === "join-node");
+
+    expect(waitLog?.status).toBe("success");
+    expect(fastLog?.status).toBe("success");
+    expect(joinLog?.status).toBe("success");
+
+    const joinCompletedAt = joinLog?.completedAt?.getTime() ?? 0;
+    expect(joinCompletedAt).toBeGreaterThanOrEqual(
+      waitLog?.completedAt?.getTime() ?? 0,
+    );
+    expect(joinCompletedAt).toBeGreaterThanOrEqual(
+      fastLog?.completedAt?.getTime() ?? 0,
+    );
+
+    const joinStepIndex = stepTrace.findIndex((entry) =>
+      entry.includes("node-join-log"),
+    );
+    const waitResumeStepIndex = stepTrace.findIndex((entry) =>
+      entry.includes("node-wait-wait-resume"),
+    );
+    const fastStepIndex = stepTrace.findIndex((entry) =>
+      entry.includes("node-fast-log"),
+    );
+
+    expect(joinStepIndex).toBeGreaterThan(waitResumeStepIndex);
+    expect(joinStepIndex).toBeGreaterThan(fastStepIndex);
+  });
+
+  test("replaying a successful execution does not duplicate logs or lifecycle events", async () => {
+    const workflow = await workflowService.create(
+      {
+        name: "Replay Idempotency Workflow",
+        graph: createConditionGraph(),
+        isEnabled: true,
+      },
+      { orgId, userId },
+    );
+
+    const execution = await withOrg(orgId, async (tx) =>
+      workflowRepository.createExecution(tx, orgId, {
+        workflowId: workflow.id,
+        status: "running",
+        triggerType: "manual",
+        isDryRun: false,
+        triggerEventType: "client.created",
+        input: {
+          clientId: "018f4d3a-6d80-7c5b-8a4a-6cb8f8d57d91",
+        },
+      }),
+    );
+
+    const payload = {
+      orgId,
+      workflowId: workflow.id,
+      workflowName: workflow.name,
+      executionId: execution.id,
+      graph: workflow.graph,
+      triggerInput: {
+        clientId: "018f4d3a-6d80-7c5b-8a4a-6cb8f8d57d91",
+        firstName: "Ada",
+      },
+      eventContext: {
+        eventType: "client.created" as const,
+      },
+    };
+
+    await executeWorkflowRunRequested(payload, {
+      runStep: async (_stepId, fn) => fn(),
+      sleep: async () => {},
+    });
+
+    await setTestOrgContext(db, orgId);
+
+    const logsAfterFirstRun = await db
+      .select()
+      .from(workflowExecutionLogs)
+      .where(eq(workflowExecutionLogs.executionId, execution.id));
+    const eventsAfterFirstRun = await db
+      .select()
+      .from(workflowExecutionEvents)
+      .where(eq(workflowExecutionEvents.executionId, execution.id));
+
+    await executeWorkflowRunRequested(payload, {
+      runStep: async (_stepId, fn) => fn(),
+      sleep: async () => {},
+    });
+
+    const logsAfterReplay = await db
+      .select()
+      .from(workflowExecutionLogs)
+      .where(eq(workflowExecutionLogs.executionId, execution.id));
+    const eventsAfterReplay = await db
+      .select()
+      .from(workflowExecutionEvents)
+      .where(eq(workflowExecutionEvents.executionId, execution.id));
+
+    expect(logsAfterReplay).toHaveLength(logsAfterFirstRun.length);
+    expect(eventsAfterReplay).toHaveLength(eventsAfterFirstRun.length);
   });
 });

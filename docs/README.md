@@ -9,6 +9,6 @@ Single entrypoint for implementation plans:
 ## Core Docs
 
 - Architecture: [`./ARCHITECTURE.md`](./ARCHITECTURE.md)
-- References index: [`./references/README.md`](./references/README.md)
 - UI guides: [`./guides/mobile-first-container-pattern.md`](./guides/mobile-first-container-pattern.md)
 - Workflow engine guide: [`./guides/workflow-engine-domain-events.md`](./guides/workflow-engine-domain-events.md)
+- Workflow lifecycle guide: [`./guides/workflow-execution-lifecycle.md`](./guides/workflow-execution-lifecycle.md)

@@ -174,6 +174,42 @@ describe("workflow trigger orchestrator", () => {
     });
   });
 
+  test("dry-run stop simulates cancellations without dispatching cancel requests", async () => {
+    const startExecution = mock(async () => ({
+      executionId: "exec_start",
+      dryRun: true,
+    }));
+    const cancelWaitStates = mock(async () => ({
+      cancelledExecutions: 2,
+      cancelledWaits: 3,
+    }));
+
+    const result = await orchestrateTriggerExecution({
+      dryRun: true,
+      eventType: "client.deleted",
+      correlationKey: "abc",
+      eventTypePath: "event",
+      routingDecision: { kind: "stop" },
+      waitStates: [
+        createWaitState("1", "exec_wait_1"),
+        createWaitState("2", "exec_wait_1"),
+        createWaitState("3", "exec_wait_2"),
+      ],
+      startExecution,
+      cancelWaitStates,
+    });
+
+    expect(cancelWaitStates).toHaveBeenCalledTimes(0);
+    expect(startExecution).toHaveBeenCalledTimes(0);
+    expect(result).toEqual({
+      status: "cancelled",
+      dryRun: true,
+      simulated: true,
+      cancelledExecutions: 2,
+      cancelledWaits: 3,
+    });
+  });
+
   test("starts a run when event type is missing for event_not_configured routing", async () => {
     const startExecution = mock(async () => ({
       executionId: "exec_fallback",
