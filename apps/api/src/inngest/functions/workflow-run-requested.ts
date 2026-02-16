@@ -18,6 +18,7 @@ export function createWorkflowRunRequestedFunction(
     { event: "workflow/run.requested" },
     async ({ event, step }) => {
       await executeRun(event.data, {
+        runStep: async (stepId, fn) => step.run(stepId, fn),
         sleep: async (stepId, delayMs) => {
           if (delayMs <= 0) {
             return;

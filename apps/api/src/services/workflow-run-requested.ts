@@ -61,6 +61,10 @@ export type WorkflowRunRequestedInput = {
 };
 
 export type WorkflowRunRequestedRuntime = {
+  runStep: (
+    stepId: string,
+    fn: () => Promise<Record<string, unknown>>,
+  ) => Promise<Record<string, unknown>>;
   sleep: (stepId: string, delayMs: number) => Promise<void>;
 };
 
@@ -163,6 +167,14 @@ function getNodeActionType(node: ParsedNode): string | undefined {
     : undefined;
 }
 
+function isWaitNode(node: ParsedNode | undefined): boolean {
+  if (!node || node.kind !== "action") {
+    return false;
+  }
+
+  return getNodeActionType(node) === "wait";
+}
+
 function getNextNodeIds(input: {
   node: ParsedNode;
   outgoingByNodeId: Map<string, ParsedEdge[]>;
@@ -187,6 +199,42 @@ function getNextNodeIds(input: {
   return outgoingEdges
     .filter((edge) => edge.switchBranch === branch)
     .map((edge) => edge.target);
+}
+
+function buildIncomingByNodeId(
+  outgoingByNodeId: Map<string, ParsedEdge[]>,
+): Map<string, string[]> {
+  const incomingByNodeId = new Map<string, string[]>();
+
+  for (const [source, edges] of outgoingByNodeId.entries()) {
+    for (const edge of edges) {
+      const incoming = incomingByNodeId.get(edge.target) ?? [];
+      incoming.push(source);
+      incomingByNodeId.set(edge.target, incoming);
+    }
+  }
+
+  return incomingByNodeId;
+}
+
+function shouldHaltBranchFromOutput(
+  node: ParsedNode,
+  output: Record<string, unknown> | null,
+): boolean {
+  if (!output) {
+    return false;
+  }
+
+  if (output["skipped"] === true) {
+    return true;
+  }
+
+  if (node.kind !== "action") {
+    return false;
+  }
+
+  const actionType = getNodeActionType(node);
+  return actionType === "condition" && output["passed"] === false;
 }
 
 function toDomainRoot(eventType: DomainEventType): string {
@@ -216,6 +264,20 @@ function toNodeReferenceName(node: ParsedNode): string {
   }
 
   return `Node${node.id}`;
+}
+
+function toStepSlug(value: string): string {
+  const normalized = value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+
+  return normalized.length > 0 ? normalized : "node";
+}
+
+function toNodeStepPrefix(node: ParsedNode): string {
+  return `${toStepSlug(node.label)}-${toStepSlug(node.id)}`;
 }
 
 function createRuntimeContext(input: {
@@ -891,6 +953,7 @@ export async function executeWorkflowRunRequested(
   runtime: WorkflowRunRequestedRuntime,
 ): Promise<void> {
   const graph = parseGraph(input.graph);
+  const incomingByNodeId = buildIncomingByNodeId(graph.outgoingByNodeId);
 
   await appendExecutionEventOnce({
     orgId: input.orgId,
@@ -909,431 +972,587 @@ export async function executeWorkflowRunRequested(
     payload: input.triggerInput,
   });
 
-  const queue: string[] = [graph.triggerNode.id];
-  const visited = new Set<string>();
+  const completedNodes = new Set<string>();
+  const inProgressNodes = new Map<string, Promise<void>>();
+  let hasNodeFailure = false;
 
-  const processNextNode = async (): Promise<void> => {
-    const nodeId = queue.shift();
-    if (!nodeId) {
+  const executeNode = async (nodeId: string): Promise<void> => {
+    if (hasNodeFailure || completedNodes.has(nodeId)) {
       return;
     }
 
-    if (visited.has(nodeId)) {
-      return processNextNode();
+    const inProgress = inProgressNodes.get(nodeId);
+    if (inProgress) {
+      return inProgress;
     }
 
-    const execution = await loadExecution({
-      orgId: input.orgId,
-      executionId: input.executionId,
-    });
-    if (!execution || execution.status === "cancelled") {
-      return;
-    }
-
-    const node = graph.nodeById.get(nodeId);
-    if (!node) {
-      return processNextNode();
-    }
-
-    visited.add(nodeId);
-    const nodeReferenceName = toNodeReferenceName(node);
-
-    const actionType =
-      node.kind === "action" ? getNodeActionType(node) : undefined;
-    const resolvedActionConfig =
-      node.kind === "action"
-        ? toActionConfig(resolveConfigTemplates(node.config, runtimeContext))
-        : {};
-
-    const latestNodeLog = await withOrgContext(input.orgId, async (tx) =>
-      workflowRepository.findLatestExecutionLogByNodeId(tx, input.orgId, {
-        executionId: input.executionId,
-        nodeId: node.id,
-      }),
-    );
-
-    if (latestNodeLog?.status === "success") {
-      const priorOutput = asRecord(latestNodeLog.output);
-      if (priorOutput) {
-        runtimeContext[nodeReferenceName] = priorOutput;
+    const task = (async () => {
+      if (hasNodeFailure || completedNodes.has(nodeId)) {
+        return;
       }
 
-      queue.push(
-        ...getNextNodeIds({
-          node,
-          outgoingByNodeId: graph.outgoingByNodeId,
-          eventType: input.eventContext.eventType,
+      const execution = await loadExecution({
+        orgId: input.orgId,
+        executionId: input.executionId,
+      });
+
+      if (!execution || execution.status === "cancelled") {
+        return;
+      }
+
+      const node = graph.nodeById.get(nodeId);
+      if (!node) {
+        return;
+      }
+
+      const incomingSources = incomingByNodeId.get(node.id) ?? [];
+      if (incomingSources.some((sourceId) => !completedNodes.has(sourceId))) {
+        return;
+      }
+
+      const nodeReferenceName = toNodeReferenceName(node);
+      const nodeStepPrefix = toNodeStepPrefix(node);
+      const actionType =
+        node.kind === "action" ? getNodeActionType(node) : undefined;
+      const resolvedActionConfig =
+        node.kind === "action"
+          ? toActionConfig(resolveConfigTemplates(node.config, runtimeContext))
+          : {};
+
+      const latestNodeLog = await withOrgContext(input.orgId, async (tx) =>
+        workflowRepository.findLatestExecutionLogByNodeId(tx, input.orgId, {
+          executionId: input.executionId,
+          nodeId: node.id,
         }),
       );
 
-      return processNextNode();
-    }
-
-    const startedAt = new Date();
-    const log =
-      latestNodeLog?.status === "running"
-        ? latestNodeLog
-        : await withOrgContext(input.orgId, async (tx) =>
-            workflowRepository.createExecutionLog(tx, input.orgId, {
-              executionId: input.executionId,
-              nodeId: node.id,
-              nodeName: node.label,
-              nodeType:
-                node.kind === "trigger" ? "trigger" : (actionType ?? "action"),
-              status: "running",
-              startedAt,
-              input:
-                node.kind === "trigger"
-                  ? {
-                      eventType: input.eventContext.eventType,
-                      payload: input.triggerInput,
-                    }
-                  : resolvedActionConfig,
-            }),
-          );
-    const logStartedAt = log.startedAt ? new Date(log.startedAt) : startedAt;
-
-    try {
-      if (!node.enabled) {
-        const completedAt = new Date();
-        await withOrgContext(input.orgId, async (tx) =>
-          workflowRepository.completeExecutionLog(
-            tx,
-            input.orgId,
-            input.executionId,
-            {
-              logId: log.id,
-              status: "success",
-              output: {
-                skipped: true,
-                reason: "node_disabled",
-              },
-              completedAt,
-              duration: formatDurationMs(logStartedAt, completedAt),
-            },
-          ),
-        );
-
-        queue.push(
-          ...getNextNodeIds({
-            node,
-            outgoingByNodeId: graph.outgoingByNodeId,
-            eventType: input.eventContext.eventType,
-          }),
-        );
-        return processNextNode();
-      }
-
-      let haltBranch = false;
-      let output: Record<string, unknown> = {};
-
-      if (node.kind === "trigger") {
-        output = {
-          accepted: true,
-          eventType: input.eventContext.eventType,
-          data: input.triggerInput,
-        };
-      } else {
-        if (!actionType) {
-          throw new Error(`Action type is missing for node '${node.label}'.`);
+      if (latestNodeLog?.status === "success") {
+        const priorOutput = asRecord(latestNodeLog.output);
+        if (priorOutput) {
+          runtimeContext[nodeReferenceName] = priorOutput;
         }
+        completedNodes.add(node.id);
 
-        if (actionType === "wait") {
-          const waitDuration = resolvedActionConfig["waitDuration"];
-          const waitUntilRaw = resolvedActionConfig["waitUntil"];
-          const waitOffset = resolvedActionConfig["waitOffset"];
-          const waitTimezoneValue = resolvedActionConfig["waitTimezone"];
-          const waitTimezone =
-            typeof waitTimezoneValue === "string" ? waitTimezoneValue : null;
+        if (shouldHaltBranchFromOutput(node, priorOutput)) {
+          return;
+        }
+      } else {
+        const startedAt = new Date();
+        const log =
+          latestNodeLog?.status === "running"
+            ? latestNodeLog
+            : await withOrgContext(input.orgId, async (tx) =>
+                workflowRepository.createExecutionLog(tx, input.orgId, {
+                  executionId: input.executionId,
+                  nodeId: node.id,
+                  nodeName: node.label,
+                  nodeType:
+                    node.kind === "trigger"
+                      ? "trigger"
+                      : (actionType ?? "action"),
+                  status: "running",
+                  startedAt,
+                  input:
+                    node.kind === "trigger"
+                      ? {
+                          eventType: input.eventContext.eventType,
+                          payload: input.triggerInput,
+                        }
+                      : resolvedActionConfig,
+                }),
+              );
+        const logStartedAt = log.startedAt
+          ? new Date(log.startedAt)
+          : startedAt;
 
-          const resolved = resolveWaitUntil({
-            now: startedAt,
-            waitDuration,
-            waitUntil: waitUntilRaw,
-            waitOffset,
-            ...(waitTimezone ? { waitTimezone } : {}),
-          });
-
-          const waitUntil = resolved.waitUntil;
-          if (!waitUntil) {
-            throw new Error(
-              resolved.error ?? "Failed to resolve wait timestamp.",
-            );
-          }
-
-          const stepId = `wait-${input.executionId}-${node.id}`;
-          const waitGateMode =
-            typeof resolvedActionConfig["waitGateMode"] === "string"
-              ? resolvedActionConfig["waitGateMode"]
-              : "off";
-          const waitingStates = await withOrgContext(input.orgId, async (tx) =>
-            workflowRepository.listExecutionWaitingStates(
+        const stepId = `node-${nodeStepPrefix}-${input.executionId}`;
+        const completeExecutionLogSuccess = async (
+          output: Record<string, unknown>,
+        ) => {
+          const completedAt = new Date();
+          await withOrgContext(input.orgId, async (tx) =>
+            workflowRepository.completeExecutionLog(
               tx,
               input.orgId,
               input.executionId,
+              {
+                logId: log.id,
+                status: "success",
+                output,
+                completedAt,
+                duration: formatDurationMs(logStartedAt, completedAt),
+              },
             ),
           );
-          let waitState =
-            waitingStates.find((state) => state.nodeId === node.id) ?? null;
+        };
 
-          if (!waitState) {
-            const delayMs = waitUntil.getTime() - Date.now();
+        const failExecutionLog = async (message: string) => {
+          const completedAt = new Date();
+          await withOrgContext(input.orgId, async (tx) =>
+            workflowRepository.completeExecutionLog(
+              tx,
+              input.orgId,
+              input.executionId,
+              {
+                logId: log.id,
+                status: "error",
+                error: message,
+                completedAt,
+                duration: formatDurationMs(logStartedAt, completedAt),
+              },
+            ),
+          );
 
-            if (waitGateMode === "require_actual_wait" && delayMs <= 0) {
-              haltBranch = true;
-              output = {
-                skipped: true,
-                reason: "wait_already_due",
-              };
-            } else if (delayMs <= 0) {
-              output = {
-                waited: false,
-                reason: "wait_already_due",
-              };
-            } else {
-              const markedWaiting = await withOrgContext(
-                input.orgId,
-                async (tx) =>
-                  workflowRepository.markExecutionWaiting(
-                    tx,
-                    input.orgId,
-                    input.executionId,
-                  ),
-              );
-
-              if (!markedWaiting && execution.status !== "waiting") {
-                haltBranch = true;
-                output = {
-                  skipped: true,
-                  reason: "execution_not_running",
-                };
-              } else {
-                waitState = await withOrgContext(input.orgId, async (tx) =>
-                  workflowRepository.createWaitState(tx, input.orgId, {
-                    executionId: input.executionId,
-                    workflowId: input.workflowId,
-                    runId: execution.workflowRunId ?? execution.id,
-                    nodeId: node.id,
-                    nodeName: node.label,
-                    waitType: "delay",
-                    status: "waiting",
-                    waitUntil,
-                    correlationKey: input.eventContext.correlationKey ?? null,
-                    metadata: {
-                      waitDuration,
-                      waitUntil: waitUntilRaw,
-                      waitOffset,
-                      ...(waitTimezoneValue !== undefined
-                        ? { waitTimezone: waitTimezoneValue }
-                        : {}),
-                      waitGateMode,
-                    },
-                  }),
-                );
-
-                await appendExecutionEvent({
-                  orgId: input.orgId,
-                  workflowId: input.workflowId,
-                  executionId: input.executionId,
-                  eventType: "run.waiting",
-                  message: `Run waiting in delay node '${node.label}'`,
-                  metadata: {
-                    nodeId: node.id,
-                    waitUntil: waitUntil.toISOString(),
-                    waitDuration,
-                    waitOffset,
-                  },
-                });
-              }
-            }
-          }
-
-          if (waitState) {
-            const effectiveWaitUntil = waitState.waitUntil ?? waitUntil;
-            const delayMs = Math.max(
-              0,
-              effectiveWaitUntil.getTime() - Date.now(),
+          await withOrgContext(input.orgId, async (tx) => {
+            await workflowRepository.markExecutionErrored(
+              tx,
+              input.orgId,
+              input.executionId,
+              message,
             );
-
-            await runtime.sleep(stepId, delayMs);
-
-            const latestExecution = await loadExecution({
-              orgId: input.orgId,
-              executionId: input.executionId,
-            });
-
-            if (!latestExecution || latestExecution.status === "cancelled") {
-              haltBranch = true;
-              output = {
-                skipped: true,
-                reason: "execution_cancelled",
-              };
-            } else {
-              const resumed = await withOrgContext(input.orgId, async (tx) =>
-                workflowRepository.markWaitStateResumed(
-                  tx,
-                  input.orgId,
-                  waitState.id,
-                ),
-              );
-
-              if (resumed) {
-                await withOrgContext(input.orgId, async (tx) =>
-                  workflowRepository.markExecutionRunning(
-                    tx,
-                    input.orgId,
-                    input.executionId,
-                  ),
-                );
-
-                await appendExecutionEvent({
-                  orgId: input.orgId,
-                  workflowId: input.workflowId,
-                  executionId: input.executionId,
-                  eventType: "run.resumed",
-                  message: `Run resumed after delay node '${node.label}'`,
-                  metadata: {
-                    nodeId: node.id,
-                  },
-                });
-              }
-
-              output = {
-                waited: true,
-                waitUntil: effectiveWaitUntil.toISOString(),
-                delayMs,
-              };
-            }
-          }
-        } else if (actionType === "switch") {
-          output = {
-            branch: getEventSwitchBranch(input.eventContext.eventType),
-          };
-        } else if (actionType === "condition") {
-          const condition = resolvedActionConfig["condition"];
-          const passed = evaluateConditionExpression({
-            condition,
-            context: runtimeContext,
-          });
-
-          haltBranch = !passed;
-          output = {
-            passed,
-            expression: condition,
-          };
-        } else if (actionType === "http-request") {
-          output = await executeHttpRequestAction(resolvedActionConfig);
-        } else if (actionType === "logger") {
-          const messageValue = resolvedActionConfig["message"];
-          const message = valueToInterpolatedString(messageValue);
-
-          workflowRunRequestedLogger.info("Workflow logger action: {message}", {
-            message,
           });
 
           await appendExecutionEvent({
             orgId: input.orgId,
             workflowId: input.workflowId,
             executionId: input.executionId,
-            eventType: "run.log",
-            message,
+            eventType: "run.failed",
+            message: `Run failed in node '${node.label}'`,
             metadata: {
               nodeId: node.id,
               nodeName: node.label,
+              error: message,
             },
           });
+        };
 
-          output = {
-            logged: true,
-            message,
+        let nodeResult: Record<string, unknown>;
+
+        if (!node.enabled) {
+          const disabledOutput = {
+            skipped: true,
+            reason: "node_disabled",
           };
+
+          await completeExecutionLogSuccess(disabledOutput);
+          nodeResult = {
+            failed: false,
+            haltBranch: true,
+            output: disabledOutput,
+          };
+        } else if (actionType === "wait") {
+          try {
+            const prepareResult = await runtime.runStep(
+              `${stepId}-prepare`,
+              async () => {
+                const waitDuration = resolvedActionConfig["waitDuration"];
+                const waitUntilRaw = resolvedActionConfig["waitUntil"];
+                const waitOffset = resolvedActionConfig["waitOffset"];
+                const waitTimezoneValue = resolvedActionConfig["waitTimezone"];
+                const waitTimezone =
+                  typeof waitTimezoneValue === "string"
+                    ? waitTimezoneValue
+                    : null;
+
+                const resolved = resolveWaitUntil({
+                  now: startedAt,
+                  waitDuration,
+                  waitUntil: waitUntilRaw,
+                  waitOffset,
+                  ...(waitTimezone ? { waitTimezone } : {}),
+                });
+
+                const waitUntil = resolved.waitUntil;
+                if (!waitUntil) {
+                  throw new Error(
+                    resolved.error ?? "Failed to resolve wait timestamp.",
+                  );
+                }
+
+                const waitGateMode =
+                  typeof resolvedActionConfig["waitGateMode"] === "string"
+                    ? resolvedActionConfig["waitGateMode"]
+                    : "off";
+                const waitingStates = await withOrgContext(
+                  input.orgId,
+                  async (tx) =>
+                    workflowRepository.listExecutionWaitingStates(
+                      tx,
+                      input.orgId,
+                      input.executionId,
+                    ),
+                );
+                let waitState =
+                  waitingStates.find((state) => state.nodeId === node.id) ??
+                  null;
+
+                if (!waitState) {
+                  const delayMs = waitUntil.getTime() - Date.now();
+
+                  if (waitGateMode === "require_actual_wait" && delayMs <= 0) {
+                    return {
+                      shouldSleep: false,
+                      haltBranch: true,
+                      output: {
+                        skipped: true,
+                        reason: "wait_already_due",
+                      },
+                    };
+                  }
+
+                  if (delayMs <= 0) {
+                    return {
+                      shouldSleep: false,
+                      haltBranch: false,
+                      output: {
+                        waited: false,
+                        reason: "wait_already_due",
+                      },
+                    };
+                  }
+
+                  const markedWaiting = await withOrgContext(
+                    input.orgId,
+                    async (tx) =>
+                      workflowRepository.markExecutionWaiting(
+                        tx,
+                        input.orgId,
+                        input.executionId,
+                      ),
+                  );
+
+                  if (!markedWaiting && execution.status !== "waiting") {
+                    return {
+                      shouldSleep: false,
+                      haltBranch: true,
+                      output: {
+                        skipped: true,
+                        reason: "execution_not_running",
+                      },
+                    };
+                  }
+
+                  waitState = await withOrgContext(input.orgId, async (tx) =>
+                    workflowRepository.createWaitState(tx, input.orgId, {
+                      executionId: input.executionId,
+                      workflowId: input.workflowId,
+                      runId: execution.workflowRunId ?? execution.id,
+                      nodeId: node.id,
+                      nodeName: node.label,
+                      waitType: "delay",
+                      status: "waiting",
+                      waitUntil,
+                      correlationKey: input.eventContext.correlationKey ?? null,
+                      metadata: {
+                        waitDuration,
+                        waitUntil: waitUntilRaw,
+                        waitOffset,
+                        ...(waitTimezoneValue !== undefined
+                          ? { waitTimezone: waitTimezoneValue }
+                          : {}),
+                        waitGateMode,
+                      },
+                    }),
+                  );
+
+                  await appendExecutionEvent({
+                    orgId: input.orgId,
+                    workflowId: input.workflowId,
+                    executionId: input.executionId,
+                    eventType: "run.waiting",
+                    message: `Run waiting in delay node '${node.label}'`,
+                    metadata: {
+                      nodeId: node.id,
+                      nodeName: node.label,
+                      waitUntil: waitUntil.toISOString(),
+                      waitDuration,
+                      waitOffset,
+                    },
+                  });
+                }
+
+                if (!waitState) {
+                  return {
+                    shouldSleep: false,
+                    haltBranch: true,
+                    output: {
+                      skipped: true,
+                      reason: "wait_state_missing",
+                    },
+                  };
+                }
+
+                const effectiveWaitUntil = waitState.waitUntil ?? waitUntil;
+                return {
+                  shouldSleep: true,
+                  waitStateId: waitState.id,
+                  waitUntil: effectiveWaitUntil.toISOString(),
+                };
+              },
+            );
+
+            if (prepareResult["shouldSleep"] !== true) {
+              const output = asRecord(prepareResult["output"]) ?? {};
+              await completeExecutionLogSuccess(output);
+              nodeResult = {
+                failed: false,
+                haltBranch: prepareResult["haltBranch"] === true,
+                output,
+              };
+            } else {
+              const waitUntilValue = prepareResult["waitUntil"];
+              const waitStateId = prepareResult["waitStateId"];
+
+              if (
+                typeof waitUntilValue !== "string" ||
+                typeof waitStateId !== "string"
+              ) {
+                throw new Error(
+                  "Wait step preparation returned invalid state.",
+                );
+              }
+
+              const waitUntil = new Date(waitUntilValue);
+              const delayMs = Math.max(0, waitUntil.getTime() - Date.now());
+
+              await runtime.sleep(
+                `wait-${nodeStepPrefix}-${input.executionId}`,
+                delayMs,
+              );
+
+              const resumeResult = await runtime.runStep(
+                `${stepId}-resume`,
+                async () => {
+                  const latestExecution = await loadExecution({
+                    orgId: input.orgId,
+                    executionId: input.executionId,
+                  });
+
+                  if (
+                    !latestExecution ||
+                    latestExecution.status === "cancelled"
+                  ) {
+                    return {
+                      haltBranch: true,
+                      output: {
+                        skipped: true,
+                        reason: "execution_cancelled",
+                      },
+                    };
+                  }
+
+                  const resumed = await withOrgContext(
+                    input.orgId,
+                    async (tx) =>
+                      workflowRepository.markWaitStateResumed(
+                        tx,
+                        input.orgId,
+                        waitStateId,
+                      ),
+                  );
+
+                  if (resumed) {
+                    await withOrgContext(input.orgId, async (tx) =>
+                      workflowRepository.markExecutionRunning(
+                        tx,
+                        input.orgId,
+                        input.executionId,
+                      ),
+                    );
+
+                    await appendExecutionEvent({
+                      orgId: input.orgId,
+                      workflowId: input.workflowId,
+                      executionId: input.executionId,
+                      eventType: "run.resumed",
+                      message: `Run resumed after delay node '${node.label}'`,
+                      metadata: {
+                        nodeId: node.id,
+                        nodeName: node.label,
+                      },
+                    });
+                  }
+
+                  return {
+                    haltBranch: false,
+                    output: {
+                      waited: true,
+                      waitUntil: waitUntil.toISOString(),
+                      delayMs,
+                    },
+                  };
+                },
+              );
+
+              const output = asRecord(resumeResult["output"]) ?? {};
+              await completeExecutionLogSuccess(output);
+              nodeResult = {
+                failed: false,
+                haltBranch: resumeResult["haltBranch"] === true,
+                output,
+              };
+            }
+          } catch (error: unknown) {
+            const message =
+              error instanceof Error
+                ? error.message
+                : "Workflow node execution failed.";
+            await failExecutionLog(message);
+            nodeResult = {
+              failed: true,
+              haltBranch: true,
+              output: {},
+            };
+          }
         } else {
-          throw new Error(`Unsupported action type '${actionType}'.`);
+          nodeResult = await runtime.runStep(stepId, async () => {
+            try {
+              let haltBranch = false;
+              let output: Record<string, unknown> = {};
+
+              if (node.kind === "trigger") {
+                output = {
+                  accepted: true,
+                  eventType: input.eventContext.eventType,
+                  data: input.triggerInput,
+                };
+              } else {
+                if (!actionType) {
+                  throw new Error(
+                    `Action type is missing for node '${node.label}'.`,
+                  );
+                }
+
+                if (actionType === "switch") {
+                  output = {
+                    branch: getEventSwitchBranch(input.eventContext.eventType),
+                  };
+                } else if (actionType === "condition") {
+                  const condition = resolvedActionConfig["condition"];
+                  const passed = evaluateConditionExpression({
+                    condition,
+                    context: runtimeContext,
+                  });
+
+                  haltBranch = !passed;
+                  output = {
+                    passed,
+                    expression: condition,
+                  };
+                } else if (actionType === "http-request") {
+                  output = await executeHttpRequestAction(resolvedActionConfig);
+                } else if (actionType === "logger") {
+                  const messageValue = resolvedActionConfig["message"];
+                  const message = valueToInterpolatedString(messageValue);
+                  const eventMessage = `[${node.label}] ${message}`;
+
+                  workflowRunRequestedLogger.info(
+                    "Workflow logger action: {message}",
+                    {
+                      message,
+                    },
+                  );
+
+                  await appendExecutionEvent({
+                    orgId: input.orgId,
+                    workflowId: input.workflowId,
+                    executionId: input.executionId,
+                    eventType: "run.log",
+                    message: eventMessage,
+                    metadata: {
+                      nodeId: node.id,
+                      nodeName: node.label,
+                      rawMessage: message,
+                    },
+                  });
+
+                  output = {
+                    logged: true,
+                    message,
+                  };
+                } else {
+                  throw new Error(`Unsupported action type '${actionType}'.`);
+                }
+              }
+
+              await completeExecutionLogSuccess(output);
+
+              return {
+                failed: false,
+                haltBranch,
+                output,
+              };
+            } catch (error: unknown) {
+              const message =
+                error instanceof Error
+                  ? error.message
+                  : "Workflow node execution failed.";
+              await failExecutionLog(message);
+
+              return {
+                failed: true,
+                haltBranch: true,
+                output: {},
+              };
+            }
+          });
+        }
+
+        if (nodeResult["failed"] === true) {
+          hasNodeFailure = true;
+          return;
+        }
+
+        const output = asRecord(nodeResult["output"]) ?? {};
+        runtimeContext[nodeReferenceName] = output;
+        completedNodes.add(node.id);
+
+        if (nodeResult["haltBranch"] === true) {
+          return;
         }
       }
 
-      const completedAt = new Date();
-      await withOrgContext(input.orgId, async (tx) =>
-        workflowRepository.completeExecutionLog(
-          tx,
-          input.orgId,
-          input.executionId,
-          {
-            logId: log.id,
-            status: "success",
-            output,
-            completedAt,
-            duration: formatDurationMs(logStartedAt, completedAt),
-          },
-        ),
-      );
-
-      if (!haltBranch) {
-        runtimeContext[nodeReferenceName] = output;
-
-        queue.push(
-          ...getNextNodeIds({
-            node,
-            outgoingByNodeId: graph.outgoingByNodeId,
-            eventType: input.eventContext.eventType,
-          }),
-        );
-      }
-
-      return processNextNode();
-    } catch (error: unknown) {
-      const completedAt = new Date();
-      const message =
-        error instanceof Error
-          ? error.message
-          : "Workflow node execution failed.";
-
-      await withOrgContext(input.orgId, async (tx) =>
-        workflowRepository.completeExecutionLog(
-          tx,
-          input.orgId,
-          input.executionId,
-          {
-            logId: log.id,
-            status: "error",
-            error: message,
-            completedAt,
-            duration: formatDurationMs(logStartedAt, completedAt),
-          },
-        ),
-      );
-
-      await withOrgContext(input.orgId, async (tx) => {
-        await workflowRepository.markExecutionErrored(
-          tx,
-          input.orgId,
-          input.executionId,
-          message,
-        );
+      const nextNodeIds = getNextNodeIds({
+        node,
+        outgoingByNodeId: graph.outgoingByNodeId,
+        eventType: input.eventContext.eventType,
       });
 
-      await appendExecutionEvent({
-        orgId: input.orgId,
-        workflowId: input.workflowId,
-        executionId: input.executionId,
-        eventType: "run.failed",
-        message: `Run failed in node '${node.label}'`,
-        metadata: {
-          nodeId: node.id,
-          error: message,
-        },
+      const sortedNextNodeIds = [...nextNodeIds].toSorted((left, right) => {
+        const leftWait = isWaitNode(graph.nodeById.get(left));
+        const rightWait = isWaitNode(graph.nodeById.get(right));
+
+        if (leftWait === rightWait) {
+          return left.localeCompare(right);
+        }
+
+        return leftWait ? 1 : -1;
       });
-    }
+
+      await sortedNextNodeIds.reduce<Promise<void>>(
+        (promise, nextNodeId) => promise.then(() => executeNode(nextNodeId)),
+        Promise.resolve(),
+      );
+    })().finally(() => {
+      inProgressNodes.delete(nodeId);
+    });
+
+    inProgressNodes.set(nodeId, task);
+    return task;
   };
 
-  await processNextNode();
+  await executeNode(graph.triggerNode.id);
 
   const latestExecution = await loadExecution({
     orgId: input.orgId,
     executionId: input.executionId,
   });
 
-  if (!latestExecution || isExecutionTerminal(latestExecution.status)) {
+  if (
+    !latestExecution ||
+    hasNodeFailure ||
+    isExecutionTerminal(latestExecution.status)
+  ) {
     return;
   }
 

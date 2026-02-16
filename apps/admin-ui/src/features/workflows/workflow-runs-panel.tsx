@@ -15,6 +15,40 @@ interface WorkflowRunsPanelProps {
   canManageWorkflow: boolean;
 }
 
+function asRecord(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+
+  const record: Record<string, unknown> = {};
+
+  for (const [key, entry] of Object.entries(value)) {
+    record[key] = entry;
+  }
+
+  return record;
+}
+
+function toTimestamp(value: string | Date | null | undefined): number {
+  if (!value) {
+    return 0;
+  }
+
+  return new Date(value).getTime();
+}
+
+function toEventNodeName(metadata: unknown): string | null {
+  const metadataRecord = asRecord(metadata);
+  if (!metadataRecord) {
+    return null;
+  }
+
+  const nodeName = metadataRecord["nodeName"];
+  return typeof nodeName === "string" && nodeName.trim().length > 0
+    ? nodeName.trim()
+    : null;
+}
+
 function summarizeJson(value: unknown): string {
   try {
     return JSON.stringify(value, null, 2);
@@ -129,6 +163,32 @@ export function WorkflowRunsPanel({
     [executionsQuery.data, selectedExecutionId],
   );
 
+  const orderedExecutionEvents = useMemo(() => {
+    const events = executionEventsQuery.data?.events ?? [];
+
+    return [...events].toSorted((left, right) => {
+      const delta = toTimestamp(left.createdAt) - toTimestamp(right.createdAt);
+      if (delta !== 0) {
+        return delta;
+      }
+
+      return left.id.localeCompare(right.id);
+    });
+  }, [executionEventsQuery.data?.events]);
+
+  const orderedExecutionLogs = useMemo(() => {
+    const logs = executionLogsQuery.data?.logs ?? [];
+
+    return [...logs].toSorted((left, right) => {
+      const delta = toTimestamp(left.startedAt) - toTimestamp(right.startedAt);
+      if (delta !== 0) {
+        return delta;
+      }
+
+      return left.id.localeCompare(right.id);
+    });
+  }, [executionLogsQuery.data?.logs]);
+
   useEffect(
     () => () => {
       setSelectedExecutionId(null);
@@ -152,34 +212,44 @@ export function WorkflowRunsPanel({
     const executionStatus =
       executionStatusQuery.data?.status ?? selectedExecution?.status;
 
-    const latestByNode = logs.reduce<
-      Record<
-        string,
-        {
-          nodeId: string;
-          status: "pending" | "running" | "success" | "error" | "cancelled";
-          input?: unknown;
-          startedAt?: string | Date;
+    const latestByNode = [...logs]
+      .toSorted((left, right) => {
+        const delta =
+          toTimestamp(right.startedAt) - toTimestamp(left.startedAt);
+        if (delta !== 0) {
+          return delta;
         }
-      >
-    >((acc, log) => {
-      if (!acc[log.nodeId]) {
-        const status =
-          executionStatus === "cancelled" &&
-          (log.status === "pending" || log.status === "running")
-            ? "cancelled"
-            : log.status;
 
-        acc[log.nodeId] = {
-          nodeId: log.nodeId,
-          status,
-          input: log.input,
-          startedAt: log.startedAt,
-        };
-      }
+        return right.id.localeCompare(left.id);
+      })
+      .reduce<
+        Record<
+          string,
+          {
+            nodeId: string;
+            status: "pending" | "running" | "success" | "error" | "cancelled";
+            input?: unknown;
+            startedAt?: string | Date;
+          }
+        >
+      >((acc, log) => {
+        if (!acc[log.nodeId]) {
+          const status =
+            executionStatus === "cancelled" &&
+            (log.status === "pending" || log.status === "running")
+              ? "cancelled"
+              : log.status;
 
-      return acc;
-    }, {});
+          acc[log.nodeId] = {
+            nodeId: log.nodeId,
+            status,
+            input: log.input,
+            startedAt: log.startedAt,
+          };
+        }
+
+        return acc;
+      }, {});
 
     setExecutionLogsByNodeId(latestByNode);
   }, [
@@ -276,25 +346,34 @@ export function WorkflowRunsPanel({
             </div>
           ) : null}
 
-          {executionEventsQuery.data?.events?.length ? (
+          {orderedExecutionEvents.length ? (
             <div className="space-y-1">
               <p className="font-medium text-xs">Events</p>
-              {executionEventsQuery.data.events.map((event) => (
-                <div
-                  className="rounded border px-2 py-1 text-xs"
-                  key={event.id}
-                >
-                  <p className="font-medium">{event.message}</p>
-                  <p className="text-muted-foreground">{event.eventType}</p>
-                </div>
-              ))}
+              {orderedExecutionEvents.map((event) => {
+                const eventNodeName = toEventNodeName(event.metadata);
+
+                return (
+                  <div
+                    className="rounded border px-2 py-1 text-xs"
+                    key={event.id}
+                  >
+                    <p className="font-medium">{event.message}</p>
+                    {eventNodeName ? (
+                      <p className="text-muted-foreground text-[11px]">
+                        Node: {eventNodeName}
+                      </p>
+                    ) : null}
+                    <p className="text-muted-foreground">{event.eventType}</p>
+                  </div>
+                );
+              })}
             </div>
           ) : null}
 
-          {executionLogsQuery.data?.logs?.length ? (
+          {orderedExecutionLogs.length ? (
             <div className="space-y-1">
               <p className="font-medium text-xs">Logs</p>
-              {executionLogsQuery.data.logs.map((log) => (
+              {orderedExecutionLogs.map((log) => (
                 <details
                   className="rounded border px-2 py-1 text-xs"
                   key={log.id}

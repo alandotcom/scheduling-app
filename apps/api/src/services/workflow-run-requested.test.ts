@@ -307,6 +307,91 @@ function createWaitLoggerGraph(): SerializedWorkflowGraph {
   };
 }
 
+function createParallelWaitLoggerGraph(): SerializedWorkflowGraph {
+  return {
+    attributes: {},
+    options: { type: "directed" },
+    nodes: [
+      {
+        key: "trigger-node",
+        attributes: {
+          id: "trigger-node",
+          type: "trigger",
+          position: { x: 0, y: 0 },
+          data: {
+            type: "trigger",
+            label: "Webhook",
+            config: {
+              triggerType: "DomainEvent",
+              domain: "client",
+              startEvents: ["client.created"],
+              restartEvents: [],
+              stopEvents: [],
+            },
+          },
+        },
+      },
+      {
+        key: "wait-node",
+        attributes: {
+          id: "wait-node",
+          type: "action",
+          position: { x: 320, y: 0 },
+          data: {
+            type: "action",
+            label: "Wait",
+            config: {
+              actionType: "wait",
+              waitDuration: "5s",
+              waitGateMode: "off",
+            },
+          },
+        },
+      },
+      {
+        key: "logger-node",
+        attributes: {
+          id: "logger-node",
+          type: "action",
+          position: { x: 320, y: 160 },
+          data: {
+            type: "action",
+            label: "Log Event",
+            config: {
+              actionType: "logger",
+              message: "Parallel branch logger",
+            },
+          },
+        },
+      },
+    ],
+    edges: [
+      {
+        key: "edge-trigger-wait",
+        source: "trigger-node",
+        target: "wait-node",
+        undirected: false,
+        attributes: {
+          id: "edge-trigger-wait",
+          source: "trigger-node",
+          target: "wait-node",
+        },
+      },
+      {
+        key: "edge-trigger-logger",
+        source: "trigger-node",
+        target: "logger-node",
+        undirected: false,
+        attributes: {
+          id: "edge-trigger-logger",
+          source: "trigger-node",
+          target: "logger-node",
+        },
+      },
+    ],
+  };
+}
+
 describe("workflow run requested service", () => {
   const db: TestDatabase = getTestDb();
 
@@ -362,6 +447,7 @@ describe("workflow run requested service", () => {
         },
       },
       {
+        runStep: async (_stepId, fn) => fn(),
         sleep: async () => {},
       },
     );
@@ -433,6 +519,7 @@ describe("workflow run requested service", () => {
         },
       },
       {
+        runStep: async (_stepId, fn) => fn(),
         sleep: async () => {},
       },
     );
@@ -501,6 +588,7 @@ describe("workflow run requested service", () => {
           },
         },
         {
+          runStep: async (_stepId, fn) => fn(),
           sleep: async () => {},
         },
       );
@@ -577,6 +665,7 @@ describe("workflow run requested service", () => {
         },
       },
       {
+        runStep: async (_stepId, fn) => fn(),
         sleep: async () => {},
       },
     );
@@ -605,6 +694,69 @@ describe("workflow run requested service", () => {
     expect(eventTypes).toContain("run.waiting");
     expect(eventTypes).toContain("run.resumed");
     expect(eventTypes).toContain("run.completed");
+  });
+
+  test("wait action calls sleep outside runStep callback", async () => {
+    const workflow = await workflowService.create(
+      {
+        name: "Wait Nested Step Guard Workflow",
+        graph: createWaitGraph(),
+        isEnabled: true,
+      },
+      { orgId, userId },
+    );
+
+    const execution = await withOrg(orgId, async (tx) =>
+      workflowRepository.createExecution(tx, orgId, {
+        workflowId: workflow.id,
+        status: "running",
+        triggerType: "manual",
+        isDryRun: false,
+        triggerEventType: "client.created",
+        input: {
+          clientId: "018f4d3a-6d80-7c5b-8a4a-6cb8f8d57d22",
+        },
+      }),
+    );
+
+    let isInRunStep = false;
+    let sleepCalled = false;
+
+    await executeWorkflowRunRequested(
+      {
+        orgId,
+        workflowId: workflow.id,
+        workflowName: workflow.name,
+        executionId: execution.id,
+        graph: workflow.graph,
+        triggerInput: {
+          firstName: "Ada",
+          clientId: "018f4d3a-6d80-7c5b-8a4a-6cb8f8d57d22",
+        },
+        eventContext: {
+          eventType: "client.created",
+        },
+      },
+      {
+        runStep: async (_stepId, fn) => {
+          isInRunStep = true;
+          try {
+            return await fn();
+          } finally {
+            isInRunStep = false;
+          }
+        },
+        sleep: async () => {
+          if (isInRunStep) {
+            throw new Error("sleep called inside runStep");
+          }
+
+          sleepCalled = true;
+        },
+      },
+    );
+
+    expect(sleepCalled).toBeTrue();
   });
 
   test("resumed wait execution continues to downstream logger without duplicate wait logs", async () => {
@@ -701,6 +853,7 @@ describe("workflow run requested service", () => {
         },
       },
       {
+        runStep: async (_stepId, fn) => fn(),
         sleep: async () => {},
       },
     );
@@ -731,5 +884,87 @@ describe("workflow run requested service", () => {
       .from(workflowExecutionEvents)
       .where(eq(workflowExecutionEvents.executionId, execution.id));
     expect(events.some((event) => event.eventType === "run.log")).toBeTrue();
+  });
+
+  test("parallel branch logger executes without waiting for wait node", async () => {
+    const workflow = await workflowService.create(
+      {
+        name: "Parallel Wait Logger Workflow",
+        graph: createParallelWaitLoggerGraph(),
+        isEnabled: true,
+      },
+      { orgId, userId },
+    );
+
+    const execution = await withOrg(orgId, async (tx) =>
+      workflowRepository.createExecution(tx, orgId, {
+        workflowId: workflow.id,
+        status: "running",
+        triggerType: "manual",
+        isDryRun: false,
+        triggerEventType: "client.created",
+        input: {
+          clientId: "018f4d3a-6d80-7c5b-8a4a-6cb8f8d57d72",
+        },
+      }),
+    );
+
+    const stepTrace: string[] = [];
+    let loggerStepSeenBeforeSleep = false;
+
+    await executeWorkflowRunRequested(
+      {
+        orgId,
+        workflowId: workflow.id,
+        workflowName: workflow.name,
+        executionId: execution.id,
+        graph: workflow.graph,
+        triggerInput: {
+          firstName: "Ada",
+          clientId: "018f4d3a-6d80-7c5b-8a4a-6cb8f8d57d72",
+        },
+        eventContext: {
+          eventType: "client.created",
+        },
+      },
+      {
+        runStep: async (stepId, fn) => {
+          stepTrace.push(`run:${stepId}`);
+          if (stepId.includes("node-log-event-logger-node")) {
+            loggerStepSeenBeforeSleep = true;
+          }
+
+          return fn();
+        },
+        sleep: async () => {
+          expect(loggerStepSeenBeforeSleep).toBeTrue();
+          stepTrace.push("sleep");
+          await new Promise((resolve) => setTimeout(resolve, 25));
+        },
+      },
+    );
+
+    await setTestOrgContext(db, orgId);
+
+    const logs = await db
+      .select()
+      .from(workflowExecutionLogs)
+      .where(eq(workflowExecutionLogs.executionId, execution.id));
+
+    const loggerLog = logs.find((log) => log.nodeId === "logger-node");
+    const waitLog = logs.find((log) => log.nodeId === "wait-node");
+
+    expect(loggerLog?.status).toBe("success");
+    expect(waitLog?.status).toBe("success");
+    expect(loggerLog?.completedAt?.getTime() ?? 0).toBeLessThanOrEqual(
+      waitLog?.completedAt?.getTime() ?? Number.MAX_SAFE_INTEGER,
+    );
+
+    expect(
+      stepTrace.some((entry) => entry.includes("node-log-event-logger-node")),
+    ).toBeTrue();
+    expect(
+      stepTrace.some((entry) => entry.includes("node-wait-wait-node")),
+    ).toBeTrue();
   });
 });
