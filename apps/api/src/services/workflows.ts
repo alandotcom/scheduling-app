@@ -51,7 +51,7 @@ import {
 } from "./workflow-trigger-registry.js";
 import { orchestrateTriggerExecution } from "./workflow-trigger-orchestrator.js";
 import type { DbClient } from "../lib/db.js";
-import { workflowExecutionEventType } from "./workflow-execution-events.js";
+import { workflowRuntimeProvider } from "./workflow-runtime-provider.js";
 
 const UNIQUE_CONSTRAINT_VIOLATION = "23505";
 const WORKFLOW_NAME_UNIQUE_CONSTRAINT = "workflows_org_name_ci_uidx";
@@ -199,6 +199,30 @@ function workflowNameConflictError(): ApplicationError {
     code: "CONFLICT",
     details: { field: "name" },
   });
+}
+
+function buildNodeStatusesFromLogs(input: {
+  executionStatus: string;
+  logs: WorkflowExecutionLog[];
+}): Array<{ nodeId: string; status: string }> {
+  return Array.from(
+    input.logs.reduce((latestByNode, log) => {
+      if (latestByNode.has(log.nodeId)) {
+        return latestByNode;
+      }
+
+      latestByNode.set(log.nodeId, {
+        nodeId: log.nodeId,
+        status:
+          input.executionStatus === "cancelled" &&
+          (log.status === "pending" || log.status === "running")
+            ? "cancelled"
+            : log.status,
+      });
+
+      return latestByNode;
+    }, new Map<string, { nodeId: string; status: string }>()),
+  ).map(([, nodeStatus]) => nodeStatus);
 }
 
 const SAMPLE_ROWS_PER_EVENT = 10;
@@ -932,19 +956,24 @@ export class WorkflowService {
               },
             });
 
-            if (run.eventId) {
+            const runId = run.eventId
+              ? await workflowRuntimeProvider.resolveRunIdFromEvent(run.eventId)
+              : null;
+            const runIdentifier = runId ?? run.eventId ?? null;
+
+            if (runIdentifier) {
               await workflowRepository.setExecutionRunId(
                 tx,
                 context.orgId,
                 execution.id,
-                run.eventId,
+                runIdentifier,
               );
             }
 
             return {
               executionId: execution.id,
               dryRun: false,
-              ...(run.eventId ? { runId: run.eventId } : {}),
+              ...(runIdentifier ? { runId: runIdentifier } : {}),
             };
           } catch (error: unknown) {
             const message =
@@ -1028,7 +1057,7 @@ export class WorkflowService {
   ): Promise<WorkflowExecution[]> {
     const parsed = listWorkflowExecutionsQuerySchema.parse(query);
 
-    return withOrg(context.orgId, async (tx) => {
+    const executions = await withOrg(context.orgId, async (tx) => {
       const workflow = await workflowRepository.findById(
         tx,
         context.orgId,
@@ -1047,13 +1076,19 @@ export class WorkflowService {
 
       return executions;
     });
+
+    return Promise.all(
+      executions.map((execution) =>
+        workflowRuntimeProvider.hydrateExecution(execution),
+      ),
+    );
   }
 
   async getExecution(
     executionId: string,
     context: ServiceContext,
   ): Promise<WorkflowExecution> {
-    return withOrg(context.orgId, async (tx) => {
+    const execution = await withOrg(context.orgId, async (tx) => {
       const execution = await workflowRepository.findExecutionById(
         tx,
         context.orgId,
@@ -1068,6 +1103,8 @@ export class WorkflowService {
 
       return execution;
     });
+
+    return workflowRuntimeProvider.hydrateExecution(execution);
   }
 
   async getExecutionLogs(
@@ -1087,13 +1124,30 @@ export class WorkflowService {
         });
       }
 
-      const logs = await workflowRepository.listExecutionLogs(
+      const dbLogs = await workflowRepository.listExecutionLogs(
         tx,
         context.orgId,
         executionId,
       );
 
-      return { execution, logs };
+      if (dbLogs.length > 0) {
+        const hydratedExecution = execution.workflowRunId
+          ? await workflowRuntimeProvider.hydrateExecution(execution)
+          : execution;
+
+        return { execution: hydratedExecution, logs: dbLogs };
+      }
+
+      if (!execution.workflowRunId) {
+        return { execution, logs: [] };
+      }
+
+      const hydratedExecution =
+        await workflowRuntimeProvider.hydrateExecution(execution);
+      const logs =
+        await workflowRuntimeProvider.listExecutionLogs(hydratedExecution);
+
+      return { execution: hydratedExecution, logs };
     });
   }
 
@@ -1114,11 +1168,22 @@ export class WorkflowService {
         });
       }
 
-      const events = await workflowRepository.listExecutionEvents(
+      const dbEvents = await workflowRepository.listExecutionEvents(
         tx,
         context.orgId,
         executionId,
       );
+
+      if (dbEvents.length > 0) {
+        return { events: dbEvents };
+      }
+
+      if (!execution.workflowRunId) {
+        return { events: [] };
+      }
+
+      const events =
+        await workflowRuntimeProvider.listExecutionEvents(execution);
 
       return { events };
     });
@@ -1144,35 +1209,34 @@ export class WorkflowService {
         });
       }
 
-      const logs = await workflowRepository.listExecutionLogs(
+      const executionForStatus = execution.workflowRunId
+        ? await workflowRuntimeProvider.hydrateExecution(execution)
+        : execution;
+
+      const dbLogs = await workflowRepository.listExecutionLogs(
         tx,
         context.orgId,
         executionId,
       );
 
-      const nodeStatuses = Array.from(
-        logs.reduce((latestByNode, log) => {
-          if (latestByNode.has(log.nodeId)) {
-            return latestByNode;
-          }
+      if (dbLogs.length > 0) {
+        return {
+          status: executionForStatus.status,
+          nodeStatuses: buildNodeStatusesFromLogs({
+            executionStatus: executionForStatus.status,
+            logs: dbLogs,
+          }),
+        };
+      }
 
-          latestByNode.set(log.nodeId, {
-            nodeId: log.nodeId,
-            status:
-              execution.status === "cancelled" &&
-              (log.status === "pending" || log.status === "running")
-                ? "cancelled"
-                : log.status,
-          });
+      if (!execution.workflowRunId) {
+        return {
+          status: executionForStatus.status,
+          nodeStatuses: [],
+        };
+      }
 
-          return latestByNode;
-        }, new Map<string, { nodeId: string; status: string }>()),
-      ).map(([, nodeStatus]) => nodeStatus);
-
-      return {
-        status: execution.status,
-        nodeStatuses,
-      };
+      return workflowRuntimeProvider.getExecutionStatus(execution);
     });
   }
 
@@ -1193,62 +1257,73 @@ export class WorkflowService {
         });
       }
 
-      const waitingStates = await workflowRepository.listExecutionWaitingStates(
+      if (!execution.workflowRunId) {
+        const waitingStates =
+          await workflowRepository.listExecutionWaitingStates(
+            tx,
+            context.orgId,
+            executionId,
+          );
+
+        if (waitingStates.length === 0) {
+          throw new ApplicationError("Execution is not currently waiting", {
+            code: "CONFLICT",
+          });
+        }
+
+        const requestedCancellations =
+          await requestWorkflowExecutionCancellations({
+            executionIds: [executionId],
+            workflowId: execution.workflowId,
+            reason: "Cancelled manually",
+            requestedBy: context.userId,
+            cancelRequester: sendWorkflowCancelRequested,
+          });
+
+        const cancelled = await cancelWaitingExecutionsInDatabase({
+          tx,
+          orgId: context.orgId,
+          waitStates: waitingStates,
+          reason: "Cancelled manually",
+          executionIds: requestedCancellations.successfulExecutionIds,
+        });
+
+        if (cancelled.cancelledWaits === 0) {
+          throw new ApplicationError("Execution is no longer waiting", {
+            code: "CONFLICT",
+          });
+        }
+
+        return {
+          success: true,
+          status: "cancelled",
+          cancelledWaitStates: cancelled.cancelledWaits,
+        };
+      }
+
+      try {
+        await workflowRuntimeProvider.cancelExecution(execution.workflowRunId);
+      } catch (error: unknown) {
+        const message =
+          error instanceof Error
+            ? error.message
+            : "Failed to cancel execution in Inngest";
+        throw new ApplicationError(message, {
+          code: "CONFLICT",
+        });
+      }
+
+      await workflowRepository.markExecutionCancelled(
         tx,
         context.orgId,
-        executionId,
+        execution.id,
+        "Cancelled manually",
       );
-
-      if (waitingStates.length === 0) {
-        throw new ApplicationError("Execution is not currently waiting", {
-          code: "CONFLICT",
-        });
-      }
-
-      const requestedCancellations =
-        await requestWorkflowExecutionCancellations({
-          executionIds: [executionId],
-          workflowId: execution.workflowId,
-          reason: "Cancelled manually",
-          requestedBy: context.userId,
-          cancelRequester: sendWorkflowCancelRequested,
-        });
-
-      await workflowRepository.createExecutionEvent(tx, context.orgId, {
-        workflowId: execution.workflowId,
-        executionId,
-        eventType: workflowExecutionEventType.runCancelRequested,
-        message: "Manual cancellation requested",
-        metadata: {
-          requestedBy: context.userId,
-        },
-      });
-
-      const cancelled = await cancelWaitingExecutionsInDatabase({
-        tx,
-        orgId: context.orgId,
-        waitStates: waitingStates,
-        reason: "Cancelled manually",
-        executionIds: requestedCancellations.successfulExecutionIds,
-      });
-
-      if (cancelled.cancelledWaits === 0) {
-        throw new ApplicationError("Execution is no longer waiting", {
-          code: "CONFLICT",
-        });
-      }
-
-      await workflowRepository.createExecutionEvent(tx, context.orgId, {
-        workflowId: execution.workflowId,
-        executionId,
-        eventType: workflowExecutionEventType.runCancelled,
-        message: "Run cancelled manually while waiting",
-      });
 
       return {
         success: true,
         status: "cancelled",
-        cancelledWaitStates: cancelled.cancelledWaits,
+        cancelledWaitStates: 0,
       };
     });
   }

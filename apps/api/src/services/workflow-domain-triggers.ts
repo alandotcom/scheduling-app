@@ -27,6 +27,7 @@ import {
   requestWorkflowExecutionCancellations,
   type WorkflowCancelRequester,
 } from "./workflow-cancellation.js";
+import { workflowRuntimeProvider } from "./workflow-runtime-provider.js";
 
 type WorkflowDomainEventEnvelope<TEventType extends DomainEventType> = {
   id: string;
@@ -151,6 +152,8 @@ async function startWorkflowExecution(input: {
       throw error;
     });
 
+  let runId: string | null = null;
+
   try {
     const run = await input.runRequester({
       orgId: input.event.orgId,
@@ -167,11 +170,16 @@ async function startWorkflowExecution(input: {
       },
     });
 
+    const resolvedRunId = run.eventId
+      ? await workflowRuntimeProvider.resolveRunIdFromEvent(run.eventId)
+      : null;
+    runId = resolvedRunId ?? run.eventId ?? null;
+
     await workflowRepository.setExecutionRunId(
       input.tx,
       input.event.orgId,
       execution.id,
-      run.eventId ?? null,
+      runId ?? null,
     );
   } catch (error) {
     const message =
@@ -187,7 +195,10 @@ async function startWorkflowExecution(input: {
     throw error;
   }
 
-  return execution;
+  return {
+    ...execution,
+    workflowRunId: runId ?? execution.workflowRunId,
+  };
 }
 
 async function cancelWaitingRuns(input: {

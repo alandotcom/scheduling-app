@@ -23,6 +23,10 @@ type WorkflowSchedulerInput<TExecution extends SchedulerExecution> = {
   isWaitNode: (node: ParsedNode | undefined) => boolean;
 };
 
+function isExecutionActive(status: string): boolean {
+  return status === "running" || status === "waiting";
+}
+
 export type WorkflowSchedulerResult = {
   hasNodeFailure: boolean;
   nodeStatuses: Map<string, NodeRuntimeStatus>;
@@ -72,7 +76,7 @@ export async function runWorkflowScheduler<
       }
 
       const execution = await input.loadExecution();
-      if (!execution || execution.status === "cancelled") {
+      if (!execution || !isExecutionActive(execution.status)) {
         nodeStatuses.set(nodeId, "cancelled");
         return;
       }

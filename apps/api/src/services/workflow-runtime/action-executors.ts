@@ -205,15 +205,25 @@ export async function executeWaitNodeAction(input: {
           input.workflowInput.executionId,
         );
 
-        if (!markedWaiting && input.execution.status !== "waiting") {
-          return {
-            shouldSleep: false,
-            haltBranch: true,
-            output: {
-              skipped: true,
-              reason: "execution_not_running",
-            },
-          };
+        if (!markedWaiting) {
+          const latestExecution = await input.persistence.loadExecution(
+            input.workflowInput.executionId,
+          );
+
+          if (
+            !latestExecution ||
+            (latestExecution.status !== "running" &&
+              latestExecution.status !== "waiting")
+          ) {
+            return {
+              shouldSleep: false,
+              haltBranch: true,
+              output: {
+                skipped: true,
+                reason: "execution_not_running",
+              },
+            };
+          }
         }
 
         waitState = await input.persistence.createWaitState({
@@ -297,12 +307,16 @@ export async function executeWaitNodeAction(input: {
         input.workflowInput.executionId,
       );
 
-      if (!latestExecution || latestExecution.status === "cancelled") {
+      if (
+        !latestExecution ||
+        (latestExecution.status !== "running" &&
+          latestExecution.status !== "waiting")
+      ) {
         return {
           haltBranch: true,
           output: {
             skipped: true,
-            reason: "execution_cancelled",
+            reason: "execution_terminal",
           },
         };
       }

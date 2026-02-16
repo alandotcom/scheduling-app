@@ -37,7 +37,7 @@ describe("workflow run requested function", () => {
 
     expect(fn["opts"]).toMatchObject({
       id: "workflow-run-requested",
-      retries: 0,
+      retries: 2,
       cancelOn: [
         {
           event: "workflow/run.cancel.requested",

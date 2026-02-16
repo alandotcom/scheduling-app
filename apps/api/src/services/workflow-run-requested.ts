@@ -879,7 +879,13 @@ export async function executeWorkflowRunRequested(
 ): Promise<void> {
   const persistence = new WorkflowRuntimePersistence(input.orgId);
   const initialExecution = await persistence.loadExecution(input.executionId);
-  if (!initialExecution || isExecutionTerminal(initialExecution.status)) {
+  if (!initialExecution) {
+    throw new Error(
+      `Workflow execution not found for run request: ${input.executionId}`,
+    );
+  }
+
+  if (isExecutionTerminal(initialExecution.status)) {
     return;
   }
 
@@ -891,7 +897,7 @@ export async function executeWorkflowRunRequested(
     workflowId: input.workflowId,
     executionId: input.executionId,
     eventType: workflowExecutionEventType.runStarted,
-    message: "Manual run started",
+    message: "Run started",
     metadata: {
       eventType: input.eventContext.eventType,
     },

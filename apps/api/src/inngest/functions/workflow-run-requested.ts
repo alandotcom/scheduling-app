@@ -9,7 +9,7 @@ export function createWorkflowRunRequestedFunction(
   return inngest.createFunction(
     {
       id: "workflow-run-requested",
-      retries: 0,
+      retries: 2,
       cancelOn: [
         {
           event: "workflow/run.cancel.requested",

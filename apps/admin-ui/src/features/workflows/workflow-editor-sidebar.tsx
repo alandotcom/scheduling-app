@@ -498,7 +498,7 @@ export function WorkflowEditorSidebar({
       </div>
 
       {/* Tab content */}
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 overflow-y-auto [scrollbar-gutter:stable]">
         {activeTab === "runs" ? (
           <div className="p-4">
             <WorkflowRunsPanel
