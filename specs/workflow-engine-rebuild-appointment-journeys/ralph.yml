@@ -768,3 +768,8 @@ hats:
       - You MUST use conventional commit format because it enables automated changelog generation
       - You MUST update all code task frontmatter to `status: completed` before committing because this tracks task completion
       - You SHOULD include the spec path in commit footer because it provides traceability
+
+
+RObot:
+  enabled: true
+  timeout_seconds: 120
