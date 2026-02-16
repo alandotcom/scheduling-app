@@ -1,6 +1,5 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
-import { useState } from "react";
+import { cleanup, render, screen } from "@testing-library/react";
 import { ExpressionInput } from "./expression-input";
 
 afterEach(() => {
@@ -41,58 +40,6 @@ describe("ExpressionInput", () => {
     expect(tokens[0]?.textContent).toBe("Webhook.data.startsAt");
   });
 
-  test("treats token as atomic on backspace", () => {
-    function Harness() {
-      const [value, setValue] = useState("Before Webhook.data.startsAt after");
-
-      return (
-        <ExpressionInput
-          onBlur={() => {}}
-          onChange={setValue}
-          suggestions={[]}
-          value={value}
-        />
-      );
-    }
-
-    render(<Harness />);
-
-    const input = screen.getByRole("textbox") as HTMLInputElement;
-    const tokenEnd = "Before Webhook.data.startsAt".length;
-    input.focus();
-    input.setSelectionRange(tokenEnd, tokenEnd);
-
-    fireEvent.keyDown(input, { key: "Backspace" });
-
-    expect(input.value).toBe("Before  after");
-  });
-
-  test("typing at chip boundary inserts a space before the character", () => {
-    function Harness() {
-      const [value, setValue] = useState("Before Webhook.data.startsAt");
-
-      return (
-        <ExpressionInput
-          onBlur={() => {}}
-          onChange={setValue}
-          suggestions={[]}
-          value={value}
-        />
-      );
-    }
-
-    render(<Harness />);
-
-    const input = screen.getByRole("textbox") as HTMLInputElement;
-    const tokenEnd = "Before Webhook.data.startsAt".length;
-    input.focus();
-    input.setSelectionRange(tokenEnd, tokenEnd);
-
-    fireEvent.keyDown(input, { key: "x" });
-
-    expect(input.value).toBe("Before Webhook.data.startsAt x");
-  });
-
   test("text after chip with space does not extend the chip", () => {
     const { container } = render(
       <ExpressionInput
@@ -109,8 +56,8 @@ describe("ExpressionInput", () => {
     expect(tokens[0]?.textContent).toBe("Webhook.data.startsAt");
   });
 
-  test("snaps selection out of the middle of a token", () => {
-    render(
+  test("badges have contentEditable=false for atomic behavior", () => {
+    const { container } = render(
       <ExpressionInput
         onBlur={() => {}}
         onChange={() => {}}
@@ -119,15 +66,23 @@ describe("ExpressionInput", () => {
       />,
     );
 
-    const input = screen.getByRole("textbox") as HTMLInputElement;
-    const insideToken = "Before Webhook.da".length;
+    const tokens = container.querySelectorAll("[data-expression-token='true']");
 
-    input.focus();
-    input.setSelectionRange(insideToken, insideToken);
-    fireEvent.select(input);
+    expect(tokens.length).toBe(1);
+    expect(tokens[0]?.getAttribute("contenteditable")).toBe("false");
+  });
 
-    const tokenEnd = "Before Webhook.data.startsAt".length;
-    expect(input.selectionStart).toBe(tokenEnd);
-    expect(input.selectionEnd).toBe(tokenEnd);
+  test("renders as a contentEditable textbox", () => {
+    render(
+      <ExpressionInput
+        onBlur={() => {}}
+        onChange={() => {}}
+        suggestions={[]}
+        value=""
+      />,
+    );
+
+    const textbox = screen.getByRole("textbox");
+    expect(textbox.getAttribute("contenteditable")).toBe("true");
   });
 });

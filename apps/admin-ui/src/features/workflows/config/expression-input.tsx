@@ -1,5 +1,4 @@
-import { useLayoutEffect, useMemo, useRef, useState } from "react";
-import { Input } from "@/components/ui/input";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import type { EventAttributeSuggestion } from "./event-attribute-suggestions";
 
@@ -21,122 +20,6 @@ type MentionState = {
   query: string;
 };
 
-type ExpressionSegment = {
-  value: string;
-  isReference: boolean;
-};
-
-type ExpressionReferenceRange = {
-  start: number;
-  end: number;
-};
-
-function toExpressionSegments(value: string): ExpressionSegment[] {
-  if (value.length === 0) {
-    return [];
-  }
-
-  const segments: ExpressionSegment[] = [];
-  let cursor = 0;
-
-  for (const match of value.matchAll(REFERENCE_TOKEN_PATTERN)) {
-    const token = match[0];
-    const start = match.index;
-
-    if (!token || start === undefined) {
-      continue;
-    }
-
-    if (start > cursor) {
-      segments.push({
-        value: value.slice(cursor, start),
-        isReference: false,
-      });
-    }
-
-    segments.push({
-      value: token,
-      isReference: true,
-    });
-    cursor = start + token.length;
-  }
-
-  if (cursor < value.length) {
-    segments.push({
-      value: value.slice(cursor),
-      isReference: false,
-    });
-  }
-
-  return segments;
-}
-
-function getReferenceRanges(value: string): ExpressionReferenceRange[] {
-  const ranges: ExpressionReferenceRange[] = [];
-
-  for (const match of value.matchAll(REFERENCE_TOKEN_PATTERN)) {
-    const token = match[0];
-    const start = match.index;
-    if (!token || start === undefined) {
-      continue;
-    }
-
-    ranges.push({
-      start,
-      end: start + token.length,
-    });
-  }
-
-  return ranges;
-}
-
-function findInternalReferenceRange(
-  ranges: ExpressionReferenceRange[],
-  position: number,
-): ExpressionReferenceRange | null {
-  const matchingRange = ranges.find(
-    (range) => position > range.start && position < range.end,
-  );
-
-  return matchingRange ?? null;
-}
-
-function clampSelectionToReferenceBoundaries(input: {
-  start: number;
-  end: number;
-  ranges: ExpressionReferenceRange[];
-}) {
-  if (input.start === input.end) {
-    const range = findInternalReferenceRange(input.ranges, input.start);
-    if (!range) {
-      return { start: input.start, end: input.end };
-    }
-
-    return {
-      start: range.end,
-      end: range.end,
-    };
-  }
-
-  let nextStart = input.start;
-  let nextEnd = input.end;
-
-  for (const range of input.ranges) {
-    if (nextStart > range.start && nextStart < range.end) {
-      nextStart = range.start;
-    }
-
-    if (nextEnd > range.start && nextEnd < range.end) {
-      nextEnd = range.end;
-    }
-  }
-
-  return {
-    start: nextStart,
-    end: nextEnd,
-  };
-}
-
 function getMentionState(value: string, cursor: number): MentionState | null {
   const beforeCursor = value.slice(0, cursor);
   const mentionStart = beforeCursor.lastIndexOf("@");
@@ -157,6 +40,150 @@ function getMentionState(value: string, cursor: number): MentionState | null {
   };
 }
 
+/** Check if a DOM node is inside a badge element */
+function isInsideBadge(node: Node, container: HTMLElement): boolean {
+  let parent = node.parentElement;
+  while (parent && parent !== container) {
+    if (parent.hasAttribute("data-template")) {
+      return true;
+    }
+    parent = parent.parentElement;
+  }
+  return false;
+}
+
+function isHTMLElement(node: Node): node is HTMLElement {
+  return node.nodeType === Node.ELEMENT_NODE;
+}
+
+/** Get cursor position as character offset in the value string */
+function getCursorOffset(container: HTMLElement): number | null {
+  const selection = window.getSelection();
+  if (!selection || selection.rangeCount === 0) {
+    return null;
+  }
+
+  const range = selection.getRangeAt(0);
+  let offset = 0;
+  const walker = document.createTreeWalker(
+    container,
+    NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT,
+    null,
+  );
+
+  let node: Node | null;
+  while ((node = walker.nextNode())) {
+    if (node.nodeType === Node.TEXT_NODE) {
+      if (isInsideBadge(node, container)) {
+        continue;
+      }
+      if (node === range.endContainer) {
+        return offset + range.endOffset;
+      }
+      offset += (node.textContent || "").length;
+    } else if (isHTMLElement(node)) {
+      const template = node.getAttribute("data-template");
+      if (template) {
+        if (node.contains(range.endContainer) || node === range.endContainer) {
+          return offset + template.length;
+        }
+        offset += template.length;
+      }
+    }
+  }
+
+  return offset;
+}
+
+/** Set cursor at a character offset in the contentEditable container */
+function setCursorOffset(container: HTMLElement, targetOffset: number) {
+  let offset = 0;
+  const walker = document.createTreeWalker(
+    container,
+    NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT,
+    null,
+  );
+
+  let node: Node | null;
+  while ((node = walker.nextNode())) {
+    if (node.nodeType === Node.TEXT_NODE) {
+      if (isInsideBadge(node, container)) {
+        continue;
+      }
+      const len = (node.textContent || "").length;
+      if (offset + len >= targetOffset) {
+        try {
+          const range = document.createRange();
+          range.setStart(node, Math.min(targetOffset - offset, len));
+          range.collapse(true);
+          const selection = window.getSelection();
+          selection?.removeAllRanges();
+          selection?.addRange(range);
+        } catch {
+          container.focus();
+        }
+        return;
+      }
+      offset += len;
+    } else if (isHTMLElement(node)) {
+      const template = node.getAttribute("data-template");
+      if (template) {
+        if (offset + template.length >= targetOffset) {
+          // Position cursor after the badge
+          let target = node.nextSibling;
+          if (!target && node.parentNode) {
+            target = document.createTextNode("");
+            node.parentNode.appendChild(target);
+          }
+          if (target) {
+            try {
+              const range = document.createRange();
+              range.setStart(target, 0);
+              range.collapse(true);
+              const selection = window.getSelection();
+              selection?.removeAllRanges();
+              selection?.addRange(range);
+            } catch {
+              container.focus();
+            }
+          }
+          return;
+        }
+        offset += template.length;
+      }
+    }
+  }
+}
+
+/** Extract the text value from the contentEditable DOM */
+function extractValue(container: HTMLElement): string {
+  let result = "";
+  const walker = document.createTreeWalker(
+    container,
+    NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT,
+    null,
+  );
+
+  let node: Node | null;
+  while ((node = walker.nextNode())) {
+    if (node.nodeType === Node.TEXT_NODE) {
+      if (!isInsideBadge(node, container)) {
+        result += node.textContent;
+      }
+    } else if (isHTMLElement(node)) {
+      const template = node.getAttribute("data-template");
+      if (template) {
+        result += template;
+      }
+    }
+  }
+
+  return result;
+}
+
+const BADGE_CLASS =
+  "inline-flex items-center gap-1 rounded-md border border-sky-300/90 bg-sky-500/10 px-1.5 mx-0.5 font-medium text-sky-700 dark:border-sky-400/50 dark:text-sky-300";
+
 export function ExpressionInput({
   value,
   onChange,
@@ -165,26 +192,100 @@ export function ExpressionInput({
   disabled,
   suggestions,
 }: ExpressionInputProps) {
-  const inputRef = useRef<HTMLInputElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
   const [mentionState, setMentionState] = useState<MentionState | null>(null);
-  const [scrollLeft, setScrollLeft] = useState(0);
-  const [pendingSelection, setPendingSelection] = useState<number | null>(null);
+  const [isFocused, setIsFocused] = useState(false);
+  const [internalValue, setInternalValue] = useState(value);
+  const shouldUpdateDisplay = useRef(true);
+  const pendingCursorPosition = useRef<number | null>(null);
   const blurTimeoutRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
-  useLayoutEffect(() => {
-    if (pendingSelection !== null && inputRef.current) {
-      inputRef.current.setSelectionRange(pendingSelection, pendingSelection);
-      setPendingSelection(null);
+  // Sync with external value prop
+  useEffect(() => {
+    if (value !== internalValue) {
+      setInternalValue(value);
+      shouldUpdateDisplay.current = true;
     }
-  }, [pendingSelection]);
+  }, [value]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const expressionSegments = useMemo(
-    () => toExpressionSegments(value),
-    [value],
-  );
-  const referenceRanges = useMemo(() => getReferenceRanges(value), [value]);
+  // Rebuild the contentEditable DOM when display update is needed
+  useEffect(() => {
+    if (!shouldUpdateDisplay.current || !contentRef.current) {
+      return;
+    }
+
+    const container = contentRef.current;
+    const text = internalValue;
+
+    // Save cursor position before rebuilding
+    let cursorPos = isFocused ? getCursorOffset(container) : null;
+    if (pendingCursorPosition.current !== null) {
+      cursorPos = pendingCursorPosition.current;
+      pendingCursorPosition.current = null;
+    }
+
+    // Clear and rebuild DOM
+    container.innerHTML = "";
+
+    if (!text && !isFocused) {
+      if (placeholder) {
+        const span = document.createElement("span");
+        span.className = "text-muted-foreground/70 pointer-events-none";
+        span.textContent = placeholder;
+        container.appendChild(span);
+      }
+      shouldUpdateDisplay.current = false;
+      return;
+    }
+
+    // Parse value and create text nodes + badge elements
+    let cursor = 0;
+    for (const match of text.matchAll(REFERENCE_TOKEN_PATTERN)) {
+      const token = match[0];
+      const start = match.index;
+      if (!token || start === undefined) {
+        continue;
+      }
+
+      if (start > cursor) {
+        container.appendChild(
+          document.createTextNode(text.slice(cursor, start)),
+        );
+      }
+
+      const badge = document.createElement("span");
+      badge.className = BADGE_CLASS;
+      badge.contentEditable = "false";
+      badge.setAttribute("data-template", token);
+      badge.setAttribute("data-expression-token", "true");
+      badge.textContent = token;
+      container.appendChild(badge);
+
+      cursor = start + token.length;
+    }
+
+    if (cursor < text.length) {
+      container.appendChild(document.createTextNode(text.slice(cursor)));
+    }
+
+    // Ensure there's always a text node to type in
+    if (!container.childNodes.length) {
+      container.appendChild(document.createTextNode(""));
+    }
+
+    shouldUpdateDisplay.current = false;
+
+    // Restore cursor position after DOM rebuild
+    if (cursorPos !== null) {
+      requestAnimationFrame(() => {
+        if (contentRef.current) {
+          setCursorOffset(contentRef.current, cursorPos);
+        }
+      });
+    }
+  }, [internalValue, isFocused, placeholder]);
 
   const filteredSuggestions = useMemo(() => {
     if (!mentionState) {
@@ -206,231 +307,136 @@ export function ExpressionInput({
     setActiveIndex(0);
   }
 
+  function handleInput() {
+    if (!contentRef.current) {
+      return;
+    }
+
+    const newValue = extractValue(contentRef.current);
+    if (newValue === internalValue) {
+      return;
+    }
+
+    // Check if reference count changed — if so, rebuild display
+    const oldRefs = [...internalValue.matchAll(REFERENCE_TOKEN_PATTERN)].length;
+    const newRefs = [...newValue.matchAll(REFERENCE_TOKEN_PATTERN)].length;
+
+    setInternalValue(newValue);
+    onChange(newValue);
+
+    if (oldRefs !== newRefs) {
+      shouldUpdateDisplay.current = true;
+    }
+
+    // Update mention/autocomplete state
+    const cursor = getCursorOffset(contentRef.current);
+    if (cursor !== null) {
+      updateMentionState(newValue, cursor);
+    }
+  }
+
   function insertSuggestion(suggestion: EventAttributeSuggestion) {
     if (!mentionState) {
       return;
     }
 
     const inserted = `${suggestion.value} `;
-    const nextValue = `${value.slice(0, mentionState.start)}${inserted}${value.slice(mentionState.end)}`;
+    const nextValue = `${internalValue.slice(0, mentionState.start)}${inserted}${internalValue.slice(mentionState.end)}`;
     const nextCursor = mentionState.start + inserted.length;
 
+    pendingCursorPosition.current = nextCursor;
+    shouldUpdateDisplay.current = true;
+
+    setInternalValue(nextValue);
     onChange(nextValue);
     setOpen(false);
     setMentionState(null);
-    setPendingSelection(nextCursor);
-    inputRef.current?.focus();
+    contentRef.current?.focus();
   }
 
   return (
     <div className="relative">
-      <Input
-        className="text-transparent caret-foreground selection:bg-accent selection:text-accent-foreground"
-        ref={inputRef}
-        disabled={disabled}
-        onChange={(event) => {
-          const nextValue = event.target.value;
-          onChange(nextValue);
-
-          const cursor = event.target.selectionStart ?? nextValue.length;
-          updateMentionState(nextValue, cursor);
-          setScrollLeft(event.target.scrollLeft);
-        }}
-        onKeyDown={(event) => {
-          const selectionStart = event.currentTarget.selectionStart;
-          const selectionEnd = event.currentTarget.selectionEnd;
-
-          if (selectionStart !== null && selectionEnd !== null) {
-            if (event.key === "ArrowLeft" && selectionStart === selectionEnd) {
-              const range = referenceRanges.find(
-                (item) => item.end === selectionStart,
-              );
-
-              if (range) {
-                event.preventDefault();
-                event.currentTarget.setSelectionRange(range.start, range.start);
-                return;
-              }
-            }
-
-            if (event.key === "ArrowRight" && selectionStart === selectionEnd) {
-              const range = referenceRanges.find(
-                (item) => item.start === selectionStart,
-              );
-
-              if (range) {
-                event.preventDefault();
-                event.currentTarget.setSelectionRange(range.end, range.end);
-                return;
-              }
-            }
-
-            if (event.key === "Backspace" && selectionStart === selectionEnd) {
-              const range = referenceRanges.find(
-                (item) => item.end === selectionStart,
-              );
-
-              if (range) {
-                event.preventDefault();
-                const nextValue = `${value.slice(0, range.start)}${value.slice(range.end)}`;
-                onChange(nextValue);
-                setOpen(false);
-                setMentionState(null);
-                requestAnimationFrame(() => {
-                  if (!inputRef.current) {
-                    return;
-                  }
-
-                  inputRef.current.focus();
-                  inputRef.current.setSelectionRange(range.start, range.start);
-                });
-                return;
-              }
-            }
-
-            if (event.key === "Delete" && selectionStart === selectionEnd) {
-              const range = referenceRanges.find(
-                (item) => item.start === selectionStart,
-              );
-
-              if (range) {
-                event.preventDefault();
-                const nextValue = `${value.slice(0, range.start)}${value.slice(range.end)}`;
-                onChange(nextValue);
-                setOpen(false);
-                setMentionState(null);
-                requestAnimationFrame(() => {
-                  if (!inputRef.current) {
-                    return;
-                  }
-
-                  inputRef.current.focus();
-                  inputRef.current.setSelectionRange(range.start, range.start);
-                });
-                return;
-              }
-            }
-          }
-
-          if (
-            selectionStart !== null &&
-            selectionEnd !== null &&
-            selectionStart === selectionEnd &&
-            event.key.length === 1 &&
-            !event.metaKey &&
-            !event.ctrlKey
-          ) {
-            const range = referenceRanges.find(
-              (item) => item.end === selectionStart,
-            );
-            if (range) {
-              event.preventDefault();
-              const nextValue = `${value.slice(0, selectionStart)} ${event.key}${value.slice(selectionStart)}`;
-              onChange(nextValue);
-              setPendingSelection(selectionStart + 2);
-              return;
-            }
-          }
-
-          if (!open || filteredSuggestions.length === 0) {
-            return;
-          }
-
-          if (event.key === "ArrowDown") {
-            event.preventDefault();
-            setActiveIndex((current) =>
-              current + 1 >= filteredSuggestions.length ? 0 : current + 1,
-            );
-            return;
-          }
-
-          if (event.key === "ArrowUp") {
-            event.preventDefault();
-            setActiveIndex((current) =>
-              current - 1 < 0 ? filteredSuggestions.length - 1 : current - 1,
-            );
-            return;
-          }
-
-          if (event.key === "Enter") {
-            event.preventDefault();
-            const suggestion = filteredSuggestions[activeIndex];
-            if (suggestion) {
-              insertSuggestion(suggestion);
-            }
-            return;
-          }
-
-          if (event.key === "Escape") {
-            event.preventDefault();
-            setOpen(false);
-            setMentionState(null);
-          }
-        }}
-        onBlur={() => {
-          blurTimeoutRef.current = setTimeout(() => {
-            setOpen(false);
-            setMentionState(null);
-            onBlur();
-          }, 120);
-        }}
-        onFocus={(event) => {
-          const cursor = event.currentTarget.selectionStart ?? value.length;
-          updateMentionState(value, cursor);
-          setScrollLeft(event.currentTarget.scrollLeft);
-        }}
-        onSelect={(event) => {
-          const start = event.currentTarget.selectionStart;
-          const end = event.currentTarget.selectionEnd;
-
-          if (start === null || end === null) {
-            return;
-          }
-
-          const clamped = clampSelectionToReferenceBoundaries({
-            start,
-            end,
-            ranges: referenceRanges,
-          });
-
-          if (clamped.start === start && clamped.end === end) {
-            return;
-          }
-
-          event.currentTarget.setSelectionRange(clamped.start, clamped.end);
-        }}
-        onScroll={(event) => {
-          setScrollLeft(event.currentTarget.scrollLeft);
-        }}
-        placeholder={placeholder}
-        value={value}
-      />
-
-      {value.length > 0 ? (
+      <div
+        className={cn(
+          "flex min-h-10 w-full items-center rounded-lg border border-input bg-transparent px-3 py-2 text-base md:text-sm",
+          "transition-all duration-200 ease-out",
+          "focus-within:border-ring focus-within:ring-ring/30 focus-within:ring-[3px]",
+          "dark:bg-input/30",
+          disabled && "pointer-events-none cursor-not-allowed opacity-50",
+        )}
+      >
         <div
-          aria-hidden
-          className="pointer-events-none absolute inset-0 flex items-center overflow-hidden rounded-lg px-3 py-2 text-base md:text-sm"
-        >
-          <div
-            className="whitespace-pre text-foreground"
-            style={{ transform: `translateX(${-scrollLeft}px)` }}
-          >
-            {expressionSegments.map((segment, index) =>
-              segment.isReference ? (
-                <span
-                  className="inline-flex items-center rounded bg-sky-500/10 shadow-[0_0_0_3px_rgb(14_165_233_/_0.1)] outline outline-1 outline-offset-[3px] outline-sky-300/90 font-medium text-sky-700 dark:outline-sky-400/50 dark:text-sky-300"
-                  data-expression-token="true"
-                  key={`${segment.value}-${index}`}
-                >
-                  {segment.value}
-                </span>
-              ) : (
-                <span key={`${segment.value}-${index}`}>{segment.value}</span>
-              ),
-            )}
-          </div>
-        </div>
-      ) : null}
+          ref={contentRef}
+          contentEditable={!disabled}
+          className="w-full outline-none whitespace-pre overflow-hidden"
+          onInput={handleInput}
+          onKeyDown={(event) => {
+            if (open && filteredSuggestions.length > 0) {
+              if (event.key === "ArrowDown") {
+                event.preventDefault();
+                setActiveIndex((current) =>
+                  current + 1 >= filteredSuggestions.length ? 0 : current + 1,
+                );
+                return;
+              }
+
+              if (event.key === "ArrowUp") {
+                event.preventDefault();
+                setActiveIndex((current) =>
+                  current - 1 < 0
+                    ? filteredSuggestions.length - 1
+                    : current - 1,
+                );
+                return;
+              }
+
+              if (event.key === "Enter") {
+                event.preventDefault();
+                const suggestion = filteredSuggestions[activeIndex];
+                if (suggestion) {
+                  insertSuggestion(suggestion);
+                }
+                return;
+              }
+
+              if (event.key === "Escape") {
+                event.preventDefault();
+                setOpen(false);
+                setMentionState(null);
+              }
+            }
+          }}
+          onBlur={() => {
+            blurTimeoutRef.current = setTimeout(() => {
+              setIsFocused(false);
+              shouldUpdateDisplay.current = true;
+              setOpen(false);
+              setMentionState(null);
+              onBlur();
+            }, 120);
+          }}
+          onFocus={() => {
+            setIsFocused(true);
+            if (!internalValue) {
+              shouldUpdateDisplay.current = true;
+            }
+          }}
+          onPaste={(e) => {
+            e.preventDefault();
+            const text = e.clipboardData.getData("text/plain");
+            const sel = window.getSelection();
+            if (sel && sel.rangeCount > 0) {
+              const range = sel.getRangeAt(0);
+              range.deleteContents();
+              range.insertNode(document.createTextNode(text));
+              range.collapse(false);
+              handleInput();
+            }
+          }}
+          role="textbox"
+          suppressContentEditableWarning
+        />
+      </div>
 
       {open ? (
         <div
