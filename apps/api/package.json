@@ -25,16 +25,16 @@
     "sync:svix-event-catalog": "bun --env-file=../../.env src/scripts/sync-svix-event-catalog.ts"
   },
   "dependencies": {
-    "@bull-board/api": "^6.17.0",
-    "@bull-board/hono": "^6.17.0",
+    "@bull-board/api": "^6.18.2",
+    "@bull-board/hono": "^6.18.2",
     "@logtape/logtape": "^2.0.2",
-    "@orpc/openapi": "^1.13.4",
-    "@orpc/server": "^1.13.4",
-    "@orpc/zod": "^1.13.4",
+    "@orpc/openapi": "^1.13.5",
+    "@orpc/server": "^1.13.5",
+    "@orpc/zod": "^1.13.5",
     "@scheduling/db": "workspace:*",
     "@scheduling/dto": "workspace:*",
     "better-auth": "^1.4.18",
-    "bullmq": "^5.67.3",
+    "bullmq": "^5.69.3",
     "drizzle-orm": "catalog:",
     "es-toolkit": "^1.44.0",
     "hono": "^4.11.9",
@@ -42,7 +42,7 @@
     "luxon": "^3.7.2",
     "rrule": "^2.8.1",
     "standardenv": "^0.0.2",
-    "svix": "^1.84.1",
+    "svix": "^1.85.0",
     "zod": "catalog:"
   },
   "devDependencies": {
