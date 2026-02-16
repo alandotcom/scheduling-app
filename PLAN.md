@@ -1,597 +1,616 @@
-# Design Doc: Entity-Scoped Correlated Automations
+# Design Doc: Appointment Journey Automations (Notifications Only)
 
-## Overview
+## 1) Scope
 
-We are building an automation builder and runtime on top of Inngest for a scheduling product. Automations are long-running, event-driven workflows that must stay aligned with changing domain state (appointments rescheduled, canceled, availability changing frequently, etc.) without duplicating side effects (SMS/email/Slack).
+We will implement automations that trigger **only** on appointment lifecycle events:
 
-This document defines:
+* **Scheduled** (appointment created)
+* **Rescheduled** (appointment updated, time-related change)
+* **Canceled** (appointment updated, status change)
 
-* A unified trigger model that scales across domain models (appointments, clients, calendars, availability)
-* Runtime semantics for correlation, re-entry, updates, exits, and waits
-* Availability-specific handling for high-frequency change streams
-* Guardrails to prevent common “wrong intent” workflows
+Out of scope:
 
----
+* Triggers on any other domain models (clients, calendars, availability, etc.). Those already exist as webhooks via Svix and are not part of this system.
 
-## Goals
+Primary use case:
 
-1. **One clear mental model across domains**
-
-* “What does one run represent?” (scope)
-* “When does it start?” (entry)
-* “What happens when related data changes?” (change handling)
-* “When does it end?” (exit)
-
-2. **Correctness for scheduling use cases**
-
-* Appointment reminders automatically reschedule when start time changes
-* Runs cancel cleanly on cancel/delete
-* Avoid duplicate notifications by default
-
-3. **Make safe defaults easy**
-
-* Hide developer plumbing (correlation paths) unless needed
-* Provide guardrails and preview
-
-4. **Implementable on Inngest**
-
-* Deterministic routing of events to runs
-* No long-lived sleeps required (optional)
-* Idempotent node execution
+* Notification workflows (SMS, email, Slack), with time-based waits relative to the appointment start time.
 
 ---
 
-## Non-goals
+## 2) Product Principles
 
-* Full BPMN or arbitrary multi-entity joins
-* Arbitrary event correlation logic expressed as code in the UI
-* Exactly-once delivery end-to-end across third-party providers (we provide idempotency and retries, not strict exactly-once guarantees)
+1. **Appointment-centric mental model**
 
----
+* Users think: “For each appointment, send these notifications.”
+* The system must keep future notifications in sync if the appointment time changes.
 
-## Terminology
+2. **Intent-first UX**
 
-* **Automation**: A published workflow definition (nodes, edges, trigger rules).
-* **Run**: One executing instance of an automation for a specific scope key.
-* **Scope**: The domain concept a run represents (Appointment, Client, Calendar, Slot, Window).
-* **Scope key**: The identifier for the run (typically an entity ID, sometimes composite).
-* **Entry rule**: Events that create or re-enter a run.
-* **Change rule**: Events that update an existing run’s context and optionally reschedule pending waits.
-* **Exit rule**: Events that cancel/end a run.
-* **Re-entry policy**: What to do if an entry event happens and a run already exists for the scope key.
-* **Wait**: A node that schedules continuation at a future time or after a duration.
+* Avoid developer-centric terms (correlation, restart events).
+* Make “what ends this journey” explicit (Exit condition).
+
+3. **Safe defaults**
+
+* Default behavior prevents duplicate notifications and wrong-time reminders.
 
 ---
 
-## Product UX Model
+## 3) Key UX Concepts and Naming
 
-Replace “Start/Restart/Stop events + correlation path” with:
+### 3.1 Canonical terms
 
-### Trigger configuration
+* **Appointment Journey**: a workflow that tracks one appointment through time.
+* **Start condition**: what begins the journey for an appointment.
+* **Exit condition**: what ends the journey for an appointment.
+* **If already running**: what to do if the start condition happens again for the same appointment.
+* **Keep in sync**: whether reschedules update future waits and notifications.
+* **Message limits**: workspace-level caps for sends.
 
-1. **Runs for (scope)**
+### 3.2 “One workflow per appointment” definition
 
-* Select: Appointment | Client | Calendar | Availability slot | Availability window
-* Key: default per scope (hidden), with “Advanced” override
+Default rule:
 
-2. **Starts when (entry)**
+* One active journey run per `(automation, appointmentId)`.
 
-* List of event types that start a run
-* Each entry event defines how to extract the scope key (defaulted when possible)
+Important clarification:
 
-3. **If a run already exists (re-entry policy)**
+* You can have multiple automations per appointment. Example:
 
-* Continue existing run
-* Replace existing run (cancel and start fresh)
-* Allow multiple runs (advanced)
-
-4. **When data changes (change handling)**
-
-* Update run data for future steps (default)
-* Reschedule dependent waits (default for time-based scopes like Appointment)
-* Restart from beginning (advanced)
-* Ignore changes
-
-Optional: **Stabilize changes** (debounce/coalesce), default on for availability-type triggers
-
-5. **Ends when (exit)**
-
-* List of event types that end a run
-* Each exit event correlates to the same scope key mapping
-
-### Wait node configuration
-
-Support two user-facing modes:
-
-* **Wait for**: duration (10 minutes, 1 day)
-* **Wait until**: absolute or relative to scope data (1 hour before appointment start)
-
-For “relative to scope” waits, show:
-
-* “If the underlying time changes, reschedule automatically” (default)
-* Advanced: keep original schedule, cancel run
+  * Automation A: “Reminders”
+  * Automation B: “Cancellation notification”
+    Each is independent and still “one per appointment” within that automation.
 
 ---
 
-## Configuration Schema
+## 4) Builder UX Specification
 
-### Automation definition
+### 4.1 Replace “Switch node” with an Appointment Journey Trigger node
 
-```json
-{
-  "id": "aut_123",
-  "version": 7,
-  "status": "published",
-  "scope": {
-    "entity": "appointment",
-    "key": {
-      "type": "path",
-      "path": "data.appointmentId"
-    }
-  },
-  "entry": {
-    "events": [
-      { "name": "appointment.created", "keyPath": "data.appointmentId" }
-    ],
-    "reentryPolicy": "replace"
-  },
-  "changes": {
-    "events": [
-      { "name": "appointment.updated", "keyPath": "data.appointmentId" }
-    ],
-    "behavior": "update_and_reschedule_dependent_waits",
-    "stabilize": null
-  },
-  "exit": {
-    "events": [
-      { "name": "appointment.canceled", "keyPath": "data.appointmentId" },
-      { "name": "appointment.deleted", "keyPath": "data.appointmentId" }
-    ]
-  },
-  "graph": {
-    "nodes": [ /* nodes */ ],
-    "edges": [ /* edges */ ]
-  }
-}
+We remove the need for “fork by create/update/delete” at the top of the workflow.
+
+Instead, a single trigger node defines:
+
+* Start condition
+* Keep in sync behavior
+* Exit condition
+* Re-entry behavior
+
+#### Canvas (ASCII)
+
+```
+┌──────────────────────────┐
+│ Appointment Journey       │
+│ Trigger                  │
+└─────────────┬────────────┘
+              │
+          (nodes...)
+              │
+      ┌───────▼────────┐
+      │ Wait            │
+      │ (relative time) │
+      └───────┬────────┘
+              │
+      ┌───────▼────────┐
+      │ Send SMS        │
+      └────────────────┘
 ```
 
-### Cross-domain entry example (Client scope started by Appointment event)
+### 4.2 Appointment Journey Trigger properties (ASCII)
 
-```json
-{
-  "scope": { "entity": "client", "key": { "type": "path", "path": "data.clientId" } },
-  "entry": {
-    "events": [
-      { "name": "appointment.created", "keyPath": "data.clientId" }
-    ],
-    "reentryPolicy": "continue"
-  }
-}
+```
+┌───────────────────────────────────────────────┐
+│ Appointment Journey Trigger                     │
+├───────────────────────────────────────────────┤
+│ Start condition                                 │
+│   Start when:  [ Appointment scheduled ▾ ]      │
+│                                                   │
+│ If already running for this appointment           │
+│   (•) Keep running                                │
+│       Meaning: ignore duplicate start, keep plan  │
+│   ( ) Start over                                  │
+│       Meaning: end previous run as Superseded and │
+│       create a new one                            │
+│       Note: does NOT run Exit path                │
+│                                                   │
+│ Keep in sync (recommended)                        │
+│   [x] When appointment is rescheduled             │
+│       Behavior: Update future timing              │
+│       (no separate “On update” branch in v1)      │
+│                                                   │
+│ Exit condition                                   │
+│   Exit when: [x] Appointment canceled             │
+│                                                   │
+│ Advanced ▸                                        │
+│   Key: Appointment ID (read-only in v1)           │
+│   Event mapping (internal)                        │
+└───────────────────────────────────────────────┘
 ```
 
-### Wait node schema (dependency-aware)
+Decisions incorporated:
 
-```json
-{
-  "id": "node_wait_1",
-  "type": "wait",
-  "wait": {
-    "mode": "until",
-    "expression": {
-      "type": "relative_to_scope",
-      "basePath": "scope.startAt",
-      "offsetSeconds": -3600
-    },
-    "dependencies": ["scope.startAt", "scope.timezone"],
-    "onDependencyChange": "reschedule"
-  }
-}
+* “On exit path runs on start over”: **No** (start over ends as Superseded only).
+* “On update path”: **Hidden** (no separate branch in v1).
+
+### 4.3 Wait node (appointment-relative, reschedule-aware)
+
+Wait is a first-class node because reminders depend on time.
+
+#### Wait node (ASCII)
+
+```
+┌───────────────────────────────────────────────┐
+│ Wait                                            │
+├───────────────────────────────────────────────┤
+│ Wait until                                       │
+│   [ 1 hour before appointment start ]            │
+│                                                   │
+│ If appointment time changes                       │
+│   (•) Reschedule automatically                    │
+│   ( ) Keep original schedule (advanced)           │
+│   ( ) Exit journey (advanced)                     │
+└───────────────────────────────────────────────┘
 ```
 
-Notes:
+Default:
 
-* `dependencies` is stored explicitly to avoid re-parsing expressions at runtime.
-* `scope.*` is a normalized view of the entity snapshot stored on the run.
+* Reschedule automatically.
 
----
+### 4.4 Notification nodes: unify sending under a “Send Message” node
 
-## Runtime Semantics
+Instead of separate primitives for Twilio/Resend/Slack in v1, use one node with channel selection. This makes global limits and governance feasible.
 
-### Run identity and uniqueness
+#### Send Message node (ASCII)
 
-Default uniqueness key:
-
-* `runKey = automationId + ":" + version + ":" + scopeKey`
-
-If “Allow multiple runs” is enabled:
-
-* `runKey = automationId + ":" + version + ":" + scopeKey + ":" + entryEventId` (or a configured discriminator)
-
-### Event routing pipeline
-
-All domain events flow through a router:
-
-1. Find automations subscribed to this event name (entry, changes, or exit).
-2. For each automation:
-
-   * Compute `scopeKey` from `keyPath` on the matching rule
-   * Load active run by `runKey` (or list if multiple allowed)
-   * Apply the appropriate rule behavior
-
-### Entry behavior
-
-If no run exists:
-
-* Create run
-* Initialize `run.scopeSnapshot` from event payload (and optionally fetch latest entity snapshot)
-* Enqueue execution at start node
-
-If run exists:
-
-* Apply `reentryPolicy`:
-
-  * **continue**: no-op (optionally update run snapshot)
-  * **replace**: cancel run and timers, then create new run and start
-  * **allow_multiple**: create additional run instance
-
-### Change behavior
-
-If run exists:
-
-* Merge new scope data into `run.scopeSnapshot`
-* Apply `changes.behavior`:
-
-  * `update_only`: update snapshot only
-  * `update_and_reschedule_dependent_waits`: update snapshot and reschedule any pending waits whose dependencies intersect the changed data (see below)
-  * `restart_from_beginning`: cancel pending timers, reset run state to start node, re-execute (guardrails required)
-
-If no run exists:
-
-* Default: ignore
-* Optional future: “create on change” for some scopes (not in scope now)
-
-### Exit behavior
-
-If run exists:
-
-* Mark run as canceled
-* Cancel pending timers
-* Do not execute further nodes
-
-If no run exists:
-
-* no-op
+```
+┌───────────────────────────────────────────────┐
+│ Send Message                                    │
+├───────────────────────────────────────────────┤
+│ Channel:   [ SMS ▾ ]                             │
+│ To:        [ Client phone from appointment ]     │
+│ Template:  [ Appointment reminder ▾ ]            │
+│                                                   │
+│ Delivery safeguards                              │
+│   [x] Prevent duplicates for this appointment     │
+│   [x] Count toward workspace message limits       │
+│                                                   │
+│ If suppressed by limits                           │
+│   (•) Skip send and continue                      │
+│   ( ) Retry until expires (advanced)              │
+└───────────────────────────────────────────────┘
+```
 
 ---
 
-## Wait Execution Model
+## 5) Workspace Message Limits (Global Notification Governance)
 
-### Requirement
+### 5.1 Problem
 
-Waits must be cancelable and reschedulable without re-running completed nodes.
+Even with correct scheduling semantics, a workspace may:
 
-### Implementation approach
+* Send too many messages per day
+* Over-message during operational incidents (mass reschedules)
 
-Use “resume events” instead of long sleeps:
+We need workspace-level controls similar to Customer.io’s “message limits” concept, including:
 
-* When execution hits a Wait node:
+* A limit + time frame (max timeframe up to 7 days in Customer.io) ([Customer.io][1])
+* Ability for messages to count toward or ignore the limit ([Customer.io][1])
+* Optional retry behavior for messages that hit the limit (Customer.io supports auto-retry concepts) ([Customer.io][1])
 
-  1. Compute `dueAt` timestamp
-  2. Persist a `RunTimer` record: `(runId, nodeId, dueAt, dependencies, status=pending)`
-  3. Schedule an internal event `automation.resume` for `dueAt` with `{ runId, nodeId, timerId }`
+### 5.2 Proposed workspace settings UX (ASCII)
 
-* When `automation.resume` arrives:
+```
+┌───────────────────────────────────────────────┐
+│ Workspace Settings: Message Limits              │
+├───────────────────────────────────────────────┤
+│ Enable message limits:   [x]                    │
+│                                                   │
+│ Limits (per channel)                              │
+│   SMS:    Max [ 500 ] per [ 24 hours ▾ ]          │
+│   Email:  Max [ 2000 ] per [ 24 hours ▾ ]         │
+│   Slack:  Max [ 1000 ] per [ 24 hours ▾ ]         │
+│                                                   │
+│ When limit is reached                             │
+│   (•) Suppress messages (mark as “Not sent”)      │
+│   ( ) Delay messages until capacity returns        │
+│                                                   │
+│ Retry policy (optional)                           │
+│   Retry suppressed time-sensitive messages for:    │
+│   [ 0 hours ▾ ] (advanced)                         │
+└───────────────────────────────────────────────┘
+```
 
-  1. Load timer and run
-  2. If run canceled or timer not pending, no-op
-  3. Mark timer as fired
-  4. Continue execution from the node following the Wait
+### 5.3 Semantics
 
-Cancellation/reschedule:
+* Message limits are evaluated **at send time**.
+* Each Send Message node can opt in/out of counting toward limits (default: counts).
+* If suppressed:
 
-* Canceling a run marks all pending timers canceled.
-* Rescheduling updates `dueAt`, invalidates prior scheduled resume by canceling timer or incrementing a `timerRevision`.
+  * Record a delivery event as “Suppressed by message limits”
+  * Continue workflow execution (default behavior)
+  * Optional advanced mode: retry until expiration
 
-  * Resume handler must verify `timerRevision` to avoid executing stale resumes.
+### 5.4 Engineering enforcement approach (v1)
 
-### Dependency intersection
+Implement in our DB/service layer (not Inngest config) because:
 
-To reschedule waits on changes, we need to know if a Wait depends on fields that might have changed.
+* Workspace limits must be per-tenant configurable.
+* Inngest throttling/rate limits are configured per function definition and are not suitable for per-workspace variable limits (they are still useful for provider protection; see Section 8.6).
 
-Data:
+Data model recommendation:
 
-* Each wait stores `dependencies: [ "scope.startAt", ... ]`
+* `workspace_message_limits(workspace_id, channel, period_seconds, max_count, mode, retry_seconds)`
+* `message_deliveries(id, workspace_id, appointment_id, automation_id, node_id, channel, scheduled_for, attempted_at, status, reason)`
 
-When a change event arrives:
+Counting window:
 
-* Determine `changedPaths` for the scope snapshot.
+* Use fixed windows per `period_seconds` to keep v1 simple.
+* Window key: `window_start = floor(now / period) * period`
 
-  * If domain events include `changedPaths`, use them.
-  * Else diff previous and new snapshots (shallow or path-based diff for known fields).
-* For each pending timer:
+Atomic check:
 
-  * If `intersects(timer.dependencies, changedPaths)` then recompute `dueAt` and reschedule.
+* `message_limit_counters(workspace_id, channel, window_start, count)`
+* Transaction:
 
-Defaults:
-
-* Appointment scope: `update_and_reschedule_dependent_waits`
-* Client scope: `update_only`
-* Availability scope: depends, see below
-
----
-
-## Availability Handling
-
-Availability updates are typically high-frequency and noisy. Raw `availability.updated` is not a good trigger surface.
-
-### Derived event layer
-
-Add an internal processor that converts raw updates into meaningful edge events:
-
-Input:
-
-* `availability.updated` (or equivalent), containing calendarId, appointmentTypeId (optional), and availability representation for a window.
-
-Processor responsibilities:
-
-1. Maintain last known snapshot per `{calendarId, appointmentTypeId, window}`.
-2. Compute diffs to identify:
-
-   * `availability.slot_opened`
-   * `availability.slot_closed`
-   * `availability.working_hours_changed` (optional)
-   * `availability.block_created` / `availability.block_removed` (optional)
-3. Emit derived events with stable identifiers:
-
-   * slot key: `calendarId + startAt + duration (+ appointmentTypeId)`
-4. Optionally emit `availability.stabilized` after a debounce window.
-
-### Stabilize (debounce/coalesce)
-
-For availability-based automations, expose trigger-level stabilization:
-
-* Default: on, 2 minutes
-* Semantics: only run after changes stop for N minutes
-* Implementation: schedule a debounce timer keyed by `{calendarId, appointmentTypeId, window}`. Reset on each update. On fire, emit `availability.stabilized`.
-
-### Availability scope options
-
-Support two scopes explicitly in UI:
-
-1. **Availability slot**
-
-* Starts when: slot opened
-* Ends when: slot closed
-* Re-entry: replace (default)
-* Changes: typically ignore or update only (slot is mostly identity + time)
-
-2. **Calendar availability window**
-
-* Starts when: availability stabilized
-* Re-entry: replace or keep latest only
-* Changes: replace pending execution (cancel in-flight run and restart) is acceptable because the workflow is usually compute-and-send, not a journey
-
-Guardrail:
-
-* If user selects raw `availability.updated` without stabilization, warn and require explicit acknowledgment.
+  * lock counter row
+  * if count >= max_count: suppress
+  * else increment and allow
 
 ---
 
-## Idempotency and Side-Effect Safety
+## 6) Event Model (Appointments Only)
 
-### Node execution idempotency
+### 6.1 Incoming events
 
-For every node execution, compute:
+We will only ingest:
 
-* `executionKey = runId + ":" + nodeId + ":" + attempt`
+* `appointment.created`
+* `appointment.updated`
 
-Persist execution outcome:
+All events include:
 
-* `RunStepExecutions` table with status, timestamps, provider response metadata.
+* `data` (current appointment)
+* `previous` (prior appointment snapshot)
 
-On retries or duplicate resume events:
+Decision incorporated:
 
-* If an execution with the same key succeeded, skip re-sending.
+* We rely on `previous` to classify lifecycle transitions.
 
-### Notification-level “send once” defaults
+### 6.2 Derived lifecycle classification
 
-For Twilio/Email/Slack nodes, default behavior:
+From incoming events:
 
-* “Send at most once per run” using `executionKey`
+**Scheduled**
 
-Optionally (future):
+* `appointment.created`
 
-* “Send at most once per scope” using:
+**Canceled**
 
-  * `dedupeKey = automationId + ":" + scopeKey + ":" + nodeId`
+* `appointment.updated` where `previous.status != "canceled"` and `data.status == "canceled"`
 
----
+**Rescheduled**
 
-## Guardrails and Validation
+* `appointment.updated` where any of:
 
-Implement a linter at publish time and inline warnings in the builder.
+  * `startAt` changed
+  * `duration` changed
+  * `timezone` changed (if relevant)
+    and not canceled
 
-### Required validations
+All other updates:
 
-1. **Missing exit for cancelable scopes**
-
-* If scope is Appointment and the graph contains any Wait, require an exit rule including canceled/deleted (or explicit override).
-
-2. **High-risk restart**
-
-* If change behavior is “restart_from_beginning” and the path before the first Wait includes side-effect nodes, warn: “May duplicate sends on updates.”
-
-3. **Availability noise**
-
-* If trigger includes `availability.updated` and stabilize is off, warn and require explicit confirmation.
-
-4. **Unbounded waits**
-
-* If Wait until time is in the past or uncomputable based on available data, fail execution and log.
-
-### Suggested preview feature (implementation can be phased)
-
-Timeline preview:
-
-* Given a sample scope snapshot, show scheduled times for each Wait-derived action.
-* Simulate an update event (change startAt) and show what reschedules.
+* Ignored by this automation system (v1).
 
 ---
 
-## Data Model
+## 7) Runtime Semantics (Appointment Journeys)
 
-Minimum tables:
+### 7.1 Identity
 
-### Automations
+* `journeyKey = automationId + ":" + appointmentId`
 
-* `id`, `version`, `status`, `name`
-* `scopeEntity`
-* `definitionJson`
-* `createdAt`, `updatedAt`
+### 7.2 States
 
-### AutomationSubscriptions
+* `Active`
+* `Completed`
+* `Exited` (canceled)
+* `Superseded` (start condition received again and re-entry policy is “Start over”)
 
-* `automationId`, `version`
-* `eventName`
-* `ruleType`: entry | change | exit
-* `keyPath`
-* Optional: `stabilizeSeconds` (for change rules, availability)
+### 7.3 Re-entry behavior
 
-### Runs
+* **Keep running** (default): ignore duplicate start; update appointment snapshot.
+* **Start over**:
 
-* `id`
-* `automationId`, `version`
-* `scopeKey`
-* `status`: active | canceled | completed | failed
-* `scopeSnapshotJson`
-* `currentNodeId`
-* `startedAt`, `updatedAt`, `endedAt`
-
-### RunTimers
-
-* `id`
-* `runId`
-* `nodeId`
-* `dueAt`
-* `dependenciesJson`
-* `status`: pending | fired | canceled
-* `revision` (integer)
-
-### RunStepExecutions
-
-* `id`
-* `runId`, `nodeId`
-* `executionKey` (unique)
-* `status`: started | succeeded | failed
-* `providerMetadataJson`
-* `createdAt`, `updatedAt`
+  * Mark previous run as `Superseded`
+  * Create a new run from scratch
+  * Do not execute exit behavior for the superseded run (per decision)
 
 ---
 
-## Inngest Integration Notes
+## 8) Inngest Implementation Plan (Specific Features and Patterns)
 
-### Event ingestion
+### 8.1 Overview of Inngest building blocks we will use
 
-* Domain services emit events to Inngest with consistent envelopes:
+* `step.sleepUntil` to schedule future execution without compute while waiting ([Inngest][2])
+* `cancelOn` to cancel long sleeps when an appointment is canceled or rescheduled (pattern supported by Inngest) ([Inngest][3])
+* Concurrency keys to serialize per appointmentId and avoid race conditions ([Inngest][4])
+* `step.sendEvent` for reliable internal fan-out events ([Inngest][5])
+* Event idempotency via event `id` (24h dedupe) and function idempotency keys as a backstop ([Inngest][6])
+* Optional debounce for “noisy reschedule bursts” if we add it later ([Inngest][7])
 
-  * `name`
-  * `data`
-  * Optional: `changedPaths` for update events
-  * Optional: `eventId` for dedupe
+### 8.2 Core architecture: Planner + Delivery model
 
-### Router function
+To keep reminders correct under reschedules and cancellations, we will split responsibilities:
 
-Create one Inngest function (or small set) responsible for:
+1. **Journey Planner function**
 
-* receiving all domain events relevant to automations
-* loading matching `AutomationSubscriptions`
-* applying entry/change/exit logic
-* enqueueing internal execution events:
+* Triggered by appointment lifecycle events (created/updated)
+* Determines which deliveries should exist (what, when)
+* Creates, updates, or cancels “Delivery jobs”
 
-  * `automation.execute` (start or continue)
-  * `automation.resume` (timer fired)
-  * `automation.cancel` (optional internal event)
+2. **Delivery function (one per message)**
 
-### Execution function
+* Sleeps until send time
+* Can be canceled (cancelOn) if appointment changes
+* Sends through provider and records result
 
-A separate Inngest function processes `automation.execute` and `automation.resume`:
+This avoids long-running “single function with many waits” complexity and makes cancellations and reschedules explicit and reliable using `cancelOn` + `step.sleepUntil`. ([Inngest][3])
 
-* Loads run
-* Executes nodes deterministically until:
+### 8.3 Functions
 
-  * a Wait node schedules a timer and returns
-  * workflow completes
-  * failure occurs (apply retry policy per node)
+#### A) `appointment-journey-planner`
 
-### Concurrency
+Trigger:
 
-Enforce per-run serialization using:
+* `appointment.created`
+* `appointment.updated`
 
-* Application-level locking on `runId`, or
-* Inngest concurrency key based on `runId`
+Responsibilities:
 
-Also enforce uniqueness on `runKey` at the database layer.
+* Classify lifecycle: scheduled/rescheduled/canceled (using `previous`)
+* Load automations enabled for this workspace (appointment-only)
+* For each automation:
+
+  * Ensure a run record exists for `(automationId, appointmentId)`
+  * Compute intended deliveries from the graph (see 8.4)
+  * For each delivery:
+
+    * Upsert a delivery record
+    * Emit `appointment.delivery.scheduled` event with deterministic id
+  * For removed deliveries:
+
+    * Emit `appointment.delivery.canceled` event
+
+Internal events emitted with `step.sendEvent` for reliability. ([Inngest][5])
+
+#### B) `appointment-delivery-worker`
+
+Trigger:
+
+* `appointment.delivery.scheduled`
+
+Config:
+
+* `cancelOn`:
+
+  * cancel when `appointment.delivery.canceled` matches deliveryId
+  * cancel when `appointment.updated` indicates cancellation for same appointmentId (optional shortcut)
+  * cancel when `appointment.updated` indicates reschedule for same appointmentId (optional shortcut)
+
+Cancel-on-events uses `if` matching between trigger event and cancellation event. ([Inngest][3])
+
+Inside:
+
+* `step.sleepUntil("sleep", scheduledFor)`
+* Before sending:
+
+  * Reload appointment snapshot
+  * If appointment is canceled, do not send
+  * Enforce workspace message limits
+* Send message (Twilio/Resend/Slack)
+* Persist delivery result
+
+Concurrency:
+
+* Concurrency key on `deliveryId` to ensure at most one sender step executes per delivery. ([Inngest][8])
+
+### 8.4 Compiling the workflow graph to deliveries (v1 constraints)
+
+To keep scope tight and implementable:
+
+Supported node types in v1:
+
+* Wait (relative to appointment start)
+* Send Message
+* Log (optional internal only)
+
+Supported structure:
+
+* Linear path from trigger
+* Optional conditions can be added later
+
+Planner compilation logic:
+
+* Traverse nodes sequentially
+* Maintain a “current offset” relative to appointment start
+* Each Wait adjusts offset
+* Each Send Message produces one delivery with:
+
+  * `scheduledFor = appointment.startAt + offset`
+  * `expiresAt` (default: scheduledFor + 6h, configurable per node later)
+
+Reschedule:
+
+* Recompute all `scheduledFor` values
+* For any changed delivery time:
+
+  * cancel old delivery job
+  * schedule new one
+
+Cancel:
+
+* cancel all pending deliveries
+
+### 8.5 Idempotency strategy
+
+Event-level dedupe:
+
+* When emitting `appointment.delivery.scheduled`, set deterministic event `id` so duplicates do not create duplicate function runs in a 24h window. ([Inngest][6])
+
+Delivery-level dedupe:
+
+* Unique DB constraint on `(automationId, appointmentId, nodeId, scheduledFor)` or `(deliveryId)`.
+
+Provider-level idempotency:
+
+* Use `deliveryId` as idempotency key where provider supports it.
+* Always record “sent” state before acknowledging success.
+
+### 8.6 Optional Inngest flow-control for provider protection (not workspace message limits)
+
+Inngest throttling and concurrency are still useful to protect provider APIs:
+
+* Throttling delays function run starts when capacity is exceeded, FIFO, non-lossy. ([Inngest][9])
+* Concurrency limits actively executing steps, sleeping does not count. ([Inngest][4])
+
+We can add:
+
+* `throttle: { limit: X, period: "1m" }` on the delivery worker to smooth spikes to Twilio/Resend if needed. ([Inngest][9])
+
+Do not rely on Inngest throttling for per-workspace configurable message limits (those belong in our DB policy layer).
 
 ---
 
-## Defaults by Scope
+## 9) Mermaid Diagrams
 
-### Appointment
+### 9.1 System architecture
 
-* Entry: appointment.created
-* Re-entry: replace
-* Change: update and reschedule dependent waits
-* Exit: appointment.canceled, appointment.deleted
+```mermaid
+flowchart LR
+  A[Scheduling API] -->|appointment.created/updated| B[Inngest]
+  B --> C[appointment-journey-planner]
 
-### Client
+  C --> D[(DB: automations, runs, deliveries)]
+  C -->|step.sendEvent| E[appointment.delivery.scheduled]
+  C -->|step.sendEvent| F[appointment.delivery.canceled]
 
-* Entry: client.created (common), plus optional cross-domain entry (appointment.created keyed by clientId)
-* Re-entry: continue
-* Change: update only
-* Exit: client.deleted, client.unsubscribed (if applicable)
+  E --> G[appointment-delivery-worker]
+  F --> G
 
-### Calendar object
+  G -->|sleepUntil| G
+  G --> H[Provider: Twilio/Resend/Slack]
+  G --> D
+```
 
-* Entry: calendar.connected/created
-* Re-entry: replace or continue (product choice)
-* Change: update only
-* Exit: calendar.disconnected/deleted
+### 9.2 Reschedule and cancellation behavior
 
-### Availability slot
+```mermaid
+sequenceDiagram
+  participant API as Scheduling API
+  participant ING as Inngest
+  participant PLAN as Planner Fn
+  participant WORK as Delivery Worker Fn
+  participant DB as DB
 
-* Entry: availability.slot_opened
-* Re-entry: replace
-* Exit: availability.slot_closed
-* Stabilize: not needed (events are edge-based)
+  API->>ING: appointment.created
+  ING->>PLAN: run
+  PLAN->>DB: upsert run + deliveries
+  PLAN->>ING: send appointment.delivery.scheduled (delivery A)
 
-### Availability window
+  ING->>WORK: delivery A starts
+  WORK->>ING: sleepUntil(sendAt)
 
-* Entry: availability.stabilized
-* Re-entry: replace
-* Change: replace pending run or keep latest only
-* Stabilize: required, default on
+  API->>ING: appointment.updated (rescheduled)
+  ING->>PLAN: run
+  PLAN->>DB: recompute deliveries
+  PLAN->>ING: send appointment.delivery.canceled (delivery A)
+  PLAN->>ING: send appointment.delivery.scheduled (delivery A2)
+
+  ING->>WORK: cancels sleeping delivery A
+  ING->>WORK: delivery A2 starts and sleeps until new sendAt
+
+  API->>ING: appointment.updated (canceled)
+  ING->>PLAN: run
+  PLAN->>ING: cancel all pending deliveries
+```
+
+### 9.3 Message limits enforcement (send time)
+
+```mermaid
+flowchart TD
+  A[Delivery wakes up] --> B[Load appointment + delivery]
+  B --> C{Appointment canceled?}
+  C -- Yes --> D[Mark delivery skipped: canceled]
+  C -- No --> E{Workspace limit allows send?}
+  E -- No --> F[Mark delivery suppressed by limit]
+  E -- Yes --> G[Send via provider]
+  G --> H[Mark delivery sent]
+```
 
 ---
 
-## Implementation Plan
+## 10) Validation, Warnings, and Preview (UX Requirements)
 
-Phase 1: Core model and runtime
+### 10.1 Publish-time checks
 
-* Schema changes: Automations, Subscriptions, Runs, Timers, StepExecutions
-* Router + executor functions
-* Trigger UI updated to Scope, Entry, Re-entry, Changes, Exit
-* Wait node dependency storage and timer scheduling
-* Appointment defaults and guardrails
+* If an automation contains any Wait node, enforce:
 
-Phase 2: Availability derived events
+  * Keep in sync must be enabled (reschedule-aware), otherwise warn: “Reminder may send at wrong time if appointment changes.”
 
-* Availability diff processor + derived events
-* Stabilize support
-* Availability scope options in UI
+* If a Send Message node is immediate on “rescheduled” start condition and duplicates could happen:
 
-Phase 3: Preview and advanced guardrails
+  * Recommend adding a short debounce option later (not in v1).
 
-* Timeline preview
-* Additional lint rules, duplicate-send detection heuristics
+### 10.2 Timeline preview (required)
+
+Given an example appointment:
+
+* Show each Send Message node’s computed scheduled time.
+* Show what changes when startAt changes.
+* Show that cancellation removes pending deliveries.
+
+This is the primary user confidence mechanism for time-based notifications.
 
 ---
+
+## 11) Deliverables for Engineering
+
+### 11.1 V1 milestones
+
+1. **Automation definition model** (appointment-only, linear)
+2. **Planner function** (created/updated, classify transitions using previous)
+3. **Delivery worker** (sleepUntil + cancelOn + send)
+4. **Workspace message limits** (DB-enforced, UI + per-node “count toward limits”)
+5. **Preview + basic warnings**
+
+### 11.2 Explicit decisions to implement
+
+* Start over marks prior run as `Superseded`, does not execute any exit behavior.
+* No “On update path” branch in v1.
+* All appointment events include `previous`; use it to classify scheduled/rescheduled/canceled.
+
+---
+
+## 12) Notes on Inngest Docs Used
+
+Key Inngest features referenced:
+
+* `cancelOn` for canceling sleeping/long-running functions on events. ([Inngest][3])
+* `step.sleepUntil` for durable scheduling of future execution. ([Inngest][2])
+* Concurrency behavior and the fact that sleeping/waiting does not count toward concurrency. ([Inngest][4])
+* `step.sendEvent` for reliable fan-out from within functions. ([Inngest][5])
+* Idempotency via event ids and function idempotency configuration. ([Inngest][6])
+
+Customer.io message limits used as product prior art:
+
+* Workspace message limit setup and per-message enablement, max timeframe 7 days, and behavior for undeliverable messages. ([Customer.io][1])
+
+[1]: https://docs.customer.io/journeys/message-limits/?utm_source=chatgpt.com "Message Limits"
+[2]: https://www.inngest.com/docs/features/inngest-functions/steps-workflows/sleeps?utm_source=chatgpt.com "Sleeps - Inngest Documentation"
+[3]: https://www.inngest.com/docs/features/inngest-functions/cancellation/cancel-on-events "Cancel on Events - Inngest Documentation"
+[4]: https://www.inngest.com/docs/guides/concurrency?utm_source=chatgpt.com "Concurrency management - Inngest Documentation"
+[5]: https://www.inngest.com/docs/reference/functions/step-send-event?utm_source=chatgpt.com "Send Event"
+[6]: https://www.inngest.com/docs/guides/handling-idempotency?utm_source=chatgpt.com "Handling idempotency - Inngest Documentation"
+[7]: https://www.inngest.com/docs/reference/functions/debounce?utm_source=chatgpt.com "Debounce functions - Inngest Documentation"
+[8]: https://www.inngest.com/docs/functions/concurrency?utm_source=chatgpt.com "Managing concurrency - Inngest Documentation"
+[9]: https://www.inngest.com/docs/guides/throttling "Throttling - Inngest Documentation"
