@@ -1,616 +1,697 @@
-# Design Doc: Appointment Journey Automations (Notifications Only)
+# Workflow Engine Rebuild Plan (Appointment Journeys)
 
-## 1) Scope
+## 1) Goal
 
-We will implement automations that trigger **only** on appointment lifecycle events:
+Rebuild and simplify the current workflow engine into an **appointment-only journey system** with:
 
-* **Scheduled** (appointment created)
-* **Rescheduled** (appointment updated, time-related change)
-* **Canceled** (appointment updated, status change)
+- First-class lifecycle events:
+  - `appointment.scheduled`
+  - `appointment.rescheduled`
+  - `appointment.canceled`
+- Inngest-first runtime semantics (planner + delivery worker)
+- Linear journey model (no generic graph orchestration)
+- Global workspace message limits (enforced at send time)
+- User-visible webhook feature preserved
 
-Out of scope:
-
-* Triggers on any other domain models (clients, calendars, availability, etc.). Those already exist as webhooks via Svix and are not part of this system.
-
-Primary use case:
-
-* Notification workflows (SMS, email, Slack), with time-based waits relative to the appointment start time.
-
----
-
-## 2) Product Principles
-
-1. **Appointment-centric mental model**
-
-* Users think: “For each appointment, send these notifications.”
-* The system must keep future notifications in sync if the appointment time changes.
-
-2. **Intent-first UX**
-
-* Avoid developer-centric terms (correlation, restart events).
-* Make “what ends this journey” explicit (Exit condition).
-
-3. **Safe defaults**
-
-* Default behavior prevents duplicate notifications and wrong-time reminders.
+This is a **big-bang replacement**. We are not preserving legacy workflow engine behavior.
 
 ---
 
-## 3) Key UX Concepts and Naming
+## 2) Final Product Decisions (Locked)
 
-### 3.1 Canonical terms
+## 2.1 Scope
 
-* **Appointment Journey**: a workflow that tracks one appointment through time.
-* **Start condition**: what begins the journey for an appointment.
-* **Exit condition**: what ends the journey for an appointment.
-* **If already running**: what to do if the start condition happens again for the same appointment.
-* **Keep in sync**: whether reschedules update future waits and notifications.
-* **Message limits**: workspace-level caps for sends.
+- Workflow product becomes **appointment-only**.
+- Existing generic/multi-domain workflow authoring and execution is removed.
+- Existing workflow records are treated as disposable dev data.
 
-### 3.2 “One workflow per appointment” definition
+## 2.2 Event model
 
-Default rule:
+- Appointment lifecycle uses **new canonical event names only**:
+  - `appointment.scheduled`
+  - `appointment.rescheduled`
+  - `appointment.canceled`
+- Legacy appointment event names are removed from canonical domain/webhook event catalogs:
+  - `appointment.created`
+  - `appointment.updated`
+  - `appointment.deleted`
+- Non-appointment events stay as-is for webhook/integration triggering.
 
-* One active journey run per `(automation, appointmentId)`.
+## 2.3 Journey trigger semantics (v1)
 
-Important clarification:
+- Start condition: **scheduled only**.
+- Reschedule acts as sync signal for future waits/deliveries.
+- Cancel acts as exit signal (cancel pending deliveries).
 
-* You can have multiple automations per appointment. Example:
+## 2.4 Builder/runtime shape (v1)
 
-  * Automation A: “Reminders”
-  * Automation B: “Cancellation notification”
-    Each is independent and still “one per appointment” within that automation.
+- New definition model (no serialized generic graph).
+- Supported nodes:
+  - Trigger
+  - Wait
+  - Send Message
+  - Logger
+- Journey structure is linear in v1.
 
----
+## 2.5 Delivery channels (v1)
 
-## 4) Builder UX Specification
+- Real channels: **Email (Resend)** + **Slack**.
+- SMS deferred.
 
-### 4.1 Replace “Switch node” with an Appointment Journey Trigger node
+## 2.6 Message limits (v1)
 
-We remove the need for “fork by create/update/delete” at the top of the workflow.
+- Per-workspace, per-channel fixed-window limits.
+- Enforced at send time.
+- On limit hit: **suppress-only** in v1 (no delayed retry queue).
+- Full settings UI included.
 
-Instead, a single trigger node defines:
+## 2.7 Webhooks
 
-* Start condition
-* Keep in sync behavior
-* Exit condition
-* Re-entry behavior
-
-#### Canvas (ASCII)
-
-```
-┌──────────────────────────┐
-│ Appointment Journey       │
-│ Trigger                  │
-└─────────────┬────────────┘
-              │
-          (nodes...)
-              │
-      ┌───────▼────────┐
-      │ Wait            │
-      │ (relative time) │
-      └───────┬────────┘
-              │
-      ┌───────▼────────┐
-      │ Send SMS        │
-      └────────────────┘
-```
-
-### 4.2 Appointment Journey Trigger properties (ASCII)
-
-```
-┌───────────────────────────────────────────────┐
-│ Appointment Journey Trigger                     │
-├───────────────────────────────────────────────┤
-│ Start condition                                 │
-│   Start when:  [ Appointment scheduled ▾ ]      │
-│                                                   │
-│ If already running for this appointment           │
-│   (•) Keep running                                │
-│       Meaning: ignore duplicate start, keep plan  │
-│   ( ) Start over                                  │
-│       Meaning: end previous run as Superseded and │
-│       create a new one                            │
-│       Note: does NOT run Exit path                │
-│                                                   │
-│ Keep in sync (recommended)                        │
-│   [x] When appointment is rescheduled             │
-│       Behavior: Update future timing              │
-│       (no separate “On update” branch in v1)      │
-│                                                   │
-│ Exit condition                                   │
-│   Exit when: [x] Appointment canceled             │
-│                                                   │
-│ Advanced ▸                                        │
-│   Key: Appointment ID (read-only in v1)           │
-│   Event mapping (internal)                        │
-└───────────────────────────────────────────────┘
-```
-
-Decisions incorporated:
-
-* “On exit path runs on start over”: **No** (start over ends as Superseded only).
-* “On update path”: **Hidden** (no separate branch in v1).
-
-### 4.3 Wait node (appointment-relative, reschedule-aware)
-
-Wait is a first-class node because reminders depend on time.
-
-#### Wait node (ASCII)
-
-```
-┌───────────────────────────────────────────────┐
-│ Wait                                            │
-├───────────────────────────────────────────────┤
-│ Wait until                                       │
-│   [ 1 hour before appointment start ]            │
-│                                                   │
-│ If appointment time changes                       │
-│   (•) Reschedule automatically                    │
-│   ( ) Keep original schedule (advanced)           │
-│   ( ) Exit journey (advanced)                     │
-└───────────────────────────────────────────────┘
-```
-
-Default:
-
-* Reschedule automatically.
-
-### 4.4 Notification nodes: unify sending under a “Send Message” node
-
-Instead of separate primitives for Twilio/Resend/Slack in v1, use one node with channel selection. This makes global limits and governance feasible.
-
-#### Send Message node (ASCII)
-
-```
-┌───────────────────────────────────────────────┐
-│ Send Message                                    │
-├───────────────────────────────────────────────┤
-│ Channel:   [ SMS ▾ ]                             │
-│ To:        [ Client phone from appointment ]     │
-│ Template:  [ Appointment reminder ▾ ]            │
-│                                                   │
-│ Delivery safeguards                              │
-│   [x] Prevent duplicates for this appointment     │
-│   [x] Count toward workspace message limits       │
-│                                                   │
-│ If suppressed by limits                           │
-│   (•) Skip send and continue                      │
-│   ( ) Retry until expires (advanced)              │
-└───────────────────────────────────────────────┘
-```
+- Keep webhook feature behavior for users.
+- Appointment webhook event options become the new lifecycle names only.
+- Non-appointment webhook events remain.
 
 ---
 
-## 5) Workspace Message Limits (Global Notification Governance)
+## 3) Current Code Baseline (What exists today)
 
-### 5.1 Problem
+The current system is a generic domain-event graph runtime with wait-state orchestration.
 
-Even with correct scheduling semantics, a workspace may:
+## 3.1 Runtime execution path
 
-* Send too many messages per day
-* Over-message during operational incidents (mass reschedules)
+- Trigger ingestion and orchestration:
+  - `apps/api/src/services/workflow-domain-triggers.ts`
+  - `apps/api/src/services/workflow-trigger-registry.ts`
+  - `apps/api/src/services/workflow-trigger-orchestrator.ts`
+- Run execution:
+  - `apps/api/src/services/workflow-run-requested.ts`
+  - `apps/api/src/services/workflow-runtime/*`
+- Inngest functions:
+  - `apps/api/src/inngest/functions/workflow-domain-triggers.ts`
+  - `apps/api/src/inngest/functions/workflow-run-requested.ts`
 
-We need workspace-level controls similar to Customer.io’s “message limits” concept, including:
+## 3.2 Persistence model
 
-* A limit + time frame (max timeframe up to 7 days in Customer.io) ([Customer.io][1])
-* Ability for messages to count toward or ignore the limit ([Customer.io][1])
-* Optional retry behavior for messages that hit the limit (Customer.io supports auto-retry concepts) ([Customer.io][1])
+- `workflows`
+- `workflow_executions`
+- `workflow_execution_logs`
+- `workflow_execution_events`
+- `workflow_wait_states`
 
-### 5.2 Proposed workspace settings UX (ASCII)
+Defined in:
 
-```
-┌───────────────────────────────────────────────┐
-│ Workspace Settings: Message Limits              │
-├───────────────────────────────────────────────┤
-│ Enable message limits:   [x]                    │
-│                                                   │
-│ Limits (per channel)                              │
-│   SMS:    Max [ 500 ] per [ 24 hours ▾ ]          │
-│   Email:  Max [ 2000 ] per [ 24 hours ▾ ]         │
-│   Slack:  Max [ 1000 ] per [ 24 hours ▾ ]         │
-│                                                   │
-│ When limit is reached                             │
-│   (•) Suppress messages (mark as “Not sent”)      │
-│   ( ) Delay messages until capacity returns        │
-│                                                   │
-│ Retry policy (optional)                           │
-│   Retry suppressed time-sensitive messages for:    │
-│   [ 0 hours ▾ ] (advanced)                         │
-└───────────────────────────────────────────────┘
-```
+- `packages/db/src/schema/index.ts`
+- `apps/api/src/repositories/workflows.ts`
 
-### 5.3 Semantics
+## 3.3 Event taxonomy coupling today
 
-* Message limits are evaluated **at send time**.
-* Each Send Message node can opt in/out of counting toward limits (default: counts).
-* If suppressed:
+- `domain-event` schema aliases `webhook` schema.
+- Current appointment events are `created/updated/deleted`.
 
-  * Record a delivery event as “Suppressed by message limits”
-  * Continue workflow execution (default behavior)
-  * Optional advanced mode: retry until expiration
+Defined in:
 
-### 5.4 Engineering enforcement approach (v1)
+- `packages/dto/src/schemas/domain-event.ts`
+- `packages/dto/src/schemas/webhook.ts`
 
-Implement in our DB/service layer (not Inngest config) because:
+## 3.4 Appointment service emit points
 
-* Workspace limits must be per-tenant configurable.
-* Inngest throttling/rate limits are configured per function definition and are not suitable for per-workspace variable limits (they are still useful for provider protection; see Section 8.6).
+- Appointment lifecycle currently emits `appointment.created`/`appointment.updated`.
 
-Data model recommendation:
+Source:
 
-* `workspace_message_limits(workspace_id, channel, period_seconds, max_count, mode, retry_seconds)`
-* `message_deliveries(id, workspace_id, appointment_id, automation_id, node_id, channel, scheduled_for, attempted_at, status, reason)`
+- `apps/api/src/services/appointments.ts`
+- `apps/api/src/services/jobs/emitter.ts`
 
-Counting window:
+## 3.5 Webhook catalog sync
 
-* Use fixed windows per `period_seconds` to keep v1 simple.
-* Window key: `window_start = floor(now / period) * period`
+- Svix event catalog is generated from webhook DTO event types.
 
-Atomic check:
+Source:
 
-* `message_limit_counters(workspace_id, channel, window_start, count)`
-* Transaction:
+- `apps/api/src/services/svix-event-catalog.ts`
 
-  * lock counter row
-  * if count >= max_count: suppress
-  * else increment and allow
+## 3.6 Integration fanout
+
+- Inngest fanout exists for canonical domain events.
+- App-managed integration definitions exist for `logger`, `resend`, `slack`.
+
+Source:
+
+- `apps/api/src/inngest/functions/integration-fanout.ts`
+- `apps/api/src/services/integrations/app-managed.ts`
+- `apps/api/src/services/integrations/runtime.ts`
 
 ---
 
-## 6) Event Model (Appointments Only)
+## 4) Target Architecture
 
-### 6.1 Incoming events
+## 4.1 High-level model
 
-We will only ingest:
+Use two Inngest functions:
 
-* `appointment.created`
-* `appointment.updated`
+1. `appointment-journey-planner`
+- Triggered by appointment lifecycle events.
+- Computes intended deliveries for each active journey.
+- Upserts delivery artifacts.
+- Emits schedule/cancel internal events.
 
-All events include:
+2. `appointment-delivery-worker`
+- Triggered per delivery schedule event.
+- Sleeps until `scheduledFor`.
+- Cancels on matching cancel events.
+- Rechecks appointment state and workspace limits.
+- Sends via channel dispatcher (Resend/Slack).
+- Persists outcome.
 
-* `data` (current appointment)
-* `previous` (prior appointment snapshot)
+## 4.2 Internal runtime events
 
-Decision incorporated:
+- `journey.delivery.scheduled`
+- `journey.delivery.canceled`
 
-* We rely on `previous` to classify lifecycle transitions.
+These replace generic `workflow/run.requested` orchestration for journey execution.
 
-### 6.2 Derived lifecycle classification
+## 4.3 Identity
 
-From incoming events:
+- `journeyKey = journeyId + ":" + appointmentId`
 
-**Scheduled**
+## 4.4 Lifecycle classification rules
 
-* `appointment.created`
-
-**Canceled**
-
-* `appointment.updated` where `previous.status != "canceled"` and `data.status == "canceled"`
-
-**Rescheduled**
-
-* `appointment.updated` where any of:
-
-  * `startAt` changed
-  * `duration` changed
-  * `timezone` changed (if relevant)
-    and not canceled
-
-All other updates:
-
-* Ignored by this automation system (v1).
+- `appointment.scheduled`:
+  - on create
+- `appointment.canceled`:
+  - status transition `!= cancelled` -> `cancelled`
+- `appointment.rescheduled`:
+  - start/end/timezone changed and resulting status is not cancelled
+- ignore other appointment mutations for journey triggering
 
 ---
 
-## 7) Runtime Semantics (Appointment Journeys)
+## 5) Data Model Direction
 
-### 7.1 Identity
+We will replace generic workflow runtime artifacts with journey artifacts.
 
-* `journeyKey = automationId + ":" + appointmentId`
+## 5.1 Definition storage
 
-### 7.2 States
+- Replace generic graph payload with explicit journey definition schema.
+- Persist only appointment-journey-compatible structures.
 
-* `Active`
-* `Completed`
-* `Exited` (canceled)
-* `Superseded` (start condition received again and re-entry policy is “Start over”)
+## 5.2 Runtime storage
 
-### 7.3 Re-entry behavior
+Introduce journey-focused tables (final names may vary, semantics fixed):
 
-* **Keep running** (default): ignore duplicate start; update appointment snapshot.
-* **Start over**:
+- `journey_runs`
+- `journey_deliveries`
+- `workspace_message_limits`
+- `message_limit_counters`
+- delivery status history (folded into deliveries or separate table)
 
-  * Mark previous run as `Superseded`
-  * Create a new run from scratch
-  * Do not execute exit behavior for the superseded run (per decision)
+## 5.3 Constraints
+
+- Idempotent uniqueness for planned deliveries.
+- Deterministic identity for cancellation/reschedule replacement.
+- Atomic counter update for message limits.
+
+## 5.4 Migration policy for this repo
+
+- **Do not create incremental migrations**.
+- Update initial SQL migration artifacts and reset dev DB per repo policy.
 
 ---
 
-## 8) Inngest Implementation Plan (Specific Features and Patterns)
+## 6) Phased Execution Plan
 
-### 8.1 Overview of Inngest building blocks we will use
+## Phase 1: Canonical Event Taxonomy Cutover
 
-* `step.sleepUntil` to schedule future execution without compute while waiting ([Inngest][2])
-* `cancelOn` to cancel long sleeps when an appointment is canceled or rescheduled (pattern supported by Inngest) ([Inngest][3])
-* Concurrency keys to serialize per appointmentId and avoid race conditions ([Inngest][4])
-* `step.sendEvent` for reliable internal fan-out events ([Inngest][5])
-* Event idempotency via event `id` (24h dedupe) and function idempotency keys as a backstop ([Inngest][6])
-* Optional debounce for “noisy reschedule bursts” if we add it later ([Inngest][7])
+### Objective
+Switch appointment events to lifecycle names and decouple domain-event typing from webhook typing.
 
-### 8.2 Core architecture: Planner + Delivery model
+### Tasks
 
-To keep reminders correct under reschedules and cancellations, we will split responsibilities:
+1. DTO event taxonomy
+- Update appointment event names in:
+  - `packages/dto/src/schemas/domain-event.ts`
+  - `packages/dto/src/schemas/webhook.ts`
+- Keep non-appointment event sets unchanged.
 
-1. **Journey Planner function**
+2. Emitter and appointment service
+- Update emit calls in:
+  - `apps/api/src/services/appointments.ts`
+  - `apps/api/src/services/jobs/emitter.ts`
+- Implement strict classification rules above.
 
-* Triggered by appointment lifecycle events (created/updated)
-* Determines which deliveries should exist (what, when)
-* Creates, updates, or cancels “Delivery jobs”
+3. Inngest schema wiring
+- Update event schema typing in:
+  - `apps/api/src/inngest/client.ts`
+  - `apps/api/src/inngest/functions/integration-fanout.ts`
 
-2. **Delivery function (one per message)**
+4. Svix catalog sync
+- Regenerate catalog behavior from updated webhook event list in:
+  - `apps/api/src/services/svix-event-catalog.ts`
 
-* Sleeps until send time
-* Can be canceled (cancelOn) if appointment changes
-* Sends through provider and records result
+### Acceptance criteria
 
-This avoids long-running “single function with many waits” complexity and makes cancellations and reschedules explicit and reliable using `cancelOn` + `step.sleepUntil`. ([Inngest][3])
-
-### 8.3 Functions
-
-#### A) `appointment-journey-planner`
-
-Trigger:
-
-* `appointment.created`
-* `appointment.updated`
-
-Responsibilities:
-
-* Classify lifecycle: scheduled/rescheduled/canceled (using `previous`)
-* Load automations enabled for this workspace (appointment-only)
-* For each automation:
-
-  * Ensure a run record exists for `(automationId, appointmentId)`
-  * Compute intended deliveries from the graph (see 8.4)
-  * For each delivery:
-
-    * Upsert a delivery record
-    * Emit `appointment.delivery.scheduled` event with deterministic id
-  * For removed deliveries:
-
-    * Emit `appointment.delivery.canceled` event
-
-Internal events emitted with `step.sendEvent` for reliability. ([Inngest][5])
-
-#### B) `appointment-delivery-worker`
-
-Trigger:
-
-* `appointment.delivery.scheduled`
-
-Config:
-
-* `cancelOn`:
-
-  * cancel when `appointment.delivery.canceled` matches deliveryId
-  * cancel when `appointment.updated` indicates cancellation for same appointmentId (optional shortcut)
-  * cancel when `appointment.updated` indicates reschedule for same appointmentId (optional shortcut)
-
-Cancel-on-events uses `if` matching between trigger event and cancellation event. ([Inngest][3])
-
-Inside:
-
-* `step.sleepUntil("sleep", scheduledFor)`
-* Before sending:
-
-  * Reload appointment snapshot
-  * If appointment is canceled, do not send
-  * Enforce workspace message limits
-* Send message (Twilio/Resend/Slack)
-* Persist delivery result
-
-Concurrency:
-
-* Concurrency key on `deliveryId` to ensure at most one sender step executes per delivery. ([Inngest][8])
-
-### 8.4 Compiling the workflow graph to deliveries (v1 constraints)
-
-To keep scope tight and implementable:
-
-Supported node types in v1:
-
-* Wait (relative to appointment start)
-* Send Message
-* Log (optional internal only)
-
-Supported structure:
-
-* Linear path from trigger
-* Optional conditions can be added later
-
-Planner compilation logic:
-
-* Traverse nodes sequentially
-* Maintain a “current offset” relative to appointment start
-* Each Wait adjusts offset
-* Each Send Message produces one delivery with:
-
-  * `scheduledFor = appointment.startAt + offset`
-  * `expiresAt` (default: scheduledFor + 6h, configurable per node later)
-
-Reschedule:
-
-* Recompute all `scheduledFor` values
-* For any changed delivery time:
-
-  * cancel old delivery job
-  * schedule new one
-
-Cancel:
-
-* cancel all pending deliveries
-
-### 8.5 Idempotency strategy
-
-Event-level dedupe:
-
-* When emitting `appointment.delivery.scheduled`, set deterministic event `id` so duplicates do not create duplicate function runs in a 24h window. ([Inngest][6])
-
-Delivery-level dedupe:
-
-* Unique DB constraint on `(automationId, appointmentId, nodeId, scheduledFor)` or `(deliveryId)`.
-
-Provider-level idempotency:
-
-* Use `deliveryId` as idempotency key where provider supports it.
-* Always record “sent” state before acknowledging success.
-
-### 8.6 Optional Inngest flow-control for provider protection (not workspace message limits)
-
-Inngest throttling and concurrency are still useful to protect provider APIs:
-
-* Throttling delays function run starts when capacity is exceeded, FIFO, non-lossy. ([Inngest][9])
-* Concurrency limits actively executing steps, sleeping does not count. ([Inngest][4])
-
-We can add:
-
-* `throttle: { limit: X, period: "1m" }` on the delivery worker to smooth spikes to Twilio/Resend if needed. ([Inngest][9])
-
-Do not rely on Inngest throttling for per-workspace configurable message limits (those belong in our DB policy layer).
+- Appointment lifecycle emits only scheduled/rescheduled/canceled.
+- Webhook catalog presents new appointment event names.
+- Non-appointment events continue functioning.
 
 ---
 
-## 9) Mermaid Diagrams
+## Phase 2: Journey Definition Model + DB Foundation
 
-### 9.1 System architecture
+### Objective
+Replace graph-based workflow definition/persistence with journey-focused schema and storage.
 
-```mermaid
-flowchart LR
-  A[Scheduling API] -->|appointment.created/updated| B[Inngest]
-  B --> C[appointment-journey-planner]
+### Tasks
 
-  C --> D[(DB: automations, runs, deliveries)]
-  C -->|step.sendEvent| E[appointment.delivery.scheduled]
-  C -->|step.sendEvent| F[appointment.delivery.canceled]
+1. DTO schema replacement
+- Replace graph-oriented schema usage in:
+  - `packages/dto/src/schemas/workflow.ts`
+  - `packages/dto/src/schemas/workflow-graph.ts` (remove or retire)
+- Introduce journey definition types (trigger + linear steps).
 
-  E --> G[appointment-delivery-worker]
-  F --> G
+2. DB schema replacement
+- Replace workflow runtime tables in:
+  - `packages/db/src/schema/index.ts`
+- Update initial migration SQL/snapshot files accordingly.
 
-  G -->|sleepUntil| G
-  G --> H[Provider: Twilio/Resend/Slack]
-  G --> D
-```
+3. Repository/service contracts
+- Replace repository APIs in:
+  - `apps/api/src/repositories/workflows.ts`
+- Update service contracts in:
+  - `apps/api/src/services/workflows.ts`
 
-### 9.2 Reschedule and cancellation behavior
+### Acceptance criteria
 
-```mermaid
-sequenceDiagram
-  participant API as Scheduling API
-  participant ING as Inngest
-  participant PLAN as Planner Fn
-  participant WORK as Delivery Worker Fn
-  participant DB as DB
-
-  API->>ING: appointment.created
-  ING->>PLAN: run
-  PLAN->>DB: upsert run + deliveries
-  PLAN->>ING: send appointment.delivery.scheduled (delivery A)
-
-  ING->>WORK: delivery A starts
-  WORK->>ING: sleepUntil(sendAt)
-
-  API->>ING: appointment.updated (rescheduled)
-  ING->>PLAN: run
-  PLAN->>DB: recompute deliveries
-  PLAN->>ING: send appointment.delivery.canceled (delivery A)
-  PLAN->>ING: send appointment.delivery.scheduled (delivery A2)
-
-  ING->>WORK: cancels sleeping delivery A
-  ING->>WORK: delivery A2 starts and sleeps until new sendAt
-
-  API->>ING: appointment.updated (canceled)
-  ING->>PLAN: run
-  PLAN->>ING: cancel all pending deliveries
-```
-
-### 9.3 Message limits enforcement (send time)
-
-```mermaid
-flowchart TD
-  A[Delivery wakes up] --> B[Load appointment + delivery]
-  B --> C{Appointment canceled?}
-  C -- Yes --> D[Mark delivery skipped: canceled]
-  C -- No --> E{Workspace limit allows send?}
-  E -- No --> F[Mark delivery suppressed by limit]
-  E -- Yes --> G[Send via provider]
-  G --> H[Mark delivery sent]
-```
+- API can create/read/update appointment journey definitions.
+- Journey runtime artifacts persist in new tables only.
 
 ---
 
-## 10) Validation, Warnings, and Preview (UX Requirements)
+## Phase 3: Inngest Runtime Rebuild (Planner + Delivery)
 
-### 10.1 Publish-time checks
+### Objective
+Replace generic workflow runtime with planner/delivery architecture.
 
-* If an automation contains any Wait node, enforce:
+### Tasks
 
-  * Keep in sync must be enabled (reschedule-aware), otherwise warn: “Reminder may send at wrong time if appointment changes.”
+1. Add planner function
+- New function under `apps/api/src/inngest/functions/`.
+- Trigger on appointment lifecycle events.
+- Compute/upsert deliveries and emit schedule/cancel runtime events.
 
-* If a Send Message node is immediate on “rescheduled” start condition and duplicates could happen:
+2. Add delivery worker function
+- Trigger on `journey.delivery.scheduled`.
+- Use `step.sleepUntil`.
+- Cancel with `cancelOn` using `journey.delivery.canceled`.
+- Recheck appointment state before send.
 
-  * Recommend adding a short debounce option later (not in v1).
+3. Delivery send path
+- Implement sender dispatcher in API service layer.
+- Reuse existing integration config/secrets/runtime for Resend + Slack.
 
-### 10.2 Timeline preview (required)
+4. Remove legacy runtime
+- Delete/retire:
+  - `apps/api/src/services/workflow-run-requested.ts`
+  - `apps/api/src/services/workflow-runtime/*`
+  - `apps/api/src/services/workflow-domain-triggers.ts`
+  - `apps/api/src/services/workflow-trigger-registry.ts`
+  - `apps/api/src/services/workflow-trigger-orchestrator.ts`
+  - `apps/api/src/inngest/functions/workflow-run-requested.ts`
+  - `apps/api/src/inngest/functions/workflow-domain-triggers.ts`
 
-Given an example appointment:
+### Acceptance criteria
 
-* Show each Send Message node’s computed scheduled time.
-* Show what changes when startAt changes.
-* Show that cancellation removes pending deliveries.
-
-This is the primary user confidence mechanism for time-based notifications.
-
----
-
-## 11) Deliverables for Engineering
-
-### 11.1 V1 milestones
-
-1. **Automation definition model** (appointment-only, linear)
-2. **Planner function** (created/updated, classify transitions using previous)
-3. **Delivery worker** (sleepUntil + cancelOn + send)
-4. **Workspace message limits** (DB-enforced, UI + per-node “count toward limits”)
-5. **Preview + basic warnings**
-
-### 11.2 Explicit decisions to implement
-
-* Start over marks prior run as `Superseded`, does not execute any exit behavior.
-* No “On update path” branch in v1.
-* All appointment events include `previous`; use it to classify scheduled/rescheduled/canceled.
+- Journey runs are planned and delivered through planner/worker only.
+- Reschedules update future deliveries correctly.
+- Cancellations cancel pending deliveries.
 
 ---
 
-## 12) Notes on Inngest Docs Used
+## Phase 4: Message Limits (Backend + UI)
 
-Key Inngest features referenced:
+### Objective
+Ship workspace-level channel limits with suppress-only behavior.
 
-* `cancelOn` for canceling sleeping/long-running functions on events. ([Inngest][3])
-* `step.sleepUntil` for durable scheduling of future execution. ([Inngest][2])
-* Concurrency behavior and the fact that sleeping/waiting does not count toward concurrency. ([Inngest][4])
-* `step.sendEvent` for reliable fan-out from within functions. ([Inngest][5])
-* Idempotency via event ids and function idempotency configuration. ([Inngest][6])
+### Tasks
 
-Customer.io message limits used as product prior art:
+1. Backend policy + storage
+- Add limit tables/queries in db/repository/service layers.
+- Enforce check+increment atomically at send time.
 
-* Workspace message limit setup and per-message enablement, max timeframe 7 days, and behavior for undeliverable messages. ([Customer.io][1])
+2. Admin settings UI
+- Add per-channel limit management in settings.
+- Keep semantics simple: enable + cap + window + suppress mode.
 
-[1]: https://docs.customer.io/journeys/message-limits/?utm_source=chatgpt.com "Message Limits"
-[2]: https://www.inngest.com/docs/features/inngest-functions/steps-workflows/sleeps?utm_source=chatgpt.com "Sleeps - Inngest Documentation"
-[3]: https://www.inngest.com/docs/features/inngest-functions/cancellation/cancel-on-events "Cancel on Events - Inngest Documentation"
-[4]: https://www.inngest.com/docs/guides/concurrency?utm_source=chatgpt.com "Concurrency management - Inngest Documentation"
-[5]: https://www.inngest.com/docs/reference/functions/step-send-event?utm_source=chatgpt.com "Send Event"
-[6]: https://www.inngest.com/docs/guides/handling-idempotency?utm_source=chatgpt.com "Handling idempotency - Inngest Documentation"
-[7]: https://www.inngest.com/docs/reference/functions/debounce?utm_source=chatgpt.com "Debounce functions - Inngest Documentation"
-[8]: https://www.inngest.com/docs/functions/concurrency?utm_source=chatgpt.com "Managing concurrency - Inngest Documentation"
-[9]: https://www.inngest.com/docs/guides/throttling "Throttling - Inngest Documentation"
+3. Node-level control
+- Add `countTowardLimits` toggle on Send Message step config.
+
+### Acceptance criteria
+
+- Limits are enforced per org/channel window.
+- Suppressed sends are recorded and visible.
+
+---
+
+## Phase 5: Admin UI Big-Bang Builder Replacement
+
+### Objective
+Replace generic workflow editor with appointment journey builder and maintain runs observability.
+
+### Tasks
+
+1. Trigger config replacement
+- Replace generic trigger UI in:
+  - `apps/admin-ui/src/features/workflows/workflow-trigger-config.tsx`
+- New trigger UX: scheduled start, keep-in-sync behavior, cancel exit.
+
+2. Node/action model simplification
+- Update action registry:
+  - `apps/admin-ui/src/features/workflows/action-registry.ts`
+- Remove switch/condition/http-request from builder.
+- Keep Trigger/Wait/Send Message/Logger.
+
+3. Configuration UIs
+- Update renderer and node configs:
+  - `apps/admin-ui/src/features/workflows/config/action-config-renderer.tsx`
+  - related node components under `apps/admin-ui/src/features/workflows/nodes/`
+
+4. Runs panel compatibility
+- Preserve runs panel UX semantics with new backend data model.
+
+5. Preview and publish checks
+- Add timeline preview and warnings for reschedule-sensitive waits.
+
+### Acceptance criteria
+
+- Users can build and publish linear appointment journeys only.
+- Runs panel remains usable with new runtime model.
+
+---
+
+## Phase 6: Cleanup, Docs, and Verification
+
+### Objective
+Remove dead code, align docs, and ensure all quality gates pass.
+
+### Tasks
+
+1. Dead code removal
+- Remove legacy engine tests/services/routes no longer used.
+
+2. Documentation updates
+- Update:
+  - `PLAN.md` (this file)
+  - `docs/guides/workflow-engine-domain-events.md`
+  - `docs/guides/workflow-execution-lifecycle.md`
+
+3. Validation suite
+- Run and fix until green:
+  - `pnpm format`
+  - `pnpm lint`
+  - `pnpm typecheck`
+  - `pnpm test`
+
+### Acceptance criteria
+
+- No legacy runtime codepath remains active.
+- Full monorepo checks pass.
+
+---
+
+## 7) Test Matrix (Must Pass)
+
+1. Event classification correctness
+- create -> scheduled
+- time change -> rescheduled
+- status transition -> canceled
+- unrelated update/no_show/delete -> ignored for journey triggers
+
+2. Planner idempotency
+- duplicate lifecycle events do not create duplicate active deliveries
+
+3. Reschedule behavior
+- delivery times recompute and old pending deliveries cancel
+
+4. Cancel behavior
+- pending deliveries cancel and do not send
+
+5. Message limits
+- allow below limit, suppress at limit, proper counter window roll behavior
+
+6. Delivery channels
+- Resend success/failure recorded
+- Slack success/failure recorded
+
+7. Webhook catalog/event typing
+- new appointment event names present
+- non-appointment events unchanged
+
+8. UI behavior
+- builder supports only v1 node set
+- runs panel displays correct statuses/timeline
+
+---
+
+## 8) Risks / Watchouts
+
+- Domain-event and webhook schema are currently tightly coupled; taxonomy update must be coordinated.
+- Big-bang replacement can leave stale UI/api references; route-level cleanup must be explicit.
+- Message-limit counters need strict transaction semantics to avoid race-condition over-send.
+- Planner/delivery idempotency needs deterministic keys and DB uniqueness.
+
+---
+
+## 9) Definition of Done
+
+This project is done when:
+
+1. Appointment journeys are the only workflow product surface.
+2. Runtime is planner + delivery worker using Inngest best practices.
+3. Appointment events are first-class lifecycle events only.
+4. Webhooks continue to work, with updated appointment event taxonomy.
+5. Message limits are enforced with UI + persisted suppression outcomes.
+6. Legacy engine code is deleted.
+7. `pnpm format`, `pnpm lint`, `pnpm typecheck`, and `pnpm test` all pass.
+
+---
+
+## 10) Execution Checklist (Tickets, Owners, Estimates)
+
+Use this as the implementation queue. Estimates are engineering days assuming one focused engineer.
+
+## 10.1 Suggested owner lanes
+
+- `API/Runtime`: Inngest functions, orchestration, service-layer logic
+- `Data/DTO`: Drizzle schema, repository contracts, DTO schemas
+- `Admin UI`: Builder UX, settings UX, runs UX
+- `QA`: Cross-phase regression + end-to-end validation
+
+## 10.2 Phase 1 tickets (Event taxonomy cutover)
+
+1. `P1-01` Appointment lifecycle event taxonomy update
+- Owner: `Data/DTO`
+- Estimate: `1 day`
+- Scope: update appointment event names in domain/webhook DTO schemas, preserve non-appointment events.
+- Files: `packages/dto/src/schemas/domain-event.ts`, `packages/dto/src/schemas/webhook.ts`
+- Depends on: none
+- Done when: type definitions/tests compile and only `scheduled/rescheduled/canceled` are valid appointment lifecycle names.
+
+2. `P1-02` Appointment emit classification implementation
+- Owner: `API/Runtime`
+- Estimate: `1.5 days`
+- Scope: emit lifecycle events with strict classification in appointment service operations.
+- Files: `apps/api/src/services/appointments.ts`, `apps/api/src/services/jobs/emitter.ts`
+- Depends on: `P1-01`
+- Done when: create/reschedule/cancel emit expected events; unrelated updates do not emit lifecycle journey triggers.
+
+3. `P1-03` Inngest schema/fanout alignment
+- Owner: `API/Runtime`
+- Estimate: `1 day`
+- Scope: align Inngest event typing + integration fanout to new appointment event names.
+- Files: `apps/api/src/inngest/client.ts`, `apps/api/src/inngest/functions/integration-fanout.ts`
+- Depends on: `P1-01`
+- Done when: fanout functions register and run for new appointment event names.
+
+4. `P1-04` Svix event catalog update
+- Owner: `API/Runtime`
+- Estimate: `0.5 day`
+- Scope: ensure catalog sync publishes new appointment names and removes legacy appointment names.
+- Files: `apps/api/src/services/svix-event-catalog.ts`
+- Depends on: `P1-01`
+- Done when: sync operation yields expected appointment event types in Svix.
+
+5. `P1-05` Taxonomy regression tests
+- Owner: `QA`
+- Estimate: `1 day`
+- Scope: update/extend tests around DTO schemas, emitter behavior, fanout, and Svix catalog sync.
+- Depends on: `P1-02`, `P1-03`, `P1-04`
+- Done when: targeted tests pass and event naming regressions are covered.
+
+## 10.3 Phase 2 tickets (Journey schema + persistence foundation)
+
+1. `P2-01` Journey definition DTO + API contract
+- Owner: `Data/DTO`
+- Estimate: `2 days`
+- Scope: replace graph-driven workflow DTO with explicit appointment-journey schema.
+- Files: `packages/dto/src/schemas/workflow.ts`, `packages/dto/src/schemas/workflow-graph.ts` (retire or replace)
+- Depends on: `P1-05`
+- Done when: workflow create/update/get/list contracts validate journey model only.
+
+2. `P2-02` DB schema replacement for runtime artifacts
+- Owner: `Data/DTO`
+- Estimate: `2.5 days`
+- Scope: replace generic workflow execution tables with journey-focused tables + message-limit tables.
+- Files: `packages/db/src/schema/index.ts`, initial migration SQL/snapshot files
+- Depends on: `P2-01`
+- Done when: schema compiles and supports run/delivery/limit semantics.
+
+3. `P2-03` Repository/service contract rewrite
+- Owner: `API/Runtime`
+- Estimate: `2 days`
+- Scope: replace `workflowRepository` + service methods to use journey artifacts and definition schema.
+- Files: `apps/api/src/repositories/workflows.ts`, `apps/api/src/services/workflows.ts`
+- Depends on: `P2-02`
+- Done when: API routes work against new storage model without generic graph assumptions.
+
+4. `P2-04` Route/API regression pass
+- Owner: `QA`
+- Estimate: `1 day`
+- Scope: update route tests and serialization expectations.
+- Files: `apps/api/src/routes/workflows.ts`, related tests
+- Depends on: `P2-03`
+- Done when: workflow route suite passes with journey schema.
+
+## 10.4 Phase 3 tickets (Inngest runtime rebuild)
+
+1. `P3-01` Planner function implementation
+- Owner: `API/Runtime`
+- Estimate: `2.5 days`
+- Scope: implement appointment-journey planner (compute/upsert deliveries, emit schedule/cancel events).
+- Files: `apps/api/src/inngest/functions/` (new planner), supporting services/repositories
+- Depends on: `P2-04`
+- Done when: planner creates deterministic delivery plans for lifecycle events.
+
+2. `P3-02` Delivery worker implementation
+- Owner: `API/Runtime`
+- Estimate: `2.5 days`
+- Scope: implement delivery worker with `sleepUntil`, `cancelOn`, pre-send revalidation.
+- Files: `apps/api/src/inngest/functions/` (new worker), supporting services
+- Depends on: `P3-01`
+- Done when: scheduled deliveries send or skip correctly under cancel/reschedule/terminal conditions.
+
+3. `P3-03` Send dispatcher via integration runtime
+- Owner: `API/Runtime`
+- Estimate: `2 days`
+- Scope: implement channel send execution path (Resend + Slack) using existing integration config/secrets/runtime patterns.
+- Files: `apps/api/src/services/integrations/*`, new journey delivery services
+- Depends on: `P3-02`
+- Done when: delivery worker can send real email/slack and persist outcomes.
+
+4. `P3-04` Legacy runtime deletion
+- Owner: `API/Runtime`
+- Estimate: `1.5 days`
+- Scope: remove old trigger registry/orchestrator/run-requested runtime code and Inngest function wiring.
+- Files: legacy runtime files listed in Phase 3 above
+- Depends on: `P3-01`, `P3-02`, `P3-03`
+- Done when: no active path references legacy runtime modules.
+
+5. `P3-05` Runtime reliability tests
+- Owner: `QA`
+- Estimate: `1.5 days`
+- Scope: test idempotency, cancellation, reschedule replacement, and duplicate suppression.
+- Depends on: `P3-04`
+- Done when: runtime integration tests pass and cover planner/worker edge cases.
+
+## 10.5 Phase 4 tickets (Message limits)
+
+1. `P4-01` Limits policy engine + atomic counters
+- Owner: `API/Runtime`
+- Estimate: `2 days`
+- Scope: enforce fixed-window per-channel limits at send time with atomic check/increment.
+- Depends on: `P3-05`
+- Done when: concurrent sends respect caps and suppression outcomes are persisted.
+
+2. `P4-02` Limits settings API
+- Owner: `API/Runtime`
+- Estimate: `1 day`
+- Scope: expose CRUD/read endpoints for per-workspace channel limits.
+- Depends on: `P4-01`
+- Done when: admin UI can fetch/update limits.
+
+3. `P4-03` Limits settings UI + node toggle
+- Owner: `Admin UI`
+- Estimate: `2 days`
+- Scope: add settings controls and Send Message `countTowardLimits` toggle.
+- Depends on: `P4-02`
+- Done when: admins can configure limits and per-step counting behavior.
+
+4. `P4-04` Limits regression tests
+- Owner: `QA`
+- Estimate: `1 day`
+- Scope: API/UI tests for allow vs suppress behavior and persisted suppression display.
+- Depends on: `P4-03`
+- Done when: limits tests pass end-to-end.
+
+## 10.6 Phase 5 tickets (Admin UI builder replacement)
+
+1. `P5-01` Trigger panel replacement
+- Owner: `Admin UI`
+- Estimate: `1.5 days`
+- Scope: replace generic trigger config with appointment journey trigger UX.
+- Files: `apps/admin-ui/src/features/workflows/workflow-trigger-config.tsx`
+- Depends on: `P2-04`
+- Done when: only v1 trigger semantics are editable.
+
+2. `P5-02` Action palette simplification + Send Message node
+- Owner: `Admin UI`
+- Estimate: `2 days`
+- Scope: remove switch/condition/http-request from builder and add/solidify Send Message config.
+- Files: `apps/admin-ui/src/features/workflows/action-registry.ts`, config components
+- Depends on: `P5-01`
+- Done when: available node set is exactly Trigger/Wait/Send Message/Logger.
+
+3. `P5-03` Runs panel contract adaptation
+- Owner: `Admin UI`
+- Estimate: `1.5 days`
+- Scope: preserve existing UX while reading new journey run/delivery contract.
+- Depends on: `P3-05`
+- Done when: runs timeline/status works on new runtime artifacts.
+
+4. `P5-04` Timeline preview + publish warnings
+- Owner: `Admin UI`
+- Estimate: `1.5 days`
+- Scope: implement preview and warning checks for reschedule-sensitive schedules.
+- Depends on: `P5-02`
+- Done when: users can preview computed schedule and receive warnings pre-publish.
+
+5. `P5-05` Builder regression tests
+- Owner: `QA`
+- Estimate: `1 day`
+- Scope: validate node set constraints, trigger behavior, preview, and runs rendering.
+- Depends on: `P5-03`, `P5-04`
+- Done when: admin-ui workflow test suite passes with new builder model.
+
+## 10.7 Phase 6 tickets (Cleanup + final verification)
+
+1. `P6-01` Dead code/doc cleanup
+- Owner: `API/Runtime`
+- Estimate: `1 day`
+- Scope: remove legacy files/tests/docs references and update workflow guides.
+- Depends on: `P5-05`
+- Done when: no stale runtime/docs references remain.
+
+2. `P6-02` Full quality gate run + fixes
+- Owner: `QA`
+- Estimate: `1.5 days`
+- Scope: run `pnpm format`, `pnpm lint`, `pnpm typecheck`, `pnpm test`; fix all failures.
+- Depends on: `P6-01`
+- Done when: all root quality gates are green.
+
+## 10.8 Delivery timeline (single-team default)
+
+- Week 1: Phase 1 + start Phase 2
+- Week 2: finish Phase 2 + Phase 3
+- Week 3: Phase 4 + Phase 5
+- Week 4: Phase 6 stabilization and release hardening
+
+If split across three lanes (`API/Runtime`, `Data/DTO`, `Admin UI`) with overlap, timeline can compress to ~2.5-3 weeks.
