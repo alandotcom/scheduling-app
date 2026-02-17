@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { Tick02Icon } from "@hugeicons/core-free-icons";
+import { Icon } from "@/components/ui/icon";
 import { cn } from "@/lib/utils";
 import type { EventAttributeSuggestion } from "./event-attribute-suggestions";
 
@@ -219,7 +221,19 @@ function insertTextAtSelection(text: string) {
 }
 
 const BADGE_CLASS =
-  "inline-flex items-center gap-1 rounded-md border border-sky-300/90 bg-sky-500/10 px-1.5 mx-0.5 font-medium text-sky-700 dark:border-sky-400/50 dark:text-sky-300";
+  "mx-0.5 inline-flex items-center gap-1 rounded border border-blue-500/20 bg-blue-500/10 px-1.5 py-0.5 font-mono text-blue-600 text-xs dark:text-blue-400";
+
+function splitSuggestionValue(value: string): { root: string; suffix: string } {
+  const dotIndex = value.indexOf(".");
+  if (dotIndex === -1) {
+    return { root: value, suffix: "" };
+  }
+
+  return {
+    root: value.slice(0, dotIndex),
+    suffix: value.slice(dotIndex + 1),
+  };
+}
 
 export function ExpressionInput({
   value,
@@ -406,11 +420,9 @@ export function ExpressionInput({
     <div className="relative">
       <div
         className={cn(
-          "flex min-h-10 w-full rounded-lg border border-input bg-transparent px-3 py-2 text-base md:text-sm",
+          "flex min-h-9 w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm transition-colors",
           multiline ? "items-start" : "items-center",
-          "transition-all duration-200 ease-out",
-          "focus-within:border-ring focus-within:ring-ring/30 focus-within:ring-[3px]",
-          "dark:bg-input/30",
+          "focus-within:outline-none focus-within:ring-1 focus-within:ring-ring",
           disabled && "pointer-events-none cursor-not-allowed opacity-50",
         )}
         style={multiline ? { minHeight: `${minRows * 1.5}rem` } : undefined}
@@ -507,7 +519,7 @@ export function ExpressionInput({
 
       {open ? (
         <div
-          className="absolute top-full z-20 mt-1 max-h-64 w-full overflow-y-auto rounded-lg border border-border bg-popover p-1 shadow-lg"
+          className="absolute top-full z-20 mt-1 w-full rounded-2xl border border-border bg-popover p-1 shadow-lg"
           onMouseDown={(event) => event.preventDefault()}
         >
           {filteredSuggestions.length === 0 ? (
@@ -515,20 +527,52 @@ export function ExpressionInput({
               No matching attributes
             </div>
           ) : (
-            filteredSuggestions.map((suggestion, index) => (
-              <button
-                key={suggestion.value}
-                className={cn(
-                  "flex w-full items-center justify-between rounded-md px-2 py-1.5 text-left text-xs",
-                  index === activeIndex ? "bg-accent" : "hover:bg-accent/70",
-                )}
-                onClick={() => insertSuggestion(suggestion)}
-                type="button"
-              >
-                <span className="font-medium">{suggestion.value}</span>
-                <span className="text-muted-foreground">{suggestion.type}</span>
-              </button>
-            ))
+            <div className="max-h-64 overflow-y-auto">
+              {filteredSuggestions.map((suggestion, index) => {
+                const parts = splitSuggestionValue(suggestion.value);
+                const description = suggestion.isDateTime
+                  ? `${suggestion.type} · date-time`
+                  : suggestion.type;
+
+                return (
+                  <button
+                    key={suggestion.value}
+                    className={cn(
+                      "flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm transition-colors",
+                      index === activeIndex
+                        ? "bg-accent text-accent-foreground"
+                        : "hover:bg-accent/50",
+                    )}
+                    data-expression-suggestion-active={
+                      index === activeIndex ? "true" : undefined
+                    }
+                    onClick={() => insertSuggestion(suggestion)}
+                    type="button"
+                  >
+                    <span className="flex-1">
+                      <span className="block font-medium">
+                        {parts.suffix ? (
+                          <>
+                            <span className="text-muted-foreground">
+                              {parts.root}.
+                            </span>
+                            {parts.suffix}
+                          </>
+                        ) : (
+                          suggestion.value
+                        )}
+                      </span>
+                      <span className="block text-muted-foreground text-xs">
+                        {description}
+                      </span>
+                    </span>
+                    {index === activeIndex ? (
+                      <Icon icon={Tick02Icon} className="size-4 shrink-0" />
+                    ) : null}
+                  </button>
+                );
+              })}
+            </div>
           )}
         </div>
       ) : null}

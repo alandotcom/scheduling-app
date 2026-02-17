@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { ExpressionInput } from "./expression-input";
 
 afterEach(() => {
@@ -7,6 +7,47 @@ afterEach(() => {
 });
 
 describe("ExpressionInput", () => {
+  test("renders styled autocomplete rows with active selection marker", () => {
+    const { container } = render(
+      <ExpressionInput
+        onBlur={() => {}}
+        onChange={() => {}}
+        suggestions={[
+          { value: "Webhook.triggered", type: "boolean", isDateTime: false },
+          { value: "Webhook.timestamp", type: "string", isDateTime: true },
+        ]}
+        value=""
+      />,
+    );
+
+    const textbox = screen.getByRole("textbox");
+    fireEvent.focus(textbox);
+    textbox.textContent = "@Web";
+
+    const firstTextNode = textbox.firstChild;
+    if (!firstTextNode) {
+      throw new Error("Expected contentEditable text node");
+    }
+
+    const range = document.createRange();
+    range.setStart(firstTextNode, 4);
+    range.collapse(true);
+    const selection = window.getSelection();
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+
+    fireEvent.input(textbox);
+
+    const activeRow = container.querySelector(
+      "[data-expression-suggestion-active='true']",
+    );
+    expect(activeRow).toBeTruthy();
+    expect(activeRow?.querySelector("svg")).toBeTruthy();
+    expect(screen.getAllByText("Webhook.").length).toBeGreaterThan(0);
+    expect(screen.getByText("triggered")).toBeTruthy();
+    expect(screen.getByText("string · date-time")).toBeTruthy();
+  });
+
   test("renders interpolation references as inline tokens", () => {
     const { container } = render(
       <ExpressionInput
