@@ -200,6 +200,135 @@ function createLoggerJourneyGraph(input?: {
   };
 }
 
+function createConditionJourneyGraph(input?: {
+  expression?: string;
+  includeTrueEdge?: boolean;
+  includeFalseEdge?: boolean;
+}): LinearJourneyGraph {
+  const includeTrueEdge = input?.includeTrueEdge ?? true;
+  const includeFalseEdge = input?.includeFalseEdge ?? true;
+
+  return {
+    attributes: {},
+    options: {
+      type: "directed",
+    },
+    nodes: [
+      {
+        key: "trigger-node",
+        attributes: {
+          id: "trigger-node",
+          type: "trigger-node",
+          position: { x: 0, y: 0 },
+          data: {
+            type: "trigger",
+            label: "Trigger",
+            config: createTriggerConfig(),
+          },
+        },
+      },
+      {
+        key: "condition-node",
+        attributes: {
+          id: "condition-node",
+          type: "action-node",
+          position: { x: 0, y: 120 },
+          data: {
+            type: "action",
+            label: "Condition",
+            config: {
+              actionType: "condition",
+              expression: input?.expression ?? "true",
+            },
+          },
+        },
+      },
+      ...(includeTrueEdge
+        ? [
+            {
+              key: "send-true-node",
+              attributes: {
+                id: "send-true-node",
+                type: "action-node",
+                position: { x: -160, y: 240 },
+                data: {
+                  type: "action" as const,
+                  label: "Send True",
+                  config: {
+                    actionType: "send-resend",
+                  },
+                },
+              },
+            },
+          ]
+        : []),
+      ...(includeFalseEdge
+        ? [
+            {
+              key: "send-false-node",
+              attributes: {
+                id: "send-false-node",
+                type: "action-node",
+                position: { x: 160, y: 240 },
+                data: {
+                  type: "action" as const,
+                  label: "Send False",
+                  config: {
+                    actionType: "send-slack",
+                  },
+                },
+              },
+            },
+          ]
+        : []),
+    ],
+    edges: [
+      {
+        key: "trigger-to-condition",
+        source: "trigger-node",
+        target: "condition-node",
+        attributes: {
+          id: "trigger-to-condition",
+          source: "trigger-node",
+          target: "condition-node",
+        },
+      },
+      ...(includeTrueEdge
+        ? [
+            {
+              key: "condition-to-send-true",
+              source: "condition-node",
+              target: "send-true-node",
+              attributes: {
+                id: "condition-to-send-true",
+                source: "condition-node",
+                target: "send-true-node",
+                label: "True",
+                data: { conditionBranch: "true" },
+              },
+            },
+          ]
+        : []),
+      ...(includeFalseEdge
+        ? [
+            {
+              key: "condition-to-send-false",
+              source: "condition-node",
+              target: "send-false-node",
+              attributes: {
+                id: "condition-to-send-false",
+                source: "condition-node",
+                target: "send-false-node",
+                label: "False",
+                data: { conditionBranch: "false" },
+              },
+            },
+          ]
+        : []),
+    ],
+  };
+}
+
 function createAppointmentPayload(input?: {
   appointmentId?: string;
   timezone?: string;
@@ -368,6 +497,132 @@ describe("processJourneyDomainEvent", () => {
     expect(deliveries[0]?.channel).toBe("logger");
     expect(deliveries[0]?.status).toBe("planned");
     expect(scheduleRequester).toHaveBeenCalledTimes(1);
+  });
+
+  test("routes through the matching condition branch during planning", async () => {
+    const created = await journeyService.create(
+      {
+        name: "Condition Branch Journey",
+        graph: createConditionJourneyGraph({
+          expression: 'appointment.timezone == "America/New_York"',
+        }),
+      },
+      context,
+    );
+
+    await journeyService.publish(
+      created.id,
+      {
+        mode: "live",
+      },
+      context,
+    );
+
+    const scheduleRequester = mock(async () => ({
+      eventId: "evt-scheduled-condition-branch",
+    }));
+
+    await processJourneyDomainEvent(
+      {
+        id: "evt-condition-1",
+        orgId: context.orgId,
+        type: "appointment.scheduled",
+        payload: createAppointmentPayload({
+          appointmentId: "018f4d3a-6d80-7c5b-8a4a-6cb8f8d57d31",
+          timezone: "America/New_York",
+        }),
+        timestamp: "2026-02-16T10:00:00.000Z",
+      },
+      {
+        scheduleRequester,
+        now: new Date("2026-02-16T09:00:00.000Z"),
+      },
+    );
+
+    await setTestOrgContext(db, context.orgId);
+
+    const [run] = await db
+      .select({ id: journeyRuns.id })
+      .from(journeyRuns)
+      .orderBy(desc(journeyRuns.id))
+      .limit(1);
+
+    const deliveries = await db
+      .select({
+        stepKey: journeyDeliveries.stepKey,
+        channel: journeyDeliveries.channel,
+      })
+      .from(journeyDeliveries)
+      .where(eq(journeyDeliveries.journeyRunId, run!.id));
+
+    expect(deliveries).toHaveLength(1);
+    expect(deliveries[0]?.stepKey).toBe("send-true-node");
+    expect(deliveries[0]?.channel).toBe("email");
+    expect(scheduleRequester).toHaveBeenCalledTimes(1);
+  });
+
+  test("does not schedule downstream deliveries when condition is false and false edge is missing", async () => {
+    const created = await journeyService.create(
+      {
+        name: "Condition Missing Branch Journey",
+        graph: createConditionJourneyGraph({
+          expression: "false",
+          includeFalseEdge: false,
+        }),
+      },
+      context,
+    );
+
+    await journeyService.publish(
+      created.id,
+      {
+        mode: "live",
+      },
+      context,
+    );
+
+    const scheduleRequester = mock(async () => ({
+      eventId: "evt-scheduled-condition-missing",
+    }));
+
+    const result = await processJourneyDomainEvent(
+      {
+        id: "evt-condition-2",
+        orgId: context.orgId,
+        type: "appointment.scheduled",
+        payload: createAppointmentPayload({
+          appointmentId: "018f4d3a-6d80-7c5b-8a4a-6cb8f8d57d32",
+        }),
+        timestamp: "2026-02-16T10:00:00.000Z",
+      },
+      {
+        scheduleRequester,
+        now: new Date("2026-02-16T09:00:00.000Z"),
+      },
+    );
+
+    await setTestOrgContext(db, context.orgId);
+
+    const [run] = await db
+      .select({
+        id: journeyRuns.id,
+        status: journeyRuns.status,
+      })
+      .from(journeyRuns)
+      .orderBy(desc(journeyRuns.id))
+      .limit(1);
+
+    const deliveries = await db
+      .select({
+        id: journeyDeliveries.id,
+      })
+      .from(journeyDeliveries)
+      .where(eq(journeyDeliveries.journeyRunId, run!.id));
+
+    expect(result.erroredJourneyIds).toHaveLength(0);
+    expect(run?.status).toBe("planned");
+    expect(deliveries).toHaveLength(0);
+    expect(scheduleRequester).toHaveBeenCalledTimes(0);
   });
 
   test("cancels pending deliveries when reschedule no longer matches filter", async () => {

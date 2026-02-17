@@ -48,6 +48,8 @@ function getActionIcon(actionType: string): IconSvgElement {
       return Mail01Icon;
     case "send-slack":
       return FlashIcon;
+    case "condition":
+      return ArrowRight02Icon;
     case "logger":
       return FlashIcon;
     default:

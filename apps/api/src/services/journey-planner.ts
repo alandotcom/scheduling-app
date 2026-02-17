@@ -1,4 +1,5 @@
 import { forEachAsync } from "es-toolkit/array";
+import { getLogger } from "@logtape/logtape";
 import {
   journeyTriggerConfigSchema,
   linearJourneyGraphSchema,
@@ -22,11 +23,13 @@ import {
   type JourneyDeliveryCanceledEventData,
   type JourneyDeliveryScheduledEventData,
 } from "../inngest/runtime-events.js";
+import { evaluateJourneyConditionExpression } from "./journey-condition-evaluator.js";
 import { evaluateJourneyTriggerFilter } from "./journey-trigger-filters.js";
 import { resolveWaitUntil } from "./workflow-wait-time.js";
 
 const ACTIVE_JOURNEY_STATES = ["published", "test_only"] as const;
 const ACTIVE_RUN_STATUSES = ["planned", "running"] as const;
+const journeyPlannerLogger = getLogger(["journeys", "planner"]);
 
 export type JourneyPlannerDomainEventType = Extract<
   DomainEventType,
@@ -86,6 +89,8 @@ type DesiredDelivery = {
 };
 
 type ActionNode = LinearJourneyGraph["nodes"][number];
+type JourneyEdge = LinearJourneyGraph["edges"][number];
+type ConditionBranch = "true" | "false";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -220,16 +225,18 @@ function buildNodeById(graph: LinearJourneyGraph): Map<string, ActionNode> {
   return nodeById;
 }
 
-function buildNextNodeIdBySource(
+function buildOutgoingEdgesBySource(
   graph: LinearJourneyGraph,
-): Map<string, string> {
-  const nextNodeIdBySource = new Map<string, string>();
+): Map<string, JourneyEdge[]> {
+  const outgoingEdgesBySource = new Map<string, JourneyEdge[]>();
 
   for (const edge of graph.edges) {
-    nextNodeIdBySource.set(edge.source, edge.target);
+    const existing = outgoingEdgesBySource.get(edge.source) ?? [];
+    existing.push(edge);
+    outgoingEdgesBySource.set(edge.source, existing);
   }
 
-  return nextNodeIdBySource;
+  return outgoingEdgesBySource;
 }
 
 function getTriggerNode(graph: LinearJourneyGraph): ActionNode | null {
@@ -238,36 +245,104 @@ function getTriggerNode(graph: LinearJourneyGraph): ActionNode | null {
   );
 }
 
-function getLinearActionNodes(graph: LinearJourneyGraph): ActionNode[] {
-  const triggerNode = getTriggerNode(graph);
-  if (!triggerNode) {
-    return [];
+function normalizeConditionBranch(value: unknown): ConditionBranch | null {
+  if (typeof value !== "string") {
+    return null;
   }
 
-  const nodeById = buildNodeById(graph);
-  const nextNodeBySource = buildNextNodeIdBySource(graph);
-  const actionNodes: ActionNode[] = [];
-  const visitedNodeIds = new Set<string>();
-
-  let currentNodeId = nextNodeBySource.get(triggerNode.attributes.id);
-
-  while (currentNodeId) {
-    if (visitedNodeIds.has(currentNodeId)) {
-      break;
-    }
-
-    visitedNodeIds.add(currentNodeId);
-
-    const node = nodeById.get(currentNodeId);
-    if (!node) {
-      break;
-    }
-
-    actionNodes.push(node);
-    currentNodeId = nextNodeBySource.get(currentNodeId);
+  let normalized = value.trim().toLowerCase();
+  if (normalized.startsWith("branch-")) {
+    normalized = normalized.slice("branch-".length);
   }
 
-  return actionNodes;
+  if (normalized === "true" || normalized === "false") {
+    return normalized;
+  }
+
+  return null;
+}
+
+function getConditionBranchFromEdge(edge: JourneyEdge): ConditionBranch | null {
+  const attributes = toRecord(edge.attributes);
+  const data = toRecord(attributes["data"]);
+
+  return (
+    normalizeConditionBranch(data["conditionBranch"]) ??
+    normalizeConditionBranch(attributes["label"]) ??
+    normalizeConditionBranch(attributes["sourceHandle"])
+  );
+}
+
+function resolveDefaultNextNodeId(input: {
+  sourceNodeId: string;
+  outgoingEdgesBySource: Map<string, JourneyEdge[]>;
+}): string | null {
+  const outgoingEdges =
+    input.outgoingEdgesBySource.get(input.sourceNodeId) ?? [];
+  return outgoingEdges[0]?.target ?? null;
+}
+
+function resolveConditionNextNodeId(input: {
+  sourceNodeId: string;
+  branch: ConditionBranch;
+  outgoingEdgesBySource: Map<string, JourneyEdge[]>;
+}): string | null {
+  const outgoingEdges =
+    input.outgoingEdgesBySource.get(input.sourceNodeId) ?? [];
+  const matchingEdge = outgoingEdges.find(
+    (edge) => getConditionBranchFromEdge(edge) === input.branch,
+  );
+  return matchingEdge?.target ?? null;
+}
+
+function getConditionExpression(node: ActionNode): unknown {
+  const config = getActionConfig(node);
+  return config["expression"];
+}
+
+function resolveNextNodeId(input: {
+  node: ActionNode;
+  outgoingEdgesBySource: Map<string, JourneyEdge[]>;
+  appointmentContext: Record<string, unknown>;
+  clientContext: Record<string, unknown>;
+  journeyId: string;
+  appointmentId: string;
+}): string | null {
+  const actionType = getNormalizedActionType(input.node);
+  if (actionType !== "condition") {
+    return resolveDefaultNextNodeId({
+      sourceNodeId: input.node.attributes.id,
+      outgoingEdgesBySource: input.outgoingEdgesBySource,
+    });
+  }
+
+  const conditionResult = evaluateJourneyConditionExpression({
+    expression: getConditionExpression(input.node),
+    context: {
+      appointment: input.appointmentContext,
+      client: input.clientContext,
+    },
+  });
+
+  if (conditionResult.error) {
+    journeyPlannerLogger.error(
+      "Journey condition evaluation failed for journey {journeyId} node {nodeId} appointment {appointmentId}: {errorCode} {errorMessage}",
+      {
+        journeyId: input.journeyId,
+        nodeId: input.node.attributes.id,
+        appointmentId: input.appointmentId,
+        errorCode: conditionResult.error.code,
+        errorMessage: conditionResult.error.message,
+      },
+    );
+  }
+
+  const branch: ConditionBranch = conditionResult.matched ? "true" : "false";
+  return resolveConditionNextNodeId({
+    sourceNodeId: input.node.attributes.id,
+    branch,
+    outgoingEdgesBySource: input.outgoingEdgesBySource,
+  });
 }
 
 function buildDeliveryDeterministicKey(input: {
@@ -287,9 +362,12 @@ function extractAppointmentId(payload: unknown): string | null {
 
 function extractClientId(payload: unknown): string | null {
   const payloadRecord = toRecord(payload);
-  return typeof payloadRecord["clientId"] === "string"
-    ? payloadRecord["clientId"]
-    : null;
+  if (typeof payloadRecord["clientId"] === "string") {
+    return payloadRecord["clientId"];
+  }
+
+  const embeddedClient = toRecord(payloadRecord["client"]);
+  return typeof embeddedClient["id"] === "string" ? embeddedClient["id"] : null;
 }
 
 function resolveTriggerRouting(input: {
@@ -328,11 +406,20 @@ function getTriggerConfig(
 function buildDesiredDeliveries(input: {
   graph: LinearJourneyGraph;
   journeyRunId: string;
+  journeyId: string;
+  appointmentId: string;
   appointmentContext: Record<string, unknown>;
+  clientContext: Record<string, unknown>;
   eventTimestamp: string;
   now: Date;
 }): DesiredDelivery[] {
-  const actionNodes = getLinearActionNodes(input.graph);
+  const triggerNode = getTriggerNode(input.graph);
+  if (!triggerNode) {
+    return [];
+  }
+
+  const nodeById = buildNodeById(input.graph);
+  const outgoingEdgesBySource = buildOutgoingEdgesBySource(input.graph);
   let cursor = new Date(input.eventTimestamp);
 
   if (Number.isNaN(cursor.getTime())) {
@@ -340,8 +427,23 @@ function buildDesiredDeliveries(input: {
   }
 
   const desiredDeliveries: DesiredDelivery[] = [];
+  const visitedNodeIds = new Set<string>();
+  let currentNodeId = resolveDefaultNextNodeId({
+    sourceNodeId: triggerNode.attributes.id,
+    outgoingEdgesBySource,
+  });
 
-  for (const node of actionNodes) {
+  while (currentNodeId) {
+    if (visitedNodeIds.has(currentNodeId)) {
+      break;
+    }
+    visitedNodeIds.add(currentNodeId);
+
+    const node = nodeById.get(currentNodeId);
+    if (!node) {
+      break;
+    }
+
     const actionType = getNormalizedActionType(node);
 
     if (actionType === "wait") {
@@ -349,6 +451,22 @@ function buildDesiredDeliveries(input: {
         node,
         cursor,
         appointmentContext: input.appointmentContext,
+      });
+      currentNodeId = resolveDefaultNextNodeId({
+        sourceNodeId: node.attributes.id,
+        outgoingEdgesBySource,
+      });
+      continue;
+    }
+
+    if (actionType === "condition") {
+      currentNodeId = resolveNextNodeId({
+        node,
+        outgoingEdgesBySource,
+        appointmentContext: input.appointmentContext,
+        clientContext: input.clientContext,
+        journeyId: input.journeyId,
+        appointmentId: input.appointmentId,
       });
       continue;
     }
@@ -358,6 +476,10 @@ function buildDesiredDeliveries(input: {
       actionType !== "send-slack" &&
       actionType !== "logger"
     ) {
+      currentNodeId = resolveDefaultNextNodeId({
+        sourceNodeId: node.attributes.id,
+        outgoingEdgesBySource,
+      });
       continue;
     }
 
@@ -374,6 +496,11 @@ function buildDesiredDeliveries(input: {
       scheduledFor,
       status: isPastDue ? "skipped" : "planned",
       reasonCode: isPastDue ? "past_due" : null,
+    });
+
+    currentNodeId = resolveDefaultNextNodeId({
+      sourceNodeId: node.attributes.id,
+      outgoingEdgesBySource,
     });
   }
 
@@ -705,6 +832,12 @@ async function getClientFilterContext(input: {
   tx: DbClient;
   payload: unknown;
 }): Promise<Record<string, unknown>> {
+  const payloadRecord = toRecord(input.payload);
+  const embeddedClient = toRecord(payloadRecord["client"]);
+  if (Object.keys(embeddedClient).length > 0) {
+    return embeddedClient;
+  }
+
   const clientId = extractClientId(input.payload);
   if (!clientId) {
     return {};
@@ -908,7 +1041,10 @@ export async function processJourneyDomainEvent(
           const desiredDeliveries = buildDesiredDeliveries({
             graph: parsedGraph.data,
             journeyRunId: run.id,
+            journeyId: journey.id,
+            appointmentId,
             appointmentContext,
+            clientContext,
             eventTimestamp: event.timestamp,
             now,
           });

@@ -133,7 +133,7 @@ describe("WorkflowEditorSidebar role behavior", () => {
     const labelInput = screen.getByLabelText("Label") as HTMLInputElement;
 
     expect(labelInput.disabled).toBe(false);
-    expect(screen.getByRole("button", { name: "Show filters" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Add rules" })).toBeTruthy();
   });
 
   test("re-syncs selected node inputs when switching nodes", () => {
@@ -246,7 +246,7 @@ describe("WorkflowEditorSidebar role behavior", () => {
     expect(screen.getByText("Send Slack")).toBeTruthy();
     expect(screen.getByText("Logger")).toBeTruthy();
     expect(screen.queryByText("HTTP Request")).toBeNull();
-    expect(screen.queryByText("Condition")).toBeNull();
+    expect(screen.getByText("Condition")).toBeTruthy();
     expect(screen.queryByText("Switch")).toBeNull();
   });
 

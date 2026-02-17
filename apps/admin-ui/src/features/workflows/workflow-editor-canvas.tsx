@@ -54,6 +54,67 @@ const edgeTypes = {
 const isValidConnection: IsValidConnection = (connection) =>
   connection.source !== connection.target;
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isConditionActionNode(node: WorkflowCanvasNode | undefined): boolean {
+  if (!node || !isRecord(node.data) || node.data.type !== "action") {
+    return false;
+  }
+
+  const config = isRecord(node.data.config) ? node.data.config : null;
+  return (
+    typeof config?.actionType === "string" &&
+    config.actionType.trim().toLowerCase() === "condition"
+  );
+}
+
+function normalizeConditionBranch(value: unknown): "true" | "false" | null {
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  let normalized = value.trim().toLowerCase();
+  if (normalized.startsWith("branch-")) {
+    normalized = normalized.slice("branch-".length);
+  }
+
+  if (normalized === "true" || normalized === "false") {
+    return normalized;
+  }
+
+  return null;
+}
+
+function pickConditionBranchFromExistingEdges(input: {
+  edges: Array<{ source: string; sourceHandle?: string | null }>;
+  sourceNodeId: string;
+}): "true" | "false" {
+  const usedBranches = new Set<string>();
+
+  for (const edge of input.edges) {
+    if (edge.source !== input.sourceNodeId) {
+      continue;
+    }
+
+    const branch = normalizeConditionBranch(edge.sourceHandle);
+    if (branch) {
+      usedBranches.add(branch);
+    }
+  }
+
+  if (!usedBranches.has("true")) {
+    return "true";
+  }
+
+  if (!usedBranches.has("false")) {
+    return "false";
+  }
+
+  return "true";
+}
+
 interface WorkflowEditorCanvasProps {
   canEdit: boolean;
   children?: React.ReactNode;
@@ -126,12 +187,14 @@ export function WorkflowEditorCanvas({
   // Connection-to-create-node refs
   const connectingNodeId = useRef<string | null>(null);
   const connectingHandleType = useRef<"source" | "target" | null>(null);
+  const connectingHandleId = useRef<string | null>(null);
   const reconnectingEdgeId = useRef<string | null>(null);
   const edgeReconnectSuccessful = useRef(true);
 
   const clearConnectionInteraction = useCallback(() => {
     connectingNodeId.current = null;
     connectingHandleType.current = null;
+    connectingHandleId.current = null;
     reconnectingEdgeId.current = null;
   }, []);
 
@@ -151,6 +214,7 @@ export function WorkflowEditorCanvas({
     (_event: MouseEvent | TouchEvent, params: OnConnectStartParams) => {
       connectingNodeId.current = params.nodeId;
       connectingHandleType.current = params.handleType;
+      connectingHandleId.current = params.handleId ?? null;
 
       if (!(params.nodeId && params.handleType)) {
         reconnectingEdgeId.current = null;
@@ -235,19 +299,47 @@ export function WorkflowEditorCanvas({
       // Create edge connecting the source to the new node
       const sourceId = connectingNodeId.current;
       const edgeId = nanoid();
+      const sourceHandle =
+        connectingHandleType.current === "source"
+          ? connectingHandleId.current
+          : null;
+      const sourceNode = nodes.find((node) => node.id === sourceId);
+      const sourceIsCondition = isConditionActionNode(sourceNode);
 
       setNodes((currentNodes) => [...currentNodes, newNode]);
-      setEdges((currentEdges) => [
-        ...currentEdges,
-        {
-          id: edgeId,
-          source:
-            connectingHandleType.current === "source" ? sourceId : newNodeId,
-          target:
-            connectingHandleType.current === "source" ? newNodeId : sourceId,
-          animated: true,
-        },
-      ]);
+      setEdges((currentEdges) => {
+        const conditionBranch =
+          sourceIsCondition && connectingHandleType.current === "source"
+            ? (normalizeConditionBranch(sourceHandle) ??
+              pickConditionBranchFromExistingEdges({
+                edges: currentEdges,
+                sourceNodeId: sourceId,
+              }))
+            : null;
+
+        return [
+          ...currentEdges,
+          {
+            id: edgeId,
+            source:
+              connectingHandleType.current === "source" ? sourceId : newNodeId,
+            target:
+              connectingHandleType.current === "source" ? newNodeId : sourceId,
+            sourceHandle: conditionBranch ?? sourceHandle,
+            targetHandle:
+              connectingHandleType.current === "target"
+                ? connectingHandleId.current
+                : null,
+            ...(conditionBranch
+              ? {
+                  label: conditionBranch === "true" ? "True" : "False",
+                  data: { conditionBranch },
+                }
+              : {}),
+            animated: true,
+          },
+        ];
+      });
       setHasUnsavedChanges(true);
       setPropertiesPanelTab("properties");
       setSelection({ nodeId: newNodeId, edgeId: null });
@@ -264,6 +356,7 @@ export function WorkflowEditorCanvas({
       setHasUnsavedChanges,
       setPropertiesPanelTab,
       setSelection,
+      nodes,
     ],
   );
 

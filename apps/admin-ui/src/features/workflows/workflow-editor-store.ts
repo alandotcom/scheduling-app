@@ -29,8 +29,11 @@ const supportedJourneyActionTypes = new Set([
   "wait",
   "send-resend",
   "send-slack",
+  "condition",
   "logger",
 ]);
+
+type ConditionBranch = "true" | "false";
 
 function asRecord(value: unknown): Record<string, unknown> | null {
   if (!isRecord(value)) {
@@ -50,6 +53,256 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function isSupportedJourneyActionType(value: string): boolean {
   return supportedJourneyActionTypes.has(value);
+}
+
+function normalizeConditionBranch(value: unknown): ConditionBranch | null {
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  let normalized = value.trim().toLowerCase();
+  if (normalized.startsWith("branch-")) {
+    normalized = normalized.slice("branch-".length);
+  }
+
+  if (normalized === "true" || normalized === "false") {
+    return normalized;
+  }
+
+  return null;
+}
+
+function collectConditionBranches(
+  edges: WorkflowCanvasEdge[],
+  sourceNodeId: string,
+): Set<ConditionBranch> {
+  const branches = new Set<ConditionBranch>();
+
+  for (const edge of edges) {
+    if (edge.source !== sourceNodeId) {
+      continue;
+    }
+
+    const branch = normalizeConditionBranch(edge.sourceHandle);
+    if (branch) {
+      branches.add(branch);
+    }
+  }
+
+  return branches;
+}
+
+function resolveConditionBranchForConnection(input: {
+  sourceNodeId: string;
+  connection: Connection;
+  currentEdges: WorkflowCanvasEdge[];
+}): ConditionBranch | null {
+  const explicitBranch = normalizeConditionBranch(
+    input.connection.sourceHandle,
+  );
+  if (explicitBranch) {
+    return explicitBranch;
+  }
+
+  const existingBranches = collectConditionBranches(
+    input.currentEdges,
+    input.sourceNodeId,
+  );
+
+  if (!existingBranches.has("true")) {
+    return "true";
+  }
+
+  if (!existingBranches.has("false")) {
+    return "false";
+  }
+
+  return "true";
+}
+
+function getConditionBranchLabel(branch: ConditionBranch): string {
+  return branch === "true" ? "True" : "False";
+}
+
+function isConditionLabel(value: unknown): boolean {
+  return normalizeConditionBranch(value) !== null;
+}
+
+function getNodeById(
+  nodes: WorkflowCanvasNode[],
+  nodeId: string,
+): WorkflowCanvasNode | undefined {
+  return nodes.find((node) => node.id === nodeId);
+}
+
+function isTriggerNode(node: WorkflowCanvasNode | undefined): boolean {
+  if (!node) {
+    return false;
+  }
+
+  return asRecord(node.data)?.type === "trigger";
+}
+
+function isConditionNode(node: WorkflowCanvasNode | undefined): boolean {
+  if (!node) {
+    return false;
+  }
+
+  const nodeData = asRecord(node.data);
+  if (nodeData?.type !== "action") {
+    return false;
+  }
+
+  const config = asRecord(nodeData.config);
+  if (typeof config?.actionType !== "string") {
+    return false;
+  }
+
+  return config.actionType.trim().toLowerCase() === "condition";
+}
+
+function withConditionBranchData(
+  edge: WorkflowCanvasEdge,
+  branch: ConditionBranch,
+): WorkflowCanvasEdge {
+  const edgeData = asRecord(edge.data) ?? {};
+  return {
+    ...edge,
+    sourceHandle: branch,
+    label: getConditionBranchLabel(branch),
+    data: {
+      ...edgeData,
+      conditionBranch: branch,
+    },
+  };
+}
+
+function withoutConditionBranchData(
+  edge: WorkflowCanvasEdge,
+): WorkflowCanvasEdge {
+  const edgeData = asRecord(edge.data);
+  const nextData = edgeData ? { ...edgeData } : undefined;
+  if (nextData) {
+    delete nextData.conditionBranch;
+    delete nextData.branch;
+  }
+
+  const hasData = nextData && Object.keys(nextData).length > 0;
+
+  return {
+    ...edge,
+    sourceHandle: null,
+    label: isConditionLabel(edge.label) ? undefined : edge.label,
+    ...(hasData ? { data: nextData } : { data: undefined }),
+  };
+}
+
+function normalizeConnectionForSource(input: {
+  sourceNodeId: string;
+  connection: Connection;
+  sourceNode: WorkflowCanvasNode | undefined;
+  currentEdges: WorkflowCanvasEdge[];
+}): Connection | null {
+  if (isConditionNode(input.sourceNode)) {
+    const branch = resolveConditionBranchForConnection({
+      sourceNodeId: input.sourceNodeId,
+      connection: input.connection,
+      currentEdges: input.currentEdges,
+    });
+    if (!branch) {
+      return null;
+    }
+
+    return {
+      ...input.connection,
+      sourceHandle: branch,
+    };
+  }
+
+  return {
+    ...input.connection,
+    sourceHandle: null,
+  };
+}
+
+function normalizeEdgesForRouting(
+  edges: WorkflowCanvasEdge[],
+  nodes: WorkflowCanvasNode[],
+): WorkflowCanvasEdge[] {
+  return edges.map((edge) => {
+    const sourceNode = getNodeById(nodes, edge.source);
+    if (isConditionNode(sourceNode)) {
+      const branch = normalizeConditionBranch(edge.sourceHandle);
+      if (branch) {
+        return withConditionBranchData(edge, branch);
+      }
+      return edge;
+    }
+
+    return withoutConditionBranchData(edge);
+  });
+}
+
+function resolveReconnectCandidate(input: {
+  currentEdges: WorkflowCanvasEdge[];
+  selectedEdgeId: string | null;
+  connection: Connection;
+}): WorkflowCanvasEdge | undefined {
+  const selectedEdge = input.selectedEdgeId
+    ? input.currentEdges.find((edge) => edge.id === input.selectedEdgeId)
+    : undefined;
+
+  const existingIncomingEdges = input.currentEdges.filter(
+    (edge) => edge.target === input.connection.target,
+  );
+  const incomingReconnectCandidate =
+    existingIncomingEdges.length === 1 ? existingIncomingEdges[0] : undefined;
+
+  const selectedReconnectCandidate =
+    selectedEdge !== undefined &&
+    selectedEdge.target === input.connection.target;
+
+  return selectedReconnectCandidate ? selectedEdge : incomingReconnectCandidate;
+}
+
+function filterEdgesForConnection(input: {
+  edges: WorkflowCanvasEdge[];
+  sourceNodeId: string;
+  targetNodeId: string;
+  normalizedConnection: Connection;
+  reconnectEdgeId?: string;
+  nodes: WorkflowCanvasNode[];
+}): WorkflowCanvasEdge[] {
+  const sourceNode = getNodeById(input.nodes, input.sourceNodeId);
+  const sourceIsCondition = isConditionNode(sourceNode);
+  const branch = normalizeConditionBranch(
+    input.normalizedConnection.sourceHandle,
+  );
+
+  return input.edges.filter((edge) => {
+    if (input.reconnectEdgeId && edge.id === input.reconnectEdgeId) {
+      return true;
+    }
+
+    if (edge.target === input.targetNodeId) {
+      return false;
+    }
+
+    if (edge.source !== input.sourceNodeId) {
+      return true;
+    }
+
+    if (!sourceIsCondition) {
+      return false;
+    }
+
+    const edgeBranch = normalizeConditionBranch(edge.sourceHandle);
+    if (!edgeBranch || !branch) {
+      return false;
+    }
+
+    return edgeBranch !== branch;
+  });
 }
 
 function getCanonicalTriggerConfig() {
@@ -127,6 +380,14 @@ export function serializeWorkflowGraph(
         source: edge.source,
         target: edge.target,
         type: typeof edge.type === "string" ? edge.type : undefined,
+        ...(typeof edge.sourceHandle === "string" &&
+        edge.sourceHandle.length > 0
+          ? { sourceHandle: edge.sourceHandle }
+          : {}),
+        ...(typeof edge.targetHandle === "string" &&
+        edge.targetHandle.length > 0
+          ? { targetHandle: edge.targetHandle }
+          : {}),
         ...(typeof edge.label === "string" && edge.label.trim().length > 0
           ? { label: edge.label }
           : {}),
@@ -316,69 +577,67 @@ export const onWorkflowEditorConnectAtom = atom(
   (get, set, connection: Connection) => {
     if (get(workflowEditorIsReadOnlyAtom)) return;
 
+    const currentNodes = get(workflowEditorNodesAtom);
     const currentEdges = get(workflowEditorEdgesAtom);
-    const selectedEdgeId = get(workflowEditorSelectedEdgeIdAtom);
-    const selectedEdge = selectedEdgeId
-      ? currentEdges.find((edge) => edge.id === selectedEdgeId)
-      : undefined;
-
     const sourceNodeId = connection.source;
     const targetNodeId = connection.target;
     if (!sourceNodeId || !targetNodeId) {
       return;
     }
 
-    const existingIncomingEdges = currentEdges.filter(
-      (edge) =>
-        edge.target === connection.target &&
-        (edge.targetHandle ?? null) === (connection.targetHandle ?? null),
-    );
+    const targetNode = getNodeById(currentNodes, targetNodeId);
+    if (isTriggerNode(targetNode)) {
+      return;
+    }
 
-    const incomingReconnectCandidate =
-      existingIncomingEdges.length === 1 ? existingIncomingEdges[0] : undefined;
+    const sourceNode = getNodeById(currentNodes, sourceNodeId);
+    const normalizedConnection = normalizeConnectionForSource({
+      sourceNodeId,
+      connection,
+      sourceNode,
+      currentEdges,
+    });
+    if (!normalizedConnection) {
+      return;
+    }
 
-    const selectedReconnectCandidate =
-      selectedEdge !== undefined && selectedEdge.target === connection.target;
+    const reconnectCandidate = resolveReconnectCandidate({
+      currentEdges,
+      selectedEdgeId: get(workflowEditorSelectedEdgeIdAtom),
+      connection: normalizedConnection,
+    });
 
-    const reconnectCandidate = selectedReconnectCandidate
-      ? selectedEdge
-      : incomingReconnectCandidate;
-
-    const edgesWithoutLinearConflicts = currentEdges.filter((edge) => {
-      if (reconnectCandidate && edge.id === reconnectCandidate.id) {
-        return true;
-      }
-
-      if (edge.source === sourceNodeId) {
-        return false;
-      }
-
-      if (edge.target === targetNodeId) {
-        return false;
-      }
-
-      return true;
+    const edgesWithoutConflicts = filterEdgesForConnection({
+      edges: currentEdges,
+      sourceNodeId,
+      targetNodeId,
+      normalizedConnection,
+      reconnectEdgeId: reconnectCandidate?.id,
+      nodes: currentNodes,
     });
 
     const nextEdges = reconnectCandidate
       ? reconnectEdge(
           reconnectCandidate,
-          connection,
-          edgesWithoutLinearConflicts,
+          normalizedConnection,
+          edgesWithoutConflicts,
           {
             shouldReplaceId: false,
           },
         )
       : addEdge(
           {
-            ...connection,
+            ...normalizedConnection,
             id: nanoid(),
             animated: true,
           },
-          edgesWithoutLinearConflicts,
+          edgesWithoutConflicts,
         );
 
-    set(workflowEditorEdgesAtom, nextEdges);
+    set(
+      workflowEditorEdgesAtom,
+      normalizeEdgesForRouting(nextEdges, currentNodes),
+    );
     set(workflowEditorHasUnsavedChangesAtom, true);
   },
 );
@@ -395,34 +654,50 @@ export const onWorkflowEditorReconnectAtom = atom(
   ) => {
     if (get(workflowEditorIsReadOnlyAtom)) return;
 
+    const currentNodes = get(workflowEditorNodesAtom);
     const currentEdges = get(workflowEditorEdgesAtom);
     const sourceNodeId = input.newConnection.source;
     const targetNodeId = input.newConnection.target;
+    if (!(sourceNodeId && targetNodeId)) {
+      return;
+    }
 
-    const edgesWithoutLinearConflicts = currentEdges.filter((edge) => {
-      if (edge.id === input.oldEdge.id) {
-        return true;
-      }
+    const targetNode = getNodeById(currentNodes, targetNodeId);
+    if (isTriggerNode(targetNode)) {
+      return;
+    }
 
-      if (sourceNodeId && edge.source === sourceNodeId) {
-        return false;
-      }
+    const sourceNode = getNodeById(currentNodes, sourceNodeId);
+    const normalizedConnection = normalizeConnectionForSource({
+      sourceNodeId,
+      connection: input.newConnection,
+      sourceNode,
+      currentEdges,
+    });
+    if (!normalizedConnection) {
+      return;
+    }
 
-      if (targetNodeId && edge.target === targetNodeId) {
-        return false;
-      }
-
-      return true;
+    const edgesWithoutConflicts = filterEdgesForConnection({
+      edges: currentEdges,
+      sourceNodeId,
+      targetNodeId,
+      normalizedConnection,
+      reconnectEdgeId: input.oldEdge.id,
+      nodes: currentNodes,
     });
 
     const nextEdges = reconnectEdge(
       input.oldEdge,
-      input.newConnection,
-      edgesWithoutLinearConflicts,
+      normalizedConnection,
+      edgesWithoutConflicts,
       { shouldReplaceId: false },
     );
 
-    set(workflowEditorEdgesAtom, nextEdges);
+    set(
+      workflowEditorEdgesAtom,
+      normalizeEdgesForRouting(nextEdges, currentNodes),
+    );
     set(workflowEditorHasUnsavedChangesAtom, true);
   },
 );
@@ -518,13 +793,52 @@ export const setWorkflowEditorActionTypeAtom = atom(
                       : "duration",
                 }
               : {}),
+            ...(input.actionType === "condition"
+              ? {
+                  expression:
+                    typeof currentConfig.expression === "string" &&
+                    currentConfig.expression.trim().length > 0
+                      ? currentConfig.expression
+                      : "true",
+                }
+              : {}),
           },
         },
       };
     });
 
+    const firstOutgoingEdgeId = currentEdges.find(
+      (edge) => edge.source === input.nodeId,
+    )?.id;
+    const nextEdges =
+      input.actionType === "condition"
+        ? currentEdges.map((edge) => {
+            if (edge.source !== input.nodeId) {
+              return edge;
+            }
+
+            if (firstOutgoingEdgeId === edge.id) {
+              return withConditionBranchData(edge, "true");
+            }
+
+            return edge;
+          })
+        : currentEdges.filter((edge, index, edges) => {
+            if (edge.source !== input.nodeId) {
+              return true;
+            }
+
+            const firstOutgoingIndex = edges.findIndex(
+              (candidate) => candidate.source === input.nodeId,
+            );
+            return index === firstOutgoingIndex;
+          });
+
     set(workflowEditorNodesAtom, nextNodes);
-    set(workflowEditorEdgesAtom, currentEdges);
+    set(
+      workflowEditorEdgesAtom,
+      normalizeEdgesForRouting(nextEdges, nextNodes),
+    );
     set(workflowEditorHasUnsavedChangesAtom, true);
   },
 );

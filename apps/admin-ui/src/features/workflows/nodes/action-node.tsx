@@ -1,4 +1,8 @@
-import type { NodeProps } from "@xyflow/react";
+import {
+  Position,
+  type NodeProps,
+  useUpdateNodeInternals,
+} from "@xyflow/react";
 import type { IconSvgElement } from "@hugeicons/react";
 import { useAtomValue } from "jotai";
 import {
@@ -58,6 +62,9 @@ type RuntimeWaitInput = {
   waitOffset?: unknown;
   waitTimezone?: unknown;
 };
+
+const CONDITION_TRUE_HANDLE_TOP = "33%";
+const CONDITION_FALSE_HANDLE_TOP = "67%";
 
 function toRuntimeNodeStatus(
   status: WorkflowExecutionNodeLogPreview["status"] | undefined,
@@ -289,6 +296,12 @@ function getActionIconAndColor(actionType?: string): {
         colorClass: "text-orange-500",
         bgClass: "bg-orange-500/10",
       };
+    case "condition":
+      return {
+        icon: FlashIcon,
+        colorClass: "text-emerald-500",
+        bgClass: "bg-emerald-500/10",
+      };
     case "logger":
       return {
         icon: FlashIcon,
@@ -348,15 +361,45 @@ const ActionNode = memo(function ActionNode({ id, data, selected }: NodeProps) {
   const title = nodeData.label || actionDef?.label || "Action";
   const description =
     nodeData.description || actionDef?.description || "Select an action";
+  const isConditionAction = actionType === "condition";
+  const updateNodeInternals = useUpdateNodeInternals();
   const runtimeStatus =
     selectedExecutionId !== null
       ? toRuntimeNodeStatus(executionLogsByNodeId[id]?.status)
       : undefined;
   const status = runtimeStatus ?? nodeData.status;
 
+  useEffect(() => {
+    updateNodeInternals(id);
+  }, [id, isConditionAction, updateNodeInternals]);
+
   return (
     <Node
-      handles={{ target: true, source: true }}
+      handles={{
+        target: true,
+        source: isConditionAction
+          ? [
+              {
+                id: "true",
+                position: Position.Right,
+                style: {
+                  top: CONDITION_TRUE_HANDLE_TOP,
+                  width: 14,
+                  height: 14,
+                },
+              },
+              {
+                id: "false",
+                position: Position.Right,
+                style: {
+                  top: CONDITION_FALSE_HANDLE_TOP,
+                  width: 14,
+                  height: 14,
+                },
+              },
+            ]
+          : true,
+      }}
       status={status}
       className={cn(
         "h-48 w-48 flex-col items-center justify-center shadow-none",
@@ -364,6 +407,22 @@ const ActionNode = memo(function ActionNode({ id, data, selected }: NodeProps) {
         isDisabled && "opacity-50",
       )}
     >
+      {isConditionAction ? (
+        <div
+          className="-translate-y-1/2 pointer-events-none absolute top-0 right-[-4.75rem] z-30 rounded-sm border bg-card px-1.5 py-0.5 text-[10px] leading-none text-muted-foreground"
+          style={{ top: CONDITION_TRUE_HANDLE_TOP }}
+        >
+          True
+        </div>
+      ) : null}
+      {isConditionAction ? (
+        <div
+          className="-translate-y-1/2 pointer-events-none absolute top-0 right-[-4.75rem] z-30 rounded-sm border bg-card px-1.5 py-0.5 text-[10px] leading-none text-muted-foreground"
+          style={{ top: CONDITION_FALSE_HANDLE_TOP }}
+        >
+          False
+        </div>
+      ) : null}
       {isDisabled && (
         <div className="absolute top-2 left-2 flex size-5 items-center justify-center rounded-full bg-muted">
           <Icon icon={ViewOffIcon} className="size-3 text-muted-foreground" />

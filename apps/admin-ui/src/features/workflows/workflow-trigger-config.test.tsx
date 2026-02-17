@@ -28,25 +28,19 @@ describe("WorkflowTriggerConfig", () => {
       />,
     );
 
-    expect(screen.getByText("Start condition")).toBeTruthy();
-    expect(
-      screen.getByText("If already running for this appointment"),
-    ).toBeTruthy();
-    expect(screen.getByText("Keep in sync (recommended)")).toBeTruthy();
-    expect(screen.getByText("Exit condition")).toBeTruthy();
+    expect(screen.getByText("Entry")).toBeTruthy();
+    expect(screen.getByText("Re-entry")).toBeTruthy();
+    expect(screen.getByText("Rescheduling")).toBeTruthy();
+    expect(screen.getByText("Stop when")).toBeTruthy();
+    expect(screen.getByText("Audience")).toBeTruthy();
 
-    const keepRunning = screen.getByRole("radio", { name: /Keep running/i });
-    const startOver = screen.getByRole("radio", { name: /Start over/i });
     const syncCheckbox = screen.getByRole("checkbox", {
-      name: "When appointment is rescheduled",
+      name: "Update scheduled messages when the appointment moves",
     });
     const exitCheckbox = screen.getByRole("checkbox", {
-      name: "Appointment canceled",
+      name: "Appointment is canceled",
     });
 
-    expect((keepRunning as HTMLInputElement).checked).toBe(true);
-    expect((keepRunning as HTMLInputElement).disabled).toBe(true);
-    expect((startOver as HTMLInputElement).disabled).toBe(true);
     expect((syncCheckbox as HTMLInputElement).checked).toBe(true);
     expect((syncCheckbox as HTMLInputElement).disabled).toBe(true);
     expect((exitCheckbox as HTMLInputElement).checked).toBe(true);
@@ -70,14 +64,14 @@ describe("WorkflowTriggerConfig", () => {
       />,
     );
 
-    expect(screen.queryByText("Event mapping (internal):")).toBeNull();
+    expect(screen.queryByText("Event mapping (read-only):")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Advanced" }));
 
-    expect(screen.getByText("Event mapping (internal):")).toBeTruthy();
+    expect(screen.getByText("Event mapping (read-only):")).toBeTruthy();
     expect(screen.getByText("appointment.scheduled")).toBeTruthy();
     expect(screen.getByText("appointment.rescheduled")).toBeTruthy();
     expect(screen.getByText("appointment.canceled")).toBeTruthy();
-    expect(screen.getByText(/Appointment ID \(read-only in v1\)/)).toBeTruthy();
+    expect(screen.getByText(/Journey key:/)).toBeTruthy();
   });
 
   test("keeps trigger filters collapsed by default and edits grouped AST when expanded", () => {
@@ -93,7 +87,7 @@ describe("WorkflowTriggerConfig", () => {
 
     expect(screen.queryByRole("button", { name: "Add group" })).toBeNull();
 
-    fireEvent.click(screen.getByRole("button", { name: "Show filters" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add rules" }));
 
     fireEvent.click(screen.getByRole("button", { name: "Add group" }));
     fireEvent.click(
@@ -168,7 +162,7 @@ describe("WorkflowTriggerConfig", () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Show filters" }));
+    fireEvent.click(screen.getByRole("button", { name: "Edit rules" }));
     fireEvent.click(screen.getByRole("button", { name: "Add group" }));
 
     expect(screen.getByText("You can add at most 4 groups.")).toBeTruthy();
@@ -273,7 +267,7 @@ describe("WorkflowTriggerConfig", () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Show filters" }));
+    fireEvent.click(screen.getByRole("button", { name: "Edit rules" }));
     fireEvent.click(
       screen.getAllByRole("button", { name: "Add condition" })[0]!,
     );

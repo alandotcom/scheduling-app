@@ -112,6 +112,8 @@ export function WorkflowTriggerConfig({
     setFilterValidationError(null);
   }, [config.filter]);
 
+  const hasFilterRules = filterDraft !== null;
+
   const commitFilter = (nextFilter: JourneyTriggerFilterAst | null) => {
     setFilterDraft(nextFilter);
     setFilterValidationError(null);
@@ -272,120 +274,64 @@ export function WorkflowTriggerConfig({
   return (
     <section className="space-y-4">
       <div className="space-y-1">
-        <h2 className="font-medium text-sm">Appointment Journey Trigger</h2>
+        <h2 className="font-medium text-sm">Appointment Journey</h2>
         <p className="text-muted-foreground text-xs">
-          This trigger is fixed to appointment lifecycle events.
+          Starts, stays updated, and stops for an appointment.
+        </p>
+        <p className="text-xs">
+          Starts on Scheduled, updates on Rescheduled, stops on Canceled.
         </p>
       </div>
 
       <div className="space-y-4 rounded-md border p-3">
         <div className="space-y-2">
-          <Label>Start condition</Label>
+          <Label>Entry</Label>
           <div className="space-y-1">
             <p className="text-muted-foreground text-xs">Start when</p>
-            <Input disabled readOnly value="Appointment scheduled" />
+            <Input disabled readOnly value="Appointment is scheduled" />
+            <p className="text-muted-foreground text-xs">
+              Creates one journey run per appointment.
+            </p>
           </div>
         </div>
 
         <div className="space-y-2">
-          <Label>If already running for this appointment</Label>
-
-          <label className="flex items-start gap-2 text-sm">
-            <input
-              checked
-              className="mt-1"
-              disabled
-              name="already-running-mode"
-              readOnly
-              type="radio"
-            />
-            <span className="space-y-1">
-              <span className="font-medium">Keep running</span>
-              <p className="text-muted-foreground text-xs">
-                Meaning: ignore duplicate start, keep plan.
-              </p>
-            </span>
-          </label>
-
-          <label className="flex items-start gap-2 text-sm">
-            <input
-              className="mt-1"
-              disabled
-              name="already-running-mode"
-              readOnly
-              type="radio"
-            />
-            <span className="space-y-1">
-              <span className="font-medium">Start over</span>
-              <p className="text-muted-foreground text-xs">
-                Meaning: end previous run as Superseded and create a new one.
-                This does not run Exit path.
-              </p>
-            </span>
-          </label>
-        </div>
-
-        <div className="space-y-2">
-          <Label>Keep in sync (recommended)</Label>
-          <label className="flex items-center gap-2 text-sm">
-            <input checked disabled readOnly type="checkbox" />
-            <span>When appointment is rescheduled</span>
-          </label>
+          <Label>Re-entry</Label>
           <p className="text-muted-foreground text-xs">
-            Behavior: Update future timing (no separate On update branch in v1).
+            Reschedule events re-enter this journey. Backend start events are
+            deduplicated automatically.
           </p>
         </div>
 
         <div className="space-y-2">
-          <Label>Exit condition</Label>
+          <Label>Rescheduling</Label>
           <label className="flex items-center gap-2 text-sm">
             <input checked disabled readOnly type="checkbox" />
-            <span>Appointment canceled</span>
+            <span>Update scheduled messages when the appointment moves</span>
           </label>
+          <p className="text-muted-foreground text-xs">
+            Future waits and sends shift to the new start time.
+          </p>
         </div>
 
-        <div className="space-y-2 border-t pt-3">
-          <button
-            className="flex items-center gap-2 font-medium text-sm"
-            onClick={() => setShowAdvanced((current) => !current)}
-            type="button"
-          >
-            <Icon
-              className="size-4 text-muted-foreground"
-              icon={showAdvanced ? ArrowDown01Icon : ArrowRight02Icon}
-            />
-            Advanced
-          </button>
-
-          {showAdvanced ? (
-            <div className="space-y-2 rounded-md border p-2 text-xs">
-              <p>
-                <span className="font-medium">Key:</span> Appointment ID
-                (read-only in v1)
-              </p>
-              <p className="text-muted-foreground">Event mapping (internal):</p>
-              <p>
-                <span className="font-medium">Start:</span>{" "}
-                appointment.scheduled
-              </p>
-              <p>
-                <span className="font-medium">Restart:</span>{" "}
-                appointment.rescheduled
-              </p>
-              <p>
-                <span className="font-medium">Stop:</span> appointment.canceled
-              </p>
-            </div>
-          ) : null}
+        <div className="space-y-2">
+          <Label>Stop when</Label>
+          <label className="flex items-center gap-2 text-sm">
+            <input checked disabled readOnly type="checkbox" />
+            <span>Appointment is canceled</span>
+          </label>
+          <p className="text-muted-foreground text-xs">
+            Prevents any future messages from sending.
+          </p>
         </div>
       </div>
 
       <div className="space-y-3 rounded-md border p-3">
         <div className="flex items-center justify-between gap-2">
           <div className="space-y-1">
-            <Label>Trigger filters</Label>
+            <Label>Audience</Label>
             <p className="text-muted-foreground text-xs">
-              Build one-level grouped rules using appointment and client fields.
+              Only start journeys for appointments that match these rules.
             </p>
           </div>
           <Button
@@ -394,7 +340,11 @@ export function WorkflowTriggerConfig({
             type="button"
             variant="outline"
           >
-            {showFilters ? "Hide filters" : "Show filters"}
+            {showFilters
+              ? "Hide rules"
+              : hasFilterRules
+                ? "Edit rules"
+                : "Add rules"}
           </Button>
         </div>
 
@@ -403,8 +353,8 @@ export function WorkflowTriggerConfig({
             <div className="flex items-start gap-2 rounded-md border bg-muted/40 p-2 text-muted-foreground text-xs">
               <Icon className="mt-0.5 size-3.5 shrink-0" icon={Alert02Icon} />
               <p>
-                Filters are optional. They narrow which appointment events start
-                or continue this journey.
+                Rules are optional. They decide which appointments enter this
+                journey.
               </p>
             </div>
 
@@ -561,6 +511,39 @@ export function WorkflowTriggerConfig({
                 ))}
               </div>
             ) : null}
+          </div>
+        ) : null}
+      </div>
+
+      <div className="space-y-2 rounded-md border p-3">
+        <button
+          className="flex items-center gap-2 font-medium text-sm"
+          onClick={() => setShowAdvanced((current) => !current)}
+          type="button"
+        >
+          <Icon
+            className="size-4 text-muted-foreground"
+            icon={showAdvanced ? ArrowDown01Icon : ArrowRight02Icon}
+          />
+          Advanced
+        </button>
+
+        {showAdvanced ? (
+          <div className="space-y-2 rounded-md border p-2 text-xs">
+            <p>
+              <span className="font-medium">Journey key:</span> Appointment ID
+            </p>
+            <p className="text-muted-foreground">Event mapping (read-only):</p>
+            <p>
+              <span className="font-medium">Start:</span> appointment.scheduled
+            </p>
+            <p>
+              <span className="font-medium">Restart:</span>{" "}
+              appointment.rescheduled
+            </p>
+            <p>
+              <span className="font-medium">Stop:</span> appointment.canceled
+            </p>
           </div>
         ) : null}
       </div>

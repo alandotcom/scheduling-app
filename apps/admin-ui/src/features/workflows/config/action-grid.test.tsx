@@ -22,6 +22,7 @@ describe("ActionGrid", () => {
     expect(screen.getByText("Slack")).toBeTruthy();
 
     expect(screen.getByText("Wait")).toBeTruthy();
+    expect(screen.getByText("Condition")).toBeTruthy();
     expect(screen.getByText("Logger")).toBeTruthy();
     expect(screen.getByText("Send Resend")).toBeTruthy();
     expect(screen.getByText("Send Slack")).toBeTruthy();

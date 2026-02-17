@@ -273,6 +273,114 @@ function createLegacyAliasStepGraph(
   };
 }
 
+function createConditionGraph(
+  triggerId = "trigger-condition",
+): LinearJourneyGraph {
+  return {
+    attributes: {},
+    options: {
+      type: "directed",
+    },
+    nodes: [
+      {
+        key: triggerId,
+        attributes: {
+          id: triggerId,
+          type: "trigger-node",
+          position: { x: 0, y: 0 },
+          data: {
+            label: "Trigger",
+            type: "trigger",
+            config: createTriggerConfig(),
+          },
+        },
+      },
+      {
+        key: "condition-step",
+        attributes: {
+          id: "condition-step",
+          type: "action-node",
+          position: { x: 0, y: 120 },
+          data: {
+            label: "Condition",
+            type: "action",
+            config: {
+              actionType: "condition",
+              expression: 'appointment.status == "scheduled"',
+            },
+          },
+        },
+      },
+      {
+        key: "send-true",
+        attributes: {
+          id: "send-true",
+          type: "action-node",
+          position: { x: -120, y: 260 },
+          data: {
+            label: "Send True",
+            type: "action",
+            config: {
+              actionType: "send-resend",
+            },
+          },
+        },
+      },
+      {
+        key: "send-false",
+        attributes: {
+          id: "send-false",
+          type: "action-node",
+          position: { x: 120, y: 260 },
+          data: {
+            label: "Send False",
+            type: "action",
+            config: {
+              actionType: "send-slack",
+            },
+          },
+        },
+      },
+    ],
+    edges: [
+      {
+        key: `${triggerId}-to-condition-step`,
+        source: triggerId,
+        target: "condition-step",
+        attributes: {
+          id: `${triggerId}-to-condition-step`,
+          source: triggerId,
+          target: "condition-step",
+        },
+      },
+      {
+        key: "condition-step-to-send-true",
+        source: "condition-step",
+        target: "send-true",
+        attributes: {
+          id: "condition-step-to-send-true",
+          source: "condition-step",
+          target: "send-true",
+          label: "True",
+          data: { conditionBranch: "true" },
+        },
+      },
+      {
+        key: "condition-step-to-send-false",
+        source: "condition-step",
+        target: "send-false",
+        attributes: {
+          id: "condition-step-to-send-false",
+          source: "condition-step",
+          target: "send-false",
+          label: "False",
+          data: { conditionBranch: "false" },
+        },
+      },
+    ],
+  };
+}
+
 describe("journey cutover schema exports", () => {
   test("does not expose legacy workflow schema exports", () => {
     expect("createWorkflowSchema" in schemas).toBe(false);
@@ -290,6 +398,15 @@ describe("journey cutover schema exports", () => {
     expect(parsed.success).toBe(true);
   });
 
+  test("accepts condition routing with explicit true/false branches", () => {
+    const parsed = schemas.createJourneySchema.safeParse({
+      name: "Condition Journey",
+      graph: createConditionGraph(),
+    });
+
+    expect(parsed.success).toBe(true);
+  });
+
   test("rejects branching payloads for create and update schemas", () => {
     const createParsed = schemas.createJourneySchema.safeParse({
       name: "Branching Journey",
@@ -301,6 +418,43 @@ describe("journey cutover schema exports", () => {
 
     expect(createParsed.success).toBe(false);
     expect(updateParsed.success).toBe(false);
+  });
+
+  test("rejects unlabeled condition edges", () => {
+    const graph = createConditionGraph("trigger-condition-unlabeled");
+    const conditionEdges = graph.edges.filter(
+      (edge) => edge.source === "condition-step",
+    );
+    for (const edge of conditionEdges) {
+      delete edge.attributes["label"];
+      delete edge.attributes["data"];
+    }
+
+    const parsed = schemas.createJourneySchema.safeParse({
+      name: "Unlabeled Condition Journey",
+      graph,
+    });
+
+    expect(parsed.success).toBe(false);
+  });
+
+  test("rejects duplicate condition branch labels", () => {
+    const graph = createConditionGraph("trigger-condition-duplicate-branch");
+    const falseEdge = graph.edges.find(
+      (edge) => edge.key === "condition-step-to-send-false",
+    );
+
+    if (falseEdge) {
+      falseEdge.attributes["label"] = "true";
+      falseEdge.attributes["data"] = { conditionBranch: "true" };
+    }
+
+    const parsed = schemas.createJourneySchema.safeParse({
+      name: "Duplicate Condition Branch Journey",
+      graph,
+    });
+
+    expect(parsed.success).toBe(false);
   });
 
   test("rejects legacy action aliases outside supported step set", () => {

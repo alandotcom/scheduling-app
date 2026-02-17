@@ -181,6 +181,25 @@ registerAction({
 });
 
 registerAction({
+  id: "condition",
+  label: "Condition",
+  description: "Route to True/False paths using a rule expression.",
+  category: "System",
+  icon: "flash",
+  configFields: [
+    {
+      key: "expression",
+      label: "Expression",
+      type: "expression",
+      placeholder: 'appointment.startAt > timestamp("2026-01-01T00:00:00Z")',
+      helpText:
+        "Evaluates once during planning. True follows the True branch; False follows the False branch.",
+      required: true,
+    },
+  ],
+});
+
+registerAction({
   id: "logger",
   label: "Logger",
   description: "Record a structured runtime log line.",

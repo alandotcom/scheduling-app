@@ -47,8 +47,17 @@ const supportedJourneyActionTypeSchema = z.enum([
   "wait",
   "send-resend",
   "send-slack",
+  "condition",
   "logger",
 ]);
+
+type JourneyGraphNode = z.infer<
+  typeof serializedJourneyGraphSchema
+>["nodes"][number];
+type JourneyGraphEdge = z.infer<
+  typeof serializedJourneyGraphSchema
+>["edges"][number];
+type ConditionBranch = "true" | "false";
 
 function normalizeJourneyActionType(value: unknown): string | null {
   if (typeof value !== "string") {
@@ -63,6 +72,70 @@ function normalizeJourneyActionType(value: unknown): string | null {
   return normalized;
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function getConditionExpression(value: unknown): string | null {
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  const expression = value["expression"];
+  if (typeof expression !== "string" || expression.trim().length === 0) {
+    return null;
+  }
+
+  return expression;
+}
+
+function normalizeConditionBranch(value: unknown): ConditionBranch | null {
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  let normalized = value.trim().toLowerCase();
+  if (normalized.startsWith("branch-")) {
+    normalized = normalized.slice("branch-".length);
+  }
+
+  if (normalized === "true" || normalized === "false") {
+    return normalized;
+  }
+
+  return null;
+}
+
+function getConditionBranchFromEdge(
+  edge: JourneyGraphEdge,
+): ConditionBranch | null {
+  const attributes: Record<string, unknown> = isRecord(edge.attributes)
+    ? edge.attributes
+    : {};
+  const data: Record<string, unknown> = isRecord(attributes["data"])
+    ? attributes["data"]
+    : {};
+
+  const dataBranch = normalizeConditionBranch(data["conditionBranch"]);
+  if (dataBranch) {
+    return dataBranch;
+  }
+
+  const labelBranch = normalizeConditionBranch(attributes["label"]);
+  if (labelBranch) {
+    return labelBranch;
+  }
+
+  const sourceHandleBranch = normalizeConditionBranch(
+    attributes["sourceHandle"],
+  );
+  if (sourceHandleBranch) {
+    return sourceHandleBranch;
+  }
+
+  return null;
+}
+
 export const linearJourneyGraphSchema =
   serializedJourneyGraphSchema.superRefine((graph, ctx) => {
     if (graph.nodes.length === 0) {
@@ -75,9 +148,15 @@ export const linearJourneyGraphSchema =
     }
 
     const nodeIdToIndex = new Map<string, number>();
+    const nodeById = new Map<string, JourneyGraphNode>();
     const incomingByNodeId = new Map<string, number>();
     const outgoingByNodeId = new Map<string, number>();
-    const nextNodeIdBySourceId = new Map<string, string>();
+    const outgoingEdgesBySourceId = new Map<string, JourneyGraphEdge[]>();
+    const actionTypeByNodeId = new Map<string, string>();
+    const conditionBranchSetBySourceId = new Map<
+      string,
+      Set<ConditionBranch>
+    >();
     const triggerNodeIds: string[] = [];
 
     for (const [index, node] of graph.nodes.entries()) {
@@ -92,8 +171,10 @@ export const linearJourneyGraphSchema =
       }
 
       nodeIdToIndex.set(nodeId, index);
+      nodeById.set(nodeId, node);
       incomingByNodeId.set(nodeId, 0);
       outgoingByNodeId.set(nodeId, 0);
+      outgoingEdgesBySourceId.set(nodeId, []);
 
       const data = node.attributes.data;
       if (data.type === "trigger") {
@@ -124,7 +205,7 @@ export const linearJourneyGraphSchema =
         ctx.addIssue({
           code: "custom",
           message:
-            "Action steps must declare a supported step type (Wait, Send Resend, Send Slack, Logger)",
+            "Action steps must declare a supported step type (Wait, Send Resend, Send Slack, Condition, Logger)",
           path: ["nodes", index, "attributes", "data", "config", "actionType"],
         });
         continue;
@@ -136,9 +217,30 @@ export const linearJourneyGraphSchema =
         ctx.addIssue({
           code: "custom",
           message:
-            "Unsupported step type. Allowed step types are Trigger, Wait, Send Resend, Send Slack, and Logger",
+            "Unsupported step type. Allowed step types are Trigger, Wait, Send Resend, Send Slack, Condition, and Logger",
           path: ["nodes", index, "attributes", "data", "config", "actionType"],
         });
+        continue;
+      }
+
+      actionTypeByNodeId.set(nodeId, actionType);
+
+      if (actionType === "condition") {
+        const expression = getConditionExpression(data.config);
+        if (expression === null) {
+          ctx.addIssue({
+            code: "custom",
+            message: "Condition steps must include a non-empty rule expression",
+            path: [
+              "nodes",
+              index,
+              "attributes",
+              "data",
+              "config",
+              "expression",
+            ],
+          });
+        }
       }
     }
 
@@ -175,7 +277,7 @@ export const linearJourneyGraphSchema =
       if (edge.source === edge.target) {
         ctx.addIssue({
           code: "custom",
-          message: "Linear journeys cannot contain self-loop steps",
+          message: "Journeys cannot contain self-loop steps",
           path: ["edges", index],
         });
       }
@@ -188,106 +290,168 @@ export const linearJourneyGraphSchema =
         edge.target,
         (incomingByNodeId.get(edge.target) ?? 0) + 1,
       );
+      const sourceOutgoingEdges = outgoingEdgesBySourceId.get(edge.source);
+      if (sourceOutgoingEdges) {
+        sourceOutgoingEdges.push(edge);
+      } else {
+        outgoingEdgesBySourceId.set(edge.source, [edge]);
+      }
 
-      if (nextNodeIdBySourceId.has(edge.source)) {
+      const sourceNode = nodeById.get(edge.source);
+      const targetNode = nodeById.get(edge.target);
+      if (!sourceNode || !targetNode) {
+        continue;
+      }
+
+      if (targetNode.attributes.data.type === "trigger") {
         ctx.addIssue({
           code: "custom",
-          message: "Linear journeys cannot branch to multiple next steps",
-          path: ["edges", index, "source"],
+          message: "Trigger step cannot have incoming edges",
+          path: ["edges", index, "target"],
         });
-      } else {
-        nextNodeIdBySourceId.set(edge.source, edge.target);
+      }
+
+      const sourceActionType = actionTypeByNodeId.get(edge.source);
+      if (sourceActionType === "condition") {
+        const conditionBranch = getConditionBranchFromEdge(edge);
+        if (!conditionBranch) {
+          ctx.addIssue({
+            code: "custom",
+            message:
+              'Condition edges must be labeled as either "true" or "false"',
+            path: ["edges", index, "attributes"],
+          });
+          continue;
+        }
+
+        const existingBranches =
+          conditionBranchSetBySourceId.get(edge.source) ??
+          new Set<ConditionBranch>();
+
+        if (existingBranches.has(conditionBranch)) {
+          ctx.addIssue({
+            code: "custom",
+            message: "Condition step cannot have duplicate branch labels",
+            path: ["edges", index, "attributes"],
+          });
+          continue;
+        }
+
+        existingBranches.add(conditionBranch);
+        conditionBranchSetBySourceId.set(edge.source, existingBranches);
+        continue;
+      }
+
+      const branch = getConditionBranchFromEdge(edge);
+      if (branch) {
+        ctx.addIssue({
+          code: "custom",
+          message: "Only Condition steps can emit true/false branch edges",
+          path: ["edges", index, "attributes"],
+        });
       }
     }
 
     for (const [nodeId, index] of nodeIdToIndex.entries()) {
+      const node = nodeById.get(nodeId);
+      if (!node) {
+        continue;
+      }
+
       const incoming = incomingByNodeId.get(nodeId) ?? 0;
       const outgoing = outgoingByNodeId.get(nodeId) ?? 0;
+      const actionType = actionTypeByNodeId.get(nodeId);
+      const isTrigger = node.attributes.data.type === "trigger";
+      const isCondition = actionType === "condition";
 
-      if (incoming > 1) {
+      if (isTrigger) {
+        if (incoming !== 0) {
+          ctx.addIssue({
+            code: "custom",
+            message: "Trigger step must have no incoming edges",
+            path: ["nodes", index, "attributes", "id"],
+          });
+        }
+
+        if (outgoing > 1) {
+          ctx.addIssue({
+            code: "custom",
+            message: "Trigger step can connect to at most one next step",
+            path: ["nodes", index, "attributes", "id"],
+          });
+        }
+
+        continue;
+      }
+
+      if (incoming !== 1) {
         ctx.addIssue({
           code: "custom",
-          message: "Linear journeys cannot merge multiple previous steps",
+          message: "Every non-trigger step must have exactly one incoming edge",
           path: ["nodes", index, "attributes", "id"],
         });
+      }
+
+      if (isCondition) {
+        if (outgoing > 2) {
+          ctx.addIssue({
+            code: "custom",
+            message: "Condition step can have at most two outgoing branches",
+            path: ["nodes", index, "attributes", "id"],
+          });
+        }
+
+        if (outgoing === 2) {
+          const branches =
+            conditionBranchSetBySourceId.get(nodeId) ?? new Set();
+          if (!(branches.has("true") && branches.has("false"))) {
+            ctx.addIssue({
+              code: "custom",
+              message:
+                'Condition step with two outgoing edges must include exactly one "true" and one "false" branch',
+              path: ["nodes", index, "attributes", "id"],
+            });
+          }
+        }
+
+        continue;
       }
 
       if (outgoing > 1) {
         ctx.addIssue({
           code: "custom",
-          message: "Linear journeys cannot branch to multiple next steps",
+          message: "Non-condition steps can connect to at most one next step",
           path: ["nodes", index, "attributes", "id"],
         });
       }
     }
 
-    const rootNodeIds = [...incomingByNodeId.entries()]
-      .filter(([, incoming]) => incoming === 0)
-      .map(([nodeId]) => nodeId);
-    const terminalNodeIds = [...outgoingByNodeId.entries()]
-      .filter(([, outgoing]) => outgoing === 0)
-      .map(([nodeId]) => nodeId);
-
-    if (rootNodeIds.length !== 1) {
-      ctx.addIssue({
-        code: "custom",
-        message: "Journey must have exactly one starting Trigger step",
-        path: ["nodes"],
-      });
+    const triggerNodeId = triggerNodeIds[0];
+    if (!triggerNodeId) {
       return;
     }
 
-    if (terminalNodeIds.length !== 1) {
-      ctx.addIssue({
-        code: "custom",
-        message: "Journey must have exactly one terminal step",
-        path: ["nodes"],
-      });
-    }
-
-    const rootNodeId = rootNodeIds[0]!;
-    const rootIndex = nodeIdToIndex.get(rootNodeId);
-    const rootNode = rootIndex === undefined ? null : graph.nodes[rootIndex];
-
-    if (rootNode?.attributes.data.type !== "trigger") {
-      ctx.addIssue({
-        code: "custom",
-        message: "Journey must start with a Trigger step",
-        path:
-          rootIndex === undefined
-            ? ["nodes"]
-            : ["nodes", rootIndex, "attributes", "data", "type"],
-      });
-    }
-
-    if (graph.edges.length !== graph.nodes.length - 1) {
-      ctx.addIssue({
-        code: "custom",
-        message: "Linear journeys must connect each step exactly once",
-        path: ["edges"],
-      });
-    }
-
     const visitedNodeIds = new Set<string>();
-    let currentNodeId: string | undefined = rootNodeId;
-    while (currentNodeId) {
-      if (visitedNodeIds.has(currentNodeId)) {
-        ctx.addIssue({
-          code: "custom",
-          message: "Linear journeys cannot contain cycles",
-          path: ["edges"],
-        });
-        break;
+    const stack = [triggerNodeId];
+
+    while (stack.length > 0) {
+      const currentNodeId = stack.pop();
+      if (!currentNodeId || visitedNodeIds.has(currentNodeId)) {
+        continue;
       }
 
       visitedNodeIds.add(currentNodeId);
-      currentNodeId = nextNodeIdBySourceId.get(currentNodeId);
+
+      const outgoingEdges = outgoingEdgesBySourceId.get(currentNodeId) ?? [];
+      for (const edge of outgoingEdges) {
+        stack.push(edge.target);
+      }
     }
 
     if (visitedNodeIds.size !== graph.nodes.length) {
       ctx.addIssue({
         code: "custom",
-        message: "Journey must be a single connected linear step chain",
+        message: "Journey must be connected to the Trigger step",
         path: ["nodes"],
       });
     }
