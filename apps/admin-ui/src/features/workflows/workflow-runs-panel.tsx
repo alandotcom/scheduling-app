@@ -4,7 +4,7 @@ import type {
   JourneyRunDelivery,
   JourneyRunDetailResponse,
 } from "@scheduling/dto";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAtom } from "jotai";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -29,6 +29,10 @@ interface WorkflowRunsPanelViewProps {
   isLoadingRunDetail: boolean;
   onSelectRun: (runId: string | null) => void;
   onRefresh: () => void;
+  onCancelRun?: (runId: string) => void;
+  onCancelJourneyRuns?: () => void;
+  isCancelRunPending?: boolean;
+  isCancelJourneyRunsPending?: boolean;
 }
 
 type RunModeFilter = "all" | "live" | "test";
@@ -118,6 +122,10 @@ function toNodeLogStatus(
   }
 }
 
+function isRunActive(status: JourneyRun["status"]): boolean {
+  return status === "planned" || status === "running";
+}
+
 export function WorkflowRunsPanelView({
   runs,
   selectedRunId,
@@ -127,6 +135,10 @@ export function WorkflowRunsPanelView({
   isLoadingRunDetail,
   onSelectRun,
   onRefresh,
+  onCancelRun,
+  onCancelJourneyRuns,
+  isCancelRunPending = false,
+  isCancelJourneyRunsPending = false,
 }: WorkflowRunsPanelViewProps) {
   const [modeFilter, setModeFilter] = useState<RunModeFilter>("all");
 
@@ -183,6 +195,12 @@ export function WorkflowRunsPanelView({
         <div className="space-y-2">
           {filteredRuns.map((run) => {
             const isSelected = selectedRunId === run.id;
+            const runStatus =
+              selectedRunDetail?.run.id === run.id
+                ? selectedRunDetail.run.status
+                : run.status;
+            const canCancelThisRun =
+              canManageWorkflow && isRunActive(runStatus);
 
             return (
               <article
@@ -241,6 +259,39 @@ export function WorkflowRunsPanelView({
                             Status: <strong>{run.status}</strong>
                           </p>
                         </div>
+
+                        {canCancelThisRun ? (
+                          <div className="flex flex-wrap gap-2">
+                            <Button
+                              disabled={
+                                !onCancelRun ||
+                                isCancelRunPending ||
+                                isCancelJourneyRunsPending
+                              }
+                              onClick={() => onCancelRun?.(run.id)}
+                              size="sm"
+                              variant="destructive"
+                            >
+                              {isCancelRunPending
+                                ? "Canceling run..."
+                                : "Cancel this run"}
+                            </Button>
+                            <Button
+                              disabled={
+                                !onCancelJourneyRuns ||
+                                isCancelRunPending ||
+                                isCancelJourneyRunsPending
+                              }
+                              onClick={() => onCancelJourneyRuns?.()}
+                              size="sm"
+                              variant="outline"
+                            >
+                              {isCancelJourneyRunsPending
+                                ? "Canceling journey runs..."
+                                : "Cancel all active runs for this journey"}
+                            </Button>
+                          </div>
+                        ) : null}
 
                         {selectedRunDetail.deliveries.length > 0 ? (
                           <div className="space-y-1">
@@ -316,6 +367,32 @@ export function WorkflowRunsPanel({
     workflowExecutionLogsByNodeIdAtom,
   );
   const queryClient = useQueryClient();
+
+  const cancelRunMutation = useMutation(
+    orpc.journeys.runs.cancel.mutationOptions({
+      onSuccess: () => {
+        queryClient.invalidateQueries({
+          queryKey: orpc.journeys.runs.list.key(),
+        });
+        queryClient.invalidateQueries({
+          queryKey: orpc.journeys.runs.get.key(),
+        });
+      },
+    }),
+  );
+
+  const cancelJourneyRunsMutation = useMutation(
+    orpc.journeys.cancelRuns.mutationOptions({
+      onSuccess: () => {
+        queryClient.invalidateQueries({
+          queryKey: orpc.journeys.runs.list.key(),
+        });
+        queryClient.invalidateQueries({
+          queryKey: orpc.journeys.runs.get.key(),
+        });
+      },
+    }),
+  );
 
   const runsQuery = useQuery({
     ...orpc.journeys.runs.list.queryOptions({
@@ -401,7 +478,19 @@ export function WorkflowRunsPanel({
         });
       }}
       onSelectRun={setSelectedExecutionId}
+      onCancelJourneyRuns={() => {
+        if (!workflowId) {
+          return;
+        }
+
+        cancelJourneyRunsMutation.mutate({ id: workflowId });
+      }}
+      onCancelRun={(runId) => {
+        cancelRunMutation.mutate({ runId });
+      }}
       runs={runsQuery.data ?? []}
+      isCancelJourneyRunsPending={cancelJourneyRunsMutation.isPending}
+      isCancelRunPending={cancelRunMutation.isPending}
       selectedRunDetail={runDetailQuery.data ?? null}
       selectedRunId={selectedExecutionId}
     />

@@ -725,3 +725,34 @@
 - Updated artifacts:
   - `specs/workflow-engine-rebuild-appointment-journeys/logs/build.log`
   - `specs/workflow-engine-rebuild-appointment-journeys/logs/test.log`
+
+## 2026-02-17 - Task 11: Update Runs UI, Overlap Warnings, and History UX (Revalidation)
+
+### RED
+- Added explicit UI coverage in `apps/admin-ui/src/features/workflows/workflow-runs-panel.test.tsx` for cancel scope actions on active runs:
+  - individual run cancel action is visible and invokable.
+  - journey-level bulk cancel action is visible and invokable with explicit scope copy.
+- Confirmed RED failure before implementation: runs panel did not render any cancel controls, so expected cancel action buttons were missing.
+
+### GREEN
+- Implemented explicit cancel-scope actions in `apps/admin-ui/src/features/workflows/workflow-runs-panel.tsx`:
+  - added active-run gating (`planned|running`) for mutating actions.
+  - added run-level action: `Cancel this run`.
+  - added journey-level action: `Cancel all active runs for this journey`.
+  - wired UI actions to new mutations:
+    - `orpc.journeys.runs.cancel`
+    - `orpc.journeys.cancelRuns`
+  - invalidates run list/detail queries on cancel success to keep timeline state fresh.
+- Re-ran targeted UI suites and verified green:
+  - `pnpm --filter @scheduling/admin-ui run test -- src/features/workflows/workflow-runs-panel.test.tsx src/features/workflows/workflow-toolbar.test.tsx`
+
+### REFACTOR
+- Kept publish overlap warning behavior unchanged and validated by existing toolbar coverage (`workflow-toolbar.test.tsx`) while extending run actions for explicit R31 scope cues.
+- Re-ran full required quality gates and refreshed logs:
+  - `pnpm format`
+  - `pnpm lint`
+  - `pnpm typecheck`
+  - `pnpm test`
+- Updated artifacts:
+  - `specs/workflow-engine-rebuild-appointment-journeys/logs/build.log`
+  - `specs/workflow-engine-rebuild-appointment-journeys/logs/test.log`

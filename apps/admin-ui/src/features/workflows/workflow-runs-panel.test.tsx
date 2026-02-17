@@ -163,4 +163,66 @@ describe("WorkflowRunsPanelView", () => {
     expect(screen.getByText("Run for Archived Journey")).toBeTruthy();
     expect(screen.getByText(/Version 7.*Deleted journey/)).toBeTruthy();
   });
+
+  test("shows run-level and journey-level cancel actions with explicit scope", () => {
+    const onCancelRun = mock((_runId: string) => {});
+    const onCancelJourneyRuns = mock(() => {});
+
+    render(
+      <WorkflowRunsPanelView
+        canManageWorkflow={true}
+        isLoadingRunDetail={false}
+        isLoadingRuns={false}
+        onRefresh={() => {}}
+        onSelectRun={() => {}}
+        onCancelJourneyRuns={onCancelJourneyRuns}
+        onCancelRun={onCancelRun}
+        runs={[
+          {
+            id: "run-active",
+            journeyVersionId: "version-active",
+            appointmentId: "appointment-4",
+            mode: "live",
+            status: "running",
+            startedAt: new Date("2026-03-10T14:00:00.000Z"),
+            completedAt: null,
+            cancelledAt: null,
+            journeyNameSnapshot: "Journey Cancel Scope",
+            journeyVersion: 3,
+            journeyDeleted: false,
+          },
+        ]}
+        selectedRunDetail={{
+          run: {
+            id: "run-active",
+            journeyVersionId: "version-active",
+            appointmentId: "appointment-4",
+            mode: "live",
+            status: "running",
+            startedAt: new Date("2026-03-10T14:00:00.000Z"),
+            completedAt: null,
+            cancelledAt: null,
+            journeyNameSnapshot: "Journey Cancel Scope",
+            journeyVersion: 3,
+            journeyDeleted: false,
+          },
+          runSnapshot: {
+            version: 3,
+          },
+          deliveries: [],
+        }}
+        selectedRunId="run-active"
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Cancel this run" }));
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Cancel all active runs for this journey",
+      }),
+    );
+
+    expect(onCancelRun).toHaveBeenCalledWith("run-active");
+    expect(onCancelJourneyRuns).toHaveBeenCalledTimes(1);
+  });
 });
