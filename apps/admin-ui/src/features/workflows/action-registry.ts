@@ -131,36 +131,50 @@ registerAction({
 });
 
 registerAction({
-  id: "send-message",
-  label: "Send Message",
-  description: "Deliver an outbound message over Email or Slack.",
-  category: "System",
+  id: "send-resend",
+  label: "Send Resend",
+  description: "Deliver an outbound email with Resend.",
+  category: "Resend",
   icon: "flash",
   configFields: [
-    {
-      key: "channel",
-      label: "Channel",
-      type: "select",
-      defaultValue: "email",
-      options: [
-        { value: "email", label: "Email" },
-        { value: "slack", label: "Slack" },
-      ],
-      required: true,
-    },
     {
       key: "subject",
       label: "Email subject",
       type: "text",
       placeholder: "Appointment reminder",
-      showWhen: { field: "channel", equals: "email" },
+      required: true,
     },
     {
       key: "message",
-      label: "Message",
+      label: "Email body",
       type: "textarea",
       rows: 5,
       placeholder: "Hi {{client.firstName}}, this is your reminder.",
+      required: true,
+    },
+  ],
+});
+
+registerAction({
+  id: "send-slack",
+  label: "Send Slack",
+  description: "Deliver an outbound Slack message.",
+  category: "Slack",
+  icon: "flash",
+  configFields: [
+    {
+      key: "slackChannel",
+      label: "Slack channel",
+      type: "text",
+      placeholder: "#ops-alerts",
+      required: true,
+    },
+    {
+      key: "message",
+      label: "Slack message",
+      type: "textarea",
+      rows: 5,
+      placeholder: "Appointment update for {{client.firstName}}.",
       required: true,
     },
   ],

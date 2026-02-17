@@ -1,7 +1,6 @@
 import {
-  domainEventDomains,
+  journeyTriggerConfigSchema,
   serializedJourneyGraphSchema,
-  type DomainEventDomain,
   type SerializedJourneyGraph,
 } from "@scheduling/dto";
 import {
@@ -26,7 +25,12 @@ type WorkflowGraphState = {
   edges: WorkflowCanvasEdge[];
 };
 
-const supportedJourneyActionTypes = new Set(["wait", "send-message", "logger"]);
+const supportedJourneyActionTypes = new Set([
+  "wait",
+  "send-resend",
+  "send-slack",
+  "logger",
+]);
 
 function asRecord(value: unknown): Record<string, unknown> | null {
   if (!isRecord(value)) {
@@ -44,19 +48,18 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return true;
 }
 
-function isDomainEventDomain(value: unknown): value is DomainEventDomain {
-  return (
-    typeof value === "string" &&
-    domainEventDomains.some((domain) => domain === value)
-  );
-}
-
-function toDomain(value: unknown): DomainEventDomain {
-  return isDomainEventDomain(value) ? value : "appointment";
-}
-
 function isSupportedJourneyActionType(value: string): boolean {
   return supportedJourneyActionTypes.has(value);
+}
+
+function getCanonicalTriggerConfig() {
+  return journeyTriggerConfigSchema.parse({
+    triggerType: "AppointmentJourney",
+    start: "appointment.scheduled",
+    restart: "appointment.rescheduled",
+    stop: "appointment.canceled",
+    correlationKey: "appointmentId",
+  });
 }
 
 function normalizeNodeData(data: unknown): Record<string, unknown> {
@@ -65,20 +68,13 @@ function normalizeNodeData(data: unknown): Record<string, unknown> {
     return nodeData ?? {};
   }
 
-  const triggerConfig = asRecord(nodeData.config);
-  if (!triggerConfig || triggerConfig.triggerType !== "DomainEvent") {
-    return nodeData;
-  }
-
-  if (toDomain(triggerConfig.domain) === triggerConfig.domain) {
-    return nodeData;
-  }
-
   return {
     ...nodeData,
     config: {
-      ...triggerConfig,
-      domain: "appointment",
+      ...getCanonicalTriggerConfig(),
+      ...(asRecord(nodeData.config)?.filter
+        ? { filter: asRecord(nodeData.config)?.filter }
+        : {}),
     },
   };
 }
@@ -576,13 +572,7 @@ export const addInitialTriggerNodeAtom = atom(null, (get, set) => {
       type: "trigger",
       label: "Trigger",
       status: "idle",
-      config: {
-        triggerType: "DomainEvent",
-        domain: "appointment",
-        startEvents: [],
-        restartEvents: [],
-        stopEvents: [],
-      },
+      config: getCanonicalTriggerConfig(),
     },
   };
 

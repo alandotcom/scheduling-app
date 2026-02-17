@@ -25,10 +25,10 @@ type TriggerNodeData = {
   description?: string;
   status?: "idle" | "running" | "success" | "error" | "cancelled";
   config?: {
-    triggerType?: string;
-    startEvents?: string[];
-    restartEvents?: string[];
-    stopEvents?: string[];
+    triggerType?: "AppointmentJourney";
+    start?: "appointment.scheduled";
+    restart?: "appointment.rescheduled";
+    stop?: "appointment.canceled";
   };
 };
 

@@ -3,12 +3,12 @@ import {
   cancelJourneyRunsResponseSchema,
   createJourneySchema,
   domainEventDataSchemaByType,
+  journeyTriggerConfigSchema,
   linearJourneyGraphSchema,
   listJourneyRunsQuerySchema,
   publishJourneySchema,
   resumeJourneySchema,
   startJourneyTestRunSchema,
-  journeyDomainEventTriggerConfigSchema,
   updateJourneySchema,
   type CreateJourneyInput,
   type CancelJourneyRunResponse,
@@ -24,7 +24,7 @@ import {
   type ResumeJourneyInput,
   type StartJourneyTestRunInput,
   type StartJourneyTestRunResponse,
-  type JourneyDomainEventTriggerConfig,
+  type JourneyTriggerConfig,
   type UpdateJourneyInput,
 } from "@scheduling/dto";
 import {
@@ -46,6 +46,7 @@ const JOURNEY_NAME_UNIQUE_CONSTRAINT = "journeys_org_name_ci_uidx";
 const ACTIVE_RUN_STATUSES = ["planned", "running"] as const;
 const ACTIVE_RUN_STATUS_SET = new Set<string>(ACTIVE_RUN_STATUSES);
 const OVERLAP_CANDIDATE_STATES = ["published", "test_only", "paused"] as const;
+const JOURNEY_DEFINITION_INVALID_CODE = "JOURNEY_DEFINITION_INVALID";
 const HIGH_SIGNAL_FILTER_FIELDS = new Set([
   "appointment.calendarId",
   "appointment.appointmentTypeId",
@@ -114,13 +115,35 @@ function mapJourneyWriteError(error: unknown): ApplicationError | null {
   });
 }
 
+function journeyDefinitionInvalidError(
+  issues: unknown,
+  message = "Journey definition is invalid",
+): ApplicationError {
+  return new ApplicationError(message, {
+    code: "CONFLICT",
+    details: {
+      code: JOURNEY_DEFINITION_INVALID_CODE,
+      issues,
+    },
+  });
+}
+
+function parseLinearJourneyGraph(definition: unknown): LinearJourneyGraph {
+  const parsed = linearJourneyGraphSchema.safeParse(definition);
+  if (!parsed.success) {
+    throw journeyDefinitionInvalidError(parsed.error.issues);
+  }
+
+  return parsed.data;
+}
+
 function toJourney(row: typeof journeys.$inferSelect): Journey {
   return {
     id: row.id,
     orgId: row.orgId,
     name: row.name,
     state: row.state,
-    graph: linearJourneyGraphSchema.parse(row.draftDefinition),
+    graph: parseLinearJourneyGraph(row.draftDefinition),
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
@@ -169,28 +192,26 @@ function toJourneyRunDelivery(
 
 function getTriggerConfigFromGraph(
   graph: LinearJourneyGraph,
-): JourneyDomainEventTriggerConfig | null {
+): JourneyTriggerConfig | null {
   const triggerNode =
     graph.nodes.find((node) => node.attributes.data.type === "trigger") ?? null;
   if (!triggerNode) {
     return null;
   }
 
-  const parsed = journeyDomainEventTriggerConfigSchema.safeParse(
+  const parsed = journeyTriggerConfigSchema.safeParse(
     triggerNode.attributes.data.config,
   );
 
   return parsed.success ? parsed.data : null;
 }
 
-function collectRoutingEvents(
-  config: JourneyDomainEventTriggerConfig,
-): string[] {
-  return uniq([...config.startEvents, ...config.restartEvents]);
+function collectRoutingEvents(config: JourneyTriggerConfig): string[] {
+  return uniq([config.start, config.restart]);
 }
 
 function collectHighSignalEqualsFilters(
-  config: JourneyDomainEventTriggerConfig,
+  config: JourneyTriggerConfig,
 ): Map<string, string> {
   const pairs = new Map<string, string>();
 
@@ -458,15 +479,6 @@ function validateStartTestRunInput(
   return parsed.data;
 }
 
-const SEND_MESSAGE_ACTION_TYPE_ALIASES = new Set([
-  "send-message",
-  "send_message",
-  "send-email",
-  "send_email",
-  "email",
-  "slack",
-]);
-
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -485,29 +497,7 @@ function normalizeActionType(value: unknown): string | null {
     return null;
   }
 
-  if (SEND_MESSAGE_ACTION_TYPE_ALIASES.has(normalized)) {
-    return "send-message";
-  }
-
   return normalized;
-}
-
-function resolveChannel(config: Record<string, unknown>): string {
-  const channel = config["channel"];
-  if (typeof channel === "string" && channel.trim().length > 0) {
-    return channel.trim().toLowerCase();
-  }
-
-  const rawActionType =
-    typeof config["actionType"] === "string"
-      ? config["actionType"].trim().toLowerCase()
-      : null;
-
-  if (rawActionType === "slack") {
-    return "slack";
-  }
-
-  return "email";
 }
 
 function journeyIncludesEmailSendStep(graph: LinearJourneyGraph): boolean {
@@ -518,18 +508,7 @@ function journeyIncludesEmailSendStep(graph: LinearJourneyGraph): boolean {
 
     const config = toRecord(node.attributes.data.config);
     const actionType = normalizeActionType(config["actionType"]);
-    const fallbackSendMessage =
-      actionType === null &&
-      ("integrationId" in config || "operation" in config);
-
-    const normalizedActionType =
-      actionType ?? (fallbackSendMessage ? "send-message" : null);
-
-    if (normalizedActionType !== "send-message") {
-      return false;
-    }
-
-    return resolveChannel(config) === "email";
+    return actionType === "send-resend";
   });
 }
 
@@ -826,7 +805,7 @@ export class JourneyService {
       const warnings = await computePublishOverlapWarnings({
         tx,
         journeyId: id,
-        graph: linearJourneyGraphSchema.parse(existing.draftDefinition),
+        graph: parseLinearJourneyGraph(existing.draftDefinition),
       });
 
       return {
@@ -1075,21 +1054,11 @@ export class JourneyService {
         );
       }
 
-      const parsedGraph = linearJourneyGraphSchema.safeParse(
+      const parsedGraph = parseLinearJourneyGraph(
         latestVersion.definitionSnapshot,
       );
 
-      if (!parsedGraph.success) {
-        throw new ApplicationError("Journey definition is invalid", {
-          code: "CONFLICT",
-          details: { issues: parsedGraph.error.issues },
-        });
-      }
-
-      if (
-        journeyIncludesEmailSendStep(parsedGraph.data) &&
-        !parsed.emailOverride
-      ) {
+      if (journeyIncludesEmailSendStep(parsedGraph) && !parsed.emailOverride) {
         throw new ApplicationError(
           "Email override is required for test runs with Email steps",
           {

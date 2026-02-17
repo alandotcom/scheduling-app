@@ -276,7 +276,8 @@ function getActionIconAndColor(actionType?: string): {
   bgClass: string;
 } {
   switch (actionType) {
-    case "send-message":
+    case "send-resend":
+    case "send-slack":
       return {
         icon: FlashIcon,
         colorClass: "text-cyan-500",

@@ -1,10 +1,10 @@
 import { forEachAsync } from "es-toolkit/array";
 import {
-  journeyDomainEventTriggerConfigSchema,
+  journeyTriggerConfigSchema,
   linearJourneyGraphSchema,
   type DomainEventDataByType,
   type DomainEventType,
-  type JourneyDomainEventTriggerConfig,
+  type JourneyTriggerConfig,
   type LinearJourneyGraph,
 } from "@scheduling/dto";
 import {
@@ -27,14 +27,6 @@ import { resolveWaitUntil } from "./workflow-wait-time.js";
 
 const ACTIVE_JOURNEY_STATES = ["published", "test_only"] as const;
 const ACTIVE_RUN_STATUSES = ["planned", "running"] as const;
-const SEND_MESSAGE_ACTION_TYPE_ALIASES = new Set([
-  "send-message",
-  "send_message",
-  "send-email",
-  "send_email",
-  "email",
-  "slack",
-]);
 
 export type JourneyPlannerDomainEventType = Extract<
   DomainEventType,
@@ -113,10 +105,6 @@ function normalizeActionType(value: unknown): string | null {
     return null;
   }
 
-  if (SEND_MESSAGE_ACTION_TYPE_ALIASES.has(normalized)) {
-    return "send-message";
-  }
-
   return normalized;
 }
 
@@ -126,43 +114,17 @@ function getActionConfig(node: ActionNode): Record<string, unknown> {
 
 function getNormalizedActionType(node: ActionNode): string | null {
   const config = getActionConfig(node);
-  const actionType = normalizeActionType(config["actionType"]);
-
-  if (actionType) {
-    return actionType;
-  }
-
-  if ("integrationId" in config || "operation" in config) {
-    return "send-message";
-  }
-
-  return null;
-}
-
-function getRawActionType(node: ActionNode): string | null {
-  const config = getActionConfig(node);
-  if (typeof config["actionType"] !== "string") {
-    return null;
-  }
-
-  const rawActionType = config["actionType"].trim().toLowerCase();
-  return rawActionType.length > 0 ? rawActionType : null;
+  return normalizeActionType(config["actionType"]);
 }
 
 function resolveChannel(node: ActionNode): string {
-  const config = getActionConfig(node);
-
-  if (typeof config["channel"] === "string" && config["channel"].trim()) {
-    return config["channel"].trim().toLowerCase();
-  }
-
-  const rawActionType = getRawActionType(node);
-  if (rawActionType === "logger") {
-    return "logger";
-  }
-
-  if (rawActionType === "slack") {
+  const actionType = getNormalizedActionType(node);
+  if (actionType === "send-slack") {
     return "slack";
+  }
+
+  if (actionType === "logger") {
+    return "logger";
   }
 
   return "email";
@@ -331,16 +293,16 @@ function extractClientId(payload: unknown): string | null {
 }
 
 function resolveTriggerRouting(input: {
-  triggerConfig: JourneyDomainEventTriggerConfig;
+  triggerConfig: JourneyTriggerConfig;
   eventType: JourneyPlannerDomainEventType;
 }): "plan" | "cancel" | "ignore" {
-  if (input.triggerConfig.stopEvents.includes(input.eventType)) {
+  if (input.triggerConfig.stop === input.eventType) {
     return "cancel";
   }
 
   if (
-    input.triggerConfig.startEvents.includes(input.eventType) ||
-    input.triggerConfig.restartEvents.includes(input.eventType)
+    input.triggerConfig.start === input.eventType ||
+    input.triggerConfig.restart === input.eventType
   ) {
     return "plan";
   }
@@ -350,13 +312,13 @@ function resolveTriggerRouting(input: {
 
 function getTriggerConfig(
   graph: LinearJourneyGraph,
-): JourneyDomainEventTriggerConfig | null {
+): JourneyTriggerConfig | null {
   const triggerNode = getTriggerNode(graph);
   if (!triggerNode) {
     return null;
   }
 
-  const parsed = journeyDomainEventTriggerConfigSchema.safeParse(
+  const parsed = journeyTriggerConfigSchema.safeParse(
     triggerNode.attributes.data.config,
   );
 
@@ -391,7 +353,11 @@ function buildDesiredDeliveries(input: {
       continue;
     }
 
-    if (actionType !== "send-message" && actionType !== "logger") {
+    if (
+      actionType !== "send-resend" &&
+      actionType !== "send-slack" &&
+      actionType !== "logger"
+    ) {
       continue;
     }
 

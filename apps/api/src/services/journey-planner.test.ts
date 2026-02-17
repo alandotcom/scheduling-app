@@ -21,6 +21,17 @@ import { processJourneyDomainEvent } from "./journey-planner.js";
 
 const db: TestDatabase = getTestDb();
 
+function createTriggerConfig(input?: { filter?: JourneyTriggerFilterAst }) {
+  return {
+    triggerType: "AppointmentJourney",
+    start: "appointment.scheduled",
+    restart: "appointment.rescheduled",
+    stop: "appointment.canceled",
+    correlationKey: "appointmentId",
+    ...(input?.filter ? { filter: input.filter } : {}),
+  } as const;
+}
+
 function createJourneyGraph(input?: {
   filter?: JourneyTriggerFilterAst;
   waitDuration?: string;
@@ -42,14 +53,9 @@ function createJourneyGraph(input?: {
           data: {
             type: "trigger",
             label: "Trigger",
-            config: {
-              triggerType: "DomainEvent",
-              domain: "appointment",
-              startEvents: ["appointment.scheduled"],
-              restartEvents: ["appointment.rescheduled"],
-              stopEvents: ["appointment.canceled"],
-              ...(input?.filter ? { filter: input.filter } : {}),
-            },
+            config: createTriggerConfig(
+              input?.filter ? { filter: input.filter } : undefined,
+            ),
           },
         },
       },
@@ -83,8 +89,7 @@ function createJourneyGraph(input?: {
             type: "action",
             label: "Send",
             config: {
-              actionType: "send-message",
-              channel: "email",
+              actionType: "send-resend",
             },
           },
         },
@@ -133,13 +138,7 @@ function createLoggerJourneyGraph(input?: {
           data: {
             type: "trigger",
             label: "Trigger",
-            config: {
-              triggerType: "DomainEvent",
-              domain: "appointment",
-              startEvents: ["appointment.scheduled"],
-              restartEvents: ["appointment.rescheduled"],
-              stopEvents: ["appointment.canceled"],
-            },
+            config: createTriggerConfig(),
           },
         },
       },

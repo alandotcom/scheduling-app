@@ -5,7 +5,10 @@ import {
   timestampsSchema,
   uuidSchema,
 } from "./common";
-import { serializedJourneyGraphSchema } from "./workflow-graph";
+import {
+  journeyTriggerConfigSchema,
+  serializedJourneyGraphSchema,
+} from "./workflow-graph";
 
 export const journeyStateSchema = z.enum([
   "draft",
@@ -42,7 +45,8 @@ export const journeyDeliveryReasonCodeSchema = z
 
 const supportedJourneyActionTypeSchema = z.enum([
   "wait",
-  "send-message",
+  "send-resend",
+  "send-slack",
   "logger",
 ]);
 
@@ -94,6 +98,19 @@ export const linearJourneyGraphSchema =
       const data = node.attributes.data;
       if (data.type === "trigger") {
         triggerNodeIds.push(nodeId);
+
+        const parsedTriggerConfig = journeyTriggerConfigSchema.safeParse(
+          data.config,
+        );
+        if (!parsedTriggerConfig.success) {
+          ctx.addIssue({
+            code: "custom",
+            message:
+              "Trigger step must use the fixed appointment journey trigger configuration",
+            path: ["nodes", index, "attributes", "data", "config"],
+          });
+        }
+
         continue;
       }
 
@@ -107,7 +124,7 @@ export const linearJourneyGraphSchema =
         ctx.addIssue({
           code: "custom",
           message:
-            "Action steps must declare a supported step type (Wait, Send Message, Logger)",
+            "Action steps must declare a supported step type (Wait, Send Resend, Send Slack, Logger)",
           path: ["nodes", index, "attributes", "data", "config", "actionType"],
         });
         continue;
@@ -119,7 +136,7 @@ export const linearJourneyGraphSchema =
         ctx.addIssue({
           code: "custom",
           message:
-            "Unsupported step type. Allowed step types are Trigger, Wait, Send Message, and Logger",
+            "Unsupported step type. Allowed step types are Trigger, Wait, Send Resend, Send Slack, and Logger",
           path: ["nodes", index, "attributes", "data", "config", "actionType"],
         });
       }

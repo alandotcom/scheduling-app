@@ -21,11 +21,11 @@ function createNodeFixture(): Node {
       label: "Trigger",
       description: "Trigger node",
       config: {
-        triggerType: "DomainEvent",
-        domain: "appointment",
-        startEvents: ["appointment.scheduled"],
-        restartEvents: [],
-        stopEvents: [],
+        triggerType: "AppointmentJourney",
+        start: "appointment.scheduled",
+        restart: "appointment.rescheduled",
+        stop: "appointment.canceled",
+        correlationKey: "appointmentId",
       },
     },
   };
@@ -40,11 +40,11 @@ function createNodeFixtureWithId(id: string, label: string): Node {
       label,
       description: `${label} description`,
       config: {
-        triggerType: "DomainEvent",
-        domain: "appointment",
-        startEvents: ["appointment.scheduled"],
-        restartEvents: [],
-        stopEvents: [],
+        triggerType: "AppointmentJourney",
+        start: "appointment.scheduled",
+        restart: "appointment.rescheduled",
+        stop: "appointment.canceled",
+        correlationKey: "appointmentId",
       },
     },
   };
@@ -118,12 +118,8 @@ describe("WorkflowEditorSidebar role behavior", () => {
     renderSidebar({ canManageWorkflow: false });
 
     const labelInput = screen.getByLabelText("Label") as HTMLInputElement;
-    const startEventsInput = screen.getByLabelText(
-      "Start events",
-    ) as HTMLTextAreaElement;
 
     expect(labelInput.disabled).toBe(true);
-    expect(startEventsInput.disabled).toBe(true);
     expect(
       screen.getByText(
         "Read-only mode: members can inspect workflow configuration and runs, but cannot mutate settings.",
@@ -135,12 +131,9 @@ describe("WorkflowEditorSidebar role behavior", () => {
     renderSidebar({ canManageWorkflow: true });
 
     const labelInput = screen.getByLabelText("Label") as HTMLInputElement;
-    const startEventsInput = screen.getByLabelText(
-      "Start events",
-    ) as HTMLTextAreaElement;
 
     expect(labelInput.disabled).toBe(false);
-    expect(startEventsInput.disabled).toBe(false);
+    expect(screen.getByRole("button", { name: "Show filters" })).toBeTruthy();
   });
 
   test("re-syncs selected node inputs when switching nodes", () => {
@@ -246,8 +239,11 @@ describe("WorkflowEditorSidebar role behavior", () => {
 
     expect(screen.getByPlaceholderText("Search actions...")).toBeTruthy();
     expect(screen.getByText("System")).toBeTruthy();
+    expect(screen.getByText("Resend")).toBeTruthy();
+    expect(screen.getByText("Slack")).toBeTruthy();
     expect(screen.getByText("Wait")).toBeTruthy();
-    expect(screen.getByText("Send Message")).toBeTruthy();
+    expect(screen.getByText("Send Resend")).toBeTruthy();
+    expect(screen.getByText("Send Slack")).toBeTruthy();
     expect(screen.getByText("Logger")).toBeTruthy();
     expect(screen.queryByText("HTTP Request")).toBeNull();
     expect(screen.queryByText("Condition")).toBeNull();
@@ -265,11 +261,11 @@ describe("WorkflowEditorSidebar role behavior", () => {
       selectedNode: createUnconfiguredActionNodeFixture(),
     });
 
-    fireEvent.click(screen.getByTestId("action-option-send-message"));
+    fireEvent.click(screen.getByTestId("action-option-send-resend"));
 
     expect(onSetActionType).toHaveBeenCalledWith({
       nodeId: "action-node",
-      actionType: "send-message",
+      actionType: "send-resend",
     });
   });
 });

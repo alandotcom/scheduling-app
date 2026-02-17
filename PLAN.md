@@ -156,29 +156,14 @@ Default:
 
 * Reschedule automatically.
 
-### 4.4 Notification nodes: unify sending under a “Send Message” node
+### 4.4 Notification nodes: provider-specific action nodes
 
-Instead of separate primitives for Twilio/Resend/Slack in v1, use one node with channel selection. This makes global limits and governance feasible.
+Use explicit provider actions in v1:
 
-#### Send Message node (ASCII)
+* `Send Resend` (email)
+* `Send Slack` (Slack message)
 
-```
-┌───────────────────────────────────────────────┐
-│ Send Message                                    │
-├───────────────────────────────────────────────┤
-│ Channel:   [ SMS ▾ ]                             │
-│ To:        [ Client phone from appointment ]     │
-│ Template:  [ Appointment reminder ▾ ]            │
-│                                                   │
-│ Delivery safeguards                              │
-│   [x] Prevent duplicates for this appointment     │
-│   [x] Count toward workspace message limits       │
-│                                                   │
-│ If suppressed by limits                           │
-│   (•) Skip send and continue                      │
-│   ( ) Retry until expires (advanced)              │
-└───────────────────────────────────────────────┘
-```
+This keeps journey authoring explicit while preserving message-limit governance.
 
 ---
 
@@ -223,7 +208,7 @@ We need workspace-level controls similar to Customer.io’s “message limits”
 ### 5.3 Semantics
 
 * Message limits are evaluated **at send time**.
-* Each Send Message node can opt in/out of counting toward limits (default: counts).
+* Each send action node can opt in/out of counting toward limits (default: counts).
 * If suppressed:
 
   * Record a delivery event as “Suppressed by message limits”
@@ -407,7 +392,7 @@ Inside:
   * Reload appointment snapshot
   * If appointment is canceled, do not send
   * Enforce workspace message limits
-* Send message (Twilio/Resend/Slack)
+* Send message (Resend/Slack)
 * Persist delivery result
 
 Concurrency:
@@ -421,7 +406,8 @@ To keep scope tight and implementable:
 Supported node types in v1:
 
 * Wait (relative to appointment start)
-* Send Message
+* Send Resend
+* Send Slack
 * Log (optional internal only)
 
 Supported structure:
@@ -434,7 +420,7 @@ Planner compilation logic:
 * Traverse nodes sequentially
 * Maintain a “current offset” relative to appointment start
 * Each Wait adjusts offset
-* Each Send Message produces one delivery with:
+* Each send action produces one delivery with:
 
   * `scheduledFor = appointment.startAt + offset`
   * `expiresAt` (default: scheduledFor + 6h, configurable per node later)
@@ -475,7 +461,7 @@ Inngest throttling and concurrency are still useful to protect provider APIs:
 
 We can add:
 
-* `throttle: { limit: X, period: "1m" }` on the delivery worker to smooth spikes to Twilio/Resend if needed. ([Inngest][9])
+* `throttle: { limit: X, period: "1m" }` on the delivery worker to smooth spikes to Resend/Slack if needed. ([Inngest][9])
 
 Do not rely on Inngest throttling for per-workspace configurable message limits (those belong in our DB policy layer).
 
@@ -498,7 +484,7 @@ flowchart LR
   F --> G
 
   G -->|sleepUntil| G
-  G --> H[Provider: Twilio/Resend/Slack]
+  G --> H[Provider: Resend/Slack]
   G --> D
 ```
 
@@ -557,7 +543,7 @@ flowchart TD
 
   * Keep in sync must be enabled (reschedule-aware), otherwise warn: “Reminder may send at wrong time if appointment changes.”
 
-* If a Send Message node is immediate on “rescheduled” start condition and duplicates could happen:
+* If a send action node is immediate on “rescheduled” start condition and duplicates could happen:
 
   * Recommend adding a short debounce option later (not in v1).
 
@@ -565,7 +551,7 @@ flowchart TD
 
 Given an example appointment:
 
-* Show each Send Message node’s computed scheduled time.
+* Show each send action node’s computed scheduled time.
 * Show what changes when startAt changes.
 * Show that cancellation removes pending deliveries.
 

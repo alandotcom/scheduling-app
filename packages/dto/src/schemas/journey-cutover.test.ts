@@ -2,6 +2,16 @@ import { describe, expect, test } from "bun:test";
 import * as schemas from "./index";
 import type { LinearJourneyGraph } from "./journey";
 
+function createTriggerConfig() {
+  return {
+    triggerType: "AppointmentJourney",
+    start: "appointment.scheduled",
+    restart: "appointment.rescheduled",
+    stop: "appointment.canceled",
+    correlationKey: "appointmentId",
+  } as const;
+}
+
 function createLinearGraphWithSupportedSteps(
   triggerId = "trigger-supported",
 ): LinearJourneyGraph {
@@ -23,6 +33,7 @@ function createLinearGraphWithSupportedSteps(
           data: {
             label: "Trigger",
             type: "trigger",
+            config: createTriggerConfig(),
           },
         },
       },
@@ -57,8 +68,7 @@ function createLinearGraphWithSupportedSteps(
             label: "Send Message",
             type: "action",
             config: {
-              actionType: "send-message",
-              channel: "email",
+              actionType: "send-resend",
             },
           },
         },
@@ -138,6 +148,7 @@ function createBranchingGraph(
           data: {
             label: "Trigger",
             type: "trigger",
+            config: createTriggerConfig(),
           },
         },
       },
@@ -224,6 +235,7 @@ function createLegacyAliasStepGraph(
           data: {
             label: "Trigger",
             type: "trigger",
+            config: createTriggerConfig(),
           },
         },
       },
@@ -295,6 +307,29 @@ describe("journey cutover schema exports", () => {
     const parsed = schemas.createJourneySchema.safeParse({
       name: "Legacy Alias Journey",
       graph: createLegacyAliasStepGraph(),
+    });
+
+    expect(parsed.success).toBe(false);
+  });
+
+  test("rejects legacy trigger routing shape", () => {
+    const legacyTriggerGraph = createLinearGraphWithSupportedSteps(
+      "trigger-legacy-routing",
+    );
+    const [triggerNode] = legacyTriggerGraph.nodes;
+    if (triggerNode?.attributes.data.type === "trigger") {
+      triggerNode.attributes.data.config = {
+        triggerType: "DomainEvent",
+        domain: "appointment",
+        startEvents: ["appointment.scheduled"],
+        restartEvents: ["appointment.rescheduled"],
+        stopEvents: ["appointment.canceled"],
+      };
+    }
+
+    const parsed = schemas.createJourneySchema.safeParse({
+      name: "Legacy Trigger Journey",
+      graph: legacyTriggerGraph,
     });
 
     expect(parsed.success).toBe(false);

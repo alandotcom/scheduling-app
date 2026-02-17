@@ -22,6 +22,16 @@ import { journeyService } from "./journeys.js";
 import type { ServiceContext } from "./locations.js";
 import type { LinearJourneyGraph } from "@scheduling/dto";
 
+function createTriggerConfig() {
+  return {
+    triggerType: "AppointmentJourney",
+    start: "appointment.scheduled",
+    restart: "appointment.rescheduled",
+    stop: "appointment.canceled",
+    correlationKey: "appointmentId",
+  } as const;
+}
+
 function createLinearGraph(triggerId = "trigger-1"): LinearJourneyGraph {
   return {
     attributes: {},
@@ -41,6 +51,7 @@ function createLinearGraph(triggerId = "trigger-1"): LinearJourneyGraph {
           data: {
             label: "Trigger",
             type: "trigger",
+            config: createTriggerConfig(),
           },
         },
       },
@@ -55,6 +66,7 @@ function createLinearGraphWithSendMessage(input?: {
 }): LinearJourneyGraph {
   const triggerId = input?.triggerId ?? "trigger-with-send";
   const channel = input?.channel ?? "email";
+  const actionType = channel === "slack" ? "send-slack" : "send-resend";
 
   return {
     attributes: {},
@@ -74,13 +86,7 @@ function createLinearGraphWithSendMessage(input?: {
           data: {
             label: "Trigger",
             type: "trigger",
-            config: {
-              triggerType: "DomainEvent",
-              domain: "appointment",
-              startEvents: ["appointment.scheduled"],
-              restartEvents: ["appointment.rescheduled"],
-              stopEvents: ["appointment.canceled"],
-            },
+            config: createTriggerConfig(),
           },
         },
       },
@@ -97,8 +103,7 @@ function createLinearGraphWithSendMessage(input?: {
             label: "Send Message",
             type: "action",
             config: {
-              actionType: "send-message",
-              channel,
+              actionType,
             },
           },
         },
@@ -121,7 +126,6 @@ function createLinearGraphWithSendMessage(input?: {
 
 function createLinearGraphWithTriggerConfig(input: {
   triggerId: string;
-  startEvents?: string[];
   filter?: {
     logic: "and" | "or";
     groups: Array<{
@@ -153,11 +157,7 @@ function createLinearGraphWithTriggerConfig(input: {
             label: "Trigger",
             type: "trigger",
             config: {
-              triggerType: "DomainEvent",
-              domain: "appointment",
-              startEvents: input.startEvents ?? ["appointment.scheduled"],
-              restartEvents: [],
-              stopEvents: ["appointment.canceled"],
+              ...createTriggerConfig(),
               ...(input.filter ? { filter: input.filter } : {}),
             },
           },
@@ -981,5 +981,40 @@ describe("JourneyService", () => {
     expect(
       runDetail.deliveries.map((delivery) => delivery.reasonCode),
     ).toContain("past_due");
+  });
+
+  test("get/list fail with explicit conflict when stored definition is invalid", async () => {
+    const created = await journeyService.create(
+      {
+        name: "Invalid Definition Journey",
+        graph: createLinearGraph("trigger-invalid-definition"),
+      },
+      context,
+    );
+
+    await setTestOrgContext(db, context.orgId);
+    await db
+      .update(journeys)
+      .set({
+        draftDefinition: {
+          attributes: {},
+          options: { type: "directed" },
+          nodes: [],
+          edges: [],
+        },
+      })
+      .where(eq(journeys.id, created.id));
+
+    await expect(journeyService.get(created.id, context)).rejects.toMatchObject(
+      {
+        code: "CONFLICT",
+        details: { code: "JOURNEY_DEFINITION_INVALID" },
+      },
+    );
+
+    await expect(journeyService.list(context)).rejects.toMatchObject({
+      code: "CONFLICT",
+      details: { code: "JOURNEY_DEFINITION_INVALID" },
+    });
   });
 });

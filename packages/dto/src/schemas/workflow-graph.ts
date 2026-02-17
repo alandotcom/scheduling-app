@@ -265,6 +265,17 @@ export const journeyTriggerFilterAstSchema = z
     }
   });
 
+export const journeyTriggerConfigSchema = z
+  .object({
+    triggerType: z.literal("AppointmentJourney"),
+    start: z.literal("appointment.scheduled"),
+    restart: z.literal("appointment.rescheduled"),
+    stop: z.literal("appointment.canceled"),
+    correlationKey: z.literal("appointmentId"),
+    filter: journeyTriggerFilterAstSchema.optional(),
+  })
+  .strict();
+
 const workflowDomainEventTriggerConfigSchema = z
   .object({
     triggerType: z.literal("DomainEvent"),
@@ -414,7 +425,7 @@ export type WorkflowNodeRuntimeStatus = z.infer<
 export type WorkflowDomainEventTriggerConfig = z.infer<
   typeof workflowDomainEventTriggerConfigSchema
 >;
-export type JourneyDomainEventTriggerConfig = WorkflowDomainEventTriggerConfig;
+export type JourneyTriggerConfig = z.infer<typeof journeyTriggerConfigSchema>;
 export type JourneyTriggerFilterOperator = z.infer<
   typeof journeyTriggerFilterOperatorSchema
 >;
@@ -451,8 +462,5 @@ export type SerializedWorkflowGraph = z.infer<
   typeof serializedWorkflowGraphSchema
 >;
 export type SerializedJourneyGraph = SerializedWorkflowGraph;
-
-export const journeyDomainEventTriggerConfigSchema =
-  workflowDomainEventTriggerConfigSchema;
 
 export const serializedJourneyGraphSchema = serializedWorkflowGraphSchema;

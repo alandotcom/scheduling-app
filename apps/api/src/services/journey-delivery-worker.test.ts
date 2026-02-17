@@ -15,12 +15,11 @@ const db: TestDatabase = getTestDb();
 
 function createJourneyVersionSnapshot(input?: {
   stepKey?: string;
-  actionType?: "send-message" | "logger";
+  actionType?: "send-resend" | "send-slack" | "logger";
   channel?: "email" | "slack" | "logger";
 }) {
   const stepKey = input?.stepKey ?? "send-node";
-  const actionType = input?.actionType ?? "send-message";
-  const channel = input?.channel ?? "email";
+  const actionType = input?.actionType ?? "send-resend";
 
   const config =
     actionType === "logger"
@@ -29,8 +28,7 @@ function createJourneyVersionSnapshot(input?: {
           message: "Logger delivery event",
         }
       : {
-          actionType: "send-message",
-          channel,
+          actionType,
         };
 
   return {
@@ -49,11 +47,11 @@ function createJourneyVersionSnapshot(input?: {
               type: "trigger",
               label: "Trigger",
               config: {
-                triggerType: "DomainEvent",
-                domain: "appointment",
-                startEvents: ["appointment.scheduled"],
-                restartEvents: ["appointment.rescheduled"],
-                stopEvents: ["appointment.canceled"],
+                triggerType: "AppointmentJourney",
+                start: "appointment.scheduled",
+                restart: "appointment.rescheduled",
+                stop: "appointment.canceled",
+                correlationKey: "appointmentId",
               },
             },
           },
@@ -94,12 +92,12 @@ async function seedPlannedDelivery(
   scheduledFor: Date,
   input?: {
     stepKey?: string;
-    actionType?: "send-message" | "logger";
+    actionType?: "send-resend" | "send-slack" | "logger";
     channel?: "email" | "slack" | "logger";
   },
 ) {
   const stepKey = input?.stepKey ?? "send-node";
-  const actionType = input?.actionType ?? "send-message";
+  const actionType = input?.actionType ?? "send-resend";
   const channel = input?.channel ?? "email";
 
   await setTestOrgContext(db, context.orgId);

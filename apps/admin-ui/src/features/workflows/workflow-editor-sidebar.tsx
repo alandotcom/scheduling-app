@@ -1,9 +1,7 @@
 import type { Edge, Node } from "@xyflow/react";
 import { useEffect, useMemo, useState } from "react";
 import {
-  domainEventTypes,
-  domainEventDomains,
-  type DomainEventDomain,
+  journeyTriggerConfigSchema,
   type DomainEventType,
 } from "@scheduling/dto";
 import {
@@ -71,29 +69,13 @@ function toNodeConfig(node: Node | null): Record<string, unknown> {
   return { ...node.data.config };
 }
 
-function toStringArray(value: unknown): string[] {
-  return Array.isArray(value)
-    ? value.filter((item): item is string => typeof item === "string")
-    : [];
-}
-
-function isDomainEventDomain(value: unknown): value is DomainEventDomain {
-  return (
-    typeof value === "string" &&
-    domainEventDomains.some((domain) => domain === value)
-  );
-}
-
-function getTriggerDomain(nodes: Node[]): DomainEventDomain | null {
+function getTriggerDomain(nodes: Node[]): "appointment" | null {
   const trigger = nodes.find((node) => getNodeType(node) === "trigger");
   if (!trigger) {
     return null;
   }
 
-  const triggerConfig = toNodeConfig(trigger);
-  return isDomainEventDomain(triggerConfig.domain)
-    ? triggerConfig.domain
-    : "appointment";
+  return "appointment";
 }
 
 function getConfiguredTriggerEventTypes(nodes: Node[]): DomainEventType[] {
@@ -102,18 +84,11 @@ function getConfiguredTriggerEventTypes(nodes: Node[]): DomainEventType[] {
     return [];
   }
 
-  const config = toNodeConfig(trigger);
-  const configuredEventTypes = [
-    ...toStringArray(config.startEvents),
-    ...toStringArray(config.restartEvents),
-    ...toStringArray(config.stopEvents),
+  return [
+    "appointment.scheduled",
+    "appointment.rescheduled",
+    "appointment.canceled",
   ];
-
-  const allowedEventTypes = new Set<string>(domainEventTypes);
-  return configuredEventTypes.filter(
-    (eventType): eventType is DomainEventType =>
-      allowedEventTypes.has(eventType),
-  );
 }
 
 function toNodeReferenceName(node: Node): string {
@@ -559,10 +534,16 @@ export function WorkflowEditorSidebar({
                             id: selectedNode.id,
                             data: {
                               config: {
-                                ...selectedNodeConfig,
-                                triggerType: "DomainEvent",
-                                domain:
-                                  selectedNodeConfig.domain ?? "appointment",
+                                ...journeyTriggerConfigSchema.parse({
+                                  triggerType: "AppointmentJourney",
+                                  start: "appointment.scheduled",
+                                  restart: "appointment.rescheduled",
+                                  stop: "appointment.canceled",
+                                  correlationKey: "appointmentId",
+                                }),
+                                ...(selectedNodeConfig.filter
+                                  ? { filter: selectedNodeConfig.filter }
+                                  : {}),
                                 ...next,
                               },
                             },

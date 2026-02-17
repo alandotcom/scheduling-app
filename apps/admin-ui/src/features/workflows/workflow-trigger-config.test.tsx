@@ -6,115 +6,94 @@ afterEach(() => {
   cleanup();
 });
 
+function createTriggerConfig() {
+  return {
+    triggerType: "AppointmentJourney",
+    start: "appointment.scheduled",
+    restart: "appointment.rescheduled",
+    stop: "appointment.canceled",
+    correlationKey: "appointmentId",
+  } as const;
+}
+
 describe("WorkflowTriggerConfig", () => {
-  test("calls onUpdate when selecting an event from the combobox", () => {
+  test("renders canonical appointment journey sections with locked controls", () => {
     const onUpdate = mock(() => {});
 
     render(
       <WorkflowTriggerConfig
-        config={{
-          triggerType: "DomainEvent",
-          domain: "appointment",
-          startEvents: [],
-        }}
+        config={createTriggerConfig()}
         disabled={false}
         onUpdate={onUpdate}
       />,
     );
 
-    const inputs = screen.getAllByPlaceholderText("Select events...");
-    const startEventsInput = inputs[0]!;
+    expect(screen.getByText("Start condition")).toBeTruthy();
+    expect(
+      screen.getByText("If already running for this appointment"),
+    ).toBeTruthy();
+    expect(screen.getByText("Keep in sync (recommended)")).toBeTruthy();
+    expect(screen.getByText("Exit condition")).toBeTruthy();
 
-    fireEvent.focus(startEventsInput);
-    fireEvent.click(screen.getByText("appointment.scheduled"));
-
-    expect(onUpdate).toHaveBeenCalledWith({
-      startEvents: ["appointment.scheduled"],
+    const keepRunning = screen.getByRole("radio", { name: /Keep running/i });
+    const startOver = screen.getByRole("radio", { name: /Start over/i });
+    const syncCheckbox = screen.getByRole("checkbox", {
+      name: "When appointment is rescheduled",
     });
+    const exitCheckbox = screen.getByRole("checkbox", {
+      name: "Appointment canceled",
+    });
+
+    expect((keepRunning as HTMLInputElement).checked).toBe(true);
+    expect((keepRunning as HTMLInputElement).disabled).toBe(true);
+    expect((startOver as HTMLInputElement).disabled).toBe(true);
+    expect((syncCheckbox as HTMLInputElement).checked).toBe(true);
+    expect((syncCheckbox as HTMLInputElement).disabled).toBe(true);
+    expect((exitCheckbox as HTMLInputElement).checked).toBe(true);
+    expect((exitCheckbox as HTMLInputElement).disabled).toBe(true);
+
+    expect(screen.queryByLabelText("Domain")).toBeNull();
+    expect(screen.queryByLabelText("Start events")).toBeNull();
+    expect(screen.queryByLabelText("Restart events")).toBeNull();
+    expect(screen.queryByLabelText("Stop events")).toBeNull();
+    expect(screen.queryByLabelText("Correlation path")).toBeNull();
   });
 
-  test("re-syncs correlation input when config changes", () => {
-    const onUpdate = mock(() => {});
-
-    const view = render(
-      <WorkflowTriggerConfig
-        config={{
-          triggerType: "DomainEvent",
-          domain: "appointment",
-          domainEventCorrelationPath: "data.firstId",
-        }}
-        disabled={false}
-        onUpdate={onUpdate}
-      />,
-    );
-
-    const correlationInput = screen.getByLabelText(
-      "Correlation path",
-    ) as HTMLInputElement;
-
-    fireEvent.change(correlationInput, {
-      target: { value: "unsaved.first" },
-    });
-
-    view.rerender(
-      <WorkflowTriggerConfig
-        config={{
-          triggerType: "DomainEvent",
-          domain: "appointment",
-          domainEventCorrelationPath: "data.secondId",
-        }}
-        disabled={false}
-        onUpdate={onUpdate}
-      />,
-    );
-
-    const switchedCorrelationInput = screen.getByLabelText(
-      "Correlation path",
-    ) as HTMLInputElement;
-
-    expect(switchedCorrelationInput.value).toBe("data.secondId");
-
-    fireEvent.blur(switchedCorrelationInput);
-
-    expect(onUpdate).toHaveBeenCalledWith({
-      domainEventCorrelationPath: "data.secondId",
-    });
-  });
-
-  test("filters displayed routing events to the selected domain", () => {
+  test("renders advanced details behind collapsible section", () => {
     const onUpdate = mock(() => {});
 
     render(
       <WorkflowTriggerConfig
-        config={{
-          triggerType: "DomainEvent",
-          domain: "appointment",
-          startEvents: ["client.created"],
-          restartEvents: ["appointment.rescheduled"],
-          stopEvents: ["appointment.canceled"],
-        }}
+        config={createTriggerConfig()}
         disabled={false}
         onUpdate={onUpdate}
       />,
     );
 
-    expect(screen.queryByLabelText("Remove client.created")).toBeNull();
+    expect(screen.queryByText("Event mapping (internal):")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Advanced" }));
+
+    expect(screen.getByText("Event mapping (internal):")).toBeTruthy();
+    expect(screen.getByText("appointment.scheduled")).toBeTruthy();
+    expect(screen.getByText("appointment.rescheduled")).toBeTruthy();
+    expect(screen.getByText("appointment.canceled")).toBeTruthy();
+    expect(screen.getByText(/Appointment ID \(read-only in v1\)/)).toBeTruthy();
   });
 
-  test("edits grouped trigger filters and emits AST updates", () => {
+  test("keeps trigger filters collapsed by default and edits grouped AST when expanded", () => {
     const onUpdate = mock(() => {});
 
     render(
       <WorkflowTriggerConfig
-        config={{
-          triggerType: "DomainEvent",
-          domain: "appointment",
-          startEvents: ["appointment.scheduled"],
-        }}
+        config={createTriggerConfig()}
         disabled={false}
         onUpdate={onUpdate}
       />,
     );
+
+    expect(screen.queryByRole("button", { name: "Add group" })).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Show filters" }));
 
     fireEvent.click(screen.getByRole("button", { name: "Add group" }));
     fireEvent.click(
@@ -137,9 +116,7 @@ describe("WorkflowTriggerConfig", () => {
     render(
       <WorkflowTriggerConfig
         config={{
-          triggerType: "DomainEvent",
-          domain: "appointment",
-          startEvents: ["appointment.scheduled"],
+          ...createTriggerConfig(),
           filter: {
             logic: "and",
             groups: [
@@ -191,6 +168,7 @@ describe("WorkflowTriggerConfig", () => {
       />,
     );
 
+    fireEvent.click(screen.getByRole("button", { name: "Show filters" }));
     fireEvent.click(screen.getByRole("button", { name: "Add group" }));
 
     expect(screen.getByText("You can add at most 4 groups.")).toBeTruthy();
@@ -203,9 +181,7 @@ describe("WorkflowTriggerConfig", () => {
     render(
       <WorkflowTriggerConfig
         config={{
-          triggerType: "DomainEvent",
-          domain: "appointment",
-          startEvents: ["appointment.scheduled"],
+          ...createTriggerConfig(),
           filter: {
             logic: "and",
             groups: [
@@ -297,6 +273,7 @@ describe("WorkflowTriggerConfig", () => {
       />,
     );
 
+    fireEvent.click(screen.getByRole("button", { name: "Show filters" }));
     fireEvent.click(
       screen.getAllByRole("button", { name: "Add condition" })[0]!,
     );

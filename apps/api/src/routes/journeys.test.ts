@@ -15,10 +15,21 @@ import {
 import {
   journeyDeliveries,
   journeyRuns,
+  journeys,
   journeyVersions,
 } from "@scheduling/db/schema";
 import * as journeyRoutes from "./journeys.js";
 import type { LinearJourneyGraph } from "@scheduling/dto";
+
+function createTriggerConfig() {
+  return {
+    triggerType: "AppointmentJourney",
+    start: "appointment.scheduled",
+    restart: "appointment.rescheduled",
+    stop: "appointment.canceled",
+    correlationKey: "appointmentId",
+  } as const;
+}
 
 function createLinearGraph(triggerId = "trigger-1"): LinearJourneyGraph {
   return {
@@ -39,6 +50,7 @@ function createLinearGraph(triggerId = "trigger-1"): LinearJourneyGraph {
           data: {
             label: "Trigger",
             type: "trigger",
+            config: createTriggerConfig(),
           },
         },
       },
@@ -53,6 +65,7 @@ function createLinearGraphWithSendMessage(input?: {
 }): LinearJourneyGraph {
   const triggerId = input?.triggerId ?? "trigger-send";
   const channel = input?.channel ?? "email";
+  const actionType = channel === "slack" ? "send-slack" : "send-resend";
 
   return {
     attributes: {},
@@ -72,13 +85,7 @@ function createLinearGraphWithSendMessage(input?: {
           data: {
             label: "Trigger",
             type: "trigger",
-            config: {
-              triggerType: "DomainEvent",
-              domain: "appointment",
-              startEvents: ["appointment.scheduled"],
-              restartEvents: ["appointment.rescheduled"],
-              stopEvents: ["appointment.canceled"],
-            },
+            config: createTriggerConfig(),
           },
         },
       },
@@ -95,8 +102,7 @@ function createLinearGraphWithSendMessage(input?: {
             label: "Send Message",
             type: "action",
             config: {
-              actionType: "send-message",
-              channel,
+              actionType,
             },
           },
         },
@@ -138,6 +144,7 @@ function createBranchingGraph(
           data: {
             label: "Trigger",
             type: "trigger",
+            config: createTriggerConfig(),
           },
         },
       },
@@ -224,6 +231,7 @@ function createGraphWithLegacyActionAlias(
           data: {
             label: "Trigger",
             type: "trigger",
+            config: createTriggerConfig(),
           },
         },
       },
@@ -241,7 +249,6 @@ function createGraphWithLegacyActionAlias(
             type: "action",
             config: {
               actionType: "email",
-              channel: "email",
             },
           },
         },
@@ -450,11 +457,7 @@ describe("Journey Routes", () => {
 
     if (triggerNode?.attributes.data.type === "trigger") {
       triggerNode.attributes.data.config = {
-        triggerType: "DomainEvent",
-        domain: "appointment",
-        startEvents: ["appointment.scheduled"],
-        restartEvents: [],
-        stopEvents: ["appointment.canceled"],
+        ...createTriggerConfig(),
         filter: {
           logic: "and",
           groups: [
@@ -970,5 +973,45 @@ describe("Journey Routes", () => {
     expect(sameJourneyRunRow?.status).toBe("canceled");
     expect(terminalRunRow?.status).toBe("completed");
     expect(otherJourneyRunRow?.status).toBe("running");
+  });
+
+  test("get/list return conflict for stored invalid journey definitions", async () => {
+    const created = await call(
+      journeyRoutes.create,
+      {
+        name: "Route Invalid Definition Journey",
+        graph: createLinearGraph("trigger-route-invalid-definition"),
+      },
+      { context: ownerContext },
+    );
+
+    await setTestOrgContext(db, ownerContext.orgId!);
+    await db
+      .update(journeys)
+      .set({
+        draftDefinition: {
+          attributes: {},
+          options: { type: "directed" },
+          nodes: [],
+          edges: [],
+        },
+      })
+      .where(eq(journeys.id, created.id));
+
+    await expect(
+      call(journeyRoutes.get, { id: created.id }, { context: ownerContext }),
+    ).rejects.toMatchObject({
+      code: "CONFLICT",
+      message: "Journey definition is invalid",
+      data: { code: "JOURNEY_DEFINITION_INVALID" },
+    });
+
+    await expect(
+      call(journeyRoutes.list, undefined, { context: ownerContext }),
+    ).rejects.toMatchObject({
+      code: "CONFLICT",
+      message: "Journey definition is invalid",
+      data: { code: "JOURNEY_DEFINITION_INVALID" },
+    });
   });
 });
