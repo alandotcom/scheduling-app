@@ -7,10 +7,10 @@ completed: 2026-02-16
 # Task: Replace Journey Persistence Model
 
 ## Description
-Replace legacy workflow runtime tables with journey-specific persistence entities, deterministic uniqueness constraints, and run snapshot retention behavior aligned with hard-delete requirements.
+Replace legacy workflow runtime tables with journey-specific persistence entities (journeys, versions, runs, deliveries) including deterministic identity constraints and history snapshot retention.
 
 ## Background
-The current DB schema persists graph workflow runtime artifacts. The rebuild requires journey/version/run/delivery tables with version pinning and post-delete history visibility.
+The rebuild requires a big-bang schema replacement. Per repo policy, baseline migration artifacts must be updated directly with no incremental migration files.
 
 ## Reference Documentation
 **Required:**
@@ -23,41 +23,43 @@ The current DB schema persists graph workflow runtime artifacts. The rebuild req
 **Note:** You MUST read the design document before beginning implementation.
 
 ## Technical Requirements
-1. Introduce journey persistence entities and relations for `journeys`, `journey_versions`, `journey_runs`, and `journey_deliveries`.
-2. Add deterministic uniqueness/index constraints for run and delivery identities.
-3. Update baseline migration artifacts directly (no new incremental migration) and remove legacy workflow runtime tables.
+1. Define journey schema tables/relations for definitions, immutable versions, runs, and deliveries.
+2. Add deterministic uniqueness constraints for run and delivery identities.
+3. Enforce delete behavior where journey definitions/versions hard-delete while run history snapshots remain queryable.
+4. Update `packages/db/src/migrations/20260208064434_init/migration.sql` directly and remove legacy workflow runtime schema artifacts.
+5. Provide a checkpoint via DB tests proving version pinning constraints and post-delete history visibility.
 
 ## Dependencies
 - task-03-build-journey-dto-and-linear-validation.code-task.md
 
 ## Implementation Approach
-1. Write failing DB schema tests for table constraints, identity uniqueness, and delete/history behavior.
-2. Implement schema and relations updates plus baseline migration changes.
-3. Refactor fixtures/helpers to align with journey tables while preserving test readability.
+1. Write failing DB schema tests for constraints, deterministic indexes, and delete/history behavior.
+2. Implement Drizzle schema/relations and baseline migration updates for journey entities.
+3. Refactor schema exports and fixtures to keep tests green and remove legacy workflow persistence references.
 
 ## Acceptance Criteria
 
-1. **Journey Runtime Schema Enforced**
-   - Given the updated schema artifacts
-   - When DB tests validate table shape and constraints
-   - Then journey entities and deterministic indexes are present and valid.
+1. **Journey Runtime Schema Replaces Legacy Tables**
+   - Given the updated DB schema artifacts
+   - When schema tests and snapshots are evaluated
+   - Then journey entities exist and legacy workflow runtime tables are removed.
 
-2. **Hard Delete Preserves Run History Visibility**
-   - Given a journey with runs and snapshot context
-   - When journey definitions and versions are hard-deleted
-   - Then run history remains queryable from run snapshots.
+2. **Deterministic Identity Constraints Enforced**
+   - Given duplicate run or delivery identity inputs
+   - When inserts/upserts execute
+   - Then uniqueness constraints enforce deterministic idempotency.
 
-3. **Legacy Runtime Tables Removed**
-   - Given the baseline schema and migration artifacts
-   - When schema inspection runs
-   - Then legacy workflow runtime tables are absent.
+3. **Delete Retains Historical Run Visibility**
+   - Given a journey with historical runs
+   - When the journey definition is deleted
+   - Then definitions/versions are hard-deleted and historical run snapshots remain queryable.
 
 4. **Unit Tests Pass**
    - Given the implementation is complete
-   - When running the targeted test suite for this slice
+   - When running DB schema tests
    - Then all tests for this task pass.
 
 ## Metadata
 - **Complexity**: High
-- **Labels**: database, drizzle, migrations, journeys
-- **Required Skills**: drizzle, postgres18-dev, testing
+- **Labels**: database, drizzle, schema, migrations
+- **Required Skills**: drizzle-orm, postgres-schema-design, db-testing

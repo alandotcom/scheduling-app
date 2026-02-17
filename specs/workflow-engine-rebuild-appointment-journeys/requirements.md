@@ -153,8 +153,12 @@ R47. SMS delivery implementation is out of scope (future support may reuse test 
 14. Given test-mode run with Slack step and no Slack override, when run starts, then run proceeds.
 15. Given overlapping journey triggers, when publish runs, then warnings appear and publish still succeeds.
 
+## Q&A Decision Log
+
+- A69 (test-mode trigger semantics): `test_only` journeys auto-trigger from real appointment lifecycle events and also support manual test start. Both paths must create isolated `mode=test` runs and must never create `mode=live` runs.
+
 ## Sources
 
 - `specs/workflow-engine-rebuild-appointment-journeys/rough-idea.md`
 - `specs/workflow-engine-rebuild-appointment-journeys/research/recommendations.md`
-- consolidated Q&A history resolved through A68
+- consolidated Q&A history resolved through A69

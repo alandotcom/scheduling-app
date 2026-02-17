@@ -1,16 +1,16 @@
 ---
 status: completed
 created: 2026-02-16
-started: 2026-02-16
-completed: 2026-02-16
+started: 2026-02-17
+completed: 2026-02-17
 ---
-# Task: Update Runs UI Overlap Warnings and History
+# Task: Update Runs UI, Overlap Warnings, and History Views
 
 ## Description
-Update runs and publish UX to show `test|live` mode distinctions, timeline reason codes, overlap publish warnings, and history visibility for runs tied to deleted journey definitions.
+Update journey runs and publish UX to show test/live run modes, logger timeline details, reason codes, explicit run-cancel scope actions, publish-time overlap warnings, and post-delete history visibility.
 
 ## Background
-Runs UI is currently execution-centric and lacks mode facets, warning rendering, and snapshot-based history treatment required by the rebuild.
+Runs UI is still execution-centric from legacy workflow runtime. This task brings UI behavior in sync with journey runtime semantics, including R31 scope cues and warning-only overlap publish behavior.
 
 ## Reference Documentation
 **Required:**
@@ -23,41 +23,44 @@ Runs UI is currently execution-centric and lacks mode facets, warning rendering,
 **Note:** You MUST read the design document before beginning implementation.
 
 ## Technical Requirements
-1. Runs views must expose `test|live` filters and badges from run mode fields.
-2. Run timeline/details must render logger entries and typed delivery reason codes.
-3. Publish flow must surface overlap warnings while still allowing publish success; deleted-journey run history must remain visible using snapshots.
+1. Add run list/detail filters and badges for `mode=test|live`.
+2. Render run timelines with Logger entries and delivery reason codes.
+3. Expose both individual run cancel and journey-level bulk cancel actions with clear scope labeling.
+4. Display publish overlap warnings without blocking publish success.
+5. Ensure deleted journey run history remains visible via snapshot context labels.
+6. Provide a checkpoint via UI tests covering overlap warnings plus both cancel scopes.
 
 ## Dependencies
 - task-10-cutover-admin-builder-to-linear-journeys.code-task.md
 
 ## Implementation Approach
-1. Write failing UI tests for mode filtering/badges, timeline rendering, overlap warning display, and deleted-journey history visibility.
-2. Implement runs query/transform updates and warning presentation components.
-3. Refactor detail view labels to rely on snapshot context when source journey definitions are deleted.
+1. Write failing UI tests for mode badges/filters, logger timeline display, reason codes, cancel scope actions, overlap warnings, and deleted-history rendering.
+2. Implement runs panel/detail query and rendering updates plus overlap warning presentation.
+3. Refactor action copy/labels for clear cancellation scope cues while keeping tests green.
 
 ## Acceptance Criteria
 
-1. **Test and Live Runs Are Distinguishable**
-   - Given mixed `test` and `live` runs
-   - When the runs list is filtered and rendered
-   - Then mode filters and badges accurately represent each run.
+1. **Run Mode and Timeline Context Are Visible**
+   - Given mixed test and live runs with logger deliveries
+   - When users view run lists and details
+   - Then mode badges/filters, logger timeline rows, and reason codes are shown correctly.
 
-2. **Publish Warnings Are Non-Blocking**
-   - Given publish overlap heuristic detects potential conflicts
-   - When publish is triggered
-   - Then warning messages are displayed and publish still succeeds.
+2. **Cancel Actions Communicate and Enforce Scope**
+   - Given active runs in the UI
+   - When users invoke individual run cancel or journey-level bulk cancel
+   - Then action labels describe scope and resulting state updates match intended cancellation scope.
 
-3. **Deleted Journey Run History Remains Visible**
-   - Given historical runs tied to a deleted journey definition
-   - When viewing run details
-   - Then history remains visible using stored snapshot context.
+3. **Publish Warnings Are Non-Blocking and History Survives Delete**
+   - Given overlapping trigger/filter journeys and deleted journey definitions
+   - When publish occurs and historical runs are viewed
+   - Then overlap warnings render while publish succeeds and snapshot-based history remains visible.
 
 4. **Unit Tests Pass**
    - Given the implementation is complete
-   - When running the targeted test suite for this slice
+   - When running runs/publish UI tests
    - Then all tests for this task pass.
 
 ## Metadata
-- **Complexity**: Medium
-- **Labels**: admin-ui, runs, overlap-warnings, history
-- **Required Skills**: react-ui, api-integration, testing
+- **Complexity**: High
+- **Labels**: admin-ui, runs, overlap, history, lifecycle
+- **Required Skills**: react, query-state, frontend-testing

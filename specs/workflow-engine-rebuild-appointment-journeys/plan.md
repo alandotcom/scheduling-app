@@ -7,6 +7,10 @@
 - Test semantics from A68: `test_only` auto-trigger and manual test start are both supported; both create `mode=test` runs.
 - v1 default for approved design ambiguity: test Email override input is a single required destination string.
 - v1 default reason-code taxonomy starts small and typed: `past_due`, `wait_already_due`, `execution_terminal`, `manual_cancel`.
+- R31 scope is explicit in v1: support both bulk cancel (all active runs for journey) and individual run cancel.
+- R40 invariant is explicit: test-mode waits run on configured timing with no acceleration path.
+- R44 boundary is explicit: dedupe is run-scoped; different journeys for the same appointment must execute independently.
+- R45 behavior is explicit: Logger step writes timeline output and emits to real logger/console.
 
 ## Test Strategy (TDD-First)
 
@@ -50,10 +54,11 @@ Write tests first in each slice so they fail against current legacy behavior, th
 5. Planner identity and schedule computation
    - Target: deterministic key builders and wait scheduler.
    - Cases:
-     - run identity stable for same `(org, journeyVersion, appointment, mode)`
-     - delivery identity stable for same `(run, step, schedule context)`
-     - wait relative to start/end before/after computes expected UTC time
-     - past due computes `skipped` with `reasonCode=past_due`
+      - run identity stable for same `(org, journeyVersion, appointment, mode)`
+      - distinct journey versions for same appointment keep distinct run/delivery identities (no cross-journey dedupe)
+      - delivery identity stable for same `(run, step, schedule context)`
+      - wait relative to start/end before/after computes expected UTC time
+      - past due computes `skipped` with `reasonCode=past_due`
 
 6. Overlap analyzer
    - Target: publish-time heuristic analyzer.
@@ -65,9 +70,24 @@ Write tests first in each slice so they fail against current legacy behavior, th
 7. Test run safety guard
    - Target: test-run start validator.
    - Cases:
-     - test run with email step and no override rejected
-     - test run with slack-only step and no Slack override accepted
-     - both manual and auto-trigger test paths enforce the same Email rule
+      - test run with email step and no override rejected
+      - test run with slack-only step and no Slack override accepted
+      - both manual and auto-trigger test paths enforce the same Email rule
+      - test-mode wait scheduling equals live-mode scheduling for the same step config
+
+8. Run cancellation scope
+   - Target: run cancellation service methods and route contracts.
+   - Cases:
+      - individual run cancel marks only the selected active run terminal
+      - bulk cancel for a journey cancels all active runs across versions
+      - canceling an already terminal run is idempotent and no-op
+
+9. Logger step sink behavior
+   - Target: logger delivery execution path.
+   - Cases:
+      - logger step appends visible timeline entry on run details
+      - logger step emits structured output to logger/console sink
+      - logger execution is idempotent for duplicate worker attempts
 
 ### Integration Tests
 
@@ -78,16 +98,19 @@ Write tests first in each slice so they fail against current legacy behavior, th
      - `appointment.canceled`
 
 2. Journey lifecycle API + DB behavior
-   - create/update/publish/pause/resume/delete on journey definitions
-   - unique name per org enforced
-   - non-linear payload rejected with no persistence side effects
+    - create/update/publish/pause/resume/delete on journey definitions
+    - unique name per org enforced
+    - non-linear payload rejected with no persistence side effects
+    - individual run cancel endpoint and bulk journey cancel both enforce R31 scope
 
 3. Planner + worker runtime behavior
-   - scheduled event creates run and deliveries
-   - reschedule mismatch cancels pending unsent deliveries
-   - pause cancels/suppresses pending unsent deliveries
-   - resume immediately re-plans from current appointment state
-   - cancellation race handled by worker `cancelOn` semantics
+    - scheduled event creates run and deliveries
+    - reschedule mismatch cancels pending unsent deliveries
+    - pause cancels/suppresses pending unsent deliveries
+    - resume immediately re-plans from current appointment state
+    - cancellation race handled by worker `cancelOn` semantics
+    - two journeys matching the same appointment produce independent delivery attempts (no cross-journey dedupe)
+    - logger steps produce timeline rows and real logger/console output
 
 4. Version pinning + history retention
    - republish creates new immutable version
@@ -98,6 +121,7 @@ Write tests first in each slice so they fail against current legacy behavior, th
    - `test_only` auto-trigger path creates `mode=test` run
    - manual start path creates `mode=test` run
    - missing Email override blocks run start with clear error
+   - test-mode wait scheduling remains identical to live-mode scheduling
 
 6. Publish-time overlap warning behavior
    - publish returns warnings when overlap heuristic matches
@@ -105,7 +129,7 @@ Write tests first in each slice so they fail against current legacy behavior, th
 
 ### Manual E2E Scenario (Validator-Executable)
 
-Scenario: test-only and live behavior with publish warnings
+Scenario: test-only and live behavior with overlap + cancel checks
 
 1. Start stack (`docker compose up -d`, `pnpm bootstrap:dev`, `pnpm dev`) and sign in to admin UI as seeded admin.
 2. Create Journey A in `test_only` state:
@@ -115,11 +139,17 @@ Scenario: test-only and live behavior with publish warnings
 3. Attempt manual test run for a known appointment without Email override.
    - Expected: run start rejected with explicit Email override error; no delivery send attempt is created.
 4. Start manual test run again with Email override destination.
-   - Expected: run created with `mode=test`, delivery planned/executed, logger step appears in run timeline.
-5. Create and publish Journey B (`published`) with overlapping trigger/filter shape.
-   - Expected: publish response surfaces overlap warning(s), publish still succeeds.
-6. Reschedule the appointment to violate Journey A filter or make wait past due.
-   - Expected: pending unsent deliveries are canceled or marked skipped (`past_due`) based on recomputation.
+    - Expected: run created with `mode=test`, delivery planned/executed, logger step appears in run timeline.
+5. Create and publish Journey B and Journey C (`published`) with overlapping trigger/filter shape.
+    - Expected: publish response surfaces overlap warning(s), publish still succeeds.
+6. Trigger a lifecycle event that matches both Journey B and Journey C for the same appointment.
+    - Expected: two independent live runs/deliveries are planned (no cross-journey dedupe).
+7. Cancel one active run via individual run cancel action.
+    - Expected: only selected run is canceled; other journey run remains active.
+8. Apply journey-level bulk cancel to Journey C.
+    - Expected: all Journey C active runs are canceled.
+9. Reschedule the appointment to violate Journey A filter or make wait past due.
+    - Expected: pending unsent deliveries are canceled or marked skipped (`past_due`) based on recomputation; test-mode wait timing remains configured and unaccelerated.
 
 ## Implementation Steps (TDD Order)
 
@@ -174,14 +204,15 @@ Scenario: test-only and live behavior with publish warnings
 
 - Files: journey services and routes in `apps/api/src/services/` and `apps/api/src/routes/`.
 - Write failing tests first:
-  - create/update/publish/pause/resume/delete transitions
-  - admin-only mutation guard behavior
-  - unique journey name enforcement
-  - delete auto-cancels active runs
-- Implement: lifecycle operations, version creation on publish, bulk-cancel active runs for selected journey.
+   - create/update/publish/pause/resume/delete transitions
+   - admin-only mutation guard behavior
+   - unique journey name enforcement
+   - individual run cancel only affects target run
+   - delete auto-cancels active runs
+- Implement: lifecycle operations, version creation on publish, individual run cancel, and bulk-cancel active runs for selected journey.
 - Depends on: Step 4.
 - Demo: API walkthrough of publish -> pause -> resume -> delete with expected state transitions.
-- Success criteria: acceptance criteria 8-12 partially covered at API layer (runtime replanning completed in later steps).
+- Success criteria: acceptance criteria 8-12 partially covered at API layer (runtime replanning completed in later steps), and R31 individual+bulk cancel scope is fully covered.
 
 ### Step 6: Trigger filter AST + constrained `cel-js` evaluator
 
@@ -199,10 +230,11 @@ Scenario: test-only and live behavior with publish warnings
 
 - Files: `apps/api/src/inngest/functions/` planner function(s), runtime events/types, planning service modules.
 - Write failing tests first:
-  - matching scheduled event plans run + deliveries
-  - reschedule mismatch cancels pending deliveries
-  - duplicate events are idempotent
-  - past due planning yields `skipped` + `past_due`
+   - matching scheduled event plans run + deliveries
+   - reschedule mismatch cancels pending deliveries
+   - duplicate events are idempotent
+   - same appointment matching two journeys creates two independent run/delivery sets
+   - past due planning yields `skipped` + `past_due`
 - Implement: planner as source of truth for desired deliveries, deterministic run/delivery identity, control-event handling hooks.
 - Depends on: Step 6.
 - Demo: planner test run shows delivery create/cancel/skipped outputs for schedule/reschedule inputs.
@@ -212,23 +244,25 @@ Scenario: test-only and live behavior with publish warnings
 
 - Files: `apps/api/src/inngest/functions/` worker function(s), delivery dispatch service, adapter integrations.
 - Write failing tests first:
-  - sleep-until due then send success
-  - cancel race suppresses send and marks `canceled`
-  - provider failure marks `failed` with retry behavior
-  - resend idempotency key forwarded
-- Implement: worker execution, `cancelOn` cancellation handling, state revalidation before send, status persistence.
+   - sleep-until due then send success
+   - cancel race suppresses send and marks `canceled`
+   - provider failure marks `failed` with retry behavior
+   - resend idempotency key forwarded
+   - logger step execution persists timeline entry and emits logger/console sink output
+- Implement: worker execution, `cancelOn` cancellation handling, state revalidation before send, status persistence, and logger sink path.
 - Depends on: Step 7.
 - Demo: end-to-end runtime test from planned delivery event to persisted terminal status.
-- Success criteria: worker runtime tests pass for `sent|failed|canceled|skipped` states.
+- Success criteria: worker runtime tests pass for `sent|failed|canceled|skipped` states and logger sink assertions.
 
 ### Step 9: Test mode dual-path semantics
 
 - Files: journey service/planner start paths, API endpoints for manual test start, related DTO/API contracts, runs query filters.
 - Write failing tests first:
-  - `test_only` auto-trigger creates `mode=test`
-  - manual test start creates `mode=test`
-  - missing Email override rejects start with no send
-  - Slack override optional in v1
+   - `test_only` auto-trigger creates `mode=test`
+   - manual test start creates `mode=test`
+   - missing Email override rejects start with no send
+   - Slack override optional in v1
+   - test-mode waits schedule exactly the same as live mode for equivalent wait config
 - Implement: remove `dryRun` semantics, enforce Email override gate, keep wait timing unchanged in test mode.
 - Depends on: Step 8.
 - Demo: one auto-triggered test run and one manual test run both visible as `mode=test`.
@@ -253,6 +287,7 @@ Scenario: test-only and live behavior with publish warnings
 - Write failing tests first:
   - mode filters (`test|live`) and badges
   - run timeline shows logger entries + reason codes
+  - run actions expose both individual cancel and journey-level bulk cancel with correct scope cues
   - publish overlap warnings rendered while publish succeeds
   - deleted journey run history remains visible
 - Implement: update run/detail queries and rendering for journey runs/deliveries, warning display components, snapshot-based history labels.
