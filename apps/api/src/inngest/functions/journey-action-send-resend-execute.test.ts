@@ -17,10 +17,18 @@ describe("journey action send resend execute function", () => {
 
     expect(fn["opts"]).toMatchObject({
       id: "journey-action-send-resend-execute",
-      concurrency: {
-        key: "event.data.orgId",
-        limit: 10,
-      },
+      concurrency: [
+        {
+          key: '"journey-delivery:" + event.data.orgId',
+          scope: "env",
+          limit: 20,
+        },
+        {
+          key: "event.data.orgId",
+          scope: "fn",
+          limit: 10,
+        },
+      ],
       cancelOn: [
         {
           event: "journey.delivery.canceled",

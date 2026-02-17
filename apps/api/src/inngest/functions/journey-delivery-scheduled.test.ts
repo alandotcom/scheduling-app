@@ -14,6 +14,18 @@ describe("journey delivery scheduled function", () => {
 
     expect(fn["opts"]).toMatchObject({
       id: "journey-delivery-scheduled",
+      concurrency: [
+        {
+          key: '"journey-delivery:" + event.data.orgId',
+          scope: "env",
+          limit: 20,
+        },
+        {
+          key: "event.data.orgId",
+          scope: "fn",
+          limit: 20,
+        },
+      ],
       cancelOn: [
         {
           event: "journey.delivery.canceled",

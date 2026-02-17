@@ -1,5 +1,6 @@
 import { executeJourneyDeliveryScheduled } from "../../services/journey-delivery-worker.js";
 import { inngest } from "../client.js";
+import { JOURNEY_DELIVERY_FLOW_CONTROL } from "./journey-delivery-flow-control.js";
 
 type ExecuteJourneyDeliveryScheduled = typeof executeJourneyDeliveryScheduled;
 
@@ -16,10 +17,12 @@ export function createJourneyDeliveryScheduledFunction(
           if: "async.data.journeyDeliveryId == event.data.journeyDeliveryId",
         },
       ],
-      concurrency: {
-        key: "event.data.orgId",
-        limit: 20,
-      },
+      concurrency: [
+        // Shared org-level budget across all journey delivery executors.
+        JOURNEY_DELIVERY_FLOW_CONTROL.sharedOrgConcurrency,
+        // Logger/local scheduled executor retains its own per-function ceiling.
+        JOURNEY_DELIVERY_FLOW_CONTROL.loggerPerFunctionOrgConcurrency,
+      ],
     },
     { event: "journey.delivery.scheduled" },
     async ({ event, step }) =>

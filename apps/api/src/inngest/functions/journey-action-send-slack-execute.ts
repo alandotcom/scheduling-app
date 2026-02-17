@@ -1,10 +1,10 @@
 import { executeJourneyDeliveryScheduled } from "../../services/journey-delivery-worker.js";
 import { dispatchJourneySendSlackAction } from "../../services/journey-integration-action-dispatchers.js";
 import { inngest } from "../client.js";
+import { JOURNEY_DELIVERY_FLOW_CONTROL } from "./journey-delivery-flow-control.js";
 
 type ExecuteJourneyDeliveryScheduled = typeof executeJourneyDeliveryScheduled;
 type DispatchJourneySendSlackAction = typeof dispatchJourneySendSlackAction;
-const SLACK_ACTION_CONCURRENCY_LIMIT = 10;
 
 export function createJourneyActionSendSlackExecuteFunction(
   executeDelivery: ExecuteJourneyDeliveryScheduled = executeJourneyDeliveryScheduled,
@@ -20,12 +20,13 @@ export function createJourneyActionSendSlackExecuteFunction(
           if: "async.data.journeyDeliveryId == event.data.journeyDeliveryId",
         },
       ],
-      concurrency: {
-        key: "event.data.orgId",
-        // Keep aggregate org-level delivery execution close to the previous
-        // single-function budget after splitting provider action executors.
-        limit: SLACK_ACTION_CONCURRENCY_LIMIT,
-      },
+      concurrency: [
+        // Shared org-level budget across all journey delivery executors.
+        JOURNEY_DELIVERY_FLOW_CONTROL.sharedOrgConcurrency,
+        // Provider-local per-org guardrail to prevent one function from monopolizing
+        // the shared budget.
+        JOURNEY_DELIVERY_FLOW_CONTROL.slackPerFunctionOrgConcurrency,
+      ],
     },
     { event: "journey.action.send-slack.execute" },
     // TODO(integrations-webhooks): add provider callback lifecycle once

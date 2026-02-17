@@ -40,6 +40,29 @@ Current examples:
 - Resend: `journey.action.send-resend.execute` -> `journey-action-send-resend-execute`
 - Slack: `journey.action.send-slack.execute` -> `journey-action-send-slack-execute`
 
+### Journey Delivery Concurrency Budgets (Required)
+
+Source of truth:
+- `apps/api/src/inngest/functions/journey-delivery-flow-control.ts`
+
+All journey delivery executors must include both:
+- Shared per-org cross-function budget:
+  - `key: '"journey-delivery:" + event.data.orgId'`
+  - `scope: "env"`
+  - `limit: 20`
+- Per-function per-org budget:
+  - `scope: "fn"`
+  - provider-specific `limit`
+
+Current per-function budgets:
+- `journey-delivery-scheduled` (logger): `20`
+- `journey-action-send-resend-execute`: `10`
+- `journey-action-send-slack-execute`: `10`
+
+Why both are required:
+- `scope: "env"` prevents one org from consuming unlimited concurrency by fanning out across multiple functions.
+- `scope: "fn"` prevents a single executor from monopolizing the shared org budget.
+
 ### End-to-End Wiring Checklist
 
 1. Add/extend integration definition
@@ -70,6 +93,7 @@ Current examples:
   - add `journey-action-<provider>-execute.ts`,
   - use `executeJourneyDeliveryScheduled(...)` with provider dispatcher,
   - include `cancelOn` for `journey.delivery.canceled`,
+  - include both shared (`scope: "env"`) and per-function (`scope: "fn"`) concurrency entries from `journey-delivery-flow-control.ts`,
   - add TODO for webhook-driven completion if not implemented yet.
 - Register in `apps/api/src/inngest/functions/index.ts`.
 
