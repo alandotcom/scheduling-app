@@ -640,3 +640,35 @@
 - Updated artifacts:
   - `specs/workflow-engine-rebuild-appointment-journeys/logs/build.log`
   - `specs/workflow-engine-rebuild-appointment-journeys/logs/test.log`
+
+## 2026-02-17 - Task 08: Build Delivery Worker and Adapters (Revalidation)
+
+### RED
+- Added failing logger-path coverage:
+  - `apps/api/src/services/journey-delivery-worker.test.ts` now asserts logger deliveries execute as `sent`, persist timeline-visible logger delivery rows, and emit structured console sink output.
+  - `apps/api/src/services/journey-planner.test.ts` now asserts logger action nodes are planned as runnable deliveries (`channel=logger`) instead of being dropped.
+- Confirmed expected RED failures before implementation:
+  - logger worker path returned `failed` because delivery adapters did not support `channel=logger`.
+  - planner produced zero deliveries for logger action graphs because desired-delivery planning only accepted `send-message` actions.
+
+### GREEN
+- Implemented logger adapter runtime behavior in `apps/api/src/services/journey-delivery-adapters.ts`:
+  - added `logger` channel support alongside email/slack,
+  - emits structured sink records to both logtape logger and `console.info`,
+  - returns deterministic provider message IDs (`logger:<idempotencyKey>`).
+- Updated planner action scheduling in `apps/api/src/services/journey-planner.ts`:
+  - logger actions are now included in desired delivery planning,
+  - channel resolution now preserves `logger` action type as `channel=logger`.
+- Re-ran targeted suites and verified green:
+  - `pnpm --filter @scheduling/api run test -- src/services/journey-delivery-worker.test.ts src/services/journey-planner.test.ts src/inngest/functions/journey-delivery-scheduled.test.ts`
+
+### REFACTOR
+- Kept logger sink behavior localized to delivery adapter dispatch and planner action-selection logic; no lifecycle API changes required.
+- Re-ran required quality gates and refreshed logs:
+  - `pnpm format`
+  - `pnpm lint`
+  - `pnpm typecheck`
+  - `pnpm test`
+- Updated artifacts:
+  - `specs/workflow-engine-rebuild-appointment-journeys/logs/build.log`
+  - `specs/workflow-engine-rebuild-appointment-journeys/logs/test.log`

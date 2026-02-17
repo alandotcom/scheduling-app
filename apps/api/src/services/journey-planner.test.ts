@@ -115,6 +115,92 @@ function createJourneyGraph(input?: {
   };
 }
 
+function createLoggerJourneyGraph(input?: {
+  waitDuration?: string;
+}): LinearJourneyGraph {
+  return {
+    attributes: {},
+    options: {
+      type: "directed",
+    },
+    nodes: [
+      {
+        key: "trigger-node",
+        attributes: {
+          id: "trigger-node",
+          type: "trigger-node",
+          position: { x: 0, y: 0 },
+          data: {
+            type: "trigger",
+            label: "Trigger",
+            config: {
+              triggerType: "DomainEvent",
+              domain: "appointment",
+              startEvents: ["appointment.scheduled"],
+              restartEvents: ["appointment.rescheduled"],
+              stopEvents: ["appointment.canceled"],
+            },
+          },
+        },
+      },
+      {
+        key: "wait-node",
+        attributes: {
+          id: "wait-node",
+          type: "action-node",
+          position: { x: 0, y: 120 },
+          data: {
+            type: "action",
+            label: "Wait",
+            config: {
+              actionType: "wait",
+              waitDuration: input?.waitDuration ?? "10m",
+            },
+          },
+        },
+      },
+      {
+        key: "logger-node",
+        attributes: {
+          id: "logger-node",
+          type: "action-node",
+          position: { x: 0, y: 240 },
+          data: {
+            type: "action",
+            label: "Logger",
+            config: {
+              actionType: "logger",
+              message: "Timeline marker",
+            },
+          },
+        },
+      },
+    ],
+    edges: [
+      {
+        key: "trigger-to-wait",
+        source: "trigger-node",
+        target: "wait-node",
+        attributes: {
+          id: "trigger-to-wait",
+          source: "trigger-node",
+          target: "wait-node",
+        },
+      },
+      {
+        key: "wait-to-logger",
+        source: "wait-node",
+        target: "logger-node",
+        attributes: {
+          id: "wait-to-logger",
+          source: "wait-node",
+          target: "logger-node",
+        },
+      },
+    ],
+  };
+}
+
 function createAppointmentPayload(input?: {
   appointmentId?: string;
   timezone?: string;
@@ -221,6 +307,67 @@ describe("processJourneyDomainEvent", () => {
     expect(deliveries).toHaveLength(1);
     expect(deliveries[0]?.status).toBe("planned");
     expect(deliveries[0]?.stepKey).toBe("send-node");
+    expect(scheduleRequester).toHaveBeenCalledTimes(1);
+  });
+
+  test("plans logger action deliveries with logger channel", async () => {
+    const created = await journeyService.create(
+      {
+        name: "Logger Planner Journey",
+        graph: createLoggerJourneyGraph(),
+      },
+      context,
+    );
+
+    await journeyService.publish(
+      created.id,
+      {
+        mode: "live",
+      },
+      context,
+    );
+
+    const scheduleRequester = mock(async () => ({
+      eventId: "evt-scheduled-logger",
+    }));
+
+    await processJourneyDomainEvent(
+      {
+        id: "evt-logger-1",
+        orgId: context.orgId,
+        type: "appointment.scheduled",
+        payload: createAppointmentPayload({
+          appointmentId: "018f4d3a-6d80-7c5b-8a4a-6cb8f8d57d21",
+        }),
+        timestamp: "2026-02-16T10:00:00.000Z",
+      },
+      {
+        scheduleRequester,
+        now: new Date("2026-02-16T09:00:00.000Z"),
+      },
+    );
+
+    await setTestOrgContext(db, context.orgId);
+
+    const [run] = await db
+      .select({ id: journeyRuns.id })
+      .from(journeyRuns)
+      .orderBy(desc(journeyRuns.id))
+      .limit(1);
+
+    const deliveries = await db
+      .select({
+        stepKey: journeyDeliveries.stepKey,
+        channel: journeyDeliveries.channel,
+        status: journeyDeliveries.status,
+      })
+      .from(journeyDeliveries)
+      .where(eq(journeyDeliveries.journeyRunId, run!.id));
+
+    expect(deliveries).toHaveLength(1);
+    expect(deliveries[0]?.stepKey).toBe("logger-node");
+    expect(deliveries[0]?.channel).toBe("logger");
+    expect(deliveries[0]?.status).toBe("planned");
     expect(scheduleRequester).toHaveBeenCalledTimes(1);
   });
 

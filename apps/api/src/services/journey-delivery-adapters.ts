@@ -1,4 +1,12 @@
+import { getLogger } from "@logtape/logtape";
+
 type JsonRecord = Record<string, unknown>;
+
+const journeyLoggerDeliverySink = getLogger([
+  "journeys",
+  "delivery-worker",
+  "logger",
+]);
 
 export type JourneyDeliveryDispatchInput = {
   orgId: string;
@@ -11,6 +19,15 @@ export type JourneyDeliveryDispatchInput = {
 
 export type JourneyDeliveryDispatchResult = {
   providerMessageId?: string;
+};
+
+export type JourneyLoggerDeliveryRecord = {
+  orgId: string;
+  journeyRunId: string;
+  journeyDeliveryId: string;
+  channel: "logger";
+  idempotencyKey: string;
+  stepConfig: JsonRecord;
 };
 
 export type JourneyDeliveryDispatcher = (
@@ -30,6 +47,26 @@ const defaultDeliveryAdapters: JourneyDeliveryAdapterMap = {
   slack: async (input) => ({
     providerMessageId: `slack:${input.idempotencyKey}`,
   }),
+  logger: async (input) => {
+    const sinkRecord: JourneyLoggerDeliveryRecord = {
+      orgId: input.orgId,
+      journeyRunId: input.journeyRunId,
+      journeyDeliveryId: input.journeyDeliveryId,
+      channel: "logger",
+      idempotencyKey: input.idempotencyKey,
+      stepConfig: input.stepConfig,
+    };
+
+    journeyLoggerDeliverySink.info(
+      "Journey logger delivery executed {journeyDeliveryId}",
+      sinkRecord,
+    );
+    console.info("[journey-logger-delivery]", sinkRecord);
+
+    return {
+      providerMessageId: `logger:${input.idempotencyKey}`,
+    };
+  },
 };
 
 export async function dispatchJourneyDelivery(

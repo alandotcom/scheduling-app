@@ -13,7 +13,26 @@ import { executeJourneyDeliveryScheduled } from "./journey-delivery-worker.js";
 
 const db: TestDatabase = getTestDb();
 
-function createJourneyVersionSnapshot() {
+function createJourneyVersionSnapshot(input?: {
+  stepKey?: string;
+  actionType?: "send-message" | "logger";
+  channel?: "email" | "slack" | "logger";
+}) {
+  const stepKey = input?.stepKey ?? "send-node";
+  const actionType = input?.actionType ?? "send-message";
+  const channel = input?.channel ?? "email";
+
+  const config =
+    actionType === "logger"
+      ? {
+          actionType: "logger",
+          message: "Logger delivery event",
+        }
+      : {
+          actionType: "send-message",
+          channel,
+        };
+
   return {
     version: 1,
     definitionSnapshot: {
@@ -40,31 +59,28 @@ function createJourneyVersionSnapshot() {
           },
         },
         {
-          key: "send-node",
+          key: stepKey,
           attributes: {
-            id: "send-node",
+            id: stepKey,
             type: "action-node",
             position: { x: 0, y: 120 },
             data: {
               type: "action",
-              label: "Send Message",
-              config: {
-                actionType: "send-message",
-                channel: "email",
-              },
+              label: actionType === "logger" ? "Logger" : "Send Message",
+              config,
             },
           },
         },
       ],
       edges: [
         {
-          key: "trigger-send",
+          key: `trigger-${stepKey}`,
           source: "trigger-node",
-          target: "send-node",
+          target: stepKey,
           attributes: {
-            id: "trigger-send",
+            id: `trigger-${stepKey}`,
             source: "trigger-node",
-            target: "send-node",
+            target: stepKey,
           },
         },
       ],
@@ -76,7 +92,16 @@ function createJourneyVersionSnapshot() {
 async function seedPlannedDelivery(
   context: ServiceContext,
   scheduledFor: Date,
+  input?: {
+    stepKey?: string;
+    actionType?: "send-message" | "logger";
+    channel?: "email" | "slack" | "logger";
+  },
 ) {
+  const stepKey = input?.stepKey ?? "send-node";
+  const actionType = input?.actionType ?? "send-message";
+  const channel = input?.channel ?? "email";
+
   await setTestOrgContext(db, context.orgId);
 
   const [run] = await db
@@ -88,19 +113,23 @@ async function seedPlannedDelivery(
       mode: "live",
       status: "planned",
       journeyNameSnapshot: "Worker Journey",
-      journeyVersionSnapshot: createJourneyVersionSnapshot(),
+      journeyVersionSnapshot: createJourneyVersionSnapshot({
+        stepKey,
+        actionType,
+        channel,
+      }),
     })
     .returning({ id: journeyRuns.id });
 
-  const deterministicKey = `${run!.id}:send-node:${scheduledFor.toISOString()}`;
+  const deterministicKey = `${run!.id}:${stepKey}:${scheduledFor.toISOString()}`;
 
   const [delivery] = await db
     .insert(journeyDeliveries)
     .values({
       orgId: context.orgId,
       journeyRunId: run!.id,
-      stepKey: "send-node",
-      channel: "email",
+      stepKey,
+      channel,
       scheduledFor,
       status: "planned",
       deterministicKey,
@@ -310,5 +339,69 @@ describe("executeJourneyDeliveryScheduled", () => {
         idempotencyKey: seeded.deterministicKey,
       }),
     );
+  });
+
+  test("executes logger delivery and emits structured console sink output", async () => {
+    const seeded = await seedPlannedDelivery(
+      context,
+      new Date("2026-02-16T09:00:00.000Z"),
+      {
+        stepKey: "logger-node",
+        actionType: "logger",
+        channel: "logger",
+      },
+    );
+
+    const infoSpy = mock(() => {});
+    const originalConsoleInfo = console.info;
+    console.info = infoSpy as typeof console.info;
+
+    try {
+      const result = await executeJourneyDeliveryScheduled(
+        {
+          orgId: context.orgId,
+          journeyDeliveryId: seeded.deliveryId,
+          journeyRunId: seeded.runId,
+          deterministicKey: seeded.deterministicKey,
+          scheduledFor: seeded.scheduledFor.toISOString(),
+        },
+        {
+          runtime: {
+            runStep: async <T>(_stepId: string, fn: () => Promise<T>) => fn(),
+            sleep: async (_stepId: string, _delayMs: number) => {},
+          },
+          now: () => new Date("2026-02-16T09:00:00.000Z"),
+        },
+      );
+
+      expect(result.status).toBe("sent");
+    } finally {
+      console.info = originalConsoleInfo;
+    }
+
+    expect(infoSpy).toHaveBeenCalledTimes(1);
+    expect(infoSpy).toHaveBeenCalledWith(
+      "[journey-logger-delivery]",
+      expect.objectContaining({
+        orgId: context.orgId,
+        journeyRunId: seeded.runId,
+        journeyDeliveryId: seeded.deliveryId,
+        channel: "logger",
+        idempotencyKey: seeded.deterministicKey,
+      }),
+    );
+
+    await setTestOrgContext(db, context.orgId);
+    const [delivery] = await db
+      .select({
+        status: journeyDeliveries.status,
+        channel: journeyDeliveries.channel,
+      })
+      .from(journeyDeliveries)
+      .where(eq(journeyDeliveries.id, seeded.deliveryId))
+      .limit(1);
+
+    expect(delivery?.status).toBe("sent");
+    expect(delivery?.channel).toBe("logger");
   });
 });

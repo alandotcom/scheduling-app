@@ -157,6 +157,10 @@ function resolveChannel(node: ActionNode): string {
   }
 
   const rawActionType = getRawActionType(node);
+  if (rawActionType === "logger") {
+    return "logger";
+  }
+
   if (rawActionType === "slack") {
     return "slack";
   }
@@ -387,7 +391,7 @@ function buildDesiredDeliveries(input: {
       continue;
     }
 
-    if (actionType !== "send-message") {
+    if (actionType !== "send-message" && actionType !== "logger") {
       continue;
     }
 
