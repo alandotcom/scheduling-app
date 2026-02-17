@@ -1,5 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import {
+  domainEventTypeSchema,
+  domainEventTypes,
   domainEventDataSchemaByType,
   type WebhookEventType,
   webhookEventTypeSchema,
@@ -161,5 +163,31 @@ describe("appointment webhook event taxonomy", () => {
     expect(
       webhookEventTypeSchema.safeParse("appointment.deleted").success,
     ).toBe(false);
+  });
+});
+
+describe("appointment domain event taxonomy", () => {
+  test("includes only canonical appointment lifecycle domain event names", () => {
+    const appointmentLifecycleEventTypes = domainEventTypes.filter(
+      (eventType) => eventType.startsWith("appointment."),
+    );
+
+    expect(appointmentLifecycleEventTypes).toEqual([
+      "appointment.scheduled",
+      "appointment.rescheduled",
+      "appointment.canceled",
+    ]);
+  });
+
+  test("rejects legacy appointment lifecycle aliases", () => {
+    expect(domainEventTypeSchema.safeParse("appointment.created").success).toBe(
+      false,
+    );
+    expect(domainEventTypeSchema.safeParse("appointment.updated").success).toBe(
+      false,
+    );
+    expect(domainEventTypeSchema.safeParse("appointment.deleted").success).toBe(
+      false,
+    );
   });
 });

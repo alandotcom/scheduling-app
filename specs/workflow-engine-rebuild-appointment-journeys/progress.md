@@ -442,3 +442,24 @@
 - Captured latest command output in:
   - `specs/workflow-engine-rebuild-appointment-journeys/logs/test.log`
   - `specs/workflow-engine-rebuild-appointment-journeys/logs/build.log`
+
+## 2026-02-16 - Task 01: Cut Over Appointment Taxonomy Contracts (Revalidation)
+
+### RED
+- Added domain-event taxonomy assertions in `packages/dto/src/schemas/webhook.test.ts` to lock canonical appointment lifecycle names and explicit rejection of legacy aliases at the `domainEventTypeSchema` surface.
+
+### GREEN
+- Confirmed taxonomy contracts stay canonical across DTO + Svix surfaces:
+  - `pnpm --filter @scheduling/dto run test -- src/schemas/webhook.test.ts`
+  - `pnpm --filter @scheduling/api run test -- src/services/svix-event-catalog.test.ts`
+- Both targeted suites passed.
+
+### REFACTOR
+- Re-ran full quality gates and refreshed logs:
+  - `pnpm format`
+  - `pnpm lint`
+  - `pnpm typecheck`
+  - `pnpm test`
+- Updated artifacts:
+  - `specs/workflow-engine-rebuild-appointment-journeys/logs/build.log`
+  - `specs/workflow-engine-rebuild-appointment-journeys/logs/test.log`

@@ -4,13 +4,13 @@ created: 2026-02-16
 started: 2026-02-16
 completed: 2026-02-16
 ---
-# Task: Cutover Appointment Taxonomy Contracts
+# Task: Cut Over Appointment Taxonomy Contracts
 
 ## Description
-Replace legacy appointment event names with the canonical lifecycle taxonomy across DTO and webhook contracts, and align Svix catalog sync behavior so downstream consumers only see supported event names.
+Replace legacy appointment event aliases with the canonical taxonomy across DTO domain events, webhook schemas, and Svix event catalog sync so all downstream surfaces use the same three lifecycle names.
 
 ## Background
-The current domain-event and webhook schemas still expose legacy names and aliases. Taxonomy is coupled across DTO schemas, emitters, and Svix catalog sync, so this cutover must land consistently in one slice.
+The current taxonomy still contains legacy names. This step is the contract foundation for classifier, planner, webhooks, and UI integrations.
 
 ## Reference Documentation
 **Required:**
@@ -23,41 +23,42 @@ The current domain-event and webhook schemas still expose legacy names and alias
 **Note:** You MUST read the design document before beginning implementation.
 
 ## Technical Requirements
-1. Domain and webhook appointment taxonomy must be exactly `appointment.scheduled`, `appointment.rescheduled`, and `appointment.canceled`.
-2. Legacy appointment aliases must be rejected by schema validation and removed from snapshots/fixtures.
-3. Svix catalog sync must create/update/prune so only canonical appointment events remain.
+1. Restrict appointment lifecycle event types to `appointment.scheduled`, `appointment.rescheduled`, and `appointment.canceled` in DTO and webhook schemas.
+2. Reject legacy aliases in validation and update tests/snapshots to prove only canonical names are accepted.
+3. Update Svix catalog grouping/pruning logic so catalog sync outputs only canonical appointment lifecycle event names.
+4. Provide a checkpoint by running taxonomy integration tests and recording catalog sync output expectations.
 
 ## Dependencies
-- None.
+- None (first implementation slice).
 
 ## Implementation Approach
-1. Write failing contract and catalog tests for canonical-only taxonomy.
-2. Update DTO/webhook schemas and Svix catalog mapping logic until tests pass.
-3. Refactor shared constants to remove duplicate string literals while keeping behavior unchanged.
+1. Write failing tests for accepted canonical event names, rejected legacy aliases, and Svix catalog output.
+2. Implement synchronized taxonomy cutover in DTO schemas, webhook payload maps, and catalog sync logic.
+3. Refactor naming/constants to remove drift points while keeping tests green.
 
 ## Acceptance Criteria
 
-1. **Canonical Taxonomy Applied**
-   - Given the updated DTO/webhook schemas
-   - When appointment event types are validated
-   - Then only `appointment.scheduled`, `appointment.rescheduled`, and `appointment.canceled` are accepted.
+1. **Canonical Taxonomy Enforced**
+   - Given domain-event and webhook payload validation
+   - When appointment lifecycle events are validated
+   - Then only the three canonical event names are accepted.
 
 2. **Legacy Aliases Rejected**
-   - Given a legacy appointment event alias payload
+   - Given a payload using legacy appointment event aliases
    - When schema validation runs
-   - Then validation fails with a clear structured error.
+   - Then validation fails with structured errors and no legacy alias remains in snapshots.
 
-3. **Catalog Contains Canonical Names Only**
-   - Given catalog sync runs against existing Svix definitions
-   - When sync completes
-   - Then only canonical appointment lifecycle events remain in the catalog payload.
+3. **Svix Catalog Uses Canonical Names Only**
+   - Given catalog sync execution
+   - When Svix event catalog entries are generated and pruned
+   - Then only canonical appointment lifecycle names are present.
 
 4. **Unit Tests Pass**
    - Given the implementation is complete
-   - When running the targeted test suite for this slice
+   - When running the relevant DTO/webhook/catalog tests
    - Then all tests for this task pass.
 
 ## Metadata
 - **Complexity**: Medium
-- **Labels**: api, dto, webhooks, taxonomy
-- **Required Skills**: testing, dto-contracts
+- **Labels**: dto, webhooks, taxonomy, api
+- **Required Skills**: zod-schemas, api-testing, event-contracts
