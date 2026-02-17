@@ -5,7 +5,7 @@ import {
   timestampsSchema,
   uuidSchema,
 } from "./common";
-import { serializedWorkflowGraphSchema } from "./workflow-graph";
+import { serializedJourneyGraphSchema } from "./workflow-graph";
 
 export const journeyStateSchema = z.enum([
   "draft",
@@ -60,7 +60,7 @@ function normalizeJourneyActionType(value: unknown): string | null {
 }
 
 export const linearJourneyGraphSchema =
-  serializedWorkflowGraphSchema.superRefine((graph, ctx) => {
+  serializedJourneyGraphSchema.superRefine((graph, ctx) => {
     if (graph.nodes.length === 0) {
       ctx.addIssue({
         code: "custom",

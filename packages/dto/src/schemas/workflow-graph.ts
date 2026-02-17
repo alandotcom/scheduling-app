@@ -265,7 +265,7 @@ export const journeyTriggerFilterAstSchema = z
     }
   });
 
-export const workflowDomainEventTriggerConfigSchema = z
+const workflowDomainEventTriggerConfigSchema = z
   .object({
     triggerType: z.literal("DomainEvent"),
     domain: domainEventDomainSchema,
@@ -392,7 +392,7 @@ export const serializedWorkflowEdgeSchema = z
   })
   .strict();
 
-export const serializedWorkflowGraphSchema = z
+const serializedWorkflowGraphSchema = z
   .object({
     attributes: z.record(z.string(), z.unknown()).optional(),
     options: z
@@ -414,6 +414,7 @@ export type WorkflowNodeRuntimeStatus = z.infer<
 export type WorkflowDomainEventTriggerConfig = z.infer<
   typeof workflowDomainEventTriggerConfigSchema
 >;
+export type JourneyDomainEventTriggerConfig = WorkflowDomainEventTriggerConfig;
 export type JourneyTriggerFilterOperator = z.infer<
   typeof journeyTriggerFilterOperatorSchema
 >;
@@ -449,3 +450,9 @@ export type SerializedWorkflowEdge = z.infer<
 export type SerializedWorkflowGraph = z.infer<
   typeof serializedWorkflowGraphSchema
 >;
+export type SerializedJourneyGraph = SerializedWorkflowGraph;
+
+export const journeyDomainEventTriggerConfigSchema =
+  workflowDomainEventTriggerConfigSchema;
+
+export const serializedJourneyGraphSchema = serializedWorkflowGraphSchema;

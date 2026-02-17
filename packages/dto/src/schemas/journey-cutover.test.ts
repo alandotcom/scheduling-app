@@ -265,6 +265,8 @@ describe("journey cutover schema exports", () => {
   test("does not expose legacy workflow schema exports", () => {
     expect("createWorkflowSchema" in schemas).toBe(false);
     expect("workflowExecutionSchema" in schemas).toBe(false);
+    expect("serializedWorkflowGraphSchema" in schemas).toBe(false);
+    expect("workflowDomainEventTriggerConfigSchema" in schemas).toBe(false);
   });
 
   test("accepts valid linear chain using only supported step set", () => {

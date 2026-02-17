@@ -464,6 +464,43 @@
   - `specs/workflow-engine-rebuild-appointment-journeys/logs/build.log`
   - `specs/workflow-engine-rebuild-appointment-journeys/logs/test.log`
 
+## 2026-02-17 - Task 12: Remove Legacy Runtime and Run Quality Gates (Revalidation)
+
+### RED
+- Extended legacy-cutover regression coverage in `packages/dto/src/schemas/journey-cutover.test.ts` to require workflow-graph schema entry points to be absent from public DTO exports:
+  - `serializedWorkflowGraphSchema`
+  - `workflowDomainEventTriggerConfigSchema`
+- Confirmed RED failure before implementation: both legacy exports were still present in `@scheduling/dto`.
+
+### GREEN
+- Replaced legacy workflow-graph public exports with journey-named equivalents in `packages/dto/src/schemas/workflow-graph.ts`:
+  - `journeyDomainEventTriggerConfigSchema`
+  - `serializedJourneyGraphSchema`
+  - `JourneyDomainEventTriggerConfig`
+  - `SerializedJourneyGraph`
+- Updated journey runtime and admin UI consumers to use journey-named contracts:
+  - `packages/dto/src/schemas/journey.ts`
+  - `apps/api/src/services/journeys.ts`
+  - `apps/api/src/services/journey-planner.ts`
+  - `apps/admin-ui/src/features/workflows/workflow-editor-store.ts`
+  - `apps/admin-ui/src/features/workflows/workflow-editor-store.test.ts`
+  - `apps/admin-ui/src/features/workflows/workflow-list-page.tsx`
+- Re-ran targeted suites and verified green:
+  - `pnpm --filter @scheduling/dto run test -- src/schemas/journey-cutover.test.ts`
+  - `pnpm --filter @scheduling/api run test -- src/services/journeys.test.ts src/services/journey-planner.test.ts`
+  - `pnpm --filter @scheduling/admin-ui run test -- src/features/workflows/workflow-editor-store.test.ts src/features/workflows/workflow-list-page.test.tsx`
+
+### REFACTOR
+- Kept this slice scoped to legacy naming cutover at DTO/runtime boundaries without changing planner/delivery behavior.
+- Re-ran required quality gates and refreshed logs:
+  - `pnpm format`
+  - `pnpm lint`
+  - `pnpm typecheck`
+  - `pnpm test`
+- Updated artifacts:
+  - `specs/workflow-engine-rebuild-appointment-journeys/logs/build.log`
+  - `specs/workflow-engine-rebuild-appointment-journeys/logs/test.log`
+
 ## 2026-02-16 - Task 02: Implement Appointment Lifecycle Classifier (Revalidation)
 
 ### RED

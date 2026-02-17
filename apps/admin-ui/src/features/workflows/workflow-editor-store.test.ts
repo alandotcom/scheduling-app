@@ -1,7 +1,7 @@
 /// <reference lib="dom" />
 
 import { describe, expect, test } from "bun:test";
-import type { SerializedWorkflowGraph } from "@scheduling/dto";
+import type { SerializedJourneyGraph } from "@scheduling/dto";
 import { createStore } from "jotai";
 import {
   addWorkflowEditorNodeAtom,
@@ -21,7 +21,7 @@ import {
   workflowEditorSelectedNodeIdAtom,
 } from "./workflow-editor-store";
 
-function createGraphFixture(): SerializedWorkflowGraph {
+function createGraphFixture(): SerializedJourneyGraph {
   return {
     attributes: {},
     options: { type: "directed", allowSelfLoops: false, multi: false },
@@ -79,7 +79,7 @@ function createGraphFixture(): SerializedWorkflowGraph {
   };
 }
 
-function createGraphFixtureWithSecondAction(): SerializedWorkflowGraph {
+function createGraphFixtureWithSecondAction(): SerializedJourneyGraph {
   const fixture = createGraphFixture();
   return {
     ...fixture,

@@ -1,8 +1,8 @@
 import {
   domainEventDomains,
-  serializedWorkflowGraphSchema,
+  serializedJourneyGraphSchema,
   type DomainEventDomain,
-  type SerializedWorkflowGraph,
+  type SerializedJourneyGraph,
 } from "@scheduling/dto";
 import {
   addEdge,
@@ -84,7 +84,7 @@ function normalizeNodeData(data: unknown): Record<string, unknown> {
 }
 
 export function deserializeWorkflowGraph(
-  graph: SerializedWorkflowGraph,
+  graph: SerializedJourneyGraph,
 ): WorkflowGraphState {
   const nodes: WorkflowCanvasNode[] = graph.nodes.map((node) => ({
     ...node.attributes,
@@ -108,8 +108,8 @@ export function deserializeWorkflowGraph(
 
 export function serializeWorkflowGraph(
   state: WorkflowGraphState,
-): SerializedWorkflowGraph {
-  return serializedWorkflowGraphSchema.parse({
+): SerializedJourneyGraph {
+  return serializedJourneyGraphSchema.parse({
     attributes: {},
     options: { type: "directed", allowSelfLoops: false, multi: false },
     nodes: state.nodes.map((node) => ({
@@ -212,7 +212,7 @@ export const canRedoAtom = atom((get) => get(futureAtom).length > 0);
 
 export const setWorkflowEditorGraphAtom = atom(
   null,
-  (_get, set, graph: SerializedWorkflowGraph) => {
+  (_get, set, graph: SerializedJourneyGraph) => {
     const { nodes, edges } = deserializeWorkflowGraph(graph);
     set(workflowEditorNodesAtom, nodes);
     set(workflowEditorEdgesAtom, edges);

@@ -1,16 +1,16 @@
 ---
 status: completed
 created: 2026-02-16
-started: 2026-02-16
-completed: 2026-02-16
+started: 2026-02-17
+completed: 2026-02-17
 ---
 # Task: Remove Legacy Runtime and Run Quality Gates
 
 ## Description
-Delete obsolete workflow graph runtime surfaces across API, DTO, DB, and admin UI, then run full repository quality gates to verify only journey runtime paths remain active.
+Delete obsolete workflow graph runtime codepaths across API, DTO, DB, and admin UI, then validate the rebuild with full repository quality gates.
 
 ## Background
-The rebuild is a big-bang replacement with no compatibility shims. Legacy workflow runtime code must be removed completely once journey paths are in place.
+The objective is a big-bang replacement, so legacy runtime compatibility layers are out of scope. Completion requires clean removal and passing format/lint/typecheck/test gates.
 
 ## Reference Documentation
 **Required:**
@@ -23,41 +23,43 @@ The rebuild is a big-bang replacement with no compatibility shims. Legacy workfl
 **Note:** You MUST read the design document before beginning implementation.
 
 ## Technical Requirements
-1. Remove legacy workflow graph runtime files, route registrations, DTO references, and UI entry points.
-2. Ensure no compatibility shims for old workflow behavior remain.
-3. Verify repository quality gates pass: `pnpm format`, `pnpm lint`, `pnpm typecheck`, and `pnpm test`.
+1. Remove unused legacy workflow graph runtime files, services, routes, DTO exports, and UI entry points.
+2. Update imports/registrations so only journey runtime surfaces remain active.
+3. Add regression checks proving legacy workflow runtime references are absent.
+4. Run and pass `pnpm format`, `pnpm lint`, `pnpm typecheck`, and `pnpm test` without suppressions.
+5. Provide a checkpoint by capturing command pass status and confirming repository references only journey runtime.
 
 ## Dependencies
 - task-11-update-runs-ui-overlap-warnings-and-history.code-task.md
 
 ## Implementation Approach
-1. Write failing regression checks that assert no legacy workflow runtime entry points remain referenced.
-2. Remove dead runtime code and update imports/registrations to journey-only paths.
-3. Refactor remaining references and execute full quality gates until green.
+1. Write failing regression checks for remaining legacy runtime references.
+2. Delete legacy runtime surfaces and update route/module wiring to journey-only paths.
+3. Refactor residual imports and run full quality gates until all checks pass.
 
 ## Acceptance Criteria
 
-1. **Legacy Runtime Removed**
-   - Given the rebuild implementation is complete
-   - When scanning routes/services/contracts/UI entry points
-   - Then legacy workflow graph runtime surfaces are absent.
+1. **Legacy Runtime Surfaces Are Removed**
+   - Given repository source and route registration files
+   - When legacy workflow runtime references are searched
+   - Then obsolete workflow graph runtime entry points are absent.
 
-2. **No Compatibility Shims Remain**
-   - Given journey runtime is active
-   - When reviewing runtime paths
-   - Then no compatibility or dual-path legacy behavior is retained.
+2. **Journey Runtime Is Sole Active Path**
+   - Given runtime and UI integration wiring
+   - When the application is built and tested
+   - Then only journey runtime paths are active and regression checks pass.
 
-3. **Quality Gates Pass**
-   - Given all code changes for the rebuild are complete
+3. **Quality Gates Are Green**
+   - Given final implementation changes
    - When running `pnpm format`, `pnpm lint`, `pnpm typecheck`, and `pnpm test`
-   - Then all commands pass without suppressions.
+   - Then all commands pass with no suppressions.
 
 4. **Unit Tests Pass**
    - Given the implementation is complete
-   - When running the targeted test suite for this slice
+   - When running the full test suite
    - Then all tests for this task pass.
 
 ## Metadata
 - **Complexity**: Medium
-- **Labels**: cleanup, quality-gates, migration, journeys
-- **Required Skills**: refactoring, testing, monorepo-tooling
+- **Labels**: cleanup, refactor, quality-gates, monorepo
+- **Required Skills**: codebase-refactoring, test-automation, tooling

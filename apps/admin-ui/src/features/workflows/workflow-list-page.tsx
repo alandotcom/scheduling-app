@@ -5,7 +5,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import type {
   JourneyListResponse,
-  SerializedWorkflowGraph,
+  SerializedJourneyGraph,
 } from "@scheduling/dto";
 import { DeleteConfirmDialog } from "@/components/delete-confirm-dialog";
 import {
@@ -34,7 +34,7 @@ export function canManageWorkflowsForRole(role: OrgRole): boolean {
   return role === "owner" || role === "admin";
 }
 
-function createDefaultJourneyGraph(): SerializedWorkflowGraph {
+function createDefaultJourneyGraph(): SerializedJourneyGraph {
   const triggerId = crypto.randomUUID();
 
   return {

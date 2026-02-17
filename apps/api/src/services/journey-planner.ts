@@ -1,11 +1,11 @@
 import { forEachAsync } from "es-toolkit/array";
 import {
+  journeyDomainEventTriggerConfigSchema,
   linearJourneyGraphSchema,
-  workflowDomainEventTriggerConfigSchema,
   type DomainEventDataByType,
   type DomainEventType,
+  type JourneyDomainEventTriggerConfig,
   type LinearJourneyGraph,
-  type WorkflowDomainEventTriggerConfig,
 } from "@scheduling/dto";
 import {
   clients,
@@ -331,7 +331,7 @@ function extractClientId(payload: unknown): string | null {
 }
 
 function resolveTriggerRouting(input: {
-  triggerConfig: WorkflowDomainEventTriggerConfig;
+  triggerConfig: JourneyDomainEventTriggerConfig;
   eventType: JourneyPlannerDomainEventType;
 }): "plan" | "cancel" | "ignore" {
   if (input.triggerConfig.stopEvents.includes(input.eventType)) {
@@ -350,13 +350,13 @@ function resolveTriggerRouting(input: {
 
 function getTriggerConfig(
   graph: LinearJourneyGraph,
-): WorkflowDomainEventTriggerConfig | null {
+): JourneyDomainEventTriggerConfig | null {
   const triggerNode = getTriggerNode(graph);
   if (!triggerNode) {
     return null;
   }
 
-  const parsed = workflowDomainEventTriggerConfigSchema.safeParse(
+  const parsed = journeyDomainEventTriggerConfigSchema.safeParse(
     triggerNode.attributes.data.config,
   );
 

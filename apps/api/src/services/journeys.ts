@@ -8,7 +8,7 @@ import {
   publishJourneySchema,
   resumeJourneySchema,
   startJourneyTestRunSchema,
-  workflowDomainEventTriggerConfigSchema,
+  journeyDomainEventTriggerConfigSchema,
   updateJourneySchema,
   type CreateJourneyInput,
   type CancelJourneyRunResponse,
@@ -24,7 +24,7 @@ import {
   type ResumeJourneyInput,
   type StartJourneyTestRunInput,
   type StartJourneyTestRunResponse,
-  type WorkflowDomainEventTriggerConfig,
+  type JourneyDomainEventTriggerConfig,
   type UpdateJourneyInput,
 } from "@scheduling/dto";
 import {
@@ -169,14 +169,14 @@ function toJourneyRunDelivery(
 
 function getTriggerConfigFromGraph(
   graph: LinearJourneyGraph,
-): WorkflowDomainEventTriggerConfig | null {
+): JourneyDomainEventTriggerConfig | null {
   const triggerNode =
     graph.nodes.find((node) => node.attributes.data.type === "trigger") ?? null;
   if (!triggerNode) {
     return null;
   }
 
-  const parsed = workflowDomainEventTriggerConfigSchema.safeParse(
+  const parsed = journeyDomainEventTriggerConfigSchema.safeParse(
     triggerNode.attributes.data.config,
   );
 
@@ -184,13 +184,13 @@ function getTriggerConfigFromGraph(
 }
 
 function collectRoutingEvents(
-  config: WorkflowDomainEventTriggerConfig,
+  config: JourneyDomainEventTriggerConfig,
 ): string[] {
   return uniq([...config.startEvents, ...config.restartEvents]);
 }
 
 function collectHighSignalEqualsFilters(
-  config: WorkflowDomainEventTriggerConfig,
+  config: JourneyDomainEventTriggerConfig,
 ): Map<string, string> {
   const pairs = new Map<string, string>();
 
