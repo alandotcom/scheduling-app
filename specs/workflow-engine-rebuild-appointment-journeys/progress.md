@@ -463,3 +463,33 @@
 - Updated artifacts:
   - `specs/workflow-engine-rebuild-appointment-journeys/logs/build.log`
   - `specs/workflow-engine-rebuild-appointment-journeys/logs/test.log`
+
+## 2026-02-16 - Task 02: Implement Appointment Lifecycle Classifier (Revalidation)
+
+### RED
+- Re-ran focused classifier/emitter suites to confirm task-02 contract coverage still guards canonical mapping behavior:
+  - `apps/api/src/services/appointment-lifecycle-classifier.test.ts`
+  - `apps/api/src/services/jobs/emitter.test.ts`
+- Verified this coverage still enforces:
+  - create => `appointment.scheduled`
+  - time/timezone change => `appointment.rescheduled`
+  - cancel transition => `appointment.canceled`
+  - non-lifecycle update => no event.
+
+### GREEN
+- Confirmed task-02 implementation is present and wired through the centralized helper path:
+  - classifier module: `apps/api/src/services/appointment-lifecycle-classifier.ts`
+  - canonical emitters: `apps/api/src/services/jobs/emitter.ts`
+  - mutation callsite helper integration: `apps/api/src/services/appointments.ts`
+- Ran targeted verification:
+  - `pnpm --filter @scheduling/api run test -- src/services/appointment-lifecycle-classifier.test.ts src/services/jobs/emitter.test.ts`
+
+### REFACTOR
+- Re-ran full required quality gates to validate no regressions for this slice:
+  - `pnpm format`
+  - `pnpm lint`
+  - `pnpm typecheck`
+  - `pnpm test`
+- Refreshed task logs at:
+  - `specs/workflow-engine-rebuild-appointment-journeys/logs/build.log`
+  - `specs/workflow-engine-rebuild-appointment-journeys/logs/test.log`
