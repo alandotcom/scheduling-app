@@ -141,8 +141,6 @@ export function LocationDrawer({
     },
   });
 
-  if (!location) return null;
-
   const timezone = form.watch("timezone");
   const timezoneSelectLabel = resolveSelectValueLabel({
     value: timezone,
@@ -153,6 +151,10 @@ export function LocationDrawer({
   });
 
   const handleSave = (data: CreateLocationInput) => {
+    if (!location) {
+      return;
+    }
+
     updateMutation.mutate({
       id: location.id,
       data,
@@ -176,6 +178,8 @@ export function LocationDrawer({
       },
     ],
   });
+
+  if (!location) return null;
 
   return (
     <>

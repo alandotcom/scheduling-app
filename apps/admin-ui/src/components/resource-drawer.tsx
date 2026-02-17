@@ -116,9 +116,11 @@ export function ResourceDrawer({
     },
   });
 
-  if (!resource) return null;
-
   const handleSave = (data: CreateResourceInput) => {
+    if (!resource) {
+      return;
+    }
+
     updateMutation.mutate({
       id: resource.id,
       data,
@@ -153,6 +155,8 @@ export function ResourceDrawer({
       },
     ],
   });
+
+  if (!resource) return null;
 
   return (
     <>

@@ -175,16 +175,14 @@ export function AppointmentDrawer({
     }),
   );
 
-  if (!appointment) return null;
-  const timezoneShortLabel = formatTimezoneShort(
-    appointment.timezone,
-    appointment.startAt,
-  );
-
   const isActionable =
-    appointment.status === "scheduled" || appointment.status === "confirmed";
+    appointment?.status === "scheduled" || appointment?.status === "confirmed";
 
   const handleSaveNotes = (data: NotesFormData) => {
+    if (!appointment) {
+      return;
+    }
+
     updateMutation.mutate({
       id: appointment.id,
       data: {
@@ -202,6 +200,12 @@ export function AppointmentDrawer({
     enabled: open && editingNotes && isActionable,
     fields: [{ id: "notes", key: "n", description: "Focus notes" }],
   });
+
+  if (!appointment) return null;
+  const timezoneShortLabel = formatTimezoneShort(
+    appointment.timezone,
+    appointment.startAt,
+  );
 
   const handleConfirm = () => {
     // Note: confirm would need a dedicated endpoint

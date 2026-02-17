@@ -146,9 +146,11 @@ export function ClientDrawer({
     },
   });
 
-  if (!client) return null;
-
   const handleSave = (data: CreateClientInput) => {
+    if (!client) {
+      return;
+    }
+
     updateMutation.mutate({
       id: client.id,
       data,
@@ -169,6 +171,8 @@ export function ClientDrawer({
       { id: "phone", key: "p", description: "Focus phone" },
     ],
   });
+
+  if (!client) return null;
 
   const getStatusIcon = (status: string) => {
     switch (status) {
