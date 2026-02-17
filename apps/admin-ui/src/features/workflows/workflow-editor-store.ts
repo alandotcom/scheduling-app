@@ -16,6 +16,12 @@ import {
 } from "@xyflow/react";
 import { atom } from "jotai";
 import { nanoid } from "nanoid";
+import { getAction } from "./action-registry";
+import {
+  getActionDefaultNodeLabel,
+  isDefaultActionNodeLabel,
+  isGenericActionNodeLabel,
+} from "./action-visuals";
 
 export type WorkflowCanvasNode = Node;
 export type WorkflowCanvasEdge = Edge;
@@ -777,11 +783,24 @@ export const setWorkflowEditorActionTypeAtom = atom(
 
       const nodeData = asRecord(node.data) ?? {};
       const currentConfig = asRecord(nodeData.config) ?? {};
+      const currentLabel =
+        typeof nodeData.label === "string" ? nodeData.label : "";
+      const shouldApplyDefaultLabel =
+        currentLabel.trim().length === 0 ||
+        isGenericActionNodeLabel(currentLabel) ||
+        isDefaultActionNodeLabel(currentLabel);
+      const action = getAction(input.actionType);
+      const nextLabel = shouldApplyDefaultLabel
+        ? (getActionDefaultNodeLabel(input.actionType) ??
+          action?.label ??
+          currentLabel)
+        : currentLabel;
 
       return {
         ...node,
         data: {
           ...nodeData,
+          label: nextLabel,
           config: {
             ...currentConfig,
             actionType: input.actionType,

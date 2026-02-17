@@ -84,5 +84,37 @@ describe("ExpressionInput", () => {
 
     const textbox = screen.getByRole("textbox");
     expect(textbox.getAttribute("contenteditable")).toBe("true");
+    expect(textbox.getAttribute("aria-multiline")).toBe("false");
+  });
+
+  test("supports multiline textbox mode", () => {
+    render(
+      <ExpressionInput
+        multiline
+        onBlur={() => {}}
+        onChange={() => {}}
+        suggestions={[]}
+        value="Line 1\nLine 2"
+      />,
+    );
+
+    const textbox = screen.getByRole("textbox");
+    expect(textbox.getAttribute("aria-multiline")).toBe("true");
+  });
+
+  test("tokenizes references in multiline content", () => {
+    const { container } = render(
+      <ExpressionInput
+        multiline
+        onBlur={() => {}}
+        onChange={() => {}}
+        suggestions={[]}
+        value={"Line 1\n@Action1.createdAt\nLine 3"}
+      />,
+    );
+
+    const tokens = container.querySelectorAll("[data-expression-token='true']");
+    expect(tokens.length).toBe(1);
+    expect(tokens[0]?.textContent).toBe("@Action1.createdAt");
   });
 });

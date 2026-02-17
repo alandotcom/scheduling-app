@@ -205,7 +205,7 @@ export const linearJourneyGraphSchema =
         ctx.addIssue({
           code: "custom",
           message:
-            "Action steps must declare a supported step type (Wait, Send Resend, Send Slack, Condition, Logger)",
+            "Action steps must declare a supported step type (Wait, Send Email, Send Channel Message, Condition, Logger)",
           path: ["nodes", index, "attributes", "data", "config", "actionType"],
         });
         continue;
@@ -217,7 +217,7 @@ export const linearJourneyGraphSchema =
         ctx.addIssue({
           code: "custom",
           message:
-            "Unsupported step type. Allowed step types are Trigger, Wait, Send Resend, Send Slack, Condition, and Logger",
+            "Unsupported step type. Allowed step types are Trigger, Wait, Send Email, Send Channel Message, Condition, and Logger",
           path: ["nodes", index, "attributes", "data", "config", "actionType"],
         });
         continue;

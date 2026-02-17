@@ -1,0 +1,39 @@
+import { describe, expect, test } from "bun:test";
+import {
+  getActionDefaultNodeLabel,
+  getActionVisualSpec,
+  isDefaultActionNodeLabel,
+  isGenericActionNodeLabel,
+} from "./action-visuals";
+
+describe("action-visuals", () => {
+  test("returns service-style default labels for send actions", () => {
+    expect(getActionDefaultNodeLabel("send-slack")).toBe("Slack");
+    expect(getActionDefaultNodeLabel("send-resend")).toBe("Resend");
+  });
+
+  test("uses brand logos for Slack and Resend actions", () => {
+    const slackVisual = getActionVisualSpec("send-slack");
+    const resendVisual = getActionVisualSpec("send-resend");
+
+    expect(slackVisual.brandIcon).toBeDefined();
+    expect(resendVisual.brandIcon).toBeDefined();
+    expect(slackVisual.brandLabel).toBe("Slack");
+    expect(resendVisual.brandLabel).toBe("Resend");
+  });
+
+  test("detects generic action labels", () => {
+    expect(isGenericActionNodeLabel("Action")).toBe(true);
+    expect(isGenericActionNodeLabel("Action 12")).toBe(true);
+    expect(isGenericActionNodeLabel("Slack")).toBe(false);
+    expect(isGenericActionNodeLabel("Post-booking follow-up")).toBe(false);
+  });
+
+  test("detects action default labels", () => {
+    expect(isDefaultActionNodeLabel("Slack")).toBe(true);
+    expect(isDefaultActionNodeLabel("Resend")).toBe(true);
+    expect(isDefaultActionNodeLabel("Send Email")).toBe(true);
+    expect(isDefaultActionNodeLabel("Send Channel Message")).toBe(true);
+    expect(isDefaultActionNodeLabel("Post-booking follow-up")).toBe(false);
+  });
+});

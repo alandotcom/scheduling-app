@@ -270,6 +270,77 @@ describe("workflow-editor-store", () => {
     expect(store.get(workflowEditorHasUnsavedChangesAtom)).toBe(false);
   });
 
+  test("sets a service default label when selecting an action from a generic label", () => {
+    const store = createStore();
+    store.set(setWorkflowEditorGraphAtom, createGraphFixture());
+    store.set(workflowEditorIsReadOnlyAtom, false);
+
+    store.set(setWorkflowEditorActionTypeAtom, {
+      nodeId: "action-node",
+      actionType: "send-slack",
+    });
+
+    const actionNode = store
+      .get(workflowEditorNodesAtom)
+      .find((node) => node.id === "action-node");
+
+    expect(actionNode?.data.label).toBe("Slack");
+    expect(actionNode?.data.config).toMatchObject({
+      actionType: "send-slack",
+    });
+  });
+
+  test("preserves custom labels when selecting a different action type", () => {
+    const store = createStore();
+    store.set(setWorkflowEditorGraphAtom, createGraphFixture());
+    store.set(workflowEditorIsReadOnlyAtom, false);
+
+    store.set(updateWorkflowEditorNodeDataAtom, {
+      id: "action-node",
+      data: { label: "Post-booking follow-up" },
+    });
+    store.set(setWorkflowEditorActionTypeAtom, {
+      nodeId: "action-node",
+      actionType: "send-resend",
+    });
+
+    const actionNode = store
+      .get(workflowEditorNodesAtom)
+      .find((node) => node.id === "action-node");
+
+    expect(actionNode?.data.label).toBe("Post-booking follow-up");
+    expect(actionNode?.data.config).toMatchObject({
+      actionType: "send-resend",
+    });
+  });
+
+  test("replaces default action labels when action type changes", () => {
+    const store = createStore();
+    store.set(setWorkflowEditorGraphAtom, createGraphFixture());
+    store.set(workflowEditorIsReadOnlyAtom, false);
+
+    store.set(updateWorkflowEditorNodeDataAtom, {
+      id: "action-node",
+      data: {
+        label: "Slack",
+        config: { actionType: "send-slack" },
+      },
+    });
+    store.set(setWorkflowEditorActionTypeAtom, {
+      nodeId: "action-node",
+      actionType: "send-resend",
+    });
+
+    const actionNode = store
+      .get(workflowEditorNodesAtom)
+      .find((node) => node.id === "action-node");
+
+    expect(actionNode?.data.label).toBe("Resend");
+    expect(actionNode?.data.config).toMatchObject({
+      actionType: "send-resend",
+    });
+  });
+
   test("keeps a single outgoing edge from a source step", () => {
     const store = createStore();
     store.set(setWorkflowEditorGraphAtom, createGraphFixtureWithSecondAction());

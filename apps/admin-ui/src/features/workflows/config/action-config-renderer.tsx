@@ -3,7 +3,6 @@ import { ArrowDown01Icon } from "@hugeicons/core-free-icons";
 import { Icon } from "@/components/ui/icon";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
@@ -119,17 +118,23 @@ function TextFieldRenderer({
   config,
   onUpdateConfig,
   disabled,
+  suggestions,
 }: {
   field: ActionConfigFieldBase;
   config: Record<string, unknown>;
   onUpdateConfig: (key: string, value: unknown) => void;
   disabled?: boolean;
+  suggestions: EventAttributeSuggestion[];
 }) {
   const configValue =
     typeof config[field.key] === "string"
       ? String(config[field.key])
       : (field.defaultValue ?? "");
   const [localValue, setLocalValue] = useState(configValue);
+  const scopedSuggestions = useMemo(
+    () => getExpressionSuggestionsForField(field.key, suggestions),
+    [field.key, suggestions],
+  );
 
   useEffect(() => {
     setLocalValue(configValue);
@@ -138,11 +143,12 @@ function TextFieldRenderer({
   return (
     <div className="space-y-2">
       <Label>{field.label}</Label>
-      <Input
+      <ExpressionInput
         disabled={disabled}
-        onChange={(event) => setLocalValue(event.target.value)}
+        onChange={(nextValue) => setLocalValue(nextValue)}
         onBlur={() => onUpdateConfig(field.key, localValue)}
         placeholder={field.placeholder}
+        suggestions={scopedSuggestions}
         value={localValue}
       />
       {field.helpText ? (
@@ -157,17 +163,23 @@ function TextareaFieldRenderer({
   config,
   onUpdateConfig,
   disabled,
+  suggestions,
 }: {
   field: ActionConfigFieldBase;
   config: Record<string, unknown>;
   onUpdateConfig: (key: string, value: unknown) => void;
   disabled?: boolean;
+  suggestions: EventAttributeSuggestion[];
 }) {
   const configValue =
     typeof config[field.key] === "string"
       ? String(config[field.key])
       : (field.defaultValue ?? "");
   const [localValue, setLocalValue] = useState(configValue);
+  const scopedSuggestions = useMemo(
+    () => getExpressionSuggestionsForField(field.key, suggestions),
+    [field.key, suggestions],
+  );
 
   useEffect(() => {
     setLocalValue(configValue);
@@ -176,12 +188,14 @@ function TextareaFieldRenderer({
   return (
     <div className="space-y-2">
       <Label>{field.label}</Label>
-      <Textarea
+      <ExpressionInput
         disabled={disabled}
-        onChange={(event) => setLocalValue(event.target.value)}
+        multiline
+        onChange={(nextValue) => setLocalValue(nextValue)}
         onBlur={() => onUpdateConfig(field.key, localValue)}
         placeholder={field.placeholder}
         rows={field.rows}
+        suggestions={scopedSuggestions}
         value={localValue}
       />
       {field.helpText ? (
@@ -450,6 +464,7 @@ function FieldRenderer({
           config={config}
           onUpdateConfig={onUpdateConfig}
           disabled={disabled}
+          suggestions={expressionSuggestions}
         />
       );
     case "textarea":
@@ -459,6 +474,7 @@ function FieldRenderer({
           config={config}
           onUpdateConfig={onUpdateConfig}
           disabled={disabled}
+          suggestions={expressionSuggestions}
         />
       );
     case "number":

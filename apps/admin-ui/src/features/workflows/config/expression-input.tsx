@@ -12,6 +12,8 @@ interface ExpressionInputProps {
   placeholder?: string;
   disabled?: boolean;
   suggestions: EventAttributeSuggestion[];
+  multiline?: boolean;
+  rows?: number;
 }
 
 type MentionState = {
@@ -54,6 +56,14 @@ function isInsideBadge(node: Node, container: HTMLElement): boolean {
 
 function isHTMLElement(node: Node): node is HTMLElement {
   return node.nodeType === Node.ELEMENT_NODE;
+}
+
+function isHTMLBRElement(node: HTMLElement): boolean {
+  return node.tagName === "BR";
+}
+
+function isBlockElement(node: HTMLElement): boolean {
+  return ["DIV", "P", "LI"].includes(node.tagName);
 }
 
 /** Get cursor position as character offset in the value string */
@@ -157,28 +167,55 @@ function setCursorOffset(container: HTMLElement, targetOffset: number) {
 
 /** Extract the text value from the contentEditable DOM */
 function extractValue(container: HTMLElement): string {
-  let result = "";
-  const walker = document.createTreeWalker(
-    container,
-    NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT,
-    null,
-  );
-
-  let node: Node | null;
-  while ((node = walker.nextNode())) {
+  function extractNode(node: Node): string {
     if (node.nodeType === Node.TEXT_NODE) {
-      if (!isInsideBadge(node, container)) {
-        result += node.textContent;
-      }
-    } else if (isHTMLElement(node)) {
-      const template = node.getAttribute("data-template");
-      if (template) {
-        result += template;
-      }
+      return isInsideBadge(node, container) ? "" : (node.textContent ?? "");
     }
+
+    if (!isHTMLElement(node)) {
+      return "";
+    }
+
+    const template = node.getAttribute("data-template");
+    if (template) {
+      return template;
+    }
+
+    if (isHTMLBRElement(node)) {
+      return "\n";
+    }
+
+    if (!isBlockElement(node)) {
+      return [...node.childNodes].map((child) => extractNode(child)).join("");
+    }
+
+    const content = [...node.childNodes]
+      .map((child) => extractNode(child))
+      .join("");
+    return `${content}\n`;
   }
 
-  return result;
+  const value = [...container.childNodes]
+    .map((child) => extractNode(child))
+    .join("");
+
+  return value.replace(/\n$/, "");
+}
+
+function insertTextAtSelection(text: string) {
+  const selection = window.getSelection();
+  if (!selection || selection.rangeCount === 0) {
+    return;
+  }
+
+  const range = selection.getRangeAt(0);
+  range.deleteContents();
+  const textNode = document.createTextNode(text);
+  range.insertNode(textNode);
+  range.setStartAfter(textNode);
+  range.collapse(true);
+  selection.removeAllRanges();
+  selection.addRange(range);
 }
 
 const BADGE_CLASS =
@@ -191,6 +228,8 @@ export function ExpressionInput({
   placeholder,
   disabled,
   suggestions,
+  multiline = false,
+  rows,
 }: ExpressionInputProps) {
   const contentRef = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
@@ -201,6 +240,15 @@ export function ExpressionInput({
   const shouldUpdateDisplay = useRef(true);
   const pendingCursorPosition = useRef<number | null>(null);
   const blurTimeoutRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const minRows = Math.max(rows ?? 3, 1);
+
+  useEffect(() => {
+    return () => {
+      if (blurTimeoutRef.current) {
+        clearTimeout(blurTimeoutRef.current);
+      }
+    };
+  }, []);
 
   // Sync with external value prop
   useEffect(() => {
@@ -358,17 +406,24 @@ export function ExpressionInput({
     <div className="relative">
       <div
         className={cn(
-          "flex min-h-10 w-full items-center rounded-lg border border-input bg-transparent px-3 py-2 text-base md:text-sm",
+          "flex min-h-10 w-full rounded-lg border border-input bg-transparent px-3 py-2 text-base md:text-sm",
+          multiline ? "items-start" : "items-center",
           "transition-all duration-200 ease-out",
           "focus-within:border-ring focus-within:ring-ring/30 focus-within:ring-[3px]",
           "dark:bg-input/30",
           disabled && "pointer-events-none cursor-not-allowed opacity-50",
         )}
+        style={multiline ? { minHeight: `${minRows * 1.5}rem` } : undefined}
       >
         <div
           ref={contentRef}
           contentEditable={!disabled}
-          className="w-full outline-none whitespace-pre overflow-hidden"
+          className={cn(
+            "w-full outline-none break-words",
+            multiline
+              ? "whitespace-pre-wrap"
+              : "whitespace-pre overflow-hidden",
+          )}
           onInput={handleInput}
           onKeyDown={(event) => {
             if (open && filteredSuggestions.length > 0) {
@@ -405,6 +460,17 @@ export function ExpressionInput({
                 setMentionState(null);
               }
             }
+
+            if (event.key === "Enter") {
+              if (!multiline) {
+                event.preventDefault();
+                return;
+              }
+
+              event.preventDefault();
+              insertTextAtSelection("\n");
+              handleInput();
+            }
           }}
           onBlur={() => {
             blurTimeoutRef.current = setTimeout(() => {
@@ -434,6 +500,7 @@ export function ExpressionInput({
             }
           }}
           role="textbox"
+          aria-multiline={multiline}
           suppressContentEditableWarning
         />
       </div>

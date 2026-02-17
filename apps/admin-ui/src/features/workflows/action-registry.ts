@@ -24,9 +24,11 @@ type ActionConfigField = ActionConfigFieldBase | ActionConfigFieldGroup;
 type ActionDefinition = {
   id: string;
   label: string;
+  defaultNodeLabel: string;
   description: string;
   category: string;
   icon: string;
+  integrationKey?: "resend" | "slack";
   devOnly?: boolean;
   outputAttributes?: string[];
   configFields: ActionConfigField[];
@@ -67,6 +69,7 @@ export function isFieldGroup(
 registerAction({
   id: "wait",
   label: "Wait",
+  defaultNodeLabel: "Wait",
   description: "Pause execution using time-based scheduling.",
   category: "System",
   icon: "hourglass",
@@ -132,16 +135,19 @@ registerAction({
 
 registerAction({
   id: "send-resend",
-  label: "Send Resend",
+  label: "Send Email",
+  defaultNodeLabel: "Resend",
   description: "Deliver an outbound email with Resend.",
   category: "Resend",
   icon: "flash",
+  integrationKey: "resend",
   configFields: [
     {
       key: "subject",
       label: "Email subject",
       type: "text",
-      placeholder: "Appointment reminder",
+      placeholder: "Reminder for @Appointment.data.startAt",
+      helpText: "Type @ to autocomplete trigger or upstream attributes.",
       required: true,
     },
     {
@@ -149,7 +155,9 @@ registerAction({
       label: "Email body",
       type: "textarea",
       rows: 5,
-      placeholder: "Hi {{client.firstName}}, this is your reminder.",
+      placeholder:
+        "Appointment @Appointment.data.appointmentId starts at @Appointment.data.startAt.",
+      helpText: "Type @ to autocomplete trigger or upstream attributes.",
       required: true,
     },
   ],
@@ -157,16 +165,19 @@ registerAction({
 
 registerAction({
   id: "send-slack",
-  label: "Send Slack",
+  label: "Send Channel Message",
+  defaultNodeLabel: "Slack",
   description: "Deliver an outbound Slack message.",
   category: "Slack",
   icon: "flash",
+  integrationKey: "slack",
   configFields: [
     {
       key: "slackChannel",
       label: "Slack channel",
       type: "text",
       placeholder: "#ops-alerts",
+      helpText: "Type @ to autocomplete trigger or upstream attributes.",
       required: true,
     },
     {
@@ -174,7 +185,9 @@ registerAction({
       label: "Slack message",
       type: "textarea",
       rows: 5,
-      placeholder: "Appointment update for {{client.firstName}}.",
+      placeholder:
+        "Appointment @Appointment.data.appointmentId updated for @Appointment.data.startAt.",
+      helpText: "Type @ to autocomplete trigger or upstream attributes.",
       required: true,
     },
   ],
@@ -183,6 +196,7 @@ registerAction({
 registerAction({
   id: "condition",
   label: "Condition",
+  defaultNodeLabel: "Condition",
   description: "Route to True/False paths using a rule expression.",
   category: "System",
   icon: "flash",
@@ -202,6 +216,7 @@ registerAction({
 registerAction({
   id: "logger",
   label: "Logger",
+  defaultNodeLabel: "Logger",
   description: "Record a structured runtime log line.",
   category: "System",
   icon: "flash",

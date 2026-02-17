@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
+import { Settings01Icon } from "@hugeicons/core-free-icons";
+import { Icon } from "@/components/ui/icon";
 import { Label } from "@/components/ui/label";
 import { type EventAttributeSuggestion } from "./event-attribute-suggestions";
 import {
@@ -13,6 +15,7 @@ import {
   getAction,
   getActionsByCategory,
 } from "../action-registry";
+import { getActionVisualSpec } from "../action-visuals";
 import { ActionConfigRenderer } from "./action-config-renderer";
 
 function filterActionsByEnvironment(input: {
@@ -42,6 +45,27 @@ interface ActionConfigProps {
   disabled?: boolean;
   expressionSuggestions?: EventAttributeSuggestion[];
   selectOptionsByKey?: Record<string, Array<{ value: string; label: string }>>;
+}
+
+function ActionSelectLabel({ action }: { action: ActionDefinition }) {
+  const visual = getActionVisualSpec(action.id);
+
+  return (
+    <span className="flex min-w-0 items-center gap-2">
+      {visual.brandIcon ? (
+        <visual.brandIcon
+          className="size-4 shrink-0 object-contain"
+          data-testid={`action-config-brand-logo-${action.id}`}
+        />
+      ) : (
+        <Icon
+          icon={visual.icon}
+          className={`size-4 shrink-0 ${visual.iconColorClass}`}
+        />
+      )}
+      <span className="truncate">{action.label}</span>
+    </span>
+  );
 }
 
 export function ActionConfig({
@@ -111,30 +135,85 @@ export function ActionConfig({
     return [currentAction, ...actionsInCategory];
   }, [actionsInCategory, canSelectCurrentAction, currentAction]);
 
+  const categoryActionByName = useMemo(
+    () =>
+      new Map(
+        categories.map((category) => [
+          category,
+          (categoryMap.get(category) ?? [])[0],
+        ]),
+      ),
+    [categories, categoryMap],
+  );
+
+  const handleCategoryChange = (value: string | null) => {
+    if (typeof value !== "string" || value.length === 0) {
+      return;
+    }
+
+    setSelectedCategory(value);
+    const firstAction = categoryActionByName.get(value);
+    if (
+      firstAction &&
+      typeof config.actionType === "string" &&
+      firstAction.id !== config.actionType
+    ) {
+      onUpdateConfig("actionType", firstAction.id);
+      return;
+    }
+
+    if (firstAction && typeof config.actionType !== "string") {
+      onUpdateConfig("actionType", firstAction.id);
+    }
+  };
+
   return (
     <section className="space-y-4">
-      <div className="space-y-2">
-        <Label>Action Type</Label>
-        <div className="grid grid-cols-2 gap-2">
+      <div className="grid grid-cols-2 gap-2">
+        <div className="space-y-2">
+          <Label className="ml-1">Service</Label>
           <Select
             disabled={disabled}
             value={selectedCategory}
-            onValueChange={(val) => {
-              if (val) setSelectedCategory(val);
-            }}
+            onValueChange={handleCategoryChange}
           >
             <SelectTrigger size="sm">
               <SelectValue placeholder="Category" />
             </SelectTrigger>
             <SelectContent>
-              {categories.map((category) => (
-                <SelectItem key={category} value={category}>
-                  {category}
-                </SelectItem>
-              ))}
+              {categories.map((category) => {
+                const firstAction = categoryActionByName.get(category);
+                const visual = firstAction
+                  ? getActionVisualSpec(firstAction.id)
+                  : null;
+
+                return (
+                  <SelectItem key={category} value={category}>
+                    <span className="flex items-center gap-2">
+                      {category === "System" ? (
+                        <Icon icon={Settings01Icon} className="size-4" />
+                      ) : visual?.brandIcon ? (
+                        <visual.brandIcon
+                          className="size-4 shrink-0 object-contain"
+                          data-testid={`action-config-category-logo-${category.toLowerCase()}`}
+                        />
+                      ) : visual ? (
+                        <Icon
+                          icon={visual.icon}
+                          className={`size-4 shrink-0 ${visual.iconColorClass}`}
+                        />
+                      ) : null}
+                      <span>{category}</span>
+                    </span>
+                  </SelectItem>
+                );
+              })}
             </SelectContent>
           </Select>
+        </div>
 
+        <div className="space-y-2">
+          <Label className="ml-1">Action</Label>
           <Select
             disabled={disabled}
             value={
@@ -145,12 +224,14 @@ export function ActionConfig({
             onValueChange={(val) => onUpdateConfig("actionType", val)}
           >
             <SelectTrigger size="sm">
-              <SelectValue placeholder="Action" />
+              <SelectValue placeholder="Action">
+                {currentAction?.label}
+              </SelectValue>
             </SelectTrigger>
             <SelectContent>
               {actionOptions.map((action) => (
                 <SelectItem key={action.id} value={action.id}>
-                  {action.label}
+                  <ActionSelectLabel action={action} />
                 </SelectItem>
               ))}
             </SelectContent>

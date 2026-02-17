@@ -3,13 +3,10 @@ import {
   type NodeProps,
   useUpdateNodeInternals,
 } from "@xyflow/react";
-import type { IconSvgElement } from "@hugeicons/react";
 import { useAtomValue } from "jotai";
 import {
   BlockedIcon,
   CancelCircleIcon,
-  FlashIcon,
-  HourglassIcon,
   Tick02Icon,
   ViewOffIcon,
 } from "@hugeicons/core-free-icons";
@@ -23,7 +20,13 @@ import {
 import { cn } from "@/lib/utils";
 import { getAction } from "../action-registry";
 import {
+  getActionDefaultNodeLabel,
+  getActionVisualSpec,
+  isGenericActionNodeLabel,
+} from "../action-visuals";
+import {
   selectedExecutionIdAtom,
+  workflowEditorEdgesAtom,
   workflowExecutionLogsByNodeIdAtom,
   type WorkflowExecutionNodeLogPreview,
 } from "../workflow-editor-store";
@@ -65,6 +68,55 @@ type RuntimeWaitInput = {
 
 const CONDITION_TRUE_HANDLE_TOP = "33%";
 const CONDITION_FALSE_HANDLE_TOP = "67%";
+
+type ConditionBranch = "true" | "false";
+
+type ConditionBranchOccupancy = {
+  true: boolean;
+  false: boolean;
+};
+
+function normalizeConditionBranch(value: unknown): ConditionBranch | null {
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  let normalized = value.trim().toLowerCase();
+  if (normalized.startsWith("branch-")) {
+    normalized = normalized.slice("branch-".length);
+  }
+
+  if (normalized === "true" || normalized === "false") {
+    return normalized;
+  }
+
+  return null;
+}
+
+function getConditionBranchOccupancy(input: {
+  nodeId: string;
+  edges: Array<{ source: string; sourceHandle?: string | null }>;
+}): ConditionBranchOccupancy {
+  const occupancy: ConditionBranchOccupancy = {
+    true: false,
+    false: false,
+  };
+
+  for (const edge of input.edges) {
+    if (edge.source !== input.nodeId) {
+      continue;
+    }
+
+    const branch = normalizeConditionBranch(edge.sourceHandle);
+    if (!branch) {
+      continue;
+    }
+
+    occupancy[branch] = true;
+  }
+
+  return occupancy;
+}
 
 function toRuntimeNodeStatus(
   status: WorkflowExecutionNodeLogPreview["status"] | undefined,
@@ -277,46 +329,6 @@ function useRuntimeWaitPreview(
   };
 }
 
-function getActionIconAndColor(actionType?: string): {
-  icon: IconSvgElement;
-  colorClass: string;
-  bgClass: string;
-} {
-  switch (actionType) {
-    case "send-resend":
-    case "send-slack":
-      return {
-        icon: FlashIcon,
-        colorClass: "text-cyan-500",
-        bgClass: "bg-cyan-500/10",
-      };
-    case "wait":
-      return {
-        icon: HourglassIcon,
-        colorClass: "text-orange-500",
-        bgClass: "bg-orange-500/10",
-      };
-    case "condition":
-      return {
-        icon: FlashIcon,
-        colorClass: "text-emerald-500",
-        bgClass: "bg-emerald-500/10",
-      };
-    case "logger":
-      return {
-        icon: FlashIcon,
-        colorClass: "text-sky-500",
-        bgClass: "bg-sky-500/10",
-      };
-    default:
-      return {
-        icon: FlashIcon,
-        colorClass: "text-muted-foreground",
-        bgClass: "bg-muted",
-      };
-  }
-}
-
 function StatusBadge({ status }: { status: ActionNodeData["status"] }) {
   if (!status || status === "idle" || status === "running") return null;
 
@@ -349,6 +361,7 @@ const ActionNode = memo(function ActionNode({ id, data, selected }: NodeProps) {
   const actionType = nodeData.config?.actionType;
   const actionDef = actionType ? getAction(actionType) : undefined;
   const selectedExecutionId = useAtomValue(selectedExecutionIdAtom);
+  const workflowEdges = useAtomValue(workflowEditorEdgesAtom);
   const executionLogsByNodeId = useAtomValue(workflowExecutionLogsByNodeIdAtom);
   const runtimeWaitPreview = useRuntimeWaitPreview(
     actionType,
@@ -357,11 +370,23 @@ const ActionNode = memo(function ActionNode({ id, data, selected }: NodeProps) {
   );
   const configWaitPreview = useConfigWaitPreview(actionType, nodeData.config);
   const waitPreview = runtimeWaitPreview ?? configWaitPreview;
-  const { icon, colorClass, bgClass } = getActionIconAndColor(actionType);
-  const title = nodeData.label || actionDef?.label || "Action";
+  const actionVisual = getActionVisualSpec(actionType);
+  const configuredLabel =
+    typeof nodeData.label === "string" ? nodeData.label : "";
+  const defaultTitle =
+    getActionDefaultNodeLabel(actionType) ?? actionDef?.label ?? "Action";
+  const title =
+    configuredLabel.trim().length > 0 &&
+    !isGenericActionNodeLabel(configuredLabel)
+      ? configuredLabel
+      : defaultTitle;
   const description =
     nodeData.description || actionDef?.description || "Select an action";
   const isConditionAction = actionType === "condition";
+  const conditionBranchOccupancy = useMemo(
+    () => getConditionBranchOccupancy({ nodeId: id, edges: workflowEdges }),
+    [id, workflowEdges],
+  );
   const updateNodeInternals = useUpdateNodeInternals();
   const runtimeStatus =
     selectedExecutionId !== null
@@ -407,7 +432,7 @@ const ActionNode = memo(function ActionNode({ id, data, selected }: NodeProps) {
         isDisabled && "opacity-50",
       )}
     >
-      {isConditionAction ? (
+      {isConditionAction && !conditionBranchOccupancy.true ? (
         <div
           className="-translate-y-1/2 pointer-events-none absolute top-0 right-[-4.75rem] z-30 rounded-sm border bg-card px-1.5 py-0.5 text-[10px] leading-none text-muted-foreground"
           style={{ top: CONDITION_TRUE_HANDLE_TOP }}
@@ -415,7 +440,7 @@ const ActionNode = memo(function ActionNode({ id, data, selected }: NodeProps) {
           True
         </div>
       ) : null}
-      {isConditionAction ? (
+      {isConditionAction && !conditionBranchOccupancy.false ? (
         <div
           className="-translate-y-1/2 pointer-events-none absolute top-0 right-[-4.75rem] z-30 rounded-sm border bg-card px-1.5 py-0.5 text-[10px] leading-none text-muted-foreground"
           style={{ top: CONDITION_FALSE_HANDLE_TOP }}
@@ -430,13 +455,25 @@ const ActionNode = memo(function ActionNode({ id, data, selected }: NodeProps) {
       )}
       <StatusBadge status={status} />
       <div className="flex flex-col items-center gap-2 p-4 text-center">
-        <div
-          className={cn(
-            "flex size-12 items-center justify-center rounded-lg",
-            bgClass,
+        <div className="flex size-12 items-center justify-center">
+          {actionVisual.brandIcon ? (
+            <actionVisual.brandIcon
+              className="size-12"
+              data-testid={`action-node-brand-logo-${actionType ?? "unknown"}`}
+            />
+          ) : (
+            <div
+              className={cn(
+                "flex size-12 items-center justify-center rounded-lg",
+                actionVisual.iconBgClass,
+              )}
+            >
+              <Icon
+                icon={actionVisual.icon}
+                className={cn("size-6", actionVisual.iconColorClass)}
+              />
+            </div>
           )}
-        >
-          <Icon icon={icon} className={cn("size-6", colorClass)} />
         </div>
         <NodeTitle className="text-base font-medium">{title}</NodeTitle>
         {waitPreview ? (

@@ -17,15 +17,23 @@ describe("ActionGrid", () => {
   test("renders canonical grouped journey actions", () => {
     render(<ActionGrid onSelectAction={mock(() => {})} />);
 
-    expect(screen.getByText("System")).toBeTruthy();
-    expect(screen.getByText("Resend")).toBeTruthy();
-    expect(screen.getByText("Slack")).toBeTruthy();
+    expect(screen.getByTestId("action-group-toggle-system")).toBeTruthy();
+    expect(screen.getByTestId("action-group-toggle-resend")).toBeTruthy();
+    expect(screen.getByTestId("action-group-toggle-slack")).toBeTruthy();
 
     expect(screen.getByText("Wait")).toBeTruthy();
     expect(screen.getByText("Condition")).toBeTruthy();
     expect(screen.getByText("Logger")).toBeTruthy();
-    expect(screen.getByText("Send Resend")).toBeTruthy();
-    expect(screen.getByText("Send Slack")).toBeTruthy();
+    expect(screen.getByText("Send Email")).toBeTruthy();
+    expect(screen.getByText("Send Channel Message")).toBeTruthy();
+    expect(screen.getByTestId("action-grid-category-logo-resend")).toBeTruthy();
+    expect(screen.getByTestId("action-grid-category-logo-slack")).toBeTruthy();
+    expect(
+      screen.getByTestId("action-grid-action-logo-send-resend"),
+    ).toBeTruthy();
+    expect(
+      screen.getByTestId("action-grid-action-logo-send-slack"),
+    ).toBeTruthy();
     expect(screen.queryByText("send-message")).toBeNull();
   });
 
@@ -42,7 +50,7 @@ describe("ActionGrid", () => {
 
     await waitFor(() => {
       expect(searchInput.value).toBe("resend");
-      expect(screen.getByText("Send Resend")).toBeTruthy();
+      expect(screen.getByText("Send Email")).toBeTruthy();
     });
   });
 
@@ -59,10 +67,10 @@ describe("ActionGrid", () => {
     render(<ActionGrid onSelectAction={mock(() => {})} />);
 
     fireEvent.click(screen.getByTestId("action-group-toggle-resend"));
-    expect(screen.queryByText("Send Resend")).toBeNull();
+    expect(screen.queryByText("Send Email")).toBeNull();
 
     fireEvent.click(screen.getByTestId("action-group-toggle-resend"));
-    expect(screen.getByText("Send Resend")).toBeTruthy();
+    expect(screen.getByText("Send Email")).toBeTruthy();
   });
 
   test("hides group and can reveal hidden groups", () => {
@@ -71,11 +79,11 @@ describe("ActionGrid", () => {
     fireEvent.click(screen.getByTestId("action-group-menu-resend"));
     fireEvent.click(screen.getByTestId("action-group-hide-resend"));
 
-    expect(screen.queryByText("Resend")).toBeNull();
+    expect(screen.queryByTestId("action-group-toggle-resend")).toBeNull();
     expect(screen.getByTestId("action-show-hidden-groups")).toBeTruthy();
 
     fireEvent.click(screen.getByTestId("action-show-hidden-groups"));
-    expect(screen.getByText("Resend")).toBeTruthy();
+    expect(screen.getByTestId("action-group-toggle-resend")).toBeTruthy();
   });
 
   test("toggles view mode and persists selection", () => {

@@ -1,18 +1,14 @@
-import type { IconSvgElement } from "@hugeicons/react";
 import {
   ArrowDown01Icon,
   ArrowRight02Icon,
-  FlashIcon,
-  HourglassIcon,
   Layers01Icon,
-  Mail01Icon,
   Menu01Icon,
   Search01Icon,
   Settings01Icon,
   ViewIcon,
   ViewOffIcon,
 } from "@hugeicons/core-free-icons";
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { Icon } from "@/components/ui/icon";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -24,6 +20,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import { getAllActions, type ActionDefinition } from "../action-registry";
+import { getActionVisualSpec } from "../action-visuals";
 
 interface ActionGridProps {
   disabled?: boolean;
@@ -40,33 +37,60 @@ type ActionGridViewMode = "list" | "grid";
 const HIDDEN_GROUPS_KEY = "workflow-action-grid-hidden-groups";
 const VIEW_MODE_KEY = "workflow-action-grid-view-mode";
 
-function getActionIcon(actionType: string): IconSvgElement {
-  switch (actionType) {
-    case "wait":
-      return HourglassIcon;
-    case "send-resend":
-      return Mail01Icon;
-    case "send-slack":
-      return FlashIcon;
-    case "condition":
-      return ArrowRight02Icon;
-    case "logger":
-      return FlashIcon;
-    default:
-      return FlashIcon;
+function renderActionIcon(actionType: string): ReactNode {
+  const visual = getActionVisualSpec(actionType);
+
+  if (visual.brandIcon) {
+    return (
+      <visual.brandIcon
+        className="size-4 shrink-0 object-contain"
+        data-testid={`action-grid-action-logo-${actionType}`}
+      />
+    );
   }
+
+  return (
+    <Icon
+      icon={visual.icon}
+      className={cn("size-4", visual.iconColorClass)}
+      data-testid={`action-grid-action-icon-${actionType}`}
+    />
+  );
 }
 
-function getCategoryIcon(category: string): IconSvgElement {
+function getCategoryIcon(
+  category: string,
+  actions: ActionDefinition[],
+): ReactNode {
   if (category === "System") {
-    return Settings01Icon;
+    return (
+      <Icon
+        icon={Settings01Icon}
+        className="size-4 text-muted-foreground"
+        data-testid="action-grid-category-icon-system"
+      />
+    );
   }
 
-  if (category === "Resend") {
-    return Mail01Icon;
+  const firstAction = actions[0];
+  if (firstAction) {
+    const visual = getActionVisualSpec(firstAction.id);
+    if (visual.brandIcon) {
+      return (
+        <visual.brandIcon
+          className="size-4 shrink-0 object-contain"
+          data-testid={`action-grid-category-logo-${toCategoryKey(category)}`}
+        />
+      );
+    }
   }
 
-  return FlashIcon;
+  return (
+    <Icon
+      icon={getActionVisualSpec(actions[0]?.id).icon}
+      className="size-4 text-muted-foreground"
+    />
+  );
 }
 
 function sortActionGroups(actions: ActionDefinition[]): ActionGroup[] {
@@ -298,10 +322,7 @@ export function ActionGrid({ disabled, onSelectAction }: ActionGridProps) {
                       icon={isCollapsed ? ArrowRight02Icon : ArrowDown01Icon}
                       className="size-3.5 text-muted-foreground"
                     />
-                    <Icon
-                      icon={getCategoryIcon(group.category)}
-                      className="size-4 text-muted-foreground"
-                    />
+                    {getCategoryIcon(group.category, group.actions)}
                     <span className="truncate font-medium text-sm">
                       {group.category}
                     </span>
@@ -352,11 +373,8 @@ export function ActionGrid({ disabled, onSelectAction }: ActionGridProps) {
                         onClick={() => onSelectAction(action.id)}
                         type="button"
                       >
-                        <div className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-sm bg-muted text-muted-foreground">
-                          <Icon
-                            icon={getActionIcon(action.id)}
-                            className="size-3"
-                          />
+                        <div className="mt-0.5 flex size-5 shrink-0 items-center justify-center">
+                          {renderActionIcon(action.id)}
                         </div>
                         <span className="min-w-0 flex-1">
                           <span className="block truncate font-medium text-foreground text-sm">
