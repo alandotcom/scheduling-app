@@ -200,6 +200,86 @@ function createLoggerJourneyGraph(input?: {
   };
 }
 
+function createResendTemplateJourneyGraph(input?: {
+  waitDuration?: string;
+}): LinearJourneyGraph {
+  return {
+    attributes: {},
+    options: {
+      type: "directed",
+    },
+    nodes: [
+      {
+        key: "trigger-node",
+        attributes: {
+          id: "trigger-node",
+          type: "trigger-node",
+          position: { x: 0, y: 0 },
+          data: {
+            type: "trigger",
+            label: "Trigger",
+            config: createTriggerConfig(),
+          },
+        },
+      },
+      {
+        key: "wait-node",
+        attributes: {
+          id: "wait-node",
+          type: "action-node",
+          position: { x: 0, y: 120 },
+          data: {
+            type: "action",
+            label: "Wait",
+            config: {
+              actionType: "wait",
+              waitDuration: input?.waitDuration ?? "15m",
+            },
+          },
+        },
+      },
+      {
+        key: "send-template-node",
+        attributes: {
+          id: "send-template-node",
+          type: "action-node",
+          position: { x: 0, y: 240 },
+          data: {
+            type: "action",
+            label: "Send Template",
+            config: {
+              actionType: "send-resend-template",
+              templateIdOrAlias: "appointment-reminder",
+            },
+          },
+        },
+      },
+    ],
+    edges: [
+      {
+        key: "trigger-to-wait",
+        source: "trigger-node",
+        target: "wait-node",
+        attributes: {
+          id: "trigger-to-wait",
+          source: "trigger-node",
+          target: "wait-node",
+        },
+      },
+      {
+        key: "wait-to-send-template",
+        source: "wait-node",
+        target: "send-template-node",
+        attributes: {
+          id: "wait-to-send-template",
+          source: "wait-node",
+          target: "send-template-node",
+        },
+      },
+    ],
+  };
+}
+
 function createConditionJourneyGraph(input?: {
   expression?: string;
   includeTrueEdge?: boolean;
@@ -409,7 +489,7 @@ describe("processJourneyDomainEvent", () => {
       context,
     );
 
-    const scheduleRequester = mock(async () => ({
+    const scheduleResendRequester = mock(async () => ({
       eventId: "evt-scheduled-1",
     }));
 
@@ -422,7 +502,7 @@ describe("processJourneyDomainEvent", () => {
         timestamp: "2026-02-16T10:00:00.000Z",
       },
       {
-        scheduleRequester,
+        scheduleResendRequester,
         now: new Date("2026-02-16T09:00:00.000Z"),
       },
     );
@@ -451,7 +531,7 @@ describe("processJourneyDomainEvent", () => {
     expect(deliveries).toHaveLength(1);
     expect(deliveries[0]?.status).toBe("planned");
     expect(deliveries[0]?.stepKey).toBe("send-node");
-    expect(scheduleRequester).toHaveBeenCalledTimes(1);
+    expect(scheduleResendRequester).toHaveBeenCalledTimes(1);
   });
 
   test("plans logger action deliveries with logger channel", async () => {
@@ -471,7 +551,7 @@ describe("processJourneyDomainEvent", () => {
       context,
     );
 
-    const scheduleRequester = mock(async () => ({
+    const scheduleLoggerRequester = mock(async () => ({
       eventId: "evt-scheduled-logger",
     }));
 
@@ -486,7 +566,7 @@ describe("processJourneyDomainEvent", () => {
         timestamp: "2026-02-16T10:00:00.000Z",
       },
       {
-        scheduleRequester,
+        scheduleLoggerRequester,
         now: new Date("2026-02-16T09:00:00.000Z"),
       },
     );
@@ -512,7 +592,115 @@ describe("processJourneyDomainEvent", () => {
     expect(deliveries[0]?.stepKey).toBe("logger-node");
     expect(deliveries[0]?.channel).toBe("logger");
     expect(deliveries[0]?.status).toBe("planned");
-    expect(scheduleRequester).toHaveBeenCalledTimes(1);
+    expect(scheduleLoggerRequester).toHaveBeenCalledTimes(1);
+  });
+
+  test("hard-cuts integration actions to provider-specific schedulers", async () => {
+    const [resendJourney, slackJourney] = await Promise.all([
+      journeyService.create(
+        {
+          name: "Resend Scheduler Journey",
+          graph: createJourneyGraph({ waitDuration: "5m" }),
+        },
+        context,
+      ),
+      journeyService.create(
+        {
+          name: "Slack Scheduler Journey",
+          graph: createConditionJourneyGraph({
+            expression: "false",
+          }),
+        },
+        context,
+      ),
+    ]);
+
+    await Promise.all([
+      journeyService.publish(resendJourney.id, { mode: "live" }, context),
+      journeyService.publish(slackJourney.id, { mode: "live" }, context),
+    ]);
+
+    const scheduleResendRequester = mock(async () => ({
+      eventId: "evt-scheduled-resend",
+    }));
+    const scheduleSlackRequester = mock(async () => ({
+      eventId: "evt-scheduled-slack",
+    }));
+    const scheduleLoggerRequester = mock(async () => ({
+      eventId: "evt-scheduled-logger",
+    }));
+
+    await processJourneyDomainEvent(
+      {
+        id: "evt-provider-scheduler-1",
+        orgId: context.orgId,
+        type: "appointment.scheduled",
+        payload: createAppointmentPayload({
+          appointmentId: "018f4d3a-6d80-7c5b-8a4a-6cb8f8d57daf",
+        }),
+        timestamp: "2026-02-16T10:00:00.000Z",
+      },
+      {
+        scheduleResendRequester,
+        scheduleSlackRequester,
+        scheduleLoggerRequester,
+        now: new Date("2026-02-16T09:00:00.000Z"),
+      },
+    );
+
+    expect(scheduleResendRequester).toHaveBeenCalledTimes(1);
+    expect(scheduleSlackRequester).toHaveBeenCalledTimes(1);
+    expect(scheduleLoggerRequester).toHaveBeenCalledTimes(0);
+  });
+
+  test("routes send-resend-template through the resend-specific scheduler", async () => {
+    const created = await journeyService.create(
+      {
+        name: "Resend Template Scheduler Journey",
+        graph: createResendTemplateJourneyGraph(),
+      },
+      context,
+    );
+
+    await journeyService.publish(
+      created.id,
+      {
+        mode: "live",
+      },
+      context,
+    );
+
+    const scheduleResendRequester = mock(async () => ({
+      eventId: "evt-scheduled-resend-template",
+    }));
+    const scheduleSlackRequester = mock(async () => ({
+      eventId: "evt-scheduled-slack-template",
+    }));
+    const scheduleLoggerRequester = mock(async () => ({
+      eventId: "evt-scheduled-logger-template",
+    }));
+
+    await processJourneyDomainEvent(
+      {
+        id: "evt-resend-template-1",
+        orgId: context.orgId,
+        type: "appointment.scheduled",
+        payload: createAppointmentPayload({
+          appointmentId: "018f4d3a-6d80-7c5b-8a4a-6cb8f8d57db0",
+        }),
+        timestamp: "2026-02-16T10:00:00.000Z",
+      },
+      {
+        scheduleResendRequester,
+        scheduleSlackRequester,
+        scheduleLoggerRequester,
+        now: new Date("2026-02-16T09:00:00.000Z"),
+      },
+    );
+
+    expect(scheduleResendRequester).toHaveBeenCalledTimes(1);
+    expect(scheduleSlackRequester).toHaveBeenCalledTimes(0);
+    expect(scheduleLoggerRequester).toHaveBeenCalledTimes(0);
   });
 
   test("routes through the matching condition branch during planning", async () => {
@@ -534,7 +722,7 @@ describe("processJourneyDomainEvent", () => {
       context,
     );
 
-    const scheduleRequester = mock(async () => ({
+    const scheduleResendRequester = mock(async () => ({
       eventId: "evt-scheduled-condition-branch",
     }));
 
@@ -550,7 +738,7 @@ describe("processJourneyDomainEvent", () => {
         timestamp: "2026-02-16T10:00:00.000Z",
       },
       {
-        scheduleRequester,
+        scheduleResendRequester,
         now: new Date("2026-02-16T09:00:00.000Z"),
       },
     );
@@ -574,7 +762,7 @@ describe("processJourneyDomainEvent", () => {
     expect(deliveries).toHaveLength(1);
     expect(deliveries[0]?.stepKey).toBe("send-true-node");
     expect(deliveries[0]?.channel).toBe("email");
-    expect(scheduleRequester).toHaveBeenCalledTimes(1);
+    expect(scheduleResendRequester).toHaveBeenCalledTimes(1);
   });
 
   test("does not schedule downstream deliveries when condition is false and false edge is missing", async () => {
@@ -597,7 +785,7 @@ describe("processJourneyDomainEvent", () => {
       context,
     );
 
-    const scheduleRequester = mock(async () => ({
+    const scheduleResendRequester = mock(async () => ({
       eventId: "evt-scheduled-condition-missing",
     }));
 
@@ -612,7 +800,7 @@ describe("processJourneyDomainEvent", () => {
         timestamp: "2026-02-16T10:00:00.000Z",
       },
       {
-        scheduleRequester,
+        scheduleResendRequester,
         now: new Date("2026-02-16T09:00:00.000Z"),
       },
     );
@@ -638,7 +826,7 @@ describe("processJourneyDomainEvent", () => {
     expect(result.erroredJourneyIds).toHaveLength(0);
     expect(run?.status).toBe("planned");
     expect(deliveries).toHaveLength(0);
-    expect(scheduleRequester).toHaveBeenCalledTimes(0);
+    expect(scheduleResendRequester).toHaveBeenCalledTimes(0);
   });
 
   test("cancels pending deliveries when reschedule no longer matches filter", async () => {
@@ -800,7 +988,7 @@ describe("processJourneyDomainEvent", () => {
       journeyService.publish(secondJourney.id, { mode: "live" }, context),
     ]);
 
-    const scheduleRequester = mock(async () => ({
+    const scheduleResendRequester = mock(async () => ({
       eventId: "evt-multi-journey",
     }));
 
@@ -815,7 +1003,7 @@ describe("processJourneyDomainEvent", () => {
         timestamp: "2026-02-16T10:00:00.000Z",
       },
       {
-        scheduleRequester,
+        scheduleResendRequester,
         now: new Date("2026-02-16T09:00:00.000Z"),
       },
     );
@@ -831,7 +1019,7 @@ describe("processJourneyDomainEvent", () => {
         timestamp: "2026-02-16T10:00:00.000Z",
       },
       {
-        scheduleRequester,
+        scheduleResendRequester,
         now: new Date("2026-02-16T09:00:00.000Z"),
       },
     );
@@ -853,7 +1041,7 @@ describe("processJourneyDomainEvent", () => {
     expect(
       new Set(deliveries.map((delivery) => delivery.deterministicKey)).size,
     ).toBe(2);
-    expect(scheduleRequester).toHaveBeenCalledTimes(2);
+    expect(scheduleResendRequester).toHaveBeenCalledTimes(2);
   });
 
   test("treats due-now deliveries as planned instead of past_due", async () => {
@@ -875,7 +1063,9 @@ describe("processJourneyDomainEvent", () => {
       context,
     );
 
-    const scheduleRequester = mock(async () => ({ eventId: "evt-due-now" }));
+    const scheduleResendRequester = mock(async () => ({
+      eventId: "evt-due-now",
+    }));
 
     await processJourneyDomainEvent(
       {
@@ -888,7 +1078,7 @@ describe("processJourneyDomainEvent", () => {
         timestamp: "2026-02-16T09:00:00.000Z",
       },
       {
-        scheduleRequester,
+        scheduleResendRequester,
         now: new Date("2026-02-16T09:00:00.000Z"),
       },
     );
@@ -911,7 +1101,7 @@ describe("processJourneyDomainEvent", () => {
 
     expect(delivery?.status).toBe("planned");
     expect(delivery?.reasonCode).toBeNull();
-    expect(scheduleRequester).toHaveBeenCalledTimes(1);
+    expect(scheduleResendRequester).toHaveBeenCalledTimes(1);
   });
 
   test("marks past-due deliveries as skipped with reasonCode=past_due", async () => {
@@ -933,7 +1123,7 @@ describe("processJourneyDomainEvent", () => {
       context,
     );
 
-    const scheduleRequester = mock(async () => ({
+    const scheduleResendRequester = mock(async () => ({
       eventId: "evt-scheduled-2",
     }));
 
@@ -948,7 +1138,7 @@ describe("processJourneyDomainEvent", () => {
         timestamp: "2026-02-16T10:00:00.000Z",
       },
       {
-        scheduleRequester,
+        scheduleResendRequester,
       },
     );
 
@@ -965,7 +1155,7 @@ describe("processJourneyDomainEvent", () => {
     expect(deliveries).toHaveLength(1);
     expect(deliveries[0]?.status).toBe("skipped");
     expect(deliveries[0]?.reasonCode).toBe("past_due");
-    expect(scheduleRequester).toHaveBeenCalledTimes(0);
+    expect(scheduleResendRequester).toHaveBeenCalledTimes(0);
   });
 
   test("creates mode=test runs for test_only journeys", async () => {

@@ -8,6 +8,12 @@ export type JourneyDeliveryScheduledEventData = {
   scheduledFor: string;
 };
 
+export type JourneyActionSendResendExecuteEventData =
+  JourneyDeliveryScheduledEventData;
+
+export type JourneyActionSendSlackExecuteEventData =
+  JourneyDeliveryScheduledEventData;
+
 export type JourneyDeliveryCanceledEventData = {
   orgId: string;
   journeyDeliveryId: string;
@@ -74,6 +80,40 @@ export async function sendJourneyDeliveryScheduled(
   const response = await inngest.send({
     id: `journey-delivery-scheduled-${input.journeyDeliveryId}`,
     name: "journey.delivery.scheduled",
+    data: input,
+  });
+
+  const eventId = getEventId(response);
+  if (eventId) {
+    return { eventId };
+  }
+
+  return {};
+}
+
+export async function sendJourneyActionSendResendExecute(
+  input: JourneyActionSendResendExecuteEventData,
+): Promise<{ eventId?: string }> {
+  const response = await inngest.send({
+    id: `journey-action-send-resend-execute-${input.journeyDeliveryId}`,
+    name: "journey.action.send-resend.execute",
+    data: input,
+  });
+
+  const eventId = getEventId(response);
+  if (eventId) {
+    return { eventId };
+  }
+
+  return {};
+}
+
+export async function sendJourneyActionSendSlackExecute(
+  input: JourneyActionSendSlackExecuteEventData,
+): Promise<{ eventId?: string }> {
+  const response = await inngest.send({
+    id: `journey-action-send-slack-execute-${input.journeyDeliveryId}`,
+    name: "journey.action.send-slack.execute",
     data: input,
   });
 

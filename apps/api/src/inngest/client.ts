@@ -25,6 +25,24 @@ type SchedulingInternalEvents = {
       scheduledFor: string;
     };
   };
+  "journey.action.send-resend.execute": {
+    data: {
+      orgId: string;
+      journeyDeliveryId: string;
+      journeyRunId: string;
+      deterministicKey: string;
+      scheduledFor: string;
+    };
+  };
+  "journey.action.send-slack.execute": {
+    data: {
+      orgId: string;
+      journeyDeliveryId: string;
+      journeyRunId: string;
+      deterministicKey: string;
+      scheduledFor: string;
+    };
+  };
   "journey.delivery.canceled": {
     data: {
       orgId: string;

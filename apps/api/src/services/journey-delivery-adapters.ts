@@ -41,12 +41,6 @@ function normalizeChannel(value: string): string {
 }
 
 const defaultDeliveryAdapters: JourneyDeliveryAdapterMap = {
-  email: async (input) => ({
-    providerMessageId: `email:${input.idempotencyKey}`,
-  }),
-  slack: async (input) => ({
-    providerMessageId: `slack:${input.idempotencyKey}`,
-  }),
   logger: async (input) => {
     const sinkRecord: JourneyLoggerDeliveryRecord = {
       orgId: input.orgId,

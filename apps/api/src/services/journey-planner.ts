@@ -18,6 +18,8 @@ import {
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { withOrg, type DbClient } from "../lib/db.js";
 import {
+  sendJourneyActionSendResendExecute,
+  sendJourneyActionSendSlackExecute,
   sendJourneyDeliveryCanceled,
   sendJourneyDeliveryScheduled,
   type JourneyDeliveryCanceledEventData,
@@ -58,7 +60,13 @@ type JourneyPlannerResult = {
 };
 
 type JourneyPlannerDependencies = {
-  scheduleRequester?: (
+  scheduleResendRequester?: (
+    payload: JourneyDeliveryScheduledEventData,
+  ) => Promise<{ eventId?: string }>;
+  scheduleSlackRequester?: (
+    payload: JourneyDeliveryScheduledEventData,
+  ) => Promise<{ eventId?: string }>;
+  scheduleLoggerRequester?: (
     payload: JourneyDeliveryScheduledEventData,
   ) => Promise<{ eventId?: string }>;
   cancelRequester?: (
@@ -80,7 +88,14 @@ type JourneyRunRow = typeof journeyRuns.$inferSelect;
 
 type JourneyDeliveryRow = typeof journeyDeliveries.$inferSelect;
 
+type JourneyDeliveryActionType =
+  | "send-resend"
+  | "send-resend-template"
+  | "send-slack"
+  | "logger";
+
 type DesiredDelivery = {
+  actionType: JourneyDeliveryActionType;
   deterministicKey: string;
   stepKey: string;
   channel: string;
@@ -92,6 +107,13 @@ type DesiredDelivery = {
 type ActionNode = LinearJourneyGraph["nodes"][number];
 type JourneyEdge = LinearJourneyGraph["edges"][number];
 type ConditionBranch = "true" | "false";
+type JourneyNodeActionType =
+  | "wait"
+  | "condition"
+  | "send-resend"
+  | "send-resend-template"
+  | "send-slack"
+  | "logger";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -101,7 +123,7 @@ function toRecord(value: unknown): Record<string, unknown> {
   return isRecord(value) ? value : {};
 }
 
-function normalizeActionType(value: unknown): string | null {
+function normalizeActionType(value: unknown): JourneyNodeActionType | null {
   if (typeof value !== "string") {
     return null;
   }
@@ -111,29 +133,85 @@ function normalizeActionType(value: unknown): string | null {
     return null;
   }
 
-  return normalized;
+  if (
+    normalized === "wait" ||
+    normalized === "condition" ||
+    normalized === "send-resend" ||
+    normalized === "send-resend-template" ||
+    normalized === "send-slack" ||
+    normalized === "logger"
+  ) {
+    return normalized;
+  }
+
+  return null;
 }
 
 function getActionConfig(node: ActionNode): Record<string, unknown> {
   return toRecord(node.attributes.data.config);
 }
 
-function getNormalizedActionType(node: ActionNode): string | null {
+function getNormalizedActionType(
+  node: ActionNode,
+): JourneyNodeActionType | null {
   const config = getActionConfig(node);
   return normalizeActionType(config["actionType"]);
 }
 
-function resolveChannel(node: ActionNode): string {
-  const actionType = getNormalizedActionType(node);
-  if (actionType === "send-slack") {
-    return "slack";
+function assertNever(_value: never): never {
+  throw new Error("Unsupported action type.");
+}
+
+function isJourneyDeliveryActionType(
+  actionType: JourneyNodeActionType | null,
+): actionType is JourneyDeliveryActionType {
+  return (
+    actionType === "send-resend" ||
+    actionType === "send-resend-template" ||
+    actionType === "send-slack" ||
+    actionType === "logger"
+  );
+}
+
+function resolveChannel(actionType: JourneyDeliveryActionType): string {
+  switch (actionType) {
+    case "send-resend":
+    case "send-resend-template":
+      return "email";
+    case "send-slack":
+      return "slack";
+    case "logger":
+      return "logger";
   }
 
-  if (actionType === "logger") {
-    return "logger";
+  return assertNever(actionType);
+}
+
+function resolveScheduleRequester(input: {
+  actionType: JourneyDeliveryActionType;
+  scheduleResendRequester: (
+    payload: JourneyDeliveryScheduledEventData,
+  ) => Promise<{ eventId?: string }>;
+  scheduleSlackRequester: (
+    payload: JourneyDeliveryScheduledEventData,
+  ) => Promise<{ eventId?: string }>;
+  scheduleLoggerRequester: (
+    payload: JourneyDeliveryScheduledEventData,
+  ) => Promise<{ eventId?: string }>;
+}): (
+  payload: JourneyDeliveryScheduledEventData,
+) => Promise<{ eventId?: string }> {
+  switch (input.actionType) {
+    case "send-resend":
+    case "send-resend-template":
+      return input.scheduleResendRequester;
+    case "send-slack":
+      return input.scheduleSlackRequester;
+    case "logger":
+      return input.scheduleLoggerRequester;
   }
 
-  return "email";
+  return assertNever(input.actionType);
 }
 
 function resolveReferenceValue(
@@ -469,12 +547,7 @@ function buildDesiredDeliveries(input: {
       continue;
     }
 
-    if (
-      actionType !== "send-resend" &&
-      actionType !== "send-resend-template" &&
-      actionType !== "send-slack" &&
-      actionType !== "logger"
-    ) {
+    if (!isJourneyDeliveryActionType(actionType)) {
       currentNodeId = resolveDefaultNextNodeId({
         sourceNodeId: node.attributes.id,
         outgoingEdgesBySource,
@@ -485,13 +558,14 @@ function buildDesiredDeliveries(input: {
     const scheduledFor = new Date(cursor);
     const isPastDue = scheduledFor.getTime() < input.now.getTime();
     desiredDeliveries.push({
+      actionType,
       deterministicKey: buildDeliveryDeterministicKey({
         journeyRunId: input.journeyRunId,
         stepKey: node.attributes.id,
         scheduledFor,
       }),
       stepKey: node.attributes.id,
-      channel: resolveChannel(node),
+      channel: resolveChannel(actionType),
       scheduledFor,
       status: isPastDue ? "skipped" : "planned",
       reasonCode: isPastDue ? "past_due" : null,
@@ -708,7 +782,13 @@ async function reconcileDeliveries(input: {
   runId: string;
   orgId: string;
   desiredDeliveries: DesiredDelivery[];
-  scheduleRequester: (
+  scheduleResendRequester: (
+    payload: JourneyDeliveryScheduledEventData,
+  ) => Promise<{ eventId?: string }>;
+  scheduleSlackRequester: (
+    payload: JourneyDeliveryScheduledEventData,
+  ) => Promise<{ eventId?: string }>;
+  scheduleLoggerRequester: (
     payload: JourneyDeliveryScheduledEventData,
   ) => Promise<{ eventId?: string }>;
   cancelRequester: (
@@ -803,13 +883,20 @@ async function reconcileDeliveries(input: {
 
       if (created.status === "planned") {
         scheduledDeliveryIds.push(created.id);
-        await input.scheduleRequester({
+        const payload = {
           orgId: input.orgId,
           journeyDeliveryId: created.id,
           journeyRunId: created.journeyRunId,
           deterministicKey: created.deterministicKey,
           scheduledFor: created.scheduledFor.toISOString(),
+        };
+        const scheduleRequester = resolveScheduleRequester({
+          actionType: desired.actionType,
+          scheduleResendRequester: input.scheduleResendRequester,
+          scheduleSlackRequester: input.scheduleSlackRequester,
+          scheduleLoggerRequester: input.scheduleLoggerRequester,
         });
+        await scheduleRequester(payload);
         return;
       }
 
@@ -836,8 +923,12 @@ export async function processJourneyDomainEvent(
   event: JourneyDomainEventEnvelope,
   dependencies: JourneyPlannerDependencies = {},
 ): Promise<JourneyPlannerResult> {
-  const scheduleRequester =
-    dependencies.scheduleRequester ?? sendJourneyDeliveryScheduled;
+  const scheduleResendRequester =
+    dependencies.scheduleResendRequester ?? sendJourneyActionSendResendExecute;
+  const scheduleSlackRequester =
+    dependencies.scheduleSlackRequester ?? sendJourneyActionSendSlackExecute;
+  const scheduleLoggerRequester =
+    dependencies.scheduleLoggerRequester ?? sendJourneyDeliveryScheduled;
   const cancelRequester =
     dependencies.cancelRequester ?? sendJourneyDeliveryCanceled;
   const now = dependencies.now ?? new Date();
@@ -1037,7 +1128,9 @@ export async function processJourneyDomainEvent(
             runId: run.id,
             orgId: event.orgId,
             desiredDeliveries,
-            scheduleRequester,
+            scheduleResendRequester,
+            scheduleSlackRequester,
+            scheduleLoggerRequester,
             cancelRequester,
           });
 
