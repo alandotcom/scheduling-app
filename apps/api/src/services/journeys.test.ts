@@ -1,0 +1,764 @@
+import { beforeEach, describe, expect, test } from "bun:test";
+import { and, eq, inArray } from "drizzle-orm";
+import {
+  journeyDeliveries,
+  journeyRuns,
+  journeys,
+  journeyVersions,
+} from "@scheduling/db/schema";
+import {
+  getTestDb,
+  setTestOrgContext,
+  type TestDatabase,
+} from "../test-utils/index.js";
+import {
+  createAppointment,
+  createAppointmentType,
+  createCalendar,
+  createLocation,
+  createOrg,
+} from "../test-utils/factories.js";
+import { journeyService } from "./journeys.js";
+import type { ServiceContext } from "./locations.js";
+import type { LinearJourneyGraph } from "@scheduling/dto";
+
+function createLinearGraph(triggerId = "trigger-1"): LinearJourneyGraph {
+  return {
+    attributes: {},
+    options: {
+      type: "directed",
+    },
+    nodes: [
+      {
+        key: triggerId,
+        attributes: {
+          id: triggerId,
+          type: "trigger-node",
+          position: {
+            x: 0,
+            y: 0,
+          },
+          data: {
+            label: "Trigger",
+            type: "trigger",
+          },
+        },
+      },
+    ],
+    edges: [],
+  };
+}
+
+function createLinearGraphWithSendMessage(input?: {
+  triggerId?: string;
+  channel?: "email" | "slack";
+}): LinearJourneyGraph {
+  const triggerId = input?.triggerId ?? "trigger-with-send";
+  const channel = input?.channel ?? "email";
+
+  return {
+    attributes: {},
+    options: {
+      type: "directed",
+    },
+    nodes: [
+      {
+        key: triggerId,
+        attributes: {
+          id: triggerId,
+          type: "trigger-node",
+          position: {
+            x: 0,
+            y: 0,
+          },
+          data: {
+            label: "Trigger",
+            type: "trigger",
+            config: {
+              triggerType: "DomainEvent",
+              domain: "appointment",
+              startEvents: ["appointment.scheduled"],
+              restartEvents: ["appointment.rescheduled"],
+              stopEvents: ["appointment.canceled"],
+            },
+          },
+        },
+      },
+      {
+        key: "send-step",
+        attributes: {
+          id: "send-step",
+          type: "action-node",
+          position: {
+            x: 0,
+            y: 120,
+          },
+          data: {
+            label: "Send Message",
+            type: "action",
+            config: {
+              actionType: "send-message",
+              channel,
+            },
+          },
+        },
+      },
+    ],
+    edges: [
+      {
+        key: `${triggerId}-to-send-step`,
+        source: triggerId,
+        target: "send-step",
+        attributes: {
+          id: `${triggerId}-to-send-step`,
+          source: triggerId,
+          target: "send-step",
+        },
+      },
+    ],
+  };
+}
+
+function createLinearGraphWithTriggerConfig(input: {
+  triggerId: string;
+  startEvents?: string[];
+  filter?: {
+    logic: "and" | "or";
+    groups: Array<{
+      logic: "and" | "or";
+      conditions: Array<{
+        field: string;
+        operator: "equals";
+        value: string;
+      }>;
+    }>;
+  };
+}): LinearJourneyGraph {
+  return {
+    attributes: {},
+    options: {
+      type: "directed",
+    },
+    nodes: [
+      {
+        key: input.triggerId,
+        attributes: {
+          id: input.triggerId,
+          type: "trigger-node",
+          position: {
+            x: 0,
+            y: 0,
+          },
+          data: {
+            label: "Trigger",
+            type: "trigger",
+            config: {
+              triggerType: "DomainEvent",
+              domain: "appointment",
+              startEvents: input.startEvents ?? ["appointment.scheduled"],
+              restartEvents: [],
+              stopEvents: ["appointment.canceled"],
+              ...(input.filter ? { filter: input.filter } : {}),
+            },
+          },
+        },
+      },
+    ],
+    edges: [],
+  };
+}
+
+describe("JourneyService", () => {
+  const db: TestDatabase = getTestDb();
+  let context: ServiceContext;
+  let otherContext: ServiceContext;
+
+  beforeEach(async () => {
+    const primary = await createOrg(db as any, { name: "Journey Primary Org" });
+    context = { orgId: primary.org.id, userId: primary.user.id };
+
+    const secondary = await createOrg(db as any, {
+      name: "Journey Secondary Org",
+      email: "journey-secondary@example.com",
+    });
+    otherContext = { orgId: secondary.org.id, userId: secondary.user.id };
+  });
+
+  test("supports publish -> pause -> resume lifecycle transitions with invalid transition guards", async () => {
+    const created = await journeyService.create(
+      {
+        name: "Lifecycle Journey",
+        graph: createLinearGraph("trigger-lifecycle"),
+      },
+      context,
+    );
+
+    expect(created.state).toBe("draft");
+
+    const updated = await journeyService.update(
+      created.id,
+      {
+        name: "Lifecycle Journey Updated",
+        graph: createLinearGraph("trigger-lifecycle-updated"),
+      },
+      context,
+    );
+    expect(updated.name).toBe("Lifecycle Journey Updated");
+
+    await expect(
+      journeyService.pause(created.id, context),
+    ).rejects.toMatchObject({
+      code: "CONFLICT",
+    });
+
+    const firstPublish = await journeyService.publish(
+      created.id,
+      {
+        mode: "live",
+      },
+      context,
+    );
+
+    expect(firstPublish.journey.state).toBe("published");
+    expect(firstPublish.version).toBe(1);
+
+    const paused = await journeyService.pause(created.id, context);
+    expect(paused.state).toBe("paused");
+
+    await expect(
+      journeyService.publish(
+        created.id,
+        {
+          mode: "live",
+        },
+        context,
+      ),
+    ).rejects.toMatchObject({
+      code: "CONFLICT",
+    });
+
+    const resumed = await journeyService.resume(
+      created.id,
+      {
+        targetState: "published",
+      },
+      context,
+    );
+    expect(resumed.state).toBe("published");
+
+    const secondPublish = await journeyService.publish(
+      created.id,
+      {
+        mode: "live",
+      },
+      context,
+    );
+    expect(secondPublish.version).toBe(2);
+  });
+
+  test("enforces org-scoped case-insensitive journey name uniqueness", async () => {
+    await journeyService.create(
+      {
+        name: "Follow Up Journey",
+        graph: createLinearGraph("trigger-uniqueness-a"),
+      },
+      context,
+    );
+
+    await expect(
+      journeyService.create(
+        {
+          name: "follow up journey",
+          graph: createLinearGraph("trigger-uniqueness-b"),
+        },
+        context,
+      ),
+    ).rejects.toMatchObject({
+      code: "CONFLICT",
+      details: { field: "name" },
+    });
+
+    await expect(
+      journeyService.create(
+        {
+          name: "FOLLOW UP JOURNEY",
+          graph: createLinearGraph("trigger-uniqueness-c"),
+        },
+        otherContext,
+      ),
+    ).resolves.toMatchObject({
+      state: "draft",
+    });
+  });
+
+  test("delete cancels active runs then hard-deletes journey and versions", async () => {
+    const created = await journeyService.create(
+      {
+        name: "Delete Journey",
+        graph: createLinearGraph("trigger-delete"),
+      },
+      context,
+    );
+
+    const published = await journeyService.publish(
+      created.id,
+      {
+        mode: "live",
+      },
+      context,
+    );
+
+    await setTestOrgContext(db, context.orgId);
+    const [versionRow] = await db
+      .select({ id: journeyVersions.id })
+      .from(journeyVersions)
+      .where(
+        and(
+          eq(journeyVersions.journeyId, created.id),
+          eq(journeyVersions.version, published.version),
+        ),
+      )
+      .limit(1);
+
+    expect(versionRow).toBeDefined();
+
+    const [runningRun] = await db
+      .insert(journeyRuns)
+      .values({
+        orgId: context.orgId,
+        journeyVersionId: versionRow!.id,
+        appointmentId: crypto.randomUUID(),
+        mode: "live",
+        status: "running",
+        journeyNameSnapshot: created.name,
+        journeyVersionSnapshot: { version: published.version },
+      })
+      .returning({ id: journeyRuns.id });
+
+    const [plannedRun] = await db
+      .insert(journeyRuns)
+      .values({
+        orgId: context.orgId,
+        journeyVersionId: versionRow!.id,
+        appointmentId: crypto.randomUUID(),
+        mode: "live",
+        status: "planned",
+        journeyNameSnapshot: created.name,
+        journeyVersionSnapshot: { version: published.version },
+      })
+      .returning({ id: journeyRuns.id });
+
+    const [completedRun] = await db
+      .insert(journeyRuns)
+      .values({
+        orgId: context.orgId,
+        journeyVersionId: versionRow!.id,
+        appointmentId: crypto.randomUUID(),
+        mode: "live",
+        status: "completed",
+        journeyNameSnapshot: created.name,
+        journeyVersionSnapshot: { version: published.version },
+      })
+      .returning({ id: journeyRuns.id });
+
+    await db.insert(journeyDeliveries).values([
+      {
+        orgId: context.orgId,
+        journeyRunId: runningRun!.id,
+        stepKey: "send-running",
+        channel: "email",
+        scheduledFor: new Date(),
+        status: "planned",
+        deterministicKey: `running-${crypto.randomUUID()}`,
+      },
+      {
+        orgId: context.orgId,
+        journeyRunId: plannedRun!.id,
+        stepKey: "send-planned",
+        channel: "email",
+        scheduledFor: new Date(),
+        status: "planned",
+        deterministicKey: `planned-${crypto.randomUUID()}`,
+      },
+      {
+        orgId: context.orgId,
+        journeyRunId: completedRun!.id,
+        stepKey: "send-completed",
+        channel: "email",
+        scheduledFor: new Date(),
+        status: "sent",
+        deterministicKey: `completed-${crypto.randomUUID()}`,
+      },
+    ]);
+
+    const deleted = await journeyService.delete(created.id, context);
+    expect(deleted).toEqual({ success: true });
+
+    await setTestOrgContext(db, context.orgId);
+
+    const journeyRows = await db
+      .select({ id: journeys.id })
+      .from(journeys)
+      .where(eq(journeys.id, created.id));
+    expect(journeyRows).toHaveLength(0);
+
+    const versionRows = await db
+      .select({ id: journeyVersions.id })
+      .from(journeyVersions)
+      .where(eq(journeyVersions.journeyId, created.id));
+    expect(versionRows).toHaveLength(0);
+
+    const runRows = await db
+      .select({ id: journeyRuns.id, status: journeyRuns.status })
+      .from(journeyRuns)
+      .where(
+        inArray(journeyRuns.id, [
+          runningRun!.id,
+          plannedRun!.id,
+          completedRun!.id,
+        ]),
+      );
+
+    const statusesById = new Map(runRows.map((row) => [row.id, row.status]));
+    expect(statusesById.get(runningRun!.id)).toBe("canceled");
+    expect(statusesById.get(plannedRun!.id)).toBe("canceled");
+    expect(statusesById.get(completedRun!.id)).toBe("completed");
+
+    const deliveryRows = await db
+      .select({
+        runId: journeyDeliveries.journeyRunId,
+        status: journeyDeliveries.status,
+      })
+      .from(journeyDeliveries)
+      .where(
+        inArray(journeyDeliveries.journeyRunId, [
+          runningRun!.id,
+          plannedRun!.id,
+          completedRun!.id,
+        ]),
+      );
+
+    const deliveryStatuses = deliveryRows.map((row) => row.status);
+    expect(deliveryStatuses).toContain("canceled");
+    expect(deliveryStatuses).toContain("sent");
+  });
+
+  test("manual test start creates a mode=test run", async () => {
+    const location = await createLocation(db as any, context.orgId);
+    const calendar = await createCalendar(db as any, context.orgId, {
+      locationId: location.id,
+    });
+    const appointmentType = await createAppointmentType(
+      db as any,
+      context.orgId,
+      {
+        calendarIds: [calendar.id],
+      },
+    );
+    const appointment = await createAppointment(db as any, context.orgId, {
+      calendarId: calendar.id,
+      appointmentTypeId: appointmentType.id,
+      startAt: new Date("2026-03-10T14:00:00.000Z"),
+      endAt: new Date("2026-03-10T15:00:00.000Z"),
+    });
+
+    const created = await journeyService.create(
+      {
+        name: "Manual Test Start Journey",
+        graph: createLinearGraphWithSendMessage({ channel: "email" }),
+      },
+      context,
+    );
+
+    await journeyService.publish(
+      created.id,
+      {
+        mode: "live",
+      },
+      context,
+    );
+
+    const result = await journeyService.startTestRun(
+      created.id,
+      {
+        appointmentId: appointment.id,
+        emailOverride: "qa@example.com",
+      },
+      context,
+    );
+
+    expect(result.mode).toBe("test");
+
+    await setTestOrgContext(db, context.orgId);
+
+    const [run] = await db
+      .select({ id: journeyRuns.id, mode: journeyRuns.mode })
+      .from(journeyRuns)
+      .where(eq(journeyRuns.id, result.runId))
+      .limit(1);
+
+    expect(run).toBeDefined();
+    expect(run?.mode).toBe("test");
+  });
+
+  test("manual test start rejects missing email override and does not create sends", async () => {
+    const location = await createLocation(db as any, context.orgId);
+    const calendar = await createCalendar(db as any, context.orgId, {
+      locationId: location.id,
+    });
+    const appointmentType = await createAppointmentType(
+      db as any,
+      context.orgId,
+      {
+        calendarIds: [calendar.id],
+      },
+    );
+    const appointment = await createAppointment(db as any, context.orgId, {
+      calendarId: calendar.id,
+      appointmentTypeId: appointmentType.id,
+      startAt: new Date("2026-03-10T14:00:00.000Z"),
+      endAt: new Date("2026-03-10T15:00:00.000Z"),
+    });
+
+    const created = await journeyService.create(
+      {
+        name: "Email Override Journey",
+        graph: createLinearGraphWithSendMessage({ channel: "email" }),
+      },
+      context,
+    );
+
+    await journeyService.publish(
+      created.id,
+      {
+        mode: "live",
+      },
+      context,
+    );
+
+    await expect(
+      journeyService.startTestRun(
+        created.id,
+        {
+          appointmentId: appointment.id,
+        },
+        context,
+      ),
+    ).rejects.toMatchObject({
+      code: "BAD_REQUEST",
+      message: "Email override is required for test runs with Email steps",
+    });
+
+    await setTestOrgContext(db, context.orgId);
+
+    const runs = await db.select({ id: journeyRuns.id }).from(journeyRuns);
+    const deliveries = await db
+      .select({ id: journeyDeliveries.id })
+      .from(journeyDeliveries);
+
+    expect(runs).toHaveLength(0);
+    expect(deliveries).toHaveLength(0);
+  });
+
+  test("manual test start allows slack steps without slack override", async () => {
+    const location = await createLocation(db as any, context.orgId);
+    const calendar = await createCalendar(db as any, context.orgId, {
+      locationId: location.id,
+    });
+    const appointmentType = await createAppointmentType(
+      db as any,
+      context.orgId,
+      {
+        calendarIds: [calendar.id],
+      },
+    );
+    const appointment = await createAppointment(db as any, context.orgId, {
+      calendarId: calendar.id,
+      appointmentTypeId: appointmentType.id,
+      startAt: new Date("2026-03-10T14:00:00.000Z"),
+      endAt: new Date("2026-03-10T15:00:00.000Z"),
+    });
+
+    const created = await journeyService.create(
+      {
+        name: "Slack Manual Test Journey",
+        graph: createLinearGraphWithSendMessage({ channel: "slack" }),
+      },
+      context,
+    );
+
+    await journeyService.publish(
+      created.id,
+      {
+        mode: "live",
+      },
+      context,
+    );
+
+    const result = await journeyService.startTestRun(
+      created.id,
+      {
+        appointmentId: appointment.id,
+      },
+      context,
+    );
+
+    expect(result.mode).toBe("test");
+  });
+
+  test("publish returns non-blocking overlap warnings for matching trigger dimensions", async () => {
+    const appointmentTypeId = crypto.randomUUID();
+
+    await journeyService
+      .create(
+        {
+          name: "Journey A",
+          graph: createLinearGraphWithTriggerConfig({
+            triggerId: "trigger-overlap-a",
+            filter: {
+              logic: "and",
+              groups: [
+                {
+                  logic: "and",
+                  conditions: [
+                    {
+                      field: "appointment.appointmentTypeId",
+                      operator: "equals",
+                      value: appointmentTypeId,
+                    },
+                  ],
+                },
+              ],
+            },
+          }),
+        },
+        context,
+      )
+      .then((created) =>
+        journeyService.publish(
+          created.id,
+          {
+            mode: "live",
+          },
+          context,
+        ),
+      );
+
+    const createdB = await journeyService.create(
+      {
+        name: "Journey B",
+        graph: createLinearGraphWithTriggerConfig({
+          triggerId: "trigger-overlap-b",
+          filter: {
+            logic: "and",
+            groups: [
+              {
+                logic: "and",
+                conditions: [
+                  {
+                    field: "appointment.appointmentTypeId",
+                    operator: "equals",
+                    value: appointmentTypeId,
+                  },
+                ],
+              },
+            ],
+          },
+        }),
+      },
+      context,
+    );
+
+    const published = await journeyService.publish(
+      createdB.id,
+      {
+        mode: "live",
+      },
+      context,
+    );
+
+    expect(published.journey.state).toBe("published");
+    expect(published.warnings.length).toBeGreaterThan(0);
+    expect(published.warnings[0]).toContain("Journey A");
+  });
+
+  test("run detail preserves snapshot history when definition is deleted", async () => {
+    const created = await journeyService.create(
+      {
+        name: "History Journey",
+        graph: createLinearGraph("trigger-history"),
+      },
+      context,
+    );
+
+    const published = await journeyService.publish(
+      created.id,
+      {
+        mode: "live",
+      },
+      context,
+    );
+
+    await setTestOrgContext(db, context.orgId);
+    const [versionRow] = await db
+      .select({ id: journeyVersions.id })
+      .from(journeyVersions)
+      .where(
+        and(
+          eq(journeyVersions.journeyId, created.id),
+          eq(journeyVersions.version, published.version),
+        ),
+      )
+      .limit(1);
+
+    const [runRow] = await db
+      .insert(journeyRuns)
+      .values({
+        orgId: context.orgId,
+        journeyVersionId: versionRow!.id,
+        appointmentId: crypto.randomUUID(),
+        mode: "test",
+        status: "completed",
+        journeyNameSnapshot: "Deleted Journey Snapshot",
+        journeyVersionSnapshot: { version: 7 },
+      })
+      .returning({ id: journeyRuns.id });
+
+    await db.insert(journeyDeliveries).values([
+      {
+        orgId: context.orgId,
+        journeyRunId: runRow!.id,
+        stepKey: "logger-1",
+        channel: "logger",
+        scheduledFor: new Date("2026-03-10T14:00:00.000Z"),
+        status: "sent",
+        reasonCode: null,
+        deterministicKey: `logger-${crypto.randomUUID()}`,
+      },
+      {
+        orgId: context.orgId,
+        journeyRunId: runRow!.id,
+        stepKey: "send-1",
+        channel: "email",
+        scheduledFor: new Date("2026-03-10T14:05:00.000Z"),
+        status: "skipped",
+        reasonCode: "past_due",
+        deterministicKey: `send-${crypto.randomUUID()}`,
+      },
+    ]);
+
+    await db.delete(journeys).where(eq(journeys.id, created.id));
+
+    const runDetail = await journeyService.getRun(runRow!.id, context);
+
+    expect(runDetail.run.journeyDeleted).toBe(true);
+    expect(runDetail.run.journeyNameSnapshot).toBe("Deleted Journey Snapshot");
+    expect(runDetail.run.journeyVersion).toBe(7);
+    expect(runDetail.deliveries.map((delivery) => delivery.channel)).toContain(
+      "logger",
+    );
+    expect(
+      runDetail.deliveries.map((delivery) => delivery.reasonCode),
+    ).toContain("past_due");
+  });
+});

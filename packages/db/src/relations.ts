@@ -16,6 +16,10 @@ export const relations = defineRelations(schema, (r) => ({
     appointments: r.many.appointments(),
     integrations: r.many.integrations(),
     auditEvents: r.many.auditEvents(),
+    journeys: r.many.journeys(),
+    journeyVersions: r.many.journeyVersions(),
+    journeyRuns: r.many.journeyRuns(),
+    journeyDeliveries: r.many.journeyDeliveries(),
     workflows: r.many.workflows(),
     workflowExecutions: r.many.workflowExecutions(),
     workflowExecutionLogs: r.many.workflowExecutionLogs(),
@@ -184,6 +188,50 @@ export const relations = defineRelations(schema, (r) => ({
     org: r.one.orgs({
       from: r.integrations.orgId,
       to: r.orgs.id,
+    }),
+  },
+
+  // Journeys
+  journeys: {
+    org: r.one.orgs({
+      from: r.journeys.orgId,
+      to: r.orgs.id,
+    }),
+    versions: r.many.journeyVersions(),
+  },
+
+  journeyVersions: {
+    org: r.one.orgs({
+      from: r.journeyVersions.orgId,
+      to: r.orgs.id,
+    }),
+    journey: r.one.journeys({
+      from: r.journeyVersions.journeyId,
+      to: r.journeys.id,
+    }),
+    runs: r.many.journeyRuns(),
+  },
+
+  journeyRuns: {
+    org: r.one.orgs({
+      from: r.journeyRuns.orgId,
+      to: r.orgs.id,
+    }),
+    journeyVersion: r.one.journeyVersions({
+      from: r.journeyRuns.journeyVersionId,
+      to: r.journeyVersions.id,
+    }),
+    deliveries: r.many.journeyDeliveries(),
+  },
+
+  journeyDeliveries: {
+    org: r.one.orgs({
+      from: r.journeyDeliveries.orgId,
+      to: r.orgs.id,
+    }),
+    journeyRun: r.one.journeyRuns({
+      from: r.journeyDeliveries.journeyRunId,
+      to: r.journeyRuns.id,
     }),
   },
 

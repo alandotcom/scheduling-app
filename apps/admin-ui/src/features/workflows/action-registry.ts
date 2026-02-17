@@ -62,92 +62,7 @@ export function isFieldGroup(
   return field.type === "group";
 }
 
-// --- System actions ---
-
-registerAction({
-  id: "http-request",
-  label: "HTTP Request",
-  description: "Send an HTTP request to an external endpoint.",
-  category: "System",
-  icon: "flash",
-  configFields: [
-    {
-      key: "httpMethod",
-      label: "Method",
-      type: "select",
-      defaultValue: "POST",
-      options: [
-        { value: "GET", label: "GET" },
-        { value: "POST", label: "POST" },
-        { value: "PUT", label: "PUT" },
-        { value: "PATCH", label: "PATCH" },
-        { value: "DELETE", label: "DELETE" },
-      ],
-    },
-    {
-      key: "endpoint",
-      label: "Endpoint",
-      type: "text",
-      placeholder: "https://api.example.com/...",
-      required: true,
-    },
-    {
-      label: "Headers & Body",
-      type: "group",
-      defaultExpanded: false,
-      fields: [
-        {
-          key: "httpHeaders",
-          label: "Headers (JSON)",
-          type: "textarea",
-          rows: 4,
-          placeholder: '{"Content-Type": "application/json"}',
-        },
-        {
-          key: "httpBody",
-          label: "Body (JSON)",
-          type: "textarea",
-          rows: 5,
-          placeholder: '{"key": "value"}',
-        },
-      ],
-    },
-  ],
-});
-
-registerAction({
-  id: "condition",
-  label: "Condition",
-  description: "Branch execution based on a condition expression.",
-  category: "System",
-  icon: "git-branch",
-  configFields: [
-    {
-      key: "condition",
-      label: "Condition",
-      type: "expression",
-      placeholder: "e.g., {{data.status}} === 'confirmed'",
-      required: true,
-    },
-  ],
-});
-
-registerAction({
-  id: "switch",
-  label: "Switch",
-  description: "Fork execution into created, updated, and deleted branches.",
-  category: "System",
-  icon: "git-branch",
-  configFields: [
-    {
-      key: "switchMode",
-      label: "Switch mode",
-      type: "select",
-      defaultValue: "event-type",
-      options: [{ value: "event-type", label: "Event type" }],
-    },
-  ],
-});
+// --- Journey v1 steps ---
 
 registerAction({
   id: "wait",
@@ -216,12 +131,47 @@ registerAction({
 });
 
 registerAction({
+  id: "send-message",
+  label: "Send Message",
+  description: "Deliver an outbound message over Email or Slack.",
+  category: "System",
+  icon: "flash",
+  configFields: [
+    {
+      key: "channel",
+      label: "Channel",
+      type: "select",
+      defaultValue: "email",
+      options: [
+        { value: "email", label: "Email" },
+        { value: "slack", label: "Slack" },
+      ],
+      required: true,
+    },
+    {
+      key: "subject",
+      label: "Email subject",
+      type: "text",
+      placeholder: "Appointment reminder",
+      showWhen: { field: "channel", equals: "email" },
+    },
+    {
+      key: "message",
+      label: "Message",
+      type: "textarea",
+      rows: 5,
+      placeholder: "Hi {{client.firstName}}, this is your reminder.",
+      required: true,
+    },
+  ],
+});
+
+registerAction({
   id: "logger",
   label: "Logger",
-  description: "Log a workflow message for development and debugging.",
-  category: "Development",
+  description: "Record a structured runtime log line.",
+  category: "System",
   icon: "flash",
-  devOnly: true,
   configFields: [
     {
       key: "message",

@@ -14,6 +14,7 @@ import { withOrg } from "../lib/db.js";
 import { ApplicationError } from "../errors/application-error.js";
 import { availabilityService } from "./availability-engine/index.js";
 import { events } from "./jobs/emitter.js";
+import { classifyAppointmentLifecycleEvent } from "./appointment-lifecycle-classifier.js";
 import { recordAudit, toAuditSnapshot, createAuditContext } from "./audit.js";
 import type { ServiceContext } from "./locations.js";
 
@@ -129,6 +130,33 @@ function toAppointmentEventSnapshot(appointment: Appointment) {
     status: appointment.status,
     notes: appointment.notes,
   };
+}
+
+async function emitAppointmentLifecycleEvent(
+  orgId: string,
+  current: Appointment,
+  previous?: Appointment | null,
+) {
+  const lifecycleEvent = classifyAppointmentLifecycleEvent({
+    previous: previous ? toAppointmentEventSnapshot(previous) : null,
+    current: toAppointmentEventSnapshot(current),
+  });
+
+  if (!lifecycleEvent) {
+    return;
+  }
+
+  switch (lifecycleEvent.type) {
+    case "appointment.scheduled":
+      await events.appointmentScheduled(orgId, lifecycleEvent.payload);
+      return;
+    case "appointment.rescheduled":
+      await events.appointmentRescheduled(orgId, lifecycleEvent.payload);
+      return;
+    case "appointment.canceled":
+      await events.appointmentCanceled(orgId, lifecycleEvent.payload);
+      return;
+  }
 }
 
 export class AppointmentService {
@@ -335,11 +363,7 @@ export class AppointmentService {
       throw error;
     }
 
-    // Emit appointment created event
-    await events.appointmentCreated(
-      orgId,
-      toAppointmentEventSnapshot(appointment),
-    );
+    await emitAppointmentLifecycleEvent(orgId, appointment);
 
     // Record audit event
     const authMethod = this.mapAuthMethod(context.authMethod);
@@ -406,10 +430,7 @@ export class AppointmentService {
       return { existing, updated };
     });
 
-    await events.appointmentUpdated(orgId, {
-      ...toAppointmentEventSnapshot(updated),
-      previous: toAppointmentEventSnapshot(existing),
-    });
+    await emitAppointmentLifecycleEvent(orgId, updated, existing);
 
     return updated;
   }
@@ -474,10 +495,7 @@ export class AppointmentService {
       return { existing, updated };
     });
 
-    await events.appointmentUpdated(orgId, {
-      ...toAppointmentEventSnapshot(updated),
-      previous: toAppointmentEventSnapshot(existing),
-    });
+    await emitAppointmentLifecycleEvent(orgId, updated, existing);
 
     return updated;
   }
@@ -601,10 +619,7 @@ export class AppointmentService {
       throw error;
     }
 
-    await events.appointmentUpdated(orgId, {
-      ...toAppointmentEventSnapshot(updated),
-      previous: toAppointmentEventSnapshot(existing),
-    });
+    await emitAppointmentLifecycleEvent(orgId, updated, existing);
 
     return updated;
   }
@@ -667,10 +682,7 @@ export class AppointmentService {
       return { existing, updated };
     });
 
-    await events.appointmentUpdated(orgId, {
-      ...toAppointmentEventSnapshot(updated),
-      previous: toAppointmentEventSnapshot(existing),
-    });
+    await emitAppointmentLifecycleEvent(orgId, updated, existing);
 
     return updated;
   }

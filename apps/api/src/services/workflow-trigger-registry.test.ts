@@ -17,7 +17,7 @@ import {
 
 const DOMAIN_CORRELATION_CASES = [
   {
-    eventType: "appointment.created" as const,
+    eventType: "appointment.scheduled" as const,
     payload: {
       appointmentId: "018f4d3a-6d80-7c5b-8a4a-6cb8f8d57d21",
       calendarId: "018f4d3a-6d80-7c5b-8a4a-6cb8f8d57d22",
@@ -107,9 +107,9 @@ function createTriggerConfig(
   const defaultConfig: WorkflowDomainEventTriggerConfig = {
     triggerType: "DomainEvent",
     domain: "appointment",
-    startEvents: ["appointment.created"],
-    restartEvents: ["appointment.updated"],
-    stopEvents: ["appointment.deleted"],
+    startEvents: ["appointment.scheduled"],
+    restartEvents: ["appointment.rescheduled"],
+    stopEvents: ["appointment.canceled"],
   };
 
   const merged = {
@@ -276,7 +276,7 @@ describe("workflow trigger registry", () => {
       config: createTriggerConfig({
         domainEventCorrelationPath: "entity.id",
       }),
-      eventType: "appointment.created",
+      eventType: "appointment.scheduled",
       payload: {
         entity: {
           id: "custom-correlation",
@@ -311,8 +311,11 @@ describe("workflow trigger registry", () => {
         restartEvents: ["client.updated"],
         stopEvents: ["client.deleted"],
       }),
-      eventType: "appointment.created",
-      payload: createPayload("appointment.created") as Record<string, unknown>,
+      eventType: "appointment.scheduled",
+      payload: createPayload("appointment.scheduled") as Record<
+        string,
+        unknown
+      >,
     });
 
     expect(evaluation.routingDecision).toEqual({
@@ -322,7 +325,7 @@ describe("workflow trigger registry", () => {
   });
 
   test("prioritizes stop over restart/start for overlapping routing sets", () => {
-    const eventType = "appointment.updated" as const;
+    const eventType = "appointment.rescheduled" as const;
     const evaluation = evaluateWorkflowDomainEventTrigger({
       config: createTriggerConfig({
         startEvents: [eventType],
@@ -337,7 +340,7 @@ describe("workflow trigger registry", () => {
   });
 
   test("prioritizes restart over start for overlapping routing sets", () => {
-    const eventType = "appointment.updated" as const;
+    const eventType = "appointment.rescheduled" as const;
     const evaluation = evaluateWorkflowDomainEventTrigger({
       config: createTriggerConfig({
         startEvents: [eventType],
@@ -355,7 +358,10 @@ describe("workflow trigger registry", () => {
     const evaluation = evaluateWorkflowDomainEventTrigger({
       config: createTriggerConfig(),
       eventType: undefined,
-      payload: createPayload("appointment.created") as Record<string, unknown>,
+      payload: createPayload("appointment.scheduled") as Record<
+        string,
+        unknown
+      >,
     });
 
     expect(evaluation.routingDecision).toEqual({

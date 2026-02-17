@@ -25,7 +25,7 @@ function createGraphWithDomainEventTrigger(
     startEvents[0] ??
     restartEvents[0] ??
     stopEvents[0] ??
-    "appointment.created";
+    "appointment.scheduled";
 
   return {
     attributes: {},
@@ -193,7 +193,7 @@ describe("workflow domain triggers", () => {
     await workflowService.create(
       {
         name: "Appointment Workflow",
-        graph: createGraphWithDomainEventTrigger(["appointment.created"]),
+        graph: createGraphWithDomainEventTrigger(["appointment.scheduled"]),
         isEnabled: true,
       },
       {

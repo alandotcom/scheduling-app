@@ -15,9 +15,9 @@ export type WebhookSessionResponse = z.infer<
 const isoDateTimeStringSchema = z.iso.datetime();
 
 export const webhookEventTypes = [
-  "appointment.created",
-  "appointment.updated",
-  "appointment.deleted",
+  "appointment.scheduled",
+  "appointment.rescheduled",
+  "appointment.canceled",
   "calendar.created",
   "calendar.updated",
   "calendar.deleted",
@@ -88,11 +88,11 @@ const clientSnapshotSchema = z.object({
 });
 
 export const webhookEventDataSchemaByType = {
-  "appointment.created": appointmentSnapshotSchema,
-  "appointment.updated": appointmentSnapshotSchema.extend({
+  "appointment.scheduled": appointmentSnapshotSchema,
+  "appointment.rescheduled": appointmentSnapshotSchema.extend({
     previous: appointmentSnapshotSchema,
   }),
-  "appointment.deleted": appointmentSnapshotSchema,
+  "appointment.canceled": appointmentSnapshotSchema,
   "calendar.created": calendarSnapshotSchema,
   "calendar.updated": calendarSnapshotSchema.extend({
     previous: calendarSnapshotSchema,
@@ -150,9 +150,11 @@ function createWebhookEnvelopeSchema<TEventType extends WebhookEventType>(
 }
 
 export const webhookEventEnvelopeSchemaByType = {
-  "appointment.created": createWebhookEnvelopeSchema("appointment.created"),
-  "appointment.updated": createWebhookEnvelopeSchema("appointment.updated"),
-  "appointment.deleted": createWebhookEnvelopeSchema("appointment.deleted"),
+  "appointment.scheduled": createWebhookEnvelopeSchema("appointment.scheduled"),
+  "appointment.rescheduled": createWebhookEnvelopeSchema(
+    "appointment.rescheduled",
+  ),
+  "appointment.canceled": createWebhookEnvelopeSchema("appointment.canceled"),
   "calendar.created": createWebhookEnvelopeSchema("calendar.created"),
   "calendar.updated": createWebhookEnvelopeSchema("calendar.updated"),
   "calendar.deleted": createWebhookEnvelopeSchema("calendar.deleted"),
@@ -179,9 +181,9 @@ export const webhookEventEnvelopeSchemaByType = {
 };
 
 export const webhookEventEnvelopeSchema = z.discriminatedUnion("type", [
-  webhookEventEnvelopeSchemaByType["appointment.created"],
-  webhookEventEnvelopeSchemaByType["appointment.updated"],
-  webhookEventEnvelopeSchemaByType["appointment.deleted"],
+  webhookEventEnvelopeSchemaByType["appointment.scheduled"],
+  webhookEventEnvelopeSchemaByType["appointment.rescheduled"],
+  webhookEventEnvelopeSchemaByType["appointment.canceled"],
   webhookEventEnvelopeSchemaByType["calendar.created"],
   webhookEventEnvelopeSchemaByType["calendar.updated"],
   webhookEventEnvelopeSchemaByType["calendar.deleted"],

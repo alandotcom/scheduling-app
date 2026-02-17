@@ -24,7 +24,7 @@ describe("integration fanout function", () => {
     });
     const appointmentOnlyIntegration = createIntegration({
       name: "appointment-only",
-      supportedEventTypes: ["appointment.created"],
+      supportedEventTypes: ["appointment.scheduled"],
       process: appointmentOnlyProcess,
     });
 
@@ -84,7 +84,7 @@ describe("integration fanout function", () => {
     const appointmentOnlyProcess = mock(async () => {});
     const appointmentOnlyIntegration = createIntegration({
       name: "appointment-only",
-      supportedEventTypes: ["appointment.created"],
+      supportedEventTypes: ["appointment.scheduled"],
       process: appointmentOnlyProcess,
     });
 

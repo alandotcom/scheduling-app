@@ -12,7 +12,7 @@ export const Route = createFileRoute("/_authenticated/workflows/")({
     const queryClient = getQueryClient();
     await swallowIgnorableRouteLoaderError(
       Promise.all([
-        queryClient.ensureQueryData(orpc.workflows.list.queryOptions({})),
+        queryClient.ensureQueryData(orpc.journeys.list.queryOptions({})),
         queryClient.ensureQueryData(orpc.auth.me.queryOptions({})),
       ]),
     );
@@ -22,12 +22,12 @@ export const Route = createFileRoute("/_authenticated/workflows/")({
 
 function resolveErrorMessage(error: unknown): string {
   if (error instanceof Error && error.message) return error.message;
-  return "Failed to load workflows.";
+  return "Failed to load journeys.";
 }
 
 function WorkflowsPage() {
-  const workflowsQuery = useQuery({
-    ...orpc.workflows.list.queryOptions({}),
+  const journeysQuery = useQuery({
+    ...orpc.journeys.list.queryOptions({}),
     placeholderData: (previous) => previous,
   });
   const authContextQuery = useQuery({
@@ -35,10 +35,10 @@ function WorkflowsPage() {
     retry: false,
   });
 
-  const workflows = workflowsQuery.data ?? [];
-  const isInitialLoading = workflowsQuery.isLoading && !workflowsQuery.data;
-  const errorMessage = workflowsQuery.error
-    ? resolveErrorMessage(workflowsQuery.error)
+  const journeys = journeysQuery.data ?? [];
+  const isInitialLoading = journeysQuery.isLoading && !journeysQuery.data;
+  const errorMessage = journeysQuery.error
+    ? resolveErrorMessage(journeysQuery.error)
     : null;
   const canManageWorkflows = canManageWorkflowsForRole(
     authContextQuery.data?.role ?? null,
@@ -46,7 +46,7 @@ function WorkflowsPage() {
 
   return (
     <WorkflowListPage
-      workflows={workflows}
+      journeys={journeys}
       isLoading={isInitialLoading}
       errorMessage={errorMessage}
       canManageWorkflows={canManageWorkflows}

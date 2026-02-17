@@ -23,7 +23,7 @@ function createNodeFixture(): Node {
       config: {
         triggerType: "DomainEvent",
         domain: "appointment",
-        startEvents: ["appointment.created"],
+        startEvents: ["appointment.scheduled"],
         restartEvents: [],
         stopEvents: [],
       },
@@ -42,7 +42,7 @@ function createNodeFixtureWithId(id: string, label: string): Node {
       config: {
         triggerType: "DomainEvent",
         domain: "appointment",
-        startEvents: ["appointment.created"],
+        startEvents: ["appointment.scheduled"],
         restartEvents: [],
         stopEvents: [],
       },
@@ -238,7 +238,7 @@ describe("WorkflowEditorSidebar role behavior", () => {
     ).toBeFalse();
   });
 
-  test("shows searchable grouped action list for unconfigured actions", () => {
+  test("shows only journey v1 step types for unconfigured actions", () => {
     renderSidebar({
       canManageWorkflow: true,
       selectedNode: createUnconfiguredActionNodeFixture(),
@@ -246,7 +246,12 @@ describe("WorkflowEditorSidebar role behavior", () => {
 
     expect(screen.getByPlaceholderText("Search actions...")).toBeTruthy();
     expect(screen.getByText("System")).toBeTruthy();
-    expect(screen.getByText("HTTP Request")).toBeTruthy();
+    expect(screen.getByText("Wait")).toBeTruthy();
+    expect(screen.getByText("Send Message")).toBeTruthy();
+    expect(screen.getByText("Logger")).toBeTruthy();
+    expect(screen.queryByText("HTTP Request")).toBeNull();
+    expect(screen.queryByText("Condition")).toBeNull();
+    expect(screen.queryByText("Switch")).toBeNull();
   });
 
   test("selecting an action calls onSetActionType", () => {
@@ -260,11 +265,11 @@ describe("WorkflowEditorSidebar role behavior", () => {
       selectedNode: createUnconfiguredActionNodeFixture(),
     });
 
-    fireEvent.click(screen.getByTestId("action-option-http-request"));
+    fireEvent.click(screen.getByTestId("action-option-send-message"));
 
     expect(onSetActionType).toHaveBeenCalledWith({
       nodeId: "action-node",
-      actionType: "http-request",
+      actionType: "send-message",
     });
   });
 });

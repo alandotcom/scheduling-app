@@ -5,7 +5,6 @@ import {
   BlockedIcon,
   CancelCircleIcon,
   FlashIcon,
-  GitBranchIcon,
   HourglassIcon,
   Tick02Icon,
   ViewOffIcon,
@@ -277,21 +276,9 @@ function getActionIconAndColor(actionType?: string): {
   bgClass: string;
 } {
   switch (actionType) {
-    case "http-request":
+    case "send-message":
       return {
         icon: FlashIcon,
-        colorClass: "text-amber-500",
-        bgClass: "bg-amber-500/10",
-      };
-    case "condition":
-      return {
-        icon: GitBranchIcon,
-        colorClass: "text-pink-500",
-        bgClass: "bg-pink-500/10",
-      };
-    case "switch":
-      return {
-        icon: GitBranchIcon,
         colorClass: "text-cyan-500",
         bgClass: "bg-cyan-500/10",
       };

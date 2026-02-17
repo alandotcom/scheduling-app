@@ -56,6 +56,14 @@ import { workflowRuntimeProvider } from "./workflow-runtime-provider.js";
 const UNIQUE_CONSTRAINT_VIOLATION = "23505";
 const WORKFLOW_NAME_UNIQUE_CONSTRAINT = "workflows_org_name_ci_uidx";
 
+const createWorkflowServiceInputSchema = createWorkflowSchema.safeExtend({
+  graph: serializedWorkflowGraphSchema,
+});
+
+const updateWorkflowServiceInputSchema = updateWorkflowSchema.safeExtend({
+  graph: serializedWorkflowGraphSchema.optional(),
+});
+
 function duplicateGraphWithReset(
   graph: SerializedWorkflowGraph,
 ): SerializedWorkflowGraph {
@@ -171,7 +179,7 @@ function mapWorkflowWriteError(error: unknown): ApplicationError | null {
 }
 
 function validateCreateInput(input: CreateWorkflowInput): CreateWorkflowInput {
-  const parsed = createWorkflowSchema.safeParse(input);
+  const parsed = createWorkflowServiceInputSchema.safeParse(input);
   if (!parsed.success) {
     throw new ApplicationError("Invalid workflow payload", {
       code: "BAD_REQUEST",
@@ -183,7 +191,7 @@ function validateCreateInput(input: CreateWorkflowInput): CreateWorkflowInput {
 }
 
 function validateUpdateInput(input: UpdateWorkflowInput): UpdateWorkflowInput {
-  const parsed = updateWorkflowSchema.safeParse(input);
+  const parsed = updateWorkflowServiceInputSchema.safeParse(input);
   if (!parsed.success) {
     throw new ApplicationError("Invalid workflow payload", {
       code: "BAD_REQUEST",

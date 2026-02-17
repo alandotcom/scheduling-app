@@ -1,374 +1,282 @@
 # Implementation Plan
 
-## Checklist
-
-- [ ] Step 1: Cut over appointment lifecycle event taxonomy
-- [ ] Step 2: Implement appointment lifecycle emit classification
-- [ ] Step 3: Introduce journey DTO contracts and route surfaces
-- [ ] Step 4: Replace DB runtime model with journey entities
-- [ ] Step 5: Implement journey repository and service lifecycle operations
-- [ ] Step 6: Implement trigger filter AST validation and backend CEL evaluation
-- [ ] Step 7: Build journey planner runtime
-- [ ] Step 8: Build delivery worker runtime and channel dispatch
-- [ ] Step 9: Implement test mode and safety override rules
-- [ ] Step 10: Replace builder UI with linear journey authoring
-- [ ] Step 11: Replace runs UI with journey run and delivery observability
-- [ ] Step 12: Add publish-time overlap warnings and complete cutover cleanup
-- [ ] Step 13: Execute full verification gates and release readiness checks
-
-## Step 1: Cut over appointment lifecycle event taxonomy
-
-Objective:
-
-- Move canonical appointment event names to `appointment.scheduled`, `appointment.rescheduled`, and `appointment.canceled` with no legacy aliases.
-
-Implementation guidance:
-
-- Update DTO event catalogs and envelope unions for appointment event names.
-- Keep non-appointment domains unchanged.
-- Update webhook catalog grouping/description mapping and stale-event pruning behavior.
-
-Test requirements:
-
-- Add/adjust schema tests proving only new appointment lifecycle names are accepted.
-- Add tests confirming legacy appointment aliases are rejected.
-- Add tests for webhook catalog generation naming consistency.
-
-Integration notes:
-
-- This must land before runtime replacement to avoid mixed taxonomy.
-- Preserve webhook feature behavior while changing names.
-
-Demo description:
-
-- Show schema validation output and webhook catalog sync results with only the new appointment names.
-
-## Step 2: Implement appointment lifecycle emit classification
-
-Objective:
-
-- Ensure appointment operations emit only lifecycle-classified journey events.
-
-Implementation guidance:
-
-- Encode strict classification rules:
-  - create -> scheduled
-  - time or timezone change while not canceled -> rescheduled
-  - status transition to canceled -> canceled
-- Ignore unrelated mutations for journey triggering.
-
-Test requirements:
-
-- Add service tests for create, reschedule, cancel, and unrelated update paths.
-- Add negative tests proving duplicate or incorrect lifecycle emissions do not occur.
-
-Integration notes:
-
-- Reuse current emitter infrastructure.
-- Keep integration fanout compatibility for non-appointment events.
-
-Demo description:
-
-- Trigger representative appointment mutations and show emitted lifecycle event types.
-
-## Step 3: Introduce journey DTO contracts and route surfaces
-
-Objective:
-
-- Replace graph-centric workflow contracts with appointment-journey contracts.
-
-Implementation guidance:
-
-- Add journey definition schema with linear steps only.
-- Add journey state and mode fields (`draft`, `published`, `paused`, `test_only`; `live`, `test`).
-- Add validation that rejects non-linear structures.
-- Update route input/output contracts for journey CRUD and run operations.
-
-Test requirements:
-
-- Add DTO validation tests for accepted and rejected journey payloads.
-- Add API contract tests for create, update, publish, pause, resume, delete inputs.
-
-Integration notes:
-
-- Preserve auth and admin-only mutation patterns from existing routes.
-
-Demo description:
-
-- Use API examples to create and retrieve a valid linear journey, and show non-linear payload rejection.
-
-## Step 4: Replace DB runtime model with journey entities
-
-Objective:
-
-- Introduce journey-focused persistence for definitions, versions, runs, and deliveries.
-
-Implementation guidance:
-
-- Replace legacy workflow runtime tables with journey tables in the initial migration artifacts.
-- Encode deterministic uniqueness constraints for run and delivery planning.
-- Ensure hard-delete journey plus retained history behavior is possible via snapshot fields.
-- Keep retention indefinite for now.
-
-Test requirements:
-
-- Add DB tests for constraints, foreign key behavior, and history retention after journey deletion.
-- Add tests for deterministic uniqueness under duplicate planner inputs.
-
-Integration notes:
-
-- Follow repo rule: update initial migration artifacts only and reset/push dev DB.
-
-Demo description:
-
-- Show schema state and sample inserts proving version-pinned runs and retained history after journey delete.
-
-## Step 5: Implement journey repository and service lifecycle operations
-
-Objective:
-
-- Deliver core lifecycle logic for journey management.
-
-Implementation guidance:
-
-- Implement service operations for create, update, publish, pause, resume, duplicate, delete.
-- Implement bulk cancel all active runs for selected journey.
-- Enforce unique journey name per org.
-- Enforce version pinning semantics for existing runs.
-
-Test requirements:
-
-- Add repository and service tests for each lifecycle action.
-- Add tests for delete behavior: auto-cancel active runs plus retained run history.
-- Add auth tests for admin-only mutation access.
-
-Integration notes:
-
-- Wire route handlers to new service methods and remove old workflow graph assumptions.
-
-Demo description:
-
-- Walk through publish, pause, resume, and delete actions with expected data/state transitions.
-
-## Step 6: Implement trigger filter AST validation and backend CEL evaluation
-
-Objective:
-
-- Support expressive yet controlled trigger filtering with simple UI structure and robust backend evaluation.
-
-Implementation guidance:
-
-- Define canonical structured filter AST with one-level nesting and caps.
-- Validate operator compatibility by field type.
-- Translate AST to constrained CEL evaluation input in backend.
-- Evaluate against appointment and client attribute context.
-
-Test requirements:
-
-- Unit tests for AST schema validation and cap limits.
-- Unit tests for AST-to-CEL translation correctness.
-- Evaluation tests for AND/OR/NOT, null checks, and date/time comparisons.
-
-Integration notes:
-
-- Keep AST canonical in persistence for overlap warning analysis.
-- Do not expose raw CEL expressions in UI.
-
-Demo description:
-
-- Run a filter test matrix showing expected match/non-match outcomes.
-
-## Step 7: Build journey planner runtime
-
-Objective:
-
-- Plan and maintain desired future deliveries from lifecycle and journey-control inputs.
-
-Implementation guidance:
-
-- Implement planner Inngest function and supporting services.
-- On scheduled and rescheduled events, evaluate trigger filters and compute deliveries.
-- On mismatch and terminal events, cancel obsolete pending deliveries.
-- Emit internal runtime events:
-  - `journey.delivery.scheduled`
-  - `journey.delivery.canceled`
-- Mark past-due computed sends as `skipped` with reason `past_due`.
-
-Test requirements:
-
-- Integration tests for scheduled, rescheduled, canceled, and deleted appointment paths.
-- Idempotency tests for duplicate lifecycle events.
-- Tests for pause and resume immediate replanning interaction.
-
-Integration notes:
-
-- Planner is the source of truth for delivery planning state.
-
-Demo description:
-
-- Show planner outputs and delivery rows for schedule, reschedule, and cancel scenarios.
-
-## Step 8: Build delivery worker runtime and channel dispatch
-
-Objective:
-
-- Execute due deliveries reliably with cancellation safety and provider-aware retries.
-
-Implementation guidance:
-
-- Implement worker function triggered by `journey.delivery.scheduled`.
-- Sleep until due time and cancel by delivery identity on cancel event.
-- Revalidate appointment and journey state before send.
-- Dispatch via Email and Slack adapters.
-- Apply provider retry defaults and Resend idempotency keys.
-- Persist final statuses: `sent`, `failed`, `canceled`, `skipped`.
-
-Test requirements:
-
-- Worker tests for successful send, cancel race, past-due skip, and failure retry behavior.
-- Channel adapter tests for success and failure persistence semantics.
-
-Integration notes:
-
-- Keep channel behavior aligned with existing integration config/secret patterns.
-
-Demo description:
-
-- Run an end-to-end scenario from planned delivery to persisted send outcome.
-
-## Step 9: Implement test mode and safety override rules
-
-Objective:
-
-- Deliver full test execution mode with clear safety boundaries.
-
-Implementation guidance:
-
-- Add explicit run mode handling (`test` vs `live`) in planner/worker and storage.
-- Implement `test_only` journey state with auto-trigger behavior.
-- Enforce required Email override for test runs.
-- Keep Slack override optional in v1.
-- Keep waits unchanged in test mode.
-
-Test requirements:
-
-- Tests for required Email override validation failures.
-- Tests confirming Slack runs without override in test mode.
-- Tests verifying test mode labeling and separate query filtering.
-
-Integration notes:
-
-- Replace dry-run semantics with explicit mode semantics in service contracts.
-
-Demo description:
-
-- Start a test run on an existing appointment and show real action execution with `test` labeling.
-
-## Step 10: Replace builder UI with linear journey authoring
-
-Objective:
-
-- Reduce configuration complexity with a v1-appropriate authoring surface.
-
-Implementation guidance:
-
-- Remove branch-related actions from action registry and editor behaviors.
-- Implement trigger filter builder UI with one-level grouped logic.
-- Keep step set to Trigger, Wait, Send Message, Logger only.
-- Add journey state controls for draft, publish, pause, and test-only.
-
-Test requirements:
-
-- UI tests proving non-v1 step types cannot be added.
-- UI tests for trigger filter authoring, caps, and validation feedback.
-- UI tests for state transitions and save/publish controls.
-
-Integration notes:
-
-- Align editor payload exactly to new DTO contracts.
-
-Demo description:
-
-- Build and publish a valid journey using the new UI and show rejected invalid configurations.
-
-## Step 11: Replace runs UI with journey run and delivery observability
-
-Objective:
-
-- Provide clear run visibility for live and test executions.
-
-Implementation guidance:
-
-- Update runs panels and detail views for journey run/delivery contracts.
-- Add filters for journey state and run mode.
-- Show clear test badges and status/reason visibility.
-- Show logger step outputs in run timeline.
-
-Test requirements:
-
-- UI tests for status rendering and mode filters.
-- UI tests for timeline data and logger output visibility.
-
-Integration notes:
-
-- Keep query patterns compatible with retained history for deleted journeys.
-
-Demo description:
-
-- Display live and test runs side by side with status details and timeline entries.
-
-## Step 12: Add publish-time overlap warnings and complete cutover cleanup
-
-Objective:
-
-- Add warning-only overlap guidance and fully remove legacy runtime surfaces.
-
-Implementation guidance:
-
-- Implement publish-time heuristic overlap detection using structured filter AST.
-- Return warnings with confidence labels and reasons.
-- Do not block publish.
-- Remove legacy workflow runtime functions/services/routes and stale UI assumptions.
-
-Test requirements:
-
-- Unit tests for overlap heuristic classifications and edge cases.
-- API/UI tests proving warnings appear but publish succeeds.
-- Tests ensuring no legacy runtime path is still used.
-
-Integration notes:
-
-- Keep webhook behavior independent from journey states.
-
-Demo description:
-
-- Publish overlapping journeys and show warnings without publish block.
-
-## Step 13: Execute full verification gates and release readiness checks
-
-Objective:
-
-- Confirm production readiness for the rebuild in development pipeline terms.
-
-Implementation guidance:
-
-- Run full repo quality gates and fix all failures:
+## Planning Anchors
+
+- Big-bang replacement: legacy workflow graph runtime is removed, not bridged.
+- DB migration policy: update baseline migration artifacts directly; do not create new incremental migrations for this rebuild.
+- Test semantics from A68: `test_only` auto-trigger and manual test start are both supported; both create `mode=test` runs.
+- v1 default for approved design ambiguity: test Email override input is a single required destination string.
+- v1 default reason-code taxonomy starts small and typed: `past_due`, `wait_already_due`, `execution_terminal`, `manual_cancel`.
+
+## Test Strategy (TDD-First)
+
+Write tests first in each slice so they fail against current legacy behavior, then implement until green.
+
+### Unit Tests
+
+1. Appointment lifecycle classifier
+   - Target: classifier helper used by appointment mutation paths.
+   - Cases:
+     - create -> `appointment.scheduled`
+     - time/timezone change while not canceled -> `appointment.rescheduled`
+     - transition to canceled -> `appointment.canceled`
+     - unrelated update -> no lifecycle event
+
+2. Journey definition validation (linear-only)
+   - Target: DTO/schema + API payload validator.
+   - Cases:
+     - accepts `Trigger -> Wait -> Send Message -> Logger` chain
+     - rejects branching edges/condition trees/switch constructs
+     - rejects unsupported step types
+     - rejects malformed sequencing (missing trigger, multiple triggers, dangling steps)
+
+3. Trigger filter AST validator
+   - Target: AST schema + semantic validator.
+   - Cases:
+     - one-level nesting accepted
+     - depth > 1 rejected
+     - >12 conditions rejected
+     - >4 groups rejected
+     - field/operator incompatibility rejected with structured errors
+
+4. AST evaluation service (constrained `cel-js`)
+   - Target: AST -> constrained CEL compilation and evaluation wrapper.
+   - Cases:
+     - AND/OR/NOT truth table correctness
+     - null checks (`is set`, `is not set`)
+     - date/time comparisons for appointment fields
+     - unsupported operation fails closed
+
+5. Planner identity and schedule computation
+   - Target: deterministic key builders and wait scheduler.
+   - Cases:
+     - run identity stable for same `(org, journeyVersion, appointment, mode)`
+     - delivery identity stable for same `(run, step, schedule context)`
+     - wait relative to start/end before/after computes expected UTC time
+     - past due computes `skipped` with `reasonCode=past_due`
+
+6. Overlap analyzer
+   - Target: publish-time heuristic analyzer.
+   - Cases:
+     - warnings for clearly overlapping event + high-signal filter dimensions
+     - no warnings for disjoint event taxonomies
+     - warning payload includes confidence + human-readable reason
+
+7. Test run safety guard
+   - Target: test-run start validator.
+   - Cases:
+     - test run with email step and no override rejected
+     - test run with slack-only step and no Slack override accepted
+     - both manual and auto-trigger test paths enforce the same Email rule
+
+### Integration Tests
+
+1. Taxonomy cutover propagation
+   - DTO domain events + webhook schemas + emitter payloads + Svix catalog sync all use only:
+     - `appointment.scheduled`
+     - `appointment.rescheduled`
+     - `appointment.canceled`
+
+2. Journey lifecycle API + DB behavior
+   - create/update/publish/pause/resume/delete on journey definitions
+   - unique name per org enforced
+   - non-linear payload rejected with no persistence side effects
+
+3. Planner + worker runtime behavior
+   - scheduled event creates run and deliveries
+   - reschedule mismatch cancels pending unsent deliveries
+   - pause cancels/suppresses pending unsent deliveries
+   - resume immediately re-plans from current appointment state
+   - cancellation race handled by worker `cancelOn` semantics
+
+4. Version pinning + history retention
+   - republish creates new immutable version
+   - existing runs remain pinned to original version
+   - deleting journey hard-deletes definition and versions while run history remains queryable via snapshots
+
+5. Test mode dual path
+   - `test_only` auto-trigger path creates `mode=test` run
+   - manual start path creates `mode=test` run
+   - missing Email override blocks run start with clear error
+
+6. Publish-time overlap warning behavior
+   - publish returns warnings when overlap heuristic matches
+   - publish still succeeds (warning-only, never blocking)
+
+### Manual E2E Scenario (Validator-Executable)
+
+Scenario: test-only and live behavior with publish warnings
+
+1. Start stack (`docker compose up -d`, `pnpm bootstrap:dev`, `pnpm dev`) and sign in to admin UI as seeded admin.
+2. Create Journey A in `test_only` state:
+   - trigger: `appointment.scheduled`
+   - filter: client email is set
+   - steps: Wait (15 minutes before appointment start) -> Send Message (Email) -> Logger.
+3. Attempt manual test run for a known appointment without Email override.
+   - Expected: run start rejected with explicit Email override error; no delivery send attempt is created.
+4. Start manual test run again with Email override destination.
+   - Expected: run created with `mode=test`, delivery planned/executed, logger step appears in run timeline.
+5. Create and publish Journey B (`published`) with overlapping trigger/filter shape.
+   - Expected: publish response surfaces overlap warning(s), publish still succeeds.
+6. Reschedule the appointment to violate Journey A filter or make wait past due.
+   - Expected: pending unsent deliveries are canceled or marked skipped (`past_due`) based on recomputation.
+
+## Implementation Steps (TDD Order)
+
+### Step 1: Taxonomy contracts cutover
+
+- Files: `packages/dto/src/schemas/domain-event.ts`, `packages/dto/src/schemas/webhook.ts`, `apps/api/src/services/svix-event-catalog.ts`, related tests.
+- Write failing tests first:
+  - canonical appointment event names accepted
+  - legacy aliases rejected
+  - Svix catalog includes only canonical names
+- Implement: rename taxonomy and webhook mappings together, then update catalog sync grouping/pruning.
+- Depends on: none.
+- Demo: catalog sync output shows only canonical appointment lifecycle names.
+- Success criteria: taxonomy integration tests pass and no legacy appointment event names remain in DTO/webhook schema snapshots.
+
+### Step 2: Appointment lifecycle classifier implementation
+
+- Files: `apps/api/src/services/appointments.ts` (or extracted classifier helper), emitter tests.
+- Write failing tests first:
+  - create/reschedule/cancel classification
+  - unrelated update emits nothing
+- Implement: centralize classifier in appointment mutation paths and emit only canonical events.
+- Depends on: Step 1.
+- Demo: appointment mutation test fixture emits expected canonical event types.
+- Success criteria: acceptance criteria 3-5 covered by automated tests.
+
+### Step 3: Journey DTO contracts + linear validation
+
+- Files: new journey schema files in `packages/dto/src/schemas/`, route contract consumers under `apps/api/src/routes/`.
+- Write failing tests first:
+  - valid linear payload accepted and defaults to `draft`
+  - non-linear payload rejected with structured issues
+  - step set restricted to Trigger/Wait/Send Message/Logger
+- Implement: replace workflow graph DTO usage with journey DTOs and validation rules.
+- Depends on: Step 2.
+- Demo: API create call succeeds for valid linear definition and fails for branch payload.
+- Success criteria: acceptance criteria 1-2 covered.
+
+### Step 4: Journey persistence model replacement
+
+- Files: `packages/db/src/schema/index.ts`, `packages/db/src/relations.ts`, `packages/db/src/migrations/20260208064434_init/migration.sql`, DB tests.
+- Write failing tests first:
+  - journey/version/run/delivery table constraints
+  - deterministic uniqueness indexes
+  - hard-delete definition with retained run snapshot history
+- Implement: replace legacy workflow runtime schema with journey entities and relations.
+- Depends on: Step 3.
+- Demo: DB tests show version-pinned runs and history remains queryable after definition delete.
+- Success criteria: schema tests green and legacy workflow runtime tables removed from schema artifacts.
+
+### Step 5: Journey service + lifecycle APIs
+
+- Files: journey services and routes in `apps/api/src/services/` and `apps/api/src/routes/`.
+- Write failing tests first:
+  - create/update/publish/pause/resume/delete transitions
+  - admin-only mutation guard behavior
+  - unique journey name enforcement
+  - delete auto-cancels active runs
+- Implement: lifecycle operations, version creation on publish, bulk-cancel active runs for selected journey.
+- Depends on: Step 4.
+- Demo: API walkthrough of publish -> pause -> resume -> delete with expected state transitions.
+- Success criteria: acceptance criteria 8-12 partially covered at API layer (runtime replanning completed in later steps).
+
+### Step 6: Trigger filter AST + constrained `cel-js` evaluator
+
+- Files: new filter validator/evaluator modules under `apps/api/src/services/`, DTO AST schema updates, package dependency update for `cel-js`.
+- Write failing tests first:
+  - AST shape/caps/depth checks
+  - operator compatibility and error payloads
+  - evaluation matrix for AND/OR/NOT and null/date comparisons
+- Implement: canonical AST persistence, backend-only CEL translation and constrained evaluator execution.
+- Depends on: Step 5.
+- Demo: filter matrix command/test output showing deterministic match/non-match results.
+- Success criteria: acceptance criteria around trigger filtering (R13-R20) covered by unit/integration tests.
+
+### Step 7: Planner runtime (Inngest)
+
+- Files: `apps/api/src/inngest/functions/` planner function(s), runtime events/types, planning service modules.
+- Write failing tests first:
+  - matching scheduled event plans run + deliveries
+  - reschedule mismatch cancels pending deliveries
+  - duplicate events are idempotent
+  - past due planning yields `skipped` + `past_due`
+- Implement: planner as source of truth for desired deliveries, deterministic run/delivery identity, control-event handling hooks.
+- Depends on: Step 6.
+- Demo: planner test run shows delivery create/cancel/skipped outputs for schedule/reschedule inputs.
+- Success criteria: acceptance criteria 6-7 satisfied.
+
+### Step 8: Delivery worker runtime + channel adapters
+
+- Files: `apps/api/src/inngest/functions/` worker function(s), delivery dispatch service, adapter integrations.
+- Write failing tests first:
+  - sleep-until due then send success
+  - cancel race suppresses send and marks `canceled`
+  - provider failure marks `failed` with retry behavior
+  - resend idempotency key forwarded
+- Implement: worker execution, `cancelOn` cancellation handling, state revalidation before send, status persistence.
+- Depends on: Step 7.
+- Demo: end-to-end runtime test from planned delivery event to persisted terminal status.
+- Success criteria: worker runtime tests pass for `sent|failed|canceled|skipped` states.
+
+### Step 9: Test mode dual-path semantics
+
+- Files: journey service/planner start paths, API endpoints for manual test start, related DTO/API contracts, runs query filters.
+- Write failing tests first:
+  - `test_only` auto-trigger creates `mode=test`
+  - manual test start creates `mode=test`
+  - missing Email override rejects start with no send
+  - Slack override optional in v1
+- Implement: remove `dryRun` semantics, enforce Email override gate, keep wait timing unchanged in test mode.
+- Depends on: Step 8.
+- Demo: one auto-triggered test run and one manual test run both visible as `mode=test`.
+- Success criteria: acceptance criteria 13-14 and A68 semantics covered.
+
+### Step 10: Admin builder cutover to linear journey authoring
+
+- Files: `apps/admin-ui/src/features/workflows/` (renamed/refactored to journey surfaces), route screens under `apps/admin-ui/src/routes/_authenticated/`.
+- Write failing tests first:
+  - non-v1 step types unavailable
+  - linear sequence editing/validation works
+  - grouped filter builder enforces depth/caps
+  - journey state controls expose draft/publish/pause/test-only
+- Implement: remove branch/switch UI, implement linear step UX and filter AST builder mapped to new DTO.
+- Depends on: Step 9.
+- Demo: create and publish linear journey from UI, with invalid structure blocked client-side and server-side.
+- Success criteria: UI payloads match journey contracts without legacy graph fields.
+
+### Step 11: Runs UI + overlap warning UX + history UX
+
+- Files: runs panel/details components under `apps/admin-ui/src/features/workflows/`, publish API integration, overlap warning presentation.
+- Write failing tests first:
+  - mode filters (`test|live`) and badges
+  - run timeline shows logger entries + reason codes
+  - publish overlap warnings rendered while publish succeeds
+  - deleted journey run history remains visible
+- Implement: update run/detail queries and rendering for journey runs/deliveries, warning display components, snapshot-based history labels.
+- Depends on: Step 10.
+- Demo: side-by-side test/live runs and a publish response containing overlap warnings.
+- Success criteria: acceptance criteria 12 and 15 fully represented in UI tests.
+
+### Step 12: Legacy cleanup + full quality gates
+
+- Files: remove obsolete workflow graph runtime files/routes/UI pieces across API, DTO, DB, and admin UI.
+- Write failing tests first:
+  - regression checks proving no legacy workflow runtime entry points are referenced
+- Implement: delete dead code, update imports/route registrations, ensure no compatibility shims remain.
+- Depends on: Step 11.
+- Demo: repository grep/tests show only journey runtime surfaces are active.
+- Success criteria:
   - `pnpm format`
   - `pnpm lint`
   - `pnpm typecheck`
   - `pnpm test`
-- Execute acceptance matrix scenarios from design document.
-- Validate webhook catalog contents and integration fanout behavior.
+  - all pass with no suppressions.
 
-Test requirements:
+## Completion Criteria for Task Writer Handoff
 
-- No failing tests or lint/type errors remain.
-- Add missing regression tests for any issue found during gate runs.
-
-Integration notes:
-
-- This step is not complete until all gates pass with no suppressions.
-
-Demo description:
-
-- Present full test and quality gate results plus acceptance checklist completion.
+- Convert each implementation step above into one or more atomic code tasks with Given-When-Then acceptance criteria.
+- Preserve TDD order and explicit dependency chain (Step N depends on Step N-1 unless otherwise noted).
+- Ensure every code task includes a demo/checkpoint expectation, not only internal refactors.

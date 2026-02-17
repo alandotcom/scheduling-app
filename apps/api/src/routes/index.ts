@@ -19,6 +19,7 @@ import { webhookRoutes } from "./webhooks.js";
 import { integrationRoutes } from "./integrations.js";
 import { authRoutes } from "./auth.js";
 import { workflowRoutes } from "./workflows.js";
+import { journeyRoutes } from "./journeys.js";
 
 // Re-export authed and adminOnly from base for backwards compatibility
 export { authed, adminOnly } from "./base.js";
@@ -52,6 +53,7 @@ export const uiRouter = {
   integrations: integrationRoutes,
   webhooks: webhookRoutes,
   workflows: workflowRoutes,
+  journeys: journeyRoutes,
 };
 
 // ============================================================================

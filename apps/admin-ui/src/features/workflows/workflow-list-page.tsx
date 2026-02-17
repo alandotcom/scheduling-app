@@ -4,14 +4,14 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import type {
+  JourneyListResponse,
   SerializedWorkflowGraph,
-  WorkflowListResponse,
 } from "@scheduling/dto";
+import { DeleteConfirmDialog } from "@/components/delete-confirm-dialog";
 import {
   EntityListEmptyState,
   EntityListLoadingState,
 } from "@/components/entity-list";
-import { DeleteConfirmDialog } from "@/components/delete-confirm-dialog";
 import { PageScaffold } from "@/components/layout/page-scaffold";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -34,7 +34,7 @@ export function canManageWorkflowsForRole(role: OrgRole): boolean {
   return role === "owner" || role === "admin";
 }
 
-function createDefaultWorkflowGraph(): SerializedWorkflowGraph {
+function createDefaultJourneyGraph(): SerializedWorkflowGraph {
   const triggerId = crypto.randomUUID();
 
   return {
@@ -68,24 +68,45 @@ function createDefaultWorkflowGraph(): SerializedWorkflowGraph {
 }
 
 interface WorkflowListPageProps {
-  workflows: WorkflowListResponse;
+  journeys: JourneyListResponse;
   isLoading: boolean;
   errorMessage?: string | null;
   canManageWorkflows: boolean;
 }
 
-function toVisibilityBadgeVariant(
-  visibility: "private" | "public",
-): "default" | "secondary" {
-  return visibility === "public" ? "default" : "secondary";
+function toStateBadgeVariant(
+  state: "draft" | "published" | "paused" | "test_only",
+): "outline" | "default" | "secondary" {
+  switch (state) {
+    case "published":
+      return "default";
+    case "test_only":
+      return "secondary";
+    default:
+      return "outline";
+  }
 }
 
-function toRuntimeBadgeVariant(isEnabled: boolean): "success" | "outline" {
-  return isEnabled ? "success" : "outline";
+function toStateLabel(
+  state: "draft" | "published" | "paused" | "test_only",
+): string {
+  if (state === "test_only") {
+    return "Test-only";
+  }
+
+  if (state === "published") {
+    return "Published";
+  }
+
+  if (state === "paused") {
+    return "Paused";
+  }
+
+  return "Draft";
 }
 
 export function WorkflowListPage({
-  workflows,
+  journeys,
   isLoading,
   errorMessage,
   canManageWorkflows,
@@ -96,58 +117,91 @@ export function WorkflowListPage({
     id: string;
     name: string;
   } | null>(null);
-  const [toggleTargetWorkflowId, setToggleTargetWorkflowId] = useState<
-    string | null
-  >(null);
+  const [lifecycleTargetId, setLifecycleTargetId] = useState<string | null>(
+    null,
+  );
 
   const createMutation = useMutation(
-    orpc.workflows.create.mutationOptions({
+    orpc.journeys.create.mutationOptions({
       onSuccess: (data) => {
-        queryClient.invalidateQueries({ queryKey: orpc.workflows.key() });
+        queryClient.invalidateQueries({ queryKey: orpc.journeys.key() });
         navigate({
           to: "/workflows/$workflowId",
           params: { workflowId: data.id },
         });
       },
       onError: (error) => {
-        toast.error(error.message || "Failed to create workflow");
+        toast.error(error.message || "Failed to create journey");
       },
     }),
   );
 
   const deleteMutation = useMutation(
-    orpc.workflows.remove.mutationOptions({
+    orpc.journeys.remove.mutationOptions({
       onSuccess: () => {
-        queryClient.invalidateQueries({ queryKey: orpc.workflows.key() });
+        queryClient.invalidateQueries({ queryKey: orpc.journeys.key() });
         setDeleteTarget(null);
       },
       onError: (error) => {
-        toast.error(error.message || "Failed to delete workflow");
+        toast.error(error.message || "Failed to delete journey");
       },
     }),
   );
-  const toggleEnabledMutation = useMutation(
-    orpc.workflows.update.mutationOptions({
+
+  const publishMutation = useMutation(
+    orpc.journeys.publish.mutationOptions({
       onSuccess: () => {
-        queryClient.invalidateQueries({ queryKey: orpc.workflows.key() });
+        queryClient.invalidateQueries({ queryKey: orpc.journeys.key() });
       },
       onError: (error) => {
-        toast.error(error.message || "Failed to update workflow state");
+        toast.error(error.message || "Failed to publish journey");
       },
       onSettled: () => {
-        setToggleTargetWorkflowId(null);
+        setLifecycleTargetId(null);
       },
     }),
   );
+
+  const pauseMutation = useMutation(
+    orpc.journeys.pause.mutationOptions({
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: orpc.journeys.key() });
+      },
+      onError: (error) => {
+        toast.error(error.message || "Failed to pause journey");
+      },
+      onSettled: () => {
+        setLifecycleTargetId(null);
+      },
+    }),
+  );
+
+  const resumeMutation = useMutation(
+    orpc.journeys.resume.mutationOptions({
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: orpc.journeys.key() });
+      },
+      onError: (error) => {
+        toast.error(error.message || "Failed to resume journey");
+      },
+      onSettled: () => {
+        setLifecycleTargetId(null);
+      },
+    }),
+  );
+
+  const isLifecyclePending =
+    publishMutation.isPending ||
+    pauseMutation.isPending ||
+    resumeMutation.isPending;
 
   return (
     <PageScaffold className="space-y-6">
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div className="space-y-1">
-          <h1 className="text-2xl font-semibold tracking-tight">Workflows</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">Journeys</h1>
           <p className="text-sm text-muted-foreground">
-            Create and manage orchestration flows for domain events and
-            schedules.
+            Create and manage linear appointment journeys.
           </p>
           {!canManageWorkflows ? (
             <p className="text-xs text-muted-foreground">
@@ -157,20 +211,20 @@ export function WorkflowListPage({
         </div>
         {canManageWorkflows ? (
           <Button
+            disabled={createMutation.isPending}
             onClick={() =>
               createMutation.mutate({
-                graph: createDefaultWorkflowGraph(),
+                graph: createDefaultJourneyGraph(),
               })
             }
-            disabled={createMutation.isPending}
           >
-            <Icon icon={Add01Icon} className="size-4" />
-            {createMutation.isPending ? "Creating..." : "New workflow"}
+            <Icon className="size-4" icon={Add01Icon} />
+            {createMutation.isPending ? "Creating..." : "New journey"}
           </Button>
         ) : null}
       </header>
 
-      {isLoading ? <EntityListLoadingState rows={4} cols={3} /> : null}
+      {isLoading ? <EntityListLoadingState cols={3} rows={4} /> : null}
 
       {!isLoading && errorMessage ? (
         <EntityListEmptyState>
@@ -178,84 +232,127 @@ export function WorkflowListPage({
         </EntityListEmptyState>
       ) : null}
 
-      {!isLoading && !errorMessage && workflows.length === 0 ? (
+      {!isLoading && !errorMessage && journeys.length === 0 ? (
         <EntityListEmptyState>
           {canManageWorkflows
-            ? "No workflows yet. Create your first workflow to get started."
-            : "No workflows have been created for this organization yet."}
+            ? "No journeys yet. Create your first journey to get started."
+            : "No journeys have been created for this organization yet."}
         </EntityListEmptyState>
       ) : null}
 
-      {!isLoading && !errorMessage && workflows.length > 0 ? (
+      {!isLoading && !errorMessage && journeys.length > 0 ? (
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {workflows.map((workflow) => (
-            <Card key={workflow.id}>
+          {journeys.map((journey) => (
+            <Card key={journey.id}>
               <CardHeader>
-                <CardTitle className="line-clamp-1">{workflow.name}</CardTitle>
+                <CardTitle className="line-clamp-1">{journey.name}</CardTitle>
                 <CardDescription className="line-clamp-2">
-                  {workflow.description || "No description"}
+                  Linear appointment journey
                 </CardDescription>
                 <CardAction>
-                  <div className="flex items-center gap-2">
-                    <Badge variant={toRuntimeBadgeVariant(workflow.isEnabled)}>
-                      {workflow.isEnabled ? "On" : "Off"}
-                    </Badge>
-                    <Badge
-                      variant={toVisibilityBadgeVariant(workflow.visibility)}
-                    >
-                      {workflow.visibility}
-                    </Badge>
-                  </div>
+                  <Badge variant={toStateBadgeVariant(journey.state)}>
+                    {toStateLabel(journey.state)}
+                  </Badge>
                 </CardAction>
               </CardHeader>
               <CardContent className="space-y-2 text-sm">
                 <p className="text-muted-foreground">
                   <span className="font-medium text-foreground">Updated:</span>{" "}
-                  {formatDisplayDateTime(workflow.updatedAt)}
+                  {formatDisplayDateTime(journey.updatedAt)}
                 </p>
               </CardContent>
               <CardFooter className="justify-end gap-2">
                 {canManageWorkflows ? (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    disabled={toggleEnabledMutation.isPending}
-                    onClick={() => {
-                      setToggleTargetWorkflowId(workflow.id);
-                      toggleEnabledMutation.mutate({
-                        id: workflow.id,
-                        data: { isEnabled: !workflow.isEnabled },
-                      });
-                    }}
-                  >
-                    {toggleEnabledMutation.isPending &&
-                    toggleTargetWorkflowId === workflow.id
-                      ? "Updating..."
-                      : workflow.isEnabled
-                        ? "Turn off"
-                        : "Turn on"}
-                  </Button>
+                  journey.state === "draft" ? (
+                    <>
+                      <Button
+                        disabled={isLifecyclePending}
+                        onClick={() => {
+                          setLifecycleTargetId(journey.id);
+                          publishMutation.mutate({
+                            id: journey.id,
+                            data: { mode: "live" },
+                          });
+                        }}
+                        size="sm"
+                        variant="outline"
+                      >
+                        {publishMutation.isPending &&
+                        lifecycleTargetId === journey.id
+                          ? "Publishing..."
+                          : "Publish"}
+                      </Button>
+                      <Button
+                        disabled={isLifecyclePending}
+                        onClick={() => {
+                          setLifecycleTargetId(journey.id);
+                          publishMutation.mutate({
+                            id: journey.id,
+                            data: { mode: "test" },
+                          });
+                        }}
+                        size="sm"
+                        variant="outline"
+                      >
+                        Test-only
+                      </Button>
+                    </>
+                  ) : journey.state === "paused" ? (
+                    <Button
+                      disabled={isLifecyclePending}
+                      onClick={() => {
+                        setLifecycleTargetId(journey.id);
+                        resumeMutation.mutate({
+                          id: journey.id,
+                          data: { targetState: "published" },
+                        });
+                      }}
+                      size="sm"
+                      variant="outline"
+                    >
+                      {resumeMutation.isPending &&
+                      lifecycleTargetId === journey.id
+                        ? "Resuming..."
+                        : "Resume"}
+                    </Button>
+                  ) : (
+                    <Button
+                      disabled={isLifecyclePending}
+                      onClick={() => {
+                        setLifecycleTargetId(journey.id);
+                        pauseMutation.mutate({ id: journey.id });
+                      }}
+                      size="sm"
+                      variant="outline"
+                    >
+                      {pauseMutation.isPending &&
+                      lifecycleTargetId === journey.id
+                        ? "Pausing..."
+                        : "Pause"}
+                    </Button>
+                  )
                 ) : null}
+
                 {canManageWorkflows ? (
                   <Button
-                    size="sm"
-                    variant="ghost"
                     className="text-destructive hover:bg-destructive/10 hover:text-destructive"
                     onClick={() =>
                       setDeleteTarget({
-                        id: workflow.id,
-                        name: workflow.name,
+                        id: journey.id,
+                        name: journey.name,
                       })
                     }
+                    size="sm"
+                    variant="ghost"
                   >
-                    <Icon icon={Delete01Icon} className="size-4" />
+                    <Icon className="size-4" icon={Delete01Icon} />
                     Delete
                   </Button>
                 ) : null}
                 <Button asChild size="sm" variant="outline">
                   <Link
+                    params={{ workflowId: journey.id }}
                     to="/workflows/$workflowId"
-                    params={{ workflowId: workflow.id }}
                   >
                     Open editor
                   </Link>
@@ -267,16 +364,20 @@ export function WorkflowListPage({
       ) : null}
 
       <DeleteConfirmDialog
-        open={!!deleteTarget}
-        onOpenChange={(open) => {
-          if (!open) setDeleteTarget(null);
-        }}
-        onConfirm={() => {
-          if (deleteTarget) deleteMutation.mutate({ id: deleteTarget.id });
-        }}
-        title={`Delete "${deleteTarget?.name ?? "workflow"}"?`}
-        description="This will permanently delete this workflow. This action cannot be undone."
+        description="This will permanently delete this journey. This action cannot be undone."
         isPending={deleteMutation.isPending}
+        onConfirm={() => {
+          if (deleteTarget) {
+            deleteMutation.mutate({ id: deleteTarget.id });
+          }
+        }}
+        onOpenChange={(open) => {
+          if (!open) {
+            setDeleteTarget(null);
+          }
+        }}
+        open={!!deleteTarget}
+        title={`Delete "${deleteTarget?.name ?? "journey"}"?`}
       />
     </PageScaffold>
   );

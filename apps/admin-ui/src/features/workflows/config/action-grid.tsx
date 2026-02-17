@@ -1,7 +1,6 @@
 import type { IconSvgElement } from "@hugeicons/react";
 import {
   FlashIcon,
-  GitBranchIcon,
   HourglassIcon,
   Search01Icon,
   Settings01Icon,
@@ -24,12 +23,11 @@ type ActionGroup = {
 
 function getActionIcon(actionType: string): IconSvgElement {
   switch (actionType) {
-    case "condition":
-    case "switch":
-      return GitBranchIcon;
     case "wait":
       return HourglassIcon;
-    case "http-request":
+    case "send-message":
+      return FlashIcon;
+    case "logger":
       return FlashIcon;
     default:
       return FlashIcon;

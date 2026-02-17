@@ -325,7 +325,7 @@ function toScopedDomainEventType(
   branch: SwitchBranch,
 ): DomainEventType {
   const eventType = `${domain}.${branch}`;
-  return isDomainEventType(eventType) ? eventType : "appointment.created";
+  return isDomainEventType(eventType) ? eventType : "appointment.scheduled";
 }
 
 function getNodeType(node: Node | null): string | null {

@@ -1,30 +1,22 @@
 import { useCallback } from "react";
+import type { JourneyState } from "@scheduling/dto";
 import {
   Add01Icon,
-  ArrowDown01Icon,
   ArrowTurnBackwardIcon,
   ArrowTurnForwardIcon,
   FloppyDiskIcon,
   Loading03Icon,
-  PlayIcon,
 } from "@hugeicons/core-free-icons";
 import { useReactFlow } from "@xyflow/react";
 import { useAtomValue, useSetAtom } from "jotai";
+import { Panel } from "@/components/flow-elements/panel";
 import { Button } from "@/components/ui/button";
 import { ButtonGroup } from "@/components/ui/button-group";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { Icon } from "@/components/ui/icon";
-import { Panel } from "@/components/flow-elements/panel";
 import {
   addWorkflowEditorActionNodeAtom,
   canRedoAtom,
   canUndoAtom,
-  isExecutingAtom,
   propertiesPanelActiveTabAtom,
   redoAtom,
   undoAtom,
@@ -36,12 +28,16 @@ import {
 
 interface WorkflowToolbarProps {
   canManageWorkflow: boolean;
-  isEnabled: boolean;
+  journeyState: JourneyState;
+  publishWarnings: string[];
   isSaving: boolean;
-  isTogglingEnabled: boolean;
+  isPublishing: boolean;
+  isPausing: boolean;
+  isResuming: boolean;
   onSave: () => void;
-  onToggleEnabled: () => void;
-  onExecute: (options?: { dryRun?: boolean }) => void;
+  onPublish: (mode: "live" | "test") => void;
+  onPause: () => void;
+  onResume: (targetState: "published" | "test_only") => void;
 }
 
 const NODE_WIDTH = 192;
@@ -50,19 +46,22 @@ const OVERLAP_NUDGE = 40;
 
 export function WorkflowToolbar({
   canManageWorkflow,
-  isEnabled,
+  journeyState,
+  publishWarnings,
   isSaving,
-  isTogglingEnabled,
+  isPublishing,
+  isPausing,
+  isResuming,
   onSave,
-  onToggleEnabled,
-  onExecute,
+  onPublish,
+  onPause,
+  onResume,
 }: WorkflowToolbarProps) {
   const { screenToFlowPosition } = useReactFlow();
 
   const hasUnsavedChanges = useAtomValue(workflowEditorHasUnsavedChangesAtom);
   const canUndo = useAtomValue(canUndoAtom);
   const canRedo = useAtomValue(canRedoAtom);
-  const isExecuting = useAtomValue(isExecutingAtom);
 
   const undo = useSetAtom(undoAtom);
   const redo = useSetAtom(redoAtom);
@@ -137,6 +136,74 @@ export function WorkflowToolbar({
     );
   }
 
+  const lifecycleButtons =
+    journeyState === "draft" ? (
+      <>
+        <Button
+          onClick={() => onPublish("live")}
+          disabled={isPublishing}
+          size="sm"
+          variant="default"
+        >
+          {isPublishing ? (
+            <Icon icon={Loading03Icon} className="animate-spin" />
+          ) : null}
+          Publish
+        </Button>
+        <Button
+          onClick={() => onPublish("test")}
+          disabled={isPublishing}
+          size="sm"
+          variant="outline"
+        >
+          Publish test-only
+        </Button>
+      </>
+    ) : journeyState === "paused" ? (
+      <>
+        <Button
+          onClick={() => onResume("published")}
+          disabled={isResuming}
+          size="sm"
+          variant="default"
+        >
+          {isResuming ? (
+            <Icon icon={Loading03Icon} className="animate-spin" />
+          ) : null}
+          Resume live
+        </Button>
+        <Button
+          onClick={() => onResume("test_only")}
+          disabled={isResuming}
+          size="sm"
+          variant="outline"
+        >
+          Resume test-only
+        </Button>
+      </>
+    ) : (
+      <Button
+        onClick={onPause}
+        disabled={isPausing}
+        size="sm"
+        variant="outline"
+      >
+        {isPausing ? (
+          <Icon icon={Loading03Icon} className="animate-spin" />
+        ) : null}
+        Pause
+      </Button>
+    );
+
+  const stateLabel =
+    journeyState === "draft"
+      ? "Draft"
+      : journeyState === "published"
+        ? "Published"
+        : journeyState === "paused"
+          ? "Paused"
+          : "Test-only";
+
   const actionButtons = (
     <>
       {/* Add Step */}
@@ -194,64 +261,22 @@ export function WorkflowToolbar({
         </Button>
       </ButtonGroup>
 
-      {/* Workflow On / Off */}
-      <ButtonGroup>
-        <Button
-          onClick={onToggleEnabled}
-          disabled={isTogglingEnabled}
-          size="sm"
-          variant={isEnabled ? "default" : "outline"}
-          title={isEnabled ? "Turn workflow off" : "Turn workflow on"}
-        >
-          {isTogglingEnabled ? (
-            <Icon icon={Loading03Icon} className="animate-spin" />
-          ) : null}
-          <span>{isEnabled ? "On" : "Off"}</span>
-        </Button>
-      </ButtonGroup>
+      <div className="rounded-md border px-2 py-1 font-medium text-xs">
+        {stateLabel}
+      </div>
 
-      {/* Run / Dry Run */}
-      <DropdownMenu>
-        <ButtonGroup>
-          <Button
-            onClick={() => onExecute()}
-            disabled={isExecuting || !isEnabled}
-            size="sm"
-            variant="default"
-            title="Run workflow"
-          >
-            {isExecuting ? (
-              <Icon icon={Loading03Icon} className="animate-spin" />
-            ) : (
-              <Icon icon={PlayIcon} />
-            )}
-            <span>Run</span>
-          </Button>
-          <DropdownMenuTrigger
-            disabled={isExecuting || !isEnabled}
-            render={
-              <Button
-                size="icon-sm"
-                variant="default"
-                title="Run options"
-                disabled={isExecuting || !isEnabled}
-              />
-            }
-          >
-            <Icon icon={ArrowDown01Icon} />
-          </DropdownMenuTrigger>
-        </ButtonGroup>
-        <DropdownMenuContent side="bottom" align="end">
-          <DropdownMenuItem onClick={() => onExecute()}>
-            <Icon icon={PlayIcon} />
-            Run
-          </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => onExecute({ dryRun: true })}>
-            <Icon icon={PlayIcon} />
-            Dry run
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
+      <ButtonGroup>{lifecycleButtons}</ButtonGroup>
+
+      {publishWarnings.length > 0 ? (
+        <div className="max-w-96 rounded-md border border-amber-500/50 bg-amber-500/10 px-2 py-1.5 text-[11px]">
+          <p className="font-medium">Publish warnings</p>
+          <ul className="mt-1 space-y-0.5">
+            {publishWarnings.map((warning) => (
+              <li key={warning}>{warning}</li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
     </>
   );
 

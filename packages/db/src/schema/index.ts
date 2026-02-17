@@ -34,6 +34,31 @@ export const invitationStatusEnum = pgEnum("invitation_status", [
   "canceled",
 ]);
 
+export const journeyStateEnum = pgEnum("journey_state", [
+  "draft",
+  "published",
+  "paused",
+  "test_only",
+]);
+
+export const journeyRunModeEnum = pgEnum("journey_run_mode", ["live", "test"]);
+
+export const journeyRunStatusEnum = pgEnum("journey_run_status", [
+  "planned",
+  "running",
+  "completed",
+  "canceled",
+  "failed",
+]);
+
+export const journeyDeliveryStatusEnum = pgEnum("journey_delivery_status", [
+  "planned",
+  "sent",
+  "failed",
+  "canceled",
+  "skipped",
+]);
+
 const citext = customType<{ data: string }>({
   dataType() {
     return "citext";
@@ -437,6 +462,171 @@ export const schedulingLimits = pgTable(
     maxPerWeek: integer("max_per_week"),
   },
   (table) => [index("scheduling_limits_calendar_id_idx").on(table.calendarId)],
+);
+
+// ============================================================================
+// JOURNEYS
+// ============================================================================
+
+export const journeys = pgTable.withRLS(
+  "journeys",
+  {
+    id,
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => orgs.id),
+    name: text("name").notNull(),
+    state: journeyStateEnum("state").notNull().default("draft"),
+    draftDefinition: jsonb("draft_definition")
+      .notNull()
+      .$type<Record<string, unknown>>(),
+    ...timestamps,
+  },
+  (table) => [
+    uniqueIndex("journeys_org_name_ci_uidx").on(
+      table.orgId,
+      sql`lower(${table.name})`,
+    ),
+    index("journeys_org_updated_at_id_idx").on(
+      table.orgId,
+      table.updatedAt,
+      table.id,
+    ),
+    pgPolicy("org_isolation_journeys", {
+      for: "all",
+      using: sql`org_id = current_org_id()`,
+      withCheck: sql`org_id = current_org_id()`,
+    }),
+  ],
+);
+
+export const journeyVersions = pgTable.withRLS(
+  "journey_versions",
+  {
+    id,
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => orgs.id),
+    journeyId: uuid("journey_id")
+      .notNull()
+      .references(() => journeys.id, { onDelete: "cascade" }),
+    version: integer("version").notNull(),
+    definitionSnapshot: jsonb("definition_snapshot")
+      .notNull()
+      .$type<Record<string, unknown>>(),
+    publishedAt: timestamp("published_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("journey_versions_org_journey_version_uidx").on(
+      table.orgId,
+      table.journeyId,
+      table.version,
+    ),
+    index("journey_versions_org_journey_published_at_idx").on(
+      table.orgId,
+      table.journeyId,
+      table.publishedAt,
+    ),
+    pgPolicy("org_isolation_journey_versions", {
+      for: "all",
+      using: sql`org_id = current_org_id()`,
+      withCheck: sql`org_id = current_org_id()`,
+    }),
+  ],
+);
+
+export const journeyRuns = pgTable.withRLS(
+  "journey_runs",
+  {
+    id,
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => orgs.id),
+    journeyVersionId: uuid("journey_version_id").references(
+      () => journeyVersions.id,
+      {
+        onDelete: "set null",
+      },
+    ),
+    appointmentId: uuid("appointment_id").notNull(),
+    mode: journeyRunModeEnum("mode").notNull(),
+    status: journeyRunStatusEnum("status").notNull(),
+    journeyNameSnapshot: text("journey_name_snapshot").notNull(),
+    journeyVersionSnapshot: jsonb("journey_version_snapshot")
+      .notNull()
+      .$type<Record<string, unknown>>(),
+    startedAt: timestamp("started_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    completedAt: timestamp("completed_at", { withTimezone: true }),
+    cancelledAt: timestamp("cancelled_at", { withTimezone: true }),
+  },
+  (table) => [
+    uniqueIndex("journey_runs_org_identity_uidx").on(
+      table.orgId,
+      table.journeyVersionId,
+      table.appointmentId,
+      table.mode,
+    ),
+    index("journey_runs_org_status_idx").on(table.orgId, table.status),
+    index("journey_runs_org_mode_started_at_idx").on(
+      table.orgId,
+      table.mode,
+      table.startedAt,
+    ),
+    pgPolicy("org_isolation_journey_runs", {
+      for: "all",
+      using: sql`org_id = current_org_id()`,
+      withCheck: sql`org_id = current_org_id()`,
+    }),
+  ],
+);
+
+export const journeyDeliveries = pgTable.withRLS(
+  "journey_deliveries",
+  {
+    id,
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => orgs.id),
+    journeyRunId: uuid("journey_run_id")
+      .notNull()
+      .references(() => journeyRuns.id, { onDelete: "cascade" }),
+    stepKey: text("step_key").notNull(),
+    channel: text("channel").notNull(),
+    scheduledFor: timestamp("scheduled_for", { withTimezone: true }).notNull(),
+    status: journeyDeliveryStatusEnum("status").notNull(),
+    reasonCode: text("reason_code"),
+    deterministicKey: text("deterministic_key").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("journey_deliveries_org_deterministic_key_uidx").on(
+      table.orgId,
+      table.deterministicKey,
+    ),
+    index("journey_deliveries_org_run_scheduled_for_idx").on(
+      table.orgId,
+      table.journeyRunId,
+      table.scheduledFor,
+    ),
+    index("journey_deliveries_org_status_idx").on(table.orgId, table.status),
+    pgPolicy("org_isolation_journey_deliveries", {
+      for: "all",
+      using: sql`org_id = current_org_id()`,
+      withCheck: sql`org_id = current_org_id()`,
+    }),
+  ],
 );
 
 // ============================================================================

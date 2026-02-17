@@ -1,12 +1,16 @@
 import { describe, expect, test } from "bun:test";
-import { domainEventDataSchemaByType, type WebhookEventType } from "./index";
+import {
+  domainEventDataSchemaByType,
+  type WebhookEventType,
+  webhookEventTypeSchema,
+} from "./index";
 
 const updatedEventFixtures: Array<{
   type: WebhookEventType;
   payload: Record<string, unknown>;
 }> = [
   {
-    type: "appointment.updated",
+    type: "appointment.rescheduled",
     payload: {
       appointmentId: "018f4d3a-6d80-7c5b-8a4a-6cb8f8d57d01",
       calendarId: "018f4d3a-6d80-7c5b-8a4a-6cb8f8d57d02",
@@ -122,14 +126,40 @@ describe("webhook updated event schemas", () => {
     );
   });
 
-  test("rejects legacy appointment.updated payload with changes object", () => {
+  test("rejects legacy appointment.rescheduled payload with changes object", () => {
     expect(
-      domainEventDataSchemaByType["appointment.updated"].safeParse({
+      domainEventDataSchemaByType["appointment.rescheduled"].safeParse({
         appointmentId: "018f4d3a-6d80-7c5b-8a4a-6cb8f8d57d01",
         changes: { notes: "Updated note" },
         previousClientId: null,
         previousNotes: null,
       }).success,
+    ).toBe(false);
+  });
+});
+
+describe("appointment webhook event taxonomy", () => {
+  test("accepts only canonical appointment lifecycle event names", () => {
+    expect(
+      webhookEventTypeSchema.safeParse("appointment.scheduled").success,
+    ).toBe(true);
+    expect(
+      webhookEventTypeSchema.safeParse("appointment.rescheduled").success,
+    ).toBe(true);
+    expect(
+      webhookEventTypeSchema.safeParse("appointment.canceled").success,
+    ).toBe(true);
+  });
+
+  test("rejects legacy appointment lifecycle aliases", () => {
+    expect(
+      webhookEventTypeSchema.safeParse("appointment.created").success,
+    ).toBe(false);
+    expect(
+      webhookEventTypeSchema.safeParse("appointment.updated").success,
+    ).toBe(false);
+    expect(
+      webhookEventTypeSchema.safeParse("appointment.deleted").success,
     ).toBe(false);
   });
 });

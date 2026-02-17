@@ -24,6 +24,7 @@
     "@integrations/core": "workspace:*",
     "@integrations/logger": "workspace:*",
     "@logtape/logtape": "catalog:",
+    "@marcbachmann/cel-js": "^7.5.0",
     "@orpc/openapi": "^1.13.4",
     "@orpc/server": "^1.13.4",
     "@orpc/zod": "^1.13.4",

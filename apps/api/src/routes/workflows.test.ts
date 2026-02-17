@@ -75,7 +75,7 @@ function createGraphWithIntegrationConfig(): SerializedWorkflowGraph {
             config: {
               triggerType: "DomainEvent",
               domain: "appointment",
-              startEvents: ["appointment.created"],
+              startEvents: ["appointment.scheduled"],
               restartEvents: [],
               stopEvents: [],
             },
@@ -154,6 +154,79 @@ function createGraphWithDomainTrigger(
   };
 }
 
+function createBranchingGraph(): SerializedWorkflowGraph {
+  return {
+    nodes: [
+      {
+        key: "trigger-branch",
+        attributes: {
+          id: "trigger-branch",
+          type: "trigger-node",
+          position: { x: 0, y: 0 },
+          data: {
+            label: "Trigger",
+            type: "trigger",
+          },
+        },
+      },
+      {
+        key: "logger-branch-a",
+        attributes: {
+          id: "logger-branch-a",
+          type: "action-node",
+          position: { x: 220, y: -80 },
+          data: {
+            label: "Logger A",
+            type: "action",
+            config: {
+              actionType: "logger",
+              message: "A",
+            },
+          },
+        },
+      },
+      {
+        key: "logger-branch-b",
+        attributes: {
+          id: "logger-branch-b",
+          type: "action-node",
+          position: { x: 220, y: 80 },
+          data: {
+            label: "Logger B",
+            type: "action",
+            config: {
+              actionType: "logger",
+              message: "B",
+            },
+          },
+        },
+      },
+    ],
+    edges: [
+      {
+        key: "edge-branch-a",
+        source: "trigger-branch",
+        target: "logger-branch-a",
+        attributes: {
+          id: "edge-branch-a",
+          source: "trigger-branch",
+          target: "logger-branch-a",
+        },
+      },
+      {
+        key: "edge-branch-b",
+        source: "trigger-branch",
+        target: "logger-branch-b",
+        attributes: {
+          id: "edge-branch-b",
+          source: "trigger-branch",
+          target: "logger-branch-b",
+        },
+      },
+    ],
+  };
+}
+
 async function seedExecutionArtifacts(input: {
   db: Database;
   orgId: string;
@@ -170,7 +243,7 @@ async function seedExecutionArtifacts(input: {
       workflowId: input.workflowId,
       status: input.status ?? "running",
       triggerType: "domain_event",
-      triggerEventType: "appointment.created",
+      triggerEventType: "appointment.scheduled",
       startedAt,
     })
     .returning({ id: workflowExecutions.id });
@@ -335,6 +408,68 @@ describe("Workflow Routes", () => {
       { context: ownerContext },
     );
     expect(removed).toEqual({ success: true });
+  });
+
+  test("non-linear create payload is rejected with no persistence side effects", async () => {
+    await setTestOrgContext(db, orgA.id);
+    const beforeRows = await db
+      .select({ id: workflows.id })
+      .from(workflows)
+      .where(eq(workflows.orgId, orgA.id));
+
+    await expect(
+      call(
+        workflowRoutes.create,
+        {
+          name: "Branching Journey",
+          graph: createBranchingGraph(),
+        },
+        { context: ownerContext },
+      ),
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+
+    await setTestOrgContext(db, orgA.id);
+    const afterRows = await db
+      .select({ id: workflows.id })
+      .from(workflows)
+      .where(eq(workflows.orgId, orgA.id));
+
+    expect(afterRows).toHaveLength(beforeRows.length);
+  });
+
+  test("non-linear update payload is rejected with no persistence side effects", async () => {
+    const created = await call(
+      workflowRoutes.create,
+      {
+        name: "Linear Workflow",
+        graph: createTestGraph("trigger-linear-update"),
+      },
+      { context: ownerContext },
+    );
+
+    await expect(
+      call(
+        workflowRoutes.update,
+        {
+          id: created.id,
+          data: {
+            graph: createBranchingGraph(),
+          },
+        },
+        { context: ownerContext },
+      ),
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+
+    await setTestOrgContext(db, orgA.id);
+    const [persisted] = await db
+      .select({ graph: workflows.graph })
+      .from(workflows)
+      .where(eq(workflows.id, created.id))
+      .limit(1);
+
+    expect(persisted).toBeDefined();
+    const persistedGraph = persisted!.graph as SerializedWorkflowGraph;
+    expect(persistedGraph.edges).toHaveLength(0);
   });
 
   test("cross-org workflow IDs are isolated for reads and writes", async () => {

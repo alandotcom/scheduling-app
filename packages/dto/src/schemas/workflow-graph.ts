@@ -36,6 +36,168 @@ export const workflowDomainEventRoutingSetSchema = z.preprocess(
   z.array(domainEventTypeSchema),
 );
 
+const FILTER_FIELD_PATTERN =
+  /^(appointment|client)\.[a-zA-Z0-9_]+(?:\.[a-zA-Z0-9_]+)*$/;
+const MAX_TRIGGER_FILTER_GROUPS = 4;
+const MAX_TRIGGER_FILTER_CONDITIONS = 12;
+
+export const journeyTriggerFilterOperatorSchema = z.enum([
+  "equals",
+  "not_equals",
+  "in",
+  "not_in",
+  "contains",
+  "not_contains",
+  "starts_with",
+  "ends_with",
+  "before",
+  "after",
+  "on_or_before",
+  "on_or_after",
+  "is_set",
+  "is_not_set",
+]);
+
+function isPrimitiveLiteral(value: unknown): boolean {
+  return (
+    value === null ||
+    typeof value === "string" ||
+    typeof value === "number" ||
+    typeof value === "boolean"
+  );
+}
+
+function isIsoDateTimeLiteral(value: unknown): boolean {
+  if (typeof value !== "string" || value.trim().length === 0) {
+    return false;
+  }
+
+  const parsed = Date.parse(value);
+  return Number.isFinite(parsed);
+}
+
+export const journeyTriggerFilterConditionSchema = z
+  .object({
+    field: z.string().trim().regex(FILTER_FIELD_PATTERN, {
+      message: 'Filter fields must be rooted under "appointment" or "client"',
+    }),
+    operator: journeyTriggerFilterOperatorSchema,
+    value: z.unknown().optional(),
+    not: z.boolean().optional(),
+  })
+  .strict()
+  .superRefine((condition, ctx) => {
+    const hasValue = condition.value !== undefined;
+
+    switch (condition.operator) {
+      case "is_set":
+      case "is_not_set": {
+        if (hasValue) {
+          ctx.addIssue({
+            code: "custom",
+            message: 'Operator "is_set" and "is_not_set" do not accept a value',
+            path: ["value"],
+          });
+        }
+        return;
+      }
+
+      case "equals":
+      case "not_equals": {
+        if (!hasValue || !isPrimitiveLiteral(condition.value)) {
+          ctx.addIssue({
+            code: "custom",
+            message:
+              'Operator "equals" and "not_equals" require a primitive value',
+            path: ["value"],
+          });
+        }
+        return;
+      }
+
+      case "in":
+      case "not_in": {
+        const values = condition.value;
+        if (
+          !Array.isArray(values) ||
+          values.length === 0 ||
+          values.some((item) => !isPrimitiveLiteral(item))
+        ) {
+          ctx.addIssue({
+            code: "custom",
+            message:
+              'Operator "in" and "not_in" require a non-empty primitive list value',
+            path: ["value"],
+          });
+        }
+        return;
+      }
+
+      case "contains":
+      case "not_contains":
+      case "starts_with":
+      case "ends_with": {
+        if (
+          typeof condition.value !== "string" ||
+          condition.value.length === 0
+        ) {
+          ctx.addIssue({
+            code: "custom",
+            message:
+              "String operators require a non-empty string comparison value",
+            path: ["value"],
+          });
+        }
+        return;
+      }
+
+      case "before":
+      case "after":
+      case "on_or_before":
+      case "on_or_after": {
+        if (!isIsoDateTimeLiteral(condition.value)) {
+          ctx.addIssue({
+            code: "custom",
+            message: "Date operators require an ISO-compatible date-time value",
+            path: ["value"],
+          });
+        }
+      }
+    }
+  });
+
+export const journeyTriggerFilterGroupSchema = z
+  .object({
+    logic: z.enum(["and", "or"]),
+    not: z.boolean().optional(),
+    conditions: z.array(journeyTriggerFilterConditionSchema).min(1),
+  })
+  .strict();
+
+export const journeyTriggerFilterAstSchema = z
+  .object({
+    logic: z.enum(["and", "or"]).default("and"),
+    groups: z
+      .array(journeyTriggerFilterGroupSchema)
+      .min(1)
+      .max(MAX_TRIGGER_FILTER_GROUPS),
+  })
+  .strict()
+  .superRefine((ast, ctx) => {
+    const totalConditions = ast.groups.reduce(
+      (total, group) => total + group.conditions.length,
+      0,
+    );
+
+    if (totalConditions > MAX_TRIGGER_FILTER_CONDITIONS) {
+      ctx.addIssue({
+        code: "custom",
+        message: `Trigger filters cannot contain more than ${MAX_TRIGGER_FILTER_CONDITIONS} conditions`,
+        path: ["groups"],
+      });
+    }
+  });
+
 export const workflowDomainEventTriggerConfigSchema = z
   .object({
     triggerType: z.literal("DomainEvent"),
@@ -43,6 +205,7 @@ export const workflowDomainEventTriggerConfigSchema = z
     startEvents: workflowDomainEventRoutingSetSchema,
     restartEvents: workflowDomainEventRoutingSetSchema,
     stopEvents: workflowDomainEventRoutingSetSchema,
+    filter: journeyTriggerFilterAstSchema.optional(),
     domainEventCorrelationPath: z.string().trim().min(1).optional(),
   })
   .superRefine((value, ctx) => {
@@ -183,6 +346,18 @@ export type WorkflowNodeRuntimeStatus = z.infer<
 >;
 export type WorkflowDomainEventTriggerConfig = z.infer<
   typeof workflowDomainEventTriggerConfigSchema
+>;
+export type JourneyTriggerFilterOperator = z.infer<
+  typeof journeyTriggerFilterOperatorSchema
+>;
+export type JourneyTriggerFilterCondition = z.infer<
+  typeof journeyTriggerFilterConditionSchema
+>;
+export type JourneyTriggerFilterGroup = z.infer<
+  typeof journeyTriggerFilterGroupSchema
+>;
+export type JourneyTriggerFilterAst = z.infer<
+  typeof journeyTriggerFilterAstSchema
 >;
 export type WorkflowScheduleTriggerConfig = z.infer<
   typeof workflowScheduleTriggerConfigSchema

@@ -19,7 +19,7 @@ function connect(
 }
 
 describe("workflow-editor onConnect behavior", () => {
-  test("adds a new edge when no edge is selected", () => {
+  test("replaces outgoing edge when source already has a connection", () => {
     const store = createStore();
     store.set(workflowEditorIsReadOnlyAtom, false);
     store.set(workflowEditorEdgesAtom, [
@@ -32,12 +32,7 @@ describe("workflow-editor onConnect behavior", () => {
     );
 
     const edges = store.get(workflowEditorEdgesAtom);
-    expect(edges).toHaveLength(2);
-    expect(
-      edges.some(
-        (edge) => edge.source === "trigger" && edge.target === "action-a",
-      ),
-    ).toBeTrue();
+    expect(edges).toHaveLength(1);
     expect(
       edges.some(
         (edge) => edge.source === "trigger" && edge.target === "action-b",
@@ -45,7 +40,7 @@ describe("workflow-editor onConnect behavior", () => {
     ).toBeTrue();
   });
 
-  test("keeps creating outgoing edge even when an edge is selected", () => {
+  test("replaces outgoing edge even when an edge is selected", () => {
     const store = createStore();
     store.set(workflowEditorIsReadOnlyAtom, false);
     store.set(workflowEditorEdgesAtom, [
@@ -59,10 +54,7 @@ describe("workflow-editor onConnect behavior", () => {
     );
 
     const edges = store.get(workflowEditorEdgesAtom);
-    expect(edges).toHaveLength(2);
-    expect(
-      edges.some((edge) => edge.id === "edge-1" && edge.target === "action-a"),
-    ).toBeTrue();
+    expect(edges).toHaveLength(1);
     expect(
       edges.some(
         (edge) => edge.source === "trigger" && edge.target === "action-b",

@@ -44,6 +44,24 @@ type SchedulingInternalEvents = {
       correlationKey?: string;
     };
   };
+  "journey.delivery.scheduled": {
+    data: {
+      orgId: string;
+      journeyDeliveryId: string;
+      journeyRunId: string;
+      deterministicKey: string;
+      scheduledFor: string;
+    };
+  };
+  "journey.delivery.canceled": {
+    data: {
+      orgId: string;
+      journeyDeliveryId: string;
+      journeyRunId: string;
+      deterministicKey: string;
+      reasonCode: string;
+    };
+  };
 };
 
 type SchedulingInngestEvents = SchedulingDomainEvents &

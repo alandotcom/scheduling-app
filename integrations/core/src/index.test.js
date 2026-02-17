@@ -41,7 +41,7 @@ describe("integrationSupportsEvent", () => {
       async process() {},
     });
 
-    expect(integrationSupportsEvent(integration, "appointment.created")).toBe(
+    expect(integrationSupportsEvent(integration, "appointment.scheduled")).toBe(
       true,
     );
     expect(integrationSupportsEvent(integration, "location.deleted")).toBe(
@@ -51,16 +51,16 @@ describe("integrationSupportsEvent", () => {
 
   test("supports only explicitly configured event types", () => {
     const integration = createIntegration({
-      name: "appointment-created-only",
-      supportedEventTypes: ["appointment.created"],
+      name: "appointment-scheduled-only",
+      supportedEventTypes: ["appointment.scheduled"],
       async process() {},
     });
 
-    expect(integrationSupportsEvent(integration, "appointment.created")).toBe(
+    expect(integrationSupportsEvent(integration, "appointment.scheduled")).toBe(
       true,
     );
-    expect(integrationSupportsEvent(integration, "appointment.updated")).toBe(
-      false,
-    );
+    expect(
+      integrationSupportsEvent(integration, "appointment.rescheduled"),
+    ).toBe(false);
   });
 });

@@ -1,440 +1,160 @@
-## Requirements Q&A
+# Appointment Journey Engine Rebuild Requirements
 
-### Q1
-What is the primary success outcome for this rebuild from the user/admin perspective (for example: faster setup, fewer misfires, clearer run visibility, reduced configuration complexity, or a specific measurable KPI)?
+## Overview
 
-### A1
-All listed outcomes are acceptable, with reduced configuration complexity being a major priority.
+This rebuild replaces the legacy generic workflow graph runtime with an appointment-only linear journey system.
 
-### Q2
-For v1, should journeys be attachable to specific appointment types/calendars/locations, or should each journey apply to all appointments in a workspace unless manually filtered by future step logic?
+Primary outcome:
 
-### A2
-Journeys should support trigger-level filtering so a journey can target one calendar, one appointment type, or combinations. The intent is to avoid global-only behavior and allow scoped journeys directly in trigger configuration.
+- reduced configuration complexity with predictable, observable runtime behavior
 
-### Q3
-For v1 trigger filters, what matching logic should be supported: simple AND across selected fields only (for example appointmentType IN X AND calendar IN Y), or should we also support OR groups/not-conditions from day one?
+## Detailed Requirements
 
-### A3
-Include OR and NOT conditions in v1 filter logic.
+### Scope and governance
 
-### Q4
-Should filters be evaluated only at journey start (`appointment.scheduled`) or also re-evaluated on `appointment.rescheduled` to decide whether future steps should continue, be canceled, or be newly activated?
+R1. Journey automation is appointment-only in v1. The system removes generic graph runtime behavior and does not preserve branch-capable legacy semantics.
 
-### A4
-Filters should be evaluated consistently, including on `appointment.rescheduled`.
+R2. Mutating journey operations are org-admin only (create, update, publish, pause, resume, duplicate, cancel runs, delete).
 
-### Q5
-When a reschedule changes filter match state, what should happen in each case:
-- previously matched -> now not matched
-- previously not matched -> now matched
-Should pending deliveries be canceled and/or newly planned accordingly?
+R3. Journey names are unique per org.
 
-### A5
-Lock behavior as follows:
-- previously matched -> now not matched: cancel all pending unsent deliveries immediately
-- previously not matched -> now matched: plan deliveries from the reschedule event using updated appointment timing
-- still matched: recompute schedule, cancel obsolete pending deliveries, and create replacements
-- recomputed send time already in the past: mark skipped/suppressed as `past_due` (no immediate catch-up send)
+R4. Backfill enrollment is out of scope. New or republished journeys apply to future lifecycle events only.
 
-### Q6
-For filter conditions, which appointment attributes must be available in v1 (for example calendarId, appointmentTypeId, locationId, providerId, status, client tags, timezone, service category)?
+### Canonical event taxonomy
 
-### A6
-All appointment and client attributes should be available for filtering in v1.
+R5. Canonical appointment lifecycle events are exactly:
 
-### Q7
-Should v1 filters include both built-in comparison operators (`=`, `!=`, `in`, `not in`, `contains`, `startsWith`, date/time comparisons) and null checks (`is set`, `is not set`) across those attributes?
+- `appointment.scheduled`
+- `appointment.rescheduled`
+- `appointment.canceled`
 
-### A7
-Yes.
+R6. Appointment lifecycle classification rules are strict:
 
-### Q8
-Should trigger filters support nested groups with explicit parentheses-style precedence (for example `(A OR B) AND (NOT C)`) in the UI and persisted definition format?
+- create => `appointment.scheduled`
+- time/timezone change while not canceled => `appointment.rescheduled`
+- transition to canceled => `appointment.canceled`
 
-### A8
-Yes, but nesting is limited to a single level. Deep recursive nesting is out of scope for v1.
+R7. Legacy appointment event aliases are removed. Webhook catalog and emission surfaces expose only the canonical taxonomy.
 
-### Q9
-For usability and reduced complexity, do you want to cap v1 filter size (for example max conditions and max groups per trigger), or allow effectively unlimited rules?
+### Journey definition model
 
-### A9
-Yes, v1 filters should be capped.
+R8. Allowed step types are exactly: Trigger, Wait, Send Message, Logger.
 
-### Q10
-What caps do you want for v1 (recommended default: max 12 conditions total and max 4 groups, with one nesting level)?
+R9. Non-linear structures (branching, condition trees, graph edges outside linear sequencing) are invalid and must be rejected at API validation for create/update.
 
-### A10
-Use the recommended defaults: max 12 conditions total and max 4 groups, with one nesting level.
+R10. Wait supports appointment start/end anchors, before/after direction, and parseable duration expressions. Time calculations always use current appointment date/time/timezone at evaluation time.
 
-### Q11
-For message limits, should limits be configured per workspace and channel only (Email, Slack), or also optionally per journey in v1?
+R11. Message channels in scope are Email and Slack. SMS delivery is out of scope for this rebuild.
 
-### A11
-Decision deferred pending research. We should evaluate using `cel-js` for trigger expression filters versus building a custom expression parser before finalizing related filter/runtime configuration decisions.
+R12. Send Message supports dynamic appointment/client variables using existing template placeholder syntax.
 
-### Q11b
-Independently of expression parser choice, should message limits in v1 be configured per workspace+channel only (Email, Slack), or also optionally per journey?
+### Trigger filter semantics
 
-### A11b
-Per workspace and channel only.
+R13. Trigger filters are represented as structured AST (canonical persisted format), not raw user-authored expressions.
 
-### Q12
-When a send is suppressed due to limit, what must admins see in the UI for observability (for example: reason, channel, journey name, appointment/client, timestamp, counter snapshot, and whether it counted toward the limit)?
+R14. Filter logic supports AND/OR/NOT with one nesting level maximum.
 
-### A12
-Required UI observability for suppressed sends:
-- suppression reason (`limit_reached`) and channel
-- journey name and step name
-- appointment identifier and client display name
-- scheduled send time and suppression timestamp
-- active limit policy at decision time (window type, cap)
-- counter snapshot (`used_before`, `used_after`, `remaining`)
-- delivery status badge (`suppressed`)
-- quick links to appointment and journey run details
+R15. Filter caps are enforced: max 12 conditions total and max 4 groups.
 
-### Q13
-For channel send failures unrelated to limits (for example Resend/Slack API error), should v1 do immediate fail-only logging, fixed retry attempts, or provider-dependent retry behavior?
+R16. Filter operators include equality/inequality, membership, string operations, date/time comparisons, and null checks (`is set`, `is not set`).
 
-### A13
-Use a mixed approach in v1:
-- failure logging is required
-- retries should exist
-- retry behavior can vary by provider
-- Resend idempotency keys should be used for safe retry behavior
+R17. Filter fields include all appointment and client attributes.
 
-### Q14
-For v1, do you want retry policy to be admin-configurable in UI, or fixed internal defaults per provider (with no UI controls yet)?
+R18. Backend filter evaluation uses constrained `cel-js` execution. Raw CEL authoring in UI is not allowed.
 
-### A14
-No UI controls yet. Use internal fixed defaults per provider in v1.
+R19. Filter evaluation runs for `appointment.scheduled` and `appointment.rescheduled` events.
 
-### Q15
-For Wait step timing in v1, which anchors should be supported: relative to appointment start only, or both appointment start and appointment end?
+R20. Reschedule behavior:
 
-### A15
-Support both appointment start and appointment end anchors.
+- matched -> no longer matched: cancel pending unsent deliveries
+- not matched -> matched: plan new deliveries from updated appointment timing
+- matched -> matched: re-plan, cancel obsolete pending deliveries, create replacements
+- recomputed send time in past: persist `skipped` with reason `past_due` (no catch-up send)
 
-### Q16
-Should Wait support both "before" and "after" offsets for each anchor, and what smallest time unit is required in v1 (minutes, hours, days)?
+### Runtime and orchestration
 
-### A16
-Use the current parseable duration-expression approach for v1 (for example values like `1d`, `1s`, `1w`, and other supported parseable durations), rather than limiting to a fixed minimum unit list.
+R21. Runtime architecture is planner + delivery worker on Inngest.
 
-### Q17
-For timezone behavior, should wait calculations always use the appointment timezone snapshot at trigger time, or should they follow the appointment timezone as it changes on reschedule updates?
+R22. Planner is source of truth for desired delivery plan; worker is source of truth for actual send attempt execution.
 
-### A17
-Use the appointment's current date/time/timezone as source of truth on each re-evaluation. Future waits should be recalculated on reschedule using the updated zoned appointment datetime.
+R23. Delivery planning and execution use deterministic identity keys for idempotency (run identity and delivery identity).
 
-### Q18
-When a journey definition is edited and republished, should already-running journey instances continue on their original version, or should pending future deliveries migrate to the new version?
+R24. Delivery terminal statuses are `sent`, `failed`, `canceled`, `skipped`.
 
-### A18
-Use version-pinned runs in v1: existing runs continue on their original published version, and only new runs use the latest published version. Also include the ability to cancel running instances individually or in bulk.
+R25. Provider retry behavior is enabled with fixed provider defaults (no admin retry controls in v1). Resend idempotency keys are required.
 
-### Q19
-For bulk cancel, what scope should v1 support: cancel all runs for a specific journey version, cancel all runs for the journey regardless of version, and/or cancel runs by filter (for example date range or status)?
+### Journey lifecycle and retention
 
-### A19
-User asked for the simplest v1 option.
+R26. Journey states are `draft`, `published`, `paused`, and `test_only`.
 
-### A19-final
-Lock simplest v1 bulk-cancel scope:
-- bulk cancel all active runs for one selected journey (across versions)
-- keep individual run cancel
-- no advanced filtered bulk-cancel in v1
+R27. Pause cancels/suppresses pending unsent deliveries for active runs.
 
-### Q20
-Should v1 support journey pause/resume (prevent new runs while preserving existing active runs), or only draft/published states?
+R28. Resume immediately re-plans active runs from current appointment state/time.
 
-### A20
-Include pause/resume in v1.
+R29. Appointment canceled or deleted is terminal for the run and cancels pending unsent deliveries.
 
-### Q21
-When paused, should existing pending deliveries continue to execute, or should pause also suppress/cancel future unsent deliveries for currently active runs?
+R30. Runs are version-pinned to the journey version active at run start. Republishing does not migrate existing runs.
 
-### A21
-Pause should suppress/cancel future unsent deliveries.
+R31. Bulk cancel scope in v1 is "all active runs for a selected journey" (across versions), plus individual run cancel.
 
-### Q22
-On resume, should suppressed-by-pause deliveries be permanently dropped, or should eligible future ones be re-planned from current appointment state/time?
+R32. Journey delete hard-deletes definitions, auto-cancels active runs, and preserves historical run visibility with version snapshot context.
 
-### A22
-Option B: re-plan eligible future deliveries from current appointment state/time on resume.
+R33. Run/delivery retention is indefinite for now.
 
-### Q23
-On resume, should re-planning run immediately for all active runs of that journey, or happen lazily only when the next appointment lifecycle event arrives?
+### Test mode semantics
 
-### A23
-Immediately.
+R34. Runtime mode is explicit and persisted: `live` vs `test`.
 
-### Q24
-For cancel behavior, should a canceled appointment always terminate the run permanently, even if the same appointment is later uncanceled or moved back to a non-canceled status?
+R35. `test_only` journeys auto-trigger from real appointment lifecycle events.
 
-### Note (from user)
-Investigate Inngest native pausing capabilities during Research phase: https://www.inngest.com/docs/guides/pause-functions
+R36. Manual test start with explicit appointment selection remains supported.
 
-### A24
-Cancellation is terminal. Appointments cannot be uncanceled; a new appointment must be scheduled instead.
+R37. Auto-triggered and manual-started test executions both create `mode=test` runs only.
 
-### Q25
-For Send Message, should v1 support message templating with dynamic variables from appointment and client data (for both Email and Slack), or static text only?
+R38. Email override is required for test run start; if missing, run start is rejected and no send executes.
 
-### A25
-Yes, support dynamic templating variables from appointment and client data in v1.
+R39. Slack override is optional in v1.
 
-### Q26
-Should v1 use the existing template/placeholder syntax already used elsewhere in the app (if present), or should we introduce a new expression-based template syntax for journeys?
+R40. Test mode waits run exactly as configured (no acceleration path in v1).
 
-### A26
-Reuse the existing template/placeholder syntax.
+R41. UI must prominently label test-only journeys and test-mode runs.
 
-### Q27
-Should multiple active journeys be allowed to trigger for the same appointment at the same time, with each journey running independently?
+### Overlap warnings and observability
 
-### A27
-Yes.
+R42. Overlap detection is publish-time only.
 
-### Q28
-If two journeys would send the same channel message to the same recipient at nearly the same time, should v1 attempt cross-journey deduplication, or allow both sends and rely on admins to configure journeys cleanly?
+R43. Overlap detection is best-effort heuristic and warning-only. Publish is never blocked by overlap warnings.
 
-### A28
-Prefer warning-based protection: detect likely overlapping triggers and warn admins during journey configuration/publish.
+R44. Multiple journeys can run independently for the same appointment. No cross-journey send deduplication in v1.
 
-### Q29
-For v1 execution behavior, should overlapping journeys still both send (warning only), or should publish be blocked until overlap is resolved?
+R45. Logger step output appears in run timeline and is emitted to real logger/console.
 
-### A29
-Warning only.
+### Explicit out-of-scope items
 
-### Q30
-Do you want auditability fields in v1 for journey definition lifecycle (createdBy, updatedBy, publishedBy, pausedBy, resumedBy, canceledBy with timestamps)?
+R46. Message limits/suppression-by-limit are out of scope for this rebuild.
 
-### A30
-No additional lifecycle actor audit fields are required in v1.
+R47. SMS delivery implementation is out of scope (future support may reuse test override semantics).
 
-### Q31
-For permissions in v1, who can create/edit/publish/pause/cancel journeys: org admins only, or any authenticated org member?
+## Acceptance Criteria
 
-### A31
-Org admins only.
+1. Given a valid linear journey payload, when create is called, then it persists successfully in `draft` state.
+2. Given a non-linear payload, when create or update is called, then API returns a validation error and persists nothing.
+3. Given appointment create, when classifier runs, then emitted event is `appointment.scheduled`.
+4. Given appointment reschedule change (time/timezone), when classifier runs, then emitted event is `appointment.rescheduled`.
+5. Given appointment canceled, when classifier runs, then emitted event is `appointment.canceled`.
+6. Given a matching published journey, when planner processes scheduled event, then run and deliveries are planned.
+7. Given reschedule causes mismatch, when planner re-evaluates, then pending unsent deliveries are canceled.
+8. Given paused journey, when pause is applied, then pending unsent deliveries are canceled/suppressed.
+9. Given paused journey resumed, when resume is applied, then active runs are immediately re-planned.
+10. Given journey republished, when old run continues, then run remains pinned to original version.
+11. Given journey deleted with active runs, when delete executes, then active runs are canceled and definition is hard-deleted.
+12. Given deleted journey history, when querying runs, then historical runs remain visible with version snapshot context.
+13. Given test-mode run with Email step and no override, when run starts, then start is rejected with clear error.
+14. Given test-mode run with Slack step and no Slack override, when run starts, then run proceeds.
+15. Given overlapping journey triggers, when publish runs, then warnings appear and publish still succeeds.
 
-### Q32
-For Logger step in v1, should logs be visible only in internal run timelines, or also exportable/searchable in a broader logs view?
+## Sources
 
-### A32
-Logs should be visible in journey runs and also go to the real logger/console output. No separate export/search logs view is required in v1.
-
-### Q33
-For run retention in v1, how long should journey run and delivery history be kept (for example 30 days, 90 days, 1 year, or indefinite)?
-
-### A33
-Indefinite for now. This is a TODO for future retention policy work.
-
-### Q34
-For workspace message limits, what window types should v1 support: per minute, per hour, per day, and per week (all), or only a subset?
-
-### A34
-Support all: minute, hour, day, and week windows.
-
-### Q35
-Should workspace limits be applied separately by channel only, or by channel plus recipient type (for example email vs Slack destination) in v1?
-
-### A35
-Limits should focus on client notifications. Slack messages are not important for limiting in v1.
-
-### Q36
-To lock this precisely: should v1 enforce limits for client-facing channels only (Email now, SMS later) and skip limit enforcement for Slack entirely?
-
-### A36
-Keep notification/message limits out of scope for this rebuild. No limits feature in v1 (backend or UI).
-
-### Note
-This supersedes earlier limit-scope decisions and shifts message limits to future work.
-
-### Q37
-Should we still keep suppression-style delivery statuses in v1 for non-limit reasons (for example `past_due`, paused journey), or simplify statuses to sent/failed/canceled/skipped only?
-
-### A37
-Use the simplified status set in v1: `sent`, `failed`, `canceled`, `skipped`.
-
-### Q38
-If an appointment is deleted after a journey run started, should v1 treat deletion the same as cancel and terminate pending deliveries?
-
-### A38
-Yes. Treat deletion as terminal and cancel pending deliveries.
-
-### Q39
-For UI publishing safeguards, should v1 require a dry-run preview for at least one sample appointment before publish, or keep preview optional with warnings only?
-
-### A39
-Option B: allow publish immediately and show warnings only.
-
-### Q40
-Should v1 support test-send for Send Message steps (Email/Slack) from the builder, or defer test-send and rely on runtime execution only?
-
-### A40
-Support full workflow testing in v1: run the workflow end-to-end with real data and execute actions for real.
-
-### Q41
-For this full test mode, should sends go to the real configured recipients/destinations, or should v1 provide an override mode that reroutes all sends to admin-specified test destinations?
-
-### A41
-Include an override mode for testing that reroutes sends to admin-specified test destinations.
-
-### Q42
-Should test runs be clearly separated from production runs in storage and UI (for example `mode = test|live`) so metrics and observability do not mix?
-
-### A42
-Yes. Show test runs clearly and mark them as test runs.
-
-### Q43
-For test mode with Wait steps, should waits run as configured, or should v1 support a test acceleration option (for example skip waits) for faster end-to-end validation?
-
-### A43
-Run waits exactly as configured.
-
-### Q44
-Should test runs require an explicit "test mode" toggle per run, or allow publishing a separate test-only journey state?
-
-### A44
-Use a separate test-only state for v1.
-
-### Q45
-How should a test run be started: pick an existing appointment by ID from the UI, or create a temporary test appointment as part of the test flow?
-
-### A45
-Choose an existing appointment.
-
-### Q46
-Should test-mode destination overrides be required before starting a test run (to prevent accidental real sends), or optional?
-
-### A46
-Required.
-
-### Q47
-For Slack in test mode, should override require a specific test Slack destination (for example test webhook/channel) and block run start if missing?
-
-### A47
-No. Slack does not require an override.
-
-### Q48
-To keep test safety clear, should required overrides apply to client-facing channels only (Email now), while Slack can send normally in test runs?
-
-### A48
-Required overrides apply to Email and SMS only.
-
-### Q49
-Should SMS remain out of scope as a delivery channel for this rebuild, with this override rule recorded only for future SMS support?
-
-### A49
-Yes. SMS delivery is out of scope for this rebuild because the integration is not implemented yet. Keep the override requirement as future behavior.
-
-### Q50
-For journey list and runs UX, do you want separate tabs/filters for Draft, Published, Paused, and Test-only states in v1?
-
-### A50
-Yes.
-
-### Q51
-Should a Test-only journey state run only when manually started from the UI, or should it also react automatically to real appointment lifecycle events?
-
-### A51
-Also auto-trigger from real appointment lifecycle events.
-
-### Q52
-When a journey is newly published, should it only apply to future lifecycle events, or should v1 support backfilling currently scheduled appointments as new runs?
-
-### A52
-Future events only.
-
-### Q53
-Should v1 include a separate one-time bulk enrollment action (manual backfill tool) for selected appointments, or keep all backfill behavior out of scope?
-
-### A53
-Backfill is out of scope.
-
-### Q54
-For webhook behavior in this rebuild, should webhooks remain independent from journey pause/test states (that is, canonical events continue to emit as usual)?
-
-### A54
-Yes. Webhooks are independent from journey states.
-
-### Q55
-For appointment lifecycle taxonomy, should webhook subscribers receive only `appointment.scheduled`, `appointment.rescheduled`, and `appointment.canceled` with no legacy aliases?
-
-### A55
-Correct. No legacy aliases.
-
-### Q56
-Should the API reject create/update requests for any non-linear journey structure (for example branches/conditions) with a clear validation error in v1?
-
-### A56
-Yes.
-
-### Q57
-For v1, confirm the allowed step types are exactly Trigger, Wait, Send Message, and Logger (with Switch, Condition, and HTTP Request removed).
-
-### A57
-Yes.
-
-### Q58
-Should journey names be unique per workspace in v1, or can multiple journeys share the same name?
-
-### A58
-Unique per workspace.
-
-### Q59
-Should deleting a journey definition be allowed only when there are no active runs, or should delete perform automatic bulk cancel of active runs?
-
-### A59
-Auto-cancel active runs and delete.
-
-### Q60
-Should delete be hard delete in v1, or soft delete with recoverability?
-
-### A60
-Hard delete.
-
-### Q61
-Should runs history for deleted journeys remain queryable in v1, or can it be removed with the journey?
-
-### A61
-Keep runs history queryable.
-
-### Q62
-Should run history show the journey version snapshot used at execution time even if the source journey is later edited or deleted?
-
-### A62
-Yes.
-
-### Q63
-For test-only journeys that auto-trigger, should they process all qualifying appointments continuously, or should there be an automatic expiration window for test state?
-
-### A63
-Continue indefinitely until manually changed. Keep it simple.
-
-### Q64
-Should there be a prominent UI badge/warning whenever a journey is in Test-only state to reduce accidental long-term test usage?
-
-### A64
-Yes.
-
-### Q65
-For overlap warnings between journeys, should detection run only at publish time, or also during draft editing in near-real-time?
-
-### A65
-Publish time only.
-
-### Q66
-Should overlap warnings be best-effort heuristic only in v1 (no strict correctness guarantee), with no publish block?
-
-### A66
-Yes.
-
-### Q67
-Are you done with requirements clarification and ready to move to Research for deferred items (`cel-js` for filter expressions and Inngest pause functionality)?
-
-### A67
-Yes. Move to Research.
+- `specs/workflow-engine-rebuild-appointment-journeys/rough-idea.md`
+- `specs/workflow-engine-rebuild-appointment-journeys/research/recommendations.md`
+- consolidated Q&A history resolved through A68

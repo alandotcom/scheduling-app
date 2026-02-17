@@ -9,6 +9,7 @@ import {
 } from "./common";
 import { domainEventTypeSchema } from "./domain-event";
 import { serializedWorkflowGraphSchema } from "./workflow-graph";
+import { linearJourneyGraphSchema } from "./journey";
 
 export const workflowVisibilitySchema = z.enum(["private", "public"]);
 
@@ -31,7 +32,7 @@ export const createWorkflowSchema = z.object({
     .max(255)
     .optional(),
   description: z.string().trim().max(2000).optional(),
-  graph: serializedWorkflowGraphSchema,
+  graph: linearJourneyGraphSchema,
   isEnabled: z.boolean().optional(),
   visibility: workflowVisibilitySchema.optional(),
 });
@@ -45,7 +46,7 @@ export const updateWorkflowSchema = z
       .max(255)
       .optional(),
     description: z.string().trim().max(2000).nullable().optional(),
-    graph: serializedWorkflowGraphSchema.optional(),
+    graph: linearJourneyGraphSchema.optional(),
     isEnabled: z.boolean().optional(),
     visibility: workflowVisibilitySchema.optional(),
   })

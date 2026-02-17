@@ -13,6 +13,10 @@ $$ LANGUAGE SQL STABLE;
 --> statement-breakpoint
 CREATE TYPE "appointment_status" AS ENUM('scheduled', 'confirmed', 'cancelled', 'no_show');--> statement-breakpoint
 CREATE TYPE "invitation_status" AS ENUM('pending', 'accepted', 'rejected', 'canceled');--> statement-breakpoint
+CREATE TYPE "journey_delivery_status" AS ENUM('planned', 'sent', 'failed', 'canceled', 'skipped');--> statement-breakpoint
+CREATE TYPE "journey_run_mode" AS ENUM('live', 'test');--> statement-breakpoint
+CREATE TYPE "journey_run_status" AS ENUM('planned', 'running', 'completed', 'canceled', 'failed');--> statement-breakpoint
+CREATE TYPE "journey_state" AS ENUM('draft', 'published', 'paused', 'test_only');--> statement-breakpoint
 CREATE TYPE "org_role" AS ENUM('owner', 'admin', 'member');--> statement-breakpoint
 CREATE TABLE "accounts" (
 	"id" uuid PRIMARY KEY DEFAULT uuidv7(),
@@ -177,6 +181,58 @@ CREATE TABLE "integrations" (
 );
 --> statement-breakpoint
 ALTER TABLE "integrations" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
+CREATE TABLE "journey_deliveries" (
+	"id" uuid PRIMARY KEY DEFAULT uuidv7(),
+	"org_id" uuid NOT NULL,
+	"journey_run_id" uuid NOT NULL,
+	"step_key" text NOT NULL,
+	"channel" text NOT NULL,
+	"scheduled_for" timestamp with time zone NOT NULL,
+	"status" "journey_delivery_status" NOT NULL,
+	"reason_code" text,
+	"deterministic_key" text NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+ALTER TABLE "journey_deliveries" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
+CREATE TABLE "journey_runs" (
+	"id" uuid PRIMARY KEY DEFAULT uuidv7(),
+	"org_id" uuid NOT NULL,
+	"journey_version_id" uuid,
+	"appointment_id" uuid NOT NULL,
+	"mode" "journey_run_mode" NOT NULL,
+	"status" "journey_run_status" NOT NULL,
+	"journey_name_snapshot" text NOT NULL,
+	"journey_version_snapshot" jsonb NOT NULL,
+	"started_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"completed_at" timestamp with time zone,
+	"cancelled_at" timestamp with time zone
+);
+--> statement-breakpoint
+ALTER TABLE "journey_runs" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
+CREATE TABLE "journey_versions" (
+	"id" uuid PRIMARY KEY DEFAULT uuidv7(),
+	"org_id" uuid NOT NULL,
+	"journey_id" uuid NOT NULL,
+	"version" integer NOT NULL,
+	"definition_snapshot" jsonb NOT NULL,
+	"published_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+ALTER TABLE "journey_versions" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
+CREATE TABLE "journeys" (
+	"id" uuid PRIMARY KEY DEFAULT uuidv7(),
+	"org_id" uuid NOT NULL,
+	"name" text NOT NULL,
+	"state" "journey_state" DEFAULT 'draft'::"journey_state" NOT NULL,
+	"draft_definition" jsonb NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+ALTER TABLE "journeys" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
 CREATE TABLE "workflow_execution_events" (
 	"id" uuid PRIMARY KEY DEFAULT uuidv7(),
 	"org_id" uuid NOT NULL,
@@ -386,6 +442,16 @@ CREATE UNIQUE INDEX "clients_org_email_unique_idx" ON "clients" ("org_id","email
 CREATE UNIQUE INDEX "clients_org_phone_unique_idx" ON "clients" ("org_id","phone") WHERE "phone" IS NOT NULL;--> statement-breakpoint
 CREATE UNIQUE INDEX "integrations_org_key_unique_idx" ON "integrations" ("org_id","key");--> statement-breakpoint
 CREATE INDEX "integrations_org_key_idx" ON "integrations" ("org_id","key");--> statement-breakpoint
+CREATE UNIQUE INDEX "journey_deliveries_org_deterministic_key_uidx" ON "journey_deliveries" ("org_id","deterministic_key");--> statement-breakpoint
+CREATE INDEX "journey_deliveries_org_run_scheduled_for_idx" ON "journey_deliveries" ("org_id","journey_run_id","scheduled_for");--> statement-breakpoint
+CREATE INDEX "journey_deliveries_org_status_idx" ON "journey_deliveries" ("org_id","status");--> statement-breakpoint
+CREATE UNIQUE INDEX "journey_runs_org_identity_uidx" ON "journey_runs" ("org_id","journey_version_id","appointment_id","mode");--> statement-breakpoint
+CREATE INDEX "journey_runs_org_status_idx" ON "journey_runs" ("org_id","status");--> statement-breakpoint
+CREATE INDEX "journey_runs_org_mode_started_at_idx" ON "journey_runs" ("org_id","mode","started_at");--> statement-breakpoint
+CREATE UNIQUE INDEX "journey_versions_org_journey_version_uidx" ON "journey_versions" ("org_id","journey_id","version");--> statement-breakpoint
+CREATE INDEX "journey_versions_org_journey_published_at_idx" ON "journey_versions" ("org_id","journey_id","published_at");--> statement-breakpoint
+CREATE UNIQUE INDEX "journeys_org_name_ci_uidx" ON "journeys" ("org_id",lower("name"));--> statement-breakpoint
+CREATE INDEX "journeys_org_updated_at_id_idx" ON "journeys" ("org_id","updated_at","id");--> statement-breakpoint
 CREATE UNIQUE INDEX "org_memberships_org_user_idx" ON "org_memberships" ("org_id","user_id");--> statement-breakpoint
 CREATE INDEX "scheduling_limits_calendar_id_idx" ON "scheduling_limits" ("calendar_id");--> statement-breakpoint
 CREATE INDEX "workflow_execution_events_org_workflow_created_at_idx" ON "workflow_execution_events" ("org_id","workflow_id","created_at");--> statement-breakpoint
@@ -422,6 +488,13 @@ ALTER TABLE "calendars" ADD CONSTRAINT "calendars_org_id_orgs_id_fkey" FOREIGN K
 ALTER TABLE "calendars" ADD CONSTRAINT "calendars_location_id_locations_id_fkey" FOREIGN KEY ("location_id") REFERENCES "locations"("id");--> statement-breakpoint
 ALTER TABLE "clients" ADD CONSTRAINT "clients_org_id_orgs_id_fkey" FOREIGN KEY ("org_id") REFERENCES "orgs"("id");--> statement-breakpoint
 ALTER TABLE "integrations" ADD CONSTRAINT "integrations_org_id_orgs_id_fkey" FOREIGN KEY ("org_id") REFERENCES "orgs"("id");--> statement-breakpoint
+ALTER TABLE "journey_deliveries" ADD CONSTRAINT "journey_deliveries_org_id_orgs_id_fkey" FOREIGN KEY ("org_id") REFERENCES "orgs"("id");--> statement-breakpoint
+ALTER TABLE "journey_deliveries" ADD CONSTRAINT "journey_deliveries_journey_run_id_journey_runs_id_fkey" FOREIGN KEY ("journey_run_id") REFERENCES "journey_runs"("id") ON DELETE CASCADE;--> statement-breakpoint
+ALTER TABLE "journey_runs" ADD CONSTRAINT "journey_runs_org_id_orgs_id_fkey" FOREIGN KEY ("org_id") REFERENCES "orgs"("id");--> statement-breakpoint
+ALTER TABLE "journey_runs" ADD CONSTRAINT "journey_runs_journey_version_id_journey_versions_id_fkey" FOREIGN KEY ("journey_version_id") REFERENCES "journey_versions"("id") ON DELETE SET NULL;--> statement-breakpoint
+ALTER TABLE "journey_versions" ADD CONSTRAINT "journey_versions_org_id_orgs_id_fkey" FOREIGN KEY ("org_id") REFERENCES "orgs"("id");--> statement-breakpoint
+ALTER TABLE "journey_versions" ADD CONSTRAINT "journey_versions_journey_id_journeys_id_fkey" FOREIGN KEY ("journey_id") REFERENCES "journeys"("id") ON DELETE CASCADE;--> statement-breakpoint
+ALTER TABLE "journeys" ADD CONSTRAINT "journeys_org_id_orgs_id_fkey" FOREIGN KEY ("org_id") REFERENCES "orgs"("id");--> statement-breakpoint
 ALTER TABLE "locations" ADD CONSTRAINT "locations_org_id_orgs_id_fkey" FOREIGN KEY ("org_id") REFERENCES "orgs"("id");--> statement-breakpoint
 ALTER TABLE "org_invitations" ADD CONSTRAINT "org_invitations_org_id_orgs_id_fkey" FOREIGN KEY ("org_id") REFERENCES "orgs"("id") ON DELETE CASCADE;--> statement-breakpoint
 ALTER TABLE "org_invitations" ADD CONSTRAINT "org_invitations_inviter_id_users_id_fkey" FOREIGN KEY ("inviter_id") REFERENCES "users"("id") ON DELETE CASCADE;--> statement-breakpoint
@@ -449,6 +522,10 @@ CREATE POLICY "org_isolation_audit_events" ON "audit_events" AS PERMISSIVE FOR A
 CREATE POLICY "org_isolation_calendars" ON "calendars" AS PERMISSIVE FOR ALL TO public USING (org_id = current_org_id()) WITH CHECK (org_id = current_org_id());--> statement-breakpoint
 CREATE POLICY "org_isolation_clients" ON "clients" AS PERMISSIVE FOR ALL TO public USING (org_id = current_org_id()) WITH CHECK (org_id = current_org_id());--> statement-breakpoint
 CREATE POLICY "org_isolation_integrations" ON "integrations" AS PERMISSIVE FOR ALL TO public USING (org_id = current_org_id()) WITH CHECK (org_id = current_org_id());--> statement-breakpoint
+CREATE POLICY "org_isolation_journey_deliveries" ON "journey_deliveries" AS PERMISSIVE FOR ALL TO public USING (org_id = current_org_id()) WITH CHECK (org_id = current_org_id());--> statement-breakpoint
+CREATE POLICY "org_isolation_journey_runs" ON "journey_runs" AS PERMISSIVE FOR ALL TO public USING (org_id = current_org_id()) WITH CHECK (org_id = current_org_id());--> statement-breakpoint
+CREATE POLICY "org_isolation_journey_versions" ON "journey_versions" AS PERMISSIVE FOR ALL TO public USING (org_id = current_org_id()) WITH CHECK (org_id = current_org_id());--> statement-breakpoint
+CREATE POLICY "org_isolation_journeys" ON "journeys" AS PERMISSIVE FOR ALL TO public USING (org_id = current_org_id()) WITH CHECK (org_id = current_org_id());--> statement-breakpoint
 CREATE POLICY "org_isolation_locations" ON "locations" AS PERMISSIVE FOR ALL TO public USING (org_id = current_org_id()) WITH CHECK (org_id = current_org_id());--> statement-breakpoint
 CREATE POLICY "org_isolation_resources" ON "resources" AS PERMISSIVE FOR ALL TO public USING (org_id = current_org_id()) WITH CHECK (org_id = current_org_id());--> statement-breakpoint
 CREATE POLICY "org_isolation_workflow_execution_events" ON "workflow_execution_events" AS PERMISSIVE FOR ALL TO public USING (org_id = current_org_id()) WITH CHECK (org_id = current_org_id());--> statement-breakpoint

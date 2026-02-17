@@ -24,6 +24,22 @@ export type WorkflowCancelRequestedEventData = {
   correlationKey?: string;
 };
 
+export type JourneyDeliveryScheduledEventData = {
+  orgId: string;
+  journeyDeliveryId: string;
+  journeyRunId: string;
+  deterministicKey: string;
+  scheduledFor: string;
+};
+
+export type JourneyDeliveryCanceledEventData = {
+  orgId: string;
+  journeyDeliveryId: string;
+  journeyRunId: string;
+  deterministicKey: string;
+  reasonCode: string;
+};
+
 type InngestSendResult =
   | {
       eventId?: string;
@@ -100,6 +116,40 @@ export async function sendWorkflowCancelRequested(
   const response = await inngest.send({
     id: `workflow-cancel-${input.executionId}-${Date.now()}`,
     name: "workflow/run.cancel.requested",
+    data: input,
+  });
+
+  const eventId = getEventId(response);
+  if (eventId) {
+    return { eventId };
+  }
+
+  return {};
+}
+
+export async function sendJourneyDeliveryScheduled(
+  input: JourneyDeliveryScheduledEventData,
+): Promise<{ eventId?: string }> {
+  const response = await inngest.send({
+    id: `journey-delivery-scheduled-${input.journeyDeliveryId}`,
+    name: "journey.delivery.scheduled",
+    data: input,
+  });
+
+  const eventId = getEventId(response);
+  if (eventId) {
+    return { eventId };
+  }
+
+  return {};
+}
+
+export async function sendJourneyDeliveryCanceled(
+  input: JourneyDeliveryCanceledEventData,
+): Promise<{ eventId?: string }> {
+  const response = await inngest.send({
+    id: `journey-delivery-canceled-${input.journeyDeliveryId}`,
+    name: "journey.delivery.canceled",
     data: input,
   });
 

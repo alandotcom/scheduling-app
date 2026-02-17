@@ -219,6 +219,9 @@ importers:
       '@logtape/logtape':
         specifier: 'catalog:'
         version: 2.0.2
+      '@marcbachmann/cel-js':
+        specifier: ^7.5.0
+        version: 7.5.0
       '@orpc/openapi':
         specifier: ^1.13.4
         version: 1.13.4(@opentelemetry/api@1.9.0)(ws@8.19.0)
@@ -1331,6 +1334,11 @@ packages:
 
   '@logtape/logtape@2.0.2':
     resolution: {integrity: sha512-cveUBLbCMFkvkLycP/2vNWvywl47JcJbazHIju94/QNGboZ/jyYAgZIm0ZXezAOx3eIz8OG1EOZ5CuQP3+2FQg==}
+
+  '@marcbachmann/cel-js@7.5.0':
+    resolution: {integrity: sha512-mqoVNyuSHcKoe9Gk0AVXMm/2cSecvPhGlNKYEh7uQ01XRu1LvFrJA6G1Na5b6mhGvJIemib6pJKUzVzc+2mrew==}
+    engines: {node: '>=20.19.0'}
+    hasBin: true
 
   '@modelcontextprotocol/sdk@1.26.0':
     resolution: {integrity: sha512-Y5RmPncpiDtTXDbLKswIJzTqu2hyBKxTNsgKqKclDbhIgg1wgtf1fRuvxgTnRfcnxtvvgbIEcqUOzZrJ6iSReg==}
@@ -6145,6 +6153,8 @@ snapshots:
       jsbi: 4.3.2
 
   '@logtape/logtape@2.0.2': {}
+
+  '@marcbachmann/cel-js@7.5.0': {}
 
   '@modelcontextprotocol/sdk@1.26.0(zod@3.25.76)':
     dependencies:

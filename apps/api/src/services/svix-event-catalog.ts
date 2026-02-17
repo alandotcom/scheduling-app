@@ -49,9 +49,9 @@ async function listManagedEventTypes(
 
 function getSvixEventGroupName(eventType: WebhookEventType): string {
   switch (eventType) {
-    case "appointment.created":
-    case "appointment.updated":
-    case "appointment.deleted":
+    case "appointment.scheduled":
+    case "appointment.rescheduled":
+    case "appointment.canceled":
       return "Appointment";
     case "appointment_type.created":
     case "appointment_type.updated":
