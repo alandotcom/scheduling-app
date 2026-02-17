@@ -493,3 +493,35 @@
 - Refreshed task logs at:
   - `specs/workflow-engine-rebuild-appointment-journeys/logs/build.log`
   - `specs/workflow-engine-rebuild-appointment-journeys/logs/test.log`
+
+## 2026-02-16 - Task 03: Build Journey DTO and Linear Validation (Revalidation)
+
+### RED
+- Added DTO contract coverage in `packages/dto/src/schemas/journey-cutover.test.ts` for:
+  - valid linear `Trigger -> Wait -> Send Message -> Logger` acceptance
+  - create/update branching payload rejection
+  - legacy `actionType: "email"` alias rejection
+- Added API route contract coverage in `apps/api/src/routes/journeys.test.ts` for:
+  - create non-linear rejection with no persistence side effects
+  - update non-linear rejection with no persisted draft mutation
+  - legacy step-type alias rejection at route input boundary.
+- Confirmed expected RED failure before implementation: DTO test accepted legacy `actionType: "email"` alias.
+
+### GREEN
+- Tightened `linearJourneyGraphSchema` in `packages/dto/src/schemas/journey.ts` to enforce strict step-type validation:
+  - removed legacy send-message aliases (`send_email`, `email`, `slack`, etc.)
+  - removed implicit fallback that treated legacy integration config as `send-message`
+- Re-ran targeted suites and verified they pass:
+  - `pnpm --filter @scheduling/dto run test -- src/schemas/journey-cutover.test.ts`
+  - `pnpm --filter @scheduling/api run test -- src/routes/journeys.test.ts`
+
+### REFACTOR
+- Kept compatibility tightening isolated to DTO/API validation surfaces for this task so runtime slices remain unaffected.
+- Re-ran full required quality gates and refreshed logs:
+  - `pnpm format`
+  - `pnpm lint`
+  - `pnpm typecheck`
+  - `pnpm test`
+- Updated artifacts:
+  - `specs/workflow-engine-rebuild-appointment-journeys/logs/build.log`
+  - `specs/workflow-engine-rebuild-appointment-journeys/logs/test.log`

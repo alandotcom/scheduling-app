@@ -113,6 +113,151 @@ function createLinearGraphWithSendMessage(input?: {
   };
 }
 
+function createBranchingGraph(
+  triggerId = "trigger-branching",
+): LinearJourneyGraph {
+  return {
+    attributes: {},
+    options: {
+      type: "directed",
+    },
+    nodes: [
+      {
+        key: triggerId,
+        attributes: {
+          id: triggerId,
+          type: "trigger-node",
+          position: {
+            x: 0,
+            y: 0,
+          },
+          data: {
+            label: "Trigger",
+            type: "trigger",
+          },
+        },
+      },
+      {
+        key: "wait-step",
+        attributes: {
+          id: "wait-step",
+          type: "action-node",
+          position: {
+            x: -80,
+            y: 120,
+          },
+          data: {
+            label: "Wait",
+            type: "action",
+            config: {
+              actionType: "wait",
+            },
+          },
+        },
+      },
+      {
+        key: "logger-step",
+        attributes: {
+          id: "logger-step",
+          type: "action-node",
+          position: {
+            x: 80,
+            y: 120,
+          },
+          data: {
+            label: "Logger",
+            type: "action",
+            config: {
+              actionType: "logger",
+            },
+          },
+        },
+      },
+    ],
+    edges: [
+      {
+        key: `${triggerId}-to-wait-step`,
+        source: triggerId,
+        target: "wait-step",
+        attributes: {
+          id: `${triggerId}-to-wait-step`,
+          source: triggerId,
+          target: "wait-step",
+        },
+      },
+      {
+        key: `${triggerId}-to-logger-step`,
+        source: triggerId,
+        target: "logger-step",
+        attributes: {
+          id: `${triggerId}-to-logger-step`,
+          source: triggerId,
+          target: "logger-step",
+        },
+      },
+    ],
+  };
+}
+
+function createGraphWithLegacyActionAlias(
+  triggerId = "trigger-legacy-alias",
+): LinearJourneyGraph {
+  return {
+    attributes: {},
+    options: {
+      type: "directed",
+    },
+    nodes: [
+      {
+        key: triggerId,
+        attributes: {
+          id: triggerId,
+          type: "trigger-node",
+          position: {
+            x: 0,
+            y: 0,
+          },
+          data: {
+            label: "Trigger",
+            type: "trigger",
+          },
+        },
+      },
+      {
+        key: "legacy-send-step",
+        attributes: {
+          id: "legacy-send-step",
+          type: "action-node",
+          position: {
+            x: 0,
+            y: 120,
+          },
+          data: {
+            label: "Legacy Email",
+            type: "action",
+            config: {
+              actionType: "email",
+              channel: "email",
+            },
+          },
+        },
+      },
+    ],
+    edges: [
+      {
+        key: `${triggerId}-to-legacy-send-step`,
+        source: triggerId,
+        target: "legacy-send-step",
+        attributes: {
+          id: `${triggerId}-to-legacy-send-step`,
+          source: triggerId,
+          target: "legacy-send-step",
+        },
+      },
+    ],
+  };
+}
+
 describe("Journey Routes", () => {
   const db = getTestDb();
 
@@ -322,6 +467,79 @@ describe("Journey Routes", () => {
     });
 
     expect(journeys).toHaveLength(0);
+  });
+
+  test("create rejects non-linear branching payloads without side effects", async () => {
+    await expect(
+      call(
+        journeyRoutes.create,
+        {
+          name: "Branching Route Journey",
+          graph: createBranchingGraph(),
+        },
+        { context: ownerContext },
+      ),
+    ).rejects.toMatchObject({
+      message: "Input validation failed",
+    });
+
+    const journeys = await call(journeyRoutes.list, undefined, {
+      context: ownerContext,
+    });
+
+    expect(journeys).toHaveLength(0);
+  });
+
+  test("update rejects non-linear branching payloads without mutating stored draft", async () => {
+    const created = await call(
+      journeyRoutes.create,
+      {
+        name: "Update Branching Guard Journey",
+        graph: createLinearGraph("trigger-update-branching"),
+      },
+      { context: ownerContext },
+    );
+
+    await expect(
+      call(
+        journeyRoutes.update,
+        {
+          id: created.id,
+          data: {
+            name: "Should Not Persist",
+            graph: createBranchingGraph("trigger-update-branching-invalid"),
+          },
+        },
+        { context: ownerContext },
+      ),
+    ).rejects.toMatchObject({
+      message: "Input validation failed",
+    });
+
+    const reloaded = await call(
+      journeyRoutes.get,
+      { id: created.id },
+      { context: ownerContext },
+    );
+
+    expect(reloaded.name).toBe("Update Branching Guard Journey");
+    expect(reloaded.graph.nodes).toHaveLength(1);
+    expect(reloaded.graph.edges).toHaveLength(0);
+  });
+
+  test("create rejects legacy action aliases outside supported step set", async () => {
+    await expect(
+      call(
+        journeyRoutes.create,
+        {
+          name: "Legacy Alias Route Journey",
+          graph: createGraphWithLegacyActionAlias(),
+        },
+        { context: ownerContext },
+      ),
+    ).rejects.toMatchObject({
+      message: "Input validation failed",
+    });
   });
 
   test("manual test run route starts mode=test run", async () => {

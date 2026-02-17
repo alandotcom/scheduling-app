@@ -7,10 +7,10 @@ completed: 2026-02-16
 # Task: Build Journey DTO and Linear Validation
 
 ## Description
-Replace workflow graph DTO contracts with journey-specific contracts that enforce the v1 step set and strict linear structure at create/update boundaries.
+Replace graph-based workflow payload contracts with journey DTOs that allow only the v1 linear model and approved step set (Trigger, Wait, Send Message, Logger).
 
 ## Background
-Current DTOs allow graph constructs, branch nodes, and non-v1 actions. Rebuild scope requires a linear model with only Trigger, Wait, Send Message, and Logger steps.
+Current DTOs still allow branching and unsupported step types. This task enforces the core API contract boundary for the rebuild.
 
 ## Reference Documentation
 **Required:**
@@ -23,41 +23,42 @@ Current DTOs allow graph constructs, branch nodes, and non-v1 actions. Rebuild s
 **Note:** You MUST read the design document before beginning implementation.
 
 ## Technical Requirements
-1. Journey definition schema must accept only linear sequences with exactly one Trigger start and supported step transitions.
-2. Step types must be limited to Trigger, Wait, Send Message, and Logger.
-3. API validation must reject non-linear payloads with structured issues and persist nothing.
+1. Define journey create/update DTOs that default new definitions to `draft` and accept only linear sequences.
+2. Reject branching/switch/non-linear structures and unsupported step types with structured validation issues.
+3. Enforce sequencing invariants (single Trigger, no dangling steps, valid ordered chain).
+4. Provide a checkpoint with API contract tests proving valid linear payload persistence and non-linear rejection with no side effects.
 
 ## Dependencies
 - task-02-implement-appointment-lifecycle-classifier.code-task.md
 
 ## Implementation Approach
-1. Write failing DTO and route-contract tests for valid linear payloads and invalid non-linear payloads.
-2. Implement journey schemas and linear validation rules in shared DTO contracts.
-3. Refactor API consumers to use the new DTOs and remove graph-specific contract usage.
+1. Write failing schema/route tests for valid linear definitions, invalid non-linear definitions, and restricted step types.
+2. Implement DTO schemas and route contract adoption for journey payloads.
+3. Refactor validation wiring to keep API errors structured and tests green.
 
 ## Acceptance Criteria
 
-1. **Valid Linear Journey Persists as Draft**
-   - Given a payload with a valid linear chain and allowed step set
+1. **Linear Payload Persists in Draft State**
+   - Given a valid linear journey payload
    - When create is called
    - Then the journey persists successfully in `draft` state.
 
-2. **Non-Linear Payload Rejected Without Side Effects**
-   - Given a payload with branching, malformed sequencing, or unsupported steps
+2. **Non-Linear Payload Is Rejected Atomically**
+   - Given a branching or malformed journey payload
    - When create or update is called
-   - Then API validation fails and no persistence side effects occur.
+   - Then API returns validation errors and persists nothing.
 
 3. **Step Set Restriction Enforced**
-   - Given a payload containing a non-v1 step type
+   - Given a payload containing unsupported step types
    - When validation runs
-   - Then the payload is rejected with a structured validation error.
+   - Then payload is rejected and only Trigger/Wait/Send Message/Logger remain valid.
 
 4. **Unit Tests Pass**
    - Given the implementation is complete
-   - When running the targeted test suite for this slice
+   - When running DTO/route validation tests
    - Then all tests for this task pass.
 
 ## Metadata
 - **Complexity**: High
 - **Labels**: dto, validation, api-contracts, journeys
-- **Required Skills**: testing, schema-design
+- **Required Skills**: zod-schemas, route-contracts, integration-testing

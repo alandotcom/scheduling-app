@@ -46,15 +46,6 @@ const supportedJourneyActionTypeSchema = z.enum([
   "logger",
 ]);
 
-const sendMessageActionTypeAliases = new Set([
-  "send-message",
-  "send_message",
-  "send-email",
-  "send_email",
-  "email",
-  "slack",
-]);
-
 function normalizeJourneyActionType(value: unknown): string | null {
   if (typeof value !== "string") {
     return null;
@@ -63,10 +54,6 @@ function normalizeJourneyActionType(value: unknown): string | null {
   const normalized = value.trim().toLowerCase();
   if (normalized.length === 0) {
     return null;
-  }
-
-  if (sendMessageActionTypeAliases.has(normalized)) {
-    return "send-message";
   }
 
   return normalized;
@@ -114,15 +101,7 @@ export const linearJourneyGraphSchema =
         data.config?.["actionType"],
       );
 
-      const fallbackSendMessage =
-        normalizedActionType === null &&
-        data.config &&
-        typeof data.config === "object" &&
-        !Array.isArray(data.config) &&
-        ("integrationId" in data.config || "operation" in data.config);
-
-      const actionType =
-        normalizedActionType ?? (fallbackSendMessage ? "send-message" : null);
+      const actionType = normalizedActionType;
 
       if (actionType === null) {
         ctx.addIssue({
