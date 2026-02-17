@@ -1,19 +1,17 @@
-import type { NodeProps } from "@xyflow/react";
+import type { Node as ReactFlowNode, NodeProps } from "@xyflow/react";
 import { Add01Icon } from "@hugeicons/core-free-icons";
 import { memo } from "react";
 import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
+import type { WorkflowAddNodeData } from "../workflow-editor-store";
 
-type AddNodeData = {
-  onClick?: () => void;
-};
+type AddFlowNode = ReactFlowNode<WorkflowAddNodeData, "add">;
+type AddNodeProps = NodeProps<AddFlowNode>;
 
-const AddNode = memo(function AddNode({ data }: NodeProps) {
-  const nodeData = data as AddNodeData;
-
+const AddNode = memo(function AddNode({ data }: AddNodeProps) {
   return (
     <div className="flex h-48 w-48 items-center justify-center rounded-lg border border-dashed border-border bg-background/50 backdrop-blur-sm">
-      <Button onClick={nodeData.onClick} variant="outline" size="sm">
+      <Button onClick={data.onClick} variant="outline" size="sm">
         <Icon icon={Add01Icon} className="size-4" />
         Add a Step
       </Button>

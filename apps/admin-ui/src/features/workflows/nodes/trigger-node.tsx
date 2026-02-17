@@ -1,4 +1,4 @@
-import type { NodeProps } from "@xyflow/react";
+import type { Node as ReactFlowNode, NodeProps } from "@xyflow/react";
 import {
   BlockedIcon,
   CancelCircleIcon,
@@ -16,25 +16,17 @@ import {
 import { cn } from "@/lib/utils";
 import {
   selectedExecutionIdAtom,
+  type WorkflowTriggerNodeData,
   workflowExecutionLogsByNodeIdAtom,
   type WorkflowExecutionNodeLogPreview,
 } from "../workflow-editor-store";
 
-type TriggerNodeData = {
-  label?: string;
-  description?: string;
-  status?: "idle" | "running" | "success" | "error" | "cancelled";
-  config?: {
-    triggerType?: "AppointmentJourney";
-    start?: "appointment.scheduled";
-    restart?: "appointment.rescheduled";
-    stop?: "appointment.canceled";
-  };
-};
+type TriggerFlowNode = ReactFlowNode<WorkflowTriggerNodeData, "trigger">;
+type TriggerNodeProps = NodeProps<TriggerFlowNode>;
 
 function toRuntimeNodeStatus(
   status: WorkflowExecutionNodeLogPreview["status"] | undefined,
-): TriggerNodeData["status"] {
+): WorkflowTriggerNodeData["status"] {
   if (!status || status === "pending") {
     return "idle";
   }
@@ -42,7 +34,11 @@ function toRuntimeNodeStatus(
   return status;
 }
 
-function StatusBadge({ status }: { status: TriggerNodeData["status"] }) {
+function StatusBadge({
+  status,
+}: {
+  status: WorkflowTriggerNodeData["status"];
+}) {
   if (!status || status === "idle" || status === "running") return null;
 
   return (
@@ -70,10 +66,9 @@ function StatusBadge({ status }: { status: TriggerNodeData["status"] }) {
 
 const TriggerNode = memo(function TriggerNode({
   id,
-  data,
+  data: nodeData,
   selected,
-}: NodeProps) {
-  const nodeData = data as TriggerNodeData;
+}: TriggerNodeProps) {
   const selectedExecutionId = useAtomValue(selectedExecutionIdAtom);
   const executionLogsByNodeId = useAtomValue(workflowExecutionLogsByNodeIdAtom);
   const title = nodeData.label || "Trigger";

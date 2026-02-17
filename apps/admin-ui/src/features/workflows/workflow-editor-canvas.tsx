@@ -176,7 +176,7 @@ export function WorkflowEditorCanvas({
   // Handle clicks on nodes — React Flow's onNodeClick fires reliably
   // even when pointer events are intercepted by the node wrapper
   const handleNodeClick = useCallback(
-    (_event: React.MouseEvent, node: WorkflowCanvasNode) => {
+    (_event: React.MouseEvent, node: { id: string }) => {
       if (node.id === "__empty-placeholder__") {
         addInitialTrigger();
       }

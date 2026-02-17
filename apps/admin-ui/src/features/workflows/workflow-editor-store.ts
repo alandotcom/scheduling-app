@@ -23,8 +23,84 @@ import {
   isGenericActionNodeLabel,
 } from "./action-visuals";
 
-export type WorkflowCanvasNode = Node;
-export type WorkflowCanvasEdge = Edge;
+type ConditionBranch = "true" | "false";
+
+export type WorkflowNodeStatus =
+  | "idle"
+  | "running"
+  | "success"
+  | "error"
+  | "cancelled";
+
+export type WorkflowTriggerNodeData = {
+  type: "trigger";
+  label?: string;
+  description?: string;
+  status?: WorkflowNodeStatus;
+  config?: {
+    triggerType?: "AppointmentJourney";
+    start?: "appointment.scheduled";
+    restart?: "appointment.rescheduled";
+    stop?: "appointment.canceled";
+    correlationKey?: string;
+    filter?: unknown;
+    [key: string]: unknown;
+  };
+  [key: string]: unknown;
+};
+
+export type WorkflowActionNodeData = {
+  type: "action";
+  label?: string;
+  description?: string;
+  status?: WorkflowNodeStatus;
+  enabled?: boolean;
+  config?: {
+    actionType?: string;
+    waitDelayTimingMode?: string;
+    waitDuration?: unknown;
+    waitUntil?: unknown;
+    waitOffset?: unknown;
+    waitTimezone?: unknown;
+    expression?: string;
+    [key: string]: unknown;
+  };
+  [key: string]: unknown;
+};
+
+export type WorkflowAddNodeData = {
+  type: "add";
+  label?: string;
+  onClick?: () => void;
+  [key: string]: unknown;
+};
+
+type WorkflowGenericNodeData = {
+  type?: string;
+  label?: string;
+  description?: string;
+  status?: WorkflowNodeStatus;
+  enabled?: boolean;
+  config?: Record<string, unknown>;
+  onClick?: () => void;
+  [key: string]: unknown;
+};
+
+export type WorkflowNodeData =
+  | WorkflowTriggerNodeData
+  | WorkflowActionNodeData
+  | WorkflowAddNodeData
+  | WorkflowGenericNodeData;
+
+export type WorkflowEdgeData = {
+  conditionBranch?: ConditionBranch;
+  branch?: string;
+  switchBranch?: string;
+  [key: string]: unknown;
+};
+
+export type WorkflowCanvasNode = Node<WorkflowNodeData>;
+export type WorkflowCanvasEdge = Edge<WorkflowEdgeData>;
 
 type WorkflowGraphState = {
   nodes: WorkflowCanvasNode[];
@@ -39,8 +115,6 @@ const supportedJourneyActionTypes = new Set([
   "condition",
   "logger",
 ]);
-
-type ConditionBranch = "true" | "false";
 
 function asRecord(value: unknown): Record<string, unknown> | null {
   if (!isRecord(value)) {

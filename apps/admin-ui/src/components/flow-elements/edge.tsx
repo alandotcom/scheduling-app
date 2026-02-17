@@ -7,6 +7,7 @@ import {
   Position,
   useInternalNode,
 } from "@xyflow/react";
+import { memo } from "react";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === "object" && !Array.isArray(value);
@@ -74,7 +75,7 @@ function getEdgeLabel({
   return getSwitchBranchLabel(data.switchBranch) ?? undefined;
 }
 
-const Temporary = ({
+const Temporary = memo(function Temporary({
   id,
   sourceX,
   sourceY,
@@ -83,7 +84,7 @@ const Temporary = ({
   sourcePosition,
   targetPosition,
   selected,
-}: EdgeProps) => {
+}: EdgeProps) {
   const [edgePath] = getSimpleBezierPath({
     sourceX,
     sourceY,
@@ -104,7 +105,7 @@ const Temporary = ({
       }}
     />
   );
-};
+});
 
 const getHandleCoordsByPosition = (
   node: InternalNode,
@@ -191,7 +192,7 @@ const getEdgeParams = (
   };
 };
 
-const Animated = ({
+const Animated = memo(function Animated({
   id,
   source,
   target,
@@ -201,7 +202,7 @@ const Animated = ({
   selected,
   label,
   data,
-}: EdgeProps) => {
+}: EdgeProps) {
   const sourceNode = useInternalNode(source);
   const targetNode = useInternalNode(target);
 
@@ -249,7 +250,7 @@ const Animated = ({
       }}
     />
   );
-};
+});
 
 export const Edge = {
   Temporary,

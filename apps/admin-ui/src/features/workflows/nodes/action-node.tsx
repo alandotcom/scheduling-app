@@ -1,5 +1,6 @@
 import {
   Position,
+  type Node as ReactFlowNode,
   type NodeProps,
   useUpdateNodeInternals,
 } from "@xyflow/react";
@@ -28,6 +29,7 @@ import {
   selectedExecutionIdAtom,
   workflowEditorEdgesAtom,
   workflowExecutionLogsByNodeIdAtom,
+  type WorkflowActionNodeData,
   type WorkflowExecutionNodeLogPreview,
 } from "../workflow-editor-store";
 import {
@@ -38,20 +40,8 @@ import {
   resolveWaitUntil,
 } from "../wait-time";
 
-type ActionNodeData = {
-  label?: string;
-  description?: string;
-  status?: "idle" | "running" | "success" | "error" | "cancelled";
-  enabled?: boolean;
-  config?: {
-    actionType?: string;
-    waitDelayTimingMode?: string;
-    waitDuration?: unknown;
-    waitUntil?: unknown;
-    waitOffset?: unknown;
-    waitTimezone?: unknown;
-  };
-};
+type ActionFlowNode = ReactFlowNode<WorkflowActionNodeData, "action">;
+type ActionNodeProps = NodeProps<ActionFlowNode>;
 
 type WaitPreviewData = {
   countdown: string;
@@ -120,7 +110,7 @@ function getConditionBranchOccupancy(input: {
 
 function toRuntimeNodeStatus(
   status: WorkflowExecutionNodeLogPreview["status"] | undefined,
-): ActionNodeData["status"] {
+): WorkflowActionNodeData["status"] {
   if (!status || status === "pending") {
     return "idle";
   }
@@ -129,7 +119,7 @@ function toRuntimeNodeStatus(
 }
 
 function getWaitDelayTimingMode(
-  config: ActionNodeData["config"],
+  config: WorkflowActionNodeData["config"],
 ): "duration" | "until" {
   const configured =
     typeof config?.waitDelayTimingMode === "string"
@@ -168,7 +158,7 @@ function toSignaturePart(value: unknown): string {
 
 function useConfigWaitPreview(
   actionType: string | undefined,
-  config: ActionNodeData["config"],
+  config: WorkflowActionNodeData["config"],
 ): WaitPreviewData | null {
   const shouldShowWaitPreview = actionType === "wait";
   const delayTimingMode = getWaitDelayTimingMode(config);
@@ -329,7 +319,7 @@ function useRuntimeWaitPreview(
   };
 }
 
-function StatusBadge({ status }: { status: ActionNodeData["status"] }) {
+function StatusBadge({ status }: { status: WorkflowActionNodeData["status"] }) {
   if (!status || status === "idle" || status === "running") return null;
 
   return (
@@ -355,8 +345,11 @@ function StatusBadge({ status }: { status: ActionNodeData["status"] }) {
   );
 }
 
-const ActionNode = memo(function ActionNode({ id, data, selected }: NodeProps) {
-  const nodeData = data as ActionNodeData;
+const ActionNode = memo(function ActionNode({
+  id,
+  data: nodeData,
+  selected,
+}: ActionNodeProps) {
   const isDisabled = nodeData.enabled === false;
   const actionType = nodeData.config?.actionType;
   const actionDef = actionType ? getAction(actionType) : undefined;
