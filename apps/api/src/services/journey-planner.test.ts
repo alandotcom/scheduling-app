@@ -735,4 +735,80 @@ describe("processJourneyDomainEvent", () => {
     expect(run).toBeDefined();
     expect(run?.mode).toBe("test");
   });
+
+  test("keeps test-mode wait scheduling identical to live mode", async () => {
+    const liveJourney = await journeyService.create(
+      {
+        name: "Wait Invariance Live Journey",
+        graph: createJourneyGraph({ waitDuration: "45m" }),
+      },
+      context,
+    );
+
+    await journeyService.publish(
+      liveJourney.id,
+      {
+        mode: "live",
+      },
+      context,
+    );
+
+    const testOnlyJourney = await journeyService.create(
+      {
+        name: "Wait Invariance Test Journey",
+        graph: createJourneyGraph({ waitDuration: "45m" }),
+      },
+      context,
+    );
+
+    await journeyService.publish(
+      testOnlyJourney.id,
+      {
+        mode: "test",
+      },
+      context,
+    );
+
+    await processJourneyDomainEvent(
+      {
+        id: "evt-test-wait-invariance",
+        orgId: context.orgId,
+        type: "appointment.scheduled",
+        payload: createAppointmentPayload({
+          appointmentId: "018f4d3a-6d80-7c5b-8a4a-6cb8f8d57d88",
+        }),
+        timestamp: "2026-02-16T10:00:00.000Z",
+      },
+      {
+        now: new Date("2026-02-16T10:00:00.000Z"),
+      },
+    );
+
+    await setTestOrgContext(db, context.orgId);
+
+    const runs = await db
+      .select({ id: journeyRuns.id, mode: journeyRuns.mode })
+      .from(journeyRuns);
+
+    const runByMode = new Map(runs.map((run) => [run.mode, run.id]));
+    expect(runByMode.size).toBe(2);
+
+    const [liveDelivery] = await db
+      .select({ scheduledFor: journeyDeliveries.scheduledFor })
+      .from(journeyDeliveries)
+      .where(eq(journeyDeliveries.journeyRunId, runByMode.get("live")!))
+      .limit(1);
+
+    const [testDelivery] = await db
+      .select({ scheduledFor: journeyDeliveries.scheduledFor })
+      .from(journeyDeliveries)
+      .where(eq(journeyDeliveries.journeyRunId, runByMode.get("test")!))
+      .limit(1);
+
+    expect(liveDelivery).toBeDefined();
+    expect(testDelivery).toBeDefined();
+    expect(testDelivery?.scheduledFor.toISOString()).toBe(
+      liveDelivery?.scheduledFor.toISOString(),
+    );
+  });
 });

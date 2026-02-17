@@ -672,3 +672,25 @@
 - Updated artifacts:
   - `specs/workflow-engine-rebuild-appointment-journeys/logs/build.log`
   - `specs/workflow-engine-rebuild-appointment-journeys/logs/test.log`
+
+## 2026-02-17 - Task 09: Implement Test Mode Dual Path Semantics (Revalidation)
+
+### RED
+- Added explicit R40 wait-invariance coverage in `apps/api/src/services/journey-planner.test.ts` to compare planned delivery timestamps for equivalent `live` and `test` runs under identical wait configuration.
+- Expanded manual test-start coverage in `apps/api/src/services/journeys.test.ts` to assert manual `mode=test` runs create real delivery rows (no dry-run short-circuit behavior).
+
+### GREEN
+- Re-ran targeted service suites and verified green:
+  - `pnpm --filter @scheduling/api run test -- src/services/journey-planner.test.ts src/services/journeys.test.ts`
+- Verified the new invariance checkpoint holds: test-mode wait scheduling remains identical to live-mode scheduling for the same event timestamp + wait config.
+
+### REFACTOR
+- Kept this slice scoped to test-semantic contract coverage; runtime/service behavior already satisfied task-09 requirements without additional implementation changes.
+- Re-ran required quality gates and refreshed logs:
+  - `pnpm format`
+  - `pnpm lint`
+  - `pnpm typecheck`
+  - `pnpm test`
+- Updated artifacts:
+  - `specs/workflow-engine-rebuild-appointment-journeys/logs/build.log`
+  - `specs/workflow-engine-rebuild-appointment-journeys/logs/test.log`

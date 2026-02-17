@@ -710,6 +710,16 @@ describe("JourneyService", () => {
 
     expect(run).toBeDefined();
     expect(run?.mode).toBe("test");
+
+    const deliveries = await db
+      .select({
+        id: journeyDeliveries.id,
+        journeyRunId: journeyDeliveries.journeyRunId,
+      })
+      .from(journeyDeliveries)
+      .where(eq(journeyDeliveries.journeyRunId, result.runId));
+
+    expect(deliveries).toHaveLength(1);
   });
 
   test("manual test start rejects missing email override and does not create sends", async () => {
