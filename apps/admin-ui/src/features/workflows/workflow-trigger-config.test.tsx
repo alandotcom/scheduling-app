@@ -32,7 +32,7 @@ describe("WorkflowTriggerConfig", () => {
     expect(screen.getByText("Re-entry")).toBeTruthy();
     expect(screen.getByText("Rescheduling")).toBeTruthy();
     expect(screen.getByText("Stop when")).toBeTruthy();
-    expect(screen.getByText("Audience")).toBeTruthy();
+    expect(screen.getByText("Audience Rules")).toBeTruthy();
 
     const syncCheckbox = screen.getByRole("checkbox", {
       name: "Update scheduled messages when the appointment moves",
@@ -69,37 +69,7 @@ describe("WorkflowTriggerConfig", () => {
     expect(screen.queryByRole("button", { name: "Advanced" })).toBeNull();
   });
 
-  test("keeps trigger filters collapsed by default and edits grouped AST when expanded", () => {
-    const onUpdate = mock(() => {});
-
-    render(
-      <WorkflowTriggerConfig
-        config={createTriggerConfig()}
-        disabled={false}
-        onUpdate={onUpdate}
-      />,
-    );
-
-    expect(screen.queryByRole("button", { name: "Add group" })).toBeNull();
-
-    fireEvent.click(screen.getByRole("button", { name: "Add rules" }));
-
-    fireEvent.click(screen.getByRole("button", { name: "Add group" }));
-    fireEvent.click(
-      screen.getAllByRole("button", { name: "Add condition" })[0]!,
-    );
-
-    const fieldInput = screen.getAllByPlaceholderText(
-      "appointment.startAt",
-    )[0]!;
-    fireEvent.change(fieldInput, {
-      target: { value: "appointment.startAt" },
-    });
-
-    expect(onUpdate).toHaveBeenCalled();
-  });
-
-  test("renders top-level filter logic selector when filter rules exist", () => {
+  test("keeps trigger filters collapsed by default and expands on toggle", () => {
     const onUpdate = mock(() => {});
 
     render(
@@ -107,7 +77,7 @@ describe("WorkflowTriggerConfig", () => {
         config={{
           ...createTriggerConfig(),
           filter: {
-            logic: "or",
+            logic: "and",
             groups: [
               {
                 logic: "and",
@@ -127,11 +97,115 @@ describe("WorkflowTriggerConfig", () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Edit rules" }));
+    expect(screen.queryByRole("button", { name: "Add group" })).toBeNull();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Toggle audience rules" }),
+    );
+
+    expect(screen.getByRole("button", { name: "Add group" })).toBeTruthy();
+  });
+
+  test("adds blank condition rows with dropdown property and operator controls", () => {
+    const onUpdate = mock(() => {});
+
+    render(
+      <WorkflowTriggerConfig
+        config={createTriggerConfig()}
+        disabled={false}
+        onUpdate={onUpdate}
+      />,
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Toggle audience rules" }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Add group" }));
+
     expect(
-      screen.getByRole("combobox", { name: "Group combination logic" }),
+      screen.getByRole("combobox", {
+        name: "Group 1 condition 1 field",
+      }),
     ).toBeTruthy();
+    expect(
+      screen.getByRole("combobox", {
+        name: "Group 1 condition 1 operator",
+      }),
+    ).toBeTruthy();
+    expect(screen.queryByDisplayValue("appointment.status")).toBeNull();
     expect(onUpdate).toHaveBeenCalledTimes(0);
+  });
+
+  test("updates top-level filter logic through group connector controls", () => {
+    const onUpdate = mock(() => {});
+
+    render(
+      <WorkflowTriggerConfig
+        config={{
+          ...createTriggerConfig(),
+          filter: {
+            logic: "and",
+            groups: [
+              {
+                logic: "and",
+                conditions: [
+                  {
+                    field: "appointment.status",
+                    operator: "equals",
+                    value: "scheduled",
+                  },
+                ],
+              },
+              {
+                logic: "and",
+                conditions: [
+                  {
+                    field: "appointment.status",
+                    operator: "equals",
+                    value: "confirmed",
+                  },
+                ],
+              },
+            ],
+          },
+        }}
+        disabled={false}
+        onUpdate={onUpdate}
+      />,
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Toggle audience rules" }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Group connector OR" }));
+
+    expect(onUpdate).toHaveBeenCalledWith({
+      filter: {
+        logic: "or",
+        groups: [
+          {
+            logic: "and",
+            conditions: [
+              {
+                field: "appointment.status",
+                operator: "equals",
+                value: "scheduled",
+              },
+            ],
+          },
+          {
+            logic: "and",
+            conditions: [
+              {
+                field: "appointment.status",
+                operator: "equals",
+                value: "confirmed",
+              },
+            ],
+          },
+        ],
+      },
+    });
   });
 
   test("prevents adding more than four filter groups", () => {
@@ -192,11 +266,49 @@ describe("WorkflowTriggerConfig", () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Edit rules" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Toggle audience rules" }),
+    );
     fireEvent.click(screen.getByRole("button", { name: "Add group" }));
 
     expect(screen.getByText("You can add at most 4 groups.")).toBeTruthy();
     expect(onUpdate).toHaveBeenCalledTimes(0);
+  });
+
+  test("allows removing the last group and clears all filters", () => {
+    const onUpdate = mock(() => {});
+
+    render(
+      <WorkflowTriggerConfig
+        config={{
+          ...createTriggerConfig(),
+          filter: {
+            logic: "and",
+            groups: [
+              {
+                logic: "and",
+                conditions: [
+                  {
+                    field: "appointment.status",
+                    operator: "equals",
+                    value: "scheduled",
+                  },
+                ],
+              },
+            ],
+          },
+        }}
+        disabled={false}
+        onUpdate={onUpdate}
+      />,
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Toggle audience rules" }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Remove group 1" }));
+
+    expect(onUpdate).toHaveBeenCalledWith({ filter: undefined });
   });
 
   test("prevents adding more than twelve filter conditions", () => {
@@ -297,7 +409,9 @@ describe("WorkflowTriggerConfig", () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Edit rules" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Toggle audience rules" }),
+    );
     fireEvent.click(
       screen.getAllByRole("button", { name: "Add condition" })[0]!,
     );

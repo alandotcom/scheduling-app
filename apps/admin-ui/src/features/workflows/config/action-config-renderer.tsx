@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
-import { ArrowDown01Icon } from "@hugeicons/core-free-icons";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { ArrowDown01Icon, Delete01Icon } from "@hugeicons/core-free-icons";
 import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
 import { Input } from "@/components/ui/input";
@@ -153,16 +153,14 @@ function toKeyValueRows(value: unknown): KeyValueRow[] {
   return rows;
 }
 
-function normalizeKeyValueRows(rows: KeyValueRow[]): Array<{
+function serializeKeyValueRowsForDraft(rows: KeyValueRow[]): Array<{
   key: string;
   value: string;
 }> {
-  return rows
-    .map((row) => ({
-      key: row.key.trim(),
-      value: row.value,
-    }))
-    .filter((row) => row.key.length > 0);
+  return rows.map((row) => ({
+    key: row.key,
+    value: row.value,
+  }));
 }
 
 function TextFieldRenderer({
@@ -429,22 +427,43 @@ function KeyValueListFieldRenderer({
   const [rows, setRows] = useState<KeyValueRow[]>(() =>
     toKeyValueRows(configValue),
   );
+  const rowsRef = useRef(rows);
 
   useEffect(() => {
-    setRows(toKeyValueRows(configValue));
+    const nextRows = toKeyValueRows(configValue);
+    rowsRef.current = nextRows;
+    setRows(nextRows);
   }, [configValue]);
 
   const commitRows = (nextRows: KeyValueRow[]) => {
-    onUpdateConfig(field.key, normalizeKeyValueRows(nextRows));
+    onUpdateConfig(field.key, serializeKeyValueRowsForDraft(nextRows));
+  };
+
+  const commitCurrentRows = () => {
+    commitRows(rowsRef.current);
+  };
+
+  const commitRowPatch = (
+    rowId: string,
+    patch: Partial<Pick<KeyValueRow, "key" | "value">>,
+  ) => {
+    const nextRows = rowsRef.current.map((row) =>
+      row.id === rowId ? { ...row, ...patch } : row,
+    );
+    rowsRef.current = nextRows;
+    setRows(nextRows);
+    commitRows(nextRows);
   };
 
   const updateRow = (
     rowId: string,
     patch: Partial<Pick<KeyValueRow, "key" | "value">>,
   ) => {
-    setRows((currentRows) =>
-      currentRows.map((row) => (row.id === rowId ? { ...row, ...patch } : row)),
+    const nextRows = rowsRef.current.map((row) =>
+      row.id === rowId ? { ...row, ...patch } : row,
     );
+    rowsRef.current = nextRows;
+    setRows(nextRows);
   };
 
   return (
@@ -452,45 +471,63 @@ function KeyValueListFieldRenderer({
       <Label>{field.label}</Label>
       <div className="space-y-2">
         {rows.map((row) => (
-          <div key={row.id} className="grid grid-cols-[1fr_1fr_auto] gap-2">
-            <Input
-              disabled={disabled}
-              onBlur={() => commitRows(rows)}
-              onChange={(event) =>
-                updateRow(row.id, { key: event.target.value })
-              }
-              placeholder={field.keyPlaceholder ?? "Key"}
-              type="text"
-              value={row.key}
-            />
-            <ExpressionInput
-              disabled={disabled}
-              onBlur={() => commitRows(rows)}
-              onChange={(nextValue) => updateRow(row.id, { value: nextValue })}
-              placeholder={field.valuePlaceholder ?? "Value"}
-              suggestions={suggestions}
-              value={row.value}
-            />
+          <div
+            key={row.id}
+            className="grid gap-2 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]"
+          >
+            <div className="min-w-0">
+              <Input
+                disabled={disabled}
+                onBlur={(event) =>
+                  commitRowPatch(row.id, { key: event.target.value })
+                }
+                onChange={(event) =>
+                  updateRow(row.id, { key: event.target.value })
+                }
+                placeholder={field.keyPlaceholder ?? "Key"}
+                type="text"
+                value={row.key}
+              />
+            </div>
+            <div className="min-w-0">
+              <ExpressionInput
+                disabled={disabled}
+                onBlur={commitCurrentRows}
+                onChange={(nextValue) =>
+                  updateRow(row.id, { value: nextValue })
+                }
+                placeholder={field.valuePlaceholder ?? "Value"}
+                suggestions={suggestions}
+                value={row.value}
+              />
+            </div>
             <Button
+              aria-label="Remove variable"
+              className="lg:justify-self-end"
               disabled={disabled}
               onClick={() => {
-                const nextRows = rows.filter(
+                const nextRows = rowsRef.current.filter(
                   (candidate) => candidate.id !== row.id,
                 );
+                rowsRef.current = nextRows;
                 setRows(nextRows);
                 commitRows(nextRows);
               }}
-              size="sm"
+              size="icon-sm"
               type="button"
-              variant="outline"
+              variant="destructive"
             >
-              Remove
+              <Icon className="size-4" icon={Delete01Icon} />
             </Button>
           </div>
         ))}
         <Button
           disabled={disabled}
-          onClick={() => setRows([...rows, createKeyValueRow()])}
+          onClick={() => {
+            const nextRows = [...rowsRef.current, createKeyValueRow()];
+            rowsRef.current = nextRows;
+            setRows(nextRows);
+          }}
           size="sm"
           type="button"
           variant="outline"

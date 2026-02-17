@@ -133,7 +133,9 @@ describe("WorkflowEditorSidebar role behavior", () => {
     const labelInput = screen.getByLabelText("Label") as HTMLInputElement;
 
     expect(labelInput.disabled).toBe(false);
-    expect(screen.getByRole("button", { name: "Add rules" })).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: "Toggle audience rules" }),
+    ).toBeTruthy();
   });
 
   test("re-syncs selected node inputs when switching nodes", () => {

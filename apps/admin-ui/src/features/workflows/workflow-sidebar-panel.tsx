@@ -8,8 +8,8 @@ import {
   rightPanelWidthAtom,
 } from "./workflow-editor-store";
 
-const DEFAULT_WIDTH_PERCENT = 30;
-const MIN_WIDTH_PERCENT = 20;
+const DEFAULT_WIDTH_PERCENT = 34;
+const MIN_WIDTH_PERCENT = 26;
 const MAX_WIDTH_PERCENT = 50;
 
 const COOKIE_SIDEBAR_WIDTH = "sidebar-width";

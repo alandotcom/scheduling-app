@@ -1,10 +1,31 @@
 import { afterEach, describe, expect, mock, test } from "bun:test";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { useState } from "react";
 import { ActionConfig } from "./action-config";
 
 afterEach(() => {
   cleanup();
 });
+
+function StatefulActionConfig({
+  initialConfig,
+}: {
+  initialConfig: Record<string, unknown>;
+}) {
+  const [config, setConfig] = useState(initialConfig);
+
+  return (
+    <ActionConfig
+      config={config}
+      onUpdateConfig={(key, value) =>
+        setConfig((currentConfig) => ({
+          ...currentConfig,
+          [key]: value,
+        }))
+      }
+    />
+  );
+}
 
 describe("ActionConfig", () => {
   test("shows brand logos in service and action pickers", () => {
@@ -95,8 +116,75 @@ describe("ActionConfig", () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Remove" }));
+    fireEvent.click(screen.getByRole("button", { name: "Remove variable" }));
 
     expect(onUpdateConfig).toHaveBeenCalledWith("templateVariables", []);
+  });
+
+  test("uses responsive layout classes for template variable rows", () => {
+    render(
+      <ActionConfig
+        config={{
+          actionType: "send-resend-template",
+          templateVariables: [{ key: "PRODUCT", value: "Widget" }],
+        }}
+        onUpdateConfig={mock((_key: string, _value: unknown) => {})}
+      />,
+    );
+
+    const removeButton = screen.getByRole("button", {
+      name: "Remove variable",
+    });
+    const row = removeButton.parentElement;
+
+    if (!row) {
+      throw new Error("Expected template variable row");
+    }
+
+    expect(row.className).toContain("grid");
+    expect(row.className).toContain("gap-2");
+    expect(row.className).toContain(
+      "lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]",
+    );
+    expect(removeButton.className).toContain("lg:justify-self-end");
+  });
+
+  test("commits latest template variable input value on blur", () => {
+    const onUpdateConfig = mock((_key: string, _value: unknown) => {});
+
+    render(
+      <ActionConfig
+        config={{ actionType: "send-resend-template" }}
+        onUpdateConfig={onUpdateConfig}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Add variable" }));
+
+    const keyInput = screen.getByPlaceholderText("PRODUCT");
+    fireEvent.change(keyInput, { target: { value: "PRODUCT" } });
+    fireEvent.blur(keyInput);
+
+    expect(onUpdateConfig).toHaveBeenCalledWith("templateVariables", [
+      { key: "PRODUCT", value: "" },
+    ]);
+  });
+
+  test("keeps empty template variable row visible after blur", () => {
+    render(
+      <StatefulActionConfig
+        initialConfig={{ actionType: "send-resend-template" }}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Add variable" }));
+
+    const keyInput = screen.getByPlaceholderText("PRODUCT");
+    fireEvent.blur(keyInput);
+
+    expect(screen.getByPlaceholderText("PRODUCT")).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: "Remove variable" }),
+    ).toBeTruthy();
   });
 });
