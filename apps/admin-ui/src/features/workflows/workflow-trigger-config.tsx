@@ -1,9 +1,5 @@
 import { useEffect, useState } from "react";
-import {
-  Alert02Icon,
-  ArrowDown01Icon,
-  ArrowRight02Icon,
-} from "@hugeicons/core-free-icons";
+import { Alert02Icon } from "@hugeicons/core-free-icons";
 import {
   journeyTriggerFilterAstSchema,
   journeyTriggerFilterOperatorSchema,
@@ -104,7 +100,6 @@ export function WorkflowTriggerConfig({
   const [filterValidationError, setFilterValidationError] = useState<
     string | null
   >(null);
-  const [showAdvanced, setShowAdvanced] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
 
   useEffect(() => {
@@ -174,6 +169,17 @@ export function WorkflowTriggerConfig({
 
         return { ...group, logic };
       }),
+    });
+  };
+
+  const handleFilterLogicChange = (logic: "and" | "or") => {
+    if (!filterDraft) {
+      return;
+    }
+
+    commitFilter({
+      ...filterDraft,
+      logic,
     });
   };
 
@@ -358,6 +364,31 @@ export function WorkflowTriggerConfig({
               </p>
             </div>
 
+            {filterDraft ? (
+              <div className="flex items-center justify-between gap-2 rounded-md border p-2">
+                <p className="text-muted-foreground text-xs">
+                  Combine groups with
+                </p>
+                <Select
+                  disabled={disabled}
+                  value={filterDraft.logic}
+                  onValueChange={(logic) => {
+                    if (logic === "and" || logic === "or") {
+                      handleFilterLogicChange(logic);
+                    }
+                  }}
+                >
+                  <SelectTrigger aria-label="Group combination logic" size="sm">
+                    <SelectValue placeholder="Logic" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="and">AND</SelectItem>
+                    <SelectItem value="or">OR</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            ) : null}
+
             <div className="flex justify-end">
               <Button
                 disabled={disabled}
@@ -397,7 +428,10 @@ export function WorkflowTriggerConfig({
                             }
                           }}
                         >
-                          <SelectTrigger size="sm">
+                          <SelectTrigger
+                            aria-label={`Group ${groupIndex + 1} condition logic`}
+                            size="sm"
+                          >
                             <SelectValue placeholder="Logic" />
                           </SelectTrigger>
                           <SelectContent>
@@ -419,47 +453,55 @@ export function WorkflowTriggerConfig({
 
                     {group.conditions.map((condition, conditionIndex) => (
                       <div
-                        className="grid grid-cols-1 gap-2 md:grid-cols-3"
+                        className="space-y-2"
                         key={`condition-${groupIndex}-${conditionIndex}`}
                       >
-                        <Input
-                          disabled={disabled}
-                          placeholder="appointment.startAt"
-                          value={condition.field}
-                          onChange={(event) =>
-                            handleConditionChange(groupIndex, conditionIndex, {
-                              field: event.target.value,
-                            })
-                          }
-                        />
-                        <Select
-                          disabled={disabled}
-                          value={condition.operator}
-                          onValueChange={(operator) => {
-                            if (!isJourneyFilterOperator(operator)) {
-                              return;
+                        <div className="grid grid-cols-1 gap-2 md:grid-cols-3">
+                          <Input
+                            disabled={disabled}
+                            placeholder="appointment.startAt"
+                            value={condition.field}
+                            onChange={(event) =>
+                              handleConditionChange(
+                                groupIndex,
+                                conditionIndex,
+                                {
+                                  field: event.target.value,
+                                },
+                              )
                             }
+                          />
+                          <Select
+                            disabled={disabled}
+                            value={condition.operator}
+                            onValueChange={(operator) => {
+                              if (!isJourneyFilterOperator(operator)) {
+                                return;
+                              }
 
-                            handleConditionChange(groupIndex, conditionIndex, {
-                              operator,
-                              ...(isValueLessOperator(operator)
-                                ? { value: undefined }
-                                : {}),
-                            });
-                          }}
-                        >
-                          <SelectTrigger size="sm">
-                            <SelectValue placeholder="Operator" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {FILTER_OPERATORS.map((operator) => (
-                              <SelectItem key={operator} value={operator}>
-                                {operator}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <div className="flex items-center gap-2">
+                              handleConditionChange(
+                                groupIndex,
+                                conditionIndex,
+                                {
+                                  operator,
+                                  ...(isValueLessOperator(operator)
+                                    ? { value: undefined }
+                                    : {}),
+                                },
+                              );
+                            }}
+                          >
+                            <SelectTrigger size="sm">
+                              <SelectValue placeholder="Operator" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {FILTER_OPERATORS.map((operator) => (
+                                <SelectItem key={operator} value={operator}>
+                                  {operator}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
                           <Input
                             disabled={
                               disabled ||
@@ -483,6 +525,8 @@ export function WorkflowTriggerConfig({
                               )
                             }
                           />
+                        </div>
+                        <div className="flex justify-end">
                           <Button
                             disabled={disabled}
                             onClick={() =>
@@ -511,39 +555,6 @@ export function WorkflowTriggerConfig({
                 ))}
               </div>
             ) : null}
-          </div>
-        ) : null}
-      </div>
-
-      <div className="space-y-2 rounded-md border p-3">
-        <button
-          className="flex items-center gap-2 font-medium text-sm"
-          onClick={() => setShowAdvanced((current) => !current)}
-          type="button"
-        >
-          <Icon
-            className="size-4 text-muted-foreground"
-            icon={showAdvanced ? ArrowDown01Icon : ArrowRight02Icon}
-          />
-          Advanced
-        </button>
-
-        {showAdvanced ? (
-          <div className="space-y-2 rounded-md border p-2 text-xs">
-            <p>
-              <span className="font-medium">Journey key:</span> Appointment ID
-            </p>
-            <p className="text-muted-foreground">Event mapping (read-only):</p>
-            <p>
-              <span className="font-medium">Start:</span> appointment.scheduled
-            </p>
-            <p>
-              <span className="font-medium">Restart:</span>{" "}
-              appointment.rescheduled
-            </p>
-            <p>
-              <span className="font-medium">Stop:</span> appointment.canceled
-            </p>
           </div>
         ) : null}
       </div>

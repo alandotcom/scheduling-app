@@ -53,7 +53,7 @@ describe("WorkflowTriggerConfig", () => {
     expect(screen.queryByLabelText("Correlation path")).toBeNull();
   });
 
-  test("renders advanced details behind collapsible section", () => {
+  test("does not render advanced section details", () => {
     const onUpdate = mock(() => {});
 
     render(
@@ -65,13 +65,8 @@ describe("WorkflowTriggerConfig", () => {
     );
 
     expect(screen.queryByText("Event mapping (read-only):")).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "Advanced" }));
-
-    expect(screen.getByText("Event mapping (read-only):")).toBeTruthy();
-    expect(screen.getByText("appointment.scheduled")).toBeTruthy();
-    expect(screen.getByText("appointment.rescheduled")).toBeTruthy();
-    expect(screen.getByText("appointment.canceled")).toBeTruthy();
-    expect(screen.getByText(/Journey key:/)).toBeTruthy();
+    expect(screen.queryByText(/Journey key:/)).toBeNull();
+    expect(screen.queryByRole("button", { name: "Advanced" })).toBeNull();
   });
 
   test("keeps trigger filters collapsed by default and edits grouped AST when expanded", () => {
@@ -102,6 +97,41 @@ describe("WorkflowTriggerConfig", () => {
     });
 
     expect(onUpdate).toHaveBeenCalled();
+  });
+
+  test("renders top-level filter logic selector when filter rules exist", () => {
+    const onUpdate = mock(() => {});
+
+    render(
+      <WorkflowTriggerConfig
+        config={{
+          ...createTriggerConfig(),
+          filter: {
+            logic: "or",
+            groups: [
+              {
+                logic: "and",
+                conditions: [
+                  {
+                    field: "appointment.status",
+                    operator: "equals",
+                    value: "scheduled",
+                  },
+                ],
+              },
+            ],
+          },
+        }}
+        disabled={false}
+        onUpdate={onUpdate}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Edit rules" }));
+    expect(
+      screen.getByRole("combobox", { name: "Group combination logic" }),
+    ).toBeTruthy();
+    expect(onUpdate).toHaveBeenCalledTimes(0);
   });
 
   test("prevents adding more than four filter groups", () => {
