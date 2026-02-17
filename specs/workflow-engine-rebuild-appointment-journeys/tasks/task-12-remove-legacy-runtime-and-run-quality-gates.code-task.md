@@ -1,8 +1,8 @@
 ---
-status: pending
+status: completed
 created: 2026-02-16
-started: null
-completed: null
+started: 2026-02-16
+completed: 2026-02-16
 ---
 # Task: Remove Legacy Runtime and Run Quality Gates
 

@@ -19,4 +19,3 @@ export * from "./webhook";
 export * from "./integration";
 export * from "./journey";
 export * from "./workflow-graph";
-export * from "./workflow";

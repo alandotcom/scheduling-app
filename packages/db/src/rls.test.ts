@@ -19,7 +19,7 @@ import {
   appointmentTypes,
   resources,
   clients,
-  workflows,
+  journeys,
 } from "./schema/index.js";
 import { eq, sql } from "drizzle-orm";
 
@@ -230,15 +230,13 @@ describe("CRUD operations with org context", () => {
       lastName: "Client",
     });
 
-    await db.insert(workflows).values({
+    await db.insert(journeys).values({
       orgId: org.id,
-      name: "Test Workflow",
-      graph: {
-        nodes: [],
-        edges: [],
-        viewport: { x: 0, y: 0, zoom: 1 },
+      name: "Test Journey",
+      state: "draft",
+      draftDefinition: {
+        steps: [],
       },
-      visibility: "private",
     });
 
     // Verify all data exists
@@ -247,7 +245,7 @@ describe("CRUD operations with org context", () => {
     expect(await db.query.appointmentTypes.findMany()).toHaveLength(1);
     expect(await db.query.resources.findMany()).toHaveLength(1);
     expect(await db.query.clients.findMany()).toHaveLength(1);
-    expect(await db.query.workflows.findMany()).toHaveLength(1);
+    expect(await db.query.journeys.findMany()).toHaveLength(1);
 
     await clearTestOrgContext(db);
   });
@@ -287,35 +285,35 @@ describe("CRUD operations with org context", () => {
     await clearTestOrgContext(db);
   });
 
-  test("RLS filters workflows by org context", async () => {
+  test("RLS filters journeys by org context", async () => {
     const { org: orgA } = await seedTestOrg(db);
     const { org: orgB } = await seedSecondTestOrg(db);
 
     await setTestOrgContext(db, orgA.id);
-    await db.insert(workflows).values({
+    await db.insert(journeys).values({
       orgId: orgA.id,
-      name: "Workflow A",
-      graph: { nodes: [], edges: [], viewport: { x: 0, y: 0, zoom: 1 } },
-      visibility: "private",
+      name: "Journey A",
+      state: "draft",
+      draftDefinition: { steps: [] },
     });
 
     await setTestOrgContext(db, orgB.id);
-    await db.insert(workflows).values({
+    await db.insert(journeys).values({
       orgId: orgB.id,
-      name: "Workflow B",
-      graph: { nodes: [], edges: [], viewport: { x: 0, y: 0, zoom: 1 } },
-      visibility: "private",
+      name: "Journey B",
+      state: "draft",
+      draftDefinition: { steps: [] },
     });
 
     await setTestOrgContext(db, orgA.id);
-    const workflowsA = await db.query.workflows.findMany();
-    expect(workflowsA).toHaveLength(1);
-    expect(workflowsA[0]!.name).toBe("Workflow A");
+    const journeysA = await db.query.journeys.findMany();
+    expect(journeysA).toHaveLength(1);
+    expect(journeysA[0]!.name).toBe("Journey A");
 
     await setTestOrgContext(db, orgB.id);
-    const workflowsB = await db.query.workflows.findMany();
-    expect(workflowsB).toHaveLength(1);
-    expect(workflowsB[0]!.name).toBe("Workflow B");
+    const journeysB = await db.query.journeys.findMany();
+    expect(journeysB).toHaveLength(1);
+    expect(journeysB[0]!.name).toBe("Journey B");
 
     await clearTestOrgContext(db);
   });

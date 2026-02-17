@@ -390,3 +390,40 @@
 - Captured latest command output in:
   - `specs/workflow-engine-rebuild-appointment-journeys/logs/test.log`
   - `specs/workflow-engine-rebuild-appointment-journeys/logs/build.log`
+
+## 2026-02-16 - Task 12: Remove Legacy Runtime and Run Quality Gates
+
+### RED
+- Added explicit regression checks to fail while legacy surfaces still existed:
+  - `apps/api/src/routes/index.test.ts` requires `uiRouter.workflows` to be absent.
+  - `packages/dto/src/schemas/journey-cutover.test.ts` requires workflow DTO exports (`createWorkflowSchema`, `workflowExecutionSchema`) to be absent.
+  - `packages/db/src/journeys.constraints.test.ts` requires legacy workflow runtime tables to be absent from `pg_tables`.
+- Confirmed all three checks failed before cleanup.
+
+### GREEN
+- Removed legacy workflow runtime API surfaces and wiring:
+  - deleted workflow routes/services/repository/runtime files and related tests under `apps/api/src/routes`, `apps/api/src/services`, `apps/api/src/repositories`, and `apps/api/src/inngest/functions`.
+  - removed workflow route mounting from `apps/api/src/routes/index.ts`.
+  - removed workflow internal event schemas from `apps/api/src/inngest/client.ts` and workflow event senders from `apps/api/src/inngest/runtime-events.ts`.
+  - removed workflow Inngest function registration in `apps/api/src/inngest/functions/index.ts`.
+- Removed legacy workflow DTO contracts by deleting `packages/dto/src/schemas/workflow.ts` (+ tests) and removing export from `packages/dto/src/schemas/index.ts`.
+- Switched remaining admin creation entry point to journeys API in `apps/admin-ui/src/features/workflows/create-workflow-dialog.tsx` (`orpc.journeys.create`, `createJourneySchema`).
+- Removed legacy workflow persistence model from DB artifacts:
+  - deleted workflow table definitions from `packages/db/src/schema/index.ts`.
+  - removed workflow relations from `packages/db/src/relations.ts`.
+  - removed workflow reset/truncation entries from `packages/db/src/test-utils.ts`.
+  - removed workflow DDL/index/FK/policy statements from baseline migration `packages/db/src/migrations/20260208064434_init/migration.sql`.
+  - deleted obsolete workflow DB constraints test file and updated `packages/db/src/rls.test.ts` to journey coverage.
+- Re-ran targeted RED tests and they passed.
+
+### REFACTOR
+- Updated router composition expectations in `apps/api/src/routes/router-composition.test.ts` to assert journeys exposure and workflow-route absence.
+- Kept shared wait-time helper (`workflow-wait-time.ts`) as a neutral utility used by journey planner runtime.
+- Ran and passed required gates:
+  - `pnpm format`
+  - `pnpm lint`
+  - `pnpm typecheck`
+  - `pnpm test`
+- Captured latest command output in:
+  - `specs/workflow-engine-rebuild-appointment-journeys/logs/test.log`
+  - `specs/workflow-engine-rebuild-appointment-journeys/logs/build.log`

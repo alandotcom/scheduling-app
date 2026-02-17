@@ -1,28 +1,4 @@
-import type { SerializedWorkflowGraph } from "@scheduling/dto";
-import type { DomainEventType } from "@scheduling/dto";
 import { inngest } from "./client.js";
-
-export type WorkflowRunRequestedEventData = {
-  orgId: string;
-  workflowId: string;
-  workflowName: string;
-  executionId: string;
-  graph: SerializedWorkflowGraph;
-  triggerInput: Record<string, unknown>;
-  eventContext: {
-    eventType: DomainEventType;
-    correlationKey?: string;
-  };
-};
-
-export type WorkflowCancelRequestedEventData = {
-  executionId: string;
-  workflowId: string;
-  reason: string;
-  requestedBy: string;
-  eventType?: DomainEventType;
-  correlationKey?: string;
-};
 
 export type JourneyDeliveryScheduledEventData = {
   orgId: string;
@@ -90,41 +66,6 @@ function getEventId(result: unknown): string | undefined {
   }
 
   return;
-}
-
-export async function sendWorkflowRunRequested(
-  input: WorkflowRunRequestedEventData,
-): Promise<{ eventId?: string }> {
-  const response = await inngest.send({
-    id: `workflow-run-${input.executionId}`,
-    name: "workflow/run.requested",
-    data: input,
-  });
-
-  const eventId = getEventId(response);
-
-  if (eventId) {
-    return { eventId };
-  }
-
-  return {};
-}
-
-export async function sendWorkflowCancelRequested(
-  input: WorkflowCancelRequestedEventData,
-): Promise<{ eventId?: string }> {
-  const response = await inngest.send({
-    id: `workflow-cancel-${input.executionId}-${Date.now()}`,
-    name: "workflow/run.cancel.requested",
-    data: input,
-  });
-
-  const eventId = getEventId(response);
-  if (eventId) {
-    return { eventId };
-  }
-
-  return {};
 }
 
 export async function sendJourneyDeliveryScheduled(

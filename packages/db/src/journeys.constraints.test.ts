@@ -269,4 +269,23 @@ describe("journey constraints", () => {
       "journeys_org_name_ci_uidx",
     ]);
   });
+
+  test("does not retain legacy workflow runtime tables", async () => {
+    const result = await db.execute(sql`
+      SELECT tablename
+      FROM pg_tables
+      WHERE schemaname = 'public'
+        AND tablename IN (
+          'workflows',
+          'workflow_executions',
+          'workflow_execution_logs',
+          'workflow_execution_events',
+          'workflow_wait_states'
+        )
+      ORDER BY tablename
+    `);
+
+    const rows = resultRows<{ tablename: string }>(result);
+    expect(rows).toEqual([]);
+  });
 });

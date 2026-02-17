@@ -5,10 +5,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { z } from "zod";
-import {
-  createWorkflowSchema,
-  type SerializedWorkflowGraph,
-} from "@scheduling/dto";
+import { createJourneySchema, type LinearJourneyGraph } from "@scheduling/dto";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -23,10 +20,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { orpc } from "@/lib/query";
 
-const nameSchema = createWorkflowSchema.pick({ name: true });
+const nameSchema = createJourneySchema.pick({ name: true });
 type NameFormValues = z.infer<typeof nameSchema>;
 
-function createDefaultWorkflowGraph(): SerializedWorkflowGraph {
+function createDefaultWorkflowGraph(): LinearJourneyGraph {
   const triggerId = crypto.randomUUID();
 
   return {
@@ -93,9 +90,9 @@ export function CreateWorkflowDialog({
   }, [open, reset]);
 
   const createMutation = useMutation(
-    orpc.workflows.create.mutationOptions({
+    orpc.journeys.create.mutationOptions({
       onSuccess: (data) => {
-        queryClient.invalidateQueries({ queryKey: orpc.workflows.key() });
+        queryClient.invalidateQueries({ queryKey: orpc.journeys.key() });
         onOpenChange(false);
         navigate({
           to: "/workflows/$workflowId",
