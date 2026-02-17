@@ -26,6 +26,17 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
+import {
+  ABSOLUTE_TEMPORAL_OPERATORS,
+  RELATIVE_TEMPORAL_OPERATORS,
+  VALUELESS_OPERATORS,
+  WORKFLOW_FILTER_FIELD_OPTIONS,
+  WORKFLOW_FILTER_TEMPORAL_UNIT_OPTIONS,
+  getOperatorOptionsForField,
+  getWorkflowFilterFieldType,
+  toDateInputValue,
+  toRelativeTemporalValueDraft,
+} from "./filter-builder-shared";
 
 type TriggerConfigShape = {
   triggerType?: "AppointmentJourney";
@@ -56,38 +67,6 @@ type JourneyTriggerFilterAstDraft = {
 };
 type FilterGroup = JourneyTriggerFilterAstDraft["groups"][number];
 
-const FILTER_FIELD_OPTIONS = [
-  { label: "Appointment ID", value: "appointment.appointmentId" },
-  { label: "Calendar ID", value: "appointment.calendarId" },
-  { label: "Appointment Type ID", value: "appointment.appointmentTypeId" },
-  { label: "Client ID", value: "appointment.clientId" },
-  { label: "Start Time", value: "appointment.startAt" },
-  { label: "End Time", value: "appointment.endAt" },
-  { label: "Timezone", value: "appointment.timezone" },
-  { label: "Appointment Status", value: "appointment.status" },
-  { label: "Notes", value: "appointment.notes" },
-] as const;
-
-const FILTER_OPERATOR_OPTIONS = [
-  { label: "equals", value: "equals" },
-  { label: "does not equal", value: "not_equals" },
-  { label: "is one of", value: "in" },
-  { label: "is not one of", value: "not_in" },
-  { label: "contains", value: "contains" },
-  { label: "does not contain", value: "not_contains" },
-  { label: "starts with", value: "starts_with" },
-  { label: "ends with", value: "ends_with" },
-  { label: "before", value: "before" },
-  { label: "after", value: "after" },
-  { label: "on or before", value: "on_or_before" },
-  { label: "on or after", value: "on_or_after" },
-  { label: "is set", value: "is_set" },
-  { label: "is not set", value: "is_not_set" },
-] as const satisfies Array<{
-  label: string;
-  value: JourneyTriggerFilterCondition["operator"];
-}>;
-
 function toFilterDraft(value: unknown): JourneyTriggerFilterAstDraft | null {
   const parsed = journeyTriggerFilterAstSchema.safeParse(value);
   if (!parsed.success) {
@@ -116,7 +95,7 @@ function createEmptyCondition(): JourneyTriggerFilterConditionDraft {
   return {
     field: "",
     operator: "",
-    value: "",
+    value: undefined,
   };
 }
 
@@ -133,7 +112,21 @@ function createDefaultFilter(): JourneyTriggerFilterAstDraft {
 }
 
 function isValueLessOperator(operator: string): boolean {
-  return operator === "is_set" || operator === "is_not_set";
+  return isJourneyFilterOperator(operator) && VALUELESS_OPERATORS.has(operator);
+}
+
+function isRelativeTemporalOperator(operator: string): boolean {
+  return (
+    isJourneyFilterOperator(operator) &&
+    RELATIVE_TEMPORAL_OPERATORS.has(operator)
+  );
+}
+
+function isAbsoluteTemporalOperator(operator: string): boolean {
+  return (
+    isJourneyFilterOperator(operator) &&
+    ABSOLUTE_TEMPORAL_OPERATORS.has(operator)
+  );
 }
 
 function isJourneyFilterOperator(
@@ -157,6 +150,10 @@ function toConditionValue(
   }
 
   return "";
+}
+
+function toOperatorFallbackLabel(operator: string): string {
+  return operator.replaceAll("_", " ");
 }
 
 interface LogicConnectorProps {
@@ -244,83 +241,167 @@ function ConditionRow({
   onChange,
   onRemove,
 }: ConditionRowProps) {
+  const isTimestampField =
+    getWorkflowFilterFieldType(condition.field) === "timestamp";
+  const baseOperatorOptions = getOperatorOptionsForField(condition.field);
+  const operatorOptions =
+    condition.operator.length > 0 &&
+    isJourneyFilterOperator(condition.operator) &&
+    !baseOperatorOptions.some((option) => option.value === condition.operator)
+      ? [
+          {
+            label: toOperatorFallbackLabel(condition.operator),
+            value: condition.operator,
+          },
+          ...baseOperatorOptions,
+        ]
+      : baseOperatorOptions;
+  const relativeTemporalValue = toRelativeTemporalValueDraft(condition.value);
+
   return (
     <div className="flex items-start gap-2">
-      <div className="min-w-0 flex-1 rounded-md bg-muted/20 p-2">
-        <div className="grid min-w-0 grid-cols-2 gap-2 max-[420px]:grid-cols-1">
-          <div className="min-w-0">
-            <Select
-              disabled={disabled}
-              value={condition.field.length > 0 ? condition.field : null}
-              onValueChange={(field) => {
-                if (typeof field !== "string" || field.length === 0) {
-                  return;
-                }
-
-                onChange(groupIndex, conditionIndex, {
-                  field,
-                });
-              }}
-            >
-              <SelectTrigger
-                aria-label={`Group ${groupIndex + 1} condition ${conditionIndex + 1} field`}
-                className="h-9 min-w-0 w-full"
-                size="sm"
-              >
-                <SelectValue placeholder="Select property" />
-              </SelectTrigger>
-              <SelectContent>
-                {FILTER_FIELD_OPTIONS.map((field) => (
-                  <SelectItem key={field.value} value={field.value}>
-                    {field.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="min-w-0">
-            <Select
-              disabled={disabled}
-              value={condition.operator.length > 0 ? condition.operator : null}
-              onValueChange={(operator) => {
-                if (!isJourneyFilterOperator(operator)) {
-                  return;
-                }
-
-                onChange(groupIndex, conditionIndex, {
-                  operator,
-                  ...(isValueLessOperator(operator)
-                    ? { value: undefined }
-                    : {}),
-                });
-              }}
-            >
-              <SelectTrigger
-                aria-label={`Group ${groupIndex + 1} condition ${conditionIndex + 1} operator`}
-                className="h-9 min-w-0 w-full"
-                size="sm"
-              >
-                <SelectValue placeholder="Select operator" />
-              </SelectTrigger>
-              <SelectContent>
-                {FILTER_OPERATOR_OPTIONS.map((operator) => (
-                  <SelectItem key={operator.value} value={operator.value}>
-                    {operator.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="col-span-2 min-w-0 max-[420px]:col-span-1">
-            <Input
-              className="h-9"
-              disabled={
-                disabled ||
-                condition.operator.length === 0 ||
-                isValueLessOperator(condition.operator)
+      <div className="min-w-0 flex-1">
+        <div className="grid min-w-0 grid-cols-1 gap-2 min-[420px]:grid-cols-2">
+          <Select
+            disabled={disabled}
+            value={condition.field.length > 0 ? condition.field : null}
+            onValueChange={(field) => {
+              if (typeof field !== "string" || field.length === 0) {
+                return;
               }
+
+              onChange(groupIndex, conditionIndex, {
+                field,
+                operator: "",
+                value: undefined,
+              });
+            }}
+          >
+            <SelectTrigger
+              aria-label={`Group ${groupIndex + 1} condition ${conditionIndex + 1} field`}
+              className="h-9 min-w-0 w-full"
+              size="sm"
+            >
+              <SelectValue placeholder="Select property" />
+            </SelectTrigger>
+            <SelectContent>
+              {WORKFLOW_FILTER_FIELD_OPTIONS.map((field) => (
+                <SelectItem key={field.value} value={field.value}>
+                  {field.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Select
+            disabled={disabled}
+            value={condition.operator.length > 0 ? condition.operator : null}
+            onValueChange={(operator) => {
+              if (!isJourneyFilterOperator(operator)) {
+                return;
+              }
+
+              onChange(groupIndex, conditionIndex, {
+                operator,
+                value: undefined,
+              });
+            }}
+          >
+            <SelectTrigger
+              aria-label={`Group ${groupIndex + 1} condition ${conditionIndex + 1} operator`}
+              className="h-9 min-w-0 w-full"
+              size="sm"
+            >
+              <SelectValue placeholder="Select operator" />
+            </SelectTrigger>
+            <SelectContent>
+              {operatorOptions.map((operator) => (
+                <SelectItem key={operator.value} value={operator.value}>
+                  {operator.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          {condition.operator.length === 0 ||
+          isValueLessOperator(condition.operator) ? null : isTimestampField &&
+            isRelativeTemporalOperator(condition.operator) ? (
+            <div className="grid min-w-0 grid-cols-2 gap-2 min-[420px]:col-span-2">
+              <Input
+                className="h-9"
+                disabled={disabled}
+                min={1}
+                placeholder="Amount"
+                type="number"
+                value={
+                  typeof relativeTemporalValue.amount === "number"
+                    ? String(relativeTemporalValue.amount)
+                    : ""
+                }
+                onChange={(event) => {
+                  const parsedAmount = Number.parseInt(event.target.value, 10);
+                  onChange(groupIndex, conditionIndex, {
+                    value: {
+                      ...relativeTemporalValue,
+                      amount:
+                        Number.isInteger(parsedAmount) && parsedAmount > 0
+                          ? parsedAmount
+                          : undefined,
+                    },
+                  });
+                }}
+              />
+              <Select
+                disabled={disabled}
+                value={relativeTemporalValue.unit ?? null}
+                onValueChange={(unit) => {
+                  if (
+                    unit !== "minutes" &&
+                    unit !== "hours" &&
+                    unit !== "days" &&
+                    unit !== "weeks"
+                  ) {
+                    return;
+                  }
+
+                  onChange(groupIndex, conditionIndex, {
+                    value: {
+                      ...relativeTemporalValue,
+                      unit,
+                    },
+                  });
+                }}
+              >
+                <SelectTrigger className="h-9 min-w-0 w-full" size="sm">
+                  <SelectValue placeholder="Unit" />
+                </SelectTrigger>
+                <SelectContent>
+                  {WORKFLOW_FILTER_TEMPORAL_UNIT_OPTIONS.map((unit) => (
+                    <SelectItem key={unit.value} value={unit.value}>
+                      {unit.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          ) : isTimestampField &&
+            isAbsoluteTemporalOperator(condition.operator) ? (
+            <Input
+              className="h-9 min-[420px]:col-span-2"
+              disabled={disabled}
+              placeholder="Select date"
+              type="date"
+              value={toDateInputValue(condition.value)}
+              onChange={(event) =>
+                onChange(groupIndex, conditionIndex, {
+                  value: event.target.value,
+                })
+              }
+            />
+          ) : (
+            <Input
+              className="h-9 min-[420px]:col-span-2"
+              disabled={disabled}
               placeholder="Enter value..."
               value={toConditionValue(condition)}
               onChange={(event) =>
@@ -329,7 +410,7 @@ function ConditionRow({
                 })
               }
             />
-          </div>
+          )}
         </div>
       </div>
 

@@ -7,7 +7,7 @@ const BASE_CONTEXT = {
     id: "appt-1",
     status: "scheduled",
     timezone: "America/New_York",
-    startsAt: "2026-02-16T10:30:00.000Z",
+    startAt: "2026-02-16T10:30:00.000Z",
   },
   client: {
     id: "client-1",
@@ -43,7 +43,7 @@ function createFilterAst(): JourneyTriggerFilterAst {
         logic: "or",
         conditions: [
           {
-            field: "appointment.startsAt",
+            field: "appointment.startAt",
             operator: "on_or_after",
             value: "2026-02-16T10:00:00.000Z",
           },
@@ -86,11 +86,98 @@ describe("journey trigger filter evaluator", () => {
         ...BASE_CONTEXT,
         appointment: {
           ...BASE_CONTEXT.appointment,
-          startsAt: "2026-02-16T08:30:00.000Z",
+          startAt: "2026-02-16T08:30:00.000Z",
         },
       },
     });
     expect(beforeThreshold.matched).toBe(false);
+  });
+
+  test("supports relative temporal operators against now", () => {
+    const now = new Date("2026-02-16T10:00:00.000Z");
+    const withinNextFilter: JourneyTriggerFilterAst = {
+      logic: "and",
+      groups: [
+        {
+          logic: "and",
+          conditions: [
+            {
+              field: "appointment.startAt",
+              operator: "within_next",
+              value: {
+                amount: 3,
+                unit: "days",
+              },
+            },
+          ],
+        },
+      ],
+    };
+
+    const withinNext = evaluateJourneyTriggerFilter({
+      filter: withinNextFilter,
+      context: BASE_CONTEXT,
+      now,
+    });
+    expect(withinNext.matched).toBe(true);
+
+    const moreThanFromNowFilter: JourneyTriggerFilterAst = {
+      logic: "and",
+      groups: [
+        {
+          logic: "and",
+          conditions: [
+            {
+              field: "appointment.startAt",
+              operator: "more_than_from_now",
+              value: {
+                amount: 2,
+                unit: "weeks",
+              },
+            },
+          ],
+        },
+      ],
+    };
+
+    const moreThanFromNow = evaluateJourneyTriggerFilter({
+      filter: moreThanFromNowFilter,
+      context: BASE_CONTEXT,
+      now,
+    });
+    expect(moreThanFromNow.matched).toBe(false);
+  });
+
+  test("evaluates date-only comparisons using org timezone midnight", () => {
+    const filter: JourneyTriggerFilterAst = {
+      logic: "and",
+      groups: [
+        {
+          logic: "and",
+          conditions: [
+            {
+              field: "appointment.startAt",
+              operator: "before",
+              value: "2026-02-16",
+            },
+          ],
+        },
+      ],
+    };
+
+    const result = evaluateJourneyTriggerFilter({
+      filter,
+      context: {
+        ...BASE_CONTEXT,
+        appointment: {
+          ...BASE_CONTEXT.appointment,
+          startAt: "2026-02-16T04:30:00.000Z",
+        },
+      },
+      orgTimezone: "America/New_York",
+    });
+
+    expect(result.matched).toBe(true);
   });
 
   test("fails closed when unsupported operations are encountered", () => {

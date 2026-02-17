@@ -1,4 +1,5 @@
 import { Environment } from "@marcbachmann/cel-js";
+import { DateTime } from "luxon";
 
 export type JourneyConditionContext = {
   appointment: Record<string, unknown>;
@@ -20,6 +21,25 @@ export type JourneyConditionEvaluationResult = {
   error?: JourneyConditionEvaluationError;
 };
 
+const DEFAULT_ORG_TIMEZONE = "UTC";
+const DATE_ONLY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+
+function parseConditionDateValue(value: string, timezone: string): Date {
+  const normalized = value.trim();
+  const hasExplicitTimezone = /(?:z|[+-]\d{2}:\d{2})$/i.test(normalized);
+  const parsed = DATE_ONLY_PATTERN.test(normalized)
+    ? DateTime.fromISO(normalized, { zone: timezone }).startOf("day")
+    : hasExplicitTimezone
+      ? DateTime.fromISO(normalized, { setZone: true })
+      : DateTime.fromISO(normalized, { zone: timezone });
+
+  if (!parsed.isValid) {
+    throw new Error(`Invalid date literal "${value}"`);
+  }
+
+  return parsed.toUTC().toJSDate();
+}
+
 const conditionEnvironment = new Environment({
   unlistedVariablesAreDyn: false,
   limits: {
@@ -31,11 +51,21 @@ const conditionEnvironment = new Environment({
   },
 })
   .registerVariable("appointment", "map")
-  .registerVariable("client", "map");
+  .registerVariable("client", "map")
+  .registerVariable("now", "dyn")
+  .registerVariable("orgTimezone", "string")
+  .registerFunction("date(string): dyn", (value) =>
+    parseConditionDateValue(value, DEFAULT_ORG_TIMEZONE),
+  )
+  .registerFunction("date(string, string): dyn", (value, timezone) =>
+    parseConditionDateValue(value, timezone),
+  );
 
 export function evaluateJourneyConditionExpression(input: {
   expression: unknown;
   context: JourneyConditionContext;
+  now?: Date;
+  orgTimezone?: string;
 }): JourneyConditionEvaluationResult {
   if (
     typeof input.expression !== "string" ||
@@ -65,6 +95,8 @@ export function evaluateJourneyConditionExpression(input: {
     const evaluated = conditionEnvironment.evaluate(input.expression, {
       appointment: input.context.appointment,
       client: input.context.client,
+      now: input.now ?? new Date(),
+      orgTimezone: input.orgTimezone ?? DEFAULT_ORG_TIMEZONE,
     });
 
     if (evaluated instanceof Promise) {

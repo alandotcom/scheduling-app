@@ -12,6 +12,7 @@ import {
   clients,
   journeyDeliveries,
   journeyRuns,
+  orgs,
   journeys,
   journeyVersions,
 } from "@scheduling/db/schema";
@@ -29,6 +30,7 @@ import { resolveWaitUntil } from "./workflow-wait-time.js";
 
 const ACTIVE_JOURNEY_STATES = ["published", "test_only"] as const;
 const ACTIVE_RUN_STATUSES = ["planned", "running"] as const;
+const DEFAULT_ORG_TIMEZONE = "UTC";
 const journeyPlannerLogger = getLogger(["journeys", "planner"]);
 
 export type JourneyPlannerDomainEventType = Extract<
@@ -307,6 +309,8 @@ function resolveNextNodeId(input: {
   clientContext: Record<string, unknown>;
   journeyId: string;
   appointmentId: string;
+  now: Date;
+  orgTimezone: string;
 }): string | null {
   const actionType = getNormalizedActionType(input.node);
   if (actionType !== "condition") {
@@ -322,6 +326,8 @@ function resolveNextNodeId(input: {
       appointment: input.appointmentContext,
       client: input.clientContext,
     },
+    now: input.now,
+    orgTimezone: input.orgTimezone,
   });
 
   if (conditionResult.error) {
@@ -412,6 +418,7 @@ function buildDesiredDeliveries(input: {
   clientContext: Record<string, unknown>;
   eventTimestamp: string;
   now: Date;
+  orgTimezone: string;
 }): DesiredDelivery[] {
   const triggerNode = getTriggerNode(input.graph);
   if (!triggerNode) {
@@ -467,6 +474,8 @@ function buildDesiredDeliveries(input: {
         clientContext: input.clientContext,
         journeyId: input.journeyId,
         appointmentId: input.appointmentId,
+        now: input.now,
+        orgTimezone: input.orgTimezone,
       });
       continue;
     }
@@ -923,6 +932,15 @@ export async function processJourneyDomainEvent(
       )
       .orderBy(desc(journeyVersions.version), desc(journeyVersions.id));
 
+    const [org] = await tx
+      .select({
+        defaultTimezone: orgs.defaultTimezone,
+      })
+      .from(orgs)
+      .where(eq(orgs.id, event.orgId))
+      .limit(1);
+    const orgTimezone = org?.defaultTimezone ?? DEFAULT_ORG_TIMEZONE;
+
     const latestVersionByJourneyId = new Map<string, JourneyVersionRow>();
     for (const version of versions) {
       if (!latestVersionByJourneyId.has(version.journeyId)) {
@@ -1016,6 +1034,8 @@ export async function processJourneyDomainEvent(
                 appointment: appointmentContext,
                 client: clientContext,
               },
+              now,
+              orgTimezone,
             });
 
             if (!filterResult.matched) {
@@ -1048,6 +1068,7 @@ export async function processJourneyDomainEvent(
             clientContext,
             eventTimestamp: event.timestamp,
             now,
+            orgTimezone,
           });
 
           const reconciliationResult = await reconcileDeliveries({

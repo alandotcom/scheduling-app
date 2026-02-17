@@ -187,4 +187,44 @@ describe("ActionConfig", () => {
       screen.getByRole("button", { name: "Remove variable" }),
     ).toBeTruthy();
   });
+
+  test("renders condition builder controls with appointment attributes", () => {
+    render(
+      <ActionConfig
+        config={{ actionType: "condition", expression: "true" }}
+        onUpdateConfig={mock((_key: string, _value: unknown) => {})}
+      />,
+    );
+
+    expect(screen.getByRole("button", { name: "Builder" })).toBeTruthy();
+    expect(
+      screen.getByRole("combobox", { name: "Condition field" }),
+    ).toBeTruthy();
+    expect(
+      screen.getByRole("combobox", { name: "Condition operator" }),
+    ).toBeTruthy();
+    expect(screen.getByText("Select property")).toBeTruthy();
+    expect(screen.getByText("Select operator")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("combobox", { name: "Condition field" }));
+    expect(screen.getByText("Appointment Status")).toBeTruthy();
+    expect(screen.queryByText("Patient Status")).toBeNull();
+  });
+
+  test("falls back to raw CEL mode for existing custom condition expressions", () => {
+    render(
+      <ActionConfig
+        config={{
+          actionType: "condition",
+          expression: 'appointment.status == "scheduled"',
+        }}
+        onUpdateConfig={mock((_key: string, _value: unknown) => {})}
+      />,
+    );
+
+    expect(screen.getByRole("button", { name: "Raw CEL" })).toBeTruthy();
+    expect(
+      screen.queryByRole("combobox", { name: "Condition field" }),
+    ).toBeNull();
+  });
 });

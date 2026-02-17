@@ -136,6 +136,53 @@ describe("WorkflowTriggerConfig", () => {
     expect(onUpdate).toHaveBeenCalledTimes(0);
   });
 
+  test("shows appointment trigger attributes and timestamp-specific operators", () => {
+    const onUpdate = mock(() => {});
+
+    render(
+      <WorkflowTriggerConfig
+        config={{
+          ...createTriggerConfig(),
+          filter: {
+            logic: "and",
+            groups: [
+              {
+                logic: "and",
+                conditions: [
+                  {
+                    field: "appointment.startAt",
+                    operator: "within_next",
+                    value: {
+                      amount: 1,
+                      unit: "days",
+                    },
+                  },
+                ],
+              },
+            ],
+          },
+        }}
+        disabled={false}
+        onUpdate={onUpdate}
+      />,
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Toggle audience rules" }),
+    );
+
+    fireEvent.click(
+      screen.getByRole("combobox", { name: "Group 1 condition 1 field" }),
+    );
+    expect(screen.getByText("Appointment Status")).toBeTruthy();
+    expect(screen.queryByText("Patient Status")).toBeNull();
+
+    fireEvent.click(
+      screen.getByRole("combobox", { name: "Group 1 condition 1 operator" }),
+    );
+    expect(screen.getByText("is within the next")).toBeTruthy();
+  });
+
   test("updates top-level filter logic through group connector controls", () => {
     const onUpdate = mock(() => {});
 

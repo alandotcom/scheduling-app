@@ -1,4 +1,5 @@
 import { Environment } from "@marcbachmann/cel-js";
+import { DateTime } from "luxon";
 import {
   journeyTriggerFilterAstSchema,
   type JourneyTriggerFilterAst,
@@ -11,6 +12,15 @@ export type JourneyTriggerFilterContext = {
   appointment: Record<string, unknown>;
   client: Record<string, unknown>;
 };
+
+type RelativeTemporalUnit = "minutes" | "hours" | "days" | "weeks";
+type RelativeTemporalValue = {
+  amount: number;
+  unit: RelativeTemporalUnit;
+};
+
+const DEFAULT_ORG_TIMEZONE = "UTC";
+const DATE_ONLY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
 export type JourneyTriggerFilterEvaluationErrorCode =
   | "FILTER_VALIDATION_FAILED"
@@ -37,7 +47,9 @@ const filterEnvironment = new Environment({
     maxMapEntries: 128,
     maxCallArguments: 8,
   },
-}).registerVariable("values", "map");
+})
+  .registerVariable("values", "map")
+  .registerVariable("now", "dyn");
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -174,8 +186,115 @@ function getStringValue(
   };
 }
 
+function getRelativeTemporalValue(
+  condition: JourneyTriggerFilterCondition,
+): ValueExtractionResult<RelativeTemporalValue> {
+  const value = condition.value;
+  if (!isRecord(value)) {
+    return {
+      ok: false,
+      error: unsupportedValueError(
+        condition.operator,
+        "a relative temporal value",
+      ),
+    };
+  }
+
+  const amount = value["amount"];
+  const unit = value["unit"];
+
+  if (
+    typeof amount !== "number" ||
+    !Number.isInteger(amount) ||
+    amount <= 0 ||
+    (unit !== "minutes" &&
+      unit !== "hours" &&
+      unit !== "days" &&
+      unit !== "weeks")
+  ) {
+    return {
+      ok: false,
+      error: unsupportedValueError(
+        condition.operator,
+        "a relative temporal value",
+      ),
+    };
+  }
+
+  return {
+    ok: true,
+    value: {
+      amount,
+      unit,
+    },
+  };
+}
+
+function toDurationLiteral(value: RelativeTemporalValue): string {
+  if (value.unit === "minutes") {
+    return `${value.amount}m`;
+  }
+
+  if (value.unit === "hours") {
+    return `${value.amount}h`;
+  }
+
+  if (value.unit === "days") {
+    return `${value.amount * 24}h`;
+  }
+
+  return `${value.amount * 7 * 24}h`;
+}
+
+function toUtcTimestampLiteral(input: {
+  value: string;
+  orgTimezone: string;
+}): ValueExtractionResult<string> {
+  const value = input.value.trim();
+  if (value.length === 0) {
+    return {
+      ok: false,
+      error: {
+        code: "UNSUPPORTED_OPERATION",
+        message: "Date operators require a non-empty date value",
+      },
+    };
+  }
+
+  const hasExplicitTimezone = /(?:z|[+-]\d{2}:\d{2})$/i.test(value);
+  const parsed = DATE_ONLY_PATTERN.test(value)
+    ? DateTime.fromISO(value, { zone: input.orgTimezone }).startOf("day")
+    : hasExplicitTimezone
+      ? DateTime.fromISO(value, { setZone: true })
+      : DateTime.fromISO(value, { zone: input.orgTimezone });
+
+  if (!parsed.isValid) {
+    return {
+      ok: false,
+      error: {
+        code: "UNSUPPORTED_OPERATION",
+        message: `Invalid temporal value "${input.value}"`,
+      },
+    };
+  }
+
+  const iso = parsed.toUTC().toISO();
+  if (!iso) {
+    return {
+      ok: false,
+      error: {
+        code: "UNSUPPORTED_OPERATION",
+        message: `Invalid temporal value "${input.value}"`,
+      },
+    };
+  }
+
+  return { ok: true, value: iso };
+}
+
 function buildConditionExpression(
   condition: JourneyTriggerFilterCondition,
+  options: { orgTimezone: string },
 ): BuildExpressionResult {
   const left = toValuesLookup(condition.field);
 
@@ -274,9 +393,17 @@ function buildConditionExpression(
         return { ok: false, error: dateValue.error };
       }
 
+      const timestampValue = toUtcTimestampLiteral({
+        value: dateValue.value,
+        orgTimezone: options.orgTimezone,
+      });
+      if (!timestampValue.ok) {
+        return { ok: false, error: timestampValue.error };
+      }
+
       return {
         ok: true,
-        expression: `${left} != null && timestamp(string(${left})) < timestamp(${toCelLiteral(dateValue.value)})`,
+        expression: `${left} != null && timestamp(string(${left})) < timestamp(${toCelLiteral(timestampValue.value)})`,
       };
     }
     case "after": {
@@ -285,9 +412,17 @@ function buildConditionExpression(
         return { ok: false, error: dateValue.error };
       }
 
+      const timestampValue = toUtcTimestampLiteral({
+        value: dateValue.value,
+        orgTimezone: options.orgTimezone,
+      });
+      if (!timestampValue.ok) {
+        return { ok: false, error: timestampValue.error };
+      }
+
       return {
         ok: true,
-        expression: `${left} != null && timestamp(string(${left})) > timestamp(${toCelLiteral(dateValue.value)})`,
+        expression: `${left} != null && timestamp(string(${left})) > timestamp(${toCelLiteral(timestampValue.value)})`,
       };
     }
     case "on_or_before": {
@@ -296,9 +431,17 @@ function buildConditionExpression(
         return { ok: false, error: dateValue.error };
       }
 
+      const timestampValue = toUtcTimestampLiteral({
+        value: dateValue.value,
+        orgTimezone: options.orgTimezone,
+      });
+      if (!timestampValue.ok) {
+        return { ok: false, error: timestampValue.error };
+      }
+
       return {
         ok: true,
-        expression: `${left} != null && timestamp(string(${left})) <= timestamp(${toCelLiteral(dateValue.value)})`,
+        expression: `${left} != null && timestamp(string(${left})) <= timestamp(${toCelLiteral(timestampValue.value)})`,
       };
     }
     case "on_or_after": {
@@ -307,9 +450,65 @@ function buildConditionExpression(
         return { ok: false, error: dateValue.error };
       }
 
+      const timestampValue = toUtcTimestampLiteral({
+        value: dateValue.value,
+        orgTimezone: options.orgTimezone,
+      });
+      if (!timestampValue.ok) {
+        return { ok: false, error: timestampValue.error };
+      }
+
       return {
         ok: true,
-        expression: `${left} != null && timestamp(string(${left})) >= timestamp(${toCelLiteral(dateValue.value)})`,
+        expression: `${left} != null && timestamp(string(${left})) >= timestamp(${toCelLiteral(timestampValue.value)})`,
+      };
+    }
+    case "within_next": {
+      const relativeValue = getRelativeTemporalValue(condition);
+      if (!relativeValue.ok) {
+        return { ok: false, error: relativeValue.error };
+      }
+
+      const duration = toDurationLiteral(relativeValue.value);
+      return {
+        ok: true,
+        expression: `${left} != null && timestamp(string(${left})) > now && timestamp(string(${left})) < now + duration(${toCelLiteral(duration)})`,
+      };
+    }
+    case "more_than_from_now": {
+      const relativeValue = getRelativeTemporalValue(condition);
+      if (!relativeValue.ok) {
+        return { ok: false, error: relativeValue.error };
+      }
+
+      const duration = toDurationLiteral(relativeValue.value);
+      return {
+        ok: true,
+        expression: `${left} != null && timestamp(string(${left})) > now + duration(${toCelLiteral(duration)})`,
+      };
+    }
+    case "less_than_ago": {
+      const relativeValue = getRelativeTemporalValue(condition);
+      if (!relativeValue.ok) {
+        return { ok: false, error: relativeValue.error };
+      }
+
+      const duration = toDurationLiteral(relativeValue.value);
+      return {
+        ok: true,
+        expression: `${left} != null && timestamp(string(${left})) > now - duration(${toCelLiteral(duration)})`,
+      };
+    }
+    case "more_than_ago": {
+      const relativeValue = getRelativeTemporalValue(condition);
+      if (!relativeValue.ok) {
+        return { ok: false, error: relativeValue.error };
+      }
+
+      const duration = toDurationLiteral(relativeValue.value);
+      return {
+        ok: true,
+        expression: `${left} != null && timestamp(string(${left})) < now - duration(${toCelLiteral(duration)})`,
       };
     }
     case "is_set":
@@ -329,6 +528,7 @@ function buildConditionExpression(
 
 function buildFilterExpression(
   filter: JourneyTriggerFilterAst,
+  options: { orgTimezone: string },
 ): BuildExpressionResult {
   const groupExpressions: string[] = [];
 
@@ -336,7 +536,7 @@ function buildFilterExpression(
     const conditionExpressions: string[] = [];
 
     for (const condition of group.conditions) {
-      const conditionExpression = buildConditionExpression(condition);
+      const conditionExpression = buildConditionExpression(condition, options);
       if (!conditionExpression.ok) {
         return conditionExpression;
       }
@@ -391,6 +591,8 @@ function collectValues(
 export function evaluateJourneyTriggerFilter(input: {
   filter: JourneyTriggerFilterAst;
   context: JourneyTriggerFilterContext;
+  now?: Date;
+  orgTimezone?: string;
 }): JourneyTriggerFilterEvaluationResult {
   const parsedFilter = journeyTriggerFilterAstSchema.safeParse(input.filter);
   if (!parsedFilter.success) {
@@ -410,7 +612,9 @@ export function evaluateJourneyTriggerFilter(input: {
     };
   }
 
-  const expressionResult = buildFilterExpression(parsedFilter.data);
+  const expressionResult = buildFilterExpression(parsedFilter.data, {
+    orgTimezone: input.orgTimezone ?? DEFAULT_ORG_TIMEZONE,
+  });
   if (!expressionResult.ok) {
     return {
       matched: false,
@@ -434,6 +638,7 @@ export function evaluateJourneyTriggerFilter(input: {
       expressionResult.expression,
       {
         values: collectValues(parsedFilter.data, input.context),
+        now: input.now ?? new Date(),
       },
     );
 

@@ -46,6 +46,10 @@ const TEMPORAL_FILTER_OPERATOR_SET = new Set([
   "after",
   "on_or_before",
   "on_or_after",
+  "within_next",
+  "more_than_from_now",
+  "less_than_ago",
+  "more_than_ago",
 ]);
 
 const STRING_FILTER_OPERATOR_SET = new Set([
@@ -68,8 +72,19 @@ export const journeyTriggerFilterOperatorSchema = z.enum([
   "after",
   "on_or_before",
   "on_or_after",
+  "within_next",
+  "more_than_from_now",
+  "less_than_ago",
+  "more_than_ago",
   "is_set",
   "is_not_set",
+]);
+
+export const journeyTriggerFilterTemporalUnitSchema = z.enum([
+  "minutes",
+  "hours",
+  "days",
+  "weeks",
 ]);
 
 function isPrimitiveLiteral(value: unknown): boolean {
@@ -88,6 +103,19 @@ function isIsoDateTimeLiteral(value: unknown): boolean {
 
   const parsed = Date.parse(value);
   return Number.isFinite(parsed);
+}
+
+function isRelativeTemporalValue(
+  value: unknown,
+): value is { amount: number; unit: "minutes" | "hours" | "days" | "weeks" } {
+  const parsed = z
+    .object({
+      amount: z.number().int().positive(),
+      unit: journeyTriggerFilterTemporalUnitSchema,
+    })
+    .safeParse(value);
+
+  return parsed.success;
 }
 
 type JourneyTriggerFilterFieldKind = "temporal" | "text" | "generic";
@@ -226,6 +254,21 @@ export const journeyTriggerFilterConditionSchema = z
           ctx.addIssue({
             code: "custom",
             message: "Date operators require an ISO-compatible date-time value",
+            path: ["value"],
+          });
+        }
+        return;
+      }
+
+      case "within_next":
+      case "more_than_from_now":
+      case "less_than_ago":
+      case "more_than_ago": {
+        if (!isRelativeTemporalValue(condition.value)) {
+          ctx.addIssue({
+            code: "custom",
+            message:
+              "Relative date operators require { amount: positive integer, unit: minutes|hours|days|weeks }",
             path: ["value"],
           });
         }
@@ -428,6 +471,9 @@ export type WorkflowDomainEventTriggerConfig = z.infer<
 export type JourneyTriggerConfig = z.infer<typeof journeyTriggerConfigSchema>;
 export type JourneyTriggerFilterOperator = z.infer<
   typeof journeyTriggerFilterOperatorSchema
+>;
+export type JourneyTriggerFilterTemporalUnit = z.infer<
+  typeof journeyTriggerFilterTemporalUnitSchema
 >;
 export type JourneyTriggerFilterCondition = z.infer<
   typeof journeyTriggerFilterConditionSchema

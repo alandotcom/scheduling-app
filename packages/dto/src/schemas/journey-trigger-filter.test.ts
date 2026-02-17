@@ -139,4 +139,58 @@ describe("journey trigger filter AST schema", () => {
       );
     }
   });
+
+  test("accepts relative temporal operator payloads for temporal fields", () => {
+    const parsed = journeyTriggerFilterAstSchema.safeParse({
+      logic: "and",
+      groups: [
+        {
+          logic: "and",
+          conditions: [
+            {
+              field: "appointment.startAt",
+              operator: "within_next",
+              value: {
+                amount: 2,
+                unit: "weeks",
+              },
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(parsed.success).toBe(true);
+  });
+
+  test("rejects invalid relative temporal values", () => {
+    const parsed = journeyTriggerFilterAstSchema.safeParse({
+      logic: "and",
+      groups: [
+        {
+          logic: "and",
+          conditions: [
+            {
+              field: "appointment.startAt",
+              operator: "within_next",
+              value: {
+                amount: 0,
+                unit: "days",
+              },
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(parsed.success).toBe(false);
+    if (!parsed.success) {
+      expect(
+        parsed.error.issues.some(
+          (issue) =>
+            issue.path[0] === "groups" && issue.path.at(-1) === "value",
+        ),
+      ).toBe(true);
+    }
+  });
 });

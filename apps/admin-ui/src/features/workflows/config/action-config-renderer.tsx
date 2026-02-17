@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowDown01Icon, Delete01Icon } from "@hugeicons/core-free-icons";
+import type { JourneyTriggerFilterCondition } from "@scheduling/dto";
 import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
 import { Input } from "@/components/ui/input";
@@ -21,6 +22,17 @@ import { isFieldGroup } from "../action-registry";
 import type { EventAttributeSuggestion } from "./event-attribute-suggestions";
 import { ExpressionInput } from "./expression-input";
 import { parseTimestampWithTimezone } from "../wait-time";
+import {
+  ABSOLUTE_TEMPORAL_OPERATORS,
+  RELATIVE_TEMPORAL_OPERATORS,
+  VALUELESS_OPERATORS,
+  WORKFLOW_FILTER_FIELD_OPTIONS,
+  WORKFLOW_FILTER_TEMPORAL_UNIT_OPTIONS,
+  getOperatorOptionsForField,
+  getWorkflowFilterFieldType,
+  toDateInputValue,
+  toRelativeTemporalValueDraft,
+} from "../filter-builder-shared";
 
 interface ActionConfigRendererProps {
   fields: ActionConfigField[];
@@ -133,6 +145,164 @@ function validateWaitUntilValue(
   }
 
   return `"${invalidReference}" is not a datetime attribute.`;
+}
+
+function isJourneyFilterOperator(
+  value: string,
+): value is JourneyTriggerFilterCondition["operator"] {
+  return (
+    value === "equals" ||
+    value === "not_equals" ||
+    value === "in" ||
+    value === "not_in" ||
+    value === "contains" ||
+    value === "not_contains" ||
+    value === "starts_with" ||
+    value === "ends_with" ||
+    value === "before" ||
+    value === "after" ||
+    value === "on_or_before" ||
+    value === "on_or_after" ||
+    value === "within_next" ||
+    value === "more_than_from_now" ||
+    value === "less_than_ago" ||
+    value === "more_than_ago" ||
+    value === "is_set" ||
+    value === "is_not_set"
+  );
+}
+
+function isValuelessOperator(
+  operator: JourneyTriggerFilterCondition["operator"],
+): boolean {
+  return VALUELESS_OPERATORS.has(operator);
+}
+
+function isRelativeTemporalOperator(
+  operator: JourneyTriggerFilterCondition["operator"],
+): boolean {
+  return RELATIVE_TEMPORAL_OPERATORS.has(operator);
+}
+
+function isAbsoluteTemporalOperator(
+  operator: JourneyTriggerFilterCondition["operator"],
+): boolean {
+  return ABSOLUTE_TEMPORAL_OPERATORS.has(operator);
+}
+
+function toDurationLiteral(input: { amount: number; unit: string }): string {
+  if (input.unit === "minutes") {
+    return `${input.amount}m`;
+  }
+
+  if (input.unit === "hours") {
+    return `${input.amount}h`;
+  }
+
+  if (input.unit === "days") {
+    return `${input.amount * 24}h`;
+  }
+
+  return `${input.amount * 7 * 24}h`;
+}
+
+function compileConditionBuilderExpression(input: {
+  field: string;
+  operator: JourneyTriggerFilterCondition["operator"] | "";
+  value: unknown;
+}): string {
+  if (input.field.length === 0 || input.operator.length === 0) {
+    return "";
+  }
+
+  if (!isJourneyFilterOperator(input.operator)) {
+    return "";
+  }
+
+  const left = input.field;
+  const isTimestampField =
+    getWorkflowFilterFieldType(input.field) === "timestamp";
+
+  if (isValuelessOperator(input.operator)) {
+    return input.operator === "is_set" ? `${left} != null` : `${left} == null`;
+  }
+
+  if (isTimestampField && isRelativeTemporalOperator(input.operator)) {
+    const relativeValue = toRelativeTemporalValueDraft(input.value);
+    if (
+      !relativeValue.amount ||
+      !relativeValue.unit ||
+      relativeValue.amount <= 0
+    ) {
+      return "";
+    }
+
+    const duration = JSON.stringify(
+      toDurationLiteral({
+        amount: relativeValue.amount,
+        unit: relativeValue.unit,
+      }),
+    );
+    const timestampLeft = `timestamp(string(${left}))`;
+
+    if (input.operator === "within_next") {
+      return `${left} != null && ${timestampLeft} > now && ${timestampLeft} < now + duration(${duration})`;
+    }
+
+    if (input.operator === "more_than_from_now") {
+      return `${left} != null && ${timestampLeft} > now + duration(${duration})`;
+    }
+
+    if (input.operator === "less_than_ago") {
+      return `${left} != null && ${timestampLeft} > now - duration(${duration})`;
+    }
+
+    return `${left} != null && ${timestampLeft} < now - duration(${duration})`;
+  }
+
+  if (isTimestampField && isAbsoluteTemporalOperator(input.operator)) {
+    const dateValue = toDateInputValue(input.value);
+    if (!dateValue) {
+      return "";
+    }
+
+    const timestampLeft = `timestamp(string(${left}))`;
+    const right = `date(${JSON.stringify(dateValue)}, orgTimezone)`;
+    return input.operator === "before"
+      ? `${left} != null && ${timestampLeft} < ${right}`
+      : `${left} != null && ${timestampLeft} > ${right}`;
+  }
+
+  const stringValue = typeof input.value === "string" ? input.value : "";
+  if (stringValue.length === 0) {
+    return "";
+  }
+
+  if (input.operator === "equals") {
+    return `${left} == ${JSON.stringify(stringValue)}`;
+  }
+
+  if (input.operator === "not_equals") {
+    return `${left} != ${JSON.stringify(stringValue)}`;
+  }
+
+  if (input.operator === "contains") {
+    return `${left} != null && string(${left}).contains(${JSON.stringify(stringValue)})`;
+  }
+
+  if (input.operator === "not_contains") {
+    return `${left} == null || !string(${left}).contains(${JSON.stringify(stringValue)})`;
+  }
+
+  if (input.operator === "starts_with") {
+    return `${left} != null && string(${left}).startsWith(${JSON.stringify(stringValue)})`;
+  }
+
+  if (input.operator === "ends_with") {
+    return `${left} != null && string(${left}).endsWith(${JSON.stringify(stringValue)})`;
+  }
+
+  return "";
 }
 
 function toKeyValueRows(value: unknown): KeyValueRow[] {
@@ -410,6 +580,271 @@ function ExpressionFieldRenderer({
   );
 }
 
+function ConditionExpressionFieldRenderer({
+  field,
+  config,
+  onUpdateConfig,
+  disabled,
+  suggestions,
+}: {
+  field: ActionConfigFieldBase;
+  config: Record<string, unknown>;
+  onUpdateConfig: (key: string, value: unknown) => void;
+  disabled?: boolean;
+  suggestions: EventAttributeSuggestion[];
+}) {
+  const configValue =
+    typeof config[field.key] === "string"
+      ? String(config[field.key])
+      : (field.defaultValue ?? "");
+  const scopedSuggestions = useMemo(
+    () => getExpressionSuggestionsForField(field.key, suggestions),
+    [field.key, suggestions],
+  );
+  const [rawValue, setRawValue] = useState(configValue);
+
+  const conditionField =
+    typeof config["conditionField"] === "string"
+      ? config["conditionField"]
+      : "";
+  const rawOperator =
+    typeof config["conditionOperator"] === "string"
+      ? config["conditionOperator"]
+      : "";
+  const conditionOperator = isJourneyFilterOperator(rawOperator)
+    ? rawOperator
+    : "";
+  const conditionValue = config["conditionValue"];
+  const isTimestampField =
+    getWorkflowFilterFieldType(conditionField) === "timestamp";
+  const relativeTemporalValue = toRelativeTemporalValueDraft(conditionValue);
+  const hasBuilderDraft =
+    conditionField.length > 0 ||
+    conditionOperator.length > 0 ||
+    conditionValue !== undefined;
+  const modeFromConfig = config["conditionMode"];
+  const mode =
+    modeFromConfig === "raw" || modeFromConfig === "builder"
+      ? modeFromConfig
+      : hasBuilderDraft ||
+          configValue.trim().length === 0 ||
+          configValue === "true"
+        ? "builder"
+        : "raw";
+
+  useEffect(() => {
+    setRawValue(configValue);
+  }, [configValue]);
+
+  const commitBuilder = (patch: {
+    field?: string;
+    operator?: JourneyTriggerFilterCondition["operator"] | "";
+    value?: unknown;
+  }) => {
+    const nextField = patch.field ?? conditionField;
+    const nextOperator = patch.operator ?? conditionOperator;
+    const nextValue = "value" in patch ? patch.value : conditionValue;
+    const compiledExpression = compileConditionBuilderExpression({
+      field: nextField,
+      operator: nextOperator,
+      value: nextValue,
+    });
+
+    onUpdateConfig("conditionMode", "builder");
+    onUpdateConfig("conditionField", nextField);
+    onUpdateConfig("conditionOperator", nextOperator);
+    onUpdateConfig("conditionValue", nextValue);
+    onUpdateConfig(field.key, compiledExpression);
+  };
+
+  return (
+    <div className="space-y-2">
+      <Label>{field.label}</Label>
+      <div className="inline-flex items-center rounded-full border border-border bg-background p-0.5">
+        <button
+          className={cn(
+            "rounded-full px-2.5 py-0.5 font-medium text-xs transition-colors",
+            mode === "builder"
+              ? "bg-foreground text-background"
+              : "text-muted-foreground hover:text-foreground",
+          )}
+          disabled={disabled}
+          onClick={() => onUpdateConfig("conditionMode", "builder")}
+          type="button"
+        >
+          Builder
+        </button>
+        <button
+          className={cn(
+            "rounded-full px-2.5 py-0.5 font-medium text-xs transition-colors",
+            mode === "raw"
+              ? "bg-foreground text-background"
+              : "text-muted-foreground hover:text-foreground",
+          )}
+          disabled={disabled}
+          onClick={() => onUpdateConfig("conditionMode", "raw")}
+          type="button"
+        >
+          Raw CEL
+        </button>
+      </div>
+
+      {mode === "builder" ? (
+        <div className="grid min-w-0 grid-cols-1 gap-2 rounded-md border p-2 min-[420px]:grid-cols-2">
+          <Select
+            disabled={disabled}
+            value={conditionField.length > 0 ? conditionField : null}
+            onValueChange={(value) => {
+              if (typeof value !== "string" || value.length === 0) {
+                return;
+              }
+
+              commitBuilder({
+                field: value,
+                operator: "",
+                value: undefined,
+              });
+            }}
+          >
+            <SelectTrigger aria-label="Condition field" size="sm">
+              <SelectValue placeholder="Select property" />
+            </SelectTrigger>
+            <SelectContent>
+              {WORKFLOW_FILTER_FIELD_OPTIONS.map((option) => (
+                <SelectItem key={option.value} value={option.value}>
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Select
+            disabled={disabled || conditionField.length === 0}
+            value={conditionOperator.length > 0 ? conditionOperator : null}
+            onValueChange={(value) => {
+              if (
+                typeof value !== "string" ||
+                !isJourneyFilterOperator(value)
+              ) {
+                return;
+              }
+
+              commitBuilder({
+                operator: value,
+                value: undefined,
+              });
+            }}
+          >
+            <SelectTrigger aria-label="Condition operator" size="sm">
+              <SelectValue placeholder="Select operator" />
+            </SelectTrigger>
+            <SelectContent>
+              {getOperatorOptionsForField(conditionField).map((operator) => (
+                <SelectItem key={operator.value} value={operator.value}>
+                  {operator.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          {conditionOperator.length === 0 ||
+          !isJourneyFilterOperator(conditionOperator) ||
+          isValuelessOperator(conditionOperator) ? null : isTimestampField &&
+            isRelativeTemporalOperator(conditionOperator) ? (
+            <div className="grid grid-cols-2 gap-2 min-[420px]:col-span-2">
+              <Input
+                disabled={disabled}
+                min={1}
+                placeholder="Amount"
+                type="number"
+                value={
+                  typeof relativeTemporalValue.amount === "number"
+                    ? String(relativeTemporalValue.amount)
+                    : ""
+                }
+                onChange={(event) => {
+                  const parsedAmount = Number.parseInt(event.target.value, 10);
+                  commitBuilder({
+                    value: {
+                      ...relativeTemporalValue,
+                      amount:
+                        Number.isInteger(parsedAmount) && parsedAmount > 0
+                          ? parsedAmount
+                          : undefined,
+                    },
+                  });
+                }}
+              />
+              <Select
+                disabled={disabled}
+                value={relativeTemporalValue.unit ?? null}
+                onValueChange={(value) => {
+                  if (
+                    value !== "minutes" &&
+                    value !== "hours" &&
+                    value !== "days" &&
+                    value !== "weeks"
+                  ) {
+                    return;
+                  }
+
+                  commitBuilder({
+                    value: {
+                      ...relativeTemporalValue,
+                      unit: value,
+                    },
+                  });
+                }}
+              >
+                <SelectTrigger aria-label="Condition relative unit" size="sm">
+                  <SelectValue placeholder="Unit" />
+                </SelectTrigger>
+                <SelectContent>
+                  {WORKFLOW_FILTER_TEMPORAL_UNIT_OPTIONS.map((unit) => (
+                    <SelectItem key={unit.value} value={unit.value}>
+                      {unit.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          ) : isTimestampField &&
+            isAbsoluteTemporalOperator(conditionOperator) ? (
+            <Input
+              className="min-[420px]:col-span-2"
+              disabled={disabled}
+              type="date"
+              value={toDateInputValue(conditionValue)}
+              onChange={(event) => commitBuilder({ value: event.target.value })}
+            />
+          ) : (
+            <Input
+              className="min-[420px]:col-span-2"
+              disabled={disabled}
+              placeholder="Enter value..."
+              value={typeof conditionValue === "string" ? conditionValue : ""}
+              onChange={(event) => commitBuilder({ value: event.target.value })}
+            />
+          )}
+        </div>
+      ) : (
+        <ExpressionInput
+          disabled={disabled}
+          onBlur={() => onUpdateConfig(field.key, rawValue)}
+          onChange={(nextValue) => setRawValue(nextValue)}
+          placeholder={field.placeholder}
+          suggestions={scopedSuggestions}
+          value={rawValue}
+        />
+      )}
+
+      {field.helpText ? (
+        <p className="text-muted-foreground text-xs">{field.helpText}</p>
+      ) : null}
+    </div>
+  );
+}
+
 function KeyValueListFieldRenderer({
   field,
   config,
@@ -679,6 +1114,22 @@ function FieldRenderer({
         />
       );
     case "expression":
+      if (
+        field.key === "expression" &&
+        typeof config.actionType === "string" &&
+        config.actionType === "condition"
+      ) {
+        return (
+          <ConditionExpressionFieldRenderer
+            field={field}
+            config={config}
+            onUpdateConfig={onUpdateConfig}
+            disabled={disabled}
+            suggestions={expressionSuggestions}
+          />
+        );
+      }
+
       return (
         <ExpressionFieldRenderer
           field={field}
