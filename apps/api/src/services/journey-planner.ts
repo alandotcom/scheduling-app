@@ -392,7 +392,7 @@ function buildDesiredDeliveries(input: {
     }
 
     const scheduledFor = new Date(cursor);
-    const isPastDue = scheduledFor.getTime() <= input.now.getTime();
+    const isPastDue = scheduledFor.getTime() < input.now.getTime();
     desiredDeliveries.push({
       deterministicKey: buildDeliveryDeterministicKey({
         journeyRunId: input.journeyRunId,

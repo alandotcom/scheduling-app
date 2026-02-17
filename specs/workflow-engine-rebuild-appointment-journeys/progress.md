@@ -615,3 +615,28 @@
 - Updated artifacts:
   - `specs/workflow-engine-rebuild-appointment-journeys/logs/build.log`
   - `specs/workflow-engine-rebuild-appointment-journeys/logs/test.log`
+
+## 2026-02-17 - Task 07: Build Planner Runtime in Inngest (Revalidation)
+
+### RED
+- Added planner coverage in `apps/api/src/services/journey-planner.test.ts` for:
+  - cross-journey independence (same appointment matching two journeys yields independent run/delivery sets with no cross-journey dedupe)
+  - due-now boundary handling (`scheduledFor === now` should remain `planned`, not `past_due`)
+- Confirmed initial RED failure before implementation: due-now delivery was persisted as `skipped`.
+
+### GREEN
+- Updated planner due-time guard in `apps/api/src/services/journey-planner.ts` to treat only strictly past times as `past_due` (`< now` instead of `<= now`).
+- Re-ran targeted runtime suites and verified green:
+  - `pnpm --filter @scheduling/api run test -- src/services/journey-planner.test.ts`
+  - `pnpm --filter @scheduling/api run test -- src/services/journey-planner.test.ts src/inngest/functions/journey-domain-triggers.test.ts`
+
+### REFACTOR
+- Kept changes constrained to planner runtime semantics and planner test coverage for this task slice.
+- Re-ran required quality gates and refreshed logs:
+  - `pnpm format`
+  - `pnpm lint`
+  - `pnpm typecheck`
+  - `pnpm test`
+- Updated artifacts:
+  - `specs/workflow-engine-rebuild-appointment-journeys/logs/build.log`
+  - `specs/workflow-engine-rebuild-appointment-journeys/logs/test.log`

@@ -360,6 +360,143 @@ describe("processJourneyDomainEvent", () => {
     expect(deliveries).toHaveLength(1);
   });
 
+  test("creates independent run and delivery sets when two journeys match the same appointment", async () => {
+    const [firstJourney, secondJourney] = await Promise.all([
+      journeyService.create(
+        {
+          name: "Multi Journey A",
+          graph: createJourneyGraph({ waitDuration: "30m" }),
+        },
+        context,
+      ),
+      journeyService.create(
+        {
+          name: "Multi Journey B",
+          graph: createJourneyGraph({ waitDuration: "30m" }),
+        },
+        context,
+      ),
+    ]);
+
+    await Promise.all([
+      journeyService.publish(firstJourney.id, { mode: "live" }, context),
+      journeyService.publish(secondJourney.id, { mode: "live" }, context),
+    ]);
+
+    const scheduleRequester = mock(async () => ({
+      eventId: "evt-multi-journey",
+    }));
+
+    await processJourneyDomainEvent(
+      {
+        id: "evt-multi-1",
+        orgId: context.orgId,
+        type: "appointment.scheduled",
+        payload: createAppointmentPayload({
+          appointmentId: "018f4d3a-6d80-7c5b-8a4a-6cb8f8d57d88",
+        }),
+        timestamp: "2026-02-16T10:00:00.000Z",
+      },
+      {
+        scheduleRequester,
+        now: new Date("2026-02-16T09:00:00.000Z"),
+      },
+    );
+
+    await processJourneyDomainEvent(
+      {
+        id: "evt-multi-1-duplicate",
+        orgId: context.orgId,
+        type: "appointment.scheduled",
+        payload: createAppointmentPayload({
+          appointmentId: "018f4d3a-6d80-7c5b-8a4a-6cb8f8d57d88",
+        }),
+        timestamp: "2026-02-16T10:00:00.000Z",
+      },
+      {
+        scheduleRequester,
+        now: new Date("2026-02-16T09:00:00.000Z"),
+      },
+    );
+
+    await setTestOrgContext(db, context.orgId);
+
+    const runs = await db.select({ id: journeyRuns.id }).from(journeyRuns);
+    expect(runs).toHaveLength(2);
+
+    const deliveries = await db
+      .select({
+        id: journeyDeliveries.id,
+        deterministicKey: journeyDeliveries.deterministicKey,
+      })
+      .from(journeyDeliveries)
+      .orderBy(desc(journeyDeliveries.id));
+
+    expect(deliveries).toHaveLength(2);
+    expect(
+      new Set(deliveries.map((delivery) => delivery.deterministicKey)).size,
+    ).toBe(2);
+    expect(scheduleRequester).toHaveBeenCalledTimes(2);
+  });
+
+  test("treats due-now deliveries as planned instead of past_due", async () => {
+    const created = await journeyService.create(
+      {
+        name: "Due Now Journey",
+        graph: createJourneyGraph({
+          waitUntil: "2026-02-16T09:00:00.000Z",
+        }),
+      },
+      context,
+    );
+
+    await journeyService.publish(
+      created.id,
+      {
+        mode: "live",
+      },
+      context,
+    );
+
+    const scheduleRequester = mock(async () => ({ eventId: "evt-due-now" }));
+
+    await processJourneyDomainEvent(
+      {
+        id: "evt-due-now-1",
+        orgId: context.orgId,
+        type: "appointment.scheduled",
+        payload: createAppointmentPayload({
+          appointmentId: "018f4d3a-6d80-7c5b-8a4a-6cb8f8d57d99",
+        }),
+        timestamp: "2026-02-16T09:00:00.000Z",
+      },
+      {
+        scheduleRequester,
+        now: new Date("2026-02-16T09:00:00.000Z"),
+      },
+    );
+
+    await setTestOrgContext(db, context.orgId);
+
+    const [run] = await db
+      .select({ id: journeyRuns.id })
+      .from(journeyRuns)
+      .limit(1);
+
+    const [delivery] = await db
+      .select({
+        status: journeyDeliveries.status,
+        reasonCode: journeyDeliveries.reasonCode,
+      })
+      .from(journeyDeliveries)
+      .where(eq(journeyDeliveries.journeyRunId, run!.id))
+      .limit(1);
+
+    expect(delivery?.status).toBe("planned");
+    expect(delivery?.reasonCode).toBeNull();
+    expect(scheduleRequester).toHaveBeenCalledTimes(1);
+  });
+
   test("marks past-due deliveries as skipped with reasonCode=past_due", async () => {
     const created = await journeyService.create(
       {
