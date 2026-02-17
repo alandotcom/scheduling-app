@@ -1,5 +1,7 @@
 import { z } from "zod";
 import {
+  cancelJourneyRunResponseSchema,
+  cancelJourneyRunsResponseSchema,
   createJourneySchema,
   deleteJourneyResponseSchema,
   journeyRunDetailResponseSchema,
@@ -170,9 +172,32 @@ export const getRun = authed
     });
   });
 
+export const cancelRun = adminOnly
+  .route({ method: "POST", path: "/journeys/runs/{runId}/cancel" })
+  .input(runIdInputSchema)
+  .output(cancelJourneyRunResponseSchema)
+  .handler(async ({ input, context }) => {
+    return journeyService.cancelRun(input.runId, {
+      orgId: context.orgId,
+      userId: context.userId,
+    });
+  });
+
+export const cancelRuns = adminOnly
+  .route({ method: "POST", path: "/journeys/{id}/runs/cancel" })
+  .input(journeyIdInputSchema)
+  .output(cancelJourneyRunsResponseSchema)
+  .handler(async ({ input, context }) => {
+    return journeyService.cancelRuns(input.id, {
+      orgId: context.orgId,
+      userId: context.userId,
+    });
+  });
+
 export const runs = {
   list: listRuns,
   get: getRun,
+  cancel: cancelRun,
 };
 
 export const journeyRoutes = {
@@ -187,5 +212,7 @@ export const journeyRoutes = {
   startTestRun,
   listRuns,
   getRun,
+  cancelRun,
+  cancelRuns,
   runs,
 };

@@ -1,4 +1,6 @@
 import {
+  cancelJourneyRunResponseSchema,
+  cancelJourneyRunsResponseSchema,
   createJourneySchema,
   domainEventDataSchemaByType,
   linearJourneyGraphSchema,
@@ -9,6 +11,8 @@ import {
   workflowDomainEventTriggerConfigSchema,
   updateJourneySchema,
   type CreateJourneyInput,
+  type CancelJourneyRunResponse,
+  type CancelJourneyRunsResponse,
   type Journey,
   type JourneyRun,
   type JourneyRunDelivery,
@@ -40,6 +44,7 @@ import { processJourneyDomainEvent } from "./journey-planner.js";
 const UNIQUE_CONSTRAINT_VIOLATION = "23505";
 const JOURNEY_NAME_UNIQUE_CONSTRAINT = "journeys_org_name_ci_uidx";
 const ACTIVE_RUN_STATUSES = ["planned", "running"] as const;
+const ACTIVE_RUN_STATUS_SET = new Set<string>(ACTIVE_RUN_STATUSES);
 const OVERLAP_CANDIDATE_STATES = ["published", "test_only", "paused"] as const;
 const HIGH_SIGNAL_FILTER_FIELDS = new Set([
   "appointment.calendarId",
@@ -566,34 +571,26 @@ function mapAppointmentToScheduledPayload(
   return parsed.data;
 }
 
-async function cancelActiveRunsForJourney(
+async function findRunById(
   tx: DbClient,
-  journeyId: string,
-  reasonCode: string,
-) {
-  const versionRows = await tx
-    .select({ id: journeyVersions.id })
-    .from(journeyVersions)
-    .where(eq(journeyVersions.journeyId, journeyId));
-
-  const versionIds = versionRows.map((row) => row.id);
-  if (versionIds.length === 0) {
-    return;
-  }
-
-  const runRows = await tx
-    .select({ id: journeyRuns.id })
+  runId: string,
+): Promise<typeof journeyRuns.$inferSelect | null> {
+  const [run] = await tx
+    .select()
     .from(journeyRuns)
-    .where(
-      and(
-        inArray(journeyRuns.journeyVersionId, versionIds),
-        inArray(journeyRuns.status, [...ACTIVE_RUN_STATUSES]),
-      ),
-    );
+    .where(eq(journeyRuns.id, runId))
+    .limit(1);
 
-  const runIds = runRows.map((row) => row.id);
+  return run ?? null;
+}
+
+async function cancelRunsByIds(
+  tx: DbClient,
+  runIds: string[],
+  reasonCode: string,
+): Promise<number> {
   if (runIds.length === 0) {
-    return;
+    return 0;
   }
 
   await tx
@@ -610,7 +607,7 @@ async function cancelActiveRunsForJourney(
       ),
     );
 
-  await tx
+  const canceledRuns = await tx
     .update(journeyRuns)
     .set({
       status: "canceled",
@@ -621,7 +618,39 @@ async function cancelActiveRunsForJourney(
         inArray(journeyRuns.id, runIds),
         inArray(journeyRuns.status, [...ACTIVE_RUN_STATUSES]),
       ),
+    )
+    .returning({ id: journeyRuns.id });
+
+  return canceledRuns.length;
+}
+
+async function cancelActiveRunsForJourney(
+  tx: DbClient,
+  journeyId: string,
+  reasonCode: string,
+): Promise<number> {
+  const versionRows = await tx
+    .select({ id: journeyVersions.id })
+    .from(journeyVersions)
+    .where(eq(journeyVersions.journeyId, journeyId));
+
+  const versionIds = versionRows.map((row) => row.id);
+  if (versionIds.length === 0) {
+    return 0;
+  }
+
+  const runRows = await tx
+    .select({ id: journeyRuns.id })
+    .from(journeyRuns)
+    .where(
+      and(
+        inArray(journeyRuns.journeyVersionId, versionIds),
+        inArray(journeyRuns.status, [...ACTIVE_RUN_STATUSES]),
+      ),
     );
+
+  const runIds = runRows.map((row) => row.id);
+  return cancelRunsByIds(tx, runIds, reasonCode);
 }
 
 export class JourneyService {
@@ -877,6 +906,60 @@ export class JourneyService {
         runSnapshot: run.journeyVersionSnapshot,
         deliveries: deliveries.map(toJourneyRunDelivery),
       };
+    });
+  }
+
+  async cancelRun(
+    runId: string,
+    context: ServiceContext,
+  ): Promise<CancelJourneyRunResponse> {
+    return withOrg(context.orgId, async (tx) => {
+      const existing = await findRunById(tx, runId);
+      if (!existing) {
+        throw new ApplicationError("Run not found", { code: "NOT_FOUND" });
+      }
+
+      if (!ACTIVE_RUN_STATUS_SET.has(existing.status)) {
+        return cancelJourneyRunResponseSchema.parse({
+          run: toJourneyRun(existing),
+          canceled: false,
+        });
+      }
+
+      await cancelRunsByIds(tx, [runId], "manual_cancel");
+
+      const updated = await findRunById(tx, runId);
+      if (!updated) {
+        throw new ApplicationError("Run not found", { code: "NOT_FOUND" });
+      }
+
+      return cancelJourneyRunResponseSchema.parse({
+        run: toJourneyRun(updated),
+        canceled: true,
+      });
+    });
+  }
+
+  async cancelRuns(
+    id: string,
+    context: ServiceContext,
+  ): Promise<CancelJourneyRunsResponse> {
+    return withOrg(context.orgId, async (tx) => {
+      const existing = await findJourneyById(tx, id);
+      if (!existing) {
+        throw new ApplicationError("Journey not found", { code: "NOT_FOUND" });
+      }
+
+      const canceledRunCount = await cancelActiveRunsForJourney(
+        tx,
+        id,
+        "manual_cancel",
+      );
+
+      return cancelJourneyRunsResponseSchema.parse({
+        success: true,
+        canceledRunCount,
+      });
     });
   }
 

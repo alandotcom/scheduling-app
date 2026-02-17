@@ -291,6 +291,217 @@ describe("JourneyService", () => {
     });
   });
 
+  test("individual run cancel and journey bulk cancel enforce run scope", async () => {
+    const primaryJourney = await journeyService.create(
+      {
+        name: "Cancel Scope Journey",
+        graph: createLinearGraph("trigger-cancel-scope-primary"),
+      },
+      context,
+    );
+
+    const secondaryJourney = await journeyService.create(
+      {
+        name: "Cancel Scope Journey Secondary",
+        graph: createLinearGraph("trigger-cancel-scope-secondary"),
+      },
+      context,
+    );
+
+    const publishedPrimary = await journeyService.publish(
+      primaryJourney.id,
+      {
+        mode: "live",
+      },
+      context,
+    );
+
+    const publishedSecondary = await journeyService.publish(
+      secondaryJourney.id,
+      {
+        mode: "live",
+      },
+      context,
+    );
+
+    await setTestOrgContext(db, context.orgId);
+
+    const [primaryVersion] = await db
+      .select({ id: journeyVersions.id })
+      .from(journeyVersions)
+      .where(
+        and(
+          eq(journeyVersions.journeyId, primaryJourney.id),
+          eq(journeyVersions.version, publishedPrimary.version),
+        ),
+      )
+      .limit(1);
+
+    const [secondaryVersion] = await db
+      .select({ id: journeyVersions.id })
+      .from(journeyVersions)
+      .where(
+        and(
+          eq(journeyVersions.journeyId, secondaryJourney.id),
+          eq(journeyVersions.version, publishedSecondary.version),
+        ),
+      )
+      .limit(1);
+
+    const [targetRun] = await db
+      .insert(journeyRuns)
+      .values({
+        orgId: context.orgId,
+        journeyVersionId: primaryVersion!.id,
+        appointmentId: crypto.randomUUID(),
+        mode: "live",
+        status: "running",
+        journeyNameSnapshot: primaryJourney.name,
+        journeyVersionSnapshot: { version: publishedPrimary.version },
+      })
+      .returning({ id: journeyRuns.id });
+
+    const [sameJourneyRun] = await db
+      .insert(journeyRuns)
+      .values({
+        orgId: context.orgId,
+        journeyVersionId: primaryVersion!.id,
+        appointmentId: crypto.randomUUID(),
+        mode: "live",
+        status: "planned",
+        journeyNameSnapshot: primaryJourney.name,
+        journeyVersionSnapshot: { version: publishedPrimary.version },
+      })
+      .returning({ id: journeyRuns.id });
+
+    const [terminalRun] = await db
+      .insert(journeyRuns)
+      .values({
+        orgId: context.orgId,
+        journeyVersionId: primaryVersion!.id,
+        appointmentId: crypto.randomUUID(),
+        mode: "live",
+        status: "completed",
+        journeyNameSnapshot: primaryJourney.name,
+        journeyVersionSnapshot: { version: publishedPrimary.version },
+      })
+      .returning({ id: journeyRuns.id });
+
+    const [otherJourneyRun] = await db
+      .insert(journeyRuns)
+      .values({
+        orgId: context.orgId,
+        journeyVersionId: secondaryVersion!.id,
+        appointmentId: crypto.randomUUID(),
+        mode: "live",
+        status: "running",
+        journeyNameSnapshot: secondaryJourney.name,
+        journeyVersionSnapshot: { version: publishedSecondary.version },
+      })
+      .returning({ id: journeyRuns.id });
+
+    await db.insert(journeyDeliveries).values([
+      {
+        orgId: context.orgId,
+        journeyRunId: targetRun!.id,
+        stepKey: "target-step",
+        channel: "email",
+        scheduledFor: new Date(),
+        status: "planned",
+        deterministicKey: `target-${crypto.randomUUID()}`,
+      },
+      {
+        orgId: context.orgId,
+        journeyRunId: sameJourneyRun!.id,
+        stepKey: "same-journey-step",
+        channel: "email",
+        scheduledFor: new Date(),
+        status: "planned",
+        deterministicKey: `same-${crypto.randomUUID()}`,
+      },
+      {
+        orgId: context.orgId,
+        journeyRunId: terminalRun!.id,
+        stepKey: "terminal-step",
+        channel: "email",
+        scheduledFor: new Date(),
+        status: "sent",
+        deterministicKey: `terminal-${crypto.randomUUID()}`,
+      },
+      {
+        orgId: context.orgId,
+        journeyRunId: otherJourneyRun!.id,
+        stepKey: "other-journey-step",
+        channel: "email",
+        scheduledFor: new Date(),
+        status: "planned",
+        deterministicKey: `other-${crypto.randomUUID()}`,
+      },
+    ]);
+
+    const singleCancel = await journeyService.cancelRun(targetRun!.id, context);
+    expect(singleCancel.canceled).toBe(true);
+    expect(singleCancel.run.id).toBe(targetRun!.id);
+    expect(singleCancel.run.status).toBe("canceled");
+
+    const terminalCancel = await journeyService.cancelRun(
+      terminalRun!.id,
+      context,
+    );
+    expect(terminalCancel.canceled).toBe(false);
+    expect(terminalCancel.run.id).toBe(terminalRun!.id);
+    expect(terminalCancel.run.status).toBe("completed");
+
+    const bulkCancel = await journeyService.cancelRuns(
+      primaryJourney.id,
+      context,
+    );
+    expect(bulkCancel.canceledRunCount).toBe(1);
+
+    const runRows = await db
+      .select({ id: journeyRuns.id, status: journeyRuns.status })
+      .from(journeyRuns)
+      .where(
+        inArray(journeyRuns.id, [
+          targetRun!.id,
+          sameJourneyRun!.id,
+          terminalRun!.id,
+          otherJourneyRun!.id,
+        ]),
+      );
+
+    const statusesById = new Map(runRows.map((row) => [row.id, row.status]));
+
+    expect(statusesById.get(targetRun!.id)).toBe("canceled");
+    expect(statusesById.get(sameJourneyRun!.id)).toBe("canceled");
+    expect(statusesById.get(terminalRun!.id)).toBe("completed");
+    expect(statusesById.get(otherJourneyRun!.id)).toBe("running");
+
+    const deliveryRows = await db
+      .select({
+        runId: journeyDeliveries.journeyRunId,
+        status: journeyDeliveries.status,
+      })
+      .from(journeyDeliveries)
+      .where(
+        inArray(journeyDeliveries.journeyRunId, [
+          targetRun!.id,
+          sameJourneyRun!.id,
+          terminalRun!.id,
+          otherJourneyRun!.id,
+        ]),
+      );
+
+    const deliveryStatusByRunId = new Map(
+      deliveryRows.map((row) => [row.runId, row.status]),
+    );
+
+    expect(deliveryStatusByRunId.get(targetRun!.id)).toBe("canceled");
+    expect(deliveryStatusByRunId.get(sameJourneyRun!.id)).toBe("canceled");
+    expect(deliveryStatusByRunId.get(terminalRun!.id)).toBe("sent");
+    expect(deliveryStatusByRunId.get(otherJourneyRun!.id)).toBe("planned");
+  });
+
   test("delete cancels active runs then hard-deletes journey and versions", async () => {
     const created = await journeyService.create(
       {

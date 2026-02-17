@@ -549,3 +549,38 @@
 - Updated artifacts:
   - `specs/workflow-engine-rebuild-appointment-journeys/logs/build.log`
   - `specs/workflow-engine-rebuild-appointment-journeys/logs/test.log`
+
+## 2026-02-17 - Task 05: Implement Journey Lifecycle Services and APIs (Revalidation)
+
+### RED
+- Added failing R31 scope coverage for explicit run cancellation paths:
+  - `apps/api/src/services/journeys.test.ts` now asserts individual run cancel, journey-level bulk cancel, and terminal-run idempotent no-op behavior.
+  - `apps/api/src/routes/journeys.test.ts` now asserts admin-only guards for cancellation endpoints and route-level cancellation scope behavior.
+- Confirmed RED failures before implementation:
+  - `journeyService.cancelRun(...)` and `journeyService.cancelRuns(...)` were missing.
+  - `journeyRoutes.cancelRun` and `journeyRoutes.cancelRuns` were missing.
+
+### GREEN
+- Added cancellation DTO contracts in `packages/dto/src/schemas/journey.ts`:
+  - `cancelJourneyRunResponseSchema`
+  - `cancelJourneyRunsResponseSchema`
+- Implemented journey service cancellation APIs in `apps/api/src/services/journeys.ts`:
+  - `cancelRun(runId, context)` for individual active-run cancellation with terminal-run no-op semantics.
+  - `cancelRuns(journeyId, context)` for journey-scoped bulk cancellation across active runs and versions.
+  - shared cancellation helpers to keep delivery + run status transitions consistent (`planned|running` => `canceled`, planned deliveries => `canceled` with `reasonCode=manual_cancel`).
+- Added route handlers in `apps/api/src/routes/journeys.ts`:
+  - `POST /journeys/runs/{runId}/cancel`
+  - `POST /journeys/{id}/runs/cancel`
+- Re-ran targeted API tests and verified green:
+  - `pnpm --filter @scheduling/api run test -- src/services/journeys.test.ts src/routes/journeys.test.ts`
+
+### REFACTOR
+- Kept cancellation semantics centralized through shared service helpers to avoid divergence between pause/delete and explicit cancel endpoints.
+- Re-ran full required quality gates and refreshed logs:
+  - `pnpm format`
+  - `pnpm lint`
+  - `pnpm typecheck`
+  - `pnpm test`
+- Updated artifacts:
+  - `specs/workflow-engine-rebuild-appointment-journeys/logs/build.log`
+  - `specs/workflow-engine-rebuild-appointment-journeys/logs/test.log`

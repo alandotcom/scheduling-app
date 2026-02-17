@@ -12,7 +12,11 @@ import {
   getTestDb,
   setTestOrgContext,
 } from "../test-utils/index.js";
-import { journeyRuns, journeyVersions } from "@scheduling/db/schema";
+import {
+  journeyDeliveries,
+  journeyRuns,
+  journeyVersions,
+} from "@scheduling/db/schema";
 import * as journeyRoutes from "./journeys.js";
 import type { LinearJourneyGraph } from "@scheduling/dto";
 
@@ -342,6 +346,26 @@ describe("Journey Routes", () => {
             appointmentId: "018f4d3a-6d80-7c5b-8a4a-6cb8f8d57d88",
             emailOverride: "qa@example.com",
           },
+        },
+        { context: memberContext },
+      ),
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+
+    await expect(
+      call(
+        journeyRoutes.cancelRun,
+        {
+          runId: "018f4d3a-6d80-7c5b-8a4a-6cb8f8d57d88",
+        },
+        { context: memberContext },
+      ),
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+
+    await expect(
+      call(
+        journeyRoutes.cancelRuns,
+        {
+          id: created.id,
         },
         { context: memberContext },
       ),
@@ -736,5 +760,215 @@ describe("Journey Routes", () => {
     expect(runDetail.run.journeyVersion).toBe(published.version);
     expect(runDetail.run.mode).toBe("test");
     expect(liveRun).toBeDefined();
+  });
+
+  test("run cancel endpoints enforce individual and bulk cancellation scope", async () => {
+    const primaryJourney = await call(
+      journeyRoutes.create,
+      {
+        name: "Route Cancel Scope A",
+        graph: createLinearGraph("trigger-route-cancel-a"),
+      },
+      { context: ownerContext },
+    );
+
+    const secondaryJourney = await call(
+      journeyRoutes.create,
+      {
+        name: "Route Cancel Scope B",
+        graph: createLinearGraph("trigger-route-cancel-b"),
+      },
+      { context: ownerContext },
+    );
+
+    const publishedPrimary = await call(
+      journeyRoutes.publish,
+      {
+        id: primaryJourney.id,
+        data: {
+          mode: "live",
+        },
+      },
+      { context: ownerContext },
+    );
+
+    const publishedSecondary = await call(
+      journeyRoutes.publish,
+      {
+        id: secondaryJourney.id,
+        data: {
+          mode: "live",
+        },
+      },
+      { context: ownerContext },
+    );
+
+    await setTestOrgContext(db, ownerContext.orgId!);
+
+    const [primaryVersion] = await db
+      .select({ id: journeyVersions.id })
+      .from(journeyVersions)
+      .where(eq(journeyVersions.journeyId, primaryJourney.id))
+      .limit(1);
+
+    const [secondaryVersion] = await db
+      .select({ id: journeyVersions.id })
+      .from(journeyVersions)
+      .where(eq(journeyVersions.journeyId, secondaryJourney.id))
+      .limit(1);
+
+    const [targetRun] = await db
+      .insert(journeyRuns)
+      .values({
+        orgId: ownerContext.orgId!,
+        journeyVersionId: primaryVersion!.id,
+        appointmentId: crypto.randomUUID(),
+        mode: "live",
+        status: "running",
+        journeyNameSnapshot: primaryJourney.name,
+        journeyVersionSnapshot: { version: publishedPrimary.version },
+      })
+      .returning({ id: journeyRuns.id });
+
+    const [sameJourneyRun] = await db
+      .insert(journeyRuns)
+      .values({
+        orgId: ownerContext.orgId!,
+        journeyVersionId: primaryVersion!.id,
+        appointmentId: crypto.randomUUID(),
+        mode: "live",
+        status: "planned",
+        journeyNameSnapshot: primaryJourney.name,
+        journeyVersionSnapshot: { version: publishedPrimary.version },
+      })
+      .returning({ id: journeyRuns.id });
+
+    const [terminalRun] = await db
+      .insert(journeyRuns)
+      .values({
+        orgId: ownerContext.orgId!,
+        journeyVersionId: primaryVersion!.id,
+        appointmentId: crypto.randomUUID(),
+        mode: "live",
+        status: "completed",
+        journeyNameSnapshot: primaryJourney.name,
+        journeyVersionSnapshot: { version: publishedPrimary.version },
+      })
+      .returning({ id: journeyRuns.id });
+
+    const [otherJourneyRun] = await db
+      .insert(journeyRuns)
+      .values({
+        orgId: ownerContext.orgId!,
+        journeyVersionId: secondaryVersion!.id,
+        appointmentId: crypto.randomUUID(),
+        mode: "live",
+        status: "running",
+        journeyNameSnapshot: secondaryJourney.name,
+        journeyVersionSnapshot: { version: publishedSecondary.version },
+      })
+      .returning({ id: journeyRuns.id });
+
+    await db.insert(journeyDeliveries).values([
+      {
+        orgId: ownerContext.orgId!,
+        journeyRunId: targetRun!.id,
+        stepKey: "target-run-step",
+        channel: "email",
+        scheduledFor: new Date(),
+        status: "planned",
+        deterministicKey: `target-${crypto.randomUUID()}`,
+      },
+      {
+        orgId: ownerContext.orgId!,
+        journeyRunId: sameJourneyRun!.id,
+        stepKey: "same-run-step",
+        channel: "email",
+        scheduledFor: new Date(),
+        status: "planned",
+        deterministicKey: `same-${crypto.randomUUID()}`,
+      },
+      {
+        orgId: ownerContext.orgId!,
+        journeyRunId: terminalRun!.id,
+        stepKey: "terminal-run-step",
+        channel: "email",
+        scheduledFor: new Date(),
+        status: "sent",
+        deterministicKey: `terminal-${crypto.randomUUID()}`,
+      },
+      {
+        orgId: ownerContext.orgId!,
+        journeyRunId: otherJourneyRun!.id,
+        stepKey: "other-run-step",
+        channel: "email",
+        scheduledFor: new Date(),
+        status: "planned",
+        deterministicKey: `other-${crypto.randomUUID()}`,
+      },
+    ]);
+
+    const canceledRun = await call(
+      journeyRoutes.cancelRun,
+      {
+        runId: targetRun!.id,
+      },
+      { context: ownerContext },
+    );
+
+    expect(canceledRun.canceled).toBe(true);
+    expect(canceledRun.run.id).toBe(targetRun!.id);
+    expect(canceledRun.run.status).toBe("canceled");
+
+    const terminalCancel = await call(
+      journeyRoutes.cancelRun,
+      {
+        runId: terminalRun!.id,
+      },
+      { context: ownerContext },
+    );
+
+    expect(terminalCancel.canceled).toBe(false);
+    expect(terminalCancel.run.id).toBe(terminalRun!.id);
+    expect(terminalCancel.run.status).toBe("completed");
+
+    const bulkCancel = await call(
+      journeyRoutes.cancelRuns,
+      {
+        id: primaryJourney.id,
+      },
+      { context: ownerContext },
+    );
+
+    expect(bulkCancel.canceledRunCount).toBe(1);
+
+    const [targetRunRow] = await db
+      .select({ status: journeyRuns.status })
+      .from(journeyRuns)
+      .where(eq(journeyRuns.id, targetRun!.id))
+      .limit(1);
+
+    const [sameJourneyRunRow] = await db
+      .select({ status: journeyRuns.status })
+      .from(journeyRuns)
+      .where(eq(journeyRuns.id, sameJourneyRun!.id))
+      .limit(1);
+
+    const [terminalRunRow] = await db
+      .select({ status: journeyRuns.status })
+      .from(journeyRuns)
+      .where(eq(journeyRuns.id, terminalRun!.id))
+      .limit(1);
+
+    const [otherJourneyRunRow] = await db
+      .select({ status: journeyRuns.status })
+      .from(journeyRuns)
+      .where(eq(journeyRuns.id, otherJourneyRun!.id))
+      .limit(1);
+
+    expect(targetRunRow?.status).toBe("canceled");
+    expect(sameJourneyRunRow?.status).toBe("canceled");
+    expect(terminalRunRow?.status).toBe("completed");
+    expect(otherJourneyRunRow?.status).toBe("running");
   });
 });

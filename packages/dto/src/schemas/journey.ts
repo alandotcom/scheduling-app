@@ -373,6 +373,16 @@ export const journeyRunDetailResponseSchema = z.object({
   deliveries: z.array(journeyRunDeliverySchema),
 });
 
+export const cancelJourneyRunResponseSchema = z.object({
+  run: journeyRunSchema,
+  canceled: z.boolean(),
+});
+
+export const cancelJourneyRunsResponseSchema = z.object({
+  success: z.literal(true),
+  canceledRunCount: z.number().int().nonnegative(),
+});
+
 export const startJourneyTestRunResponseSchema = z.object({
   runId: uuidSchema,
   mode: z.literal("test"),
@@ -413,6 +423,12 @@ export type JourneyRunListResponse = z.infer<
 export type JourneyRunDelivery = z.infer<typeof journeyRunDeliverySchema>;
 export type JourneyRunDetailResponse = z.infer<
   typeof journeyRunDetailResponseSchema
+>;
+export type CancelJourneyRunResponse = z.infer<
+  typeof cancelJourneyRunResponseSchema
+>;
+export type CancelJourneyRunsResponse = z.infer<
+  typeof cancelJourneyRunsResponseSchema
 >;
 export type StartJourneyTestRunResponse = z.infer<
   typeof startJourneyTestRunResponseSchema
