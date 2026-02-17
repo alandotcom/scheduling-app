@@ -525,3 +525,27 @@
 - Updated artifacts:
   - `specs/workflow-engine-rebuild-appointment-journeys/logs/build.log`
   - `specs/workflow-engine-rebuild-appointment-journeys/logs/test.log`
+
+## 2026-02-16 - Task 04: Replace Journey Persistence Model (Revalidation)
+
+### RED
+- Expanded `packages/db/src/journeys.constraints.test.ts` with new persistence checkpoints for:
+  - immutable version uniqueness per journey (`journey_versions_org_journey_version_uidx` behavior)
+  - deterministic delivery identity uniqueness (`journey_deliveries_org_deterministic_key_uidx` behavior)
+- Initial test draft used an invalid delivery status literal (`scheduled`), which failed type checks against the DB enum contract.
+
+### GREEN
+- Updated new delivery-fixture statuses to the canonical enum value (`planned`) and re-ran targeted DB coverage:
+  - `pnpm --filter @scheduling/db run test -- src/journeys.constraints.test.ts`
+- Targeted suite passed, confirming both new uniqueness checkpoints and existing delete-time history retention assertions.
+
+### REFACTOR
+- Kept this slice scoped to DB contract tests only (no schema shape churn), preserving the task's persistence-model boundary.
+- Re-ran required quality gates and refreshed logs:
+  - `pnpm format`
+  - `pnpm lint`
+  - `pnpm typecheck`
+  - `pnpm test`
+- Updated artifacts:
+  - `specs/workflow-engine-rebuild-appointment-journeys/logs/build.log`
+  - `specs/workflow-engine-rebuild-appointment-journeys/logs/test.log`

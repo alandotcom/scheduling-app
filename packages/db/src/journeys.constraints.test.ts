@@ -154,6 +154,146 @@ describe("journey constraints", () => {
     await clearTestOrgContext(db);
   });
 
+  test("enforces immutable journey version uniqueness per journey", async () => {
+    const { org } = await seedTestOrg(db);
+    await setTestOrgContext(db, org.id);
+
+    const [journeyA] = await db
+      .insert(journeys)
+      .values({
+        orgId: org.id,
+        name: "Versioned Journey A",
+        state: "published",
+        draftDefinition: { steps: [] },
+      })
+      .returning();
+
+    const [journeyB] = await db
+      .insert(journeys)
+      .values({
+        orgId: org.id,
+        name: "Versioned Journey B",
+        state: "published",
+        draftDefinition: { steps: [] },
+      })
+      .returning();
+
+    await db.insert(journeyVersions).values({
+      orgId: org.id,
+      journeyId: journeyA!.id,
+      version: 1,
+      definitionSnapshot: { steps: [] },
+    });
+
+    try {
+      await db.insert(journeyVersions).values({
+        orgId: org.id,
+        journeyId: journeyA!.id,
+        version: 1,
+        definitionSnapshot: { steps: [{ type: "logger" }] },
+      });
+      throw new Error("expected unique violation");
+    } catch (error) {
+      expectUniqueViolation(error);
+    }
+
+    const versionForDifferentJourney = await db
+      .insert(journeyVersions)
+      .values({
+        orgId: org.id,
+        journeyId: journeyB!.id,
+        version: 1,
+        definitionSnapshot: { steps: [] },
+      })
+      .returning();
+
+    expect(versionForDifferentJourney).toHaveLength(1);
+    await clearTestOrgContext(db);
+  });
+
+  test("enforces deterministic delivery identity uniqueness", async () => {
+    const { org } = await seedTestOrg(db);
+    await setTestOrgContext(db, org.id);
+
+    const [journey] = await db
+      .insert(journeys)
+      .values({
+        orgId: org.id,
+        name: "Delivery Identity",
+        state: "published",
+        draftDefinition: { steps: [] },
+      })
+      .returning();
+
+    const [journeyVersion] = await db
+      .insert(journeyVersions)
+      .values({
+        orgId: org.id,
+        journeyId: journey!.id,
+        version: 1,
+        definitionSnapshot: { steps: [] },
+      })
+      .returning();
+
+    const [run] = await db
+      .insert(journeyRuns)
+      .values({
+        orgId: org.id,
+        journeyVersionId: journeyVersion!.id,
+        appointmentId: "8c120128-c1a2-4abc-9152-80b36d88f111",
+        mode: "live",
+        status: "planned",
+        journeyNameSnapshot: journey!.name,
+        journeyVersionSnapshot: { version: 1 },
+      })
+      .returning();
+
+    const deterministicKey =
+      "run:delivery-identity:send-email-1:2026-02-16T15:00:00.000Z";
+
+    await db.insert(journeyDeliveries).values({
+      orgId: org.id,
+      journeyRunId: run!.id,
+      stepKey: "send-email-1",
+      channel: "email",
+      scheduledFor: new Date("2026-02-16T15:00:00.000Z"),
+      status: "planned",
+      deterministicKey,
+    });
+
+    try {
+      await db.insert(journeyDeliveries).values({
+        orgId: org.id,
+        journeyRunId: run!.id,
+        stepKey: "send-email-1",
+        channel: "email",
+        scheduledFor: new Date("2026-02-16T15:00:00.000Z"),
+        status: "planned",
+        deterministicKey,
+      });
+      throw new Error("expected unique violation");
+    } catch (error) {
+      expectUniqueViolation(error);
+    }
+
+    const uniqueDelivery = await db
+      .insert(journeyDeliveries)
+      .values({
+        orgId: org.id,
+        journeyRunId: run!.id,
+        stepKey: "send-email-2",
+        channel: "email",
+        scheduledFor: new Date("2026-02-16T16:00:00.000Z"),
+        status: "planned",
+        deterministicKey:
+          "run:delivery-identity:send-email-2:2026-02-16T16:00:00.000Z",
+      })
+      .returning();
+
+    expect(uniqueDelivery).toHaveLength(1);
+    await clearTestOrgContext(db);
+  });
+
   test("keeps run history queryable after journey and version hard-delete", async () => {
     const { org } = await seedTestOrg(db);
     await setTestOrgContext(db, org.id);
