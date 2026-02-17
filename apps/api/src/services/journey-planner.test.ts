@@ -347,6 +347,18 @@ function createAppointmentPayload(input?: {
     timezone: input?.timezone ?? "America/New_York",
     status: "scheduled" as const,
     notes: null,
+    appointment: {
+      id: appointmentId,
+      calendarId: "018f4d3a-6d80-7c5b-8a4a-6cb8f8d57d11",
+      appointmentTypeId: "018f4d3a-6d80-7c5b-8a4a-6cb8f8d57d12",
+      clientId: null,
+      startAt: "2026-03-10T14:00:00.000Z",
+      endAt: "2026-03-10T15:00:00.000Z",
+      timezone: input?.timezone ?? "America/New_York",
+      status: "scheduled" as const,
+      notes: null,
+    },
+    client: null,
   };
 
   if (!input?.previousTimezone) {
@@ -358,6 +370,10 @@ function createAppointmentPayload(input?: {
     previous: {
       ...payload,
       timezone: input.previousTimezone,
+      appointment: {
+        ...payload.appointment,
+        timezone: input.previousTimezone,
+      },
     },
   };
 }

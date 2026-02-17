@@ -17,6 +17,18 @@ function createSnapshot(
     timezone: "America/New_York",
     status: "scheduled",
     notes: null,
+    appointment: {
+      id: "018f4d3a-6d80-7c5b-8a4a-6cb8f8d57d21",
+      calendarId: "018f4d3a-6d80-7c5b-8a4a-6cb8f8d57d22",
+      appointmentTypeId: "018f4d3a-6d80-7c5b-8a4a-6cb8f8d57d23",
+      clientId: null,
+      startAt: "2026-05-01T15:00:00.000Z",
+      endAt: "2026-05-01T15:30:00.000Z",
+      timezone: "America/New_York",
+      status: "scheduled",
+      notes: null,
+    },
+    client: null,
     ...overrides,
   };
 }

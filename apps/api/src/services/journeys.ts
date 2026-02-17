@@ -29,6 +29,7 @@ import {
 } from "@scheduling/dto";
 import {
   appointments,
+  clients,
   journeyDeliveries,
   journeyRuns,
   journeys,
@@ -514,7 +515,7 @@ function journeyIncludesEmailSendStep(graph: LinearJourneyGraph): boolean {
   });
 }
 
-function mapAppointmentToScheduledPayload(
+function mapAppointmentToScheduledPayload(appointment: {
   appointment: Pick<
     typeof appointments.$inferSelect,
     | "id"
@@ -526,19 +527,50 @@ function mapAppointmentToScheduledPayload(
     | "timezone"
     | "status"
     | "notes"
-  >,
-) {
+  >;
+  client: {
+    id: string | null;
+    firstName: string | null;
+    lastName: string | null;
+    email: string | null;
+    phone: string | null;
+  } | null;
+}) {
+  const appointmentSnapshot = appointment.appointment;
+  const clientSnapshot =
+    appointment.client && typeof appointment.client.id === "string"
+      ? {
+          id: appointment.client.id,
+          firstName: appointment.client.firstName ?? "",
+          lastName: appointment.client.lastName ?? "",
+          email: appointment.client.email,
+          phone: appointment.client.phone,
+        }
+      : null;
+
   const parsed = domainEventDataSchemaByType["appointment.scheduled"].safeParse(
     {
-      appointmentId: appointment.id,
-      calendarId: appointment.calendarId,
-      appointmentTypeId: appointment.appointmentTypeId,
-      clientId: appointment.clientId,
-      startAt: appointment.startAt.toISOString(),
-      endAt: appointment.endAt.toISOString(),
-      timezone: appointment.timezone,
-      status: appointment.status,
-      notes: appointment.notes,
+      appointmentId: appointmentSnapshot.id,
+      calendarId: appointmentSnapshot.calendarId,
+      appointmentTypeId: appointmentSnapshot.appointmentTypeId,
+      clientId: appointmentSnapshot.clientId,
+      startAt: appointmentSnapshot.startAt.toISOString(),
+      endAt: appointmentSnapshot.endAt.toISOString(),
+      timezone: appointmentSnapshot.timezone,
+      status: appointmentSnapshot.status,
+      notes: appointmentSnapshot.notes,
+      appointment: {
+        id: appointmentSnapshot.id,
+        calendarId: appointmentSnapshot.calendarId,
+        appointmentTypeId: appointmentSnapshot.appointmentTypeId,
+        clientId: appointmentSnapshot.clientId,
+        startAt: appointmentSnapshot.startAt.toISOString(),
+        endAt: appointmentSnapshot.endAt.toISOString(),
+        timezone: appointmentSnapshot.timezone,
+        status: appointmentSnapshot.status,
+        notes: appointmentSnapshot.notes,
+      },
+      client: clientSnapshot,
     },
   );
 
@@ -1072,17 +1104,27 @@ export class JourneyService {
 
       const [appointment] = await tx
         .select({
-          id: appointments.id,
-          calendarId: appointments.calendarId,
-          appointmentTypeId: appointments.appointmentTypeId,
-          clientId: appointments.clientId,
-          startAt: appointments.startAt,
-          endAt: appointments.endAt,
-          timezone: appointments.timezone,
-          status: appointments.status,
-          notes: appointments.notes,
+          appointment: {
+            id: appointments.id,
+            calendarId: appointments.calendarId,
+            appointmentTypeId: appointments.appointmentTypeId,
+            clientId: appointments.clientId,
+            startAt: appointments.startAt,
+            endAt: appointments.endAt,
+            timezone: appointments.timezone,
+            status: appointments.status,
+            notes: appointments.notes,
+          },
+          client: {
+            id: clients.id,
+            firstName: clients.firstName,
+            lastName: clients.lastName,
+            email: clients.email,
+            phone: clients.phone,
+          },
         })
         .from(appointments)
+        .leftJoin(clients, eq(appointments.clientId, clients.id))
         .where(eq(appointments.id, parsed.appointmentId))
         .limit(1);
 

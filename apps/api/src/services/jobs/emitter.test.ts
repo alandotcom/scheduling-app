@@ -91,6 +91,18 @@ describe("emitEvent", () => {
         timezone: "UTC",
         status: "scheduled",
         notes: null,
+        appointment: {
+          id: "018f4d3a-6d80-7c5b-8a4a-6cb8f8d57d21",
+          calendarId: "018f4d3a-6d80-7c5b-8a4a-6cb8f8d57d22",
+          appointmentTypeId: "018f4d3a-6d80-7c5b-8a4a-6cb8f8d57d23",
+          clientId: null,
+          startAt: new Date("2026-01-01T10:00:00.000Z").toISOString(),
+          endAt: new Date("2026-01-01T10:30:00.000Z").toISOString(),
+          timezone: "UTC",
+          status: "scheduled",
+          notes: null,
+        },
+        client: null,
       };
 
     await events.appointmentScheduled(orgId, appointmentSnapshot);

@@ -1,9 +1,11 @@
 // Appointment service - business logic layer for appointments
 
 import { DateTime } from "luxon";
+import { compact, uniq } from "es-toolkit/array";
 import { appointmentRepository } from "../repositories/appointments.js";
 import type {
   Appointment,
+  AppointmentEventClientSnapshot,
   AppointmentListInput,
   AppointmentWithRelations,
   AppointmentStatus,
@@ -118,9 +120,9 @@ function toAppointmentScheduleEvent(
   };
 }
 
-function toAppointmentEventSnapshot(appointment: Appointment) {
+function toAppointmentEntitySnapshot(appointment: Appointment) {
   return {
-    appointmentId: appointment.id,
+    id: appointment.id,
     calendarId: appointment.calendarId,
     appointmentTypeId: appointment.appointmentTypeId,
     clientId: appointment.clientId,
@@ -132,14 +134,67 @@ function toAppointmentEventSnapshot(appointment: Appointment) {
   };
 }
 
+function toAppointmentEventSnapshot(input: {
+  appointment: Appointment;
+  client: AppointmentEventClientSnapshot | null;
+}) {
+  const appointment = toAppointmentEntitySnapshot(input.appointment);
+  const client = input.client
+    ? {
+        id: input.client.id,
+        firstName: input.client.firstName,
+        lastName: input.client.lastName,
+        email: input.client.email,
+        phone: input.client.phone,
+      }
+    : null;
+
+  return {
+    appointmentId: appointment.id,
+    calendarId: appointment.calendarId,
+    appointmentTypeId: appointment.appointmentTypeId,
+    clientId: appointment.clientId,
+    startAt: appointment.startAt,
+    endAt: appointment.endAt,
+    timezone: appointment.timezone,
+    status: appointment.status,
+    notes: appointment.notes,
+    appointment,
+    client,
+  };
+}
+
 async function emitAppointmentLifecycleEvent(
   orgId: string,
   current: Appointment,
   previous?: Appointment | null,
 ) {
+  const clientIds = uniq(
+    compact([current.clientId, previous?.clientId ?? null]),
+  );
+
+  const clientsById = await withOrg(orgId, (tx) =>
+    appointmentRepository.findClientSnapshotsByIds(tx, orgId, clientIds),
+  );
+
+  const currentSnapshot = toAppointmentEventSnapshot({
+    appointment: current,
+    client: current.clientId
+      ? (clientsById.get(current.clientId) ?? null)
+      : null,
+  });
+  const previousSnapshot = previous
+    ? toAppointmentEventSnapshot({
+        appointment: previous,
+        client: previous.clientId
+          ? (clientsById.get(previous.clientId) ?? null)
+          : null,
+      })
+    : null;
+
   const lifecycleEvent = classifyAppointmentLifecycleEvent({
-    previous: previous ? toAppointmentEventSnapshot(previous) : null,
-    current: toAppointmentEventSnapshot(current),
+    previous: previousSnapshot,
+    current: currentSnapshot,
   });
 
   if (!lifecycleEvent) {

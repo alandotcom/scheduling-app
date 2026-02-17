@@ -292,6 +292,8 @@ export function WorkflowEditorSidebar({
   const nodeEnabled = isNodeEnabled(selectedNode);
   const triggerDomain = getTriggerDomain(nodes);
   const triggerEventTypes = getConfiguredTriggerEventTypes(nodes);
+  const eventSuggestionMode =
+    selectedActionType === "condition" ? "condition" : "general";
   const actionExpressionSuggestions = useMemo(() => {
     if (selectedNodeType !== "action") {
       return [];
@@ -301,6 +303,7 @@ export function WorkflowEditorSidebar({
       ? buildEventAttributeSuggestions({
           domain: triggerDomain,
           eventTypes: triggerEventTypes,
+          mode: eventSuggestionMode,
         })
       : [];
     const outputSuggestions = selectedNode
@@ -323,6 +326,7 @@ export function WorkflowEditorSidebar({
     nodes,
     selectedNode,
     selectedNodeType,
+    eventSuggestionMode,
     triggerDomain,
     triggerEventTypes,
   ]);

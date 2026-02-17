@@ -9,7 +9,6 @@ import {
   type LinearJourneyGraph,
 } from "@scheduling/dto";
 import {
-  clients,
   journeyDeliveries,
   journeyRuns,
   orgs,
@@ -364,16 +363,6 @@ function extractAppointmentId(payload: unknown): string | null {
   return typeof payloadRecord["appointmentId"] === "string"
     ? payloadRecord["appointmentId"]
     : null;
-}
-
-function extractClientId(payload: unknown): string | null {
-  const payloadRecord = toRecord(payload);
-  if (typeof payloadRecord["clientId"] === "string") {
-    return payloadRecord["clientId"];
-  }
-
-  const embeddedClient = toRecord(payloadRecord["client"]);
-  return typeof embeddedClient["id"] === "string" ? embeddedClient["id"] : null;
 }
 
 function resolveTriggerRouting(input: {
@@ -838,34 +827,9 @@ async function reconcileDeliveries(input: {
   };
 }
 
-async function getClientFilterContext(input: {
-  tx: DbClient;
-  payload: unknown;
-}): Promise<Record<string, unknown>> {
-  const payloadRecord = toRecord(input.payload);
-  const embeddedClient = toRecord(payloadRecord["client"]);
-  if (Object.keys(embeddedClient).length > 0) {
-    return embeddedClient;
-  }
-
-  const clientId = extractClientId(input.payload);
-  if (!clientId) {
-    return {};
-  }
-
-  const [client] = await input.tx
-    .select({
-      clientId: clients.id,
-      firstName: clients.firstName,
-      lastName: clients.lastName,
-      email: clients.email,
-      phone: clients.phone,
-    })
-    .from(clients)
-    .where(eq(clients.id, clientId))
-    .limit(1);
-
-  return client ? toRecord(client) : {};
+function getClientFilterContext(payload: unknown): Record<string, unknown> {
+  const payloadRecord = toRecord(payload);
+  return toRecord(payloadRecord["client"]);
 }
 
 export async function processJourneyDomainEvent(
@@ -956,10 +920,7 @@ export async function processJourneyDomainEvent(
     const erroredJourneyIds: string[] = [];
 
     const appointmentContext = toRecord(event.payload);
-    const clientContext = await getClientFilterContext({
-      tx,
-      payload: event.payload,
-    });
+    const clientContext = getClientFilterContext(event.payload);
     const appointmentId = extractAppointmentId(event.payload);
 
     await forEachAsync(

@@ -47,6 +47,26 @@ const appointmentSnapshotSchema = z.object({
   timezone: z.string().min(1),
   status: appointmentStatusSchema,
   notes: z.string().nullable(),
+  appointment: z.object({
+    id: uuidSchema,
+    calendarId: uuidSchema,
+    appointmentTypeId: uuidSchema,
+    clientId: uuidSchema.nullable(),
+    startAt: isoDateTimeStringSchema,
+    endAt: isoDateTimeStringSchema,
+    timezone: z.string().min(1),
+    status: appointmentStatusSchema,
+    notes: z.string().nullable(),
+  }),
+  client: z
+    .object({
+      id: uuidSchema,
+      firstName: z.string().min(1).max(255),
+      lastName: z.string().min(1).max(255),
+      email: z.email().nullable(),
+      phone: z.string().max(50).nullable(),
+    })
+    .nullable(),
 });
 
 const calendarSnapshotSchema = z.object({

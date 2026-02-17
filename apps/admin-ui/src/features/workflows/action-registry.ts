@@ -165,7 +165,7 @@ registerAction({
       type: "textarea",
       rows: 5,
       placeholder:
-        "Appointment @Appointment.data.appointmentId starts at @Appointment.data.startAt.",
+        "Appointment for @Appointment.data.client.firstName starts at @Appointment.data.startAt.",
       helpText: "Type @ to autocomplete trigger or upstream attributes.",
       required: true,
     },
@@ -259,7 +259,7 @@ registerAction({
       label: "Template variables",
       type: "key_value_list",
       keyPlaceholder: "PRODUCT",
-      valuePlaceholder: "Vintage Macintosh or @Appointment.data.appointmentId",
+      valuePlaceholder: "Vintage Macintosh or @Appointment.data.client.email",
       addButtonLabel: "Add variable",
       helpText:
         "Add zero or more key/value pairs. Values support @ variable autocomplete.",
@@ -290,7 +290,7 @@ registerAction({
       type: "textarea",
       rows: 5,
       placeholder:
-        "Appointment @Appointment.data.appointmentId updated for @Appointment.data.startAt.",
+        "Appointment for @Appointment.data.client.firstName moved to @Appointment.data.startAt.",
       helpText: "Type @ to autocomplete trigger or upstream attributes.",
       required: true,
     },

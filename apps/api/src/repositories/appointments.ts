@@ -92,6 +92,14 @@ export interface AppointmentWithRelations {
   } | null;
 }
 
+export interface AppointmentEventClientSnapshot {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string | null;
+  phone: string | null;
+}
+
 export interface AppointmentTypeData {
   id: string;
   name: string;
@@ -544,6 +552,30 @@ export class AppointmentRepository {
       .where(eq(clients.id, clientId))
       .limit(1);
     return !!client;
+  }
+
+  async findClientSnapshotsByIds(
+    tx: DbClient,
+    orgId: string,
+    clientIds: string[],
+  ): Promise<Map<string, AppointmentEventClientSnapshot>> {
+    if (clientIds.length === 0) {
+      return new Map();
+    }
+
+    await setOrgContext(tx, orgId);
+    const rows = await tx
+      .select({
+        id: clients.id,
+        firstName: clients.firstName,
+        lastName: clients.lastName,
+        email: clients.email,
+        phone: clients.phone,
+      })
+      .from(clients)
+      .where(inArray(clients.id, clientIds));
+
+    return new Map(rows.map((row) => [row.id, row]));
   }
 
   // Get appointment type with calendar link verification

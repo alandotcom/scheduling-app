@@ -12,6 +12,8 @@ export type EventAttributeSuggestion = {
   isDateTime: boolean;
 };
 
+export type EventAttributeSuggestionMode = "general" | "condition";
+
 type JsonSchema = Record<string, unknown>;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -119,14 +121,25 @@ function collectPaths(
   }
 }
 
+function isIdSuggestionPath(path: string): boolean {
+  const lastSegment = path.split(".").at(-1)?.toLowerCase();
+  if (!lastSegment) {
+    return false;
+  }
+
+  return lastSegment === "id" || lastSegment.endsWith("id");
+}
+
 export function buildEventAttributeSuggestions(input: {
   domain: DomainEventDomain;
   eventTypes?: DomainEventType[];
+  mode?: EventAttributeSuggestionMode;
 }): EventAttributeSuggestion[] {
   const eventTypes =
     input.eventTypes && input.eventTypes.length > 0
       ? input.eventTypes
       : [...domainEventTypesByDomain[input.domain]];
+  const mode = input.mode ?? "general";
 
   const root = toDomainRoot(input.domain);
   const suggestions = new Map<string, EventAttributeSuggestion>();
@@ -152,5 +165,10 @@ export function buildEventAttributeSuggestions(input: {
     collectPaths(jsonSchema as JsonSchema, `${root}.data`, suggestions);
   }
 
-  return [...suggestions.values()];
+  const values = [...suggestions.values()];
+  if (mode === "condition") {
+    return values;
+  }
+
+  return values.filter((suggestion) => !isIdSuggestionPath(suggestion.value));
 }
