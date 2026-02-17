@@ -1,8 +1,17 @@
 type ActionConfigFieldBase = {
   key: string;
   label: string;
-  type: "text" | "textarea" | "number" | "select" | "expression";
+  type:
+    | "text"
+    | "textarea"
+    | "number"
+    | "select"
+    | "expression"
+    | "key_value_list";
   placeholder?: string;
+  keyPlaceholder?: string;
+  valuePlaceholder?: string;
+  addButtonLabel?: string;
   helpText?: string;
   defaultValue?: string;
   options?: { value: string; label: string }[];
@@ -159,6 +168,101 @@ registerAction({
         "Appointment @Appointment.data.appointmentId starts at @Appointment.data.startAt.",
       helpText: "Type @ to autocomplete trigger or upstream attributes.",
       required: true,
+    },
+    {
+      key: "fromName",
+      label: "From name (optional)",
+      type: "text",
+      placeholder: "Acme Scheduling",
+      helpText:
+        "Leave blank to use the integration default sender name. Type @ to autocomplete workflow values.",
+    },
+    {
+      key: "fromAddress",
+      label: "From address (optional)",
+      type: "text",
+      placeholder: "notifications@example.com",
+      helpText:
+        "Leave blank to use the integration default sender address. Type @ to autocomplete workflow values.",
+    },
+    {
+      key: "cc",
+      label: "CC (optional)",
+      type: "text",
+      placeholder: "ops@example.com, manager@example.com",
+      helpText:
+        "Comma-separated email addresses. Type @ to autocomplete workflow values.",
+    },
+    {
+      key: "bcc",
+      label: "BCC (optional)",
+      type: "text",
+      placeholder: "audit@example.com, archive@example.com",
+      helpText:
+        "Comma-separated email addresses. Type @ to autocomplete workflow values.",
+    },
+  ],
+});
+
+registerAction({
+  id: "send-resend-template",
+  label: "Send Email Template",
+  defaultNodeLabel: "Resend Template",
+  description: "Deliver an outbound email from a Resend template.",
+  category: "Resend",
+  icon: "flash",
+  integrationKey: "resend",
+  configFields: [
+    {
+      key: "templateIdOrAlias",
+      label: "Template ID or alias",
+      type: "text",
+      placeholder: "order-confirmation",
+      helpText:
+        "Use a template ID or alias from Resend. Type @ to autocomplete workflow values.",
+      required: true,
+    },
+    {
+      key: "fromName",
+      label: "From name (optional)",
+      type: "text",
+      placeholder: "Acme Scheduling",
+      helpText:
+        "Leave blank to use the integration default sender name. Type @ to autocomplete workflow values.",
+    },
+    {
+      key: "fromAddress",
+      label: "From address (optional)",
+      type: "text",
+      placeholder: "notifications@example.com",
+      helpText:
+        "Leave blank to use the integration default sender address. Type @ to autocomplete workflow values.",
+    },
+    {
+      key: "cc",
+      label: "CC (optional)",
+      type: "text",
+      placeholder: "ops@example.com, manager@example.com",
+      helpText:
+        "Comma-separated email addresses. Type @ to autocomplete workflow values.",
+    },
+    {
+      key: "bcc",
+      label: "BCC (optional)",
+      type: "text",
+      placeholder: "audit@example.com, archive@example.com",
+      helpText:
+        "Comma-separated email addresses. Type @ to autocomplete workflow values.",
+    },
+    {
+      key: "templateVariables",
+      label: "Template variables",
+      type: "key_value_list",
+      keyPlaceholder: "PRODUCT",
+      valuePlaceholder: "Vintage Macintosh or @Appointment.data.appointmentId",
+      addButtonLabel: "Add variable",
+      helpText:
+        "Add zero or more key/value pairs. Values support @ variable autocomplete.",
     },
   ],
 });

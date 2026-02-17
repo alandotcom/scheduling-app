@@ -25,11 +25,15 @@ describe("ActionGrid", () => {
     expect(screen.getByText("Condition")).toBeTruthy();
     expect(screen.getByText("Logger")).toBeTruthy();
     expect(screen.getByText("Send Email")).toBeTruthy();
+    expect(screen.getByText("Send Email Template")).toBeTruthy();
     expect(screen.getByText("Send Channel Message")).toBeTruthy();
     expect(screen.getByTestId("action-grid-category-logo-resend")).toBeTruthy();
     expect(screen.getByTestId("action-grid-category-logo-slack")).toBeTruthy();
     expect(
       screen.getByTestId("action-grid-action-logo-send-resend"),
+    ).toBeTruthy();
+    expect(
+      screen.getByTestId("action-grid-action-logo-send-resend-template"),
     ).toBeTruthy();
     expect(
       screen.getByTestId("action-grid-action-logo-send-slack"),

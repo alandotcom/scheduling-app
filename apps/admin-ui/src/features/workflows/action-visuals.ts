@@ -74,6 +74,7 @@ export function getActionVisualSpec(
         brandLabel,
       };
     case "send-resend":
+    case "send-resend-template":
       return {
         icon: Mail01Icon,
         iconColorClass: "text-cyan-500",

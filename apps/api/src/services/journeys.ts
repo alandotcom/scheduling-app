@@ -508,7 +508,9 @@ function journeyIncludesEmailSendStep(graph: LinearJourneyGraph): boolean {
 
     const config = toRecord(node.attributes.data.config);
     const actionType = normalizeActionType(config["actionType"]);
-    return actionType === "send-resend";
+    return (
+      actionType === "send-resend" || actionType === "send-resend-template"
+    );
   });
 }
 

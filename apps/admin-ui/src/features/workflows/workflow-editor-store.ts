@@ -34,6 +34,7 @@ type WorkflowGraphState = {
 const supportedJourneyActionTypes = new Set([
   "wait",
   "send-resend",
+  "send-resend-template",
   "send-slack",
   "condition",
   "logger",

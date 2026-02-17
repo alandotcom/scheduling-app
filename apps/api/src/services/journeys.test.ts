@@ -62,11 +62,16 @@ function createLinearGraph(triggerId = "trigger-1"): LinearJourneyGraph {
 
 function createLinearGraphWithSendMessage(input?: {
   triggerId?: string;
-  channel?: "email" | "slack";
+  channel?: "email" | "email-template" | "slack";
 }): LinearJourneyGraph {
   const triggerId = input?.triggerId ?? "trigger-with-send";
   const channel = input?.channel ?? "email";
-  const actionType = channel === "slack" ? "send-slack" : "send-resend";
+  const actionType =
+    channel === "slack"
+      ? "send-slack"
+      : channel === "email-template"
+        ? "send-resend-template"
+        : "send-resend";
 
   return {
     attributes: {},
@@ -779,6 +784,55 @@ describe("JourneyService", () => {
 
     expect(runs).toHaveLength(0);
     expect(deliveries).toHaveLength(0);
+  });
+
+  test("manual test start rejects missing email override for template email steps", async () => {
+    const location = await createLocation(db as any, context.orgId);
+    const calendar = await createCalendar(db as any, context.orgId, {
+      locationId: location.id,
+    });
+    const appointmentType = await createAppointmentType(
+      db as any,
+      context.orgId,
+      {
+        calendarIds: [calendar.id],
+      },
+    );
+    const appointment = await createAppointment(db as any, context.orgId, {
+      calendarId: calendar.id,
+      appointmentTypeId: appointmentType.id,
+      startAt: new Date("2026-03-10T14:00:00.000Z"),
+      endAt: new Date("2026-03-10T15:00:00.000Z"),
+    });
+
+    const created = await journeyService.create(
+      {
+        name: "Template Email Override Journey",
+        graph: createLinearGraphWithSendMessage({ channel: "email-template" }),
+      },
+      context,
+    );
+
+    await journeyService.publish(
+      created.id,
+      {
+        mode: "live",
+      },
+      context,
+    );
+
+    await expect(
+      journeyService.startTestRun(
+        created.id,
+        {
+          appointmentId: appointment.id,
+        },
+        context,
+      ),
+    ).rejects.toMatchObject({
+      code: "BAD_REQUEST",
+      message: "Email override is required for test runs with Email steps",
+    });
   });
 
   test("manual test start allows slack steps without slack override", async () => {

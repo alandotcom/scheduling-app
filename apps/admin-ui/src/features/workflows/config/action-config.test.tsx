@@ -62,4 +62,41 @@ describe("ActionConfig", () => {
     const tokens = container.querySelectorAll("[data-expression-token='true']");
     expect(tokens.length).toBe(2);
   });
+
+  test("renders token pills in resend template fields", () => {
+    const { container } = render(
+      <ActionConfig
+        config={{
+          actionType: "send-resend-template",
+          templateIdOrAlias: "@Action1.templateAlias",
+          fromName: "@Action1.senderName",
+          templateVariables: [
+            { key: "PRODUCT", value: "@Appointment.data.appointmentId" },
+          ],
+        }}
+        onUpdateConfig={mock((_key: string, _value: unknown) => {})}
+      />,
+    );
+
+    const tokens = container.querySelectorAll("[data-expression-token='true']");
+    expect(tokens.length).toBe(3);
+  });
+
+  test("supports removing template variable rows", () => {
+    const onUpdateConfig = mock((_key: string, _value: unknown) => {});
+
+    render(
+      <ActionConfig
+        config={{
+          actionType: "send-resend-template",
+          templateVariables: [{ key: "PRODUCT", value: "Widget" }],
+        }}
+        onUpdateConfig={onUpdateConfig}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Remove" }));
+
+    expect(onUpdateConfig).toHaveBeenCalledWith("templateVariables", []);
+  });
 });

@@ -473,6 +473,7 @@ function buildDesiredDeliveries(input: {
 
     if (
       actionType !== "send-resend" &&
+      actionType !== "send-resend-template" &&
       actionType !== "send-slack" &&
       actionType !== "logger"
     ) {

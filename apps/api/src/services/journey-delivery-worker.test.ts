@@ -15,7 +15,7 @@ const db: TestDatabase = getTestDb();
 
 function createJourneyVersionSnapshot(input?: {
   stepKey?: string;
-  actionType?: "send-resend" | "send-slack" | "logger";
+  actionType?: "send-resend" | "send-resend-template" | "send-slack" | "logger";
   channel?: "email" | "slack" | "logger";
 }) {
   const stepKey = input?.stepKey ?? "send-node";
@@ -92,7 +92,11 @@ async function seedPlannedDelivery(
   scheduledFor: Date,
   input?: {
     stepKey?: string;
-    actionType?: "send-resend" | "send-slack" | "logger";
+    actionType?:
+      | "send-resend"
+      | "send-resend-template"
+      | "send-slack"
+      | "logger";
     channel?: "email" | "slack" | "logger";
   },
 ) {

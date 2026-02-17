@@ -61,11 +61,16 @@ function createLinearGraph(triggerId = "trigger-1"): LinearJourneyGraph {
 
 function createLinearGraphWithSendMessage(input?: {
   triggerId?: string;
-  channel?: "email" | "slack";
+  channel?: "email" | "email-template" | "slack";
 }): LinearJourneyGraph {
   const triggerId = input?.triggerId ?? "trigger-send";
   const channel = input?.channel ?? "email";
-  const actionType = channel === "slack" ? "send-slack" : "send-resend";
+  const actionType =
+    channel === "slack"
+      ? "send-slack"
+      : channel === "email-template"
+        ? "send-resend-template"
+        : "send-resend";
 
   return {
     attributes: {},
@@ -648,6 +653,62 @@ describe("Journey Routes", () => {
       {
         name: "Route Missing Override Journey",
         graph: createLinearGraphWithSendMessage({ channel: "email" }),
+      },
+      { context: ownerContext },
+    );
+
+    await call(
+      journeyRoutes.publish,
+      {
+        id: created.id,
+        data: {
+          mode: "live",
+        },
+      },
+      { context: ownerContext },
+    );
+
+    await expect(
+      call(
+        journeyRoutes.startTestRun,
+        {
+          id: created.id,
+          data: {
+            appointmentId: appointment.id,
+          },
+        },
+        { context: ownerContext },
+      ),
+    ).rejects.toMatchObject({
+      code: "BAD_REQUEST",
+      message: "Email override is required for test runs with Email steps",
+    });
+  });
+
+  test("manual test run route rejects missing email override for template email steps", async () => {
+    const location = await createLocation(db, ownerContext.orgId!);
+    const calendar = await createCalendar(db, ownerContext.orgId!, {
+      locationId: location.id,
+    });
+    const appointmentType = await createAppointmentType(
+      db,
+      ownerContext.orgId!,
+      {
+        calendarIds: [calendar.id],
+      },
+    );
+    const appointment = await createAppointment(db, ownerContext.orgId!, {
+      calendarId: calendar.id,
+      appointmentTypeId: appointmentType.id,
+      startAt: new Date("2026-03-10T14:00:00.000Z"),
+      endAt: new Date("2026-03-10T15:00:00.000Z"),
+    });
+
+    const created = await call(
+      journeyRoutes.create,
+      {
+        name: "Route Missing Override Template Journey",
+        graph: createLinearGraphWithSendMessage({ channel: "email-template" }),
       },
       { context: ownerContext },
     );

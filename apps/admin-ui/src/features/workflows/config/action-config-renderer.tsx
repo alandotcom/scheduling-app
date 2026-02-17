@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { ArrowDown01Icon } from "@hugeicons/core-free-icons";
+import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -28,6 +29,27 @@ interface ActionConfigRendererProps {
   disabled?: boolean;
   expressionSuggestions?: EventAttributeSuggestion[];
   selectOptionsByKey?: Record<string, Array<{ value: string; label: string }>>;
+}
+
+type KeyValueRow = {
+  id: string;
+  key: string;
+  value: string;
+};
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function createKeyValueRow(input?: {
+  key?: string;
+  value?: string;
+}): KeyValueRow {
+  return {
+    id: crypto.randomUUID(),
+    key: input?.key ?? "",
+    value: input?.value ?? "",
+  };
 }
 
 function collectFieldDefaults(
@@ -111,6 +133,36 @@ function validateWaitUntilValue(
   }
 
   return `"${invalidReference}" is not a datetime attribute.`;
+}
+
+function toKeyValueRows(value: unknown): KeyValueRow[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  const rows: KeyValueRow[] = [];
+  for (const entry of value) {
+    if (!isRecord(entry)) {
+      continue;
+    }
+    const key = typeof entry["key"] === "string" ? entry["key"] : "";
+    const itemValue = typeof entry["value"] === "string" ? entry["value"] : "";
+    rows.push(createKeyValueRow({ key, value: itemValue }));
+  }
+
+  return rows;
+}
+
+function normalizeKeyValueRows(rows: KeyValueRow[]): Array<{
+  key: string;
+  value: string;
+}> {
+  return rows
+    .map((row) => ({
+      key: row.key.trim(),
+      value: row.value,
+    }))
+    .filter((row) => row.key.length > 0);
 }
 
 function TextFieldRenderer({
@@ -360,6 +412,99 @@ function ExpressionFieldRenderer({
   );
 }
 
+function KeyValueListFieldRenderer({
+  field,
+  config,
+  onUpdateConfig,
+  disabled,
+  suggestions,
+}: {
+  field: ActionConfigFieldBase;
+  config: Record<string, unknown>;
+  onUpdateConfig: (key: string, value: unknown) => void;
+  disabled?: boolean;
+  suggestions: EventAttributeSuggestion[];
+}) {
+  const configValue = config[field.key];
+  const [rows, setRows] = useState<KeyValueRow[]>(() =>
+    toKeyValueRows(configValue),
+  );
+
+  useEffect(() => {
+    setRows(toKeyValueRows(configValue));
+  }, [configValue]);
+
+  const commitRows = (nextRows: KeyValueRow[]) => {
+    onUpdateConfig(field.key, normalizeKeyValueRows(nextRows));
+  };
+
+  const updateRow = (
+    rowId: string,
+    patch: Partial<Pick<KeyValueRow, "key" | "value">>,
+  ) => {
+    setRows((currentRows) =>
+      currentRows.map((row) => (row.id === rowId ? { ...row, ...patch } : row)),
+    );
+  };
+
+  return (
+    <div className="space-y-2">
+      <Label>{field.label}</Label>
+      <div className="space-y-2">
+        {rows.map((row) => (
+          <div key={row.id} className="grid grid-cols-[1fr_1fr_auto] gap-2">
+            <Input
+              disabled={disabled}
+              onBlur={() => commitRows(rows)}
+              onChange={(event) =>
+                updateRow(row.id, { key: event.target.value })
+              }
+              placeholder={field.keyPlaceholder ?? "Key"}
+              type="text"
+              value={row.key}
+            />
+            <ExpressionInput
+              disabled={disabled}
+              onBlur={() => commitRows(rows)}
+              onChange={(nextValue) => updateRow(row.id, { value: nextValue })}
+              placeholder={field.valuePlaceholder ?? "Value"}
+              suggestions={suggestions}
+              value={row.value}
+            />
+            <Button
+              disabled={disabled}
+              onClick={() => {
+                const nextRows = rows.filter(
+                  (candidate) => candidate.id !== row.id,
+                );
+                setRows(nextRows);
+                commitRows(nextRows);
+              }}
+              size="sm"
+              type="button"
+              variant="outline"
+            >
+              Remove
+            </Button>
+          </div>
+        ))}
+        <Button
+          disabled={disabled}
+          onClick={() => setRows([...rows, createKeyValueRow()])}
+          size="sm"
+          type="button"
+          variant="outline"
+        >
+          {field.addButtonLabel ?? "Add row"}
+        </Button>
+      </div>
+      {field.helpText ? (
+        <p className="text-muted-foreground text-xs">{field.helpText}</p>
+      ) : null}
+    </div>
+  );
+}
+
 function GroupFieldRenderer({
   group,
   config,
@@ -499,6 +644,16 @@ function FieldRenderer({
     case "expression":
       return (
         <ExpressionFieldRenderer
+          field={field}
+          config={config}
+          onUpdateConfig={onUpdateConfig}
+          disabled={disabled}
+          suggestions={expressionSuggestions}
+        />
+      );
+    case "key_value_list":
+      return (
+        <KeyValueListFieldRenderer
           field={field}
           config={config}
           onUpdateConfig={onUpdateConfig}
