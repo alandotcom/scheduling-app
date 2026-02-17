@@ -181,10 +181,59 @@ describe("WorkflowTriggerConfig", () => {
     expect(screen.getByText("Client Phone")).toBeTruthy();
     expect(screen.queryByText("Patient Status")).toBeNull();
 
-    fireEvent.click(
-      screen.getByRole("combobox", { name: "Group 1 condition 1 operator" }),
+    const fieldCombobox = screen.getByRole("combobox", {
+      name: "Group 1 condition 1 field",
+    });
+    expect(fieldCombobox.textContent).toContain("Start Time");
+    expect(fieldCombobox.textContent).not.toContain("appointment.startAt");
+
+    const operatorCombobox = screen.getByRole("combobox", {
+      name: "Group 1 condition 1 operator",
+    });
+    expect(operatorCombobox.textContent).toContain("is within the next");
+    expect(operatorCombobox.textContent).not.toContain("within_next");
+
+    fireEvent.click(operatorCombobox);
+    expect(screen.getAllByText("is within the next").length).toBeGreaterThan(0);
+  });
+
+  test("shows fallback label for operators incompatible with the selected field", () => {
+    const onUpdate = mock(() => {});
+
+    render(
+      <WorkflowTriggerConfig
+        config={{
+          ...createTriggerConfig(),
+          filter: {
+            logic: "and",
+            groups: [
+              {
+                logic: "and",
+                conditions: [
+                  {
+                    field: "appointment.startAt",
+                    operator: "on_or_before",
+                    value: "2026-01-01T00:00:00Z",
+                  },
+                ],
+              },
+            ],
+          },
+        }}
+        disabled={false}
+        onUpdate={onUpdate}
+      />,
     );
-    expect(screen.getByText("is within the next")).toBeTruthy();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Toggle audience rules" }),
+    );
+
+    const operatorCombobox = screen.getByRole("combobox", {
+      name: "Group 1 condition 1 operator",
+    });
+    expect(operatorCombobox.textContent).toContain("on or before");
+    expect(operatorCombobox.textContent).not.toContain("on_or_before");
   });
 
   test("updates top-level filter logic through group connector controls", () => {

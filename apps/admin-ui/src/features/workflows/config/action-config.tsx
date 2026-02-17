@@ -42,6 +42,7 @@ function filterActionsByEnvironment(input: {
 interface ActionConfigProps {
   config: Record<string, unknown>;
   onUpdateConfig: (key: string, value: unknown) => void;
+  onUpdateConfigBatch?: (patch: Record<string, unknown>) => void;
   disabled?: boolean;
   expressionSuggestions?: EventAttributeSuggestion[];
   selectOptionsByKey?: Record<string, Array<{ value: string; label: string }>>;
@@ -71,6 +72,7 @@ function ActionSelectLabel({ action }: { action: ActionDefinition }) {
 export function ActionConfig({
   config,
   onUpdateConfig,
+  onUpdateConfigBatch,
   disabled,
   expressionSuggestions = [],
   selectOptionsByKey = {},
@@ -244,6 +246,7 @@ export function ActionConfig({
           fields={currentAction.configFields}
           config={config}
           onUpdateConfig={onUpdateConfig}
+          onUpdateConfigBatch={onUpdateConfigBatch}
           disabled={disabled}
           expressionSuggestions={expressionSuggestions}
           selectOptionsByKey={selectOptionsByKey}

@@ -28,6 +28,9 @@ import {
   VALUELESS_OPERATORS,
   WORKFLOW_FILTER_FIELD_OPTIONS,
   WORKFLOW_FILTER_TEMPORAL_UNIT_OPTIONS,
+  getWorkflowFilterFieldLabel,
+  getWorkflowFilterOperatorLabel,
+  getWorkflowFilterTemporalUnitLabel,
   getOperatorOptionsForField,
   getWorkflowFilterFieldType,
   toDateInputValue,
@@ -38,6 +41,7 @@ interface ActionConfigRendererProps {
   fields: ActionConfigField[];
   config: Record<string, unknown>;
   onUpdateConfig: (key: string, value: unknown) => void;
+  onUpdateConfigBatch?: (patch: Record<string, unknown>) => void;
   disabled?: boolean;
   expressionSuggestions?: EventAttributeSuggestion[];
   selectOptionsByKey?: Record<string, Array<{ value: string; label: string }>>;
@@ -584,12 +588,14 @@ function ConditionExpressionFieldRenderer({
   field,
   config,
   onUpdateConfig,
+  onUpdateConfigBatch,
   disabled,
   suggestions,
 }: {
   field: ActionConfigFieldBase;
   config: Record<string, unknown>;
   onUpdateConfig: (key: string, value: unknown) => void;
+  onUpdateConfigBatch?: (patch: Record<string, unknown>) => void;
   disabled?: boolean;
   suggestions: EventAttributeSuggestion[];
 }) {
@@ -618,6 +624,14 @@ function ConditionExpressionFieldRenderer({
   const isTimestampField =
     getWorkflowFilterFieldType(conditionField) === "timestamp";
   const relativeTemporalValue = toRelativeTemporalValueDraft(conditionValue);
+  const selectedFieldLabel = getWorkflowFilterFieldLabel(conditionField);
+  const selectedOperatorLabel = getWorkflowFilterOperatorLabel({
+    field: conditionField,
+    operator: conditionOperator,
+  });
+  const selectedUnitLabel = getWorkflowFilterTemporalUnitLabel(
+    relativeTemporalValue.unit,
+  );
   const hasBuilderDraft =
     conditionField.length > 0 ||
     conditionOperator.length > 0 ||
@@ -650,11 +664,22 @@ function ConditionExpressionFieldRenderer({
       value: nextValue,
     });
 
-    onUpdateConfig("conditionMode", "builder");
-    onUpdateConfig("conditionField", nextField);
-    onUpdateConfig("conditionOperator", nextOperator);
-    onUpdateConfig("conditionValue", nextValue);
-    onUpdateConfig(field.key, compiledExpression);
+    const configPatch: Record<string, unknown> = {
+      conditionMode: "builder",
+      conditionField: nextField,
+      conditionOperator: nextOperator,
+      conditionValue: nextValue,
+      [field.key]: compiledExpression,
+    };
+
+    if (onUpdateConfigBatch) {
+      onUpdateConfigBatch(configPatch);
+      return;
+    }
+
+    for (const [key, value] of Object.entries(configPatch)) {
+      onUpdateConfig(key, value);
+    }
   };
 
   return (
@@ -707,7 +732,9 @@ function ConditionExpressionFieldRenderer({
             }}
           >
             <SelectTrigger aria-label="Condition field" size="sm">
-              <SelectValue placeholder="Select property" />
+              <SelectValue placeholder="Select property">
+                {selectedFieldLabel}
+              </SelectValue>
             </SelectTrigger>
             <SelectContent>
               {WORKFLOW_FILTER_FIELD_OPTIONS.map((option) => (
@@ -736,7 +763,9 @@ function ConditionExpressionFieldRenderer({
             }}
           >
             <SelectTrigger aria-label="Condition operator" size="sm">
-              <SelectValue placeholder="Select operator" />
+              <SelectValue placeholder="Select operator">
+                {selectedOperatorLabel}
+              </SelectValue>
             </SelectTrigger>
             <SelectContent>
               {getOperatorOptionsForField(conditionField).map((operator) => (
@@ -797,7 +826,9 @@ function ConditionExpressionFieldRenderer({
                 }}
               >
                 <SelectTrigger aria-label="Condition relative unit" size="sm">
-                  <SelectValue placeholder="Unit" />
+                  <SelectValue placeholder="Unit">
+                    {selectedUnitLabel}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   {WORKFLOW_FILTER_TEMPORAL_UNIT_OPTIONS.map((unit) => (
@@ -981,6 +1012,7 @@ function GroupFieldRenderer({
   group,
   config,
   onUpdateConfig,
+  onUpdateConfigBatch,
   disabled,
   expressionSuggestions,
   selectOptionsByKey,
@@ -989,6 +1021,7 @@ function GroupFieldRenderer({
   group: ActionConfigFieldGroup;
   config: Record<string, unknown>;
   onUpdateConfig: (key: string, value: unknown) => void;
+  onUpdateConfigBatch?: (patch: Record<string, unknown>) => void;
   disabled?: boolean;
   expressionSuggestions: EventAttributeSuggestion[];
   selectOptionsByKey: Record<string, Array<{ value: string; label: string }>>;
@@ -1020,6 +1053,7 @@ function GroupFieldRenderer({
               field={field}
               config={config}
               onUpdateConfig={onUpdateConfig}
+              onUpdateConfigBatch={onUpdateConfigBatch}
               disabled={disabled}
               expressionSuggestions={expressionSuggestions}
               selectOptionsByKey={selectOptionsByKey}
@@ -1036,6 +1070,7 @@ function FieldRenderer({
   field,
   config,
   onUpdateConfig,
+  onUpdateConfigBatch,
   disabled,
   expressionSuggestions,
   selectOptionsByKey,
@@ -1044,6 +1079,7 @@ function FieldRenderer({
   field: ActionConfigField;
   config: Record<string, unknown>;
   onUpdateConfig: (key: string, value: unknown) => void;
+  onUpdateConfigBatch?: (patch: Record<string, unknown>) => void;
   disabled?: boolean;
   expressionSuggestions: EventAttributeSuggestion[];
   selectOptionsByKey: Record<string, Array<{ value: string; label: string }>>;
@@ -1055,6 +1091,7 @@ function FieldRenderer({
         group={field}
         config={config}
         onUpdateConfig={onUpdateConfig}
+        onUpdateConfigBatch={onUpdateConfigBatch}
         disabled={disabled}
         expressionSuggestions={expressionSuggestions}
         selectOptionsByKey={selectOptionsByKey}
@@ -1124,6 +1161,7 @@ function FieldRenderer({
             field={field}
             config={config}
             onUpdateConfig={onUpdateConfig}
+            onUpdateConfigBatch={onUpdateConfigBatch}
             disabled={disabled}
             suggestions={expressionSuggestions}
           />
@@ -1156,6 +1194,7 @@ export function ActionConfigRenderer({
   fields,
   config,
   onUpdateConfig,
+  onUpdateConfigBatch,
   disabled,
   expressionSuggestions = [],
   selectOptionsByKey = {},
@@ -1170,6 +1209,7 @@ export function ActionConfigRenderer({
           field={field}
           config={config}
           onUpdateConfig={onUpdateConfig}
+          onUpdateConfigBatch={onUpdateConfigBatch}
           disabled={disabled}
           expressionSuggestions={expressionSuggestions}
           selectOptionsByKey={selectOptionsByKey}

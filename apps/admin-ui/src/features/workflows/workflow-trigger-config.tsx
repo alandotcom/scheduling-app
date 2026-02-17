@@ -32,8 +32,12 @@ import {
   VALUELESS_OPERATORS,
   WORKFLOW_FILTER_FIELD_OPTIONS,
   WORKFLOW_FILTER_TEMPORAL_UNIT_OPTIONS,
+  getWorkflowFilterFieldLabel,
+  getWorkflowFilterOperatorLabel,
+  getWorkflowFilterTemporalUnitLabel,
   getOperatorOptionsForField,
   getWorkflowFilterFieldType,
+  toWorkflowFilterFallbackLabel,
   toDateInputValue,
   toRelativeTemporalValueDraft,
 } from "./filter-builder-shared";
@@ -152,10 +156,6 @@ function toConditionValue(
   return "";
 }
 
-function toOperatorFallbackLabel(operator: string): string {
-  return operator.replaceAll("_", " ");
-}
-
 interface LogicConnectorProps {
   ariaLabel: string;
   disabled: boolean;
@@ -250,13 +250,21 @@ function ConditionRow({
     !baseOperatorOptions.some((option) => option.value === condition.operator)
       ? [
           {
-            label: toOperatorFallbackLabel(condition.operator),
+            label: toWorkflowFilterFallbackLabel(condition.operator),
             value: condition.operator,
           },
           ...baseOperatorOptions,
         ]
       : baseOperatorOptions;
   const relativeTemporalValue = toRelativeTemporalValueDraft(condition.value);
+  const selectedFieldLabel = getWorkflowFilterFieldLabel(condition.field);
+  const selectedOperatorLabel = getWorkflowFilterOperatorLabel({
+    field: condition.field,
+    operator: condition.operator,
+  });
+  const selectedUnitLabel = getWorkflowFilterTemporalUnitLabel(
+    relativeTemporalValue.unit,
+  );
 
   return (
     <div className="flex items-start gap-2">
@@ -282,7 +290,9 @@ function ConditionRow({
               className="h-9 min-w-0 w-full"
               size="sm"
             >
-              <SelectValue placeholder="Select property" />
+              <SelectValue placeholder="Select property">
+                {selectedFieldLabel}
+              </SelectValue>
             </SelectTrigger>
             <SelectContent>
               {WORKFLOW_FILTER_FIELD_OPTIONS.map((field) => (
@@ -312,7 +322,9 @@ function ConditionRow({
               className="h-9 min-w-0 w-full"
               size="sm"
             >
-              <SelectValue placeholder="Select operator" />
+              <SelectValue placeholder="Select operator">
+                {selectedOperatorLabel}
+              </SelectValue>
             </SelectTrigger>
             <SelectContent>
               {operatorOptions.map((operator) => (
@@ -373,7 +385,9 @@ function ConditionRow({
                 }}
               >
                 <SelectTrigger className="h-9 min-w-0 w-full" size="sm">
-                  <SelectValue placeholder="Unit" />
+                  <SelectValue placeholder="Unit">
+                    {selectedUnitLabel}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   {WORKFLOW_FILTER_TEMPORAL_UNIT_OPTIONS.map((unit) => (

@@ -160,6 +160,60 @@ export function getOperatorOptionsForField(
     : WORKFLOW_FILTER_TEXT_OPERATOR_OPTIONS;
 }
 
+export function toWorkflowFilterFallbackLabel(value: string): string {
+  return value.replaceAll("_", " ");
+}
+
+export function getWorkflowFilterFieldLabel(value: string): string | undefined {
+  const option = WORKFLOW_FILTER_FIELD_OPTIONS.find(
+    (candidate) => candidate.value === value,
+  );
+  if (option) {
+    return option.label;
+  }
+
+  if (value.length === 0) {
+    return undefined;
+  }
+
+  return value;
+}
+
+export function getWorkflowFilterOperatorLabel(input: {
+  field: string;
+  operator: JourneyTriggerFilterCondition["operator"] | "";
+}): string | undefined {
+  if (input.operator.length === 0) {
+    return undefined;
+  }
+
+  const option = getOperatorOptionsForField(input.field).find(
+    (candidate) => candidate.value === input.operator,
+  );
+  if (option) {
+    return option.label;
+  }
+
+  return toWorkflowFilterFallbackLabel(input.operator);
+}
+
+export function getWorkflowFilterTemporalUnitLabel(
+  value: JourneyTriggerFilterTemporalUnit | undefined,
+): string | undefined {
+  if (!value) {
+    return undefined;
+  }
+
+  const option = WORKFLOW_FILTER_TEMPORAL_UNIT_OPTIONS.find(
+    (candidate) => candidate.value === value,
+  );
+  if (option) {
+    return option.label;
+  }
+
+  return value;
+}
+
 export function toRelativeTemporalValueDraft(
   value: unknown,
 ): RelativeTemporalValueDraft {

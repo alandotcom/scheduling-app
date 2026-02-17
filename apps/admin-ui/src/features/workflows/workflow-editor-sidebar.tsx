@@ -621,6 +621,17 @@ export function WorkflowEditorSidebar({
                               },
                             });
                           }}
+                          onUpdateConfigBatch={(patch) => {
+                            onUpdateNodeData({
+                              id: selectedNode.id,
+                              data: {
+                                config: {
+                                  ...selectedNodeConfig,
+                                  ...patch,
+                                },
+                              },
+                            });
+                          }}
                           disabled={!canManageWorkflow}
                           expressionSuggestions={actionExpressionSuggestions}
                         />

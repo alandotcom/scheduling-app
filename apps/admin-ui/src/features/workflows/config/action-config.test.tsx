@@ -23,6 +23,12 @@ function StatefulActionConfig({
           [key]: value,
         }))
       }
+      onUpdateConfigBatch={(patch) =>
+        setConfig((currentConfig) => ({
+          ...currentConfig,
+          ...patch,
+        }))
+      }
     />
   );
 }
@@ -212,6 +218,38 @@ describe("ActionConfig", () => {
     expect(screen.getByText("Client Last Name")).toBeTruthy();
     expect(screen.getByText("Client Email")).toBeTruthy();
     expect(screen.queryByText("Patient Status")).toBeNull();
+  });
+
+  test("shows human-readable selected labels in condition builder selects", () => {
+    render(
+      <StatefulActionConfig
+        initialConfig={{
+          actionType: "condition",
+          expression: "",
+          conditionMode: "builder",
+          conditionField: "appointment.startAt",
+          conditionOperator: "within_next",
+          conditionValue: { amount: 3, unit: "hours" },
+        }}
+      />,
+    );
+
+    const fieldCombobox = screen.getByRole("combobox", {
+      name: "Condition field",
+    });
+    expect(fieldCombobox.textContent).toContain("Start Time");
+    expect(fieldCombobox.textContent).not.toContain("appointment.startAt");
+
+    const operatorCombobox = screen.getByRole("combobox", {
+      name: "Condition operator",
+    });
+    expect(operatorCombobox.textContent).toContain("is within the next");
+    expect(operatorCombobox.textContent).not.toContain("within_next");
+
+    const unitCombobox = screen.getByRole("combobox", {
+      name: "Condition relative unit",
+    });
+    expect(unitCombobox.textContent).toContain("hours");
   });
 
   test("falls back to raw CEL mode for existing custom condition expressions", () => {
