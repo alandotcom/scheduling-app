@@ -188,7 +188,7 @@ describe("ActionConfig", () => {
     ).toBeTruthy();
   });
 
-  test("renders condition builder controls with appointment attributes", () => {
+  test("renders condition builder controls with appointment and client attributes", () => {
     render(
       <ActionConfig
         config={{ actionType: "condition", expression: "true" }}
@@ -208,6 +208,9 @@ describe("ActionConfig", () => {
 
     fireEvent.click(screen.getByRole("combobox", { name: "Condition field" }));
     expect(screen.getByText("Appointment Status")).toBeTruthy();
+    expect(screen.getByText("Client First Name")).toBeTruthy();
+    expect(screen.getByText("Client Last Name")).toBeTruthy();
+    expect(screen.getByText("Client Email")).toBeTruthy();
     expect(screen.queryByText("Patient Status")).toBeNull();
   });
 

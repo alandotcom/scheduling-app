@@ -61,6 +61,31 @@ export const WORKFLOW_FILTER_FIELD_OPTIONS: WorkflowFilterFieldOption[] = [
     value: "appointment.notes",
     type: "string",
   },
+  {
+    label: "Client Record ID",
+    value: "client.id",
+    type: "string",
+  },
+  {
+    label: "Client First Name",
+    value: "client.firstName",
+    type: "string",
+  },
+  {
+    label: "Client Last Name",
+    value: "client.lastName",
+    type: "string",
+  },
+  {
+    label: "Client Email",
+    value: "client.email",
+    type: "string",
+  },
+  {
+    label: "Client Phone",
+    value: "client.phone",
+    type: "string",
+  },
 ];
 
 export const WORKFLOW_FILTER_TEMPORAL_UNIT_OPTIONS: Array<{

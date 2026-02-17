@@ -136,7 +136,7 @@ describe("WorkflowTriggerConfig", () => {
     expect(onUpdate).toHaveBeenCalledTimes(0);
   });
 
-  test("shows appointment trigger attributes and timestamp-specific operators", () => {
+  test("shows appointment and client trigger attributes plus timestamp-specific operators", () => {
     const onUpdate = mock(() => {});
 
     render(
@@ -175,6 +175,10 @@ describe("WorkflowTriggerConfig", () => {
       screen.getByRole("combobox", { name: "Group 1 condition 1 field" }),
     );
     expect(screen.getByText("Appointment Status")).toBeTruthy();
+    expect(screen.getByText("Client First Name")).toBeTruthy();
+    expect(screen.getByText("Client Last Name")).toBeTruthy();
+    expect(screen.getByText("Client Email")).toBeTruthy();
+    expect(screen.getByText("Client Phone")).toBeTruthy();
     expect(screen.queryByText("Patient Status")).toBeNull();
 
     fireEvent.click(
