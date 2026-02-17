@@ -151,7 +151,7 @@ describe("workflow-editor-store", () => {
     expect(store.get(workflowEditorHasUnsavedChangesAtom)).toBe(false);
   });
 
-  test("does not auto-create branch nodes when changing action type", () => {
+  test("ignores unsupported action types", () => {
     const store = createStore();
     store.set(setWorkflowEditorGraphAtom, createGraphFixture());
     store.set(workflowEditorIsReadOnlyAtom, false);
@@ -162,12 +162,11 @@ describe("workflow-editor-store", () => {
     });
 
     const nodes = store.get(workflowEditorNodesAtom);
-    const edges = store.get(workflowEditorEdgesAtom);
-    const switchNode = nodes.find((node) => node.id === "action-node");
+    const actionNode = nodes.find((node) => node.id === "action-node");
 
-    expect(switchNode?.data.config).toMatchObject({ actionType: "switch" });
+    expect(actionNode?.data.config).toMatchObject({});
     expect(nodes.length).toBe(2);
-    expect(edges.length).toBe(1);
+    expect(store.get(workflowEditorHasUnsavedChangesAtom)).toBe(false);
   });
 
   test("keeps a single outgoing edge from a source step", () => {

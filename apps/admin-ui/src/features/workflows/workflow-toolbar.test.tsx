@@ -62,6 +62,14 @@ describe("WorkflowToolbar", () => {
     ).toBeGreaterThan(0);
   });
 
+  test("shows pause control for test-only journeys", () => {
+    renderToolbar("test_only");
+    expect(screen.getAllByText("Test-only").length).toBeGreaterThan(0);
+    expect(
+      screen.getAllByRole("button", { name: "Pause" }).length,
+    ).toBeGreaterThan(0);
+  });
+
   test("shows resume controls for paused journeys", () => {
     renderToolbar("paused");
 

@@ -694,3 +694,34 @@
 - Updated artifacts:
   - `specs/workflow-engine-rebuild-appointment-journeys/logs/build.log`
   - `specs/workflow-engine-rebuild-appointment-journeys/logs/test.log`
+
+## 2026-02-17 - Task 10: Cutover Admin Builder to Linear Journeys (Revalidation)
+
+### RED
+- Tightened builder UI contract tests to remove remaining branch/switch affordances from active authoring paths:
+  - `apps/admin-ui/src/features/workflows/workflow-editor-store.test.ts` now requires unsupported action types (for example `switch`) to be ignored.
+  - `apps/admin-ui/src/features/workflows/workflow-editor-context-menu.test.tsx` now requires legacy switch metadata to no longer lock node/edge deletion controls.
+- Confirmed RED failures before implementation:
+  - unsupported action types were still persisted into node config and marked editor state dirty.
+  - context menu still disabled delete actions for switch-annotated legacy graph artifacts.
+
+### GREEN
+- Removed remaining switch-branch protections from active linear authoring surfaces:
+  - `apps/admin-ui/src/features/workflows/workflow-editor-store.ts`
+  - `apps/admin-ui/src/features/workflows/workflow-editor-canvas.tsx`
+  - `apps/admin-ui/src/features/workflows/workflow-editor-context-menu.tsx`
+  - `apps/admin-ui/src/features/workflows/workflow-editor-sidebar.tsx`
+- Enforced v1 step constraints in store writes by rejecting unsupported `actionType` values before mutating node config.
+- Added lifecycle coverage for `test_only` editor state in `apps/admin-ui/src/features/workflows/workflow-toolbar.test.tsx`.
+- Re-ran targeted admin UI suites and verified green.
+
+### REFACTOR
+- Simplified editor code by deleting unused switch-branch helper paths and dependency branches from reconnect/delete flows.
+- Re-ran full required quality gates and refreshed logs:
+  - `pnpm format`
+  - `pnpm lint`
+  - `pnpm typecheck`
+  - `pnpm test`
+- Updated artifacts:
+  - `specs/workflow-engine-rebuild-appointment-journeys/logs/build.log`
+  - `specs/workflow-engine-rebuild-appointment-journeys/logs/test.log`

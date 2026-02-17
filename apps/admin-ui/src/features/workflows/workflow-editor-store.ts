@@ -26,7 +26,7 @@ type WorkflowGraphState = {
   edges: WorkflowCanvasEdge[];
 };
 
-type SwitchBranch = "created" | "updated" | "deleted";
+const supportedJourneyActionTypes = new Set(["wait", "send-message", "logger"]);
 
 function asRecord(value: unknown): Record<string, unknown> | null {
   if (!isRecord(value)) {
@@ -44,10 +44,6 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return true;
 }
 
-function isSwitchBranch(value: unknown): value is SwitchBranch {
-  return value === "created" || value === "updated" || value === "deleted";
-}
-
 function isDomainEventDomain(value: unknown): value is DomainEventDomain {
   return (
     typeof value === "string" &&
@@ -59,50 +55,8 @@ function toDomain(value: unknown): DomainEventDomain {
   return isDomainEventDomain(value) ? value : "appointment";
 }
 
-function isSwitchActionNode(node: WorkflowCanvasNode | undefined): boolean {
-  if (!node) {
-    return false;
-  }
-
-  const nodeData = asRecord(node.data);
-  if (nodeData?.type !== "action") {
-    return false;
-  }
-
-  const config = asRecord(nodeData.config);
-  return config?.actionType === "switch";
-}
-
-export function isSwitchNodeEdge(
-  edge: WorkflowCanvasEdge,
-  nodes: WorkflowCanvasNode[],
-): boolean {
-  const edgeData = asRecord(edge.data);
-  if (isSwitchBranch(edgeData?.switchBranch)) {
-    return true;
-  }
-
-  const sourceNode = nodes.find((node) => node.id === edge.source);
-  if (isSwitchActionNode(sourceNode)) {
-    return true;
-  }
-
-  const targetNode = nodes.find((node) => node.id === edge.target);
-  return isSwitchActionNode(targetNode);
-}
-
-export function isSwitchBranchNode(
-  nodeId: string,
-  edges: WorkflowCanvasEdge[],
-): boolean {
-  return edges.some((edge) => {
-    if (edge.target !== nodeId) {
-      return false;
-    }
-
-    const edgeData = asRecord(edge.data);
-    return isSwitchBranch(edgeData?.switchBranch);
-  });
+function isSupportedJourneyActionType(value: string): boolean {
+  return supportedJourneyActionTypes.has(value);
 }
 
 function normalizeNodeData(data: unknown): Record<string, unknown> {
@@ -354,27 +308,8 @@ export const onWorkflowEditorEdgesChangeAtom = atom(
   (get, set, changes: EdgeChange[]) => {
     if (get(workflowEditorIsReadOnlyAtom)) return;
 
-    const currentNodes = get(workflowEditorNodesAtom);
     const currentEdges = get(workflowEditorEdgesAtom);
-    const protectedEdgeIds = new Set(
-      currentEdges
-        .filter((edge) => isSwitchNodeEdge(edge, currentNodes))
-        .map((edge) => edge.id),
-    );
-
-    const filteredChanges = changes.filter((change) => {
-      if (change.type !== "remove" && change.type !== "replace") {
-        return true;
-      }
-
-      return !protectedEdgeIds.has(change.id);
-    });
-
-    if (filteredChanges.length === 0) {
-      return;
-    }
-
-    const nextEdges = applyEdgeChanges(filteredChanges, currentEdges);
+    const nextEdges = applyEdgeChanges(changes, currentEdges);
     set(workflowEditorEdgesAtom, nextEdges);
     set(workflowEditorHasUnsavedChangesAtom, true);
   },
@@ -553,6 +488,7 @@ export const setWorkflowEditorActionTypeAtom = atom(
   null,
   (get, set, input: { nodeId: string; actionType: string }) => {
     if (get(workflowEditorIsReadOnlyAtom)) return;
+    if (!isSupportedJourneyActionType(input.actionType)) return;
 
     const currentNodes = get(workflowEditorNodesAtom);
     const currentEdges = get(workflowEditorEdgesAtom);

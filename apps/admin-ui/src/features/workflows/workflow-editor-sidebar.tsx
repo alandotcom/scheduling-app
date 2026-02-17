@@ -23,8 +23,6 @@ import { ActionConfig } from "./config/action-config";
 import { buildEventAttributeSuggestions } from "./config/event-attribute-suggestions";
 import { getAction } from "./action-registry";
 
-type SwitchBranch = "created" | "updated" | "deleted";
-
 type WorkflowEditorSidebarTab = "properties" | "runs";
 
 interface WorkflowEditorSidebarProps {
@@ -73,10 +71,6 @@ function toNodeConfig(node: Node | null): Record<string, unknown> {
   return { ...node.data.config };
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
 function toStringArray(value: unknown): string[] {
   return Array.isArray(value)
     ? value.filter((item): item is string => typeof item === "string")
@@ -87,17 +81,6 @@ function isDomainEventDomain(value: unknown): value is DomainEventDomain {
   return (
     typeof value === "string" &&
     domainEventDomains.some((domain) => domain === value)
-  );
-}
-
-function isSwitchBranch(value: unknown): value is SwitchBranch {
-  return value === "created" || value === "updated" || value === "deleted";
-}
-
-function isDomainEventType(value: unknown): value is DomainEventType {
-  return (
-    typeof value === "string" &&
-    domainEventTypes.some((eventType) => eventType === value)
   );
 }
 
@@ -131,46 +114,6 @@ function getConfiguredTriggerEventTypes(nodes: Node[]): DomainEventType[] {
     (eventType): eventType is DomainEventType =>
       allowedEventTypes.has(eventType),
   );
-}
-
-function getSwitchBranchFromEdge(edge: Edge): SwitchBranch | null {
-  if (!isRecord(edge.data)) {
-    return null;
-  }
-
-  const branch = edge.data.switchBranch;
-  return isSwitchBranch(branch) ? branch : null;
-}
-
-function getUpstreamSwitchBranch(
-  nodeId: string,
-  edges: Edge[],
-): SwitchBranch | null {
-  const queue = [nodeId];
-  const visited = new Set<string>();
-
-  while (queue.length > 0) {
-    const currentNodeId = queue.shift();
-    if (!currentNodeId || visited.has(currentNodeId)) {
-      continue;
-    }
-
-    visited.add(currentNodeId);
-    const incomingEdges = edges.filter((edge) => edge.target === currentNodeId);
-
-    for (const edge of incomingEdges) {
-      const branch = getSwitchBranchFromEdge(edge);
-      if (branch) {
-        return branch;
-      }
-
-      if (!visited.has(edge.source)) {
-        queue.push(edge.source);
-      }
-    }
-  }
-
-  return null;
 }
 
 function toNodeReferenceName(node: Node): string {
@@ -320,14 +263,6 @@ export function buildUpstreamOutputSuggestions(input: {
   return [...suggestions.values()];
 }
 
-function toScopedDomainEventType(
-  domain: DomainEventDomain,
-  branch: SwitchBranch,
-): DomainEventType {
-  const eventType = `${domain}.${branch}`;
-  return isDomainEventType(eventType) ? eventType : "appointment.scheduled";
-}
-
 function getNodeType(node: Node | null): string | null {
   if (
     !node ||
@@ -382,9 +317,6 @@ export function WorkflowEditorSidebar({
   const nodeEnabled = isNodeEnabled(selectedNode);
   const triggerDomain = getTriggerDomain(nodes);
   const triggerEventTypes = getConfiguredTriggerEventTypes(nodes);
-  const selectedNodeBranch = selectedNode
-    ? getUpstreamSwitchBranch(selectedNode.id, edges)
-    : null;
   const actionExpressionSuggestions = useMemo(() => {
     if (selectedNodeType !== "action") {
       return [];
@@ -393,9 +325,7 @@ export function WorkflowEditorSidebar({
     const eventSuggestions = triggerDomain
       ? buildEventAttributeSuggestions({
           domain: triggerDomain,
-          eventTypes: selectedNodeBranch
-            ? [toScopedDomainEventType(triggerDomain, selectedNodeBranch)]
-            : triggerEventTypes,
+          eventTypes: triggerEventTypes,
         })
       : [];
     const outputSuggestions = selectedNode
@@ -417,7 +347,6 @@ export function WorkflowEditorSidebar({
     edges,
     nodes,
     selectedNode,
-    selectedNodeBranch,
     selectedNodeType,
     triggerDomain,
     triggerEventTypes,

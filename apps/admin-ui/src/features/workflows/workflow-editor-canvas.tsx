@@ -26,7 +26,6 @@ import { TriggerNode } from "./nodes/trigger-node";
 import {
   addInitialTriggerNodeAtom,
   deleteEdgeAtom,
-  isSwitchNodeEdge,
   onWorkflowEditorConnectAtom,
   onWorkflowEditorEdgesChangeAtom,
   onWorkflowEditorNodesChangeAtom,
@@ -143,11 +142,9 @@ export function WorkflowEditorCanvas({
         ...edge,
         type: edge.type || "animated",
         animated: true,
-        reconnectable: isSwitchNodeEdge(edge, nodes)
-          ? false
-          : ("target" as const),
+        reconnectable: "target" as const,
       })),
-    [edges, nodes],
+    [edges],
   );
 
   const handleConnectStart = useCallback(
@@ -171,17 +168,11 @@ export function WorkflowEditorCanvas({
             )
           : [];
 
-      const reconnectableCandidates = candidates.filter(
-        (edge) => !isSwitchNodeEdge(edge, nodes),
-      );
-
       reconnectingEdgeId.current =
-        reconnectableCandidates.length === 1
-          ? (reconnectableCandidates[0]?.id ?? null)
-          : null;
+        candidates.length === 1 ? (candidates[0]?.id ?? null) : null;
       edgeReconnectSuccessful.current = reconnectingEdgeId.current === null;
     },
-    [edges, nodes],
+    [edges],
   );
 
   const handleConnectEnd = useCallback(
@@ -313,17 +304,10 @@ export function WorkflowEditorCanvas({
         return;
       }
 
-      const reconnectEdge = edges.find((candidate) => candidate.id === edge.id);
-      if (reconnectEdge && isSwitchNodeEdge(reconnectEdge, nodes)) {
-        edgeReconnectSuccessful.current = true;
-        reconnectingEdgeId.current = null;
-        return;
-      }
-
       reconnectingEdgeId.current = edge.id;
       edgeReconnectSuccessful.current = false;
     },
-    [edges, nodes],
+    [edges],
   );
 
   const handleReconnectEnd = useCallback(
@@ -338,13 +322,6 @@ export function WorkflowEditorCanvas({
         return;
       }
 
-      const reconnectEdge = edges.find((candidate) => candidate.id === edge.id);
-      if (reconnectEdge && isSwitchNodeEdge(reconnectEdge, nodes)) {
-        edgeReconnectSuccessful.current = true;
-        reconnectingEdgeId.current = null;
-        return;
-      }
-
       if (!edgeReconnectSuccessful.current) {
         deleteEdge(edge.id);
       }
@@ -352,22 +329,16 @@ export function WorkflowEditorCanvas({
       edgeReconnectSuccessful.current = true;
       reconnectingEdgeId.current = null;
     },
-    [deleteEdge, edges, nodes],
+    [deleteEdge],
   );
 
   const handleReconnect = useCallback(
     (oldEdge: ReactFlowEdge, newConnection: ReactFlowConnection) => {
-      if (isSwitchNodeEdge(oldEdge, nodes)) {
-        edgeReconnectSuccessful.current = true;
-        clearConnectionInteraction();
-        return;
-      }
-
       onReconnect({ oldEdge, newConnection });
       edgeReconnectSuccessful.current = true;
       clearConnectionInteraction();
     },
-    [clearConnectionInteraction, nodes, onReconnect],
+    [clearConnectionInteraction, onReconnect],
   );
 
   return (

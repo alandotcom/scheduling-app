@@ -121,7 +121,7 @@ describe("workflow-editor-context-menu", () => {
     ).toBeTruthy();
   });
 
-  test("disables delete for switch edges", () => {
+  test("allows deleting edges with legacy switch metadata", () => {
     renderWithStore(
       {
         type: "edge",
@@ -163,10 +163,10 @@ describe("workflow-editor-context-menu", () => {
     );
 
     const button = screen.getByRole("button", { name: "Delete edge" });
-    expect((button as HTMLButtonElement).disabled).toBe(true);
+    expect((button as HTMLButtonElement).disabled).toBe(false);
   });
 
-  test("disables delete for switch branch child node", () => {
+  test("allows deleting nodes with legacy switch branch metadata", () => {
     renderWithStore(
       {
         type: "node",
@@ -208,7 +208,7 @@ describe("workflow-editor-context-menu", () => {
     );
 
     const button = screen.getByRole("button", { name: "Delete Created path" });
-    expect((button as HTMLButtonElement).disabled).toBe(true);
+    expect((button as HTMLButtonElement).disabled).toBe(false);
   });
 
   test("keeps delete confirmation dialog open after context menu closes", () => {

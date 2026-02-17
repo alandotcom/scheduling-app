@@ -13,10 +13,7 @@ import {
   deleteEdgeAtom,
   deleteNodeAtom,
   isSidebarCollapsedAtom,
-  isSwitchBranchNode,
-  isSwitchNodeEdge,
   propertiesPanelActiveTabAtom,
-  workflowEditorEdgesAtom,
   workflowEditorNodesAtom,
   type WorkflowCanvasNode,
 } from "./workflow-editor-store";
@@ -66,7 +63,6 @@ export function WorkflowEditorContextMenu({
   onClose,
 }: WorkflowEditorContextMenuProps) {
   const nodes = useAtomValue(workflowEditorNodesAtom);
-  const edges = useAtomValue(workflowEditorEdgesAtom);
   const deleteNode = useSetAtom(deleteNodeAtom);
   const deleteEdge = useSetAtom(deleteEdgeAtom);
   const addNode = useSetAtom(addWorkflowEditorNodeAtom);
@@ -80,14 +76,7 @@ export function WorkflowEditorContextMenu({
   const selectedNode = menuState?.nodeId
     ? nodes.find((node) => node.id === menuState.nodeId)
     : undefined;
-  const selectedEdge = menuState?.edgeId
-    ? edges.find((edge) => edge.id === menuState.edgeId)
-    : undefined;
   const isTriggerNode = getNodeType(selectedNode) === "trigger";
-  const isSwitchBranchChildNode =
-    selectedNode !== undefined && isSwitchBranchNode(selectedNode.id, edges);
-  const isSwitchEdge =
-    selectedEdge !== undefined && isSwitchNodeEdge(selectedEdge, nodes);
   const hasRealNodes = nodes.length > 0;
 
   const closeDeleteDialog = useCallback(
@@ -111,16 +100,16 @@ export function WorkflowEditorContextMenu({
   }, [deleteEdge, deleteNode, deleteTarget]);
 
   const handleDeleteNode = useCallback(() => {
-    if (!menuState?.nodeId || isTriggerNode || isSwitchBranchChildNode) return;
+    if (!menuState?.nodeId || isTriggerNode) return;
     setDeleteTarget({ type: "node", id: menuState.nodeId });
     onClose();
-  }, [isSwitchBranchChildNode, isTriggerNode, menuState?.nodeId, onClose]);
+  }, [isTriggerNode, menuState?.nodeId, onClose]);
 
   const handleDeleteEdge = useCallback(() => {
-    if (!(menuState?.edgeId && !isSwitchEdge)) return;
+    if (!menuState?.edgeId) return;
     setDeleteTarget({ type: "edge", id: menuState.edgeId });
     onClose();
-  }, [isSwitchEdge, menuState?.edgeId, onClose]);
+  }, [menuState?.edgeId, onClose]);
 
   const handleAddAction = useCallback(() => {
     if (!menuState?.flowPosition) return;
@@ -204,7 +193,7 @@ export function WorkflowEditorContextMenu({
         >
           {menuState.type === "node" ? (
             <MenuItem
-              disabled={isTriggerNode || isSwitchBranchChildNode}
+              disabled={isTriggerNode}
               icon={Delete01Icon}
               label={`Delete ${getNodeLabel(selectedNode)}`}
               onClick={handleDeleteNode}
@@ -214,7 +203,6 @@ export function WorkflowEditorContextMenu({
 
           {menuState.type === "edge" ? (
             <MenuItem
-              disabled={isSwitchEdge}
               icon={Delete01Icon}
               label="Delete edge"
               onClick={handleDeleteEdge}
