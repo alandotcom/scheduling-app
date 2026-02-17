@@ -584,3 +584,34 @@
 - Updated artifacts:
   - `specs/workflow-engine-rebuild-appointment-journeys/logs/build.log`
   - `specs/workflow-engine-rebuild-appointment-journeys/logs/test.log`
+
+## 2026-02-17 - Task 06: Add Filter AST and Constrained CEL Evaluator (Revalidation)
+
+### RED
+- Added DTO contract coverage in `packages/dto/src/schemas/journey-trigger-filter.test.ts` for:
+  - one-level grouped AST acceptance
+  - max group cap (`>4`) rejection
+  - total condition cap (`>12`) rejection
+  - incompatible field/operator clause rejection with structured operator-path issues.
+- Confirmed initial RED failure before implementation: incompatible field/operator combinations (`appointment.startsAt` + `contains`, `client.email` + `before`) were accepted.
+
+### GREEN
+- Implemented field/operator compatibility refinement in `packages/dto/src/schemas/workflow-graph.ts`:
+  - added field-kind classification (`temporal|text|generic`)
+  - rejected string operators on temporal fields
+  - rejected date/time operators on non-temporal fields
+  - returned structured schema issues on `operator` path for compatibility violations.
+- Re-ran targeted suites and verified green:
+  - `pnpm --filter @scheduling/dto run test -- src/schemas/journey-trigger-filter.test.ts`
+  - `pnpm --filter @scheduling/api run test -- src/services/journey-trigger-filters.test.ts src/routes/journeys.test.ts`
+
+### REFACTOR
+- Kept evaluator runtime behavior unchanged and localized compatibility enforcement to DTO validation boundaries.
+- Re-ran required quality gates and refreshed logs:
+  - `pnpm format`
+  - `pnpm lint`
+  - `pnpm typecheck`
+  - `pnpm test`
+- Updated artifacts:
+  - `specs/workflow-engine-rebuild-appointment-journeys/logs/build.log`
+  - `specs/workflow-engine-rebuild-appointment-journeys/logs/test.log`

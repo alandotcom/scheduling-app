@@ -41,6 +41,20 @@ const FILTER_FIELD_PATTERN =
 const MAX_TRIGGER_FILTER_GROUPS = 4;
 const MAX_TRIGGER_FILTER_CONDITIONS = 12;
 
+const TEMPORAL_FILTER_OPERATOR_SET = new Set([
+  "before",
+  "after",
+  "on_or_before",
+  "on_or_after",
+]);
+
+const STRING_FILTER_OPERATOR_SET = new Set([
+  "contains",
+  "not_contains",
+  "starts_with",
+  "ends_with",
+]);
+
 export const journeyTriggerFilterOperatorSchema = z.enum([
   "equals",
   "not_equals",
@@ -76,6 +90,35 @@ function isIsoDateTimeLiteral(value: unknown): boolean {
   return Number.isFinite(parsed);
 }
 
+type JourneyTriggerFilterFieldKind = "temporal" | "text" | "generic";
+
+function classifyJourneyTriggerFilterField(
+  fieldPath: string,
+): JourneyTriggerFilterFieldKind {
+  const normalizedFieldPath = fieldPath.toLowerCase();
+
+  if (
+    normalizedFieldPath.endsWith("at") ||
+    normalizedFieldPath.endsWith("date") ||
+    normalizedFieldPath.endsWith("datetime")
+  ) {
+    return "temporal";
+  }
+
+  if (
+    normalizedFieldPath.endsWith("id") ||
+    normalizedFieldPath.endsWith("email") ||
+    normalizedFieldPath.endsWith("name") ||
+    normalizedFieldPath.endsWith("phone") ||
+    normalizedFieldPath.endsWith("timezone") ||
+    normalizedFieldPath.endsWith("status")
+  ) {
+    return "text";
+  }
+
+  return "generic";
+}
+
 export const journeyTriggerFilterConditionSchema = z
   .object({
     field: z.string().trim().regex(FILTER_FIELD_PATTERN, {
@@ -88,6 +131,30 @@ export const journeyTriggerFilterConditionSchema = z
   .strict()
   .superRefine((condition, ctx) => {
     const hasValue = condition.value !== undefined;
+    const fieldKind = classifyJourneyTriggerFilterField(condition.field);
+
+    if (
+      STRING_FILTER_OPERATOR_SET.has(condition.operator) &&
+      fieldKind === "temporal"
+    ) {
+      ctx.addIssue({
+        code: "custom",
+        message:
+          "String operators cannot be used with temporal fields; use date/time operators instead",
+        path: ["operator"],
+      });
+    }
+
+    if (
+      TEMPORAL_FILTER_OPERATOR_SET.has(condition.operator) &&
+      fieldKind !== "temporal"
+    ) {
+      ctx.addIssue({
+        code: "custom",
+        message: "Date/time operators can only be used with temporal fields",
+        path: ["operator"],
+      });
+    }
 
     switch (condition.operator) {
       case "is_set":
