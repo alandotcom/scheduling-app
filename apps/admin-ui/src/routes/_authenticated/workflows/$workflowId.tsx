@@ -17,7 +17,6 @@ import type {
 import { linearJourneyGraphSchema } from "@scheduling/dto";
 import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
-import { Input } from "@/components/ui/input";
 import {
   Sheet,
   SheetClose,
@@ -38,6 +37,7 @@ import {
   clearWorkflowEditorSelectionAtom,
   deleteEdgeAtom,
   deleteNodeAtom,
+  isExecutionViewActiveAtom,
   redoAtom,
   rightPanelWidthAtom,
   buildPersistableWorkflowGraph,
@@ -45,6 +45,8 @@ import {
   setWorkflowEditorGraphAtom,
   undoAtom,
   updateWorkflowEditorNodeDataAtom,
+  workflowActiveCanvasEdgesAtom,
+  workflowActiveCanvasNodesAtom,
   workflowEditorEdgesAtom,
   workflowEditorHasUnsavedChangesAtom,
   workflowEditorIsLoadedAtom,
@@ -80,6 +82,9 @@ function WorkflowEditorPage() {
 
   const nodes = useAtomValue(workflowEditorNodesAtom);
   const edges = useAtomValue(workflowEditorEdgesAtom);
+  const activeCanvasNodes = useAtomValue(workflowActiveCanvasNodesAtom);
+  const activeCanvasEdges = useAtomValue(workflowActiveCanvasEdgesAtom);
+  const isExecutionViewActive = useAtomValue(isExecutionViewActiveAtom);
   const hasUnsavedChanges = useAtomValue(workflowEditorHasUnsavedChangesAtom);
   const isSaving = useAtomValue(workflowEditorIsSavingAtom);
   const isLoaded = useAtomValue(workflowEditorIsLoadedAtom);
@@ -102,18 +107,21 @@ function WorkflowEditorPage() {
   const redo = useSetAtom(redoAtom);
 
   const selectedNode = useMemo(
-    () => nodes.find((node) => node.id === selectedNodeId) ?? null,
-    [nodes, selectedNodeId],
+    () => activeCanvasNodes.find((node) => node.id === selectedNodeId) ?? null,
+    [activeCanvasNodes, selectedNodeId],
   );
 
   const selectedEdge = useMemo(
-    () => edges.find((edge) => edge.id === selectedEdgeId) ?? null,
-    [edges, selectedEdgeId],
+    () => activeCanvasEdges.find((edge) => edge.id === selectedEdgeId) ?? null,
+    [activeCanvasEdges, selectedEdgeId],
   );
 
   const [publishWarnings, setPublishWarnings] = useState<string[]>([]);
   const [nameDraft, setNameDraft] = useState("");
   const [persistedName, setPersistedName] = useState("");
+  const [currentVersionDraft, setCurrentVersionDraft] = useState<number | null>(
+    null,
+  );
   const [draftPublishMode, setDraftPublishMode] = useState<JourneyMode>("live");
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [dismissedMobileSelectionKey, setDismissedMobileSelectionKey] =
@@ -126,6 +134,7 @@ function WorkflowEditorPage() {
   const canManageWorkflow = canManageWorkflowsForRole(
     authContextQuery.data?.role,
   );
+  const canManageCurrentView = canManageWorkflow && !isExecutionViewActive;
   const defaultTimezone =
     authContextQuery.data?.org?.defaultTimezone ?? "America/New_York";
   const journeyStatus =
@@ -134,6 +143,8 @@ function WorkflowEditorPage() {
     lifecycleDraft?.mode ?? journeyQuery.data?.mode ?? "live";
   const effectiveMode =
     journeyStatus === "draft" ? draftPublishMode : persistedMode;
+  const currentVersion =
+    currentVersionDraft ?? journeyQuery.data?.currentVersion;
   const mobileSelectionKey = selectedNodeId
     ? `node:${selectedNodeId}`
     : selectedEdgeId
@@ -166,8 +177,8 @@ function WorkflowEditorPage() {
   );
 
   useEffect(() => {
-    setIsReadOnly(!canManageWorkflow);
-  }, [canManageWorkflow, setIsReadOnly]);
+    setIsReadOnly(!canManageCurrentView);
+  }, [canManageCurrentView, setIsReadOnly]);
 
   useEffect(() => {
     if (isMobile) {
@@ -205,7 +216,7 @@ function WorkflowEditorPage() {
   );
 
   useEffect(() => {
-    if (!journeyQuery.data) {
+    if (!journeyQuery.data || isExecutionViewActive) {
       return;
     }
 
@@ -213,6 +224,7 @@ function WorkflowEditorPage() {
     setWorkflowId(journeyQuery.data.id);
     setNameDraft(journeyQuery.data.name);
     setPersistedName(journeyQuery.data.name);
+    setCurrentVersionDraft(journeyQuery.data.currentVersion);
     setLifecycleDraft({
       status: journeyQuery.data.status,
       mode: journeyQuery.data.mode,
@@ -221,7 +233,7 @@ function WorkflowEditorPage() {
     if (journeyQuery.data.status === "draft") {
       setDraftPublishMode(journeyQuery.data.mode);
     }
-  }, [journeyQuery.data, setGraph, setWorkflowId]);
+  }, [isExecutionViewActive, journeyQuery.data, setGraph, setWorkflowId]);
 
   useEffect(() => {
     setJourneyMode(effectiveMode);
@@ -240,8 +252,10 @@ function WorkflowEditorPage() {
       onSuccess: (journey) => {
         patchJourneyInListCache(journey.id, {
           name: journey.name,
+          currentVersion: journey.currentVersion,
           updatedAt: journey.updatedAt,
         });
+        setCurrentVersionDraft(journey.currentVersion);
         queryClient.invalidateQueries({ queryKey: orpc.journeys.key() });
       },
       onError: (error) => {
@@ -258,9 +272,11 @@ function WorkflowEditorPage() {
           status: result.journey.status,
           mode: result.journey.mode,
         });
+        setCurrentVersionDraft(result.journey.currentVersion);
         patchJourneyInListCache(result.journey.id, {
           status: result.journey.status,
           mode: result.journey.mode,
+          currentVersion: result.journey.currentVersion,
           updatedAt: result.journey.updatedAt,
         });
       },
@@ -271,6 +287,7 @@ function WorkflowEditorPage() {
             status: journeyQuery.data.status,
             mode: journeyQuery.data.mode,
           });
+          setCurrentVersionDraft(journeyQuery.data.currentVersion);
         }
       },
     }),
@@ -284,9 +301,11 @@ function WorkflowEditorPage() {
           status: journey.status,
           mode: journey.mode,
         });
+        setCurrentVersionDraft(journey.currentVersion);
         patchJourneyInListCache(journey.id, {
           status: journey.status,
           mode: journey.mode,
+          currentVersion: journey.currentVersion,
           updatedAt: journey.updatedAt,
         });
       },
@@ -297,6 +316,7 @@ function WorkflowEditorPage() {
             status: journeyQuery.data.status,
             mode: journeyQuery.data.mode,
           });
+          setCurrentVersionDraft(journeyQuery.data.currentVersion);
         }
       },
     }),
@@ -310,9 +330,11 @@ function WorkflowEditorPage() {
           status: journey.status,
           mode: journey.mode,
         });
+        setCurrentVersionDraft(journey.currentVersion);
         patchJourneyInListCache(journey.id, {
           status: journey.status,
           mode: journey.mode,
+          currentVersion: journey.currentVersion,
           updatedAt: journey.updatedAt,
         });
       },
@@ -323,6 +345,7 @@ function WorkflowEditorPage() {
             status: journeyQuery.data.status,
             mode: journeyQuery.data.mode,
           });
+          setCurrentVersionDraft(journeyQuery.data.currentVersion);
         }
       },
     }),
@@ -335,9 +358,11 @@ function WorkflowEditorPage() {
           status: journey.status,
           mode: journey.mode,
         });
+        setCurrentVersionDraft(journey.currentVersion);
         patchJourneyInListCache(journey.id, {
           status: journey.status,
           mode: journey.mode,
+          currentVersion: journey.currentVersion,
           updatedAt: journey.updatedAt,
         });
       },
@@ -348,6 +373,7 @@ function WorkflowEditorPage() {
             status: journeyQuery.data.status,
             mode: journeyQuery.data.mode,
           });
+          setCurrentVersionDraft(journeyQuery.data.currentVersion);
         }
       },
     }),
@@ -359,7 +385,7 @@ function WorkflowEditorPage() {
   );
 
   const saveJourney = useCallback(async () => {
-    if (!isLoaded || !canManageWorkflow) {
+    if (!isLoaded || !canManageCurrentView) {
       return;
     }
 
@@ -389,8 +415,10 @@ function WorkflowEditorPage() {
       patchJourneyInListCache(updated.id, {
         status: updated.status,
         mode: updated.mode,
+        currentVersion: updated.currentVersion,
         updatedAt: updated.updatedAt,
       });
+      setCurrentVersionDraft(updated.currentVersion);
       setLifecycleDraft({
         status: updated.status,
         mode: updated.mode,
@@ -403,7 +431,7 @@ function WorkflowEditorPage() {
       setIsSaving(false);
     }
   }, [
-    canManageWorkflow,
+    canManageCurrentView,
     draftPublishMode,
     isLoaded,
     journeyQuery.data?.status,
@@ -418,41 +446,59 @@ function WorkflowEditorPage() {
     workflowId,
   ]);
 
-  const commitJourneyName = useCallback(async () => {
-    if (!canManageWorkflow || !journeyQuery.data) {
+  const submitJourneyName = useCallback(
+    async (rawName: string) => {
+      if (!canManageCurrentView || !journeyQuery.data) {
+        return;
+      }
+
+      const trimmedName = rawName.trim();
+      if (trimmedName.length === 0) {
+        setNameDraft(persistedName);
+        toast.error("Journey name is required");
+        return;
+      }
+
+      if (trimmedName === persistedName) {
+        return;
+      }
+
+      const updated = await renameMutation.mutateAsync({
+        id: workflowId,
+        data: { name: trimmedName },
+      });
+
+      setNameDraft(updated.name);
+      setPersistedName(updated.name);
+    },
+    [
+      canManageCurrentView,
+      journeyQuery.data,
+      persistedName,
+      renameMutation,
+      workflowId,
+    ],
+  );
+
+  const handleRenameFromToolbar = useCallback(() => {
+    if (!canManageCurrentView || !journeyQuery.data) {
       return;
     }
-
-    const trimmedName = nameDraft.trim();
-    if (trimmedName.length === 0) {
-      setNameDraft(persistedName);
-      toast.error("Journey name is required");
+    const candidateName = window.prompt("Rename workflow", persistedName);
+    if (candidateName === null) {
       return;
     }
-
-    if (trimmedName === persistedName) {
-      return;
-    }
-
-    const updated = await renameMutation.mutateAsync({
-      id: workflowId,
-      data: { name: trimmedName },
-    });
-
-    setNameDraft(updated.name);
-    setPersistedName(updated.name);
+    void submitJourneyName(candidateName);
   }, [
-    canManageWorkflow,
+    canManageCurrentView,
     journeyQuery.data,
-    nameDraft,
     persistedName,
-    renameMutation,
-    workflowId,
+    submitJourneyName,
   ]);
 
   const handlePublish = useCallback(
     async (mode: JourneyMode) => {
-      if (!canManageWorkflow) {
+      if (!canManageCurrentView) {
         return;
       }
 
@@ -471,7 +517,7 @@ function WorkflowEditorPage() {
       });
     },
     [
-      canManageWorkflow,
+      canManageCurrentView,
       hasUnsavedChanges,
       publishMutation,
       saveJourney,
@@ -480,7 +526,7 @@ function WorkflowEditorPage() {
   );
 
   const handlePause = useCallback(async () => {
-    if (!canManageWorkflow) {
+    if (!canManageCurrentView) {
       return;
     }
 
@@ -494,10 +540,10 @@ function WorkflowEditorPage() {
     );
 
     await pauseMutation.mutateAsync({ id: workflowId });
-  }, [canManageWorkflow, pauseMutation, workflowId]);
+  }, [canManageCurrentView, pauseMutation, workflowId]);
 
   const handleResume = useCallback(async () => {
-    if (!canManageWorkflow) {
+    if (!canManageCurrentView) {
       return;
     }
 
@@ -511,11 +557,11 @@ function WorkflowEditorPage() {
     );
 
     await resumeMutation.mutateAsync({ id: workflowId });
-  }, [canManageWorkflow, resumeMutation, workflowId]);
+  }, [canManageCurrentView, resumeMutation, workflowId]);
 
   const handleSetMode = useCallback(
     async (mode: JourneyMode) => {
-      if (!canManageWorkflow) {
+      if (!canManageCurrentView) {
         return;
       }
 
@@ -549,7 +595,7 @@ function WorkflowEditorPage() {
       });
     },
     [
-      canManageWorkflow,
+      canManageCurrentView,
       journeyQuery.data?.mode,
       journeyQuery.data?.status,
       lifecycleDraft,
@@ -583,7 +629,7 @@ function WorkflowEditorPage() {
         ignoreInputs: false,
       },
     ],
-    enabled: canManageWorkflow,
+    enabled: canManageCurrentView,
   });
 
   if (journeyQuery.isLoading || authContextQuery.isLoading) {
@@ -632,7 +678,7 @@ function WorkflowEditorPage() {
           </div>
         ) : null}
         <div className="relative min-h-0 flex-1">
-          <WorkflowEditorCanvas canEdit={canManageWorkflow}>
+          <WorkflowEditorCanvas canEdit={canManageCurrentView}>
             <Panel className="flex items-center gap-2" position="top-left">
               <Button
                 asChild
@@ -644,38 +690,26 @@ function WorkflowEditorPage() {
                   <Icon icon={ArrowLeft02Icon} />
                 </Link>
               </Button>
-              <Input
-                className="h-8 w-64"
-                disabled={!canManageWorkflow || renameMutation.isPending}
-                onBlur={() => void commitJourneyName()}
-                onChange={(event) => setNameDraft(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") {
-                    event.preventDefault();
-                    event.currentTarget.blur();
-                  }
-                  if (event.key === "Escape" && journeyQuery.data) {
-                    event.preventDefault();
-                    setNameDraft(persistedName);
-                    event.currentTarget.blur();
-                  }
-                }}
-                value={nameDraft}
-              />
+              <div className="h-8 w-64 truncate rounded-md border border-input bg-background px-3 py-1.5 text-sm">
+                {nameDraft}
+              </div>
             </Panel>
 
             <WorkflowToolbar
-              canManageWorkflow={canManageWorkflow}
+              canManageWorkflow={canManageCurrentView}
               journeyStatus={journeyStatus}
               journeyMode={effectiveMode}
+              currentVersion={currentVersion ?? null}
               publishWarnings={publishWarnings}
               isPausing={pauseMutation.isPending}
               isPublishing={publishMutation.isPending}
+              isRenaming={renameMutation.isPending}
               isResuming={resumeMutation.isPending}
               isSaving={isSaving}
               isSettingMode={setModeMutation.isPending}
               onPause={() => void handlePause()}
               onPublish={(mode) => void handlePublish(mode)}
+              onRename={handleRenameFromToolbar}
               onResume={() => void handleResume()}
               onSave={() => void saveJourney()}
               onSetMode={(mode) => void handleSetMode(mode)}
@@ -704,12 +738,12 @@ function WorkflowEditorPage() {
             </SheetHeader>
             <div className="min-h-0 flex-1 overflow-hidden">
               <WorkflowEditorSidebar
-                canManageWorkflow={canManageWorkflow}
+                canManageWorkflow={canManageCurrentView}
                 defaultTimezone={defaultTimezone}
-                edges={edges}
-                nodes={nodes}
-                onDeleteEdge={canManageWorkflow ? deleteEdge : undefined}
-                onDeleteNode={canManageWorkflow ? deleteNode : undefined}
+                edges={activeCanvasEdges}
+                nodes={activeCanvasNodes}
+                onDeleteEdge={canManageCurrentView ? deleteEdge : undefined}
+                onDeleteNode={canManageCurrentView ? deleteNode : undefined}
                 onSetActionType={setActionType}
                 onUpdateNodeData={updateNodeData}
                 selectedEdge={selectedEdge}
@@ -722,12 +756,12 @@ function WorkflowEditorPage() {
       ) : (
         <WorkflowSidebarPanel>
           <WorkflowEditorSidebar
-            canManageWorkflow={canManageWorkflow}
+            canManageWorkflow={canManageCurrentView}
             defaultTimezone={defaultTimezone}
-            edges={edges}
-            nodes={nodes}
-            onDeleteEdge={canManageWorkflow ? deleteEdge : undefined}
-            onDeleteNode={canManageWorkflow ? deleteNode : undefined}
+            edges={activeCanvasEdges}
+            nodes={activeCanvasNodes}
+            onDeleteEdge={canManageCurrentView ? deleteEdge : undefined}
+            onDeleteNode={canManageCurrentView ? deleteNode : undefined}
             onSetActionType={setActionType}
             onUpdateNodeData={updateNodeData}
             selectedEdge={selectedEdge}

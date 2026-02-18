@@ -1,6 +1,6 @@
 // Appointments page with list/schedule views and modal detail panel
 
-import { useState, useCallback, useMemo, useEffect } from "react";
+import { useState, useCallback, useMemo } from "react";
 import { DateTime } from "luxon";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -125,23 +125,32 @@ function AppointmentsPage() {
   // Confirmation dialogs
   const [cancellingId, setCancellingId] = useState<string | null>(null);
   const [noShowId, setNoShowId] = useState<string | null>(null);
-  const [modalOpen, setModalOpen] = useState(false);
   const [rescheduleAppointment, setRescheduleAppointment] =
     useState<AppointmentWithRelations | null>(null);
   const [mobileControlsOpen, setMobileControlsOpen] = useState(false);
-  const shouldAutoOpenCreateModal = create === "1";
-  const isCreateModalOpen = shouldAutoOpenCreateModal || modalOpen;
-
-  useEffect(() => {
-    if (!shouldAutoOpenCreateModal) return;
+  const isCreateModalOpen = create === "1";
+  const openCreateModal = useCallback(() => {
     navigate({
       search: (prev) => ({
         ...prev,
-        create: undefined,
+        create: "1",
       }),
-      replace: true,
     });
-  }, [navigate, shouldAutoOpenCreateModal]);
+  }, [navigate]);
+  const handleCreateModalOpenChange = useCallback(
+    (open: boolean) => {
+      if (!open && create === "1") {
+        navigate({
+          search: (prev) => ({
+            ...prev,
+            create: undefined,
+          }),
+          replace: true,
+        });
+      }
+    },
+    [create, navigate],
+  );
 
   // Filters from URL
   const filters = useMemo(
@@ -586,7 +595,7 @@ function AppointmentsPage() {
   // Keyboard shortcuts
   useKeyboardShortcuts({
     shortcuts: [
-      { key: "c", action: () => setModalOpen(true), description: "Create" },
+      { key: "c", action: openCreateModal, description: "Create" },
       {
         key: "v",
         action: () => setView(currentView === "list" ? "schedule" : "list"),
@@ -721,10 +730,7 @@ function AppointmentsPage() {
   return (
     <PageScaffold className="pb-24 sm:pb-6">
       <div className="flex justify-end">
-        <Button
-          className="hidden sm:inline-flex"
-          onClick={() => setModalOpen(true)}
-        >
+        <Button className="hidden sm:inline-flex" onClick={openCreateModal}>
           <Icon icon={Add01Icon} data-icon="inline-start" />
           New Appointment
           <ShortcutBadge shortcut="c" className="ml-2 hidden md:inline-flex" />
@@ -991,7 +997,7 @@ function AppointmentsPage() {
       {/* Appointment Modal */}
       <AppointmentModal
         open={isCreateModalOpen}
-        onOpenChange={setModalOpen}
+        onOpenChange={handleCreateModalOpenChange}
         timezoneMode={timezoneMode}
         onTimezoneModeChange={setTimezoneMode}
         displayTimezone={displayTimezone}
@@ -1061,7 +1067,7 @@ function AppointmentsPage() {
       </AlertDialog>
 
       <div className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background/95 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:hidden">
-        <Button className="w-full" onClick={() => setModalOpen(true)}>
+        <Button className="w-full" onClick={openCreateModal}>
           <Icon icon={Add01Icon} data-icon="inline-start" />
           New Appointment
         </Button>

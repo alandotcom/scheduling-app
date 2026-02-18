@@ -27,8 +27,8 @@ import {
 } from "../action-visuals";
 import {
   selectedExecutionIdAtom,
+  workflowActiveCanvasEdgesAtom,
   workflowEditorJourneyModeAtom,
-  workflowEditorEdgesAtom,
   workflowExecutionLogsByNodeIdAtom,
   type WorkflowActionNodeData,
   type WorkflowExecutionNodeLogPreview,
@@ -389,7 +389,7 @@ const ActionNode = memo(function ActionNode({
   const actionDef = actionType ? getAction(actionType) : undefined;
   const journeyMode = useAtomValue(workflowEditorJourneyModeAtom);
   const selectedExecutionId = useAtomValue(selectedExecutionIdAtom);
-  const workflowEdges = useAtomValue(workflowEditorEdgesAtom);
+  const workflowEdges = useAtomValue(workflowActiveCanvasEdgesAtom);
   const executionLogsByNodeId = useAtomValue(workflowExecutionLogsByNodeIdAtom);
   const runtimeWaitPreview = useRuntimeWaitPreview(
     actionType,

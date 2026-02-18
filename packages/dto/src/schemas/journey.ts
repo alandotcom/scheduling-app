@@ -369,14 +369,6 @@ export const linearJourneyGraphSchema =
           });
         }
 
-        if (outgoing > 1) {
-          ctx.addIssue({
-            code: "custom",
-            message: "Trigger step can connect to at most one next step",
-            path: ["nodes", index, "attributes", "id"],
-          });
-        }
-
         continue;
       }
 
@@ -411,14 +403,6 @@ export const linearJourneyGraphSchema =
         }
 
         continue;
-      }
-
-      if (outgoing > 1) {
-        ctx.addIssue({
-          code: "custom",
-          message: "Non-condition steps can connect to at most one next step",
-          path: ["nodes", index, "attributes", "id"],
-        });
       }
     }
 
@@ -459,6 +443,7 @@ export const journeySchema = z.object({
   name: z.string().trim().min(1).max(255),
   status: journeyStatusSchema,
   mode: journeyModeSchema,
+  currentVersion: z.number().int().positive().nullable(),
   graph: linearJourneyGraphSchema,
   ...timestampsSchema.shape,
 });

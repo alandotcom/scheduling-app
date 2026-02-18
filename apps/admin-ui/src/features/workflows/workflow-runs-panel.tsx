@@ -4,14 +4,17 @@ import type {
   JourneyRunDelivery,
   JourneyRunDetailResponse,
 } from "@scheduling/dto";
+import { linearJourneyGraphSchema } from "@scheduling/dto";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useAtom } from "jotai";
+import { useAtom, useSetAtom } from "jotai";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { formatDisplayDateTime } from "@/lib/date-utils";
 import { orpc } from "@/lib/query";
 import {
+  deserializeWorkflowGraph,
   selectedExecutionIdAtom,
+  workflowExecutionViewGraphAtom,
   workflowExecutionLogsByNodeIdAtom,
 } from "./workflow-editor-store";
 
@@ -166,6 +169,45 @@ function toNodeLogStatus(
   }
 }
 
+function toRunNodeLogStatus(
+  status: JourneyRun["status"],
+): "pending" | "running" | "success" | "error" | "cancelled" {
+  switch (status) {
+    case "planned":
+      return "pending";
+    case "running":
+      return "running";
+    case "completed":
+      return "success";
+    case "failed":
+      return "error";
+    case "canceled":
+      return "cancelled";
+    default:
+      return "pending";
+  }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function parseRunSnapshotGraph(runDetail: JourneyRunDetailResponse) {
+  const snapshot = runDetail.runSnapshot;
+  if (!isRecord(snapshot)) {
+    return null;
+  }
+
+  const parsed = linearJourneyGraphSchema.safeParse(
+    snapshot["definitionSnapshot"],
+  );
+  if (!parsed.success) {
+    return null;
+  }
+
+  return parsed.data;
+}
+
 function isRunActive(status: JourneyRun["status"]): boolean {
   return status === "planned" || status === "running";
 }
@@ -270,8 +312,8 @@ export function WorkflowRunsPanelView({
                     </span>
                     <div className="flex items-center gap-1">
                       <Badge variant="outline">{run.mode.toUpperCase()}</Badge>
-                      <Badge variant={toRunStatusBadgeVariant(run.status)}>
-                        {run.status}
+                      <Badge variant={toRunStatusBadgeVariant(runStatus)}>
+                        {runStatus}
                       </Badge>
                     </div>
                   </div>
@@ -304,7 +346,7 @@ export function WorkflowRunsPanelView({
                             Mode: <strong>{run.mode}</strong>
                           </p>
                           <p>
-                            Status: <strong>{run.status}</strong>
+                            Status: <strong>{runStatus}</strong>
                           </p>
                         </div>
 
@@ -429,6 +471,7 @@ export function WorkflowRunsPanel({
   const [, setExecutionLogsByNodeId] = useAtom(
     workflowExecutionLogsByNodeIdAtom,
   );
+  const setExecutionViewGraph = useSetAtom(workflowExecutionViewGraphAtom);
   const queryClient = useQueryClient();
 
   const cancelRunMutation = useMutation(
@@ -489,15 +532,22 @@ export function WorkflowRunsPanel({
     () => () => {
       setSelectedExecutionId(null);
       setExecutionLogsByNodeId({});
+      setExecutionViewGraph(null);
     },
-    [setExecutionLogsByNodeId, setSelectedExecutionId],
+    [setExecutionLogsByNodeId, setExecutionViewGraph, setSelectedExecutionId],
   );
 
   useEffect(() => {
     if (!selectedExecutionId || !runDetailQuery.data) {
       setExecutionLogsByNodeId({});
+      setExecutionViewGraph(null);
       return;
     }
+
+    const runSnapshotGraph = parseRunSnapshotGraph(runDetailQuery.data);
+    setExecutionViewGraph(
+      runSnapshotGraph ? deserializeWorkflowGraph(runSnapshotGraph) : null,
+    );
 
     const latestByStep = runDetailQuery.data.deliveries.reduce<
       Record<
@@ -519,8 +569,24 @@ export function WorkflowRunsPanel({
       return acc;
     }, {});
 
+    const triggerNodeId = runSnapshotGraph?.nodes.find(
+      (node) => node.attributes.data.type === "trigger",
+    )?.attributes.id;
+    if (triggerNodeId) {
+      latestByStep[triggerNodeId] = {
+        nodeId: triggerNodeId,
+        status: toRunNodeLogStatus(runDetailQuery.data.run.status),
+        startedAt: runDetailQuery.data.run.startedAt,
+      };
+    }
+
     setExecutionLogsByNodeId(latestByStep);
-  }, [runDetailQuery.data, selectedExecutionId, setExecutionLogsByNodeId]);
+  }, [
+    runDetailQuery.data,
+    selectedExecutionId,
+    setExecutionLogsByNodeId,
+    setExecutionViewGraph,
+  ]);
 
   if (!workflowId) {
     return (

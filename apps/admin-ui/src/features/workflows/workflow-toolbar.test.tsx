@@ -16,6 +16,7 @@ function renderToolbar(
   const onPause = mock(() => {});
   const onPublish = mock((_mode: "live" | "test") => {});
   const onResume = mock(() => {});
+  const onRename = mock(() => {});
   const onSetMode = mock((_mode: "live" | "test") => {});
 
   render(
@@ -24,14 +25,17 @@ function renderToolbar(
         canManageWorkflow={true}
         journeyStatus={journeyStatus}
         journeyMode={journeyMode}
+        currentVersion={journeyStatus === "draft" ? null : 1}
         isPausing={false}
         isPublishing={false}
         isResuming={false}
         isSaving={false}
         isSettingMode={false}
+        isRenaming={false}
         onPause={onPause}
         onPublish={onPublish}
         publishWarnings={publishWarnings}
+        onRename={onRename}
         onResume={onResume}
         onSave={onSave}
         onSetMode={onSetMode}
@@ -43,6 +47,7 @@ function renderToolbar(
     onSave,
     onPause,
     onPublish,
+    onRename,
     onResume,
     onSetMode,
   };
@@ -53,6 +58,7 @@ describe("WorkflowToolbar", () => {
     renderToolbar("draft", "live");
 
     expect(screen.getAllByText("Draft").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Version -").length).toBeGreaterThan(0);
     expect(
       screen.getAllByRole("button", { name: "Publish" }).length,
     ).toBeGreaterThan(0);
@@ -65,6 +71,7 @@ describe("WorkflowToolbar", () => {
 
   test("shows pause control for published journeys", () => {
     renderToolbar("published", "live");
+    expect(screen.getAllByText("Version 1").length).toBeGreaterThan(0);
     expect(
       screen.getAllByRole("button", { name: "Pause" }).length,
     ).toBeGreaterThan(0);
@@ -108,6 +115,12 @@ describe("WorkflowToolbar", () => {
 
     fireEvent.click(screen.getAllByRole("button", { name: "Test" })[0]!);
     expect(onSetMode).toHaveBeenCalledWith("test");
+  });
+
+  test("wires rename action", () => {
+    const { onRename } = renderToolbar("published", "live");
+    fireEvent.click(screen.getAllByRole("button", { name: /rename/i })[0]!);
+    expect(onRename).toHaveBeenCalledTimes(1);
   });
 
   test("renders publish overlap warnings inline", () => {

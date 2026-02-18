@@ -225,4 +225,56 @@ describe("WorkflowRunsPanelView", () => {
     expect(onCancelRun).toHaveBeenCalledWith("run-active");
     expect(onCancelJourneyRuns).toHaveBeenCalledTimes(1);
   });
+
+  test("renders selected run status from run detail when list row is stale", () => {
+    render(
+      <WorkflowRunsPanelView
+        canManageWorkflow={true}
+        isLoadingRunDetail={false}
+        isLoadingRuns={false}
+        onRefresh={() => {}}
+        onSelectRun={() => {}}
+        runs={[
+          {
+            id: "run-stale",
+            journeyVersionId: "version-stale",
+            appointmentId: "appointment-5",
+            mode: "live",
+            status: "planned",
+            startedAt: new Date("2026-03-10T14:00:00.000Z"),
+            completedAt: null,
+            cancelledAt: null,
+            journeyNameSnapshot: "Journey Stale",
+            journeyVersion: 4,
+            journeyDeleted: false,
+          },
+        ]}
+        selectedRunDetail={{
+          run: {
+            id: "run-stale",
+            journeyVersionId: "version-stale",
+            appointmentId: "appointment-5",
+            mode: "live",
+            status: "completed",
+            startedAt: new Date("2026-03-10T14:00:00.000Z"),
+            completedAt: new Date("2026-03-10T14:05:00.000Z"),
+            cancelledAt: null,
+            journeyNameSnapshot: "Journey Stale",
+            journeyVersion: 4,
+            journeyDeleted: false,
+          },
+          runSnapshot: {
+            version: 4,
+          },
+          deliveries: [],
+        }}
+        selectedRunId="run-stale"
+      />,
+    );
+
+    expect(screen.getAllByText("completed").length).toBeGreaterThan(0);
+    expect(
+      screen.queryByRole("button", { name: "Cancel this run" }),
+    ).toBeNull();
+  });
 });

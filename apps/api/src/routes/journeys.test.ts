@@ -498,28 +498,21 @@ describe("Journey Routes", () => {
     expect(journeys).toHaveLength(0);
   });
 
-  test("create rejects non-linear branching payloads without side effects", async () => {
-    await expect(
-      call(
-        journeyRoutes.create,
-        {
-          name: "Branching Route Journey",
-          graph: createBranchingGraph(),
-        },
-        { context: ownerContext },
-      ),
-    ).rejects.toMatchObject({
-      message: "Input validation failed",
-    });
+  test("create accepts fan-out branching payloads", async () => {
+    const created = await call(
+      journeyRoutes.create,
+      {
+        name: "Branching Route Journey",
+        graph: createBranchingGraph(),
+      },
+      { context: ownerContext },
+    );
 
-    const journeys = await call(journeyRoutes.list, undefined, {
-      context: ownerContext,
-    });
-
-    expect(journeys).toHaveLength(0);
+    expect(created.name).toBe("Branching Route Journey");
+    expect(created.graph.edges).toHaveLength(2);
   });
 
-  test("update rejects non-linear branching payloads without mutating stored draft", async () => {
+  test("update accepts fan-out branching payloads", async () => {
     const created = await call(
       journeyRoutes.create,
       {
@@ -529,21 +522,20 @@ describe("Journey Routes", () => {
       { context: ownerContext },
     );
 
-    await expect(
-      call(
-        journeyRoutes.update,
-        {
-          id: created.id,
-          data: {
-            name: "Should Not Persist",
-            graph: createBranchingGraph("trigger-update-branching-invalid"),
-          },
+    const updated = await call(
+      journeyRoutes.update,
+      {
+        id: created.id,
+        data: {
+          name: "Branching Persisted",
+          graph: createBranchingGraph("trigger-update-branching-valid"),
         },
-        { context: ownerContext },
-      ),
-    ).rejects.toMatchObject({
-      message: "Input validation failed",
-    });
+      },
+      { context: ownerContext },
+    );
+
+    expect(updated.name).toBe("Branching Persisted");
+    expect(updated.graph.edges).toHaveLength(2);
 
     const reloaded = await call(
       journeyRoutes.get,
@@ -551,9 +543,8 @@ describe("Journey Routes", () => {
       { context: ownerContext },
     );
 
-    expect(reloaded.name).toBe("Update Branching Guard Journey");
-    expect(reloaded.graph.nodes).toHaveLength(1);
-    expect(reloaded.graph.edges).toHaveLength(0);
+    expect(reloaded.name).toBe("Branching Persisted");
+    expect(reloaded.graph.edges).toHaveLength(2);
   });
 
   test("create rejects legacy action aliases outside supported step set", async () => {

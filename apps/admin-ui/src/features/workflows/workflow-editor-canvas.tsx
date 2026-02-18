@@ -34,6 +34,8 @@ import {
   propertiesPanelActiveTabAtom,
   rightPanelWidthAtom,
   setWorkflowEditorSelectionAtom,
+  workflowActiveCanvasEdgesAtom,
+  workflowActiveCanvasNodesAtom,
   workflowEditorEdgesAtom,
   workflowEditorHasUnsavedChangesAtom,
   workflowEditorIsLoadedAtom,
@@ -131,8 +133,8 @@ export function WorkflowEditorCanvas({
     useState<ContextMenuState>(null);
   const [isReflowing, setIsReflowing] = useState(false);
 
-  const nodes = useAtomValue(workflowEditorNodesAtom);
-  const edges = useAtomValue(workflowEditorEdgesAtom);
+  const nodes = useAtomValue(workflowActiveCanvasNodesAtom);
+  const edges = useAtomValue(workflowActiveCanvasEdgesAtom);
   const isLoaded = useAtomValue(workflowEditorIsLoadedAtom);
   const rightPanelWidth = useAtomValue(rightPanelWidthAtom);
   const onNodesChange = useSetAtom(onWorkflowEditorNodesChangeAtom);
@@ -142,8 +144,8 @@ export function WorkflowEditorCanvas({
   const deleteEdge = useSetAtom(deleteEdgeAtom);
   const setSelection = useSetAtom(setWorkflowEditorSelectionAtom);
   const setPropertiesPanelTab = useSetAtom(propertiesPanelActiveTabAtom);
-  const setNodes = useSetAtom(workflowEditorNodesAtom);
   const setEdges = useSetAtom(workflowEditorEdgesAtom);
+  const setNodes = useSetAtom(workflowEditorNodesAtom);
   const setHasUnsavedChanges = useSetAtom(workflowEditorHasUnsavedChangesAtom);
   const addInitialTrigger = useSetAtom(addInitialTriggerNodeAtom);
   const { onNodeContextMenu, onEdgeContextMenu, onPaneContextMenu } =

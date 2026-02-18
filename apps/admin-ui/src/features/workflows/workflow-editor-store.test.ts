@@ -13,18 +13,22 @@ import {
   deleteEdgeAtom,
   deserializeWorkflowGraph,
   onWorkflowEditorConnectAtom,
+  onWorkflowEditorEdgesChangeAtom,
   onWorkflowEditorNodesChangeAtom,
   setWorkflowEditorSelectionAtom,
   setWorkflowEditorActionTypeAtom,
   serializeWorkflowGraph,
   setWorkflowEditorGraphAtom,
   updateWorkflowEditorNodeDataAtom,
+  workflowActiveCanvasEdgesAtom,
+  workflowActiveCanvasNodesAtom,
   workflowEditorEdgesAtom,
   workflowEditorHasUnsavedChangesAtom,
   workflowEditorIsReadOnlyAtom,
   workflowEditorNodesAtom,
   workflowEditorSelectedEdgeIdAtom,
   workflowEditorSelectedNodeIdAtom,
+  workflowExecutionViewGraphAtom,
 } from "./workflow-editor-store";
 
 function createGraphFixture(): SerializedJourneyGraph {
@@ -381,6 +385,64 @@ describe("workflow-editor-store", () => {
     expect(serialized.edges[0]?.attributes.label).toBe("Start");
   });
 
+  test("switches active canvas graph to execution snapshot and back", () => {
+    const store = createStore();
+    const draft = deserializeWorkflowGraph(createGraphFixture());
+
+    store.set(workflowEditorNodesAtom, draft.nodes);
+    store.set(workflowEditorEdgesAtom, draft.edges);
+
+    expect(
+      store.get(workflowActiveCanvasNodesAtom).map((node) => node.id),
+    ).toEqual(draft.nodes.map((node) => node.id));
+    expect(
+      store.get(workflowActiveCanvasEdgesAtom).map((edge) => edge.id),
+    ).toEqual(draft.edges.map((edge) => edge.id));
+
+    const executionSnapshot = deserializeWorkflowGraph({
+      attributes: {},
+      options: { type: "directed", allowSelfLoops: false, multi: false },
+      nodes: [
+        {
+          key: "snapshot-trigger",
+          attributes: {
+            id: "snapshot-trigger",
+            type: "trigger",
+            position: { x: 0, y: 0 },
+            data: {
+              type: "trigger",
+              label: "Trigger",
+              config: {
+                triggerType: "AppointmentJourney",
+                start: "appointment.scheduled",
+                restart: "appointment.rescheduled",
+                stop: "appointment.canceled",
+                correlationKey: "appointmentId",
+              },
+            },
+          },
+        },
+      ],
+      edges: [],
+    });
+
+    store.set(workflowExecutionViewGraphAtom, executionSnapshot);
+
+    expect(
+      store.get(workflowActiveCanvasNodesAtom).map((node) => node.id),
+    ).toEqual(["snapshot-trigger"]);
+    expect(store.get(workflowActiveCanvasEdgesAtom)).toEqual([]);
+
+    store.set(workflowExecutionViewGraphAtom, null);
+
+    expect(
+      store.get(workflowActiveCanvasNodesAtom).map((node) => node.id),
+    ).toEqual(draft.nodes.map((node) => node.id));
+    expect(
+      store.get(workflowActiveCanvasEdgesAtom).map((edge) => edge.id),
+    ).toEqual(draft.edges.map((edge) => edge.id));
+  });
+
   test("buildPersistableWorkflowGraph skips incomplete action nodes and keeps a valid linear graph", () => {
     const state = deserializeWorkflowGraph(createGraphFixture());
     const result = buildPersistableWorkflowGraph(state);
@@ -450,7 +512,39 @@ describe("workflow-editor-store", () => {
 
     const nodes = store.get(workflowEditorNodesAtom);
     expect(nodes.some((node) => node.id === "trigger-node")).toBe(true);
-    expect(store.get(workflowEditorHasUnsavedChangesAtom)).toBe(true);
+    expect(store.get(workflowEditorHasUnsavedChangesAtom)).toBe(false);
+  });
+
+  test("does not mark unsaved for node selection-only changes", () => {
+    const store = createStore();
+    store.set(setWorkflowEditorGraphAtom, createGraphFixture());
+    store.set(workflowEditorIsReadOnlyAtom, false);
+
+    store.set(onWorkflowEditorNodesChangeAtom, [
+      {
+        id: "action-node",
+        type: "select",
+        selected: true,
+      },
+    ]);
+
+    expect(store.get(workflowEditorHasUnsavedChangesAtom)).toBe(false);
+  });
+
+  test("does not mark unsaved for edge selection-only changes", () => {
+    const store = createStore();
+    store.set(setWorkflowEditorGraphAtom, createGraphFixture());
+    store.set(workflowEditorIsReadOnlyAtom, false);
+
+    store.set(onWorkflowEditorEdgesChangeAtom, [
+      {
+        id: "edge-1",
+        type: "select",
+        selected: true,
+      },
+    ]);
+
+    expect(store.get(workflowEditorHasUnsavedChangesAtom)).toBe(false);
   });
 
   test("blocks node data updates while read-only", () => {

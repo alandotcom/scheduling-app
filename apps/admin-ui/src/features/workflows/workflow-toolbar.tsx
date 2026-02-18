@@ -4,6 +4,7 @@ import {
   Add01Icon,
   ArrowTurnBackwardIcon,
   ArrowTurnForwardIcon,
+  PencilEdit02Icon,
   FloppyDiskIcon,
   Loading03Icon,
 } from "@hugeicons/core-free-icons";
@@ -31,13 +32,16 @@ interface WorkflowToolbarProps {
   canManageWorkflow: boolean;
   journeyStatus: JourneyStatus;
   journeyMode: JourneyMode;
+  currentVersion: number | null;
   publishWarnings: string[];
   isSaving: boolean;
   isPublishing: boolean;
   isPausing: boolean;
   isResuming: boolean;
   isSettingMode: boolean;
+  isRenaming: boolean;
   onSave: () => void;
+  onRename: () => void;
   onPublish: (mode: JourneyMode) => void;
   onPause: () => void;
   onResume: () => void;
@@ -52,13 +56,16 @@ export function WorkflowToolbar({
   canManageWorkflow,
   journeyStatus,
   journeyMode,
+  currentVersion,
   publishWarnings,
   isSaving,
   isPublishing,
   isPausing,
   isResuming,
   isSettingMode,
+  isRenaming,
   onSave,
+  onRename,
   onPublish,
   onPause,
   onResume,
@@ -203,6 +210,15 @@ export function WorkflowToolbar({
 
       <ButtonGroup>
         <Button
+          onClick={onRename}
+          disabled={isRenaming}
+          size="icon-sm"
+          variant="outline"
+          title="Rename"
+        >
+          <Icon icon={PencilEdit02Icon} />
+        </Button>
+        <Button
           onClick={onSave}
           disabled={isSaving || !hasUnsavedChanges}
           size="icon-sm"
@@ -223,6 +239,9 @@ export function WorkflowToolbar({
 
       <div className="rounded-md border px-2 py-1 font-medium text-xs">
         {statusLabel}
+      </div>
+      <div className="rounded-md border px-2 py-1 font-medium text-xs text-muted-foreground">
+        {currentVersion ? `Version ${currentVersion}` : "Version -"}
       </div>
 
       <div

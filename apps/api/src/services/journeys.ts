@@ -138,17 +138,53 @@ function parseLinearJourneyGraph(definition: unknown): LinearJourneyGraph {
   return parsed.data;
 }
 
-function toJourney(row: typeof journeys.$inferSelect): Journey {
+function toJourney(
+  row: typeof journeys.$inferSelect,
+  currentVersion: number | null,
+): Journey {
   return {
     id: row.id,
     orgId: row.orgId,
     name: row.name,
     status: row.state,
     mode: row.mode,
+    currentVersion,
     graph: parseLinearJourneyGraph(row.draftDefinition),
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
+}
+
+async function getJourneyCurrentVersionMap(
+  tx: DbClient,
+  journeyIds: string[],
+): Promise<Map<string, number>> {
+  if (journeyIds.length === 0) {
+    return new Map();
+  }
+
+  const rows = await tx
+    .select({
+      journeyId: journeyVersions.journeyId,
+      version: sql<number>`max(${journeyVersions.version})`,
+    })
+    .from(journeyVersions)
+    .where(inArray(journeyVersions.journeyId, journeyIds))
+    .groupBy(journeyVersions.journeyId);
+
+  return new Map(
+    rows
+      .filter((row) => typeof row.version === "number" && row.version > 0)
+      .map((row) => [row.journeyId, row.version]),
+  );
+}
+
+async function getJourneyCurrentVersion(
+  tx: DbClient,
+  journeyId: string,
+): Promise<number | null> {
+  const versionMap = await getJourneyCurrentVersionMap(tx, [journeyId]);
+  return versionMap.get(journeyId) ?? null;
 }
 
 function getJourneyVersionFromSnapshot(
@@ -639,8 +675,12 @@ export class JourneyService {
         .select()
         .from(journeys)
         .orderBy(desc(journeys.updatedAt), desc(journeys.id));
+      const versionMap = await getJourneyCurrentVersionMap(
+        tx,
+        rows.map((row) => row.id),
+      );
 
-      return rows.map(toJourney);
+      return rows.map((row) => toJourney(row, versionMap.get(row.id) ?? null));
     });
   }
 
@@ -651,7 +691,8 @@ export class JourneyService {
         throw new ApplicationError("Journey not found", { code: "NOT_FOUND" });
       }
 
-      return toJourney(row);
+      const currentVersion = await getJourneyCurrentVersion(tx, row.id);
+      return toJourney(row, currentVersion);
     });
   }
 
@@ -684,7 +725,7 @@ export class JourneyService {
           })
           .returning();
 
-        return toJourney(created!);
+        return toJourney(created!, null);
       } catch (error: unknown) {
         const mapped = mapJourneyWriteError(error);
         if (mapped) {
@@ -730,6 +771,20 @@ export class JourneyService {
         );
       }
 
+      const shouldCreateVersionSnapshot =
+        parsed.graph !== undefined && existing.state !== "draft";
+      let nextVersion: number | null = null;
+      if (shouldCreateVersionSnapshot) {
+        const [nextVersionRow] = await tx
+          .select({
+            nextVersion: sql<number>`coalesce(max(${journeyVersions.version}), 0) + 1`,
+          })
+          .from(journeyVersions)
+          .where(eq(journeyVersions.journeyId, id));
+
+        nextVersion = nextVersionRow?.nextVersion ?? 1;
+      }
+
       try {
         const [updated] = await tx
           .update(journeys)
@@ -748,7 +803,18 @@ export class JourneyService {
           });
         }
 
-        return toJourney(updated);
+        if (shouldCreateVersionSnapshot) {
+          await tx.insert(journeyVersions).values({
+            orgId: context.orgId,
+            journeyId: id,
+            version: nextVersion ?? 1,
+            definitionSnapshot: updated.draftDefinition,
+          });
+        }
+        const currentVersion = shouldCreateVersionSnapshot
+          ? (nextVersion ?? 1)
+          : await getJourneyCurrentVersion(tx, id);
+        return toJourney(updated, currentVersion);
       } catch (error: unknown) {
         const mapped = mapJourneyWriteError(error);
         if (mapped) {
@@ -816,7 +882,7 @@ export class JourneyService {
       });
 
       return {
-        journey: toJourney(updated),
+        journey: toJourney(updated, nextVersion),
         version: nextVersion,
         warnings,
       };
@@ -977,7 +1043,8 @@ export class JourneyService {
         throw new ApplicationError("Journey not found", { code: "NOT_FOUND" });
       }
 
-      return toJourney(updated);
+      const currentVersion = await getJourneyCurrentVersion(tx, id);
+      return toJourney(updated, currentVersion);
     });
   }
 
@@ -1007,7 +1074,8 @@ export class JourneyService {
         throw new ApplicationError("Journey not found", { code: "NOT_FOUND" });
       }
 
-      return toJourney(updated);
+      const currentVersion = await getJourneyCurrentVersion(tx, id);
+      return toJourney(updated, currentVersion);
     });
   }
 
@@ -1046,7 +1114,8 @@ export class JourneyService {
         throw new ApplicationError("Journey not found", { code: "NOT_FOUND" });
       }
 
-      return toJourney(updated);
+      const currentVersion = await getJourneyCurrentVersion(tx, id);
+      return toJourney(updated, currentVersion);
     });
   }
 

@@ -355,13 +355,13 @@ function getConditionBranchFromEdge(edge: JourneyEdge): ConditionBranch | null {
   );
 }
 
-function resolveDefaultNextNodeId(input: {
+function resolveDefaultNextNodeIds(input: {
   sourceNodeId: string;
   outgoingEdgesBySource: Map<string, JourneyEdge[]>;
-}): string | null {
+}): string[] {
   const outgoingEdges =
     input.outgoingEdgesBySource.get(input.sourceNodeId) ?? [];
-  return outgoingEdges[0]?.target ?? null;
+  return outgoingEdges.map((edge) => edge.target);
 }
 
 function resolveConditionNextNodeId(input: {
@@ -382,7 +382,7 @@ function getConditionExpression(node: ActionNode): unknown {
   return config["expression"];
 }
 
-function resolveNextNodeId(input: {
+function resolveConditionNextNodeIdForContext(input: {
   node: ActionNode;
   outgoingEdgesBySource: Map<string, JourneyEdge[]>;
   appointmentContext: Record<string, unknown>;
@@ -392,14 +392,6 @@ function resolveNextNodeId(input: {
   now: Date;
   orgTimezone: string;
 }): string | null {
-  const actionType = getNormalizedActionType(input.node);
-  if (actionType !== "condition") {
-    return resolveDefaultNextNodeId({
-      sourceNodeId: input.node.attributes.id,
-      outgoingEdgesBySource: input.outgoingEdgesBySource,
-    });
-  }
-
   const conditionResult = evaluateJourneyConditionExpression({
     expression: getConditionExpression(input.node),
     context: {
@@ -497,47 +489,58 @@ function buildDesiredDeliveries(input: {
 
   const nodeById = buildNodeById(input.graph);
   const outgoingEdgesBySource = buildOutgoingEdgesBySource(input.graph);
-  let cursor = new Date(input.eventTimestamp);
-
-  if (Number.isNaN(cursor.getTime())) {
-    cursor = input.now;
-  }
+  const initialCursor = new Date(input.eventTimestamp);
+  const startCursor = Number.isNaN(initialCursor.getTime())
+    ? input.now
+    : initialCursor;
 
   const desiredDeliveries: DesiredDelivery[] = [];
   const visitedNodeIds = new Set<string>();
-  let currentNodeId = resolveDefaultNextNodeId({
-    sourceNodeId: triggerNode.attributes.id,
-    outgoingEdgesBySource,
-  });
+  const pending: Array<{ nodeId: string; cursor: Date }> =
+    resolveDefaultNextNodeIds({
+      sourceNodeId: triggerNode.attributes.id,
+      outgoingEdgesBySource,
+    }).map((nodeId) => ({
+      nodeId,
+      cursor: startCursor,
+    }));
 
-  while (currentNodeId) {
+  while (pending.length > 0) {
+    const current = pending.shift();
+    if (!current) {
+      continue;
+    }
+
+    const currentNodeId = current.nodeId;
     if (visitedNodeIds.has(currentNodeId)) {
-      break;
+      continue;
     }
     visitedNodeIds.add(currentNodeId);
 
     const node = nodeById.get(currentNodeId);
     if (!node) {
-      break;
+      continue;
     }
 
     const actionType = getNormalizedActionType(node);
 
     if (actionType === "wait") {
-      cursor = resolveWaitCursor({
+      const nextCursor = resolveWaitCursor({
         node,
-        cursor,
+        cursor: current.cursor,
         appointmentContext: input.appointmentContext,
       });
-      currentNodeId = resolveDefaultNextNodeId({
+      for (const nextNodeId of resolveDefaultNextNodeIds({
         sourceNodeId: node.attributes.id,
         outgoingEdgesBySource,
-      });
+      })) {
+        pending.push({ nodeId: nextNodeId, cursor: nextCursor });
+      }
       continue;
     }
 
     if (actionType === "condition") {
-      currentNodeId = resolveNextNodeId({
+      const nextNodeId = resolveConditionNextNodeIdForContext({
         node,
         outgoingEdgesBySource,
         appointmentContext: input.appointmentContext,
@@ -547,18 +550,23 @@ function buildDesiredDeliveries(input: {
         now: input.now,
         orgTimezone: input.orgTimezone,
       });
+      if (nextNodeId) {
+        pending.push({ nodeId: nextNodeId, cursor: current.cursor });
+      }
       continue;
     }
 
     if (!isJourneyDeliveryActionType(actionType)) {
-      currentNodeId = resolveDefaultNextNodeId({
+      for (const nextNodeId of resolveDefaultNextNodeIds({
         sourceNodeId: node.attributes.id,
         outgoingEdgesBySource,
-      });
+      })) {
+        pending.push({ nodeId: nextNodeId, cursor: current.cursor });
+      }
       continue;
     }
 
-    const scheduledFor = new Date(cursor);
+    const scheduledFor = new Date(current.cursor);
     const isPastDue = scheduledFor.getTime() < input.now.getTime();
     desiredDeliveries.push({
       actionType,
@@ -574,10 +582,12 @@ function buildDesiredDeliveries(input: {
       reasonCode: isPastDue ? "past_due" : null,
     });
 
-    currentNodeId = resolveDefaultNextNodeId({
+    for (const nextNodeId of resolveDefaultNextNodeIds({
       sourceNodeId: node.attributes.id,
       outgoingEdgesBySource,
-    });
+    })) {
+      pending.push({ nodeId: nextNodeId, cursor: current.cursor });
+    }
   }
 
   return desiredDeliveries;
@@ -692,6 +702,75 @@ async function markRunPlanned(input: {
     .update(journeyRuns)
     .set({
       status: "planned",
+      cancelledAt: null,
+    })
+    .where(eq(journeyRuns.id, input.runId));
+}
+
+async function refreshRunStatusFromDeliveries(input: {
+  tx: DbClient;
+  runId: string;
+}): Promise<void> {
+  const statuses = await input.tx
+    .select({ status: journeyDeliveries.status })
+    .from(journeyDeliveries)
+    .where(eq(journeyDeliveries.journeyRunId, input.runId));
+
+  if (statuses.length === 0) {
+    await input.tx
+      .update(journeyRuns)
+      .set({
+        status: "completed",
+        completedAt: sql`now()`,
+        cancelledAt: null,
+      })
+      .where(eq(journeyRuns.id, input.runId));
+    return;
+  }
+
+  const values = statuses.map((item) => item.status);
+
+  if (values.includes("failed")) {
+    await input.tx
+      .update(journeyRuns)
+      .set({
+        status: "failed",
+        completedAt: sql`now()`,
+        cancelledAt: null,
+      })
+      .where(eq(journeyRuns.id, input.runId));
+    return;
+  }
+
+  if (values.includes("planned")) {
+    await input.tx
+      .update(journeyRuns)
+      .set({
+        status: "planned",
+        completedAt: null,
+        cancelledAt: null,
+      })
+      .where(eq(journeyRuns.id, input.runId));
+    return;
+  }
+
+  if (values.every((value) => value === "canceled")) {
+    await input.tx
+      .update(journeyRuns)
+      .set({
+        status: "canceled",
+        completedAt: null,
+        cancelledAt: sql`now()`,
+      })
+      .where(eq(journeyRuns.id, input.runId));
+    return;
+  }
+
+  await input.tx
+    .update(journeyRuns)
+    .set({
+      status: "completed",
+      completedAt: sql`now()`,
       cancelledAt: null,
     })
     .where(eq(journeyRuns.id, input.runId));
@@ -1141,6 +1220,11 @@ export async function processJourneyDomainEvent(
           );
           canceledDeliveryIds.push(...reconciliationResult.canceledDeliveryIds);
           skippedDeliveryIds.push(...reconciliationResult.skippedDeliveryIds);
+
+          await refreshRunStatusFromDeliveries({
+            tx,
+            runId: run.id,
+          });
         } catch {
           erroredJourneyIds.push(journey.id);
         }

@@ -88,6 +88,7 @@ type HeaderBreadcrumbLink =
   | "/appointment-types"
   | "/resources"
   | "/locations"
+  | "/workflows"
   | "/settings"
   | "/split-pane";
 
@@ -187,8 +188,16 @@ function resolveSettingsSection(
 export function getHeaderBreadcrumbItems(input: {
   pathname: string;
   searchStr?: string;
+  workflowName?: string | null;
 }): HeaderBreadcrumbItem[] {
   const normalizedPathname = normalizePathname(input.pathname);
+  if (normalizedPathname.startsWith("/workflows/")) {
+    return [
+      { label: "Workflows", to: "/workflows" },
+      { label: input.workflowName?.trim() || "Workflow" },
+    ];
+  }
+
   if (normalizedPathname === "/settings") {
     const searchParams = new URLSearchParams(input.searchStr ?? "");
     const activeSection = resolveSettingsSection(searchParams.get("section"));
@@ -639,9 +648,24 @@ function RootLayout() {
     { to: "/locations", icon: Location01Icon, label: "Locations" },
     { to: "/workflows", icon: ArrowRight01Icon, label: "Workflows" },
   ];
+  const workflowIdFromPath =
+    normalizePathname(location.pathname).match(
+      /^\/workflows\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i,
+    )?.[1] ?? null;
+  const workflowQueryOptions = workflowIdFromPath
+    ? orpc.journeys.get.queryOptions({
+        input: { id: workflowIdFromPath },
+      })
+    : null;
+  const workflowBreadcrumbName = workflowQueryOptions
+    ? (queryClient.getQueryData<{ name?: string }>(
+        workflowQueryOptions.queryKey,
+      )?.name ?? null)
+    : null;
   const headerBreadcrumbItems = getHeaderBreadcrumbItems({
     pathname: location.pathname,
     searchStr: location.searchStr,
+    workflowName: workflowBreadcrumbName,
   });
 
   return (

@@ -96,4 +96,27 @@ describe("getHeaderBreadcrumbItems", () => {
       { label: "Organization" },
     ]);
   });
+
+  test("shows workflow detail breadcrumb with resolved journey name", () => {
+    expect(
+      getHeaderBreadcrumbItems({
+        pathname: "/workflows/019c6f86-282b-78ff-b9ee-aae3bcfce6bc",
+        workflowName: "Test Journey",
+      }),
+    ).toEqual([
+      { label: "Workflows", to: "/workflows" },
+      { label: "Test Journey" },
+    ]);
+  });
+
+  test("falls back to generic workflow breadcrumb when name is unavailable", () => {
+    expect(
+      getHeaderBreadcrumbItems({
+        pathname: "/workflows/019c6f86-282b-78ff-b9ee-aae3bcfce6bc",
+      }),
+    ).toEqual([
+      { label: "Workflows", to: "/workflows" },
+      { label: "Workflow" },
+    ]);
+  });
 });

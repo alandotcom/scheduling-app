@@ -407,7 +407,7 @@ describe("journey cutover schema exports", () => {
     expect(parsed.success).toBe(true);
   });
 
-  test("rejects branching payloads for create and update schemas", () => {
+  test("accepts fan-out branching payloads for create and update schemas", () => {
     const createParsed = schemas.createJourneySchema.safeParse({
       name: "Branching Journey",
       graph: createBranchingGraph(),
@@ -416,8 +416,8 @@ describe("journey cutover schema exports", () => {
       graph: createBranchingGraph("trigger-branching-update"),
     });
 
-    expect(createParsed.success).toBe(false);
-    expect(updateParsed.success).toBe(false);
+    expect(createParsed.success).toBe(true);
+    expect(updateParsed.success).toBe(true);
   });
 
   test("rejects unlabeled condition edges", () => {

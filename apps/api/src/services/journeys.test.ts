@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, test } from "bun:test";
-import { and, eq, inArray } from "drizzle-orm";
+import { and, asc, eq, inArray } from "drizzle-orm";
 import {
   journeyDeliveries,
   journeyRuns,
@@ -280,6 +280,81 @@ describe("JourneyService", () => {
     );
     expect(switchedMode.status).toBe("published");
     expect(switchedMode.mode).toBe("test");
+  });
+
+  test("graph updates on published journeys create a new live version for subsequent runs", async () => {
+    const location = await createLocation(db as any, context.orgId);
+    const calendar = await createCalendar(db as any, context.orgId, {
+      locationId: location.id,
+    });
+    const appointmentType = await createAppointmentType(
+      db as any,
+      context.orgId,
+      {
+        calendarIds: [calendar.id],
+      },
+    );
+    const appointment = await createAppointment(db as any, context.orgId, {
+      calendarId: calendar.id,
+      appointmentTypeId: appointmentType.id,
+      startAt: new Date("2026-03-10T14:00:00.000Z"),
+      endAt: new Date("2026-03-10T15:00:00.000Z"),
+    });
+
+    const created = await journeyService.create(
+      {
+        name: "Published Update Versioning Journey",
+        graph: createLinearGraph("trigger-published-update"),
+      },
+      context,
+    );
+
+    const firstPublish = await journeyService.publish(
+      created.id,
+      {
+        mode: "live",
+      },
+      context,
+    );
+
+    expect(firstPublish.version).toBe(1);
+
+    const updated = await journeyService.update(
+      created.id,
+      {
+        graph: createLinearGraphWithSendMessage({
+          triggerId: "trigger-published-update",
+        }),
+      },
+      context,
+    );
+
+    expect(updated.status).toBe("published");
+
+    await setTestOrgContext(db, context.orgId);
+
+    const versionRows = await db
+      .select({
+        version: journeyVersions.version,
+      })
+      .from(journeyVersions)
+      .where(eq(journeyVersions.journeyId, created.id))
+      .orderBy(asc(journeyVersions.version));
+
+    expect(versionRows.map((row) => row.version)).toEqual([1, 2]);
+
+    const testRun = await journeyService.startTestRun(
+      created.id,
+      {
+        appointmentId: appointment.id,
+      },
+      context,
+    );
+
+    const runDetail = await journeyService.getRun(testRun.runId, context);
+
+    expect(runDetail.run.journeyVersion).toBe(2);
+    expect(runDetail.deliveries).toHaveLength(1);
   });
 
   test("enforces org-scoped case-insensitive journey name uniqueness", async () => {

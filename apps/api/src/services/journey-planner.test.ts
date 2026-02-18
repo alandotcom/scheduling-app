@@ -280,6 +280,83 @@ function createResendTemplateJourneyGraph(input?: {
   };
 }
 
+function createFanoutJourneyGraph(): LinearJourneyGraph {
+  return {
+    attributes: {},
+    options: {
+      type: "directed",
+    },
+    nodes: [
+      {
+        key: "trigger-node",
+        attributes: {
+          id: "trigger-node",
+          type: "trigger-node",
+          position: { x: 0, y: 0 },
+          data: {
+            type: "trigger",
+            label: "Trigger",
+            config: createTriggerConfig(),
+          },
+        },
+      },
+      {
+        key: "logger-node",
+        attributes: {
+          id: "logger-node",
+          type: "action-node",
+          position: { x: -100, y: 140 },
+          data: {
+            type: "action",
+            label: "Logger",
+            config: {
+              actionType: "logger",
+              message: "Left branch",
+            },
+          },
+        },
+      },
+      {
+        key: "send-node",
+        attributes: {
+          id: "send-node",
+          type: "action-node",
+          position: { x: 100, y: 140 },
+          data: {
+            type: "action",
+            label: "Send",
+            config: {
+              actionType: "send-resend",
+            },
+          },
+        },
+      },
+    ],
+    edges: [
+      {
+        key: "trigger-to-logger",
+        source: "trigger-node",
+        target: "logger-node",
+        attributes: {
+          id: "trigger-to-logger",
+          source: "trigger-node",
+          target: "logger-node",
+        },
+      },
+      {
+        key: "trigger-to-send",
+        source: "trigger-node",
+        target: "send-node",
+        attributes: {
+          id: "trigger-to-send",
+          source: "trigger-node",
+          target: "send-node",
+        },
+      },
+    ],
+  };
+}
+
 function createConditionJourneyGraph(input?: {
   expression?: string;
   includeTrueEdge?: boolean;
@@ -595,6 +672,73 @@ describe("processJourneyDomainEvent", () => {
     expect(scheduleLoggerRequester).toHaveBeenCalledTimes(1);
   });
 
+  test("plans fan-out deliveries on multiple branches from a single step", async () => {
+    const created = await journeyService.create(
+      {
+        name: "Fan-out Planner Journey",
+        graph: createFanoutJourneyGraph(),
+      },
+      context,
+    );
+
+    await journeyService.publish(
+      created.id,
+      {
+        mode: "live",
+      },
+      context,
+    );
+
+    const scheduleResendRequester = mock(async () => ({
+      eventId: "evt-fanout-resend",
+    }));
+    const scheduleLoggerRequester = mock(async () => ({
+      eventId: "evt-fanout-logger",
+    }));
+
+    await processJourneyDomainEvent(
+      {
+        id: "evt-fanout-1",
+        orgId: context.orgId,
+        type: "appointment.scheduled",
+        payload: createAppointmentPayload({
+          appointmentId: "018f4d3a-6d80-7c5b-8a4a-6cb8f8d57f01",
+        }),
+        timestamp: "2026-02-16T10:00:00.000Z",
+      },
+      {
+        scheduleResendRequester,
+        scheduleLoggerRequester,
+        now: new Date("2026-02-16T09:00:00.000Z"),
+      },
+    );
+
+    await setTestOrgContext(db, context.orgId);
+
+    const [run] = await db
+      .select({ id: journeyRuns.id })
+      .from(journeyRuns)
+      .orderBy(desc(journeyRuns.id))
+      .limit(1);
+
+    const deliveries = await db
+      .select({
+        stepKey: journeyDeliveries.stepKey,
+        channel: journeyDeliveries.channel,
+        status: journeyDeliveries.status,
+      })
+      .from(journeyDeliveries)
+      .where(eq(journeyDeliveries.journeyRunId, run!.id))
+      .orderBy(desc(journeyDeliveries.stepKey));
+
+    expect(deliveries).toHaveLength(2);
+    expect(new Set(deliveries.map((delivery) => delivery.stepKey))).toEqual(
+      new Set(["logger-node", "send-node"]),
+    );
+    expect(scheduleResendRequester).toHaveBeenCalledTimes(1);
+    expect(scheduleLoggerRequester).toHaveBeenCalledTimes(1);
+  });
+
   test("hard-cuts integration actions to provider-specific schedulers", async () => {
     const [resendJourney, slackJourney] = await Promise.all([
       journeyService.create(
@@ -811,6 +955,7 @@ describe("processJourneyDomainEvent", () => {
       .select({
         id: journeyRuns.id,
         status: journeyRuns.status,
+        completedAt: journeyRuns.completedAt,
       })
       .from(journeyRuns)
       .orderBy(desc(journeyRuns.id))
@@ -824,7 +969,8 @@ describe("processJourneyDomainEvent", () => {
       .where(eq(journeyDeliveries.journeyRunId, run!.id));
 
     expect(result.erroredJourneyIds).toHaveLength(0);
-    expect(run?.status).toBe("planned");
+    expect(run?.status).toBe("completed");
+    expect(run?.completedAt).toBeDefined();
     expect(deliveries).toHaveLength(0);
     expect(scheduleResendRequester).toHaveBeenCalledTimes(0);
   });

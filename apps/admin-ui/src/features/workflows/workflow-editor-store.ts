@@ -103,7 +103,7 @@ export type WorkflowEdgeData = {
 export type WorkflowCanvasNode = Node<WorkflowNodeData>;
 export type WorkflowCanvasEdge = Edge<WorkflowEdgeData>;
 
-type WorkflowGraphState = {
+export type WorkflowGraphState = {
   nodes: WorkflowCanvasNode[];
   edges: WorkflowCanvasEdge[];
 };
@@ -511,6 +511,20 @@ export function serializeWorkflowGraph(
   });
 }
 
+function getPersistableGraphFingerprint(input: WorkflowGraphState): string {
+  return JSON.stringify(serializeWorkflowGraph(input));
+}
+
+function didPersistableGraphChange(input: {
+  previous: WorkflowGraphState;
+  next: WorkflowGraphState;
+}): boolean {
+  return (
+    getPersistableGraphFingerprint(input.previous) !==
+    getPersistableGraphFingerprint(input.next)
+  );
+}
+
 export function buildPersistableWorkflowGraph(
   state: WorkflowGraphState,
 ): PersistableWorkflowGraphResult {
@@ -586,6 +600,20 @@ export function buildPersistableWorkflowGraph(
 
 export const workflowEditorNodesAtom = atom<WorkflowCanvasNode[]>([]);
 export const workflowEditorEdgesAtom = atom<WorkflowCanvasEdge[]>([]);
+export const workflowExecutionViewGraphAtom = atom<WorkflowGraphState | null>(
+  null,
+);
+export const isExecutionViewActiveAtom = atom(
+  (get) => get(workflowExecutionViewGraphAtom) !== null,
+);
+export const workflowActiveCanvasNodesAtom = atom((get) => {
+  const executionViewGraph = get(workflowExecutionViewGraphAtom);
+  return executionViewGraph?.nodes ?? get(workflowEditorNodesAtom);
+});
+export const workflowActiveCanvasEdgesAtom = atom((get) => {
+  const executionViewGraph = get(workflowExecutionViewGraphAtom);
+  return executionViewGraph?.edges ?? get(workflowEditorEdgesAtom);
+});
 export const workflowEditorIsReadOnlyAtom = atom(true);
 export const workflowEditorHasUnsavedChangesAtom = atom(false);
 export const workflowEditorIsSavingAtom = atom(false);
@@ -665,6 +693,7 @@ export const setWorkflowEditorGraphAtom = atom(
     set(workflowEditorIsLoadedAtom, true);
     set(workflowEditorSelectedNodeIdAtom, null);
     set(workflowEditorSelectedEdgeIdAtom, null);
+    set(workflowExecutionViewGraphAtom, null);
     set(selectedExecutionIdAtom, null);
     set(workflowExecutionLogsByNodeIdAtom, {});
     set(historyAtom, []);
@@ -807,10 +836,16 @@ export const onWorkflowEditorNodesChangeAtom = atom(
     const nextEdges = currentEdges.filter(
       (edge) => nextNodeIds.has(edge.source) && nextNodeIds.has(edge.target),
     );
+    const hasPersistableChange = didPersistableGraphChange({
+      previous: { nodes: currentNodes, edges: currentEdges },
+      next: { nodes: nextNodes, edges: nextEdges },
+    });
 
     set(workflowEditorNodesAtom, nextNodes);
     set(workflowEditorEdgesAtom, nextEdges);
-    set(workflowEditorHasUnsavedChangesAtom, true);
+    if (hasPersistableChange) {
+      set(workflowEditorHasUnsavedChangesAtom, true);
+    }
   },
 );
 
@@ -821,8 +856,20 @@ export const onWorkflowEditorEdgesChangeAtom = atom(
 
     const currentEdges = get(workflowEditorEdgesAtom);
     const nextEdges = applyEdgeChanges(changes, currentEdges);
+    const hasPersistableChange = didPersistableGraphChange({
+      previous: {
+        nodes: get(workflowEditorNodesAtom),
+        edges: currentEdges,
+      },
+      next: {
+        nodes: get(workflowEditorNodesAtom),
+        edges: nextEdges,
+      },
+    });
     set(workflowEditorEdgesAtom, nextEdges);
-    set(workflowEditorHasUnsavedChangesAtom, true);
+    if (hasPersistableChange) {
+      set(workflowEditorHasUnsavedChangesAtom, true);
+    }
   },
 );
 
