@@ -4,12 +4,16 @@ import {
   Add01Icon,
   ArrowTurnBackwardIcon,
   ArrowTurnForwardIcon,
+  FloppyDiskIcon,
   Menu01Icon,
+  PauseIcon,
   PencilEdit02Icon,
+  PlayIcon,
   Loading03Icon,
 } from "@hugeicons/core-free-icons";
 import { useReactFlow } from "@xyflow/react";
 import { useAtomValue, useSetAtom } from "jotai";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { Panel } from "@/components/flow-elements/panel";
 import { Button } from "@/components/ui/button";
 import { ButtonGroup } from "@/components/ui/button-group";
@@ -82,6 +86,7 @@ export function WorkflowToolbar({
   onSetMode,
 }: WorkflowToolbarProps) {
   const { screenToFlowPosition } = useReactFlow();
+  const isMobile = useIsMobile();
   const toolbarContainerRef = useRef<HTMLDivElement | null>(null);
   const fullControlsMeasureRef = useRef<HTMLDivElement | null>(null);
   const compactControlsMeasureRef = useRef<HTMLDivElement | null>(null);
@@ -206,7 +211,7 @@ export function WorkflowToolbar({
   }, []);
 
   useEffect(() => {
-    if (typeof window === "undefined") {
+    if (typeof window === "undefined" || isMobile) {
       return;
     }
 
@@ -247,9 +252,13 @@ export function WorkflowToolbar({
       window.cancelAnimationFrame(initialMeasureFrame);
       window.removeEventListener("resize", handleResize);
     };
-  }, [measureOverflow]);
+  }, [isMobile, measureOverflow]);
 
   useEffect(() => {
+    if (isMobile) {
+      return;
+    }
+
     const frame = window.requestAnimationFrame(() => {
       measureOverflow();
     });
@@ -262,6 +271,7 @@ export function WorkflowToolbar({
     canUndo,
     currentVersion,
     hasUnsavedChanges,
+    isMobile,
     isPausing,
     isPublishing,
     isRenaming,
@@ -515,6 +525,172 @@ export function WorkflowToolbar({
       </DropdownMenuContent>
     </DropdownMenu>
   );
+
+  if (isMobile) {
+    const primaryIcon = journeyStatus === "published" ? PauseIcon : PlayIcon;
+
+    return (
+      <Panel
+        position="top-right"
+        className="flex flex-col items-center gap-0.5"
+      >
+        {/* Overflow / settings menu */}
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            render={
+              <Button
+                size="icon-sm"
+                variant="outline"
+                type="button"
+                title="More actions"
+                aria-label="More actions"
+              >
+                <Icon icon={Menu01Icon} />
+              </Button>
+            }
+          />
+          <DropdownMenuContent
+            side="left"
+            align="start"
+            sideOffset={6}
+            className="w-64"
+          >
+            <DropdownMenuItem disabled>{statusLabel}</DropdownMenuItem>
+            <DropdownMenuItem disabled>
+              {currentVersion ? `Version ${currentVersion}` : "Version -"}
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              disabled={modeDisabled || journeyMode === "live"}
+              onClick={() => onSetMode("live")}
+            >
+              Switch to Live
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              disabled={modeDisabled || journeyMode === "test"}
+              onClick={() => onSetMode("test")}
+            >
+              Switch to Test
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem disabled={isRenaming} onClick={onRename}>
+              Rename journey
+            </DropdownMenuItem>
+            {warningCount > 0 ? (
+              <>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem disabled>
+                  Publish warnings ({warningCount})
+                </DropdownMenuItem>
+                {publishWarnings.map((warning) => (
+                  <DropdownMenuItem
+                    key={warning}
+                    disabled
+                    className="whitespace-normal text-xs leading-snug"
+                  >
+                    {warning}
+                  </DropdownMenuItem>
+                ))}
+              </>
+            ) : null}
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+        <div className="h-1" />
+
+        {/* Primary action (Publish / Pause / Resume) */}
+        <Button
+          aria-label={primaryLabel}
+          onClick={primaryAction}
+          disabled={isLifecycleBusy}
+          size="icon-sm"
+          variant={journeyStatus === "draft" ? "default" : "outline"}
+          title={primaryLabel}
+        >
+          {primaryPending ? (
+            <Icon icon={Loading03Icon} className="animate-spin" />
+          ) : (
+            <Icon icon={primaryIcon} />
+          )}
+        </Button>
+
+        <div className="h-1" />
+
+        {/* Save */}
+        <Button
+          aria-label="Save"
+          onClick={onSave}
+          disabled={isSaving || !hasUnsavedChanges}
+          size="icon-sm"
+          variant="outline"
+          title="Save"
+          className="relative"
+        >
+          {isSaving ? (
+            <Icon icon={Loading03Icon} className="animate-spin" />
+          ) : (
+            <Icon icon={FloppyDiskIcon} />
+          )}
+          {hasUnsavedChanges && !isSaving && (
+            <span className="absolute right-0.5 top-0.5 size-1.5 rounded-full bg-primary" />
+          )}
+        </Button>
+
+        <div className="h-1" />
+
+        {/* Undo + Redo */}
+        <ButtonGroup orientation="vertical">
+          <Button
+            aria-label="Undo"
+            onClick={() => undo()}
+            disabled={!canUndo}
+            size="icon-sm"
+            variant="outline"
+            title="Undo"
+          >
+            <Icon icon={ArrowTurnBackwardIcon} />
+          </Button>
+          <Button
+            aria-label="Redo"
+            onClick={() => redo()}
+            disabled={!canRedo}
+            size="icon-sm"
+            variant="outline"
+            title="Redo"
+          >
+            <Icon icon={ArrowTurnForwardIcon} />
+          </Button>
+        </ButtonGroup>
+
+        <div className="h-1" />
+
+        {/* Rename */}
+        <Button
+          aria-label="Rename"
+          onClick={onRename}
+          disabled={isRenaming}
+          size="icon-sm"
+          variant="outline"
+          title="Rename"
+        >
+          <Icon icon={PencilEdit02Icon} />
+        </Button>
+
+        <div className="h-1" />
+
+        {/* Add step */}
+        <Button
+          aria-label="Add step"
+          onClick={handleAddStep}
+          size="icon-sm"
+          variant="outline"
+          title="Add step"
+        >
+          <Icon icon={Add01Icon} />
+        </Button>
+      </Panel>
+    );
+  }
 
   const fullInlineControls = (
     <>

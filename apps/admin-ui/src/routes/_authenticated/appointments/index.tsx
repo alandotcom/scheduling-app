@@ -60,6 +60,7 @@ import {
   FOCUS_ZONES,
 } from "@/hooks/use-keyboard-shortcuts";
 import { useClosingSnapshot } from "@/hooks/use-closing-snapshot";
+import { useCreateIntentTrigger } from "@/hooks/use-create-intent";
 import { useUrlDrivenModal } from "@/hooks/use-url-driven-modal";
 import { useValidateSelection } from "@/hooks/use-selection-search-params";
 import {
@@ -113,7 +114,6 @@ function AppointmentsPage() {
     listScope: urlListScope,
     tzMode,
     tz,
-    create,
   } = Route.useSearch();
 
   const selectedId = selected ?? null;
@@ -125,32 +125,16 @@ function AppointmentsPage() {
   // Confirmation dialogs
   const [cancellingId, setCancellingId] = useState<string | null>(null);
   const [noShowId, setNoShowId] = useState<string | null>(null);
+  const [modalOpen, setModalOpen] = useState(false);
   const [rescheduleAppointment, setRescheduleAppointment] =
     useState<AppointmentWithRelations | null>(null);
   const [mobileControlsOpen, setMobileControlsOpen] = useState(false);
-  const isCreateModalOpen = create === "1";
+  const isCreateModalOpen = modalOpen;
   const openCreateModal = useCallback(() => {
-    navigate({
-      search: (prev) => ({
-        ...prev,
-        create: "1",
-      }),
-    });
-  }, [navigate]);
-  const handleCreateModalOpenChange = useCallback(
-    (open: boolean) => {
-      if (!open && create === "1") {
-        navigate({
-          search: (prev) => ({
-            ...prev,
-            create: undefined,
-          }),
-          replace: true,
-        });
-      }
-    },
-    [create, navigate],
-  );
+    setModalOpen(true);
+  }, []);
+
+  useCreateIntentTrigger("appointments", openCreateModal);
 
   // Filters from URL
   const filters = useMemo(
@@ -997,7 +981,7 @@ function AppointmentsPage() {
       {/* Appointment Modal */}
       <AppointmentModal
         open={isCreateModalOpen}
-        onOpenChange={handleCreateModalOpenChange}
+        onOpenChange={setModalOpen}
         timezoneMode={timezoneMode}
         onTimezoneModeChange={setTimezoneMode}
         displayTimezone={displayTimezone}
@@ -1077,7 +1061,6 @@ function AppointmentsPage() {
 }
 
 interface AppointmentsSearchParams {
-  create?: "1";
   selected?: string;
   tab?: string;
   view?: "list" | "schedule";
@@ -1096,7 +1079,6 @@ export const Route = createFileRoute("/_authenticated/appointments/")({
     search: Record<string, unknown>,
   ): AppointmentsSearchParams => {
     return {
-      create: search.create === "1" ? "1" : undefined,
       selected:
         typeof search.selected === "string" ? search.selected : undefined,
       tab: typeof search.tab === "string" ? search.tab : undefined,

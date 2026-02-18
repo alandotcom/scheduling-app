@@ -134,7 +134,6 @@ const ORG_SWITCH_STRIPPED_SEARCH_KEYS = [
   "appointmentTypeId",
   "endpointId",
   "messageId",
-  "create",
 ] as const;
 const HEADER_BREADCRUMB_LABELS: Record<string, HeaderBreadcrumbItem[]> = {
   "/": [{ label: "Dashboard" }],

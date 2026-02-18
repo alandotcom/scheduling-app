@@ -42,7 +42,6 @@ import { WorkflowEditorSidebar } from "@/features/workflows/workflow-editor-side
 import { WorkflowSidebarPanel } from "@/features/workflows/workflow-sidebar-panel";
 import { WorkflowToolbar } from "@/features/workflows/workflow-toolbar";
 import {
-  clearWorkflowEditorSelectionAtom,
   deleteEdgeAtom,
   deleteNodeAtom,
   isExecutionViewActiveAtom,
@@ -106,7 +105,6 @@ function WorkflowEditorPage() {
   const setWorkflowId = useSetAtom(workflowEditorWorkflowIdAtom);
   const setJourneyMode = useSetAtom(workflowEditorJourneyModeAtom);
   const setRightPanelWidth = useSetAtom(rightPanelWidthAtom);
-  const clearSelection = useSetAtom(clearWorkflowEditorSelectionAtom);
   const updateNodeData = useSetAtom(updateWorkflowEditorNodeDataAtom);
   const setActionType = useSetAtom(setWorkflowEditorActionTypeAtom);
   const deleteNode = useSetAtom(deleteNodeAtom);
@@ -222,10 +220,9 @@ function WorkflowEditorPage() {
       setMobileSidebarOpen(open);
       if (!open) {
         setDismissedMobileSelectionKey(mobileSelectionKey);
-        clearSelection();
       }
     },
-    [clearSelection, mobileSelectionKey],
+    [mobileSelectionKey],
   );
 
   useEffect(() => {
@@ -727,7 +724,7 @@ function WorkflowEditorPage() {
           <WorkflowEditorCanvas canEdit={canManageCurrentView}>
             {effectiveMode === "test" ? (
               <Panel
-                position="top-center"
+                position="top-left"
                 className="max-w-[min(100vw-10rem,56rem)] border-destructive/30 bg-destructive/10 px-4 py-2"
               >
                 <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">

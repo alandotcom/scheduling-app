@@ -208,9 +208,9 @@ describe("WorkflowToolbar", () => {
     renderToolbar("published", "live");
 
     mockToolbarOverflowDimensions({
-      viewportWidth: 760,
-      fullWidth: 1100,
-      compactWidth: 640,
+      viewportWidth: 1100,
+      fullWidth: 1200,
+      compactWidth: 900,
       minimalWidth: 260,
     });
 
@@ -226,10 +226,10 @@ describe("WorkflowToolbar", () => {
     const { onSave, onSetMode } = renderToolbar("published", "live");
 
     mockToolbarOverflowDimensions({
-      viewportWidth: 420,
-      fullWidth: 1100,
-      compactWidth: 640,
-      minimalWidth: 240,
+      viewportWidth: 1024,
+      fullWidth: 1200,
+      compactWidth: 1100,
+      minimalWidth: 900,
     });
 
     expect(screen.queryByRole("button", { name: "Save" })).toBeNull();
@@ -243,5 +243,97 @@ describe("WorkflowToolbar", () => {
 
     fireEvent.click(screen.getByText("Switch to Test"));
     expect(onSetMode).toHaveBeenCalledWith("test");
+  });
+});
+
+function renderMobileToolbar(
+  journeyStatus: "draft" | "published" | "paused",
+  journeyMode: "live" | "test" = "live",
+  publishWarnings: string[] = [],
+) {
+  window.innerWidth = 800;
+
+  const onSave = mock(() => {});
+  const onPause = mock(() => {});
+  const onPublish = mock((_mode: "live" | "test") => {});
+  const onResume = mock(() => {});
+  const onRename = mock(() => {});
+  const onSetMode = mock((_mode: "live" | "test") => {});
+
+  render(
+    <ReactFlowProvider>
+      <WorkflowToolbar
+        canManageWorkflow={true}
+        journeyStatus={journeyStatus}
+        journeyMode={journeyMode}
+        currentVersion={journeyStatus === "draft" ? null : 1}
+        isPausing={false}
+        isPublishing={false}
+        isResuming={false}
+        isSaving={false}
+        isSettingMode={false}
+        isRenaming={false}
+        onPause={onPause}
+        onPublish={onPublish}
+        publishWarnings={publishWarnings}
+        onRename={onRename}
+        onResume={onResume}
+        onSave={onSave}
+        onSetMode={onSetMode}
+      />
+    </ReactFlowProvider>,
+  );
+
+  return { onSave, onPause, onPublish, onRename, onResume, onSetMode };
+}
+
+describe("WorkflowToolbar (mobile)", () => {
+  test("renders icon-only buttons in vertical layout", () => {
+    renderMobileToolbar("draft");
+
+    expect(screen.getByRole("button", { name: "Save" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Add step" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Undo" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Redo" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Rename" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /more actions/i })).toBeTruthy();
+  });
+
+  test("does not render measurement divs", () => {
+    renderMobileToolbar("published");
+
+    expect(screen.queryByTestId("workflow-toolbar-measure")).toBeNull();
+    expect(screen.queryByTestId("workflow-toolbar-measure-compact")).toBeNull();
+    expect(screen.queryByTestId("workflow-toolbar-measure-minimal")).toBeNull();
+  });
+
+  test("overflow menu contains status, mode switch, and rename", () => {
+    renderMobileToolbar("published", "live");
+
+    fireEvent.click(screen.getByRole("button", { name: /more actions/i }));
+
+    expect(screen.getByText("Published")).toBeTruthy();
+    expect(screen.getByText("Version 1")).toBeTruthy();
+    expect(screen.getByText("Switch to Live")).toBeTruthy();
+    expect(screen.getByText("Switch to Test")).toBeTruthy();
+    expect(screen.getByText("Rename journey")).toBeTruthy();
+  });
+
+  test("wires primary action for draft (Publish)", () => {
+    const { onPublish } = renderMobileToolbar("draft", "live");
+    fireEvent.click(screen.getByRole("button", { name: "Publish" }));
+    expect(onPublish).toHaveBeenCalledWith("live");
+  });
+
+  test("wires primary action for published (Pause)", () => {
+    const { onPause } = renderMobileToolbar("published", "live");
+    fireEvent.click(screen.getByRole("button", { name: "Pause" }));
+    expect(onPause).toHaveBeenCalledTimes(1);
+  });
+
+  test("wires primary action for paused (Resume)", () => {
+    const { onResume } = renderMobileToolbar("paused", "live");
+    fireEvent.click(screen.getByRole("button", { name: "Resume" }));
+    expect(onResume).toHaveBeenCalledTimes(1);
   });
 });

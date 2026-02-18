@@ -152,7 +152,10 @@ const DELIVERY_NODE_TYPES = new Set([
 
 const UUID_PREFIX_RE = /^[0-9a-f]{8}-/;
 
-function inferChannel(nodeType: string, input: Record<string, unknown> | null): string {
+function inferChannel(
+  nodeType: string,
+  input: Record<string, unknown> | null,
+): string {
   if (input && typeof input["channel"] === "string") {
     return capitalize(input["channel"]);
   }
@@ -199,7 +202,9 @@ function buildStepEntries(input: {
       const d = new Date(waitUntil);
       outputEntries.push({
         key: "Wait until",
-        value: Number.isNaN(d.getTime()) ? String(waitUntil) : formatDisplayDateTime(d),
+        value: Number.isNaN(d.getTime())
+          ? String(waitUntil)
+          : formatDisplayDateTime(d),
       });
     }
     return { inputEntries: [], outputEntries };
@@ -226,15 +231,20 @@ function buildStepEntries(input: {
     });
 
     if (output) {
-      const reasonCode = typeof output["reasonCode"] === "string" ? output["reasonCode"] : null;
+      const reasonCode =
+        typeof output["reasonCode"] === "string" ? output["reasonCode"] : null;
       const reasonLabel = toReasonCodeLabel(reasonCode);
       if (reasonLabel) {
         outputEntries.push({ key: "Status", value: reasonLabel });
       } else if (typeof output["status"] === "string") {
-        outputEntries.push({ key: "Status", value: capitalize(output["status"]) });
+        outputEntries.push({
+          key: "Status",
+          value: capitalize(output["status"]),
+        });
       }
 
-      const attempts = typeof output["attempts"] === "number" ? output["attempts"] : null;
+      const attempts =
+        typeof output["attempts"] === "number" ? output["attempts"] : null;
       if (attempts !== null && attempts > 1) {
         outputEntries.push({ key: "Attempts", value: String(attempts) });
       }

@@ -45,6 +45,7 @@ import { AvailabilityManageModal } from "@/components/availability/availability-
 import { FieldShortcutHint } from "@/components/ui/field-shortcut-hint";
 import { ShortcutBadge } from "@/components/ui/shortcut-badge";
 import { useModalFieldShortcuts } from "@/hooks/use-modal-field-shortcuts";
+import { useCreateDraft } from "@/hooks/use-create-draft";
 import { useSubmitShortcut } from "@/hooks/use-submit-shortcut";
 
 interface AppointmentModalProps {
@@ -60,6 +61,16 @@ interface AppointmentModalProps {
   displayTimezone?: string;
   defaultTimezone?: string;
   onCreated?: (appointmentId: string) => void;
+}
+
+interface AppointmentModalDraft {
+  selectedTypeId: string;
+  selectedCalendarId: string;
+  selectedDateISO: string | null;
+  selectedTime: string;
+  notes: string;
+  clientSearch: string;
+  selectedClientId: string;
 }
 
 export function AppointmentModal({
@@ -78,19 +89,35 @@ export function AppointmentModal({
 }: AppointmentModalProps) {
   const queryClient = useQueryClient();
   const viewerTimezone = getUserTimezone();
+  const createDraftInitialValues = useMemo<AppointmentModalDraft>(
+    () => ({
+      selectedTypeId: defaultTypeId ?? "",
+      selectedCalendarId: defaultCalendarId ?? "",
+      selectedDateISO: null,
+      selectedTime: "",
+      notes: "",
+      clientSearch: defaultClientName ?? "",
+      selectedClientId: defaultClientId ?? "",
+    }),
+    [defaultCalendarId, defaultClientId, defaultClientName, defaultTypeId],
+  );
+  const { draft, setDraft, resetDraft, hasDraft } =
+    useCreateDraft<AppointmentModalDraft>({
+      key: "appointments:create",
+      initialValues: createDraftInitialValues,
+    });
+  const selectedTypeId = draft.selectedTypeId;
+  const selectedCalendarId = draft.selectedCalendarId;
+  const selectedDateISO = draft.selectedDateISO;
+  const selectedDate = draft.selectedDateISO
+    ? DateTime.fromISO(draft.selectedDateISO, { zone: viewerTimezone })
+    : null;
+  const selectedTime = draft.selectedTime;
+  const notes = draft.notes;
+  const clientSearch = draft.clientSearch;
+  const selectedClientId = draft.selectedClientId;
   const [localTimezoneMode, setLocalTimezoneMode] =
     useState<SchedulingTimezoneMode>(DEFAULT_SCHEDULING_TIMEZONE_MODE);
-  const [selectedTypeId, setSelectedTypeId] = useState(defaultTypeId ?? "");
-  const [selectedCalendarId, setSelectedCalendarId] = useState(
-    defaultCalendarId ?? "",
-  );
-  const [selectedDate, setSelectedDate] = useState<DateTime | null>(null);
-  const [selectedTime, setSelectedTime] = useState<string>("");
-  const [notes, setNotes] = useState("");
-  const [clientSearch, setClientSearch] = useState(defaultClientName ?? "");
-  const [selectedClientId, setSelectedClientId] = useState<string>(
-    defaultClientId ?? "",
-  );
   const skipClientClearRef = useRef(false);
   const [clientComboboxOpen, setClientComboboxOpen] = useState(false);
   const [mobileClientPickerOpen, setMobileClientPickerOpen] = useState(false);
@@ -213,6 +240,7 @@ export function AppointmentModal({
         queryClient.invalidateQueries({
           queryKey: orpc.appointmentTypes.key(),
         });
+        resetDraft();
         const createdId =
           typeof createdAppointment?.id === "string"
             ? createdAppointment.id
@@ -230,14 +258,14 @@ export function AppointmentModal({
   const allClients = useMemo(() => clientsData?.items ?? [], [clientsData]);
   const monthSlots = useMemo(() => slotsData?.slots ?? [], [slotsData]);
   const activeSelectedTime = useMemo(() => {
-    if (!(open && selectedDate && selectedTime && !slotsLoading)) {
+    if (!(open && selectedDateISO && selectedTime && !slotsLoading)) {
       return selectedTime;
     }
     const stillAvailable = monthSlots.some(
       (slot) => slot.start === selectedTime,
     );
     return stillAvailable ? selectedTime : "";
-  }, [monthSlots, open, selectedDate, selectedTime, slotsLoading]);
+  }, [monthSlots, open, selectedDateISO, selectedTime, slotsLoading]);
   const clients = useMemo(() => {
     const normalizedSearch = clientSearch.trim().toLowerCase();
     if (!normalizedSearch) {
@@ -277,9 +305,6 @@ export function AppointmentModal({
       setAvailabilityModalOpen(false);
       setClientComboboxOpen(false);
       setMobileClientPickerOpen(false);
-      setClientSearch(defaultClientName ?? "");
-      setSelectedClientId(defaultClientId ?? "");
-      setSelectedTime("");
     }
     onOpenChange(nextOpen);
   };
@@ -288,31 +313,38 @@ export function AppointmentModal({
     setAvailabilityModalOpen(false);
     setClientComboboxOpen(false);
     setMobileClientPickerOpen(false);
-    setSelectedTypeId(defaultTypeId ?? "");
-    setSelectedCalendarId(defaultCalendarId ?? "");
-    setSelectedDate(null);
-    setSelectedTime("");
-    setNotes("");
-    setClientSearch(defaultClientName ?? "");
-    setSelectedClientId(defaultClientId ?? "");
+    handleDialogOpenChange(false);
+  };
+
+  const handleDiscardDraft = () => {
+    resetDraft();
     handleDialogOpenChange(false);
   };
 
   const handleTypeChange = (typeId: string) => {
-    setSelectedTypeId(typeId);
-    setSelectedDate(null);
-    setSelectedTime("");
+    setDraft((previous) => ({
+      ...previous,
+      selectedTypeId: typeId,
+      selectedDateISO: null,
+      selectedTime: "",
+    }));
   };
 
   const handleCalendarChange = (calendarId: string) => {
-    setSelectedCalendarId(calendarId);
-    setSelectedDate(null);
-    setSelectedTime("");
+    setDraft((previous) => ({
+      ...previous,
+      selectedCalendarId: calendarId,
+      selectedDateISO: null,
+      selectedTime: "",
+    }));
   };
 
   const handleDateSelect = (date: DateTime) => {
-    setSelectedDate(date);
-    setSelectedTime("");
+    setDraft((previous) => ({
+      ...previous,
+      selectedDateISO: date.toISODate(),
+      selectedTime: "",
+    }));
   };
 
   const handleSubmit = () => {
@@ -500,7 +532,10 @@ export function AppointmentModal({
                     <TimeDisplayToggle
                       value={timezoneMode}
                       onValueChange={(value) => {
-                        setSelectedTime("");
+                        setDraft((previous) => ({
+                          ...previous,
+                          selectedTime: "",
+                        }));
                         if (onTimezoneModeChange) {
                           onTimezoneModeChange(value);
                           return;
@@ -530,7 +565,12 @@ export function AppointmentModal({
                     selectedDate={selectedDate}
                     onSelectDate={handleDateSelect}
                     selectedTime={activeSelectedTime}
-                    onSelectTime={setSelectedTime}
+                    onSelectTime={(nextTime) =>
+                      setDraft((previous) => ({
+                        ...previous,
+                        selectedTime: nextTime,
+                      }))
+                    }
                     monthSlots={monthSlots}
                     slotsLoading={slotsLoading}
                     schedulingTimezone={schedulingTimezone}
@@ -568,7 +608,10 @@ export function AppointmentModal({
                       <button
                         type="button"
                         onClick={() => {
-                          setClientSearch("");
+                          setDraft((previous) => ({
+                            ...previous,
+                            clientSearch: "",
+                          }));
                           setMobileClientPickerOpen(true);
                         }}
                         className="dark:bg-input/30 border-input h-11 rounded-lg border bg-transparent px-3 py-2 text-base w-full text-left text-muted-foreground/70"
@@ -588,11 +631,12 @@ export function AppointmentModal({
                           setMobileClientPickerOpen(open);
                           if (!open) {
                             // Restore clientSearch to match selection (for desktop combobox sync)
-                            setClientSearch(
-                              selectedClient
+                            setDraft((previous) => ({
+                              ...previous,
+                              clientSearch: selectedClient
                                 ? `${selectedClient.firstName} ${selectedClient.lastName}`
                                 : "",
-                            );
+                            }));
                           }
                         }}
                       >
@@ -632,9 +676,15 @@ export function AppointmentModal({
                                   placeholder="Search by name or email..."
                                   value={clientSearch}
                                   onChange={(e) => {
-                                    setClientSearch(e.target.value);
+                                    setDraft((previous) => ({
+                                      ...previous,
+                                      clientSearch: e.target.value,
+                                      selectedClientId: e.target.value.trim()
+                                        ? previous.selectedClientId
+                                        : "",
+                                    }));
                                     if (!e.target.value.trim()) {
-                                      setSelectedClientId("");
+                                      skipClientClearRef.current = false;
                                     }
                                   }}
                                   className="h-11 w-full rounded-lg border border-input bg-transparent pl-10 pr-3 text-base outline-none placeholder:text-muted-foreground/70 focus-visible:border-ring focus-visible:ring-ring/30 focus-visible:ring-[3px]"
@@ -654,10 +704,11 @@ export function AppointmentModal({
                                     key={client.id}
                                     type="button"
                                     onClick={() => {
-                                      setSelectedClientId(client.id);
-                                      setClientSearch(
-                                        `${client.firstName} ${client.lastName}`,
-                                      );
+                                      setDraft((previous) => ({
+                                        ...previous,
+                                        selectedClientId: client.id,
+                                        clientSearch: `${client.firstName} ${client.lastName}`,
+                                      }));
                                       setMobileClientPickerOpen(false);
                                     }}
                                     className="flex w-full items-center gap-3 border-b border-border px-4 py-3 text-left active:bg-accent"
@@ -706,22 +757,29 @@ export function AppointmentModal({
                         }
                         onOpenChange={setClientComboboxOpen}
                         onInputValueChange={(inputValue) => {
-                          setClientSearch(inputValue);
+                          setDraft((previous) => ({
+                            ...previous,
+                            clientSearch: inputValue,
+                          }));
                           if (skipClientClearRef.current) {
                             skipClientClearRef.current = false;
                             return;
                           }
                           if (!inputValue.trim()) {
-                            setSelectedClientId("");
+                            setDraft((previous) => ({
+                              ...previous,
+                              selectedClientId: "",
+                            }));
                           }
                         }}
                         onValueChange={(client) => {
                           if (!client) return;
                           skipClientClearRef.current = true;
-                          setSelectedClientId(client.id);
-                          setClientSearch(
-                            `${client.firstName} ${client.lastName}`,
-                          );
+                          setDraft((previous) => ({
+                            ...previous,
+                            selectedClientId: client.id,
+                            clientSearch: `${client.firstName} ${client.lastName}`,
+                          }));
                           setClientComboboxOpen(false);
                         }}
                       >
@@ -797,8 +855,11 @@ export function AppointmentModal({
                         variant="ghost"
                         size="xs"
                         onClick={() => {
-                          setSelectedClientId("");
-                          setClientSearch("");
+                          setDraft((previous) => ({
+                            ...previous,
+                            selectedClientId: "",
+                            clientSearch: "",
+                          }));
                         }}
                         className="text-muted-foreground"
                       >
@@ -815,7 +876,12 @@ export function AppointmentModal({
                     <Textarea
                       placeholder="Add any notes..."
                       value={notes}
-                      onChange={(e) => setNotes(e.target.value)}
+                      onChange={(e) =>
+                        setDraft((previous) => ({
+                          ...previous,
+                          notes: e.target.value,
+                        }))
+                      }
                       rows={2}
                     />
                     <FieldShortcutHint
@@ -845,6 +911,16 @@ export function AppointmentModal({
                   )}
                 </div>
                 <div className="flex w-full flex-col-reverse gap-2 sm:w-auto sm:flex-row">
+                  {hasDraft ? (
+                    <Button
+                      variant="ghost"
+                      className="w-full text-destructive hover:text-destructive hover:bg-destructive/10 sm:w-auto"
+                      onClick={handleDiscardDraft}
+                      disabled={createMutation.isPending}
+                    >
+                      Discard Draft
+                    </Button>
+                  ) : null}
                   <Button
                     variant="ghost"
                     onClick={handleClose}

@@ -1,6 +1,6 @@
 // Resources management page with modal-based CRUD and details
 
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import { useClosingSnapshot } from "@/hooks/use-closing-snapshot";
 import type { ReactNode } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
@@ -36,6 +36,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useCrudState } from "@/hooks/use-crud-state";
+import { useCreateDraft, useResetCreateDraft } from "@/hooks/use-create-draft";
+import { useCreateIntentTrigger } from "@/hooks/use-create-intent";
 import {
   useKeyboardShortcuts,
   useListNavigation,
@@ -51,6 +53,7 @@ import { resolveSelectValueLabel } from "@/lib/select-value-label";
 export const resourceFormSchema = z.extend(createResourceSchema, {
   quantity: z.number().check(z.int(), z.positive()),
 });
+const RESOURCE_CREATE_DRAFT_KEY = "resources:create";
 
 interface ResourceFormProps {
   defaultValues?: { name: string; quantity: number; locationId?: string };
@@ -59,6 +62,9 @@ interface ResourceFormProps {
   onCancel: () => void;
   isSubmitting: boolean;
   footerStart?: ReactNode;
+  onDraftChange?: (data: CreateResourceInput) => void;
+  onDiscardDraft?: () => void;
+  showDiscardAction?: boolean;
 }
 
 export function ResourceForm({
@@ -68,6 +74,9 @@ export function ResourceForm({
   onCancel,
   isSubmitting,
   footerStart,
+  onDraftChange,
+  onDiscardDraft,
+  showDiscardAction = false,
 }: ResourceFormProps) {
   const formRef = useRef<HTMLFormElement>(null);
   const {
@@ -110,6 +119,18 @@ export function ResourceForm({
     enabled: !isSubmitting,
     onSubmit: () => formRef.current?.requestSubmit(),
   });
+
+  useEffect(() => {
+    if (!onDraftChange) return;
+    const subscription = watch((values) => {
+      onDraftChange({
+        name: values.name ?? "",
+        quantity: values.quantity ?? 1,
+        locationId: values.locationId,
+      });
+    });
+    return () => subscription.unsubscribe();
+  }, [onDraftChange, watch]);
 
   return (
     <form ref={formRef} onSubmit={handleSubmit(onSubmit)} className="space-y-5">
@@ -180,6 +201,17 @@ export function ResourceForm({
       <div className="flex items-center gap-3 pt-2">
         {footerStart ? <div>{footerStart}</div> : null}
         <div className="ml-auto flex gap-3">
+          {showDiscardAction && onDiscardDraft ? (
+            <Button
+              type="button"
+              variant="ghost"
+              className="text-destructive hover:text-destructive hover:bg-destructive/10"
+              onClick={onDiscardDraft}
+              disabled={isSubmitting}
+            >
+              Discard Draft
+            </Button>
+          ) : null}
           <Button
             type="button"
             variant="outline"
@@ -201,10 +233,54 @@ export function ResourceForm({
   );
 }
 
+interface CreateResourceFormProps {
+  locations: Array<{ id: string; name: string }>;
+  onSubmit: (data: CreateResourceInput) => void;
+  onCancel: () => void;
+  isSubmitting: boolean;
+}
+
+function CreateResourceForm({
+  locations,
+  onSubmit,
+  onCancel,
+  isSubmitting,
+}: CreateResourceFormProps) {
+  const initialValues = useMemo<CreateResourceInput>(
+    () => ({
+      name: "",
+      quantity: 1,
+      locationId: undefined,
+    }),
+    [],
+  );
+  const { draft, setDraft, resetDraft, hasDraft } = useCreateDraft({
+    key: RESOURCE_CREATE_DRAFT_KEY,
+    initialValues,
+  });
+  const handleDiscardDraft = useCallback(() => {
+    resetDraft();
+    onCancel();
+  }, [onCancel, resetDraft]);
+
+  return (
+    <ResourceForm
+      defaultValues={draft}
+      locations={locations}
+      onSubmit={onSubmit}
+      onCancel={onCancel}
+      isSubmitting={isSubmitting}
+      onDraftChange={setDraft}
+      onDiscardDraft={handleDiscardDraft}
+      showDiscardAction={hasDraft}
+    />
+  );
+}
+
 function ResourcesPage() {
   const queryClient = useQueryClient();
   const navigate = useNavigate({ from: Route.fullPath });
-  const { selected, create } = Route.useSearch();
+  const { selected } = Route.useSearch();
   const selectedId = selected ?? null;
 
   const { data, isLoading, isFetching, error } = useQuery({
@@ -217,18 +293,9 @@ function ResourcesPage() {
   type ResourceItem = NonNullable<typeof data>["items"][number];
 
   const crud = useCrudState<ResourceItem>();
+  const resetCreateDraft = useResetCreateDraft(RESOURCE_CREATE_DRAFT_KEY);
 
-  useEffect(() => {
-    if (create !== "1") return;
-    crud.openCreate();
-    navigate({
-      search: (prev) => ({
-        ...prev,
-        create: undefined,
-      }),
-      replace: true,
-    });
-  }, [create, crud, navigate]);
+  useCreateIntentTrigger("resources", crud.openCreate);
 
   const { data: locationsData } = useQuery({
     ...orpc.locations.list.queryOptions({
@@ -314,6 +381,7 @@ function ResourcesPage() {
   const createMutation = useMutation(
     orpc.resources.create.mutationOptions({
       onSuccess: (createdResource) => {
+        resetCreateDraft();
         queryClient.invalidateQueries({ queryKey: orpc.resources.key() });
         queryClient.invalidateQueries({ queryKey: orpc.locations.key() });
         crud.closeCreate();
@@ -415,7 +483,7 @@ function ResourcesPage() {
         title="New Resource"
       >
         <div className="h-full overflow-y-auto px-4 py-4 sm:px-6 sm:py-5">
-          <ResourceForm
+          <CreateResourceForm
             locations={locations}
             onSubmit={handleCreate}
             onCancel={crud.closeCreate}
@@ -496,13 +564,10 @@ function ResourcesPage() {
 }
 
 export const Route = createFileRoute("/_authenticated/resources")({
-  validateSearch: (
-    search: Record<string, unknown>,
-  ): { create?: "1"; selected?: string } => {
-    const create = search.create === "1" ? "1" : undefined;
+  validateSearch: (search: Record<string, unknown>): { selected?: string } => {
     const selected =
       typeof search.selected === "string" ? search.selected : undefined;
-    return { create, selected };
+    return { selected };
   },
   loader: async () => {
     const queryClient = getQueryClient();

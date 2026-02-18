@@ -1,7 +1,7 @@
 // Global command palette (Cmd+K / Ctrl+K)
 
 import { useState, useCallback, useMemo, type ReactNode } from "react";
-import { useNavigate, useRouter } from "@tanstack/react-router";
+import { useLocation, useNavigate, useRouter } from "@tanstack/react-router";
 import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
 import { Command } from "cmdk";
 import {
@@ -19,6 +19,10 @@ import { cn } from "@/lib/utils";
 import { formatShortcut } from "@/lib/shortcuts";
 import { Icon } from "@/components/ui/icon";
 import { ShortcutBadge } from "@/components/ui/shortcut-badge";
+import {
+  type CreateIntentKey,
+  useTriggerCreateIntent,
+} from "@/hooks/use-create-intent";
 import { useKeyboardShortcuts } from "@/hooks/use-keyboard-shortcuts";
 
 interface CommandAction {
@@ -31,10 +35,17 @@ interface CommandAction {
   onHighlight?: () => void;
 }
 
+function normalizePathname(pathname: string) {
+  if (pathname.length <= 1) return pathname;
+  return pathname.endsWith("/") ? pathname.slice(0, -1) : pathname;
+}
+
 export function CommandPalette() {
   const [open, setOpen] = useState(false);
+  const location = useLocation();
   const navigate = useNavigate();
   const router = useRouter();
+  const triggerCreateIntent = useTriggerCreateIntent();
 
   useKeyboardShortcuts({
     shortcuts: [
@@ -65,6 +76,38 @@ export function CommandPalette() {
     [router],
   );
 
+  const runCreateCommand = useCallback(
+    (to: string, intent: CreateIntentKey) => {
+      runCommand(() => {
+        if (normalizePathname(location.pathname) === normalizePathname(to)) {
+          triggerCreateIntent(intent);
+          return;
+        }
+
+        void Promise.resolve(navigate({ to, search: {} }))
+          .then(() => {
+            if (
+              normalizePathname(router.state.location.pathname) !==
+              normalizePathname(to)
+            ) {
+              return;
+            }
+            triggerCreateIntent(intent);
+          })
+          .catch(() => {
+            // Navigation was interrupted; do not retain create intent.
+          });
+      });
+    },
+    [
+      location.pathname,
+      navigate,
+      router.state.location.pathname,
+      runCommand,
+      triggerCreateIntent,
+    ],
+  );
+
   const actions = useMemo<CommandAction[]>(() => {
     const createActions: CommandAction[] = [
       {
@@ -72,14 +115,7 @@ export function CommandPalette() {
         group: "Create",
         label: "New Appointment",
         icon: Add01Icon,
-        onSelect: () =>
-          runCommand(
-            () =>
-              void navigate({
-                to: "/appointments",
-                search: { create: "1" },
-              }),
-          ),
+        onSelect: () => runCreateCommand("/appointments", "appointments"),
         onHighlight: () => preloadRoute("/appointments"),
       },
       {
@@ -87,14 +123,7 @@ export function CommandPalette() {
         group: "Create",
         label: "New Client",
         icon: Add01Icon,
-        onSelect: () =>
-          runCommand(
-            () =>
-              void navigate({
-                to: "/clients",
-                search: { create: "1" },
-              }),
-          ),
+        onSelect: () => runCreateCommand("/clients", "clients"),
         onHighlight: () => preloadRoute("/clients"),
       },
       {
@@ -102,14 +131,7 @@ export function CommandPalette() {
         group: "Create",
         label: "New Calendar",
         icon: Add01Icon,
-        onSelect: () =>
-          runCommand(
-            () =>
-              void navigate({
-                to: "/calendars",
-                search: { create: "1" },
-              }),
-          ),
+        onSelect: () => runCreateCommand("/calendars", "calendars"),
         onHighlight: () => preloadRoute("/calendars"),
       },
       {
@@ -118,13 +140,7 @@ export function CommandPalette() {
         label: "New Appointment Type",
         icon: Add01Icon,
         onSelect: () =>
-          runCommand(
-            () =>
-              void navigate({
-                to: "/appointment-types",
-                search: { create: "1" },
-              }),
-          ),
+          runCreateCommand("/appointment-types", "appointment-types"),
         onHighlight: () => preloadRoute("/appointment-types"),
       },
       {
@@ -132,14 +148,7 @@ export function CommandPalette() {
         group: "Create",
         label: "New Resource",
         icon: Add01Icon,
-        onSelect: () =>
-          runCommand(
-            () =>
-              void navigate({
-                to: "/resources",
-                search: { create: "1" },
-              }),
-          ),
+        onSelect: () => runCreateCommand("/resources", "resources"),
         onHighlight: () => preloadRoute("/resources"),
       },
       {
@@ -147,14 +156,7 @@ export function CommandPalette() {
         group: "Create",
         label: "New Location",
         icon: Add01Icon,
-        onSelect: () =>
-          runCommand(
-            () =>
-              void navigate({
-                to: "/locations",
-                search: { create: "1" },
-              }),
-          ),
+        onSelect: () => runCreateCommand("/locations", "locations"),
         onHighlight: () => preloadRoute("/locations"),
       },
     ];
@@ -313,7 +315,7 @@ export function CommandPalette() {
       ...settingsActions,
       ...docsActions,
     ];
-  }, [navigate, openApiDocs, preloadRoute, runCommand]);
+  }, [navigate, openApiDocs, preloadRoute, runCommand, runCreateCommand]);
 
   const groups = useMemo(() => {
     const map = new Map<string, CommandAction[]>();

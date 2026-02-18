@@ -47,6 +47,8 @@ import { Label } from "@/components/ui/label";
 import { PageScaffold } from "@/components/layout/page-scaffold";
 import { ShortcutBadge } from "@/components/ui/shortcut-badge";
 import { useCrudState } from "@/hooks/use-crud-state";
+import { useCreateDraft, useResetCreateDraft } from "@/hooks/use-create-draft";
+import { useCreateIntentTrigger } from "@/hooks/use-create-intent";
 import {
   useKeyboardShortcuts,
   useListNavigation,
@@ -116,6 +118,7 @@ const PHONE_COUNTRY_OPTIONS: PhoneCountryOption[] = [
 ];
 const isPhoneCountryCode = (value: string): value is CountryCode =>
   PHONE_COUNTRY_OPTIONS.some((option) => option.value === value);
+const CLIENT_CREATE_DRAFT_KEY = "clients:create";
 
 interface ClientFormProps {
   defaultValues?: {
@@ -129,6 +132,9 @@ interface ClientFormProps {
   onCancel: () => void;
   isSubmitting: boolean;
   shortcutsEnabled?: boolean;
+  onDraftChange?: (data: CreateClientInput) => void;
+  onDiscardDraft?: () => void;
+  showDiscardAction?: boolean;
 }
 
 function ClientForm({
@@ -137,6 +143,9 @@ function ClientForm({
   onCancel,
   isSubmitting,
   shortcutsEnabled = true,
+  onDraftChange,
+  onDiscardDraft,
+  showDiscardAction = false,
 }: ClientFormProps) {
   const formRef = useRef<HTMLFormElement>(null);
   const [countryComboboxOpen, setCountryComboboxOpen] = useState(false);
@@ -190,6 +199,20 @@ function ClientForm({
     enabled: shortcutsEnabled && !isSubmitting,
     onSubmit: () => formRef.current?.requestSubmit(),
   });
+
+  useEffect(() => {
+    if (!onDraftChange) return;
+    const subscription = watch((values) => {
+      onDraftChange({
+        firstName: values.firstName ?? "",
+        lastName: values.lastName ?? "",
+        email: values.email ?? "",
+        phone: values.phone ?? "",
+        phoneCountry: values.phoneCountry ?? "US",
+      });
+    });
+    return () => subscription.unsubscribe();
+  }, [onDraftChange, watch]);
 
   return (
     <form ref={formRef} onSubmit={handleSubmit(onSubmit)} className="space-y-5">
@@ -422,6 +445,17 @@ function ClientForm({
       </div>
 
       <div className="sticky bottom-0 z-10 -mx-4 flex justify-end gap-3 border-t border-border bg-background/95 px-4 pt-3 pb-1 sm:-mx-6 sm:px-6 sm:backdrop-blur sm:supports-[backdrop-filter]:bg-background/80">
+        {showDiscardAction && onDiscardDraft ? (
+          <Button
+            type="button"
+            variant="ghost"
+            className="text-destructive hover:text-destructive hover:bg-destructive/10"
+            onClick={onDiscardDraft}
+            disabled={isSubmitting}
+          >
+            Discard Draft
+          </Button>
+        ) : null}
         <Button
           type="button"
           variant="outline"
@@ -447,6 +481,52 @@ function ClientForm({
   );
 }
 
+interface CreateClientFormProps {
+  onSubmit: (data: CreateClientInput) => void;
+  onCancel: () => void;
+  isSubmitting: boolean;
+  shortcutsEnabled: boolean;
+}
+
+function CreateClientForm({
+  onSubmit,
+  onCancel,
+  isSubmitting,
+  shortcutsEnabled,
+}: CreateClientFormProps) {
+  const initialValues = useMemo<CreateClientInput>(
+    () => ({
+      firstName: "",
+      lastName: "",
+      email: "",
+      phone: "",
+      phoneCountry: "US",
+    }),
+    [],
+  );
+  const { draft, setDraft, resetDraft, hasDraft } = useCreateDraft({
+    key: CLIENT_CREATE_DRAFT_KEY,
+    initialValues,
+  });
+  const handleDiscardDraft = useCallback(() => {
+    resetDraft();
+    onCancel();
+  }, [onCancel, resetDraft]);
+
+  return (
+    <ClientForm
+      defaultValues={draft}
+      onSubmit={onSubmit}
+      onCancel={onCancel}
+      isSubmitting={isSubmitting}
+      shortcutsEnabled={shortcutsEnabled}
+      onDraftChange={setDraft}
+      onDiscardDraft={handleDiscardDraft}
+      showDiscardAction={hasDraft}
+    />
+  );
+}
+
 type DetailTabValue = "details" | "history";
 type AppointmentDetailTabValue = "details" | "client" | "history";
 
@@ -460,8 +540,7 @@ const isAppointmentDetailTab = (
 function ClientsPage() {
   const queryClient = useQueryClient();
   const navigate = useNavigate({ from: Route.fullPath });
-  const { selected, tab, appointment, appointmentTab, create } =
-    Route.useSearch();
+  const { selected, tab, appointment, appointmentTab } = Route.useSearch();
   const selectedId = selected ?? null;
   const activeTab: DetailTabValue = tab && isDetailTab(tab) ? tab : "details";
   const selectedAppointmentId = appointment ?? null;
@@ -487,18 +566,9 @@ function ClientsPage() {
   type ClientItem = NonNullable<typeof data>["items"][number];
 
   const crud = useCrudState<ClientItem>();
+  const resetCreateDraft = useResetCreateDraft(CLIENT_CREATE_DRAFT_KEY);
 
-  useEffect(() => {
-    if (create !== "1") return;
-    crud.openCreate();
-    navigate({
-      search: (prev) => ({
-        ...prev,
-        create: undefined,
-      }),
-      replace: true,
-    });
-  }, [create, crud, navigate]);
+  useCreateIntentTrigger("clients", crud.openCreate);
 
   const clients = data?.items ?? [];
   const isSelectionDataResolved = !isLoading && !isFetching && !error;
@@ -652,6 +722,7 @@ function ClientsPage() {
   const createMutation = useMutation(
     orpc.clients.create.mutationOptions({
       onSuccess: (createdClient) => {
+        resetCreateDraft();
         queryClient.invalidateQueries({ queryKey: orpc.clients.key() });
         setSearch("");
         crud.closeCreate();
@@ -1163,7 +1234,7 @@ function ClientsPage() {
         title="New Client"
       >
         <div className="h-full overflow-y-auto px-4 py-4 sm:px-6 sm:py-5">
-          <ClientForm
+          <CreateClientForm
             onSubmit={handleCreate}
             onCancel={crud.closeCreate}
             isSubmitting={createMutation.isPending}
@@ -1236,13 +1307,11 @@ export const Route = createFileRoute("/_authenticated/clients")({
   validateSearch: (
     search: Record<string, unknown>,
   ): {
-    create?: "1";
     selected?: string;
     tab?: DetailTabValue;
     appointment?: string;
     appointmentTab?: AppointmentDetailTabValue;
   } => {
-    const create = search.create === "1" ? "1" : undefined;
     const selected =
       typeof search.selected === "string" ? search.selected : undefined;
     const rawTab = typeof search.tab === "string" ? search.tab : "";
@@ -1255,7 +1324,6 @@ export const Route = createFileRoute("/_authenticated/clients")({
       ? rawAppointmentTab
       : undefined;
     return {
-      create,
       selected,
       tab,
       appointment,

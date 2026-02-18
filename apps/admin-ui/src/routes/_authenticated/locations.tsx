@@ -1,6 +1,6 @@
 // Locations management page with modal-based CRUD and details
 
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import { useClosingSnapshot } from "@/hooks/use-closing-snapshot";
 import type { ReactNode } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
@@ -40,6 +40,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useCrudState } from "@/hooks/use-crud-state";
+import { useCreateDraft, useResetCreateDraft } from "@/hooks/use-create-draft";
+import { useCreateIntentTrigger } from "@/hooks/use-create-intent";
 import {
   useKeyboardShortcuts,
   useListNavigation,
@@ -58,12 +60,17 @@ import { getQueryClient, orpc } from "@/lib/query";
 import { swallowIgnorableRouteLoaderError } from "@/lib/query-cancellation";
 import { resolveSelectValueLabel } from "@/lib/select-value-label";
 
+const LOCATION_CREATE_DRAFT_KEY = "locations:create";
+
 interface LocationFormProps {
   defaultValues?: { name: string; timezone: string };
   onSubmit: (data: CreateLocationInput) => void;
   onCancel: () => void;
   isSubmitting: boolean;
   footerStart?: ReactNode;
+  onDraftChange?: (data: CreateLocationInput) => void;
+  onDiscardDraft?: () => void;
+  showDiscardAction?: boolean;
 }
 
 function LocationForm({
@@ -72,6 +79,9 @@ function LocationForm({
   onCancel,
   isSubmitting,
   footerStart,
+  onDraftChange,
+  onDiscardDraft,
+  showDiscardAction = false,
 }: LocationFormProps) {
   const formRef = useRef<HTMLFormElement>(null);
   const {
@@ -112,6 +122,17 @@ function LocationForm({
     enabled: !isSubmitting,
     onSubmit: () => formRef.current?.requestSubmit(),
   });
+
+  useEffect(() => {
+    if (!onDraftChange) return;
+    const subscription = watch((values) => {
+      onDraftChange({
+        name: values.name ?? "",
+        timezone: values.timezone ?? "America/New_York",
+      });
+    });
+    return () => subscription.unsubscribe();
+  }, [onDraftChange, watch]);
 
   return (
     <form ref={formRef} onSubmit={handleSubmit(onSubmit)} className="space-y-5">
@@ -162,6 +183,17 @@ function LocationForm({
       <div className="flex items-center gap-3 pt-2">
         {footerStart ? <div>{footerStart}</div> : null}
         <div className="ml-auto flex gap-3">
+          {showDiscardAction && onDiscardDraft ? (
+            <Button
+              type="button"
+              variant="ghost"
+              className="text-destructive hover:text-destructive hover:bg-destructive/10"
+              onClick={onDiscardDraft}
+              disabled={isSubmitting}
+            >
+              Discard Draft
+            </Button>
+          ) : null}
           <Button
             type="button"
             variant="outline"
@@ -183,6 +215,46 @@ function LocationForm({
   );
 }
 
+interface CreateLocationFormProps {
+  onSubmit: (data: CreateLocationInput) => void;
+  onCancel: () => void;
+  isSubmitting: boolean;
+}
+
+function CreateLocationForm({
+  onSubmit,
+  onCancel,
+  isSubmitting,
+}: CreateLocationFormProps) {
+  const initialValues = useMemo<CreateLocationInput>(
+    () => ({
+      name: "",
+      timezone: "America/New_York",
+    }),
+    [],
+  );
+  const { draft, setDraft, resetDraft, hasDraft } = useCreateDraft({
+    key: LOCATION_CREATE_DRAFT_KEY,
+    initialValues,
+  });
+  const handleDiscardDraft = useCallback(() => {
+    resetDraft();
+    onCancel();
+  }, [onCancel, resetDraft]);
+
+  return (
+    <LocationForm
+      defaultValues={draft}
+      onSubmit={onSubmit}
+      onCancel={onCancel}
+      isSubmitting={isSubmitting}
+      onDraftChange={setDraft}
+      onDiscardDraft={handleDiscardDraft}
+      showDiscardAction={hasDraft}
+    />
+  );
+}
+
 type DetailTabValue = "details" | "calendars" | "resources";
 
 const isDetailTab = (value: string): value is DetailTabValue =>
@@ -191,7 +263,7 @@ const isDetailTab = (value: string): value is DetailTabValue =>
 function LocationsPage() {
   const queryClient = useQueryClient();
   const navigate = useNavigate({ from: Route.fullPath });
-  const { selected, tab, create } = Route.useSearch();
+  const { selected, tab } = Route.useSearch();
 
   const selectedId = selected ?? null;
   const activeTab: DetailTabValue = tab && isDetailTab(tab) ? tab : "details";
@@ -206,18 +278,9 @@ function LocationsPage() {
   type LocationItem = NonNullable<typeof data>["items"][number];
 
   const crud = useCrudState<LocationItem>();
+  const resetCreateDraft = useResetCreateDraft(LOCATION_CREATE_DRAFT_KEY);
 
-  useEffect(() => {
-    if (create !== "1") return;
-    crud.openCreate();
-    navigate({
-      search: (prev) => ({
-        ...prev,
-        create: undefined,
-      }),
-      replace: true,
-    });
-  }, [create, crud, navigate]);
+  useCreateIntentTrigger("locations", crud.openCreate);
 
   const locations = data?.items ?? [];
   const isSelectionDataResolved = !isLoading && !isFetching && !error;
@@ -333,6 +396,7 @@ function LocationsPage() {
   const createMutation = useMutation(
     orpc.locations.create.mutationOptions({
       onSuccess: (createdLocation) => {
+        resetCreateDraft();
         queryClient.invalidateQueries({ queryKey: orpc.locations.key() });
         crud.closeCreate();
         openDetails(createdLocation.id, "details");
@@ -424,7 +488,7 @@ function LocationsPage() {
         title="New Location"
       >
         <div className="h-full overflow-y-auto px-4 py-4 sm:px-6 sm:py-5">
-          <LocationForm
+          <CreateLocationForm
             onSubmit={handleCreate}
             onCancel={crud.closeCreate}
             isSubmitting={createMutation.isPending}
@@ -601,13 +665,12 @@ function LocationsPage() {
 export const Route = createFileRoute("/_authenticated/locations")({
   validateSearch: (
     search: Record<string, unknown>,
-  ): { create?: "1"; selected?: string; tab?: DetailTabValue } => {
-    const create = search.create === "1" ? "1" : undefined;
+  ): { selected?: string; tab?: DetailTabValue } => {
     const selected =
       typeof search.selected === "string" ? search.selected : undefined;
     const rawTab = typeof search.tab === "string" ? search.tab : "";
     const tab = isDetailTab(rawTab) ? rawTab : undefined;
-    return { create, selected, tab };
+    return { selected, tab };
   },
   loader: async () => {
     const queryClient = getQueryClient();

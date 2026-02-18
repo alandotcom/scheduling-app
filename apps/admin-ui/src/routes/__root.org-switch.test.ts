@@ -8,7 +8,7 @@ import {
 describe("sanitizeSearchParamsForOrganizationSwitch", () => {
   test("preserves safe filters and removes organization-bound entity params", () => {
     const sanitized = sanitizeSearchParamsForOrganizationSwitch(
-      "?view=schedule&date=2026-02-09&selected=apt-1&tab=details&calendarId=cal-1&clientId=client-1&appointmentTypeId=type-1&listScope=upcoming&tz=America%2FNew_York&create=1",
+      "?view=schedule&date=2026-02-09&selected=apt-1&tab=details&calendarId=cal-1&clientId=client-1&appointmentTypeId=type-1&listScope=upcoming&tz=America%2FNew_York",
     );
 
     expect(new URLSearchParams(sanitized).toString()).toBe(

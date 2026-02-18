@@ -33,6 +33,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ShortcutBadge } from "@/components/ui/shortcut-badge";
 import { useCrudState } from "@/hooks/use-crud-state";
+import { useCreateDraft, useResetCreateDraft } from "@/hooks/use-create-draft";
+import { useCreateIntentTrigger } from "@/hooks/use-create-intent";
 import {
   useKeyboardShortcuts,
   useListNavigation,
@@ -46,6 +48,8 @@ import { swallowIgnorableRouteLoaderError } from "@/lib/query-cancellation";
 import { CalendarsTab } from "./components/calendars-tab";
 import { ResourcesTab } from "./components/resources-tab";
 
+const APPOINTMENT_TYPE_CREATE_DRAFT_KEY = "appointment-types:create";
+
 interface AppointmentTypeFormProps {
   defaultValues?: {
     name: string;
@@ -57,6 +61,9 @@ interface AppointmentTypeFormProps {
   onSubmit: (data: CreateAppointmentTypeInput) => void;
   onCancel: () => void;
   isSubmitting: boolean;
+  onDraftChange?: (data: CreateAppointmentTypeInput) => void;
+  onDiscardDraft?: () => void;
+  showDiscardAction?: boolean;
 }
 
 function AppointmentTypeForm({
@@ -64,11 +71,15 @@ function AppointmentTypeForm({
   onSubmit,
   onCancel,
   isSubmitting,
+  onDraftChange,
+  onDiscardDraft,
+  showDiscardAction = false,
 }: AppointmentTypeFormProps) {
   const formRef = useRef<HTMLFormElement>(null);
   const {
     register,
     handleSubmit,
+    watch,
     formState: { errors },
   } = useForm<CreateAppointmentTypeInput>({
     resolver: zodResolver(createAppointmentTypeSchema),
@@ -94,6 +105,20 @@ function AppointmentTypeForm({
     enabled: !isSubmitting,
     onSubmit: () => formRef.current?.requestSubmit(),
   });
+
+  useEffect(() => {
+    if (!onDraftChange) return;
+    const subscription = watch((values) => {
+      onDraftChange({
+        name: values.name ?? "",
+        durationMin: values.durationMin ?? 30,
+        capacity: values.capacity,
+        paddingBeforeMin: values.paddingBeforeMin,
+        paddingAfterMin: values.paddingAfterMin,
+      });
+    });
+    return () => subscription.unsubscribe();
+  }, [onDraftChange, watch]);
 
   return (
     <form ref={formRef} onSubmit={handleSubmit(onSubmit)} className="space-y-5">
@@ -193,6 +218,17 @@ function AppointmentTypeForm({
       </div>
 
       <div className="flex justify-end gap-3 pt-2">
+        {showDiscardAction && onDiscardDraft ? (
+          <Button
+            type="button"
+            variant="ghost"
+            className="text-destructive hover:text-destructive hover:bg-destructive/10"
+            onClick={onDiscardDraft}
+            disabled={isSubmitting}
+          >
+            Discard Draft
+          </Button>
+        ) : null}
         <Button
           type="button"
           variant="outline"
@@ -213,6 +249,49 @@ function AppointmentTypeForm({
   );
 }
 
+interface CreateAppointmentTypeFormProps {
+  onSubmit: (data: CreateAppointmentTypeInput) => void;
+  onCancel: () => void;
+  isSubmitting: boolean;
+}
+
+function CreateAppointmentTypeForm({
+  onSubmit,
+  onCancel,
+  isSubmitting,
+}: CreateAppointmentTypeFormProps) {
+  const initialValues = useMemo<CreateAppointmentTypeInput>(
+    () => ({
+      name: "",
+      durationMin: 30,
+      capacity: undefined,
+      paddingBeforeMin: undefined,
+      paddingAfterMin: undefined,
+    }),
+    [],
+  );
+  const { draft, setDraft, resetDraft, hasDraft } = useCreateDraft({
+    key: APPOINTMENT_TYPE_CREATE_DRAFT_KEY,
+    initialValues,
+  });
+  const handleDiscardDraft = useCallback(() => {
+    resetDraft();
+    onCancel();
+  }, [onCancel, resetDraft]);
+
+  return (
+    <AppointmentTypeForm
+      defaultValues={draft}
+      onSubmit={onSubmit}
+      onCancel={onCancel}
+      isSubmitting={isSubmitting}
+      onDraftChange={setDraft}
+      onDiscardDraft={handleDiscardDraft}
+      showDiscardAction={hasDraft}
+    />
+  );
+}
+
 type ManageTab = "details" | "calendars" | "resources";
 
 const isManageTab = (value: string): value is ManageTab =>
@@ -220,7 +299,7 @@ const isManageTab = (value: string): value is ManageTab =>
 
 function AppointmentTypesPage() {
   const navigate = useNavigate({ from: Route.fullPath });
-  const { selected, tab, create } = Route.useSearch();
+  const { selected, tab } = Route.useSearch();
   const manageTypeId = selected ?? null;
   const manageTab: ManageTab = tab && isManageTab(tab) ? tab : "details";
 
@@ -259,18 +338,11 @@ function AppointmentTypesPage() {
   type AppointmentTypeItem = NonNullable<typeof data>["items"][number];
 
   const crud = useCrudState<AppointmentTypeItem>();
+  const resetCreateDraft = useResetCreateDraft(
+    APPOINTMENT_TYPE_CREATE_DRAFT_KEY,
+  );
 
-  useEffect(() => {
-    if (create !== "1") return;
-    crud.openCreate();
-    navigate({
-      search: (prev) => ({
-        ...prev,
-        create: undefined,
-      }),
-      replace: true,
-    });
-  }, [create, crud, navigate]);
+  useCreateIntentTrigger("appointment-types", crud.openCreate);
 
   const appointmentTypes = useMemo(() => data?.items ?? [], [data]);
   const manageType = useMemo(
@@ -328,6 +400,7 @@ function AppointmentTypesPage() {
     removeResourceMutation,
   } = useAppointmentTypeMutations({
     onCreateSuccess: (createdAppointmentTypeId) => {
+      resetCreateDraft();
       crud.closeCreate();
       navigate({
         search: (prev) => ({
@@ -503,7 +576,7 @@ function AppointmentTypesPage() {
         title="New Appointment Type"
       >
         <div className="h-full overflow-y-auto px-4 py-4 sm:px-6 sm:py-5">
-          <AppointmentTypeForm
+          <CreateAppointmentTypeForm
             onSubmit={handleCreate}
             onCancel={crud.closeCreate}
             isSubmitting={createMutation.isPending}
@@ -622,13 +695,12 @@ function AppointmentTypesPage() {
 export const Route = createFileRoute("/_authenticated/appointment-types/")({
   validateSearch: (
     search: Record<string, unknown>,
-  ): { create?: "1"; selected?: string; tab?: ManageTab } => {
-    const create = search.create === "1" ? "1" : undefined;
+  ): { selected?: string; tab?: ManageTab } => {
     const selected =
       typeof search.selected === "string" ? search.selected : undefined;
     const rawTab = typeof search.tab === "string" ? search.tab : "";
     const tab = isManageTab(rawTab) ? rawTab : undefined;
-    return { create, selected, tab };
+    return { selected, tab };
   },
   loader: async () => {
     const queryClient = getQueryClient();

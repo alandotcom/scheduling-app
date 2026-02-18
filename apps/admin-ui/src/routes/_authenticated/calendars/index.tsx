@@ -1,6 +1,6 @@
 // Calendars management page with modal-based CRUD
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useClosingSnapshot } from "@/hooks/use-closing-snapshot";
 import { DateTime } from "luxon";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
@@ -50,6 +50,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useCrudState } from "@/hooks/use-crud-state";
+import { useCreateDraft, useResetCreateDraft } from "@/hooks/use-create-draft";
+import { useCreateIntentTrigger } from "@/hooks/use-create-intent";
 import {
   useKeyboardShortcuts,
   useListNavigation,
@@ -69,6 +71,8 @@ import { getQueryClient, orpc } from "@/lib/query";
 import { swallowIgnorableRouteLoaderError } from "@/lib/query-cancellation";
 import { resolveSelectValueLabel } from "@/lib/select-value-label";
 
+const CALENDAR_CREATE_DRAFT_KEY = "calendars:create";
+
 interface CalendarFormProps {
   defaultValues?: {
     name: string;
@@ -79,6 +83,9 @@ interface CalendarFormProps {
   onSubmit: (data: CreateCalendarInput) => void;
   onCancel: () => void;
   isSubmitting: boolean;
+  onDraftChange?: (data: CreateCalendarInput) => void;
+  onDiscardDraft?: () => void;
+  showDiscardAction?: boolean;
 }
 
 function CalendarForm({
@@ -87,6 +94,9 @@ function CalendarForm({
   onSubmit,
   onCancel,
   isSubmitting,
+  onDraftChange,
+  onDiscardDraft,
+  showDiscardAction = false,
 }: CalendarFormProps) {
   const formRef = useRef<HTMLFormElement>(null);
   const {
@@ -147,6 +157,18 @@ function CalendarForm({
     enabled: !isSubmitting,
     onSubmit: () => formRef.current?.requestSubmit(),
   });
+
+  useEffect(() => {
+    if (!onDraftChange) return;
+    const subscription = watch((values) => {
+      onDraftChange({
+        name: values.name ?? "",
+        timezone: values.timezone ?? "America/New_York",
+        locationId: values.locationId,
+      });
+    });
+    return () => subscription.unsubscribe();
+  }, [onDraftChange, watch]);
 
   return (
     <form ref={formRef} onSubmit={handleSubmit(onSubmit)} className="space-y-5">
@@ -222,6 +244,17 @@ function CalendarForm({
       </div>
 
       <div className="flex justify-end gap-3 pt-2">
+        {showDiscardAction && onDiscardDraft ? (
+          <Button
+            type="button"
+            variant="ghost"
+            className="text-destructive hover:text-destructive hover:bg-destructive/10"
+            onClick={onDiscardDraft}
+            disabled={isSubmitting}
+          >
+            Discard Draft
+          </Button>
+        ) : null}
         <Button
           type="button"
           variant="outline"
@@ -242,6 +275,50 @@ function CalendarForm({
   );
 }
 
+interface CreateCalendarFormProps {
+  locations: Array<{ id: string; name: string }>;
+  onSubmit: (data: CreateCalendarInput) => void;
+  onCancel: () => void;
+  isSubmitting: boolean;
+}
+
+function CreateCalendarForm({
+  locations,
+  onSubmit,
+  onCancel,
+  isSubmitting,
+}: CreateCalendarFormProps) {
+  const initialValues = useMemo<CreateCalendarInput>(
+    () => ({
+      name: "",
+      timezone: "America/New_York",
+      locationId: undefined,
+    }),
+    [],
+  );
+  const { draft, setDraft, resetDraft, hasDraft } = useCreateDraft({
+    key: CALENDAR_CREATE_DRAFT_KEY,
+    initialValues,
+  });
+  const handleDiscardDraft = useCallback(() => {
+    resetDraft();
+    onCancel();
+  }, [onCancel, resetDraft]);
+
+  return (
+    <CalendarForm
+      defaultValues={draft}
+      locations={locations}
+      onSubmit={onSubmit}
+      onCancel={onCancel}
+      isSubmitting={isSubmitting}
+      onDraftChange={setDraft}
+      onDiscardDraft={handleDiscardDraft}
+      showDiscardAction={hasDraft}
+    />
+  );
+}
+
 type DetailTabValue = "details" | "availability" | "appointments";
 
 const isDetailTab = (value: string): value is DetailTabValue =>
@@ -250,7 +327,7 @@ const isDetailTab = (value: string): value is DetailTabValue =>
 function CalendarsPage() {
   const queryClient = useQueryClient();
   const navigate = useNavigate({ from: Route.fullPath });
-  const { selected, tab, create } = Route.useSearch();
+  const { selected, tab } = Route.useSearch();
   const selectedId = selected ?? null;
   const activeTab: DetailTabValue = tab && isDetailTab(tab) ? tab : "details";
   const [availabilitySubTab, setAvailabilitySubTab] =
@@ -267,18 +344,9 @@ function CalendarsPage() {
   type CalendarItem = NonNullable<typeof data>["items"][number];
 
   const crud = useCrudState<CalendarItem>();
+  const resetCreateDraft = useResetCreateDraft(CALENDAR_CREATE_DRAFT_KEY);
 
-  useEffect(() => {
-    if (create !== "1") return;
-    crud.openCreate();
-    navigate({
-      search: (prev) => ({
-        ...prev,
-        create: undefined,
-      }),
-      replace: true,
-    });
-  }, [create, crud, navigate]);
+  useCreateIntentTrigger("calendars", crud.openCreate);
 
   const calendars = data?.items ?? [];
   const isSelectionDataResolved = !isLoading && !isFetching && !error;
@@ -382,6 +450,7 @@ function CalendarsPage() {
   const createMutation = useMutation(
     orpc.calendars.create.mutationOptions({
       onSuccess: (createdCalendar) => {
+        resetCreateDraft();
         queryClient.invalidateQueries({ queryKey: orpc.calendars.key() });
         queryClient.invalidateQueries({ queryKey: orpc.locations.key() });
         crud.closeCreate();
@@ -544,7 +613,7 @@ function CalendarsPage() {
         title="New Calendar"
       >
         <div className="h-full overflow-y-auto px-4 py-4 sm:px-6 sm:py-5">
-          <CalendarForm
+          <CreateCalendarForm
             locations={locations}
             onSubmit={handleCreate}
             onCancel={crud.closeCreate}
@@ -763,13 +832,12 @@ function CalendarsPage() {
 export const Route = createFileRoute("/_authenticated/calendars/")({
   validateSearch: (
     search: Record<string, unknown>,
-  ): { create?: "1"; selected?: string; tab?: DetailTabValue } => {
-    const create = search.create === "1" ? "1" : undefined;
+  ): { selected?: string; tab?: DetailTabValue } => {
     const selected =
       typeof search.selected === "string" ? search.selected : undefined;
     const rawTab = typeof search.tab === "string" ? search.tab : "";
     const tab = isDetailTab(rawTab) ? rawTab : undefined;
-    return { create, selected, tab };
+    return { selected, tab };
   },
   loader: async () => {
     const queryClient = getQueryClient();
