@@ -46,6 +46,7 @@ interface ActionConfigProps {
   disabled?: boolean;
   expressionSuggestions?: EventAttributeSuggestion[];
   selectOptionsByKey?: Record<string, Array<{ value: string; label: string }>>;
+  defaultTimezone?: string;
 }
 
 function ActionSelectLabel({ action }: { action: ActionDefinition }) {
@@ -76,6 +77,7 @@ export function ActionConfig({
   disabled,
   expressionSuggestions = [],
   selectOptionsByKey = {},
+  defaultTimezone = "America/New_York",
 }: ActionConfigProps) {
   const isDev = String(import.meta.env.DEV) === "true";
 
@@ -238,6 +240,7 @@ export function ActionConfig({
 
       {currentAction ? (
         <ActionConfigRenderer
+          defaultTimezone={defaultTimezone}
           fields={currentAction.configFields}
           config={config}
           onUpdateConfig={onUpdateConfig}

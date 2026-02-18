@@ -41,4 +41,33 @@ describe("journey condition evaluator", () => {
     expect(result.error).toBeUndefined();
     expect(result.matched).toBe(true);
   });
+
+  test("supports datetime helper values with org timezone semantics", () => {
+    const expression =
+      'timestamp(string(appointment.startAt)) < date("2026-02-16T10:00", orgTimezone)';
+
+    const context = {
+      ...BASE_CONTEXT,
+      appointment: {
+        ...BASE_CONTEXT.appointment,
+        startAt: "2026-02-16T16:00:00.000Z",
+      },
+    };
+
+    const inNewYork = evaluateJourneyConditionExpression({
+      expression,
+      context,
+      orgTimezone: "America/New_York",
+    });
+    expect(inNewYork.error).toBeUndefined();
+    expect(inNewYork.matched).toBe(false);
+
+    const inLosAngeles = evaluateJourneyConditionExpression({
+      expression,
+      context,
+      orgTimezone: "America/Los_Angeles",
+    });
+    expect(inLosAngeles.error).toBeUndefined();
+    expect(inLosAngeles.matched).toBe(true);
+  });
 });

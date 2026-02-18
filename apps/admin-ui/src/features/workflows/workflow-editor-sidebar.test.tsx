@@ -102,6 +102,7 @@ function renderSidebar({
     <QueryClientProvider client={queryClient}>
       <WorkflowEditorSidebar
         canManageWorkflow={canManageWorkflow}
+        defaultTimezone="America/New_York"
         onSetActionType={onSetActionType}
         onUpdateNodeData={onUpdateNodeData}
         selectedNode={selectedNode}
@@ -148,6 +149,7 @@ describe("WorkflowEditorSidebar role behavior", () => {
       <QueryClientProvider client={queryClient}>
         <WorkflowEditorSidebar
           canManageWorkflow={true}
+          defaultTimezone="America/New_York"
           onUpdateNodeData={onUpdateNodeData}
           selectedNode={firstNode}
           workflowId={null}
@@ -163,6 +165,7 @@ describe("WorkflowEditorSidebar role behavior", () => {
       <QueryClientProvider client={queryClient}>
         <WorkflowEditorSidebar
           canManageWorkflow={true}
+          defaultTimezone="America/New_York"
           onUpdateNodeData={onUpdateNodeData}
           selectedNode={secondNode}
           workflowId={null}

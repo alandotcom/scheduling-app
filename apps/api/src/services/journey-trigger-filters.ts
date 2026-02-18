@@ -248,7 +248,7 @@ function toDurationLiteral(value: RelativeTemporalValue): string {
 
 function toUtcTimestampLiteral(input: {
   value: string;
-  orgTimezone: string;
+  timezone: string;
 }): ValueExtractionResult<string> {
   const value = input.value.trim();
   if (value.length === 0) {
@@ -263,10 +263,10 @@ function toUtcTimestampLiteral(input: {
 
   const hasExplicitTimezone = /(?:z|[+-]\d{2}:\d{2})$/i.test(value);
   const parsed = DATE_ONLY_PATTERN.test(value)
-    ? DateTime.fromISO(value, { zone: input.orgTimezone }).startOf("day")
+    ? DateTime.fromISO(value, { zone: input.timezone }).startOf("day")
     : hasExplicitTimezone
       ? DateTime.fromISO(value, { setZone: true })
-      : DateTime.fromISO(value, { zone: input.orgTimezone });
+      : DateTime.fromISO(value, { zone: input.timezone });
 
   if (!parsed.isValid) {
     return {
@@ -290,6 +290,20 @@ function toUtcTimestampLiteral(input: {
   }
 
   return { ok: true, value: iso };
+}
+
+function resolveConditionTimezone(input: {
+  conditionTimezone: string | undefined;
+  orgTimezone: string;
+}): string {
+  if (
+    typeof input.conditionTimezone === "string" &&
+    input.conditionTimezone.trim().length > 0
+  ) {
+    return input.conditionTimezone;
+  }
+
+  return input.orgTimezone;
 }
 
 function buildConditionExpression(
@@ -393,9 +407,13 @@ function buildConditionExpression(
         return { ok: false, error: dateValue.error };
       }
 
+      const timezone = resolveConditionTimezone({
+        conditionTimezone: condition.timezone,
+        orgTimezone: options.orgTimezone,
+      });
       const timestampValue = toUtcTimestampLiteral({
         value: dateValue.value,
-        orgTimezone: options.orgTimezone,
+        timezone,
       });
       if (!timestampValue.ok) {
         return { ok: false, error: timestampValue.error };
@@ -412,9 +430,13 @@ function buildConditionExpression(
         return { ok: false, error: dateValue.error };
       }
 
+      const timezone = resolveConditionTimezone({
+        conditionTimezone: condition.timezone,
+        orgTimezone: options.orgTimezone,
+      });
       const timestampValue = toUtcTimestampLiteral({
         value: dateValue.value,
-        orgTimezone: options.orgTimezone,
+        timezone,
       });
       if (!timestampValue.ok) {
         return { ok: false, error: timestampValue.error };
@@ -431,9 +453,13 @@ function buildConditionExpression(
         return { ok: false, error: dateValue.error };
       }
 
+      const timezone = resolveConditionTimezone({
+        conditionTimezone: condition.timezone,
+        orgTimezone: options.orgTimezone,
+      });
       const timestampValue = toUtcTimestampLiteral({
         value: dateValue.value,
-        orgTimezone: options.orgTimezone,
+        timezone,
       });
       if (!timestampValue.ok) {
         return { ok: false, error: timestampValue.error };
@@ -450,9 +476,13 @@ function buildConditionExpression(
         return { ok: false, error: dateValue.error };
       }
 
+      const timezone = resolveConditionTimezone({
+        conditionTimezone: condition.timezone,
+        orgTimezone: options.orgTimezone,
+      });
       const timestampValue = toUtcTimestampLiteral({
         value: dateValue.value,
-        orgTimezone: options.orgTimezone,
+        timezone,
       });
       if (!timestampValue.ok) {
         return { ok: false, error: timestampValue.error };

@@ -89,6 +89,8 @@ function WorkflowEditorPage() {
   const canManageWorkflow = canManageWorkflowsForRole(
     authContextQuery.data?.role,
   );
+  const defaultTimezone =
+    authContextQuery.data?.org?.defaultTimezone ?? "America/New_York";
 
   useEffect(() => {
     setIsReadOnly(!canManageWorkflow);
@@ -311,6 +313,7 @@ function WorkflowEditorPage() {
       <WorkflowSidebarPanel>
         <WorkflowEditorSidebar
           canManageWorkflow={canManageWorkflow}
+          defaultTimezone={defaultTimezone}
           edges={edges}
           nodes={nodes}
           onDeleteEdge={canManageWorkflow ? deleteEdge : undefined}

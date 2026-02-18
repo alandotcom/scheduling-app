@@ -17,7 +17,7 @@ function createTriggerConfig() {
 }
 
 describe("WorkflowTriggerConfig", () => {
-  test("renders canonical appointment journey sections with locked controls", () => {
+  test("renders compact appointment journey summary", () => {
     const onUpdate = mock(() => {});
 
     render(
@@ -28,23 +28,20 @@ describe("WorkflowTriggerConfig", () => {
       />,
     );
 
-    expect(screen.getByText("Entry")).toBeTruthy();
-    expect(screen.getByText("Re-entry")).toBeTruthy();
-    expect(screen.getByText("Rescheduling")).toBeTruthy();
-    expect(screen.getByText("Stop when")).toBeTruthy();
+    expect(
+      screen.getByText(
+        "Starts on Scheduled - Updates on Rescheduled - Stops on Canceled.",
+      ),
+    ).toBeTruthy();
+    expect(
+      screen.getByText(
+        "Rescheduling updates future waits and sends to the new start time.",
+      ),
+    ).toBeTruthy();
+    expect(
+      screen.getByText("Cancellation prevents future messages from sending."),
+    ).toBeTruthy();
     expect(screen.getByText("Audience Rules")).toBeTruthy();
-
-    const syncCheckbox = screen.getByRole("checkbox", {
-      name: "Update scheduled messages when the appointment moves",
-    });
-    const exitCheckbox = screen.getByRole("checkbox", {
-      name: "Appointment is canceled",
-    });
-
-    expect((syncCheckbox as HTMLInputElement).checked).toBe(true);
-    expect((syncCheckbox as HTMLInputElement).disabled).toBe(true);
-    expect((exitCheckbox as HTMLInputElement).checked).toBe(true);
-    expect((exitCheckbox as HTMLInputElement).disabled).toBe(true);
 
     expect(screen.queryByLabelText("Domain")).toBeNull();
     expect(screen.queryByLabelText("Start events")).toBeNull();
@@ -136,6 +133,47 @@ describe("WorkflowTriggerConfig", () => {
     expect(onUpdate).toHaveBeenCalledTimes(0);
   });
 
+  test("keeps audience rules expanded after valid filter selections", () => {
+    const onUpdate = mock(() => {});
+    const view = render(
+      <WorkflowTriggerConfig
+        config={createTriggerConfig()}
+        disabled={false}
+        onUpdate={onUpdate}
+      />,
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Toggle audience rules" }),
+    );
+
+    view.rerender(
+      <WorkflowTriggerConfig
+        config={{
+          ...createTriggerConfig(),
+          filter: {
+            logic: "and",
+            groups: [
+              {
+                logic: "and",
+                conditions: [
+                  {
+                    field: "appointment.status",
+                    operator: "is_set",
+                  },
+                ],
+              },
+            ],
+          },
+        }}
+        disabled={false}
+        onUpdate={onUpdate}
+      />,
+    );
+
+    expect(screen.getByRole("button", { name: "Add group" })).toBeTruthy();
+  });
+
   test("shows appointment and client trigger attributes plus timestamp-specific operators", () => {
     const onUpdate = mock(() => {});
 
@@ -195,6 +233,176 @@ describe("WorkflowTriggerConfig", () => {
 
     fireEvent.click(operatorCombobox);
     expect(screen.getAllByText("is within the next").length).toBeGreaterThan(0);
+  });
+
+  test("moves ago phrasing into the unit selector for past-relative operators", () => {
+    const onUpdate = mock(() => {});
+
+    render(
+      <WorkflowTriggerConfig
+        config={{
+          ...createTriggerConfig(),
+          filter: {
+            logic: "and",
+            groups: [
+              {
+                logic: "and",
+                conditions: [
+                  {
+                    field: "appointment.startAt",
+                    operator: "more_than_ago",
+                    value: {
+                      amount: 3,
+                      unit: "hours",
+                    },
+                  },
+                ],
+              },
+            ],
+          },
+        }}
+        disabled={false}
+        onUpdate={onUpdate}
+      />,
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Toggle audience rules" }),
+    );
+
+    const operatorCombobox = screen.getByRole("combobox", {
+      name: "Group 1 condition 1 operator",
+    });
+    expect(operatorCombobox.textContent).toContain("is more than");
+    expect(operatorCombobox.textContent).not.toContain("ago");
+
+    const unitCombobox = screen.getByRole("combobox", {
+      name: "Group 1 condition 1 unit",
+    });
+    expect(unitCombobox.textContent).toContain("hours ago");
+
+    fireEvent.click(unitCombobox);
+    expect(screen.getAllByText("minutes ago").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("hours ago").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("days ago").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("weeks ago").length).toBeGreaterThan(0);
+  });
+
+  test("renders datetime-local input for absolute temporal operators", () => {
+    const onUpdate = mock(() => {});
+
+    render(
+      <WorkflowTriggerConfig
+        config={{
+          ...createTriggerConfig(),
+          filter: {
+            logic: "and",
+            groups: [
+              {
+                logic: "and",
+                conditions: [
+                  {
+                    field: "appointment.startAt",
+                    operator: "before",
+                    value: "2026-02-16",
+                  },
+                ],
+              },
+            ],
+          },
+        }}
+        defaultTimezone="America/Chicago"
+        disabled={false}
+        onUpdate={onUpdate}
+      />,
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Toggle audience rules" }),
+    );
+
+    const input = screen.getByDisplayValue(
+      "2026-02-16T00:00",
+    ) as HTMLInputElement;
+    expect(input.type).toBe("datetime-local");
+    const timezoneCombobox = screen.getByRole("combobox", {
+      name: "Group 1 condition 1 timezone",
+    });
+    expect(timezoneCombobox.textContent).toContain("America/Chicago");
+  });
+
+  test("keeps existing absolute temporal filter datetimes without truncation", () => {
+    const onUpdate = mock(() => {});
+
+    render(
+      <WorkflowTriggerConfig
+        config={{
+          ...createTriggerConfig(),
+          filter: {
+            logic: "and",
+            groups: [
+              {
+                logic: "and",
+                conditions: [
+                  {
+                    field: "appointment.startAt",
+                    operator: "before",
+                    value: "2026-02-16T09:30",
+                  },
+                ],
+              },
+            ],
+          },
+        }}
+        disabled={false}
+        onUpdate={onUpdate}
+      />,
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Toggle audience rules" }),
+    );
+
+    const input = screen.getByDisplayValue("2026-02-16T09:30");
+    expect((input as HTMLInputElement).type).toBe("datetime-local");
+  });
+
+  test("shows selected explicit timezone for absolute temporal filters", () => {
+    const onUpdate = mock(() => {});
+
+    render(
+      <WorkflowTriggerConfig
+        config={{
+          ...createTriggerConfig(),
+          filter: {
+            logic: "and",
+            groups: [
+              {
+                logic: "and",
+                conditions: [
+                  {
+                    field: "appointment.startAt",
+                    operator: "before",
+                    value: "2026-02-16T09:30",
+                    timezone: "America/Los_Angeles",
+                  },
+                ],
+              },
+            ],
+          },
+        }}
+        disabled={false}
+        onUpdate={onUpdate}
+      />,
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Toggle audience rules" }),
+    );
+    const timezoneCombobox = screen.getByRole("combobox", {
+      name: "Group 1 condition 1 timezone",
+    });
+    expect(timezoneCombobox.textContent).toContain("America/Los Angeles");
   });
 
   test("shows fallback label for operators incompatible with the selected field", () => {

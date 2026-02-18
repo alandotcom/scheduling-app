@@ -15,7 +15,6 @@ import {
   type JourneyTriggerFilterCondition,
 } from "@scheduling/dto";
 import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Icon } from "@/components/ui/icon";
 import {
@@ -25,6 +24,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { TIMEZONES } from "@/lib/constants";
+import { formatTimezonePickerLabel } from "@/lib/date-utils";
 import { cn } from "@/lib/utils";
 import {
   ABSOLUTE_TEMPORAL_OPERATORS,
@@ -37,8 +38,8 @@ import {
   getWorkflowFilterTemporalUnitLabel,
   getOperatorOptionsForField,
   getWorkflowFilterFieldType,
+  toDateTimeLocalInputValue,
   toWorkflowFilterFallbackLabel,
-  toDateInputValue,
   toRelativeTemporalValueDraft,
 } from "./filter-builder-shared";
 
@@ -222,6 +223,7 @@ interface ConditionRowProps {
   canRemove: boolean;
   condition: JourneyTriggerFilterConditionDraft;
   conditionIndex: number;
+  defaultTimezone: string;
   disabled: boolean;
   groupIndex: number;
   onChange: (
@@ -236,6 +238,7 @@ function ConditionRow({
   canRemove,
   condition,
   conditionIndex,
+  defaultTimezone,
   disabled,
   groupIndex,
   onChange,
@@ -262,9 +265,32 @@ function ConditionRow({
     field: condition.field,
     operator: condition.operator,
   });
-  const selectedUnitLabel = getWorkflowFilterTemporalUnitLabel(
+  const isAgoOperator =
+    condition.operator === "less_than_ago" ||
+    condition.operator === "more_than_ago";
+  const selectedUnitLabelBase = getWorkflowFilterTemporalUnitLabel(
     relativeTemporalValue.unit,
   );
+  const selectedUnitLabel =
+    selectedUnitLabelBase && isAgoOperator
+      ? `${selectedUnitLabelBase} ago`
+      : selectedUnitLabelBase;
+  const temporalUnitOptions = WORKFLOW_FILTER_TEMPORAL_UNIT_OPTIONS.map(
+    (unit) => ({
+      ...unit,
+      label: isAgoOperator ? `${unit.label} ago` : unit.label,
+    }),
+  );
+  const selectedTimezone =
+    typeof condition.timezone === "string" &&
+    condition.timezone.trim().length > 0
+      ? condition.timezone
+      : defaultTimezone;
+  const timezoneOptions = TIMEZONES.some(
+    (timezone) => timezone === selectedTimezone,
+  )
+    ? TIMEZONES
+    : [selectedTimezone, ...TIMEZONES];
 
   return (
     <div className="flex items-start gap-2">
@@ -282,6 +308,7 @@ function ConditionRow({
                 field,
                 operator: "",
                 value: undefined,
+                timezone: undefined,
               });
             }}
           >
@@ -314,6 +341,9 @@ function ConditionRow({
               onChange(groupIndex, conditionIndex, {
                 operator,
                 value: undefined,
+                timezone: isAbsoluteTemporalOperator(operator)
+                  ? condition.timezone
+                  : undefined,
               });
             }}
           >
@@ -340,7 +370,7 @@ function ConditionRow({
             isRelativeTemporalOperator(condition.operator) ? (
             <div className="grid min-w-0 grid-cols-2 gap-2 min-[420px]:col-span-2">
               <Input
-                className="h-9"
+                className="h-10 md:h-8"
                 disabled={disabled}
                 min={1}
                 placeholder="Amount"
@@ -384,13 +414,17 @@ function ConditionRow({
                   });
                 }}
               >
-                <SelectTrigger className="h-9 min-w-0 w-full" size="sm">
+                <SelectTrigger
+                  aria-label={`Group ${groupIndex + 1} condition ${conditionIndex + 1} unit`}
+                  className="h-10 min-w-0 w-full"
+                  size="sm"
+                >
                   <SelectValue placeholder="Unit">
                     {selectedUnitLabel}
                   </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
-                  {WORKFLOW_FILTER_TEMPORAL_UNIT_OPTIONS.map((unit) => (
+                  {temporalUnitOptions.map((unit) => (
                     <SelectItem key={unit.value} value={unit.value}>
                       {unit.label}
                     </SelectItem>
@@ -400,18 +434,51 @@ function ConditionRow({
             </div>
           ) : isTimestampField &&
             isAbsoluteTemporalOperator(condition.operator) ? (
-            <Input
-              className="h-9 min-[420px]:col-span-2"
-              disabled={disabled}
-              placeholder="Select date"
-              type="date"
-              value={toDateInputValue(condition.value)}
-              onChange={(event) =>
-                onChange(groupIndex, conditionIndex, {
-                  value: event.target.value,
-                })
-              }
-            />
+            <>
+              <Input
+                className="h-9"
+                disabled={disabled}
+                placeholder="Select date and time"
+                type="datetime-local"
+                value={toDateTimeLocalInputValue(condition.value)}
+                onChange={(event) =>
+                  onChange(groupIndex, conditionIndex, {
+                    value: event.target.value,
+                  })
+                }
+              />
+              <Select
+                disabled={disabled}
+                value={selectedTimezone}
+                onValueChange={(timezone) => {
+                  if (!timezone) {
+                    return;
+                  }
+
+                  onChange(groupIndex, conditionIndex, {
+                    timezone:
+                      timezone === defaultTimezone ? undefined : timezone,
+                  });
+                }}
+              >
+                <SelectTrigger
+                  aria-label={`Group ${groupIndex + 1} condition ${conditionIndex + 1} timezone`}
+                  className="h-9 min-w-0 w-full"
+                  size="sm"
+                >
+                  <SelectValue placeholder="Timezone">
+                    {formatTimezonePickerLabel(selectedTimezone)}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  {timezoneOptions.map((timezone) => (
+                    <SelectItem key={timezone} value={timezone}>
+                      {formatTimezonePickerLabel(timezone)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </>
           ) : (
             <Input
               className="h-9 min-[420px]:col-span-2"
@@ -446,6 +513,7 @@ function ConditionRow({
 }
 
 interface FilterGroupCardProps {
+  defaultTimezone: string;
   disabled: boolean;
   group: FilterGroup;
   groupIndex: number;
@@ -461,6 +529,7 @@ interface FilterGroupCardProps {
 }
 
 function FilterGroupCard({
+  defaultTimezone,
   disabled,
   group,
   groupIndex,
@@ -504,6 +573,7 @@ function FilterGroupCard({
               canRemove={group.conditions.length > 1}
               condition={condition}
               conditionIndex={conditionIndex}
+              defaultTimezone={defaultTimezone}
               disabled={disabled}
               groupIndex={groupIndex}
               onChange={onConditionChange}
@@ -541,6 +611,7 @@ function FilterGroupCard({
 }
 
 interface AudienceFilterSectionProps {
+  defaultTimezone: string;
   disabled: boolean;
   filter: JourneyTriggerFilterAstDraft | null;
   filterValidationError: string | null;
@@ -560,6 +631,7 @@ interface AudienceFilterSectionProps {
 }
 
 function AudienceFilterSection({
+  defaultTimezone,
   disabled,
   filter,
   filterValidationError,
@@ -633,6 +705,7 @@ function AudienceFilterSection({
               {filter.groups.map((group, groupIndex) => (
                 <div key={`group-${groupIndex}`}>
                   <FilterGroupCard
+                    defaultTimezone={defaultTimezone}
                     disabled={disabled}
                     group={group}
                     groupIndex={groupIndex}
@@ -679,34 +752,48 @@ function AudienceFilterSection({
 
 interface WorkflowTriggerConfigProps {
   config: Record<string, unknown>;
+  defaultTimezone?: string;
   disabled: boolean;
   onUpdate: (next: TriggerConfigShape) => void;
 }
 
 export function WorkflowTriggerConfig({
   config,
+  defaultTimezone = "America/New_York",
   disabled,
   onUpdate,
 }: WorkflowTriggerConfigProps) {
   const filterSyncKey = useMemo(() => {
     return JSON.stringify(config.filter ?? null);
   }, [config.filter]);
+  const [showFilters, setShowFilters] = useState(false);
 
   return (
     <WorkflowTriggerConfigInner
       key={filterSyncKey}
       config={config}
+      defaultTimezone={defaultTimezone}
       disabled={disabled}
       onUpdate={onUpdate}
+      showFilters={showFilters}
+      onShowFiltersChange={setShowFilters}
     />
   );
 }
 
+interface WorkflowTriggerConfigInnerProps extends WorkflowTriggerConfigProps {
+  showFilters: boolean;
+  onShowFiltersChange: (show: boolean) => void;
+}
+
 function WorkflowTriggerConfigInner({
   config,
+  defaultTimezone = "America/New_York",
   disabled,
   onUpdate,
-}: WorkflowTriggerConfigProps) {
+  showFilters,
+  onShowFiltersChange,
+}: WorkflowTriggerConfigInnerProps) {
   const [filterDraft, setFilterDraft] =
     useState<JourneyTriggerFilterAstDraft | null>(() =>
       toFilterDraft(config.filter),
@@ -714,7 +801,6 @@ function WorkflowTriggerConfigInner({
   const [filterValidationError, setFilterValidationError] = useState<
     string | null
   >(null);
-  const [showFilters, setShowFilters] = useState(false);
 
   const commitFilter = (nextFilter: JourneyTriggerFilterAstDraft | null) => {
     setFilterDraft(nextFilter);
@@ -905,55 +991,22 @@ function WorkflowTriggerConfigInner({
         <p className="text-muted-foreground text-xs">
           Starts, stays updated, and stops for an appointment.
         </p>
-        <p className="text-xs">
-          Starts on Scheduled, updates on Rescheduled, stops on Canceled.
-        </p>
       </div>
 
-      <div className="space-y-4 rounded-md border p-3">
-        <div className="space-y-2">
-          <Label>Entry</Label>
-          <div className="space-y-1">
-            <p className="text-muted-foreground text-xs">Start when</p>
-            <Input disabled readOnly value="Appointment is scheduled" />
-            <p className="text-muted-foreground text-xs">
-              Creates one journey run per appointment.
-            </p>
-          </div>
-        </div>
-
-        <div className="space-y-2">
-          <Label>Re-entry</Label>
-          <p className="text-muted-foreground text-xs">
-            Reschedule events re-enter this journey. Backend start events are
-            deduplicated automatically.
-          </p>
-        </div>
-
-        <div className="space-y-2">
-          <Label>Rescheduling</Label>
-          <label className="flex items-center gap-2 text-sm">
-            <input checked disabled readOnly type="checkbox" />
-            <span>Update scheduled messages when the appointment moves</span>
-          </label>
-          <p className="text-muted-foreground text-xs">
-            Future waits and sends shift to the new start time.
-          </p>
-        </div>
-
-        <div className="space-y-2">
-          <Label>Stop when</Label>
-          <label className="flex items-center gap-2 text-sm">
-            <input checked disabled readOnly type="checkbox" />
-            <span>Appointment is canceled</span>
-          </label>
-          <p className="text-muted-foreground text-xs">
-            Prevents any future messages from sending.
-          </p>
-        </div>
+      <div className="space-y-2 rounded-md border p-3">
+        <p className="text-sm">
+          Starts on Scheduled - Updates on Rescheduled - Stops on Canceled.
+        </p>
+        <ul className="list-disc space-y-1 pl-4 text-muted-foreground text-xs">
+          <li>
+            Rescheduling updates future waits and sends to the new start time.
+          </li>
+          <li>Cancellation prevents future messages from sending.</li>
+        </ul>
       </div>
 
       <AudienceFilterSection
+        defaultTimezone={defaultTimezone}
         disabled={disabled}
         filter={filterDraft}
         filterValidationError={filterValidationError}
@@ -965,7 +1018,7 @@ function WorkflowTriggerConfigInner({
         onGroupLogicChange={handleGroupLogicChange}
         onRemoveCondition={handleRemoveCondition}
         onRemoveGroup={handleRemoveFilterGroup}
-        onToggleExpanded={() => setShowFilters((current) => !current)}
+        onToggleExpanded={() => onShowFiltersChange(!showFilters)}
       />
     </section>
   );

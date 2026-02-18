@@ -163,6 +163,56 @@ describe("journey trigger filter AST schema", () => {
     expect(parsed.success).toBe(true);
   });
 
+  test("accepts timezone for absolute temporal operators", () => {
+    const parsed = journeyTriggerFilterAstSchema.safeParse({
+      logic: "and",
+      groups: [
+        {
+          logic: "and",
+          conditions: [
+            {
+              field: "appointment.startAt",
+              operator: "before",
+              value: "2026-02-16T10:00",
+              timezone: "America/New_York",
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(parsed.success).toBe(true);
+  });
+
+  test("rejects timezone for non-absolute temporal operators", () => {
+    const parsed = journeyTriggerFilterAstSchema.safeParse({
+      logic: "and",
+      groups: [
+        {
+          logic: "and",
+          conditions: [
+            {
+              field: "appointment.startAt",
+              operator: "within_next",
+              value: {
+                amount: 1,
+                unit: "days",
+              },
+              timezone: "America/New_York",
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(parsed.success).toBe(false);
+    if (!parsed.success) {
+      expect(
+        parsed.error.issues.some((issue) => issue.path.at(-1) === "timezone"),
+      ).toBe(true);
+    }
+  });
+
   test("rejects invalid relative temporal values", () => {
     const parsed = journeyTriggerFilterAstSchema.safeParse({
       logic: "and",

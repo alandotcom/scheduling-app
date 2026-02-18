@@ -252,6 +252,86 @@ describe("ActionConfig", () => {
     expect(unitCombobox.textContent).toContain("hours");
   });
 
+  test("moves ago phrasing into the unit selector for past-relative operators", () => {
+    render(
+      <StatefulActionConfig
+        initialConfig={{
+          actionType: "condition",
+          expression: "",
+          conditionMode: "builder",
+          conditionField: "appointment.startAt",
+          conditionOperator: "more_than_ago",
+          conditionValue: { amount: 3, unit: "hours" },
+        }}
+      />,
+    );
+
+    const operatorCombobox = screen.getByRole("combobox", {
+      name: "Condition operator",
+    });
+    expect(operatorCombobox.textContent).toContain("is more than");
+    expect(operatorCombobox.textContent).not.toContain("ago");
+
+    const unitCombobox = screen.getByRole("combobox", {
+      name: "Condition relative unit",
+    });
+    expect(unitCombobox.textContent).toContain("hours ago");
+
+    fireEvent.click(unitCombobox);
+    expect(screen.getAllByText("minutes ago").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("hours ago").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("days ago").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("weeks ago").length).toBeGreaterThan(0);
+  });
+
+  test("uses datetime-local input for absolute temporal condition values", () => {
+    render(
+      <ActionConfig
+        config={{
+          actionType: "condition",
+          expression:
+            'appointment.startAt != null && timestamp(string(appointment.startAt)) < date("2026-02-16T09:30", orgTimezone)',
+          conditionMode: "builder",
+          conditionField: "appointment.startAt",
+          conditionOperator: "before",
+          conditionValue: "2026-02-16T09:30",
+        }}
+        defaultTimezone="America/Chicago"
+        onUpdateConfig={mock((_key: string, _value: unknown) => {})}
+      />,
+    );
+
+    const input = screen.getByDisplayValue("2026-02-16T09:30");
+    expect((input as HTMLInputElement).type).toBe("datetime-local");
+    const timezoneCombobox = screen.getByRole("combobox", {
+      name: "Condition timezone",
+    });
+    expect(timezoneCombobox.textContent).toContain("America/Chicago");
+  });
+
+  test("shows selected explicit timezone for absolute temporal condition values", () => {
+    render(
+      <ActionConfig
+        config={{
+          actionType: "condition",
+          expression:
+            'appointment.startAt != null && timestamp(string(appointment.startAt)) < date("2026-02-16T09:30", "America/Los_Angeles")',
+          conditionMode: "builder",
+          conditionField: "appointment.startAt",
+          conditionOperator: "before",
+          conditionValue: "2026-02-16T09:30",
+          conditionTimezone: "America/Los_Angeles",
+        }}
+        onUpdateConfig={mock((_key: string, _value: unknown) => {})}
+      />,
+    );
+
+    const timezoneCombobox = screen.getByRole("combobox", {
+      name: "Condition timezone",
+    });
+    expect(timezoneCombobox.textContent).toContain("America/Los Angeles");
+  });
+
   test("falls back to raw CEL mode for existing custom condition expressions", () => {
     render(
       <ActionConfig

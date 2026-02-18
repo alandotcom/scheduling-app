@@ -180,6 +180,79 @@ describe("journey trigger filter evaluator", () => {
     expect(result.matched).toBe(true);
   });
 
+  test("interprets naive datetime values using org timezone", () => {
+    const filter: JourneyTriggerFilterAst = {
+      logic: "and",
+      groups: [
+        {
+          logic: "and",
+          conditions: [
+            {
+              field: "appointment.startAt",
+              operator: "before",
+              value: "2026-02-16T10:00",
+            },
+          ],
+        },
+      ],
+    };
+
+    const context = {
+      ...BASE_CONTEXT,
+      appointment: {
+        ...BASE_CONTEXT.appointment,
+        startAt: "2026-02-16T16:00:00.000Z",
+      },
+    };
+
+    const inNewYork = evaluateJourneyTriggerFilter({
+      filter,
+      context,
+      orgTimezone: "America/New_York",
+    });
+    expect(inNewYork.matched).toBe(false);
+
+    const inLosAngeles = evaluateJourneyTriggerFilter({
+      filter,
+      context,
+      orgTimezone: "America/Los_Angeles",
+    });
+    expect(inLosAngeles.matched).toBe(true);
+  });
+
+  test("uses condition timezone override for absolute temporal comparisons", () => {
+    const filter: JourneyTriggerFilterAst = {
+      logic: "and",
+      groups: [
+        {
+          logic: "and",
+          conditions: [
+            {
+              field: "appointment.startAt",
+              operator: "before",
+              value: "2026-02-16T10:00",
+              timezone: "America/New_York",
+            },
+          ],
+        },
+      ],
+    };
+
+    const result = evaluateJourneyTriggerFilter({
+      filter,
+      context: {
+        ...BASE_CONTEXT,
+        appointment: {
+          ...BASE_CONTEXT.appointment,
+          startAt: "2026-02-16T16:00:00.000Z",
+        },
+      },
+      orgTimezone: "America/Los_Angeles",
+    });
+
+    expect(result.matched).toBe(false);
+  });
+
   test("fails closed when unsupported operations are encountered", () => {
     const filter = {
       logic: "and",

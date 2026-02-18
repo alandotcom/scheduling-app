@@ -13,6 +13,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
+import { TIMEZONES } from "@/lib/constants";
+import { formatTimezonePickerLabel } from "@/lib/date-utils";
 import type {
   ActionConfigField,
   ActionConfigFieldBase,
@@ -33,7 +35,8 @@ import {
   getWorkflowFilterTemporalUnitLabel,
   getOperatorOptionsForField,
   getWorkflowFilterFieldType,
-  toDateInputValue,
+  toAbsoluteTemporalComparisonValue,
+  toDateTimeLocalInputValue,
   toRelativeTemporalValueDraft,
 } from "../filter-builder-shared";
 
@@ -45,6 +48,7 @@ interface ActionConfigRendererProps {
   disabled?: boolean;
   expressionSuggestions?: EventAttributeSuggestion[];
   selectOptionsByKey?: Record<string, Array<{ value: string; label: string }>>;
+  defaultTimezone?: string;
 }
 
 type KeyValueRow = {
@@ -210,10 +214,11 @@ function toDurationLiteral(input: { amount: number; unit: string }): string {
   return `${input.amount * 7 * 24}h`;
 }
 
-function compileConditionBuilderExpression(input: {
+export function compileConditionBuilderExpression(input: {
   field: string;
   operator: JourneyTriggerFilterCondition["operator"] | "";
   value: unknown;
+  timezone?: string;
 }): string {
   if (input.field.length === 0 || input.operator.length === 0) {
     return "";
@@ -265,16 +270,31 @@ function compileConditionBuilderExpression(input: {
   }
 
   if (isTimestampField && isAbsoluteTemporalOperator(input.operator)) {
-    const dateValue = toDateInputValue(input.value);
-    if (!dateValue) {
+    const temporalValue = toAbsoluteTemporalComparisonValue(input.value);
+    if (!temporalValue) {
       return "";
     }
 
     const timestampLeft = `timestamp(string(${left}))`;
-    const right = `date(${JSON.stringify(dateValue)}, orgTimezone)`;
-    return input.operator === "before"
-      ? `${left} != null && ${timestampLeft} < ${right}`
-      : `${left} != null && ${timestampLeft} > ${right}`;
+    const timezoneLiteral =
+      typeof input.timezone === "string" && input.timezone.trim().length > 0
+        ? JSON.stringify(input.timezone)
+        : "orgTimezone";
+    const right = `date(${JSON.stringify(temporalValue)}, ${timezoneLiteral})`;
+
+    if (input.operator === "before") {
+      return `${left} != null && ${timestampLeft} < ${right}`;
+    }
+
+    if (input.operator === "after") {
+      return `${left} != null && ${timestampLeft} > ${right}`;
+    }
+
+    if (input.operator === "on_or_before") {
+      return `${left} != null && ${timestampLeft} <= ${right}`;
+    }
+
+    return `${left} != null && ${timestampLeft} >= ${right}`;
   }
 
   const stringValue = typeof input.value === "string" ? input.value : "";
@@ -598,6 +618,7 @@ function ExpressionFieldRenderer({
 function ConditionExpressionFieldRenderer({
   field,
   config,
+  defaultTimezone,
   onUpdateConfig,
   onUpdateConfigBatch,
   disabled,
@@ -605,6 +626,7 @@ function ConditionExpressionFieldRenderer({
 }: {
   field: ActionConfigFieldBase;
   config: Record<string, unknown>;
+  defaultTimezone: string;
   onUpdateConfig: (key: string, value: unknown) => void;
   onUpdateConfigBatch?: (patch: Record<string, unknown>) => void;
   disabled?: boolean;
@@ -632,6 +654,11 @@ function ConditionExpressionFieldRenderer({
     ? rawOperator
     : "";
   const conditionValue = config["conditionValue"];
+  const conditionTimezone =
+    typeof config["conditionTimezone"] === "string" &&
+    config["conditionTimezone"].trim().length > 0
+      ? config["conditionTimezone"]
+      : undefined;
   const isTimestampField =
     getWorkflowFilterFieldType(conditionField) === "timestamp";
   const relativeTemporalValue = toRelativeTemporalValueDraft(conditionValue);
@@ -640,9 +667,28 @@ function ConditionExpressionFieldRenderer({
     field: conditionField,
     operator: conditionOperator,
   });
-  const selectedUnitLabel = getWorkflowFilterTemporalUnitLabel(
+  const isAgoOperator =
+    conditionOperator === "less_than_ago" ||
+    conditionOperator === "more_than_ago";
+  const selectedUnitLabelBase = getWorkflowFilterTemporalUnitLabel(
     relativeTemporalValue.unit,
   );
+  const selectedUnitLabel =
+    selectedUnitLabelBase && isAgoOperator
+      ? `${selectedUnitLabelBase} ago`
+      : selectedUnitLabelBase;
+  const temporalUnitOptions = WORKFLOW_FILTER_TEMPORAL_UNIT_OPTIONS.map(
+    (unit) => ({
+      ...unit,
+      label: isAgoOperator ? `${unit.label} ago` : unit.label,
+    }),
+  );
+  const selectedConditionTimezone = conditionTimezone ?? defaultTimezone;
+  const timezoneOptions = TIMEZONES.some(
+    (timezone) => timezone === selectedConditionTimezone,
+  )
+    ? TIMEZONES
+    : [selectedConditionTimezone, ...TIMEZONES];
   const hasBuilderDraft =
     conditionField.length > 0 ||
     conditionOperator.length > 0 ||
@@ -665,14 +711,26 @@ function ConditionExpressionFieldRenderer({
     field?: string;
     operator?: JourneyTriggerFilterCondition["operator"] | "";
     value?: unknown;
+    timezone?: string;
   }) => {
     const nextField = patch.field ?? conditionField;
     const nextOperator = patch.operator ?? conditionOperator;
     const nextValue = "value" in patch ? patch.value : conditionValue;
+    const nextTimezone =
+      "timezone" in patch ? patch.timezone : conditionTimezone;
+    const nextIsTimestampField =
+      getWorkflowFilterFieldType(nextField) === "timestamp";
+    const normalizedTimezone =
+      nextIsTimestampField &&
+      isJourneyFilterOperator(nextOperator) &&
+      isAbsoluteTemporalOperator(nextOperator)
+        ? nextTimezone
+        : undefined;
     const compiledExpression = compileConditionBuilderExpression({
       field: nextField,
       operator: nextOperator,
       value: nextValue,
+      timezone: normalizedTimezone,
     });
 
     const configPatch: Record<string, unknown> = {
@@ -680,6 +738,7 @@ function ConditionExpressionFieldRenderer({
       conditionField: nextField,
       conditionOperator: nextOperator,
       conditionValue: nextValue,
+      conditionTimezone: normalizedTimezone,
       [field.key]: compiledExpression,
     };
 
@@ -793,6 +852,7 @@ function ConditionExpressionFieldRenderer({
             isRelativeTemporalOperator(conditionOperator) ? (
             <div className="grid grid-cols-2 gap-2 min-[420px]:col-span-2">
               <Input
+                className="h-10 md:h-8"
                 disabled={disabled}
                 min={1}
                 placeholder="Amount"
@@ -836,13 +896,17 @@ function ConditionExpressionFieldRenderer({
                   });
                 }}
               >
-                <SelectTrigger aria-label="Condition relative unit" size="sm">
+                <SelectTrigger
+                  aria-label="Condition relative unit"
+                  className="h-10"
+                  size="sm"
+                >
                   <SelectValue placeholder="Unit">
                     {selectedUnitLabel}
                   </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
-                  {WORKFLOW_FILTER_TEMPORAL_UNIT_OPTIONS.map((unit) => (
+                  {temporalUnitOptions.map((unit) => (
                     <SelectItem key={unit.value} value={unit.value}>
                       {unit.label}
                     </SelectItem>
@@ -852,13 +916,44 @@ function ConditionExpressionFieldRenderer({
             </div>
           ) : isTimestampField &&
             isAbsoluteTemporalOperator(conditionOperator) ? (
-            <Input
-              className="min-[420px]:col-span-2"
-              disabled={disabled}
-              type="date"
-              value={toDateInputValue(conditionValue)}
-              onChange={(event) => commitBuilder({ value: event.target.value })}
-            />
+            <>
+              <Input
+                disabled={disabled}
+                placeholder="Select date and time"
+                type="datetime-local"
+                value={toDateTimeLocalInputValue(conditionValue)}
+                onChange={(event) =>
+                  commitBuilder({ value: event.target.value })
+                }
+              />
+              <Select
+                disabled={disabled}
+                value={selectedConditionTimezone}
+                onValueChange={(timezone) => {
+                  if (!timezone) {
+                    return;
+                  }
+
+                  commitBuilder({
+                    timezone:
+                      timezone === defaultTimezone ? undefined : timezone,
+                  });
+                }}
+              >
+                <SelectTrigger aria-label="Condition timezone" size="sm">
+                  <SelectValue placeholder="Timezone">
+                    {formatTimezonePickerLabel(selectedConditionTimezone)}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  {timezoneOptions.map((timezone) => (
+                    <SelectItem key={timezone} value={timezone}>
+                      {formatTimezonePickerLabel(timezone)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </>
           ) : (
             <Input
               className="min-[420px]:col-span-2"
@@ -1016,6 +1111,7 @@ function KeyValueListFieldRenderer({
 function GroupFieldRenderer({
   group,
   config,
+  defaultTimezone,
   onUpdateConfig,
   onUpdateConfigBatch,
   disabled,
@@ -1025,6 +1121,7 @@ function GroupFieldRenderer({
 }: {
   group: ActionConfigFieldGroup;
   config: Record<string, unknown>;
+  defaultTimezone: string;
   onUpdateConfig: (key: string, value: unknown) => void;
   onUpdateConfigBatch?: (patch: Record<string, unknown>) => void;
   disabled?: boolean;
@@ -1057,6 +1154,7 @@ function GroupFieldRenderer({
               key={field.key}
               field={field}
               config={config}
+              defaultTimezone={defaultTimezone}
               onUpdateConfig={onUpdateConfig}
               onUpdateConfigBatch={onUpdateConfigBatch}
               disabled={disabled}
@@ -1074,6 +1172,7 @@ function GroupFieldRenderer({
 function FieldRenderer({
   field,
   config,
+  defaultTimezone,
   onUpdateConfig,
   onUpdateConfigBatch,
   disabled,
@@ -1083,6 +1182,7 @@ function FieldRenderer({
 }: {
   field: ActionConfigField;
   config: Record<string, unknown>;
+  defaultTimezone: string;
   onUpdateConfig: (key: string, value: unknown) => void;
   onUpdateConfigBatch?: (patch: Record<string, unknown>) => void;
   disabled?: boolean;
@@ -1095,6 +1195,7 @@ function FieldRenderer({
       <GroupFieldRenderer
         group={field}
         config={config}
+        defaultTimezone={defaultTimezone}
         onUpdateConfig={onUpdateConfig}
         onUpdateConfigBatch={onUpdateConfigBatch}
         disabled={disabled}
@@ -1165,6 +1266,7 @@ function FieldRenderer({
           <ConditionExpressionFieldRenderer
             field={field}
             config={config}
+            defaultTimezone={defaultTimezone}
             onUpdateConfig={onUpdateConfig}
             onUpdateConfigBatch={onUpdateConfigBatch}
             disabled={disabled}
@@ -1208,6 +1310,7 @@ export function ActionConfigRenderer({
   disabled,
   expressionSuggestions = [],
   selectOptionsByKey = {},
+  defaultTimezone = "America/New_York",
 }: ActionConfigRendererProps) {
   const fieldDefaults = collectFieldDefaults(fields);
 
@@ -1218,6 +1321,7 @@ export function ActionConfigRenderer({
           key={isFieldGroup(field) ? field.label : field.key}
           field={field}
           config={config}
+          defaultTimezone={defaultTimezone}
           onUpdateConfig={onUpdateConfig}
           onUpdateConfigBatch={onUpdateConfigBatch}
           disabled={disabled}

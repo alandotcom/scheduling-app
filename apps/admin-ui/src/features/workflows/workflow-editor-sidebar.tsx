@@ -25,6 +25,7 @@ type WorkflowEditorSidebarTab = "properties" | "runs";
 
 interface WorkflowEditorSidebarProps {
   workflowId: string | null;
+  defaultTimezone: string;
   selectedNode: Node | null;
   selectedEdge?: Edge | null;
   nodes?: Node[];
@@ -259,6 +260,7 @@ function isNodeEnabled(node: Node | null): boolean {
 
 export function WorkflowEditorSidebar({
   workflowId,
+  defaultTimezone,
   selectedNode,
   selectedEdge = null,
   nodes = [],
@@ -532,6 +534,7 @@ export function WorkflowEditorSidebar({
                     {selectedNodeType === "trigger" ? (
                       <WorkflowTriggerConfig
                         config={selectedNodeConfig}
+                        defaultTimezone={defaultTimezone}
                         disabled={!canManageWorkflow}
                         onUpdate={(next) => {
                           onUpdateNodeData({
@@ -558,6 +561,7 @@ export function WorkflowEditorSidebar({
                       <>
                         <ActionConfig
                           config={selectedNodeConfig}
+                          defaultTimezone={defaultTimezone}
                           onUpdateConfig={(key, value) => {
                             if (
                               key === "actionType" &&

@@ -154,6 +154,7 @@ export const journeyTriggerFilterConditionSchema = z
     }),
     operator: journeyTriggerFilterOperatorSchema,
     value: z.unknown().optional(),
+    timezone: z.string().trim().min(1).optional(),
     not: z.boolean().optional(),
   })
   .strict()
@@ -181,6 +182,20 @@ export const journeyTriggerFilterConditionSchema = z
         code: "custom",
         message: "Date/time operators can only be used with temporal fields",
         path: ["operator"],
+      });
+    }
+
+    const isAbsoluteTemporalOperator =
+      condition.operator === "before" ||
+      condition.operator === "after" ||
+      condition.operator === "on_or_before" ||
+      condition.operator === "on_or_after";
+
+    if (condition.timezone !== undefined && !isAbsoluteTemporalOperator) {
+      ctx.addIssue({
+        code: "custom",
+        message: "Timezone is only supported for absolute date operators",
+        path: ["timezone"],
       });
     }
 

@@ -15,6 +15,7 @@ const authMeSchema = z.object({
       id: z.uuid(),
       name: z.string(),
       slug: z.string(),
+      defaultTimezone: z.string().nullable(),
     })
     .nullable(),
 });
@@ -39,6 +40,7 @@ export const me = authUser
         id: orgs.id,
         name: orgs.name,
         slug: orgs.slug,
+        defaultTimezone: orgs.defaultTimezone,
       })
       .from(orgs)
       .where(eq(orgs.id, orgId))

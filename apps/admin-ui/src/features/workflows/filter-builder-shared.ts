@@ -3,6 +3,9 @@ import type {
   JourneyTriggerFilterTemporalUnit,
 } from "@scheduling/dto";
 
+const DATE_ONLY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+const DATETIME_LOCAL_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/;
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -118,8 +121,8 @@ export const WORKFLOW_FILTER_TIMESTAMP_OPERATOR_OPTIONS: Array<{
 }> = [
   { label: "is within the next", value: "within_next" },
   { label: "is more than from now", value: "more_than_from_now" },
-  { label: "is less than ago", value: "less_than_ago" },
-  { label: "is more than ago", value: "more_than_ago" },
+  { label: "is less than", value: "less_than_ago" },
+  { label: "is more than", value: "more_than_ago" },
   { label: "is before", value: "before" },
   { label: "is after", value: "after" },
   { label: "is set", value: "is_set" },
@@ -136,7 +139,7 @@ export const RELATIVE_TEMPORAL_OPERATORS = new Set<
 
 export const ABSOLUTE_TEMPORAL_OPERATORS = new Set<
   JourneyTriggerFilterCondition["operator"]
->(["before", "after"]);
+>(["before", "after", "on_or_before", "on_or_after"]);
 
 export type RelativeTemporalValueDraft = {
   amount?: number;
@@ -239,14 +242,27 @@ export function toRelativeTemporalValueDraft(
   };
 }
 
-export function toDateInputValue(value: unknown): string {
+function toDateTimeLocalString(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  const hour = String(date.getHours()).padStart(2, "0");
+  const minute = String(date.getMinutes()).padStart(2, "0");
+  return `${year}-${month}-${day}T${hour}:${minute}`;
+}
+
+export function toDateTimeLocalInputValue(value: unknown): string {
   if (typeof value !== "string") {
     return "";
   }
 
   const trimmed = value.trim();
-  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+  if (DATETIME_LOCAL_PATTERN.test(trimmed)) {
     return trimmed;
+  }
+
+  if (DATE_ONLY_PATTERN.test(trimmed)) {
+    return `${trimmed}T00:00`;
   }
 
   const parsed = new Date(trimmed);
@@ -254,5 +270,23 @@ export function toDateInputValue(value: unknown): string {
     return "";
   }
 
-  return parsed.toISOString().slice(0, 10);
+  return toDateTimeLocalString(parsed);
+}
+
+export function toAbsoluteTemporalComparisonValue(value: unknown): string {
+  if (typeof value !== "string") {
+    return "";
+  }
+
+  const trimmed = value.trim();
+  if (trimmed.length === 0) {
+    return "";
+  }
+
+  const parsed = new Date(trimmed);
+  if (Number.isNaN(parsed.getTime())) {
+    return "";
+  }
+
+  return trimmed;
 }
