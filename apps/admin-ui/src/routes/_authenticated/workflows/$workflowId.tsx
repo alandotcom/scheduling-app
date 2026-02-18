@@ -724,7 +724,7 @@ function WorkflowEditorPage() {
           <WorkflowEditorCanvas canEdit={canManageCurrentView}>
             {effectiveMode === "test" ? (
               <Panel
-                position="top-left"
+                position="bottom-center"
                 className="max-w-[min(100vw-10rem,56rem)] border-destructive/30 bg-destructive/10 px-4 py-2"
               >
                 <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">

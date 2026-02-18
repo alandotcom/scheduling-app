@@ -35,11 +35,16 @@ const FOCUSABLE_SELECTOR =
   'input:not([disabled]), textarea:not([disabled]), button:not([disabled]), [role="combobox"]:not([aria-disabled="true"]), [tabindex]:not([tabindex="-1"])';
 
 function resolveFocusableElement(element: HTMLElement): HTMLElement | null {
-  if (element.matches(FOCUSABLE_SELECTOR)) {
+  if (element.matches(FOCUSABLE_SELECTOR) && element.checkVisibility()) {
     return element;
   }
 
-  return element.querySelector<HTMLElement>(FOCUSABLE_SELECTOR);
+  const candidates = element.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR);
+  for (const candidate of candidates) {
+    if (candidate.checkVisibility()) return candidate;
+  }
+
+  return null;
 }
 
 function maybeOpenFocusableElement(element: HTMLElement) {

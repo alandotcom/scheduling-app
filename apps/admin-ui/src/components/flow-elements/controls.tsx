@@ -29,7 +29,7 @@ export const Controls = ({ onReflow, canReflow = true }: ControlsProps) => {
   };
 
   return (
-    <ButtonGroup orientation="vertical">
+    <ButtonGroup orientation="horizontal">
       <Button
         className="border hover:bg-secondary disabled:opacity-100 disabled:[&>svg]:text-muted-foreground"
         onClick={handleZoomIn}
