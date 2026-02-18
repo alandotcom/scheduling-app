@@ -34,14 +34,33 @@ export const DEFAULT_MODAL_SHORTCUT_HINT_TIMEOUT_MS = 1500;
 const FOCUSABLE_SELECTOR =
   'input:not([disabled]), textarea:not([disabled]), button:not([disabled]), [role="combobox"]:not([aria-disabled="true"]), [tabindex]:not([tabindex="-1"])';
 
+function isElementVisible(element: HTMLElement): boolean {
+  const checkVisibility = (
+    element as HTMLElement & { checkVisibility?: () => boolean }
+  ).checkVisibility;
+  if (typeof checkVisibility === "function") {
+    return checkVisibility.call(element);
+  }
+
+  if (
+    element.hasAttribute("hidden") ||
+    element.getAttribute("aria-hidden") === "true"
+  ) {
+    return false;
+  }
+
+  const style = window.getComputedStyle(element);
+  return style.display !== "none" && style.visibility !== "hidden";
+}
+
 function resolveFocusableElement(element: HTMLElement): HTMLElement | null {
-  if (element.matches(FOCUSABLE_SELECTOR) && element.checkVisibility()) {
+  if (element.matches(FOCUSABLE_SELECTOR) && isElementVisible(element)) {
     return element;
   }
 
   const candidates = element.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR);
   for (const candidate of candidates) {
-    if (candidate.checkVisibility()) return candidate;
+    if (isElementVisible(candidate)) return candidate;
   }
 
   return null;

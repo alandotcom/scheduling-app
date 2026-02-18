@@ -15,7 +15,6 @@ import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Panel } from "@/components/flow-elements/panel";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -719,29 +718,9 @@ function WorkflowEditorPage() {
 
   return (
     <div className="relative flex h-full min-h-0 w-full overflow-hidden">
-      <div className="flex min-h-0 flex-1 flex-col">
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
         <div className="relative min-h-0 flex-1">
           <WorkflowEditorCanvas canEdit={canManageCurrentView}>
-            {effectiveMode === "test" ? (
-              <Panel
-                position="bottom-center"
-                className="max-w-[min(100vw-10rem,56rem)] border-destructive/30 bg-destructive/10 px-4 py-2"
-              >
-                <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
-                  <p className="flex items-center gap-1.5 font-semibold tracking-wide text-destructive">
-                    <Icon className="size-3.5" icon={Alert02Icon} />
-                    TEST MODE ACTIVE
-                  </p>
-                  <p className="font-medium text-foreground">
-                    No real email or SMS will be sent from this workflow.
-                  </p>
-                  <p className="text-muted-foreground">
-                    Delivery is sandboxed to log-only behavior or integration
-                    test recipients only.
-                  </p>
-                </div>
-              </Panel>
-            ) : null}
             <WorkflowToolbar
               canManageWorkflow={canManageCurrentView}
               journeyStatus={journeyStatus}
@@ -763,6 +742,23 @@ function WorkflowEditorPage() {
             />
           </WorkflowEditorCanvas>
         </div>
+        {effectiveMode === "test" ? (
+          <div className="shrink-0 border-t border-destructive/30 bg-destructive/10 px-4 py-2">
+            <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-xs">
+              <p className="flex items-center gap-1.5 font-semibold tracking-wide text-destructive">
+                <Icon className="size-3.5" icon={Alert02Icon} />
+                TEST MODE ACTIVE
+              </p>
+              <p className="font-medium text-foreground">
+                No real email or SMS will be sent from this workflow.
+              </p>
+              <p className="text-muted-foreground">
+                Delivery is sandboxed to log-only behavior or integration test
+                recipients only.
+              </p>
+            </div>
+          </div>
+        ) : null}
       </div>
 
       {isMobile ? (

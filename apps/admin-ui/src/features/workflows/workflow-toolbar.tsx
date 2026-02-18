@@ -424,12 +424,16 @@ export function WorkflowToolbar({
         Live
       </Button>
       <Button
-        className="h-7 px-2"
+        className={cn(
+          "h-7 px-2",
+          journeyMode === "test" &&
+            "bg-destructive/10 text-destructive hover:bg-destructive/15",
+        )}
         disabled={modeDisabled}
         onClick={() => onSetMode("test")}
         size="sm"
         type="button"
-        variant={journeyMode === "test" ? "destructive" : "ghost"}
+        variant={journeyMode === "test" ? "secondary" : "ghost"}
       >
         Test
       </Button>
