@@ -1229,6 +1229,10 @@ describe("processJourneyDomainEvent", () => {
       context,
     );
 
+    const scheduleResendRequester = mock(async () => ({
+      eventId: "evt-test-wait-invariance",
+    }));
+
     await processJourneyDomainEvent(
       {
         id: "evt-test-wait-invariance",
@@ -1240,6 +1244,7 @@ describe("processJourneyDomainEvent", () => {
         timestamp: "2026-02-16T10:00:00.000Z",
       },
       {
+        scheduleResendRequester,
         now: new Date("2026-02-16T10:00:00.000Z"),
       },
     );

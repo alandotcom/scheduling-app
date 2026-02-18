@@ -52,6 +52,17 @@ For sender modules (for example `services/jobs/emitter.ts`):
 
 Always restore patched methods in `beforeEach`/`afterEach`.
 
+## Global Inngest Send Guard
+
+API tests preload `src/test-utils/mock-inngest.ts`, which globally patches both
+`domainEventInngest.send` and `inngest.send` with fail-fast mocks.
+
+- Any unmocked send attempt fails the test immediately.
+- For service tests, inject requester dependencies (for example
+  `scheduleResendRequester`) instead of relying on runtime defaults.
+- For focused sender unit tests, explicitly override `client.send` in the test
+  and restore it in `afterEach`.
+
 ## Real DB Integration Tests
 
 Use real Postgres tests when validating repository/service behavior, org scoping, and RLS effects.
