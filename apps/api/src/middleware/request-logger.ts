@@ -8,6 +8,12 @@ const SERVER_TIMING_HEADER = "Server-Timing";
 const isDev = process.env.NODE_ENV !== "production";
 const JSON_CONTENT_TYPE = "application/json";
 
+type RequestLoggerLike = {
+  error(message: string, data?: Record<string, unknown>): void;
+  warn(message: string, data?: Record<string, unknown>): void;
+  info(message: string): void;
+};
+
 type ErrorSummary = {
   errorCode: string | null;
   errorMessage: string | null;
@@ -28,6 +34,26 @@ function asNonEmptyString(value: unknown): string | null {
   return typeof value === "string" && value.trim().length > 0 ? value : null;
 }
 
+function extractErrorSummaryFromRecord(
+  payload: Record<string, unknown>,
+): ErrorSummary | null {
+  const nestedError = payload["error"];
+  const nestedErrorObject = isRecord(nestedError) ? nestedError : null;
+
+  const errorCode =
+    asNonEmptyString(nestedErrorObject?.["code"]) ??
+    asNonEmptyString(payload["code"]);
+  const errorMessage =
+    asNonEmptyString(nestedErrorObject?.["message"]) ??
+    asNonEmptyString(payload["message"]);
+
+  if (!errorCode && !errorMessage) {
+    return null;
+  }
+
+  return { errorCode, errorMessage };
+}
+
 async function extractErrorSummary(
   response: Response,
 ): Promise<ErrorSummary | null> {
@@ -42,68 +68,85 @@ async function extractErrorSummary(
       return null;
     }
 
-    const nestedError = payload["error"];
-    const nestedErrorObject = isRecord(nestedError) ? nestedError : null;
+    const directSummary = extractErrorSummaryFromRecord(payload);
+    if (directSummary) {
+      return directSummary;
+    }
 
-    const errorCode =
-      asNonEmptyString(nestedErrorObject?.["code"]) ??
-      asNonEmptyString(payload["code"]);
-    const errorMessage =
-      asNonEmptyString(nestedErrorObject?.["message"]) ??
-      asNonEmptyString(payload["message"]);
-
-    if (!errorCode && !errorMessage) {
+    const wrappedJsonPayload = payload["json"];
+    if (!isRecord(wrappedJsonPayload)) {
       return null;
     }
 
-    return { errorCode, errorMessage };
+    return extractErrorSummaryFromRecord(wrappedJsonPayload);
   } catch {
     return null;
   }
 }
 
-export const requestLogger = createMiddleware(async (c, next) => {
-  const start = performance.now();
-  const method = c.req.method;
-  const path = c.req.path;
+function buildLogMessage(errorSummary: ErrorSummary | null): string {
+  return errorSummary
+    ? "{method} {path} {status} {duration}ms (code={errorCode}, message={errorMessage})"
+    : "{method} {path} {status} {duration}ms (no structured error payload)";
+}
 
-  await next();
+function buildLogData(
+  method: string,
+  path: string,
+  status: number,
+  duration: number,
+  errorSummary: ErrorSummary | null,
+) {
+  return {
+    method,
+    path,
+    status,
+    duration,
+    ...(errorSummary
+      ? {
+          errorCode: errorSummary.errorCode ?? "UNKNOWN",
+          errorMessage: errorSummary.errorMessage ?? "Unavailable",
+        }
+      : {}),
+  };
+}
 
-  const durationMs = performance.now() - start;
-  const duration = Math.round(durationMs);
-  const status = c.res.status;
-  if (isDev) {
-    const serverTimingMetric = `app;dur=${durationMs.toFixed(2)}`;
-    const existingServerTiming = c.res.headers.get(SERVER_TIMING_HEADER);
-    c.res.headers.set(
-      SERVER_TIMING_HEADER,
-      appendServerTimingMetric(existingServerTiming, serverTimingMetric),
-    );
-  }
+export function createRequestLogger(
+  requestLoggerImpl: RequestLoggerLike = logger,
+) {
+  return createMiddleware(async (c, next) => {
+    const start = performance.now();
+    const method = c.req.method;
+    const path = c.req.path;
 
-  if (status >= 500) {
-    const errorSummary = await extractErrorSummary(c.res);
+    await next();
 
-    logger.error(
-      errorSummary
-        ? "{method} {path} {status} {duration}ms (code={errorCode}, message={errorMessage})"
-        : "{method} {path} {status} {duration}ms (no structured error payload)",
-      {
-        method,
-        path,
-        status,
-        duration,
-        ...(errorSummary
-          ? {
-              errorCode: errorSummary.errorCode ?? "UNKNOWN",
-              errorMessage: errorSummary.errorMessage ?? "Unavailable",
-            }
-          : {}),
-      },
-    );
-  } else if (status >= 400) {
-    logger.warn(`${method} ${path} ${status} ${duration}ms`);
-  } else {
-    logger.info(`${method} ${path} ${status} ${duration}ms`);
-  }
-});
+    const durationMs = performance.now() - start;
+    const duration = Math.round(durationMs);
+    const status = c.res.status;
+    if (isDev) {
+      const serverTimingMetric = `app;dur=${durationMs.toFixed(2)}`;
+      const existingServerTiming = c.res.headers.get(SERVER_TIMING_HEADER);
+      c.res.headers.set(
+        SERVER_TIMING_HEADER,
+        appendServerTimingMetric(existingServerTiming, serverTimingMetric),
+      );
+    }
+
+    if (status >= 400) {
+      const errorSummary = await extractErrorSummary(c.res);
+      const message = buildLogMessage(errorSummary);
+      const data = buildLogData(method, path, status, duration, errorSummary);
+
+      if (status >= 500) {
+        requestLoggerImpl.error(message, data);
+      } else {
+        requestLoggerImpl.warn(message, data);
+      }
+    } else {
+      requestLoggerImpl.info(`${method} ${path} ${status} ${duration}ms`);
+    }
+  });
+}
+
+export const requestLogger = createRequestLogger();

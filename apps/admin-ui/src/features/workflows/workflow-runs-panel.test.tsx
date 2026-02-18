@@ -7,7 +7,7 @@ afterEach(() => {
 });
 
 describe("WorkflowRunsPanelView", () => {
-  test("supports test/live mode filters and mode badges", () => {
+  test("supports test/live mode filters in list view", () => {
     const onSelectRun = mock((_runId: string | null) => {});
 
     render(
@@ -50,13 +50,15 @@ describe("WorkflowRunsPanelView", () => {
       />,
     );
 
-    expect(screen.getByText("LIVE")).toBeTruthy();
-    expect(screen.getByText("TEST")).toBeTruthy();
+    // List view shows journey names and mode as lowercase text
+    expect(screen.getByText("Live Journey")).toBeTruthy();
+    expect(screen.getByText("Test Journey")).toBeTruthy();
 
+    // Filter to test mode only
     fireEvent.click(screen.getByRole("button", { name: "Test" }));
 
-    expect(screen.queryByText("Run for Live Journey")).toBeNull();
-    expect(screen.getByText("Run for Test Journey")).toBeTruthy();
+    expect(screen.queryByText("Live Journey")).toBeNull();
+    expect(screen.getByText("Test Journey")).toBeTruthy();
   });
 
   test("renders logger timeline entries and typed reason code labels", () => {
@@ -125,13 +127,16 @@ describe("WorkflowRunsPanelView", () => {
           ],
           events: [],
           stepLogs: [],
+          triggerContext: null,
         }}
         selectedRunId="run-1"
       />,
     );
 
     expect(screen.getByText("Logger entry")).toBeTruthy();
-    expect(screen.getByText("Past due")).toBeTruthy();
+    expect(
+      screen.getByText("Skipped because scheduled time already passed"),
+    ).toBeTruthy();
   });
 
   test("hides raw audit events by default and reveals them in advanced mode", () => {
@@ -204,16 +209,172 @@ describe("WorkflowRunsPanelView", () => {
               updatedAt: new Date("2026-03-10T14:00:01.000Z"),
             },
           ],
+          triggerContext: null,
         }}
         selectedRunId="run-audit"
       />,
     );
 
-    expect(screen.queryByText("run_waiting")).toBeNull();
+    // Technical details (run events) hidden by default
+    expect(screen.queryByText("Run waiting in delay node 'Wait'")).toBeNull();
+
+    // Click "Show technical details" text button to reveal
     fireEvent.click(
-      screen.getByRole("button", { name: "Show advanced details" }),
+      screen.getByRole("button", { name: "Show technical details" }),
     );
-    expect(screen.getByText("run_waiting")).toBeTruthy();
+    expect(screen.getByText("Run waiting in delay node 'Wait'")).toBeTruthy();
+  });
+
+  test("shows timeline step labels and supports node selection in run mode", () => {
+    const onSelectNode = mock((_nodeId: string | null) => {});
+
+    render(
+      <WorkflowRunsPanelView
+        canManageWorkflow={true}
+        isLoadingRunDetail={false}
+        isLoadingRuns={false}
+        onRefresh={() => {}}
+        onSelectNode={onSelectNode}
+        onSelectRun={() => {}}
+        runs={[
+          {
+            id: "run-context",
+            journeyVersionId: "version-context",
+            appointmentId: "appointment-context",
+            mode: "live",
+            status: "running",
+            startedAt: new Date("2026-03-10T14:00:00.000Z"),
+            completedAt: null,
+            cancelledAt: null,
+            journeyNameSnapshot: "Journey Context",
+            journeyVersion: 2,
+            journeyDeleted: false,
+          },
+        ]}
+        selectedNodeId="trigger-step"
+        selectedRunDetail={{
+          run: {
+            id: "run-context",
+            journeyVersionId: "version-context",
+            appointmentId: "appointment-context",
+            mode: "live",
+            status: "running",
+            startedAt: new Date("2026-03-10T14:00:00.000Z"),
+            completedAt: null,
+            cancelledAt: null,
+            journeyNameSnapshot: "Journey Context",
+            journeyVersion: 2,
+            journeyDeleted: false,
+          },
+          runSnapshot: {
+            version: 2,
+            definitionSnapshot: {
+              attributes: {},
+              options: { type: "directed" },
+              nodes: [
+                {
+                  key: "trigger-step",
+                  attributes: {
+                    id: "trigger-step",
+                    data: {
+                      type: "trigger",
+                      label: "",
+                      config: {},
+                    },
+                  },
+                },
+                {
+                  key: "wait-step",
+                  attributes: {
+                    id: "wait-step",
+                    data: {
+                      type: "action",
+                      label: "Wait",
+                      config: { actionType: "wait" },
+                    },
+                  },
+                },
+              ],
+              edges: [],
+            },
+          },
+          deliveries: [],
+          events: [],
+          stepLogs: [
+            {
+              id: "step-trigger",
+              journeyRunId: "run-context",
+              stepKey: "trigger-step",
+              nodeType: "trigger",
+              status: "success",
+              input: null,
+              output: null,
+              error: null,
+              startedAt: new Date("2026-03-10T14:00:00.000Z"),
+              completedAt: new Date("2026-03-10T14:00:00.000Z"),
+              durationMs: 0,
+              createdAt: new Date("2026-03-10T14:00:00.000Z"),
+              updatedAt: new Date("2026-03-10T14:00:00.000Z"),
+            },
+            {
+              id: "step-context",
+              journeyRunId: "run-context",
+              stepKey: "wait-step",
+              nodeType: "wait",
+              status: "running",
+              input: {
+                waitTimezone: "America/New_York",
+              },
+              output: {
+                waitUntil: "2026-03-10T14:05:00.000Z",
+              },
+              error: null,
+              startedAt: new Date("2026-03-10T14:00:01.000Z"),
+              completedAt: null,
+              durationMs: null,
+              createdAt: new Date("2026-03-10T14:00:01.000Z"),
+              updatedAt: new Date("2026-03-10T14:00:01.000Z"),
+            },
+          ],
+          triggerContext: {
+            eventType: "appointment.scheduled",
+            appointment: {
+              id: "appointment-context",
+              calendarId: "calendar-context",
+              appointmentTypeId: "type-context",
+              clientId: "client-context",
+              startAt: new Date("2026-03-10T14:00:00.000Z"),
+              endAt: new Date("2026-03-10T14:30:00.000Z"),
+              timezone: "America/New_York",
+              status: "scheduled",
+              notes: null,
+            },
+            client: {
+              id: "client-context",
+              firstName: "Ada",
+              lastName: "Lovelace",
+              email: "ada@example.com",
+              phone: null,
+            },
+            payload: {
+              eventType: "appointment.scheduled",
+              appointmentId: "appointment-context",
+            },
+          },
+        }}
+        selectedRunId="run-context"
+      />,
+    );
+
+    // Trigger step appears in timeline
+    expect(screen.getByText("Trigger")).toBeTruthy();
+
+    // Wait step label appears in timeline
+    expect(screen.getByText("Wait")).toBeTruthy();
+
+    // Click on Wait step triggers node selection
+    fireEvent.click(screen.getByText("Wait").closest("button")!);
+    expect(onSelectNode).toHaveBeenCalledWith("wait-step");
   });
 
   test("treats stale running wait steps as completed for terminal runs", () => {
@@ -277,6 +438,7 @@ describe("WorkflowRunsPanelView", () => {
               updatedAt: new Date("2026-03-10T14:05:00.000Z"),
             },
           ],
+          triggerContext: null,
         }}
         selectedRunId="run-terminal"
       />,
@@ -314,8 +476,9 @@ describe("WorkflowRunsPanelView", () => {
       />,
     );
 
-    expect(screen.getByText("Run for Archived Journey")).toBeTruthy();
-    expect(screen.getByText(/Version 7.*Deleted journey/)).toBeTruthy();
+    // List view shows journey name and version/deleted metadata
+    expect(screen.getByText("Archived Journey")).toBeTruthy();
+    expect(screen.getByText(/v7.*deleted/)).toBeTruthy();
   });
 
   test("shows run-level and journey-level cancel actions with explicit scope", () => {
@@ -366,11 +529,13 @@ describe("WorkflowRunsPanelView", () => {
           deliveries: [],
           events: [],
           stepLogs: [],
+          triggerContext: null,
         }}
         selectedRunId="run-active"
       />,
     );
 
+    // Cancel buttons visible directly in detail view for active runs
     fireEvent.click(screen.getByRole("button", { name: "Cancel this run" }));
     fireEvent.click(
       screen.getByRole("button", {
@@ -425,11 +590,13 @@ describe("WorkflowRunsPanelView", () => {
           deliveries: [],
           events: [],
           stepLogs: [],
+          triggerContext: null,
         }}
         selectedRunId="run-stale"
       />,
     );
 
+    // Detail view uses status from runDetail (completed), not from stale list row (planned)
     expect(screen.getAllByText("Completed").length).toBeGreaterThan(0);
     expect(
       screen.queryByRole("button", { name: "Cancel this run" }),

@@ -808,6 +808,7 @@ describe("Journey Routes", () => {
     expect(runDetail.run.mode).toBe("test");
     expect(runDetail.events).toBeArray();
     expect(runDetail.stepLogs).toBeArray();
+    expect(runDetail.triggerContext).toBeNull();
     expect(liveRun).toBeDefined();
   });
 

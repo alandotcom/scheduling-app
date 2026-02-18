@@ -19,6 +19,7 @@ import {
   type JourneyRunDetailResponse,
   type JourneyRunEvent,
   type JourneyRunStepLog,
+  type JourneyRunTriggerContext,
   type LinearJourneyGraph,
   type ListJourneyRunsQuery,
   type PublishJourneyInput,
@@ -262,6 +263,100 @@ function toJourneyRunStepLog(
     durationMs: row.durationMs,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
+  };
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function resolveTriggerEventType(input: {
+  events: Array<typeof journeyRunEvents.$inferSelect>;
+  stepLogs: Array<typeof journeyRunStepLogs.$inferSelect>;
+}): string | null {
+  const runPlannedEvent = input.events.find(
+    (event) => event.eventType === "run_planned",
+  );
+
+  if (runPlannedEvent && isRecord(runPlannedEvent.metadata)) {
+    const eventType = runPlannedEvent.metadata["eventType"];
+    if (typeof eventType === "string" && eventType.trim().length > 0) {
+      return eventType.trim();
+    }
+  }
+
+  const triggerStepLog = input.stepLogs.find(
+    (stepLog) => stepLog.nodeType === "trigger",
+  );
+  if (!triggerStepLog || !isRecord(triggerStepLog.input)) {
+    return null;
+  }
+
+  const eventType = triggerStepLog.input["eventType"];
+  if (typeof eventType !== "string" || eventType.trim().length === 0) {
+    return null;
+  }
+
+  return eventType.trim();
+}
+
+function resolveTriggerPayload(input: {
+  events: Array<typeof journeyRunEvents.$inferSelect>;
+  stepLogs: Array<typeof journeyRunStepLogs.$inferSelect>;
+}): Record<string, unknown> | null {
+  const triggerStepLog = input.stepLogs.find(
+    (stepLog) => stepLog.nodeType === "trigger",
+  );
+  if (triggerStepLog && isRecord(triggerStepLog.input)) {
+    return triggerStepLog.input;
+  }
+
+  const runPlannedEvent = input.events.find(
+    (event) => event.eventType === "run_planned",
+  );
+  if (runPlannedEvent && isRecord(runPlannedEvent.metadata)) {
+    return runPlannedEvent.metadata;
+  }
+
+  return null;
+}
+
+function toJourneyRunTriggerContext(input: {
+  eventType: string | null;
+  payload: Record<string, unknown> | null;
+  appointment: {
+    id: string;
+    calendarId: string;
+    appointmentTypeId: string;
+    clientId: string | null;
+    startAt: Date;
+    endAt: Date;
+    timezone: string;
+    status: string;
+    notes: string | null;
+  } | null;
+  client: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    email: string | null;
+    phone: string | null;
+  } | null;
+}): JourneyRunTriggerContext | null {
+  if (
+    !input.eventType &&
+    !input.payload &&
+    !input.appointment &&
+    !input.client
+  ) {
+    return null;
+  }
+
+  return {
+    eventType: input.eventType,
+    payload: input.payload,
+    appointment: input.appointment,
+    client: input.client,
   };
 }
 
@@ -980,30 +1075,85 @@ export class JourneyService {
         throw new ApplicationError("Run not found", { code: "NOT_FOUND" });
       }
 
-      const [deliveries, events, stepLogs] = await Promise.all([
-        tx
-          .select()
-          .from(journeyDeliveries)
-          .where(eq(journeyDeliveries.journeyRunId, run.id))
-          .orderBy(
-            asc(journeyDeliveries.scheduledFor),
-            asc(journeyDeliveries.createdAt),
-            asc(journeyDeliveries.id),
-          ),
-        tx
-          .select()
-          .from(journeyRunEvents)
-          .where(eq(journeyRunEvents.journeyRunId, run.id))
-          .orderBy(asc(journeyRunEvents.createdAt), asc(journeyRunEvents.id)),
-        tx
-          .select()
-          .from(journeyRunStepLogs)
-          .where(eq(journeyRunStepLogs.journeyRunId, run.id))
-          .orderBy(
-            asc(journeyRunStepLogs.startedAt),
-            asc(journeyRunStepLogs.id),
-          ),
-      ]);
+      const [deliveries, events, stepLogs, appointmentContext] =
+        await Promise.all([
+          tx
+            .select()
+            .from(journeyDeliveries)
+            .where(eq(journeyDeliveries.journeyRunId, run.id))
+            .orderBy(
+              asc(journeyDeliveries.scheduledFor),
+              asc(journeyDeliveries.createdAt),
+              asc(journeyDeliveries.id),
+            ),
+          tx
+            .select()
+            .from(journeyRunEvents)
+            .where(eq(journeyRunEvents.journeyRunId, run.id))
+            .orderBy(asc(journeyRunEvents.createdAt), asc(journeyRunEvents.id)),
+          tx
+            .select()
+            .from(journeyRunStepLogs)
+            .where(eq(journeyRunStepLogs.journeyRunId, run.id))
+            .orderBy(
+              asc(journeyRunStepLogs.startedAt),
+              asc(journeyRunStepLogs.id),
+            ),
+          tx
+            .select({
+              appointmentId: appointments.id,
+              calendarId: appointments.calendarId,
+              appointmentTypeId: appointments.appointmentTypeId,
+              clientId: appointments.clientId,
+              startAt: appointments.startAt,
+              endAt: appointments.endAt,
+              timezone: appointments.timezone,
+              status: appointments.status,
+              notes: appointments.notes,
+              clientFirstName: clients.firstName,
+              clientLastName: clients.lastName,
+              clientEmail: clients.email,
+              clientPhone: clients.phone,
+            })
+            .from(appointments)
+            .leftJoin(clients, eq(clients.id, appointments.clientId))
+            .where(eq(appointments.id, run.appointmentId))
+            .limit(1),
+        ]);
+
+      const [appointmentRow] = appointmentContext;
+      const appointment = appointmentRow
+        ? {
+            id: appointmentRow.appointmentId,
+            calendarId: appointmentRow.calendarId,
+            appointmentTypeId: appointmentRow.appointmentTypeId,
+            clientId: appointmentRow.clientId,
+            startAt: appointmentRow.startAt,
+            endAt: appointmentRow.endAt,
+            timezone: appointmentRow.timezone,
+            status: appointmentRow.status,
+            notes: appointmentRow.notes,
+          }
+        : null;
+      const client =
+        appointmentRow &&
+        appointmentRow.clientId &&
+        appointmentRow.clientFirstName &&
+        appointmentRow.clientLastName
+          ? {
+              id: appointmentRow.clientId,
+              firstName: appointmentRow.clientFirstName,
+              lastName: appointmentRow.clientLastName,
+              email: appointmentRow.clientEmail,
+              phone: appointmentRow.clientPhone,
+            }
+          : null;
+      const triggerContext = toJourneyRunTriggerContext({
+        eventType: resolveTriggerEventType({ events, stepLogs }),
+        payload: resolveTriggerPayload({ events, stepLogs }),
+        appointment,
+        client,
+      });
 
       return {
         run: toJourneyRun(run),
@@ -1011,6 +1161,7 @@ export class JourneyService {
         deliveries: deliveries.map(toJourneyRunDelivery),
         events: events.map(toJourneyRunEvent),
         stepLogs: stepLogs.map(toJourneyRunStepLog),
+        triggerContext,
       };
     });
   }

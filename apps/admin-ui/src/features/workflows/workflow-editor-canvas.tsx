@@ -640,10 +640,8 @@ export function WorkflowEditorCanvas({
             return;
           }
 
-          setSelection({
-            nodeId: null,
-            edgeId: null,
-          });
+          // Keep externally-driven selection (for example, timeline clicks in
+          // run mode). Pane clicks still clear selection via onPaneClick.
         }}
       >
         <Panel position="bottom-left">

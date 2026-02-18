@@ -560,12 +560,40 @@ export const journeyRunStepLogSchema = z.object({
   updatedAt: timestampSchema,
 });
 
+export const journeyRunTriggerAppointmentSchema = z.object({
+  id: uuidSchema,
+  calendarId: uuidSchema,
+  appointmentTypeId: uuidSchema,
+  clientId: uuidSchema.nullable(),
+  startAt: timestampSchema,
+  endAt: timestampSchema,
+  timezone: z.string().trim().min(1),
+  status: z.string().trim().min(1),
+  notes: z.string().nullable(),
+});
+
+export const journeyRunTriggerClientSchema = z.object({
+  id: uuidSchema,
+  firstName: z.string(),
+  lastName: z.string(),
+  email: z.string().nullable(),
+  phone: z.string().nullable(),
+});
+
+export const journeyRunTriggerContextSchema = z.object({
+  eventType: z.string().trim().min(1).nullable(),
+  appointment: journeyRunTriggerAppointmentSchema.nullable(),
+  client: journeyRunTriggerClientSchema.nullable(),
+  payload: z.record(z.string(), z.unknown()).nullable(),
+});
+
 export const journeyRunDetailResponseSchema = z.object({
   run: journeyRunSchema,
   runSnapshot: journeyVersionSnapshotSchema,
   deliveries: z.array(journeyRunDeliverySchema),
   events: z.array(journeyRunEventSchema),
   stepLogs: z.array(journeyRunStepLogSchema),
+  triggerContext: journeyRunTriggerContextSchema.nullable(),
 });
 
 export const cancelJourneyRunResponseSchema = z.object({
@@ -620,6 +648,15 @@ export type JourneyRunListResponse = z.infer<
 export type JourneyRunDelivery = z.infer<typeof journeyRunDeliverySchema>;
 export type JourneyRunEvent = z.infer<typeof journeyRunEventSchema>;
 export type JourneyRunStepLog = z.infer<typeof journeyRunStepLogSchema>;
+export type JourneyRunTriggerAppointment = z.infer<
+  typeof journeyRunTriggerAppointmentSchema
+>;
+export type JourneyRunTriggerClient = z.infer<
+  typeof journeyRunTriggerClientSchema
+>;
+export type JourneyRunTriggerContext = z.infer<
+  typeof journeyRunTriggerContextSchema
+>;
 export type JourneyRunDetailResponse = z.infer<
   typeof journeyRunDetailResponseSchema
 >;
