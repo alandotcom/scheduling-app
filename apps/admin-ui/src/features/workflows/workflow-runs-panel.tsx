@@ -93,7 +93,51 @@ function toReasonCodeLabel(reasonCode: string | null): string | null {
     return "Provider error";
   }
 
+  if (reasonCode === "test_mode_log_only") {
+    return "Test mode: log only";
+  }
+
+  if (reasonCode === "test_mode_routed_integration_recipient") {
+    return "Test mode: routed to integration test recipient";
+  }
+
+  if (reasonCode === "test_mode_log_fallback_missing_recipient") {
+    return "Test mode: auto log-only fallback (missing test recipient)";
+  }
+
   return reasonCode.replaceAll("_", " ");
+}
+
+function summarizeTestSafetyOutcomes(deliveries: JourneyRunDelivery[]): {
+  routedCount: number;
+  logOnlyCount: number;
+  fallbackCount: number;
+} {
+  let routedCount = 0;
+  let logOnlyCount = 0;
+  let fallbackCount = 0;
+
+  for (const delivery of deliveries) {
+    if (delivery.reasonCode === "test_mode_routed_integration_recipient") {
+      routedCount += 1;
+      continue;
+    }
+
+    if (delivery.reasonCode === "test_mode_log_fallback_missing_recipient") {
+      fallbackCount += 1;
+      continue;
+    }
+
+    if (delivery.reasonCode === "test_mode_log_only") {
+      logOnlyCount += 1;
+    }
+  }
+
+  return {
+    routedCount,
+    logOnlyCount,
+    fallbackCount,
+  };
 }
 
 function toTimelineLabel(delivery: JourneyRunDelivery): string {
@@ -201,6 +245,10 @@ export function WorkflowRunsPanelView({
                 : run.status;
             const canCancelThisRun =
               canManageWorkflow && isRunActive(runStatus);
+            const testSafetySummary =
+              selectedRunDetail?.run.id === run.id && run.mode === "test"
+                ? summarizeTestSafetyOutcomes(selectedRunDetail.deliveries)
+                : null;
 
             return (
               <article
@@ -259,6 +307,21 @@ export function WorkflowRunsPanelView({
                             Status: <strong>{run.status}</strong>
                           </p>
                         </div>
+
+                        {run.mode === "test" ? (
+                          <div className="space-y-1 rounded-md border border-amber-500/50 bg-amber-500/10 p-2 text-xs">
+                            <p className="font-medium">
+                              Test mode safety: real external recipients are
+                              blocked.
+                            </p>
+                            <p className="text-muted-foreground">
+                              Routed: {testSafetySummary?.routedCount ?? 0} •
+                              Log-only: {testSafetySummary?.logOnlyCount ?? 0} •
+                              Auto-fallback:{" "}
+                              {testSafetySummary?.fallbackCount ?? 0}
+                            </p>
+                          </div>
+                        ) : null}
 
                         {canCancelThisRun ? (
                           <div className="flex flex-wrap gap-2">

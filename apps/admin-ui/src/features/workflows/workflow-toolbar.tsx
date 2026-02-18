@@ -13,6 +13,7 @@ import { Panel } from "@/components/flow-elements/panel";
 import { Button } from "@/components/ui/button";
 import { ButtonGroup } from "@/components/ui/button-group";
 import { Icon } from "@/components/ui/icon";
+import { cn } from "@/lib/utils";
 import {
   addWorkflowEditorActionNodeAtom,
   canRedoAtom,
@@ -224,7 +225,12 @@ export function WorkflowToolbar({
         {statusLabel}
       </div>
 
-      <div className="inline-flex items-center rounded-md border border-border bg-muted/20 p-0.5">
+      <div
+        className={cn(
+          "inline-flex items-center rounded-md border border-border bg-muted/20 p-0.5",
+          journeyMode === "test" && "border-destructive/40 bg-destructive/5",
+        )}
+      >
         <Button
           className="h-8 px-2"
           disabled={modeDisabled}
@@ -241,7 +247,7 @@ export function WorkflowToolbar({
           onClick={() => onSetMode("test")}
           size="sm"
           type="button"
-          variant={journeyMode === "test" ? "default" : "ghost"}
+          variant={journeyMode === "test" ? "destructive" : "ghost"}
         >
           Test
         </Button>

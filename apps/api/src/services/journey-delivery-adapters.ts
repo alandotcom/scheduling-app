@@ -1,4 +1,5 @@
 import { getLogger } from "@logtape/logtape";
+import type { JourneyRunMode } from "@scheduling/dto";
 
 type JsonRecord = Record<string, unknown>;
 
@@ -14,11 +15,13 @@ export type JourneyDeliveryDispatchInput = {
   journeyDeliveryId: string;
   channel: string;
   idempotencyKey: string;
+  runMode?: JourneyRunMode;
   stepConfig: JsonRecord;
 };
 
 export type JourneyDeliveryDispatchResult = {
   providerMessageId?: string;
+  reasonCode?: string | null;
 };
 
 export type JourneyLoggerDeliveryRecord = {
@@ -27,6 +30,7 @@ export type JourneyLoggerDeliveryRecord = {
   journeyDeliveryId: string;
   channel: "logger";
   idempotencyKey: string;
+  runMode: JourneyRunMode;
   stepConfig: JsonRecord;
 };
 
@@ -48,6 +52,7 @@ const defaultDeliveryAdapters: JourneyDeliveryAdapterMap = {
       journeyDeliveryId: input.journeyDeliveryId,
       channel: "logger",
       idempotencyKey: input.idempotencyKey,
+      runMode: input.runMode ?? "live",
       stepConfig: input.stepConfig,
     };
 
@@ -59,6 +64,8 @@ const defaultDeliveryAdapters: JourneyDeliveryAdapterMap = {
 
     return {
       providerMessageId: `logger:${input.idempotencyKey}`,
+      reasonCode:
+        (input.runMode ?? "live") === "test" ? "test_mode_log_only" : null,
     };
   },
 };

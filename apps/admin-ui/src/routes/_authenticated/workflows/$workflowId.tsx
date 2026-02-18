@@ -1,7 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft02Icon, Cancel01Icon } from "@hugeicons/core-free-icons";
+import {
+  Alert02Icon,
+  ArrowLeft02Icon,
+  Cancel01Icon,
+} from "@hugeicons/core-free-icons";
 import { ReactFlowProvider } from "@xyflow/react";
 import { toast } from "sonner";
 import { useAtomValue, useSetAtom } from "jotai";
@@ -47,6 +51,7 @@ import {
   workflowEditorIsReadOnlyAtom,
   workflowEditorIsSavingAtom,
   workflowEditorNodesAtom,
+  workflowEditorJourneyModeAtom,
   workflowEditorSelectedEdgeIdAtom,
   workflowEditorSelectedNodeIdAtom,
   workflowEditorWorkflowIdAtom,
@@ -86,6 +91,7 @@ function WorkflowEditorPage() {
   const setHasUnsavedChanges = useSetAtom(workflowEditorHasUnsavedChangesAtom);
   const setIsSaving = useSetAtom(workflowEditorIsSavingAtom);
   const setWorkflowId = useSetAtom(workflowEditorWorkflowIdAtom);
+  const setJourneyMode = useSetAtom(workflowEditorJourneyModeAtom);
   const setRightPanelWidth = useSetAtom(rightPanelWidthAtom);
   const setSelection = useSetAtom(setWorkflowEditorSelectionAtom);
   const updateNodeData = useSetAtom(updateWorkflowEditorNodeDataAtom);
@@ -120,6 +126,12 @@ function WorkflowEditorPage() {
   );
   const defaultTimezone =
     authContextQuery.data?.org?.defaultTimezone ?? "America/New_York";
+  const journeyStatus =
+    lifecycleDraft?.status ?? journeyQuery.data?.status ?? "draft";
+  const persistedMode =
+    lifecycleDraft?.mode ?? journeyQuery.data?.mode ?? "live";
+  const effectiveMode =
+    journeyStatus === "draft" ? draftPublishMode : persistedMode;
 
   const patchJourneyInListCache = useCallback(
     (journeyId: string, patch: Partial<JourneyListResponse[number]>) => {
@@ -195,6 +207,10 @@ function WorkflowEditorPage() {
       setDraftPublishMode(journeyQuery.data.mode);
     }
   }, [journeyQuery.data, setGraph, setWorkflowId]);
+
+  useEffect(() => {
+    setJourneyMode(effectiveMode);
+  }, [effectiveMode, setJourneyMode]);
 
   const updateMutation = useMutation(
     orpc.journeys.update.mutationOptions({
@@ -580,77 +596,91 @@ function WorkflowEditorPage() {
     );
   }
 
-  const journeyStatus =
-    lifecycleDraft?.status ?? journeyQuery.data?.status ?? "draft";
-  const persistedMode =
-    lifecycleDraft?.mode ?? journeyQuery.data?.mode ?? "live";
-  const effectiveMode =
-    journeyStatus === "draft" ? draftPublishMode : persistedMode;
-
   return (
     <div className="relative flex h-full min-h-0 w-full overflow-hidden">
-      <WorkflowEditorCanvas canEdit={canManageWorkflow}>
-        <Panel className="flex items-center gap-2" position="top-left">
-          <Button
-            asChild
-            size="icon-sm"
-            title="Back to journeys"
-            variant="outline"
-          >
-            <Link to="/workflows" search={{ q: undefined }}>
-              <Icon icon={ArrowLeft02Icon} />
-            </Link>
-          </Button>
-          <Input
-            className="h-8 w-64"
-            disabled={!canManageWorkflow || renameMutation.isPending}
-            onBlur={() => void commitJourneyName()}
-            onChange={(event) => setNameDraft(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === "Enter") {
-                event.preventDefault();
-                event.currentTarget.blur();
-              }
-              if (event.key === "Escape" && journeyQuery.data) {
-                event.preventDefault();
-                setNameDraft(persistedName);
-                event.currentTarget.blur();
-              }
-            }}
-            value={nameDraft}
-          />
-        </Panel>
-
-        <WorkflowToolbar
-          canManageWorkflow={canManageWorkflow}
-          journeyStatus={journeyStatus}
-          journeyMode={effectiveMode}
-          publishWarnings={publishWarnings}
-          isPausing={pauseMutation.isPending}
-          isPublishing={publishMutation.isPending}
-          isResuming={resumeMutation.isPending}
-          isSaving={isSaving}
-          isSettingMode={setModeMutation.isPending}
-          onPause={() => void handlePause()}
-          onPublish={(mode) => void handlePublish(mode)}
-          onResume={() => void handleResume()}
-          onSave={() => void saveJourney()}
-          onSetMode={(mode) => void handleSetMode(mode)}
-        />
-
-        {isMobile ? (
-          <Panel position="bottom-right">
-            <Button
-              className="mb-[max(0.75rem,env(safe-area-inset-bottom))]"
-              onClick={() => setMobileSidebarOpen(true)}
-              size="sm"
-              type="button"
-            >
-              Inspector
-            </Button>
-          </Panel>
+      <div className="flex min-h-0 flex-1 flex-col">
+        {effectiveMode === "test" ? (
+          <div className="border-b border-destructive/30 bg-destructive/10 px-4 py-2">
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
+              <p className="flex items-center gap-1.5 font-semibold tracking-wide text-destructive">
+                <Icon className="size-3.5" icon={Alert02Icon} />
+                TEST MODE ACTIVE
+              </p>
+              <p className="font-medium text-foreground">
+                No real email or SMS will be sent from this workflow.
+              </p>
+              <p className="text-muted-foreground">
+                Delivery is sandboxed to log-only behavior or integration test
+                recipients only.
+              </p>
+            </div>
+          </div>
         ) : null}
-      </WorkflowEditorCanvas>
+        <div className="relative min-h-0 flex-1">
+          <WorkflowEditorCanvas canEdit={canManageWorkflow}>
+            <Panel className="flex items-center gap-2" position="top-left">
+              <Button
+                asChild
+                size="icon-sm"
+                title="Back to journeys"
+                variant="outline"
+              >
+                <Link to="/workflows" search={{ q: undefined }}>
+                  <Icon icon={ArrowLeft02Icon} />
+                </Link>
+              </Button>
+              <Input
+                className="h-8 w-64"
+                disabled={!canManageWorkflow || renameMutation.isPending}
+                onBlur={() => void commitJourneyName()}
+                onChange={(event) => setNameDraft(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    event.preventDefault();
+                    event.currentTarget.blur();
+                  }
+                  if (event.key === "Escape" && journeyQuery.data) {
+                    event.preventDefault();
+                    setNameDraft(persistedName);
+                    event.currentTarget.blur();
+                  }
+                }}
+                value={nameDraft}
+              />
+            </Panel>
+
+            <WorkflowToolbar
+              canManageWorkflow={canManageWorkflow}
+              journeyStatus={journeyStatus}
+              journeyMode={effectiveMode}
+              publishWarnings={publishWarnings}
+              isPausing={pauseMutation.isPending}
+              isPublishing={publishMutation.isPending}
+              isResuming={resumeMutation.isPending}
+              isSaving={isSaving}
+              isSettingMode={setModeMutation.isPending}
+              onPause={() => void handlePause()}
+              onPublish={(mode) => void handlePublish(mode)}
+              onResume={() => void handleResume()}
+              onSave={() => void saveJourney()}
+              onSetMode={(mode) => void handleSetMode(mode)}
+            />
+
+            {isMobile ? (
+              <Panel position="bottom-right">
+                <Button
+                  className="mb-[max(0.75rem,env(safe-area-inset-bottom))]"
+                  onClick={() => setMobileSidebarOpen(true)}
+                  size="sm"
+                  type="button"
+                >
+                  Inspector
+                </Button>
+              </Panel>
+            ) : null}
+          </WorkflowEditorCanvas>
+        </div>
+      </div>
 
       {isMobile ? (
         <Sheet

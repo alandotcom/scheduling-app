@@ -290,6 +290,34 @@ describe("ActionConfig", () => {
     expect(unitCombobox.textContent).toContain("hours");
   });
 
+  test("humanizes fallback select labels instead of showing raw enum tokens", () => {
+    render(
+      <ActionConfig
+        config={{
+          actionType: "send-resend",
+          testBehavior: "route_to_integration_test_recipient_v2",
+        }}
+        onUpdateConfig={mock((_key: string, _value: unknown) => {})}
+      />,
+    );
+
+    const testBehaviorLabel = screen.getByText("Test mode behavior");
+    const testBehaviorCombobox = testBehaviorLabel
+      .closest("div")
+      ?.querySelector('[role="combobox"]');
+    expect(testBehaviorCombobox).toBeTruthy();
+    if (!testBehaviorCombobox) {
+      throw new Error("Expected Test mode behavior combobox");
+    }
+
+    expect(testBehaviorCombobox.textContent).toContain(
+      "Route To Integration Test Recipient V2",
+    );
+    expect(testBehaviorCombobox.textContent).not.toContain(
+      "route_to_integration_test_recipient_v2",
+    );
+  });
+
   test("moves ago phrasing into the unit selector for past-relative operators", () => {
     render(
       <StatefulActionConfig

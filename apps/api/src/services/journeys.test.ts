@@ -720,7 +720,6 @@ describe("JourneyService", () => {
       created.id,
       {
         appointmentId: appointment.id,
-        emailOverride: "qa@example.com",
       },
       context,
     );
@@ -749,7 +748,7 @@ describe("JourneyService", () => {
     expect(deliveries).toHaveLength(1);
   });
 
-  test("manual test start rejects missing email override and does not create sends", async () => {
+  test("manual test start allows email steps without requiring override", async () => {
     const location = await createLocation(db as any, context.orgId);
     const calendar = await createCalendar(db as any, context.orgId, {
       locationId: location.id,
@@ -770,7 +769,7 @@ describe("JourneyService", () => {
 
     const created = await journeyService.create(
       {
-        name: "Email Override Journey",
+        name: "Email Test Mode Journey",
         graph: createLinearGraphWithSendMessage({ channel: "email" }),
       },
       context,
@@ -784,31 +783,30 @@ describe("JourneyService", () => {
       context,
     );
 
-    await expect(
-      journeyService.startTestRun(
-        created.id,
-        {
-          appointmentId: appointment.id,
-        },
-        context,
-      ),
-    ).rejects.toMatchObject({
-      code: "BAD_REQUEST",
-      message: "Email override is required for test runs with Email steps",
-    });
+    const result = await journeyService.startTestRun(
+      created.id,
+      {
+        appointmentId: appointment.id,
+      },
+      context,
+    );
 
     await setTestOrgContext(db, context.orgId);
 
-    const runs = await db.select({ id: journeyRuns.id }).from(journeyRuns);
+    const runs = await db
+      .select({ id: journeyRuns.id })
+      .from(journeyRuns)
+      .where(eq(journeyRuns.id, result.runId));
     const deliveries = await db
       .select({ id: journeyDeliveries.id })
-      .from(journeyDeliveries);
+      .from(journeyDeliveries)
+      .where(eq(journeyDeliveries.journeyRunId, result.runId));
 
-    expect(runs).toHaveLength(0);
-    expect(deliveries).toHaveLength(0);
+    expect(runs).toHaveLength(1);
+    expect(deliveries).toHaveLength(1);
   });
 
-  test("manual test start rejects missing email override for template email steps", async () => {
+  test("manual test start allows template email steps without requiring override", async () => {
     const location = await createLocation(db as any, context.orgId);
     const calendar = await createCalendar(db as any, context.orgId, {
       locationId: location.id,
@@ -829,7 +827,7 @@ describe("JourneyService", () => {
 
     const created = await journeyService.create(
       {
-        name: "Template Email Override Journey",
+        name: "Template Email Test Mode Journey",
         graph: createLinearGraphWithSendMessage({ channel: "email-template" }),
       },
       context,
@@ -843,18 +841,15 @@ describe("JourneyService", () => {
       context,
     );
 
-    await expect(
-      journeyService.startTestRun(
-        created.id,
-        {
-          appointmentId: appointment.id,
-        },
-        context,
-      ),
-    ).rejects.toMatchObject({
-      code: "BAD_REQUEST",
-      message: "Email override is required for test runs with Email steps",
-    });
+    const result = await journeyService.startTestRun(
+      created.id,
+      {
+        appointmentId: appointment.id,
+      },
+      context,
+    );
+
+    expect(result.mode).toBe("test");
   });
 
   test("manual test start allows slack steps without slack override", async () => {

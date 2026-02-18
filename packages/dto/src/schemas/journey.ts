@@ -486,7 +486,6 @@ export const resumeJourneySchema = z.object({});
 
 export const startJourneyTestRunSchema = z.object({
   appointmentId: uuidSchema,
-  emailOverride: z.email().optional(),
 });
 
 export const journeyResponseSchema = journeySchema;

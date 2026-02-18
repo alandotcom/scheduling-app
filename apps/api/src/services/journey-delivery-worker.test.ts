@@ -10,6 +10,7 @@ import {
 import { createOrg } from "../test-utils/factories.js";
 import type { ServiceContext } from "./locations.js";
 import { executeJourneyDeliveryScheduled } from "./journey-delivery-worker.js";
+import { dispatchJourneySendResendAction } from "./journey-integration-action-dispatchers.js";
 
 const db: TestDatabase = getTestDb();
 
@@ -98,11 +99,13 @@ async function seedPlannedDelivery(
       | "send-slack"
       | "logger";
     channel?: "email" | "slack" | "logger";
+    mode?: "live" | "test";
   },
 ) {
   const stepKey = input?.stepKey ?? "send-node";
   const actionType = input?.actionType ?? "send-resend";
   const channel = input?.channel ?? "email";
+  const mode = input?.mode ?? "live";
 
   await setTestOrgContext(db, context.orgId);
 
@@ -112,7 +115,7 @@ async function seedPlannedDelivery(
       orgId: context.orgId,
       journeyVersionId: null,
       appointmentId: crypto.randomUUID(),
-      mode: "live",
+      mode,
       status: "planned",
       journeyNameSnapshot: "Worker Journey",
       journeyVersionSnapshot: createJourneyVersionSnapshot({
@@ -405,5 +408,55 @@ describe("executeJourneyDeliveryScheduled", () => {
 
     expect(delivery?.status).toBe("sent");
     expect(delivery?.channel).toBe("logger");
+  });
+
+  test("marks resend deliveries in test mode as log-only by default", async () => {
+    const seeded = await seedPlannedDelivery(
+      context,
+      new Date("2026-02-16T09:00:00.000Z"),
+      {
+        mode: "test",
+        stepKey: "resend-test-node",
+        actionType: "send-resend",
+        channel: "email",
+      },
+    );
+
+    const result = await executeJourneyDeliveryScheduled(
+      {
+        orgId: context.orgId,
+        journeyDeliveryId: seeded.deliveryId,
+        journeyRunId: seeded.runId,
+        deterministicKey: seeded.deterministicKey,
+        scheduledFor: seeded.scheduledFor.toISOString(),
+      },
+      {
+        runtime: {
+          runStep: async <T>(_stepId: string, fn: () => Promise<T>) => fn(),
+          sleep: async (_stepId: string, _delayMs: number) => {},
+        },
+        now: () => new Date("2026-02-16T09:00:00.000Z"),
+        dispatchDelivery: (dispatchInput) =>
+          dispatchJourneySendResendAction(dispatchInput, {
+            resolveTestRecipient: async () => null,
+          }),
+      },
+    );
+
+    expect(result.status).toBe("sent");
+    expect(result.reasonCode).toBe("test_mode_log_only");
+
+    await setTestOrgContext(db, context.orgId);
+    const [delivery] = await db
+      .select({
+        status: journeyDeliveries.status,
+        reasonCode: journeyDeliveries.reasonCode,
+      })
+      .from(journeyDeliveries)
+      .where(eq(journeyDeliveries.id, seeded.deliveryId))
+      .limit(1);
+
+    expect(delivery?.status).toBe("sent");
+    expect(delivery?.reasonCode).toBe("test_mode_log_only");
   });
 });

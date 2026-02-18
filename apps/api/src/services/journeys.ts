@@ -481,41 +481,6 @@ function validateStartTestRunInput(
   return parsed.data;
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function toRecord(value: unknown): Record<string, unknown> {
-  return isRecord(value) ? value : {};
-}
-
-function normalizeActionType(value: unknown): string | null {
-  if (typeof value !== "string") {
-    return null;
-  }
-
-  const normalized = value.trim().toLowerCase();
-  if (normalized.length === 0) {
-    return null;
-  }
-
-  return normalized;
-}
-
-function journeyIncludesEmailSendStep(graph: LinearJourneyGraph): boolean {
-  return graph.nodes.some((node) => {
-    if (node.attributes.data.type !== "action") {
-      return false;
-    }
-
-    const config = toRecord(node.attributes.data.config);
-    const actionType = normalizeActionType(config["actionType"]);
-    return (
-      actionType === "send-resend" || actionType === "send-resend-template"
-    );
-  });
-}
-
 function mapAppointmentToScheduledPayload(appointment: {
   appointment: Pick<
     typeof appointments.$inferSelect,
@@ -1126,19 +1091,7 @@ export class JourneyService {
         );
       }
 
-      const parsedGraph = parseLinearJourneyGraph(
-        latestVersion.definitionSnapshot,
-      );
-
-      if (journeyIncludesEmailSendStep(parsedGraph) && !parsed.emailOverride) {
-        throw new ApplicationError(
-          "Email override is required for test runs with Email steps",
-          {
-            code: "BAD_REQUEST",
-            details: { field: "emailOverride" },
-          },
-        );
-      }
+      parseLinearJourneyGraph(latestVersion.definitionSnapshot);
 
       const [appointment] = await tx
         .select({

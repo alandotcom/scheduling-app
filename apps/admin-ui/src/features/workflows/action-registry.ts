@@ -201,6 +201,21 @@ registerAction({
       helpText:
         "Comma-separated email addresses. Type @ to autocomplete workflow values.",
     },
+    {
+      key: "testBehavior",
+      label: "Test mode behavior",
+      type: "select",
+      defaultValue: "log_only",
+      options: [
+        { value: "log_only", label: "Log only (never send externally)" },
+        {
+          value: "route_to_integration_test_recipient",
+          label: "Route to integration test recipient",
+        },
+      ],
+      helpText:
+        "Applies only in workflow Test mode. If routing is selected but no integration test recipient is configured, delivery safely falls back to log-only.",
+    },
   ],
 });
 
@@ -264,6 +279,21 @@ registerAction({
       helpText:
         "Add zero or more key/value pairs. Values support @ variable autocomplete.",
     },
+    {
+      key: "testBehavior",
+      label: "Test mode behavior",
+      type: "select",
+      defaultValue: "log_only",
+      options: [
+        { value: "log_only", label: "Log only (never send externally)" },
+        {
+          value: "route_to_integration_test_recipient",
+          label: "Route to integration test recipient",
+        },
+      ],
+      helpText:
+        "Applies only in workflow Test mode. If routing is selected but no integration test recipient is configured, delivery safely falls back to log-only.",
+    },
   ],
 });
 
@@ -293,6 +323,17 @@ registerAction({
         "Appointment for @Appointment.data.client.firstName moved to @Appointment.data.startAt.",
       helpText: "Type @ to autocomplete trigger or upstream attributes.",
       required: true,
+    },
+    {
+      key: "testBehavior",
+      label: "Test mode behavior",
+      type: "select",
+      defaultValue: "log_only",
+      options: [
+        { value: "log_only", label: "Log only (never send externally)" },
+      ],
+      helpText:
+        "Slack actions are always forced to log-only in workflow Test mode.",
     },
   ],
 });
@@ -333,6 +374,15 @@ registerAction({
       helpText:
         "Type freeform text and use @ to autocomplete upstream node outputs.",
       required: true,
+    },
+    {
+      key: "testBehavior",
+      label: "Test mode behavior",
+      type: "select",
+      defaultValue: "log_only",
+      options: [{ value: "log_only", label: "Log only" }],
+      helpText:
+        "Logger entries remain internal and are safe in workflow Test mode.",
     },
   ],
 });

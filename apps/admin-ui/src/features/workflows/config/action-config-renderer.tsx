@@ -98,6 +98,22 @@ function normalizeAttributeReference(value: string): string {
   return value.startsWith("@") ? value.slice(1) : value;
 }
 
+function formatFallbackSelectLabel(value: string): string {
+  const parts = value
+    .trim()
+    .split(/[_-]+/)
+    .map((part) => part.trim())
+    .filter((part) => part.length > 0);
+
+  if (parts.length === 0) {
+    return value;
+  }
+
+  return parts
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
 function extractAttributeReferences(value: string): string[] {
   const pattern = /@?[A-Z][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)+/g;
   return Array.from(value.matchAll(pattern), (match) =>
@@ -525,8 +541,17 @@ function SelectFieldRenderer({
   const optionsWithCurrent =
     currentValue.length > 0 &&
     !options.some((option) => option.value === currentValue)
-      ? [{ value: currentValue, label: currentValue }, ...options]
+      ? [
+          {
+            value: currentValue,
+            label: formatFallbackSelectLabel(currentValue),
+          },
+          ...options,
+        ]
       : options;
+  const selectedOptionLabel = optionsWithCurrent.find(
+    (option) => option.value === currentValue,
+  )?.label;
 
   return (
     <div className="space-y-2">
@@ -537,7 +562,9 @@ function SelectFieldRenderer({
         onValueChange={(val) => onUpdateConfig(field.key, val)}
       >
         <SelectTrigger size="sm">
-          <SelectValue placeholder={field.placeholder ?? "Select..."} />
+          <SelectValue placeholder={field.placeholder ?? "Select..."}>
+            {selectedOptionLabel}
+          </SelectValue>
         </SelectTrigger>
         <SelectContent>
           {optionsWithCurrent.map((option) => (

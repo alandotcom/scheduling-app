@@ -52,6 +52,7 @@ const appManagedIntegrations: readonly AppManagedIntegrationDefinition[] = [
       fromEmail: "",
       fromName: "",
       replyTo: "",
+      testRecipientEmail: "",
     },
     configSchema: [
       {
@@ -77,6 +78,15 @@ const appManagedIntegrations: readonly AppManagedIntegrationDefinition[] = [
         label: "Reply-to email",
         description: "Optional default reply-to address.",
         placeholder: "support@example.com",
+        required: false,
+        inputType: "email",
+      },
+      {
+        key: "testRecipientEmail",
+        label: "Test recipient email",
+        description:
+          "Optional safe recipient used for workflow Test mode routing.",
+        placeholder: "qa@example.com",
         required: false,
         inputType: "email",
       },

@@ -356,7 +356,6 @@ describe("Journey Routes", () => {
           id: created.id,
           data: {
             appointmentId: "018f4d3a-6d80-7c5b-8a4a-6cb8f8d57d88",
-            emailOverride: "qa@example.com",
           },
         },
         { context: memberContext },
@@ -617,7 +616,6 @@ describe("Journey Routes", () => {
         id: created.id,
         data: {
           appointmentId: appointment.id,
-          emailOverride: "qa@example.com",
         },
       },
       { context: ownerContext },
@@ -627,7 +625,7 @@ describe("Journey Routes", () => {
     expect(started.runId).toBeTruthy();
   });
 
-  test("manual test run route rejects missing email override for email steps", async () => {
+  test("manual test run route allows email steps without requiring override", async () => {
     const location = await createLocation(db, ownerContext.orgId!);
     const calendar = await createCalendar(db, ownerContext.orgId!, {
       locationId: location.id,
@@ -666,24 +664,22 @@ describe("Journey Routes", () => {
       { context: ownerContext },
     );
 
-    await expect(
-      call(
-        journeyRoutes.startTestRun,
-        {
-          id: created.id,
-          data: {
-            appointmentId: appointment.id,
-          },
+    const started = await call(
+      journeyRoutes.startTestRun,
+      {
+        id: created.id,
+        data: {
+          appointmentId: appointment.id,
         },
-        { context: ownerContext },
-      ),
-    ).rejects.toMatchObject({
-      code: "BAD_REQUEST",
-      message: "Email override is required for test runs with Email steps",
-    });
+      },
+      { context: ownerContext },
+    );
+
+    expect(started.mode).toBe("test");
+    expect(started.runId).toBeTruthy();
   });
 
-  test("manual test run route rejects missing email override for template email steps", async () => {
+  test("manual test run route allows template email steps without requiring override", async () => {
     const location = await createLocation(db, ownerContext.orgId!);
     const calendar = await createCalendar(db, ownerContext.orgId!, {
       locationId: location.id,
@@ -722,21 +718,19 @@ describe("Journey Routes", () => {
       { context: ownerContext },
     );
 
-    await expect(
-      call(
-        journeyRoutes.startTestRun,
-        {
-          id: created.id,
-          data: {
-            appointmentId: appointment.id,
-          },
+    const started = await call(
+      journeyRoutes.startTestRun,
+      {
+        id: created.id,
+        data: {
+          appointmentId: appointment.id,
         },
-        { context: ownerContext },
-      ),
-    ).rejects.toMatchObject({
-      code: "BAD_REQUEST",
-      message: "Email override is required for test runs with Email steps",
-    });
+      },
+      { context: ownerContext },
+    );
+
+    expect(started.mode).toBe("test");
+    expect(started.runId).toBeTruthy();
   });
 
   test("runs endpoints expose mode filtering and snapshot detail fields", async () => {

@@ -30,7 +30,7 @@ type DeliveryRow = Pick<
 
 type RunRow = Pick<
   typeof journeyRuns.$inferSelect,
-  "id" | "status" | "journeyVersionSnapshot"
+  "id" | "status" | "mode" | "journeyVersionSnapshot"
 >;
 
 type DeliveryWithRun = {
@@ -146,6 +146,7 @@ async function loadDeliveryWithRun(
       .select({
         id: journeyRuns.id,
         status: journeyRuns.status,
+        mode: journeyRuns.mode,
         journeyVersionSnapshot: journeyRuns.journeyVersionSnapshot,
       })
       .from(journeyRuns)
@@ -425,6 +426,7 @@ export async function executeJourneyDeliveryScheduled(
       journeyRunId: current.delivery.journeyRunId,
       channel: current.delivery.channel,
       idempotencyKey: current.delivery.deterministicKey,
+      runMode: run.mode,
       stepConfig,
     };
 
@@ -465,11 +467,13 @@ export async function executeJourneyDeliveryScheduled(
     const dispatchAttempt = await attemptDispatch(1);
 
     if (dispatchAttempt.ok) {
+      const dispatchedReasonCode =
+        dispatchAttempt.dispatched.reasonCode ?? null;
       const resolved = await updateDeliveryIfPlanned({
         orgId: input.orgId,
         journeyDeliveryId: current.delivery.id,
         status: "sent",
-        reasonCode: null,
+        reasonCode: dispatchedReasonCode,
       });
 
       await refreshRunStatus(input.orgId, current.delivery.journeyRunId);
@@ -479,7 +483,7 @@ export async function executeJourneyDeliveryScheduled(
         journeyRunId: current.delivery.journeyRunId,
         status: toTerminalStatus(resolved?.status ?? "sent"),
         attempts: dispatchAttempt.attempts,
-        reasonCode: resolved?.reasonCode ?? null,
+        reasonCode: resolved?.reasonCode ?? dispatchedReasonCode,
       };
 
       if (typeof dispatchAttempt.dispatched.providerMessageId === "string") {

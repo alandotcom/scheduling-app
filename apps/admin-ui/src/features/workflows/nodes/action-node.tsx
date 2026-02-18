@@ -27,6 +27,7 @@ import {
 } from "../action-visuals";
 import {
   selectedExecutionIdAtom,
+  workflowEditorJourneyModeAtom,
   workflowEditorEdgesAtom,
   workflowExecutionLogsByNodeIdAtom,
   type WorkflowActionNodeData,
@@ -351,6 +352,33 @@ function StatusBadge({ status }: { status: WorkflowActionNodeData["status"] }) {
   );
 }
 
+function isDeliveryActionType(actionType: string | undefined): boolean {
+  return (
+    actionType === "send-resend" ||
+    actionType === "send-resend-template" ||
+    actionType === "send-slack" ||
+    actionType === "logger"
+  );
+}
+
+function getTestSafetyBadgeLabel(
+  actionType: string | undefined,
+  config: WorkflowActionNodeData["config"],
+): string | null {
+  if (!isDeliveryActionType(actionType)) {
+    return null;
+  }
+
+  if (
+    (actionType === "send-resend" || actionType === "send-resend-template") &&
+    config?.testBehavior === "route_to_integration_test_recipient"
+  ) {
+    return "TEST: TO TEST RECIPIENT";
+  }
+
+  return "TEST: NO LIVE SEND";
+}
+
 const ActionNode = memo(function ActionNode({
   id,
   data: nodeData,
@@ -359,6 +387,7 @@ const ActionNode = memo(function ActionNode({
   const isDisabled = nodeData.enabled === false;
   const actionType = nodeData.config?.actionType;
   const actionDef = actionType ? getAction(actionType) : undefined;
+  const journeyMode = useAtomValue(workflowEditorJourneyModeAtom);
   const selectedExecutionId = useAtomValue(selectedExecutionIdAtom);
   const workflowEdges = useAtomValue(workflowEditorEdgesAtom);
   const executionLogsByNodeId = useAtomValue(workflowExecutionLogsByNodeIdAtom);
@@ -392,6 +421,10 @@ const ActionNode = memo(function ActionNode({
       ? toRuntimeNodeStatus(executionLogsByNodeId[id]?.status)
       : undefined;
   const status = runtimeStatus ?? nodeData.status;
+  const testSafetyBadgeLabel =
+    journeyMode === "test"
+      ? getTestSafetyBadgeLabel(actionType, nodeData.config)
+      : null;
 
   useEffect(() => {
     updateNodeInternals(id);
@@ -453,8 +486,13 @@ const ActionNode = memo(function ActionNode({
           False
         </div>
       ) : null}
+      {testSafetyBadgeLabel ? (
+        <div className="absolute top-2 left-2 rounded-sm border border-amber-500/50 bg-amber-500/10 px-1.5 py-0.5 font-medium text-[10px] leading-none text-amber-800">
+          {testSafetyBadgeLabel}
+        </div>
+      ) : null}
       {isDisabled && (
-        <div className="absolute top-2 left-2 flex size-5 items-center justify-center rounded-full bg-muted">
+        <div className="absolute bottom-2 left-2 flex size-5 items-center justify-center rounded-full bg-muted">
           <Icon icon={ViewOffIcon} className="size-3 text-muted-foreground" />
         </div>
       )}

@@ -1,5 +1,6 @@
 import {
   journeyTriggerConfigSchema,
+  type JourneyMode,
   serializedJourneyGraphSchema,
   type SerializedJourneyGraph,
 } from "@scheduling/dto";
@@ -601,6 +602,7 @@ export const propertiesPanelActiveTabAtom = atom<string>("properties");
 // Execution State
 export const isExecutingAtom = atom(false);
 export const selectedExecutionIdAtom = atom<string | null>(null);
+export const workflowEditorJourneyModeAtom = atom<JourneyMode>("live");
 export type WorkflowExecutionNodeLogPreview = {
   nodeId: string;
   status: "pending" | "running" | "success" | "error" | "cancelled";
