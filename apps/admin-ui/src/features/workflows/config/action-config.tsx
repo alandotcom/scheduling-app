@@ -17,6 +17,7 @@ import {
 } from "../action-registry";
 import { getActionVisualSpec } from "../action-visuals";
 import { ActionConfigRenderer } from "./action-config-renderer";
+import type { WorkflowFilterValueOption } from "../filter-builder-shared";
 
 function filterActionsByEnvironment(input: {
   categoryMap: Map<string, ActionDefinition[]>;
@@ -46,6 +47,7 @@ interface ActionConfigProps {
   disabled?: boolean;
   expressionSuggestions?: EventAttributeSuggestion[];
   selectOptionsByKey?: Record<string, Array<{ value: string; label: string }>>;
+  conditionValueOptionsByField?: Record<string, WorkflowFilterValueOption[]>;
   defaultTimezone?: string;
 }
 
@@ -77,6 +79,7 @@ export function ActionConfig({
   disabled,
   expressionSuggestions = [],
   selectOptionsByKey = {},
+  conditionValueOptionsByField = {},
   defaultTimezone = "America/New_York",
 }: ActionConfigProps) {
   const isDev = String(import.meta.env.DEV) === "true";
@@ -248,6 +251,7 @@ export function ActionConfig({
           disabled={disabled}
           expressionSuggestions={expressionSuggestions}
           selectOptionsByKey={selectOptionsByKey}
+          conditionValueOptionsByField={conditionValueOptionsByField}
         />
       ) : (
         <p className="text-muted-foreground text-xs">

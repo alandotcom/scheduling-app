@@ -30,11 +30,13 @@ import {
   VALUELESS_OPERATORS,
   WORKFLOW_FILTER_FIELD_OPTIONS,
   WORKFLOW_FILTER_TEMPORAL_UNIT_OPTIONS,
+  type WorkflowFilterValueOption,
   getWorkflowFilterFieldLabel,
   getWorkflowFilterOperatorLabel,
   getWorkflowFilterTemporalUnitLabel,
   getOperatorOptionsForField,
   getWorkflowFilterFieldType,
+  isLookupWorkflowFilterField,
   toAbsoluteTemporalComparisonValue,
   toDateTimeLocalInputValue,
   toRelativeTemporalValueDraft,
@@ -48,6 +50,7 @@ interface ActionConfigRendererProps {
   disabled?: boolean;
   expressionSuggestions?: EventAttributeSuggestion[];
   selectOptionsByKey?: Record<string, Array<{ value: string; label: string }>>;
+  conditionValueOptionsByField?: Record<string, WorkflowFilterValueOption[]>;
   defaultTimezone?: string;
 }
 
@@ -650,6 +653,7 @@ function ConditionExpressionFieldRenderer({
   onUpdateConfigBatch,
   disabled,
   suggestions,
+  conditionValueOptionsByField,
 }: {
   field: ActionConfigFieldBase;
   config: Record<string, unknown>;
@@ -658,6 +662,7 @@ function ConditionExpressionFieldRenderer({
   onUpdateConfigBatch?: (patch: Record<string, unknown>) => void;
   disabled?: boolean;
   suggestions: EventAttributeSuggestion[];
+  conditionValueOptionsByField: Record<string, WorkflowFilterValueOption[]>;
 }) {
   const configValue =
     typeof config[field.key] === "string"
@@ -688,6 +693,7 @@ function ConditionExpressionFieldRenderer({
       : undefined;
   const isTimestampField =
     getWorkflowFilterFieldType(conditionField) === "timestamp";
+  const isLookupField = isLookupWorkflowFilterField(conditionField);
   const relativeTemporalValue = toRelativeTemporalValueDraft(conditionValue);
   const selectedFieldLabel = getWorkflowFilterFieldLabel(conditionField);
   const selectedOperatorLabel = getWorkflowFilterOperatorLabel({
@@ -711,6 +717,22 @@ function ConditionExpressionFieldRenderer({
     }),
   );
   const selectedConditionTimezone = conditionTimezone ?? defaultTimezone;
+  const stringConditionValue =
+    typeof conditionValue === "string" ? conditionValue : "";
+  const baseValueOptions = isLookupField
+    ? (conditionValueOptionsByField[conditionField] ?? [])
+    : [];
+  const valueOptions =
+    stringConditionValue.length > 0 &&
+    !baseValueOptions.some((option) => option.value === stringConditionValue)
+      ? [
+          { value: stringConditionValue, label: stringConditionValue },
+          ...baseValueOptions,
+        ]
+      : baseValueOptions;
+  const selectedValueLabel = valueOptions.find(
+    (option) => option.value === stringConditionValue,
+  )?.label;
   const timezoneOptions = TIMEZONES.some(
     (timezone) => timezone === selectedConditionTimezone,
   )
@@ -982,13 +1004,52 @@ function ConditionExpressionFieldRenderer({
               </Select>
             </>
           ) : (
-            <Input
-              className="min-[420px]:col-span-2"
-              disabled={disabled}
-              placeholder="Enter value..."
-              value={typeof conditionValue === "string" ? conditionValue : ""}
-              onChange={(event) => commitBuilder({ value: event.target.value })}
-            />
+            <>
+              {isLookupField ? (
+                <Select
+                  disabled={disabled}
+                  value={
+                    stringConditionValue.length > 0
+                      ? stringConditionValue
+                      : null
+                  }
+                  onValueChange={(value) => commitBuilder({ value })}
+                >
+                  <SelectTrigger
+                    aria-label="Condition value"
+                    className="min-w-0 min-[420px]:col-span-2"
+                    size="sm"
+                  >
+                    <SelectValue placeholder="Select value">
+                      {selectedValueLabel}
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    {valueOptions.length > 0 ? (
+                      valueOptions.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label}
+                        </SelectItem>
+                      ))
+                    ) : (
+                      <SelectItem disabled value="__no_options__">
+                        No values available
+                      </SelectItem>
+                    )}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <Input
+                  className="min-[420px]:col-span-2"
+                  disabled={disabled}
+                  placeholder="Enter value..."
+                  value={stringConditionValue}
+                  onChange={(event) =>
+                    commitBuilder({ value: event.target.value })
+                  }
+                />
+              )}
+            </>
           )}
         </div>
       ) : (
@@ -1144,6 +1205,7 @@ function GroupFieldRenderer({
   disabled,
   expressionSuggestions,
   selectOptionsByKey,
+  conditionValueOptionsByField,
   fieldDefaults,
 }: {
   group: ActionConfigFieldGroup;
@@ -1154,6 +1216,7 @@ function GroupFieldRenderer({
   disabled?: boolean;
   expressionSuggestions: EventAttributeSuggestion[];
   selectOptionsByKey: Record<string, Array<{ value: string; label: string }>>;
+  conditionValueOptionsByField: Record<string, WorkflowFilterValueOption[]>;
   fieldDefaults: Record<string, string>;
 }) {
   const [expanded, setExpanded] = useState(group.defaultExpanded ?? true);
@@ -1187,6 +1250,7 @@ function GroupFieldRenderer({
               disabled={disabled}
               expressionSuggestions={expressionSuggestions}
               selectOptionsByKey={selectOptionsByKey}
+              conditionValueOptionsByField={conditionValueOptionsByField}
               fieldDefaults={fieldDefaults}
             />
           ))}
@@ -1205,6 +1269,7 @@ function FieldRenderer({
   disabled,
   expressionSuggestions,
   selectOptionsByKey,
+  conditionValueOptionsByField,
   fieldDefaults,
 }: {
   field: ActionConfigField;
@@ -1215,6 +1280,7 @@ function FieldRenderer({
   disabled?: boolean;
   expressionSuggestions: EventAttributeSuggestion[];
   selectOptionsByKey: Record<string, Array<{ value: string; label: string }>>;
+  conditionValueOptionsByField: Record<string, WorkflowFilterValueOption[]>;
   fieldDefaults: Record<string, string>;
 }) {
   if (isFieldGroup(field)) {
@@ -1228,6 +1294,7 @@ function FieldRenderer({
         disabled={disabled}
         expressionSuggestions={expressionSuggestions}
         selectOptionsByKey={selectOptionsByKey}
+        conditionValueOptionsByField={conditionValueOptionsByField}
         fieldDefaults={fieldDefaults}
       />
     );
@@ -1298,6 +1365,7 @@ function FieldRenderer({
             onUpdateConfigBatch={onUpdateConfigBatch}
             disabled={disabled}
             suggestions={expressionSuggestions}
+            conditionValueOptionsByField={conditionValueOptionsByField}
           />
         );
       }
@@ -1337,6 +1405,7 @@ export function ActionConfigRenderer({
   disabled,
   expressionSuggestions = [],
   selectOptionsByKey = {},
+  conditionValueOptionsByField = {},
   defaultTimezone = "America/New_York",
 }: ActionConfigRendererProps) {
   const fieldDefaults = collectFieldDefaults(fields);
@@ -1354,6 +1423,7 @@ export function ActionConfigRenderer({
           disabled={disabled}
           expressionSuggestions={expressionSuggestions}
           selectOptionsByKey={selectOptionsByKey}
+          conditionValueOptionsByField={conditionValueOptionsByField}
           fieldDefaults={fieldDefaults}
         />
       ))}

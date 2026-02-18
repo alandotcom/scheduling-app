@@ -290,6 +290,33 @@ describe("ActionConfig", () => {
     expect(unitCombobox.textContent).toContain("hours");
   });
 
+  test("uses lookup dropdown values for condition builder ID fields", () => {
+    render(
+      <ActionConfig
+        config={{
+          actionType: "condition",
+          expression: 'appointment.calendarId == "cal-1"',
+          conditionMode: "builder",
+          conditionField: "appointment.calendarId",
+          conditionOperator: "equals",
+          conditionValue: "cal-1",
+        }}
+        conditionValueOptionsByField={{
+          "appointment.calendarId": [
+            { value: "cal-1", label: "Main Calendar — cal-1" },
+          ],
+        }}
+        onUpdateConfig={mock((_key: string, _value: unknown) => {})}
+      />,
+    );
+
+    const valueCombobox = screen.getByRole("combobox", {
+      name: "Condition value",
+    });
+    expect(valueCombobox.textContent).toContain("Main Calendar — cal-1");
+    expect(screen.queryByPlaceholderText("Enter value...")).toBeNull();
+  });
+
   test("humanizes fallback select labels instead of showing raw enum tokens", () => {
     render(
       <ActionConfig

@@ -675,17 +675,83 @@ export const setWorkflowEditorGraphAtom = atom(
 export const setWorkflowEditorSelectionAtom = atom(
   null,
   (
-    _get,
+    get,
     set,
     selection: {
       nodeId: string | null;
       edgeId: string | null;
     },
   ) => {
-    set(workflowEditorSelectedNodeIdAtom, selection.nodeId);
-    set(workflowEditorSelectedEdgeIdAtom, selection.edgeId);
+    const currentSelectedNodeId = get(workflowEditorSelectedNodeIdAtom);
+    const currentSelectedEdgeId = get(workflowEditorSelectedEdgeIdAtom);
+    if (
+      currentSelectedNodeId === selection.nodeId &&
+      currentSelectedEdgeId === selection.edgeId
+    ) {
+      return;
+    }
+
+    if (currentSelectedNodeId !== selection.nodeId) {
+      set(workflowEditorSelectedNodeIdAtom, selection.nodeId);
+    }
+    if (currentSelectedEdgeId !== selection.edgeId) {
+      set(workflowEditorSelectedEdgeIdAtom, selection.edgeId);
+    }
   },
 );
+
+export const clearWorkflowEditorSelectionAtom = atom(null, (get, set) => {
+  const currentNodes = get(workflowEditorNodesAtom);
+  const currentEdges = get(workflowEditorEdgesAtom);
+  const currentSelectedNodeId = get(workflowEditorSelectedNodeIdAtom);
+  const currentSelectedEdgeId = get(workflowEditorSelectedEdgeIdAtom);
+
+  let nodesChanged = false;
+  const nextNodes = currentNodes.map((node) => {
+    if (node.selected !== true) {
+      return node;
+    }
+    nodesChanged = true;
+    return {
+      ...node,
+      selected: false,
+    };
+  });
+
+  let edgesChanged = false;
+  const nextEdges = currentEdges.map((edge) => {
+    if (edge.selected !== true) {
+      return edge;
+    }
+    edgesChanged = true;
+    return {
+      ...edge,
+      selected: false,
+    };
+  });
+
+  if (
+    !nodesChanged &&
+    !edgesChanged &&
+    !currentSelectedNodeId &&
+    !currentSelectedEdgeId
+  ) {
+    return;
+  }
+
+  if (nodesChanged) {
+    set(workflowEditorNodesAtom, nextNodes);
+  }
+  if (edgesChanged) {
+    set(workflowEditorEdgesAtom, nextEdges);
+  }
+  if (currentSelectedNodeId) {
+    set(workflowEditorSelectedNodeIdAtom, null);
+  }
+  if (currentSelectedEdgeId) {
+    set(workflowEditorSelectedEdgeIdAtom, null);
+  }
+});
 
 export const updateWorkflowEditorNodeDataAtom = atom(
   null,

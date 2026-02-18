@@ -37,6 +37,21 @@ interface AppointmentTypeFixture {
   updatedAt: string;
 }
 
+interface ClientFixture {
+  id: string;
+  orgId: string;
+  firstName: string;
+  lastName: string;
+  email: string | null;
+  phone: string | null;
+  referenceId: string | null;
+  relationshipCounts: {
+    appointments: number;
+  };
+  createdAt: string;
+  updatedAt: string;
+}
+
 interface LocationFixture {
   id: string;
   name: string;
@@ -132,6 +147,27 @@ export function createAppointmentTypeFixture(
     relationshipCounts: {
       calendars: 0,
       resources: 0,
+      appointments: 0,
+    },
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    ...overrides,
+  };
+}
+
+export function createClientFixture(
+  overrides: Partial<ClientFixture> = {},
+): ClientFixture {
+  const id = overrides.id ?? nextId();
+  return {
+    id,
+    orgId: "test-org-id",
+    firstName: "John",
+    lastName: "Doe",
+    email: "john@example.com",
+    phone: null,
+    referenceId: null,
+    relationshipCounts: {
       appointments: 0,
     },
     createdAt: new Date().toISOString(),
@@ -270,6 +306,7 @@ let mockAppointments: AppointmentWithRelations[] = [];
 let mockScheduleEvents: AppointmentScheduleEvent[] = [];
 let mockCalendars: CalendarFixture[] = [];
 let mockAppointmentTypes: AppointmentTypeFixture[] = [];
+let mockClients: ClientFixture[] = [];
 let mockLocations: LocationFixture[] = [];
 let mockAvailabilityRules: AvailabilityRuleFixture[] = [];
 let mockDateOverrides: DateOverrideFixture[] = [];
@@ -299,6 +336,10 @@ export function setMockCalendars(calendars: CalendarFixture[]) {
 
 export function setMockAppointmentTypes(types: AppointmentTypeFixture[]) {
   mockAppointmentTypes = types;
+}
+
+export function setMockClients(clients: ClientFixture[]) {
+  mockClients = clients;
 }
 
 export function setMockLocations(locations: LocationFixture[]) {
@@ -338,6 +379,7 @@ export function resetMockData() {
   mockScheduleEvents = [];
   mockCalendars = [];
   mockAppointmentTypes = [];
+  mockClients = [];
   mockLocations = [];
   mockAvailabilityRules = [];
   mockDateOverrides = [];
@@ -428,6 +470,15 @@ export const handlers = [
   http.post("*/v1/appointmentTypes/list", () => {
     return HttpResponse.json({
       items: mockAppointmentTypes,
+      nextCursor: null,
+      hasMore: false,
+    });
+  }),
+
+  // List clients
+  http.post("*/v1/clients/list", () => {
+    return HttpResponse.json({
+      items: mockClients,
       nextCursor: null,
       hasMore: false,
     });

@@ -131,6 +131,53 @@ describe("WorkflowTriggerConfig", () => {
     expect(onUpdate).toHaveBeenCalledTimes(0);
   });
 
+  test("uses lookup dropdown values for ID-backed fields", () => {
+    const onUpdate = mock(() => {});
+
+    render(
+      <WorkflowTriggerConfig
+        config={{
+          ...createTriggerConfig(),
+          filter: {
+            logic: "and",
+            groups: [
+              {
+                logic: "and",
+                conditions: [
+                  {
+                    field: "appointment.calendarId",
+                    operator: "equals",
+                    value: "cal-123",
+                  },
+                ],
+              },
+            ],
+          },
+        }}
+        disabled={false}
+        onUpdate={onUpdate}
+        valueOptionsByField={{
+          "appointment.calendarId": [
+            {
+              value: "cal-123",
+              label: "Main Calendar — cal-123",
+            },
+          ],
+        }}
+      />,
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Toggle audience rules" }),
+    );
+
+    const valueCombobox = screen.getByRole("combobox", {
+      name: "Group 1 condition 1 value",
+    });
+    expect(valueCombobox.textContent).toContain("Main Calendar — cal-123");
+    expect(screen.queryByPlaceholderText("Enter value...")).toBeNull();
+  });
+
   test("keeps audience rules expanded after valid filter selections", () => {
     const onUpdate = mock(() => {});
     const view = render(

@@ -33,11 +33,13 @@ import {
   VALUELESS_OPERATORS,
   WORKFLOW_FILTER_FIELD_OPTIONS,
   WORKFLOW_FILTER_TEMPORAL_UNIT_OPTIONS,
+  type WorkflowFilterValueOption,
   getWorkflowFilterFieldLabel,
   getWorkflowFilterOperatorLabel,
   getWorkflowFilterTemporalUnitLabel,
   getOperatorOptionsForField,
   getWorkflowFilterFieldType,
+  isLookupWorkflowFilterField,
   toDateTimeLocalInputValue,
   toWorkflowFilterFallbackLabel,
   toRelativeTemporalValueDraft,
@@ -232,6 +234,7 @@ interface ConditionRowProps {
     patch: Partial<JourneyTriggerFilterConditionDraft>,
   ) => void;
   onRemove: (groupIndex: number, conditionIndex: number) => void;
+  valueOptionsByField: Record<string, WorkflowFilterValueOption[]>;
 }
 
 function ConditionRow({
@@ -243,9 +246,11 @@ function ConditionRow({
   groupIndex,
   onChange,
   onRemove,
+  valueOptionsByField,
 }: ConditionRowProps) {
   const isTimestampField =
     getWorkflowFilterFieldType(condition.field) === "timestamp";
+  const isLookupField = isLookupWorkflowFilterField(condition.field);
   const baseOperatorOptions = getOperatorOptionsForField(condition.field);
   const operatorOptions =
     condition.operator.length > 0 &&
@@ -291,6 +296,18 @@ function ConditionRow({
   )
     ? TIMEZONES
     : [selectedTimezone, ...TIMEZONES];
+  const conditionValue = toConditionValue(condition);
+  const baseValueOptions = isLookupField
+    ? (valueOptionsByField[condition.field] ?? [])
+    : [];
+  const valueOptions =
+    conditionValue.length > 0 &&
+    !baseValueOptions.some((option) => option.value === conditionValue)
+      ? [{ value: conditionValue, label: conditionValue }, ...baseValueOptions]
+      : baseValueOptions;
+  const selectedValueLabel = valueOptions.find(
+    (option) => option.value === conditionValue,
+  )?.label;
 
   return (
     <div className="flex items-start gap-2">
@@ -479,12 +496,43 @@ function ConditionRow({
                 </SelectContent>
               </Select>
             </>
+          ) : isLookupField ? (
+            <Select
+              disabled={disabled}
+              value={conditionValue.length > 0 ? conditionValue : null}
+              onValueChange={(value) =>
+                onChange(groupIndex, conditionIndex, { value })
+              }
+            >
+              <SelectTrigger
+                aria-label={`Group ${groupIndex + 1} condition ${conditionIndex + 1} value`}
+                className="h-9 min-w-0 w-full min-[420px]:col-span-2"
+                size="sm"
+              >
+                <SelectValue placeholder="Select value">
+                  {selectedValueLabel}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {valueOptions.length > 0 ? (
+                  valueOptions.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))
+                ) : (
+                  <SelectItem disabled value="__no_options__">
+                    No values available
+                  </SelectItem>
+                )}
+              </SelectContent>
+            </Select>
           ) : (
             <Input
               className="h-9 min-[420px]:col-span-2"
               disabled={disabled}
               placeholder="Enter value..."
-              value={toConditionValue(condition)}
+              value={conditionValue}
               onChange={(event) =>
                 onChange(groupIndex, conditionIndex, {
                   value: event.target.value,
@@ -526,6 +574,7 @@ interface FilterGroupCardProps {
   onGroupLogicChange: (groupIndex: number, logic: LogicOperator) => void;
   onRemoveCondition: (groupIndex: number, conditionIndex: number) => void;
   onRemoveGroup: (groupIndex: number) => void;
+  valueOptionsByField: Record<string, WorkflowFilterValueOption[]>;
 }
 
 function FilterGroupCard({
@@ -538,6 +587,7 @@ function FilterGroupCard({
   onGroupLogicChange,
   onRemoveCondition,
   onRemoveGroup,
+  valueOptionsByField,
 }: FilterGroupCardProps) {
   return (
     <div className="rounded-lg border bg-card">
@@ -578,6 +628,7 @@ function FilterGroupCard({
               groupIndex={groupIndex}
               onChange={onConditionChange}
               onRemove={onRemoveCondition}
+              valueOptionsByField={valueOptionsByField}
             />
 
             {conditionIndex < group.conditions.length - 1 ? (
@@ -628,6 +679,7 @@ interface AudienceFilterSectionProps {
   onRemoveCondition: (groupIndex: number, conditionIndex: number) => void;
   onRemoveGroup: (groupIndex: number) => void;
   onToggleExpanded: () => void;
+  valueOptionsByField: Record<string, WorkflowFilterValueOption[]>;
 }
 
 function AudienceFilterSection({
@@ -644,6 +696,7 @@ function AudienceFilterSection({
   onRemoveCondition,
   onRemoveGroup,
   onToggleExpanded,
+  valueOptionsByField,
 }: AudienceFilterSectionProps) {
   const totalConditions = countFilterConditions(filter);
   const totalGroups = filter?.groups.length ?? 0;
@@ -714,6 +767,7 @@ function AudienceFilterSection({
                     onGroupLogicChange={onGroupLogicChange}
                     onRemoveCondition={onRemoveCondition}
                     onRemoveGroup={onRemoveGroup}
+                    valueOptionsByField={valueOptionsByField}
                   />
 
                   {groupIndex < filter.groups.length - 1 ? (
@@ -755,6 +809,7 @@ interface WorkflowTriggerConfigProps {
   defaultTimezone?: string;
   disabled: boolean;
   onUpdate: (next: TriggerConfigShape) => void;
+  valueOptionsByField?: Record<string, WorkflowFilterValueOption[]>;
 }
 
 export function WorkflowTriggerConfig({
@@ -762,6 +817,7 @@ export function WorkflowTriggerConfig({
   defaultTimezone = "America/New_York",
   disabled,
   onUpdate,
+  valueOptionsByField = {},
 }: WorkflowTriggerConfigProps) {
   const filterSyncKey = useMemo(() => {
     return JSON.stringify(config.filter ?? null);
@@ -777,6 +833,7 @@ export function WorkflowTriggerConfig({
       onUpdate={onUpdate}
       showFilters={showFilters}
       onShowFiltersChange={setShowFilters}
+      valueOptionsByField={valueOptionsByField}
     />
   );
 }
@@ -793,6 +850,7 @@ function WorkflowTriggerConfigInner({
   onUpdate,
   showFilters,
   onShowFiltersChange,
+  valueOptionsByField = {},
 }: WorkflowTriggerConfigInnerProps) {
   const [filterDraft, setFilterDraft] =
     useState<JourneyTriggerFilterAstDraft | null>(() =>
@@ -1036,6 +1094,7 @@ function WorkflowTriggerConfigInner({
         onRemoveCondition={handleRemoveCondition}
         onRemoveGroup={handleRemoveFilterGroup}
         onToggleExpanded={() => onShowFiltersChange(!showFilters)}
+        valueOptionsByField={valueOptionsByField}
       />
     </section>
   );

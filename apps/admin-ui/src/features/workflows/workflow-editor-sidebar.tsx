@@ -1,5 +1,6 @@
 import type { Edge, Node } from "@xyflow/react";
 import { useEffect, useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import {
   journeyTriggerConfigSchema,
   type DomainEventType,
@@ -20,6 +21,8 @@ import { ActionGrid } from "./config/action-grid";
 import { ActionConfig } from "./config/action-config";
 import { buildEventAttributeSuggestions } from "./config/event-attribute-suggestions";
 import { getAction } from "./action-registry";
+import type { WorkflowFilterValueOption } from "./filter-builder-shared";
+import { orpc } from "@/lib/query";
 
 type WorkflowEditorSidebarTab = "properties" | "runs";
 
@@ -258,6 +261,26 @@ function isNodeEnabled(node: Node | null): boolean {
   return node.data.enabled !== false;
 }
 
+function toLookupOptionLabel(input: { name: string; id: string }): string {
+  return `${input.name} — ${input.id}`;
+}
+
+function toClientLookupLabel(input: {
+  firstName: string;
+  lastName: string;
+  email: string | null;
+  id: string;
+}): string {
+  const fullName = `${input.firstName} ${input.lastName}`.trim();
+  const baseLabel =
+    fullName.length > 0
+      ? fullName
+      : input.email?.trim().length
+        ? input.email
+        : "Unnamed client";
+  return toLookupOptionLabel({ name: baseLabel, id: input.id });
+}
+
 export function WorkflowEditorSidebar({
   workflowId,
   defaultTimezone,
@@ -296,6 +319,65 @@ export function WorkflowEditorSidebar({
   const triggerEventTypes = getConfiguredTriggerEventTypes(nodes);
   const eventSuggestionMode =
     selectedActionType === "condition" ? "condition" : "general";
+  const shouldLoadFilterLookups =
+    selectedNodeType === "trigger" ||
+    (selectedNodeType === "action" && selectedActionType === "condition");
+  const { data: calendarsLookupData } = useQuery({
+    ...orpc.calendars.list.queryOptions({
+      input: { limit: 100 },
+    }),
+    enabled: shouldLoadFilterLookups,
+    placeholderData: (previous) => previous,
+  });
+  const { data: appointmentTypesLookupData } = useQuery({
+    ...orpc.appointmentTypes.list.queryOptions({
+      input: { limit: 100 },
+    }),
+    enabled: shouldLoadFilterLookups,
+    placeholderData: (previous) => previous,
+  });
+  const { data: clientsLookupData } = useQuery({
+    ...orpc.clients.list.queryOptions({
+      input: { limit: 100, sort: "updated_at_desc" },
+    }),
+    enabled: shouldLoadFilterLookups,
+    placeholderData: (previous) => previous,
+  });
+  const filterValueOptionsByField = useMemo<
+    Record<string, WorkflowFilterValueOption[]>
+  >(() => {
+    const calendarOptions = (calendarsLookupData?.items ?? []).map(
+      (calendar) => ({
+        value: calendar.id,
+        label: toLookupOptionLabel({ name: calendar.name, id: calendar.id }),
+      }),
+    );
+    const appointmentTypeOptions = (
+      appointmentTypesLookupData?.items ?? []
+    ).map((appointmentType) => ({
+      value: appointmentType.id,
+      label: toLookupOptionLabel({
+        name: appointmentType.name,
+        id: appointmentType.id,
+      }),
+    }));
+    const clientOptions = (clientsLookupData?.items ?? []).map((client) => ({
+      value: client.id,
+      label: toClientLookupLabel({
+        firstName: client.firstName,
+        lastName: client.lastName,
+        email: client.email,
+        id: client.id,
+      }),
+    }));
+
+    return {
+      "appointment.calendarId": calendarOptions,
+      "appointment.appointmentTypeId": appointmentTypeOptions,
+      "appointment.clientId": clientOptions,
+      "client.id": clientOptions,
+    };
+  }, [calendarsLookupData, appointmentTypesLookupData, clientsLookupData]);
   const actionExpressionSuggestions = useMemo(() => {
     if (selectedNodeType !== "action") {
       return [];
@@ -536,6 +618,7 @@ export function WorkflowEditorSidebar({
                         config={selectedNodeConfig}
                         defaultTimezone={defaultTimezone}
                         disabled={!canManageWorkflow}
+                        valueOptionsByField={filterValueOptionsByField}
                         onUpdate={(next) => {
                           onUpdateNodeData({
                             id: selectedNode.id,
@@ -562,6 +645,9 @@ export function WorkflowEditorSidebar({
                         <ActionConfig
                           config={selectedNodeConfig}
                           defaultTimezone={defaultTimezone}
+                          conditionValueOptionsByField={
+                            filterValueOptionsByField
+                          }
                           onUpdateConfig={(key, value) => {
                             if (
                               key === "actionType" &&

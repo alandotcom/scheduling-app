@@ -9,10 +9,12 @@ import { createStore } from "jotai";
 import {
   addWorkflowEditorNodeAtom,
   buildPersistableWorkflowGraph,
+  clearWorkflowEditorSelectionAtom,
   deleteEdgeAtom,
   deserializeWorkflowGraph,
   onWorkflowEditorConnectAtom,
   onWorkflowEditorNodesChangeAtom,
+  setWorkflowEditorSelectionAtom,
   setWorkflowEditorActionTypeAtom,
   serializeWorkflowGraph,
   setWorkflowEditorGraphAtom,
@@ -467,6 +469,61 @@ describe("workflow-editor-store", () => {
 
     expect(actionNode?.data.label).toBe("Action");
     expect(store.get(workflowEditorHasUnsavedChangesAtom)).toBe(false);
+  });
+
+  test("setWorkflowEditorSelectionAtom updates selected ids", () => {
+    const store = createStore();
+    store.set(setWorkflowEditorGraphAtom, createGraphFixture());
+
+    store.set(setWorkflowEditorSelectionAtom, {
+      nodeId: "action-node",
+      edgeId: null,
+    });
+
+    expect(store.get(workflowEditorSelectedNodeIdAtom)).toBe("action-node");
+    expect(store.get(workflowEditorSelectedEdgeIdAtom)).toBeNull();
+
+    store.set(setWorkflowEditorSelectionAtom, {
+      nodeId: null,
+      edgeId: "edge-1",
+    });
+
+    expect(store.get(workflowEditorSelectedNodeIdAtom)).toBeNull();
+    expect(store.get(workflowEditorSelectedEdgeIdAtom)).toBe("edge-1");
+  });
+
+  test("clearWorkflowEditorSelectionAtom clears selected ids and flags", () => {
+    const store = createStore();
+    store.set(setWorkflowEditorGraphAtom, createGraphFixture());
+
+    store.set(workflowEditorNodesAtom, (nodes) =>
+      nodes.map((node) =>
+        node.id === "action-node" ? { ...node, selected: true } : node,
+      ),
+    );
+    store.set(workflowEditorEdgesAtom, (edges) =>
+      edges.map((edge) =>
+        edge.id === "edge-1" ? { ...edge, selected: true } : edge,
+      ),
+    );
+    store.set(setWorkflowEditorSelectionAtom, {
+      nodeId: "action-node",
+      edgeId: "edge-1",
+    });
+    store.set(clearWorkflowEditorSelectionAtom);
+
+    expect(store.get(workflowEditorSelectedNodeIdAtom)).toBeNull();
+    expect(store.get(workflowEditorSelectedEdgeIdAtom)).toBeNull();
+
+    const anySelectedNode = store
+      .get(workflowEditorNodesAtom)
+      .some((node) => node.selected === true);
+    const anySelectedEdge = store
+      .get(workflowEditorEdgesAtom)
+      .some((edge) => edge.selected === true);
+
+    expect(anySelectedNode).toBe(false);
+    expect(anySelectedEdge).toBe(false);
   });
 
   test("ignores unsupported action types", () => {

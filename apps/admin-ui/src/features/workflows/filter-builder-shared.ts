@@ -18,6 +18,11 @@ export type WorkflowFilterFieldOption = {
   type: WorkflowFilterFieldType;
 };
 
+export type WorkflowFilterValueOption = {
+  value: string;
+  label: string;
+};
+
 export const WORKFLOW_FILTER_FIELD_OPTIONS: WorkflowFilterFieldOption[] = [
   {
     label: "Appointment ID",
@@ -90,6 +95,17 @@ export const WORKFLOW_FILTER_FIELD_OPTIONS: WorkflowFilterFieldOption[] = [
     type: "string",
   },
 ];
+
+const WORKFLOW_FILTER_LOOKUP_FIELDS = new Set<string>([
+  "appointment.calendarId",
+  "appointment.appointmentTypeId",
+  "appointment.clientId",
+  "client.id",
+]);
+
+export function isLookupWorkflowFilterField(field: string): boolean {
+  return WORKFLOW_FILTER_LOOKUP_FIELDS.has(field);
+}
 
 export const WORKFLOW_FILTER_TEMPORAL_UNIT_OPTIONS: Array<{
   label: string;

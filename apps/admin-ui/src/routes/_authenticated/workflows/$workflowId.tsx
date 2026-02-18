@@ -35,12 +35,12 @@ import { WorkflowEditorSidebar } from "@/features/workflows/workflow-editor-side
 import { WorkflowSidebarPanel } from "@/features/workflows/workflow-sidebar-panel";
 import { WorkflowToolbar } from "@/features/workflows/workflow-toolbar";
 import {
+  clearWorkflowEditorSelectionAtom,
   deleteEdgeAtom,
   deleteNodeAtom,
   redoAtom,
   rightPanelWidthAtom,
   buildPersistableWorkflowGraph,
-  setWorkflowEditorSelectionAtom,
   setWorkflowEditorActionTypeAtom,
   setWorkflowEditorGraphAtom,
   undoAtom,
@@ -93,7 +93,7 @@ function WorkflowEditorPage() {
   const setWorkflowId = useSetAtom(workflowEditorWorkflowIdAtom);
   const setJourneyMode = useSetAtom(workflowEditorJourneyModeAtom);
   const setRightPanelWidth = useSetAtom(rightPanelWidthAtom);
-  const setSelection = useSetAtom(setWorkflowEditorSelectionAtom);
+  const clearSelection = useSetAtom(clearWorkflowEditorSelectionAtom);
   const updateNodeData = useSetAtom(updateWorkflowEditorNodeDataAtom);
   const setActionType = useSetAtom(setWorkflowEditorActionTypeAtom);
   const deleteNode = useSetAtom(deleteNodeAtom);
@@ -116,6 +116,8 @@ function WorkflowEditorPage() {
   const [persistedName, setPersistedName] = useState("");
   const [draftPublishMode, setDraftPublishMode] = useState<JourneyMode>("live");
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const [dismissedMobileSelectionKey, setDismissedMobileSelectionKey] =
+    useState<string | null>(null);
   const [lifecycleDraft, setLifecycleDraft] = useState<{
     status: JourneyStatus;
     mode: JourneyMode;
@@ -132,6 +134,11 @@ function WorkflowEditorPage() {
     lifecycleDraft?.mode ?? journeyQuery.data?.mode ?? "live";
   const effectiveMode =
     journeyStatus === "draft" ? draftPublishMode : persistedMode;
+  const mobileSelectionKey = selectedNodeId
+    ? `node:${selectedNodeId}`
+    : selectedEdgeId
+      ? `edge:${selectedEdgeId}`
+      : null;
 
   const patchJourneyInListCache = useCallback(
     (journeyId: string, patch: Partial<JourneyListResponse[number]>) => {
@@ -171,22 +178,30 @@ function WorkflowEditorPage() {
   useEffect(() => {
     if (!isMobile) {
       setMobileSidebarOpen(false);
+      setDismissedMobileSelectionKey(null);
       return;
     }
 
-    if (selectedNodeId || selectedEdgeId) {
+    if (!mobileSelectionKey) {
+      setMobileSidebarOpen(false);
+      setDismissedMobileSelectionKey(null);
+      return;
+    }
+
+    if (mobileSelectionKey !== dismissedMobileSelectionKey) {
       setMobileSidebarOpen(true);
     }
-  }, [isMobile, selectedEdgeId, selectedNodeId]);
+  }, [dismissedMobileSelectionKey, isMobile, mobileSelectionKey]);
 
   const handleMobileSidebarOpenChange = useCallback(
     (open: boolean) => {
       setMobileSidebarOpen(open);
       if (!open) {
-        setSelection({ nodeId: null, edgeId: null });
+        setDismissedMobileSelectionKey(mobileSelectionKey);
+        clearSelection();
       }
     },
-    [setSelection],
+    [clearSelection, mobileSelectionKey],
   );
 
   useEffect(() => {
@@ -665,19 +680,6 @@ function WorkflowEditorPage() {
               onSave={() => void saveJourney()}
               onSetMode={(mode) => void handleSetMode(mode)}
             />
-
-            {isMobile ? (
-              <Panel position="bottom-right">
-                <Button
-                  className="mb-[max(0.75rem,env(safe-area-inset-bottom))]"
-                  onClick={() => setMobileSidebarOpen(true)}
-                  size="sm"
-                  type="button"
-                >
-                  Inspector
-                </Button>
-              </Panel>
-            ) : null}
           </WorkflowEditorCanvas>
         </div>
       </div>
@@ -685,7 +687,7 @@ function WorkflowEditorPage() {
       {isMobile ? (
         <Sheet
           onOpenChange={handleMobileSidebarOpenChange}
-          open={mobileSidebarOpen}
+          open={mobileSidebarOpen && !!mobileSelectionKey}
         >
           <SheetContent
             side="bottom"

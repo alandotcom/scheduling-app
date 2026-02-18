@@ -204,6 +204,8 @@ export function WorkflowEditorCanvas({
   const reconnectingEdgeId = useRef<string | null>(null);
   const edgeReconnectSuccessful = useRef(true);
   const suppressNextPaneClickClear = useRef(false);
+  const isDraggingNode = useRef(false);
+  const suppressSelectionSyncUntil = useRef(0);
   const canvasContainerRef = useRef<HTMLDivElement | null>(null);
   const reflowRequestId = useRef(0);
   const isReflowingRef = useRef(false);
@@ -601,18 +603,36 @@ export function WorkflowEditorCanvas({
         onNodeContextMenu={canEdit ? onNodeContextMenu : undefined}
         onConnectStart={canEdit ? handleConnectStart : undefined}
         onConnectEnd={canEdit ? handleConnectEnd : undefined}
+        onNodeDragStart={() => {
+          isDraggingNode.current = true;
+        }}
+        onNodeDragStop={() => {
+          isDraggingNode.current = false;
+          suppressSelectionSyncUntil.current = Date.now() + 200;
+        }}
         onEdgeClick={handleEdgeClick}
         onEdgeContextMenu={canEdit ? onEdgeContextMenu : undefined}
         onPaneClick={handlePaneClick}
         onPaneContextMenu={canEdit ? onPaneContextMenu : undefined}
         onSelectionChange={({ nodes: selectedNodes, edges: selectedEdges }) => {
-          if (selectedNodes.length === 0 && selectedEdges.length === 0) {
+          if (selectedNodes.length > 0 || selectedEdges.length > 0) {
+            if (
+              isDraggingNode.current ||
+              Date.now() < suppressSelectionSyncUntil.current
+            ) {
+              return;
+            }
+
+            setSelection({
+              nodeId: selectedNodes.at(0)?.id ?? null,
+              edgeId: selectedEdges.at(0)?.id ?? null,
+            });
             return;
           }
 
           setSelection({
-            nodeId: selectedNodes.at(0)?.id ?? null,
-            edgeId: selectedEdges.at(0)?.id ?? null,
+            nodeId: null,
+            edgeId: null,
           });
         }}
       >
