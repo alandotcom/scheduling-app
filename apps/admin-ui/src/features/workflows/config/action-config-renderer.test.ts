@@ -38,4 +38,14 @@ describe("compileConditionBuilderExpression", () => {
       'appointment.startAt != null && timestamp(string(appointment.startAt)) < date("2026-02-18T14:45", "America/Los_Angeles")',
     );
   });
+
+  test("compiles ID contains operator to CEL list membership", () => {
+    const expression = compileConditionBuilderExpression({
+      field: "appointment.calendarId",
+      operator: "in",
+      value: ["cal-1", "cal-2"],
+    });
+
+    expect(expression).toBe('appointment.calendarId in ["cal-1", "cal-2"]');
+  });
 });

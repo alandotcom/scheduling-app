@@ -251,6 +251,7 @@ describe("ActionConfig", () => {
     expect(screen.getByText("Select operator")).toBeTruthy();
 
     fireEvent.click(screen.getByRole("combobox", { name: "Condition field" }));
+    expect(screen.queryByText("Appointment ID")).toBeNull();
     expect(screen.getByText("Appointment Status")).toBeTruthy();
     expect(screen.getByText("Client First Name")).toBeTruthy();
     expect(screen.getByText("Client Last Name")).toBeTruthy();
@@ -315,6 +316,39 @@ describe("ActionConfig", () => {
     });
     expect(valueCombobox.textContent).toContain("Main Calendar — cal-1");
     expect(screen.queryByPlaceholderText("Enter value...")).toBeNull();
+  });
+
+  test("limits ID field operators to equals and contains with multi-select values", () => {
+    render(
+      <ActionConfig
+        config={{
+          actionType: "condition",
+          expression: 'appointment.calendarId in ["cal-1"]',
+          conditionMode: "builder",
+          conditionField: "appointment.calendarId",
+          conditionOperator: "in",
+          conditionValue: ["cal-1"],
+        }}
+        conditionValueOptionsByField={{
+          "appointment.calendarId": [
+            { value: "cal-1", label: "Main Calendar — cal-1" },
+          ],
+        }}
+        onUpdateConfig={mock((_key: string, _value: unknown) => {})}
+      />,
+    );
+
+    const operatorCombobox = screen.getByRole("combobox", {
+      name: "Condition operator",
+    });
+    expect(operatorCombobox.textContent).toContain("contains");
+    expect(operatorCombobox.textContent?.trim()).not.toBe("in");
+    fireEvent.click(operatorCombobox);
+    expect(screen.getAllByText("equals").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("contains").length).toBeGreaterThan(0);
+    expect(screen.queryByText("does not equal")).toBeNull();
+
+    expect(screen.getByText("Main Calendar — cal-1")).toBeTruthy();
   });
 
   test("humanizes fallback select labels instead of showing raw enum tokens", () => {

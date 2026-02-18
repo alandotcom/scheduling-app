@@ -2,9 +2,16 @@ import { useRef, useState } from "react";
 
 import { cn } from "@/lib/utils";
 
+export interface MultiSelectComboboxOption {
+  label: string;
+  value: string;
+}
+
 interface MultiSelectComboboxProps {
+  ariaLabel?: string;
+  className?: string;
   id?: string;
-  options: readonly string[];
+  options: readonly MultiSelectComboboxOption[];
   value: string[];
   onChange: (values: string[]) => void;
   placeholder?: string;
@@ -16,6 +23,8 @@ function handleDropdownMouseDown(event: React.MouseEvent) {
 }
 
 export function MultiSelectCombobox({
+  ariaLabel,
+  className,
   id,
   options,
   value,
@@ -28,23 +37,30 @@ export function MultiSelectCombobox({
   const containerRef = useRef<HTMLDivElement>(null);
   const blurTimeoutRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
+  const optionByValue = new Map(
+    options.map((option) => [option.value, option]),
+  );
   const filteredOptions = options.filter((option) =>
-    option.toLowerCase().includes(filterText.toLowerCase()),
+    `${option.label} ${option.value}`
+      .toLowerCase()
+      .includes(filterText.toLowerCase()),
   );
 
   const selectedSet = new Set(value);
 
-  function handleToggle(option: string) {
-    if (selectedSet.has(option)) {
-      onChange(value.filter((v) => v !== option));
+  function handleToggle(optionValue: string) {
+    if (selectedSet.has(optionValue)) {
+      onChange(
+        value.filter((candidateValue) => candidateValue !== optionValue),
+      );
     } else {
-      onChange([...value, option]);
+      onChange([...value, optionValue]);
     }
     setFilterText("");
   }
 
-  function handleRemove(option: string) {
-    onChange(value.filter((v) => v !== option));
+  function handleRemove(optionValue: string) {
+    onChange(value.filter((candidateValue) => candidateValue !== optionValue));
   }
 
   function handleFocus() {
@@ -63,21 +79,25 @@ export function MultiSelectCombobox({
   return (
     <div
       ref={containerRef}
-      className={cn("relative", disabled && "opacity-50 cursor-not-allowed")}
+      className={cn(
+        "relative",
+        className,
+        disabled && "cursor-not-allowed opacity-50",
+      )}
     >
-      <div className="flex flex-wrap gap-1.5 rounded-lg border border-input p-2">
-        {value.map((item) => (
+      <div className="flex min-h-9 flex-wrap gap-1.5 rounded-md border border-input px-2 py-1.5">
+        {value.map((selectedValue) => (
           <span
-            key={item}
-            className="inline-flex items-center gap-1 rounded-full bg-primary/10 text-primary border border-primary/20 px-2 py-0.5 text-xs"
+            key={selectedValue}
+            className="inline-flex items-center gap-1 rounded-full border border-primary/20 bg-primary/10 px-2 py-0.5 text-primary text-xs"
           >
-            {item}
+            {optionByValue.get(selectedValue)?.label ?? selectedValue}
             <button
               type="button"
-              className="hover:bg-primary/20 rounded-full p-0.5"
-              onClick={() => handleRemove(item)}
+              className="rounded-full p-0.5 hover:bg-primary/20"
+              onClick={() => handleRemove(selectedValue)}
               disabled={disabled}
-              aria-label={`Remove ${item}`}
+              aria-label={`Remove ${selectedValue}`}
             >
               <svg
                 className="size-3"
@@ -92,6 +112,7 @@ export function MultiSelectCombobox({
           </span>
         ))}
         <input
+          aria-label={ariaLabel ?? placeholder}
           id={id}
           className="min-w-[120px] flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground/70 disabled:cursor-not-allowed"
           value={filterText}
@@ -114,12 +135,12 @@ export function MultiSelectCombobox({
             </div>
           ) : (
             filteredOptions.map((option) => {
-              const isSelected = selectedSet.has(option);
+              const isSelected = selectedSet.has(option.value);
               return (
                 <div
-                  key={option}
-                  className="flex items-center gap-2 px-3 py-2 text-sm cursor-pointer hover:bg-accent"
-                  onClick={() => handleToggle(option)}
+                  key={option.value}
+                  className="flex cursor-pointer items-center gap-2 px-3 py-2 text-sm hover:bg-accent"
+                  onClick={() => handleToggle(option.value)}
                 >
                   <span
                     className={cn(
@@ -129,7 +150,7 @@ export function MultiSelectCombobox({
                         : "border-input bg-transparent",
                     )}
                   />
-                  {option}
+                  {option.label}
                 </div>
               );
             })

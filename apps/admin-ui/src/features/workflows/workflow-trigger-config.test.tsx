@@ -257,6 +257,7 @@ describe("WorkflowTriggerConfig", () => {
     fireEvent.click(
       screen.getByRole("combobox", { name: "Group 1 condition 1 field" }),
     );
+    expect(screen.queryByText("Appointment ID")).toBeNull();
     expect(screen.getByText("Appointment Status")).toBeTruthy();
     expect(screen.getByText("Client First Name")).toBeTruthy();
     expect(screen.getByText("Client Last Name")).toBeTruthy();
@@ -278,6 +279,60 @@ describe("WorkflowTriggerConfig", () => {
 
     fireEvent.click(operatorCombobox);
     expect(screen.getAllByText("is within the next").length).toBeGreaterThan(0);
+  });
+
+  test("limits ID field operators to equals and contains with multi-select input", () => {
+    const onUpdate = mock(() => {});
+
+    render(
+      <WorkflowTriggerConfig
+        config={{
+          ...createTriggerConfig(),
+          filter: {
+            logic: "and",
+            groups: [
+              {
+                logic: "and",
+                conditions: [
+                  {
+                    field: "appointment.calendarId",
+                    operator: "in",
+                    value: ["cal-123"],
+                  },
+                ],
+              },
+            ],
+          },
+        }}
+        disabled={false}
+        onUpdate={onUpdate}
+        valueOptionsByField={{
+          "appointment.calendarId": [
+            {
+              value: "cal-123",
+              label: "Main Calendar — cal-123",
+            },
+          ],
+        }}
+      />,
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Toggle audience rules" }),
+    );
+
+    const operatorCombobox = screen.getByRole("combobox", {
+      name: "Group 1 condition 1 operator",
+    });
+    expect(operatorCombobox.textContent).toContain("contains");
+    expect(operatorCombobox.textContent?.trim()).not.toBe("in");
+
+    fireEvent.click(operatorCombobox);
+    expect(screen.getAllByText("equals").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("contains").length).toBeGreaterThan(0);
+    expect(screen.queryByText("does not equal")).toBeNull();
+
+    expect(screen.getByText("Main Calendar — cal-123")).toBeTruthy();
   });
 
   test("moves ago phrasing into the unit selector for past-relative operators", () => {

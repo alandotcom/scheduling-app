@@ -18,6 +18,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Icon } from "@/components/ui/icon";
 import {
+  MultiSelectCombobox,
+  type MultiSelectComboboxOption,
+} from "@/components/ui/multi-select-combobox";
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -38,6 +42,7 @@ import {
   getWorkflowFilterOperatorLabel,
   getWorkflowFilterTemporalUnitLabel,
   getOperatorOptionsForField,
+  isIdWorkflowFilterField,
   getWorkflowFilterFieldType,
   isLookupWorkflowFilterField,
   toDateTimeLocalInputValue,
@@ -159,6 +164,44 @@ function toConditionValue(
   return "";
 }
 
+function toConditionValues(
+  condition: JourneyTriggerFilterConditionDraft,
+): string[] {
+  if (!Array.isArray(condition.value)) {
+    return [];
+  }
+
+  return condition.value
+    .filter(
+      (entry) =>
+        typeof entry === "string" ||
+        typeof entry === "number" ||
+        typeof entry === "boolean",
+    )
+    .map((entry) => String(entry));
+}
+
+function toValueOptionsWithFallback(input: {
+  options: WorkflowFilterValueOption[];
+  selectedValues: string[];
+}): MultiSelectComboboxOption[] {
+  const optionMap = new Map(
+    input.options.map((option) => [option.value, option]),
+  );
+
+  for (const selectedValue of input.selectedValues) {
+    if (optionMap.has(selectedValue)) {
+      continue;
+    }
+    optionMap.set(selectedValue, {
+      value: selectedValue,
+      label: selectedValue,
+    });
+  }
+
+  return [...optionMap.values()];
+}
+
 interface LogicConnectorProps {
   ariaLabel: string;
   disabled: boolean;
@@ -250,6 +293,7 @@ function ConditionRow({
 }: ConditionRowProps) {
   const isTimestampField =
     getWorkflowFilterFieldType(condition.field) === "timestamp";
+  const isIdField = isIdWorkflowFilterField(condition.field);
   const isLookupField = isLookupWorkflowFilterField(condition.field);
   const baseOperatorOptions = getOperatorOptionsForField(condition.field);
   const operatorOptions =
@@ -297,15 +341,19 @@ function ConditionRow({
     ? TIMEZONES
     : [selectedTimezone, ...TIMEZONES];
   const conditionValue = toConditionValue(condition);
+  const conditionValues = toConditionValues(condition);
   const baseValueOptions = isLookupField
     ? (valueOptionsByField[condition.field] ?? [])
     : [];
-  const valueOptions =
-    conditionValue.length > 0 &&
-    !baseValueOptions.some((option) => option.value === conditionValue)
-      ? [{ value: conditionValue, label: conditionValue }, ...baseValueOptions]
-      : baseValueOptions;
-  const selectedValueLabel = valueOptions.find(
+  const singleValueOptions = toValueOptionsWithFallback({
+    options: baseValueOptions,
+    selectedValues: conditionValue.length > 0 ? [conditionValue] : [],
+  });
+  const multiValueOptions = toValueOptionsWithFallback({
+    options: baseValueOptions,
+    selectedValues: conditionValues,
+  });
+  const selectedValueLabel = singleValueOptions.find(
     (option) => option.value === conditionValue,
   )?.label;
 
@@ -496,7 +544,21 @@ function ConditionRow({
                 </SelectContent>
               </Select>
             </>
-          ) : isLookupField ? (
+          ) : isIdField && condition.operator === "in" ? (
+            <div className="min-[420px]:col-span-2">
+              <MultiSelectCombobox
+                ariaLabel={`Group ${groupIndex + 1} condition ${conditionIndex + 1} values`}
+                className="w-full"
+                disabled={disabled}
+                options={multiValueOptions}
+                placeholder="Select one or more values"
+                value={conditionValues}
+                onChange={(values) =>
+                  onChange(groupIndex, conditionIndex, { value: values })
+                }
+              />
+            </div>
+          ) : isIdField && condition.operator === "equals" ? (
             <Select
               disabled={disabled}
               value={conditionValue.length > 0 ? conditionValue : null}
@@ -514,8 +576,8 @@ function ConditionRow({
                 </SelectValue>
               </SelectTrigger>
               <SelectContent>
-                {valueOptions.length > 0 ? (
-                  valueOptions.map((option) => (
+                {singleValueOptions.length > 0 ? (
+                  singleValueOptions.map((option) => (
                     <SelectItem key={option.value} value={option.value}>
                       {option.label}
                     </SelectItem>

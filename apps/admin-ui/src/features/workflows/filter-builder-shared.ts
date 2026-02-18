@@ -25,11 +25,6 @@ export type WorkflowFilterValueOption = {
 
 export const WORKFLOW_FILTER_FIELD_OPTIONS: WorkflowFilterFieldOption[] = [
   {
-    label: "Appointment ID",
-    value: "appointment.appointmentId",
-    type: "string",
-  },
-  {
     label: "Calendar ID",
     value: "appointment.calendarId",
     type: "string",
@@ -107,6 +102,17 @@ export function isLookupWorkflowFilterField(field: string): boolean {
   return WORKFLOW_FILTER_LOOKUP_FIELDS.has(field);
 }
 
+const WORKFLOW_FILTER_ID_FIELDS = new Set<string>([
+  "appointment.calendarId",
+  "appointment.appointmentTypeId",
+  "appointment.clientId",
+  "client.id",
+]);
+
+export function isIdWorkflowFilterField(field: string): boolean {
+  return WORKFLOW_FILTER_ID_FIELDS.has(field);
+}
+
 export const WORKFLOW_FILTER_TEMPORAL_UNIT_OPTIONS: Array<{
   label: string;
   value: JourneyTriggerFilterTemporalUnit;
@@ -129,6 +135,14 @@ export const WORKFLOW_FILTER_TEXT_OPERATOR_OPTIONS: Array<{
   { label: "ends with", value: "ends_with" },
   { label: "is set", value: "is_set" },
   { label: "is not set", value: "is_not_set" },
+];
+
+export const WORKFLOW_FILTER_ID_OPERATOR_OPTIONS: Array<{
+  label: string;
+  value: JourneyTriggerFilterCondition["operator"];
+}> = [
+  { label: "equals", value: "equals" },
+  { label: "contains", value: "in" },
 ];
 
 export const WORKFLOW_FILTER_TIMESTAMP_OPERATOR_OPTIONS: Array<{
@@ -174,9 +188,15 @@ export function getWorkflowFilterFieldType(
 export function getOperatorOptionsForField(
   field: string,
 ): Array<{ label: string; value: JourneyTriggerFilterCondition["operator"] }> {
-  return getWorkflowFilterFieldType(field) === "timestamp"
-    ? WORKFLOW_FILTER_TIMESTAMP_OPERATOR_OPTIONS
-    : WORKFLOW_FILTER_TEXT_OPERATOR_OPTIONS;
+  if (getWorkflowFilterFieldType(field) === "timestamp") {
+    return WORKFLOW_FILTER_TIMESTAMP_OPERATOR_OPTIONS;
+  }
+
+  if (isIdWorkflowFilterField(field)) {
+    return WORKFLOW_FILTER_ID_OPERATOR_OPTIONS;
+  }
+
+  return WORKFLOW_FILTER_TEXT_OPERATOR_OPTIONS;
 }
 
 export function toWorkflowFilterFallbackLabel(value: string): string {

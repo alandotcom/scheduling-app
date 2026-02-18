@@ -6,6 +6,10 @@ import { Icon } from "@/components/ui/icon";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
+  MultiSelectCombobox,
+  type MultiSelectComboboxOption,
+} from "@/components/ui/multi-select-combobox";
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -36,7 +40,7 @@ import {
   getWorkflowFilterTemporalUnitLabel,
   getOperatorOptionsForField,
   getWorkflowFilterFieldType,
-  isLookupWorkflowFilterField,
+  isIdWorkflowFilterField,
   toAbsoluteTemporalComparisonValue,
   toDateTimeLocalInputValue,
   toRelativeTemporalValueDraft,
@@ -233,6 +237,47 @@ function toDurationLiteral(input: { amount: number; unit: string }): string {
   return `${input.amount * 7 * 24}h`;
 }
 
+function toPrimitiveListValue(
+  value: unknown,
+): Array<string | number | boolean> {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.filter(
+    (entry): entry is string | number | boolean =>
+      typeof entry === "string" ||
+      typeof entry === "number" ||
+      typeof entry === "boolean",
+  );
+}
+
+function toStringListValue(value: unknown): string[] {
+  return toPrimitiveListValue(value).map((entry) => String(entry));
+}
+
+function toValueOptionsWithFallback(input: {
+  options: WorkflowFilterValueOption[];
+  selectedValues: string[];
+}): MultiSelectComboboxOption[] {
+  const optionMap = new Map(
+    input.options.map((option) => [option.value, option]),
+  );
+
+  for (const selectedValue of input.selectedValues) {
+    if (optionMap.has(selectedValue)) {
+      continue;
+    }
+
+    optionMap.set(selectedValue, {
+      value: selectedValue,
+      label: selectedValue,
+    });
+  }
+
+  return [...optionMap.values()];
+}
+
 export function compileConditionBuilderExpression(input: {
   field: string;
   operator: JourneyTriggerFilterCondition["operator"] | "";
@@ -314,6 +359,20 @@ export function compileConditionBuilderExpression(input: {
     }
 
     return `${left} != null && ${timestampLeft} >= ${right}`;
+  }
+
+  if (input.operator === "in" || input.operator === "not_in") {
+    const values = toPrimitiveListValue(input.value);
+    if (values.length === 0) {
+      return "";
+    }
+
+    const right = `[${values.map((value) => JSON.stringify(value)).join(", ")}]`;
+    if (input.operator === "in") {
+      return `${left} in ${right}`;
+    }
+
+    return `!(${left} in ${right})`;
   }
 
   const stringValue = typeof input.value === "string" ? input.value : "";
@@ -693,7 +752,7 @@ function ConditionExpressionFieldRenderer({
       : undefined;
   const isTimestampField =
     getWorkflowFilterFieldType(conditionField) === "timestamp";
-  const isLookupField = isLookupWorkflowFilterField(conditionField);
+  const isIdField = isIdWorkflowFilterField(conditionField);
   const relativeTemporalValue = toRelativeTemporalValueDraft(conditionValue);
   const selectedFieldLabel = getWorkflowFilterFieldLabel(conditionField);
   const selectedOperatorLabel = getWorkflowFilterOperatorLabel({
@@ -719,18 +778,20 @@ function ConditionExpressionFieldRenderer({
   const selectedConditionTimezone = conditionTimezone ?? defaultTimezone;
   const stringConditionValue =
     typeof conditionValue === "string" ? conditionValue : "";
-  const baseValueOptions = isLookupField
+  const conditionValues = toStringListValue(conditionValue);
+  const baseValueOptions = isIdField
     ? (conditionValueOptionsByField[conditionField] ?? [])
     : [];
-  const valueOptions =
-    stringConditionValue.length > 0 &&
-    !baseValueOptions.some((option) => option.value === stringConditionValue)
-      ? [
-          { value: stringConditionValue, label: stringConditionValue },
-          ...baseValueOptions,
-        ]
-      : baseValueOptions;
-  const selectedValueLabel = valueOptions.find(
+  const singleValueOptions = toValueOptionsWithFallback({
+    options: baseValueOptions,
+    selectedValues:
+      stringConditionValue.length > 0 ? [stringConditionValue] : [],
+  });
+  const multiValueOptions = toValueOptionsWithFallback({
+    options: baseValueOptions,
+    selectedValues: conditionValues,
+  });
+  const selectedValueLabel = singleValueOptions.find(
     (option) => option.value === stringConditionValue,
   )?.label;
   const timezoneOptions = TIMEZONES.some(
@@ -1005,7 +1066,19 @@ function ConditionExpressionFieldRenderer({
             </>
           ) : (
             <>
-              {isLookupField ? (
+              {isIdField && conditionOperator === "in" ? (
+                <div className="min-[420px]:col-span-2">
+                  <MultiSelectCombobox
+                    ariaLabel="Condition values"
+                    className="w-full"
+                    disabled={disabled}
+                    options={multiValueOptions}
+                    placeholder="Select one or more values"
+                    value={conditionValues}
+                    onChange={(values) => commitBuilder({ value: values })}
+                  />
+                </div>
+              ) : isIdField && conditionOperator === "equals" ? (
                 <Select
                   disabled={disabled}
                   value={
@@ -1025,8 +1098,8 @@ function ConditionExpressionFieldRenderer({
                     </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
-                    {valueOptions.length > 0 ? (
-                      valueOptions.map((option) => (
+                    {singleValueOptions.length > 0 ? (
+                      singleValueOptions.map((option) => (
                         <SelectItem key={option.value} value={option.value}>
                           {option.label}
                         </SelectItem>
