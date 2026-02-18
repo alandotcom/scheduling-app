@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft02Icon } from "@hugeicons/core-free-icons";
+import { ArrowLeft02Icon, Cancel01Icon } from "@hugeicons/core-free-icons";
 import { ReactFlowProvider } from "@xyflow/react";
 import { toast } from "sonner";
 import { useAtomValue, useSetAtom } from "jotai";
@@ -13,9 +13,17 @@ import type {
 import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
 import { Input } from "@/components/ui/input";
+import {
+  Sheet,
+  SheetClose,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import { Panel } from "@/components/flow-elements/panel";
 import { PageScaffold } from "@/components/layout/page-scaffold";
 import { useKeyboardShortcuts } from "@/hooks/use-keyboard-shortcuts";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { canManageWorkflowsForRole } from "@/features/workflows/workflow-list-page";
 import { WorkflowEditorCanvas } from "@/features/workflows/workflow-editor-canvas";
 import { WorkflowEditorSidebar } from "@/features/workflows/workflow-editor-sidebar";
@@ -25,7 +33,9 @@ import {
   deleteEdgeAtom,
   deleteNodeAtom,
   redoAtom,
+  rightPanelWidthAtom,
   serializeWorkflowGraph,
+  setWorkflowEditorSelectionAtom,
   setWorkflowEditorActionTypeAtom,
   setWorkflowEditorGraphAtom,
   undoAtom,
@@ -51,6 +61,7 @@ function resolveErrorMessage(error: unknown): string {
 function WorkflowEditorPage() {
   const { workflowId } = Route.useParams();
   const queryClient = useQueryClient();
+  const isMobile = useIsMobile();
 
   const authContextQuery = useQuery({
     ...orpc.auth.me.queryOptions({}),
@@ -74,6 +85,8 @@ function WorkflowEditorPage() {
   const setHasUnsavedChanges = useSetAtom(workflowEditorHasUnsavedChangesAtom);
   const setIsSaving = useSetAtom(workflowEditorIsSavingAtom);
   const setWorkflowId = useSetAtom(workflowEditorWorkflowIdAtom);
+  const setRightPanelWidth = useSetAtom(rightPanelWidthAtom);
+  const setSelection = useSetAtom(setWorkflowEditorSelectionAtom);
   const updateNodeData = useSetAtom(updateWorkflowEditorNodeDataAtom);
   const setActionType = useSetAtom(setWorkflowEditorActionTypeAtom);
   const deleteNode = useSetAtom(deleteNodeAtom);
@@ -94,6 +107,7 @@ function WorkflowEditorPage() {
   const [publishWarnings, setPublishWarnings] = useState<string[]>([]);
   const [nameDraft, setNameDraft] = useState("");
   const [draftPublishMode, setDraftPublishMode] = useState<JourneyMode>("live");
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [lifecycleDraft, setLifecycleDraft] = useState<{
     status: JourneyStatus;
     mode: JourneyMode;
@@ -133,6 +147,33 @@ function WorkflowEditorPage() {
   useEffect(() => {
     setIsReadOnly(!canManageWorkflow);
   }, [canManageWorkflow, setIsReadOnly]);
+
+  useEffect(() => {
+    if (isMobile) {
+      setRightPanelWidth(null);
+    }
+  }, [isMobile, setRightPanelWidth]);
+
+  useEffect(() => {
+    if (!isMobile) {
+      setMobileSidebarOpen(false);
+      return;
+    }
+
+    if (selectedNodeId || selectedEdgeId) {
+      setMobileSidebarOpen(true);
+    }
+  }, [isMobile, selectedEdgeId, selectedNodeId]);
+
+  const handleMobileSidebarOpenChange = useCallback(
+    (open: boolean) => {
+      setMobileSidebarOpen(open);
+      if (!open) {
+        setSelection({ nodeId: null, edgeId: null });
+      }
+    },
+    [setSelection],
+  );
 
   useEffect(() => {
     if (!journeyQuery.data) {
@@ -564,23 +605,73 @@ function WorkflowEditorPage() {
           onSave={() => void saveJourney()}
           onSetMode={(mode) => void handleSetMode(mode)}
         />
+
+        {isMobile ? (
+          <Panel position="bottom-right">
+            <Button
+              className="mb-[max(0.75rem,env(safe-area-inset-bottom))]"
+              onClick={() => setMobileSidebarOpen(true)}
+              size="sm"
+              type="button"
+            >
+              Inspector
+            </Button>
+          </Panel>
+        ) : null}
       </WorkflowEditorCanvas>
 
-      <WorkflowSidebarPanel>
-        <WorkflowEditorSidebar
-          canManageWorkflow={canManageWorkflow}
-          defaultTimezone={defaultTimezone}
-          edges={edges}
-          nodes={nodes}
-          onDeleteEdge={canManageWorkflow ? deleteEdge : undefined}
-          onDeleteNode={canManageWorkflow ? deleteNode : undefined}
-          onSetActionType={setActionType}
-          onUpdateNodeData={updateNodeData}
-          selectedEdge={selectedEdge}
-          selectedNode={selectedNode}
-          workflowId={journeyQuery.data?.id ?? null}
-        />
-      </WorkflowSidebarPanel>
+      {isMobile ? (
+        <Sheet
+          onOpenChange={handleMobileSidebarOpenChange}
+          open={mobileSidebarOpen}
+        >
+          <SheetContent
+            side="bottom"
+            className="data-[side=bottom]:h-[100dvh] data-[side=bottom]:rounded-none gap-0 border-t border-border p-0"
+          >
+            <SheetHeader className="flex-row items-center justify-between border-b border-border px-4 py-3">
+              <SheetTitle className="text-base">Inspector</SheetTitle>
+              <SheetClose asChild>
+                <Button size="icon-sm" type="button" variant="ghost">
+                  <Icon icon={Cancel01Icon} />
+                  <span className="sr-only">Close inspector</span>
+                </Button>
+              </SheetClose>
+            </SheetHeader>
+            <div className="min-h-0 flex-1 overflow-hidden">
+              <WorkflowEditorSidebar
+                canManageWorkflow={canManageWorkflow}
+                defaultTimezone={defaultTimezone}
+                edges={edges}
+                nodes={nodes}
+                onDeleteEdge={canManageWorkflow ? deleteEdge : undefined}
+                onDeleteNode={canManageWorkflow ? deleteNode : undefined}
+                onSetActionType={setActionType}
+                onUpdateNodeData={updateNodeData}
+                selectedEdge={selectedEdge}
+                selectedNode={selectedNode}
+                workflowId={journeyQuery.data?.id ?? null}
+              />
+            </div>
+          </SheetContent>
+        </Sheet>
+      ) : (
+        <WorkflowSidebarPanel>
+          <WorkflowEditorSidebar
+            canManageWorkflow={canManageWorkflow}
+            defaultTimezone={defaultTimezone}
+            edges={edges}
+            nodes={nodes}
+            onDeleteEdge={canManageWorkflow ? deleteEdge : undefined}
+            onDeleteNode={canManageWorkflow ? deleteNode : undefined}
+            onSetActionType={setActionType}
+            onUpdateNodeData={updateNodeData}
+            selectedEdge={selectedEdge}
+            selectedNode={selectedNode}
+            workflowId={journeyQuery.data?.id ?? null}
+          />
+        </WorkflowSidebarPanel>
+      )}
     </div>
   );
 }

@@ -9,7 +9,7 @@ import {
 } from "@xyflow/react";
 import { useAtomValue, useSetAtom } from "jotai";
 import { nanoid } from "nanoid";
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Canvas } from "@/components/flow-elements/canvas";
 import { Connection } from "@/components/flow-elements/connection";
 import { Controls } from "@/components/flow-elements/controls";
@@ -125,9 +125,11 @@ export function WorkflowEditorCanvas({
   canEdit,
   children,
 }: WorkflowEditorCanvasProps) {
-  const { fitView, screenToFlowPosition } = useReactFlow();
+  const { fitView, getViewport, screenToFlowPosition, setViewport } =
+    useReactFlow();
   const [contextMenuState, setContextMenuState] =
     useState<ContextMenuState>(null);
+  const [isReflowing, setIsReflowing] = useState(false);
 
   const nodes = useAtomValue(workflowEditorNodesAtom);
   const edges = useAtomValue(workflowEditorEdgesAtom);
@@ -180,9 +182,19 @@ export function WorkflowEditorCanvas({
     (_event: React.MouseEvent, node: { id: string }) => {
       if (node.id === "__empty-placeholder__") {
         addInitialTrigger();
+        return;
       }
+
+      setSelection({ nodeId: node.id, edgeId: null });
     },
-    [addInitialTrigger],
+    [addInitialTrigger, setSelection],
+  );
+
+  const handleEdgeClick = useCallback(
+    (_event: React.MouseEvent, edge: { id: string }) => {
+      setSelection({ nodeId: null, edgeId: edge.id });
+    },
+    [setSelection],
   );
 
   // Connection-to-create-node refs
@@ -191,6 +203,11 @@ export function WorkflowEditorCanvas({
   const connectingHandleId = useRef<string | null>(null);
   const reconnectingEdgeId = useRef<string | null>(null);
   const edgeReconnectSuccessful = useRef(true);
+  const suppressNextPaneClickClear = useRef(false);
+  const canvasContainerRef = useRef<HTMLDivElement | null>(null);
+  const reflowRequestId = useRef(0);
+  const isReflowingRef = useRef(false);
+  const hasAppliedInitialViewportRef = useRef(false);
 
   const clearConnectionInteraction = useCallback(() => {
     connectingNodeId.current = null;
@@ -198,6 +215,31 @@ export function WorkflowEditorCanvas({
     connectingHandleId.current = null;
     reconnectingEdgeId.current = null;
   }, []);
+
+  const anchorTriggerTowardTop = useCallback(() => {
+    const containerHeight =
+      canvasContainerRef.current?.getBoundingClientRect().height ?? 0;
+    if (containerHeight <= 0) {
+      return;
+    }
+
+    const triggerNode = nodes.find((node) => node.data.type === "trigger");
+    if (!triggerNode) {
+      return;
+    }
+
+    const viewport = getViewport();
+    const topShift = Math.round(containerHeight * 0.055);
+    setViewport(
+      {
+        ...viewport,
+        y: viewport.y - topShift,
+      },
+      {
+        duration: 180,
+      },
+    );
+  }, [getViewport, nodes, setViewport]);
 
   // Animated edges mapping
   const edgesWithTypes = useMemo(
@@ -288,7 +330,7 @@ export function WorkflowEditorCanvas({
       const newNode: WorkflowCanvasNode = {
         id: newNodeId,
         type: "action",
-        position: { x: position.x - 96, y: position.y - 96 },
+        position: { x: position.x - 110, y: position.y - 68 },
         data: {
           type: "action",
           label: "Action",
@@ -344,6 +386,7 @@ export function WorkflowEditorCanvas({
       setHasUnsavedChanges(true);
       setPropertiesPanelTab("properties");
       setSelection({ nodeId: newNodeId, edgeId: null });
+      suppressNextPaneClickClear.current = true;
 
       clearConnectionInteraction();
     },
@@ -363,6 +406,10 @@ export function WorkflowEditorCanvas({
 
   const handlePaneClick = useCallback(() => {
     closeContextMenu();
+    if (suppressNextPaneClickClear.current) {
+      suppressNextPaneClickClear.current = false;
+      return;
+    }
     setSelection({ nodeId: null, edgeId: null });
   }, [closeContextMenu, setSelection]);
 
@@ -435,28 +482,90 @@ export function WorkflowEditorCanvas({
     [clearConnectionInteraction, onReconnect],
   );
 
-  const handleReflow = useCallback(() => {
-    if (!canEdit || nodes.length === 0) {
+  const handleReflow = useCallback(async () => {
+    if (!canEdit || nodes.length === 0 || isReflowingRef.current) {
       return;
     }
 
-    const { nodes: nextNodes, changed } = layoutWorkflowNodes({
-      nodes,
-      edges,
-    });
+    isReflowingRef.current = true;
+    setIsReflowing(true);
+    const requestId = reflowRequestId.current + 1;
+    reflowRequestId.current = requestId;
 
-    if (changed) {
-      setNodes(nextNodes);
-      setHasUnsavedChanges(true);
+    try {
+      const containerWidth =
+        canvasContainerRef.current?.getBoundingClientRect().width ??
+        (typeof window !== "undefined" ? window.innerWidth : 1280);
+      const { nodes: nextNodes, changed } = await layoutWorkflowNodes({
+        nodes,
+        edges,
+        availableWidth: containerWidth,
+      });
+
+      if (requestId !== reflowRequestId.current) {
+        return;
+      }
+
+      if (changed) {
+        setNodes(nextNodes);
+        setHasUnsavedChanges(true);
+      }
+
+      window.requestAnimationFrame(() => {
+        Promise.resolve(
+          fitView({
+            padding: 0.4,
+            duration: 300,
+            minZoom: 0.28,
+            maxZoom: 0.85,
+          }),
+        ).then(() => {
+          anchorTriggerTowardTop();
+        });
+      });
+    } finally {
+      if (requestId === reflowRequestId.current) {
+        isReflowingRef.current = false;
+        setIsReflowing(false);
+      }
+    }
+  }, [
+    anchorTriggerTowardTop,
+    canEdit,
+    edges,
+    fitView,
+    nodes,
+    setHasUnsavedChanges,
+    setNodes,
+  ]);
+
+  useEffect(() => {
+    if (
+      !isLoaded ||
+      nodes.length === 0 ||
+      hasAppliedInitialViewportRef.current
+    ) {
+      return;
     }
 
-    window.requestAnimationFrame(() => {
-      fitView({ padding: 0.2, duration: 300 });
+    hasAppliedInitialViewportRef.current = true;
+
+    const frameId = window.requestAnimationFrame(() => {
+      Promise.resolve(
+        fitView({ padding: 0.58, minZoom: 0.28, maxZoom: 0.8, duration: 220 }),
+      ).then(() => {
+        anchorTriggerTowardTop();
+      });
     });
-  }, [canEdit, edges, fitView, nodes, setHasUnsavedChanges, setNodes]);
+
+    return () => {
+      window.cancelAnimationFrame(frameId);
+    };
+  }, [anchorTriggerTowardTop, fitView, isLoaded, nodes.length]);
 
   return (
     <div
+      ref={canvasContainerRef}
       className="h-full transition-opacity duration-300"
       style={{
         opacity: isLoaded ? 1 : 0,
@@ -468,11 +577,11 @@ export function WorkflowEditorCanvas({
         edges={edgesWithTypes}
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
-        fitViewOptions={{ padding: 0.38, minZoom: 0.35 }}
+        fitViewOptions={{ padding: 0.58, minZoom: 0.28, maxZoom: 0.8 }}
         connectionLineComponent={Connection}
         connectionMode={ConnectionMode.Strict}
         isValidConnection={isValidConnection}
-        minZoom={0.35}
+        minZoom={0.25}
         maxZoom={1.8}
         nodesDraggable={canEdit}
         nodesConnectable={canEdit}
@@ -492,10 +601,15 @@ export function WorkflowEditorCanvas({
         onNodeContextMenu={canEdit ? onNodeContextMenu : undefined}
         onConnectStart={canEdit ? handleConnectStart : undefined}
         onConnectEnd={canEdit ? handleConnectEnd : undefined}
+        onEdgeClick={handleEdgeClick}
         onEdgeContextMenu={canEdit ? onEdgeContextMenu : undefined}
         onPaneClick={handlePaneClick}
         onPaneContextMenu={canEdit ? onPaneContextMenu : undefined}
         onSelectionChange={({ nodes: selectedNodes, edges: selectedEdges }) => {
+          if (selectedNodes.length === 0 && selectedEdges.length === 0) {
+            return;
+          }
+
           setSelection({
             nodeId: selectedNodes.at(0)?.id ?? null,
             edgeId: selectedEdges.at(0)?.id ?? null,
@@ -504,8 +618,8 @@ export function WorkflowEditorCanvas({
       >
         <Panel position="bottom-left">
           <Controls
-            canReflow={canEdit && nodes.length > 1}
-            onReflow={canEdit ? handleReflow : undefined}
+            canReflow={canEdit && nodes.length > 1 && !isReflowing}
+            onReflow={canEdit ? () => void handleReflow() : undefined}
           />
         </Panel>
         {children}

@@ -56,8 +56,8 @@ type RuntimeWaitInput = {
   waitTimezone?: unknown;
 };
 
-const CONDITION_TRUE_HANDLE_TOP = "33%";
-const CONDITION_FALSE_HANDLE_TOP = "67%";
+const CONDITION_TRUE_HANDLE_LEFT = "37%";
+const CONDITION_FALSE_HANDLE_LEFT = "63%";
 
 type ConditionBranch = "true" | "false";
 
@@ -401,18 +401,18 @@ const ActionNode = memo(function ActionNode({
           ? [
               {
                 id: "true",
-                position: Position.Right,
+                position: Position.Bottom,
                 style: {
-                  top: CONDITION_TRUE_HANDLE_TOP,
+                  left: CONDITION_TRUE_HANDLE_LEFT,
                   width: 14,
                   height: 14,
                 },
               },
               {
                 id: "false",
-                position: Position.Right,
+                position: Position.Bottom,
                 style: {
-                  top: CONDITION_FALSE_HANDLE_TOP,
+                  left: CONDITION_FALSE_HANDLE_LEFT,
                   width: 14,
                   height: 14,
                 },
@@ -422,7 +422,7 @@ const ActionNode = memo(function ActionNode({
       }}
       status={status}
       className={cn(
-        "h-42 w-42 flex-col items-center justify-center border-[2.5px] border-[var(--workflow-action-border)] bg-[var(--workflow-action-bg)] shadow-none",
+        "h-34 w-52 flex-col items-center justify-center border-2 border-[var(--workflow-action-border)] bg-[var(--workflow-action-bg)] shadow-none",
         isConditionAction &&
           "border-[var(--workflow-condition-border)] bg-[var(--workflow-condition-bg)]",
         selected && "border-primary",
@@ -431,16 +431,16 @@ const ActionNode = memo(function ActionNode({
     >
       {isConditionAction && !conditionBranchOccupancy.true ? (
         <div
-          className="-translate-y-1/2 pointer-events-none absolute top-0 right-[-4.75rem] z-30 rounded-sm border bg-card px-1.5 py-0.5 text-[10px] leading-none text-muted-foreground"
-          style={{ top: CONDITION_TRUE_HANDLE_TOP }}
+          className="pointer-events-none absolute -bottom-8 z-30 -translate-x-1/2 rounded-sm border bg-card px-1.5 py-0.5 text-[10px] leading-none text-muted-foreground"
+          style={{ left: CONDITION_TRUE_HANDLE_LEFT }}
         >
           True
         </div>
       ) : null}
       {isConditionAction && !conditionBranchOccupancy.false ? (
         <div
-          className="-translate-y-1/2 pointer-events-none absolute top-0 right-[-4.75rem] z-30 rounded-sm border bg-card px-1.5 py-0.5 text-[10px] leading-none text-muted-foreground"
-          style={{ top: CONDITION_FALSE_HANDLE_TOP }}
+          className="pointer-events-none absolute -bottom-8 z-30 -translate-x-1/2 rounded-sm border bg-card px-1.5 py-0.5 text-[10px] leading-none text-muted-foreground"
+          style={{ left: CONDITION_FALSE_HANDLE_LEFT }}
         >
           False
         </div>
@@ -452,22 +452,22 @@ const ActionNode = memo(function ActionNode({
       )}
       <StatusBadge status={status} />
       <div className="flex flex-col items-center gap-2 p-4 text-center">
-        <div className="flex size-12 items-center justify-center">
+        <div className="flex size-10 items-center justify-center">
           {actionVisual.brandIcon ? (
             <actionVisual.brandIcon
-              className="size-12"
+              className="size-10"
               data-testid={`action-node-brand-logo-${actionType ?? "unknown"}`}
             />
           ) : (
             <div
               className={cn(
-                "flex size-12 items-center justify-center rounded-lg",
+                "flex size-10 items-center justify-center rounded-lg",
                 actionVisual.iconBgClass,
               )}
             >
               <Icon
                 icon={actionVisual.icon}
-                className={cn("size-6", actionVisual.iconColorClass)}
+                className={cn("size-5", actionVisual.iconColorClass)}
               />
             </div>
           )}

@@ -19,25 +19,25 @@ export const Connection: ConnectionLineComponent = ({
         getSmoothStepPath({
           sourceX: fromX,
           sourceY: fromY,
-          sourcePosition: fromPosition ?? Position.Right,
+          sourcePosition: fromPosition ?? Position.Bottom,
           targetX: toX,
           targetY: toY,
-          targetPosition: toPosition ?? Position.Left,
+          targetPosition: toPosition ?? Position.Top,
           borderRadius: 12,
           offset: 16,
         })[0]
       }
       fill="none"
       stroke="var(--color-ring)"
-      strokeWidth={2}
+      strokeWidth={1.8}
     />
     <circle
       cx={toX}
       cy={toY}
       fill="#fff"
-      r={3}
+      r={2.75}
       stroke="var(--color-ring)"
-      strokeWidth={2}
+      strokeWidth={1.8}
     />
   </g>
 );

@@ -89,7 +89,7 @@ function getEdgePalette(selected: boolean | undefined): EdgePalette {
   if (selected) {
     return {
       stroke: "var(--foreground)",
-      strokeWidth: 3.4,
+      strokeWidth: 2.2,
       animation: "dashdraw 0.6s linear infinite",
       strokeDasharray: 5,
       labelFill: "var(--foreground)",
@@ -100,7 +100,7 @@ function getEdgePalette(selected: boolean | undefined): EdgePalette {
 
   return {
     stroke: "var(--workflow-edge-default)",
-    strokeWidth: 3.2,
+    strokeWidth: 1.9,
     animation: "none",
     labelFill: "var(--workflow-edge-default)",
     labelBgFill: "var(--background)",
@@ -125,8 +125,8 @@ const Temporary = memo(function Temporary({
     targetX,
     targetY,
     targetPosition,
-    borderRadius: 14,
-    offset: 18,
+    borderRadius: 12,
+    offset: 16,
   });
 
   return (
@@ -140,7 +140,7 @@ const Temporary = memo(function Temporary({
           : "var(--workflow-edge-default)",
         strokeOpacity: 0.75,
         strokeDasharray: "5, 5",
-        strokeWidth: 2.6,
+        strokeWidth: 1.6,
       }}
     />
   );
@@ -212,12 +212,12 @@ const getEdgeParams = (
 ) => {
   const sourceHandle = getHandleCoordsByPosition(source, {
     handleType: "source",
-    handlePosition: Position.Right,
+    handlePosition: Position.Bottom,
     handleId: input?.sourceHandleId ?? null,
   });
   const targetHandle = getHandleCoordsByPosition(target, {
     handleType: "target",
-    handlePosition: Position.Left,
+    handlePosition: Position.Top,
     handleId: input?.targetHandleId ?? null,
   });
 
@@ -265,8 +265,8 @@ const Animated = memo(function Animated({
     targetX: tx,
     targetY: ty,
     targetPosition: targetPos,
-    borderRadius: 16,
-    offset: 22,
+    borderRadius: 12,
+    offset: 16,
   });
 
   const edgeLabel = getEdgeLabel({ label, data });

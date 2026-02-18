@@ -215,7 +215,7 @@ export function WorkflowToolbar({
             <Icon icon={FloppyDiskIcon} />
           )}
           {hasUnsavedChanges && !isSaving && (
-            <span className="absolute -right-0.5 -top-0.5 size-2 rounded-full bg-primary" />
+            <span className="absolute right-1 top-1 size-1.5 rounded-full bg-primary" />
           )}
         </Button>
       </ButtonGroup>
@@ -277,8 +277,10 @@ export function WorkflowToolbar({
 
   return (
     <Panel position="top-right" className="flex items-center gap-1.5">
-      <div className="hidden items-center gap-1.5 lg:flex">{actionButtons}</div>
-      <div className="flex flex-col items-end gap-1.5 lg:hidden">
+      <div className="hidden items-center gap-1.5 2xl:flex">
+        {actionButtons}
+      </div>
+      <div className="flex max-w-[min(92vw,34rem)] flex-wrap items-center justify-end gap-1.5 2xl:hidden">
         {actionButtons}
       </div>
     </Panel>

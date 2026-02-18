@@ -84,14 +84,14 @@ const TriggerNode = memo(function TriggerNode({
       handles={{ target: false, source: true }}
       status={status}
       className={cn(
-        "h-44 w-44 flex-col items-center justify-center border-[var(--workflow-trigger-border)] bg-[var(--workflow-trigger-bg)] shadow-none",
+        "h-36 w-56 flex-col items-center justify-center border-[var(--workflow-trigger-border)] bg-[var(--workflow-trigger-bg)] shadow-none",
         selected && "border-primary",
       )}
     >
       <StatusBadge status={status} />
       <div className="flex flex-col items-center gap-2 p-4 text-center">
-        <div className="flex size-12 items-center justify-center rounded-lg bg-primary/10">
-          <Icon icon={PlayIcon} className="size-6 text-primary" />
+        <div className="flex size-10 items-center justify-center rounded-lg bg-primary/10">
+          <Icon icon={PlayIcon} className="size-5 text-primary" />
         </div>
         <NodeTitle className="text-base font-medium">{title}</NodeTitle>
         <NodeDescription className="text-xs">{description}</NodeDescription>

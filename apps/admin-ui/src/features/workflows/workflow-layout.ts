@@ -1,15 +1,17 @@
 import dagre from "@dagrejs/dagre";
+import { hierarchy, tree } from "d3-hierarchy";
 import type {
   WorkflowCanvasEdge,
   WorkflowCanvasNode,
 } from "./workflow-editor-store";
 
-const DEFAULT_NODE_WIDTH = 172;
-const DEFAULT_NODE_HEIGHT = 172;
-const LAYOUT_DIRECTION = "LR";
-const NODE_SPACING = 96;
-const RANK_SPACING = 190;
-const GRAPH_MARGIN = 32;
+const DEFAULT_NODE_WIDTH = 220;
+const DEFAULT_NODE_HEIGHT = 136;
+const LAYOUT_DIRECTION = "TB";
+const NODE_SPACING = 132;
+const RANK_SPACING = 118;
+const GRAPH_MARGIN = 40;
+const ROOT_ID = "__workflow-root__";
 
 type NodeDimensions = {
   width: number;
@@ -19,6 +21,11 @@ type NodeDimensions = {
 type DagreNode = {
   x: number;
   y: number;
+};
+
+type TreeNodeData = {
+  id: string;
+  children?: TreeNodeData[];
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -72,7 +79,7 @@ function getLayoutNode(
   return { x, y };
 }
 
-export function layoutWorkflowNodes(input: {
+function layoutWorkflowNodesWithDagre(input: {
   nodes: WorkflowCanvasNode[];
   edges: WorkflowCanvasEdge[];
 }): {
@@ -142,4 +149,225 @@ export function layoutWorkflowNodes(input: {
   });
 
   return { nodes: nextNodes, changed };
+}
+
+function getTreeSortRank(sourceHandle: string | null | undefined): number {
+  if (sourceHandle === "true") {
+    return 0;
+  }
+
+  if (sourceHandle === "false") {
+    return 1;
+  }
+
+  return 2;
+}
+
+function buildTreeLayoutData(input: {
+  nodes: WorkflowCanvasNode[];
+  edges: WorkflowCanvasEdge[];
+}): TreeNodeData | null {
+  const nodeIds = new Set(input.nodes.map((node) => node.id));
+  const inDegree = new Map<string, number>();
+  const edgesBySource = new Map<string, WorkflowCanvasEdge[]>();
+
+  for (const node of input.nodes) {
+    inDegree.set(node.id, 0);
+    edgesBySource.set(node.id, []);
+  }
+
+  for (const edge of input.edges) {
+    if (!(nodeIds.has(edge.source) && nodeIds.has(edge.target))) {
+      continue;
+    }
+
+    if (edge.source === edge.target) {
+      return null;
+    }
+
+    edgesBySource.get(edge.source)?.push(edge);
+    inDegree.set(edge.target, (inDegree.get(edge.target) ?? 0) + 1);
+
+    if ((inDegree.get(edge.target) ?? 0) > 1) {
+      return null;
+    }
+  }
+
+  for (const [sourceId, edges] of edgesBySource) {
+    edgesBySource.set(
+      sourceId,
+      edges.toSorted((a, b) => {
+        const rankDiff =
+          getTreeSortRank(a.sourceHandle ?? null) -
+          getTreeSortRank(b.sourceHandle ?? null);
+        if (rankDiff !== 0) {
+          return rankDiff;
+        }
+
+        return a.target.localeCompare(b.target);
+      }),
+    );
+  }
+
+  const roots = input.nodes
+    .filter((node) => (inDegree.get(node.id) ?? 0) === 0)
+    .toSorted((a, b) => a.id.localeCompare(b.id));
+
+  if (roots.length === 0) {
+    return null;
+  }
+
+  const seen = new Set<string>();
+  const visitStack = new Set<string>();
+
+  function buildNode(nodeId: string): TreeNodeData | null {
+    if (visitStack.has(nodeId)) {
+      return null;
+    }
+
+    visitStack.add(nodeId);
+    seen.add(nodeId);
+
+    const childEdges = edgesBySource.get(nodeId) ?? [];
+    const children: TreeNodeData[] = [];
+
+    for (const edge of childEdges) {
+      const childNode = buildNode(edge.target);
+      if (!childNode) {
+        return null;
+      }
+
+      children.push(childNode);
+    }
+
+    visitStack.delete(nodeId);
+
+    if (children.length === 0) {
+      return { id: nodeId };
+    }
+
+    return { id: nodeId, children };
+  }
+
+  const rootChildren: TreeNodeData[] = [];
+  for (const root of roots) {
+    const built = buildNode(root.id);
+    if (!built) {
+      return null;
+    }
+
+    rootChildren.push(built);
+  }
+
+  if (seen.size !== input.nodes.length) {
+    return null;
+  }
+
+  return {
+    id: ROOT_ID,
+    children: rootChildren,
+  };
+}
+
+function layoutWorkflowNodesWithHierarchy(input: {
+  nodes: WorkflowCanvasNode[];
+  edges: WorkflowCanvasEdge[];
+}): {
+  nodes: WorkflowCanvasNode[];
+  changed: boolean;
+} | null {
+  const treeData = buildTreeLayoutData({
+    nodes: input.nodes,
+    edges: input.edges,
+  });
+
+  if (!treeData) {
+    return null;
+  }
+
+  const root = hierarchy(treeData, (node) => node.children ?? []);
+  const treeLayout = tree<TreeNodeData>()
+    .nodeSize([
+      DEFAULT_NODE_WIDTH + NODE_SPACING,
+      DEFAULT_NODE_HEIGHT + RANK_SPACING,
+    ])
+    .separation((a, b) => (a.parent === b.parent ? 1 : 1.4));
+
+  treeLayout(root);
+
+  const positionedDescendants = root
+    .descendants()
+    .filter((node) => node.data.id !== ROOT_ID);
+
+  if (positionedDescendants.length === 0) {
+    return { nodes: input.nodes, changed: false };
+  }
+
+  const topLeftById = new Map<string, { x: number; y: number }>();
+  for (const descendant of positionedDescendants) {
+    const centerX = descendant.x ?? 0;
+    const centerY = descendant.y ?? 0;
+    topLeftById.set(descendant.data.id, {
+      x: centerX - DEFAULT_NODE_WIDTH / 2,
+      y: centerY - DEFAULT_NODE_HEIGHT / 2,
+    });
+  }
+
+  const topLeftPositions = Array.from(topLeftById.values());
+  const minX = Math.min(...topLeftPositions.map((position) => position.x));
+  const minY = Math.min(...topLeftPositions.map((position) => position.y));
+
+  let changed = false;
+
+  const nodes = input.nodes.map((node) => {
+    const rawPosition = topLeftById.get(node.id);
+    if (!rawPosition) {
+      return node;
+    }
+
+    const nextPosition = {
+      x: Math.round(rawPosition.x - minX + GRAPH_MARGIN),
+      y: Math.round(rawPosition.y - minY + GRAPH_MARGIN),
+    };
+
+    if (!hasPositionChanged(node.position, nextPosition)) {
+      return node;
+    }
+
+    changed = true;
+
+    return {
+      ...node,
+      position: nextPosition,
+    };
+  });
+
+  return { nodes, changed };
+}
+
+export async function layoutWorkflowNodes(input: {
+  nodes: WorkflowCanvasNode[];
+  edges: WorkflowCanvasEdge[];
+  availableWidth?: number;
+}): Promise<{
+  nodes: WorkflowCanvasNode[];
+  changed: boolean;
+}> {
+  if (input.nodes.length === 0) {
+    return { nodes: input.nodes, changed: false };
+  }
+
+  const treeLayoutResult = layoutWorkflowNodesWithHierarchy({
+    nodes: input.nodes,
+    edges: input.edges,
+  });
+
+  if (treeLayoutResult) {
+    return treeLayoutResult;
+  }
+
+  return layoutWorkflowNodesWithDagre({
+    nodes: input.nodes,
+    edges: input.edges,
+  });
 }
