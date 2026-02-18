@@ -408,7 +408,10 @@ export function IntegrationsSection() {
     }),
   );
 
-  const integrations = integrationsResponse?.items ?? [];
+  const integrations = useMemo(
+    () => integrationsResponse?.items ?? [],
+    [integrationsResponse],
+  );
 
   useEffect(() => {
     if (typeof window === "undefined") {

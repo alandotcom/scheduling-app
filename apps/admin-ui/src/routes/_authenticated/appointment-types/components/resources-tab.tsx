@@ -100,7 +100,10 @@ export function ResourcesTab({
     enabled: !!appointmentTypeId,
   });
 
-  const requiredResources = requiredResourcesData ?? [];
+  const requiredResources = useMemo(
+    () => requiredResourcesData ?? [],
+    [requiredResourcesData],
+  );
 
   useEffect(() => {
     const syncedDrafts = Object.fromEntries(

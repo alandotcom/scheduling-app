@@ -67,7 +67,7 @@ function DateOverridesEditorBody({
     }),
   );
 
-  const overrides = overridesData?.items ?? [];
+  const overrides = useMemo(() => overridesData?.items ?? [], [overridesData]);
   const todayDateKey = DateTime.now().setZone(timezone).toISODate() ?? "";
   const upcomingOverrides = useMemo(
     () =>

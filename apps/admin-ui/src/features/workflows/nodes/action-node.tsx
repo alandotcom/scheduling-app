@@ -12,7 +12,7 @@ import {
   ViewOffIcon,
 } from "@hugeicons/core-free-icons";
 import { Icon } from "@/components/ui/icon";
-import { memo, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useEffect, useMemo, useState } from "react";
 import {
   Node,
   NodeDescription,
@@ -156,6 +156,10 @@ function toSignaturePart(value: unknown): string {
   }
 }
 
+function getPreviewBaseNowMs(_waitSignature: string): number {
+  return Date.now();
+}
+
 function useConfigWaitPreview(
   actionType: string | undefined,
   config: WorkflowActionNodeData["config"],
@@ -175,8 +179,6 @@ function useConfigWaitPreview(
     hasDynamicExpression(waitUntil) ||
     hasDynamicExpression(waitOffset);
 
-  const previewBaseNowMsRef = useRef(Date.now());
-  const waitSignatureRef = useRef("");
   const waitSignature = [
     delayTimingMode,
     toSignaturePart(waitDuration),
@@ -184,11 +186,10 @@ function useConfigWaitPreview(
     toSignaturePart(waitOffset),
     toSignaturePart(waitTimezone),
   ].join("|");
-
-  if (shouldShowWaitPreview && waitSignatureRef.current !== waitSignature) {
-    waitSignatureRef.current = waitSignature;
-    previewBaseNowMsRef.current = Date.now();
-  }
+  const previewBaseNowMs = useMemo(
+    () => getPreviewBaseNowMs(waitSignature),
+    [waitSignature],
+  );
 
   const resolution = useMemo(() => {
     if (!(shouldShowWaitPreview && !hasDynamicValue)) {
@@ -196,7 +197,7 @@ function useConfigWaitPreview(
     }
 
     return resolveWaitUntil({
-      now: new Date(previewBaseNowMsRef.current),
+      now: new Date(previewBaseNowMs),
       waitDuration: delayTimingMode === "duration" ? waitDuration : undefined,
       waitUntil: delayTimingMode === "until" ? waitUntil : undefined,
       waitOffset: delayTimingMode === "until" ? waitOffset : undefined,
@@ -206,6 +207,7 @@ function useConfigWaitPreview(
     shouldShowWaitPreview,
     hasDynamicValue,
     delayTimingMode,
+    previewBaseNowMs,
     waitDuration,
     waitUntil,
     waitOffset,
@@ -233,7 +235,7 @@ function useConfigWaitPreview(
   const triggerTime = formatTriggerTime(resolution.waitUntil, waitTimezone);
   return {
     countdown: formatCountdown(
-      resolution.waitUntil.getTime() - previewBaseNowMsRef.current,
+      resolution.waitUntil.getTime() - previewBaseNowMs,
     ),
     triggerTimeMain: triggerTime.main,
     triggerTimeZone: triggerTime.timezone,

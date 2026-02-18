@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
 import { Cancel01Icon } from "@hugeicons/core-free-icons";
 
@@ -30,15 +30,8 @@ export function AvailabilityManageModal({
   timezone,
   initialTab = "weekly",
 }: AvailabilityManageModalProps) {
-  const [activeTab, setActiveTab] =
-    useState<AvailabilitySubTabType>(initialTab);
-
-  useEffect(() => {
-    if (!open) return;
-    setActiveTab(initialTab);
-  }, [initialTab, open, calendarId]);
-
   if (!calendarId) return null;
+  const contentKey = `${calendarId}:${open ? initialTab : "closed"}`;
 
   return (
     <DialogPrimitive.Root
@@ -87,28 +80,12 @@ export function AvailabilityManageModal({
           </div>
 
           <div className="flex-1 overflow-y-auto overscroll-contain px-4 py-4 sm:px-6 sm:py-5">
-            <div className="space-y-4">
-              <AvailabilitySubTabs value={activeTab} onChange={setActiveTab} />
-
-              {activeTab === "weekly" && (
-                <CompactWeeklyScheduleEditor
-                  calendarId={calendarId}
-                  timezone={timezone}
-                />
-              )}
-              {activeTab === "overrides" && (
-                <DateOverridesEditor
-                  calendarId={calendarId}
-                  timezone={timezone}
-                />
-              )}
-              {activeTab === "blocked" && (
-                <CompactBlockedTimeEditor
-                  calendarId={calendarId}
-                  timezone={timezone}
-                />
-              )}
-            </div>
+            <AvailabilityManageModalContent
+              key={contentKey}
+              calendarId={calendarId}
+              timezone={timezone}
+              initialTab={initialTab}
+            />
           </div>
 
           <div className="mt-auto border-t border-border bg-background px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-6 sm:py-4">
@@ -125,5 +102,37 @@ export function AvailabilityManageModal({
         </DialogPrimitive.Popup>
       </DialogPrimitive.Portal>
     </DialogPrimitive.Root>
+  );
+}
+
+function AvailabilityManageModalContent({
+  calendarId,
+  timezone,
+  initialTab,
+}: {
+  calendarId: string;
+  timezone: string;
+  initialTab: AvailabilitySubTabType;
+}) {
+  const [activeTab, setActiveTab] =
+    useState<AvailabilitySubTabType>(initialTab);
+
+  return (
+    <div className="space-y-4">
+      <AvailabilitySubTabs value={activeTab} onChange={setActiveTab} />
+
+      {activeTab === "weekly" && (
+        <CompactWeeklyScheduleEditor
+          calendarId={calendarId}
+          timezone={timezone}
+        />
+      )}
+      {activeTab === "overrides" && (
+        <DateOverridesEditor calendarId={calendarId} timezone={timezone} />
+      )}
+      {activeTab === "blocked" && (
+        <CompactBlockedTimeEditor calendarId={calendarId} timezone={timezone} />
+      )}
+    </div>
   );
 }

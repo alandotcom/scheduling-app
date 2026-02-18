@@ -89,7 +89,10 @@ export function CalendarsTab({
     enabled: !!appointmentTypeId,
   });
 
-  const linkedCalendars = linkedCalendarsData ?? [];
+  const linkedCalendars = useMemo(
+    () => linkedCalendarsData ?? [],
+    [linkedCalendarsData],
+  );
 
   // Memoize derived state
   const availableCalendars = useMemo(() => {

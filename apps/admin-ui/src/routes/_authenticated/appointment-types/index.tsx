@@ -272,7 +272,7 @@ function AppointmentTypesPage() {
     });
   }, [create, crud, navigate]);
 
-  const appointmentTypes = data?.items ?? [];
+  const appointmentTypes = useMemo(() => data?.items ?? [], [data]);
   const manageType = useMemo(
     () => appointmentTypes.find((item) => item.id === manageTypeId) ?? null,
     [appointmentTypes, manageTypeId],
@@ -453,7 +453,7 @@ function AppointmentTypesPage() {
         variant: "destructive",
       },
     ],
-    [crud],
+    [crud, setManageTab, setManageTypeId],
   );
 
   const closeManageModal = () => {

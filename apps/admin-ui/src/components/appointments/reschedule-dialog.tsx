@@ -1,6 +1,6 @@
 // Reschedule appointment dialog with calendar and time slot picker
 
-import { useEffect, useState } from "react";
+import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
 import { DateTime } from "luxon";
@@ -73,21 +73,13 @@ export function RescheduleDialog({
     fallbackTimezone: defaultTimezone,
     viewerTimezone,
   });
-  const timezoneShortLabel = formatTimezoneShort(
-    effectiveTimezone,
-    selectedTime ?? undefined,
-  );
-
-  useEffect(() => {
-    if (!open) return;
-    setSelectedTime(null);
-  }, [open, timezoneMode]);
 
   // Reset state when dialog opens/closes
   const handleOpenChange = (isOpen: boolean) => {
     if (isOpen) {
       // Reset to current month when opening
       setViewMonth(DateTime.now().startOf("month"));
+      setSelectedTime(null);
     }
     if (!isOpen) {
       setSelectedDate(null);
@@ -138,24 +130,26 @@ export function RescheduleDialog({
     enabled: open && !!monthStartDateStr && !!monthEndDateStr,
   });
 
-  const monthSlots = slotsData?.slots ?? [];
+  const monthSlots = useMemo(() => slotsData?.slots ?? [], [slotsData]);
+  const activeSelectedTime = useMemo(() => {
+    if (!(open && selectedDate && selectedTime && !slotsLoading)) {
+      return selectedTime;
+    }
+    const stillAvailable = monthSlots.some(
+      (slot) => slot.start === selectedTime,
+    );
+    return stillAvailable ? selectedTime : null;
+  }, [monthSlots, open, selectedDate, selectedTime, slotsLoading]);
+  const timezoneShortLabel = formatTimezoneShort(
+    effectiveTimezone,
+    activeSelectedTime ?? undefined,
+  );
 
   const openCalendarAvailability = () => {
     setAvailabilityModalOpen(true);
   };
 
-  useEffect(() => {
-    if (!open || !selectedDate || !selectedTime || slotsLoading) return;
-
-    const stillAvailable = monthSlots.some((slot) => {
-      return slot.start === selectedTime;
-    });
-    if (!stillAvailable) {
-      setSelectedTime(null);
-    }
-  }, [monthSlots, open, selectedDate, selectedTime, slotsLoading]);
-
-  const canReschedule = !!selectedTime && !rescheduleMutation.isPending;
+  const canReschedule = !!activeSelectedTime && !rescheduleMutation.isPending;
   const { hintsVisible, registerField } = useModalFieldShortcuts({
     enabled: open,
     fields: [
@@ -175,11 +169,11 @@ export function RescheduleDialog({
   useSubmitShortcut({
     enabled: open && canReschedule,
     onSubmit: () => {
-      if (!selectedTime) return;
+      if (!activeSelectedTime) return;
       rescheduleMutation.mutate({
         id: appointment.id,
         data: {
-          newStartTime: DateTime.fromISO(selectedTime, {
+          newStartTime: DateTime.fromISO(activeSelectedTime, {
             setZone: true,
           }).toJSDate(),
           timezone: calendarTimezone,
@@ -299,7 +293,7 @@ export function RescheduleDialog({
                     setSelectedDate(date);
                     setSelectedTime(null);
                   }}
-                  selectedTime={selectedTime}
+                  selectedTime={activeSelectedTime}
                   onSelectTime={setSelectedTime}
                   monthSlots={monthSlots}
                   slotsLoading={slotsLoading}
@@ -327,11 +321,11 @@ export function RescheduleDialog({
                 </Button>
                 <Button
                   onClick={() => {
-                    if (selectedTime) {
+                    if (activeSelectedTime) {
                       rescheduleMutation.mutate({
                         id: appointment.id,
                         data: {
-                          newStartTime: DateTime.fromISO(selectedTime, {
+                          newStartTime: DateTime.fromISO(activeSelectedTime, {
                             setZone: true,
                           }).toJSDate(),
                           timezone: calendarTimezone,

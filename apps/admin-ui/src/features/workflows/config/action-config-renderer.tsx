@@ -327,6 +327,17 @@ function toKeyValueRows(value: unknown): KeyValueRow[] {
   return rows;
 }
 
+function serializeConfigValueForKey(value: unknown): string {
+  if (value === undefined) {
+    return "undefined";
+  }
+  try {
+    return JSON.stringify(value) ?? "null";
+  } catch {
+    return "unserializable";
+  }
+}
+
 function serializeKeyValueRowsForDraft(rows: KeyValueRow[]): Array<{
   key: string;
   value: string;
@@ -895,12 +906,6 @@ function KeyValueListFieldRenderer({
   );
   const rowsRef = useRef(rows);
 
-  useEffect(() => {
-    const nextRows = toKeyValueRows(configValue);
-    rowsRef.current = nextRows;
-    setRows(nextRows);
-  }, [configValue]);
-
   const commitRows = (nextRows: KeyValueRow[]) => {
     onUpdateConfig(field.key, serializeKeyValueRowsForDraft(nextRows));
   };
@@ -1177,9 +1182,13 @@ function FieldRenderer({
           suggestions={expressionSuggestions}
         />
       );
-    case "key_value_list":
+    case "key_value_list": {
+      const keyValueListKey = `${field.key}:${serializeConfigValueForKey(
+        config[field.key],
+      )}`;
       return (
         <KeyValueListFieldRenderer
+          key={keyValueListKey}
           field={field}
           config={config}
           onUpdateConfig={onUpdateConfig}
@@ -1187,6 +1196,7 @@ function FieldRenderer({
           suggestions={expressionSuggestions}
         />
       );
+    }
   }
 }
 

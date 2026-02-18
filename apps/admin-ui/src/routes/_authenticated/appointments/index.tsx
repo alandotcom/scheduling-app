@@ -126,10 +126,11 @@ function AppointmentsPage() {
   const [noShowId, setNoShowId] = useState<string | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [mobileControlsOpen, setMobileControlsOpen] = useState(false);
+  const shouldAutoOpenCreateModal = create === "1";
+  const isCreateModalOpen = shouldAutoOpenCreateModal || modalOpen;
 
   useEffect(() => {
-    if (create !== "1") return;
-    setModalOpen(true);
+    if (!shouldAutoOpenCreateModal) return;
     navigate({
       search: (prev) => ({
         ...prev,
@@ -137,7 +138,7 @@ function AppointmentsPage() {
       }),
       replace: true,
     });
-  }, [create, navigate]);
+  }, [navigate, shouldAutoOpenCreateModal]);
 
   // Filters from URL
   const filters = useMemo(
@@ -329,7 +330,7 @@ function AppointmentsPage() {
     }),
     placeholderData: (previous) => previous,
   });
-  const listAppointments = listData?.items ?? [];
+  const listAppointments = useMemo(() => listData?.items ?? [], [listData]);
 
   // Parse date param for schedule view or default to current week
   const weekStart = useMemo(() => {
@@ -978,7 +979,7 @@ function AppointmentsPage() {
 
       {/* Appointment Modal */}
       <AppointmentModal
-        open={modalOpen}
+        open={isCreateModalOpen}
         onOpenChange={setModalOpen}
         timezoneMode={timezoneMode}
         onTimezoneModeChange={setTimezoneMode}

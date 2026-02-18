@@ -1,6 +1,6 @@
 // Weekly schedule editor - with free-text time range input per day
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   FloppyDiskIcon,
@@ -36,6 +36,36 @@ interface WeeklyScheduleEditorBodyProps extends WeeklyScheduleEditorProps {
   compact: boolean;
 }
 
+function createEmptyWeeklySchedule(): WeeklySchedule {
+  return Object.fromEntries(
+    WEEKDAYS.map((d) => [d.value, { enabled: false, blocks: [] }]),
+  ) as WeeklySchedule;
+}
+
+function buildWeeklyScheduleFromRules(
+  rules:
+    | Array<{ weekday: number; startTime: string; endTime: string }>
+    | undefined,
+): WeeklySchedule {
+  const schedule = createEmptyWeeklySchedule();
+  if (!rules?.length) {
+    return schedule;
+  }
+  for (const rule of rules) {
+    const dayEntry = schedule[rule.weekday] ?? {
+      enabled: false,
+      blocks: [],
+    };
+    dayEntry.enabled = true;
+    dayEntry.blocks.push({
+      startTime: rule.startTime,
+      endTime: rule.endTime,
+    });
+    schedule[rule.weekday] = dayEntry;
+  }
+  return schedule;
+}
+
 export function WeeklyScheduleEditor(props: WeeklyScheduleEditorProps) {
   return <WeeklyScheduleEditorBody {...props} compact={false} />;
 }
@@ -55,22 +85,16 @@ function DayTimeInput({
   onUpdate: (weekday: number, schedule: DaySchedule) => void;
   compact: boolean;
 }) {
-  const [inputValue, setInputValue] = useState("");
+  const [draftInputValue, setDraftInputValue] = useState("");
   const [isFocused, setIsFocused] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [draftError, setDraftError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-
-  // Sync input display from blocks (only when not focused)
-  useEffect(() => {
-    if (!isFocused) {
-      if (daySchedule.enabled && daySchedule.blocks.length > 0) {
-        setInputValue(formatTimeBlocksForInput(daySchedule.blocks));
-      } else {
-        setInputValue("");
-      }
-      setError(null);
-    }
-  }, [daySchedule, isFocused]);
+  const displayInputValue =
+    daySchedule.enabled && daySchedule.blocks.length > 0
+      ? formatTimeBlocksForInput(daySchedule.blocks)
+      : "";
+  const inputValue = isFocused ? draftInputValue : displayInputValue;
+  const error = isFocused ? draftError : null;
 
   const commitValue = useCallback(
     (value: string) => {
@@ -79,24 +103,24 @@ function DayTimeInput({
       if (!trimmed) {
         // Clearing input disables the day
         onUpdate(day.value, { enabled: false, blocks: [] });
-        setError(null);
+        setDraftError(null);
         return;
       }
 
       const parsed = parseTimeRanges(trimmed);
 
       if (parsed.length === 0) {
-        setError("Could not parse time ranges. Try: 9am-5pm");
+        setDraftError("Could not parse time ranges. Try: 9am-5pm");
         return;
       }
 
       const validationError = validateTimeBlocks(parsed);
       if (validationError) {
-        setError(validationError);
+        setDraftError(validationError);
         return;
       }
 
-      setError(null);
+      setDraftError(null);
       onUpdate(day.value, { enabled: true, blocks: parsed });
     },
     [day.value, onUpdate],
@@ -104,13 +128,13 @@ function DayTimeInput({
 
   const handleBlur = () => {
     setIsFocused(false);
-    commitValue(inputValue);
+    commitValue(draftInputValue);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter") {
       e.preventDefault();
-      commitValue(inputValue);
+      commitValue(draftInputValue);
       inputRef.current?.blur();
     }
   };
@@ -124,8 +148,8 @@ function DayTimeInput({
         onClick={() => {
           if (isActive) {
             onUpdate(day.value, { enabled: false, blocks: [] });
-            setInputValue("");
-            setError(null);
+            setDraftInputValue("");
+            setDraftError(null);
           } else {
             const defaultBlocks: TimeBlock[] = [
               { startTime: "09:00", endTime: "17:00" },
@@ -150,8 +174,12 @@ function DayTimeInput({
           ref={inputRef}
           type="text"
           value={inputValue}
-          onChange={(e) => setInputValue(e.target.value)}
-          onFocus={() => setIsFocused(true)}
+          onChange={(e) => setDraftInputValue(e.target.value)}
+          onFocus={() => {
+            setIsFocused(true);
+            setDraftError(null);
+            setDraftInputValue(displayInputValue);
+          }}
           onBlur={handleBlur}
           onKeyDown={handleKeyDown}
           placeholder={
@@ -187,9 +215,7 @@ function WeeklyScheduleEditorBody({
   const queryClient = useQueryClient();
 
   const [schedule, setSchedule] = useState<WeeklySchedule>(
-    Object.fromEntries(
-      WEEKDAYS.map((d) => [d.value, { enabled: false, blocks: [] }]),
-    ) as WeeklySchedule,
+    createEmptyWeeklySchedule(),
   );
   const [hasChanges, setHasChanges] = useState(false);
 
@@ -199,30 +225,11 @@ function WeeklyScheduleEditorBody({
       input: { calendarId, limit: 100 },
     }),
   );
-
-  // Initialize schedule from rules
-  useEffect(() => {
-    if (rulesData?.items && !hasChanges) {
-      const newSchedule = Object.fromEntries(
-        WEEKDAYS.map((d) => [d.value, { enabled: false, blocks: [] }]),
-      ) as WeeklySchedule;
-
-      for (const rule of rulesData.items) {
-        const dayEntry = newSchedule[rule.weekday] ?? {
-          enabled: false,
-          blocks: [],
-        };
-        dayEntry.enabled = true;
-        dayEntry.blocks.push({
-          startTime: rule.startTime,
-          endTime: rule.endTime,
-        });
-        newSchedule[rule.weekday] = dayEntry;
-      }
-
-      setSchedule(newSchedule);
-    }
-  }, [rulesData, hasChanges]);
+  const baseSchedule = useMemo(
+    () => buildWeeklyScheduleFromRules(rulesData?.items),
+    [rulesData?.items],
+  );
+  const activeSchedule = hasChanges ? schedule : baseSchedule;
 
   // Set weekly availability mutation
   const setWeeklyMutation = useMutation(
@@ -238,21 +245,24 @@ function WeeklyScheduleEditorBody({
   );
 
   const getDay = (weekday: number): DaySchedule =>
-    schedule[weekday] ?? { enabled: false, blocks: [] };
+    activeSchedule[weekday] ?? { enabled: false, blocks: [] };
 
-  const updateDay = useCallback((weekday: number, daySchedule: DaySchedule) => {
-    setSchedule((prev) => ({
-      ...prev,
-      [weekday]: daySchedule,
-    }));
-    setHasChanges(true);
-  }, []);
+  const updateDay = useCallback(
+    (weekday: number, daySchedule: DaySchedule) => {
+      setSchedule((prev) => ({
+        ...(hasChanges ? prev : activeSchedule),
+        [weekday]: daySchedule,
+      }));
+      setHasChanges(true);
+    },
+    [activeSchedule, hasChanges],
+  );
 
   const copyMondayToWeekdays = () => {
     const monday = getDay(1);
     const copiedBlocks = monday.blocks.map((b) => ({ ...b }));
     setSchedule((prev) => ({
-      ...prev,
+      ...(hasChanges ? prev : activeSchedule),
       2: {
         enabled: monday.enabled,
         blocks: copiedBlocks.map((b) => ({ ...b })),
@@ -274,11 +284,7 @@ function WeeklyScheduleEditorBody({
   };
 
   const clearAll = () => {
-    setSchedule(
-      Object.fromEntries(
-        WEEKDAYS.map((d) => [d.value, { enabled: false, blocks: [] }]),
-      ) as WeeklySchedule,
-    );
+    setSchedule(createEmptyWeeklySchedule());
     setHasChanges(true);
   };
 
@@ -289,7 +295,7 @@ function WeeklyScheduleEditorBody({
       endTime: string;
     }> = [];
 
-    for (const [weekdayStr, daySchedule] of Object.entries(schedule)) {
+    for (const [weekdayStr, daySchedule] of Object.entries(activeSchedule)) {
       const weekday = parseInt(weekdayStr, 10);
       if (daySchedule.enabled) {
         for (const block of daySchedule.blocks) {

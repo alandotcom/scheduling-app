@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useMemo, useState } from "react";
 import {
   Add01Icon,
   Alert02Icon,
@@ -688,6 +688,25 @@ export function WorkflowTriggerConfig({
   disabled,
   onUpdate,
 }: WorkflowTriggerConfigProps) {
+  const filterSyncKey = useMemo(() => {
+    return JSON.stringify(config.filter ?? null);
+  }, [config.filter]);
+
+  return (
+    <WorkflowTriggerConfigInner
+      key={filterSyncKey}
+      config={config}
+      disabled={disabled}
+      onUpdate={onUpdate}
+    />
+  );
+}
+
+function WorkflowTriggerConfigInner({
+  config,
+  disabled,
+  onUpdate,
+}: WorkflowTriggerConfigProps) {
   const [filterDraft, setFilterDraft] =
     useState<JourneyTriggerFilterAstDraft | null>(() =>
       toFilterDraft(config.filter),
@@ -696,11 +715,6 @@ export function WorkflowTriggerConfig({
     string | null
   >(null);
   const [showFilters, setShowFilters] = useState(false);
-
-  useEffect(() => {
-    setFilterDraft(toFilterDraft(config.filter));
-    setFilterValidationError(null);
-  }, [config.filter]);
 
   const commitFilter = (nextFilter: JourneyTriggerFilterAstDraft | null) => {
     setFilterDraft(nextFilter);

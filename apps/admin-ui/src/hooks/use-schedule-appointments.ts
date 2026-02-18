@@ -103,7 +103,7 @@ export function useScheduleAppointments({
       hasNotes: item.hasNotes,
       resourceSummary: item.resourceSummary,
     }));
-  }, [data?.items, displayTimezone]);
+  }, [data, displayTimezone]);
 
   return {
     appointments,

@@ -250,7 +250,6 @@ export function ExpressionInput({
   const [activeIndex, setActiveIndex] = useState(0);
   const [mentionState, setMentionState] = useState<MentionState | null>(null);
   const [isFocused, setIsFocused] = useState(false);
-  const [internalValue, setInternalValue] = useState(value);
   const shouldUpdateDisplay = useRef(true);
   const pendingCursorPosition = useRef<number | null>(null);
   const blurTimeoutRef = useRef<ReturnType<typeof setTimeout>>(undefined);
@@ -264,13 +263,9 @@ export function ExpressionInput({
     };
   }, []);
 
-  // Sync with external value prop
   useEffect(() => {
-    if (value !== internalValue) {
-      setInternalValue(value);
-      shouldUpdateDisplay.current = true;
-    }
-  }, [value]); // eslint-disable-line react-hooks/exhaustive-deps
+    shouldUpdateDisplay.current = true;
+  }, [value]);
 
   // Rebuild the contentEditable DOM when display update is needed
   useEffect(() => {
@@ -279,7 +274,7 @@ export function ExpressionInput({
     }
 
     const container = contentRef.current;
-    const text = internalValue;
+    const text = value;
 
     // Save cursor position before rebuilding
     let cursorPos = isFocused ? getCursorOffset(container) : null;
@@ -347,7 +342,7 @@ export function ExpressionInput({
         }
       });
     }
-  }, [internalValue, isFocused, placeholder]);
+  }, [isFocused, placeholder, value]);
 
   const filteredSuggestions = useMemo(() => {
     if (!mentionState) {
@@ -375,15 +370,14 @@ export function ExpressionInput({
     }
 
     const newValue = extractValue(contentRef.current);
-    if (newValue === internalValue) {
+    if (newValue === value) {
       return;
     }
 
     // Check if reference count changed — if so, rebuild display
-    const oldRefs = [...internalValue.matchAll(REFERENCE_TOKEN_PATTERN)].length;
+    const oldRefs = [...value.matchAll(REFERENCE_TOKEN_PATTERN)].length;
     const newRefs = [...newValue.matchAll(REFERENCE_TOKEN_PATTERN)].length;
 
-    setInternalValue(newValue);
     onChange(newValue);
 
     if (oldRefs !== newRefs) {
@@ -403,13 +397,12 @@ export function ExpressionInput({
     }
 
     const inserted = `${suggestion.value} `;
-    const nextValue = `${internalValue.slice(0, mentionState.start)}${inserted}${internalValue.slice(mentionState.end)}`;
+    const nextValue = `${value.slice(0, mentionState.start)}${inserted}${value.slice(mentionState.end)}`;
     const nextCursor = mentionState.start + inserted.length;
 
     pendingCursorPosition.current = nextCursor;
     shouldUpdateDisplay.current = true;
 
-    setInternalValue(nextValue);
     onChange(nextValue);
     setOpen(false);
     setMentionState(null);
@@ -495,7 +488,7 @@ export function ExpressionInput({
           }}
           onFocus={() => {
             setIsFocused(true);
-            if (!internalValue) {
+            if (!value) {
               shouldUpdateDisplay.current = true;
             }
           }}

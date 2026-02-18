@@ -1339,10 +1339,9 @@ function MessageDetailView({
   const messageAttempts = useMessageAttempts(messageId, { limit: 25 });
   const [viewMode, setViewMode] = useState<"formatted" | "raw">("formatted");
 
-  const payload = useMemo(() => {
-    if (!message.data?.payload) return "";
-    return formatWebhookPayloadPreview(message.data.payload);
-  }, [message.data?.payload]);
+  const payload = message.data?.payload
+    ? formatWebhookPayloadPreview(message.data.payload)
+    : "";
 
   const onCopyPayload = async () => {
     if (!payload) return;
@@ -1774,15 +1773,16 @@ function JsonNode({
 
 function EventCatalogTab() {
   const eventTypes = useEventTypes({ limit: 100 });
+  const eventTypesData = eventTypes.data;
   const [selectedEventName, setSelectedEventName] = useState<string | null>(
     null,
   );
 
   const grouped = useMemo(() => {
-    if (!eventTypes.data)
-      return new Map<string, NonNullable<typeof eventTypes.data>>();
-    const groups = new Map<string, NonNullable<typeof eventTypes.data>>();
-    for (const et of eventTypes.data) {
+    if (!eventTypesData)
+      return new Map<string, NonNullable<typeof eventTypesData>>();
+    const groups = new Map<string, NonNullable<typeof eventTypesData>>();
+    for (const et of eventTypesData) {
       const prefix = et.name.split(".")[0] ?? "other";
       const group = groups.get(prefix) ?? [];
       group.push(et);
@@ -1791,19 +1791,22 @@ function EventCatalogTab() {
     return new Map(
       [...groups.entries()].toSorted(([a], [b]) => a.localeCompare(b)),
     );
-  }, [eventTypes.data]);
+  }, [eventTypesData]);
 
-  // Auto-select first event on load
-  useEffect(() => {
-    const first = eventTypes.data?.[0];
-    if (!selectedEventName && first) {
-      setSelectedEventName(first.name);
+  const activeSelectedEventName = useMemo(() => {
+    if (!eventTypesData?.length) return null;
+    if (!selectedEventName) {
+      return eventTypesData[0]?.name ?? null;
     }
-  }, [selectedEventName, eventTypes.data]);
+    const isExisting = eventTypesData.some(
+      (et) => et.name === selectedEventName,
+    );
+    return isExisting ? selectedEventName : (eventTypesData[0]?.name ?? null);
+  }, [eventTypesData, selectedEventName]);
 
   const selectedEvent = useMemo(
-    () => eventTypes.data?.find((et) => et.name === selectedEventName),
-    [eventTypes.data, selectedEventName],
+    () => eventTypesData?.find((et) => et.name === activeSelectedEventName),
+    [activeSelectedEventName, eventTypesData],
   );
 
   return (
@@ -1871,7 +1874,7 @@ function EventCatalogTab() {
                   key={prefix}
                   prefix={prefix}
                   events={events}
-                  selectedEventName={selectedEventName}
+                  selectedEventName={activeSelectedEventName}
                   onSelect={setSelectedEventName}
                 />
               ))}
@@ -2268,14 +2271,16 @@ function LogsTab() {
   const [selectedMessageId, setSelectedMessageId] = useState<string | null>(
     null,
   );
-
-  // Auto-select first message on load
-  useEffect(() => {
-    const first = messages.data?.[0];
-    if (!selectedMessageId && first) {
-      setSelectedMessageId(first.id);
+  const activeSelectedMessageId = useMemo(() => {
+    if (!messages.data?.length) return null;
+    if (!selectedMessageId) {
+      return messages.data[0]?.id ?? null;
     }
-  }, [selectedMessageId, messages.data]);
+    const isExisting = messages.data.some((message) => {
+      return message.id === selectedMessageId;
+    });
+    return isExisting ? selectedMessageId : (messages.data[0]?.id ?? null);
+  }, [messages.data, selectedMessageId]);
 
   return (
     <div className="space-y-4">
@@ -2335,7 +2340,7 @@ function LogsTab() {
                   onClick={() => setSelectedMessageId(msg.id)}
                   className={cn(
                     "flex w-full flex-col gap-0.5 rounded-lg px-3 py-2 text-left transition-colors",
-                    selectedMessageId === msg.id
+                    activeSelectedMessageId === msg.id
                       ? "bg-accent text-accent-foreground"
                       : "text-muted-foreground hover:bg-accent/30",
                   )}
@@ -2384,8 +2389,8 @@ function LogsTab() {
 
           {/* Right panel — message detail */}
           <div className="min-w-0 flex-1 overflow-hidden">
-            {selectedMessageId ? (
-              <LogsMessageDetail messageId={selectedMessageId} />
+            {activeSelectedMessageId ? (
+              <LogsMessageDetail messageId={activeSelectedMessageId} />
             ) : (
               <div className="flex h-48 items-center justify-center rounded-lg border border-dashed border-border text-sm text-muted-foreground">
                 Select a message to view details
@@ -2407,10 +2412,9 @@ function LogsMessageDetail({ messageId }: { messageId: string }) {
   const messageAttempts = useMessageAttempts(messageId, { limit: 25 });
   const [viewMode, setViewMode] = useState<"formatted" | "raw">("formatted");
 
-  const payload = useMemo(() => {
-    if (!message.data?.payload) return "";
-    return formatWebhookPayloadPreview(message.data.payload);
-  }, [message.data?.payload]);
+  const payload = message.data?.payload
+    ? formatWebhookPayloadPreview(message.data.payload)
+    : "";
 
   const onCopyPayload = async () => {
     if (!payload) return;

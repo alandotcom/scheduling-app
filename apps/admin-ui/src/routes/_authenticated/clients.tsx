@@ -773,7 +773,10 @@ function ClientsPage() {
     },
   );
 
-  const appointments = appointmentsData?.items ?? [];
+  const appointments = useMemo(
+    () => appointmentsData?.items ?? [],
+    [appointmentsData],
+  );
   const selectedAppointmentFromList =
     appointments.find((apt) => apt.id === selectedAppointmentId) ?? null;
   const { data: selectedAppointmentFromGet, isLoading: isLoadingAppointment } =

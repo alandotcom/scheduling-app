@@ -1,6 +1,6 @@
 // Appointment booking modal with availability calendar
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { DateTime } from "luxon";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
@@ -98,12 +98,6 @@ export function AppointmentModal({
   const timezoneMode = controlledTimezoneMode ?? localTimezoneMode;
   const selectedDisplayTimezone = displayTimezone ?? defaultTimezone;
 
-  useEffect(() => {
-    if (!open) return;
-    setClientSearch(defaultClientName ?? "");
-    setSelectedClientId(defaultClientId ?? "");
-  }, [open, defaultClientId, defaultClientName]);
-
   // Current month for calendar
   const [viewMonth, setViewMonth] = useState(() => {
     return DateTime.now().startOf("month");
@@ -124,9 +118,42 @@ export function AppointmentModal({
     }),
     enabled: open && !!selectedTypeId,
   });
-  const calendars = linkedCalendars?.map((l) => l.calendar) ?? [];
+  const calendars = useMemo(
+    () => linkedCalendars?.map((l) => l.calendar) ?? [],
+    [linkedCalendars],
+  );
+  const activeSelectedCalendarId = useMemo(() => {
+    if (!open || !selectedTypeId || calendarsLoading) {
+      return selectedCalendarId;
+    }
+
+    const hasSelectedCalendar = calendars.some(
+      (calendar) => calendar.id === selectedCalendarId,
+    );
+    if (selectedCalendarId && hasSelectedCalendar) {
+      return selectedCalendarId;
+    }
+
+    if (!selectedCalendarId && defaultCalendarId) {
+      const hasDefaultCalendar = calendars.some(
+        (calendar) => calendar.id === defaultCalendarId,
+      );
+      if (hasDefaultCalendar) {
+        return defaultCalendarId;
+      }
+    }
+
+    return "";
+  }, [
+    calendars,
+    calendarsLoading,
+    defaultCalendarId,
+    open,
+    selectedCalendarId,
+    selectedTypeId,
+  ]);
   const selectedCalendar = calendars.find((calendar) => {
-    return calendar.id === selectedCalendarId;
+    return calendar.id === activeSelectedCalendarId;
   });
   const effectiveTimezone = resolveEffectiveSchedulingTimezone({
     mode: timezoneMode,
@@ -161,7 +188,7 @@ export function AppointmentModal({
     ...orpc.availability.engine.times.queryOptions({
       input: {
         appointmentTypeId: selectedTypeId,
-        calendarIds: [selectedCalendarId],
+        calendarIds: [activeSelectedCalendarId],
         startDate: monthStartDateStr,
         endDate: monthEndDateStr,
         timezone: schedulingTimezone,
@@ -170,7 +197,7 @@ export function AppointmentModal({
     enabled:
       open &&
       !!selectedTypeId &&
-      !!selectedCalendarId &&
+      !!activeSelectedCalendarId &&
       !!selectedCalendar &&
       !!monthStartDateStr &&
       !!monthEndDateStr,
@@ -199,9 +226,18 @@ export function AppointmentModal({
     }),
   );
 
-  const appointmentTypes = typesData?.items ?? [];
-  const allClients = clientsData?.items ?? [];
-  const monthSlots = slotsData?.slots ?? [];
+  const appointmentTypes = useMemo(() => typesData?.items ?? [], [typesData]);
+  const allClients = useMemo(() => clientsData?.items ?? [], [clientsData]);
+  const monthSlots = useMemo(() => slotsData?.slots ?? [], [slotsData]);
+  const activeSelectedTime = useMemo(() => {
+    if (!(open && selectedDate && selectedTime && !slotsLoading)) {
+      return selectedTime;
+    }
+    const stillAvailable = monthSlots.some(
+      (slot) => slot.start === selectedTime,
+    );
+    return stillAvailable ? selectedTime : "";
+  }, [monthSlots, open, selectedDate, selectedTime, slotsLoading]);
   const clients = useMemo(() => {
     const normalizedSearch = clientSearch.trim().toLowerCase();
     if (!normalizedSearch) {
@@ -229,12 +265,24 @@ export function AppointmentModal({
     unknownLabel: "Unknown appointment type",
   });
   const calendarSelectLabel = resolveSelectValueLabel({
-    value: selectedCalendarId,
+    value: activeSelectedCalendarId,
     options: calendars,
     getOptionValue: (calendar) => calendar.id,
     getOptionLabel: (calendar) => calendar.name,
     unknownLabel: defaultCalendarName ?? "Unknown calendar",
   });
+
+  const handleDialogOpenChange = (nextOpen: boolean) => {
+    if (!nextOpen) {
+      setAvailabilityModalOpen(false);
+      setClientComboboxOpen(false);
+      setMobileClientPickerOpen(false);
+      setClientSearch(defaultClientName ?? "");
+      setSelectedClientId(defaultClientId ?? "");
+      setSelectedTime("");
+    }
+    onOpenChange(nextOpen);
+  };
 
   const handleClose = () => {
     setAvailabilityModalOpen(false);
@@ -245,9 +293,9 @@ export function AppointmentModal({
     setSelectedDate(null);
     setSelectedTime("");
     setNotes("");
-    setClientSearch("");
-    setSelectedClientId("");
-    onOpenChange(false);
+    setClientSearch(defaultClientName ?? "");
+    setSelectedClientId(defaultClientId ?? "");
+    handleDialogOpenChange(false);
   };
 
   const handleTypeChange = (typeId: string) => {
@@ -268,12 +316,14 @@ export function AppointmentModal({
   };
 
   const handleSubmit = () => {
-    if (!selectedTime) return;
+    if (!(activeSelectedCalendarId && activeSelectedTime)) return;
 
     createMutation.mutate({
-      calendarId: selectedCalendarId,
+      calendarId: activeSelectedCalendarId,
       appointmentTypeId: selectedTypeId,
-      startTime: DateTime.fromISO(selectedTime, { setZone: true }).toJSDate(),
+      startTime: DateTime.fromISO(activeSelectedTime, {
+        setZone: true,
+      }).toJSDate(),
       timezone: schedulingTimezone,
       notes: notes || undefined,
       clientId: selectedClientId || undefined,
@@ -285,65 +335,13 @@ export function AppointmentModal({
     setAvailabilityModalOpen(true);
   };
 
-  useEffect(() => {
-    if (!open) return;
-    setSelectedTime("");
-  }, [open, timezoneMode]);
-
-  useEffect(() => {
-    if (open) return;
-    setAvailabilityModalOpen(false);
-    setClientComboboxOpen(false);
-    setMobileClientPickerOpen(false);
-  }, [open]);
-
-  useEffect(() => {
-    if (!open || !selectedDate || !selectedTime || slotsLoading) return;
-
-    const stillAvailable = monthSlots.some((slot) => {
-      return slot.start === selectedTime;
-    });
-    if (!stillAvailable) {
-      setSelectedTime("");
-    }
-  }, [monthSlots, open, selectedDate, selectedTime, slotsLoading]);
-
-  useEffect(() => {
-    if (!open || !selectedTypeId || calendarsLoading) return;
-
-    const hasSelectedCalendar = calendars.some(
-      (calendar) => calendar.id === selectedCalendarId,
-    );
-    if (selectedCalendarId && !hasSelectedCalendar) {
-      setSelectedCalendarId("");
-      setSelectedDate(null);
-      setSelectedTime("");
-      return;
-    }
-
-    if (!selectedCalendarId && defaultCalendarId) {
-      const hasDefaultCalendar = calendars.some(
-        (calendar) => calendar.id === defaultCalendarId,
-      );
-      if (hasDefaultCalendar) {
-        setSelectedCalendarId(defaultCalendarId);
-      }
-    }
-  }, [
-    calendars,
-    calendarsLoading,
-    defaultCalendarId,
-    open,
-    selectedCalendarId,
-    selectedTypeId,
-  ]);
-
   const formatSelectedDateTime = () => {
-    if (!selectedTime) return "";
-    return formatDisplayDateTime(selectedTime, effectiveTimezone);
+    if (!activeSelectedTime) return "";
+    return formatDisplayDateTime(activeSelectedTime, effectiveTimezone);
   };
 
-  const canBook = selectedTypeId && selectedCalendarId && selectedTime;
+  const canBook =
+    selectedTypeId && activeSelectedCalendarId && activeSelectedTime;
 
   const { hintsVisible, registerField } = useModalFieldShortcuts({
     enabled: open,
@@ -364,7 +362,7 @@ export function AppointmentModal({
         id: "date-time",
         key: "d",
         description: "Focus date and time",
-        disabled: !selectedCalendarId,
+        disabled: !activeSelectedCalendarId,
       },
       {
         id: "client",
@@ -388,7 +386,7 @@ export function AppointmentModal({
     <>
       <DialogPrimitive.Root
         open={open}
-        onOpenChange={onOpenChange}
+        onOpenChange={handleDialogOpenChange}
         modal="trap-focus"
       >
         <DialogPrimitive.Portal>
@@ -464,7 +462,7 @@ export function AppointmentModal({
                     <Label>Calendar</Label>
                     <div className="relative" ref={registerField("calendar")}>
                       <Select
-                        value={selectedCalendarId}
+                        value={activeSelectedCalendarId}
                         onValueChange={(v) => v && handleCalendarChange(v)}
                         disabled={!selectedTypeId || calendarsLoading}
                       >
@@ -502,6 +500,7 @@ export function AppointmentModal({
                     <TimeDisplayToggle
                       value={timezoneMode}
                       onValueChange={(value) => {
+                        setSelectedTime("");
                         if (onTimezoneModeChange) {
                           onTimezoneModeChange(value);
                           return;
@@ -523,22 +522,23 @@ export function AppointmentModal({
               </div>
 
               {/* Calendar and Time Selection */}
-              {selectedCalendarId && (
+              {activeSelectedCalendarId && (
                 <div className="relative" ref={registerField("date-time")}>
                   <AvailabilityCalendarPicker
                     viewMonth={viewMonth}
                     onViewMonthChange={setViewMonth}
                     selectedDate={selectedDate}
                     onSelectDate={handleDateSelect}
-                    selectedTime={selectedTime}
+                    selectedTime={activeSelectedTime}
                     onSelectTime={setSelectedTime}
                     monthSlots={monthSlots}
                     slotsLoading={slotsLoading}
                     schedulingTimezone={schedulingTimezone}
                     displayTimezone={effectiveTimezone}
                     onManageAvailability={
-                      selectedCalendarId
-                        ? () => openCalendarAvailability(selectedCalendarId)
+                      activeSelectedCalendarId
+                        ? () =>
+                            openCalendarAvailability(activeSelectedCalendarId)
                         : undefined
                     }
                   />
@@ -553,7 +553,7 @@ export function AppointmentModal({
               <div
                 className={cn(
                   "mt-5 grid grid-cols-1 gap-4 lg:grid-cols-2",
-                  selectedCalendarId && "lg:mt-auto",
+                  activeSelectedCalendarId && "lg:mt-auto",
                 )}
               >
                 {/* Client Search (optional) */}
@@ -834,10 +834,10 @@ export function AppointmentModal({
                 <div
                   className={cn(
                     "text-sm text-muted-foreground",
-                    !selectedTime && "hidden min-h-5 sm:block",
+                    !activeSelectedTime && "hidden min-h-5 sm:block",
                   )}
                 >
-                  {selectedTime && (
+                  {activeSelectedTime && (
                     <span className="flex items-center gap-2">
                       <Icon icon={Calendar03Icon} />
                       {formatSelectedDateTime()} ({timezoneShortLabel})
@@ -872,14 +872,14 @@ export function AppointmentModal({
         </DialogPrimitive.Portal>
       </DialogPrimitive.Root>
       <AvailabilityManageModal
-        open={availabilityModalOpen && open && !!selectedCalendarId}
+        open={availabilityModalOpen && open && !!activeSelectedCalendarId}
         onOpenChange={(nextOpen) => {
           setAvailabilityModalOpen(nextOpen);
           if (!nextOpen) {
             void refetchSlots();
           }
         }}
-        calendarId={selectedCalendarId}
+        calendarId={activeSelectedCalendarId}
         calendarName={selectedCalendar?.name ?? defaultCalendarName}
         timezone={schedulingTimezone}
         initialTab="weekly"

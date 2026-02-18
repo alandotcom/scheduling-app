@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Settings01Icon } from "@hugeicons/core-free-icons";
 import { Icon } from "@/components/ui/icon";
 import { Label } from "@/components/ui/label";
@@ -98,26 +98,21 @@ export function ActionConfig({
 
   const selectedCategoryFallback = categories[0] ?? "System";
 
-  const [selectedCategory, setSelectedCategory] = useState(() =>
-    canSelectCurrentAction && currentAction
-      ? currentAction.category
-      : selectedCategoryFallback,
-  );
-
-  useEffect(() => {
+  const [manuallySelectedCategory, setManuallySelectedCategory] =
+    useState<string>(selectedCategoryFallback);
+  const selectedCategory = useMemo(() => {
     if (canSelectCurrentAction && currentAction) {
-      setSelectedCategory(currentAction.category);
-      return;
+      return currentAction.category;
     }
-
-    if (!categories.includes(selectedCategory)) {
-      setSelectedCategory(selectedCategoryFallback);
+    if (categories.includes(manuallySelectedCategory)) {
+      return manuallySelectedCategory;
     }
+    return selectedCategoryFallback;
   }, [
     canSelectCurrentAction,
     categories,
     currentAction,
-    selectedCategory,
+    manuallySelectedCategory,
     selectedCategoryFallback,
   ]);
 
@@ -135,7 +130,7 @@ export function ActionConfig({
     }
 
     return [currentAction, ...actionsInCategory];
-  }, [actionsInCategory, canSelectCurrentAction, currentAction]);
+  }, [actionsInCategory, currentAction]);
 
   const categoryActionByName = useMemo(
     () =>
@@ -153,7 +148,7 @@ export function ActionConfig({
       return;
     }
 
-    setSelectedCategory(value);
+    setManuallySelectedCategory(value);
     const firstAction = categoryActionByName.get(value);
     if (
       firstAction &&

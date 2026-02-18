@@ -314,9 +314,12 @@ function RootLayout() {
     ...orpc.org.listMemberships.queryOptions({}),
     enabled: shouldFetchMemberships,
   });
-  const memberships =
-    (membershipsQuery.data as OrganizationMembershipListItem[] | undefined) ??
-    [];
+  const memberships = useMemo(
+    () =>
+      (membershipsQuery.data as OrganizationMembershipListItem[] | undefined) ??
+      [],
+    [membershipsQuery.data],
+  );
   const organizations = useMemo<OrganizationListItem[]>(
     () =>
       memberships.map((membership) => ({
@@ -1130,9 +1133,7 @@ function AppSidebar({
     ? BASE_SETTINGS_SUB_ITEMS
     : BASE_SETTINGS_SUB_ITEMS.filter((item) => item.section !== "integrations");
   const [settingsExpanded, setSettingsExpanded] = useState(isOnSettings);
-  useEffect(() => {
-    if (isOnSettings) setSettingsExpanded(true);
-  }, [isOnSettings]);
+  const isSettingsOpen = isOnSettings || settingsExpanded;
 
   return (
     <Sidebar variant="inset" collapsible="icon">
@@ -1230,7 +1231,7 @@ function AppSidebar({
                 </SidebarMenuItem>
               ) : (
                 <Collapsible.Root
-                  open={settingsExpanded}
+                  open={isSettingsOpen}
                   onOpenChange={setSettingsExpanded}
                 >
                   <SidebarMenuItem>

@@ -146,14 +146,16 @@ export function useModalFieldShortcuts({
 
   useEffect(() => {
     if (enabled) return;
-    hideHints();
-  }, [enabled, hideHints]);
+    clearHideTimer();
+  }, [enabled, clearHideTimer]);
 
   useEffect(() => {
     return () => {
       clearHideTimer();
     };
   }, [clearHideTimer]);
+
+  const visibleHints = enabled && hintsVisible;
 
   useKeyboardShortcuts({
     shortcuts: [
@@ -176,18 +178,18 @@ export function useModalFieldShortcuts({
         description: "Hide field shortcut hints",
       },
     ],
-    enabled: enabled && hintsVisible,
+    enabled: visibleHints,
     scope,
   });
 
   useKeyboardShortcuts({
     shortcuts: fieldShortcuts,
-    enabled: enabled && hintsVisible && fieldShortcuts.length > 0,
+    enabled: visibleHints && fieldShortcuts.length > 0,
     scope,
   });
 
   return {
-    hintsVisible,
+    hintsVisible: visibleHints,
     registerField,
     hideHints,
     showHints,

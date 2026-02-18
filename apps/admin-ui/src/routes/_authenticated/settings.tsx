@@ -794,19 +794,25 @@ function ApiKeysSection() {
     });
   };
 
-  const onRevokeApiKey = (id: string) => {
-    setRevokingKeyId(id);
-    revokeApiKeyMutation.mutate(
-      { id },
-      {
-        onSettled: () => {
-          setRevokingKeyId(null);
+  const onRevokeApiKey = useCallback(
+    (id: string) => {
+      setRevokingKeyId(id);
+      revokeApiKeyMutation.mutate(
+        { id },
+        {
+          onSettled: () => {
+            setRevokingKeyId(null);
+          },
         },
-      },
-    );
-  };
+      );
+    },
+    [revokeApiKeyMutation],
+  );
 
-  const apiKeys = (apiKeysResponse?.items ?? []) as ApiKeyListItem[];
+  const apiKeys = useMemo(
+    () => (apiKeysResponse?.items ?? []) as ApiKeyListItem[],
+    [apiKeysResponse],
+  );
 
   const permissionCounts = useMemo(
     () => ({
@@ -1402,16 +1408,19 @@ function UsersManagementSection() {
     );
   };
 
-  const onChangeRole = (input: UpdateOrgUserRoleInput) => {
-    setUpdatingUserId(input.userId);
-    updateRoleMutation.mutate(input, {
-      onSettled: () => {
-        setUpdatingUserId(null);
-      },
-    });
-  };
+  const onChangeRole = useCallback(
+    (input: UpdateOrgUserRoleInput) => {
+      setUpdatingUserId(input.userId);
+      updateRoleMutation.mutate(input, {
+        onSettled: () => {
+          setUpdatingUserId(null);
+        },
+      });
+    },
+    [updateRoleMutation],
+  );
 
-  const orgUsers = (users ?? []) as OrgUserListItem[];
+  const orgUsers = useMemo(() => (users ?? []) as OrgUserListItem[], [users]);
 
   const roleCounts = useMemo(
     () => ({

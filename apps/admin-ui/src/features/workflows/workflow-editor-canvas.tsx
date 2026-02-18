@@ -400,7 +400,7 @@ export function WorkflowEditorCanvas({
       reconnectingEdgeId.current = edge.id;
       edgeReconnectSuccessful.current = false;
     },
-    [edges],
+    [],
   );
 
   const handleReconnectEnd = useCallback(

@@ -99,19 +99,19 @@ export function WorkflowEditorContextMenu({
     setDeleteTarget(null);
   }, [deleteEdge, deleteNode, deleteTarget]);
 
-  const handleDeleteNode = useCallback(() => {
+  const handleDeleteNode = () => {
     if (!menuState?.nodeId || isTriggerNode) return;
     setDeleteTarget({ type: "node", id: menuState.nodeId });
     onClose();
-  }, [isTriggerNode, menuState?.nodeId, onClose]);
+  };
 
-  const handleDeleteEdge = useCallback(() => {
+  const handleDeleteEdge = () => {
     if (!menuState?.edgeId) return;
     setDeleteTarget({ type: "edge", id: menuState.edgeId });
     onClose();
-  }, [menuState?.edgeId, onClose]);
+  };
 
-  const handleAddAction = useCallback(() => {
+  const handleAddAction = () => {
     if (!menuState?.flowPosition) return;
 
     const newNode: WorkflowCanvasNode = {
@@ -133,13 +133,7 @@ export function WorkflowEditorContextMenu({
     setPropertiesPanelTab("properties");
     setSidebarCollapsed(false);
     onClose();
-  }, [
-    addNode,
-    menuState?.flowPosition,
-    onClose,
-    setPropertiesPanelTab,
-    setSidebarCollapsed,
-  ]);
+  };
 
   const handleAddTrigger = useCallback(() => {
     addInitialTrigger();
