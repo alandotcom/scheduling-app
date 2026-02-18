@@ -163,6 +163,7 @@ CREATE TABLE "clients" (
 	"last_name" text NOT NULL,
 	"email" citext,
 	"phone" text,
+	"reference_id" text,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
 	CONSTRAINT "clients_phone_e164_check" CHECK ("phone" IS NULL OR "phone" ~ '^\+[1-9][0-9]{1,14}$')
@@ -357,6 +358,7 @@ CREATE INDEX "blocked_time_calendar_range_gist_idx" ON "blocked_time" USING gist
 CREATE INDEX "blocked_time_calendar_recurring_idx" ON "blocked_time" ("calendar_id") WHERE "recurring_rule" is not null;--> statement-breakpoint
 CREATE UNIQUE INDEX "clients_org_email_unique_idx" ON "clients" ("org_id","email") WHERE "email" IS NOT NULL;--> statement-breakpoint
 CREATE UNIQUE INDEX "clients_org_phone_unique_idx" ON "clients" ("org_id","phone") WHERE "phone" IS NOT NULL;--> statement-breakpoint
+CREATE UNIQUE INDEX "clients_org_reference_id_unique_idx" ON "clients" ("org_id","reference_id") WHERE "reference_id" IS NOT NULL;--> statement-breakpoint
 CREATE UNIQUE INDEX "integrations_org_key_unique_idx" ON "integrations" ("org_id","key");--> statement-breakpoint
 CREATE INDEX "integrations_org_key_idx" ON "integrations" ("org_id","key");--> statement-breakpoint
 CREATE UNIQUE INDEX "journey_deliveries_org_deterministic_key_uidx" ON "journey_deliveries" ("org_id","deterministic_key");--> statement-breakpoint

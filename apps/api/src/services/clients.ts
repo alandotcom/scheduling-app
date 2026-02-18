@@ -27,6 +27,8 @@ import type {
 const UNIQUE_CONSTRAINT_VIOLATION = "23505";
 const CLIENT_EMAIL_UNIQUE_CONSTRAINT = "clients_org_email_unique_idx";
 const CLIENT_PHONE_UNIQUE_CONSTRAINT = "clients_org_phone_unique_idx";
+const CLIENT_REFERENCE_ID_UNIQUE_CONSTRAINT =
+  "clients_org_reference_id_unique_idx";
 const DEFAULT_PHONE_COUNTRY: CountryCode = "US";
 const PHONE_COUNTRIES = getCountries();
 
@@ -87,6 +89,16 @@ function mapClientWriteError(error: unknown): ApplicationError | null {
       {
         code: "DUPLICATE_ENTRY",
         details: { field: "phone" },
+      },
+    );
+  }
+
+  if (constraint === CLIENT_REFERENCE_ID_UNIQUE_CONSTRAINT) {
+    return new ApplicationError(
+      "Client reference ID already exists in this organization",
+      {
+        code: "DUPLICATE_ENTRY",
+        details: { field: "referenceId" },
       },
     );
   }
@@ -154,6 +166,15 @@ function normalizePhone(
   }
 }
 
+function normalizeReferenceId(
+  referenceId: string | null | undefined,
+): string | null {
+  if (referenceId == null) return null;
+
+  const trimmed = referenceId.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
 function normalizeCreateInput(
   input: CreateClientInput,
 ): RepositoryClientCreateInput {
@@ -162,6 +183,7 @@ function normalizeCreateInput(
     lastName: input.lastName,
     email: normalizeEmail(input.email),
     phone: normalizePhone(input.phone, input.phoneCountry),
+    referenceId: normalizeReferenceId(input.referenceId),
   };
 }
 
@@ -175,6 +197,9 @@ function normalizeUpdateInput(
   if (input.email !== undefined) normalized.email = normalizeEmail(input.email);
   if (input.phone !== undefined) {
     normalized.phone = normalizePhone(input.phone, input.phoneCountry);
+  }
+  if (input.referenceId !== undefined) {
+    normalized.referenceId = normalizeReferenceId(input.referenceId);
   }
 
   return normalized;
@@ -193,6 +218,25 @@ export class ClientService {
   async get(id: string, context: ServiceContext): Promise<Client> {
     return withOrg(context.orgId, async (tx) => {
       const client = await clientRepository.findById(tx, context.orgId, id);
+
+      if (!client) {
+        throw new ApplicationError("Client not found", { code: "NOT_FOUND" });
+      }
+
+      return client;
+    });
+  }
+
+  async getByReferenceId(
+    referenceId: string,
+    context: ServiceContext,
+  ): Promise<Client> {
+    return withOrg(context.orgId, async (tx) => {
+      const client = await clientRepository.findByReferenceId(
+        tx,
+        context.orgId,
+        referenceId,
+      );
 
       if (!client) {
         throw new ApplicationError("Client not found", { code: "NOT_FOUND" });
@@ -290,6 +334,63 @@ export class ClientService {
     return updated;
   }
 
+  async updateByReferenceId(
+    referenceId: string,
+    data: UpdateClientInput,
+    context: ServiceContext,
+  ): Promise<Client> {
+    const { existing, updated } = await withOrg(context.orgId, async (tx) => {
+      const existing = await clientRepository.findByReferenceId(
+        tx,
+        context.orgId,
+        referenceId,
+      );
+
+      if (!existing) {
+        throw new ApplicationError("Client not found", { code: "NOT_FOUND" });
+      }
+
+      const normalizedChanges = normalizeUpdateInput(data);
+
+      let updated: Client | null;
+      try {
+        updated = await clientRepository.updateByReferenceId(
+          tx,
+          context.orgId,
+          referenceId,
+          normalizedChanges,
+        );
+      } catch (error: unknown) {
+        const mappedError = mapClientWriteError(error);
+        if (mappedError) throw mappedError;
+        throw error;
+      }
+
+      if (!updated) {
+        throw new ApplicationError("Client not found", { code: "NOT_FOUND" });
+      }
+
+      return { existing, updated };
+    });
+
+    await events.clientUpdated(context.orgId, {
+      clientId: updated.id,
+      firstName: updated.firstName,
+      lastName: updated.lastName,
+      email: updated.email,
+      phone: updated.phone,
+      previous: {
+        clientId: existing.id,
+        firstName: existing.firstName,
+        lastName: existing.lastName,
+        email: existing.email,
+        phone: existing.phone,
+      },
+    });
+
+    return updated;
+  }
+
   async delete(
     id: string,
     context: ServiceContext,
@@ -306,6 +407,41 @@ export class ClientService {
 
       return {
         clientId: id,
+        firstName: existing.firstName,
+        lastName: existing.lastName,
+        email: existing.email,
+        phone: existing.phone,
+      };
+    });
+
+    await events.clientDeleted(context.orgId, deleted);
+
+    return { success: true };
+  }
+
+  async deleteByReferenceId(
+    referenceId: string,
+    context: ServiceContext,
+  ): Promise<{ success: true }> {
+    const deleted = await withOrg(context.orgId, async (tx) => {
+      const existing = await clientRepository.findByReferenceId(
+        tx,
+        context.orgId,
+        referenceId,
+      );
+
+      if (!existing) {
+        throw new ApplicationError("Client not found", { code: "NOT_FOUND" });
+      }
+
+      await clientRepository.deleteByReferenceId(
+        tx,
+        context.orgId,
+        referenceId,
+      );
+
+      return {
+        clientId: existing.id,
         firstName: existing.firstName,
         lastName: existing.lastName,
         email: existing.email,
@@ -337,6 +473,34 @@ export class ClientService {
 
       return {
         clientId: id,
+        ...summary,
+      };
+    });
+  }
+
+  async historySummaryByReferenceId(
+    referenceId: string,
+    context: ServiceContext,
+  ): Promise<ClientHistorySummary> {
+    return withOrg(context.orgId, async (tx) => {
+      const client = await clientRepository.findByReferenceId(
+        tx,
+        context.orgId,
+        referenceId,
+      );
+
+      if (!client) {
+        throw new ApplicationError("Client not found", { code: "NOT_FOUND" });
+      }
+
+      const summary = await clientRepository.getHistorySummary(
+        tx,
+        context.orgId,
+        client.id,
+      );
+
+      return {
+        clientId: client.id,
         ...summary,
       };
     });

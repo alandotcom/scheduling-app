@@ -292,6 +292,7 @@ export const clients = pgTable.withRLS(
     lastName: text("last_name").notNull(),
     email: citext("email"),
     phone: text("phone"),
+    referenceId: text("reference_id"),
     ...timestamps,
   },
   (table) => [
@@ -305,6 +306,9 @@ export const clients = pgTable.withRLS(
     uniqueIndex("clients_org_phone_unique_idx")
       .on(table.orgId, table.phone)
       .where(sql`${table.phone} IS NOT NULL`),
+    uniqueIndex("clients_org_reference_id_unique_idx")
+      .on(table.orgId, table.referenceId)
+      .where(sql`${table.referenceId} IS NOT NULL`),
     pgPolicy("org_isolation_clients", {
       for: "all",
       using: sql`org_id = current_org_id()`,

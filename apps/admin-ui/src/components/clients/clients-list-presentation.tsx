@@ -41,6 +41,7 @@ interface ClientListItem {
   lastName: string;
   email: string | null;
   phone: string | null;
+  referenceId: string | null;
   createdAt: Date;
   updatedAt: Date;
   relationshipCounts: {

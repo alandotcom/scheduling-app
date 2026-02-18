@@ -26,6 +26,7 @@ import {
   createResourceSchema,
   // Client
   createClientSchema,
+  updateClientSchema,
   // Appointment
   appointmentStatusSchema,
   createAppointmentSchema,
@@ -355,6 +356,15 @@ describe("Client schemas", () => {
       expect(result.success).toBe(true);
     });
 
+    test("accepts optional referenceId", () => {
+      const result = createClientSchema.safeParse({
+        firstName: "John",
+        lastName: "Doe",
+        referenceId: "ext-client-123",
+      });
+      expect(result.success).toBe(true);
+    });
+
     test("normalizes lowercase phone country to uppercase", () => {
       const result = createClientSchema.parse({
         firstName: "John",
@@ -373,6 +383,22 @@ describe("Client schemas", () => {
         phoneCountry: "USA",
       });
       expect(result.success).toBe(false);
+    });
+  });
+
+  describe("updateClientSchema", () => {
+    test("accepts referenceId update", () => {
+      const result = updateClientSchema.safeParse({
+        referenceId: "ext-client-123",
+      });
+      expect(result.success).toBe(true);
+    });
+
+    test("accepts clearing referenceId with null", () => {
+      const result = updateClientSchema.safeParse({
+        referenceId: null,
+      });
+      expect(result.success).toBe(true);
     });
   });
 });

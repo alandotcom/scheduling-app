@@ -32,6 +32,7 @@ export interface ClientCreateInput {
   lastName: string;
   email?: string | null | undefined;
   phone?: string | null | undefined;
+  referenceId?: string | null | undefined;
 }
 
 export interface ClientUpdateInput {
@@ -39,6 +40,7 @@ export interface ClientUpdateInput {
   lastName?: string | undefined;
   email?: string | null | undefined;
   phone?: string | null | undefined;
+  referenceId?: string | null | undefined;
 }
 
 export interface ClientListInput extends PaginationInput {
@@ -57,6 +59,20 @@ export class ClientRepository {
       .select()
       .from(clients)
       .where(eq(clients.id, id))
+      .limit(1);
+    return result ?? null;
+  }
+
+  async findByReferenceId(
+    tx: DbClient,
+    orgId: string,
+    referenceId: string,
+  ): Promise<Client | null> {
+    await setOrgContext(tx, orgId);
+    const [result] = await tx
+      .select()
+      .from(clients)
+      .where(eq(clients.referenceId, referenceId))
       .limit(1);
     return result ?? null;
   }
@@ -191,6 +207,7 @@ export class ClientRepository {
         lastName: input.lastName,
         email: input.email ?? null,
         phone: input.phone ?? null,
+        referenceId: input.referenceId ?? null,
       })
       .returning();
     return result!;
@@ -214,11 +231,42 @@ export class ClientRepository {
     return result ?? null;
   }
 
+  async updateByReferenceId(
+    tx: DbClient,
+    orgId: string,
+    referenceId: string,
+    input: ClientUpdateInput,
+  ): Promise<Client | null> {
+    await setOrgContext(tx, orgId);
+    const [result] = await tx
+      .update(clients)
+      .set({
+        ...input,
+        updatedAt: sql`now()`,
+      })
+      .where(eq(clients.referenceId, referenceId))
+      .returning();
+    return result ?? null;
+  }
+
   async delete(tx: DbClient, orgId: string, id: string): Promise<boolean> {
     await setOrgContext(tx, orgId);
     const result = await tx
       .delete(clients)
       .where(eq(clients.id, id))
+      .returning({ id: clients.id });
+    return result.length > 0;
+  }
+
+  async deleteByReferenceId(
+    tx: DbClient,
+    orgId: string,
+    referenceId: string,
+  ): Promise<boolean> {
+    await setOrgContext(tx, orgId);
+    const result = await tx
+      .delete(clients)
+      .where(eq(clients.referenceId, referenceId))
       .returning({ id: clients.id });
     return result.length > 0;
   }

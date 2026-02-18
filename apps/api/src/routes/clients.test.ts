@@ -500,6 +500,59 @@ describe("Client Routes", () => {
       expect(result.lastAppointmentAt).toBeNull();
       expect(result.nextAppointmentAt).toBeNull();
     });
+
+    test("returns history summary by reference ID", async () => {
+      const { org, user } = await createOrg(db);
+      const ctx = createTestContext({ orgId: org.id, userId: user.id });
+      const calendar = await createCalendar(db, org.id, {
+        name: "Reference History Calendar",
+      });
+      const appointmentType = await createAppointmentType(db, org.id, {
+        name: "Reference History Type",
+        calendarIds: [calendar.id],
+      });
+      const client = await createClient(db, org.id, {
+        firstName: "Reference",
+        lastName: "History",
+        referenceId: "ext-history-1",
+      });
+
+      const now = DateTime.now().set({ second: 0, millisecond: 0 });
+      const futureStart = now.plus({ days: 1 }).toJSDate();
+      await createAppointment(db, org.id, {
+        calendarId: calendar.id,
+        appointmentTypeId: appointmentType.id,
+        clientId: client.id,
+        startAt: futureStart,
+        endAt: new Date(futureStart.getTime() + 30 * 60 * 1000),
+        status: "scheduled",
+      });
+
+      const result = await call(
+        clientRoutes.historySummaryByReference,
+        { referenceId: "ext-history-1" },
+        { context: ctx },
+      );
+
+      expect(result.clientId).toBe(client.id);
+      expect(result.totalAppointments).toBe(1);
+      expect(result.upcomingAppointments).toBe(1);
+    });
+
+    test("throws NOT_FOUND for missing reference ID history summary", async () => {
+      const { org, user } = await createOrg(db);
+      const ctx = createTestContext({ orgId: org.id, userId: user.id });
+
+      await expect(
+        call(
+          clientRoutes.historySummaryByReference,
+          { referenceId: "missing-reference" },
+          { context: ctx },
+        ),
+      ).rejects.toMatchObject({
+        code: "NOT_FOUND",
+      });
+    });
   });
 
   describe("get", () => {
@@ -557,6 +610,62 @@ describe("Client Routes", () => {
         code: "NOT_FOUND",
       });
     });
+
+    test("returns client by reference ID", async () => {
+      const { org, user } = await createOrg(db);
+      const ctx = createTestContext({ orgId: org.id, userId: user.id });
+      const client = await createClient(db, org.id, {
+        firstName: "Reference",
+        lastName: "Lookup",
+        referenceId: "ext-client-1",
+      });
+
+      const result = await call(
+        clientRoutes.getByReference,
+        { referenceId: "ext-client-1" },
+        { context: ctx },
+      );
+
+      expect(result.id).toBe(client.id);
+      expect(result.referenceId).toBe("ext-client-1");
+    });
+
+    test("throws NOT_FOUND for missing reference ID", async () => {
+      const { org, user } = await createOrg(db);
+      const ctx = createTestContext({ orgId: org.id, userId: user.id });
+
+      await expect(
+        call(
+          clientRoutes.getByReference,
+          { referenceId: "missing-reference" },
+          { context: ctx },
+        ),
+      ).rejects.toMatchObject({
+        code: "NOT_FOUND",
+      });
+    });
+
+    test("does not return clients from other orgs by reference ID (RLS)", async () => {
+      const { org: org1, user: user1 } = await createOrg(db, { name: "Org 1" });
+      const { org: org2 } = await createOrg(db, { name: "Org 2" });
+      const ctx1 = createTestContext({ orgId: org1.id, userId: user1.id });
+
+      await createClient(db, org2.id, {
+        firstName: "Other",
+        lastName: "Org",
+        referenceId: "shared-reference",
+      });
+
+      await expect(
+        call(
+          clientRoutes.getByReference,
+          { referenceId: "shared-reference" },
+          { context: ctx1 },
+        ),
+      ).rejects.toMatchObject({
+        code: "NOT_FOUND",
+      });
+    });
   });
 
   describe("create", () => {
@@ -600,6 +709,24 @@ describe("Client Routes", () => {
 
       expect(result!.email).toBeNull();
       expect(result!.phone).toBeNull();
+      expect(result!.referenceId).toBeNull();
+    });
+
+    test("creates client with reference ID", async () => {
+      const { org, user } = await createOrg(db);
+      const ctx = createTestContext({ orgId: org.id, userId: user.id });
+
+      const result = await call(
+        clientRoutes.create,
+        {
+          firstName: "External",
+          lastName: "Ref",
+          referenceId: "ext-client-42",
+        },
+        { context: ctx },
+      );
+
+      expect(result.referenceId).toBe("ext-client-42");
     });
 
     test("normalizes phone to E.164 using default US country", async () => {
@@ -714,6 +841,67 @@ describe("Client Routes", () => {
       });
     });
 
+    test("throws CONFLICT for duplicate reference ID in same org", async () => {
+      const { org, user } = await createOrg(db);
+      const ctx = createTestContext({ orgId: org.id, userId: user.id });
+
+      await call(
+        clientRoutes.create,
+        {
+          firstName: "First",
+          lastName: "Client",
+          referenceId: "ext-duplicate",
+        },
+        { context: ctx },
+      );
+
+      await expect(
+        call(
+          clientRoutes.create,
+          {
+            firstName: "Second",
+            lastName: "Client",
+            referenceId: "ext-duplicate",
+          },
+          { context: ctx },
+        ),
+      ).rejects.toMatchObject({
+        code: "CONFLICT",
+      });
+    });
+
+    test("allows same reference ID in different orgs", async () => {
+      const { org: org1, user: user1 } = await createOrg(db, { name: "Org 1" });
+      const { org: org2, user: user2 } = await createOrg(db, { name: "Org 2" });
+      const ctx1 = createTestContext({ orgId: org1.id, userId: user1.id });
+      const ctx2 = createTestContext({ orgId: org2.id, userId: user2.id });
+
+      const first = await call(
+        clientRoutes.create,
+        {
+          firstName: "Shared",
+          lastName: "Reference",
+          referenceId: "ext-shared",
+        },
+        { context: ctx1 },
+      );
+
+      const second = await call(
+        clientRoutes.create,
+        {
+          firstName: "Shared",
+          lastName: "Reference",
+          referenceId: "ext-shared",
+        },
+        { context: ctx2 },
+      );
+
+      expect(first.orgId).toBe(org1.id);
+      expect(second.orgId).toBe(org2.id);
+      expect(first.referenceId).toBe("ext-shared");
+      expect(second.referenceId).toBe("ext-shared");
+    });
+
     test("allows same email and phone in different orgs", async () => {
       const { org: org1, user: user1 } = await createOrg(db, { name: "Org 1" });
       const { org: org2, user: user2 } = await createOrg(db, { name: "Org 2" });
@@ -810,6 +998,41 @@ describe("Client Routes", () => {
       expect(result!.phone).toBe("+14155559999");
     });
 
+    test("updates client reference ID by client ID", async () => {
+      const { org, user } = await createOrg(db);
+      const ctx = createTestContext({ orgId: org.id, userId: user.id });
+      const client = await createClient(db, org.id, {
+        firstName: "Reference",
+        lastName: "Update",
+      });
+
+      const result = await call(
+        clientRoutes.update,
+        { id: client.id, data: { referenceId: "ext-updated" } },
+        { context: ctx },
+      );
+
+      expect(result.referenceId).toBe("ext-updated");
+    });
+
+    test("clears client reference ID by setting null", async () => {
+      const { org, user } = await createOrg(db);
+      const ctx = createTestContext({ orgId: org.id, userId: user.id });
+      const client = await createClient(db, org.id, {
+        firstName: "Reference",
+        lastName: "Clear",
+        referenceId: "ext-clear",
+      });
+
+      const result = await call(
+        clientRoutes.update,
+        { id: client.id, data: { referenceId: null } },
+        { context: ctx },
+      );
+
+      expect(result.referenceId).toBeNull();
+    });
+
     test("normalizes updated phone to E.164", async () => {
       const { org, user } = await createOrg(db);
       const ctx = createTestContext({ orgId: org.id, userId: user.id });
@@ -900,6 +1123,116 @@ describe("Client Routes", () => {
       });
 
       expect(first.phone).toBe("+14155552671");
+    });
+
+    test("throws CONFLICT when updating to duplicate reference ID in same org", async () => {
+      const { org, user } = await createOrg(db);
+      const ctx = createTestContext({ orgId: org.id, userId: user.id });
+
+      await createClient(db, org.id, {
+        firstName: "First",
+        lastName: "Reference",
+        referenceId: "ext-first",
+      });
+      const second = await createClient(db, org.id, {
+        firstName: "Second",
+        lastName: "Reference",
+        referenceId: "ext-second",
+      });
+
+      await expect(
+        call(
+          clientRoutes.update,
+          { id: second.id, data: { referenceId: "ext-first" } },
+          { context: ctx },
+        ),
+      ).rejects.toMatchObject({
+        code: "CONFLICT",
+      });
+    });
+
+    test("updates client by reference ID and can change reference ID", async () => {
+      const { org, user } = await createOrg(db);
+      const ctx = createTestContext({ orgId: org.id, userId: user.id });
+      const client = await createClient(db, org.id, {
+        firstName: "By",
+        lastName: "Reference",
+        referenceId: "ext-old",
+      });
+
+      const updated = await call(
+        clientRoutes.updateByReference,
+        {
+          referenceId: "ext-old",
+          data: { firstName: "Updated", referenceId: "ext-new" },
+        },
+        { context: ctx },
+      );
+
+      expect(updated.id).toBe(client.id);
+      expect(updated.firstName).toBe("Updated");
+      expect(updated.referenceId).toBe("ext-new");
+
+      await expect(
+        call(
+          clientRoutes.getByReference,
+          { referenceId: "ext-old" },
+          { context: ctx },
+        ),
+      ).rejects.toMatchObject({
+        code: "NOT_FOUND",
+      });
+
+      const fetched = await call(
+        clientRoutes.getByReference,
+        { referenceId: "ext-new" },
+        { context: ctx },
+      );
+      expect(fetched.id).toBe(client.id);
+    });
+
+    test("throws CONFLICT when updateByReference sets duplicate reference ID", async () => {
+      const { org, user } = await createOrg(db);
+      const ctx = createTestContext({ orgId: org.id, userId: user.id });
+
+      await createClient(db, org.id, {
+        firstName: "First",
+        lastName: "Reference",
+        referenceId: "ext-first",
+      });
+      await createClient(db, org.id, {
+        firstName: "Second",
+        lastName: "Reference",
+        referenceId: "ext-second",
+      });
+
+      await expect(
+        call(
+          clientRoutes.updateByReference,
+          {
+            referenceId: "ext-second",
+            data: { referenceId: "ext-first" },
+          },
+          { context: ctx },
+        ),
+      ).rejects.toMatchObject({
+        code: "CONFLICT",
+      });
+    });
+
+    test("throws NOT_FOUND when updateByReference target does not exist", async () => {
+      const { org, user } = await createOrg(db);
+      const ctx = createTestContext({ orgId: org.id, userId: user.id });
+
+      await expect(
+        call(
+          clientRoutes.updateByReference,
+          { referenceId: "missing-reference", data: { firstName: "Nope" } },
+          { context: ctx },
+        ),
+      ).rejects.toMatchObject({
+        code: "NOT_FOUND",
+      });
     });
 
     test("throws NOT_FOUND for non-existent client", async () => {
@@ -996,6 +1329,49 @@ describe("Client Routes", () => {
         code: "NOT_FOUND",
       });
     });
+
+    test("deletes a client by reference ID", async () => {
+      const { org, user } = await createOrg(db);
+      const ctx = createTestContext({ orgId: org.id, userId: user.id });
+      await createClient(db, org.id, {
+        firstName: "ByRef",
+        lastName: "Delete",
+        referenceId: "ext-delete",
+      });
+
+      const result = await call(
+        clientRoutes.removeByReference,
+        { referenceId: "ext-delete" },
+        { context: ctx },
+      );
+
+      expect(result.success).toBe(true);
+
+      await expect(
+        call(
+          clientRoutes.getByReference,
+          { referenceId: "ext-delete" },
+          { context: ctx },
+        ),
+      ).rejects.toMatchObject({
+        code: "NOT_FOUND",
+      });
+    });
+
+    test("throws NOT_FOUND when deleting by missing reference ID", async () => {
+      const { org, user } = await createOrg(db);
+      const ctx = createTestContext({ orgId: org.id, userId: user.id });
+
+      await expect(
+        call(
+          clientRoutes.removeByReference,
+          { referenceId: "missing-reference" },
+          { context: ctx },
+        ),
+      ).rejects.toMatchObject({
+        code: "NOT_FOUND",
+      });
+    });
   });
 
   describe("Module Exports", () => {
@@ -1005,9 +1381,13 @@ describe("Client Routes", () => {
       expect(routes.clientRoutes).toBeDefined();
       expect(routes.clientRoutes.list).toBeDefined();
       expect(routes.clientRoutes.get).toBeDefined();
+      expect(routes.clientRoutes.getByReference).toBeDefined();
       expect(routes.clientRoutes.create).toBeDefined();
       expect(routes.clientRoutes.update).toBeDefined();
+      expect(routes.clientRoutes.updateByReference).toBeDefined();
       expect(routes.clientRoutes.remove).toBeDefined();
+      expect(routes.clientRoutes.removeByReference).toBeDefined();
+      expect(routes.clientRoutes.historySummaryByReference).toBeDefined();
     });
 
     test("main router includes client routes", async () => {
@@ -1017,9 +1397,13 @@ describe("Client Routes", () => {
       expect(router.clients).toBeDefined();
       expect(router.clients.list).toBeDefined();
       expect(router.clients.get).toBeDefined();
+      expect(router.clients.getByReference).toBeDefined();
       expect(router.clients.create).toBeDefined();
       expect(router.clients.update).toBeDefined();
+      expect(router.clients.updateByReference).toBeDefined();
       expect(router.clients.remove).toBeDefined();
+      expect(router.clients.removeByReference).toBeDefined();
+      expect(router.clients.historySummaryByReference).toBeDefined();
     });
   });
 });

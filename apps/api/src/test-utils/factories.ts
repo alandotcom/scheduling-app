@@ -258,6 +258,7 @@ export async function createClient(
     lastName?: string;
     email?: string;
     phone?: string;
+    referenceId?: string;
   } = {},
 ) {
   await setTestOrgContext(db, orgId);
@@ -270,6 +271,7 @@ export async function createClient(
         lastName: options.lastName ?? "Client",
         email: options.email ?? null,
         phone: options.phone ?? null,
+        referenceId: options.referenceId ?? null,
       })
       .returning();
     return client!;

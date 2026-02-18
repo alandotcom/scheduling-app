@@ -157,4 +157,101 @@ describe("clients table constraints", () => {
     expect(crossOrgInsert).toBeDefined();
     expect(crossOrgInsert?.orgId).toBe(org2.id);
   });
+
+  test("allows multiple null reference IDs", async () => {
+    const { org } = await seedTestOrg(db);
+    await setTestOrgContext(db, org.id);
+
+    await db
+      .insert(clients)
+      .values({
+        orgId: org.id,
+        firstName: "Null",
+        lastName: "ReferenceOne",
+        referenceId: null,
+      })
+      .returning();
+
+    await db
+      .insert(clients)
+      .values({
+        orgId: org.id,
+        firstName: "Null",
+        lastName: "ReferenceTwo",
+        referenceId: null,
+      })
+      .returning();
+
+    const rows = await db.query.clients.findMany();
+    expect(rows).toHaveLength(2);
+  });
+
+  test("enforces unique reference ID per org and preserves case sensitivity", async () => {
+    const { org } = await seedTestOrg(db);
+    await setTestOrgContext(db, org.id);
+
+    await db
+      .insert(clients)
+      .values({
+        orgId: org.id,
+        firstName: "Reference",
+        lastName: "Owner",
+        referenceId: "ABC-123",
+      })
+      .returning();
+
+    await expect(
+      db
+        .insert(clients)
+        .values({
+          orgId: org.id,
+          firstName: "Reference",
+          lastName: "Duplicate",
+          referenceId: "ABC-123",
+        })
+        .returning(),
+    ).toRejectWith(/clients_org_reference_id_unique_idx/);
+
+    const [caseSensitiveAllowed] = await db
+      .insert(clients)
+      .values({
+        orgId: org.id,
+        firstName: "Reference",
+        lastName: "CaseVariant",
+        referenceId: "abc-123",
+      })
+      .returning();
+
+    expect(caseSensitiveAllowed).toBeDefined();
+  });
+
+  test("allows the same reference ID in different orgs", async () => {
+    const { org: org1 } = await seedTestOrg(db);
+    const { org: org2 } = await seedSecondTestOrg(db);
+
+    await setTestOrgContext(db, org1.id);
+    await db
+      .insert(clients)
+      .values({
+        orgId: org1.id,
+        firstName: "Org1",
+        lastName: "Reference",
+        referenceId: "EXT-001",
+      })
+      .returning();
+
+    await setTestOrgContext(db, org2.id);
+    const [crossOrgInsert] = await db
+      .insert(clients)
+      .values({
+        orgId: org2.id,
+        firstName: "Org2",
+        lastName: "Reference",
+        referenceId: "EXT-001",
+      })
+      .returning();
+
+    expect(crossOrgInsert).toBeDefined();
+    expect(crossOrgInsert?.orgId).toBe(org2.id);
+  });
 });
