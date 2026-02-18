@@ -1181,17 +1181,20 @@ function AppSidebar({
             <SidebarMenu>
               {navItems.map((item) => (
                 <SidebarMenuItem key={item.to}>
-                  <SidebarMenuButton asChild tooltip={item.label}>
-                    <Link
-                      to={item.to}
-                      preload="intent"
-                      activeOptions={{ exact: item.to === "/" }}
-                      onClick={() => setOpenMobile(false)}
-                    >
-                      <Icon icon={item.icon} className="size-4" />
-                      <span>{item.label}</span>
-                    </Link>
-                  </SidebarMenuButton>
+                  <SidebarMenuButton
+                    tooltip={item.label}
+                    render={
+                      <Link
+                        to={item.to}
+                        preload="intent"
+                        activeOptions={{ exact: item.to === "/" }}
+                        onClick={() => setOpenMobile(false)}
+                      >
+                        <Icon icon={item.icon} className="size-4" />
+                        <span>{item.label}</span>
+                      </Link>
+                    }
+                  />
                 </SidebarMenuItem>
               ))}
               {isCollapsed ? (
@@ -1279,31 +1282,38 @@ function AppSidebar({
                               currentSection === undefined);
                           return (
                             <SidebarMenuSubItem key={item.label}>
-                              <SidebarMenuSubButton asChild isActive={isActive}>
-                                <Link
-                                  to="/settings"
-                                  search={{ section: item.section }}
-                                  onClick={() => setOpenMobile(false)}
-                                  onMouseEnter={() => {
-                                    const qc = getQueryClient();
-                                    qc.ensureQueryData(
-                                      orpc.org.get.queryOptions({}),
-                                    );
-                                    if (item.section === "integrations") {
+                              <SidebarMenuSubButton
+                                isActive={isActive}
+                                render={
+                                  <Link
+                                    to="/settings"
+                                    search={{ section: item.section }}
+                                    onClick={() => setOpenMobile(false)}
+                                    onMouseEnter={() => {
+                                      const qc = getQueryClient();
                                       qc.ensureQueryData(
-                                        orpc.integrations.list.queryOptions({}),
+                                        orpc.org.get.queryOptions({}),
                                       );
-                                    }
-                                    if (item.section === "webhooks") {
-                                      qc.ensureQueryData(
-                                        orpc.webhooks.session.queryOptions({}),
-                                      );
-                                    }
-                                  }}
-                                >
-                                  <span>{item.label}</span>
-                                </Link>
-                              </SidebarMenuSubButton>
+                                      if (item.section === "integrations") {
+                                        qc.ensureQueryData(
+                                          orpc.integrations.list.queryOptions(
+                                            {},
+                                          ),
+                                        );
+                                      }
+                                      if (item.section === "webhooks") {
+                                        qc.ensureQueryData(
+                                          orpc.webhooks.session.queryOptions(
+                                            {},
+                                          ),
+                                        );
+                                      }
+                                    }}
+                                  >
+                                    <span>{item.label}</span>
+                                  </Link>
+                                }
+                              />
                             </SidebarMenuSubItem>
                           );
                         })}

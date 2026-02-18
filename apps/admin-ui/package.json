@@ -22,7 +22,6 @@
     "@logtape/logtape": "catalog:",
     "@orpc/client": "^1.13.4",
     "@orpc/tanstack-query": "^1.13.4",
-    "@radix-ui/react-slot": "^1.2.4",
     "@scheduling/api": "workspace:*",
     "@scheduling/dto": "workspace:*",
     "@tanstack/react-query": "^5.90.20",
