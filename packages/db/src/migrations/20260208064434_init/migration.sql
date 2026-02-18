@@ -92,7 +92,7 @@ CREATE TABLE "appointments" (
 	"org_id" uuid NOT NULL,
 	"calendar_id" uuid NOT NULL,
 	"appointment_type_id" uuid NOT NULL,
-	"client_id" uuid,
+	"client_id" uuid NOT NULL,
 	"start_at" timestamp with time zone NOT NULL,
 	"end_at" timestamp with time zone NOT NULL,
 	"timezone" text NOT NULL,
@@ -417,7 +417,7 @@ ALTER TABLE "appointment_types" ADD CONSTRAINT "appointment_types_org_id_orgs_id
 ALTER TABLE "appointments" ADD CONSTRAINT "appointments_org_id_orgs_id_fkey" FOREIGN KEY ("org_id") REFERENCES "orgs"("id");--> statement-breakpoint
 ALTER TABLE "appointments" ADD CONSTRAINT "appointments_calendar_id_calendars_id_fkey" FOREIGN KEY ("calendar_id") REFERENCES "calendars"("id") ON DELETE CASCADE;--> statement-breakpoint
 ALTER TABLE "appointments" ADD CONSTRAINT "appointments_appointment_type_id_appointment_types_id_fkey" FOREIGN KEY ("appointment_type_id") REFERENCES "appointment_types"("id") ON DELETE CASCADE;--> statement-breakpoint
-ALTER TABLE "appointments" ADD CONSTRAINT "appointments_client_id_clients_id_fkey" FOREIGN KEY ("client_id") REFERENCES "clients"("id") ON DELETE SET NULL;--> statement-breakpoint
+ALTER TABLE "appointments" ADD CONSTRAINT "appointments_client_id_clients_id_fkey" FOREIGN KEY ("client_id") REFERENCES "clients"("id") ON DELETE CASCADE;--> statement-breakpoint
 ALTER TABLE "audit_events" ADD CONSTRAINT "audit_events_org_id_orgs_id_fkey" FOREIGN KEY ("org_id") REFERENCES "orgs"("id");--> statement-breakpoint
 ALTER TABLE "audit_events" ADD CONSTRAINT "audit_events_actor_id_users_id_fkey" FOREIGN KEY ("actor_id") REFERENCES "users"("id");--> statement-breakpoint
 ALTER TABLE "availability_overrides" ADD CONSTRAINT "availability_overrides_calendar_id_calendars_id_fkey" FOREIGN KEY ("calendar_id") REFERENCES "calendars"("id") ON DELETE CASCADE;--> statement-breakpoint

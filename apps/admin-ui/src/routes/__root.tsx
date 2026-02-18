@@ -554,6 +554,19 @@ function RootLayout() {
     enabled: isAuthenticated,
   });
 
+  const workflowIdFromPath =
+    normalizePathname(location.pathname).match(
+      /^\/workflows\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i,
+    )?.[1] ?? null;
+  const workflowBreadcrumbQuery = useQuery({
+    ...orpc.journeys.get.queryOptions({
+      input: { id: workflowIdFromPath ?? "" },
+    }),
+    enabled: workflowIdFromPath !== null,
+    retry: false,
+  });
+  const workflowBreadcrumbName = workflowBreadcrumbQuery.data?.name ?? null;
+
   if (isInitialAuthCheck) {
     return (
       <div className="flex h-[100dvh] overflow-hidden bg-sidebar animate-skeleton-fade-in">
@@ -647,20 +660,6 @@ function RootLayout() {
     { to: "/locations", icon: Location01Icon, label: "Locations" },
     { to: "/workflows", icon: ArrowRight01Icon, label: "Workflows" },
   ];
-  const workflowIdFromPath =
-    normalizePathname(location.pathname).match(
-      /^\/workflows\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i,
-    )?.[1] ?? null;
-  const workflowQueryOptions = workflowIdFromPath
-    ? orpc.journeys.get.queryOptions({
-        input: { id: workflowIdFromPath },
-      })
-    : null;
-  const workflowBreadcrumbName = workflowQueryOptions
-    ? (queryClient.getQueryData<{ name?: string }>(
-        workflowQueryOptions.queryKey,
-      )?.name ?? null)
-    : null;
   const headerBreadcrumbItems = getHeaderBreadcrumbItems({
     pathname: location.pathname,
     searchStr: location.searchStr,

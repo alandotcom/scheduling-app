@@ -59,12 +59,12 @@ export interface CreateAppointmentInput {
   appointmentTypeId: string;
   startTime: Date;
   timezone: string;
-  clientId?: string | null | undefined;
+  clientId: string;
   notes?: string | null | undefined;
 }
 
 export interface UpdateAppointmentInput {
-  clientId?: string | null | undefined;
+  clientId?: string | undefined;
   notes?: string | null | undefined;
 }
 
@@ -94,7 +94,7 @@ function toAppointmentResponse(row: AppointmentWithRelations) {
     ...row.appointment,
     calendar: row.calendar ?? undefined,
     appointmentType: row.appointmentType ?? undefined,
-    client: row.client ?? undefined,
+    client: row.client,
   };
 }
 
@@ -110,9 +110,7 @@ function toAppointmentScheduleEvent(
     endAt: row.endAt,
     calendarId: row.calendarId,
     calendarColor: null,
-    clientName: row.client
-      ? `${row.client.firstName} ${row.client.lastName}`.trim()
-      : null,
+    clientName: `${row.client.firstName} ${row.client.lastName}`.trim(),
     appointmentTypeName: row.appointmentType?.name ?? null,
     locationName,
     hasNotes: !!row.notes,
@@ -136,18 +134,16 @@ function toAppointmentEntitySnapshot(appointment: Appointment) {
 
 function toAppointmentEventSnapshot(input: {
   appointment: Appointment;
-  client: AppointmentEventClientSnapshot | null;
+  client: AppointmentEventClientSnapshot;
 }) {
   const appointment = toAppointmentEntitySnapshot(input.appointment);
-  const client = input.client
-    ? {
-        id: input.client.id,
-        firstName: input.client.firstName,
-        lastName: input.client.lastName,
-        email: input.client.email,
-        phone: input.client.phone,
-      }
-    : null;
+  const client = {
+    id: input.client.id,
+    firstName: input.client.firstName,
+    lastName: input.client.lastName,
+    email: input.client.email,
+    phone: input.client.phone,
+  };
 
   return {
     appointmentId: appointment.id,
@@ -177,19 +173,26 @@ async function emitAppointmentLifecycleEvent(
     appointmentRepository.findClientSnapshotsByIds(tx, orgId, clientIds),
   );
 
+  const currentClient = clientsById.get(current.clientId);
+  if (!currentClient) {
+    throw new ApplicationError("Client not found", { code: "NOT_FOUND" });
+  }
+
   const currentSnapshot = toAppointmentEventSnapshot({
     appointment: current,
-    client: current.clientId
-      ? (clientsById.get(current.clientId) ?? null)
-      : null,
+    client: currentClient,
   });
   const previousSnapshot = previous
-    ? toAppointmentEventSnapshot({
-        appointment: previous,
-        client: previous.clientId
-          ? (clientsById.get(previous.clientId) ?? null)
-          : null,
-      })
+    ? (() => {
+        const previousClient = clientsById.get(previous.clientId);
+        if (!previousClient) {
+          throw new ApplicationError("Client not found", { code: "NOT_FOUND" });
+        }
+        return toAppointmentEventSnapshot({
+          appointment: previous,
+          client: previousClient,
+        });
+      })()
     : null;
 
   const lifecycleEvent = classifyAppointmentLifecycleEvent({
@@ -332,14 +335,12 @@ export class AppointmentService {
       throw new ApplicationError("Calendar not found", { code: "NOT_FOUND" });
     }
 
-    // Validate client if provided
-    if (clientId) {
-      const clientExists = await withOrg(orgId, (tx) =>
-        appointmentRepository.verifyClientAccess(tx, orgId, clientId),
-      );
-      if (!clientExists) {
-        throw new ApplicationError("Client not found", { code: "NOT_FOUND" });
-      }
+    // Validate client access
+    const clientExists = await withOrg(orgId, (tx) =>
+      appointmentRepository.verifyClientAccess(tx, orgId, clientId),
+    );
+    if (!clientExists) {
+      throw new ApplicationError("Client not found", { code: "NOT_FOUND" });
     }
 
     // Get and validate appointment type + calendar link
@@ -399,7 +400,7 @@ export class AppointmentService {
         appointmentRepository.create(tx, orgId, {
           calendarId,
           appointmentTypeId,
-          clientId: clientId ?? null,
+          clientId,
           startAt,
           endAt,
           timezone,
@@ -450,7 +451,7 @@ export class AppointmentService {
       }
 
       // Validate client if being updated
-      if (data.clientId !== undefined && data.clientId !== null) {
+      if (data.clientId !== undefined) {
         const clientExists = await appointmentRepository.verifyClientAccess(
           tx,
           orgId,

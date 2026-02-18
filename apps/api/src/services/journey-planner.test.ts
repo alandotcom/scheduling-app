@@ -493,12 +493,13 @@ function createAppointmentPayload(input?: {
 }) {
   const appointmentId =
     input?.appointmentId ?? "018f4d3a-6d80-7c5b-8a4a-6cb8f8d57d10";
+  const clientId = "018f4d3a-6d80-7c5b-8a4a-6cb8f8d57d13";
 
   const payload = {
     appointmentId,
     calendarId: "018f4d3a-6d80-7c5b-8a4a-6cb8f8d57d11",
     appointmentTypeId: "018f4d3a-6d80-7c5b-8a4a-6cb8f8d57d12",
-    clientId: null,
+    clientId,
     startAt: "2026-03-10T14:00:00.000Z",
     endAt: "2026-03-10T15:00:00.000Z",
     timezone: input?.timezone ?? "America/New_York",
@@ -508,14 +509,20 @@ function createAppointmentPayload(input?: {
       id: appointmentId,
       calendarId: "018f4d3a-6d80-7c5b-8a4a-6cb8f8d57d11",
       appointmentTypeId: "018f4d3a-6d80-7c5b-8a4a-6cb8f8d57d12",
-      clientId: null,
+      clientId,
       startAt: "2026-03-10T14:00:00.000Z",
       endAt: "2026-03-10T15:00:00.000Z",
       timezone: input?.timezone ?? "America/New_York",
       status: "scheduled" as const,
       notes: null,
     },
-    client: null,
+    client: {
+      id: clientId,
+      firstName: "Ada",
+      lastName: "Lovelace",
+      email: null,
+      phone: null,
+    },
   };
 
   if (!input?.previousTimezone) {

@@ -6,6 +6,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
 import { Combobox } from "@base-ui/react/combobox";
 import {
+  Add01Icon,
   ArrowDown01Icon,
   Calendar03Icon,
   Cancel01Icon,
@@ -13,6 +14,7 @@ import {
   Tick02Icon,
 } from "@hugeicons/core-free-icons";
 import { toast } from "sonner";
+import type { CreateClientInput } from "@scheduling/dto";
 
 import { orpc } from "@/lib/query";
 import {
@@ -29,7 +31,9 @@ import { MOBILE_FIRST_MODAL_CONTENT_CLASS } from "@/lib/modal";
 import { resolveSelectValueLabel } from "@/lib/select-value-label";
 import { cn } from "@/lib/utils";
 import { AvailabilityCalendarPicker } from "@/components/appointments/availability-calendar-picker";
+import { ClientForm } from "@/components/clients/client-form";
 import { TimeDisplayToggle } from "@/components/appointments/time-display-toggle";
+import { EntityModal } from "@/components/entity-modal";
 import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
 import { Label } from "@/components/ui/label";
@@ -72,6 +76,13 @@ interface AppointmentModalDraft {
   clientSearch: string;
   selectedClientId: string;
 }
+
+type ClientOption = {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string | null;
+};
 
 export function AppointmentModal({
   open,
@@ -121,6 +132,8 @@ export function AppointmentModal({
   const skipClientClearRef = useRef(false);
   const [clientComboboxOpen, setClientComboboxOpen] = useState(false);
   const [mobileClientPickerOpen, setMobileClientPickerOpen] = useState(false);
+  const [createClientModalOpen, setCreateClientModalOpen] = useState(false);
+  const [createdClients, setCreatedClients] = useState<ClientOption[]>([]);
   const [availabilityModalOpen, setAvailabilityModalOpen] = useState(false);
   const timezoneMode = controlledTimezoneMode ?? localTimezoneMode;
   const selectedDisplayTimezone = displayTimezone ?? defaultTimezone;
@@ -204,6 +217,38 @@ export function AppointmentModal({
     enabled: open,
   });
 
+  const createClientMutation = useMutation(
+    orpc.clients.create.mutationOptions({
+      onSuccess: (createdClient) => {
+        const clientOption: ClientOption = {
+          id: createdClient.id,
+          firstName: createdClient.firstName,
+          lastName: createdClient.lastName,
+          email: createdClient.email,
+        };
+
+        setCreatedClients((previous) => {
+          const deduped = previous.filter(
+            (client) => client.id !== createdClient.id,
+          );
+          return [clientOption, ...deduped];
+        });
+        setDraft((previous) => ({
+          ...previous,
+          selectedClientId: createdClient.id,
+          clientSearch: `${createdClient.firstName} ${createdClient.lastName}`,
+        }));
+        setCreateClientModalOpen(false);
+        setClientComboboxOpen(false);
+        setMobileClientPickerOpen(false);
+        queryClient.invalidateQueries({ queryKey: orpc.clients.key() });
+      },
+      onError: (error) => {
+        toast.error(error.message || "Failed to create client");
+      },
+    }),
+  );
+
   // Fetch available time slots for visible month
   const monthStartDateStr = viewMonth.startOf("month").toISODate() ?? "";
   const monthEndDateStr = viewMonth.endOf("month").toISODate() ?? "";
@@ -255,7 +300,23 @@ export function AppointmentModal({
   );
 
   const appointmentTypes = useMemo(() => typesData?.items ?? [], [typesData]);
-  const allClients = useMemo(() => clientsData?.items ?? [], [clientsData]);
+  const allClients = useMemo(() => {
+    const merged = [
+      ...createdClients,
+      ...(clientsData?.items ?? []).map((client) => ({
+        id: client.id,
+        firstName: client.firstName,
+        lastName: client.lastName,
+        email: client.email,
+      })),
+    ];
+
+    const byId = new Map<string, ClientOption>();
+    for (const client of merged) {
+      byId.set(client.id, client);
+    }
+    return Array.from(byId.values());
+  }, [clientsData, createdClients]);
   const monthSlots = useMemo(() => slotsData?.slots ?? [], [slotsData]);
   const activeSelectedTime = useMemo(() => {
     if (!(open && selectedDateISO && selectedTime && !slotsLoading)) {
@@ -284,6 +345,13 @@ export function AppointmentModal({
   }, [allClients, clientSearch]);
   const selectedClient =
     allClients.find((client) => client.id === selectedClientId) ?? null;
+  const selectedClientLabel = selectedClient
+    ? `${selectedClient.firstName} ${selectedClient.lastName}`.trim()
+    : "";
+  const hasSelectedClientSearchMismatch =
+    !!selectedClient &&
+    clientSearch.trim().length > 0 &&
+    clientSearch.trim().toLowerCase() !== selectedClientLabel.toLowerCase();
 
   const appointmentTypeSelectLabel = resolveSelectValueLabel({
     value: selectedTypeId,
@@ -305,6 +373,8 @@ export function AppointmentModal({
       setAvailabilityModalOpen(false);
       setClientComboboxOpen(false);
       setMobileClientPickerOpen(false);
+      setCreateClientModalOpen(false);
+      setCreatedClients([]);
     }
     onOpenChange(nextOpen);
   };
@@ -313,10 +383,12 @@ export function AppointmentModal({
     setAvailabilityModalOpen(false);
     setClientComboboxOpen(false);
     setMobileClientPickerOpen(false);
+    setCreateClientModalOpen(false);
     handleDialogOpenChange(false);
   };
 
   const handleDiscardDraft = () => {
+    setCreateClientModalOpen(false);
     resetDraft();
     handleDialogOpenChange(false);
   };
@@ -348,7 +420,8 @@ export function AppointmentModal({
   };
 
   const handleSubmit = () => {
-    if (!(activeSelectedCalendarId && activeSelectedTime)) return;
+    if (!(activeSelectedCalendarId && activeSelectedTime && selectedClient))
+      return;
 
     createMutation.mutate({
       calendarId: activeSelectedCalendarId,
@@ -358,8 +431,12 @@ export function AppointmentModal({
       }).toJSDate(),
       timezone: schedulingTimezone,
       notes: notes || undefined,
-      clientId: selectedClientId || undefined,
+      clientId: selectedClient.id,
     });
+  };
+
+  const handleCreateClient = (input: CreateClientInput) => {
+    createClientMutation.mutate(input);
   };
 
   const openCalendarAvailability = (calendarId: string) => {
@@ -373,10 +450,13 @@ export function AppointmentModal({
   };
 
   const canBook =
-    selectedTypeId && activeSelectedCalendarId && activeSelectedTime;
+    selectedTypeId &&
+    activeSelectedCalendarId &&
+    activeSelectedTime &&
+    selectedClient;
 
   const { hintsVisible, registerField } = useModalFieldShortcuts({
-    enabled: open,
+    enabled: open && !createClientModalOpen,
     fields: [
       {
         id: "appointment-type",
@@ -410,7 +490,8 @@ export function AppointmentModal({
   });
 
   useSubmitShortcut({
-    enabled: open && !!canBook && !createMutation.isPending,
+    enabled:
+      open && !createClientModalOpen && !!canBook && !createMutation.isPending,
     onSubmit: handleSubmit,
   });
 
@@ -596,9 +677,9 @@ export function AppointmentModal({
                   activeSelectedCalendarId && "lg:mt-auto",
                 )}
               >
-                {/* Client Search (optional) */}
+                {/* Client selection */}
                 <div>
-                  <Label>Client (optional)</Label>
+                  <Label>Client</Label>
                   <div
                     className="mt-2 space-y-2 relative"
                     ref={registerField("client")}
@@ -621,7 +702,7 @@ export function AppointmentModal({
                             {selectedClient.firstName} {selectedClient.lastName}
                           </span>
                         ) : (
-                          "Search by name or email..."
+                          "Select a client..."
                         )}
                       </button>
 
@@ -673,7 +754,7 @@ export function AppointmentModal({
                                 />
                                 <input
                                   autoFocus
-                                  placeholder="Search by name or email..."
+                                  placeholder="Search clients..."
                                   value={clientSearch}
                                   onChange={(e) => {
                                     setDraft((previous) => ({
@@ -690,13 +771,28 @@ export function AppointmentModal({
                                   className="h-11 w-full rounded-lg border border-input bg-transparent pl-10 pr-3 text-base outline-none placeholder:text-muted-foreground/70 focus-visible:border-ring focus-visible:ring-ring/30 focus-visible:ring-[3px]"
                                 />
                               </div>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                className="mt-3 w-full"
+                                onClick={() => {
+                                  setMobileClientPickerOpen(false);
+                                  setCreateClientModalOpen(true);
+                                }}
+                              >
+                                <Icon
+                                  icon={Add01Icon}
+                                  data-icon="inline-start"
+                                />
+                                Create New Client
+                              </Button>
                             </div>
 
                             {/* Scrollable client list */}
                             <div className="flex-1 overflow-y-auto">
                               {clients.length === 0 ? (
                                 <p className="px-4 py-6 text-sm text-muted-foreground">
-                                  No clients found.
+                                  No clients found. Create one to continue.
                                 </p>
                               ) : (
                                 clients.map((client) => (
@@ -785,7 +881,7 @@ export function AppointmentModal({
                       >
                         <div className="relative">
                           <Combobox.Input
-                            placeholder="Search by name or email..."
+                            placeholder="Search clients..."
                             onFocus={() => {
                               setClientComboboxOpen(true);
                             }}
@@ -850,23 +946,49 @@ export function AppointmentModal({
                       label="Client"
                       visible={hintsVisible}
                     />
-                    {selectedClientId && (
+                    <div className="flex w-full flex-col gap-2 md:w-auto md:flex-row md:items-center">
                       <Button
-                        variant="ghost"
-                        size="xs"
-                        onClick={() => {
-                          setDraft((previous) => ({
-                            ...previous,
-                            selectedClientId: "",
-                            clientSearch: "",
-                          }));
-                        }}
-                        className="text-muted-foreground"
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="w-full md:w-auto"
+                        onClick={() => setCreateClientModalOpen(true)}
                       >
-                        Clear selection
+                        <Icon icon={Add01Icon} data-icon="inline-start" />
+                        Create New Client
                       </Button>
-                    )}
+                      {selectedClient ? (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="xs"
+                          onClick={() => {
+                            setDraft((previous) => ({
+                              ...previous,
+                              selectedClientId: "",
+                            }));
+                          }}
+                          className="text-muted-foreground"
+                        >
+                          Clear selection
+                        </Button>
+                      ) : null}
+                    </div>
                   </div>
+                  {selectedClient ? (
+                    <div className="mt-2 rounded-md border border-border/60 bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+                      <span className="font-medium text-foreground/90">
+                        Selected client:
+                      </span>{" "}
+                      {selectedClientLabel}
+                    </div>
+                  ) : null}
+                  {hasSelectedClientSearchMismatch ? (
+                    <p className="mt-2 text-xs text-muted-foreground">
+                      Search text is different from the selected client. Booking
+                      will use the selected client above.
+                    </p>
+                  ) : null}
                 </div>
 
                 {/* Notes */}
@@ -960,6 +1082,22 @@ export function AppointmentModal({
         timezone={schedulingTimezone}
         initialTab="weekly"
       />
+      <EntityModal
+        open={createClientModalOpen && open}
+        onOpenChange={(nextOpen) => {
+          setCreateClientModalOpen(nextOpen);
+        }}
+        title="New Client"
+      >
+        <div className="h-full overflow-y-auto px-4 py-4 sm:px-6 sm:py-5">
+          <ClientForm
+            onSubmit={handleCreateClient}
+            onCancel={() => setCreateClientModalOpen(false)}
+            isSubmitting={createClientMutation.isPending}
+            shortcutsEnabled={createClientModalOpen}
+          />
+        </div>
+      </EntityModal>
     </>
   );
 }

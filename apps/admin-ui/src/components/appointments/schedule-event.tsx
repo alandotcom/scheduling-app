@@ -9,7 +9,7 @@ interface ScheduleEventProps {
   endAt: DateTime;
   displayTimezone: string;
   status: "scheduled" | "confirmed" | "cancelled" | "no_show";
-  clientName?: string | null;
+  clientName: string;
   appointmentTypeName?: string | null;
   isSelected: boolean;
   onClick: () => void;
@@ -72,14 +72,11 @@ export function ScheduleEvent({
     >
       {isCompact ? (
         <div className="truncate font-medium">
-          {formatTimeDisplay(startAt, displayTimezone)}{" "}
-          {clientName || appointmentTypeName || "Appointment"}
+          {formatTimeDisplay(startAt, displayTimezone)} {clientName}
         </div>
       ) : (
         <>
-          <div className="truncate font-medium">
-            {clientName || "No client"}
-          </div>
+          <div className="truncate font-medium">{clientName}</div>
           <div className="truncate text-[10px] opacity-80">
             {appointmentTypeName || "Appointment"}
           </div>

@@ -776,8 +776,7 @@ function CalendarsPage() {
                                 </div>
                                 <div className="text-xs text-muted-foreground">
                                   {apt.appointmentType?.name}
-                                  {apt.client &&
-                                    ` - ${apt.client.firstName} ${apt.client.lastName}`}
+                                  {` - ${apt.client.firstName} ${apt.client.lastName}`}
                                 </div>
                               </div>
                               <Badge

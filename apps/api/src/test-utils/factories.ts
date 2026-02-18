@@ -291,7 +291,7 @@ export async function createAppointment(
     appointmentTypeId: string;
     startAt: Date;
     endAt: Date;
-    clientId?: string;
+    clientId: string;
     timezone?: string;
     status?: "scheduled" | "confirmed" | "cancelled" | "no_show";
     notes?: string;
@@ -305,7 +305,7 @@ export async function createAppointment(
         orgId,
         calendarId: options.calendarId,
         appointmentTypeId: options.appointmentTypeId,
-        clientId: options.clientId ?? null,
+        clientId: options.clientId,
         startAt: options.startAt,
         endAt: options.endAt,
         timezone: options.timezone ?? "America/New_York",

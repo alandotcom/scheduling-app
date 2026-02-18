@@ -32,7 +32,7 @@ export interface ScheduleAppointment {
   calendarId: string;
   calendarColor?: string | null;
   status: "scheduled" | "confirmed" | "cancelled" | "no_show";
-  clientName: string | null;
+  clientName: string;
   appointmentTypeName: string | null;
   locationName: string | null;
   hasNotes: boolean;

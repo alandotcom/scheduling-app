@@ -30,8 +30,14 @@ describe("Dashboard Routes", () => {
     const appointmentType = await createAppointmentType(db, org.id, {
       calendarIds: [calendar.id],
     });
-    await createClient(db, org.id, { firstName: "Alice", lastName: "A" });
-    await createClient(db, org.id, { firstName: "Bob", lastName: "B" });
+    const alice = await createClient(db, org.id, {
+      firstName: "Alice",
+      lastName: "A",
+    });
+    const bob = await createClient(db, org.id, {
+      firstName: "Bob",
+      lastName: "B",
+    });
 
     const todayStart = DateTime.now().setZone(DASHBOARD_TZ).startOf("day");
     const todayEnd = todayStart.plus({ days: 1 });
@@ -66,13 +72,14 @@ describe("Dashboard Routes", () => {
       },
     ];
 
-    for (const slot of slots) {
+    for (const [index, slot] of slots.entries()) {
       const endAt = DateTime.fromJSDate(slot.startAt)
         .plus({ minutes: 30 })
         .toJSDate();
       await createAppointment(db, org.id, {
         calendarId: calendar.id,
         appointmentTypeId: appointmentType.id,
+        clientId: index % 2 === 0 ? alice.id : bob.id,
         startAt: slot.startAt,
         endAt,
         status: slot.status,
@@ -132,8 +139,14 @@ describe("Dashboard Routes", () => {
       calendarIds: [calendar2.id],
     });
 
-    await createClient(db, org1.id, { firstName: "Org", lastName: "One" });
-    await createClient(db, org2.id, { firstName: "Org", lastName: "Two" });
+    const org1Client = await createClient(db, org1.id, {
+      firstName: "Org",
+      lastName: "One",
+    });
+    const org2Client = await createClient(db, org2.id, {
+      firstName: "Org",
+      lastName: "Two",
+    });
     await createClient(db, org2.id, { firstName: "Org", lastName: "Two B" });
 
     const startAt = DateTime.now()
@@ -146,6 +159,7 @@ describe("Dashboard Routes", () => {
     await createAppointment(db, org1.id, {
       calendarId: calendar1.id,
       appointmentTypeId: appointmentType1.id,
+      clientId: org1Client.id,
       startAt,
       endAt,
       status: "scheduled",
@@ -154,6 +168,7 @@ describe("Dashboard Routes", () => {
     await createAppointment(db, org2.id, {
       calendarId: calendar2.id,
       appointmentTypeId: appointmentType2.id,
+      clientId: org2Client.id,
       startAt,
       endAt,
       status: "scheduled",

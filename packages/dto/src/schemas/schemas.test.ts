@@ -422,6 +422,7 @@ describe("Appointment schemas", () => {
       const result = createAppointmentSchema.safeParse({
         calendarId: "550e8400-e29b-41d4-a716-446655440000",
         appointmentTypeId: "550e8400-e29b-41d4-a716-446655440001",
+        clientId: "550e8400-e29b-41d4-a716-446655440002",
         startTime: "2024-01-15T10:00:00Z",
         timezone: "America/New_York",
       });

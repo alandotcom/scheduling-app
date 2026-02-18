@@ -39,7 +39,7 @@ export type AppointmentListScope = "upcoming" | "history" | "all";
 export interface AppointmentCreateInput {
   calendarId: string;
   appointmentTypeId: string;
-  clientId?: string | null | undefined;
+  clientId: string;
   startAt: Date;
   endAt: Date;
   timezone: string;
@@ -48,7 +48,7 @@ export interface AppointmentCreateInput {
 }
 
 export interface AppointmentUpdateInput {
-  clientId?: string | null | undefined;
+  clientId?: string | undefined;
   notes?: string | null | undefined;
 }
 
@@ -89,7 +89,7 @@ export interface AppointmentWithRelations {
     firstName: string;
     lastName: string;
     email: string | null;
-  } | null;
+  };
 }
 
 export interface AppointmentEventClientSnapshot {
@@ -156,7 +156,7 @@ export class AppointmentRepository {
         appointmentTypes,
         eq(appointments.appointmentTypeId, appointmentTypes.id),
       )
-      .leftJoin(clients, eq(appointments.clientId, clients.id))
+      .innerJoin(clients, eq(appointments.clientId, clients.id))
       .where(eq(appointments.id, id))
       .limit(1);
     return results[0] ?? null;
@@ -342,7 +342,7 @@ export class AppointmentRepository {
         appointmentTypes,
         eq(appointments.appointmentTypeId, appointmentTypes.id),
       )
-      .leftJoin(clients, eq(appointments.clientId, clients.id))
+      .innerJoin(clients, eq(appointments.clientId, clients.id))
       .where(whereClause)
       .limit(limit + 1)
       .orderBy(...orderBy);
@@ -441,7 +441,7 @@ export class AppointmentRepository {
         orgId,
         calendarId: input.calendarId,
         appointmentTypeId: input.appointmentTypeId,
-        clientId: input.clientId ?? null,
+        clientId: input.clientId,
         startAt: input.startAt,
         endAt: input.endAt,
         timezone: input.timezone,

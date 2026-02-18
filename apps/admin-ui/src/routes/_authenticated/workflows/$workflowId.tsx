@@ -72,6 +72,10 @@ function resolveErrorMessage(error: unknown): string {
   return "Failed to load journey editor.";
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
 function WorkflowEditorPage() {
   const { workflowId } = Route.useParams();
   const queryClient = useQueryClient();
@@ -90,6 +94,7 @@ function WorkflowEditorPage() {
   const edges = useAtomValue(workflowEditorEdgesAtom);
   const activeCanvasNodes = useAtomValue(workflowActiveCanvasNodesAtom);
   const activeCanvasEdges = useAtomValue(workflowActiveCanvasEdgesAtom);
+  const rightPanelWidth = useAtomValue(rightPanelWidthAtom);
   const isExecutionViewActive = useAtomValue(isExecutionViewActiveAtom);
   const hasUnsavedChanges = useAtomValue(workflowEditorHasUnsavedChangesAtom);
   const isSaving = useAtomValue(workflowEditorIsSavingAtom);
@@ -186,6 +191,24 @@ function WorkflowEditorPage() {
     [queryClient],
   );
 
+  const patchJourneyInDetailCache = useCallback(
+    (journeyId: string, patch: Partial<JourneyListResponse[number]>) => {
+      queryClient.setQueryData(
+        orpc.journeys.get.queryOptions({ input: { id: journeyId } }).queryKey,
+        (current) => {
+          if (!isRecord(current)) {
+            return current;
+          }
+          return {
+            ...current,
+            ...patch,
+          };
+        },
+      );
+    },
+    [queryClient],
+  );
+
   useEffect(() => {
     setIsReadOnly(!canManageCurrentView);
   }, [canManageCurrentView, setIsReadOnly]);
@@ -263,6 +286,11 @@ function WorkflowEditorPage() {
           currentVersion: journey.currentVersion,
           updatedAt: journey.updatedAt,
         });
+        patchJourneyInDetailCache(journey.id, {
+          name: journey.name,
+          currentVersion: journey.currentVersion,
+          updatedAt: journey.updatedAt,
+        });
         setCurrentVersionDraft(journey.currentVersion);
         queryClient.invalidateQueries({ queryKey: orpc.journeys.key() });
       },
@@ -282,6 +310,12 @@ function WorkflowEditorPage() {
         });
         setCurrentVersionDraft(result.journey.currentVersion);
         patchJourneyInListCache(result.journey.id, {
+          status: result.journey.status,
+          mode: result.journey.mode,
+          currentVersion: result.journey.currentVersion,
+          updatedAt: result.journey.updatedAt,
+        });
+        patchJourneyInDetailCache(result.journey.id, {
           status: result.journey.status,
           mode: result.journey.mode,
           currentVersion: result.journey.currentVersion,
@@ -316,6 +350,12 @@ function WorkflowEditorPage() {
           currentVersion: journey.currentVersion,
           updatedAt: journey.updatedAt,
         });
+        patchJourneyInDetailCache(journey.id, {
+          status: journey.status,
+          mode: journey.mode,
+          currentVersion: journey.currentVersion,
+          updatedAt: journey.updatedAt,
+        });
       },
       onError: (error) => {
         toast.error(error.message || "Failed to pause journey");
@@ -345,6 +385,12 @@ function WorkflowEditorPage() {
           currentVersion: journey.currentVersion,
           updatedAt: journey.updatedAt,
         });
+        patchJourneyInDetailCache(journey.id, {
+          status: journey.status,
+          mode: journey.mode,
+          currentVersion: journey.currentVersion,
+          updatedAt: journey.updatedAt,
+        });
       },
       onError: (error) => {
         toast.error(error.message || "Failed to resume journey");
@@ -368,6 +414,12 @@ function WorkflowEditorPage() {
         });
         setCurrentVersionDraft(journey.currentVersion);
         patchJourneyInListCache(journey.id, {
+          status: journey.status,
+          mode: journey.mode,
+          currentVersion: journey.currentVersion,
+          updatedAt: journey.updatedAt,
+        });
+        patchJourneyInDetailCache(journey.id, {
           status: journey.status,
           mode: journey.mode,
           currentVersion: journey.currentVersion,
@@ -421,6 +473,14 @@ function WorkflowEditorPage() {
             : { graph: parsedPersistableGraph.data },
       });
       patchJourneyInListCache(updated.id, {
+        name: updated.name,
+        status: updated.status,
+        mode: updated.mode,
+        currentVersion: updated.currentVersion,
+        updatedAt: updated.updatedAt,
+      });
+      patchJourneyInDetailCache(updated.id, {
+        name: updated.name,
         status: updated.status,
         mode: updated.mode,
         currentVersion: updated.currentVersion,
@@ -445,6 +505,7 @@ function WorkflowEditorPage() {
     journeyQuery.data?.status,
     lifecycleDraft,
     patchJourneyInListCache,
+    patchJourneyInDetailCache,
     persistableGraphResult,
     setDraftPublishMode,
     setHasUnsavedChanges,
@@ -718,7 +779,7 @@ function WorkflowEditorPage() {
 
   return (
     <div className="relative flex h-full min-h-0 w-full overflow-hidden">
-      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         <div className="relative min-h-0 flex-1">
           <WorkflowEditorCanvas canEdit={canManageCurrentView}>
             <WorkflowToolbar
@@ -743,7 +804,15 @@ function WorkflowEditorPage() {
           </WorkflowEditorCanvas>
         </div>
         {effectiveMode === "test" ? (
-          <div className="shrink-0 border-t border-destructive/30 bg-destructive/10 px-4 py-2">
+          <div
+            className="shrink-0 border-t border-destructive/30 bg-destructive/10 px-4 py-2 transition-[width] duration-200"
+            style={{
+              width:
+                !isMobile && rightPanelWidth
+                  ? `calc(100% - ${rightPanelWidth})`
+                  : "100%",
+            }}
+          >
             <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-xs">
               <p className="flex items-center gap-1.5 font-semibold tracking-wide text-destructive">
                 <Icon className="size-3.5" icon={Alert02Icon} />

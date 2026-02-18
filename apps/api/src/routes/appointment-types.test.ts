@@ -9,6 +9,7 @@ import {
   createCalendar,
   createResource,
   createAppointmentType,
+  createClient,
   createAppointment,
   getTestDb,
   setTestOrgContext,
@@ -147,6 +148,7 @@ describe("Appointment Type Routes", () => {
       await createAppointment(db, org.id, {
         calendarId: calendarOne.id,
         appointmentTypeId: counted.id,
+        clientId: (await createClient(db, org.id)).id,
         startAt: start,
         endAt: new Date(start.getTime() + 30 * 60 * 1000),
         status: "scheduled",
@@ -154,6 +156,7 @@ describe("Appointment Type Routes", () => {
       await createAppointment(db, org.id, {
         calendarId: calendarTwo.id,
         appointmentTypeId: counted.id,
+        clientId: (await createClient(db, org.id)).id,
         startAt: second,
         endAt: new Date(second.getTime() + 30 * 60 * 1000),
         status: "confirmed",
@@ -161,6 +164,7 @@ describe("Appointment Type Routes", () => {
       await createAppointment(db, org.id, {
         calendarId: calendarTwo.id,
         appointmentTypeId: counted.id,
+        clientId: (await createClient(db, org.id)).id,
         startAt: cancelled,
         endAt: new Date(cancelled.getTime() + 30 * 60 * 1000),
         status: "cancelled",
@@ -427,6 +431,7 @@ describe("Appointment Type Routes", () => {
       await createAppointment(db, org.id, {
         calendarId: calendar.id,
         appointmentTypeId: appointmentType.id,
+        clientId: (await createClient(db, org.id)).id,
         startAt,
         endAt,
         status: "scheduled",

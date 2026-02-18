@@ -96,12 +96,14 @@ describe("Appointment Routes", () => {
       await createAppointment(db, org.id, {
         calendarId: calendar.id,
         appointmentTypeId: appointmentType.id,
+        clientId: (await createClient(db, org.id)).id,
         startAt: startAt1,
         endAt: endAt1,
       });
       await createAppointment(db, org.id, {
         calendarId: calendar.id,
         appointmentTypeId: appointmentType.id,
+        clientId: (await createClient(db, org.id)).id,
         startAt: startAt2,
         endAt: endAt2,
       });
@@ -128,6 +130,7 @@ describe("Appointment Routes", () => {
         await createAppointment(db, org.id, {
           calendarId: calendar.id,
           appointmentTypeId: appointmentType.id,
+          clientId: (await createClient(db, org.id)).id,
           startAt,
           endAt,
         });
@@ -180,12 +183,14 @@ describe("Appointment Routes", () => {
       await createAppointment(db, org.id, {
         calendarId: calendar.id,
         appointmentTypeId: appointmentType.id,
+        clientId: (await createClient(db, org.id)).id,
         startAt: startAt1,
         endAt: endAt1,
       });
       await createAppointment(db, org.id, {
         calendarId: calendar2.id,
         appointmentTypeId: appointmentType.id,
+        clientId: (await createClient(db, org.id)).id,
         startAt: startAt2,
         endAt: endAt2,
       });
@@ -213,6 +218,7 @@ describe("Appointment Routes", () => {
       await createAppointment(db, org.id, {
         calendarId: calendar.id,
         appointmentTypeId: appointmentType.id,
+        clientId: (await createClient(db, org.id)).id,
         startAt: startAt1,
         endAt: endAt1,
         status: "scheduled",
@@ -220,6 +226,7 @@ describe("Appointment Routes", () => {
       await createAppointment(db, org.id, {
         calendarId: calendar.id,
         appointmentTypeId: appointmentType.id,
+        clientId: (await createClient(db, org.id)).id,
         startAt: startAt2,
         endAt: endAt2,
         status: "cancelled",
@@ -259,6 +266,7 @@ describe("Appointment Routes", () => {
       await createAppointment(db, org.id, {
         calendarId: calendar.id,
         appointmentTypeId: appointmentType.id,
+        clientId: (await createClient(db, org.id)).id,
         startAt: startAt2,
         endAt: endAt2,
       });
@@ -289,6 +297,7 @@ describe("Appointment Routes", () => {
       const pastScheduled = await createAppointment(db, org.id, {
         calendarId: calendar.id,
         appointmentTypeId: appointmentType.id,
+        clientId: (await createClient(db, org.id)).id,
         startAt: pastStart.toJSDate(),
         endAt: pastStart.plus({ hours: 1 }).toJSDate(),
         status: "scheduled",
@@ -296,6 +305,7 @@ describe("Appointment Routes", () => {
       const todayConfirmed = await createAppointment(db, org.id, {
         calendarId: calendar.id,
         appointmentTypeId: appointmentType.id,
+        clientId: (await createClient(db, org.id)).id,
         startAt: todayStart.toJSDate(),
         endAt: todayStart.plus({ hours: 1 }).toJSDate(),
         status: "confirmed",
@@ -303,6 +313,7 @@ describe("Appointment Routes", () => {
       const futureScheduled = await createAppointment(db, org.id, {
         calendarId: calendar.id,
         appointmentTypeId: appointmentType.id,
+        clientId: (await createClient(db, org.id)).id,
         startAt: futureStart.toJSDate(),
         endAt: futureStart.plus({ hours: 1 }).toJSDate(),
         status: "scheduled",
@@ -310,6 +321,7 @@ describe("Appointment Routes", () => {
       const futureCancelled = await createAppointment(db, org.id, {
         calendarId: calendar.id,
         appointmentTypeId: appointmentType.id,
+        clientId: (await createClient(db, org.id)).id,
         startAt: futureCancelledStart.toJSDate(),
         endAt: futureCancelledStart.plus({ hours: 1 }).toJSDate(),
         status: "cancelled",
@@ -353,6 +365,7 @@ describe("Appointment Routes", () => {
       const pastScheduled = await createAppointment(db, org.id, {
         calendarId: calendar.id,
         appointmentTypeId: appointmentType.id,
+        clientId: (await createClient(db, org.id)).id,
         startAt: pastStart.toJSDate(),
         endAt: pastStart.plus({ hours: 1 }).toJSDate(),
         status: "scheduled",
@@ -360,6 +373,7 @@ describe("Appointment Routes", () => {
       const todayScheduled = await createAppointment(db, org.id, {
         calendarId: calendar.id,
         appointmentTypeId: appointmentType.id,
+        clientId: (await createClient(db, org.id)).id,
         startAt: todayStart.toJSDate(),
         endAt: todayStart.plus({ hours: 1 }).toJSDate(),
         status: "scheduled",
@@ -367,6 +381,7 @@ describe("Appointment Routes", () => {
       const futureCancelled = await createAppointment(db, org.id, {
         calendarId: calendar.id,
         appointmentTypeId: appointmentType.id,
+        clientId: (await createClient(db, org.id)).id,
         startAt: futureCancelledStart.toJSDate(),
         endAt: futureCancelledStart.plus({ hours: 1 }).toJSDate(),
         status: "cancelled",
@@ -374,6 +389,7 @@ describe("Appointment Routes", () => {
       const futureNoShow = await createAppointment(db, org.id, {
         calendarId: calendar.id,
         appointmentTypeId: appointmentType.id,
+        clientId: (await createClient(db, org.id)).id,
         startAt: futureNoShowStart.toJSDate(),
         endAt: futureNoShowStart.plus({ hours: 1 }).toJSDate(),
         status: "no_show",
@@ -411,6 +427,7 @@ describe("Appointment Routes", () => {
       const noShowNewest = await createAppointment(db, org.id, {
         calendarId: calendar.id,
         appointmentTypeId: appointmentType.id,
+        clientId: (await createClient(db, org.id)).id,
         startAt: boundary.plus({ days: 2, hours: 9 }).toJSDate(),
         endAt: boundary.plus({ days: 2, hours: 10 }).toJSDate(),
         status: "no_show",
@@ -418,6 +435,7 @@ describe("Appointment Routes", () => {
       const cancelledMiddle = await createAppointment(db, org.id, {
         calendarId: calendar.id,
         appointmentTypeId: appointmentType.id,
+        clientId: (await createClient(db, org.id)).id,
         startAt: boundary.plus({ days: 1, hours: 10 }).toJSDate(),
         endAt: boundary.plus({ days: 1, hours: 11 }).toJSDate(),
         status: "cancelled",
@@ -425,6 +443,7 @@ describe("Appointment Routes", () => {
       const pastOldest = await createAppointment(db, org.id, {
         calendarId: calendar.id,
         appointmentTypeId: appointmentType.id,
+        clientId: (await createClient(db, org.id)).id,
         startAt: boundary.minus({ days: 1, hours: 10 }).toJSDate(),
         endAt: boundary.minus({ days: 1, hours: 9 }).toJSDate(),
         status: "scheduled",
@@ -476,6 +495,7 @@ describe("Appointment Routes", () => {
       const pastScheduled = await createAppointment(db, org.id, {
         calendarId: calendar.id,
         appointmentTypeId: appointmentType.id,
+        clientId: (await createClient(db, org.id)).id,
         startAt: pastStart.toJSDate(),
         endAt: pastStart.plus({ hours: 1 }).toJSDate(),
         status: "scheduled",
@@ -483,6 +503,7 @@ describe("Appointment Routes", () => {
       const futureCancelled = await createAppointment(db, org.id, {
         calendarId: calendar.id,
         appointmentTypeId: appointmentType.id,
+        clientId: (await createClient(db, org.id)).id,
         startAt: futureCancelledStart.toJSDate(),
         endAt: futureCancelledStart.plus({ hours: 1 }).toJSDate(),
         status: "cancelled",
@@ -525,12 +546,14 @@ describe("Appointment Routes", () => {
       await createAppointment(db, org1.id, {
         calendarId: calendar.id,
         appointmentTypeId: appointmentType.id,
+        clientId: (await createClient(db, org1.id)).id,
         startAt: startAt1,
         endAt: endAt1,
       });
       await createAppointment(db, org2.id, {
         calendarId: calendar2.id,
         appointmentTypeId: appointmentType2.id,
+        clientId: (await createClient(db, org2.id)).id,
         startAt: startAt2,
         endAt: endAt2,
       });
@@ -580,6 +603,7 @@ describe("Appointment Routes", () => {
         await createAppointment(db, org.id, {
           calendarId: calendar.id,
           appointmentTypeId: appointmentType.id,
+          clientId: (await createClient(db, org.id)).id,
           startAt,
           endAt,
         });
@@ -765,6 +789,7 @@ describe("Appointment Routes", () => {
       const appointment = await createAppointment(db, org2.id, {
         calendarId: calendar.id,
         appointmentTypeId: appointmentType.id,
+        clientId: (await createClient(db, org2.id)).id,
         startAt,
         endAt,
       });
@@ -792,6 +817,7 @@ describe("Appointment Routes", () => {
           appointmentTypeId: appointmentType.id,
           startTime,
           timezone: "America/New_York",
+          clientId: (await createClient(db, org.id)).id,
         },
         { context: ctx },
       );
@@ -851,6 +877,7 @@ describe("Appointment Routes", () => {
             appointmentTypeId: appointmentType.id,
             startTime,
             timezone: "America/New_York",
+            clientId: (await createClient(db, org.id)).id,
           },
           { context: ctx },
         ),
@@ -873,6 +900,7 @@ describe("Appointment Routes", () => {
             appointmentTypeId: "00000000-0000-0000-0000-000000000000",
             startTime,
             timezone: "America/New_York",
+            clientId: (await createClient(db, org.id)).id,
           },
           { context: ctx },
         ),
@@ -923,6 +951,7 @@ describe("Appointment Routes", () => {
             appointmentTypeId: appointmentType.id,
             startTime: pastTime,
             timezone: "America/New_York",
+            clientId: (await createClient(db, org.id)).id,
           },
           { context: ctx },
         ),
@@ -947,6 +976,7 @@ describe("Appointment Routes", () => {
             appointmentTypeId: appointmentType.id,
             startTime,
             timezone: "America/New_York",
+            clientId: (await createClient(db, org.id)).id,
           },
           { context: ctx },
         ),
@@ -970,6 +1000,7 @@ describe("Appointment Routes", () => {
           appointmentTypeId: appointmentType.id,
           startTime,
           timezone: "America/New_York",
+          clientId: (await createClient(db, org.id)).id,
         },
         { context: ctx },
       );
@@ -983,6 +1014,7 @@ describe("Appointment Routes", () => {
             appointmentTypeId: appointmentType.id,
             startTime,
             timezone: "America/New_York",
+            clientId: (await createClient(db, org.id)).id,
           },
           { context: ctx },
         ),
@@ -1006,6 +1038,7 @@ describe("Appointment Routes", () => {
           appointmentTypeId: appointmentType.id,
           startTime: startTime1,
           timezone: "America/New_York",
+          clientId: (await createClient(db, org.id)).id,
         },
         { context: ctx },
       );
@@ -1021,6 +1054,7 @@ describe("Appointment Routes", () => {
             appointmentTypeId: appointmentType.id,
             startTime: overlappingStart,
             timezone: "America/New_York",
+            clientId: (await createClient(db, org.id)).id,
           },
           { context: ctx },
         ),
@@ -1044,6 +1078,7 @@ describe("Appointment Routes", () => {
           appointmentTypeId: appointmentType.id,
           startTime,
           timezone: "America/New_York",
+          clientId: (await createClient(db, org.id)).id,
         },
         { context: ctx },
       );
@@ -1055,6 +1090,7 @@ describe("Appointment Routes", () => {
           appointmentTypeId: appointmentType.id,
           startTime,
           timezone: "America/New_York",
+          clientId: (await createClient(db, org.id)).id,
         },
         { context: ctx },
       );
@@ -1132,6 +1168,7 @@ describe("Appointment Routes", () => {
           appointmentTypeId: appointmentTypeA.id,
           startTime,
           timezone: "America/New_York",
+          clientId: (await createClient(db, org.id)).id,
         },
         { context: ctx },
       );
@@ -1145,6 +1182,7 @@ describe("Appointment Routes", () => {
             appointmentTypeId: appointmentTypeB.id,
             startTime,
             timezone: "America/New_York",
+            clientId: (await createClient(db, org.id)).id,
           },
           { context: ctx },
         ),
@@ -1204,6 +1242,7 @@ describe("Appointment Routes", () => {
           appointmentTypeId: appointmentTypeA.id,
           startTime,
           timezone: "America/New_York",
+          clientId: (await createClient(db, org.id)).id,
         },
         { context: ctx },
       );
@@ -1217,6 +1256,7 @@ describe("Appointment Routes", () => {
           appointmentTypeId: appointmentTypeB.id,
           startTime,
           timezone: "America/New_York",
+          clientId: (await createClient(db, org.id)).id,
         },
         { context: ctx },
       );
@@ -1231,6 +1271,7 @@ describe("Appointment Routes", () => {
             appointmentTypeId: appointmentTypeA.id,
             startTime,
             timezone: "America/New_York",
+            clientId: (await createClient(db, org.id)).id,
           },
           { context: ctx },
         ),
@@ -1302,6 +1343,7 @@ describe("Appointment Routes", () => {
           appointmentTypeId: appointmentType.id,
           startTime,
           timezone: "America/New_York",
+          clientId: (await createClient(db, org.id)).id,
         },
         { context: ctx },
       );
@@ -1314,6 +1356,7 @@ describe("Appointment Routes", () => {
           appointmentTypeId: appointmentType.id,
           startTime,
           timezone: "America/New_York",
+          clientId: (await createClient(db, org.id)).id,
         },
         { context: ctx },
       );
@@ -1371,6 +1414,7 @@ describe("Appointment Routes", () => {
           appointmentTypeId: appointmentType.id,
           startTime,
           timezone: "America/New_York",
+          clientId: (await createClient(db, org.id)).id,
         },
         { context: ctx },
       );
@@ -1383,6 +1427,7 @@ describe("Appointment Routes", () => {
             appointmentTypeId: appointmentType.id,
             startTime,
             timezone: "America/New_York",
+            clientId: (await createClient(db, org.id)).id,
           },
           { context: ctx },
         ),
@@ -1401,6 +1446,7 @@ describe("Appointment Routes", () => {
       const existing = await createAppointment(db, org.id, {
         calendarId: calendar.id,
         appointmentTypeId: appointmentType.id,
+        clientId: (await createClient(db, org.id)).id,
         startAt: startTime,
         endAt,
       });
@@ -1413,6 +1459,7 @@ describe("Appointment Routes", () => {
             appointmentTypeId: appointmentType.id,
             startTime,
             timezone: "America/New_York",
+            clientId: (await createClient(db, org.id)).id,
           },
           { context: ctx },
         );
@@ -1455,6 +1502,7 @@ describe("Appointment Routes", () => {
       const appointment = await createAppointment(db, org.id, {
         calendarId: calendar.id,
         appointmentTypeId: appointmentType.id,
+        clientId: (await createClient(db, org.id)).id,
         startAt,
         endAt,
         notes: "Original notes",
@@ -1483,6 +1531,7 @@ describe("Appointment Routes", () => {
       const appointment = await createAppointment(db, org.id, {
         calendarId: calendar.id,
         appointmentTypeId: appointmentType.id,
+        clientId: (await createClient(db, org.id)).id,
         startAt,
         endAt,
       });
@@ -1496,7 +1545,7 @@ describe("Appointment Routes", () => {
       expect(result!.clientId).toBe(client.id);
     });
 
-    test("clears appointment client by setting to null", async () => {
+    test("keeps appointment client when clientId is omitted", async () => {
       const { org, user, calendar, appointmentType } =
         await createFixtureWithAvailability();
       const ctx = createTestContext({ orgId: org.id, userId: user.id });
@@ -1517,11 +1566,11 @@ describe("Appointment Routes", () => {
 
       const result = await call(
         appointmentRoutes.update,
-        { id: appointment.id, data: { clientId: null } },
+        { id: appointment.id, data: { notes: "No client change" } },
         { context: ctx },
       );
 
-      expect(result!.clientId).toBeNull();
+      expect(result!.clientId).toBe(client.id);
     });
 
     test("throws NOT_FOUND for non-existent appointment", async () => {
@@ -1552,6 +1601,7 @@ describe("Appointment Routes", () => {
       const appointment = await createAppointment(db, org.id, {
         calendarId: calendar.id,
         appointmentTypeId: appointmentType.id,
+        clientId: (await createClient(db, org.id)).id,
         startAt,
         endAt,
       });
@@ -1588,6 +1638,7 @@ describe("Appointment Routes", () => {
       const appointment = await createAppointment(db, org2.id, {
         calendarId: calendar.id,
         appointmentTypeId: appointmentType.id,
+        clientId: (await createClient(db, org2.id)).id,
         startAt,
         endAt,
       });
@@ -1615,6 +1666,7 @@ describe("Appointment Routes", () => {
       const appointment = await createAppointment(db, org.id, {
         calendarId: calendar.id,
         appointmentTypeId: appointmentType.id,
+        clientId: (await createClient(db, org.id)).id,
         startAt,
         endAt,
         status: "scheduled",
@@ -1639,6 +1691,7 @@ describe("Appointment Routes", () => {
       const appointment = await createAppointment(db, org.id, {
         calendarId: calendar.id,
         appointmentTypeId: appointmentType.id,
+        clientId: (await createClient(db, org.id)).id,
         startAt,
         endAt,
         notes: "Original notes",
@@ -1664,6 +1717,7 @@ describe("Appointment Routes", () => {
       const appointment = await createAppointment(db, org.id, {
         calendarId: calendar.id,
         appointmentTypeId: appointmentType.id,
+        clientId: (await createClient(db, org.id)).id,
         startAt,
         endAt,
         status: "cancelled",
@@ -1713,6 +1767,7 @@ describe("Appointment Routes", () => {
       const appointment = await createAppointment(db, org2.id, {
         calendarId: calendar.id,
         appointmentTypeId: appointmentType.id,
+        clientId: (await createClient(db, org2.id)).id,
         startAt,
         endAt,
       });
@@ -1740,6 +1795,7 @@ describe("Appointment Routes", () => {
       const appointment = await createAppointment(db, org.id, {
         calendarId: calendar.id,
         appointmentTypeId: appointmentType.id,
+        clientId: (await createClient(db, org.id)).id,
         startAt: originalStart,
         endAt: originalEnd,
       });
@@ -1769,6 +1825,7 @@ describe("Appointment Routes", () => {
       const appointment = await createAppointment(db, org.id, {
         calendarId: calendar.id,
         appointmentTypeId: appointmentType.id,
+        clientId: (await createClient(db, org.id)).id,
         startAt: originalStart,
         endAt: originalEnd,
       });
@@ -1800,6 +1857,7 @@ describe("Appointment Routes", () => {
       const appointment = await createAppointment(db, org.id, {
         calendarId: calendar.id,
         appointmentTypeId: appointmentType.id,
+        clientId: (await createClient(db, org.id)).id,
         startAt: originalStart,
         endAt: originalEnd,
         status: "cancelled",
@@ -1834,12 +1892,14 @@ describe("Appointment Routes", () => {
       const appointment1 = await createAppointment(db, org.id, {
         calendarId: calendar.id,
         appointmentTypeId: appointmentType.id,
+        clientId: (await createClient(db, org.id)).id,
         startAt: time1,
         endAt: end1,
       });
       await createAppointment(db, org.id, {
         calendarId: calendar.id,
         appointmentTypeId: appointmentType.id,
+        clientId: (await createClient(db, org.id)).id,
         startAt: time2,
         endAt: end2,
       });
@@ -1895,6 +1955,7 @@ describe("Appointment Routes", () => {
       const appointment = await createAppointment(db, org2.id, {
         calendarId: calendar.id,
         appointmentTypeId: appointmentType.id,
+        clientId: (await createClient(db, org2.id)).id,
         startAt,
         endAt,
       });
@@ -1928,6 +1989,7 @@ describe("Appointment Routes", () => {
       const appointment = await createAppointment(db, org.id, {
         calendarId: calendar.id,
         appointmentTypeId: appointmentType.id,
+        clientId: (await createClient(db, org.id)).id,
         startAt,
         endAt,
         status: "scheduled",
@@ -1952,6 +2014,7 @@ describe("Appointment Routes", () => {
       const appointment = await createAppointment(db, org.id, {
         calendarId: calendar.id,
         appointmentTypeId: appointmentType.id,
+        clientId: (await createClient(db, org.id)).id,
         startAt,
         endAt,
         status: "cancelled",
@@ -1978,6 +2041,7 @@ describe("Appointment Routes", () => {
       const appointment = await createAppointment(db, org.id, {
         calendarId: calendar.id,
         appointmentTypeId: appointmentType.id,
+        clientId: (await createClient(db, org.id)).id,
         startAt,
         endAt,
         status: "no_show",
@@ -2027,6 +2091,7 @@ describe("Appointment Routes", () => {
       const appointment = await createAppointment(db, org2.id, {
         calendarId: calendar.id,
         appointmentTypeId: appointmentType.id,
+        clientId: (await createClient(db, org2.id)).id,
         startAt,
         endAt,
       });

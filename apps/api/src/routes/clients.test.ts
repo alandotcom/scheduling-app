@@ -4,6 +4,7 @@
 import { describe, test, expect } from "bun:test";
 import { call } from "@orpc/server";
 import { DateTime } from "luxon";
+import { eq } from "drizzle-orm";
 import {
   createTestContext,
   createOrg,
@@ -15,7 +16,7 @@ import {
   setTestOrgContext,
 } from "../test-utils/index.js";
 import * as clientRoutes from "./clients.js";
-import { clients } from "@scheduling/db/schema";
+import { appointments, clients } from "@scheduling/db/schema";
 import type { BunSQLDatabase } from "drizzle-orm/bun-sql/postgres";
 import type * as schema from "@scheduling/db/schema";
 import type { relations } from "@scheduling/db/relations";
@@ -1298,6 +1299,46 @@ describe("Client Routes", () => {
       expect(remaining).toHaveLength(0);
     });
 
+    test("deletes client appointments when deleting by id", async () => {
+      const { org, user } = await createOrg(db);
+      const ctx = createTestContext({ orgId: org.id, userId: user.id });
+      const calendar = await createCalendar(db, org.id, {
+        name: "Cascade Calendar",
+      });
+      const appointmentType = await createAppointmentType(db, org.id, {
+        name: "Cascade Type",
+        calendarIds: [calendar.id],
+      });
+      const client = await createClient(db, org.id, {
+        firstName: "Cascade",
+        lastName: "Delete",
+      });
+      const startAt = DateTime.now().plus({ days: 1 }).toJSDate();
+      await createAppointment(db, org.id, {
+        calendarId: calendar.id,
+        appointmentTypeId: appointmentType.id,
+        clientId: client.id,
+        startAt,
+        endAt: DateTime.fromJSDate(startAt).plus({ minutes: 30 }).toJSDate(),
+        status: "scheduled",
+      });
+
+      const result = await call(
+        clientRoutes.remove,
+        { id: client.id },
+        { context: ctx },
+      );
+
+      expect(result.success).toBe(true);
+
+      await setTestOrgContext(db, org.id);
+      const remainingAppointments = await db
+        .select({ id: appointments.id })
+        .from(appointments)
+        .where(eq(appointments.clientId, client.id));
+      expect(remainingAppointments).toHaveLength(0);
+    });
+
     test("throws NOT_FOUND for non-existent client", async () => {
       const { org, user } = await createOrg(db);
       const ctx = createTestContext({ orgId: org.id, userId: user.id });
@@ -1333,10 +1374,26 @@ describe("Client Routes", () => {
     test("deletes a client by reference ID", async () => {
       const { org, user } = await createOrg(db);
       const ctx = createTestContext({ orgId: org.id, userId: user.id });
-      await createClient(db, org.id, {
+      const client = await createClient(db, org.id, {
         firstName: "ByRef",
         lastName: "Delete",
         referenceId: "ext-delete",
+      });
+      const calendar = await createCalendar(db, org.id, {
+        name: "ByRef Calendar",
+      });
+      const appointmentType = await createAppointmentType(db, org.id, {
+        name: "ByRef Type",
+        calendarIds: [calendar.id],
+      });
+      const startAt = DateTime.now().plus({ days: 1 }).toJSDate();
+      await createAppointment(db, org.id, {
+        calendarId: calendar.id,
+        appointmentTypeId: appointmentType.id,
+        clientId: client.id,
+        startAt,
+        endAt: DateTime.fromJSDate(startAt).plus({ minutes: 30 }).toJSDate(),
+        status: "scheduled",
       });
 
       const result = await call(
@@ -1356,6 +1413,13 @@ describe("Client Routes", () => {
       ).rejects.toMatchObject({
         code: "NOT_FOUND",
       });
+
+      await setTestOrgContext(db, org.id);
+      const remainingAppointments = await db
+        .select({ id: appointments.id })
+        .from(appointments)
+        .where(eq(appointments.clientId, client.id));
+      expect(remainingAppointments).toHaveLength(0);
     });
 
     test("throws NOT_FOUND when deleting by missing reference ID", async () => {

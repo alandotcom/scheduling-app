@@ -10,6 +10,7 @@ import {
   createLocation,
   createCalendar,
   createAppointmentType,
+  createClient,
   createAppointment,
   getTestDb,
   setTestOrgContext,
@@ -156,6 +157,7 @@ describe("Calendar Routes", () => {
       await createAppointment(db, org.id, {
         calendarId: calendar.id,
         appointmentTypeId: appointmentType.id,
+        clientId: (await createClient(db, org.id)).id,
         startAt: inWeekStart.toJSDate(),
         endAt: inWeekStart.plus({ minutes: 30 }).toJSDate(),
         status: "scheduled",
@@ -163,6 +165,7 @@ describe("Calendar Routes", () => {
       await createAppointment(db, org.id, {
         calendarId: calendar.id,
         appointmentTypeId: appointmentType.id,
+        clientId: (await createClient(db, org.id)).id,
         startAt: inWeekStartTwo.toJSDate(),
         endAt: inWeekStartTwo.plus({ minutes: 30 }).toJSDate(),
         status: "confirmed",
@@ -170,6 +173,7 @@ describe("Calendar Routes", () => {
       await createAppointment(db, org.id, {
         calendarId: calendar.id,
         appointmentTypeId: appointmentType.id,
+        clientId: (await createClient(db, org.id)).id,
         startAt: outOfWeekStart.toJSDate(),
         endAt: outOfWeekStart.plus({ minutes: 30 }).toJSDate(),
         status: "scheduled",
@@ -177,6 +181,7 @@ describe("Calendar Routes", () => {
       await createAppointment(db, org.id, {
         calendarId: calendar.id,
         appointmentTypeId: appointmentType.id,
+        clientId: (await createClient(db, org.id)).id,
         startAt: cancelledInWeekStart.toJSDate(),
         endAt: cancelledInWeekStart.plus({ minutes: 30 }).toJSDate(),
         status: "cancelled",
@@ -475,6 +480,7 @@ describe("Calendar Routes", () => {
       await createAppointment(db, org.id, {
         calendarId: calendar.id,
         appointmentTypeId: appointmentType.id,
+        clientId: (await createClient(db, org.id)).id,
         startAt,
         endAt,
         status: "scheduled",

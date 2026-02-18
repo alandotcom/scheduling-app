@@ -85,7 +85,7 @@ describe("emitEvent", () => {
         appointmentId: "018f4d3a-6d80-7c5b-8a4a-6cb8f8d57d21",
         calendarId: "018f4d3a-6d80-7c5b-8a4a-6cb8f8d57d22",
         appointmentTypeId: "018f4d3a-6d80-7c5b-8a4a-6cb8f8d57d23",
-        clientId: null,
+        clientId: "018f4d3a-6d80-7c5b-8a4a-6cb8f8d57d24",
         startAt: new Date("2026-01-01T10:00:00.000Z").toISOString(),
         endAt: new Date("2026-01-01T10:30:00.000Z").toISOString(),
         timezone: "UTC",
@@ -95,14 +95,20 @@ describe("emitEvent", () => {
           id: "018f4d3a-6d80-7c5b-8a4a-6cb8f8d57d21",
           calendarId: "018f4d3a-6d80-7c5b-8a4a-6cb8f8d57d22",
           appointmentTypeId: "018f4d3a-6d80-7c5b-8a4a-6cb8f8d57d23",
-          clientId: null,
+          clientId: "018f4d3a-6d80-7c5b-8a4a-6cb8f8d57d24",
           startAt: new Date("2026-01-01T10:00:00.000Z").toISOString(),
           endAt: new Date("2026-01-01T10:30:00.000Z").toISOString(),
           timezone: "UTC",
           status: "scheduled",
           notes: null,
         },
-        client: null,
+        client: {
+          id: "018f4d3a-6d80-7c5b-8a4a-6cb8f8d57d24",
+          firstName: "Ada",
+          lastName: "Lovelace",
+          email: null,
+          phone: null,
+        },
       };
 
     await events.appointmentScheduled(orgId, appointmentSnapshot);

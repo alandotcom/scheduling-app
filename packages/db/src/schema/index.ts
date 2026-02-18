@@ -335,9 +335,11 @@ export const appointments = pgTable.withRLS(
     appointmentTypeId: uuid("appointment_type_id")
       .notNull()
       .references(() => appointmentTypes.id, { onDelete: "cascade" }),
-    clientId: uuid("client_id").references(() => clients.id, {
-      onDelete: "set null",
-    }),
+    clientId: uuid("client_id")
+      .notNull()
+      .references(() => clients.id, {
+        onDelete: "cascade",
+      }),
     startAt: timestamp("start_at", { withTimezone: true }).notNull(),
     endAt: timestamp("end_at", { withTimezone: true }).notNull(),
     timezone: text("timezone").notNull(),

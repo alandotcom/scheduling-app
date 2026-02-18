@@ -15,6 +15,7 @@ import {
   createAppointment,
   createAppointmentType,
   createCalendar,
+  createClient,
   createLocation,
   createOrg,
 } from "../test-utils/factories.js";
@@ -297,6 +298,7 @@ describe("JourneyService", () => {
     const appointment = await createAppointment(db as any, context.orgId, {
       calendarId: calendar.id,
       appointmentTypeId: appointmentType.id,
+      clientId: (await createClient(db as any, context.orgId)).id,
       startAt: new Date("2026-03-10T14:00:00.000Z"),
       endAt: new Date("2026-03-10T15:00:00.000Z"),
     });
@@ -775,6 +777,7 @@ describe("JourneyService", () => {
     const appointment = await createAppointment(db as any, context.orgId, {
       calendarId: calendar.id,
       appointmentTypeId: appointmentType.id,
+      clientId: (await createClient(db as any, context.orgId)).id,
       startAt: new Date("2026-03-10T14:00:00.000Z"),
       endAt: new Date("2026-03-10T15:00:00.000Z"),
     });
@@ -842,6 +845,7 @@ describe("JourneyService", () => {
     const appointment = await createAppointment(db as any, context.orgId, {
       calendarId: calendar.id,
       appointmentTypeId: appointmentType.id,
+      clientId: (await createClient(db as any, context.orgId)).id,
       startAt: new Date("2026-03-10T14:00:00.000Z"),
       endAt: new Date("2026-03-10T15:00:00.000Z"),
     });
@@ -900,6 +904,7 @@ describe("JourneyService", () => {
     const appointment = await createAppointment(db as any, context.orgId, {
       calendarId: calendar.id,
       appointmentTypeId: appointmentType.id,
+      clientId: (await createClient(db as any, context.orgId)).id,
       startAt: new Date("2026-03-10T14:00:00.000Z"),
       endAt: new Date("2026-03-10T15:00:00.000Z"),
     });
@@ -946,6 +951,7 @@ describe("JourneyService", () => {
     const appointment = await createAppointment(db as any, context.orgId, {
       calendarId: calendar.id,
       appointmentTypeId: appointmentType.id,
+      clientId: (await createClient(db as any, context.orgId)).id,
       startAt: new Date("2026-03-10T14:00:00.000Z"),
       endAt: new Date("2026-03-10T15:00:00.000Z"),
     });

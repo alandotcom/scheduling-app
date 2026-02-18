@@ -27,7 +27,7 @@ export const appointmentSchema = z.object({
   orgId: uuidSchema,
   calendarId: uuidSchema,
   appointmentTypeId: uuidSchema,
-  clientId: uuidSchema.nullable(),
+  clientId: uuidSchema,
   startAt: timestampSchema,
   endAt: timestampSchema,
   timezone: timezoneSchema,
@@ -42,13 +42,13 @@ export const createAppointmentSchema = z.object({
   appointmentTypeId: uuidSchema,
   startTime: timestampSchema, // UTC timestamp
   timezone: timezoneSchema,
-  clientId: uuidSchema.optional(),
+  clientId: uuidSchema,
   notes: z.string().optional(),
 });
 
 // Update appointment input (notes/client only - use reschedule for time changes)
 export const updateAppointmentSchema = z.object({
-  clientId: uuidSchema.nullable().optional(),
+  clientId: uuidSchema.optional(),
   notes: z.string().nullable().optional(),
 });
 
@@ -112,7 +112,7 @@ export const appointmentScheduleEventSchema = z.object({
   endAt: timestampSchema,
   calendarId: uuidSchema,
   calendarColor: z.string().nullable().optional(),
-  clientName: z.string().nullable(),
+  clientName: z.string(),
   appointmentTypeName: z.string().nullable(),
   locationName: z.string().nullable(),
   hasNotes: z.boolean(),
@@ -158,15 +158,12 @@ export const appointmentWithRelationsSchema = appointmentSchema.extend({
       durationMin: z.number(),
     })
     .optional(),
-  client: z
-    .object({
-      id: uuidSchema,
-      firstName: z.string(),
-      lastName: z.string(),
-      email: z.string().nullable(),
-    })
-    .optional()
-    .nullable(),
+  client: z.object({
+    id: uuidSchema,
+    firstName: z.string(),
+    lastName: z.string(),
+    email: z.string().nullable(),
+  }),
 });
 
 // List appointments response

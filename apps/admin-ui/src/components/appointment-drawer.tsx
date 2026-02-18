@@ -60,12 +60,12 @@ interface AppointmentDrawerProps {
     notes: string | null;
     calendar?: { id: string; name: string; timezone: string } | null;
     appointmentType?: { id: string; name: string; durationMin: number } | null;
-    client?: {
+    client: {
       id: string;
       firstName: string;
       lastName: string;
       email: string | null;
-    } | null;
+    };
   } | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -266,31 +266,28 @@ export function AppointmentDrawer({
             </div>
 
             {/* Client Info */}
-            {appointment.client && (
-              <div className="mb-6">
-                <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                  Client
-                </Label>
-                <div className="mt-2 rounded-lg border border-border p-4">
-                  <div className="flex items-center gap-2">
-                    <Icon
-                      icon={UserCircle02Icon}
-                      className="text-muted-foreground"
-                    />
-                    <span className="font-medium">
-                      {appointment.client.firstName}{" "}
-                      {appointment.client.lastName}
-                    </span>
-                  </div>
-                  {appointment.client.email && (
-                    <div className="flex items-center gap-2 mt-2 text-sm text-muted-foreground">
-                      <Icon icon={Mail01Icon} className="size-3.5" />
-                      <span>{appointment.client.email}</span>
-                    </div>
-                  )}
+            <div className="mb-6">
+              <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                Client
+              </Label>
+              <div className="mt-2 rounded-lg border border-border p-4">
+                <div className="flex items-center gap-2">
+                  <Icon
+                    icon={UserCircle02Icon}
+                    className="text-muted-foreground"
+                  />
+                  <span className="font-medium">
+                    {appointment.client.firstName} {appointment.client.lastName}
+                  </span>
                 </div>
+                {appointment.client.email && (
+                  <div className="flex items-center gap-2 mt-2 text-sm text-muted-foreground">
+                    <Icon icon={Mail01Icon} className="size-3.5" />
+                    <span>{appointment.client.email}</span>
+                  </div>
+                )}
               </div>
-            )}
+            </div>
 
             {/* Status */}
             <div className="mb-6">

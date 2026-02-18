@@ -188,15 +188,12 @@ export function AppointmentsList({
       },
       {
         id: "client",
-        accessorFn: (row) =>
-          row.client ? `${row.client.firstName} ${row.client.lastName}` : "",
+        accessorFn: (row) => `${row.client.firstName} ${row.client.lastName}`,
         header: ({ column }) => (
           <DataTableColumnHeader column={column} title="Client" />
         ),
         cell: ({ row }) =>
-          row.original.client
-            ? `${row.original.client.firstName} ${row.original.client.lastName}`
-            : "-",
+          `${row.original.client.firstName} ${row.original.client.lastName}`,
       },
       {
         id: "status",
@@ -235,9 +232,7 @@ export function AppointmentsList({
 
       const typeName = row.original.appointmentType?.name ?? "";
       const calendarName = row.original.calendar?.name ?? "";
-      const clientName = row.original.client
-        ? `${row.original.client.firstName} ${row.original.client.lastName}`
-        : "";
+      const clientName = `${row.original.client.firstName} ${row.original.client.lastName}`;
       const status = row.original.status;
 
       return (

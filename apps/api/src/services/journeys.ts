@@ -663,24 +663,21 @@ function mapAppointmentToScheduledPayload(appointment: {
     | "notes"
   >;
   client: {
-    id: string | null;
-    firstName: string | null;
-    lastName: string | null;
+    id: string;
+    firstName: string;
+    lastName: string;
     email: string | null;
     phone: string | null;
-  } | null;
+  };
 }) {
   const appointmentSnapshot = appointment.appointment;
-  const clientSnapshot =
-    appointment.client && typeof appointment.client.id === "string"
-      ? {
-          id: appointment.client.id,
-          firstName: appointment.client.firstName ?? "",
-          lastName: appointment.client.lastName ?? "",
-          email: appointment.client.email,
-          phone: appointment.client.phone,
-        }
-      : null;
+  const clientSnapshot = {
+    id: appointment.client.id,
+    firstName: appointment.client.firstName,
+    lastName: appointment.client.lastName,
+    email: appointment.client.email,
+    phone: appointment.client.phone,
+  };
 
   const parsed = domainEventDataSchemaByType["appointment.scheduled"].safeParse(
     {
@@ -1389,7 +1386,7 @@ export class JourneyService {
           },
         })
         .from(appointments)
-        .leftJoin(clients, eq(appointments.clientId, clients.id))
+        .innerJoin(clients, eq(appointments.clientId, clients.id))
         .where(eq(appointments.id, parsed.appointmentId))
         .limit(1);
 

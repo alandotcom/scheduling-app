@@ -99,7 +99,9 @@ export function ClientDrawer({
         queryClient.invalidateQueries({ queryKey: orpc.clients.key() });
       },
       onError: (error) => {
-        toast.error(error.message || "Failed to delete client");
+        toast.error(
+          error.message || "Failed to delete client. Please try again.",
+        );
       },
     }),
   );

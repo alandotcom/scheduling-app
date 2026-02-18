@@ -424,45 +424,33 @@ export function AppointmentDetail({
 
           {activeTab === "client" && (
             <div className="space-y-4 sm:space-y-6">
-              {appointment.client ? (
-                <>
-                  <button
-                    type="button"
-                    className="w-full rounded-lg border border-border p-4 text-left transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                    onClick={() =>
-                      appointment.client &&
-                      onOpenClient?.(appointment.client.id)
-                    }
-                  >
-                    <div className="flex items-center gap-2">
-                      <Icon
-                        icon={UserCircle02Icon}
-                        className="text-muted-foreground"
-                      />
-                      <span className="font-medium">
-                        {appointment.client.firstName}{" "}
-                        {appointment.client.lastName}
-                      </span>
-                    </div>
-                    {appointment.client.email && (
-                      <div className="flex items-center gap-2 mt-2 text-sm text-muted-foreground">
-                        <Icon icon={Mail01Icon} className="size-3.5" />
-                        <span className="min-w-0 break-all">
-                          {appointment.client.email}
-                        </span>
-                      </div>
-                    )}
-                    <div className="mt-3 flex items-center justify-end text-sm text-muted-foreground">
-                      <span>Open client</span>
-                      <Icon icon={ArrowRight02Icon} className="ml-2 size-4" />
-                    </div>
-                  </button>
-                </>
-              ) : (
-                <div className="rounded-lg border border-border p-6 text-center text-sm text-muted-foreground">
-                  No client associated with this appointment
+              <button
+                type="button"
+                className="w-full rounded-lg border border-border p-4 text-left transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                onClick={() => onOpenClient?.(appointment.client.id)}
+              >
+                <div className="flex items-center gap-2">
+                  <Icon
+                    icon={UserCircle02Icon}
+                    className="text-muted-foreground"
+                  />
+                  <span className="font-medium">
+                    {appointment.client.firstName} {appointment.client.lastName}
+                  </span>
                 </div>
-              )}
+                {appointment.client.email && (
+                  <div className="flex items-center gap-2 mt-2 text-sm text-muted-foreground">
+                    <Icon icon={Mail01Icon} className="size-3.5" />
+                    <span className="min-w-0 break-all">
+                      {appointment.client.email}
+                    </span>
+                  </div>
+                )}
+                <div className="mt-3 flex items-center justify-end text-sm text-muted-foreground">
+                  <span>Open client</span>
+                  <Icon icon={ArrowRight02Icon} className="ml-2 size-4" />
+                </div>
+              </button>
             </div>
           )}
 

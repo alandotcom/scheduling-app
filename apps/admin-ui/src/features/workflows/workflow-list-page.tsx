@@ -41,6 +41,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { formatDisplayDateTime } from "@/lib/date-utils";
+import { cn } from "@/lib/utils";
 import { orpc } from "@/lib/query";
 
 type OrgRole = "owner" | "admin" | "member" | null | undefined;
@@ -159,22 +160,32 @@ function WorkflowLifecycleControls({
     >
       <div className="inline-flex items-center rounded-md border border-border bg-muted/20 p-0.5">
         <Button
-          className={compact ? "h-8 px-2.5" : "h-8 px-2"}
+          className={cn(
+            compact ? "h-8 rounded-md px-2.5" : "h-8 rounded-md px-2",
+            "border-transparent shadow-none hover:translate-y-0 hover:shadow-none",
+            mode === "live" &&
+              "bg-foreground text-background hover:bg-foreground/90",
+          )}
           disabled={modeDisabled}
           onClick={() => onModeChange("live")}
           size="sm"
           type="button"
-          variant={mode === "live" ? "default" : "ghost"}
+          variant="ghost"
         >
           Live
         </Button>
         <Button
-          className={compact ? "h-8 px-2.5" : "h-8 px-2"}
+          className={cn(
+            compact ? "h-8 rounded-md px-2.5" : "h-8 rounded-md px-2",
+            "border-transparent shadow-none hover:translate-y-0 hover:shadow-none",
+            mode === "test" &&
+              "bg-destructive/10 text-destructive hover:bg-destructive/20",
+          )}
           disabled={modeDisabled}
           onClick={() => onModeChange("test")}
           size="sm"
           type="button"
-          variant={mode === "test" ? "default" : "ghost"}
+          variant="ghost"
         >
           Test
         </Button>

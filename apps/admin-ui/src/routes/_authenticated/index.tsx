@@ -258,9 +258,7 @@ export function Dashboard() {
                       </div>
                       <div>
                         <div className="text-sm font-medium">
-                          {apt.client
-                            ? `${apt.client.firstName} ${apt.client.lastName}`
-                            : "No client"}
+                          {apt.client.firstName} {apt.client.lastName}
                         </div>
                         <div className="text-xs text-muted-foreground">
                           {apt.appointmentType?.name}

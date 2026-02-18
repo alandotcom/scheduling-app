@@ -24,6 +24,7 @@ import {
   blockedTime,
   schedulingLimits,
   appointments,
+  clients,
   resources,
   appointmentTypeResources,
 } from "@scheduling/db/schema";
@@ -43,6 +44,7 @@ describe("AvailabilityService", () => {
   let location: { id: string };
   let calendar: { id: string };
   let appointmentType: { id: string };
+  let client: { id: string };
   let testContext: ServiceContext;
 
   beforeAll(async () => {
@@ -104,6 +106,16 @@ describe("AvailabilityService", () => {
       appointmentTypeId: appointmentType.id,
       calendarId: calendar.id,
     });
+
+    const [createdClient] = await db
+      .insert(clients)
+      .values({
+        orgId: org.id,
+        firstName: "Test",
+        lastName: "Client",
+      })
+      .returning({ id: clients.id });
+    client = createdClient!;
   });
 
   describe("getAvailableSlots", () => {
@@ -266,6 +278,7 @@ describe("AvailabilityService", () => {
         orgId: org.id,
         calendarId: calendar.id,
         appointmentTypeId: appointmentType.id,
+        clientId: client.id,
         startAt,
         endAt,
         timezone: "America/New_York",
@@ -304,6 +317,7 @@ describe("AvailabilityService", () => {
         orgId: org.id,
         calendarId: calendar.id,
         appointmentTypeId: appointmentType.id,
+        clientId: client.id,
         startAt: new Date("2026-01-27T04:30:00Z"),
         endAt: new Date("2026-01-27T15:30:00Z"),
         timezone: "America/New_York",
@@ -496,6 +510,7 @@ describe("AvailabilityService", () => {
           orgId: org.id,
           calendarId: calendar.id,
           appointmentTypeId: highCapAt!.id,
+          clientId: client.id,
           startAt: new Date("2026-01-27T14:00:00Z"),
           endAt: new Date("2026-01-27T15:00:00Z"),
           timezone: "America/New_York",
@@ -505,6 +520,7 @@ describe("AvailabilityService", () => {
           orgId: org.id,
           calendarId: calendar.id,
           appointmentTypeId: highCapAt!.id,
+          clientId: client.id,
           startAt: new Date("2026-01-27T16:00:00Z"),
           endAt: new Date("2026-01-27T17:00:00Z"),
           timezone: "America/New_York",
@@ -643,6 +659,7 @@ describe("AvailabilityService", () => {
         orgId: org.id,
         calendarId: calendar.id,
         appointmentTypeId: appointmentType.id,
+        clientId: client.id,
         startAt: new Date("2026-01-27T14:00:00Z"),
         endAt: new Date("2026-01-27T15:00:00Z"),
         timezone: "America/New_York",
@@ -694,6 +711,7 @@ describe("AvailabilityService", () => {
           orgId: org.id,
           calendarId: calendar.id,
           appointmentTypeId: groupAt!.id,
+          clientId: client.id,
           startAt: new Date("2026-01-27T14:00:00Z"),
           endAt: new Date("2026-01-27T15:00:00Z"),
           timezone: "America/New_York",
@@ -703,6 +721,7 @@ describe("AvailabilityService", () => {
           orgId: org.id,
           calendarId: calendar.id,
           appointmentTypeId: groupAt!.id,
+          clientId: client.id,
           startAt: new Date("2026-01-27T14:00:00Z"),
           endAt: new Date("2026-01-27T15:00:00Z"),
           timezone: "America/New_York",
@@ -762,6 +781,7 @@ describe("AvailabilityService", () => {
         orgId: org.id,
         calendarId: calendar.id,
         appointmentTypeId: appointmentType.id,
+        clientId: client.id,
         startAt: new Date("2026-01-27T14:00:00Z"),
         endAt: new Date("2026-01-27T15:00:00Z"),
         timezone: "America/New_York",
@@ -835,6 +855,7 @@ describe("AvailabilityService", () => {
         orgId: org.id,
         calendarId: calendar.id,
         appointmentTypeId: otherType!.id,
+        clientId: client.id,
         startAt: new Date("2026-01-27T14:00:00Z"),
         endAt: new Date("2026-01-27T15:00:00Z"),
         timezone: "America/New_York",
@@ -894,6 +915,7 @@ describe("AvailabilityService", () => {
         orgId: org.id,
         calendarId: calendar.id,
         appointmentTypeId: paddedAt!.id,
+        clientId: client.id,
         startAt: new Date("2026-01-27T15:00:00Z"), // 10am EST
         endAt: new Date("2026-01-27T16:00:00Z"), // 11am EST
         timezone: "America/New_York",

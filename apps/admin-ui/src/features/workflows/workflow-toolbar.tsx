@@ -410,30 +410,33 @@ export function WorkflowToolbar({
     <div
       className={cn(
         "inline-flex h-8 items-center rounded-md border border-border bg-muted/20 p-0.5",
-        journeyMode === "test" && "border-destructive/40 bg-destructive/5",
       )}
     >
       <Button
-        className="h-7 px-2"
+        className={cn(
+          "h-7 rounded-md border-transparent px-2 shadow-none hover:translate-y-0 hover:shadow-none",
+          journeyMode === "live" &&
+            "bg-foreground text-background hover:bg-foreground/90",
+        )}
         disabled={modeDisabled}
         onClick={() => onSetMode("live")}
         size="sm"
         type="button"
-        variant={journeyMode === "live" ? "default" : "ghost"}
+        variant="ghost"
       >
         Live
       </Button>
       <Button
         className={cn(
-          "h-7 px-2",
+          "h-7 rounded-md border-transparent px-2 shadow-none hover:translate-y-0 hover:shadow-none",
           journeyMode === "test" &&
-            "bg-destructive/10 text-destructive hover:bg-destructive/15",
+            "border-transparent bg-destructive/10 text-destructive hover:bg-destructive/20",
         )}
         disabled={modeDisabled}
         onClick={() => onSetMode("test")}
         size="sm"
         type="button"
-        variant={journeyMode === "test" ? "secondary" : "ghost"}
+        variant="ghost"
       >
         Test
       </Button>
