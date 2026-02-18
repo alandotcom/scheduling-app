@@ -27,7 +27,7 @@ import {
   DrawerTabs,
   DrawerTab,
 } from "@/components/drawer";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { FieldShortcutHint } from "@/components/ui/field-shortcut-hint";
 import { Icon } from "@/components/ui/icon";
 import { Input } from "@/components/ui/input";
@@ -370,18 +370,20 @@ export function ClientDrawer({
                         <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
                           Past Appointments
                         </h3>
-                        <Button variant="ghost" size="sm" asChild>
-                          <Link
-                            to="/appointments"
-                            search={{ clientId: client.id }}
-                          >
-                            View all
-                            <Icon
-                              icon={ArrowRight02Icon}
-                              data-icon="inline-end"
-                            />
-                          </Link>
-                        </Button>
+                        <Link
+                          to="/appointments"
+                          search={{ clientId: client.id }}
+                          className={buttonVariants({
+                            variant: "ghost",
+                            size: "sm",
+                          })}
+                        >
+                          View all
+                          <Icon
+                            icon={ArrowRight02Icon}
+                            data-icon="inline-end"
+                          />
+                        </Link>
                       </div>
 
                       {pastAppointments.length === 0 ? (

@@ -11,7 +11,7 @@ import type {
   JourneyStatus,
 } from "@scheduling/dto";
 import { linearJourneyGraphSchema } from "@scheduling/dto";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -768,11 +768,13 @@ function WorkflowEditorPage() {
         <p className="text-sm text-destructive">
           {resolveErrorMessage(journeyQuery.error)}
         </p>
-        <Button asChild size="sm" variant="outline">
-          <Link to="/workflows" search={{ q: undefined }}>
-            Back to journeys
-          </Link>
-        </Button>
+        <Link
+          to="/workflows"
+          search={{ q: undefined }}
+          className={buttonVariants({ size: "sm", variant: "outline" })}
+        >
+          Back to journeys
+        </Link>
       </PageScaffold>
     );
   }
@@ -837,15 +839,16 @@ function WorkflowEditorPage() {
         >
           <SheetContent
             side="bottom"
+            showCloseButton={false}
             className="data-[side=bottom]:h-[100dvh] data-[side=bottom]:rounded-none gap-0 border-t border-border p-0"
           >
             <SheetHeader className="flex-row items-center justify-between border-b border-border px-4 py-3">
               <SheetTitle className="text-base">Inspector</SheetTitle>
-              <SheetClose asChild>
-                <Button size="icon-sm" type="button" variant="ghost">
-                  <Icon icon={Cancel01Icon} />
-                  <span className="sr-only">Close inspector</span>
-                </Button>
+              <SheetClose
+                render={<Button size="icon-sm" type="button" variant="ghost" />}
+              >
+                <Icon icon={Cancel01Icon} />
+                <span className="sr-only">Close inspector</span>
               </SheetClose>
             </SheetHeader>
             <div className="min-h-0 flex-1 overflow-hidden">

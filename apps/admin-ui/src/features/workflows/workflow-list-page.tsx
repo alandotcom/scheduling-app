@@ -20,7 +20,7 @@ import {
 } from "@/components/entity-list";
 import { PageScaffold } from "@/components/layout/page-scaffold";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import {
   Card,
   CardAction,
@@ -538,19 +538,16 @@ export function WorkflowListPage({
                     }}
                     status={status}
                   />
-                  <Button
-                    asChild
-                    className="shrink-0"
-                    size="sm"
-                    variant="outline"
+                  <Link
+                    params={{ workflowId: journey.id }}
+                    to="/workflows/$workflowId"
+                    className={cn(
+                      buttonVariants({ size: "sm", variant: "outline" }),
+                      "shrink-0",
+                    )}
                   >
-                    <Link
-                      params={{ workflowId: journey.id }}
-                      to="/workflows/$workflowId"
-                    >
-                      Open editor
-                    </Link>
-                  </Button>
+                    Open editor
+                  </Link>
                   {canManageWorkflows ? (
                     <Button
                       className="shrink-0 text-destructive hover:bg-destructive/10 hover:text-destructive"
@@ -671,19 +668,16 @@ export function WorkflowListPage({
                             Delete
                           </Button>
                         ) : null}
-                        <Button
-                          asChild
-                          size="sm"
-                          variant="outline"
-                          className="shrink-0"
+                        <Link
+                          params={{ workflowId: journey.id }}
+                          to="/workflows/$workflowId"
+                          className={cn(
+                            buttonVariants({ size: "sm", variant: "outline" }),
+                            "shrink-0",
+                          )}
                         >
-                          <Link
-                            params={{ workflowId: journey.id }}
-                            to="/workflows/$workflowId"
-                          >
-                            Open editor
-                          </Link>
-                        </Button>
+                          Open editor
+                        </Link>
                       </div>
                     </TableCell>
                   </TableRow>

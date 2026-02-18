@@ -28,7 +28,7 @@ import {
   EntityListLoadingState,
 } from "@/components/entity-list";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { ClientsListPresentation } from "@/components/clients/clients-list-presentation";
 import { Icon } from "@/components/ui/icon";
 import { Input } from "@/components/ui/input";
@@ -716,18 +716,20 @@ function ClientsPage() {
                                 <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
                                   Past
                                 </h3>
-                                <Button variant="ghost" size="sm" asChild>
-                                  <Link
-                                    to="/appointments"
-                                    search={{ clientId: displayClient.id }}
-                                  >
-                                    View all
-                                    <Icon
-                                      icon={ArrowRight02Icon}
-                                      data-icon="inline-end"
-                                    />
-                                  </Link>
-                                </Button>
+                                <Link
+                                  to="/appointments"
+                                  search={{ clientId: displayClient.id }}
+                                  className={buttonVariants({
+                                    variant: "ghost",
+                                    size: "sm",
+                                  })}
+                                >
+                                  View all
+                                  <Icon
+                                    icon={ArrowRight02Icon}
+                                    data-icon="inline-end"
+                                  />
+                                </Link>
                               </div>
                               {pastAppointments.length === 0 ? (
                                 <div className="rounded-lg border border-border p-4 text-sm text-muted-foreground">

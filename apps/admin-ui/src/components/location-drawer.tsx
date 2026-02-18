@@ -27,7 +27,7 @@ import {
   DrawerTabs,
   DrawerTab,
 } from "@/components/drawer";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { FieldShortcutHint } from "@/components/ui/field-shortcut-hint";
 import { Icon } from "@/components/ui/icon";
 import { Input } from "@/components/ui/input";
@@ -265,12 +265,14 @@ export function LocationDrawer({
                   <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
                     Calendars Using This Location
                   </h3>
-                  <Button variant="ghost" size="sm" asChild>
-                    <Link to="/calendars" search={{}}>
-                      View all
-                      <Icon icon={ArrowRight02Icon} data-icon="inline-end" />
-                    </Link>
-                  </Button>
+                  <Link
+                    to="/calendars"
+                    search={{}}
+                    className={buttonVariants({ variant: "ghost", size: "sm" })}
+                  >
+                    View all
+                    <Icon icon={ArrowRight02Icon} data-icon="inline-end" />
+                  </Link>
                 </div>
 
                 {calendarsAtLocation.length === 0 ? (
@@ -307,12 +309,14 @@ export function LocationDrawer({
                   <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
                     Resources at This Location
                   </h3>
-                  <Button variant="ghost" size="sm" asChild>
-                    <Link to="/resources" search={{}}>
-                      View all
-                      <Icon icon={ArrowRight02Icon} data-icon="inline-end" />
-                    </Link>
-                  </Button>
+                  <Link
+                    to="/resources"
+                    search={{}}
+                    className={buttonVariants({ variant: "ghost", size: "sm" })}
+                  >
+                    View all
+                    <Icon icon={ArrowRight02Icon} data-icon="inline-end" />
+                  </Link>
                 </div>
 
                 {resourcesAtLocation.length === 0 ? (

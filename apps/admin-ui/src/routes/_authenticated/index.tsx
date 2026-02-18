@@ -21,7 +21,7 @@ import {
 import { orpc } from "@/lib/query";
 import { formatTimeDisplay } from "@/lib/date-utils";
 import { cn } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Icon } from "@/components/ui/icon";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -217,12 +217,14 @@ export function Dashboard() {
               <h2 className="text-lg font-semibold tracking-tight">
                 {"Today's Schedule"}
               </h2>
-              <Button variant="ghost" size="sm" asChild>
-                <Link to="/appointments" search={{}}>
-                  View all
-                  <Icon icon={ArrowRight02Icon} data-icon="inline-end" />
-                </Link>
-              </Button>
+              <Link
+                to="/appointments"
+                search={{}}
+                className={buttonVariants({ variant: "ghost", size: "sm" })}
+              >
+                View all
+                <Icon icon={ArrowRight02Icon} data-icon="inline-end" />
+              </Link>
             </div>
             {todayItems.length === 0 ? (
               <div className="rounded-xl border border-border bg-card p-8 text-center">

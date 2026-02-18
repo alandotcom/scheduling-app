@@ -86,6 +86,7 @@ export function SchedulingControlsSheet({
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
         side="bottom"
+        showCloseButton={false}
         className="h-[min(85dvh,48rem)] gap-0 rounded-t-2xl border-t border-border p-0"
       >
         <SheetHeader className="border-b border-border px-4 py-3">
@@ -244,9 +245,7 @@ export function SchedulingControlsSheet({
         </div>
 
         <SheetFooter className="border-t border-border px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
-          <SheetClose asChild>
-            <Button className="w-full">Done</Button>
-          </SheetClose>
+          <SheetClose render={<Button className="w-full" />}>Done</SheetClose>
         </SheetFooter>
       </SheetContent>
     </Sheet>

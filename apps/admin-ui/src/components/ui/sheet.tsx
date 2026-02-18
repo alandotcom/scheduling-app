@@ -2,9 +2,11 @@
 
 import * as React from "react";
 import { Dialog as SheetPrimitive } from "@base-ui/react/dialog";
-import { Slot } from "@radix-ui/react-slot";
+import { Cancel01Icon } from "@hugeicons/core-free-icons";
 
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import { Icon } from "@/components/ui/icon";
 
 function Sheet({ ...props }: SheetPrimitive.Root.Props) {
   return <SheetPrimitive.Root data-slot="sheet" {...props} />;
@@ -14,25 +16,8 @@ function SheetTrigger({ ...props }: SheetPrimitive.Trigger.Props) {
   return <SheetPrimitive.Trigger data-slot="sheet-trigger" {...props} />;
 }
 
-interface SheetCloseProps extends Omit<SheetPrimitive.Close.Props, "render"> {
-  asChild?: boolean;
-}
-
-function SheetClose({ asChild, children, ...props }: SheetCloseProps) {
-  if (asChild) {
-    return (
-      <SheetPrimitive.Close
-        data-slot="sheet-close"
-        render={<Slot>{children}</Slot>}
-        {...props}
-      />
-    );
-  }
-  return (
-    <SheetPrimitive.Close data-slot="sheet-close" {...props}>
-      {children}
-    </SheetPrimitive.Close>
-  );
+function SheetClose({ ...props }: SheetPrimitive.Close.Props) {
+  return <SheetPrimitive.Close data-slot="sheet-close" {...props} />;
 }
 
 function SheetPortal({ ...props }: SheetPrimitive.Portal.Props) {
@@ -56,9 +41,11 @@ function SheetContent({
   className,
   children,
   side = "right",
+  showCloseButton = true,
   ...props
 }: SheetPrimitive.Popup.Props & {
   side?: "top" | "right" | "bottom" | "left";
+  showCloseButton?: boolean;
 }) {
   return (
     <SheetPortal>
@@ -73,6 +60,21 @@ function SheetContent({
         {...props}
       >
         {children}
+        {showCloseButton && (
+          <SheetPrimitive.Close
+            data-slot="sheet-close"
+            render={
+              <Button
+                variant="ghost"
+                className="absolute top-3 right-3"
+                size="icon-sm"
+              />
+            }
+          >
+            <Icon icon={Cancel01Icon} />
+            <span className="sr-only">Close</span>
+          </SheetPrimitive.Close>
+        )}
       </SheetPrimitive.Popup>
     </SheetPortal>
   );

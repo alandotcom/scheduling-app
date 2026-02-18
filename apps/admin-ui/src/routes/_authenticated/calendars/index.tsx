@@ -36,7 +36,7 @@ import { EntityModal } from "@/components/entity-modal";
 import { PageScaffold } from "@/components/layout/page-scaffold";
 import { CalendarsListPresentation } from "@/components/calendars/calendars-list-presentation";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { FieldShortcutHint } from "@/components/ui/field-shortcut-hint";
 import { Icon } from "@/components/ui/icon";
 import { Input } from "@/components/ui/input";
@@ -727,18 +727,20 @@ function CalendarsPage() {
                           <Icon icon={Add01Icon} data-icon="inline-start" />
                           New Appointment
                         </Button>
-                        <Button variant="ghost" size="sm" asChild>
-                          <Link
-                            to="/appointments"
-                            search={{ calendarId: displayCalendar.id }}
-                          >
-                            View all
-                            <Icon
-                              icon={ArrowRight02Icon}
-                              data-icon="inline-end"
-                            />
-                          </Link>
-                        </Button>
+                        <Link
+                          to="/appointments"
+                          search={{ calendarId: displayCalendar.id }}
+                          className={buttonVariants({
+                            variant: "ghost",
+                            size: "sm",
+                          })}
+                        >
+                          View all
+                          <Icon
+                            icon={ArrowRight02Icon}
+                            data-icon="inline-end"
+                          />
+                        </Link>
                       </div>
                     </div>
 
