@@ -2,6 +2,8 @@ import { useMemo, useState } from "react";
 import {
   Add01Icon,
   Delete01Icon,
+  PauseIcon,
+  PlayIcon,
   Search01Icon,
 } from "@hugeicons/core-free-icons";
 import { Link, useNavigate } from "@tanstack/react-router";
@@ -44,6 +46,7 @@ import { orpc } from "@/lib/query";
 type OrgRole = "owner" | "admin" | "member" | null | undefined;
 type JourneyStatus = "draft" | "published" | "paused";
 type JourneyMode = "live" | "test";
+type JourneyLifecycleStatus = "draft" | "published";
 
 export function canManageWorkflowsForRole(role: OrgRole): boolean {
   return role === "owner" || role === "admin";
@@ -91,33 +94,20 @@ interface WorkflowListPageProps {
   onSearchQueryChange: (query: string) => void;
 }
 
-function toStatusBadgeVariant(
+export function toLifecycleStatus(
   status: JourneyStatus,
-): "outline" | "default" | "secondary" {
-  switch (status) {
-    case "published":
-      return "default";
-    case "paused":
-      return "secondary";
-    default:
-      return "outline";
-  }
+): JourneyLifecycleStatus {
+  return status === "draft" ? "draft" : "published";
 }
 
-function toStatusLabel(status: JourneyStatus): string {
-  if (status === "published") {
-    return "Published";
-  }
-
-  if (status === "paused") {
-    return "Paused";
-  }
-
-  return "Draft";
+function toStatusBadgeVariant(
+  status: JourneyLifecycleStatus,
+): "outline" | "default" {
+  return status === "published" ? "default" : "outline";
 }
 
-function toModeLabel(mode: JourneyMode): string {
-  return mode === "test" ? "Test" : "Live";
+function toStatusLabel(status: JourneyLifecycleStatus): string {
+  return status === "published" ? "Published" : "Draft";
 }
 
 interface WorkflowLifecycleControlsProps {
@@ -147,7 +137,7 @@ function WorkflowLifecycleControls({
     return null;
   }
 
-  const modeDisabled = isPending || status === "paused";
+  const modeDisabled = isPending || status !== "published";
 
   const primaryLabel =
     status === "draft" ? "Publish" : status === "paused" ? "Resume" : "Pause";
@@ -164,7 +154,7 @@ function WorkflowLifecycleControls({
       className={
         compact
           ? "flex shrink-0 items-center gap-1.5"
-          : "flex flex-wrap items-center justify-end gap-2"
+          : "flex shrink-0 items-center justify-end gap-2"
       }
     >
       <div className="inline-flex items-center rounded-md border border-border bg-muted/20 p-0.5">
@@ -189,19 +179,39 @@ function WorkflowLifecycleControls({
           Test
         </Button>
       </div>
-      <Button
-        className={
-          compact
-            ? "h-8 min-w-24 shrink-0 justify-center px-2.5"
-            : "min-w-24 justify-center"
-        }
-        disabled={isPending}
-        onClick={primaryAction}
-        size="sm"
-        variant="outline"
-      >
-        {primaryLabel}
-      </Button>
+      {status === "draft" ? (
+        <Button
+          className={
+            compact
+              ? "h-8 w-24 shrink-0 justify-center px-2.5"
+              : "w-24 shrink-0 justify-center"
+          }
+          disabled={isPending}
+          onClick={primaryAction}
+          size="sm"
+          variant="outline"
+        >
+          {primaryLabel}
+        </Button>
+      ) : (
+        <Button
+          aria-label={
+            status === "paused" ? "Resume workflow" : "Pause workflow"
+          }
+          className={
+            status === "paused"
+              ? "h-8 w-8 shrink-0 border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+              : "h-8 w-8 shrink-0 border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100"
+          }
+          disabled={isPending}
+          onClick={primaryAction}
+          size="icon-sm"
+          title={status === "paused" ? "Resume" : "Pause"}
+          variant="outline"
+        >
+          <Icon icon={status === "paused" ? PlayIcon : PauseIcon} />
+        </Button>
+      )}
     </div>
   );
 }
@@ -439,9 +449,10 @@ export function WorkflowListPage({
       ) : null}
 
       {!isLoading && !errorMessage && filteredJourneys.length > 0 ? (
-        <div className="grid gap-4 md:hidden">
+        <div className="grid gap-4 min-[641px]:hidden">
           {filteredJourneys.map((journey) => {
             const status: JourneyStatus = journey.status || "draft";
+            const lifecycleStatus = toLifecycleStatus(status);
             const persistedMode: JourneyMode = journey.mode || "live";
             const mode =
               status === "draft"
@@ -458,10 +469,9 @@ export function WorkflowListPage({
                     Linear appointment journey
                   </CardDescription>
                   <CardAction className="flex items-center gap-2">
-                    <Badge variant={toStatusBadgeVariant(status)}>
-                      {toStatusLabel(status)}
+                    <Badge variant={toStatusBadgeVariant(lifecycleStatus)}>
+                      {toStatusLabel(lifecycleStatus)}
                     </Badge>
-                    <Badge variant="outline">{toModeLabel(mode)}</Badge>
                   </CardAction>
                 </CardHeader>
                 <CardContent className="space-y-2 text-sm">
@@ -554,20 +564,20 @@ export function WorkflowListPage({
       ) : null}
 
       {!isLoading && !errorMessage && filteredJourneys.length > 0 ? (
-        <div className="hidden rounded-md border md:block">
+        <div className="hidden rounded-md border min-[641px]:block">
           <Table>
             <TableHeader>
               <TableRow>
                 <TableHead>Name</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead>Mode</TableHead>
                 <TableHead>Updated</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
+                <TableHead className="w-[30rem] text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {filteredJourneys.map((journey) => {
                 const status: JourneyStatus = journey.status || "draft";
+                const lifecycleStatus = toLifecycleStatus(status);
                 const persistedMode: JourneyMode = journey.mode || "live";
                 const mode =
                   status === "draft"
@@ -582,18 +592,15 @@ export function WorkflowListPage({
                       {journey.name}
                     </TableCell>
                     <TableCell>
-                      <Badge variant={toStatusBadgeVariant(status)}>
-                        {toStatusLabel(status)}
+                      <Badge variant={toStatusBadgeVariant(lifecycleStatus)}>
+                        {toStatusLabel(lifecycleStatus)}
                       </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="outline">{toModeLabel(mode)}</Badge>
                     </TableCell>
                     <TableCell className="text-muted-foreground">
                       {formatDisplayDateTime(journey.updatedAt)}
                     </TableCell>
-                    <TableCell>
-                      <div className="flex flex-wrap items-center justify-end gap-2">
+                    <TableCell className="w-[30rem]">
+                      <div className="flex items-center justify-end gap-2">
                         <WorkflowLifecycleControls
                           canManageWorkflows={canManageWorkflows}
                           isPending={isPending}
@@ -639,7 +646,7 @@ export function WorkflowListPage({
                         />
                         {canManageWorkflows ? (
                           <Button
-                            className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                            className="shrink-0 text-destructive hover:bg-destructive/10 hover:text-destructive"
                             onClick={() =>
                               setDeleteTarget({
                                 id: journey.id,
@@ -653,7 +660,12 @@ export function WorkflowListPage({
                             Delete
                           </Button>
                         ) : null}
-                        <Button asChild size="sm" variant="outline">
+                        <Button
+                          asChild
+                          size="sm"
+                          variant="outline"
+                          className="shrink-0"
+                        >
                           <Link
                             params={{ workflowId: journey.id }}
                             to="/workflows/$workflowId"

@@ -155,6 +155,44 @@ describe("ActionConfig", () => {
     expect(removeButton.className).toContain("lg:justify-self-end");
   });
 
+  test("uses responsive layout classes for service and action pickers", () => {
+    render(
+      <ActionConfig
+        config={{ actionType: "send-slack" }}
+        onUpdateConfig={mock((_key: string, _value: unknown) => {})}
+      />,
+    );
+
+    const serviceField = screen.getByText("Service").closest("div");
+    const actionField = screen.getByText("Action").closest("div");
+
+    if (!(serviceField && actionField)) {
+      throw new Error("Expected service and action field containers");
+    }
+
+    const pickerGrid = serviceField.parentElement;
+    if (!pickerGrid) {
+      throw new Error("Expected service/action picker grid");
+    }
+
+    expect(pickerGrid.className).toContain("grid-cols-1");
+    expect(pickerGrid.className).toContain(
+      "min-[640px]:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]",
+    );
+    expect(serviceField.className).toContain("min-w-0");
+    expect(actionField.className).toContain("min-w-0");
+
+    const [serviceTrigger, actionTrigger] = screen.getAllByRole("combobox");
+    if (!(serviceTrigger && actionTrigger)) {
+      throw new Error("Expected service and action triggers");
+    }
+
+    expect(serviceTrigger.className).toContain("min-w-0");
+    expect(serviceTrigger.className).toContain("w-full");
+    expect(actionTrigger.className).toContain("min-w-0");
+    expect(actionTrigger.className).toContain("w-full");
+  });
+
   test("commits latest template variable input value on blur", () => {
     const onUpdateConfig = mock((_key: string, _value: unknown) => {});
 

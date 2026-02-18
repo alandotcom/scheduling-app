@@ -756,12 +756,22 @@ export class JourneyService {
         }
       }
 
+      if (parsed.mode !== undefined && existing.state !== "draft") {
+        throw new ApplicationError(
+          "Mode can only be updated for draft journeys",
+          {
+            code: "CONFLICT",
+          },
+        );
+      }
+
       try {
         const [updated] = await tx
           .update(journeys)
           .set({
             name: parsed.name,
             draftDefinition: parsed.graph,
+            mode: parsed.mode,
             updatedAt: sql`now()`,
           })
           .where(eq(journeys.id, id))

@@ -39,6 +39,10 @@ import {
   parseTimestampWithTimezone,
   resolveWaitUntil,
 } from "../wait-time";
+import {
+  WORKFLOW_NODE_HEIGHT,
+  WORKFLOW_NODE_WIDTH,
+} from "../workflow-node-dimensions";
 
 type ActionFlowNode = ReactFlowNode<WorkflowActionNodeData, "action">;
 type ActionNodeProps = NodeProps<ActionFlowNode>;
@@ -421,8 +425,12 @@ const ActionNode = memo(function ActionNode({
           : true,
       }}
       status={status}
+      style={{
+        width: WORKFLOW_NODE_WIDTH,
+        height: WORKFLOW_NODE_HEIGHT,
+      }}
       className={cn(
-        "h-34 w-52 flex-col items-center justify-center border-2 border-[var(--workflow-action-border)] bg-[var(--workflow-action-bg)] shadow-none",
+        "flex-col items-center justify-center border-2 border-[var(--workflow-action-border)] bg-[var(--workflow-action-bg)] shadow-none",
         isConditionAction &&
           "border-[var(--workflow-condition-border)] bg-[var(--workflow-condition-bg)]",
         selected && "border-primary",

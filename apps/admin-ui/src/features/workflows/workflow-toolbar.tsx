@@ -139,7 +139,7 @@ export function WorkflowToolbar({
 
   const isLifecycleBusy =
     isPublishing || isPausing || isResuming || isSettingMode;
-  const modeDisabled = isLifecycleBusy || journeyStatus === "paused";
+  const modeDisabled = isLifecycleBusy || journeyStatus !== "published";
   const statusLabel =
     journeyStatus === "draft"
       ? "Draft"

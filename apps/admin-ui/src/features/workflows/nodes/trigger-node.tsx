@@ -20,6 +20,10 @@ import {
   workflowExecutionLogsByNodeIdAtom,
   type WorkflowExecutionNodeLogPreview,
 } from "../workflow-editor-store";
+import {
+  WORKFLOW_NODE_HEIGHT,
+  WORKFLOW_NODE_WIDTH,
+} from "../workflow-node-dimensions";
 
 type TriggerFlowNode = ReactFlowNode<WorkflowTriggerNodeData, "trigger">;
 type TriggerNodeProps = NodeProps<TriggerFlowNode>;
@@ -83,8 +87,12 @@ const TriggerNode = memo(function TriggerNode({
     <Node
       handles={{ target: false, source: true }}
       status={status}
+      style={{
+        width: WORKFLOW_NODE_WIDTH,
+        height: WORKFLOW_NODE_HEIGHT,
+      }}
       className={cn(
-        "h-36 w-56 flex-col items-center justify-center border-[var(--workflow-trigger-border)] bg-[var(--workflow-trigger-bg)] shadow-none",
+        "flex-col items-center justify-center border-[var(--workflow-trigger-border)] bg-[var(--workflow-trigger-bg)] shadow-none",
         selected && "border-primary",
       )}
     >

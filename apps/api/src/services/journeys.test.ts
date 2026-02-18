@@ -211,6 +211,16 @@ describe("JourneyService", () => {
     );
     expect(updated.name).toBe("Lifecycle Journey Updated");
 
+    const updatedDraftMode = await journeyService.update(
+      created.id,
+      {
+        mode: "test",
+      },
+      context,
+    );
+    expect(updatedDraftMode.status).toBe("draft");
+    expect(updatedDraftMode.mode).toBe("test");
+
     await expect(
       journeyService.pause(created.id, context),
     ).rejects.toMatchObject({
@@ -228,6 +238,18 @@ describe("JourneyService", () => {
     expect(firstPublish.journey.status).toBe("published");
     expect(firstPublish.journey.mode).toBe("live");
     expect(firstPublish.version).toBe(1);
+
+    await expect(
+      journeyService.update(
+        created.id,
+        {
+          mode: "test",
+        },
+        context,
+      ),
+    ).rejects.toMatchObject({
+      code: "CONFLICT",
+    });
 
     const paused = await journeyService.pause(created.id, context);
     expect(paused.status).toBe("paused");

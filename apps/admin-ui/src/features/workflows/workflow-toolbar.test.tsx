@@ -56,8 +56,11 @@ describe("WorkflowToolbar", () => {
     expect(
       screen.getAllByRole("button", { name: "Publish" }).length,
     ).toBeGreaterThan(0);
-    expect(screen.getAllByRole("button", { name: "Live" })[0]).toBeTruthy();
-    expect(screen.getAllByRole("button", { name: "Test" })[0]).toBeTruthy();
+    const liveButtons = screen.getAllByRole("button", { name: "Live" });
+    const testButtons = screen.getAllByRole("button", { name: "Test" });
+    for (const button of [...liveButtons, ...testButtons]) {
+      expect(button.hasAttribute("disabled")).toBe(true);
+    }
   });
 
   test("shows pause control for published journeys", () => {

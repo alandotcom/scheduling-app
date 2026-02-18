@@ -1,10 +1,14 @@
 /// <reference lib="dom" />
 
 import { describe, expect, test } from "bun:test";
-import type { SerializedJourneyGraph } from "@scheduling/dto";
+import {
+  linearJourneyGraphSchema,
+  type SerializedJourneyGraph,
+} from "@scheduling/dto";
 import { createStore } from "jotai";
 import {
   addWorkflowEditorNodeAtom,
+  buildPersistableWorkflowGraph,
   deleteEdgeAtom,
   deserializeWorkflowGraph,
   onWorkflowEditorConnectAtom,
@@ -73,6 +77,150 @@ function createGraphFixture(): SerializedJourneyGraph {
           target: "action-node",
           type: "default",
           label: "Start",
+        },
+      },
+    ],
+  };
+}
+
+function createPersistableGraphFixture(): SerializedJourneyGraph {
+  const fixture = createGraphFixture();
+  const triggerNode = fixture.nodes[0];
+  const actionNode = fixture.nodes[1];
+  if (
+    !triggerNode ||
+    !actionNode ||
+    actionNode.attributes.data.type !== "action"
+  ) {
+    throw new Error("Expected action node fixture");
+  }
+
+  return {
+    ...fixture,
+    nodes: [
+      triggerNode,
+      {
+        ...actionNode,
+        attributes: {
+          ...actionNode.attributes,
+          data: {
+            ...actionNode.attributes.data,
+            config: { actionType: "send-slack" },
+          },
+        },
+      },
+    ],
+  };
+}
+
+function createGraphFixtureWithIncompleteMiddleAction(): SerializedJourneyGraph {
+  return {
+    attributes: {},
+    options: { type: "directed", allowSelfLoops: false, multi: false },
+    nodes: [
+      {
+        key: "trigger-node",
+        attributes: {
+          id: "trigger-node",
+          type: "trigger",
+          position: { x: 100, y: 120 },
+          data: {
+            type: "trigger",
+            label: "Trigger",
+            status: "idle",
+            config: {
+              triggerType: "AppointmentJourney",
+              start: "appointment.scheduled",
+              restart: "appointment.rescheduled",
+              stop: "appointment.canceled",
+              correlationKey: "appointmentId",
+            },
+          },
+        },
+      },
+      {
+        key: "incomplete-action",
+        attributes: {
+          id: "incomplete-action",
+          type: "action",
+          position: { x: 320, y: 140 },
+          data: {
+            type: "action",
+            label: "Action",
+            status: "idle",
+            config: {},
+          },
+        },
+      },
+      {
+        key: "downstream-action",
+        attributes: {
+          id: "downstream-action",
+          type: "action",
+          position: { x: 560, y: 140 },
+          data: {
+            type: "action",
+            label: "Slack",
+            status: "idle",
+            config: { actionType: "send-slack" },
+          },
+        },
+      },
+    ],
+    edges: [
+      {
+        key: "edge-trigger-incomplete",
+        source: "trigger-node",
+        target: "incomplete-action",
+        undirected: false,
+        attributes: {
+          id: "edge-trigger-incomplete",
+          source: "trigger-node",
+          target: "incomplete-action",
+        },
+      },
+      {
+        key: "edge-incomplete-downstream",
+        source: "incomplete-action",
+        target: "downstream-action",
+        undirected: false,
+        attributes: {
+          id: "edge-incomplete-downstream",
+          source: "incomplete-action",
+          target: "downstream-action",
+        },
+      },
+    ],
+  };
+}
+
+function createConditionMissingExpressionFixture(): SerializedJourneyGraph {
+  const fixture = createPersistableGraphFixture();
+  const triggerNode = fixture.nodes[0];
+  const actionNode = fixture.nodes[1];
+  if (
+    !triggerNode ||
+    !actionNode ||
+    actionNode.attributes.data.type !== "action"
+  ) {
+    throw new Error("Expected action node fixture");
+  }
+
+  return {
+    ...fixture,
+    nodes: [
+      triggerNode,
+      {
+        ...actionNode,
+        attributes: {
+          ...actionNode.attributes,
+          data: {
+            ...actionNode.attributes.data,
+            config: {
+              actionType: "condition",
+              expression: "   ",
+            },
+          },
         },
       },
     ],
@@ -229,6 +377,61 @@ describe("workflow-editor-store", () => {
     expect(serialized.nodes[0]?.attributes.data.label).toBe("Trigger");
     expect(serialized.edges[0]?.attributes.source).toBe("trigger-node");
     expect(serialized.edges[0]?.attributes.label).toBe("Start");
+  });
+
+  test("buildPersistableWorkflowGraph skips incomplete action nodes and keeps a valid linear graph", () => {
+    const state = deserializeWorkflowGraph(createGraphFixture());
+    const result = buildPersistableWorkflowGraph(state);
+
+    expect(result.skippedNodeIds).toEqual(["action-node"]);
+    expect(result.graph.nodes.map((node) => node.attributes.id)).toEqual([
+      "trigger-node",
+    ]);
+    expect(result.graph.edges).toHaveLength(0);
+    expect(linearJourneyGraphSchema.safeParse(result.graph).success).toBe(true);
+  });
+
+  test("buildPersistableWorkflowGraph also removes downstream nodes that lose their required incoming edge", () => {
+    const state = deserializeWorkflowGraph(
+      createGraphFixtureWithIncompleteMiddleAction(),
+    );
+    const result = buildPersistableWorkflowGraph(state);
+
+    expect(new Set(result.skippedNodeIds)).toEqual(
+      new Set(["incomplete-action", "downstream-action"]),
+    );
+    expect(result.graph.nodes.map((node) => node.attributes.id)).toEqual([
+      "trigger-node",
+    ]);
+    expect(result.graph.edges).toHaveLength(0);
+    expect(linearJourneyGraphSchema.safeParse(result.graph).success).toBe(true);
+  });
+
+  test("buildPersistableWorkflowGraph leaves valid action nodes intact", () => {
+    const state = deserializeWorkflowGraph(createPersistableGraphFixture());
+    const result = buildPersistableWorkflowGraph(state);
+
+    expect(result.skippedNodeIds).toEqual([]);
+    expect(result.graph.nodes.map((node) => node.attributes.id)).toEqual([
+      "trigger-node",
+      "action-node",
+    ]);
+    expect(result.graph.edges).toHaveLength(1);
+    expect(linearJourneyGraphSchema.safeParse(result.graph).success).toBe(true);
+  });
+
+  test("buildPersistableWorkflowGraph skips condition steps with blank expressions", () => {
+    const state = deserializeWorkflowGraph(
+      createConditionMissingExpressionFixture(),
+    );
+    const result = buildPersistableWorkflowGraph(state);
+
+    expect(result.skippedNodeIds).toEqual(["action-node"]);
+    expect(result.graph.nodes.map((node) => node.attributes.id)).toEqual([
+      "trigger-node",
+    ]);
+    expect(result.graph.edges).toHaveLength(0);
+    expect(linearJourneyGraphSchema.safeParse(result.graph).success).toBe(true);
   });
 
   test("does not remove trigger nodes on node remove changes", () => {

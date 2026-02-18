@@ -4,6 +4,7 @@ import type {
   WorkflowCanvasNode,
 } from "./workflow-editor-store";
 import { layoutWorkflowNodes } from "./workflow-layout";
+import { WORKFLOW_NODE_WIDTH } from "./workflow-node-dimensions";
 
 function createNode(
   id: string,
@@ -48,6 +49,22 @@ describe("layoutWorkflowNodes", () => {
     expect(action).toBeDefined();
     expect(action!.position.y).toBeGreaterThan(trigger!.position.y);
     expect(result.changed).toBe(true);
+  });
+
+  test("keeps linear parent/child centers vertically aligned", async () => {
+    const nodes = [createNode("trigger", "trigger"), createNode("a", "action")];
+    const edges = [createEdge("e-trigger-a", "trigger", "a")];
+
+    const result = await layoutWorkflowNodes({ nodes, edges });
+    const trigger = result.nodes.find((node) => node.id === "trigger");
+    const action = result.nodes.find((node) => node.id === "a");
+
+    expect(trigger).toBeDefined();
+    expect(action).toBeDefined();
+    const triggerCenterX = trigger!.position.x + WORKFLOW_NODE_WIDTH / 2;
+    const actionCenterX = action!.position.x + WORKFLOW_NODE_WIDTH / 2;
+    expect(action!.position.y).toBeGreaterThan(trigger!.position.y);
+    expect(actionCenterX).toBe(triggerCenterX);
   });
 
   test("returns deterministic positions for the same graph", async () => {

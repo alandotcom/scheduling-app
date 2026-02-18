@@ -168,15 +168,15 @@ export function ActionConfig({
 
   return (
     <section className="space-y-4">
-      <div className="grid grid-cols-2 gap-2">
-        <div className="space-y-2">
+      <div className="grid grid-cols-1 gap-2 min-[640px]:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
+        <div className="min-w-0 space-y-2">
           <Label className="ml-1">Service</Label>
           <Select
             disabled={disabled}
             value={selectedCategory}
             onValueChange={handleCategoryChange}
           >
-            <SelectTrigger size="sm">
+            <SelectTrigger size="sm" className="min-w-0 w-full">
               <SelectValue placeholder="Category" />
             </SelectTrigger>
             <SelectContent>
@@ -211,7 +211,7 @@ export function ActionConfig({
           </Select>
         </div>
 
-        <div className="space-y-2">
+        <div className="min-w-0 space-y-2">
           <Label className="ml-1">Action</Label>
           <Select
             disabled={disabled}
@@ -222,9 +222,9 @@ export function ActionConfig({
             }
             onValueChange={(val) => onUpdateConfig("actionType", val)}
           >
-            <SelectTrigger size="sm">
+            <SelectTrigger size="sm" className="min-w-0 w-full">
               <SelectValue placeholder="Action">
-                {currentAction?.label}
+                <span className="truncate">{currentAction?.label}</span>
               </SelectValue>
             </SelectTrigger>
             <SelectContent>

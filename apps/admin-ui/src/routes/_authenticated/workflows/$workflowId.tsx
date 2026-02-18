@@ -10,6 +10,7 @@ import type {
   JourneyMode,
   JourneyStatus,
 } from "@scheduling/dto";
+import { linearJourneyGraphSchema } from "@scheduling/dto";
 import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
 import { Input } from "@/components/ui/input";
@@ -34,7 +35,7 @@ import {
   deleteNodeAtom,
   redoAtom,
   rightPanelWidthAtom,
-  serializeWorkflowGraph,
+  buildPersistableWorkflowGraph,
   setWorkflowEditorSelectionAtom,
   setWorkflowEditorActionTypeAtom,
   setWorkflowEditorGraphAtom,
@@ -106,6 +107,7 @@ function WorkflowEditorPage() {
 
   const [publishWarnings, setPublishWarnings] = useState<string[]>([]);
   const [nameDraft, setNameDraft] = useState("");
+  const [persistedName, setPersistedName] = useState("");
   const [draftPublishMode, setDraftPublishMode] = useState<JourneyMode>("live");
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [lifecycleDraft, setLifecycleDraft] = useState<{
@@ -183,6 +185,7 @@ function WorkflowEditorPage() {
     setGraph(journeyQuery.data.graph);
     setWorkflowId(journeyQuery.data.id);
     setNameDraft(journeyQuery.data.name);
+    setPersistedName(journeyQuery.data.name);
     setLifecycleDraft({
       status: journeyQuery.data.status,
       mode: journeyQuery.data.mode,
@@ -195,9 +198,6 @@ function WorkflowEditorPage() {
 
   const updateMutation = useMutation(
     orpc.journeys.update.mutationOptions({
-      onSuccess: () => {
-        queryClient.invalidateQueries({ queryKey: orpc.journeys.key() });
-      },
       onError: (error) => {
         toast.error(error.message || "Failed to save journey draft");
       },
@@ -211,6 +211,7 @@ function WorkflowEditorPage() {
           name: journey.name,
           updatedAt: journey.updatedAt,
         });
+        queryClient.invalidateQueries({ queryKey: orpc.journeys.key() });
       },
       onError: (error) => {
         toast.error(error.message || "Failed to rename journey");
@@ -321,8 +322,8 @@ function WorkflowEditorPage() {
     }),
   );
 
-  const graph = useMemo(
-    () => serializeWorkflowGraph({ nodes, edges }),
+  const persistableGraphResult = useMemo(
+    () => buildPersistableWorkflowGraph({ nodes, edges }),
     [nodes, edges],
   );
 
@@ -331,26 +332,57 @@ function WorkflowEditorPage() {
       return;
     }
 
+    const currentStatus =
+      lifecycleDraft?.status ?? journeyQuery.data?.status ?? "draft";
+
     setIsSaving(true);
     try {
+      const parsedPersistableGraph = linearJourneyGraphSchema.safeParse(
+        persistableGraphResult.graph,
+      );
+      if (!parsedPersistableGraph.success) {
+        toast.error("Failed to save journey draft");
+        return;
+      }
+
       const updated = await updateMutation.mutateAsync({
         id: workflowId,
-        data: { graph },
+        data:
+          currentStatus === "draft"
+            ? {
+                graph: parsedPersistableGraph.data,
+                mode: draftPublishMode,
+              }
+            : { graph: parsedPersistableGraph.data },
       });
       patchJourneyInListCache(updated.id, {
+        status: updated.status,
+        mode: updated.mode,
         updatedAt: updated.updatedAt,
       });
-      setHasUnsavedChanges(false);
+      setLifecycleDraft({
+        status: updated.status,
+        mode: updated.mode,
+      });
+      if (updated.status === "draft") {
+        setDraftPublishMode(updated.mode);
+      }
+      setHasUnsavedChanges(persistableGraphResult.skippedNodeIds.length > 0);
     } finally {
       setIsSaving(false);
     }
   }, [
     canManageWorkflow,
-    graph,
+    draftPublishMode,
     isLoaded,
+    journeyQuery.data?.status,
+    lifecycleDraft,
     patchJourneyInListCache,
+    persistableGraphResult,
+    setDraftPublishMode,
     setHasUnsavedChanges,
     setIsSaving,
+    setLifecycleDraft,
     updateMutation,
     workflowId,
   ]);
@@ -362,12 +394,12 @@ function WorkflowEditorPage() {
 
     const trimmedName = nameDraft.trim();
     if (trimmedName.length === 0) {
-      setNameDraft(journeyQuery.data.name);
+      setNameDraft(persistedName);
       toast.error("Journey name is required");
       return;
     }
 
-    if (trimmedName === journeyQuery.data.name) {
+    if (trimmedName === persistedName) {
       return;
     }
 
@@ -377,12 +409,12 @@ function WorkflowEditorPage() {
     });
 
     setNameDraft(updated.name);
-    queryClient.invalidateQueries({ queryKey: orpc.journeys.get.key() });
+    setPersistedName(updated.name);
   }, [
     canManageWorkflow,
     journeyQuery.data,
     nameDraft,
-    queryClient,
+    persistedName,
     renameMutation,
     workflowId,
   ]);
@@ -581,7 +613,7 @@ function WorkflowEditorPage() {
               }
               if (event.key === "Escape" && journeyQuery.data) {
                 event.preventDefault();
-                setNameDraft(journeyQuery.data.name);
+                setNameDraft(persistedName);
                 event.currentTarget.blur();
               }
             }}

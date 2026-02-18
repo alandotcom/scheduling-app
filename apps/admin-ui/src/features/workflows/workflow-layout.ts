@@ -4,9 +4,11 @@ import type {
   WorkflowCanvasEdge,
   WorkflowCanvasNode,
 } from "./workflow-editor-store";
+import {
+  WORKFLOW_NODE_HEIGHT,
+  WORKFLOW_NODE_WIDTH,
+} from "./workflow-node-dimensions";
 
-const DEFAULT_NODE_WIDTH = 220;
-const DEFAULT_NODE_HEIGHT = 136;
 const LAYOUT_DIRECTION = "TB";
 const NODE_SPACING = 132;
 const RANK_SPACING = 118;
@@ -34,8 +36,8 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function getNodeDimensions(_node: WorkflowCanvasNode): NodeDimensions {
   return {
-    width: DEFAULT_NODE_WIDTH,
-    height: DEFAULT_NODE_HEIGHT,
+    width: WORKFLOW_NODE_WIDTH,
+    height: WORKFLOW_NODE_HEIGHT,
   };
 }
 
@@ -288,8 +290,8 @@ function layoutWorkflowNodesWithHierarchy(input: {
   const root = hierarchy(treeData, (node) => node.children ?? []);
   const treeLayout = tree<TreeNodeData>()
     .nodeSize([
-      DEFAULT_NODE_WIDTH + NODE_SPACING,
-      DEFAULT_NODE_HEIGHT + RANK_SPACING,
+      WORKFLOW_NODE_WIDTH + NODE_SPACING,
+      WORKFLOW_NODE_HEIGHT + RANK_SPACING,
     ])
     .separation((a, b) => (a.parent === b.parent ? 1 : 1.4));
 
@@ -308,8 +310,8 @@ function layoutWorkflowNodesWithHierarchy(input: {
     const centerX = descendant.x ?? 0;
     const centerY = descendant.y ?? 0;
     topLeftById.set(descendant.data.id, {
-      x: centerX - DEFAULT_NODE_WIDTH / 2,
-      y: centerY - DEFAULT_NODE_HEIGHT / 2,
+      x: centerX - WORKFLOW_NODE_WIDTH / 2,
+      y: centerY - WORKFLOW_NODE_HEIGHT / 2,
     });
   }
 

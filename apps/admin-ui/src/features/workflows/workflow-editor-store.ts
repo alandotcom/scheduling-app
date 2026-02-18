@@ -107,6 +107,11 @@ type WorkflowGraphState = {
   edges: WorkflowCanvasEdge[];
 };
 
+export type PersistableWorkflowGraphResult = {
+  graph: SerializedJourneyGraph;
+  skippedNodeIds: string[];
+};
+
 const supportedJourneyActionTypes = new Set([
   "wait",
   "send-resend",
@@ -134,6 +139,81 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function isSupportedJourneyActionType(value: string): boolean {
   return supportedJourneyActionTypes.has(value);
+}
+
+function getNormalizedActionTypeFromNode(
+  node: WorkflowCanvasNode,
+): string | null {
+  const nodeData = asRecord(node.data);
+  if (nodeData?.type !== "action") {
+    return null;
+  }
+
+  const config = asRecord(nodeData.config);
+  if (typeof config?.actionType !== "string") {
+    return null;
+  }
+
+  const actionType = config.actionType.trim().toLowerCase();
+  if (actionType.length === 0) {
+    return null;
+  }
+
+  return actionType;
+}
+
+function isIncompleteActionNode(node: WorkflowCanvasNode): boolean {
+  const nodeData = asRecord(node.data);
+  if (nodeData?.type !== "action") {
+    return false;
+  }
+
+  const actionType = getNormalizedActionTypeFromNode(node);
+  if (!actionType || !isSupportedJourneyActionType(actionType)) {
+    return true;
+  }
+
+  if (actionType !== "condition") {
+    return false;
+  }
+
+  const config = asRecord(nodeData.config);
+  return !(
+    typeof config?.expression === "string" &&
+    config.expression.trim().length > 0
+  );
+}
+
+function collectReachableNodeIds(input: {
+  nodes: WorkflowCanvasNode[];
+  edges: WorkflowCanvasEdge[];
+}): Set<string> {
+  const triggerNodeIds = input.nodes
+    .filter((node) => asRecord(node.data)?.type === "trigger")
+    .map((node) => node.id);
+  const edgesBySourceId = new Map<string, WorkflowCanvasEdge[]>();
+  for (const edge of input.edges) {
+    const existing = edgesBySourceId.get(edge.source) ?? [];
+    existing.push(edge);
+    edgesBySourceId.set(edge.source, existing);
+  }
+
+  const reachableNodeIds = new Set<string>();
+  const stack = [...triggerNodeIds];
+  while (stack.length > 0) {
+    const nodeId = stack.pop();
+    if (!nodeId || reachableNodeIds.has(nodeId)) {
+      continue;
+    }
+
+    reachableNodeIds.add(nodeId);
+    const outgoingEdges = edgesBySourceId.get(nodeId) ?? [];
+    for (const edge of outgoingEdges) {
+      stack.push(edge.target);
+    }
+  }
+
+  return reachableNodeIds;
 }
 
 function normalizeConditionBranch(value: unknown): ConditionBranch | null {
@@ -428,6 +508,79 @@ export function serializeWorkflowGraph(
       },
     })),
   });
+}
+
+export function buildPersistableWorkflowGraph(
+  state: WorkflowGraphState,
+): PersistableWorkflowGraphResult {
+  const skippedNodeIds = new Set<string>();
+  let nextNodes = [...state.nodes];
+  let nextEdges = [...state.edges];
+
+  while (true) {
+    const nodeIds = new Set(nextNodes.map((node) => node.id));
+    nextEdges = nextEdges.filter(
+      (edge) => nodeIds.has(edge.source) && nodeIds.has(edge.target),
+    );
+
+    const incomingByNodeId = new Map<string, number>();
+    for (const node of nextNodes) {
+      incomingByNodeId.set(node.id, 0);
+    }
+    for (const edge of nextEdges) {
+      incomingByNodeId.set(
+        edge.target,
+        (incomingByNodeId.get(edge.target) ?? 0) + 1,
+      );
+    }
+
+    const reachableNodeIds = collectReachableNodeIds({
+      nodes: nextNodes,
+      edges: nextEdges,
+    });
+    const removeNodeIds = new Set<string>();
+
+    for (const node of nextNodes) {
+      const nodeData = asRecord(node.data);
+      if (isIncompleteActionNode(node)) {
+        removeNodeIds.add(node.id);
+        continue;
+      }
+
+      if (nodeData?.type === "trigger") {
+        continue;
+      }
+
+      if ((incomingByNodeId.get(node.id) ?? 0) !== 1) {
+        removeNodeIds.add(node.id);
+        continue;
+      }
+
+      if (!reachableNodeIds.has(node.id)) {
+        removeNodeIds.add(node.id);
+      }
+    }
+
+    if (removeNodeIds.size === 0) {
+      break;
+    }
+
+    for (const nodeId of removeNodeIds) {
+      skippedNodeIds.add(nodeId);
+    }
+
+    nextNodes = nextNodes.filter((node) => !removeNodeIds.has(node.id));
+    const remainingNodeIds = new Set(nextNodes.map((node) => node.id));
+    nextEdges = nextEdges.filter(
+      (edge) =>
+        remainingNodeIds.has(edge.source) && remainingNodeIds.has(edge.target),
+    );
+  }
+
+  return {
+    graph: serializeWorkflowGraph({ nodes: nextNodes, edges: nextEdges }),
+    skippedNodeIds: [...skippedNodeIds],
+  };
 }
 
 export const workflowEditorNodesAtom = atom<WorkflowCanvasNode[]>([]);
