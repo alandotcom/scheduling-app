@@ -8,7 +8,12 @@ import { useReactFlow } from "@xyflow/react";
 import { Button } from "@/components/ui/button";
 import { ButtonGroup } from "@/components/ui/button-group";
 
-export const Controls = () => {
+type ControlsProps = {
+  onReflow?: () => void;
+  canReflow?: boolean;
+};
+
+export const Controls = ({ onReflow, canReflow = true }: ControlsProps) => {
   const { zoomIn, zoomOut, fitView } = useReactFlow();
 
   const handleZoomIn = () => {
@@ -52,6 +57,18 @@ export const Controls = () => {
       >
         <Icon icon={Maximize02Icon} className="size-4" />
       </Button>
+      {onReflow ? (
+        <Button
+          className="border hover:bg-secondary"
+          disabled={!canReflow}
+          onClick={onReflow}
+          size="sm"
+          title="Reflow nodes"
+          variant="secondary"
+        >
+          Reflow
+        </Button>
+      ) : null}
     </ButtonGroup>
   );
 };

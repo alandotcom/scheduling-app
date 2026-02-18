@@ -23,6 +23,7 @@ import {
 import { ActionNode } from "./nodes/action-node";
 import { AddNode } from "./nodes/add-node";
 import { TriggerNode } from "./nodes/trigger-node";
+import { layoutWorkflowNodes } from "./workflow-layout";
 import {
   addInitialTriggerNodeAtom,
   deleteEdgeAtom,
@@ -124,7 +125,7 @@ export function WorkflowEditorCanvas({
   canEdit,
   children,
 }: WorkflowEditorCanvasProps) {
-  const { screenToFlowPosition } = useReactFlow();
+  const { fitView, screenToFlowPosition } = useReactFlow();
   const [contextMenuState, setContextMenuState] =
     useState<ContextMenuState>(null);
 
@@ -434,6 +435,26 @@ export function WorkflowEditorCanvas({
     [clearConnectionInteraction, onReconnect],
   );
 
+  const handleReflow = useCallback(() => {
+    if (!canEdit || nodes.length === 0) {
+      return;
+    }
+
+    const { nodes: nextNodes, changed } = layoutWorkflowNodes({
+      nodes,
+      edges,
+    });
+
+    if (changed) {
+      setNodes(nextNodes);
+      setHasUnsavedChanges(true);
+    }
+
+    window.requestAnimationFrame(() => {
+      fitView({ padding: 0.2, duration: 300 });
+    });
+  }, [canEdit, edges, fitView, nodes, setHasUnsavedChanges, setNodes]);
+
   return (
     <div
       className="h-full transition-opacity duration-300"
@@ -481,7 +502,10 @@ export function WorkflowEditorCanvas({
         }}
       >
         <Panel position="bottom-left">
-          <Controls />
+          <Controls
+            canReflow={canEdit && nodes.length > 1}
+            onReflow={canEdit ? handleReflow : undefined}
+          />
         </Panel>
         {children}
       </Canvas>

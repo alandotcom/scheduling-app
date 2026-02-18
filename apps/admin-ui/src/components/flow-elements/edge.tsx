@@ -1,8 +1,7 @@
 import {
   BaseEdge,
   type EdgeProps,
-  getBezierPath,
-  getSimpleBezierPath,
+  getSmoothStepPath,
   type InternalNode,
   Position,
   useInternalNode,
@@ -85,13 +84,15 @@ const Temporary = memo(function Temporary({
   targetPosition,
   selected,
 }: EdgeProps) {
-  const [edgePath] = getSimpleBezierPath({
+  const [edgePath] = getSmoothStepPath({
     sourceX,
     sourceY,
     sourcePosition,
     targetX,
     targetY,
     targetPosition,
+    borderRadius: 12,
+    offset: 16,
   });
 
   return (
@@ -102,6 +103,7 @@ const Temporary = memo(function Temporary({
       style={{
         stroke: selected ? "var(--muted-foreground)" : "var(--border)",
         strokeDasharray: "5, 5",
+        strokeWidth: 2.5,
       }}
     />
   );
@@ -219,13 +221,15 @@ const Animated = memo(function Animated({
     },
   );
 
-  const [edgePath, labelX, labelY] = getBezierPath({
+  const [edgePath, labelX, labelY] = getSmoothStepPath({
     sourceX: sx,
     sourceY: sy,
     sourcePosition: sourcePos,
     targetX: tx,
     targetY: ty,
     targetPosition: targetPos,
+    borderRadius: 14,
+    offset: 20,
   });
 
   const edgeLabel = getEdgeLabel({ label, data });
@@ -244,7 +248,7 @@ const Animated = memo(function Animated({
       style={{
         ...style,
         stroke: selected ? "var(--muted-foreground)" : "var(--border)",
-        strokeWidth: 2,
+        strokeWidth: 3,
         animation: "dashdraw 0.5s linear infinite",
         strokeDasharray: 5,
       }}

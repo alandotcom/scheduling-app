@@ -43,8 +43,8 @@ interface WorkflowToolbarProps {
   onSetMode: (mode: JourneyMode) => void;
 }
 
-const NODE_WIDTH = 192;
-const NODE_HEIGHT = 96;
+const NODE_WIDTH = 176;
+const NODE_HEIGHT = 88;
 const OVERLAP_NUDGE = 40;
 
 export function WorkflowToolbar({
