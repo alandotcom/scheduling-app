@@ -317,6 +317,11 @@ export function AppointmentModal({
     }
     return Array.from(byId.values());
   }, [clientsData, createdClients]);
+  const selectedClient =
+    allClients.find((client) => client.id === selectedClientId) ?? null;
+  const selectedClientLabel = selectedClient
+    ? `${selectedClient.firstName} ${selectedClient.lastName}`.trim()
+    : "";
   const monthSlots = useMemo(() => slotsData?.slots ?? [], [slotsData]);
   const activeSelectedTime = useMemo(() => {
     if (!(open && selectedDateISO && selectedTime && !slotsLoading)) {
@@ -329,9 +334,21 @@ export function AppointmentModal({
   }, [monthSlots, open, selectedDateISO, selectedTime, slotsLoading]);
   const clients = useMemo(() => {
     const normalizedSearch = clientSearch.trim().toLowerCase();
+    const normalizedSelectedClientLabel = selectedClientLabel
+      .trim()
+      .toLowerCase();
     if (!normalizedSearch) {
       return allClients.slice(0, 12);
     }
+
+    if (
+      selectedClient &&
+      normalizedSearch.length > 0 &&
+      normalizedSearch === normalizedSelectedClientLabel
+    ) {
+      return allClients.slice(0, 12);
+    }
+
     return allClients
       .filter((client) => {
         const fullName = `${client.firstName} ${client.lastName}`.toLowerCase();
@@ -342,12 +359,7 @@ export function AppointmentModal({
         );
       })
       .slice(0, 12);
-  }, [allClients, clientSearch]);
-  const selectedClient =
-    allClients.find((client) => client.id === selectedClientId) ?? null;
-  const selectedClientLabel = selectedClient
-    ? `${selectedClient.firstName} ${selectedClient.lastName}`.trim()
-    : "";
+  }, [allClients, clientSearch, selectedClient, selectedClientLabel]);
   const hasSelectedClientSearchMismatch =
     !!selectedClient &&
     clientSearch.trim().length > 0 &&
@@ -966,6 +978,7 @@ export function AppointmentModal({
                             setDraft((previous) => ({
                               ...previous,
                               selectedClientId: "",
+                              clientSearch: "",
                             }));
                           }}
                           className="text-muted-foreground"
