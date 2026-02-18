@@ -29,7 +29,7 @@ import { evaluateJourneyConditionExpression } from "./journey-condition-evaluato
 import { evaluateJourneyTriggerFilter } from "./journey-trigger-filters.js";
 import { resolveWaitUntil } from "./workflow-wait-time.js";
 
-const ACTIVE_JOURNEY_STATES = ["published", "test_only"] as const;
+const ACTIVE_JOURNEY_STATES = ["published"] as const;
 const ACTIVE_RUN_STATUSES = ["planned", "running"] as const;
 const DEFAULT_ORG_TIMEZONE = "UTC";
 const journeyPlannerLogger = getLogger(["journeys", "planner"]);
@@ -77,7 +77,10 @@ type JourneyPlannerDependencies = {
   modeOverride?: "live" | "test";
 };
 
-type JourneyRow = Pick<typeof journeys.$inferSelect, "id" | "name" | "state">;
+type JourneyRow = Pick<
+  typeof journeys.$inferSelect,
+  "id" | "name" | "state" | "mode"
+>;
 
 type JourneyVersionRow = Pick<
   typeof journeyVersions.$inferSelect,
@@ -950,6 +953,7 @@ export async function processJourneyDomainEvent(
         id: journeys.id,
         name: journeys.name,
         state: journeys.state,
+        mode: journeys.mode,
       })
       .from(journeys)
       .where(
@@ -1054,9 +1058,7 @@ export async function processJourneyDomainEvent(
             return;
           }
 
-          const mode =
-            dependencies.modeOverride ??
-            (journey.state === "test_only" ? "test" : "live");
+          const mode = dependencies.modeOverride ?? journey.mode;
           const run = await findOrCreateJourneyRun({
             tx,
             orgId: event.orgId,

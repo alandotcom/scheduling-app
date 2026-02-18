@@ -198,7 +198,8 @@ describe("JourneyService", () => {
       context,
     );
 
-    expect(created.state).toBe("draft");
+    expect(created.status).toBe("draft");
+    expect(created.mode).toBe("live");
 
     const updated = await journeyService.update(
       created.id,
@@ -224,11 +225,13 @@ describe("JourneyService", () => {
       context,
     );
 
-    expect(firstPublish.journey.state).toBe("published");
+    expect(firstPublish.journey.status).toBe("published");
+    expect(firstPublish.journey.mode).toBe("live");
     expect(firstPublish.version).toBe(1);
 
     const paused = await journeyService.pause(created.id, context);
-    expect(paused.state).toBe("paused");
+    expect(paused.status).toBe("paused");
+    expect(paused.mode).toBe("live");
 
     await expect(
       journeyService.publish(
@@ -242,23 +245,19 @@ describe("JourneyService", () => {
       code: "CONFLICT",
     });
 
-    const resumed = await journeyService.resume(
-      created.id,
-      {
-        targetState: "published",
-      },
-      context,
-    );
-    expect(resumed.state).toBe("published");
+    const resumed = await journeyService.resume(created.id, context);
+    expect(resumed.status).toBe("published");
+    expect(resumed.mode).toBe("live");
 
-    const secondPublish = await journeyService.publish(
+    const switchedMode = await journeyService.setMode(
       created.id,
       {
-        mode: "live",
+        mode: "test",
       },
       context,
     );
-    expect(secondPublish.version).toBe(2);
+    expect(switchedMode.status).toBe("published");
+    expect(switchedMode.mode).toBe("test");
   });
 
   test("enforces org-scoped case-insensitive journey name uniqueness", async () => {
@@ -292,7 +291,8 @@ describe("JourneyService", () => {
         otherContext,
       ),
     ).resolves.toMatchObject({
-      state: "draft",
+      status: "draft",
+      mode: "live",
     });
   });
 
@@ -952,7 +952,7 @@ describe("JourneyService", () => {
       context,
     );
 
-    expect(published.journey.state).toBe("published");
+    expect(published.journey.status).toBe("published");
     expect(published.warnings.length).toBeGreaterThan(0);
     expect(published.warnings[0]).toContain("Journey A");
   });

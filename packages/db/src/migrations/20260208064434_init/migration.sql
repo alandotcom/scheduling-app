@@ -14,9 +14,10 @@ $$ LANGUAGE SQL STABLE;
 CREATE TYPE "appointment_status" AS ENUM('scheduled', 'confirmed', 'cancelled', 'no_show');--> statement-breakpoint
 CREATE TYPE "invitation_status" AS ENUM('pending', 'accepted', 'rejected', 'canceled');--> statement-breakpoint
 CREATE TYPE "journey_delivery_status" AS ENUM('planned', 'sent', 'failed', 'canceled', 'skipped');--> statement-breakpoint
+CREATE TYPE "journey_mode" AS ENUM('live', 'test');--> statement-breakpoint
 CREATE TYPE "journey_run_mode" AS ENUM('live', 'test');--> statement-breakpoint
 CREATE TYPE "journey_run_status" AS ENUM('planned', 'running', 'completed', 'canceled', 'failed');--> statement-breakpoint
-CREATE TYPE "journey_state" AS ENUM('draft', 'published', 'paused', 'test_only');--> statement-breakpoint
+CREATE TYPE "journey_state" AS ENUM('draft', 'published', 'paused');--> statement-breakpoint
 CREATE TYPE "org_role" AS ENUM('owner', 'admin', 'member');--> statement-breakpoint
 CREATE TABLE "accounts" (
 	"id" uuid PRIMARY KEY DEFAULT uuidv7(),
@@ -227,6 +228,7 @@ CREATE TABLE "journeys" (
 	"org_id" uuid NOT NULL,
 	"name" text NOT NULL,
 	"state" "journey_state" DEFAULT 'draft'::"journey_state" NOT NULL,
+	"mode" "journey_mode" DEFAULT 'live'::"journey_mode" NOT NULL,
 	"draft_definition" jsonb NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL

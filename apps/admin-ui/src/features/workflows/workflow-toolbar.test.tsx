@@ -8,28 +8,33 @@ afterEach(() => {
 });
 
 function renderToolbar(
-  journeyState: "draft" | "published" | "paused" | "test_only",
+  journeyStatus: "draft" | "published" | "paused",
+  journeyMode: "live" | "test" = "live",
   publishWarnings: string[] = [],
 ) {
   const onSave = mock(() => {});
   const onPause = mock(() => {});
   const onPublish = mock((_mode: "live" | "test") => {});
-  const onResume = mock((_target: "published" | "test_only") => {});
+  const onResume = mock(() => {});
+  const onSetMode = mock((_mode: "live" | "test") => {});
 
   render(
     <ReactFlowProvider>
       <WorkflowToolbar
         canManageWorkflow={true}
-        journeyState={journeyState}
+        journeyStatus={journeyStatus}
+        journeyMode={journeyMode}
         isPausing={false}
         isPublishing={false}
         isResuming={false}
         isSaving={false}
+        isSettingMode={false}
         onPause={onPause}
         onPublish={onPublish}
         publishWarnings={publishWarnings}
         onResume={onResume}
         onSave={onSave}
+        onSetMode={onSetMode}
       />
     </ReactFlowProvider>,
   );
@@ -39,68 +44,71 @@ function renderToolbar(
     onPause,
     onPublish,
     onResume,
+    onSetMode,
   };
 }
 
 describe("WorkflowToolbar", () => {
   test("shows publish controls for draft journeys", () => {
-    renderToolbar("draft");
+    renderToolbar("draft", "live");
 
     expect(screen.getAllByText("Draft").length).toBeGreaterThan(0);
     expect(
       screen.getAllByRole("button", { name: "Publish" }).length,
     ).toBeGreaterThan(0);
-    expect(
-      screen.getAllByRole("button", { name: "Publish test-only" })[0],
-    ).toBeTruthy();
+    expect(screen.getAllByRole("button", { name: "Live" })[0]).toBeTruthy();
+    expect(screen.getAllByRole("button", { name: "Test" })[0]).toBeTruthy();
   });
 
   test("shows pause control for published journeys", () => {
-    renderToolbar("published");
+    renderToolbar("published", "live");
     expect(
       screen.getAllByRole("button", { name: "Pause" }).length,
     ).toBeGreaterThan(0);
   });
 
-  test("shows pause control for test-only journeys", () => {
-    renderToolbar("test_only");
-    expect(screen.getAllByText("Test-only").length).toBeGreaterThan(0);
+  test("shows resume control for paused journeys and disables mode switch", () => {
+    renderToolbar("paused", "test");
+
+    expect(screen.getAllByText("Paused").length).toBeGreaterThan(0);
     expect(
-      screen.getAllByRole("button", { name: "Pause" }).length,
+      screen.getAllByRole("button", { name: "Resume" }).length,
     ).toBeGreaterThan(0);
+
+    const liveButtons = screen.getAllByRole("button", { name: "Live" });
+    const testButtons = screen.getAllByRole("button", { name: "Test" });
+    for (const button of [...liveButtons, ...testButtons]) {
+      expect(button.hasAttribute("disabled")).toBe(true);
+    }
   });
 
-  test("shows resume controls for paused journeys", () => {
-    renderToolbar("paused");
-
-    expect(
-      screen.getAllByRole("button", { name: "Resume live" }).length,
-    ).toBeGreaterThan(0);
-    expect(
-      screen.getAllByRole("button", { name: "Resume test-only" })[0],
-    ).toBeTruthy();
-  });
-
-  test("wires publish and pause actions", () => {
-    const { onPublish } = renderToolbar("draft");
-
+  test("wires lifecycle actions", () => {
+    const draftRender = renderToolbar("draft", "live");
     fireEvent.click(screen.getAllByRole("button", { name: "Publish" })[0]!);
-    fireEvent.click(
-      screen.getAllByRole("button", { name: "Publish test-only" })[0]!,
-    );
-
-    expect(onPublish).toHaveBeenCalledWith("live");
-    expect(onPublish).toHaveBeenCalledWith("test");
+    expect(draftRender.onPublish).toHaveBeenCalledWith("live");
 
     cleanup();
 
-    const pausedRender = renderToolbar("published");
+    const publishedRender = renderToolbar("published", "live");
     fireEvent.click(screen.getAllByRole("button", { name: "Pause" })[0]!);
-    expect(pausedRender.onPause).toHaveBeenCalledTimes(1);
+    expect(publishedRender.onPause).toHaveBeenCalledTimes(1);
+
+    cleanup();
+
+    const pausedRender = renderToolbar("paused", "live");
+    fireEvent.click(screen.getAllByRole("button", { name: "Resume" })[0]!);
+    expect(pausedRender.onResume).toHaveBeenCalledTimes(1);
+  });
+
+  test("wires mode switching", () => {
+    const { onSetMode } = renderToolbar("published", "live");
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Test" })[0]!);
+    expect(onSetMode).toHaveBeenCalledWith("test");
   });
 
   test("renders publish overlap warnings inline", () => {
-    renderToolbar("draft", [
+    renderToolbar("draft", "live", [
       'Potential overlap with "Journey A" on appointment.scheduled',
     ]);
 

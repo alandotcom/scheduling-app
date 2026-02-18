@@ -38,8 +38,9 @@ export const journeyStateEnum = pgEnum("journey_state", [
   "draft",
   "published",
   "paused",
-  "test_only",
 ]);
+
+export const journeyModeEnum = pgEnum("journey_mode", ["live", "test"]);
 
 export const journeyRunModeEnum = pgEnum("journey_run_mode", ["live", "test"]);
 
@@ -477,6 +478,7 @@ export const journeys = pgTable.withRLS(
       .references(() => orgs.id),
     name: text("name").notNull(),
     state: journeyStateEnum("state").notNull().default("draft"),
+    mode: journeyModeEnum("mode").notNull().default("live"),
     draftDefinition: jsonb("draft_definition")
       .notNull()
       .$type<Record<string, unknown>>(),

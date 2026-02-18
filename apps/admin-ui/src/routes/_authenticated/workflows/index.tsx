@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import {
   canManageWorkflowsForRole,
@@ -8,6 +8,9 @@ import { getQueryClient, orpc } from "@/lib/query";
 import { swallowIgnorableRouteLoaderError } from "@/lib/query-cancellation";
 
 export const Route = createFileRoute("/_authenticated/workflows/")({
+  validateSearch: (search: Record<string, unknown>) => ({
+    q: typeof search.q === "string" ? search.q : undefined,
+  }),
   loader: async () => {
     const queryClient = getQueryClient();
     await swallowIgnorableRouteLoaderError(
@@ -26,6 +29,8 @@ function resolveErrorMessage(error: unknown): string {
 }
 
 function WorkflowsPage() {
+  const navigate = useNavigate({ from: Route.fullPath });
+  const { q } = Route.useSearch();
   const journeysQuery = useQuery({
     ...orpc.journeys.list.queryOptions({}),
     placeholderData: (previous) => previous,
@@ -50,6 +55,15 @@ function WorkflowsPage() {
       isLoading={isInitialLoading}
       errorMessage={errorMessage}
       canManageWorkflows={canManageWorkflows}
+      searchQuery={q ?? ""}
+      onSearchQueryChange={(nextQuery) => {
+        navigate({
+          search: (previous) => ({
+            ...previous,
+            q: nextQuery.trim().length > 0 ? nextQuery : undefined,
+          }),
+        });
+      }}
     />
   );
 }

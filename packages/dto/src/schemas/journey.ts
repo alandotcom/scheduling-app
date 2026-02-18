@@ -10,19 +10,14 @@ import {
   serializedJourneyGraphSchema,
 } from "./workflow-graph";
 
-export const journeyStateSchema = z.enum([
-  "draft",
-  "published",
-  "paused",
-  "test_only",
-]);
+export const journeyStatusSchema = z.enum(["draft", "published", "paused"]);
 
-export const journeyPublishModeSchema = z.enum(["live", "test"]);
-export const journeyResumeTargetStateSchema = z.enum([
-  "published",
-  "test_only",
-]);
-export const journeyRunModeSchema = z.enum(["live", "test"]);
+export const journeyModeSchema = z.enum(["live", "test"]);
+export const journeyPublishModeSchema = journeyModeSchema;
+export const setJourneyModeSchema = z.object({
+  mode: journeyModeSchema,
+});
+export const journeyRunModeSchema = journeyModeSchema;
 export const journeyRunStatusSchema = z.enum([
   "planned",
   "running",
@@ -462,7 +457,8 @@ export const journeySchema = z.object({
   id: uuidSchema,
   orgId: uuidSchema,
   name: z.string().trim().min(1).max(255),
-  state: journeyStateSchema,
+  status: journeyStatusSchema,
+  mode: journeyModeSchema,
   graph: linearJourneyGraphSchema,
   ...timestampsSchema.shape,
 });
@@ -485,9 +481,7 @@ export const publishJourneySchema = z.object({
   mode: journeyPublishModeSchema.default("live"),
 });
 
-export const resumeJourneySchema = z.object({
-  targetState: journeyResumeTargetStateSchema.default("published"),
-});
+export const resumeJourneySchema = z.object({});
 
 export const startJourneyTestRunSchema = z.object({
   appointmentId: uuidSchema,
@@ -573,11 +567,10 @@ export const startJourneyTestRunResponseSchema = z.object({
 export const deleteJourneyResponseSchema = successResponseSchema;
 
 export type LinearJourneyGraph = z.infer<typeof linearJourneyGraphSchema>;
-export type JourneyState = z.infer<typeof journeyStateSchema>;
+export type JourneyStatus = z.infer<typeof journeyStatusSchema>;
+export type JourneyMode = z.infer<typeof journeyModeSchema>;
 export type JourneyPublishMode = z.infer<typeof journeyPublishModeSchema>;
-export type JourneyResumeTargetState = z.infer<
-  typeof journeyResumeTargetStateSchema
->;
+export type SetJourneyModeInput = z.infer<typeof setJourneyModeSchema>;
 export type JourneyRunMode = z.infer<typeof journeyRunModeSchema>;
 export type JourneyRunStatus = z.infer<typeof journeyRunStatusSchema>;
 export type JourneyDeliveryStatus = z.infer<typeof journeyDeliveryStatusSchema>;

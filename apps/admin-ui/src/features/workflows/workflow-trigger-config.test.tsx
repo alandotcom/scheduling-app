@@ -28,14 +28,12 @@ describe("WorkflowTriggerConfig", () => {
       />,
     );
 
+    expect(screen.getByText("Scheduled starts run")).toBeTruthy();
+    expect(screen.getByText("Rescheduled replans run")).toBeTruthy();
+    expect(screen.getByText("Canceled stops run")).toBeTruthy();
     expect(
       screen.getByText(
-        "Starts on Scheduled - Updates on Rescheduled - Stops on Canceled.",
-      ),
-    ).toBeTruthy();
-    expect(
-      screen.getByText(
-        "Rescheduling updates future waits and sends to the new start time.",
+        "Rescheduled appointments replan the same run and shift future waits and sends to the new start time.",
       ),
     ).toBeTruthy();
     expect(

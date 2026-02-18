@@ -1,5 +1,5 @@
 import { useCallback } from "react";
-import type { JourneyState } from "@scheduling/dto";
+import type { JourneyMode, JourneyStatus } from "@scheduling/dto";
 import {
   Add01Icon,
   ArrowTurnBackwardIcon,
@@ -28,16 +28,19 @@ import {
 
 interface WorkflowToolbarProps {
   canManageWorkflow: boolean;
-  journeyState: JourneyState;
+  journeyStatus: JourneyStatus;
+  journeyMode: JourneyMode;
   publishWarnings: string[];
   isSaving: boolean;
   isPublishing: boolean;
   isPausing: boolean;
   isResuming: boolean;
+  isSettingMode: boolean;
   onSave: () => void;
-  onPublish: (mode: "live" | "test") => void;
+  onPublish: (mode: JourneyMode) => void;
   onPause: () => void;
-  onResume: (targetState: "published" | "test_only") => void;
+  onResume: () => void;
+  onSetMode: (mode: JourneyMode) => void;
 }
 
 const NODE_WIDTH = 192;
@@ -46,16 +49,19 @@ const OVERLAP_NUDGE = 40;
 
 export function WorkflowToolbar({
   canManageWorkflow,
-  journeyState,
+  journeyStatus,
+  journeyMode,
   publishWarnings,
   isSaving,
   isPublishing,
   isPausing,
   isResuming,
+  isSettingMode,
   onSave,
   onPublish,
   onPause,
   onResume,
+  onSetMode,
 }: WorkflowToolbarProps) {
   const { screenToFlowPosition } = useReactFlow();
 
@@ -71,10 +77,8 @@ export function WorkflowToolbar({
   const setPropertiesTab = useSetAtom(propertiesPanelActiveTabAtom);
 
   const handleAddStep = useCallback(() => {
-    // Add node at default position (this also pushes undo history)
     addActionNode();
 
-    // Compute viewport center in flow coordinates
     const viewportCenter = screenToFlowPosition({
       x: window.innerWidth / 2,
       y: window.innerHeight / 2,
@@ -82,7 +86,6 @@ export function WorkflowToolbar({
     const targetX = viewportCenter.x - NODE_WIDTH / 2;
     const targetY = viewportCenter.y - NODE_HEIGHT / 2;
 
-    // Read current nodes to find the newly added node (last one) and reposition it
     setNodes((currentNodes: WorkflowCanvasNode[]) => {
       if (currentNodes.length === 0) return currentNodes;
 
@@ -90,7 +93,6 @@ export function WorkflowToolbar({
       const newNode = currentNodes[lastIndex] as WorkflowCanvasNode | undefined;
       if (!newNode) return currentNodes;
 
-      // Nudge diagonally if overlapping with existing nodes
       let finalX = targetX;
       let finalY = targetY;
       let attempts = 0;
@@ -109,7 +111,6 @@ export function WorkflowToolbar({
         attempts++;
       }
 
-      // Select the new node and switch to properties tab
       setSelectedNodeId(newNode.id);
       setPropertiesTab("properties");
 
@@ -136,77 +137,37 @@ export function WorkflowToolbar({
     );
   }
 
-  const lifecycleButtons =
-    journeyState === "draft" ? (
-      <>
-        <Button
-          onClick={() => onPublish("live")}
-          disabled={isPublishing}
-          size="sm"
-          variant="default"
-        >
-          {isPublishing ? (
-            <Icon icon={Loading03Icon} className="animate-spin" />
-          ) : null}
-          Publish
-        </Button>
-        <Button
-          onClick={() => onPublish("test")}
-          disabled={isPublishing}
-          size="sm"
-          variant="outline"
-        >
-          Publish test-only
-        </Button>
-      </>
-    ) : journeyState === "paused" ? (
-      <>
-        <Button
-          onClick={() => onResume("published")}
-          disabled={isResuming}
-          size="sm"
-          variant="default"
-        >
-          {isResuming ? (
-            <Icon icon={Loading03Icon} className="animate-spin" />
-          ) : null}
-          Resume live
-        </Button>
-        <Button
-          onClick={() => onResume("test_only")}
-          disabled={isResuming}
-          size="sm"
-          variant="outline"
-        >
-          Resume test-only
-        </Button>
-      </>
-    ) : (
-      <Button
-        onClick={onPause}
-        disabled={isPausing}
-        size="sm"
-        variant="outline"
-      >
-        {isPausing ? (
-          <Icon icon={Loading03Icon} className="animate-spin" />
-        ) : null}
-        Pause
-      </Button>
-    );
-
-  const stateLabel =
-    journeyState === "draft"
+  const isLifecycleBusy =
+    isPublishing || isPausing || isResuming || isSettingMode;
+  const modeDisabled = isLifecycleBusy || journeyStatus === "paused";
+  const statusLabel =
+    journeyStatus === "draft"
       ? "Draft"
-      : journeyState === "published"
+      : journeyStatus === "published"
         ? "Published"
-        : journeyState === "paused"
-          ? "Paused"
-          : "Test-only";
+        : "Paused";
+
+  const primaryLabel =
+    journeyStatus === "draft"
+      ? "Publish"
+      : journeyStatus === "paused"
+        ? "Resume"
+        : "Pause";
+
+  const primaryAction =
+    journeyStatus === "draft"
+      ? () => onPublish(journeyMode)
+      : journeyStatus === "paused"
+        ? onResume
+        : onPause;
+
+  const primaryPending =
+    (journeyStatus === "draft" && isPublishing) ||
+    (journeyStatus === "paused" && isResuming) ||
+    (journeyStatus === "published" && isPausing);
 
   const actionButtons = (
     <>
-      {/* Add Step */}
       <ButtonGroup>
         <Button
           onClick={handleAddStep}
@@ -218,7 +179,6 @@ export function WorkflowToolbar({
         </Button>
       </ButtonGroup>
 
-      {/* Undo / Redo */}
       <ButtonGroup>
         <Button
           onClick={() => undo()}
@@ -240,7 +200,6 @@ export function WorkflowToolbar({
         </Button>
       </ButtonGroup>
 
-      {/* Save */}
       <ButtonGroup>
         <Button
           onClick={onSave}
@@ -262,10 +221,46 @@ export function WorkflowToolbar({
       </ButtonGroup>
 
       <div className="rounded-md border px-2 py-1 font-medium text-xs">
-        {stateLabel}
+        {statusLabel}
       </div>
 
-      <ButtonGroup>{lifecycleButtons}</ButtonGroup>
+      <div className="inline-flex items-center rounded-md border border-border bg-muted/20 p-0.5">
+        <Button
+          className="h-8 px-2"
+          disabled={modeDisabled}
+          onClick={() => onSetMode("live")}
+          size="sm"
+          type="button"
+          variant={journeyMode === "live" ? "default" : "ghost"}
+        >
+          Live
+        </Button>
+        <Button
+          className="h-8 px-2"
+          disabled={modeDisabled}
+          onClick={() => onSetMode("test")}
+          size="sm"
+          type="button"
+          variant={journeyMode === "test" ? "default" : "ghost"}
+        >
+          Test
+        </Button>
+      </div>
+
+      <ButtonGroup>
+        <Button
+          onClick={primaryAction}
+          disabled={isLifecycleBusy}
+          size="sm"
+          variant={journeyStatus === "draft" ? "default" : "outline"}
+          className="min-w-24 justify-center"
+        >
+          {primaryPending ? (
+            <Icon icon={Loading03Icon} className="animate-spin" />
+          ) : null}
+          {primaryLabel}
+        </Button>
+      </ButtonGroup>
 
       {publishWarnings.length > 0 ? (
         <div className="max-w-96 rounded-md border border-amber-500/50 bg-amber-500/10 px-2 py-1.5 text-[11px]">
@@ -282,10 +277,7 @@ export function WorkflowToolbar({
 
   return (
     <Panel position="top-right" className="flex items-center gap-1.5">
-      {/* Desktop: horizontal layout */}
       <div className="hidden items-center gap-1.5 lg:flex">{actionButtons}</div>
-
-      {/* Mobile: vertical layout */}
       <div className="flex flex-col items-end gap-1.5 lg:hidden">
         {actionButtons}
       </div>

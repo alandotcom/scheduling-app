@@ -1158,7 +1158,7 @@ describe("processJourneyDomainEvent", () => {
     expect(scheduleResendRequester).toHaveBeenCalledTimes(0);
   });
 
-  test("creates mode=test runs for test_only journeys", async () => {
+  test("creates mode=test runs for published journeys in test mode", async () => {
     const created = await journeyService.create(
       {
         name: "Test Only Planner Journey",

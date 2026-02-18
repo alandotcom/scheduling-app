@@ -336,7 +336,7 @@ describe("Journey Routes", () => {
     await expect(
       call(
         journeyRoutes.resume,
-        { id: created.id, data: { targetState: "published" } },
+        { id: created.id },
         { context: memberContext },
       ),
     ).rejects.toMatchObject({ code: "FORBIDDEN" });
@@ -393,7 +393,7 @@ describe("Journey Routes", () => {
       },
       { context: ownerContext },
     );
-    expect(created.state).toBe("draft");
+    expect(created.status).toBe("draft");
 
     await expect(
       call(
@@ -419,7 +419,8 @@ describe("Journey Routes", () => {
       { context: ownerContext },
     );
 
-    expect(publishResult.journey.state).toBe("published");
+    expect(publishResult.journey.status).toBe("published");
+    expect(publishResult.journey.mode).toBe("live");
     expect(publishResult.version).toBe(1);
 
     const paused = await call(
@@ -427,19 +428,16 @@ describe("Journey Routes", () => {
       { id: created.id },
       { context: ownerContext },
     );
-    expect(paused.state).toBe("paused");
+    expect(paused.status).toBe("paused");
+    expect(paused.mode).toBe("live");
 
     const resumed = await call(
       journeyRoutes.resume,
-      {
-        id: created.id,
-        data: {
-          targetState: "published",
-        },
-      },
+      { id: created.id },
       { context: ownerContext },
     );
-    expect(resumed.state).toBe("published");
+    expect(resumed.status).toBe("published");
+    expect(resumed.mode).toBe("live");
 
     await setTestOrgContext(db, ownerContext.orgId!);
     const versions = await db

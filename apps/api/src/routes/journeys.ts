@@ -11,7 +11,7 @@ import {
   listJourneyRunsQuerySchema,
   publishJourneyResponseSchema,
   publishJourneySchema,
-  resumeJourneySchema,
+  setJourneyModeSchema,
   startJourneyTestRunResponseSchema,
   startJourneyTestRunSchema,
   updateJourneySchema,
@@ -99,15 +99,26 @@ export const pause = adminOnly
 
 export const resume = adminOnly
   .route({ method: "POST", path: "/journeys/{id}/resume" })
+  .input(journeyIdInputSchema)
+  .output(journeyResponseSchema)
+  .handler(async ({ input, context }) => {
+    return journeyService.resume(input.id, {
+      orgId: context.orgId,
+      userId: context.userId,
+    });
+  });
+
+export const setMode = adminOnly
+  .route({ method: "POST", path: "/journeys/{id}/mode" })
   .input(
     z.object({
       id: z.uuid(),
-      data: resumeJourneySchema,
+      data: setJourneyModeSchema,
     }),
   )
   .output(journeyResponseSchema)
   .handler(async ({ input, context }) => {
-    return journeyService.resume(input.id, input.data, {
+    return journeyService.setMode(input.id, input.data, {
       orgId: context.orgId,
       userId: context.userId,
     });
@@ -208,6 +219,7 @@ export const journeyRoutes = {
   publish,
   pause,
   resume,
+  setMode,
   remove,
   startTestRun,
   listRuns,

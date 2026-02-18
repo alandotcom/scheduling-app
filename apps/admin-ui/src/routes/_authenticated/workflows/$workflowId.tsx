@@ -5,8 +5,14 @@ import { ArrowLeft02Icon } from "@hugeicons/core-free-icons";
 import { ReactFlowProvider } from "@xyflow/react";
 import { toast } from "sonner";
 import { useAtomValue, useSetAtom } from "jotai";
+import type {
+  JourneyListResponse,
+  JourneyMode,
+  JourneyStatus,
+} from "@scheduling/dto";
 import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
+import { Input } from "@/components/ui/input";
 import { Panel } from "@/components/flow-elements/panel";
 import { PageScaffold } from "@/components/layout/page-scaffold";
 import { useKeyboardShortcuts } from "@/hooks/use-keyboard-shortcuts";
@@ -84,13 +90,45 @@ function WorkflowEditorPage() {
     () => edges.find((edge) => edge.id === selectedEdgeId) ?? null,
     [edges, selectedEdgeId],
   );
+
   const [publishWarnings, setPublishWarnings] = useState<string[]>([]);
+  const [nameDraft, setNameDraft] = useState("");
+  const [draftPublishMode, setDraftPublishMode] = useState<JourneyMode>("live");
+  const [lifecycleDraft, setLifecycleDraft] = useState<{
+    status: JourneyStatus;
+    mode: JourneyMode;
+  } | null>(null);
 
   const canManageWorkflow = canManageWorkflowsForRole(
     authContextQuery.data?.role,
   );
   const defaultTimezone =
     authContextQuery.data?.org?.defaultTimezone ?? "America/New_York";
+
+  const patchJourneyInListCache = useCallback(
+    (journeyId: string, patch: Partial<JourneyListResponse[number]>) => {
+      queryClient.setQueryData<JourneyListResponse | undefined>(
+        orpc.journeys.list.key(),
+        (current) => {
+          if (!current) {
+            return current;
+          }
+
+          return current.map((journey) => {
+            if (journey.id !== journeyId) {
+              return journey;
+            }
+
+            return {
+              ...journey,
+              ...patch,
+            };
+          });
+        },
+      );
+    },
+    [queryClient],
+  );
 
   useEffect(() => {
     setIsReadOnly(!canManageWorkflow);
@@ -103,6 +141,15 @@ function WorkflowEditorPage() {
 
     setGraph(journeyQuery.data.graph);
     setWorkflowId(journeyQuery.data.id);
+    setNameDraft(journeyQuery.data.name);
+    setLifecycleDraft({
+      status: journeyQuery.data.status,
+      mode: journeyQuery.data.mode,
+    });
+
+    if (journeyQuery.data.status === "draft") {
+      setDraftPublishMode(journeyQuery.data.mode);
+    }
   }, [journeyQuery.data, setGraph, setWorkflowId]);
 
   const updateMutation = useMutation(
@@ -116,38 +163,119 @@ function WorkflowEditorPage() {
     }),
   );
 
+  const renameMutation = useMutation(
+    orpc.journeys.update.mutationOptions({
+      onSuccess: (journey) => {
+        patchJourneyInListCache(journey.id, {
+          name: journey.name,
+          updatedAt: journey.updatedAt,
+        });
+      },
+      onError: (error) => {
+        toast.error(error.message || "Failed to rename journey");
+      },
+    }),
+  );
+
   const publishMutation = useMutation(
     orpc.journeys.publish.mutationOptions({
       onSuccess: (result) => {
-        queryClient.invalidateQueries({ queryKey: orpc.journeys.key() });
         setPublishWarnings(result.warnings);
+        setLifecycleDraft({
+          status: result.journey.status,
+          mode: result.journey.mode,
+        });
+        patchJourneyInListCache(result.journey.id, {
+          status: result.journey.status,
+          mode: result.journey.mode,
+          updatedAt: result.journey.updatedAt,
+        });
       },
       onError: (error) => {
         toast.error(error.message || "Failed to publish journey");
+        if (journeyQuery.data) {
+          setLifecycleDraft({
+            status: journeyQuery.data.status,
+            mode: journeyQuery.data.mode,
+          });
+        }
       },
     }),
   );
 
   const pauseMutation = useMutation(
     orpc.journeys.pause.mutationOptions({
-      onSuccess: () => {
-        queryClient.invalidateQueries({ queryKey: orpc.journeys.key() });
+      onSuccess: (journey) => {
         setPublishWarnings([]);
+        setLifecycleDraft({
+          status: journey.status,
+          mode: journey.mode,
+        });
+        patchJourneyInListCache(journey.id, {
+          status: journey.status,
+          mode: journey.mode,
+          updatedAt: journey.updatedAt,
+        });
       },
       onError: (error) => {
         toast.error(error.message || "Failed to pause journey");
+        if (journeyQuery.data) {
+          setLifecycleDraft({
+            status: journeyQuery.data.status,
+            mode: journeyQuery.data.mode,
+          });
+        }
       },
     }),
   );
 
   const resumeMutation = useMutation(
     orpc.journeys.resume.mutationOptions({
-      onSuccess: () => {
-        queryClient.invalidateQueries({ queryKey: orpc.journeys.key() });
+      onSuccess: (journey) => {
         setPublishWarnings([]);
+        setLifecycleDraft({
+          status: journey.status,
+          mode: journey.mode,
+        });
+        patchJourneyInListCache(journey.id, {
+          status: journey.status,
+          mode: journey.mode,
+          updatedAt: journey.updatedAt,
+        });
       },
       onError: (error) => {
         toast.error(error.message || "Failed to resume journey");
+        if (journeyQuery.data) {
+          setLifecycleDraft({
+            status: journeyQuery.data.status,
+            mode: journeyQuery.data.mode,
+          });
+        }
+      },
+    }),
+  );
+
+  const setModeMutation = useMutation(
+    orpc.journeys.setMode.mutationOptions({
+      onSuccess: (journey) => {
+        setLifecycleDraft({
+          status: journey.status,
+          mode: journey.mode,
+        });
+        patchJourneyInListCache(journey.id, {
+          status: journey.status,
+          mode: journey.mode,
+          updatedAt: journey.updatedAt,
+        });
+      },
+      onError: (error) => {
+        toast.error(error.message || "Failed to update journey mode");
+        if (journeyQuery.data) {
+          setLifecycleDraft({
+            status: journeyQuery.data.status,
+            mode: journeyQuery.data.mode,
+          });
+        }
       },
     }),
   );
@@ -164,9 +292,12 @@ function WorkflowEditorPage() {
 
     setIsSaving(true);
     try {
-      await updateMutation.mutateAsync({
+      const updated = await updateMutation.mutateAsync({
         id: workflowId,
         data: { graph },
+      });
+      patchJourneyInListCache(updated.id, {
+        updatedAt: updated.updatedAt,
       });
       setHasUnsavedChanges(false);
     } finally {
@@ -176,14 +307,47 @@ function WorkflowEditorPage() {
     canManageWorkflow,
     graph,
     isLoaded,
+    patchJourneyInListCache,
     setHasUnsavedChanges,
     setIsSaving,
     updateMutation,
     workflowId,
   ]);
 
+  const commitJourneyName = useCallback(async () => {
+    if (!canManageWorkflow || !journeyQuery.data) {
+      return;
+    }
+
+    const trimmedName = nameDraft.trim();
+    if (trimmedName.length === 0) {
+      setNameDraft(journeyQuery.data.name);
+      toast.error("Journey name is required");
+      return;
+    }
+
+    if (trimmedName === journeyQuery.data.name) {
+      return;
+    }
+
+    const updated = await renameMutation.mutateAsync({
+      id: workflowId,
+      data: { name: trimmedName },
+    });
+
+    setNameDraft(updated.name);
+    queryClient.invalidateQueries({ queryKey: orpc.journeys.get.key() });
+  }, [
+    canManageWorkflow,
+    journeyQuery.data,
+    nameDraft,
+    queryClient,
+    renameMutation,
+    workflowId,
+  ]);
+
   const handlePublish = useCallback(
-    async (mode: "live" | "test") => {
+    async (mode: JourneyMode) => {
       if (!canManageWorkflow) {
         return;
       }
@@ -191,6 +355,11 @@ function WorkflowEditorPage() {
       if (hasUnsavedChanges) {
         await saveJourney();
       }
+
+      setLifecycleDraft({
+        status: "published",
+        mode,
+      });
 
       await publishMutation.mutateAsync({
         id: workflowId,
@@ -211,21 +380,78 @@ function WorkflowEditorPage() {
       return;
     }
 
+    setLifecycleDraft((current) =>
+      current
+        ? {
+            ...current,
+            status: "paused",
+          }
+        : current,
+    );
+
     await pauseMutation.mutateAsync({ id: workflowId });
   }, [canManageWorkflow, pauseMutation, workflowId]);
 
-  const handleResume = useCallback(
-    async (targetState: "published" | "test_only") => {
+  const handleResume = useCallback(async () => {
+    if (!canManageWorkflow) {
+      return;
+    }
+
+    setLifecycleDraft((current) =>
+      current
+        ? {
+            ...current,
+            status: "published",
+          }
+        : current,
+    );
+
+    await resumeMutation.mutateAsync({ id: workflowId });
+  }, [canManageWorkflow, resumeMutation, workflowId]);
+
+  const handleSetMode = useCallback(
+    async (mode: JourneyMode) => {
       if (!canManageWorkflow) {
         return;
       }
 
-      await resumeMutation.mutateAsync({
+      const currentStatus = lifecycleDraft?.status ?? journeyQuery.data?.status;
+      if (currentStatus === "draft") {
+        setDraftPublishMode(mode);
+        return;
+      }
+
+      if (currentStatus !== "published") {
+        return;
+      }
+
+      const currentMode = lifecycleDraft?.mode ?? journeyQuery.data?.mode;
+      if (currentMode === mode) {
+        return;
+      }
+
+      setLifecycleDraft((current) =>
+        current
+          ? {
+              ...current,
+              mode,
+            }
+          : current,
+      );
+
+      await setModeMutation.mutateAsync({
         id: workflowId,
-        data: { targetState },
+        data: { mode },
       });
     },
-    [canManageWorkflow, resumeMutation, workflowId],
+    [
+      canManageWorkflow,
+      journeyQuery.data?.mode,
+      journeyQuery.data?.status,
+      lifecycleDraft,
+      setModeMutation,
+      workflowId,
+    ],
   );
 
   useKeyboardShortcuts({
@@ -273,11 +499,20 @@ function WorkflowEditorPage() {
           {resolveErrorMessage(journeyQuery.error)}
         </p>
         <Button asChild size="sm" variant="outline">
-          <Link to="/workflows">Back to journeys</Link>
+          <Link to="/workflows" search={{ q: undefined }}>
+            Back to journeys
+          </Link>
         </Button>
       </PageScaffold>
     );
   }
+
+  const journeyStatus =
+    lifecycleDraft?.status ?? journeyQuery.data?.status ?? "draft";
+  const persistedMode =
+    lifecycleDraft?.mode ?? journeyQuery.data?.mode ?? "live";
+  const effectiveMode =
+    journeyStatus === "draft" ? draftPublishMode : persistedMode;
 
   return (
     <div className="relative flex h-full min-h-0 w-full overflow-hidden">
@@ -289,24 +524,45 @@ function WorkflowEditorPage() {
             title="Back to journeys"
             variant="outline"
           >
-            <Link to="/workflows">
+            <Link to="/workflows" search={{ q: undefined }}>
               <Icon icon={ArrowLeft02Icon} />
             </Link>
           </Button>
+          <Input
+            className="h-8 w-64"
+            disabled={!canManageWorkflow || renameMutation.isPending}
+            onBlur={() => void commitJourneyName()}
+            onChange={(event) => setNameDraft(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                event.preventDefault();
+                event.currentTarget.blur();
+              }
+              if (event.key === "Escape" && journeyQuery.data) {
+                event.preventDefault();
+                setNameDraft(journeyQuery.data.name);
+                event.currentTarget.blur();
+              }
+            }}
+            value={nameDraft}
+          />
         </Panel>
 
         <WorkflowToolbar
           canManageWorkflow={canManageWorkflow}
-          journeyState={journeyQuery.data?.state ?? "draft"}
+          journeyStatus={journeyStatus}
+          journeyMode={effectiveMode}
           publishWarnings={publishWarnings}
           isPausing={pauseMutation.isPending}
           isPublishing={publishMutation.isPending}
           isResuming={resumeMutation.isPending}
           isSaving={isSaving}
+          isSettingMode={setModeMutation.isPending}
           onPause={() => void handlePause()}
           onPublish={(mode) => void handlePublish(mode)}
-          onResume={(targetState) => void handleResume(targetState)}
+          onResume={() => void handleResume()}
           onSave={() => void saveJourney()}
+          onSetMode={(mode) => void handleSetMode(mode)}
         />
       </WorkflowEditorCanvas>
 

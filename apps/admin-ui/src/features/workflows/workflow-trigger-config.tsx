@@ -993,13 +993,30 @@ function WorkflowTriggerConfigInner({
         </p>
       </div>
 
-      <div className="space-y-2 rounded-md border p-3">
-        <p className="text-sm">
-          Starts on Scheduled - Updates on Rescheduled - Stops on Canceled.
-        </p>
+      <div className="space-y-3 rounded-md border p-3">
+        <div className="flex flex-wrap items-center gap-1.5 text-xs">
+          <span className="rounded-md bg-muted px-2 py-1 font-medium text-foreground">
+            Scheduled starts run
+          </span>
+          <Icon
+            className="size-3.5 text-muted-foreground"
+            icon={ArrowRight02Icon}
+          />
+          <span className="rounded-md bg-muted px-2 py-1 font-medium text-foreground">
+            Rescheduled replans run
+          </span>
+          <Icon
+            className="size-3.5 text-muted-foreground"
+            icon={ArrowRight02Icon}
+          />
+          <span className="rounded-md bg-muted px-2 py-1 font-medium text-foreground">
+            Canceled stops run
+          </span>
+        </div>
         <ul className="list-disc space-y-1 pl-4 text-muted-foreground text-xs">
           <li>
-            Rescheduling updates future waits and sends to the new start time.
+            Rescheduled appointments replan the same run and shift future waits
+            and sends to the new start time.
           </li>
           <li>Cancellation prevents future messages from sending.</li>
         </ul>

@@ -7,7 +7,7 @@ import {
   linearJourneyGraphSchema,
   listJourneyRunsQuerySchema,
   publishJourneySchema,
-  resumeJourneySchema,
+  setJourneyModeSchema,
   startJourneyTestRunSchema,
   updateJourneySchema,
   type CreateJourneyInput,
@@ -21,7 +21,7 @@ import {
   type ListJourneyRunsQuery,
   type PublishJourneyInput,
   type PublishJourneyResponse,
-  type ResumeJourneyInput,
+  type SetJourneyModeInput,
   type StartJourneyTestRunInput,
   type StartJourneyTestRunResponse,
   type JourneyTriggerConfig,
@@ -46,7 +46,7 @@ const UNIQUE_CONSTRAINT_VIOLATION = "23505";
 const JOURNEY_NAME_UNIQUE_CONSTRAINT = "journeys_org_name_ci_uidx";
 const ACTIVE_RUN_STATUSES = ["planned", "running"] as const;
 const ACTIVE_RUN_STATUS_SET = new Set<string>(ACTIVE_RUN_STATUSES);
-const OVERLAP_CANDIDATE_STATES = ["published", "test_only", "paused"] as const;
+const OVERLAP_CANDIDATE_STATES = ["published", "paused"] as const;
 const JOURNEY_DEFINITION_INVALID_CODE = "JOURNEY_DEFINITION_INVALID";
 const HIGH_SIGNAL_FILTER_FIELDS = new Set([
   "appointment.calendarId",
@@ -143,7 +143,8 @@ function toJourney(row: typeof journeys.$inferSelect): Journey {
     id: row.id,
     orgId: row.orgId,
     name: row.name,
-    state: row.state,
+    status: row.state,
+    mode: row.mode,
     graph: parseLinearJourneyGraph(row.draftDefinition),
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
@@ -440,10 +441,10 @@ function validatePublishInput(input: PublishJourneyInput): PublishJourneyInput {
   return parsed.data;
 }
 
-function validateResumeInput(input: ResumeJourneyInput): ResumeJourneyInput {
-  const parsed = resumeJourneySchema.safeParse(input);
+function validateSetModeInput(input: SetJourneyModeInput): SetJourneyModeInput {
+  const parsed = setJourneyModeSchema.safeParse(input);
   if (!parsed.success) {
-    throw new ApplicationError("Invalid resume payload", {
+    throw new ApplicationError("Invalid journey mode payload", {
       code: "BAD_REQUEST",
       details: { issues: parsed.error.issues },
     });
@@ -797,13 +798,10 @@ export class JourneyService {
         throw new ApplicationError("Journey not found", { code: "NOT_FOUND" });
       }
 
-      if (existing.state === "paused") {
-        throw new ApplicationError(
-          "Paused journeys must be resumed before publish",
-          {
-            code: "CONFLICT",
-          },
-        );
+      if (existing.state !== "draft") {
+        throw new ApplicationError("Only draft journeys can be published", {
+          code: "CONFLICT",
+        });
       }
 
       const [nextVersionRow] = await tx
@@ -822,11 +820,11 @@ export class JourneyService {
         definitionSnapshot: existing.draftDefinition,
       });
 
-      const targetState = parsed.mode === "test" ? "test_only" : "published";
       const [updated] = await tx
         .update(journeys)
         .set({
-          state: targetState,
+          state: "published",
+          mode: parsed.mode,
           updatedAt: sql`now()`,
         })
         .where(eq(journeys.id, id))
@@ -983,13 +981,10 @@ export class JourneyService {
         throw new ApplicationError("Journey not found", { code: "NOT_FOUND" });
       }
 
-      if (existing.state !== "published" && existing.state !== "test_only") {
-        throw new ApplicationError(
-          "Only published or test-only journeys can be paused",
-          {
-            code: "CONFLICT",
-          },
-        );
+      if (existing.state !== "published") {
+        throw new ApplicationError("Only published journeys can be paused", {
+          code: "CONFLICT",
+        });
       }
 
       await cancelActiveRunsForJourney(tx, id, "manual_cancel");
@@ -1011,13 +1006,7 @@ export class JourneyService {
     });
   }
 
-  async resume(
-    id: string,
-    input: ResumeJourneyInput,
-    context: ServiceContext,
-  ): Promise<Journey> {
-    const parsed = validateResumeInput(input);
-
+  async resume(id: string, context: ServiceContext): Promise<Journey> {
     return withOrg(context.orgId, async (tx) => {
       const existing = await findJourneyById(tx, id);
       if (!existing) {
@@ -1033,7 +1022,46 @@ export class JourneyService {
       const [updated] = await tx
         .update(journeys)
         .set({
-          state: parsed.targetState,
+          state: "published",
+          updatedAt: sql`now()`,
+        })
+        .where(eq(journeys.id, id))
+        .returning();
+
+      if (!updated) {
+        throw new ApplicationError("Journey not found", { code: "NOT_FOUND" });
+      }
+
+      return toJourney(updated);
+    });
+  }
+
+  async setMode(
+    id: string,
+    input: SetJourneyModeInput,
+    context: ServiceContext,
+  ): Promise<Journey> {
+    const parsed = validateSetModeInput(input);
+
+    return withOrg(context.orgId, async (tx) => {
+      const existing = await findJourneyById(tx, id);
+      if (!existing) {
+        throw new ApplicationError("Journey not found", { code: "NOT_FOUND" });
+      }
+
+      if (existing.state !== "published") {
+        throw new ApplicationError(
+          "Mode can only be changed for published journeys",
+          {
+            code: "CONFLICT",
+          },
+        );
+      }
+
+      const [updated] = await tx
+        .update(journeys)
+        .set({
+          mode: parsed.mode,
           updatedAt: sql`now()`,
         })
         .where(eq(journeys.id, id))
