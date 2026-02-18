@@ -293,7 +293,28 @@ function useRuntimeWaitPreview(
     return parseTimestampWithTimezone(nodeLog?.startedAt);
   }, [nodeLog?.startedAt, shouldShowRuntimeWaitPreview]);
 
-  if (!(shouldShowRuntimeWaitPreview && runtimeInput && startedAt)) {
+  const waitUntilFromLog = useMemo(() => {
+    if (!shouldShowRuntimeWaitPreview) {
+      return null;
+    }
+
+    return parseTimestampWithTimezone(nodeLog?.waitUntil);
+  }, [nodeLog?.waitUntil, shouldShowRuntimeWaitPreview]);
+
+  if (!shouldShowRuntimeWaitPreview) {
+    return null;
+  }
+
+  if (waitUntilFromLog) {
+    const triggerTime = formatTriggerTime(waitUntilFromLog, undefined);
+    return {
+      countdown: formatCountdown(waitUntilFromLog.getTime() - nowMs),
+      triggerTimeMain: triggerTime.main,
+      triggerTimeZone: triggerTime.timezone,
+    };
+  }
+
+  if (!(runtimeInput && startedAt)) {
     return null;
   }
 

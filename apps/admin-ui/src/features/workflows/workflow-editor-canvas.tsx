@@ -40,6 +40,7 @@ import {
   workflowEditorHasUnsavedChangesAtom,
   workflowEditorIsLoadedAtom,
   workflowEditorNodesAtom,
+  workflowExecutionEdgeStatusByEdgeIdAtom,
   type WorkflowCanvasNode,
 } from "./workflow-editor-store";
 
@@ -135,6 +136,9 @@ export function WorkflowEditorCanvas({
 
   const nodes = useAtomValue(workflowActiveCanvasNodesAtom);
   const edges = useAtomValue(workflowActiveCanvasEdgesAtom);
+  const executionEdgeStatusByEdgeId = useAtomValue(
+    workflowExecutionEdgeStatusByEdgeIdAtom,
+  );
   const isLoaded = useAtomValue(workflowEditorIsLoadedAtom);
   const rightPanelWidth = useAtomValue(rightPanelWidthAtom);
   const onNodesChange = useSetAtom(onWorkflowEditorNodesChangeAtom);
@@ -250,11 +254,15 @@ export function WorkflowEditorCanvas({
     () =>
       edges.map((edge) => ({
         ...edge,
+        data: {
+          ...(typeof edge.data === "object" && edge.data ? edge.data : {}),
+          executionStatus: executionEdgeStatusByEdgeId[edge.id] ?? "default",
+        },
         type: edge.type || "animated",
         animated: true,
         reconnectable: "target" as const,
       })),
-    [edges],
+    [edges, executionEdgeStatusByEdgeId],
   );
 
   const handleConnectStart = useCallback(

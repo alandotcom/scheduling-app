@@ -1,11 +1,7 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  Alert02Icon,
-  ArrowLeft02Icon,
-  Cancel01Icon,
-} from "@hugeicons/core-free-icons";
+import { Alert02Icon, Cancel01Icon } from "@hugeicons/core-free-icons";
 import { ReactFlowProvider } from "@xyflow/react";
 import { toast } from "sonner";
 import { useAtomValue, useSetAtom } from "jotai";
@@ -17,6 +13,19 @@ import type {
 import { linearJourneyGraphSchema } from "@scheduling/dto";
 import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Panel } from "@/components/flow-elements/panel";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import {
   Sheet,
   SheetClose,
@@ -24,7 +33,6 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { Panel } from "@/components/flow-elements/panel";
 import { PageScaffold } from "@/components/layout/page-scaffold";
 import { useKeyboardShortcuts } from "@/hooks/use-keyboard-shortcuts";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -117,8 +125,12 @@ function WorkflowEditorPage() {
   );
 
   const [publishWarnings, setPublishWarnings] = useState<string[]>([]);
-  const [nameDraft, setNameDraft] = useState("");
   const [persistedName, setPersistedName] = useState("");
+  const [isRenameDialogOpen, setIsRenameDialogOpen] = useState(false);
+  const [renameInputValue, setRenameInputValue] = useState("");
+  const [renameValidationError, setRenameValidationError] = useState<
+    string | null
+  >(null);
   const [currentVersionDraft, setCurrentVersionDraft] = useState<number | null>(
     null,
   );
@@ -130,6 +142,7 @@ function WorkflowEditorPage() {
     status: JourneyStatus;
     mode: JourneyMode;
   } | null>(null);
+  const renameInputRef = useRef<HTMLInputElement | null>(null);
 
   const canManageWorkflow = canManageWorkflowsForRole(
     authContextQuery.data?.role,
@@ -222,7 +235,6 @@ function WorkflowEditorPage() {
 
     setGraph(journeyQuery.data.graph);
     setWorkflowId(journeyQuery.data.id);
-    setNameDraft(journeyQuery.data.name);
     setPersistedName(journeyQuery.data.name);
     setCurrentVersionDraft(journeyQuery.data.currentVersion);
     setLifecycleDraft({
@@ -454,7 +466,6 @@ function WorkflowEditorPage() {
 
       const trimmedName = rawName.trim();
       if (trimmedName.length === 0) {
-        setNameDraft(persistedName);
         toast.error("Journey name is required");
         return;
       }
@@ -468,7 +479,6 @@ function WorkflowEditorPage() {
         data: { name: trimmedName },
       });
 
-      setNameDraft(updated.name);
       setPersistedName(updated.name);
     },
     [
@@ -480,21 +490,74 @@ function WorkflowEditorPage() {
     ],
   );
 
-  const handleRenameFromToolbar = useCallback(() => {
+  useEffect(() => {
+    if (!isRenameDialogOpen) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      renameInputRef.current?.focus();
+    }, 50);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [isRenameDialogOpen]);
+
+  const handleRenameDialogOpenChange = useCallback(
+    (open: boolean) => {
+      setIsRenameDialogOpen(open);
+      if (!open) {
+        setRenameValidationError(null);
+        return;
+      }
+
+      setRenameInputValue(persistedName);
+      setRenameValidationError(null);
+    },
+    [persistedName],
+  );
+
+  const handleRenameSubmit = useCallback(async () => {
     if (!canManageCurrentView || !journeyQuery.data) {
       return;
     }
-    const candidateName = window.prompt("Rename workflow", persistedName);
-    if (candidateName === null) {
+
+    const trimmedName = renameInputValue.trim();
+    if (trimmedName.length === 0) {
+      setRenameValidationError("Journey name is required");
       return;
     }
-    void submitJourneyName(candidateName);
+
+    if (trimmedName === persistedName) {
+      setIsRenameDialogOpen(false);
+      return;
+    }
+
+    setRenameValidationError(null);
+
+    try {
+      await submitJourneyName(trimmedName);
+      setIsRenameDialogOpen(false);
+    } catch {
+      // Toast is handled by mutation onError.
+    }
   }, [
     canManageCurrentView,
     journeyQuery.data,
     persistedName,
+    renameInputValue,
     submitJourneyName,
   ]);
+
+  const handleRenameFromToolbar = useCallback(() => {
+    if (!canManageCurrentView || !journeyQuery.data) {
+      return;
+    }
+    setRenameInputValue(persistedName);
+    setRenameValidationError(null);
+    setIsRenameDialogOpen(true);
+  }, [canManageCurrentView, journeyQuery.data, persistedName]);
 
   const handlePublish = useCallback(
     async (mode: JourneyMode) => {
@@ -660,41 +723,28 @@ function WorkflowEditorPage() {
   return (
     <div className="relative flex h-full min-h-0 w-full overflow-hidden">
       <div className="flex min-h-0 flex-1 flex-col">
-        {effectiveMode === "test" ? (
-          <div className="border-b border-destructive/30 bg-destructive/10 px-4 py-2">
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
-              <p className="flex items-center gap-1.5 font-semibold tracking-wide text-destructive">
-                <Icon className="size-3.5" icon={Alert02Icon} />
-                TEST MODE ACTIVE
-              </p>
-              <p className="font-medium text-foreground">
-                No real email or SMS will be sent from this workflow.
-              </p>
-              <p className="text-muted-foreground">
-                Delivery is sandboxed to log-only behavior or integration test
-                recipients only.
-              </p>
-            </div>
-          </div>
-        ) : null}
         <div className="relative min-h-0 flex-1">
           <WorkflowEditorCanvas canEdit={canManageCurrentView}>
-            <Panel className="flex items-center gap-2" position="top-left">
-              <Button
-                asChild
-                size="icon-sm"
-                title="Back to journeys"
-                variant="outline"
+            {effectiveMode === "test" ? (
+              <Panel
+                position="top-center"
+                className="max-w-[min(100vw-10rem,56rem)] border-destructive/30 bg-destructive/10 px-4 py-2"
               >
-                <Link to="/workflows" search={{ q: undefined }}>
-                  <Icon icon={ArrowLeft02Icon} />
-                </Link>
-              </Button>
-              <div className="h-8 w-64 truncate rounded-md border border-input bg-background px-3 py-1.5 text-sm">
-                {nameDraft}
-              </div>
-            </Panel>
-
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
+                  <p className="flex items-center gap-1.5 font-semibold tracking-wide text-destructive">
+                    <Icon className="size-3.5" icon={Alert02Icon} />
+                    TEST MODE ACTIVE
+                  </p>
+                  <p className="font-medium text-foreground">
+                    No real email or SMS will be sent from this workflow.
+                  </p>
+                  <p className="text-muted-foreground">
+                    Delivery is sandboxed to log-only behavior or integration
+                    test recipients only.
+                  </p>
+                </div>
+              </Panel>
+            ) : null}
             <WorkflowToolbar
               canManageWorkflow={canManageCurrentView}
               journeyStatus={journeyStatus}
@@ -770,6 +820,60 @@ function WorkflowEditorPage() {
           />
         </WorkflowSidebarPanel>
       )}
+
+      <AlertDialog
+        open={isRenameDialogOpen}
+        onOpenChange={handleRenameDialogOpenChange}
+      >
+        <AlertDialogContent>
+          <form
+            onSubmit={(event) => {
+              event.preventDefault();
+              void handleRenameSubmit();
+            }}
+          >
+            <AlertDialogHeader>
+              <AlertDialogTitle>Rename journey</AlertDialogTitle>
+              <AlertDialogDescription>
+                Update the journey name shown in Workflows and navigation.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+
+            <div className="mt-4">
+              <Label htmlFor="rename-journey-name">Name</Label>
+              <Input
+                id="rename-journey-name"
+                value={renameInputValue}
+                onChange={(event) => {
+                  setRenameInputValue(event.target.value);
+                  if (renameValidationError) {
+                    setRenameValidationError(null);
+                  }
+                }}
+                aria-invalid={renameValidationError !== null}
+                ref={renameInputRef}
+              />
+              {renameValidationError ? (
+                <p className="mt-1 text-xs text-destructive">
+                  {renameValidationError}
+                </p>
+              ) : null}
+            </div>
+
+            <AlertDialogFooter className="mt-6">
+              <AlertDialogCancel disabled={renameMutation.isPending}>
+                Cancel
+              </AlertDialogCancel>
+              <AlertDialogAction
+                type="submit"
+                disabled={renameMutation.isPending}
+              >
+                {renameMutation.isPending ? "Saving..." : "Save"}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </form>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

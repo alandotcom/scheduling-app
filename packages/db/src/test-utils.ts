@@ -19,6 +19,8 @@ const CURRENT_TEST_DB_KEY = "__schedulingCurrentTestDb";
 
 const TRUNCATE_ALL_TABLES_SQL = `
   TRUNCATE TABLE
+    journey_run_step_logs,
+    journey_run_events,
     journey_deliveries,
     journey_runs,
     journey_versions,

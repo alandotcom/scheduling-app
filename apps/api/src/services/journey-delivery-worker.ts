@@ -7,6 +7,10 @@ import {
   dispatchJourneyDelivery,
   type JourneyDeliveryDispatcher,
 } from "./journey-delivery-adapters.js";
+import {
+  appendJourneyRunEvent,
+  upsertJourneyRunStepLog,
+} from "./journey-run-artifacts.js";
 
 const DEFAULT_MAX_DISPATCH_ATTEMPTS = 2;
 
@@ -75,6 +79,24 @@ function toTerminalStatus(value: DeliveryStatus): TerminalDeliveryStatus {
   return value;
 }
 
+function toStepLogStatus(
+  value: DeliveryStatus | TerminalDeliveryStatus,
+): "pending" | "running" | "success" | "error" | "cancelled" {
+  if (value === "planned") {
+    return "pending";
+  }
+
+  if (value === "failed") {
+    return "error";
+  }
+
+  if (value === "sent") {
+    return "success";
+  }
+
+  return "cancelled";
+}
+
 function toErrorMessage(error: unknown): string {
   if (error instanceof Error && error.message.trim().length > 0) {
     return error.message;
@@ -116,6 +138,21 @@ function resolveStepConfig(
   );
 
   return node ? toRecord(node.attributes.data.config) : {};
+}
+
+function resolveStepNodeType(
+  stepConfig: Record<string, unknown>,
+  delivery: DeliveryRow,
+): string {
+  const actionType =
+    typeof stepConfig["actionType"] === "string"
+      ? stepConfig["actionType"].trim().toLowerCase()
+      : "";
+  if (actionType.length > 0) {
+    return actionType;
+  }
+
+  return delivery.channel;
 }
 
 async function loadDeliveryWithRun(
@@ -305,6 +342,56 @@ async function refreshRunStatus(orgId: string, runId: string): Promise<void> {
   });
 }
 
+async function appendRunEvent(input: {
+  orgId: string;
+  runId: string;
+  eventType: string;
+  message: string;
+  metadata?: Record<string, unknown>;
+}): Promise<void> {
+  await withOrg(input.orgId, async (tx) => {
+    await appendJourneyRunEvent({
+      tx,
+      orgId: input.orgId,
+      runId: input.runId,
+      eventType: input.eventType,
+      message: input.message,
+      metadata: input.metadata,
+    });
+  });
+}
+
+async function upsertRunStepLog(input: {
+  orgId: string;
+  runId: string;
+  stepKey: string;
+  nodeType: string;
+  status: "pending" | "running" | "success" | "error" | "cancelled";
+  startedAt: Date;
+  completedAt?: Date | null;
+  durationMs?: number | null;
+  logInput?: Record<string, unknown>;
+  logOutput?: Record<string, unknown>;
+  error?: string | null;
+}): Promise<void> {
+  await withOrg(input.orgId, async (tx) => {
+    await upsertJourneyRunStepLog({
+      tx,
+      orgId: input.orgId,
+      runId: input.runId,
+      stepKey: input.stepKey,
+      nodeType: input.nodeType,
+      status: input.status,
+      startedAt: input.startedAt,
+      completedAt: input.completedAt,
+      durationMs: input.durationMs,
+      logInput: input.logInput,
+      logOutput: input.logOutput,
+      error: input.error,
+    });
+  });
+}
+
 const defaultRuntime: JourneyDeliveryWorkerRuntime = {
   runStep: async (_stepId, fn) => fn(),
   sleep: async (_stepId, delayMs) => {
@@ -368,11 +455,37 @@ export async function executeJourneyDeliveryScheduled(
       };
     }
 
+    const run = current.run;
+    const stepConfig = run
+      ? resolveStepConfig(run, current.delivery.stepKey)
+      : {};
+    const nodeType = resolveStepNodeType(stepConfig, current.delivery);
+    const dispatchStartedAt = now();
+
     if (current.delivery.status !== "planned") {
+      const terminalStatus = toTerminalStatus(current.delivery.status);
+      await upsertRunStepLog({
+        orgId: input.orgId,
+        runId: current.delivery.journeyRunId,
+        stepKey: current.delivery.stepKey,
+        nodeType,
+        status: toStepLogStatus(terminalStatus),
+        startedAt: current.delivery.scheduledFor,
+        completedAt: dispatchStartedAt,
+        durationMs: Math.max(
+          0,
+          dispatchStartedAt.getTime() - current.delivery.scheduledFor.getTime(),
+        ),
+        logOutput: {
+          status: terminalStatus,
+          reasonCode: current.delivery.reasonCode ?? null,
+        },
+      });
+
       return {
         journeyDeliveryId: current.delivery.id,
         journeyRunId: current.delivery.journeyRunId,
-        status: toTerminalStatus(current.delivery.status),
+        status: terminalStatus,
         attempts: 0,
         reasonCode: current.delivery.reasonCode,
       };
@@ -387,17 +500,43 @@ export async function executeJourneyDeliveryScheduled(
       });
 
       await refreshRunStatus(input.orgId, current.delivery.journeyRunId);
+      const terminalStatus = toTerminalStatus(resolved?.status ?? "canceled");
+      await upsertRunStepLog({
+        orgId: input.orgId,
+        runId: current.delivery.journeyRunId,
+        stepKey: current.delivery.stepKey,
+        nodeType,
+        status: toStepLogStatus(terminalStatus),
+        startedAt: current.delivery.scheduledFor,
+        completedAt: dispatchStartedAt,
+        durationMs: Math.max(
+          0,
+          dispatchStartedAt.getTime() - current.delivery.scheduledFor.getTime(),
+        ),
+        logOutput: {
+          status: terminalStatus,
+          reasonCode: resolved?.reasonCode ?? "execution_terminal",
+        },
+      });
+      await appendRunEvent({
+        orgId: input.orgId,
+        runId: current.delivery.journeyRunId,
+        eventType: "delivery_canceled",
+        message: `Delivery ${current.delivery.stepKey} canceled`,
+        metadata: {
+          reasonCode: resolved?.reasonCode ?? "execution_terminal",
+        },
+      });
 
       return {
         journeyDeliveryId: current.delivery.id,
         journeyRunId: current.delivery.journeyRunId,
-        status: toTerminalStatus(resolved?.status ?? "canceled"),
+        status: terminalStatus,
         attempts: 0,
         reasonCode: resolved?.reasonCode ?? "execution_terminal",
       };
     }
 
-    const run = current.run;
     if (!run || (run.status !== "planned" && run.status !== "running")) {
       const resolved = await updateDeliveryIfPlanned({
         orgId: input.orgId,
@@ -407,11 +546,38 @@ export async function executeJourneyDeliveryScheduled(
       });
 
       await refreshRunStatus(input.orgId, current.delivery.journeyRunId);
+      const terminalStatus = toTerminalStatus(resolved?.status ?? "canceled");
+      await upsertRunStepLog({
+        orgId: input.orgId,
+        runId: current.delivery.journeyRunId,
+        stepKey: current.delivery.stepKey,
+        nodeType,
+        status: toStepLogStatus(terminalStatus),
+        startedAt: current.delivery.scheduledFor,
+        completedAt: dispatchStartedAt,
+        durationMs: Math.max(
+          0,
+          dispatchStartedAt.getTime() - current.delivery.scheduledFor.getTime(),
+        ),
+        logOutput: {
+          status: terminalStatus,
+          reasonCode: resolved?.reasonCode ?? "execution_terminal",
+        },
+      });
+      await appendRunEvent({
+        orgId: input.orgId,
+        runId: current.delivery.journeyRunId,
+        eventType: "delivery_canceled",
+        message: `Delivery ${current.delivery.stepKey} canceled`,
+        metadata: {
+          reasonCode: resolved?.reasonCode ?? "execution_terminal",
+        },
+      });
 
       return {
         journeyDeliveryId: current.delivery.id,
         journeyRunId: current.delivery.journeyRunId,
-        status: toTerminalStatus(resolved?.status ?? "canceled"),
+        status: terminalStatus,
         attempts: 0,
         reasonCode: resolved?.reasonCode ?? "execution_terminal",
       };
@@ -419,7 +585,6 @@ export async function executeJourneyDeliveryScheduled(
 
     await markRunRunning(input.orgId, current.delivery.journeyRunId);
 
-    const stepConfig = resolveStepConfig(run, current.delivery.stepKey);
     const dispatchPayload = {
       orgId: input.orgId,
       journeyDeliveryId: current.delivery.id,
@@ -429,6 +594,28 @@ export async function executeJourneyDeliveryScheduled(
       runMode: run.mode,
       stepConfig,
     };
+    await upsertRunStepLog({
+      orgId: input.orgId,
+      runId: current.delivery.journeyRunId,
+      stepKey: current.delivery.stepKey,
+      nodeType,
+      status: "running",
+      startedAt: dispatchStartedAt,
+      logInput: dispatchPayload,
+      logOutput: {
+        scheduledFor: current.delivery.scheduledFor.toISOString(),
+      },
+    });
+    await appendRunEvent({
+      orgId: input.orgId,
+      runId: current.delivery.journeyRunId,
+      eventType: "delivery_dispatch_started",
+      message: `Dispatch started for ${current.delivery.stepKey}`,
+      metadata: {
+        stepKey: current.delivery.stepKey,
+        channel: current.delivery.channel,
+      },
+    });
 
     const attemptDispatch = async (
       attempt: number,
@@ -490,6 +677,39 @@ export async function executeJourneyDeliveryScheduled(
         result.providerMessageId = dispatchAttempt.dispatched.providerMessageId;
       }
 
+      const completedAt = now();
+      await upsertRunStepLog({
+        orgId: input.orgId,
+        runId: current.delivery.journeyRunId,
+        stepKey: current.delivery.stepKey,
+        nodeType,
+        status: toStepLogStatus(result.status),
+        startedAt: dispatchStartedAt,
+        completedAt,
+        durationMs: Math.max(
+          0,
+          completedAt.getTime() - dispatchStartedAt.getTime(),
+        ),
+        logInput: dispatchPayload,
+        logOutput: {
+          status: result.status,
+          attempts: result.attempts,
+          reasonCode: result.reasonCode ?? null,
+          providerMessageId: result.providerMessageId ?? null,
+        },
+      });
+      await appendRunEvent({
+        orgId: input.orgId,
+        runId: current.delivery.journeyRunId,
+        eventType: "delivery_sent",
+        message: `Delivery ${current.delivery.stepKey} sent`,
+        metadata: {
+          stepKey: current.delivery.stepKey,
+          attempts: result.attempts,
+          providerMessageId: result.providerMessageId ?? null,
+        },
+      });
+
       return result;
     }
 
@@ -503,12 +723,45 @@ export async function executeJourneyDeliveryScheduled(
 
     await refreshRunStatus(input.orgId, current.delivery.journeyRunId);
 
-    return {
+    const result = {
       journeyDeliveryId: current.delivery.id,
       journeyRunId: current.delivery.journeyRunId,
       status: toTerminalStatus(resolved?.status ?? "failed"),
       attempts: dispatchAttempt.attempts,
       reasonCode: resolved?.reasonCode ?? reasonCode,
     };
+    const completedAt = now();
+    await upsertRunStepLog({
+      orgId: input.orgId,
+      runId: current.delivery.journeyRunId,
+      stepKey: current.delivery.stepKey,
+      nodeType,
+      status: toStepLogStatus(result.status),
+      startedAt: dispatchStartedAt,
+      completedAt,
+      durationMs: Math.max(
+        0,
+        completedAt.getTime() - dispatchStartedAt.getTime(),
+      ),
+      logInput: dispatchPayload,
+      logOutput: {
+        status: result.status,
+        attempts: result.attempts,
+      },
+      error: result.reasonCode ?? "provider_error",
+    });
+    await appendRunEvent({
+      orgId: input.orgId,
+      runId: current.delivery.journeyRunId,
+      eventType: "delivery_failed",
+      message: `Delivery ${current.delivery.stepKey} failed`,
+      metadata: {
+        stepKey: current.delivery.stepKey,
+        reasonCode: result.reasonCode ?? "provider_error",
+        attempts: result.attempts,
+      },
+    });
+
+    return result;
   });
 }

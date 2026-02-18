@@ -60,6 +60,11 @@ export const journeyDeliveryStatusEnum = pgEnum("journey_delivery_status", [
   "skipped",
 ]);
 
+export const journeyRunStepLogStatusEnum = pgEnum(
+  "journey_run_step_log_status",
+  ["pending", "running", "success", "error", "cancelled"],
+);
+
 const citext = customType<{ data: string }>({
   dataType() {
     return "citext";
@@ -628,6 +633,86 @@ export const journeyDeliveries = pgTable.withRLS(
     ),
     index("journey_deliveries_org_status_idx").on(table.orgId, table.status),
     pgPolicy("org_isolation_journey_deliveries", {
+      for: "all",
+      using: sql`org_id = current_org_id()`,
+      withCheck: sql`org_id = current_org_id()`,
+    }),
+  ],
+);
+
+export const journeyRunEvents = pgTable.withRLS(
+  "journey_run_events",
+  {
+    id,
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => orgs.id),
+    journeyRunId: uuid("journey_run_id")
+      .notNull()
+      .references(() => journeyRuns.id, { onDelete: "cascade" }),
+    eventType: text("event_type").notNull(),
+    message: text("message").notNull(),
+    metadata: jsonb("metadata").$type<Record<string, unknown>>(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    index("journey_run_events_org_run_created_at_idx").on(
+      table.orgId,
+      table.journeyRunId,
+      table.createdAt,
+    ),
+    pgPolicy("org_isolation_journey_run_events", {
+      for: "all",
+      using: sql`org_id = current_org_id()`,
+      withCheck: sql`org_id = current_org_id()`,
+    }),
+  ],
+);
+
+export const journeyRunStepLogs = pgTable.withRLS(
+  "journey_run_step_logs",
+  {
+    id,
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => orgs.id),
+    journeyRunId: uuid("journey_run_id")
+      .notNull()
+      .references(() => journeyRuns.id, { onDelete: "cascade" }),
+    stepKey: text("step_key").notNull(),
+    nodeType: text("node_type").notNull(),
+    status: journeyRunStepLogStatusEnum("status").notNull(),
+    input: jsonb("input").$type<Record<string, unknown>>(),
+    output: jsonb("output").$type<Record<string, unknown>>(),
+    error: text("error"),
+    startedAt: timestamp("started_at", { withTimezone: true }).notNull(),
+    completedAt: timestamp("completed_at", { withTimezone: true }),
+    durationMs: integer("duration_ms"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("journey_run_step_logs_org_run_step_uidx").on(
+      table.orgId,
+      table.journeyRunId,
+      table.stepKey,
+    ),
+    index("journey_run_step_logs_org_run_started_at_idx").on(
+      table.orgId,
+      table.journeyRunId,
+      table.startedAt,
+    ),
+    index("journey_run_step_logs_org_step_key_idx").on(
+      table.orgId,
+      table.stepKey,
+    ),
+    pgPolicy("org_isolation_journey_run_step_logs", {
       for: "all",
       using: sql`org_id = current_org_id()`,
       withCheck: sql`org_id = current_org_id()`,

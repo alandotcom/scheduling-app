@@ -635,10 +635,17 @@ export type WorkflowExecutionNodeLogPreview = {
   nodeId: string;
   status: "pending" | "running" | "success" | "error" | "cancelled";
   input?: unknown;
+  output?: unknown;
+  waitUntil?: string | Date;
+  error?: string | null;
   startedAt?: string | Date;
 };
 export const workflowExecutionLogsByNodeIdAtom = atom<
   Record<string, WorkflowExecutionNodeLogPreview>
+>({});
+export type WorkflowExecutionEdgeStatus = "default" | "active" | "traversed";
+export const workflowExecutionEdgeStatusByEdgeIdAtom = atom<
+  Record<string, WorkflowExecutionEdgeStatus>
 >({});
 
 // Undo/Redo System
@@ -696,6 +703,7 @@ export const setWorkflowEditorGraphAtom = atom(
     set(workflowExecutionViewGraphAtom, null);
     set(selectedExecutionIdAtom, null);
     set(workflowExecutionLogsByNodeIdAtom, {});
+    set(workflowExecutionEdgeStatusByEdgeIdAtom, {});
     set(historyAtom, []);
     set(futureAtom, []);
   },

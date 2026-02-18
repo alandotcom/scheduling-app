@@ -1,6 +1,11 @@
 import { beforeEach, describe, expect, mock, test } from "bun:test";
 import { eq } from "drizzle-orm";
-import { journeyDeliveries, journeyRuns } from "@scheduling/db/schema";
+import {
+  journeyDeliveries,
+  journeyRunEvents,
+  journeyRunStepLogs,
+  journeyRuns,
+} from "@scheduling/db/schema";
 import { withOrg } from "../lib/db.js";
 import {
   getTestDb,
@@ -209,6 +214,24 @@ describe("executeJourneyDeliveryScheduled", () => {
       .limit(1);
 
     expect(delivery?.status).toBe("sent");
+
+    const stepLogs = await db
+      .select({
+        status: journeyRunStepLogs.status,
+        stepKey: journeyRunStepLogs.stepKey,
+      })
+      .from(journeyRunStepLogs)
+      .where(eq(journeyRunStepLogs.journeyRunId, seeded.runId));
+    expect(stepLogs).toHaveLength(1);
+    expect(stepLogs[0]?.status).toBe("success");
+
+    const events = await db
+      .select({ eventType: journeyRunEvents.eventType })
+      .from(journeyRunEvents)
+      .where(eq(journeyRunEvents.journeyRunId, seeded.runId));
+    expect(events.some((event) => event.eventType === "delivery_sent")).toBe(
+      true,
+    );
   });
 
   test("suppresses send when delivery is canceled during sleep", async () => {

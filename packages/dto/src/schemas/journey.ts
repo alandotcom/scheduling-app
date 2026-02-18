@@ -32,6 +32,13 @@ export const journeyDeliveryStatusSchema = z.enum([
   "canceled",
   "skipped",
 ]);
+export const journeyRunStepLogStatusSchema = z.enum([
+  "pending",
+  "running",
+  "success",
+  "error",
+  "cancelled",
+]);
 export const journeyDeliveryReasonCodeSchema = z
   .string()
   .trim()
@@ -528,10 +535,37 @@ export const journeyRunDeliverySchema = z.object({
   updatedAt: timestampSchema,
 });
 
+export const journeyRunEventSchema = z.object({
+  id: uuidSchema,
+  journeyRunId: uuidSchema,
+  eventType: z.string().trim().min(1),
+  message: z.string().trim().min(1),
+  metadata: z.record(z.string(), z.unknown()).nullable(),
+  createdAt: timestampSchema,
+});
+
+export const journeyRunStepLogSchema = z.object({
+  id: uuidSchema,
+  journeyRunId: uuidSchema,
+  stepKey: z.string().trim().min(1),
+  nodeType: z.string().trim().min(1),
+  status: journeyRunStepLogStatusSchema,
+  input: z.record(z.string(), z.unknown()).nullable(),
+  output: z.record(z.string(), z.unknown()).nullable(),
+  error: z.string().nullable(),
+  startedAt: timestampSchema,
+  completedAt: timestampSchema.nullable(),
+  durationMs: z.number().int().nonnegative().nullable(),
+  createdAt: timestampSchema,
+  updatedAt: timestampSchema,
+});
+
 export const journeyRunDetailResponseSchema = z.object({
   run: journeyRunSchema,
   runSnapshot: journeyVersionSnapshotSchema,
   deliveries: z.array(journeyRunDeliverySchema),
+  events: z.array(journeyRunEventSchema),
+  stepLogs: z.array(journeyRunStepLogSchema),
 });
 
 export const cancelJourneyRunResponseSchema = z.object({
@@ -559,6 +593,9 @@ export type SetJourneyModeInput = z.infer<typeof setJourneyModeSchema>;
 export type JourneyRunMode = z.infer<typeof journeyRunModeSchema>;
 export type JourneyRunStatus = z.infer<typeof journeyRunStatusSchema>;
 export type JourneyDeliveryStatus = z.infer<typeof journeyDeliveryStatusSchema>;
+export type JourneyRunStepLogStatus = z.infer<
+  typeof journeyRunStepLogStatusSchema
+>;
 export type JourneyDeliveryReasonCode = z.infer<
   typeof journeyDeliveryReasonCodeSchema
 >;
@@ -581,6 +618,8 @@ export type JourneyRunListResponse = z.infer<
   typeof journeyRunListResponseSchema
 >;
 export type JourneyRunDelivery = z.infer<typeof journeyRunDeliverySchema>;
+export type JourneyRunEvent = z.infer<typeof journeyRunEventSchema>;
+export type JourneyRunStepLog = z.infer<typeof journeyRunStepLogSchema>;
 export type JourneyRunDetailResponse = z.infer<
   typeof journeyRunDetailResponseSchema
 >;

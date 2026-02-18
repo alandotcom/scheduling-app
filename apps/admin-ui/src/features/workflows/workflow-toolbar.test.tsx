@@ -1,10 +1,16 @@
-import { afterEach, describe, expect, mock, test } from "bun:test";
+import { afterEach, beforeEach, describe, expect, mock, test } from "bun:test";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { ReactFlowProvider } from "@xyflow/react";
 import { WorkflowToolbar } from "./workflow-toolbar";
 
+const originalInnerWidth = window.innerWidth;
+
 afterEach(() => {
   cleanup();
+});
+
+beforeEach(() => {
+  window.innerWidth = originalInnerWidth;
 });
 
 function renderToolbar(
@@ -43,6 +49,13 @@ function renderToolbar(
     </ReactFlowProvider>,
   );
 
+  mockToolbarOverflowDimensions({
+    viewportWidth: 1800,
+    fullWidth: 640,
+    compactWidth: 520,
+    minimalWidth: 260,
+  });
+
   return {
     onSave,
     onPause,
@@ -51,6 +64,66 @@ function renderToolbar(
     onResume,
     onSetMode,
   };
+}
+
+function mockToolbarOverflowDimensions(input: {
+  viewportWidth: number;
+  fullWidth: number;
+  compactWidth: number;
+  minimalWidth: number;
+}) {
+  window.innerWidth = input.viewportWidth;
+
+  const fullMeasure = screen.getByTestId("workflow-toolbar-measure");
+  const compactMeasure = screen.getByTestId("workflow-toolbar-measure-compact");
+  const minimalMeasure = screen.getByTestId("workflow-toolbar-measure-minimal");
+
+  Object.defineProperty(fullMeasure, "getBoundingClientRect", {
+    value: () => ({
+      left: 0,
+      width: input.fullWidth,
+      height: 0,
+      top: 0,
+      right: 0,
+      bottom: 0,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    }),
+    configurable: true,
+  });
+
+  Object.defineProperty(compactMeasure, "getBoundingClientRect", {
+    value: () => ({
+      left: 0,
+      width: input.compactWidth,
+      height: 0,
+      top: 0,
+      right: 0,
+      bottom: 0,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    }),
+    configurable: true,
+  });
+
+  Object.defineProperty(minimalMeasure, "getBoundingClientRect", {
+    value: () => ({
+      left: 0,
+      width: input.minimalWidth,
+      height: 0,
+      top: 0,
+      right: 0,
+      bottom: 0,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    }),
+    configurable: true,
+  });
+
+  fireEvent(window, new Event("resize"));
 }
 
 describe("WorkflowToolbar", () => {
@@ -128,11 +201,47 @@ describe("WorkflowToolbar", () => {
       'Potential overlap with "Journey A" on appointment.scheduled',
     ]);
 
-    expect(screen.getAllByText("Publish warnings").length).toBeGreaterThan(0);
-    expect(
-      screen.getAllByText(
-        'Potential overlap with "Journey A" on appointment.scheduled',
-      ).length,
-    ).toBeGreaterThan(0);
+    expect(screen.getAllByText("1 warning").length).toBeGreaterThan(0);
+  });
+
+  test("collapses to compact toolbar and exposes secondary actions in overflow menu", () => {
+    renderToolbar("published", "live");
+
+    mockToolbarOverflowDimensions({
+      viewportWidth: 760,
+      fullWidth: 1100,
+      compactWidth: 640,
+      minimalWidth: 260,
+    });
+
+    expect(screen.queryByRole("button", { name: /rename/i })).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: /more actions/i }));
+
+    expect(screen.getByText("Add step")).toBeTruthy();
+    expect(screen.getByText("Rename journey")).toBeTruthy();
+  });
+
+  test("falls back to minimal toolbar and keeps core actions in overflow menu", () => {
+    const { onSave, onSetMode } = renderToolbar("published", "live");
+
+    mockToolbarOverflowDimensions({
+      viewportWidth: 420,
+      fullWidth: 1100,
+      compactWidth: 640,
+      minimalWidth: 240,
+    });
+
+    expect(screen.queryByRole("button", { name: "Save" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Test" })).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: /more actions/i }));
+
+    const saveChangesItem = screen.getByText("Save changes");
+    expect(saveChangesItem.hasAttribute("data-disabled")).toBe(true);
+    expect(onSave).toHaveBeenCalledTimes(0);
+
+    fireEvent.click(screen.getByText("Switch to Test"));
+    expect(onSetMode).toHaveBeenCalledWith("test");
   });
 });

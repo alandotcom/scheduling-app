@@ -3,6 +3,8 @@ import type {
   JourneyRun,
   JourneyRunDelivery,
   JourneyRunDetailResponse,
+  JourneyRunEvent,
+  JourneyRunStepLog,
 } from "@scheduling/dto";
 import { linearJourneyGraphSchema } from "@scheduling/dto";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -14,6 +16,7 @@ import { orpc } from "@/lib/query";
 import {
   deserializeWorkflowGraph,
   selectedExecutionIdAtom,
+  workflowExecutionEdgeStatusByEdgeIdAtom,
   workflowExecutionViewGraphAtom,
   workflowExecutionLogsByNodeIdAtom,
 } from "./workflow-editor-store";
@@ -55,6 +58,21 @@ function toRunStatusBadgeVariant(
   }
 }
 
+function toRunStatusLabel(status: JourneyRun["status"]): string {
+  switch (status) {
+    case "planned":
+      return "Planned";
+    case "running":
+      return "Running";
+    case "completed":
+      return "Completed";
+    case "failed":
+      return "Failed";
+    case "canceled":
+      return "Canceled";
+  }
+}
+
 function toDeliveryStatusBadgeVariant(
   status: JourneyRunDelivery["status"],
 ): "default" | "destructive" | "secondary" | "outline" {
@@ -69,6 +87,55 @@ function toDeliveryStatusBadgeVariant(
     default:
       return "outline";
   }
+}
+
+function toDeliveryStatusLabel(status: JourneyRunDelivery["status"]): string {
+  switch (status) {
+    case "planned":
+      return "Planned";
+    case "sent":
+      return "Completed";
+    case "failed":
+      return "Failed";
+    case "canceled":
+      return "Canceled";
+    case "skipped":
+      return "Skipped";
+  }
+}
+
+function toStepLogStatusBadgeVariant(
+  status: JourneyRunStepLog["status"],
+): "default" | "destructive" | "secondary" | "outline" {
+  switch (status) {
+    case "success":
+      return "default";
+    case "error":
+      return "destructive";
+    case "cancelled":
+      return "secondary";
+    default:
+      return "outline";
+  }
+}
+
+function toStepLogStatusLabel(status: JourneyRunStepLog["status"]): string {
+  switch (status) {
+    case "pending":
+      return "Planned";
+    case "running":
+      return "Running";
+    case "success":
+      return "Completed";
+    case "error":
+      return "Failed";
+    case "cancelled":
+      return "Canceled";
+  }
+}
+
+function isRunTerminal(status: JourneyRun["status"]): boolean {
+  return status === "completed" || status === "failed" || status === "canceled";
 }
 
 function toReasonCodeLabel(reasonCode: string | null): string | null {
@@ -109,6 +176,41 @@ function toReasonCodeLabel(reasonCode: string | null): string | null {
   }
 
   return reasonCode.replaceAll("_", " ");
+}
+
+function toNodeTypeLabel(nodeType: string): string {
+  switch (nodeType.trim().toLowerCase()) {
+    case "trigger":
+      return "Trigger";
+    case "wait":
+      return "Wait";
+    case "condition":
+      return "If / else";
+    case "logger":
+      return "Logger";
+    case "send-resend":
+    case "email":
+      return "Send email";
+    case "send-resend-template":
+      return "Send email template";
+    case "send-slack":
+    case "slack":
+      return "Send Slack message";
+    default:
+      return nodeType.replaceAll("-", " ");
+  }
+}
+
+function formatDurationMs(durationMs: number | null): string | null {
+  if (durationMs === null) {
+    return null;
+  }
+
+  if (durationMs < 1000) {
+    return `${durationMs}ms`;
+  }
+
+  return `${(durationMs / 1000).toFixed(1)}s`;
 }
 
 function summarizeTestSafetyOutcomes(deliveries: JourneyRunDelivery[]): {
@@ -152,20 +254,19 @@ function toTimelineLabel(delivery: JourneyRunDelivery): string {
 }
 
 function toNodeLogStatus(
-  status: JourneyRunDelivery["status"],
+  status: JourneyRunStepLog["status"],
 ): "pending" | "running" | "success" | "error" | "cancelled" {
   switch (status) {
-    case "planned":
+    case "pending":
       return "pending";
-    case "sent":
+    case "running":
+      return "running";
+    case "success":
       return "success";
-    case "failed":
+    case "error":
       return "error";
-    case "canceled":
-    case "skipped":
+    case "cancelled":
       return "cancelled";
-    default:
-      return "pending";
   }
 }
 
@@ -208,8 +309,204 @@ function parseRunSnapshotGraph(runDetail: JourneyRunDetailResponse) {
   return parsed.data;
 }
 
+function getStepLabelByStepKey(
+  runDetail: JourneyRunDetailResponse,
+): Record<string, string> {
+  const graph = parseRunSnapshotGraph(runDetail);
+  if (!graph) {
+    return {};
+  }
+
+  return graph.nodes.reduce<Record<string, string>>((acc, node) => {
+    const nodeId = node.attributes.id;
+    const nodeData: Record<string, unknown> = isRecord(node.attributes.data)
+      ? node.attributes.data
+      : {};
+    const label = nodeData["label"];
+    if (typeof label === "string" && label.trim().length > 0) {
+      acc[nodeId] = label.trim();
+      return acc;
+    }
+
+    if (nodeData["type"] === "trigger") {
+      acc[nodeId] = "Trigger";
+      return acc;
+    }
+
+    const config = isRecord(nodeData["config"]) ? nodeData["config"] : null;
+    const actionType =
+      typeof config?.["actionType"] === "string" ? config["actionType"] : "";
+    acc[nodeId] = actionType.length > 0 ? toNodeTypeLabel(actionType) : "Step";
+
+    return acc;
+  }, {});
+}
+
+function getRecordPropertyDate(
+  record: Record<string, unknown>,
+  key: string,
+): string | Date | undefined {
+  const value = record[key];
+  if (typeof value === "string" || value instanceof Date) {
+    return value;
+  }
+
+  return undefined;
+}
+
+function resolveStepLogWaitUntil(
+  stepLog: JourneyRunStepLog,
+): string | Date | undefined {
+  if (stepLog.nodeType !== "wait") {
+    return undefined;
+  }
+
+  const output = isRecord(stepLog.output) ? stepLog.output : null;
+  if (output) {
+    const waitUntil =
+      getRecordPropertyDate(output, "waitUntil") ??
+      getRecordPropertyDate(output, "scheduledFor");
+    if (waitUntil) {
+      return waitUntil;
+    }
+  }
+
+  const input = isRecord(stepLog.input) ? stepLog.input : null;
+  if (input) {
+    return getRecordPropertyDate(input, "waitUntil");
+  }
+
+  return undefined;
+}
+
+function toLocalDisplayDate(value: string | Date): Date | string {
+  if (value instanceof Date) {
+    return value;
+  }
+
+  const parsed = new Date(value);
+  if (!Number.isNaN(parsed.getTime())) {
+    return parsed;
+  }
+
+  return value;
+}
+
+function toDisplayStepLogStatus(input: {
+  stepLog: JourneyRunStepLog;
+  runStatus: JourneyRun["status"];
+}): JourneyRunStepLog["status"] {
+  const { stepLog, runStatus } = input;
+  if (stepLog.nodeType !== "wait" || stepLog.status !== "running") {
+    return stepLog.status;
+  }
+
+  if (!isRunTerminal(runStatus)) {
+    return stepLog.status;
+  }
+
+  if (runStatus === "completed") {
+    return "success";
+  }
+
+  if (runStatus === "failed") {
+    return "error";
+  }
+
+  return "cancelled";
+}
+
+function isTraversedStatus(
+  status: JourneyRunStepLog["status"] | undefined,
+): boolean {
+  return status === "success" || status === "cancelled" || status === "error";
+}
+
+function isActiveStatus(
+  status: JourneyRunStepLog["status"] | undefined,
+): boolean {
+  return status === "pending" || status === "running";
+}
+
+function getStepLogReasonCode(stepLog: JourneyRunStepLog): string | null {
+  if (!isRecord(stepLog.output)) {
+    return null;
+  }
+
+  const reasonCode = stepLog.output["reasonCode"];
+  return typeof reasonCode === "string" ? reasonCode : null;
+}
+
+function toStepLogDisplaySubtitle(input: {
+  stepLog: JourneyRunStepLog;
+  displayStatus: JourneyRunStepLog["status"];
+}): string | null {
+  const { stepLog, displayStatus } = input;
+  const waitUntil = resolveStepLogWaitUntil(stepLog);
+  if (stepLog.nodeType === "wait" && waitUntil && displayStatus === "running") {
+    return `Waiting until ${formatDisplayDateTime(toLocalDisplayDate(waitUntil))}`;
+  }
+
+  const reasonLabel = toReasonCodeLabel(getStepLogReasonCode(stepLog));
+  if (reasonLabel) {
+    return reasonLabel;
+  }
+
+  if (isRecord(stepLog.output)) {
+    const matched = stepLog.output["matched"];
+    if (typeof matched === "boolean") {
+      return matched ? "Condition matched" : "Condition did not match";
+    }
+  }
+
+  return null;
+}
+
+function getEdgeExecutionStatusMap(
+  runDetail: JourneyRunDetailResponse,
+): Record<string, "default" | "active" | "traversed"> {
+  const graph = parseRunSnapshotGraph(runDetail);
+  if (!graph) {
+    return {};
+  }
+
+  const statusByNodeId = new Map(
+    runDetail.stepLogs.map((stepLog) => [
+      stepLog.stepKey,
+      toDisplayStepLogStatus({
+        stepLog,
+        runStatus: runDetail.run.status,
+      }),
+    ]),
+  );
+
+  const edgeStatusById: Record<string, "default" | "active" | "traversed"> = {};
+  for (const edge of graph.edges) {
+    const edgeId = edge.attributes.id;
+    const targetStatus = statusByNodeId.get(edge.target);
+    if (isTraversedStatus(targetStatus)) {
+      edgeStatusById[edgeId] = "traversed";
+      continue;
+    }
+
+    if (isActiveStatus(targetStatus)) {
+      edgeStatusById[edgeId] = "active";
+    }
+  }
+
+  return edgeStatusById;
+}
+
 function isRunActive(status: JourneyRun["status"]): boolean {
   return status === "planned" || status === "running";
+}
+
+function toJson(value: unknown): string {
+  try {
+    return JSON.stringify(value, null, 2);
+  } catch {
+    return String(value);
+  }
 }
 
 export function WorkflowRunsPanelView({
@@ -227,6 +524,10 @@ export function WorkflowRunsPanelView({
   isCancelJourneyRunsPending = false,
 }: WorkflowRunsPanelViewProps) {
   const [modeFilter, setModeFilter] = useState<RunModeFilter>("all");
+  const [expandedStepLogIds, setExpandedStepLogIds] = useState<Set<string>>(
+    new Set(),
+  );
+  const [advancedRunIds, setAdvancedRunIds] = useState<Set<string>>(new Set());
 
   const filteredRuns = useMemo(() => {
     if (modeFilter === "all") {
@@ -291,6 +592,19 @@ export function WorkflowRunsPanelView({
               selectedRunDetail?.run.id === run.id && run.mode === "test"
                 ? summarizeTestSafetyOutcomes(selectedRunDetail.deliveries)
                 : null;
+            const runEvents =
+              selectedRunDetail?.run.id === run.id
+                ? selectedRunDetail.events
+                : [];
+            const stepLogs =
+              selectedRunDetail?.run.id === run.id
+                ? selectedRunDetail.stepLogs
+                : [];
+            const stepLabelByStepKey =
+              selectedRunDetail?.run.id === run.id
+                ? getStepLabelByStepKey(selectedRunDetail)
+                : {};
+            const showAdvanced = advancedRunIds.has(run.id);
 
             return (
               <article
@@ -313,7 +627,7 @@ export function WorkflowRunsPanelView({
                     <div className="flex items-center gap-1">
                       <Badge variant="outline">{run.mode.toUpperCase()}</Badge>
                       <Badge variant={toRunStatusBadgeVariant(runStatus)}>
-                        {runStatus}
+                        {toRunStatusLabel(runStatus)}
                       </Badge>
                     </div>
                   </div>
@@ -346,7 +660,8 @@ export function WorkflowRunsPanelView({
                             Mode: <strong>{run.mode}</strong>
                           </p>
                           <p>
-                            Status: <strong>{runStatus}</strong>
+                            Status:{" "}
+                            <strong>{toRunStatusLabel(runStatus)}</strong>
                           </p>
                         </div>
 
@@ -398,9 +713,131 @@ export function WorkflowRunsPanelView({
                           </div>
                         ) : null}
 
-                        {selectedRunDetail.deliveries.length > 0 ? (
-                          <div className="space-y-1">
-                            <p className="font-medium text-xs">Timeline</p>
+                        {stepLogs.length > 0 ? (
+                          <div className="space-y-2">
+                            <div className="flex items-center justify-between gap-2">
+                              <p className="font-medium text-xs uppercase tracking-wide">
+                                Timeline
+                              </p>
+                              <p className="text-muted-foreground text-[11px]">
+                                {stepLogs.length}{" "}
+                                {stepLogs.length === 1 ? "step" : "steps"}
+                              </p>
+                            </div>
+                            {stepLogs.map((stepLog) => {
+                              const isExpanded = expandedStepLogIds.has(
+                                stepLog.id,
+                              );
+                              const displayStatus = toDisplayStepLogStatus({
+                                stepLog,
+                                runStatus,
+                              });
+                              const stepLabel =
+                                stepLabelByStepKey[stepLog.stepKey] ??
+                                toNodeTypeLabel(stepLog.nodeType);
+                              const stepSubtitle = toStepLogDisplaySubtitle({
+                                stepLog,
+                                displayStatus,
+                              });
+                              const duration = formatDurationMs(
+                                stepLog.durationMs,
+                              );
+
+                              return (
+                                <div
+                                  className="rounded-md border bg-background px-2 py-1 text-xs"
+                                  key={stepLog.id}
+                                >
+                                  <button
+                                    className="w-full text-left"
+                                    onClick={() => {
+                                      setExpandedStepLogIds((prev) => {
+                                        const next = new Set(prev);
+                                        if (next.has(stepLog.id)) {
+                                          next.delete(stepLog.id);
+                                        } else {
+                                          next.add(stepLog.id);
+                                        }
+                                        return next;
+                                      });
+                                    }}
+                                    type="button"
+                                  >
+                                    <div className="flex items-start justify-between gap-2">
+                                      <div className="min-w-0">
+                                        <p className="truncate font-medium text-sm">
+                                          {stepLabel}
+                                        </p>
+                                        <p className="text-muted-foreground text-[11px]">
+                                          {formatDisplayDateTime(
+                                            stepLog.startedAt,
+                                          )}
+                                        </p>
+                                        {stepSubtitle ? (
+                                          <p className="truncate text-muted-foreground text-[11px]">
+                                            {stepSubtitle}
+                                          </p>
+                                        ) : null}
+                                      </div>
+                                      <div className="flex shrink-0 flex-col items-end gap-1">
+                                        <Badge
+                                          variant={toStepLogStatusBadgeVariant(
+                                            displayStatus,
+                                          )}
+                                        >
+                                          {toStepLogStatusLabel(displayStatus)}
+                                        </Badge>
+                                        {duration ? (
+                                          <p className="font-mono text-[11px] text-muted-foreground tabular-nums">
+                                            {duration}
+                                          </p>
+                                        ) : null}
+                                      </div>
+                                    </div>
+                                  </button>
+                                  {isExpanded ? (
+                                    <div className="mt-2 space-y-2 border-t pt-2">
+                                      {stepLog.input ? (
+                                        <div className="space-y-1">
+                                          <p className="font-medium text-[11px] text-muted-foreground">
+                                            Input
+                                          </p>
+                                          <pre className="overflow-auto rounded border bg-muted/30 p-2 text-[11px]">
+                                            {toJson(stepLog.input)}
+                                          </pre>
+                                        </div>
+                                      ) : null}
+                                      {stepLog.output ? (
+                                        <div className="space-y-1">
+                                          <p className="font-medium text-[11px] text-muted-foreground">
+                                            Output
+                                          </p>
+                                          <pre className="overflow-auto rounded border bg-muted/30 p-2 text-[11px]">
+                                            {toJson(stepLog.output)}
+                                          </pre>
+                                        </div>
+                                      ) : null}
+                                      {stepLog.error ? (
+                                        <div className="space-y-1">
+                                          <p className="font-medium text-[11px] uppercase tracking-wide text-destructive">
+                                            Error
+                                          </p>
+                                          <pre className="overflow-auto rounded border border-destructive/30 bg-destructive/10 p-2 text-[11px]">
+                                            {stepLog.error}
+                                          </pre>
+                                        </div>
+                                      ) : null}
+                                    </div>
+                                  ) : null}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        ) : selectedRunDetail.deliveries.length > 0 ? (
+                          <div className="space-y-2">
+                            <p className="font-medium text-xs uppercase tracking-wide">
+                              Timeline
+                            </p>
                             {selectedRunDetail.deliveries.map((delivery) => {
                               const reasonLabel = toReasonCodeLabel(
                                 delivery.reasonCode,
@@ -420,7 +857,7 @@ export function WorkflowRunsPanelView({
                                         delivery.status,
                                       )}
                                     >
-                                      {delivery.status}
+                                      {toDeliveryStatusLabel(delivery.status)}
                                     </Badge>
                                   </div>
                                   <p className="text-muted-foreground text-[11px]">
@@ -442,6 +879,58 @@ export function WorkflowRunsPanelView({
                             No timeline entries yet.
                           </p>
                         )}
+
+                        {runEvents.length > 0 || stepLogs.length > 0 ? (
+                          <div className="space-y-2">
+                            <Button
+                              onClick={() => {
+                                setAdvancedRunIds((prev) => {
+                                  const next = new Set(prev);
+                                  if (next.has(run.id)) {
+                                    next.delete(run.id);
+                                  } else {
+                                    next.add(run.id);
+                                  }
+                                  return next;
+                                });
+                              }}
+                              size="sm"
+                              variant="outline"
+                            >
+                              {showAdvanced
+                                ? "Hide advanced details"
+                                : "Show advanced details"}
+                            </Button>
+
+                            {showAdvanced && runEvents.length > 0 ? (
+                              <div className="space-y-2 rounded-md border bg-muted/15 p-2">
+                                <p className="font-medium text-xs uppercase tracking-wide">
+                                  Audit events
+                                </p>
+                                <div className="space-y-2">
+                                  {runEvents.map((event: JourneyRunEvent) => (
+                                    <div
+                                      className="flex items-center justify-between rounded border bg-background px-2 py-1 text-xs"
+                                      key={event.id}
+                                    >
+                                      <div className="min-w-0">
+                                        <p className="truncate font-medium">
+                                          {event.message}
+                                        </p>
+                                        <p className="truncate text-muted-foreground">
+                                          {event.eventType}
+                                        </p>
+                                      </div>
+                                      <span className="shrink-0 text-[11px] text-muted-foreground">
+                                        {formatDisplayDateTime(event.createdAt)}
+                                      </span>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            ) : null}
+                          </div>
+                        ) : null}
                       </>
                     ) : null}
                   </div>
@@ -470,6 +959,9 @@ export function WorkflowRunsPanel({
   );
   const [, setExecutionLogsByNodeId] = useAtom(
     workflowExecutionLogsByNodeIdAtom,
+  );
+  const setExecutionEdgeStatusByEdgeId = useSetAtom(
+    workflowExecutionEdgeStatusByEdgeIdAtom,
   );
   const setExecutionViewGraph = useSetAtom(workflowExecutionViewGraphAtom);
   const queryClient = useQueryClient();
@@ -532,14 +1024,21 @@ export function WorkflowRunsPanel({
     () => () => {
       setSelectedExecutionId(null);
       setExecutionLogsByNodeId({});
+      setExecutionEdgeStatusByEdgeId({});
       setExecutionViewGraph(null);
     },
-    [setExecutionLogsByNodeId, setExecutionViewGraph, setSelectedExecutionId],
+    [
+      setExecutionEdgeStatusByEdgeId,
+      setExecutionLogsByNodeId,
+      setExecutionViewGraph,
+      setSelectedExecutionId,
+    ],
   );
 
   useEffect(() => {
     if (!selectedExecutionId || !runDetailQuery.data) {
       setExecutionLogsByNodeId({});
+      setExecutionEdgeStatusByEdgeId({});
       setExecutionViewGraph(null);
       return;
     }
@@ -549,21 +1048,32 @@ export function WorkflowRunsPanel({
       runSnapshotGraph ? deserializeWorkflowGraph(runSnapshotGraph) : null,
     );
 
-    const latestByStep = runDetailQuery.data.deliveries.reduce<
+    const latestByStep = runDetailQuery.data.stepLogs.reduce<
       Record<
         string,
         {
           nodeId: string;
           status: "pending" | "running" | "success" | "error" | "cancelled";
           input?: unknown;
+          output?: unknown;
+          waitUntil?: string | Date;
+          error?: string | null;
           startedAt?: string | Date;
         }
       >
-    >((acc, delivery) => {
-      acc[delivery.stepKey] = {
-        nodeId: delivery.stepKey,
-        status: toNodeLogStatus(delivery.status),
-        startedAt: delivery.scheduledFor,
+    >((acc, stepLog) => {
+      const displayStatus = toDisplayStepLogStatus({
+        stepLog,
+        runStatus: runDetailQuery.data.run.status,
+      });
+      acc[stepLog.stepKey] = {
+        nodeId: stepLog.stepKey,
+        status: toNodeLogStatus(displayStatus),
+        input: stepLog.input ?? undefined,
+        output: stepLog.output ?? undefined,
+        waitUntil: resolveStepLogWaitUntil(stepLog),
+        error: stepLog.error,
+        startedAt: stepLog.startedAt,
       };
 
       return acc;
@@ -581,9 +1091,13 @@ export function WorkflowRunsPanel({
     }
 
     setExecutionLogsByNodeId(latestByStep);
+    setExecutionEdgeStatusByEdgeId(
+      getEdgeExecutionStatusMap(runDetailQuery.data),
+    );
   }, [
     runDetailQuery.data,
     selectedExecutionId,
+    setExecutionEdgeStatusByEdgeId,
     setExecutionLogsByNodeId,
     setExecutionViewGraph,
   ]);

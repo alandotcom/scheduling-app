@@ -355,6 +355,8 @@ describe("JourneyService", () => {
 
     expect(runDetail.run.journeyVersion).toBe(2);
     expect(runDetail.deliveries).toHaveLength(1);
+    expect(runDetail.events).toBeArray();
+    expect(runDetail.stepLogs).toBeArray();
   });
 
   test("enforces org-scoped case-insensitive journey name uniqueness", async () => {
@@ -1127,6 +1129,8 @@ describe("JourneyService", () => {
     expect(
       runDetail.deliveries.map((delivery) => delivery.reasonCode),
     ).toContain("past_due");
+    expect(runDetail.events).toEqual([]);
+    expect(runDetail.stepLogs).toEqual([]);
   });
 
   test("get/list fail with explicit conflict when stored definition is invalid", async () => {

@@ -85,8 +85,50 @@ type EdgePalette = {
   labelBgStroke: string;
 };
 
-function getEdgePalette(selected: boolean | undefined): EdgePalette {
-  if (selected) {
+type ExecutionEdgeStatus = "default" | "active" | "traversed";
+
+function getExecutionEdgeStatus(data: EdgeProps["data"]): ExecutionEdgeStatus {
+  if (!isRecord(data)) {
+    return "default";
+  }
+
+  const value = data["executionStatus"];
+  if (value === "active" || value === "traversed") {
+    return value;
+  }
+
+  return "default";
+}
+
+function getEdgePalette(input: {
+  selected: boolean | undefined;
+  executionStatus: ExecutionEdgeStatus;
+}): EdgePalette {
+  if (input.executionStatus === "traversed") {
+    return {
+      stroke: "oklch(0.66 0.18 151)",
+      strokeWidth: 2.2,
+      animation: "dashdraw 0.5s linear infinite",
+      strokeDasharray: 6,
+      labelFill: "oklch(0.56 0.14 151)",
+      labelBgFill: "var(--background)",
+      labelBgStroke: "oklch(0.66 0.18 151)",
+    };
+  }
+
+  if (input.executionStatus === "active") {
+    return {
+      stroke: "var(--workflow-edge-active)",
+      strokeWidth: 2.2,
+      animation: "dashdraw 0.45s linear infinite",
+      strokeDasharray: 6,
+      labelFill: "var(--workflow-edge-active)",
+      labelBgFill: "var(--background)",
+      labelBgStroke: "var(--workflow-edge-active)",
+    };
+  }
+
+  if (input.selected) {
     return {
       stroke: "var(--foreground)",
       strokeWidth: 2.2,
@@ -106,6 +148,14 @@ function getEdgePalette(selected: boolean | undefined): EdgePalette {
     labelBgFill: "var(--background)",
     labelBgStroke: "var(--workflow-edge-default)",
   };
+}
+
+function getTemporaryEdgeStroke(selected: boolean | undefined): string {
+  if (selected) {
+    return "var(--workflow-edge-active)";
+  }
+
+  return "var(--workflow-edge-default)";
 }
 
 const Temporary = memo(function Temporary({
@@ -135,9 +185,7 @@ const Temporary = memo(function Temporary({
       id={id}
       path={edgePath}
       style={{
-        stroke: selected
-          ? "var(--workflow-edge-active)"
-          : "var(--workflow-edge-default)",
+        stroke: getTemporaryEdgeStroke(selected),
         strokeOpacity: 0.75,
         strokeDasharray: "5, 5",
         strokeWidth: 1.6,
@@ -270,7 +318,10 @@ const Animated = memo(function Animated({
   });
 
   const edgeLabel = getEdgeLabel({ label, data });
-  const palette = getEdgePalette(selected);
+  const palette = getEdgePalette({
+    selected,
+    executionStatus: getExecutionEdgeStatus(data),
+  });
 
   return (
     <BaseEdge

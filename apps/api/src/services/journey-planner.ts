@@ -27,6 +27,10 @@ import {
 } from "../inngest/runtime-events.js";
 import { evaluateJourneyConditionExpression } from "./journey-condition-evaluator.js";
 import { evaluateJourneyTriggerFilter } from "./journey-trigger-filters.js";
+import {
+  appendJourneyRunEvent,
+  upsertJourneyRunStepLog,
+} from "./journey-run-artifacts.js";
 import { resolveWaitUntil } from "./workflow-wait-time.js";
 
 const ACTIVE_JOURNEY_STATES = ["published"] as const;
@@ -105,6 +109,24 @@ type DesiredDelivery = {
   scheduledFor: Date;
   status: "planned" | "skipped";
   reasonCode: string | null;
+};
+
+type DesiredStepLog = {
+  stepKey: string;
+  nodeType: string;
+  status: "pending" | "running" | "success" | "error" | "cancelled";
+  startedAt: Date;
+  completedAt?: Date | null;
+  durationMs?: number | null;
+  logInput?: Record<string, unknown> | null;
+  logOutput?: Record<string, unknown> | null;
+  error?: string | null;
+};
+
+type DesiredRunEvent = {
+  eventType: string;
+  message: string;
+  metadata?: Record<string, unknown>;
 };
 
 type ActionNode = LinearJourneyGraph["nodes"][number];
@@ -391,7 +413,11 @@ function resolveConditionNextNodeIdForContext(input: {
   appointmentId: string;
   now: Date;
   orgTimezone: string;
-}): string | null {
+}): {
+  nextNodeId: string | null;
+  matched: boolean;
+  error: { code: string; message: string } | null;
+} {
   const conditionResult = evaluateJourneyConditionExpression({
     expression: getConditionExpression(input.node),
     context: {
@@ -416,11 +442,15 @@ function resolveConditionNextNodeIdForContext(input: {
   }
 
   const branch: ConditionBranch = conditionResult.matched ? "true" : "false";
-  return resolveConditionNextNodeId({
-    sourceNodeId: input.node.attributes.id,
-    branch,
-    outgoingEdgesBySource: input.outgoingEdgesBySource,
-  });
+  return {
+    nextNodeId: resolveConditionNextNodeId({
+      sourceNodeId: input.node.attributes.id,
+      branch,
+      outgoingEdgesBySource: input.outgoingEdgesBySource,
+    }),
+    matched: conditionResult.matched,
+    error: conditionResult.error ?? null,
+  };
 }
 
 function buildDeliveryDeterministicKey(input: {
@@ -478,13 +508,22 @@ function buildDesiredDeliveries(input: {
   appointmentId: string;
   appointmentContext: Record<string, unknown>;
   clientContext: Record<string, unknown>;
+  eventType: JourneyPlannerDomainEventType;
   eventTimestamp: string;
   now: Date;
   orgTimezone: string;
-}): DesiredDelivery[] {
+}): {
+  desiredDeliveries: DesiredDelivery[];
+  desiredStepLogs: DesiredStepLog[];
+  desiredRunEvents: DesiredRunEvent[];
+} {
   const triggerNode = getTriggerNode(input.graph);
   if (!triggerNode) {
-    return [];
+    return {
+      desiredDeliveries: [],
+      desiredStepLogs: [],
+      desiredRunEvents: [],
+    };
   }
 
   const nodeById = buildNodeById(input.graph);
@@ -495,6 +534,25 @@ function buildDesiredDeliveries(input: {
     : initialCursor;
 
   const desiredDeliveries: DesiredDelivery[] = [];
+  const desiredStepLogs: DesiredStepLog[] = [
+    {
+      stepKey: triggerNode.attributes.id,
+      nodeType: "trigger",
+      status: "success",
+      startedAt: startCursor,
+      completedAt: startCursor,
+      durationMs: 0,
+      logInput: {
+        eventType: input.eventType,
+        appointmentId: input.appointmentId,
+      },
+      logOutput: {
+        routed: true,
+      },
+      error: null,
+    },
+  ];
+  const desiredRunEvents: DesiredRunEvent[] = [];
   const visitedNodeIds = new Set<string>();
   const pending: Array<{ nodeId: string; cursor: Date }> =
     resolveDefaultNextNodeIds({
@@ -525,11 +583,44 @@ function buildDesiredDeliveries(input: {
     const actionType = getNormalizedActionType(node);
 
     if (actionType === "wait") {
+      const config = getActionConfig(node);
       const nextCursor = resolveWaitCursor({
         node,
         cursor: current.cursor,
         appointmentContext: input.appointmentContext,
       });
+      const isWaiting = nextCursor.getTime() > input.now.getTime();
+      desiredStepLogs.push({
+        stepKey: node.attributes.id,
+        nodeType: "wait",
+        status: isWaiting ? "running" : "success",
+        startedAt: current.cursor,
+        completedAt: isWaiting ? null : nextCursor,
+        durationMs: isWaiting
+          ? null
+          : Math.max(0, nextCursor.getTime() - current.cursor.getTime()),
+        logInput: {
+          waitDuration: config["waitDuration"] ?? null,
+          waitUntil: config["waitUntil"] ?? null,
+          waitOffset: config["waitOffset"] ?? null,
+          waitTimezone: config["waitTimezone"] ?? null,
+          cursor: current.cursor.toISOString(),
+        },
+        logOutput: {
+          waitUntil: nextCursor.toISOString(),
+        },
+        error: null,
+      });
+      if (isWaiting) {
+        desiredRunEvents.push({
+          eventType: "run_waiting",
+          message: `Run waiting in delay node '${node.attributes.data.label || "Wait"}'`,
+          metadata: {
+            stepKey: node.attributes.id,
+            waitUntil: nextCursor.toISOString(),
+          },
+        });
+      }
       for (const nextNodeId of resolveDefaultNextNodeIds({
         sourceNodeId: node.attributes.id,
         outgoingEdgesBySource,
@@ -540,7 +631,7 @@ function buildDesiredDeliveries(input: {
     }
 
     if (actionType === "condition") {
-      const nextNodeId = resolveConditionNextNodeIdForContext({
+      const conditionResult = resolveConditionNextNodeIdForContext({
         node,
         outgoingEdgesBySource,
         appointmentContext: input.appointmentContext,
@@ -550,8 +641,27 @@ function buildDesiredDeliveries(input: {
         now: input.now,
         orgTimezone: input.orgTimezone,
       });
-      if (nextNodeId) {
-        pending.push({ nodeId: nextNodeId, cursor: current.cursor });
+      desiredStepLogs.push({
+        stepKey: node.attributes.id,
+        nodeType: "condition",
+        status: conditionResult.error ? "error" : "success",
+        startedAt: current.cursor,
+        completedAt: current.cursor,
+        durationMs: 0,
+        logInput: {
+          expression: getConditionExpression(node),
+        },
+        logOutput: {
+          matched: conditionResult.matched,
+          nextNodeId: conditionResult.nextNodeId,
+        },
+        error: conditionResult.error?.message ?? null,
+      });
+      if (conditionResult.nextNodeId) {
+        pending.push({
+          nodeId: conditionResult.nextNodeId,
+          cursor: current.cursor,
+        });
       }
       continue;
     }
@@ -567,7 +677,6 @@ function buildDesiredDeliveries(input: {
     }
 
     const scheduledFor = new Date(current.cursor);
-    const isPastDue = scheduledFor.getTime() < input.now.getTime();
     desiredDeliveries.push({
       actionType,
       deterministicKey: buildDeliveryDeterministicKey({
@@ -578,8 +687,25 @@ function buildDesiredDeliveries(input: {
       stepKey: node.attributes.id,
       channel: resolveChannel(actionType),
       scheduledFor,
-      status: isPastDue ? "skipped" : "planned",
-      reasonCode: isPastDue ? "past_due" : null,
+      status: "planned",
+      reasonCode: null,
+    });
+    desiredStepLogs.push({
+      stepKey: node.attributes.id,
+      nodeType: actionType,
+      status: "pending",
+      startedAt: scheduledFor,
+      completedAt: null,
+      durationMs: null,
+      logInput: {
+        channel: resolveChannel(actionType),
+      },
+      logOutput: {
+        scheduledFor: scheduledFor.toISOString(),
+        status: "planned",
+        reasonCode: null,
+      },
+      error: null,
     });
 
     for (const nextNodeId of resolveDefaultNextNodeIds({
@@ -590,7 +716,11 @@ function buildDesiredDeliveries(input: {
     }
   }
 
-  return desiredDeliveries;
+  return {
+    desiredDeliveries,
+    desiredStepLogs,
+    desiredRunEvents,
+  };
 }
 
 async function findJourneyRun(input: {
@@ -621,7 +751,7 @@ async function findOrCreateJourneyRun(input: {
   journeyVersion: JourneyVersionRow;
   appointmentId: string;
   mode: "live" | "test";
-}): Promise<JourneyRunRow> {
+}): Promise<{ run: JourneyRunRow; created: boolean }> {
   const existing = await findJourneyRun({
     tx: input.tx,
     journeyVersionId: input.journeyVersion.id,
@@ -630,7 +760,10 @@ async function findOrCreateJourneyRun(input: {
   });
 
   if (existing) {
-    return existing;
+    return {
+      run: existing,
+      created: false,
+    };
   }
 
   const [created] = await input.tx
@@ -659,7 +792,10 @@ async function findOrCreateJourneyRun(input: {
     .returning();
 
   if (created) {
-    return created;
+    return {
+      run: created,
+      created: true,
+    };
   }
 
   const resolved = await findJourneyRun({
@@ -673,7 +809,10 @@ async function findOrCreateJourneyRun(input: {
     throw new Error("Failed to resolve journey run after upsert.");
   }
 
-  return resolved;
+  return {
+    run: resolved,
+    created: false,
+  };
 }
 
 async function markRunCanceled(input: {
@@ -797,7 +936,11 @@ async function cancelPendingDeliveries(input: {
 }): Promise<string[]> {
   const [plannedRows, runRows] = await Promise.all([
     input.tx
-      .select({ id: journeyDeliveries.id })
+      .select({
+        id: journeyDeliveries.id,
+        stepKey: journeyDeliveries.stepKey,
+        scheduledFor: journeyDeliveries.scheduledFor,
+      })
       .from(journeyDeliveries)
       .where(
         and(
@@ -833,6 +976,8 @@ async function cancelPendingDeliveries(input: {
       id: journeyDeliveries.id,
       deterministicKey: journeyDeliveries.deterministicKey,
       journeyRunId: journeyDeliveries.journeyRunId,
+      stepKey: journeyDeliveries.stepKey,
+      scheduledFor: journeyDeliveries.scheduledFor,
     });
 
   await markRunCanceled({
@@ -845,6 +990,21 @@ async function cancelPendingDeliveries(input: {
   await forEachAsync(
     canceled,
     async (delivery) => {
+      await upsertJourneyRunStepLog({
+        tx: input.tx,
+        orgId: input.orgId,
+        runId: delivery.journeyRunId,
+        stepKey: delivery.stepKey,
+        nodeType: "delivery",
+        status: "cancelled",
+        startedAt: delivery.scheduledFor,
+        completedAt: delivery.scheduledFor,
+        durationMs: 0,
+        logOutput: {
+          status: "canceled",
+          reasonCode: input.reasonCode,
+        },
+      });
       await input.cancelRequester({
         orgId: input.orgId,
         journeyDeliveryId: delivery.id,
@@ -855,6 +1015,18 @@ async function cancelPendingDeliveries(input: {
     },
     { concurrency: 1 },
   );
+
+  await appendJourneyRunEvent({
+    tx: input.tx,
+    orgId: input.orgId,
+    runId: input.runId,
+    eventType: "run_canceled",
+    message: "Run canceled",
+    metadata: {
+      reasonCode: input.reasonCode,
+      canceledDeliveryCount: canceled.length,
+    },
+  });
 
   return canceled.map((delivery) => delivery.id);
 }
@@ -912,11 +1084,28 @@ async function reconcileDeliveries(input: {
             id: journeyDeliveries.id,
             journeyRunId: journeyDeliveries.journeyRunId,
             deterministicKey: journeyDeliveries.deterministicKey,
+            stepKey: journeyDeliveries.stepKey,
+            scheduledFor: journeyDeliveries.scheduledFor,
           });
 
   await forEachAsync(
     staleCanceled,
     async (delivery) => {
+      await upsertJourneyRunStepLog({
+        tx: input.tx,
+        orgId: input.orgId,
+        runId: delivery.journeyRunId,
+        stepKey: delivery.stepKey,
+        nodeType: "delivery",
+        status: "cancelled",
+        startedAt: delivery.scheduledFor,
+        completedAt: delivery.scheduledFor,
+        durationMs: 0,
+        logOutput: {
+          status: "canceled",
+          reasonCode: "execution_terminal",
+        },
+      });
       await input.cancelRequester({
         orgId: input.orgId,
         journeyDeliveryId: delivery.id,
@@ -955,8 +1144,11 @@ async function reconcileDeliveries(input: {
           id: journeyDeliveries.id,
           journeyRunId: journeyDeliveries.journeyRunId,
           deterministicKey: journeyDeliveries.deterministicKey,
+          stepKey: journeyDeliveries.stepKey,
+          channel: journeyDeliveries.channel,
           scheduledFor: journeyDeliveries.scheduledFor,
           status: journeyDeliveries.status,
+          reasonCode: journeyDeliveries.reasonCode,
         });
 
       if (!created) {
@@ -964,6 +1156,33 @@ async function reconcileDeliveries(input: {
       }
 
       if (created.status === "planned") {
+        await upsertJourneyRunStepLog({
+          tx: input.tx,
+          orgId: input.orgId,
+          runId: created.journeyRunId,
+          stepKey: created.stepKey,
+          nodeType: created.channel,
+          status: "pending",
+          startedAt: created.scheduledFor,
+          completedAt: null,
+          durationMs: null,
+          logOutput: {
+            status: "planned",
+            scheduledFor: created.scheduledFor.toISOString(),
+          },
+        });
+        await appendJourneyRunEvent({
+          tx: input.tx,
+          orgId: input.orgId,
+          runId: created.journeyRunId,
+          eventType: "delivery_planned",
+          message: `Step ${created.stepKey} planned`,
+          metadata: {
+            stepKey: created.stepKey,
+            channel: created.channel,
+            scheduledFor: created.scheduledFor.toISOString(),
+          },
+        });
         scheduledDeliveryIds.push(created.id);
         const payload = {
           orgId: input.orgId,
@@ -983,6 +1202,32 @@ async function reconcileDeliveries(input: {
       }
 
       if (created.status === "skipped") {
+        await upsertJourneyRunStepLog({
+          tx: input.tx,
+          orgId: input.orgId,
+          runId: created.journeyRunId,
+          stepKey: created.stepKey,
+          nodeType: created.channel,
+          status: "cancelled",
+          startedAt: created.scheduledFor,
+          completedAt: created.scheduledFor,
+          durationMs: 0,
+          logOutput: {
+            status: "skipped",
+            reasonCode: created.reasonCode,
+          },
+        });
+        await appendJourneyRunEvent({
+          tx: input.tx,
+          orgId: input.orgId,
+          runId: created.journeyRunId,
+          eventType: "delivery_skipped",
+          message: `Step ${created.stepKey} skipped`,
+          metadata: {
+            stepKey: created.stepKey,
+            reasonCode: created.reasonCode,
+          },
+        });
         skippedDeliveryIds.push(created.id);
       }
     },
@@ -1138,7 +1383,7 @@ export async function processJourneyDomainEvent(
           }
 
           const mode = dependencies.modeOverride ?? journey.mode;
-          const run = await findOrCreateJourneyRun({
+          const runResult = await findOrCreateJourneyRun({
             tx,
             orgId: event.orgId,
             journey,
@@ -1146,6 +1391,22 @@ export async function processJourneyDomainEvent(
             appointmentId,
             mode,
           });
+          const run = runResult.run;
+
+          if (runResult.created) {
+            await appendJourneyRunEvent({
+              tx,
+              orgId: event.orgId,
+              runId: run.id,
+              eventType: "run_started",
+              message: "Manual run started",
+              metadata: {
+                journeyId: journey.id,
+                journeyVersion: latestVersion.version,
+                mode,
+              },
+            });
+          }
 
           if (routing === "cancel") {
             const canceledIds = await cancelPendingDeliveries({
@@ -1189,26 +1450,74 @@ export async function processJourneyDomainEvent(
             tx,
             runId: run.id,
           });
+          await appendJourneyRunEvent({
+            tx,
+            orgId: event.orgId,
+            runId: run.id,
+            eventType: "run_planned",
+            message: "Run planned from trigger event",
+            metadata: {
+              eventId: event.id,
+              eventType: event.type,
+            },
+          });
 
           plannedRunIds.push(run.id);
 
-          const desiredDeliveries = buildDesiredDeliveries({
+          const buildResult = buildDesiredDeliveries({
             graph: parsedGraph.data,
             journeyRunId: run.id,
             journeyId: journey.id,
             appointmentId,
             appointmentContext,
             clientContext,
+            eventType: event.type,
             eventTimestamp: event.timestamp,
             now,
             orgTimezone,
           });
 
+          await forEachAsync(
+            buildResult.desiredStepLogs,
+            async (stepLog) => {
+              await upsertJourneyRunStepLog({
+                tx,
+                orgId: event.orgId,
+                runId: run.id,
+                stepKey: stepLog.stepKey,
+                nodeType: stepLog.nodeType,
+                status: stepLog.status,
+                startedAt: stepLog.startedAt,
+                completedAt: stepLog.completedAt,
+                durationMs: stepLog.durationMs,
+                logInput: stepLog.logInput,
+                logOutput: stepLog.logOutput,
+                error: stepLog.error,
+              });
+            },
+            { concurrency: 1 },
+          );
+
+          await forEachAsync(
+            buildResult.desiredRunEvents,
+            async (runEvent) => {
+              await appendJourneyRunEvent({
+                tx,
+                orgId: event.orgId,
+                runId: run.id,
+                eventType: runEvent.eventType,
+                message: runEvent.message,
+                metadata: runEvent.metadata,
+              });
+            },
+            { concurrency: 1 },
+          );
+
           const reconciliationResult = await reconcileDeliveries({
             tx,
             runId: run.id,
             orgId: event.orgId,
-            desiredDeliveries,
+            desiredDeliveries: buildResult.desiredDeliveries,
             scheduleResendRequester,
             scheduleSlackRequester,
             scheduleLoggerRequester,

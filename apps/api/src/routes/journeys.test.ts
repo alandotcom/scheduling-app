@@ -806,6 +806,8 @@ describe("Journey Routes", () => {
     expect(runDetail.run.journeyDeleted).toBe(true);
     expect(runDetail.run.journeyVersion).toBe(published.version);
     expect(runDetail.run.mode).toBe("test");
+    expect(runDetail.events).toBeArray();
+    expect(runDetail.stepLogs).toBeArray();
     expect(liveRun).toBeDefined();
   });
 

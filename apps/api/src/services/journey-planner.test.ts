@@ -1250,7 +1250,7 @@ describe("processJourneyDomainEvent", () => {
     expect(scheduleResendRequester).toHaveBeenCalledTimes(1);
   });
 
-  test("marks past-due deliveries as skipped with reasonCode=past_due", async () => {
+  test("plans immediate action deliveries even when scheduled timestamp is in the past", async () => {
     const created = await journeyService.create(
       {
         name: "Past Due Journey",
@@ -1299,9 +1299,9 @@ describe("processJourneyDomainEvent", () => {
       .where(eq(journeyDeliveries.journeyRunId, runs[0]!.id));
 
     expect(deliveries).toHaveLength(1);
-    expect(deliveries[0]?.status).toBe("skipped");
-    expect(deliveries[0]?.reasonCode).toBe("past_due");
-    expect(scheduleResendRequester).toHaveBeenCalledTimes(0);
+    expect(deliveries[0]?.status).toBe("planned");
+    expect(deliveries[0]?.reasonCode).toBeNull();
+    expect(scheduleResendRequester).toHaveBeenCalledTimes(1);
   });
 
   test("creates mode=test runs for published journeys in test mode", async () => {

@@ -17,6 +17,7 @@ CREATE TYPE "journey_delivery_status" AS ENUM('planned', 'sent', 'failed', 'canc
 CREATE TYPE "journey_mode" AS ENUM('live', 'test');--> statement-breakpoint
 CREATE TYPE "journey_run_mode" AS ENUM('live', 'test');--> statement-breakpoint
 CREATE TYPE "journey_run_status" AS ENUM('planned', 'running', 'completed', 'canceled', 'failed');--> statement-breakpoint
+CREATE TYPE "journey_run_step_log_status" AS ENUM('pending', 'running', 'success', 'error', 'cancelled');--> statement-breakpoint
 CREATE TYPE "journey_state" AS ENUM('draft', 'published', 'paused');--> statement-breakpoint
 CREATE TYPE "org_role" AS ENUM('owner', 'admin', 'member');--> statement-breakpoint
 CREATE TABLE "accounts" (
@@ -213,6 +214,35 @@ CREATE TABLE "journey_runs" (
 );
 --> statement-breakpoint
 ALTER TABLE "journey_runs" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
+CREATE TABLE "journey_run_events" (
+	"id" uuid PRIMARY KEY DEFAULT uuidv7(),
+	"org_id" uuid NOT NULL,
+	"journey_run_id" uuid NOT NULL,
+	"event_type" text NOT NULL,
+	"message" text NOT NULL,
+	"metadata" jsonb,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+ALTER TABLE "journey_run_events" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
+CREATE TABLE "journey_run_step_logs" (
+	"id" uuid PRIMARY KEY DEFAULT uuidv7(),
+	"org_id" uuid NOT NULL,
+	"journey_run_id" uuid NOT NULL,
+	"step_key" text NOT NULL,
+	"node_type" text NOT NULL,
+	"status" "journey_run_step_log_status" NOT NULL,
+	"input" jsonb,
+	"output" jsonb,
+	"error" text,
+	"started_at" timestamp with time zone NOT NULL,
+	"completed_at" timestamp with time zone,
+	"duration_ms" integer,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+ALTER TABLE "journey_run_step_logs" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
 CREATE TABLE "journey_versions" (
 	"id" uuid PRIMARY KEY DEFAULT uuidv7(),
 	"org_id" uuid NOT NULL,
@@ -367,6 +397,10 @@ CREATE INDEX "journey_deliveries_org_status_idx" ON "journey_deliveries" ("org_i
 CREATE UNIQUE INDEX "journey_runs_org_identity_uidx" ON "journey_runs" ("org_id","journey_version_id","appointment_id","mode");--> statement-breakpoint
 CREATE INDEX "journey_runs_org_status_idx" ON "journey_runs" ("org_id","status");--> statement-breakpoint
 CREATE INDEX "journey_runs_org_mode_started_at_idx" ON "journey_runs" ("org_id","mode","started_at");--> statement-breakpoint
+CREATE INDEX "journey_run_events_org_run_created_at_idx" ON "journey_run_events" ("org_id","journey_run_id","created_at");--> statement-breakpoint
+CREATE UNIQUE INDEX "journey_run_step_logs_org_run_step_uidx" ON "journey_run_step_logs" ("org_id","journey_run_id","step_key");--> statement-breakpoint
+CREATE INDEX "journey_run_step_logs_org_run_started_at_idx" ON "journey_run_step_logs" ("org_id","journey_run_id","started_at");--> statement-breakpoint
+CREATE INDEX "journey_run_step_logs_org_step_key_idx" ON "journey_run_step_logs" ("org_id","step_key");--> statement-breakpoint
 CREATE UNIQUE INDEX "journey_versions_org_journey_version_uidx" ON "journey_versions" ("org_id","journey_id","version");--> statement-breakpoint
 CREATE INDEX "journey_versions_org_journey_published_at_idx" ON "journey_versions" ("org_id","journey_id","published_at");--> statement-breakpoint
 CREATE UNIQUE INDEX "journeys_org_name_ci_uidx" ON "journeys" ("org_id",lower("name"));--> statement-breakpoint
@@ -397,6 +431,10 @@ ALTER TABLE "journey_deliveries" ADD CONSTRAINT "journey_deliveries_org_id_orgs_
 ALTER TABLE "journey_deliveries" ADD CONSTRAINT "journey_deliveries_journey_run_id_journey_runs_id_fkey" FOREIGN KEY ("journey_run_id") REFERENCES "journey_runs"("id") ON DELETE CASCADE;--> statement-breakpoint
 ALTER TABLE "journey_runs" ADD CONSTRAINT "journey_runs_org_id_orgs_id_fkey" FOREIGN KEY ("org_id") REFERENCES "orgs"("id");--> statement-breakpoint
 ALTER TABLE "journey_runs" ADD CONSTRAINT "journey_runs_journey_version_id_journey_versions_id_fkey" FOREIGN KEY ("journey_version_id") REFERENCES "journey_versions"("id") ON DELETE SET NULL;--> statement-breakpoint
+ALTER TABLE "journey_run_events" ADD CONSTRAINT "journey_run_events_org_id_orgs_id_fkey" FOREIGN KEY ("org_id") REFERENCES "orgs"("id");--> statement-breakpoint
+ALTER TABLE "journey_run_events" ADD CONSTRAINT "journey_run_events_journey_run_id_journey_runs_id_fkey" FOREIGN KEY ("journey_run_id") REFERENCES "journey_runs"("id") ON DELETE CASCADE;--> statement-breakpoint
+ALTER TABLE "journey_run_step_logs" ADD CONSTRAINT "journey_run_step_logs_org_id_orgs_id_fkey" FOREIGN KEY ("org_id") REFERENCES "orgs"("id");--> statement-breakpoint
+ALTER TABLE "journey_run_step_logs" ADD CONSTRAINT "journey_run_step_logs_journey_run_id_journey_runs_id_fkey" FOREIGN KEY ("journey_run_id") REFERENCES "journey_runs"("id") ON DELETE CASCADE;--> statement-breakpoint
 ALTER TABLE "journey_versions" ADD CONSTRAINT "journey_versions_org_id_orgs_id_fkey" FOREIGN KEY ("org_id") REFERENCES "orgs"("id");--> statement-breakpoint
 ALTER TABLE "journey_versions" ADD CONSTRAINT "journey_versions_journey_id_journeys_id_fkey" FOREIGN KEY ("journey_id") REFERENCES "journeys"("id") ON DELETE CASCADE;--> statement-breakpoint
 ALTER TABLE "journeys" ADD CONSTRAINT "journeys_org_id_orgs_id_fkey" FOREIGN KEY ("org_id") REFERENCES "orgs"("id");--> statement-breakpoint
@@ -418,6 +456,8 @@ CREATE POLICY "org_isolation_clients" ON "clients" AS PERMISSIVE FOR ALL TO publ
 CREATE POLICY "org_isolation_integrations" ON "integrations" AS PERMISSIVE FOR ALL TO public USING (org_id = current_org_id()) WITH CHECK (org_id = current_org_id());--> statement-breakpoint
 CREATE POLICY "org_isolation_journey_deliveries" ON "journey_deliveries" AS PERMISSIVE FOR ALL TO public USING (org_id = current_org_id()) WITH CHECK (org_id = current_org_id());--> statement-breakpoint
 CREATE POLICY "org_isolation_journey_runs" ON "journey_runs" AS PERMISSIVE FOR ALL TO public USING (org_id = current_org_id()) WITH CHECK (org_id = current_org_id());--> statement-breakpoint
+CREATE POLICY "org_isolation_journey_run_events" ON "journey_run_events" AS PERMISSIVE FOR ALL TO public USING (org_id = current_org_id()) WITH CHECK (org_id = current_org_id());--> statement-breakpoint
+CREATE POLICY "org_isolation_journey_run_step_logs" ON "journey_run_step_logs" AS PERMISSIVE FOR ALL TO public USING (org_id = current_org_id()) WITH CHECK (org_id = current_org_id());--> statement-breakpoint
 CREATE POLICY "org_isolation_journey_versions" ON "journey_versions" AS PERMISSIVE FOR ALL TO public USING (org_id = current_org_id()) WITH CHECK (org_id = current_org_id());--> statement-breakpoint
 CREATE POLICY "org_isolation_journeys" ON "journeys" AS PERMISSIVE FOR ALL TO public USING (org_id = current_org_id()) WITH CHECK (org_id = current_org_id());--> statement-breakpoint
 CREATE POLICY "org_isolation_locations" ON "locations" AS PERMISSIVE FOR ALL TO public USING (org_id = current_org_id()) WITH CHECK (org_id = current_org_id());--> statement-breakpoint

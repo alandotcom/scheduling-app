@@ -217,6 +217,8 @@ export const relations = defineRelations(schema, (r) => ({
       to: r.journeyVersions.id,
     }),
     deliveries: r.many.journeyDeliveries(),
+    events: r.many.journeyRunEvents(),
+    stepLogs: r.many.journeyRunStepLogs(),
   },
 
   journeyDeliveries: {
@@ -226,6 +228,28 @@ export const relations = defineRelations(schema, (r) => ({
     }),
     journeyRun: r.one.journeyRuns({
       from: r.journeyDeliveries.journeyRunId,
+      to: r.journeyRuns.id,
+    }),
+  },
+
+  journeyRunEvents: {
+    org: r.one.orgs({
+      from: r.journeyRunEvents.orgId,
+      to: r.orgs.id,
+    }),
+    journeyRun: r.one.journeyRuns({
+      from: r.journeyRunEvents.journeyRunId,
+      to: r.journeyRuns.id,
+    }),
+  },
+
+  journeyRunStepLogs: {
+    org: r.one.orgs({
+      from: r.journeyRunStepLogs.orgId,
+      to: r.orgs.id,
+    }),
+    journeyRun: r.one.journeyRuns({
+      from: r.journeyRunStepLogs.journeyRunId,
       to: r.journeyRuns.id,
     }),
   },

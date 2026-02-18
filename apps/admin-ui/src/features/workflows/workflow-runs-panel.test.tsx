@@ -123,6 +123,8 @@ describe("WorkflowRunsPanelView", () => {
               updatedAt: new Date("2026-03-10T14:02:00.000Z"),
             },
           ],
+          events: [],
+          stepLogs: [],
         }}
         selectedRunId="run-1"
       />,
@@ -130,6 +132,158 @@ describe("WorkflowRunsPanelView", () => {
 
     expect(screen.getByText("Logger entry")).toBeTruthy();
     expect(screen.getByText("Past due")).toBeTruthy();
+  });
+
+  test("hides raw audit events by default and reveals them in advanced mode", () => {
+    render(
+      <WorkflowRunsPanelView
+        canManageWorkflow={true}
+        isLoadingRunDetail={false}
+        isLoadingRuns={false}
+        onRefresh={() => {}}
+        onSelectRun={() => {}}
+        runs={[
+          {
+            id: "run-audit",
+            journeyVersionId: "version-audit",
+            appointmentId: "appointment-9",
+            mode: "live",
+            status: "running",
+            startedAt: new Date("2026-03-10T14:00:00.000Z"),
+            completedAt: null,
+            cancelledAt: null,
+            journeyNameSnapshot: "Journey Audit",
+            journeyVersion: 2,
+            journeyDeleted: false,
+          },
+        ]}
+        selectedRunDetail={{
+          run: {
+            id: "run-audit",
+            journeyVersionId: "version-audit",
+            appointmentId: "appointment-9",
+            mode: "live",
+            status: "running",
+            startedAt: new Date("2026-03-10T14:00:00.000Z"),
+            completedAt: null,
+            cancelledAt: null,
+            journeyNameSnapshot: "Journey Audit",
+            journeyVersion: 2,
+            journeyDeleted: false,
+          },
+          runSnapshot: {
+            version: 2,
+          },
+          deliveries: [],
+          events: [
+            {
+              id: "event-1",
+              journeyRunId: "run-audit",
+              eventType: "run_waiting",
+              message: "Run waiting in delay node 'Wait'",
+              metadata: null,
+              createdAt: new Date("2026-03-10T14:00:01.000Z"),
+            },
+          ],
+          stepLogs: [
+            {
+              id: "step-1",
+              journeyRunId: "run-audit",
+              stepKey: "wait-step",
+              nodeType: "wait",
+              status: "running",
+              input: null,
+              output: {
+                waitUntil: "2026-03-10T14:05:00.000Z",
+              },
+              error: null,
+              startedAt: new Date("2026-03-10T14:00:01.000Z"),
+              completedAt: null,
+              durationMs: null,
+              createdAt: new Date("2026-03-10T14:00:01.000Z"),
+              updatedAt: new Date("2026-03-10T14:00:01.000Z"),
+            },
+          ],
+        }}
+        selectedRunId="run-audit"
+      />,
+    );
+
+    expect(screen.queryByText("run_waiting")).toBeNull();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Show advanced details" }),
+    );
+    expect(screen.getByText("run_waiting")).toBeTruthy();
+  });
+
+  test("treats stale running wait steps as completed for terminal runs", () => {
+    render(
+      <WorkflowRunsPanelView
+        canManageWorkflow={true}
+        isLoadingRunDetail={false}
+        isLoadingRuns={false}
+        onRefresh={() => {}}
+        onSelectRun={() => {}}
+        runs={[
+          {
+            id: "run-terminal",
+            journeyVersionId: "version-terminal",
+            appointmentId: "appointment-terminal",
+            mode: "live",
+            status: "completed",
+            startedAt: new Date("2026-03-10T14:00:00.000Z"),
+            completedAt: new Date("2026-03-10T14:05:00.000Z"),
+            cancelledAt: null,
+            journeyNameSnapshot: "Journey Terminal",
+            journeyVersion: 2,
+            journeyDeleted: false,
+          },
+        ]}
+        selectedRunDetail={{
+          run: {
+            id: "run-terminal",
+            journeyVersionId: "version-terminal",
+            appointmentId: "appointment-terminal",
+            mode: "live",
+            status: "completed",
+            startedAt: new Date("2026-03-10T14:00:00.000Z"),
+            completedAt: new Date("2026-03-10T14:05:00.000Z"),
+            cancelledAt: null,
+            journeyNameSnapshot: "Journey Terminal",
+            journeyVersion: 2,
+            journeyDeleted: false,
+          },
+          runSnapshot: {
+            version: 2,
+          },
+          deliveries: [],
+          events: [],
+          stepLogs: [
+            {
+              id: "step-wait",
+              journeyRunId: "run-terminal",
+              stepKey: "wait-step",
+              nodeType: "wait",
+              status: "running",
+              input: null,
+              output: {
+                waitUntil: "2026-03-10T14:05:00.000Z",
+              },
+              error: null,
+              startedAt: new Date("2026-03-10T14:00:00.000Z"),
+              completedAt: null,
+              durationMs: null,
+              createdAt: new Date("2026-03-10T14:00:00.000Z"),
+              updatedAt: new Date("2026-03-10T14:05:00.000Z"),
+            },
+          ],
+        }}
+        selectedRunId="run-terminal"
+      />,
+    );
+
+    expect(screen.queryByText(/Waiting until/i)).toBeNull();
+    expect(screen.getAllByText("Completed").length).toBeGreaterThan(0);
   });
 
   test("uses snapshot labels when journey definition was deleted", () => {
@@ -210,6 +364,8 @@ describe("WorkflowRunsPanelView", () => {
             version: 3,
           },
           deliveries: [],
+          events: [],
+          stepLogs: [],
         }}
         selectedRunId="run-active"
       />,
@@ -267,12 +423,14 @@ describe("WorkflowRunsPanelView", () => {
             version: 4,
           },
           deliveries: [],
+          events: [],
+          stepLogs: [],
         }}
         selectedRunId="run-stale"
       />,
     );
 
-    expect(screen.getAllByText("completed").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Completed").length).toBeGreaterThan(0);
     expect(
       screen.queryByRole("button", { name: "Cancel this run" }),
     ).toBeNull();

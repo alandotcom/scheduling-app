@@ -17,6 +17,8 @@ import {
   type JourneyRun,
   type JourneyRunDelivery,
   type JourneyRunDetailResponse,
+  type JourneyRunEvent,
+  type JourneyRunStepLog,
   type LinearJourneyGraph,
   type ListJourneyRunsQuery,
   type PublishJourneyInput,
@@ -31,6 +33,8 @@ import {
   appointments,
   clients,
   journeyDeliveries,
+  journeyRunEvents,
+  journeyRunStepLogs,
   journeyRuns,
   journeys,
   journeyVersions,
@@ -223,6 +227,39 @@ function toJourneyRunDelivery(
     scheduledFor: row.scheduledFor,
     status: row.status,
     reasonCode: row.reasonCode,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+  };
+}
+
+function toJourneyRunEvent(
+  row: typeof journeyRunEvents.$inferSelect,
+): JourneyRunEvent {
+  return {
+    id: row.id,
+    journeyRunId: row.journeyRunId,
+    eventType: row.eventType,
+    message: row.message,
+    metadata: row.metadata ?? null,
+    createdAt: row.createdAt,
+  };
+}
+
+function toJourneyRunStepLog(
+  row: typeof journeyRunStepLogs.$inferSelect,
+): JourneyRunStepLog {
+  return {
+    id: row.id,
+    journeyRunId: row.journeyRunId,
+    stepKey: row.stepKey,
+    nodeType: row.nodeType,
+    status: row.status,
+    input: row.input ?? null,
+    output: row.output ?? null,
+    error: row.error ?? null,
+    startedAt: row.startedAt,
+    completedAt: row.completedAt,
+    durationMs: row.durationMs,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
@@ -943,20 +980,37 @@ export class JourneyService {
         throw new ApplicationError("Run not found", { code: "NOT_FOUND" });
       }
 
-      const deliveries = await tx
-        .select()
-        .from(journeyDeliveries)
-        .where(eq(journeyDeliveries.journeyRunId, run.id))
-        .orderBy(
-          asc(journeyDeliveries.scheduledFor),
-          asc(journeyDeliveries.createdAt),
-          asc(journeyDeliveries.id),
-        );
+      const [deliveries, events, stepLogs] = await Promise.all([
+        tx
+          .select()
+          .from(journeyDeliveries)
+          .where(eq(journeyDeliveries.journeyRunId, run.id))
+          .orderBy(
+            asc(journeyDeliveries.scheduledFor),
+            asc(journeyDeliveries.createdAt),
+            asc(journeyDeliveries.id),
+          ),
+        tx
+          .select()
+          .from(journeyRunEvents)
+          .where(eq(journeyRunEvents.journeyRunId, run.id))
+          .orderBy(asc(journeyRunEvents.createdAt), asc(journeyRunEvents.id)),
+        tx
+          .select()
+          .from(journeyRunStepLogs)
+          .where(eq(journeyRunStepLogs.journeyRunId, run.id))
+          .orderBy(
+            asc(journeyRunStepLogs.startedAt),
+            asc(journeyRunStepLogs.id),
+          ),
+      ]);
 
       return {
         run: toJourneyRun(run),
         runSnapshot: run.journeyVersionSnapshot,
         deliveries: deliveries.map(toJourneyRunDelivery),
+        events: events.map(toJourneyRunEvent),
+        stepLogs: stepLogs.map(toJourneyRunStepLog),
       };
     });
   }
