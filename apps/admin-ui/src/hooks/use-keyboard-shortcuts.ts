@@ -400,6 +400,11 @@ export function useFocusZones({
   }, []);
 
   const handleEscape = useCallback(() => {
+    if (detailOpen) {
+      onEscape?.();
+      return;
+    }
+
     // If in an input, blur it first
     const activeElement = document.activeElement;
     if (
@@ -412,7 +417,7 @@ export function useFocusZones({
 
     // Otherwise, call the escape handler (typically closes detail panel)
     onEscape?.();
-  }, [onEscape]);
+  }, [detailOpen, onEscape]);
 
   const shortcuts: ShortcutConfig[] = [
     {

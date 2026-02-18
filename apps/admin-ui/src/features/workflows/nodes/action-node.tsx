@@ -422,7 +422,9 @@ const ActionNode = memo(function ActionNode({
       }}
       status={status}
       className={cn(
-        "h-44 w-44 flex-col items-center justify-center shadow-none",
+        "h-42 w-42 flex-col items-center justify-center border-[2.5px] border-[var(--workflow-action-border)] bg-[var(--workflow-action-bg)] shadow-none",
+        isConditionAction &&
+          "border-[var(--workflow-condition-border)] bg-[var(--workflow-condition-bg)]",
         selected && "border-primary",
         isDisabled && "opacity-50",
       )}

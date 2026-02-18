@@ -72,6 +72,7 @@ import { TimeDisplayToggle } from "@/components/appointments/time-display-toggle
 import { AppointmentsTimezoneControl } from "@/components/appointments/appointments-timezone-control";
 import { AppointmentsList } from "@/components/appointments/appointments-list";
 import { AppointmentDetail } from "@/components/appointments/appointment-detail";
+import { RescheduleDialog } from "@/components/appointments/reschedule-dialog";
 import { ScheduleGrid } from "@/components/appointments/schedule-grid";
 import { SchedulingControlsSheet } from "@/components/appointments/scheduling-controls-sheet";
 
@@ -125,6 +126,8 @@ function AppointmentsPage() {
   const [cancellingId, setCancellingId] = useState<string | null>(null);
   const [noShowId, setNoShowId] = useState<string | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
+  const [rescheduleAppointment, setRescheduleAppointment] =
+    useState<AppointmentWithRelations | null>(null);
   const [mobileControlsOpen, setMobileControlsOpen] = useState(false);
   const shouldAutoOpenCreateModal = create === "1";
   const isCreateModalOpen = shouldAutoOpenCreateModal || modalOpen;
@@ -675,6 +678,13 @@ function AppointmentsPage() {
     [openDetails],
   );
 
+  const handleRescheduleFromList = useCallback(
+    (appointment: AppointmentWithRelations) => {
+      setRescheduleAppointment(appointment);
+    },
+    [],
+  );
+
   const handleSelectScheduleAppointment = useCallback(
     (id: string) => {
       openDetails(id, "details");
@@ -913,6 +923,7 @@ function AppointmentsPage() {
             displayTimezone={displayTimezone}
             selectedId={selectedId}
             onSelect={handleSelectAppointment}
+            onReschedule={handleRescheduleFromList}
             onCancel={setCancellingId}
             onNoShow={setNoShowId}
             isLoading={listLoading}
@@ -987,6 +998,25 @@ function AppointmentsPage() {
         defaultTimezone={orgDefaultTimezone}
         onCreated={handleAppointmentCreated}
       />
+
+      {rescheduleAppointment ? (
+        <RescheduleDialog
+          appointment={rescheduleAppointment}
+          open={!!rescheduleAppointment}
+          onOpenChange={(open) => {
+            if (!open) {
+              setRescheduleAppointment(null);
+            }
+          }}
+          timezoneMode={timezoneMode}
+          onTimezoneModeChange={setTimezoneMode}
+          displayTimezone={displayTimezone}
+          defaultTimezone={
+            rescheduleAppointment.calendar?.timezone ??
+            rescheduleAppointment.timezone
+          }
+        />
+      ) : null}
 
       {/* Cancel Confirmation */}
       <AlertDialog

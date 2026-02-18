@@ -74,6 +74,40 @@ function getEdgeLabel({
   return getSwitchBranchLabel(data.switchBranch) ?? undefined;
 }
 
+type EdgePalette = {
+  stroke: string;
+  strokeWidth: number;
+  strokeOpacity?: number;
+  strokeDasharray?: number;
+  animation: string;
+  labelFill: string;
+  labelBgFill: string;
+  labelBgStroke: string;
+};
+
+function getEdgePalette(selected: boolean | undefined): EdgePalette {
+  if (selected) {
+    return {
+      stroke: "var(--foreground)",
+      strokeWidth: 3.4,
+      animation: "dashdraw 0.6s linear infinite",
+      strokeDasharray: 5,
+      labelFill: "var(--foreground)",
+      labelBgFill: "var(--background)",
+      labelBgStroke: "var(--border)",
+    };
+  }
+
+  return {
+    stroke: "var(--workflow-edge-default)",
+    strokeWidth: 3.2,
+    animation: "none",
+    labelFill: "var(--workflow-edge-default)",
+    labelBgFill: "var(--background)",
+    labelBgStroke: "var(--workflow-edge-default)",
+  };
+}
+
 const Temporary = memo(function Temporary({
   id,
   sourceX,
@@ -91,8 +125,8 @@ const Temporary = memo(function Temporary({
     targetX,
     targetY,
     targetPosition,
-    borderRadius: 12,
-    offset: 16,
+    borderRadius: 14,
+    offset: 18,
   });
 
   return (
@@ -101,9 +135,12 @@ const Temporary = memo(function Temporary({
       id={id}
       path={edgePath}
       style={{
-        stroke: selected ? "var(--muted-foreground)" : "var(--border)",
+        stroke: selected
+          ? "var(--workflow-edge-active)"
+          : "var(--workflow-edge-default)",
+        strokeOpacity: 0.75,
         strokeDasharray: "5, 5",
-        strokeWidth: 2.5,
+        strokeWidth: 2.6,
       }}
     />
   );
@@ -228,29 +265,35 @@ const Animated = memo(function Animated({
     targetX: tx,
     targetY: ty,
     targetPosition: targetPos,
-    borderRadius: 14,
-    offset: 20,
+    borderRadius: 16,
+    offset: 22,
   });
 
   const edgeLabel = getEdgeLabel({ label, data });
+  const palette = getEdgePalette(selected);
 
   return (
     <BaseEdge
       id={id}
       label={edgeLabel}
-      labelBgPadding={[10, 4]}
-      labelBgStyle={{ fill: "var(--card)", stroke: "var(--border)" }}
-      labelStyle={{ fill: "var(--muted-foreground)", fontSize: 11 }}
+      labelBgBorderRadius={999}
+      labelBgPadding={[8, 3]}
+      labelBgStyle={{
+        fill: palette.labelBgFill,
+        stroke: palette.labelBgStroke,
+      }}
+      labelStyle={{ fill: palette.labelFill, fontSize: 11, fontWeight: 600 }}
       labelX={labelX}
       labelY={labelY}
       labelShowBg={!!edgeLabel}
       path={edgePath}
       style={{
         ...style,
-        stroke: selected ? "var(--muted-foreground)" : "var(--border)",
-        strokeWidth: 3,
-        animation: "dashdraw 0.5s linear infinite",
-        strokeDasharray: 5,
+        stroke: palette.stroke,
+        strokeOpacity: palette.strokeOpacity,
+        strokeWidth: palette.strokeWidth,
+        animation: palette.animation,
+        strokeDasharray: palette.strokeDasharray,
       }}
     />
   );

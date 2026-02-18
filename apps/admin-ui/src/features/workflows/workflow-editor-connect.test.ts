@@ -23,7 +23,7 @@ function connect(
 }
 
 describe("workflow-editor onConnect behavior", () => {
-  test("replaces outgoing edge when source already has a connection", () => {
+  test("allows multiple outgoing edges from a single source", () => {
     const store = createStore();
     store.set(workflowEditorIsReadOnlyAtom, false);
     store.set(workflowEditorEdgesAtom, [
@@ -36,7 +36,7 @@ describe("workflow-editor onConnect behavior", () => {
     );
 
     const edges = store.get(workflowEditorEdgesAtom);
-    expect(edges).toHaveLength(1);
+    expect(edges).toHaveLength(2);
     expect(
       edges.some(
         (edge) => edge.source === "trigger" && edge.target === "action-b",
@@ -44,7 +44,7 @@ describe("workflow-editor onConnect behavior", () => {
     ).toBeTrue();
   });
 
-  test("replaces outgoing edge even when an edge is selected", () => {
+  test("does not replace outgoing edges when an edge is selected", () => {
     const store = createStore();
     store.set(workflowEditorIsReadOnlyAtom, false);
     store.set(workflowEditorEdgesAtom, [
@@ -58,7 +58,7 @@ describe("workflow-editor onConnect behavior", () => {
     );
 
     const edges = store.get(workflowEditorEdgesAtom);
-    expect(edges).toHaveLength(1);
+    expect(edges).toHaveLength(2);
     expect(
       edges.some(
         (edge) => edge.source === "trigger" && edge.target === "action-b",
@@ -66,7 +66,7 @@ describe("workflow-editor onConnect behavior", () => {
     ).toBeTrue();
   });
 
-  test("reconnects existing incoming edge on target handle", () => {
+  test("keeps single incoming edge per target", () => {
     const store = createStore();
     store.set(workflowEditorIsReadOnlyAtom, false);
     store.set(workflowEditorEdgesAtom, [
@@ -80,12 +80,11 @@ describe("workflow-editor onConnect behavior", () => {
 
     const edges = store.get(workflowEditorEdgesAtom);
     expect(edges).toHaveLength(1);
-    expect(edges[0]?.id).toBe("edge-1");
     expect(edges[0]?.source).toBe("action-b");
     expect(edges[0]?.target).toBe("action-a");
   });
 
-  test("allows condition nodes to keep one edge per branch handle", () => {
+  test("allows condition branches to connect to multiple targets", () => {
     const store = createStore();
     store.set(workflowEditorIsReadOnlyAtom, false);
     store.set(workflowEditorNodesAtom, [
@@ -111,6 +110,12 @@ describe("workflow-editor onConnect behavior", () => {
         position: { x: 0, y: 0 },
         data: { type: "action", label: "B", config: {} },
       },
+      {
+        id: "action-c",
+        type: "action",
+        position: { x: 0, y: 0 },
+        data: { type: "action", label: "C", config: {} },
+      },
     ]);
 
     store.set(
@@ -125,6 +130,14 @@ describe("workflow-editor onConnect behavior", () => {
       onWorkflowEditorConnectAtom,
       connect({
         source: "condition",
+        target: "action-c",
+        sourceHandle: "true",
+      }),
+    );
+    store.set(
+      onWorkflowEditorConnectAtom,
+      connect({
+        source: "condition",
         target: "action-b",
         sourceHandle: "false",
       }),
@@ -132,9 +145,13 @@ describe("workflow-editor onConnect behavior", () => {
 
     const edges = store.get(workflowEditorEdgesAtom);
     const outgoing = edges.filter((edge) => edge.source === "condition");
-    expect(outgoing).toHaveLength(2);
-    expect(outgoing.some((edge) => edge.sourceHandle === "true")).toBeTrue();
-    expect(outgoing.some((edge) => edge.sourceHandle === "false")).toBeTrue();
+    expect(outgoing).toHaveLength(3);
+    expect(
+      outgoing.filter((edge) => edge.sourceHandle === "true"),
+    ).toHaveLength(2);
+    expect(
+      outgoing.filter((edge) => edge.sourceHandle === "false"),
+    ).toHaveLength(1);
   });
 
   test("infers condition branch when source handle id is missing", () => {

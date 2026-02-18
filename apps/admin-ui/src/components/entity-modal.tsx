@@ -1,5 +1,5 @@
 import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
-import type { ReactNode } from "react";
+import { useId, type ReactNode } from "react";
 import { Cancel01Icon } from "@hugeicons/core-free-icons";
 
 import { Button } from "@/components/ui/button";
@@ -26,6 +26,20 @@ export function EntityModal({
   className,
   children,
 }: EntityModalProps) {
+  const closeButtonId = useId();
+  const resolveInitialFocus = () => {
+    if (!headerActions) {
+      return true;
+    }
+
+    const closeButton = document.getElementById(closeButtonId);
+    if (closeButton instanceof HTMLElement) {
+      return closeButton;
+    }
+
+    return true;
+  };
+
   return (
     <DialogPrimitive.Root
       open={open}
@@ -44,6 +58,7 @@ export function EntityModal({
         />
         <DialogPrimitive.Popup
           data-slot="entity-modal-content"
+          initialFocus={resolveInitialFocus}
           className={cn(
             MOBILE_FIRST_MODAL_CONTENT_CLASS,
             "data-open:animate-in data-closed:animate-out",
@@ -69,7 +84,14 @@ export function EntityModal({
                 <div className="shrink-0">{headerActions}</div>
               ) : null}
               <DialogPrimitive.Close
-                render={<Button variant="ghost" size="icon-sm" />}
+                render={
+                  <Button
+                    id={closeButtonId}
+                    data-slot="entity-modal-close-button"
+                    variant="ghost"
+                    size="icon-sm"
+                  />
+                }
               >
                 <span className="sr-only">Close</span>
                 <Icon icon={Cancel01Icon} />

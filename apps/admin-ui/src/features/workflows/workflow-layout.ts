@@ -4,12 +4,12 @@ import type {
   WorkflowCanvasNode,
 } from "./workflow-editor-store";
 
-const DEFAULT_NODE_WIDTH = 176;
-const DEFAULT_NODE_HEIGHT = 176;
+const DEFAULT_NODE_WIDTH = 172;
+const DEFAULT_NODE_HEIGHT = 172;
 const LAYOUT_DIRECTION = "LR";
-const NODE_SPACING = 80;
-const RANK_SPACING = 140;
-const GRAPH_MARGIN = 24;
+const NODE_SPACING = 96;
+const RANK_SPACING = 190;
+const GRAPH_MARGIN = 32;
 
 type NodeDimensions = {
   width: number;
@@ -45,14 +45,14 @@ function sortById<T extends { id: string }>(items: T[]): T[] {
 
 function getEdgeWeight(edge: WorkflowCanvasEdge): number {
   if (edge.sourceHandle === "true") {
-    return 3;
+    return 4;
   }
 
   if (edge.sourceHandle === "false") {
-    return 2;
+    return 3;
   }
 
-  return 1;
+  return 6;
 }
 
 function getLayoutNode(

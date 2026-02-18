@@ -53,6 +53,7 @@ interface AppointmentsListProps {
   displayTimezone: string;
   selectedId: string | null;
   onSelect: (appointment: AppointmentWithRelations) => void;
+  onReschedule: (appointment: AppointmentWithRelations) => void;
   onCancel: (id: string) => void;
   onNoShow: (id: string) => void;
   isLoading?: boolean;
@@ -78,6 +79,7 @@ export function AppointmentsList({
   displayTimezone,
   selectedId,
   onSelect,
+  onReschedule,
   onCancel,
   onNoShow,
   isLoading,
@@ -118,9 +120,7 @@ export function AppointmentsList({
       items.push({
         label: "Reschedule",
         icon: TimeScheduleIcon,
-        onClick: () => {
-          // Reschedule logic placeholder
-        },
+        onClick: () => onReschedule(appointment),
       });
 
       items.push({

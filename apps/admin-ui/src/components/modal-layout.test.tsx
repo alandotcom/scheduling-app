@@ -84,6 +84,25 @@ describe("modal layout positioning", () => {
     expect(copyButton).toBeTruthy();
   });
 
+  test("EntityModal renders a dedicated close-button focus target when header actions exist", () => {
+    render(
+      <EntityModal
+        open
+        onOpenChange={() => {}}
+        title="Entity"
+        headerActions={<button type="button">Header Action</button>}
+      >
+        <div>Entity body</div>
+      </EntityModal>,
+    );
+
+    const closeButton = document.querySelector<HTMLElement>(
+      '[data-slot="entity-modal-close-button"]',
+    );
+    expect(closeButton).toBeTruthy();
+    expect(closeButton?.id).toBeTruthy();
+  });
+
   test("AppointmentModal uses mobile fullscreen layout with desktop top anchor", () => {
     renderWithQuery(<AppointmentModal open onOpenChange={() => {}} />);
 

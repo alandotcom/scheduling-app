@@ -84,7 +84,7 @@ const TriggerNode = memo(function TriggerNode({
       handles={{ target: false, source: true }}
       status={status}
       className={cn(
-        "h-44 w-44 flex-col items-center justify-center shadow-none",
+        "h-44 w-44 flex-col items-center justify-center border-[var(--workflow-trigger-border)] bg-[var(--workflow-trigger-bg)] shadow-none",
         selected && "border-primary",
       )}
     >

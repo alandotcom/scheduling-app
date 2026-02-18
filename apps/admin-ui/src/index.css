@@ -46,6 +46,16 @@
   --sidebar-accent-foreground: oklch(0.95 0.002 250);
   --sidebar-border: oklch(0.26 0.015 250);
   --sidebar-ring: oklch(0.708 0.165 254);
+  --workflow-edge-default: oklch(0.61 0.11 226);
+  --workflow-edge-active: oklch(0.64 0.14 194);
+  --workflow-trigger-border: oklch(0.69 0.08 240);
+  --workflow-trigger-bg: oklch(0.985 0.012 242);
+  --workflow-action-border: oklch(0.66 0.07 212);
+  --workflow-action-bg: oklch(0.985 0.012 212);
+  --workflow-condition-border: oklch(0.72 0.12 162);
+  --workflow-condition-bg: oklch(0.985 0.015 162);
+  --workflow-handle-border: oklch(0.6 0.1 224);
+  --workflow-handle-fill: oklch(0.98 0.01 224);
 }
 
 .dark {
@@ -81,6 +91,16 @@
   --sidebar-accent-foreground: oklch(0.95 0.002 250);
   --sidebar-border: oklch(1 0 0 / 8%);
   --sidebar-ring: oklch(0.552 0.016 250);
+  --workflow-edge-default: oklch(0.75 0.08 228);
+  --workflow-edge-active: oklch(0.78 0.1 194);
+  --workflow-trigger-border: oklch(0.73 0.045 245);
+  --workflow-trigger-bg: oklch(0.22 0.015 245);
+  --workflow-action-border: oklch(0.69 0.04 208);
+  --workflow-action-bg: oklch(0.22 0.014 208);
+  --workflow-condition-border: oklch(0.77 0.08 160);
+  --workflow-condition-bg: oklch(0.24 0.022 160);
+  --workflow-handle-border: oklch(0.76 0.055 224);
+  --workflow-handle-fill: oklch(0.24 0.02 224);
 }
 
 @keyframes skeleton-fade-in {
@@ -250,10 +270,12 @@
 
 /* React Flow handle positioning and styling */
 .react-flow__handle {
-  width: 12px !important;
-  height: 12px !important;
-  border: 2px solid var(--border) !important;
-  background: var(--primary) !important;
+  width: 10px !important;
+  height: 10px !important;
+  border: 2px solid var(--workflow-handle-border) !important;
+  background: var(--workflow-handle-fill) !important;
+  box-shadow: 0 0 0 1px
+    color-mix(in oklab, var(--workflow-handle-border), transparent 35%) !important;
   cursor: crosshair !important;
   z-index: 20 !important;
 }

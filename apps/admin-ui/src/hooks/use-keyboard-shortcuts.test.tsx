@@ -3,7 +3,7 @@
 import { afterEach, describe, expect, mock, test } from "bun:test";
 import type { ReactElement } from "react";
 import { cleanup, render } from "@testing-library/react";
-import { useKeyboardShortcuts } from "./use-keyboard-shortcuts";
+import { useFocusZones, useKeyboardShortcuts } from "./use-keyboard-shortcuts";
 
 function renderHarness(ui: ReactElement) {
   return render(ui);
@@ -153,6 +153,21 @@ function ModalPrioritySequenceHarness({
       </div>
     </div>
   );
+}
+
+function FocusZonesHarness({
+  detailOpen,
+  onEscape,
+}: {
+  detailOpen: boolean;
+  onEscape: () => void;
+}) {
+  useFocusZones({
+    detailOpen,
+    onEscape,
+  });
+
+  return <input aria-label="focus-zones-input" />;
 }
 
 afterEach(() => {
@@ -324,5 +339,38 @@ describe("useKeyboardShortcuts", () => {
     dispatchKeyWithInit("Enter", { ctrlKey: true });
 
     expect(onShortcut).toHaveBeenCalledTimes(1);
+  });
+
+  test("closes detail immediately on escape when detail panel is open", () => {
+    const onEscape = mock(() => {});
+    const view = renderHarness(
+      <FocusZonesHarness detailOpen onEscape={onEscape} />,
+    );
+    const input = view.getByRole("textbox", {
+      name: "focus-zones-input",
+    });
+
+    input.focus();
+    dispatchKey("Escape", input);
+
+    expect(onEscape).toHaveBeenCalledTimes(1);
+  });
+
+  test("blurs focused input instead of closing when detail panel is closed", () => {
+    const onEscape = mock(() => {});
+    const view = renderHarness(
+      <FocusZonesHarness detailOpen={false} onEscape={onEscape} />,
+    );
+    const input = view.getByRole("textbox", {
+      name: "focus-zones-input",
+    });
+
+    input.focus();
+    expect(document.activeElement).toBe(input);
+
+    dispatchKey("Escape", input);
+
+    expect(onEscape).toHaveBeenCalledTimes(0);
+    expect(document.activeElement).not.toBe(input);
   });
 });

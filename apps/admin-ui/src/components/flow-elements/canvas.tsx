@@ -1,4 +1,9 @@
-import { Background, ReactFlow, type ReactFlowProps } from "@xyflow/react";
+import {
+  Background,
+  BackgroundVariant,
+  ReactFlow,
+  type ReactFlowProps,
+} from "@xyflow/react";
 import type { ReactNode } from "react";
 
 type CanvasProps = ReactFlowProps & {
@@ -19,7 +24,9 @@ export const Canvas = ({ children, ...props }: CanvasProps) => (
       bgColor="var(--muted)"
       color="var(--border)"
       gap={24}
-      size={2}
+      size={1.1}
+      variant={BackgroundVariant.Dots}
+      style={{ opacity: 0.34 }}
     />
     {children}
   </ReactFlow>

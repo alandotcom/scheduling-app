@@ -468,6 +468,7 @@ export function WorkflowEditorCanvas({
         edges={edgesWithTypes}
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
+        fitViewOptions={{ padding: 0.38, minZoom: 0.35 }}
         connectionLineComponent={Connection}
         connectionMode={ConnectionMode.Strict}
         isValidConnection={isValidConnection}

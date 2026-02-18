@@ -173,6 +173,20 @@ function createConditionGraphFixture(): SerializedJourneyGraph {
           },
         },
       },
+      {
+        key: "action-node-c",
+        attributes: {
+          id: "action-node-c",
+          type: "action",
+          position: { x: 520, y: 340 },
+          data: {
+            type: "action",
+            label: "C",
+            status: "idle",
+            config: {},
+          },
+        },
+      },
     ],
     edges: [
       {
@@ -341,7 +355,7 @@ describe("workflow-editor-store", () => {
     });
   });
 
-  test("keeps a single outgoing edge from a source step", () => {
+  test("allows multiple outgoing edges from a source step", () => {
     const store = createStore();
     store.set(setWorkflowEditorGraphAtom, createGraphFixtureWithSecondAction());
     store.set(workflowEditorIsReadOnlyAtom, false);
@@ -358,8 +372,13 @@ describe("workflow-editor-store", () => {
       (edge) => edge.source === "trigger-node",
     );
 
-    expect(outgoingFromTrigger).toHaveLength(1);
-    expect(outgoingFromTrigger[0]?.target).toBe("action-node-2");
+    expect(outgoingFromTrigger).toHaveLength(2);
+    expect(
+      outgoingFromTrigger.some((edge) => edge.target === "action-node"),
+    ).toBeTrue();
+    expect(
+      outgoingFromTrigger.some((edge) => edge.target === "action-node-2"),
+    ).toBeTrue();
   });
 
   test("keeps a single incoming edge to a target step", () => {
@@ -383,7 +402,7 @@ describe("workflow-editor-store", () => {
     expect(incomingToAction[0]?.source).toBe("action-node-2");
   });
 
-  test("keeps both condition branches while replacing only the same branch", () => {
+  test("allows multiple outgoing edges on the same condition branch", () => {
     const store = createStore();
     store.set(setWorkflowEditorGraphAtom, createConditionGraphFixture());
     store.set(workflowEditorIsReadOnlyAtom, false);
@@ -409,23 +428,26 @@ describe("workflow-editor-store", () => {
 
     store.set(onWorkflowEditorConnectAtom, {
       source: "condition-node",
-      target: "action-node-a",
-      sourceHandle: "true",
+      target: "action-node-c",
+      sourceHandle: "false",
       targetHandle: null,
     });
 
     edges = store.get(workflowEditorEdgesAtom);
-    const outgoingAfterReplace = edges.filter(
+    const outgoingAfterSecondFalseBranch = edges.filter(
       (edge) => edge.source === "condition-node",
     );
-    expect(outgoingAfterReplace).toHaveLength(2);
+    expect(outgoingAfterSecondFalseBranch).toHaveLength(3);
     expect(
-      outgoingAfterReplace.find((edge) => edge.sourceHandle === "true")?.target,
-    ).toBe("action-node-a");
+      outgoingAfterSecondFalseBranch.filter(
+        (edge) => edge.sourceHandle === "true",
+      ),
+    ).toHaveLength(1);
     expect(
-      outgoingAfterReplace.find((edge) => edge.sourceHandle === "false")
-        ?.target,
-    ).toBe("action-node-b");
+      outgoingAfterSecondFalseBranch.filter(
+        (edge) => edge.sourceHandle === "false",
+      ),
+    ).toHaveLength(2);
   });
 
   test("adds node via addWorkflowEditorNodeAtom and updates selection", () => {
