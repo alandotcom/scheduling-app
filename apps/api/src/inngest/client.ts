@@ -18,7 +18,7 @@ type DeliveryScheduledData = {
   scheduledFor: string;
 };
 
-type ProviderExecuteEventName =
+export type ProviderExecuteEventName =
   | "journey.action.send-resend.execute"
   | "journey.action.send-slack.execute"
   | "journey.action.send-twilio.execute";

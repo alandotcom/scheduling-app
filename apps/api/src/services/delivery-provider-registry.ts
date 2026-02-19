@@ -1,4 +1,5 @@
 import { getLogger } from "@logtape/logtape";
+import type { ProviderExecuteEventName } from "../inngest/client.js";
 import {
   normalizeActionType,
   type JourneyDeliveryDispatchInput,
@@ -41,13 +42,40 @@ async function dispatchLoggerDelivery(
   };
 }
 
+type InngestRetryCount =
+  | 0
+  | 1
+  | 2
+  | 3
+  | 4
+  | 5
+  | 6
+  | 7
+  | 8
+  | 9
+  | 10
+  | 11
+  | 12
+  | 13
+  | 14
+  | 15
+  | 16
+  | 17
+  | 18
+  | 19
+  | 20;
+
+type DeliveryProviderEventName =
+  | ProviderExecuteEventName
+  | "journey.delivery.scheduled";
+
 export type DeliveryProviderSpec = {
   key: string;
   actionTypes: readonly string[];
   channel: string;
-  eventName: string;
+  eventName: DeliveryProviderEventName;
   functionId: string;
-  retries: number;
+  retries: InngestRetryCount;
   maxDispatchAttempts: number;
   perFunctionConcurrency: {
     key: string;

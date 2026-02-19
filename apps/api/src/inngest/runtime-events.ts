@@ -107,7 +107,7 @@ export async function sendJourneyActionExecuteForActionType(
 
   const response = await inngest.send({
     id: `${provider.functionId}-${input.journeyDeliveryId}`,
-    name: provider.eventName as any,
+    name: provider.eventName,
     data: input,
   });
 
