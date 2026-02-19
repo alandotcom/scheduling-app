@@ -44,11 +44,14 @@ import { compact, uniq } from "es-toolkit/array";
 import { and, asc, desc, eq, ilike, inArray, ne, sql } from "drizzle-orm";
 import { ApplicationError } from "../errors/application-error.js";
 import { withOrg, type DbClient } from "../lib/db.js";
+import {
+  isUniqueConstraintViolation,
+  getConstraintName,
+} from "../lib/db-errors.js";
 import { isRecord } from "../lib/type-guards.js";
 import type { ServiceContext } from "./locations.js";
 import { processJourneyDomainEvent } from "./journey-planner.js";
 
-const UNIQUE_CONSTRAINT_VIOLATION = "23505";
 const JOURNEY_NAME_UNIQUE_CONSTRAINT = "journeys_org_name_ci_uidx";
 const ACTIVE_RUN_STATUSES = ["planned", "running"] as const;
 const ACTIVE_RUN_STATUS_SET = new Set<string>(ACTIVE_RUN_STATUSES);
@@ -59,47 +62,6 @@ const HIGH_SIGNAL_FILTER_FIELDS = new Set([
   "appointment.appointmentTypeId",
   "appointment.clientId",
 ]);
-
-function isUniqueConstraintViolation(error: unknown): boolean {
-  if (!error || typeof error !== "object") {
-    return false;
-  }
-
-  if ("code" in error && error.code === UNIQUE_CONSTRAINT_VIOLATION) {
-    return true;
-  }
-
-  if ("cause" in error && error.cause && typeof error.cause === "object") {
-    const { cause } = error;
-    if ("errno" in cause && cause.errno === UNIQUE_CONSTRAINT_VIOLATION) {
-      return true;
-    }
-    if ("code" in cause && cause.code === UNIQUE_CONSTRAINT_VIOLATION) {
-      return true;
-    }
-  }
-
-  return false;
-}
-
-function getConstraintName(error: unknown): string | null {
-  if (!error || typeof error !== "object") {
-    return null;
-  }
-
-  if ("constraint" in error && typeof error.constraint === "string") {
-    return error.constraint;
-  }
-
-  if ("cause" in error && error.cause && typeof error.cause === "object") {
-    const { cause } = error;
-    if ("constraint" in cause && typeof cause.constraint === "string") {
-      return cause.constraint;
-    }
-  }
-
-  return null;
-}
 
 function journeyNameConflictError(): ApplicationError {
   return new ApplicationError("Journey name already exists", {

@@ -21,6 +21,7 @@ export const applicationErrorCodes = [
   "EXCEEDS_CAPACITY",
   "OUTSIDE_NOTICE_WINDOW",
   "APPOINTMENT_ALREADY_CANCELLED",
+  "INTERNAL_ERROR",
 ] as const;
 
 export type ApplicationErrorCode = (typeof applicationErrorCodes)[number];

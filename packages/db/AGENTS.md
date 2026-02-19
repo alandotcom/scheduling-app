@@ -234,6 +234,70 @@ Generate new migrations: `pnpm --filter @scheduling/db run generate`
 
 Two drizzle configs: `drizzle.config.ts` (dev) and `drizzle.test.config.ts` (test) target separate databases.
 
+## Custom Attribute Slot Columns
+
+The `client_custom_attribute_values` table uses a **slot column** pattern: fixed typed columns (`t0`–`t9`, `n0`–`n4`, `d0`–`d2`, `b0`–`b4`, `j0`–`j1`) store dynamically defined custom attribute values. Strong typing across the API layer depends on exact coordination between the schema and the slot config.
+
+### Adding New Slot Columns — Checklist
+
+When adding columns to `clientCustomAttributeValues` (e.g., expanding capacity for a type):
+
+1. **Add the column(s) in `packages/db/src/schema/index.ts`** — follow the existing naming pattern (`{prefix}{index}`, e.g., `t10`, `n5`).
+
+2. **Update `SLOT_COUNT_BY_PREFIX` in `apps/api/src/lib/slot-config.ts`** — increment the count for the affected prefix so the runtime set includes the new column.
+
+3. **Verify `NonSlotColumn` in `slot-config.ts` still lists only non-slot columns** — the `SlotColumn` type is `Exclude<keyof Values, NonSlotColumn>`. New slot columns are automatically included in `SlotColumn` as long as they're NOT listed in `NonSlotColumn`. A compile-time assertion (`_AssertSlotShape`) will fail if a non-slot column is accidentally omitted from `NonSlotColumn`.
+
+4. **Update the initial migration SQL** — since there are no production users, edit the existing `init` migration directly and run `pnpm --filter @scheduling/db run push`.
+
+5. **Update the seed script** (`apps/api/src/scripts/seed.ts`) if it references custom attribute slots.
+
+6. **Run verification:**
+   ```bash
+   pnpm typecheck:all   # Compile-time slot shape assertion catches mismatches
+   pnpm lint            # No unsafe type assertions allowed
+   pnpm --filter @scheduling/api run test
+   ```
+
+### How the Type Safety Works
+
+```
+packages/db/schema      →  SlotColumn = Exclude<keyof Values, NonSlotColumn>
+                              (derived at compile time from the Drizzle table)
+
+slot-config.ts          →  VALID_SLOT_COLUMN_STRINGS = runtime Set built from
+                              SLOT_COUNT_BY_PREFIX (prefix → count)
+
+                        →  _AssertSlotShape: compile-time check that every
+                              SlotColumn matches `${SlotPrefix}${number}`
+
+                        →  isSlotColumn(): runtime type guard validates
+                              strings against VALID_SLOT_COLUMN_STRINGS
+
+repositories/           →  validateDefinitions() narrows DB rows to
+custom-attributes.ts       ValidatedDefinition (slotColumn: SlotColumn)
+                              at the read boundary — all consumers get
+                              typed slot columns without downstream guards
+
+services/               →  Works exclusively with ValidatedDefinition;
+client-custom-              no scattered isSlotColumn checks needed
+  attributes.ts
+```
+
+### Column Naming Conventions
+
+| Prefix | Postgres type | Custom attribute types | Current count |
+|--------|--------------|----------------------|---------------|
+| `t` | `text` | TEXT, SELECT | 10 (`t0`–`t9`) |
+| `n` | `numeric(18,4)` | NUMBER | 5 (`n0`–`n4`) |
+| `d` | `timestamptz` | DATE | 3 (`d0`–`d2`) |
+| `b` | `boolean` | BOOLEAN | 5 (`b0`–`b4`) |
+| `j` | `jsonb` | MULTI_SELECT | 2 (`j0`–`j1`) |
+
+### Adding a Non-Slot Column
+
+If you add a column to `clientCustomAttributeValues` that is NOT a slot (e.g., a metadata column), you MUST add its camelCase property name to the `NonSlotColumn` type in `apps/api/src/lib/slot-config.ts`. The compile-time assertion will catch this — the build will fail because the new column won't match `${SlotPrefix}${number}`.
+
 ## Key Business Logic in SQL
 
 ### `check_appointment_capacity()` Trigger

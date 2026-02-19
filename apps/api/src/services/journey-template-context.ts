@@ -1,6 +1,7 @@
 import { appointments, clients } from "@scheduling/db/schema";
 import { eq } from "drizzle-orm";
 import { withOrg } from "../lib/db.js";
+import { clientCustomAttributeService } from "./client-custom-attributes.js";
 
 export async function loadDeliveryTemplateContext(input: {
   orgId: string;
@@ -32,6 +33,16 @@ export async function loadDeliveryTemplateContext(input: {
       return null;
     }
 
+    let customAttributes: Record<string, unknown> = {};
+    if (row.clientId) {
+      customAttributes =
+        await clientCustomAttributeService.loadClientCustomAttributes(
+          tx,
+          input.orgId,
+          row.clientId,
+        );
+    }
+
     const client = row.clientId
       ? {
           id: row.clientId,
@@ -39,6 +50,7 @@ export async function loadDeliveryTemplateContext(input: {
           lastName: row.clientLastName,
           email: row.clientEmail,
           phone: row.clientPhone,
+          customAttributes,
         }
       : null;
 

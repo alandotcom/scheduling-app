@@ -12,6 +12,7 @@ import { availabilityEngineRoutes } from "./availability.js";
 import { availabilityRoutes } from "./availability.js";
 import { appointmentRoutes } from "./appointments.js";
 import { clientRoutes } from "./clients.js";
+import { customAttributeRoutes } from "./custom-attributes.js";
 import { auditRoutes } from "./audit.js";
 import { dashboardRoutes } from "./dashboard.js";
 import { apiKeyRoutes } from "./api-keys.js";
@@ -47,6 +48,7 @@ export const uiRouter = {
   availability: availabilityRoutes,
   appointments: appointmentRoutes,
   clients: clientRoutes,
+  customAttributes: customAttributeRoutes,
   audit: auditRoutes,
   apiKeys: apiKeyRoutes,
   integrations: integrationRoutes,
@@ -68,6 +70,7 @@ export const apiRouter = {
   availability: availabilityEngineRoutes,
   appointments: appointmentRoutes,
   clients: clientRoutes,
+  customAttributes: customAttributeRoutes,
   webhooks: webhookRoutes,
 };
 

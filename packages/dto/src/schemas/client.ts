@@ -6,6 +6,7 @@ import {
   nonNegativeIntSchema,
   paginatedResponseSchema,
 } from "./common";
+import { customAttributeValuesSchema } from "./custom-attribute";
 
 const countryCodeSchema = z
   .string()
@@ -45,6 +46,7 @@ export const createClientSchema = z.object({
   phone: z.string().max(50, "Phone number is too long").optional(),
   phoneCountry: countryCodeSchema.optional(),
   referenceId: z.string().optional(),
+  customAttributes: customAttributeValuesSchema.optional(),
 });
 
 // Update client input
@@ -65,6 +67,7 @@ export const updateClientSchema = z.object({
   phone: z.string().max(50, "Phone number is too long").nullable().optional(),
   phoneCountry: countryCodeSchema.optional(),
   referenceId: z.string().nullable().optional(),
+  customAttributes: customAttributeValuesSchema.optional(),
 });
 
 // List clients query
@@ -80,8 +83,10 @@ export const listClientsQuerySchema = z.object({
     .default(20),
 });
 
-// Response types
-export const clientResponseSchema = clientSchema;
+// Response types (includes optional custom attributes)
+export const clientResponseSchema = clientSchema.extend({
+  customAttributes: customAttributeValuesSchema.optional(),
+});
 export const clientListItemSchema = clientSchema.extend({
   relationshipCounts: z.object({
     appointments: nonNegativeIntSchema,

@@ -9,6 +9,7 @@ import {
   integer,
   boolean,
   jsonb,
+  numeric,
   index,
   check,
   uniqueIndex,
@@ -315,6 +316,104 @@ export const clients = pgTable.withRLS(
       .on(table.orgId, table.referenceId)
       .where(sql`${table.referenceId} IS NOT NULL`),
     pgPolicy("org_isolation_clients", {
+      for: "all",
+      using: sql`org_id = current_org_id()`,
+      withCheck: sql`org_id = current_org_id()`,
+    }),
+  ],
+);
+
+// ============================================================================
+// CLIENT CUSTOM ATTRIBUTES
+// ============================================================================
+
+export const customAttributeTypeEnum = pgEnum("custom_attribute_type", [
+  "TEXT",
+  "NUMBER",
+  "DATE",
+  "BOOLEAN",
+  "SELECT",
+  "MULTI_SELECT",
+]);
+
+export const clientCustomAttributeDefinitions = pgTable.withRLS(
+  "client_custom_attribute_definitions",
+  {
+    id,
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => orgs.id),
+    fieldKey: text("field_key").notNull(),
+    label: text("label").notNull(),
+    type: customAttributeTypeEnum("type").notNull(),
+    slotColumn: text("slot_column").notNull(),
+    required: boolean("required").default(false).notNull(),
+    options: jsonb("options").$type<string[]>(),
+    displayOrder: integer("display_order").default(0).notNull(),
+    ...timestamps,
+  },
+  (table) => [
+    uniqueIndex("client_cad_org_field_key_uidx").on(
+      table.orgId,
+      table.fieldKey,
+    ),
+    uniqueIndex("client_cad_org_slot_column_uidx").on(
+      table.orgId,
+      table.slotColumn,
+    ),
+    pgPolicy("org_isolation_client_custom_attribute_definitions", {
+      for: "all",
+      using: sql`org_id = current_org_id()`,
+      withCheck: sql`org_id = current_org_id()`,
+    }),
+  ],
+);
+
+export const clientCustomAttributeValues = pgTable.withRLS(
+  "client_custom_attribute_values",
+  {
+    id,
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => orgs.id),
+    clientId: uuid("client_id")
+      .notNull()
+      .references(() => clients.id, { onDelete: "cascade" }),
+    // Text slots (TEXT, SELECT)
+    t0: text("t0"),
+    t1: text("t1"),
+    t2: text("t2"),
+    t3: text("t3"),
+    t4: text("t4"),
+    t5: text("t5"),
+    t6: text("t6"),
+    t7: text("t7"),
+    t8: text("t8"),
+    t9: text("t9"),
+    // Numeric slots (NUMBER)
+    n0: numeric("n0", { precision: 18, scale: 4 }),
+    n1: numeric("n1", { precision: 18, scale: 4 }),
+    n2: numeric("n2", { precision: 18, scale: 4 }),
+    n3: numeric("n3", { precision: 18, scale: 4 }),
+    n4: numeric("n4", { precision: 18, scale: 4 }),
+    // Date slots (DATE)
+    d0: timestamp("d0", { withTimezone: true }),
+    d1: timestamp("d1", { withTimezone: true }),
+    d2: timestamp("d2", { withTimezone: true }),
+    // Boolean slots (BOOLEAN)
+    b0: boolean("b0"),
+    b1: boolean("b1"),
+    b2: boolean("b2"),
+    b3: boolean("b3"),
+    b4: boolean("b4"),
+    // JSONB slots (MULTI_SELECT, structured)
+    j0: jsonb("j0"),
+    j1: jsonb("j1"),
+    ...timestamps,
+  },
+  (table) => [
+    uniqueIndex("client_cav_org_client_uidx").on(table.orgId, table.clientId),
+    pgPolicy("org_isolation_client_custom_attribute_values", {
       for: "all",
       using: sql`org_id = current_org_id()`,
       withCheck: sql`org_id = current_org_id()`,

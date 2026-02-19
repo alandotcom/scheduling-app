@@ -50,6 +50,7 @@ const errorCodeMap: Record<
     orpcCode: "UNPROCESSABLE_CONTENT",
     status: 422,
   },
+  INTERNAL_ERROR: { orpcCode: "INTERNAL_SERVER_ERROR", status: 500 },
 };
 
 // Create the base oRPC instance with context type and error transformer

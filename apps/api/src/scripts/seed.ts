@@ -16,6 +16,8 @@ import {
   availabilityRules,
   blockedTime,
   calendars,
+  clientCustomAttributeDefinitions,
+  clientCustomAttributeValues,
   clients,
   integrations,
   locations,
@@ -665,7 +667,13 @@ async function seed() {
       const appointmentTypeIds = existingAppointmentTypes.map((row) => row.id);
 
       await tx.delete(appointments).where(eq(appointments.orgId, orgId));
+      await tx
+        .delete(clientCustomAttributeValues)
+        .where(eq(clientCustomAttributeValues.orgId, orgId));
       await tx.delete(clients).where(eq(clients.orgId, orgId));
+      await tx
+        .delete(clientCustomAttributeDefinitions)
+        .where(eq(clientCustomAttributeDefinitions.orgId, orgId));
       await tx.delete(integrations).where(eq(integrations.orgId, orgId));
 
       if (calendarIds.length > 0) {
@@ -848,6 +856,88 @@ async function seed() {
           }
 
           return insertedClient.id;
+        },
+        { concurrency: 1 },
+      );
+
+      // Seed custom attribute definitions
+      await mapAsync(
+        [
+          {
+            fieldKey: "preferredLanguage",
+            label: "Preferred Language",
+            type: "SELECT" as const,
+            slotColumn: "t0",
+            required: false,
+            options: ["English", "Spanish", "French", "Mandarin", "Other"],
+            displayOrder: 0,
+          },
+          {
+            fieldKey: "leadScore",
+            label: "Lead Score",
+            type: "NUMBER" as const,
+            slotColumn: "n0",
+            required: false,
+            options: null,
+            displayOrder: 1,
+          },
+          {
+            fieldKey: "newsletterOptIn",
+            label: "Newsletter Opt-in",
+            type: "BOOLEAN" as const,
+            slotColumn: "b0",
+            required: false,
+            options: null,
+            displayOrder: 2,
+          },
+          {
+            fieldKey: "tags",
+            label: "Tags",
+            type: "MULTI_SELECT" as const,
+            slotColumn: "j0",
+            required: false,
+            options: [
+              "VIP",
+              "New Patient",
+              "Insurance",
+              "Self-Pay",
+              "Referral",
+            ],
+            displayOrder: 3,
+          },
+        ],
+        async (def) => {
+          const [inserted] = await tx
+            .insert(clientCustomAttributeDefinitions)
+            .values({ orgId, ...def })
+            .returning({ id: clientCustomAttributeDefinitions.id });
+          return { ...def, id: inserted!.id };
+        },
+        { concurrency: 1 },
+      );
+
+      // Seed custom attribute values for some clients
+      const languages = ["English", "Spanish", "French", "Mandarin", "English"];
+      const tagOptions = [
+        ["VIP", "Insurance"],
+        ["New Patient"],
+        ["Self-Pay", "Referral"],
+        ["Insurance"],
+        ["VIP"],
+        ["New Patient", "Self-Pay"],
+      ];
+
+      await forEachAsync(
+        clientIds.slice(0, 8),
+        async (clientId, index) => {
+          await tx.insert(clientCustomAttributeValues).values({
+            orgId,
+            clientId,
+            t0: languages[index % languages.length],
+            n0: String(50 + index * 10),
+            b0: index % 3 !== 0,
+            j0: tagOptions[index % tagOptions.length],
+          });
         },
         { concurrency: 1 },
       );

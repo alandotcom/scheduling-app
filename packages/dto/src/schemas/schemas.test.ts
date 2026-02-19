@@ -39,6 +39,12 @@ import {
   createSchedulingLimitsSchema,
   availabilityQuerySchema,
   availabilityCheckSchema,
+  // Custom Attributes
+  customAttributeTypeSchema,
+  createCustomAttributeDefinitionSchema,
+  updateCustomAttributeDefinitionSchema,
+  customAttributeValuesSchema,
+  slotUsageSchema,
 } from "./index";
 
 describe("Common schemas", () => {
@@ -584,6 +590,288 @@ describe("Availability schemas", () => {
         timezone: "America/New_York",
       });
       expect(result.success).toBe(true);
+    });
+  });
+});
+
+describe("Custom attribute schemas", () => {
+  describe("customAttributeTypeSchema", () => {
+    test("accepts all valid types", () => {
+      const types = [
+        "TEXT",
+        "NUMBER",
+        "DATE",
+        "BOOLEAN",
+        "SELECT",
+        "MULTI_SELECT",
+      ];
+      for (const type of types) {
+        expect(customAttributeTypeSchema.safeParse(type).success).toBe(true);
+      }
+    });
+
+    test("rejects invalid type", () => {
+      expect(customAttributeTypeSchema.safeParse("TEXTAREA").success).toBe(
+        false,
+      );
+      expect(customAttributeTypeSchema.safeParse("string").success).toBe(false);
+    });
+  });
+
+  describe("createCustomAttributeDefinitionSchema", () => {
+    test("accepts valid TEXT definition", () => {
+      const result = createCustomAttributeDefinitionSchema.safeParse({
+        fieldKey: "myField",
+        label: "My Field",
+        type: "TEXT",
+      });
+      expect(result.success).toBe(true);
+    });
+
+    test("applies defaults for required and displayOrder", () => {
+      const result = createCustomAttributeDefinitionSchema.parse({
+        fieldKey: "myField",
+        label: "My Field",
+        type: "TEXT",
+      });
+      expect(result.required).toBe(false);
+      expect(result.displayOrder).toBe(0);
+    });
+
+    test("accepts SELECT with options", () => {
+      const result = createCustomAttributeDefinitionSchema.safeParse({
+        fieldKey: "status",
+        label: "Status",
+        type: "SELECT",
+        options: ["active", "inactive"],
+      });
+      expect(result.success).toBe(true);
+    });
+
+    test("rejects SELECT without options", () => {
+      const result = createCustomAttributeDefinitionSchema.safeParse({
+        fieldKey: "status",
+        label: "Status",
+        type: "SELECT",
+      });
+      expect(result.success).toBe(false);
+    });
+
+    test("rejects MULTI_SELECT without options", () => {
+      const result = createCustomAttributeDefinitionSchema.safeParse({
+        fieldKey: "tags",
+        label: "Tags",
+        type: "MULTI_SELECT",
+      });
+      expect(result.success).toBe(false);
+    });
+
+    test("rejects SELECT with empty options array", () => {
+      const result = createCustomAttributeDefinitionSchema.safeParse({
+        fieldKey: "status",
+        label: "Status",
+        type: "SELECT",
+        options: [],
+      });
+      expect(result.success).toBe(false);
+    });
+
+    test("rejects empty fieldKey", () => {
+      const result = createCustomAttributeDefinitionSchema.safeParse({
+        fieldKey: "",
+        label: "My Field",
+        type: "TEXT",
+      });
+      expect(result.success).toBe(false);
+    });
+
+    test("rejects fieldKey starting with a number", () => {
+      const result = createCustomAttributeDefinitionSchema.safeParse({
+        fieldKey: "1field",
+        label: "My Field",
+        type: "TEXT",
+      });
+      expect(result.success).toBe(false);
+    });
+
+    test("rejects fieldKey with special characters", () => {
+      const result = createCustomAttributeDefinitionSchema.safeParse({
+        fieldKey: "my-field",
+        label: "My Field",
+        type: "TEXT",
+      });
+      expect(result.success).toBe(false);
+    });
+
+    test("accepts fieldKey with underscores", () => {
+      const result = createCustomAttributeDefinitionSchema.safeParse({
+        fieldKey: "my_field_name",
+        label: "My Field",
+        type: "TEXT",
+      });
+      expect(result.success).toBe(true);
+    });
+
+    test("rejects empty label", () => {
+      const result = createCustomAttributeDefinitionSchema.safeParse({
+        fieldKey: "myField",
+        label: "",
+        type: "TEXT",
+      });
+      expect(result.success).toBe(false);
+    });
+
+    test("accepts NUMBER type without options", () => {
+      const result = createCustomAttributeDefinitionSchema.safeParse({
+        fieldKey: "age",
+        label: "Age",
+        type: "NUMBER",
+      });
+      expect(result.success).toBe(true);
+    });
+
+    test("accepts BOOLEAN type", () => {
+      const result = createCustomAttributeDefinitionSchema.safeParse({
+        fieldKey: "isActive",
+        label: "Active",
+        type: "BOOLEAN",
+      });
+      expect(result.success).toBe(true);
+    });
+
+    test("accepts DATE type", () => {
+      const result = createCustomAttributeDefinitionSchema.safeParse({
+        fieldKey: "birthDate",
+        label: "Birth Date",
+        type: "DATE",
+      });
+      expect(result.success).toBe(true);
+    });
+  });
+
+  describe("updateCustomAttributeDefinitionSchema", () => {
+    test("accepts partial update with label only", () => {
+      const result = updateCustomAttributeDefinitionSchema.safeParse({
+        label: "Updated Label",
+      });
+      expect(result.success).toBe(true);
+    });
+
+    test("accepts empty update", () => {
+      const result = updateCustomAttributeDefinitionSchema.safeParse({});
+      expect(result.success).toBe(true);
+    });
+
+    test("accepts update with options", () => {
+      const result = updateCustomAttributeDefinitionSchema.safeParse({
+        options: ["a", "b", "c"],
+      });
+      expect(result.success).toBe(true);
+    });
+
+    test("accepts update with required flag", () => {
+      const result = updateCustomAttributeDefinitionSchema.safeParse({
+        required: true,
+      });
+      expect(result.success).toBe(true);
+    });
+
+    test("accepts update with displayOrder", () => {
+      const result = updateCustomAttributeDefinitionSchema.safeParse({
+        displayOrder: 5,
+      });
+      expect(result.success).toBe(true);
+    });
+
+    test("rejects negative displayOrder", () => {
+      const result = updateCustomAttributeDefinitionSchema.safeParse({
+        displayOrder: -1,
+      });
+      expect(result.success).toBe(false);
+    });
+  });
+
+  describe("customAttributeValuesSchema", () => {
+    test("accepts string values", () => {
+      const result = customAttributeValuesSchema.safeParse({
+        name: "hello",
+      });
+      expect(result.success).toBe(true);
+    });
+
+    test("accepts number values", () => {
+      const result = customAttributeValuesSchema.safeParse({
+        age: 25,
+      });
+      expect(result.success).toBe(true);
+    });
+
+    test("accepts boolean values", () => {
+      const result = customAttributeValuesSchema.safeParse({
+        isActive: true,
+      });
+      expect(result.success).toBe(true);
+    });
+
+    test("accepts null values", () => {
+      const result = customAttributeValuesSchema.safeParse({
+        field: null,
+      });
+      expect(result.success).toBe(true);
+    });
+
+    test("accepts string array values", () => {
+      const result = customAttributeValuesSchema.safeParse({
+        tags: ["a", "b"],
+      });
+      expect(result.success).toBe(true);
+    });
+
+    test("accepts mixed value types", () => {
+      const result = customAttributeValuesSchema.safeParse({
+        name: "test",
+        age: 30,
+        active: true,
+        tags: ["vip"],
+        notes: null,
+      });
+      expect(result.success).toBe(true);
+    });
+
+    test("accepts empty record", () => {
+      const result = customAttributeValuesSchema.safeParse({});
+      expect(result.success).toBe(true);
+    });
+
+    test("rejects object values", () => {
+      const result = customAttributeValuesSchema.safeParse({
+        nested: { key: "value" },
+      });
+      expect(result.success).toBe(false);
+    });
+  });
+
+  describe("slotUsageSchema", () => {
+    test("accepts valid slot usage", () => {
+      const result = slotUsageSchema.safeParse({
+        t: { used: 3, total: 10 },
+        n: { used: 1, total: 5 },
+        d: { used: 0, total: 3 },
+        b: { used: 2, total: 5 },
+        j: { used: 0, total: 2 },
+      });
+      expect(result.success).toBe(true);
+    });
+
+    test("rejects missing slot prefix", () => {
+      const result = slotUsageSchema.safeParse({
+        t: { used: 0, total: 10 },
+        n: { used: 0, total: 5 },
+        d: { used: 0, total: 3 },
+        b: { used: 0, total: 5 },
+        // missing j
+      });
+      expect(result.success).toBe(false);
     });
   });
 });

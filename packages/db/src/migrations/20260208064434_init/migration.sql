@@ -171,6 +171,56 @@ CREATE TABLE "clients" (
 );
 --> statement-breakpoint
 ALTER TABLE "clients" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
+CREATE TYPE "custom_attribute_type" AS ENUM('TEXT', 'NUMBER', 'DATE', 'BOOLEAN', 'SELECT', 'MULTI_SELECT');--> statement-breakpoint
+CREATE TABLE "client_custom_attribute_definitions" (
+	"id" uuid PRIMARY KEY DEFAULT uuidv7(),
+	"org_id" uuid NOT NULL,
+	"field_key" text NOT NULL,
+	"label" text NOT NULL,
+	"type" "custom_attribute_type" NOT NULL,
+	"slot_column" text NOT NULL,
+	"required" boolean DEFAULT false NOT NULL,
+	"options" jsonb,
+	"display_order" integer DEFAULT 0 NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+ALTER TABLE "client_custom_attribute_definitions" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
+CREATE TABLE "client_custom_attribute_values" (
+	"id" uuid PRIMARY KEY DEFAULT uuidv7(),
+	"org_id" uuid NOT NULL,
+	"client_id" uuid NOT NULL,
+	"t0" text,
+	"t1" text,
+	"t2" text,
+	"t3" text,
+	"t4" text,
+	"t5" text,
+	"t6" text,
+	"t7" text,
+	"t8" text,
+	"t9" text,
+	"n0" numeric(18, 4),
+	"n1" numeric(18, 4),
+	"n2" numeric(18, 4),
+	"n3" numeric(18, 4),
+	"n4" numeric(18, 4),
+	"d0" timestamp with time zone,
+	"d1" timestamp with time zone,
+	"d2" timestamp with time zone,
+	"b0" boolean,
+	"b1" boolean,
+	"b2" boolean,
+	"b3" boolean,
+	"b4" boolean,
+	"j0" jsonb,
+	"j1" jsonb,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
+ALTER TABLE "client_custom_attribute_values" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
 CREATE TABLE "integrations" (
 	"id" uuid PRIMARY KEY DEFAULT uuidv7(),
 	"org_id" uuid NOT NULL,
@@ -462,4 +512,12 @@ CREATE POLICY "org_isolation_journey_run_step_logs" ON "journey_run_step_logs" A
 CREATE POLICY "org_isolation_journey_versions" ON "journey_versions" AS PERMISSIVE FOR ALL TO public USING (org_id = current_org_id()) WITH CHECK (org_id = current_org_id());--> statement-breakpoint
 CREATE POLICY "org_isolation_journeys" ON "journeys" AS PERMISSIVE FOR ALL TO public USING (org_id = current_org_id()) WITH CHECK (org_id = current_org_id());--> statement-breakpoint
 CREATE POLICY "org_isolation_locations" ON "locations" AS PERMISSIVE FOR ALL TO public USING (org_id = current_org_id()) WITH CHECK (org_id = current_org_id());--> statement-breakpoint
-CREATE POLICY "org_isolation_resources" ON "resources" AS PERMISSIVE FOR ALL TO public USING (org_id = current_org_id()) WITH CHECK (org_id = current_org_id());
+CREATE POLICY "org_isolation_resources" ON "resources" AS PERMISSIVE FOR ALL TO public USING (org_id = current_org_id()) WITH CHECK (org_id = current_org_id());--> statement-breakpoint
+CREATE UNIQUE INDEX "client_cad_org_field_key_uidx" ON "client_custom_attribute_definitions" USING btree ("org_id","field_key");--> statement-breakpoint
+CREATE UNIQUE INDEX "client_cad_org_slot_column_uidx" ON "client_custom_attribute_definitions" USING btree ("org_id","slot_column");--> statement-breakpoint
+CREATE UNIQUE INDEX "client_cav_org_client_uidx" ON "client_custom_attribute_values" USING btree ("org_id","client_id");--> statement-breakpoint
+ALTER TABLE "client_custom_attribute_definitions" ADD CONSTRAINT "client_custom_attribute_definitions_org_id_orgs_id_fkey" FOREIGN KEY ("org_id") REFERENCES "orgs"("id");--> statement-breakpoint
+ALTER TABLE "client_custom_attribute_values" ADD CONSTRAINT "client_custom_attribute_values_org_id_orgs_id_fkey" FOREIGN KEY ("org_id") REFERENCES "orgs"("id");--> statement-breakpoint
+ALTER TABLE "client_custom_attribute_values" ADD CONSTRAINT "client_custom_attribute_values_client_id_clients_id_fkey" FOREIGN KEY ("client_id") REFERENCES "clients"("id") ON DELETE CASCADE;--> statement-breakpoint
+CREATE POLICY "org_isolation_client_custom_attribute_definitions" ON "client_custom_attribute_definitions" AS PERMISSIVE FOR ALL TO public USING (org_id = current_org_id()) WITH CHECK (org_id = current_org_id());--> statement-breakpoint
+CREATE POLICY "org_isolation_client_custom_attribute_values" ON "client_custom_attribute_values" AS PERMISSIVE FOR ALL TO public USING (org_id = current_org_id()) WITH CHECK (org_id = current_org_id());

@@ -16,6 +16,7 @@ import {
   setTestOrgContext,
 } from "../test-utils/index.js";
 import * as clientRoutes from "./clients.js";
+import * as customAttributeRoutes from "./custom-attributes.js";
 import { appointments, clients } from "@scheduling/db/schema";
 import type { BunSQLDatabase } from "drizzle-orm/bun-sql/postgres";
 import type * as schema from "@scheduling/db/schema";
@@ -1434,6 +1435,633 @@ describe("Client Routes", () => {
         ),
       ).rejects.toMatchObject({
         code: "NOT_FOUND",
+      });
+    });
+  });
+
+  describe("custom attributes", () => {
+    // Helper to set up definitions for an org
+    async function setupDefinitions(ctx: ReturnType<typeof createTestContext>) {
+      await call(
+        customAttributeRoutes.createDefinition,
+        { fieldKey: "color", label: "Color", type: "TEXT" },
+        { context: ctx },
+      );
+      await call(
+        customAttributeRoutes.createDefinition,
+        { fieldKey: "score", label: "Score", type: "NUMBER" },
+        { context: ctx },
+      );
+      await call(
+        customAttributeRoutes.createDefinition,
+        { fieldKey: "isVip", label: "VIP", type: "BOOLEAN" },
+        { context: ctx },
+      );
+      await call(
+        customAttributeRoutes.createDefinition,
+        {
+          fieldKey: "status",
+          label: "Status",
+          type: "SELECT",
+          options: ["active", "inactive", "pending"],
+        },
+        { context: ctx },
+      );
+      await call(
+        customAttributeRoutes.createDefinition,
+        {
+          fieldKey: "tags",
+          label: "Tags",
+          type: "MULTI_SELECT",
+          options: ["vip", "new", "returning"],
+        },
+        { context: ctx },
+      );
+    }
+
+    test("create client with custom attributes", async () => {
+      const { org, user } = await createOrg(db);
+      const ctx = createTestContext({ orgId: org.id, userId: user.id });
+      await setupDefinitions(ctx);
+
+      const result = await call(
+        clientRoutes.create,
+        {
+          firstName: "Custom",
+          lastName: "Client",
+          customAttributes: {
+            color: "blue",
+            score: 95,
+            isVip: true,
+            status: "active",
+            tags: ["vip", "new"],
+          },
+        },
+        { context: ctx },
+      );
+
+      expect(result.firstName).toBe("Custom");
+      expect(result.customAttributes).toBeDefined();
+      expect(result.customAttributes!["color"]).toBe("blue");
+      expect(result.customAttributes!["score"]).toBe(95);
+      expect(result.customAttributes!["isVip"]).toBe(true);
+      expect(result.customAttributes!["status"]).toBe("active");
+      expect(result.customAttributes!["tags"]).toEqual(["vip", "new"]);
+    });
+
+    test("create client without custom attributes returns null values for defined fields", async () => {
+      const { org, user } = await createOrg(db);
+      const ctx = createTestContext({ orgId: org.id, userId: user.id });
+      await call(
+        customAttributeRoutes.createDefinition,
+        { fieldKey: "notes", label: "Notes", type: "TEXT" },
+        { context: ctx },
+      );
+
+      const result = await call(
+        clientRoutes.create,
+        { firstName: "No", lastName: "Attrs" },
+        { context: ctx },
+      );
+
+      expect(result.customAttributes).toBeDefined();
+      expect(result.customAttributes!["notes"]).toBeNull();
+    });
+
+    test("get client returns custom attributes", async () => {
+      const { org, user } = await createOrg(db);
+      const ctx = createTestContext({ orgId: org.id, userId: user.id });
+      await call(
+        customAttributeRoutes.createDefinition,
+        { fieldKey: "color", label: "Color", type: "TEXT" },
+        { context: ctx },
+      );
+
+      const created = await call(
+        clientRoutes.create,
+        {
+          firstName: "Fetch",
+          lastName: "Attrs",
+          customAttributes: { color: "red" },
+        },
+        { context: ctx },
+      );
+
+      const fetched = await call(
+        clientRoutes.get,
+        { id: created.id },
+        { context: ctx },
+      );
+
+      expect(fetched.customAttributes).toBeDefined();
+      expect(fetched.customAttributes!["color"]).toBe("red");
+    });
+
+    test("get client by reference ID returns custom attributes", async () => {
+      const { org, user } = await createOrg(db);
+      const ctx = createTestContext({ orgId: org.id, userId: user.id });
+      await call(
+        customAttributeRoutes.createDefinition,
+        { fieldKey: "level", label: "Level", type: "NUMBER" },
+        { context: ctx },
+      );
+
+      await call(
+        clientRoutes.create,
+        {
+          firstName: "Ref",
+          lastName: "Client",
+          referenceId: "ext-attrs-1",
+          customAttributes: { level: 42 },
+        },
+        { context: ctx },
+      );
+
+      const fetched = await call(
+        clientRoutes.getByReference,
+        { referenceId: "ext-attrs-1" },
+        { context: ctx },
+      );
+
+      expect(fetched.customAttributes).toBeDefined();
+      expect(fetched.customAttributes!["level"]).toBe(42);
+    });
+
+    test("update client with custom attributes", async () => {
+      const { org, user } = await createOrg(db);
+      const ctx = createTestContext({ orgId: org.id, userId: user.id });
+      await call(
+        customAttributeRoutes.createDefinition,
+        { fieldKey: "color", label: "Color", type: "TEXT" },
+        { context: ctx },
+      );
+
+      const created = await call(
+        clientRoutes.create,
+        {
+          firstName: "Update",
+          lastName: "Attrs",
+          customAttributes: { color: "red" },
+        },
+        { context: ctx },
+      );
+
+      const updated = await call(
+        clientRoutes.update,
+        {
+          id: created.id,
+          data: { customAttributes: { color: "green" } },
+        },
+        { context: ctx },
+      );
+
+      expect(updated.customAttributes!["color"]).toBe("green");
+    });
+
+    test("update client custom attributes preserves unmodified values", async () => {
+      const { org, user } = await createOrg(db);
+      const ctx = createTestContext({ orgId: org.id, userId: user.id });
+      await call(
+        customAttributeRoutes.createDefinition,
+        { fieldKey: "color", label: "Color", type: "TEXT" },
+        { context: ctx },
+      );
+      await call(
+        customAttributeRoutes.createDefinition,
+        { fieldKey: "size", label: "Size", type: "TEXT" },
+        { context: ctx },
+      );
+
+      const created = await call(
+        clientRoutes.create,
+        {
+          firstName: "Partial",
+          lastName: "Update",
+          customAttributes: { color: "red", size: "large" },
+        },
+        { context: ctx },
+      );
+
+      const updated = await call(
+        clientRoutes.update,
+        {
+          id: created.id,
+          data: { customAttributes: { color: "blue" } },
+        },
+        { context: ctx },
+      );
+
+      expect(updated.customAttributes!["color"]).toBe("blue");
+      // size should remain unchanged — upsert only modifies supplied slots
+      expect(updated.customAttributes!["size"]).toBe("large");
+    });
+
+    test("set custom attribute to null clears the value", async () => {
+      const { org, user } = await createOrg(db);
+      const ctx = createTestContext({ orgId: org.id, userId: user.id });
+      await call(
+        customAttributeRoutes.createDefinition,
+        { fieldKey: "color", label: "Color", type: "TEXT" },
+        { context: ctx },
+      );
+
+      const created = await call(
+        clientRoutes.create,
+        {
+          firstName: "Clear",
+          lastName: "Value",
+          customAttributes: { color: "red" },
+        },
+        { context: ctx },
+      );
+
+      const updated = await call(
+        clientRoutes.update,
+        {
+          id: created.id,
+          data: { customAttributes: { color: null } },
+        },
+        { context: ctx },
+      );
+
+      expect(updated.customAttributes!["color"]).toBeNull();
+    });
+
+    test("throws BAD_REQUEST for unknown custom attribute field key", async () => {
+      const { org, user } = await createOrg(db);
+      const ctx = createTestContext({ orgId: org.id, userId: user.id });
+      await call(
+        customAttributeRoutes.createDefinition,
+        { fieldKey: "color", label: "Color", type: "TEXT" },
+        { context: ctx },
+      );
+
+      await expect(
+        call(
+          clientRoutes.create,
+          {
+            firstName: "Bad",
+            lastName: "Field",
+            customAttributes: { unknownField: "value" },
+          },
+          { context: ctx },
+        ),
+      ).rejects.toMatchObject({
+        code: "BAD_REQUEST",
+      });
+    });
+
+    test("throws BAD_REQUEST for wrong value type (string for NUMBER)", async () => {
+      const { org, user } = await createOrg(db);
+      const ctx = createTestContext({ orgId: org.id, userId: user.id });
+      await call(
+        customAttributeRoutes.createDefinition,
+        { fieldKey: "score", label: "Score", type: "NUMBER" },
+        { context: ctx },
+      );
+
+      await expect(
+        call(
+          clientRoutes.create,
+          {
+            firstName: "Type",
+            lastName: "Error",
+            customAttributes: { score: "not-a-number" },
+          },
+          { context: ctx },
+        ),
+      ).rejects.toMatchObject({
+        code: "BAD_REQUEST",
+      });
+    });
+
+    test("throws BAD_REQUEST for wrong value type (number for TEXT)", async () => {
+      const { org, user } = await createOrg(db);
+      const ctx = createTestContext({ orgId: org.id, userId: user.id });
+      await call(
+        customAttributeRoutes.createDefinition,
+        { fieldKey: "name", label: "Name", type: "TEXT" },
+        { context: ctx },
+      );
+
+      await expect(
+        call(
+          clientRoutes.create,
+          {
+            firstName: "Type",
+            lastName: "Error",
+            customAttributes: { name: 123 },
+          },
+          { context: ctx },
+        ),
+      ).rejects.toMatchObject({
+        code: "BAD_REQUEST",
+      });
+    });
+
+    test("throws BAD_REQUEST for wrong value type (string for BOOLEAN)", async () => {
+      const { org, user } = await createOrg(db);
+      const ctx = createTestContext({ orgId: org.id, userId: user.id });
+      await call(
+        customAttributeRoutes.createDefinition,
+        { fieldKey: "active", label: "Active", type: "BOOLEAN" },
+        { context: ctx },
+      );
+
+      await expect(
+        call(
+          clientRoutes.create,
+          {
+            firstName: "Type",
+            lastName: "Error",
+            customAttributes: { active: "yes" },
+          },
+          { context: ctx },
+        ),
+      ).rejects.toMatchObject({
+        code: "BAD_REQUEST",
+      });
+    });
+
+    test("throws BAD_REQUEST for invalid SELECT option", async () => {
+      const { org, user } = await createOrg(db);
+      const ctx = createTestContext({ orgId: org.id, userId: user.id });
+      await call(
+        customAttributeRoutes.createDefinition,
+        {
+          fieldKey: "status",
+          label: "Status",
+          type: "SELECT",
+          options: ["active", "inactive"],
+        },
+        { context: ctx },
+      );
+
+      await expect(
+        call(
+          clientRoutes.create,
+          {
+            firstName: "Bad",
+            lastName: "Option",
+            customAttributes: { status: "unknown_option" },
+          },
+          { context: ctx },
+        ),
+      ).rejects.toMatchObject({
+        code: "BAD_REQUEST",
+      });
+    });
+
+    test("throws BAD_REQUEST for invalid MULTI_SELECT option", async () => {
+      const { org, user } = await createOrg(db);
+      const ctx = createTestContext({ orgId: org.id, userId: user.id });
+      await call(
+        customAttributeRoutes.createDefinition,
+        {
+          fieldKey: "tags",
+          label: "Tags",
+          type: "MULTI_SELECT",
+          options: ["vip", "new"],
+        },
+        { context: ctx },
+      );
+
+      await expect(
+        call(
+          clientRoutes.create,
+          {
+            firstName: "Bad",
+            lastName: "Multi",
+            customAttributes: { tags: ["vip", "invalid_tag"] },
+          },
+          { context: ctx },
+        ),
+      ).rejects.toMatchObject({
+        code: "BAD_REQUEST",
+      });
+    });
+
+    test("throws BAD_REQUEST for MULTI_SELECT with non-array value", async () => {
+      const { org, user } = await createOrg(db);
+      const ctx = createTestContext({ orgId: org.id, userId: user.id });
+      await call(
+        customAttributeRoutes.createDefinition,
+        {
+          fieldKey: "tags",
+          label: "Tags",
+          type: "MULTI_SELECT",
+          options: ["a", "b"],
+        },
+        { context: ctx },
+      );
+
+      await expect(
+        call(
+          clientRoutes.create,
+          {
+            firstName: "Bad",
+            lastName: "Multi",
+            customAttributes: { tags: "not-an-array" },
+          },
+          { context: ctx },
+        ),
+      ).rejects.toMatchObject({
+        code: "BAD_REQUEST",
+      });
+    });
+
+    test("required custom attribute enforced on client create", async () => {
+      const { org, user } = await createOrg(db);
+      const ctx = createTestContext({ orgId: org.id, userId: user.id });
+      await call(
+        customAttributeRoutes.createDefinition,
+        {
+          fieldKey: "requiredField",
+          label: "Required",
+          type: "TEXT",
+          required: true,
+        },
+        { context: ctx },
+      );
+
+      // Creating with required field succeeds
+      const success = await call(
+        clientRoutes.create,
+        {
+          firstName: "With",
+          lastName: "Required",
+          customAttributes: { requiredField: "present" },
+        },
+        { context: ctx },
+      );
+      expect(success.customAttributes!["requiredField"]).toBe("present");
+
+      // Creating with required field as null fails
+      await expect(
+        call(
+          clientRoutes.create,
+          {
+            firstName: "No",
+            lastName: "Required",
+            customAttributes: { requiredField: null },
+          },
+          { context: ctx },
+        ),
+      ).rejects.toMatchObject({
+        code: "BAD_REQUEST",
+      });
+    });
+
+    test("required custom attribute allows null in update if not included", async () => {
+      const { org, user } = await createOrg(db);
+      const ctx = createTestContext({ orgId: org.id, userId: user.id });
+      await call(
+        customAttributeRoutes.createDefinition,
+        {
+          fieldKey: "requiredField",
+          label: "Required",
+          type: "TEXT",
+          required: true,
+        },
+        { context: ctx },
+      );
+      await call(
+        customAttributeRoutes.createDefinition,
+        { fieldKey: "optionalField", label: "Optional", type: "TEXT" },
+        { context: ctx },
+      );
+
+      const created = await call(
+        clientRoutes.create,
+        {
+          firstName: "Update",
+          lastName: "Required",
+          customAttributes: { requiredField: "value" },
+        },
+        { context: ctx },
+      );
+
+      // Updating optionalField without touching requiredField should succeed
+      const updated = await call(
+        clientRoutes.update,
+        {
+          id: created.id,
+          data: { customAttributes: { optionalField: "added" } },
+        },
+        { context: ctx },
+      );
+
+      expect(updated.customAttributes!["requiredField"]).toBe("value");
+      expect(updated.customAttributes!["optionalField"]).toBe("added");
+    });
+
+    test("required custom attribute rejects explicit null in update", async () => {
+      const { org, user } = await createOrg(db);
+      const ctx = createTestContext({ orgId: org.id, userId: user.id });
+      await call(
+        customAttributeRoutes.createDefinition,
+        {
+          fieldKey: "requiredField",
+          label: "Required",
+          type: "TEXT",
+          required: true,
+        },
+        { context: ctx },
+      );
+
+      const created = await call(
+        clientRoutes.create,
+        {
+          firstName: "Null",
+          lastName: "Required",
+          customAttributes: { requiredField: "value" },
+        },
+        { context: ctx },
+      );
+
+      await expect(
+        call(
+          clientRoutes.update,
+          {
+            id: created.id,
+            data: { customAttributes: { requiredField: null } },
+          },
+          { context: ctx },
+        ),
+      ).rejects.toMatchObject({
+        code: "BAD_REQUEST",
+      });
+    });
+
+    test("update client by reference ID with custom attributes", async () => {
+      const { org, user } = await createOrg(db);
+      const ctx = createTestContext({ orgId: org.id, userId: user.id });
+      await call(
+        customAttributeRoutes.createDefinition,
+        { fieldKey: "tier", label: "Tier", type: "TEXT" },
+        { context: ctx },
+      );
+
+      await call(
+        clientRoutes.create,
+        {
+          firstName: "ByRef",
+          lastName: "Update",
+          referenceId: "ext-ca-update",
+          customAttributes: { tier: "basic" },
+        },
+        { context: ctx },
+      );
+
+      const updated = await call(
+        clientRoutes.updateByReference,
+        {
+          referenceId: "ext-ca-update",
+          data: { customAttributes: { tier: "premium" } },
+        },
+        { context: ctx },
+      );
+
+      expect(updated.customAttributes!["tier"]).toBe("premium");
+    });
+
+    test("client with no defined custom attributes returns empty object", async () => {
+      const { org, user } = await createOrg(db);
+      const ctx = createTestContext({ orgId: org.id, userId: user.id });
+
+      // No definitions created for this org
+      const created = await call(
+        clientRoutes.create,
+        { firstName: "No", lastName: "Defs" },
+        { context: ctx },
+      );
+
+      const fetched = await call(
+        clientRoutes.get,
+        { id: created.id },
+        { context: ctx },
+      );
+
+      expect(fetched.customAttributes).toEqual({});
+    });
+
+    test("throws BAD_REQUEST when setting custom attributes with no definitions", async () => {
+      const { org, user } = await createOrg(db);
+      const ctx = createTestContext({ orgId: org.id, userId: user.id });
+
+      // No definitions created — trying to set values should fail
+      await expect(
+        call(
+          clientRoutes.create,
+          {
+            firstName: "No",
+            lastName: "Defs",
+            customAttributes: { field: "value" },
+          },
+          { context: ctx },
+        ),
+      ).rejects.toMatchObject({
+        code: "BAD_REQUEST",
       });
     });
   });

@@ -38,6 +38,9 @@ const errorStatusMap: Record<string, ErrorHttpStatus> = {
   RESOURCE_CONFLICT: 409,
   DUPLICATE_ENTRY: 409,
 
+  // Internal (500)
+  INTERNAL_ERROR: 500,
+
   // Business Logic (422)
   UNPROCESSABLE_CONTENT: 422,
   BOOKING_IN_PAST: 422,

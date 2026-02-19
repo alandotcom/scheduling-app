@@ -22,52 +22,21 @@ import type {
   ClientHistorySummary,
   CreateClientInput,
   UpdateClientInput,
+  CustomAttributeValues,
 } from "@scheduling/dto";
+import { clientCustomAttributeService } from "./client-custom-attributes.js";
+import type { ValidatedDefinition } from "../repositories/custom-attributes.js";
+import {
+  isUniqueConstraintViolation,
+  getConstraintName,
+} from "../lib/db-errors.js";
 
-const UNIQUE_CONSTRAINT_VIOLATION = "23505";
 const CLIENT_EMAIL_UNIQUE_CONSTRAINT = "clients_org_email_unique_idx";
 const CLIENT_PHONE_UNIQUE_CONSTRAINT = "clients_org_phone_unique_idx";
 const CLIENT_REFERENCE_ID_UNIQUE_CONSTRAINT =
   "clients_org_reference_id_unique_idx";
 const DEFAULT_PHONE_COUNTRY: CountryCode = "US";
 const PHONE_COUNTRIES = getCountries();
-
-function isUniqueConstraintViolation(error: unknown): boolean {
-  if (!error || typeof error !== "object") return false;
-
-  if ("code" in error && error.code === UNIQUE_CONSTRAINT_VIOLATION) {
-    return true;
-  }
-
-  if ("cause" in error && error.cause && typeof error.cause === "object") {
-    const { cause } = error;
-    if ("errno" in cause && cause.errno === UNIQUE_CONSTRAINT_VIOLATION) {
-      return true;
-    }
-    if ("code" in cause && cause.code === UNIQUE_CONSTRAINT_VIOLATION) {
-      return true;
-    }
-  }
-
-  return false;
-}
-
-function getConstraintName(error: unknown): string | null {
-  if (!error || typeof error !== "object") return null;
-
-  if ("constraint" in error && typeof error.constraint === "string") {
-    return error.constraint;
-  }
-
-  if ("cause" in error && error.cause && typeof error.cause === "object") {
-    const { cause } = error;
-    if ("constraint" in cause && typeof cause.constraint === "string") {
-      return cause.constraint;
-    }
-  }
-
-  return null;
-}
 
 function mapClientWriteError(error: unknown): ApplicationError | null {
   if (!isUniqueConstraintViolation(error)) return null;
@@ -205,6 +174,10 @@ function normalizeUpdateInput(
   return normalized;
 }
 
+type ClientWithCustomAttributes = Client & {
+  customAttributes: CustomAttributeValues;
+};
+
 export class ClientService {
   async list(
     input: ClientListInput,
@@ -215,7 +188,10 @@ export class ClientService {
     );
   }
 
-  async get(id: string, context: ServiceContext): Promise<Client> {
+  async get(
+    id: string,
+    context: ServiceContext,
+  ): Promise<ClientWithCustomAttributes> {
     return withOrg(context.orgId, async (tx) => {
       const client = await clientRepository.findById(tx, context.orgId, id);
 
@@ -223,14 +199,21 @@ export class ClientService {
         throw new ApplicationError("Client not found", { code: "NOT_FOUND" });
       }
 
-      return client;
+      const customAttributes =
+        await clientCustomAttributeService.loadClientCustomAttributes(
+          tx,
+          context.orgId,
+          id,
+        );
+
+      return { ...client, customAttributes };
     });
   }
 
   async getByReferenceId(
     referenceId: string,
     context: ServiceContext,
-  ): Promise<Client> {
+  ): Promise<ClientWithCustomAttributes> {
     return withOrg(context.orgId, async (tx) => {
       const client = await clientRepository.findByReferenceId(
         tx,
@@ -242,32 +225,60 @@ export class ClientService {
         throw new ApplicationError("Client not found", { code: "NOT_FOUND" });
       }
 
-      return client;
+      const customAttributes =
+        await clientCustomAttributeService.loadClientCustomAttributes(
+          tx,
+          context.orgId,
+          client.id,
+        );
+
+      return { ...client, customAttributes };
     });
   }
 
   async create(
     input: CreateClientInput,
     context: ServiceContext,
-  ): Promise<Client> {
-    const client = await withOrg(context.orgId, async (tx) => {
-      const normalizedInput = normalizeCreateInput(input);
+  ): Promise<ClientWithCustomAttributes> {
+    const { customAttributes: customAttrsInput, ...coreInput } = input;
 
-      let client: Client;
-      try {
-        client = await clientRepository.create(
+    const { client, customAttributes } = await withOrg(
+      context.orgId,
+      async (tx) => {
+        const normalizedInput = normalizeCreateInput(coreInput);
+
+        let client: Client;
+        try {
+          client = await clientRepository.create(
+            tx,
+            context.orgId,
+            normalizedInput,
+          );
+        } catch (error: unknown) {
+          const mappedError = mapClientWriteError(error);
+          if (mappedError) throw mappedError;
+          throw error;
+        }
+
+        const defs = await clientCustomAttributeService.writeValues(
           tx,
           context.orgId,
-          normalizedInput,
+          client.id,
+          customAttrsInput ?? {},
+          { enforceRequired: true },
         );
-      } catch (error: unknown) {
-        const mappedError = mapClientWriteError(error);
-        if (mappedError) throw mappedError;
-        throw error;
-      }
 
-      return client;
-    });
+        const customAttributes =
+          await clientCustomAttributeService.loadClientCustomAttributesFromDefs(
+            tx,
+            context.orgId,
+            client.id,
+            defs,
+          );
+
+        return { client, customAttributes };
+      },
+    );
 
     await events.clientCreated(context.orgId, {
       clientId: client.id,
@@ -277,44 +288,71 @@ export class ClientService {
       phone: client.phone,
     });
 
-    return client;
+    return { ...client, customAttributes };
   }
 
   async update(
     id: string,
     data: UpdateClientInput,
     context: ServiceContext,
-  ): Promise<Client> {
-    const { existing, updated } = await withOrg(context.orgId, async (tx) => {
-      // Get existing for event payload
-      const existing = await clientRepository.findById(tx, context.orgId, id);
+  ): Promise<ClientWithCustomAttributes> {
+    const { customAttributes: customAttrsInput, ...coreData } = data;
 
-      if (!existing) {
-        throw new ApplicationError("Client not found", { code: "NOT_FOUND" });
-      }
+    const { existing, updated, customAttributes } = await withOrg(
+      context.orgId,
+      async (tx) => {
+        const existing = await clientRepository.findById(tx, context.orgId, id);
 
-      const normalizedChanges = normalizeUpdateInput(data);
+        if (!existing) {
+          throw new ApplicationError("Client not found", { code: "NOT_FOUND" });
+        }
 
-      let updated: Client | null;
-      try {
-        updated = await clientRepository.update(
-          tx,
-          context.orgId,
-          id,
-          normalizedChanges,
-        );
-      } catch (error: unknown) {
-        const mappedError = mapClientWriteError(error);
-        if (mappedError) throw mappedError;
-        throw error;
-      }
+        const normalizedChanges = normalizeUpdateInput(coreData);
 
-      if (!updated) {
-        throw new ApplicationError("Client not found", { code: "NOT_FOUND" });
-      }
+        let updated: Client | null;
+        try {
+          updated = await clientRepository.update(
+            tx,
+            context.orgId,
+            id,
+            normalizedChanges,
+          );
+        } catch (error: unknown) {
+          const mappedError = mapClientWriteError(error);
+          if (mappedError) throw mappedError;
+          throw error;
+        }
 
-      return { existing, updated };
-    });
+        if (!updated) {
+          throw new ApplicationError("Client not found", { code: "NOT_FOUND" });
+        }
+
+        let defs: ValidatedDefinition[] | null = null;
+        if (customAttrsInput && Object.keys(customAttrsInput).length > 0) {
+          defs = await clientCustomAttributeService.writeValues(
+            tx,
+            context.orgId,
+            id,
+            customAttrsInput,
+          );
+        }
+
+        const customAttributes = defs
+          ? await clientCustomAttributeService.loadClientCustomAttributesFromDefs(
+              tx,
+              context.orgId,
+              id,
+              defs,
+            )
+          : await clientCustomAttributeService.loadClientCustomAttributes(
+              tx,
+              context.orgId,
+              id,
+            );
+
+        return { existing, updated, customAttributes };
+      },
+    );
 
     await events.clientUpdated(context.orgId, {
       clientId: updated.id,
@@ -331,47 +369,75 @@ export class ClientService {
       },
     });
 
-    return updated;
+    return { ...updated, customAttributes };
   }
 
   async updateByReferenceId(
     referenceId: string,
     data: UpdateClientInput,
     context: ServiceContext,
-  ): Promise<Client> {
-    const { existing, updated } = await withOrg(context.orgId, async (tx) => {
-      const existing = await clientRepository.findByReferenceId(
-        tx,
-        context.orgId,
-        referenceId,
-      );
+  ): Promise<ClientWithCustomAttributes> {
+    const { customAttributes: customAttrsInput, ...coreData } = data;
 
-      if (!existing) {
-        throw new ApplicationError("Client not found", { code: "NOT_FOUND" });
-      }
-
-      const normalizedChanges = normalizeUpdateInput(data);
-
-      let updated: Client | null;
-      try {
-        updated = await clientRepository.updateByReferenceId(
+    const { existing, updated, customAttributes } = await withOrg(
+      context.orgId,
+      async (tx) => {
+        const existing = await clientRepository.findByReferenceId(
           tx,
           context.orgId,
           referenceId,
-          normalizedChanges,
         );
-      } catch (error: unknown) {
-        const mappedError = mapClientWriteError(error);
-        if (mappedError) throw mappedError;
-        throw error;
-      }
 
-      if (!updated) {
-        throw new ApplicationError("Client not found", { code: "NOT_FOUND" });
-      }
+        if (!existing) {
+          throw new ApplicationError("Client not found", { code: "NOT_FOUND" });
+        }
 
-      return { existing, updated };
-    });
+        const normalizedChanges = normalizeUpdateInput(coreData);
+
+        let updated: Client | null;
+        try {
+          updated = await clientRepository.updateByReferenceId(
+            tx,
+            context.orgId,
+            referenceId,
+            normalizedChanges,
+          );
+        } catch (error: unknown) {
+          const mappedError = mapClientWriteError(error);
+          if (mappedError) throw mappedError;
+          throw error;
+        }
+
+        if (!updated) {
+          throw new ApplicationError("Client not found", { code: "NOT_FOUND" });
+        }
+
+        let defs: ValidatedDefinition[] | null = null;
+        if (customAttrsInput && Object.keys(customAttrsInput).length > 0) {
+          defs = await clientCustomAttributeService.writeValues(
+            tx,
+            context.orgId,
+            updated.id,
+            customAttrsInput,
+          );
+        }
+
+        const customAttributes = defs
+          ? await clientCustomAttributeService.loadClientCustomAttributesFromDefs(
+              tx,
+              context.orgId,
+              updated.id,
+              defs,
+            )
+          : await clientCustomAttributeService.loadClientCustomAttributes(
+              tx,
+              context.orgId,
+              updated.id,
+            );
+
+        return { existing, updated, customAttributes };
+      },
+    );
 
     await events.clientUpdated(context.orgId, {
       clientId: updated.id,
@@ -388,7 +454,7 @@ export class ClientService {
       },
     });
 
-    return updated;
+    return { ...updated, customAttributes };
   }
 
   async delete(

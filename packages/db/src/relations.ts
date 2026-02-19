@@ -20,6 +20,7 @@ export const relations = defineRelations(schema, (r) => ({
     journeyVersions: r.many.journeyVersions(),
     journeyRuns: r.many.journeyRuns(),
     journeyDeliveries: r.many.journeyDeliveries(),
+    clientCustomAttributeDefinitions: r.many.clientCustomAttributeDefinitions(),
   },
 
   users: {
@@ -128,6 +129,25 @@ export const relations = defineRelations(schema, (r) => ({
       to: r.orgs.id,
     }),
     appointments: r.many.appointments(),
+    customAttributeValues: r.many.clientCustomAttributeValues(),
+  },
+
+  clientCustomAttributeDefinitions: {
+    org: r.one.orgs({
+      from: r.clientCustomAttributeDefinitions.orgId,
+      to: r.orgs.id,
+    }),
+  },
+
+  clientCustomAttributeValues: {
+    org: r.one.orgs({
+      from: r.clientCustomAttributeValues.orgId,
+      to: r.orgs.id,
+    }),
+    client: r.one.clients({
+      from: r.clientCustomAttributeValues.clientId,
+      to: r.clients.id,
+    }),
   },
 
   appointments: {
