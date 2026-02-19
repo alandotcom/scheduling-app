@@ -192,10 +192,8 @@ describe("journey integration action dispatchers", () => {
             "MG1234567890abcdef1234567890abcdef",
           );
           expect(statusCallback).toContain(
-            "/api/integrations/twilio/status-callback",
+            "/api/integrations/twilio/status-callback/org_1/delivery_1",
           );
-          expect(statusCallback).toContain("orgId=org_1");
-          expect(statusCallback).toContain("journeyDeliveryId=delivery_1");
           return { sid: "SM123" };
         },
       },

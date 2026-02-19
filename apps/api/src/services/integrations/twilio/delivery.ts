@@ -245,12 +245,11 @@ export function buildTwilioStatusCallbackUrl(input: {
   journeyDeliveryId: string;
   baseUrl?: string;
 }): string {
+  const base = input.baseUrl ?? authBaseUrl;
   const callbackUrl = new URL(
-    "/api/integrations/twilio/status-callback",
-    input.baseUrl ?? authBaseUrl,
+    `/api/integrations/twilio/status-callback/${encodeURIComponent(input.orgId)}/${encodeURIComponent(input.journeyDeliveryId)}`,
+    base,
   );
-  callbackUrl.searchParams.set("orgId", input.orgId);
-  callbackUrl.searchParams.set("journeyDeliveryId", input.journeyDeliveryId);
   return callbackUrl.toString();
 }
 

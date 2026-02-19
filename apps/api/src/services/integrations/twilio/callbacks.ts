@@ -304,7 +304,7 @@ export function parseTwilioStatusCallbackBody(body: Record<string, string>): {
   };
 }
 
-export function resolveCallbackQueryParams(input: {
+export function resolveCallbackPathParams(input: {
   orgId: string | undefined;
   journeyDeliveryId: string | undefined;
 }): { orgId: string | null; journeyDeliveryId: string | null } {

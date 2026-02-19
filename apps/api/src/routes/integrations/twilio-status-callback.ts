@@ -3,7 +3,7 @@ import { Hono } from "hono";
 import { sendJourneyActionSendTwilioCallbackReceived } from "../../inngest/runtime-events.js";
 import {
   parseTwilioStatusCallbackBody,
-  resolveCallbackQueryParams,
+  resolveCallbackPathParams,
   validateTwilioStatusCallbackSignature,
 } from "../../services/integrations/twilio/callbacks.js";
 import { resolveTwilioCredentialsForOrg } from "../../services/integrations/twilio/delivery.js";
@@ -26,10 +26,10 @@ function toStringBody(
 
 export const twilioStatusCallbackRouter = new Hono();
 
-twilioStatusCallbackRouter.post("/status-callback", async (c) => {
-  const { orgId, journeyDeliveryId } = resolveCallbackQueryParams({
-    orgId: c.req.query("orgId"),
-    journeyDeliveryId: c.req.query("journeyDeliveryId"),
+twilioStatusCallbackRouter.post("/status-callback/:orgId/:journeyDeliveryId", async (c) => {
+  const { orgId, journeyDeliveryId } = resolveCallbackPathParams({
+    orgId: c.req.param("orgId"),
+    journeyDeliveryId: c.req.param("journeyDeliveryId"),
   });
 
   if (!orgId || !journeyDeliveryId) {
