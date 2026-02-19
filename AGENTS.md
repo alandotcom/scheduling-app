@@ -188,6 +188,13 @@ Dependency classification rule:
 - Avoid `await` inside `for`/`while` loops (`eslint/no-await-in-loop`). If sequential execution is required, precompute an ordered list and run it via `forEachAsync(..., { concurrency: 1 })` or `reduceAsync`.
 - For object value transforms, prefer `mapValues` from `es-toolkit/object`; use `es-toolkit/compat` only when lodash-compatible behavior is specifically needed.
 
+## Function Utilities
+
+- Use `retry` from `es-toolkit/function` instead of hand-rolled recursive retry loops. It supports `retries`, `delay`, `shouldRetry`, and `signal` (AbortController).
+- **Gotcha:** `retries` means **total attempts**, not retries-after-first. `retries: 3` = 3 total calls. Use `retries: maxAttempts` (not `maxAttempts - 1`).
+- Use `shouldRetry: (error) => condition` to skip retries for non-retryable errors (e.g. validation failures).
+- Before writing custom recursive or looping async patterns, check if `es-toolkit/function` or `es-toolkit/promise` already has a utility (`retry`, `timeout`, `delay`, `debounce`, `throttle`).
+
 ## Database Schema Patterns
 
 - All tables have `org_id` for multi-tenancy

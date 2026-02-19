@@ -1,6 +1,7 @@
 import { linearJourneyGraphSchema } from "@scheduling/dto";
 import { journeyDeliveries, journeyRuns } from "@scheduling/db/schema";
 import { and, eq, sql } from "drizzle-orm";
+import { retry } from "es-toolkit/function";
 import type { JourneyDeliveryScheduledEventData } from "../inngest/runtime-events.js";
 import { withOrg } from "../lib/db.js";
 import { toRecord } from "../lib/type-guards.js";
@@ -631,57 +632,26 @@ export async function executeJourneyDeliveryScheduled(
       },
     });
 
-    const attemptDispatch = async (
-      attempt: number,
-    ): Promise<
-      | {
-          ok: true;
-          attempts: number;
-          dispatched: Awaited<ReturnType<JourneyDeliveryDispatcher>>;
-        }
-      | {
-          ok: false;
-          attempts: number;
-          error: unknown;
-        }
-    > => {
-      try {
-        const dispatched = await dispatchDelivery(dispatchPayload);
-        return {
-          ok: true,
-          attempts: attempt,
-          dispatched,
-        };
-      } catch (error: unknown) {
-        if (error instanceof JourneyDeliveryNonRetryableError) {
-          return {
-            ok: false,
-            attempts: attempt,
-            error,
-          };
-        }
+    let attempts = 0;
+    try {
+      const dispatched = await retry(
+        async () => {
+          attempts++;
+          return dispatchDelivery(dispatchPayload);
+        },
+        {
+          retries: maxDispatchAttempts,
+          shouldRetry: (error) =>
+            !(error instanceof JourneyDeliveryNonRetryableError),
+        },
+      );
 
-        if (attempt >= maxDispatchAttempts) {
-          return {
-            ok: false,
-            attempts: attempt,
-            error,
-          };
-        }
-
-        return attemptDispatch(attempt + 1);
-      }
-    };
-
-    const dispatchAttempt = await attemptDispatch(1);
-
-    if (dispatchAttempt.ok) {
       const providerMessageId =
-        typeof dispatchAttempt.dispatched.providerMessageId === "string"
-          ? dispatchAttempt.dispatched.providerMessageId
+        typeof dispatched.providerMessageId === "string"
+          ? dispatched.providerMessageId
           : undefined;
 
-      if (dispatchAttempt.dispatched.awaitingAsyncCallback) {
+      if (dispatched.awaitingAsyncCallback) {
         await upsertRunStepLog({
           orgId: input.orgId,
           runId: current.delivery.journeyRunId,
@@ -692,8 +662,8 @@ export async function executeJourneyDeliveryScheduled(
           logInput: dispatchLogInput,
           logOutput: {
             status: "planned",
-            attempts: dispatchAttempt.attempts,
-            reasonCode: dispatchAttempt.dispatched.reasonCode ?? null,
+            attempts,
+            reasonCode: dispatched.reasonCode ?? null,
             providerMessageId: providerMessageId ?? null,
             providerState: "accepted_pending_callback",
           },
@@ -705,7 +675,7 @@ export async function executeJourneyDeliveryScheduled(
           message: `Delivery ${current.delivery.stepKey} accepted by provider; waiting for status callback`,
           metadata: {
             stepKey: current.delivery.stepKey,
-            attempts: dispatchAttempt.attempts,
+            attempts,
             ...(providerMessageId ? { providerMessageId } : {}),
           },
         });
@@ -714,8 +684,8 @@ export async function executeJourneyDeliveryScheduled(
           journeyDeliveryId: current.delivery.id,
           journeyRunId: current.delivery.journeyRunId,
           status: "sent",
-          attempts: dispatchAttempt.attempts,
-          reasonCode: dispatchAttempt.dispatched.reasonCode ?? null,
+          attempts,
+          reasonCode: dispatched.reasonCode ?? null,
           ...(providerMessageId ? { providerMessageId } : {}),
         };
       }
@@ -727,23 +697,23 @@ export async function executeJourneyDeliveryScheduled(
         dispatchStartedAt,
         now,
         status: "sent",
-        reasonCode: dispatchAttempt.dispatched.reasonCode ?? null,
-        attempts: dispatchAttempt.attempts,
+        reasonCode: dispatched.reasonCode ?? null,
+        attempts,
         ...(providerMessageId ? { providerMessageId } : {}),
         logInput: dispatchLogInput,
       });
+    } catch (error) {
+      return finalizeDeliveryOutcome({
+        orgId: input.orgId,
+        delivery: current.delivery,
+        nodeType,
+        dispatchStartedAt,
+        now,
+        status: "failed",
+        reasonCode: toProviderErrorReasonCode(error),
+        attempts,
+        logInput: dispatchLogInput,
+      });
     }
-
-    return finalizeDeliveryOutcome({
-      orgId: input.orgId,
-      delivery: current.delivery,
-      nodeType,
-      dispatchStartedAt,
-      now,
-      status: "failed",
-      reasonCode: toProviderErrorReasonCode(dispatchAttempt.error),
-      attempts: dispatchAttempt.attempts,
-      logInput: dispatchLogInput,
-    });
   });
 }
