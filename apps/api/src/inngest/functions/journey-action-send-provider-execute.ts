@@ -1,10 +1,10 @@
 import { executeJourneyDeliveryScheduled } from "../../services/journey-delivery-worker.js";
 import {
   deliveryProviders,
+  SHARED_ORG_CONCURRENCY,
   type DeliveryProviderSpec,
 } from "../../services/delivery-provider-registry.js";
 import { inngest } from "../client.js";
-import { JOURNEY_DELIVERY_FLOW_CONTROL } from "./journey-delivery-flow-control.js";
 
 type ExecuteJourneyDeliveryScheduled = typeof executeJourneyDeliveryScheduled;
 
@@ -22,10 +22,7 @@ function createProviderExecuteFunction(
           if: "async.data.journeyDeliveryId == event.data.journeyDeliveryId",
         },
       ],
-      concurrency: [
-        JOURNEY_DELIVERY_FLOW_CONTROL.sharedOrgConcurrency,
-        provider.perFunctionConcurrency,
-      ],
+      concurrency: [SHARED_ORG_CONCURRENCY, provider.perFunctionConcurrency],
     },
     { event: provider.eventName },
     async ({ event, step }) =>

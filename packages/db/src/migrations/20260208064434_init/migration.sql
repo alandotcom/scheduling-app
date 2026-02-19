@@ -190,6 +190,7 @@ CREATE TABLE "journey_deliveries" (
 	"journey_run_id" uuid NOT NULL,
 	"step_key" text NOT NULL,
 	"channel" text NOT NULL,
+	"action_type" text NOT NULL,
 	"scheduled_for" timestamp with time zone NOT NULL,
 	"status" "journey_delivery_status" NOT NULL,
 	"reason_code" text,

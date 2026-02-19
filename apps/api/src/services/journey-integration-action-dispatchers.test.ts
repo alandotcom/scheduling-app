@@ -151,29 +151,31 @@ describe("journey integration action dispatchers", () => {
   });
 
   test("dispatchJourneySendTwilioAction sends interpolated SMS via Twilio transport dependency", async () => {
+    const templateContext = {
+      Appointment: {
+        data: {
+          startAt: "2026-02-16T10:00:00.000Z",
+          client: {
+            firstName: "Avery",
+            phone: "+14155552671",
+          },
+        },
+      },
+    };
     const sent = await dispatchJourneySendTwilioAction(
       {
         ...baseDispatchInput,
         channel: "sms",
+        appointmentId: "appt_1",
         stepConfig: {
           actionType: "send-twilio",
           toPhone: "@Appointment.data.client.phone",
           message:
             "Hi @Appointment.data.client.firstName, your appointment starts @Appointment.data.startAt",
         },
-        templateContext: {
-          Appointment: {
-            data: {
-              startAt: "2026-02-16T10:00:00.000Z",
-              client: {
-                firstName: "Avery",
-                phone: "+14155552671",
-              },
-            },
-          },
-        },
       },
       {
+        loadTemplateContext: async () => templateContext,
         resolveCredentials: async () => ({
           accountSid: "AC123",
           authToken: "secret",
@@ -207,27 +209,29 @@ describe("journey integration action dispatchers", () => {
   });
 
   test("dispatchJourneySendTwilioAction does not treat email addresses as template tokens", async () => {
+    const templateContext = {
+      Appointment: {
+        data: {
+          client: {
+            phone: "+14155552671",
+          },
+        },
+      },
+    };
     await dispatchJourneySendTwilioAction(
       {
         ...baseDispatchInput,
         channel: "sms",
+        appointmentId: "appt_1",
         stepConfig: {
           actionType: "send-twilio",
           toPhone: "+14155552671",
           message:
             "Questions? Email support@example.com or call @Appointment.data.client.phone",
         },
-        templateContext: {
-          Appointment: {
-            data: {
-              client: {
-                phone: "+14155552671",
-              },
-            },
-          },
-        },
       },
       {
+        loadTemplateContext: async () => templateContext,
         resolveCredentials: async () => ({
           accountSid: "AC123",
           authToken: "secret",

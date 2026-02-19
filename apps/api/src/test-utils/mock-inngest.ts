@@ -5,10 +5,7 @@ const inngestSendMock = mock(async (_payload: unknown) => {
   /* no-op: silently accept event sends in tests */
 });
 
-(
-  inngest as unknown as {
-    send: typeof inngest.send;
-  }
-).send = inngestSendMock as typeof inngest.send;
+// Override the readonly send method with our mock for test isolation.
+(inngest as unknown as Record<string, unknown>)["send"] = inngestSendMock;
 
 export { inngestSendMock };

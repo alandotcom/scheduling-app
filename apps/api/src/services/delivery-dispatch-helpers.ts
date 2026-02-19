@@ -11,7 +11,6 @@ export type JourneyDeliveryDispatchInput = {
   runMode?: JourneyRunMode;
   stepConfig: JsonRecord;
   appointmentId?: string;
-  templateContext?: JsonRecord;
 };
 
 export type JourneyDeliveryDispatchResult = {

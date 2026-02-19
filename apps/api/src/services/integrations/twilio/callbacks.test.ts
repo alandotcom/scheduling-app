@@ -42,6 +42,7 @@ async function seedTwilioDelivery(context: ServiceContext) {
       journeyRunId: run!.id,
       stepKey: "send-sms-node",
       channel: "sms",
+      actionType: "send-twilio",
       scheduledFor,
       status: "planned",
       deterministicKey: `${run!.id}:send-sms-node:${scheduledFor.toISOString()}`,

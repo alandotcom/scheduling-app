@@ -85,5 +85,8 @@ export function sendDomainEvent<K extends DomainEventType>(event: {
   data: { orgId: string } & DomainEventData<K>;
   ts: number;
 }) {
-  return inngest.send(event as unknown as Parameters<typeof inngest.send>[0]);
+  // @ts-expect-error — Inngest's discriminated union parameter cannot be
+  // satisfied through a generic K extends DomainEventType, but both map the
+  // same event-name keys identically so the call is safe at runtime.
+  return inngest.send(event);
 }

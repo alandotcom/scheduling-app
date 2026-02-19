@@ -82,7 +82,6 @@ export type DeliveryProviderSpec = {
     scope: "env" | "fn" | "account";
     limit: number;
   };
-  needsTemplateContext: boolean;
   dispatch: JourneyDeliveryDispatcher;
 };
 
@@ -100,7 +99,6 @@ const providers: DeliveryProviderSpec[] = [
       scope: "fn",
       limit: 10,
     },
-    needsTemplateContext: false,
     dispatch: dispatchJourneySendResendAction,
   },
   {
@@ -116,7 +114,6 @@ const providers: DeliveryProviderSpec[] = [
       scope: "fn",
       limit: 10,
     },
-    needsTemplateContext: false,
     dispatch: dispatchJourneySendSlackAction,
   },
   {
@@ -132,7 +129,6 @@ const providers: DeliveryProviderSpec[] = [
       scope: "fn",
       limit: 10,
     },
-    needsTemplateContext: true,
     dispatch: dispatchJourneySendTwilioAction,
   },
   {
@@ -148,7 +144,6 @@ const providers: DeliveryProviderSpec[] = [
       scope: "fn",
       limit: 20,
     },
-    needsTemplateContext: false,
     dispatch: dispatchLoggerDelivery,
   },
 ];
@@ -171,6 +166,18 @@ export const deliveryActionTypes: readonly string[] = providers.flatMap(
 );
 
 export const deliveryProviders: readonly DeliveryProviderSpec[] = providers;
+
+export const SHARED_ORG_CONCURRENCY = {
+  key: '"journey-delivery:" + event.data.orgId',
+  scope: "env",
+  limit: 20,
+} as const;
+
+export const TWILIO_CALLBACK_ORG_CONCURRENCY = {
+  key: "event.data.orgId",
+  scope: "fn",
+  limit: 10,
+} as const;
 
 export async function dispatchForActionType(
   input: JourneyDeliveryDispatchInput,

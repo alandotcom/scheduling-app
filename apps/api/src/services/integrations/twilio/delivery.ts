@@ -1,6 +1,5 @@
 import twilio from "twilio";
 import { authBaseUrl } from "../../../config.js";
-import { isRecord } from "../../../lib/type-guards.js";
 import {
   assertActionType,
   JourneyDeliveryNonRetryableError,
@@ -8,6 +7,7 @@ import {
   type JourneyDeliveryDispatchInput,
   type JourneyDeliveryDispatchResult,
 } from "../../delivery-dispatch-helpers.js";
+import { loadDeliveryTemplateContext } from "../../journey-template-context.js";
 import { resolveTemplateString } from "../../template-resolution.js";
 import {
   getAppIntegrationSecretsForOrg,
@@ -27,6 +27,10 @@ type TwilioDispatcherDependencies = {
     orgId: string;
     journeyDeliveryId: string;
   }) => string;
+  loadTemplateContext?: (input: {
+    orgId: string;
+    appointmentId: string;
+  }) => Promise<Record<string, unknown>>;
   sendTimeoutMs?: number;
   sendMessage?: (input: {
     accountSid: string;
@@ -200,7 +204,14 @@ export async function dispatchJourneySendTwilioAction(
     return testResult;
   }
 
-  const context = isRecord(input.templateContext) ? input.templateContext : {};
+  const loadContext =
+    dependencies.loadTemplateContext ?? loadDeliveryTemplateContext;
+  const context = input.appointmentId
+    ? await loadContext({
+        orgId: input.orgId,
+        appointmentId: input.appointmentId,
+      })
+    : {};
   const messageBody = resolveTemplateString(
     input.stepConfig["message"],
     context,

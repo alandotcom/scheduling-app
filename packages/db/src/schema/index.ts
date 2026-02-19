@@ -612,6 +612,7 @@ export const journeyDeliveries = pgTable.withRLS(
       .references(() => journeyRuns.id, { onDelete: "cascade" }),
     stepKey: text("step_key").notNull(),
     channel: text("channel").notNull(),
+    actionType: text("action_type").notNull(),
     scheduledFor: timestamp("scheduled_for", { withTimezone: true }).notNull(),
     status: journeyDeliveryStatusEnum("status").notNull(),
     reasonCode: text("reason_code"),

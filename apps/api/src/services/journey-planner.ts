@@ -749,15 +749,20 @@ async function listDeliveriesForRun(
     .where(eq(journeyDeliveries.journeyRunId, runId));
 }
 
+type PendingInngestEvent =
+  | {
+      type: "schedule";
+      actionType: string;
+      payload: JourneyDeliveryScheduledEventData;
+    }
+  | { type: "cancel"; payload: JourneyDeliveryCanceledEventData };
+
 async function cancelPendingDeliveries(input: {
   tx: DbClient;
   runId: string;
   reasonCode: string;
-  cancelRequester: (
-    payload: JourneyDeliveryCanceledEventData,
-  ) => Promise<{ eventId?: string }>;
   orgId: string;
-}): Promise<string[]> {
+}): Promise<{ canceledIds: string[]; pendingEvents: PendingInngestEvent[] }> {
   const [plannedRows, runRows] = await Promise.all([
     input.tx
       .select({
@@ -784,7 +789,7 @@ async function cancelPendingDeliveries(input: {
       tx: input.tx,
       runId: input.runId,
     });
-    return [];
+    return { canceledIds: [], pendingEvents: [] };
   }
 
   const plannedIds = plannedRows.map((row) => row.id);
@@ -810,6 +815,7 @@ async function cancelPendingDeliveries(input: {
   });
 
   const runId = runRows[0]?.id ?? input.runId;
+  const pendingEvents: PendingInngestEvent[] = [];
 
   await forEachAsync(
     canceled,
@@ -829,12 +835,15 @@ async function cancelPendingDeliveries(input: {
           reasonCode: input.reasonCode,
         },
       });
-      await input.cancelRequester({
-        orgId: input.orgId,
-        journeyDeliveryId: delivery.id,
-        journeyRunId: runId,
-        deterministicKey: delivery.deterministicKey,
-        reasonCode: input.reasonCode,
+      pendingEvents.push({
+        type: "cancel",
+        payload: {
+          orgId: input.orgId,
+          journeyDeliveryId: delivery.id,
+          journeyRunId: runId,
+          deterministicKey: delivery.deterministicKey,
+          reasonCode: input.reasonCode,
+        },
       });
     },
     { concurrency: 1 },
@@ -852,7 +861,10 @@ async function cancelPendingDeliveries(input: {
     },
   });
 
-  return canceled.map((delivery) => delivery.id);
+  return {
+    canceledIds: canceled.map((delivery) => delivery.id),
+    pendingEvents,
+  };
 }
 
 async function reconcileDeliveries(input: {
@@ -860,18 +872,51 @@ async function reconcileDeliveries(input: {
   runId: string;
   orgId: string;
   desiredDeliveries: DesiredDelivery[];
-  scheduleRequester: (
-    actionType: string,
-    payload: JourneyDeliveryScheduledEventData,
-  ) => Promise<{ eventId?: string }>;
-  cancelRequester: (
-    payload: JourneyDeliveryCanceledEventData,
-  ) => Promise<{ eventId?: string }>;
+  desiredStepLogs: DesiredStepLog[];
+  desiredRunEvents: DesiredRunEvent[];
 }): Promise<{
   scheduledDeliveryIds: string[];
   canceledDeliveryIds: string[];
   skippedDeliveryIds: string[];
+  pendingInngestEvents: PendingInngestEvent[];
 }> {
+  // Write all step logs and run events from the build phase first
+  await forEachAsync(
+    input.desiredStepLogs,
+    async (stepLog) => {
+      await upsertJourneyRunStepLog({
+        tx: input.tx,
+        orgId: input.orgId,
+        runId: input.runId,
+        stepKey: stepLog.stepKey,
+        nodeType: stepLog.nodeType,
+        status: stepLog.status,
+        startedAt: stepLog.startedAt,
+        completedAt: stepLog.completedAt,
+        durationMs: stepLog.durationMs,
+        logInput: stepLog.logInput,
+        logOutput: stepLog.logOutput,
+        error: stepLog.error,
+      });
+    },
+    { concurrency: 1 },
+  );
+
+  await forEachAsync(
+    input.desiredRunEvents,
+    async (runEvent) => {
+      await appendJourneyRunEvent({
+        tx: input.tx,
+        orgId: input.orgId,
+        runId: input.runId,
+        eventType: runEvent.eventType,
+        message: runEvent.message,
+        metadata: runEvent.metadata,
+      });
+    },
+    { concurrency: 1 },
+  );
+
   const existingDeliveries = await listDeliveriesForRun(input.tx, input.runId);
   const existingByDeterministicKey = new Map(
     existingDeliveries.map((delivery) => [delivery.deterministicKey, delivery]),
@@ -907,6 +952,8 @@ async function reconcileDeliveries(input: {
             scheduledFor: journeyDeliveries.scheduledFor,
           });
 
+  const pendingInngestEvents: PendingInngestEvent[] = [];
+
   await forEachAsync(
     staleCanceled,
     async (delivery) => {
@@ -925,12 +972,15 @@ async function reconcileDeliveries(input: {
           reasonCode: "execution_terminal",
         },
       });
-      await input.cancelRequester({
-        orgId: input.orgId,
-        journeyDeliveryId: delivery.id,
-        journeyRunId: delivery.journeyRunId,
-        deterministicKey: delivery.deterministicKey,
-        reasonCode: "execution_terminal",
+      pendingInngestEvents.push({
+        type: "cancel",
+        payload: {
+          orgId: input.orgId,
+          journeyDeliveryId: delivery.id,
+          journeyRunId: delivery.journeyRunId,
+          deterministicKey: delivery.deterministicKey,
+          reasonCode: "execution_terminal",
+        },
       });
     },
     { concurrency: 1 },
@@ -954,6 +1004,7 @@ async function reconcileDeliveries(input: {
           journeyRunId: input.runId,
           stepKey: desired.stepKey,
           channel: desired.channel,
+          actionType: desired.actionType,
           scheduledFor: desired.scheduledFor,
           status: desired.status,
           reasonCode: desired.reasonCode,
@@ -965,6 +1016,7 @@ async function reconcileDeliveries(input: {
           deterministicKey: journeyDeliveries.deterministicKey,
           stepKey: journeyDeliveries.stepKey,
           channel: journeyDeliveries.channel,
+          actionType: journeyDeliveries.actionType,
           scheduledFor: journeyDeliveries.scheduledFor,
           status: journeyDeliveries.status,
           reasonCode: journeyDeliveries.reasonCode,
@@ -1003,14 +1055,17 @@ async function reconcileDeliveries(input: {
           },
         });
         scheduledDeliveryIds.push(created.id);
-        const payload = {
-          orgId: input.orgId,
-          journeyDeliveryId: created.id,
-          journeyRunId: created.journeyRunId,
-          deterministicKey: created.deterministicKey,
-          scheduledFor: created.scheduledFor.toISOString(),
-        };
-        await input.scheduleRequester(desired.actionType, payload);
+        pendingInngestEvents.push({
+          type: "schedule",
+          actionType: desired.actionType,
+          payload: {
+            orgId: input.orgId,
+            journeyDeliveryId: created.id,
+            journeyRunId: created.journeyRunId,
+            deterministicKey: created.deterministicKey,
+            scheduledFor: created.scheduledFor.toISOString(),
+          },
+        });
         return;
       }
 
@@ -1051,6 +1106,7 @@ async function reconcileDeliveries(input: {
     scheduledDeliveryIds,
     canceledDeliveryIds: staleCanceled.map((delivery) => delivery.id),
     skippedDeliveryIds,
+    pendingInngestEvents,
   };
 }
 
@@ -1083,7 +1139,7 @@ export async function processJourneyDomainEvent(
       ? [...new Set(dependencies.journeyIds)]
       : null;
 
-  return withOrg(event.orgId, async (tx) => {
+  const { result, pendingEvents } = await withOrg(event.orgId, async (tx) => {
     const journeyFilters = [
       inArray(journeys.state, [...ACTIVE_JOURNEY_STATES]),
     ];
@@ -1105,15 +1161,18 @@ export async function processJourneyDomainEvent(
 
     if (activeJourneys.length === 0) {
       return {
-        eventId: event.id,
-        eventType: event.type,
-        orgId: event.orgId,
-        plannedRunIds: [],
-        scheduledDeliveryIds: [],
-        canceledDeliveryIds: [],
-        skippedDeliveryIds: [],
-        ignoredJourneyIds: [],
-        erroredJourneyIds: [],
+        result: {
+          eventId: event.id,
+          eventType: event.type,
+          orgId: event.orgId,
+          plannedRunIds: [],
+          scheduledDeliveryIds: [],
+          canceledDeliveryIds: [],
+          skippedDeliveryIds: [],
+          ignoredJourneyIds: [],
+          erroredJourneyIds: [],
+        },
+        pendingEvents: [] as PendingInngestEvent[],
       };
     }
 
@@ -1156,6 +1215,7 @@ export async function processJourneyDomainEvent(
     const skippedDeliveryIds: string[] = [];
     const ignoredJourneyIds: string[] = [];
     const erroredJourneyIds: string[] = [];
+    const allPendingEvents: PendingInngestEvent[] = [];
 
     const appointmentContext = toRecord(event.payload);
     const clientContext = getClientFilterContext(event.payload);
@@ -1228,15 +1288,15 @@ export async function processJourneyDomainEvent(
           }
 
           if (routing === "cancel") {
-            const canceledIds = await cancelPendingDeliveries({
+            const cancelResult = await cancelPendingDeliveries({
               tx,
               runId: run.id,
               reasonCode: "execution_terminal",
-              cancelRequester,
               orgId: event.orgId,
             });
 
-            canceledDeliveryIds.push(...canceledIds);
+            canceledDeliveryIds.push(...cancelResult.canceledIds);
+            allPendingEvents.push(...cancelResult.pendingEvents);
             return;
           }
 
@@ -1252,15 +1312,15 @@ export async function processJourneyDomainEvent(
             });
 
             if (!filterResult.matched) {
-              const canceledIds = await cancelPendingDeliveries({
+              const cancelResult = await cancelPendingDeliveries({
                 tx,
                 runId: run.id,
                 reasonCode: "execution_terminal",
-                cancelRequester,
                 orgId: event.orgId,
               });
 
-              canceledDeliveryIds.push(...canceledIds);
+              canceledDeliveryIds.push(...cancelResult.canceledIds);
+              allPendingEvents.push(...cancelResult.pendingEvents);
               return;
             }
           }
@@ -1296,49 +1356,13 @@ export async function processJourneyDomainEvent(
             orgTimezone,
           });
 
-          await forEachAsync(
-            buildResult.desiredStepLogs,
-            async (stepLog) => {
-              await upsertJourneyRunStepLog({
-                tx,
-                orgId: event.orgId,
-                runId: run.id,
-                stepKey: stepLog.stepKey,
-                nodeType: stepLog.nodeType,
-                status: stepLog.status,
-                startedAt: stepLog.startedAt,
-                completedAt: stepLog.completedAt,
-                durationMs: stepLog.durationMs,
-                logInput: stepLog.logInput,
-                logOutput: stepLog.logOutput,
-                error: stepLog.error,
-              });
-            },
-            { concurrency: 1 },
-          );
-
-          await forEachAsync(
-            buildResult.desiredRunEvents,
-            async (runEvent) => {
-              await appendJourneyRunEvent({
-                tx,
-                orgId: event.orgId,
-                runId: run.id,
-                eventType: runEvent.eventType,
-                message: runEvent.message,
-                metadata: runEvent.metadata,
-              });
-            },
-            { concurrency: 1 },
-          );
-
           const reconciliationResult = await reconcileDeliveries({
             tx,
             runId: run.id,
             orgId: event.orgId,
             desiredDeliveries: buildResult.desiredDeliveries,
-            scheduleRequester,
-            cancelRequester,
+            desiredStepLogs: buildResult.desiredStepLogs,
+            desiredRunEvents: buildResult.desiredRunEvents,
           });
 
           scheduledDeliveryIds.push(
@@ -1346,6 +1370,7 @@ export async function processJourneyDomainEvent(
           );
           canceledDeliveryIds.push(...reconciliationResult.canceledDeliveryIds);
           skippedDeliveryIds.push(...reconciliationResult.skippedDeliveryIds);
+          allPendingEvents.push(...reconciliationResult.pendingInngestEvents);
 
           await refreshRunStatusTx(tx, run.id);
         } catch {
@@ -1356,15 +1381,33 @@ export async function processJourneyDomainEvent(
     );
 
     return {
-      eventId: event.id,
-      eventType: event.type,
-      orgId: event.orgId,
-      plannedRunIds,
-      scheduledDeliveryIds,
-      canceledDeliveryIds,
-      skippedDeliveryIds,
-      ignoredJourneyIds,
-      erroredJourneyIds,
+      result: {
+        eventId: event.id,
+        eventType: event.type,
+        orgId: event.orgId,
+        plannedRunIds,
+        scheduledDeliveryIds,
+        canceledDeliveryIds,
+        skippedDeliveryIds,
+        ignoredJourneyIds,
+        erroredJourneyIds,
+      },
+      pendingEvents: allPendingEvents,
     };
   });
+
+  // Fire Inngest events after the transaction has committed
+  await forEachAsync(
+    pendingEvents,
+    async (pending) => {
+      if (pending.type === "schedule") {
+        await scheduleRequester(pending.actionType, pending.payload);
+      } else {
+        await cancelRequester(pending.payload);
+      }
+    },
+    { concurrency: 1 },
+  );
+
+  return result;
 }

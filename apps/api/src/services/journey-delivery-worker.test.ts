@@ -158,6 +158,7 @@ async function seedPlannedDelivery(
       journeyRunId: run!.id,
       stepKey,
       channel,
+      actionType,
       scheduledFor,
       status: "planned",
       deterministicKey,
@@ -535,7 +536,7 @@ describe("executeJourneyDeliveryScheduled", () => {
     expect(delivery?.reasonCode).toBe("test_mode_log_only");
   });
 
-  test("loads client phone into template context even without client names", async () => {
+  test("passes appointmentId to dispatch input for provider-side context loading", async () => {
     const calendar = await createCalendar(db as any, context.orgId);
     const appointmentType = await createAppointmentType(
       db as any,
@@ -568,27 +569,9 @@ describe("executeJourneyDeliveryScheduled", () => {
       },
     );
 
-    const dispatchDelivery = mock(async (dispatchInput) => {
-      const templateContext =
-        (dispatchInput.templateContext as
-          | Record<string, unknown>
-          | undefined) ?? {};
-      const appointmentContext = templateContext["Appointment"] as
-        | Record<string, unknown>
-        | undefined;
-      const appointmentData = appointmentContext?.["data"] as
-        | Record<string, unknown>
-        | undefined;
-      const templateClient = appointmentData?.["client"] as
-        | Record<string, unknown>
-        | undefined;
-
-      expect(templateClient?.["phone"]).toBe("+14155552671");
-
-      return {
-        providerMessageId: "twilio:SM123",
-      };
-    });
+    const dispatchDelivery = mock(async () => ({
+      providerMessageId: "twilio:SM123",
+    }));
 
     const result = await executeJourneyDeliveryScheduled(
       {
@@ -610,9 +593,14 @@ describe("executeJourneyDeliveryScheduled", () => {
 
     expect(result.status).toBe("sent");
     expect(dispatchDelivery).toHaveBeenCalledTimes(1);
+    expect(dispatchDelivery).toHaveBeenCalledWith(
+      expect.objectContaining({
+        appointmentId: appointment.id,
+      }),
+    );
   });
 
-  test("does not persist template context into step-log input payloads", async () => {
+  test("does not include template context in dispatch input or step-log payloads", async () => {
     const calendar = await createCalendar(db as any, context.orgId);
     const appointmentType = await createAppointmentType(
       db as any,
@@ -668,11 +656,12 @@ describe("executeJourneyDeliveryScheduled", () => {
     );
 
     expect(dispatchDelivery).toHaveBeenCalledTimes(1);
-    expect(dispatchDelivery).toHaveBeenCalledWith(
-      expect.objectContaining({
-        templateContext: expect.any(Object),
-      }),
-    );
+    const calls = dispatchDelivery.mock.calls as unknown as [
+      Record<string, unknown>,
+    ][];
+    const dispatchCall = calls[0]![0];
+    expect(dispatchCall["templateContext"]).toBeUndefined();
+    expect(dispatchCall["appointmentId"]).toBe(appointment.id);
 
     await setTestOrgContext(db, context.orgId);
     const [stepLog] = await db

@@ -5,10 +5,7 @@ import { retry } from "es-toolkit/function";
 import type { JourneyDeliveryScheduledEventData } from "../inngest/runtime-events.js";
 import { withOrg } from "../lib/db.js";
 import { toRecord } from "../lib/type-guards.js";
-import {
-  dispatchForActionType,
-  getProviderForActionType,
-} from "./delivery-provider-registry.js";
+import { dispatchForActionType } from "./delivery-provider-registry.js";
 import {
   JourneyDeliveryNonRetryableError,
   type JourneyDeliveryDispatchInput,
@@ -19,7 +16,6 @@ import {
   upsertJourneyRunStepLog,
 } from "./journey-run-artifacts.js";
 import { refreshJourneyRunStatus } from "./journey-run-status.js";
-import { loadDeliveryTemplateContext } from "./journey-template-context.js";
 
 const DEFAULT_MAX_DISPATCH_ATTEMPTS = 2;
 
@@ -36,6 +32,7 @@ type DeliveryRow = Pick<
   | "status"
   | "reasonCode"
   | "channel"
+  | "actionType"
   | "stepKey"
   | "deterministicKey"
   | "scheduledFor"
@@ -141,21 +138,6 @@ function resolveStepConfig(
   return node ? toRecord(node.attributes.data.config) : {};
 }
 
-function resolveStepNodeType(
-  stepConfig: Record<string, unknown>,
-  delivery: DeliveryRow,
-): string {
-  const actionType =
-    typeof stepConfig["actionType"] === "string"
-      ? stepConfig["actionType"].trim().toLowerCase()
-      : "";
-  if (actionType.length > 0) {
-    return actionType;
-  }
-
-  return delivery.channel;
-}
-
 async function loadDeliveryWithRun(
   orgId: string,
   journeyDeliveryId: string,
@@ -168,6 +150,7 @@ async function loadDeliveryWithRun(
         status: journeyDeliveries.status,
         reasonCode: journeyDeliveries.reasonCode,
         channel: journeyDeliveries.channel,
+        actionType: journeyDeliveries.actionType,
         stepKey: journeyDeliveries.stepKey,
         deterministicKey: journeyDeliveries.deterministicKey,
         scheduledFor: journeyDeliveries.scheduledFor,
@@ -237,6 +220,7 @@ async function updateDeliveryIfPlanned(input: {
         status: journeyDeliveries.status,
         reasonCode: journeyDeliveries.reasonCode,
         channel: journeyDeliveries.channel,
+        actionType: journeyDeliveries.actionType,
         stepKey: journeyDeliveries.stepKey,
         deterministicKey: journeyDeliveries.deterministicKey,
         scheduledFor: journeyDeliveries.scheduledFor,
@@ -253,6 +237,7 @@ async function updateDeliveryIfPlanned(input: {
         status: journeyDeliveries.status,
         reasonCode: journeyDeliveries.reasonCode,
         channel: journeyDeliveries.channel,
+        actionType: journeyDeliveries.actionType,
         stepKey: journeyDeliveries.stepKey,
         deterministicKey: journeyDeliveries.deterministicKey,
         scheduledFor: journeyDeliveries.scheduledFor,
@@ -523,7 +508,7 @@ export async function executeJourneyDeliveryScheduled(
     const stepConfig = run
       ? resolveStepConfig(run, current.delivery.stepKey)
       : {};
-    const nodeType = resolveStepNodeType(stepConfig, current.delivery);
+    const nodeType = current.delivery.actionType;
     const dispatchStartedAt = now();
 
     const cancellation = await resolveDeliveryCancellation({
@@ -545,15 +530,6 @@ export async function executeJourneyDeliveryScheduled(
 
     await markRunRunning(input.orgId, current.delivery.journeyRunId);
 
-    let templateContext: Record<string, unknown> | undefined;
-    const provider = getProviderForActionType(nodeType);
-    if (provider?.needsTemplateContext && run.appointmentId) {
-      templateContext = await loadDeliveryTemplateContext({
-        orgId: input.orgId,
-        appointmentId: run.appointmentId,
-      });
-    }
-
     const dispatchPayload: JourneyDeliveryDispatchInput = {
       orgId: input.orgId,
       journeyDeliveryId: current.delivery.id,
@@ -563,7 +539,6 @@ export async function executeJourneyDeliveryScheduled(
       runMode: run.mode,
       stepConfig,
       appointmentId: run.appointmentId,
-      ...(templateContext ? { templateContext } : {}),
     };
     const dispatchLogInput = {
       orgId: dispatchPayload.orgId,
