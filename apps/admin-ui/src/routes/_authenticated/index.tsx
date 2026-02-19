@@ -26,7 +26,6 @@ import { Badge } from "@/components/ui/badge";
 import { Icon } from "@/components/ui/icon";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PageScaffold } from "@/components/layout/page-scaffold";
-import { ShortcutBadge } from "@/components/ui/shortcut-badge";
 import { AppointmentModal } from "@/components/appointment-modal";
 import { useKeyboardShortcuts } from "@/hooks/use-keyboard-shortcuts";
 import { authClient } from "@/lib/auth-client";
@@ -131,17 +130,6 @@ export function Dashboard() {
 
   return (
     <PageScaffold className="pb-24 sm:pb-6">
-      <div className="flex justify-end">
-        <Button
-          className="hidden sm:inline-flex"
-          onClick={() => setAppointmentModalOpen(true)}
-        >
-          <Icon icon={Add01Icon} data-icon="inline-start" />
-          New Appointment
-          <ShortcutBadge shortcut="c" className="ml-2 hidden md:inline-flex" />
-        </Button>
-      </div>
-
       {/* Stats Cards */}
       {isLoading ? (
         <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4 animate-skeleton-fade-in">

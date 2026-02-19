@@ -59,6 +59,7 @@ import {
 } from "@/components/ui/sidebar";
 import { Toaster } from "sonner";
 import { CommandPalette } from "@/components/command-palette";
+import { CreateMenu } from "@/components/create-menu";
 import {
   useKeyboardShortcuts,
   useNavigationShortcuts,
@@ -705,20 +706,23 @@ function RootLayout() {
             <HeaderBreadcrumb items={headerBreadcrumbItems} />
           </div>
 
-          {/* Search trigger */}
-          <button
-            type="button"
-            onClick={() => {
-              document.dispatchEvent(
-                new KeyboardEvent("keydown", { key: "k", metaKey: true }),
-              );
-            }}
-            className="hidden items-center gap-2 rounded-lg border border-border bg-muted/50 px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-muted md:flex"
-          >
-            <Icon icon={Search01Icon} className="size-3.5" />
-            <span>Search…</span>
-            <ShortcutBadge shortcut="meta+k" className="ml-4" />
-          </button>
+          {/* Search + Create */}
+          <div className="hidden items-center gap-2 md:flex">
+            <button
+              type="button"
+              onClick={() => {
+                document.dispatchEvent(
+                  new KeyboardEvent("keydown", { key: "k", metaKey: true }),
+                );
+              }}
+              className="flex items-center gap-2 rounded-lg border border-border bg-muted/50 px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-muted"
+            >
+              <Icon icon={Search01Icon} className="size-3.5" />
+              <span>Search…</span>
+              <ShortcutBadge shortcut="meta+k" className="ml-4" />
+            </button>
+            <CreateMenu />
+          </div>
 
           {/* Right side */}
           <div className="flex items-center gap-3">

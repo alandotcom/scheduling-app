@@ -446,14 +446,6 @@ function ResourcesPage() {
 
   return (
     <PageScaffold className="pb-24 sm:pb-6">
-      <div className="flex justify-end">
-        <Button className="hidden sm:inline-flex" onClick={crud.openCreate}>
-          <Icon icon={Add01Icon} data-icon="inline-start" />
-          Add Resource
-          <ShortcutBadge shortcut="c" className="ml-2 hidden md:inline-flex" />
-        </Button>
-      </div>
-
       <div className="mt-6">
         {isLoading ? (
           <EntityListLoadingState rows={5} cols={5} />

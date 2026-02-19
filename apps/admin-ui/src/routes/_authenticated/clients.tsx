@@ -34,7 +34,6 @@ import { Icon } from "@/components/ui/icon";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { PageScaffold } from "@/components/layout/page-scaffold";
-import { ShortcutBadge } from "@/components/ui/shortcut-badge";
 import { useCrudState } from "@/hooks/use-crud-state";
 import { useCreateDraft, useResetCreateDraft } from "@/hooks/use-create-draft";
 import { useCreateIntentTrigger } from "@/hooks/use-create-intent";
@@ -497,14 +496,6 @@ function ClientsPage() {
 
   return (
     <PageScaffold className="pb-24 sm:pb-6">
-      <div className="flex justify-end">
-        <Button className="hidden sm:inline-flex" onClick={crud.openCreate}>
-          <Icon icon={Add01Icon} data-icon="inline-start" />
-          Add Client
-          <ShortcutBadge shortcut="c" className="ml-2 hidden md:inline-flex" />
-        </Button>
-      </div>
-
       <div className="mt-6 space-y-6">
         <div className="max-w-sm">
           <div className="relative">

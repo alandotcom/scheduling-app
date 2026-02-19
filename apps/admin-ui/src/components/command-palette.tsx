@@ -1,7 +1,7 @@
 // Global command palette (Cmd+K / Ctrl+K)
 
 import { useState, useCallback, useMemo, type ReactNode } from "react";
-import { useLocation, useNavigate, useRouter } from "@tanstack/react-router";
+import { useNavigate } from "@tanstack/react-router";
 import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
 import { Command } from "cmdk";
 import {
@@ -19,10 +19,7 @@ import { cn } from "@/lib/utils";
 import { formatShortcut } from "@/lib/shortcuts";
 import { Icon } from "@/components/ui/icon";
 import { ShortcutBadge } from "@/components/ui/shortcut-badge";
-import {
-  type CreateIntentKey,
-  useTriggerCreateIntent,
-} from "@/hooks/use-create-intent";
+import { useCreateCommand } from "@/hooks/use-create-command";
 import { useKeyboardShortcuts } from "@/hooks/use-keyboard-shortcuts";
 
 interface CommandAction {
@@ -35,17 +32,10 @@ interface CommandAction {
   onHighlight?: () => void;
 }
 
-function normalizePathname(pathname: string) {
-  if (pathname.length <= 1) return pathname;
-  return pathname.endsWith("/") ? pathname.slice(0, -1) : pathname;
-}
-
 export function CommandPalette() {
   const [open, setOpen] = useState(false);
-  const location = useLocation();
   const navigate = useNavigate();
-  const router = useRouter();
-  const triggerCreateIntent = useTriggerCreateIntent();
+  const { runCreateCommand: executeCreate, preloadRoute } = useCreateCommand();
 
   useKeyboardShortcuts({
     shortcuts: [
@@ -69,43 +59,11 @@ export function CommandPalette() {
     window.open("/api/v1/docs", "_blank", "noopener,noreferrer");
   }, []);
 
-  const preloadRoute = useCallback(
-    (to: string) => {
-      void router.preloadRoute({ to });
-    },
-    [router],
-  );
-
   const runCreateCommand = useCallback(
-    (to: string, intent: CreateIntentKey) => {
-      runCommand(() => {
-        if (normalizePathname(location.pathname) === normalizePathname(to)) {
-          triggerCreateIntent(intent);
-          return;
-        }
-
-        void Promise.resolve(navigate({ to, search: {} }))
-          .then(() => {
-            if (
-              normalizePathname(router.state.location.pathname) !==
-              normalizePathname(to)
-            ) {
-              return;
-            }
-            triggerCreateIntent(intent);
-          })
-          .catch(() => {
-            // Navigation was interrupted; do not retain create intent.
-          });
-      });
+    (to: string, intent: Parameters<typeof executeCreate>[1]) => {
+      runCommand(() => executeCreate(to, intent));
     },
-    [
-      location.pathname,
-      navigate,
-      router.state.location.pathname,
-      runCommand,
-      triggerCreateIntent,
-    ],
+    [executeCreate, runCommand],
   );
 
   const actions = useMemo<CommandAction[]>(() => {

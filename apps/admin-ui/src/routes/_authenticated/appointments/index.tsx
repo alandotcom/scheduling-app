@@ -26,7 +26,6 @@ import {
   type SchedulingTimezoneMode,
 } from "@/lib/scheduling-timezone";
 import { Button } from "@/components/ui/button";
-import { ShortcutBadge } from "@/components/ui/shortcut-badge";
 import {
   Select,
   SelectContent,
@@ -713,14 +712,6 @@ function AppointmentsPage() {
 
   return (
     <PageScaffold className="pb-24 sm:pb-6">
-      <div className="flex justify-end">
-        <Button className="hidden sm:inline-flex" onClick={openCreateModal}>
-          <Icon icon={Add01Icon} data-icon="inline-start" />
-          New Appointment
-          <ShortcutBadge shortcut="c" className="ml-2 hidden md:inline-flex" />
-        </Button>
-      </div>
-
       <div className="mt-6 hidden flex-wrap items-center gap-2 sm:flex sm:gap-3">
         <ViewToggle view={currentView} onViewChange={setView} size="sm" />
         <div
