@@ -1,6 +1,7 @@
 import { getLogger } from "@logtape/logtape";
 import type { IntegrationConsumer } from "@integrations/core";
 import type { AppIntegrationKey } from "@scheduling/dto";
+import { LRUCache } from "lru-cache";
 import { withOrg } from "../../lib/db.js";
 import { integrationRepository } from "../../repositories/integrations.js";
 import {
@@ -14,13 +15,13 @@ import { assertUniqueIntegrationNames } from "./unique.js";
 const logger = getLogger(["integrations", "runtime"]);
 const ENABLED_INTEGRATIONS_CACHE_TTL_MS = 10_000;
 
-const enabledIntegrationsByOrgId = new Map<
+const enabledIntegrationsByOrgId = new LRUCache<
   string,
-  {
-    expiresAt: number;
-    integrations: readonly IntegrationConsumer[];
-  }
->();
+  readonly IntegrationConsumer[]
+>({
+  max: 500,
+  ttl: ENABLED_INTEGRATIONS_CACHE_TTL_MS,
+});
 
 function toAppIntegrationKeys(values: readonly string[]): AppIntegrationKey[] {
   return values.filter((value): value is AppIntegrationKey =>
@@ -38,10 +39,9 @@ export function getRuntimeIntegrationConsumersForWorkers(): readonly Integration
 export async function getEnabledIntegrationsForOrg(
   orgId: string,
 ): Promise<readonly IntegrationConsumer[]> {
-  const now = Date.now();
   const cached = enabledIntegrationsByOrgId.get(orgId);
-  if (cached && cached.expiresAt > now) {
-    return cached.integrations;
+  if (cached) {
+    return cached;
   }
 
   const enabledAppManagedKeys = await withOrg(orgId, (tx) =>
@@ -57,10 +57,7 @@ export async function getEnabledIntegrationsForOrg(
     ...appManagedIntegrations,
   ]);
 
-  enabledIntegrationsByOrgId.set(orgId, {
-    integrations: combined,
-    expiresAt: now + ENABLED_INTEGRATIONS_CACHE_TTL_MS,
-  });
+  enabledIntegrationsByOrgId.set(orgId, combined);
 
   logger.debug("Resolved enabled integrations for org", {
     orgId,

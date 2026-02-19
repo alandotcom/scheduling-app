@@ -1,38 +1,11 @@
 import { getLogger } from "@logtape/logtape";
-import {
-  domainEventDataSchemaByType,
-  domainEventTypeSchema,
-  type DomainEventData,
-  type DomainEventType,
-} from "@scheduling/dto";
-import { z } from "zod";
-import { domainEventInngest } from "../../inngest/client.js";
+import type { DomainEventData, DomainEventType } from "@scheduling/dto";
+import { sendDomainEvent } from "../../inngest/client.js";
 
 const logger = getLogger(["events", "emitter"]);
 
 function generateEventId(): string {
   return Bun.randomUUIDv7();
-}
-
-const domainEventSendPayloadBaseSchema = z.object({
-  id: z.string(),
-  name: domainEventTypeSchema,
-  data: z.looseObject({ orgId: z.string() }),
-  ts: z.number(),
-});
-
-function isDomainEventSendPayload(
-  value: unknown,
-): value is Parameters<typeof domainEventInngest.send>[0] {
-  const parsed = domainEventSendPayloadBaseSchema.safeParse(value);
-  if (!parsed.success) {
-    return false;
-  }
-
-  const { name, data } = parsed.data;
-  const { orgId: _orgId, ...payload } = data;
-
-  return domainEventDataSchemaByType[name].safeParse(payload).success;
 }
 
 export async function emitEvent<TEventType extends DomainEventType>(
@@ -44,7 +17,7 @@ export async function emitEvent<TEventType extends DomainEventType>(
   const timestampMs = Date.now();
 
   try {
-    const sendPayload = {
+    await sendDomainEvent({
       id: eventId,
       name: type,
       data: {
@@ -52,13 +25,7 @@ export async function emitEvent<TEventType extends DomainEventType>(
         ...payload,
       },
       ts: timestampMs,
-    };
-
-    if (!isDomainEventSendPayload(sendPayload)) {
-      throw new Error("Invalid domain event payload shape");
-    }
-
-    await domainEventInngest.send(sendPayload);
+    });
   } catch (error) {
     logger.error("Failed sending event to Inngest: {error}", {
       error,
@@ -66,6 +33,7 @@ export async function emitEvent<TEventType extends DomainEventType>(
       eventType: type,
       orgId,
     });
+    throw error;
   }
 
   return eventId;

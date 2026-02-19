@@ -17,19 +17,23 @@ import {
 } from "@scheduling/db/schema";
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { withOrg, type DbClient } from "../lib/db.js";
-import { isRecord, toRecord } from "../lib/type-guards.js";
+import { toRecord } from "../lib/type-guards.js";
 import {
   sendJourneyActionExecuteForActionType,
   sendJourneyDeliveryCanceled,
-  sendJourneyDeliveryScheduled,
   type JourneyDeliveryCanceledEventData,
   type JourneyDeliveryScheduledEventData,
 } from "../inngest/runtime-events.js";
+import { normalizeActionType } from "./delivery-dispatch-helpers.js";
 import {
   deliveryActionTypes,
   getProviderForActionType,
 } from "./delivery-provider-registry.js";
 import { evaluateJourneyConditionExpression } from "./journey-condition-evaluator.js";
+import {
+  resolveReference,
+  stringifyTemplateValue,
+} from "./template-resolution.js";
 import { evaluateJourneyTriggerFilter } from "./journey-trigger-filters.js";
 import {
   appendJourneyRunEvent,
@@ -129,26 +133,14 @@ type JourneyEdge = LinearJourneyGraph["edges"][number];
 type ConditionBranch = "true" | "false";
 const knownActionTypes = new Set(["wait", "condition", ...deliveryActionTypes]);
 
-function normalizeActionType(value: unknown): string | null {
-  if (typeof value !== "string") {
-    return null;
-  }
-
-  const normalized = value.trim().toLowerCase();
-  if (normalized.length === 0) {
-    return null;
-  }
-
-  return knownActionTypes.has(normalized) ? normalized : null;
-}
-
 function getActionConfig(node: ActionNode): Record<string, unknown> {
   return toRecord(node.attributes.data.config);
 }
 
 function getNormalizedActionType(node: ActionNode): string | null {
   const config = getActionConfig(node);
-  return normalizeActionType(config["actionType"]);
+  const normalized = normalizeActionType(config["actionType"]);
+  return normalized && knownActionTypes.has(normalized) ? normalized : null;
 }
 
 function isJourneyDeliveryActionType(actionType: string | null): boolean {
@@ -177,36 +169,12 @@ function resolveReferenceValue(
     return value;
   }
 
-  const reference = trimmed.slice(1);
-
-  const appointmentDataMatch = /^appointment\.data\.(.+)$/i.exec(reference);
-  const appointmentMatch = /^appointment\.(.+)$/i.exec(reference);
-  const dataMatch = /^data\.(.+)$/i.exec(reference);
-  const path =
-    appointmentDataMatch?.[1] ??
-    appointmentMatch?.[1] ??
-    dataMatch?.[1] ??
-    null;
-
-  if (!path) {
-    return null;
-  }
-
-  let current: unknown = appointmentContext;
-  for (const segment of path.split(".")) {
-    const currentRecord = isRecord(current) ? current : null;
-    if (!currentRecord || !(segment in currentRecord)) {
-      return null;
-    }
-
-    current = currentRecord[segment];
-  }
-
-  if (current instanceof Date) {
-    return current.toISOString();
-  }
-
-  return current;
+  const resolved = resolveReference(trimmed, {
+    appointment: appointmentContext,
+  });
+  return resolved !== null && resolved !== undefined
+    ? stringifyTemplateValue(resolved) || null
+    : null;
 }
 
 function resolveWaitCursor(input: {
@@ -1103,11 +1071,6 @@ export async function processJourneyDomainEvent(
     const override = providerRequesters[actionType];
     if (override) {
       return override(payload);
-    }
-
-    const provider = getProviderForActionType(actionType);
-    if (provider?.key === "logger") {
-      return sendJourneyDeliveryScheduled(payload);
     }
 
     return sendJourneyActionExecuteForActionType(actionType, payload);

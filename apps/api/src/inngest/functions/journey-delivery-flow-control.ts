@@ -4,11 +4,6 @@ export const JOURNEY_DELIVERY_FLOW_CONTROL = {
     scope: "env",
     limit: 20,
   },
-  loggerPerFunctionOrgConcurrency: {
-    key: "event.data.orgId",
-    scope: "fn",
-    limit: 20,
-  },
   twilioCallbackPerFunctionOrgConcurrency: {
     key: "event.data.orgId",
     scope: "fn",

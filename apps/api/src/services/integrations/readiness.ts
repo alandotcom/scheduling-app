@@ -1,3 +1,4 @@
+import { getLogger } from "@logtape/logtape";
 import type {
   AppIntegrationKey,
   IntegrationOAuthStatus,
@@ -11,8 +12,12 @@ import { integrationRepository } from "../../repositories/integrations.js";
 import {
   createDefaultIntegrationConfig,
   getAppManagedIntegrationDefinition,
+  getRequiredConfigKeys,
+  getRequiredSecretKeys,
 } from "./app-managed.js";
 import { decryptIntegrationSecrets } from "./crypto.js";
+
+const logger = getLogger(["integrations", "readiness"]);
 
 export type AppManagedIntegrationState = {
   key: AppIntegrationKey;
@@ -54,18 +59,19 @@ export function resolveSecretFields(input: {
   secretSalt: string | null;
 }): Record<string, boolean> {
   const definition = getAppManagedIntegrationDefinition(input.integrationKey);
+  const requiredKeys = getRequiredSecretKeys(definition);
 
-  if (definition.requiredSecretKeys.length === 0) {
+  if (requiredKeys.length === 0) {
     return {};
   }
 
   if (!input.secretsEncrypted || !input.secretSalt) {
-    return getFallbackSecretFields(definition.requiredSecretKeys);
+    return getFallbackSecretFields(requiredKeys);
   }
 
   const pepper = config.integrations.encryptionKey;
   if (!pepper) {
-    return getFallbackSecretFields(definition.requiredSecretKeys);
+    return getFallbackSecretFields(requiredKeys);
   }
 
   try {
@@ -76,13 +82,17 @@ export function resolveSecretFields(input: {
     });
 
     return Object.fromEntries(
-      definition.requiredSecretKeys.map((secretKey) => [
+      requiredKeys.map((secretKey) => [
         secretKey,
         hasConfiguredValue(decrypted[secretKey]),
       ]),
     );
-  } catch {
-    return getFallbackSecretFields(definition.requiredSecretKeys);
+  } catch (error) {
+    logger.warn(
+      "Failed to decrypt integration secrets for {integrationKey}: {error}",
+      { integrationKey: input.integrationKey, error },
+    );
+    return getFallbackSecretFields(requiredKeys);
   }
 }
 
@@ -93,10 +103,10 @@ export function isAppIntegrationConfigured(input: {
 }): boolean {
   const definition = getAppManagedIntegrationDefinition(input.integrationKey);
 
-  const hasRequiredConfig = definition.requiredConfigKeys.every((configKey) =>
-    hasConfiguredValue(input.config[configKey]),
+  const hasRequiredConfig = getRequiredConfigKeys(definition).every(
+    (configKey) => hasConfiguredValue(input.config[configKey]),
   );
-  const hasRequiredSecrets = definition.requiredSecretKeys.every(
+  const hasRequiredSecrets = getRequiredSecretKeys(definition).every(
     (secretKey) => input.secretFields[secretKey] === true,
   );
 
@@ -115,7 +125,7 @@ export function resolveOAuthStatus(input: {
 
   const oauthValue = input.config["oauth"];
   const oauthConfig = isRecord(oauthValue) ? oauthValue : {};
-  const connected = definition.requiredSecretKeys.every(
+  const connected = getRequiredSecretKeys(definition).every(
     (secretKey) => input.secretFields[secretKey] === true,
   );
 
@@ -235,7 +245,11 @@ export async function getAppIntegrationSecretsForOrg(input: {
       secretSalt: row.secretSalt,
       pepper,
     });
-  } catch {
+  } catch (error) {
+    logger.warn(
+      "Failed to decrypt integration secrets for {key} in org {orgId}: {error}",
+      { key: input.key, orgId: input.orgId, error },
+    );
     return {};
   }
 }

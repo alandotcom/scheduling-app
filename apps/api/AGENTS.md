@@ -48,14 +48,14 @@ For sender modules (for example `services/jobs/emitter.ts`):
 
 1. Mock `inngest.send` using `mock()` from `bun:test`.
 2. Assert payload shape (`id`, `name`, `data.orgId`, expected data fields, `ts`).
-3. Assert behavior when send fails (for current migration behavior, we still return an event ID).
+3. Assert behavior when send fails (errors propagate to callers).
 
 Always restore patched methods in `beforeEach`/`afterEach`.
 
 ## Global Inngest Send Guard
 
 API tests preload `src/test-utils/mock-inngest.ts`, which globally patches both
-`domainEventInngest.send` and `inngest.send` with fail-fast mocks.
+`inngest.send` with a fail-fast mock.
 
 - Any unmocked send attempt fails the test immediately.
 - For service tests, inject requester dependencies (for example

@@ -38,6 +38,7 @@
     "hono": "^4.11.9",
     "inngest": "^3.52.0",
     "libphonenumber-js": "^1.12.36",
+    "lru-cache": "^11.2.6",
     "luxon": "^3.7.2",
     "parse-duration": "^2.1.5",
     "resend": "^6.9.2",

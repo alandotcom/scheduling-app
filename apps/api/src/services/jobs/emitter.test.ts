@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, mock, test } from "bun:test";
 import type { DomainEventDataByType } from "@scheduling/dto";
-import { domainEventInngest } from "../../inngest/client.js";
+import { inngest } from "../../inngest/client.js";
 import { emitEvent, events } from "./emitter.js";
 
 describe("emitEvent", () => {
@@ -13,20 +13,20 @@ describe("emitEvent", () => {
     phone: null,
   };
 
-  const originalSend = domainEventInngest.send.bind(domainEventInngest);
+  const originalSend = inngest.send.bind(inngest);
 
   beforeEach(() => {
     (
-      domainEventInngest as unknown as {
-        send: typeof domainEventInngest.send;
+      inngest as unknown as {
+        send: typeof inngest.send;
       }
     ).send = originalSend;
   });
 
   afterEach(() => {
     (
-      domainEventInngest as unknown as {
-        send: typeof domainEventInngest.send;
+      inngest as unknown as {
+        send: typeof inngest.send;
       }
     ).send = originalSend;
   });
@@ -34,8 +34,8 @@ describe("emitEvent", () => {
   test("sends an event to Inngest with deterministic shape", async () => {
     const sendMock = mock(async () => ({ ids: ["test-event-id"] }));
     (
-      domainEventInngest as unknown as {
-        send: typeof domainEventInngest.send;
+      inngest as unknown as {
+        send: typeof inngest.send;
       }
     ).send = sendMock;
 
@@ -56,18 +56,18 @@ describe("emitEvent", () => {
     );
   });
 
-  test("returns event id even when Inngest send fails", async () => {
+  test("propagates error when Inngest send fails", async () => {
     const sendMock = mock(async () => {
       throw new Error("failed-send");
     });
     (
-      domainEventInngest as unknown as {
-        send: typeof domainEventInngest.send;
+      inngest as unknown as {
+        send: typeof inngest.send;
       }
     ).send = sendMock;
 
-    await expect(emitEvent(orgId, "client.created", payload)).resolves.toEqual(
-      expect.any(String),
+    await expect(emitEvent(orgId, "client.created", payload)).rejects.toThrow(
+      "failed-send",
     );
     expect(sendMock).toHaveBeenCalledTimes(1);
   });
@@ -75,8 +75,8 @@ describe("emitEvent", () => {
   test("uses canonical appointment lifecycle emitters", async () => {
     const sendMock = mock(async () => ({ ids: ["test-event-id"] }));
     (
-      domainEventInngest as unknown as {
-        send: typeof domainEventInngest.send;
+      inngest as unknown as {
+        send: typeof inngest.send;
       }
     ).send = sendMock;
 

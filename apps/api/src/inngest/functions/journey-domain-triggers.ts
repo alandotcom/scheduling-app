@@ -19,55 +19,11 @@ function parsePayloadForEvent(
   eventType: JourneyPlannerDomainEventType,
   payloadInput: unknown,
 ): DomainEventDataByType[JourneyPlannerDomainEventType] {
-  switch (eventType) {
-    case "appointment.scheduled": {
-      const parsed =
-        domainEventDataSchemaByType["appointment.scheduled"].safeParse(
-          payloadInput,
-        );
-      if (!parsed.success) {
-        throw new Error(`Invalid payload for event type "${eventType}".`);
-      }
-
-      if (parsed.data === undefined) {
-        throw new Error(`Invalid payload for event type "${eventType}".`);
-      }
-
-      return parsed.data;
-    }
-    case "appointment.rescheduled": {
-      const parsed =
-        domainEventDataSchemaByType["appointment.rescheduled"].safeParse(
-          payloadInput,
-        );
-      if (!parsed.success) {
-        throw new Error(`Invalid payload for event type "${eventType}".`);
-      }
-
-      if (parsed.data === undefined) {
-        throw new Error(`Invalid payload for event type "${eventType}".`);
-      }
-
-      return parsed.data;
-    }
-    case "appointment.canceled": {
-      const parsed =
-        domainEventDataSchemaByType["appointment.canceled"].safeParse(
-          payloadInput,
-        );
-      if (!parsed.success) {
-        throw new Error(`Invalid payload for event type "${eventType}".`);
-      }
-
-      if (parsed.data === undefined) {
-        throw new Error(`Invalid payload for event type "${eventType}".`);
-      }
-
-      return parsed.data;
-    }
+  const parsed = domainEventDataSchemaByType[eventType].safeParse(payloadInput);
+  if (!parsed.success || parsed.data === undefined) {
+    throw new Error(`Invalid payload for event type "${eventType}".`);
   }
-
-  throw new Error("Invalid payload for journey event.");
+  return parsed.data;
 }
 
 export function createJourneyDomainTriggerFunction<

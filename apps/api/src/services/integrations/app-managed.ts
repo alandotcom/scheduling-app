@@ -18,8 +18,6 @@ export interface AppManagedIntegrationDefinition {
   defaultConfig: Record<string, unknown>;
   configSchema: readonly IntegrationConfigField[];
   secretSchema: readonly IntegrationSecretField[];
-  requiredConfigKeys: readonly string[];
-  requiredSecretKeys: readonly string[];
   consumer?: IntegrationConsumer;
 }
 
@@ -36,8 +34,6 @@ const appManagedIntegrations: readonly AppManagedIntegrationDefinition[] = [
     defaultConfig: {},
     configSchema: [],
     secretSchema: [],
-    requiredConfigKeys: [],
-    requiredSecretKeys: [],
     consumer: loggerIntegration,
   },
   {
@@ -100,8 +96,6 @@ const appManagedIntegrations: readonly AppManagedIntegrationDefinition[] = [
         required: true,
       },
     ],
-    requiredConfigKeys: ["fromEmail"],
-    requiredSecretKeys: ["apiKey"],
   },
   {
     key: "slack",
@@ -125,9 +119,15 @@ const appManagedIntegrations: readonly AppManagedIntegrationDefinition[] = [
       },
     },
     configSchema: [],
-    secretSchema: [],
-    requiredConfigKeys: [],
-    requiredSecretKeys: ["accessToken"],
+    secretSchema: [
+      {
+        key: "accessToken",
+        label: "Access token",
+        description:
+          "OAuth access token (managed automatically via OAuth flow).",
+        required: true,
+      },
+    ],
   },
   {
     key: "twilio",
@@ -177,8 +177,6 @@ const appManagedIntegrations: readonly AppManagedIntegrationDefinition[] = [
         required: true,
       },
     ],
-    requiredConfigKeys: ["messagingServiceSid"],
-    requiredSecretKeys: ["accountSid", "authToken"],
   },
 ] as const;
 
@@ -207,6 +205,18 @@ export function getAppManagedIntegrationDefinition(
   }
 
   return integration;
+}
+
+export function getRequiredConfigKeys(
+  definition: AppManagedIntegrationDefinition,
+): readonly string[] {
+  return definition.configSchema.filter((f) => f.required).map((f) => f.key);
+}
+
+export function getRequiredSecretKeys(
+  definition: AppManagedIntegrationDefinition,
+): readonly string[] {
+  return definition.secretSchema.filter((f) => f.required).map((f) => f.key);
 }
 
 export function isAppManagedIntegrationKey(

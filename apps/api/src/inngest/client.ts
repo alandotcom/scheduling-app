@@ -1,5 +1,9 @@
 import { EventSchemas, Inngest } from "inngest";
-import type { DomainEventDataByType, DomainEventType } from "@scheduling/dto";
+import type {
+  DomainEventData,
+  DomainEventDataByType,
+  DomainEventType,
+} from "@scheduling/dto";
 import { config } from "../config.js";
 
 type SchedulingDomainEvents = {
@@ -68,7 +72,18 @@ export const inngest = new Inngest({
   schemas: new EventSchemas().fromRecord<SchedulingInngestEvents>(),
 });
 
-export const domainEventInngest = new Inngest({
-  ...inngestClientOptions,
-  schemas: new EventSchemas().fromRecord<SchedulingDomainEvents>(),
-});
+/**
+ * Typed wrapper for sending domain events through the main Inngest client.
+ * Constrains callers to domain event types while using a single Inngest instance.
+ *
+ * The cast bridges the generic DomainEventType union to Inngest's discriminated
+ * union parameter; both map DomainEventType keys identically so the cast is safe.
+ */
+export function sendDomainEvent<K extends DomainEventType>(event: {
+  id: string;
+  name: K;
+  data: { orgId: string } & DomainEventData<K>;
+  ts: number;
+}) {
+  return inngest.send(event as unknown as Parameters<typeof inngest.send>[0]);
+}

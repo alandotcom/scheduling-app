@@ -45,8 +45,6 @@ function createProviderExecuteFunction(
   );
 }
 
-const executeProviders = deliveryProviders.filter((p) => p.key !== "logger");
-
-export const journeyActionSendProviderExecuteFunctions = executeProviders.map(
+export const journeyActionSendProviderExecuteFunctions = deliveryProviders.map(
   (provider) => createProviderExecuteFunction(provider),
 );
