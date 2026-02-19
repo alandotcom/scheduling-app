@@ -303,6 +303,8 @@ Environment variables in `.env`:
 - `SVIX_BASE_URL=http://localhost:8071` (self-hosted) or hosted Svix base URL
 - `SVIX_AUTH_TOKEN=<svix-token>`
 - `SVIX_JWT_SECRET=<self-hosted svix jwt secret>`
+- `INTEGRATIONS_ENABLED=svix,...` (comma-separated system integration names)
+- `INTEGRATIONS_ENCRYPTION_KEY=<key>` (required for integration secret storage)
 
 ## Test User & Seed Data
 
