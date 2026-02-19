@@ -20,6 +20,7 @@ describe("ActionGrid", () => {
     expect(screen.getByTestId("action-group-toggle-system")).toBeTruthy();
     expect(screen.getByTestId("action-group-toggle-resend")).toBeTruthy();
     expect(screen.getByTestId("action-group-toggle-slack")).toBeTruthy();
+    expect(screen.getByTestId("action-group-toggle-twilio")).toBeTruthy();
 
     expect(screen.getByText("Wait")).toBeTruthy();
     expect(screen.getByText("Condition")).toBeTruthy();
@@ -27,8 +28,10 @@ describe("ActionGrid", () => {
     expect(screen.getByText("Send Email")).toBeTruthy();
     expect(screen.getByText("Send Email Template")).toBeTruthy();
     expect(screen.getByText("Send Channel Message")).toBeTruthy();
+    expect(screen.getByText("Send SMS")).toBeTruthy();
     expect(screen.getByTestId("action-grid-category-logo-resend")).toBeTruthy();
     expect(screen.getByTestId("action-grid-category-logo-slack")).toBeTruthy();
+    expect(screen.getByTestId("action-grid-category-logo-twilio")).toBeTruthy();
     expect(
       screen.getByTestId("action-grid-action-logo-send-resend"),
     ).toBeTruthy();
@@ -37,6 +40,9 @@ describe("ActionGrid", () => {
     ).toBeTruthy();
     expect(
       screen.getByTestId("action-grid-action-logo-send-slack"),
+    ).toBeTruthy();
+    expect(
+      screen.getByTestId("action-grid-action-logo-send-twilio"),
     ).toBeTruthy();
     expect(screen.queryByText("send-message")).toBeNull();
   });

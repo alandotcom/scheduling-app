@@ -17,7 +17,7 @@ import {
 } from "@xyflow/react";
 import { atom } from "jotai";
 import { nanoid } from "nanoid";
-import { getAction } from "./action-registry";
+import { getAction, getRegisteredActionIds } from "./action-registry";
 import {
   getActionDefaultNodeLabel,
   isDefaultActionNodeLabel,
@@ -113,14 +113,7 @@ export type PersistableWorkflowGraphResult = {
   skippedNodeIds: string[];
 };
 
-const supportedJourneyActionTypes = new Set([
-  "wait",
-  "send-resend",
-  "send-resend-template",
-  "send-slack",
-  "condition",
-  "logger",
-]);
+const supportedJourneyActionTypes = new Set(getRegisteredActionIds());
 
 function asRecord(value: unknown): Record<string, unknown> | null {
   if (!isRecord(value)) {

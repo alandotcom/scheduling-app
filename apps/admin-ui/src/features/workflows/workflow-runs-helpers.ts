@@ -307,6 +307,9 @@ export function toNodeTypeLabel(nodeType: string): string {
     case "send-slack":
     case "slack":
       return "Send Slack message";
+    case "send-twilio":
+    case "sms":
+      return "Send SMS";
     default:
       return nodeType.replaceAll("-", " ");
   }

@@ -56,6 +56,9 @@ describe("ActionConfig", () => {
     expect(
       screen.getByTestId("action-config-category-logo-resend"),
     ).toBeTruthy();
+    expect(
+      screen.getByTestId("action-config-category-logo-twilio"),
+    ).toBeTruthy();
 
     fireEvent.click(actionTrigger);
     expect(
@@ -66,12 +69,12 @@ describe("ActionConfig", () => {
   test("shows human-readable action labels in the trigger", () => {
     render(
       <ActionConfig
-        config={{ actionType: "send-slack" }}
+        config={{ actionType: "send-twilio" }}
         onUpdateConfig={mock((_key: string, _value: unknown) => {})}
       />,
     );
 
-    expect(screen.getByText("Send Channel Message")).toBeTruthy();
+    expect(screen.getByText("Send SMS")).toBeTruthy();
   });
 
   test("renders token pills in resend text and textarea fields", () => {

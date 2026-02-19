@@ -50,6 +50,7 @@ const supportedJourneyActionTypeSchema = z.enum([
   "send-resend",
   "send-resend-template",
   "send-slack",
+  "send-twilio",
   "condition",
   "logger",
 ]);
@@ -208,7 +209,7 @@ export const linearJourneyGraphSchema =
         ctx.addIssue({
           code: "custom",
           message:
-            "Action steps must declare a supported step type (Wait, Send Email, Send Email Template, Send Channel Message, Condition, Logger)",
+            "Action steps must declare a supported step type (Wait, Send Email, Send Email Template, Send Channel Message, Send SMS, Condition, Logger)",
           path: ["nodes", index, "attributes", "data", "config", "actionType"],
         });
         continue;
@@ -220,7 +221,7 @@ export const linearJourneyGraphSchema =
         ctx.addIssue({
           code: "custom",
           message:
-            "Unsupported step type. Allowed step types are Trigger, Wait, Send Email, Send Email Template, Send Channel Message, Condition, and Logger",
+            "Unsupported step type. Allowed step types are Trigger, Wait, Send Email, Send Email Template, Send Channel Message, Send SMS, Condition, and Logger",
           path: ["nodes", index, "attributes", "data", "config", "actionType"],
         });
         continue;

@@ -3,6 +3,7 @@ import type {
   JourneyRunStepLog,
 } from "@scheduling/dto";
 import { formatDisplayDateTime } from "@/lib/date-utils";
+import { getActionChannel, isDeliveryAction } from "./action-registry";
 import {
   formatCountdownDuration,
   isRecord,
@@ -143,14 +144,11 @@ function ViewRawDataToggle({ data, label }: { data: unknown; label: string }) {
 
 type DetailEntry = { key: string; value: string };
 
-const DELIVERY_NODE_TYPES = new Set([
-  "logger",
-  "send-resend",
-  "send-resend-template",
-  "send-slack",
-]);
-
 const UUID_PREFIX_RE = /^[0-9a-f]{8}-/;
+
+const CHANNEL_DISPLAY: Record<string, string> = {
+  sms: "SMS",
+};
 
 function inferChannel(
   nodeType: string,
@@ -159,17 +157,11 @@ function inferChannel(
   if (input && typeof input["channel"] === "string") {
     return capitalize(input["channel"]);
   }
-  switch (nodeType) {
-    case "logger":
-      return "Log";
-    case "send-resend":
-    case "send-resend-template":
-      return "Email";
-    case "send-slack":
-      return "Slack";
-    default:
-      return capitalize(nodeType);
+  const channel = getActionChannel(nodeType);
+  if (channel) {
+    return CHANNEL_DISPLAY[channel] ?? capitalize(channel);
   }
+  return capitalize(nodeType);
 }
 
 function capitalize(s: string): string {
@@ -223,7 +215,7 @@ function buildStepEntries(input: {
   }
 
   // Delivery nodes — curated channel/status/attempts
-  if (DELIVERY_NODE_TYPES.has(stepLog.nodeType)) {
+  if (isDeliveryAction(stepLog.nodeType)) {
     const outputEntries: DetailEntry[] = [];
     outputEntries.push({
       key: "Channel",

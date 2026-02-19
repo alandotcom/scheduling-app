@@ -9,12 +9,7 @@ export const JOURNEY_DELIVERY_FLOW_CONTROL = {
     scope: "fn",
     limit: 20,
   },
-  resendPerFunctionOrgConcurrency: {
-    key: "event.data.orgId",
-    scope: "fn",
-    limit: 10,
-  },
-  slackPerFunctionOrgConcurrency: {
+  twilioCallbackPerFunctionOrgConcurrency: {
     key: "event.data.orgId",
     scope: "fn",
     limit: 10,

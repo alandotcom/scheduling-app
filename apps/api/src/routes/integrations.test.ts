@@ -86,6 +86,12 @@ describe("Integration Routes", () => {
           configured: false,
           authStrategy: "oauth",
         }),
+        expect.objectContaining({
+          key: "twilio",
+          enabled: false,
+          configured: false,
+          authStrategy: "manual",
+        }),
       ]),
     );
 
@@ -293,6 +299,69 @@ describe("Integration Routes", () => {
     expect(afterSecret.configured).toBe(true);
     expect(afterSecret.secretFields).toMatchObject({
       apiKey: true,
+    });
+  });
+
+  test("twilio requires messagingServiceSid and account credentials to be configured", async () => {
+    const { org, user } = await createOrg(db);
+    const context = createTestContext({
+      orgId: org.id,
+      userId: user.id,
+      role: "owner",
+    });
+
+    const initial = await call(
+      integrationRoutes.getSettings,
+      { key: "twilio" },
+      { context },
+    );
+    expect(initial.configured).toBe(false);
+
+    await call(
+      integrationRoutes.update,
+      {
+        key: "twilio",
+        config: {
+          messagingServiceSid: "MG1234567890abcdef1234567890abcdef",
+        },
+      },
+      { context },
+    );
+
+    const afterConfig = await call(
+      integrationRoutes.getSettings,
+      { key: "twilio" },
+      { context },
+    );
+    expect(afterConfig.configured).toBe(false);
+
+    (
+      config.integrations as {
+        encryptionKey: string | undefined;
+      }
+    ).encryptionKey = "integration-test-encryption-key";
+
+    await call(
+      integrationRoutes.updateSecrets,
+      {
+        key: "twilio",
+        set: {
+          accountSid: "AC1234567890abcdef1234567890abcdef",
+          authToken: "twilio-auth-token",
+        },
+      },
+      { context },
+    );
+
+    const afterSecrets = await call(
+      integrationRoutes.getSettings,
+      { key: "twilio" },
+      { context },
+    );
+    expect(afterSecrets.configured).toBe(true);
+    expect(afterSecrets.secretFields).toMatchObject({
+      accountSid: true,
+      authToken: true,
     });
   });
 

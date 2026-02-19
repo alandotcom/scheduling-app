@@ -246,10 +246,12 @@ describe("WorkflowEditorSidebar role behavior", () => {
     expect(screen.getByTestId("action-group-toggle-system")).toBeTruthy();
     expect(screen.getByTestId("action-group-toggle-resend")).toBeTruthy();
     expect(screen.getByTestId("action-group-toggle-slack")).toBeTruthy();
+    expect(screen.getByTestId("action-group-toggle-twilio")).toBeTruthy();
     expect(screen.getByText("Wait")).toBeTruthy();
     expect(screen.getByText("Send Email")).toBeTruthy();
     expect(screen.getByText("Send Email Template")).toBeTruthy();
     expect(screen.getByText("Send Channel Message")).toBeTruthy();
+    expect(screen.getByText("Send SMS")).toBeTruthy();
     expect(screen.getByText("Logger")).toBeTruthy();
     expect(screen.queryByText("HTTP Request")).toBeNull();
     expect(screen.getByText("Condition")).toBeTruthy();

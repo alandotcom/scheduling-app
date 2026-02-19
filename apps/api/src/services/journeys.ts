@@ -44,6 +44,7 @@ import { compact, uniq } from "es-toolkit/array";
 import { and, asc, desc, eq, ilike, inArray, ne, sql } from "drizzle-orm";
 import { ApplicationError } from "../errors/application-error.js";
 import { withOrg, type DbClient } from "../lib/db.js";
+import { isRecord } from "../lib/type-guards.js";
 import type { ServiceContext } from "./locations.js";
 import { processJourneyDomainEvent } from "./journey-planner.js";
 
@@ -264,10 +265,6 @@ function toJourneyRunStepLog(
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function resolveTriggerEventType(input: {

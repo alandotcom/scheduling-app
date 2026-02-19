@@ -2,6 +2,7 @@
 
 import { createMiddleware } from "hono/factory";
 import { getLogger } from "@logtape/logtape";
+import { isRecord } from "../lib/type-guards.js";
 
 const logger = getLogger(["api", "http"]);
 const SERVER_TIMING_HEADER = "Server-Timing";
@@ -24,10 +25,6 @@ function appendServerTimingMetric(existing: string | null, metric: string) {
     return metric;
   }
   return `${existing}, ${metric}`;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
 }
 
 function asNonEmptyString(value: unknown): string | null {

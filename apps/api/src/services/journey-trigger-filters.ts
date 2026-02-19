@@ -5,6 +5,7 @@ import {
   type JourneyTriggerFilterAst,
   type JourneyTriggerFilterCondition,
 } from "@scheduling/dto";
+import { isRecord } from "../lib/type-guards.js";
 
 type PrimitiveLiteral = string | number | boolean | null;
 
@@ -50,10 +51,6 @@ const filterEnvironment = new Environment({
 })
   .registerVariable("values", "map")
   .registerVariable("now", "dyn");
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
 
 function getPathValue(
   root: Record<string, unknown>,

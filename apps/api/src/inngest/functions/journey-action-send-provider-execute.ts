@@ -1,19 +1,21 @@
 import { executeJourneyDeliveryScheduled } from "../../services/journey-delivery-worker.js";
-import { dispatchJourneySendSlackAction } from "../../services/journey-integration-action-dispatchers.js";
+import {
+  deliveryProviders,
+  type DeliveryProviderSpec,
+} from "../../services/delivery-provider-registry.js";
 import { inngest } from "../client.js";
 import { JOURNEY_DELIVERY_FLOW_CONTROL } from "./journey-delivery-flow-control.js";
 
 type ExecuteJourneyDeliveryScheduled = typeof executeJourneyDeliveryScheduled;
-type DispatchJourneySendSlackAction = typeof dispatchJourneySendSlackAction;
 
-export function createJourneyActionSendSlackExecuteFunction(
+function createProviderExecuteFunction(
+  provider: DeliveryProviderSpec,
   executeDelivery: ExecuteJourneyDeliveryScheduled = executeJourneyDeliveryScheduled,
-  dispatchDelivery: DispatchJourneySendSlackAction = dispatchJourneySendSlackAction,
 ) {
   return inngest.createFunction(
     {
-      id: "journey-action-send-slack-execute",
-      retries: 2,
+      id: provider.functionId,
+      retries: provider.retries as 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10,
       cancelOn: [
         {
           event: "journey.delivery.canceled",
@@ -21,19 +23,14 @@ export function createJourneyActionSendSlackExecuteFunction(
         },
       ],
       concurrency: [
-        // Shared org-level budget across all journey delivery executors.
         JOURNEY_DELIVERY_FLOW_CONTROL.sharedOrgConcurrency,
-        // Provider-local per-org guardrail to prevent one function from monopolizing
-        // the shared budget.
-        JOURNEY_DELIVERY_FLOW_CONTROL.slackPerFunctionOrgConcurrency,
+        provider.perFunctionConcurrency,
       ],
     },
-    { event: "journey.action.send-slack.execute" },
-    // TODO(integrations-webhooks): add provider callback lifecycle once
-    // integration webhook setup/registration is available.
+    { event: provider.eventName as any },
     async ({ event, step }) =>
-      executeDelivery(event.data, {
-        dispatchDelivery,
+      executeDelivery(event["data"], {
+        maxDispatchAttempts: provider.maxDispatchAttempts,
         runtime: {
           runStep: async <T>(_stepId: string, fn: () => Promise<T>) => fn(),
           sleep: async (stepId, delayMs) => {
@@ -48,5 +45,8 @@ export function createJourneyActionSendSlackExecuteFunction(
   );
 }
 
-export const journeyActionSendSlackExecuteFunction =
-  createJourneyActionSendSlackExecuteFunction();
+const executeProviders = deliveryProviders.filter((p) => p.key !== "logger");
+
+export const journeyActionSendProviderExecuteFunctions = executeProviders.map(
+  (provider) => createProviderExecuteFunction(provider),
+);

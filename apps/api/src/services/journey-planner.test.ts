@@ -280,6 +280,87 @@ function createResendTemplateJourneyGraph(input?: {
   };
 }
 
+function createTwilioJourneyGraph(input?: {
+  waitDuration?: string;
+}): LinearJourneyGraph {
+  return {
+    attributes: {},
+    options: {
+      type: "directed",
+    },
+    nodes: [
+      {
+        key: "trigger-node",
+        attributes: {
+          id: "trigger-node",
+          type: "trigger-node",
+          position: { x: 0, y: 0 },
+          data: {
+            type: "trigger",
+            label: "Trigger",
+            config: createTriggerConfig(),
+          },
+        },
+      },
+      {
+        key: "wait-node",
+        attributes: {
+          id: "wait-node",
+          type: "action-node",
+          position: { x: 0, y: 120 },
+          data: {
+            type: "action",
+            label: "Wait",
+            config: {
+              actionType: "wait",
+              waitDuration: input?.waitDuration ?? "5m",
+            },
+          },
+        },
+      },
+      {
+        key: "send-sms-node",
+        attributes: {
+          id: "send-sms-node",
+          type: "action-node",
+          position: { x: 0, y: 240 },
+          data: {
+            type: "action",
+            label: "Send SMS",
+            config: {
+              actionType: "send-twilio",
+              message: "Reminder for @Appointment.data.startAt",
+              toPhone: "@Appointment.data.client.phone",
+            },
+          },
+        },
+      },
+    ],
+    edges: [
+      {
+        key: "trigger-to-wait",
+        source: "trigger-node",
+        target: "wait-node",
+        attributes: {
+          id: "trigger-to-wait",
+          source: "trigger-node",
+          target: "wait-node",
+        },
+      },
+      {
+        key: "wait-to-send-sms",
+        source: "wait-node",
+        target: "send-sms-node",
+        attributes: {
+          id: "wait-to-send-sms",
+          source: "wait-node",
+          target: "send-sms-node",
+        },
+      },
+    ],
+  };
+}
+
 function createFanoutJourneyGraph(): LinearJourneyGraph {
   return {
     attributes: {},
@@ -586,7 +667,10 @@ describe("processJourneyDomainEvent", () => {
         timestamp: "2026-02-16T10:00:00.000Z",
       },
       {
-        scheduleResendRequester,
+        providerRequesters: {
+          "send-resend": scheduleResendRequester,
+          "send-resend-template": scheduleResendRequester,
+        },
         now: new Date("2026-02-16T09:00:00.000Z"),
       },
     );
@@ -650,7 +734,7 @@ describe("processJourneyDomainEvent", () => {
         timestamp: "2026-02-16T10:00:00.000Z",
       },
       {
-        scheduleLoggerRequester,
+        providerRequesters: { logger: scheduleLoggerRequester },
         now: new Date("2026-02-16T09:00:00.000Z"),
       },
     );
@@ -714,8 +798,11 @@ describe("processJourneyDomainEvent", () => {
         timestamp: "2026-02-16T10:00:00.000Z",
       },
       {
-        scheduleResendRequester,
-        scheduleLoggerRequester,
+        providerRequesters: {
+          "send-resend": scheduleResendRequester,
+          "send-resend-template": scheduleResendRequester,
+          logger: scheduleLoggerRequester,
+        },
         now: new Date("2026-02-16T09:00:00.000Z"),
       },
     );
@@ -792,9 +879,12 @@ describe("processJourneyDomainEvent", () => {
         timestamp: "2026-02-16T10:00:00.000Z",
       },
       {
-        scheduleResendRequester,
-        scheduleSlackRequester,
-        scheduleLoggerRequester,
+        providerRequesters: {
+          "send-resend": scheduleResendRequester,
+          "send-resend-template": scheduleResendRequester,
+          "send-slack": scheduleSlackRequester,
+          logger: scheduleLoggerRequester,
+        },
         now: new Date("2026-02-16T09:00:00.000Z"),
       },
     );
@@ -842,14 +932,75 @@ describe("processJourneyDomainEvent", () => {
         timestamp: "2026-02-16T10:00:00.000Z",
       },
       {
-        scheduleResendRequester,
-        scheduleSlackRequester,
-        scheduleLoggerRequester,
+        providerRequesters: {
+          "send-resend": scheduleResendRequester,
+          "send-resend-template": scheduleResendRequester,
+          "send-slack": scheduleSlackRequester,
+          logger: scheduleLoggerRequester,
+        },
         now: new Date("2026-02-16T09:00:00.000Z"),
       },
     );
 
     expect(scheduleResendRequester).toHaveBeenCalledTimes(1);
+    expect(scheduleSlackRequester).toHaveBeenCalledTimes(0);
+    expect(scheduleLoggerRequester).toHaveBeenCalledTimes(0);
+  });
+
+  test("routes send-twilio through the twilio-specific scheduler", async () => {
+    const created = await journeyService.create(
+      {
+        name: "Twilio Scheduler Journey",
+        graph: createTwilioJourneyGraph(),
+      },
+      context,
+    );
+
+    await journeyService.publish(
+      created.id,
+      {
+        mode: "live",
+      },
+      context,
+    );
+
+    const scheduleResendRequester = mock(async () => ({
+      eventId: "evt-scheduled-resend-twilio",
+    }));
+    const scheduleSlackRequester = mock(async () => ({
+      eventId: "evt-scheduled-slack-twilio",
+    }));
+    const scheduleTwilioRequester = mock(async () => ({
+      eventId: "evt-scheduled-twilio",
+    }));
+    const scheduleLoggerRequester = mock(async () => ({
+      eventId: "evt-scheduled-logger-twilio",
+    }));
+
+    await processJourneyDomainEvent(
+      {
+        id: "evt-twilio-route-1",
+        orgId: context.orgId,
+        type: "appointment.scheduled",
+        payload: createAppointmentPayload({
+          appointmentId: "018f4d3a-6d80-7c5b-8a4a-6cb8f8d57db1",
+        }),
+        timestamp: "2026-02-16T10:00:00.000Z",
+      },
+      {
+        providerRequesters: {
+          "send-resend": scheduleResendRequester,
+          "send-resend-template": scheduleResendRequester,
+          "send-slack": scheduleSlackRequester,
+          "send-twilio": scheduleTwilioRequester,
+          logger: scheduleLoggerRequester,
+        },
+        now: new Date("2026-02-16T09:00:00.000Z"),
+      },
+    );
+
+    expect(scheduleTwilioRequester).toHaveBeenCalledTimes(1);
+    expect(scheduleResendRequester).toHaveBeenCalledTimes(0);
     expect(scheduleSlackRequester).toHaveBeenCalledTimes(0);
     expect(scheduleLoggerRequester).toHaveBeenCalledTimes(0);
   });
@@ -889,7 +1040,10 @@ describe("processJourneyDomainEvent", () => {
         timestamp: "2026-02-16T10:00:00.000Z",
       },
       {
-        scheduleResendRequester,
+        providerRequesters: {
+          "send-resend": scheduleResendRequester,
+          "send-resend-template": scheduleResendRequester,
+        },
         now: new Date("2026-02-16T09:00:00.000Z"),
       },
     );
@@ -951,7 +1105,10 @@ describe("processJourneyDomainEvent", () => {
         timestamp: "2026-02-16T10:00:00.000Z",
       },
       {
-        scheduleResendRequester,
+        providerRequesters: {
+          "send-resend": scheduleResendRequester,
+          "send-resend-template": scheduleResendRequester,
+        },
         now: new Date("2026-02-16T09:00:00.000Z"),
       },
     );
@@ -1156,7 +1313,10 @@ describe("processJourneyDomainEvent", () => {
         timestamp: "2026-02-16T10:00:00.000Z",
       },
       {
-        scheduleResendRequester,
+        providerRequesters: {
+          "send-resend": scheduleResendRequester,
+          "send-resend-template": scheduleResendRequester,
+        },
         now: new Date("2026-02-16T09:00:00.000Z"),
       },
     );
@@ -1172,7 +1332,10 @@ describe("processJourneyDomainEvent", () => {
         timestamp: "2026-02-16T10:00:00.000Z",
       },
       {
-        scheduleResendRequester,
+        providerRequesters: {
+          "send-resend": scheduleResendRequester,
+          "send-resend-template": scheduleResendRequester,
+        },
         now: new Date("2026-02-16T09:00:00.000Z"),
       },
     );
@@ -1231,7 +1394,10 @@ describe("processJourneyDomainEvent", () => {
         timestamp: "2026-02-16T09:00:00.000Z",
       },
       {
-        scheduleResendRequester,
+        providerRequesters: {
+          "send-resend": scheduleResendRequester,
+          "send-resend-template": scheduleResendRequester,
+        },
         now: new Date("2026-02-16T09:00:00.000Z"),
       },
     );
@@ -1291,7 +1457,10 @@ describe("processJourneyDomainEvent", () => {
         timestamp: "2026-02-16T10:00:00.000Z",
       },
       {
-        scheduleResendRequester,
+        providerRequesters: {
+          "send-resend": scheduleResendRequester,
+          "send-resend-template": scheduleResendRequester,
+        },
       },
     );
 
@@ -1397,7 +1566,10 @@ describe("processJourneyDomainEvent", () => {
         timestamp: "2026-02-16T10:00:00.000Z",
       },
       {
-        scheduleResendRequester,
+        providerRequesters: {
+          "send-resend": scheduleResendRequester,
+          "send-resend-template": scheduleResendRequester,
+        },
         now: new Date("2026-02-16T10:00:00.000Z"),
       },
     );

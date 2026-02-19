@@ -1,3 +1,4 @@
+import { getProviderForActionType } from "../services/delivery-provider-registry.js";
 import { inngest } from "./client.js";
 
 export type JourneyDeliveryScheduledEventData = {
@@ -8,11 +9,13 @@ export type JourneyDeliveryScheduledEventData = {
   scheduledFor: string;
 };
 
-export type JourneyActionSendResendExecuteEventData =
-  JourneyDeliveryScheduledEventData;
-
-export type JourneyActionSendSlackExecuteEventData =
-  JourneyDeliveryScheduledEventData;
+export type JourneyActionSendTwilioCallbackReceivedEventData = {
+  orgId: string;
+  journeyDeliveryId: string;
+  messageSid: string;
+  messageStatus: string;
+  errorCode?: string | null;
+};
 
 export type JourneyDeliveryCanceledEventData = {
   orgId: string;
@@ -91,12 +94,20 @@ export async function sendJourneyDeliveryScheduled(
   return {};
 }
 
-export async function sendJourneyActionSendResendExecute(
-  input: JourneyActionSendResendExecuteEventData,
+export async function sendJourneyActionExecuteForActionType(
+  actionType: string,
+  input: JourneyDeliveryScheduledEventData,
 ): Promise<{ eventId?: string }> {
+  const provider = getProviderForActionType(actionType);
+  if (!provider) {
+    throw new Error(
+      `No delivery provider registered for action type "${actionType}".`,
+    );
+  }
+
   const response = await inngest.send({
-    id: `journey-action-send-resend-execute-${input.journeyDeliveryId}`,
-    name: "journey.action.send-resend.execute",
+    id: `${provider.functionId}-${input.journeyDeliveryId}`,
+    name: provider.eventName as any,
     data: input,
   });
 
@@ -108,12 +119,12 @@ export async function sendJourneyActionSendResendExecute(
   return {};
 }
 
-export async function sendJourneyActionSendSlackExecute(
-  input: JourneyActionSendSlackExecuteEventData,
+export async function sendJourneyActionSendTwilioCallbackReceived(
+  input: JourneyActionSendTwilioCallbackReceivedEventData,
 ): Promise<{ eventId?: string }> {
   const response = await inngest.send({
-    id: `journey-action-send-slack-execute-${input.journeyDeliveryId}`,
-    name: "journey.action.send-slack.execute",
+    id: `journey-action-send-twilio-callback-received-${input.journeyDeliveryId}-${input.messageSid}-${input.messageStatus.toLowerCase()}`,
+    name: "journey.action.send-twilio.callback-received",
     data: input,
   });
 

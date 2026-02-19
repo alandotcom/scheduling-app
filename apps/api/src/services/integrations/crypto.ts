@@ -4,6 +4,7 @@ import {
   randomBytes,
   scryptSync,
 } from "node:crypto";
+import { isRecord } from "../../lib/type-guards.js";
 
 const CIPHER_ALGORITHM = "aes-256-gcm";
 const CIPHER_KEY_LENGTH = 32;
@@ -19,10 +20,6 @@ type EncryptedSecretsPayloadV1 = {
 
 function deriveEncryptionKey(pepper: string, salt: string): Buffer {
   return scryptSync(pepper, Buffer.from(salt, "base64"), CIPHER_KEY_LENGTH);
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
 }
 
 function parseSecretsPayload(raw: string): EncryptedSecretsPayloadV1 {

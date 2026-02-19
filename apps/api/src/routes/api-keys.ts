@@ -2,6 +2,7 @@
 // - Admins can create/list/revoke API keys scoped to the active organization
 
 import { z } from "zod";
+import { isRecord } from "../lib/type-guards.js";
 import {
   apiKeyListResponseSchema,
   apiKeyResponseSchema,
@@ -42,10 +43,6 @@ function roleRank(role: "owner" | "admin" | "member"): number {
   if (role === "owner") return 3;
   if (role === "admin") return 2;
   return 1;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
 }
 
 function resolveErrorMessage(error: unknown, fallbackMessage: string): string {

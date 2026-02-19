@@ -44,6 +44,7 @@
     "rrule": "^2.8.1",
     "standardenv": "^0.0.2",
     "svix": "^1.84.1",
+    "twilio": "^5.12.2",
     "zod": "catalog:"
   },
   "devDependencies": {

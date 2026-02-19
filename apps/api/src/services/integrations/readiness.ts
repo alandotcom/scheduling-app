@@ -5,6 +5,7 @@ import type {
 import type { DbClient } from "../../lib/db.js";
 import { config } from "../../config.js";
 import { withOrg } from "../../lib/db.js";
+import { isRecord } from "../../lib/type-guards.js";
 import type { IntegrationRow } from "../../repositories/integrations.js";
 import { integrationRepository } from "../../repositories/integrations.js";
 import {
@@ -20,10 +21,6 @@ export type AppManagedIntegrationState = {
   config: Record<string, unknown>;
   secretFields: Record<string, boolean>;
 };
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
 
 export function hasConfiguredValue(value: unknown): boolean {
   if (typeof value === "string") {

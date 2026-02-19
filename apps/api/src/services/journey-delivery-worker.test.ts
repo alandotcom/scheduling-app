@@ -12,17 +12,28 @@ import {
   setTestOrgContext,
   type TestDatabase,
 } from "../test-utils/index.js";
-import { createOrg } from "../test-utils/factories.js";
+import {
+  createAppointment,
+  createAppointmentType,
+  createCalendar,
+  createClient,
+  createOrg,
+} from "../test-utils/factories.js";
 import type { ServiceContext } from "./locations.js";
 import { executeJourneyDeliveryScheduled } from "./journey-delivery-worker.js";
-import { dispatchJourneySendResendAction } from "./journey-integration-action-dispatchers.js";
+import { dispatchJourneySendResendAction } from "./integrations/resend/delivery.js";
+import { JourneyDeliveryNonRetryableError } from "./delivery-dispatch-helpers.js";
 
 const db: TestDatabase = getTestDb();
 
 function createJourneyVersionSnapshot(input?: {
   stepKey?: string;
-  actionType?: "send-resend" | "send-resend-template" | "send-slack" | "logger";
-  channel?: "email" | "slack" | "logger";
+  actionType?:
+    | "send-resend"
+    | "send-resend-template"
+    | "send-slack"
+    | "send-twilio"
+    | "logger";
 }) {
   const stepKey = input?.stepKey ?? "send-node";
   const actionType = input?.actionType ?? "send-resend";
@@ -33,9 +44,15 @@ function createJourneyVersionSnapshot(input?: {
           actionType: "logger",
           message: "Logger delivery event",
         }
-      : {
-          actionType,
-        };
+      : actionType === "send-twilio"
+        ? {
+            actionType: "send-twilio",
+            message: "Reminder",
+            toPhone: "@Appointment.data.client.phone",
+          }
+        : {
+            actionType,
+          };
 
   return {
     version: 1,
@@ -102,9 +119,11 @@ async function seedPlannedDelivery(
       | "send-resend"
       | "send-resend-template"
       | "send-slack"
+      | "send-twilio"
       | "logger";
-    channel?: "email" | "slack" | "logger";
+    channel?: "email" | "slack" | "sms" | "logger";
     mode?: "live" | "test";
+    appointmentId?: string;
   },
 ) {
   const stepKey = input?.stepKey ?? "send-node";
@@ -119,14 +138,13 @@ async function seedPlannedDelivery(
     .values({
       orgId: context.orgId,
       journeyVersionId: null,
-      appointmentId: crypto.randomUUID(),
+      appointmentId: input?.appointmentId ?? crypto.randomUUID(),
       mode,
       status: "planned",
       journeyNameSnapshot: "Worker Journey",
       journeyVersionSnapshot: createJourneyVersionSnapshot({
         stepKey,
         actionType,
-        channel,
       }),
     })
     .returning({ id: journeyRuns.id });
@@ -333,6 +351,40 @@ describe("executeJourneyDeliveryScheduled", () => {
     expect(delivery?.reasonCode).toContain("provider_error");
   });
 
+  test("does not retry non-retryable dispatch failures", async () => {
+    const seeded = await seedPlannedDelivery(
+      context,
+      new Date("2026-02-16T09:00:00.000Z"),
+    );
+
+    const dispatchDelivery = mock(async () => {
+      throw new JourneyDeliveryNonRetryableError("invalid recipient");
+    });
+
+    const result = await executeJourneyDeliveryScheduled(
+      {
+        orgId: context.orgId,
+        journeyDeliveryId: seeded.deliveryId,
+        journeyRunId: seeded.runId,
+        deterministicKey: seeded.deterministicKey,
+        scheduledFor: seeded.scheduledFor.toISOString(),
+      },
+      {
+        runtime: {
+          runStep: async <T>(_stepId: string, fn: () => Promise<T>) => fn(),
+          sleep: async (_stepId: string, _delayMs: number) => {},
+        },
+        now: () => new Date("2026-02-16T09:00:00.000Z"),
+        dispatchDelivery,
+        maxDispatchAttempts: 3,
+      },
+    );
+
+    expect(result.status).toBe("failed");
+    expect(dispatchDelivery).toHaveBeenCalledTimes(1);
+    expect(result.reasonCode).toContain("provider_error:invalid recipient");
+  });
+
   test("forwards deterministic delivery key as adapter idempotency key", async () => {
     const seeded = await seedPlannedDelivery(
       context,
@@ -481,5 +533,222 @@ describe("executeJourneyDeliveryScheduled", () => {
 
     expect(delivery?.status).toBe("sent");
     expect(delivery?.reasonCode).toBe("test_mode_log_only");
+  });
+
+  test("loads client phone into template context even without client names", async () => {
+    const calendar = await createCalendar(db as any, context.orgId);
+    const appointmentType = await createAppointmentType(
+      db as any,
+      context.orgId,
+      {
+        calendarIds: [calendar.id],
+      },
+    );
+    const client = await createClient(db as any, context.orgId, {
+      firstName: "",
+      lastName: "",
+      phone: "+14155552671",
+    });
+    const appointment = await createAppointment(db as any, context.orgId, {
+      calendarId: calendar.id,
+      appointmentTypeId: appointmentType.id,
+      clientId: client.id,
+      startAt: new Date("2026-02-16T11:00:00.000Z"),
+      endAt: new Date("2026-02-16T11:30:00.000Z"),
+    });
+
+    const seeded = await seedPlannedDelivery(
+      context,
+      new Date("2026-02-16T09:00:00.000Z"),
+      {
+        stepKey: "send-sms-node",
+        actionType: "send-twilio",
+        channel: "sms",
+        appointmentId: appointment.id,
+      },
+    );
+
+    const dispatchDelivery = mock(async (dispatchInput) => {
+      const templateContext =
+        (dispatchInput.templateContext as
+          | Record<string, unknown>
+          | undefined) ?? {};
+      const appointmentContext = templateContext["Appointment"] as
+        | Record<string, unknown>
+        | undefined;
+      const appointmentData = appointmentContext?.["data"] as
+        | Record<string, unknown>
+        | undefined;
+      const templateClient = appointmentData?.["client"] as
+        | Record<string, unknown>
+        | undefined;
+
+      expect(templateClient?.["phone"]).toBe("+14155552671");
+
+      return {
+        providerMessageId: "twilio:SM123",
+      };
+    });
+
+    const result = await executeJourneyDeliveryScheduled(
+      {
+        orgId: context.orgId,
+        journeyDeliveryId: seeded.deliveryId,
+        journeyRunId: seeded.runId,
+        deterministicKey: seeded.deterministicKey,
+        scheduledFor: seeded.scheduledFor.toISOString(),
+      },
+      {
+        runtime: {
+          runStep: async <T>(_stepId: string, fn: () => Promise<T>) => fn(),
+          sleep: async (_stepId: string, _delayMs: number) => {},
+        },
+        now: () => new Date("2026-02-16T09:00:00.000Z"),
+        dispatchDelivery,
+      },
+    );
+
+    expect(result.status).toBe("sent");
+    expect(dispatchDelivery).toHaveBeenCalledTimes(1);
+  });
+
+  test("does not persist template context into step-log input payloads", async () => {
+    const calendar = await createCalendar(db as any, context.orgId);
+    const appointmentType = await createAppointmentType(
+      db as any,
+      context.orgId,
+      {
+        calendarIds: [calendar.id],
+      },
+    );
+    const client = await createClient(db as any, context.orgId, {
+      firstName: "Ada",
+      lastName: "Lovelace",
+      phone: "+14155552671",
+    });
+    const appointment = await createAppointment(db as any, context.orgId, {
+      calendarId: calendar.id,
+      appointmentTypeId: appointmentType.id,
+      clientId: client.id,
+      startAt: new Date("2026-02-16T11:00:00.000Z"),
+      endAt: new Date("2026-02-16T11:30:00.000Z"),
+    });
+
+    const seeded = await seedPlannedDelivery(
+      context,
+      new Date("2026-02-16T09:00:00.000Z"),
+      {
+        stepKey: "send-sms-node",
+        actionType: "send-twilio",
+        channel: "sms",
+        appointmentId: appointment.id,
+      },
+    );
+
+    const dispatchDelivery = mock(async () => ({
+      providerMessageId: "twilio:SM456",
+    }));
+
+    await executeJourneyDeliveryScheduled(
+      {
+        orgId: context.orgId,
+        journeyDeliveryId: seeded.deliveryId,
+        journeyRunId: seeded.runId,
+        deterministicKey: seeded.deterministicKey,
+        scheduledFor: seeded.scheduledFor.toISOString(),
+      },
+      {
+        runtime: {
+          runStep: async <T>(_stepId: string, fn: () => Promise<T>) => fn(),
+          sleep: async (_stepId: string, _delayMs: number) => {},
+        },
+        now: () => new Date("2026-02-16T09:00:00.000Z"),
+        dispatchDelivery,
+      },
+    );
+
+    expect(dispatchDelivery).toHaveBeenCalledTimes(1);
+    expect(dispatchDelivery).toHaveBeenCalledWith(
+      expect.objectContaining({
+        templateContext: expect.any(Object),
+      }),
+    );
+
+    await setTestOrgContext(db, context.orgId);
+    const [stepLog] = await db
+      .select()
+      .from(journeyRunStepLogs)
+      .where(eq(journeyRunStepLogs.journeyRunId, seeded.runId))
+      .limit(1);
+
+    const logInput =
+      typeof stepLog?.input === "object" && stepLog.input
+        ? (stepLog.input as Record<string, unknown>)
+        : {};
+
+    expect(logInput["channel"]).toBe("sms");
+    expect(logInput["stepConfig"]).toBeDefined();
+    expect(logInput["templateContext"]).toBeUndefined();
+  });
+
+  test("keeps live Twilio deliveries planned until callback processing", async () => {
+    const seeded = await seedPlannedDelivery(
+      context,
+      new Date("2026-02-16T09:00:00.000Z"),
+      {
+        stepKey: "send-sms-node",
+        actionType: "send-twilio",
+        channel: "sms",
+      },
+    );
+
+    const dispatchDelivery = mock(async () => ({
+      providerMessageId: "twilio:SM999",
+      awaitingAsyncCallback: true,
+    }));
+
+    const result = await executeJourneyDeliveryScheduled(
+      {
+        orgId: context.orgId,
+        journeyDeliveryId: seeded.deliveryId,
+        journeyRunId: seeded.runId,
+        deterministicKey: seeded.deterministicKey,
+        scheduledFor: seeded.scheduledFor.toISOString(),
+      },
+      {
+        runtime: {
+          runStep: async <T>(_stepId: string, fn: () => Promise<T>) => fn(),
+          sleep: async (_stepId: string, _delayMs: number) => {},
+        },
+        now: () => new Date("2026-02-16T09:00:00.000Z"),
+        dispatchDelivery,
+      },
+    );
+
+    expect(result.status).toBe("sent");
+    expect(result.providerMessageId).toBe("twilio:SM999");
+    expect(dispatchDelivery).toHaveBeenCalledTimes(1);
+
+    await setTestOrgContext(db, context.orgId);
+    const [delivery] = await db
+      .select({
+        status: journeyDeliveries.status,
+        reasonCode: journeyDeliveries.reasonCode,
+      })
+      .from(journeyDeliveries)
+      .where(eq(journeyDeliveries.id, seeded.deliveryId))
+      .limit(1);
+    expect(delivery?.status).toBe("planned");
+    expect(delivery?.reasonCode).toBeNull();
+
+    const [stepLog] = await db
+      .select({
+        status: journeyRunStepLogs.status,
+      })
+      .from(journeyRunStepLogs)
+      .where(eq(journeyRunStepLogs.journeyRunId, seeded.runId))
+      .limit(1);
+
+    expect(stepLog?.status).toBe("running");
   });
 });

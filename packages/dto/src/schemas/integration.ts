@@ -1,7 +1,12 @@
 import { z } from "zod";
 import { successResponseSchema } from "./common";
 
-export const appIntegrationKeySchema = z.enum(["logger", "resend", "slack"]);
+export const appIntegrationKeySchema = z.enum([
+  "logger",
+  "resend",
+  "slack",
+  "twilio",
+]);
 export type AppIntegrationKey = z.infer<typeof appIntegrationKeySchema>;
 
 export const integrationAuthStrategySchema = z.enum(["manual", "oauth"]);

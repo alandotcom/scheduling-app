@@ -37,7 +37,8 @@ type ActionDefinition = {
   description: string;
   category: string;
   icon: string;
-  integrationKey?: "resend" | "slack";
+  integrationKey?: "resend" | "slack" | "twilio";
+  channel?: string;
   devOnly?: boolean;
   outputAttributes?: string[];
   configFields: ActionConfigField[];
@@ -71,6 +72,18 @@ export function isFieldGroup(
   field: ActionConfigField,
 ): field is ActionConfigFieldGroup {
   return field.type === "group";
+}
+
+export function isDeliveryAction(actionType: string): boolean {
+  return getAction(actionType)?.channel != null;
+}
+
+export function getActionChannel(actionType: string): string | undefined {
+  return getAction(actionType)?.channel;
+}
+
+export function getRegisteredActionIds(): string[] {
+  return [...actionMap.keys()];
 }
 
 // --- Journey v1 steps ---
@@ -150,6 +163,7 @@ registerAction({
   category: "Resend",
   icon: "flash",
   integrationKey: "resend",
+  channel: "email",
   configFields: [
     {
       key: "subject",
@@ -227,6 +241,7 @@ registerAction({
   category: "Resend",
   icon: "flash",
   integrationKey: "resend",
+  channel: "email",
   configFields: [
     {
       key: "templateIdOrAlias",
@@ -305,6 +320,7 @@ registerAction({
   category: "Slack",
   icon: "flash",
   integrationKey: "slack",
+  channel: "slack",
   configFields: [
     {
       key: "slackChannel",
@@ -339,6 +355,53 @@ registerAction({
 });
 
 registerAction({
+  id: "send-twilio",
+  label: "Send SMS",
+  defaultNodeLabel: "Twilio SMS",
+  description: "Deliver an outbound SMS message with Twilio.",
+  category: "Twilio",
+  icon: "flash",
+  integrationKey: "twilio",
+  channel: "sms",
+  configFields: [
+    {
+      key: "toPhone",
+      label: "Recipient phone (optional)",
+      type: "text",
+      placeholder: "@Appointment.data.client.phone",
+      helpText:
+        "Leave blank to send to the trigger client's phone. Use E.164 format (+14155552671) when entering static values. Type @ to autocomplete workflow values.",
+      required: false,
+    },
+    {
+      key: "message",
+      label: "SMS message",
+      type: "textarea",
+      rows: 4,
+      placeholder:
+        "Hi @Appointment.data.client.firstName, your appointment is at @Appointment.data.startAt.",
+      helpText: "Type @ to autocomplete trigger or upstream attributes.",
+      required: true,
+    },
+    {
+      key: "testBehavior",
+      label: "Test mode behavior",
+      type: "select",
+      defaultValue: "log_only",
+      options: [
+        { value: "log_only", label: "Log only (never send externally)" },
+        {
+          value: "route_to_integration_test_recipient",
+          label: "Route to integration test recipient",
+        },
+      ],
+      helpText:
+        "Applies only in workflow Test mode. If routing is selected but no integration test recipient is configured, delivery safely falls back to log-only.",
+    },
+  ],
+});
+
+registerAction({
   id: "condition",
   label: "Condition",
   defaultNodeLabel: "Condition",
@@ -365,6 +428,7 @@ registerAction({
   description: "Record a structured runtime log line.",
   category: "System",
   icon: "flash",
+  channel: "log",
   configFields: [
     {
       key: "message",

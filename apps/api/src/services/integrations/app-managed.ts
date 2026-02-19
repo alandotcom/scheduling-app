@@ -129,6 +129,57 @@ const appManagedIntegrations: readonly AppManagedIntegrationDefinition[] = [
     requiredConfigKeys: [],
     requiredSecretKeys: ["accessToken"],
   },
+  {
+    key: "twilio",
+    name: "Twilio",
+    description: "Send workflow SMS messages with Twilio Messaging.",
+    logoUrl: null,
+    hasSettingsPanel: true,
+    authStrategy: "manual",
+    defaultEnabled: false,
+    defaultConfig: {
+      messagingServiceSid: "",
+      testRecipientPhone: "",
+    },
+    configSchema: [
+      {
+        key: "messagingServiceSid",
+        label: "Messaging Service SID",
+        description:
+          "Required Twilio Messaging Service SID (starts with MG). Sender phone numbers are managed in Twilio.",
+        placeholder: "MGXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+        required: true,
+        inputType: "text",
+      },
+      {
+        key: "testRecipientPhone",
+        label: "Test recipient phone",
+        description:
+          "Optional E.164 phone number used for workflow Test mode routing.",
+        placeholder: "+14155552671",
+        required: false,
+        inputType: "text",
+      },
+    ],
+    secretSchema: [
+      {
+        key: "accountSid",
+        label: "Account SID",
+        description: "Twilio Account SID (starts with AC).",
+        placeholder: "AC...",
+        required: true,
+      },
+      {
+        key: "authToken",
+        label: "Auth token",
+        description: "Twilio Auth Token.",
+        placeholder: "••••••••",
+        required: true,
+      },
+    ],
+    requiredConfigKeys: ["messagingServiceSid"],
+    requiredSecretKeys: ["accountSid", "authToken"],
+  },
 ] as const;
 
 const appManagedIntegrationByKey = new Map<

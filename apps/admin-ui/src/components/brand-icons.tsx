@@ -50,3 +50,25 @@ export function ResendBrandIcon({
     </svg>
   );
 }
+
+export function TwilioBrandIcon({
+  className,
+  ...props
+}: ComponentProps<"svg">) {
+  return (
+    <svg
+      aria-label="Twilio"
+      className={className}
+      viewBox="0 0 48 48"
+      xmlns="http://www.w3.org/2000/svg"
+      {...props}
+    >
+      <title>Twilio</title>
+      <circle cx="24" cy="24" r="22" fill="#F22F46" />
+      <circle cx="16.5" cy="16.5" r="3.5" fill="#fff" />
+      <circle cx="31.5" cy="16.5" r="3.5" fill="#fff" />
+      <circle cx="16.5" cy="31.5" r="3.5" fill="#fff" />
+      <circle cx="31.5" cy="31.5" r="3.5" fill="#fff" />
+    </svg>
+  );
+}

@@ -1,5 +1,6 @@
 import type { AppIntegrationKey } from "@scheduling/dto";
 import { config } from "../../../config.js";
+import { isRecord } from "../../../lib/type-guards.js";
 
 export interface OAuthTokenExchangeResult {
   secrets: Record<string, string>;
@@ -11,10 +12,6 @@ export interface OAuthProviderDefinition {
   isConfigured(): boolean;
   buildAuthorizeUrl(input: { state: string }): URL;
   exchangeCode(input: { code: string }): Promise<OAuthTokenExchangeResult>;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
 }
 
 function toOptionalString(value: unknown): string | null {

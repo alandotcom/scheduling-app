@@ -19,7 +19,7 @@ import {
   NodeTitle,
 } from "@/components/flow-elements/node";
 import { cn } from "@/lib/utils";
-import { getAction } from "../action-registry";
+import { getAction, isDeliveryAction } from "../action-registry";
 import {
   getActionDefaultNodeLabel,
   getActionVisualSpec,
@@ -373,20 +373,11 @@ function StatusBadge({ status }: { status: WorkflowActionNodeData["status"] }) {
   );
 }
 
-function isDeliveryActionType(actionType: string | undefined): boolean {
-  return (
-    actionType === "send-resend" ||
-    actionType === "send-resend-template" ||
-    actionType === "send-slack" ||
-    actionType === "logger"
-  );
-}
-
 function getTestSafetyBadgeLabel(
   actionType: string | undefined,
   config: WorkflowActionNodeData["config"],
 ): string | null {
-  if (!isDeliveryActionType(actionType)) {
+  if (!actionType || !isDeliveryAction(actionType)) {
     return null;
   }
 

@@ -71,6 +71,16 @@ const oauthErrorMessageByReason: Record<string, string> = {
   persist_failed: "Could not save integration credentials. Please try again.",
 };
 
+const integrationKeys = ["logger", "resend", "slack", "twilio"] as const;
+
+function isAppIntegrationKeyValue(value: unknown): value is AppIntegrationKey {
+  if (typeof value !== "string") {
+    return false;
+  }
+
+  return integrationKeys.some((key) => key === value);
+}
+
 function getOAuthErrorMessage(reason: string | null): string {
   if (!reason) {
     return "Failed to connect integration.";
@@ -434,11 +444,7 @@ export function IntegrationsSection() {
       toast.error(getOAuthErrorMessage(reason));
     }
 
-    if (
-      provider === "logger" ||
-      provider === "resend" ||
-      provider === "slack"
-    ) {
+    if (isAppIntegrationKeyValue(provider)) {
       setSelectedIntegrationKey(provider);
     }
 

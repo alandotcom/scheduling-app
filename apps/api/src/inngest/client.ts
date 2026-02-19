@@ -10,6 +10,19 @@ type SchedulingDomainEvents = {
   };
 };
 
+type DeliveryScheduledData = {
+  orgId: string;
+  journeyDeliveryId: string;
+  journeyRunId: string;
+  deterministicKey: string;
+  scheduledFor: string;
+};
+
+type ProviderExecuteEventName =
+  | "journey.action.send-resend.execute"
+  | "journey.action.send-slack.execute"
+  | "journey.action.send-twilio.execute";
+
 type SchedulingInternalEvents = {
   "scheduling/dev.ping": {
     data: {
@@ -17,30 +30,15 @@ type SchedulingInternalEvents = {
     };
   };
   "journey.delivery.scheduled": {
-    data: {
-      orgId: string;
-      journeyDeliveryId: string;
-      journeyRunId: string;
-      deterministicKey: string;
-      scheduledFor: string;
-    };
+    data: DeliveryScheduledData;
   };
-  "journey.action.send-resend.execute": {
+  "journey.action.send-twilio.callback-received": {
     data: {
       orgId: string;
       journeyDeliveryId: string;
-      journeyRunId: string;
-      deterministicKey: string;
-      scheduledFor: string;
-    };
-  };
-  "journey.action.send-slack.execute": {
-    data: {
-      orgId: string;
-      journeyDeliveryId: string;
-      journeyRunId: string;
-      deterministicKey: string;
-      scheduledFor: string;
+      messageSid: string;
+      messageStatus: string;
+      errorCode?: string | null;
     };
   };
   "journey.delivery.canceled": {
@@ -52,6 +50,8 @@ type SchedulingInternalEvents = {
       reasonCode: string;
     };
   };
+} & {
+  [K in ProviderExecuteEventName]: { data: DeliveryScheduledData };
 };
 
 type SchedulingInngestEvents = SchedulingDomainEvents &

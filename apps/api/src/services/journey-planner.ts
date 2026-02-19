@@ -17,20 +17,25 @@ import {
 } from "@scheduling/db/schema";
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { withOrg, type DbClient } from "../lib/db.js";
+import { isRecord, toRecord } from "../lib/type-guards.js";
 import {
-  sendJourneyActionSendResendExecute,
-  sendJourneyActionSendSlackExecute,
+  sendJourneyActionExecuteForActionType,
   sendJourneyDeliveryCanceled,
   sendJourneyDeliveryScheduled,
   type JourneyDeliveryCanceledEventData,
   type JourneyDeliveryScheduledEventData,
 } from "../inngest/runtime-events.js";
+import {
+  deliveryActionTypes,
+  getProviderForActionType,
+} from "./delivery-provider-registry.js";
 import { evaluateJourneyConditionExpression } from "./journey-condition-evaluator.js";
 import { evaluateJourneyTriggerFilter } from "./journey-trigger-filters.js";
 import {
   appendJourneyRunEvent,
   upsertJourneyRunStepLog,
 } from "./journey-run-artifacts.js";
+import { refreshRunStatusTx } from "./journey-run-status.js";
 import { resolveWaitUntil } from "./workflow-wait-time.js";
 
 const ACTIVE_JOURNEY_STATES = ["published"] as const;
@@ -63,16 +68,12 @@ type JourneyPlannerResult = {
   erroredJourneyIds: string[];
 };
 
+type ScheduleRequester = (
+  payload: JourneyDeliveryScheduledEventData,
+) => Promise<{ eventId?: string }>;
+
 type JourneyPlannerDependencies = {
-  scheduleResendRequester?: (
-    payload: JourneyDeliveryScheduledEventData,
-  ) => Promise<{ eventId?: string }>;
-  scheduleSlackRequester?: (
-    payload: JourneyDeliveryScheduledEventData,
-  ) => Promise<{ eventId?: string }>;
-  scheduleLoggerRequester?: (
-    payload: JourneyDeliveryScheduledEventData,
-  ) => Promise<{ eventId?: string }>;
+  providerRequesters?: Record<string, ScheduleRequester>;
   cancelRequester?: (
     payload: JourneyDeliveryCanceledEventData,
   ) => Promise<{ eventId?: string }>;
@@ -95,14 +96,8 @@ type JourneyRunRow = typeof journeyRuns.$inferSelect;
 
 type JourneyDeliveryRow = typeof journeyDeliveries.$inferSelect;
 
-type JourneyDeliveryActionType =
-  | "send-resend"
-  | "send-resend-template"
-  | "send-slack"
-  | "logger";
-
 type DesiredDelivery = {
-  actionType: JourneyDeliveryActionType;
+  actionType: string;
   deterministicKey: string;
   stepKey: string;
   channel: string;
@@ -132,23 +127,9 @@ type DesiredRunEvent = {
 type ActionNode = LinearJourneyGraph["nodes"][number];
 type JourneyEdge = LinearJourneyGraph["edges"][number];
 type ConditionBranch = "true" | "false";
-type JourneyNodeActionType =
-  | "wait"
-  | "condition"
-  | "send-resend"
-  | "send-resend-template"
-  | "send-slack"
-  | "logger";
+const knownActionTypes = new Set(["wait", "condition", ...deliveryActionTypes]);
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function toRecord(value: unknown): Record<string, unknown> {
-  return isRecord(value) ? value : {};
-}
-
-function normalizeActionType(value: unknown): JourneyNodeActionType | null {
+function normalizeActionType(value: unknown): string | null {
   if (typeof value !== "string") {
     return null;
   }
@@ -158,85 +139,29 @@ function normalizeActionType(value: unknown): JourneyNodeActionType | null {
     return null;
   }
 
-  if (
-    normalized === "wait" ||
-    normalized === "condition" ||
-    normalized === "send-resend" ||
-    normalized === "send-resend-template" ||
-    normalized === "send-slack" ||
-    normalized === "logger"
-  ) {
-    return normalized;
-  }
-
-  return null;
+  return knownActionTypes.has(normalized) ? normalized : null;
 }
 
 function getActionConfig(node: ActionNode): Record<string, unknown> {
   return toRecord(node.attributes.data.config);
 }
 
-function getNormalizedActionType(
-  node: ActionNode,
-): JourneyNodeActionType | null {
+function getNormalizedActionType(node: ActionNode): string | null {
   const config = getActionConfig(node);
   return normalizeActionType(config["actionType"]);
 }
 
-function assertNever(_value: never): never {
-  throw new Error("Unsupported action type.");
-}
-
-function isJourneyDeliveryActionType(
-  actionType: JourneyNodeActionType | null,
-): actionType is JourneyDeliveryActionType {
-  return (
-    actionType === "send-resend" ||
-    actionType === "send-resend-template" ||
-    actionType === "send-slack" ||
-    actionType === "logger"
-  );
-}
-
-function resolveChannel(actionType: JourneyDeliveryActionType): string {
-  switch (actionType) {
-    case "send-resend":
-    case "send-resend-template":
-      return "email";
-    case "send-slack":
-      return "slack";
-    case "logger":
-      return "logger";
+function isJourneyDeliveryActionType(actionType: string | null): boolean {
+  if (!actionType) {
+    return false;
   }
 
-  return assertNever(actionType);
+  return getProviderForActionType(actionType) !== undefined;
 }
 
-function resolveScheduleRequester(input: {
-  actionType: JourneyDeliveryActionType;
-  scheduleResendRequester: (
-    payload: JourneyDeliveryScheduledEventData,
-  ) => Promise<{ eventId?: string }>;
-  scheduleSlackRequester: (
-    payload: JourneyDeliveryScheduledEventData,
-  ) => Promise<{ eventId?: string }>;
-  scheduleLoggerRequester: (
-    payload: JourneyDeliveryScheduledEventData,
-  ) => Promise<{ eventId?: string }>;
-}): (
-  payload: JourneyDeliveryScheduledEventData,
-) => Promise<{ eventId?: string }> {
-  switch (input.actionType) {
-    case "send-resend":
-    case "send-resend-template":
-      return input.scheduleResendRequester;
-    case "send-slack":
-      return input.scheduleSlackRequester;
-    case "logger":
-      return input.scheduleLoggerRequester;
-  }
-
-  return assertNever(input.actionType);
+function resolveChannel(actionType: string): string {
+  const provider = getProviderForActionType(actionType);
+  return provider?.channel ?? actionType;
 }
 
 function resolveReferenceValue(
@@ -666,7 +591,7 @@ function buildDesiredDeliveries(input: {
       continue;
     }
 
-    if (!isJourneyDeliveryActionType(actionType)) {
+    if (!actionType || !isJourneyDeliveryActionType(actionType)) {
       for (const nextNodeId of resolveDefaultNextNodeIds({
         sourceNodeId: node.attributes.id,
         outgoingEdgesBySource,
@@ -846,75 +771,6 @@ async function markRunPlanned(input: {
     .where(eq(journeyRuns.id, input.runId));
 }
 
-async function refreshRunStatusFromDeliveries(input: {
-  tx: DbClient;
-  runId: string;
-}): Promise<void> {
-  const statuses = await input.tx
-    .select({ status: journeyDeliveries.status })
-    .from(journeyDeliveries)
-    .where(eq(journeyDeliveries.journeyRunId, input.runId));
-
-  if (statuses.length === 0) {
-    await input.tx
-      .update(journeyRuns)
-      .set({
-        status: "completed",
-        completedAt: sql`now()`,
-        cancelledAt: null,
-      })
-      .where(eq(journeyRuns.id, input.runId));
-    return;
-  }
-
-  const values = statuses.map((item) => item.status);
-
-  if (values.includes("failed")) {
-    await input.tx
-      .update(journeyRuns)
-      .set({
-        status: "failed",
-        completedAt: sql`now()`,
-        cancelledAt: null,
-      })
-      .where(eq(journeyRuns.id, input.runId));
-    return;
-  }
-
-  if (values.includes("planned")) {
-    await input.tx
-      .update(journeyRuns)
-      .set({
-        status: "planned",
-        completedAt: null,
-        cancelledAt: null,
-      })
-      .where(eq(journeyRuns.id, input.runId));
-    return;
-  }
-
-  if (values.every((value) => value === "canceled")) {
-    await input.tx
-      .update(journeyRuns)
-      .set({
-        status: "canceled",
-        completedAt: null,
-        cancelledAt: sql`now()`,
-      })
-      .where(eq(journeyRuns.id, input.runId));
-    return;
-  }
-
-  await input.tx
-    .update(journeyRuns)
-    .set({
-      status: "completed",
-      completedAt: sql`now()`,
-      cancelledAt: null,
-    })
-    .where(eq(journeyRuns.id, input.runId));
-}
-
 async function listDeliveriesForRun(
   tx: DbClient,
   runId: string,
@@ -1036,13 +892,8 @@ async function reconcileDeliveries(input: {
   runId: string;
   orgId: string;
   desiredDeliveries: DesiredDelivery[];
-  scheduleResendRequester: (
-    payload: JourneyDeliveryScheduledEventData,
-  ) => Promise<{ eventId?: string }>;
-  scheduleSlackRequester: (
-    payload: JourneyDeliveryScheduledEventData,
-  ) => Promise<{ eventId?: string }>;
-  scheduleLoggerRequester: (
+  scheduleRequester: (
+    actionType: string,
     payload: JourneyDeliveryScheduledEventData,
   ) => Promise<{ eventId?: string }>;
   cancelRequester: (
@@ -1191,13 +1042,7 @@ async function reconcileDeliveries(input: {
           deterministicKey: created.deterministicKey,
           scheduledFor: created.scheduledFor.toISOString(),
         };
-        const scheduleRequester = resolveScheduleRequester({
-          actionType: desired.actionType,
-          scheduleResendRequester: input.scheduleResendRequester,
-          scheduleSlackRequester: input.scheduleSlackRequester,
-          scheduleLoggerRequester: input.scheduleLoggerRequester,
-        });
-        await scheduleRequester(payload);
+        await input.scheduleRequester(desired.actionType, payload);
         return;
       }
 
@@ -1250,12 +1095,23 @@ export async function processJourneyDomainEvent(
   event: JourneyDomainEventEnvelope,
   dependencies: JourneyPlannerDependencies = {},
 ): Promise<JourneyPlannerResult> {
-  const scheduleResendRequester =
-    dependencies.scheduleResendRequester ?? sendJourneyActionSendResendExecute;
-  const scheduleSlackRequester =
-    dependencies.scheduleSlackRequester ?? sendJourneyActionSendSlackExecute;
-  const scheduleLoggerRequester =
-    dependencies.scheduleLoggerRequester ?? sendJourneyDeliveryScheduled;
+  const providerRequesters = dependencies.providerRequesters ?? {};
+  const scheduleRequester = (
+    actionType: string,
+    payload: JourneyDeliveryScheduledEventData,
+  ): Promise<{ eventId?: string }> => {
+    const override = providerRequesters[actionType];
+    if (override) {
+      return override(payload);
+    }
+
+    const provider = getProviderForActionType(actionType);
+    if (provider?.key === "logger") {
+      return sendJourneyDeliveryScheduled(payload);
+    }
+
+    return sendJourneyActionExecuteForActionType(actionType, payload);
+  };
   const cancelRequester =
     dependencies.cancelRequester ?? sendJourneyDeliveryCanceled;
   const now = dependencies.now ?? new Date();
@@ -1518,9 +1374,7 @@ export async function processJourneyDomainEvent(
             runId: run.id,
             orgId: event.orgId,
             desiredDeliveries: buildResult.desiredDeliveries,
-            scheduleResendRequester,
-            scheduleSlackRequester,
-            scheduleLoggerRequester,
+            scheduleRequester,
             cancelRequester,
           });
 
@@ -1530,10 +1384,7 @@ export async function processJourneyDomainEvent(
           canceledDeliveryIds.push(...reconciliationResult.canceledDeliveryIds);
           skippedDeliveryIds.push(...reconciliationResult.skippedDeliveryIds);
 
-          await refreshRunStatusFromDeliveries({
-            tx,
-            runId: run.id,
-          });
+          await refreshRunStatusTx(tx, run.id);
         } catch {
           erroredJourneyIds.push(journey.id);
         }

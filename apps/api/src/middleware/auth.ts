@@ -4,16 +4,13 @@ import { createMiddleware } from "hono/factory";
 import { auth } from "../lib/auth.js";
 import { db } from "../lib/db.js";
 import type { AuthMethod } from "../lib/orpc.js";
+import { isRecord } from "../lib/type-guards.js";
 
 type ApiKeyRole = "owner" | "admin" | "member";
 type ApiKeyMetadata = {
   organizationId?: string;
   role?: ApiKeyRole;
 };
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
 
 function isApiKeyRole(value: unknown): value is ApiKeyRole {
   return value === "owner" || value === "admin" || value === "member";
