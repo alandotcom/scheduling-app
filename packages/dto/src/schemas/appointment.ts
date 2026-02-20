@@ -149,6 +149,7 @@ export const appointmentWithRelationsSchema = appointmentSchema.extend({
       id: uuidSchema,
       name: z.string(),
       timezone: timezoneSchema,
+      requiresConfirmation: z.boolean().optional(),
     })
     .optional(),
   appointmentType: z

@@ -9,6 +9,10 @@ export type AppointmentLifecycleEvent =
       payload: DomainEventDataByType["appointment.scheduled"];
     }
   | {
+      type: "appointment.confirmed";
+      payload: DomainEventDataByType["appointment.confirmed"];
+    }
+  | {
       type: "appointment.rescheduled";
       payload: DomainEventDataByType["appointment.rescheduled"];
     }
@@ -33,6 +37,13 @@ export function classifyAppointmentLifecycleEvent(input: {
   if (previous.status !== "cancelled" && current.status === "cancelled") {
     return {
       type: "appointment.canceled",
+      payload: current,
+    };
+  }
+
+  if (previous.status !== "confirmed" && current.status === "confirmed") {
+    return {
+      type: "appointment.confirmed",
       payload: current,
     };
   }

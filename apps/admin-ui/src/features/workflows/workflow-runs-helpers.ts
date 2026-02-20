@@ -258,6 +258,18 @@ export function toReasonCodeLabel(reasonCode: string | null): string | null {
     return "Execution terminal";
   }
 
+  if (reasonCode === "appointment_confirmed") {
+    return "Appointment confirmed";
+  }
+
+  if (reasonCode === "wait_for_confirmation_timeout") {
+    return "Wait for confirmation timed out";
+  }
+
+  if (reasonCode === "confirmation_not_required") {
+    return "Confirmation not required";
+  }
+
   if (reasonCode === "delivery_missing") {
     return "Delivery missing";
   }

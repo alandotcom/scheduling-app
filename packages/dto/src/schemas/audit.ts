@@ -6,6 +6,7 @@ export const auditActionSchema = z.enum([
   "create",
   "update",
   "delete",
+  "confirm",
   "cancel",
   "reschedule",
   "no_show",

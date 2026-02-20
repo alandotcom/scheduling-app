@@ -146,6 +146,23 @@ export function AppointmentDetail({
     }),
   );
 
+  // Confirm mutation
+  const confirmMutation = useMutation(
+    orpc.appointments.confirm.mutationOptions({
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: orpc.appointments.key() });
+        queryClient.invalidateQueries({ queryKey: orpc.clients.key() });
+        queryClient.invalidateQueries({ queryKey: orpc.calendars.key() });
+        queryClient.invalidateQueries({
+          queryKey: orpc.appointmentTypes.key(),
+        });
+      },
+      onError: (error) => {
+        toast.error(error.message || "Failed to confirm appointment");
+      },
+    }),
+  );
+
   // Cancel mutation
   const cancelMutation = useMutation(
     orpc.appointments.cancel.mutationOptions({
@@ -390,14 +407,17 @@ export function AppointmentDetail({
                         variant="outline"
                         size="sm"
                         onClick={() =>
-                          toast.info("Confirm feature requires API endpoint")
+                          confirmMutation.mutate({ id: appointment.id })
                         }
+                        disabled={confirmMutation.isPending}
                       >
                         <Icon
                           icon={CheckmarkCircle01Icon}
                           data-icon="inline-start"
                         />
-                        Confirm
+                        {confirmMutation.isPending
+                          ? "Confirming..."
+                          : "Confirm"}
                       </Button>
                     )}
                     <Button

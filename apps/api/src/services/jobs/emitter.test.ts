@@ -114,6 +114,10 @@ describe("emitEvent", () => {
       };
 
     await events.appointmentScheduled(orgId, appointmentSnapshot);
+    await events.appointmentConfirmed(orgId, {
+      ...appointmentSnapshot,
+      status: "confirmed",
+    });
     await events.appointmentRescheduled(orgId, {
       ...appointmentSnapshot,
       previous: appointmentSnapshot,
@@ -123,17 +127,21 @@ describe("emitEvent", () => {
       status: "cancelled",
     });
 
-    expect(sendMock).toHaveBeenCalledTimes(3);
+    expect(sendMock).toHaveBeenCalledTimes(4);
     expect(sendMock).toHaveBeenNthCalledWith(
       1,
       expect.objectContaining({ name: "appointment.scheduled" }),
     );
     expect(sendMock).toHaveBeenNthCalledWith(
       2,
-      expect.objectContaining({ name: "appointment.rescheduled" }),
+      expect.objectContaining({ name: "appointment.confirmed" }),
     );
     expect(sendMock).toHaveBeenNthCalledWith(
       3,
+      expect.objectContaining({ name: "appointment.rescheduled" }),
+    );
+    expect(sendMock).toHaveBeenNthCalledWith(
+      4,
       expect.objectContaining({ name: "appointment.canceled" }),
     );
   });

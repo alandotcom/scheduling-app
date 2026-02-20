@@ -14,6 +14,7 @@ import {
 export type JourneyPlannerDomainEventType = Extract<
   DomainEventType,
   | "appointment.scheduled"
+  | "appointment.confirmed"
   | "appointment.rescheduled"
   | "appointment.canceled"
   | "client.created"

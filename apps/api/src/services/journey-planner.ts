@@ -12,7 +12,7 @@ import {
   journeys,
   journeyVersions,
 } from "@scheduling/db/schema";
-import { and, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 import { withOrg, type DbClient } from "../lib/db.js";
 import { toRecord } from "../lib/type-guards.js";
 import { customAttributeRepository } from "../repositories/custom-attributes.js";
@@ -44,7 +44,10 @@ import {
   type JourneyPlannerDomainEventType,
   type JourneyRunIdentity,
 } from "./journey-trigger-engines.js";
-import { loadFreshContextForPlannerByRun } from "./journey-template-context.js";
+import {
+  loadFreshContextForPlannerByRun,
+  loadFreshContextForPlannerByRunTx,
+} from "./journey-template-context.js";
 import { resolveWaitUntil } from "./workflow-wait-time.js";
 
 export type { JourneyPlannerDomainEventType };
@@ -102,6 +105,36 @@ type JourneyRunRow = typeof journeyRuns.$inferSelect;
 
 type JourneyDeliveryRow = typeof journeyDeliveries.$inferSelect;
 
+type PlannerFreshContext = {
+  appointmentContext: Record<string, unknown>;
+  clientContext: Record<string, unknown>;
+  orgTimezone: string;
+};
+
+type PlannerRunContext = Pick<
+  JourneyRunRow,
+  | "id"
+  | "status"
+  | "triggerEntityType"
+  | "triggerEntityId"
+  | "appointmentId"
+  | "clientId"
+  | "journeyVersionSnapshot"
+  | "journeyVersionId"
+>;
+
+type PlannerRunWithJourneyContext = PlannerRunContext & {
+  journeyId: string | null;
+};
+
+type PlannedConfirmationTimeoutRow = {
+  id: string;
+  journeyRunId: string;
+  deterministicKey: string;
+  stepKey: string;
+  scheduledFor: Date;
+};
+
 type DesiredDelivery = {
   actionType: string;
   deterministicKey: string;
@@ -134,7 +167,12 @@ type ActionNode = LinearJourneyGraph["nodes"][number];
 type JourneyEdge = LinearJourneyGraph["edges"][number];
 type ConditionBranch = "true" | "false";
 type TriggerBranch = "scheduled" | "canceled";
-const knownActionTypes = new Set(["wait", "condition", ...deliveryActionTypes]);
+const knownActionTypes = new Set([
+  "wait",
+  "wait-for-confirmation",
+  "condition",
+  ...deliveryActionTypes,
+]);
 
 function getActionConfig(node: ActionNode): Record<string, unknown> {
   return toRecord(node.attributes.data.config);
@@ -218,6 +256,105 @@ function resolveWaitCursor(input: {
   const resolved = resolveWaitUntil(waitResolutionInput);
 
   return resolved.waitUntil ?? input.cursor;
+}
+
+function toBoolean(value: unknown): boolean | null {
+  if (typeof value === "boolean") {
+    return value;
+  }
+
+  if (value === "true") {
+    return true;
+  }
+
+  if (value === "false") {
+    return false;
+  }
+
+  return null;
+}
+
+function toNumber(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value;
+  }
+
+  if (typeof value === "string" && value.trim().length > 0) {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) {
+      return parsed;
+    }
+  }
+
+  return null;
+}
+
+function resolveAppointmentRequiresConfirmation(
+  appointmentContext: Record<string, unknown>,
+): boolean {
+  const direct = toBoolean(appointmentContext["calendarRequiresConfirmation"]);
+  if (direct !== null) {
+    return direct;
+  }
+
+  const appointmentRecord = toRecord(appointmentContext["appointment"]);
+  const nested = toBoolean(appointmentRecord["calendarRequiresConfirmation"]);
+  return nested ?? false;
+}
+
+function resolveAppointmentStatus(
+  appointmentContext: Record<string, unknown>,
+): string | null {
+  if (typeof appointmentContext["status"] === "string") {
+    return appointmentContext["status"];
+  }
+
+  const appointmentRecord = toRecord(appointmentContext["appointment"]);
+  return typeof appointmentRecord["status"] === "string"
+    ? appointmentRecord["status"]
+    : null;
+}
+
+function resolveAppointmentStartAt(
+  appointmentContext: Record<string, unknown>,
+): Date | null {
+  const direct = appointmentContext["startAt"];
+  if (typeof direct === "string") {
+    const parsed = new Date(direct);
+    if (!Number.isNaN(parsed.getTime())) {
+      return parsed;
+    }
+  }
+
+  const appointmentRecord = toRecord(appointmentContext["appointment"]);
+  const nested = appointmentRecord["startAt"];
+  if (typeof nested !== "string") {
+    return null;
+  }
+
+  const parsed = new Date(nested);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function resolveWaitForConfirmationTimeoutAt(input: {
+  appointmentContext: Record<string, unknown>;
+  fallback: Date;
+  graceMinutes: number;
+}): Date {
+  const appointmentStartAt = resolveAppointmentStartAt(
+    input.appointmentContext,
+  );
+  if (!appointmentStartAt) {
+    return input.fallback;
+  }
+
+  if (input.graceMinutes <= 0) {
+    return appointmentStartAt;
+  }
+
+  return new Date(
+    appointmentStartAt.getTime() + input.graceMinutes * 60 * 1000,
+  );
 }
 
 function buildNodeById(graph: LinearJourneyGraph): Map<string, ActionNode> {
@@ -607,6 +744,100 @@ function buildDesiredDeliveries(input: {
       continue;
     }
 
+    if (actionType === "wait-for-confirmation") {
+      const config = getActionConfig(node);
+      const confirmationGraceMinutes = Math.max(
+        0,
+        Math.floor(toNumber(config["confirmationGraceMinutes"]) ?? 0),
+      );
+      const requiresConfirmation = resolveAppointmentRequiresConfirmation(
+        input.appointmentContext,
+      );
+      const appointmentStatus = resolveAppointmentStatus(
+        input.appointmentContext,
+      );
+      const isAlreadyConfirmed = appointmentStatus === "confirmed";
+
+      if (!requiresConfirmation || isAlreadyConfirmed) {
+        desiredStepLogs.push({
+          stepKey: node.attributes.id,
+          nodeType: "wait-for-confirmation",
+          status: "success",
+          startedAt: current.cursor,
+          completedAt: current.cursor,
+          durationMs: 0,
+          logInput: {
+            requiresConfirmation,
+            appointmentStatus,
+            confirmationGraceMinutes,
+          },
+          logOutput: {
+            continued: true,
+            reasonCode: !requiresConfirmation
+              ? "confirmation_not_required"
+              : "already_confirmed",
+          },
+          error: null,
+        });
+
+        for (const nextNodeId of resolveDefaultNextNodeIds({
+          sourceNodeId: node.attributes.id,
+          outgoingEdgesBySource,
+        })) {
+          pending.push({ nodeId: nextNodeId, cursor: current.cursor });
+        }
+        continue;
+      }
+
+      const timeoutAt = resolveWaitForConfirmationTimeoutAt({
+        appointmentContext: input.appointmentContext,
+        fallback: current.cursor,
+        graceMinutes: confirmationGraceMinutes,
+      });
+
+      desiredStepLogs.push({
+        stepKey: node.attributes.id,
+        nodeType: "wait-for-confirmation",
+        status: "running",
+        startedAt: current.cursor,
+        completedAt: null,
+        durationMs: null,
+        logInput: {
+          requiresConfirmation,
+          appointmentStatus,
+          confirmationGraceMinutes,
+          cursor: current.cursor.toISOString(),
+        },
+        logOutput: {
+          waitUntil: timeoutAt.toISOString(),
+        },
+        error: null,
+      });
+      desiredRunEvents.push({
+        eventType: "run_waiting_confirmation",
+        message: `Run waiting for appointment confirmation in '${node.attributes.data.label || "Wait For Confirmation"}'`,
+        metadata: {
+          stepKey: node.attributes.id,
+          waitUntil: timeoutAt.toISOString(),
+          confirmationGraceMinutes,
+        },
+      });
+      desiredDeliveries.push({
+        actionType: "wait-for-confirmation-timeout",
+        deterministicKey: buildDeliveryDeterministicKey({
+          journeyRunId: input.journeyRunId,
+          stepKey: node.attributes.id,
+          scheduledFor: timeoutAt,
+        }),
+        stepKey: node.attributes.id,
+        channel: "internal",
+        scheduledFor: timeoutAt,
+        status: "planned",
+        reasonCode: null,
+      });
+      continue;
+    }
+
     if (actionType === "condition") {
       const conditionResult = resolveConditionNextNodeIdForContext({
         node,
@@ -786,6 +1017,129 @@ async function findOrCreateJourneyRun(input: {
   return {
     run: resolved,
     created: false,
+  };
+}
+
+async function loadPlannerRunByIdTx(input: {
+  tx: DbClient;
+  journeyRunId: string;
+}): Promise<PlannerRunWithJourneyContext | null> {
+  const [row] = await input.tx
+    .select({
+      id: journeyRuns.id,
+      status: journeyRuns.status,
+      triggerEntityType: journeyRuns.triggerEntityType,
+      triggerEntityId: journeyRuns.triggerEntityId,
+      appointmentId: journeyRuns.appointmentId,
+      clientId: journeyRuns.clientId,
+      journeyVersionSnapshot: journeyRuns.journeyVersionSnapshot,
+      journeyVersionId: journeyRuns.journeyVersionId,
+      journeyId: journeyVersions.journeyId,
+    })
+    .from(journeyRuns)
+    .leftJoin(
+      journeyVersions,
+      eq(journeyVersions.id, journeyRuns.journeyVersionId),
+    )
+    .where(eq(journeyRuns.id, input.journeyRunId))
+    .limit(1);
+
+  return row ?? null;
+}
+
+function parseGraphFromRunSnapshot(input: {
+  runId: string;
+  journeyVersionSnapshot: JourneyRunRow["journeyVersionSnapshot"];
+  logPrefix: string;
+}): LinearJourneyGraph | null {
+  const snapshotRecord = toRecord(input.journeyVersionSnapshot);
+  const parsedGraph = linearJourneyGraphSchema.safeParse(
+    snapshotRecord["definitionSnapshot"],
+  );
+
+  if (!parsedGraph.success) {
+    journeyPlannerLogger.error(
+      "{prefix}: failed to parse graph for run {runId}",
+      {
+        prefix: input.logPrefix,
+        runId: input.runId,
+      },
+    );
+    return null;
+  }
+
+  return parsedGraph.data;
+}
+
+async function findPlannedConfirmationTimeoutByJourneyTx(input: {
+  tx: DbClient;
+  journeyId: string;
+  appointmentId: string;
+  mode: "live" | "test";
+}): Promise<{
+  run: PlannerRunWithJourneyContext;
+  timeoutDelivery: PlannedConfirmationTimeoutRow;
+} | null> {
+  const [row] = await input.tx
+    .select({
+      runId: journeyRuns.id,
+      runStatus: journeyRuns.status,
+      triggerEntityType: journeyRuns.triggerEntityType,
+      triggerEntityId: journeyRuns.triggerEntityId,
+      appointmentId: journeyRuns.appointmentId,
+      clientId: journeyRuns.clientId,
+      journeyVersionSnapshot: journeyRuns.journeyVersionSnapshot,
+      journeyVersionId: journeyRuns.journeyVersionId,
+      runJourneyId: journeyVersions.journeyId,
+      timeoutId: journeyDeliveries.id,
+      timeoutJourneyRunId: journeyDeliveries.journeyRunId,
+      timeoutDeterministicKey: journeyDeliveries.deterministicKey,
+      timeoutStepKey: journeyDeliveries.stepKey,
+      timeoutScheduledFor: journeyDeliveries.scheduledFor,
+    })
+    .from(journeyDeliveries)
+    .innerJoin(journeyRuns, eq(journeyRuns.id, journeyDeliveries.journeyRunId))
+    .leftJoin(
+      journeyVersions,
+      eq(journeyVersions.id, journeyRuns.journeyVersionId),
+    )
+    .where(
+      and(
+        eq(journeyVersions.journeyId, input.journeyId),
+        eq(journeyRuns.triggerEntityType, "appointment"),
+        eq(journeyRuns.triggerEntityId, input.appointmentId),
+        eq(journeyRuns.mode, input.mode),
+        inArray(journeyRuns.status, [...ACTIVE_RUN_STATUSES]),
+        eq(journeyDeliveries.status, "planned"),
+        eq(journeyDeliveries.actionType, "wait-for-confirmation-timeout"),
+      ),
+    )
+    .orderBy(asc(journeyDeliveries.scheduledFor), asc(journeyDeliveries.id))
+    .limit(1);
+
+  if (!row) {
+    return null;
+  }
+
+  return {
+    run: {
+      id: row.runId,
+      status: row.runStatus,
+      triggerEntityType: row.triggerEntityType,
+      triggerEntityId: row.triggerEntityId,
+      appointmentId: row.appointmentId,
+      clientId: row.clientId,
+      journeyVersionSnapshot: row.journeyVersionSnapshot,
+      journeyVersionId: row.journeyVersionId,
+      journeyId: row.runJourneyId,
+    },
+    timeoutDelivery: {
+      id: row.timeoutId,
+      journeyRunId: row.timeoutJourneyRunId,
+      deterministicKey: row.timeoutDeterministicKey,
+      stepKey: row.timeoutStepKey,
+      scheduledFor: row.timeoutScheduledFor,
+    },
   };
 }
 
@@ -1191,6 +1545,69 @@ async function reconcileDeliveries(input: {
   };
 }
 
+async function reconcileRunFromBoundaryTx(input: {
+  tx: DbClient;
+  orgId: string;
+  run: PlannerRunWithJourneyContext;
+  graph: LinearJourneyGraph;
+  startAfterNodeId: string;
+  now: Date;
+  freshContext: PlannerFreshContext;
+}): Promise<{
+  scheduledDeliveryIds: string[];
+  canceledDeliveryIds: string[];
+  skippedDeliveryIds: string[];
+  pendingInngestEvents: PendingInngestEvent[];
+}> {
+  const buildResult = buildDesiredDeliveries({
+    graph: input.graph,
+    journeyRunId: input.run.id,
+    journeyId: input.run.journeyId ?? input.run.journeyVersionId ?? "unknown",
+    appointmentId: input.run.appointmentId,
+    triggerEntityId: input.run.triggerEntityId,
+    appointmentContext: input.freshContext.appointmentContext,
+    clientContext: input.freshContext.clientContext,
+    now: input.now,
+    orgTimezone: input.freshContext.orgTimezone,
+    startAfterNodeId: input.startAfterNodeId,
+  });
+
+  const reconciliationResult = await reconcileDeliveries({
+    tx: input.tx,
+    runId: input.run.id,
+    orgId: input.orgId,
+    desiredDeliveries: buildResult.desiredDeliveries,
+    desiredStepLogs: buildResult.desiredStepLogs,
+    desiredRunEvents: buildResult.desiredRunEvents,
+  });
+
+  await refreshRunStatusTx(input.tx, input.run.id);
+  return reconciliationResult;
+}
+
+async function dispatchPendingInngestEvents(input: {
+  pendingEvents: PendingInngestEvent[];
+  scheduleRequester: (
+    actionType: string,
+    payload: JourneyDeliveryScheduledEventData,
+  ) => Promise<{ eventId?: string }>;
+  cancelRequester: (
+    payload: JourneyDeliveryCanceledEventData,
+  ) => Promise<{ eventId?: string }>;
+}): Promise<void> {
+  await forEachAsync(
+    input.pendingEvents,
+    async (pending) => {
+      if (pending.type === "schedule") {
+        await input.scheduleRequester(pending.actionType, pending.payload);
+      } else {
+        await input.cancelRequester(pending.payload);
+      }
+    },
+    { concurrency: 1 },
+  );
+}
+
 export async function processJourneyDomainEvent(
   event: JourneyDomainEventEnvelope,
   dependencies: JourneyPlannerDependencies = {},
@@ -1308,6 +1725,144 @@ export async function processJourneyDomainEvent(
           const latestVersion = latestVersionByJourneyId.get(journey.id);
           if (!latestVersion) {
             ignoredJourneyIds.push(journey.id);
+            return;
+          }
+
+          if (event.type === "appointment.confirmed") {
+            const payloadRecord = toRecord(event.payload);
+            const appointmentId =
+              typeof payloadRecord["appointmentId"] === "string"
+                ? payloadRecord["appointmentId"]
+                : null;
+            if (!appointmentId) {
+              erroredJourneyIds.push(journey.id);
+              return;
+            }
+
+            const mode = dependencies.modeOverride ?? journey.mode;
+            const pendingConfirmationTimeout =
+              await findPlannedConfirmationTimeoutByJourneyTx({
+                tx,
+                journeyId: journey.id,
+                appointmentId,
+                mode,
+              });
+
+            if (!pendingConfirmationTimeout) {
+              ignoredJourneyIds.push(journey.id);
+              return;
+            }
+
+            const { run, timeoutDelivery } = pendingConfirmationTimeout;
+            const parsedRunGraph = parseGraphFromRunSnapshot({
+              runId: run.id,
+              journeyVersionSnapshot: run.journeyVersionSnapshot,
+              logPrefix: "appointment.confirmed",
+            });
+            if (!parsedRunGraph) {
+              erroredJourneyIds.push(journey.id);
+              return;
+            }
+
+            const [canceledTimeout] = await tx
+              .update(journeyDeliveries)
+              .set({
+                status: "canceled",
+                reasonCode: "appointment_confirmed",
+                updatedAt: sql`now()`,
+              })
+              .where(
+                and(
+                  eq(journeyDeliveries.id, timeoutDelivery.id),
+                  eq(journeyDeliveries.status, "planned"),
+                ),
+              )
+              .returning({
+                id: journeyDeliveries.id,
+                journeyRunId: journeyDeliveries.journeyRunId,
+                deterministicKey: journeyDeliveries.deterministicKey,
+                stepKey: journeyDeliveries.stepKey,
+                scheduledFor: journeyDeliveries.scheduledFor,
+              });
+
+            if (!canceledTimeout) {
+              ignoredJourneyIds.push(journey.id);
+              return;
+            }
+
+            canceledDeliveryIds.push(canceledTimeout.id);
+            allPendingEvents.push({
+              type: "cancel",
+              payload: {
+                orgId: event.orgId,
+                journeyDeliveryId: canceledTimeout.id,
+                journeyRunId: canceledTimeout.journeyRunId,
+                deterministicKey: canceledTimeout.deterministicKey,
+                reasonCode: "appointment_confirmed",
+              },
+            });
+
+            await upsertJourneyRunStepLog({
+              tx,
+              orgId: event.orgId,
+              runId: canceledTimeout.journeyRunId,
+              stepKey: canceledTimeout.stepKey,
+              nodeType: "wait-for-confirmation-timeout",
+              status: "cancelled",
+              startedAt: canceledTimeout.scheduledFor,
+              completedAt: now,
+              durationMs: 0,
+              logOutput: {
+                status: "canceled",
+                reasonCode: "appointment_confirmed",
+              },
+            });
+
+            await appendJourneyRunEvent({
+              tx,
+              orgId: event.orgId,
+              runId: canceledTimeout.journeyRunId,
+              eventType: "run_resumed_confirmation",
+              message: "Run resumed after appointment confirmation",
+              metadata: {
+                stepKey: canceledTimeout.stepKey,
+                eventId: event.id,
+              },
+            });
+
+            const freshContext = await loadFreshContextForPlannerByRunTx({
+              tx,
+              orgId: event.orgId,
+              triggerEntityType: run.triggerEntityType,
+              triggerEntityId: run.triggerEntityId,
+              appointmentId: run.appointmentId,
+              clientId: run.clientId,
+            });
+
+            if (!freshContext) {
+              erroredJourneyIds.push(journey.id);
+              return;
+            }
+
+            const reconciliationResult = await reconcileRunFromBoundaryTx({
+              tx,
+              orgId: event.orgId,
+              run,
+              graph: parsedRunGraph,
+              startAfterNodeId: timeoutDelivery.stepKey,
+              now,
+              freshContext,
+            });
+
+            plannedRunIds.push(run.id);
+            scheduledDeliveryIds.push(
+              ...reconciliationResult.scheduledDeliveryIds,
+            );
+            canceledDeliveryIds.push(
+              ...reconciliationResult.canceledDeliveryIds,
+            );
+            skippedDeliveryIds.push(...reconciliationResult.skippedDeliveryIds);
+            allPendingEvents.push(...reconciliationResult.pendingInngestEvents);
             return;
           }
 
@@ -1547,23 +2102,24 @@ export async function processJourneyDomainEvent(
     };
   });
 
-  // Fire Inngest events after the transaction has committed
-  await forEachAsync(
+  // Fire Inngest events after the transaction has committed.
+  await dispatchPendingInngestEvents({
     pendingEvents,
-    async (pending) => {
-      if (pending.type === "schedule") {
-        await scheduleRequester(pending.actionType, pending.payload);
-      } else {
-        await cancelRequester(pending.payload);
-      }
-    },
-    { concurrency: 1 },
-  );
+    scheduleRequester,
+    cancelRequester,
+  });
 
   return result;
 }
 
 export type WaitResumeInput = {
+  orgId: string;
+  journeyRunId: string;
+  journeyDeliveryId: string;
+  stepKey: string;
+};
+
+export type WaitForConfirmationTimeoutInput = {
   orgId: string;
   journeyRunId: string;
   journeyDeliveryId: string;
@@ -1582,10 +2138,173 @@ type WaitResumeDependencies = {
   ) => Promise<{ eventId?: string }>;
 };
 
+type WaitForConfirmationTimeoutDependencies = {
+  now?: Date;
+  loadFreshContextByRun?: typeof loadFreshContextForPlannerByRun;
+  scheduleRequester?: (
+    actionType: string,
+    payload: JourneyDeliveryScheduledEventData,
+  ) => Promise<{ eventId?: string }>;
+  cancelRequester?: (
+    payload: JourneyDeliveryCanceledEventData,
+  ) => Promise<{ eventId?: string }>;
+};
+
 export type WaitResumeResult = {
   scheduledDeliveryIds: string[];
   canceledDeliveryIds: string[];
 };
+
+export type WaitForConfirmationTimeoutResult = {
+  scheduledDeliveryIds: string[];
+  canceledDeliveryIds: string[];
+};
+
+export async function executeWaitForConfirmationTimeout(
+  input: WaitForConfirmationTimeoutInput,
+  dependencies: WaitForConfirmationTimeoutDependencies = {},
+): Promise<WaitForConfirmationTimeoutResult> {
+  const now = dependencies.now ?? new Date();
+  const loadFreshContextByRun =
+    dependencies.loadFreshContextByRun ?? loadFreshContextForPlannerByRun;
+  const scheduleRequester =
+    dependencies.scheduleRequester ??
+    ((actionType: string, payload: JourneyDeliveryScheduledEventData) =>
+      sendJourneyActionExecuteForActionType(actionType, payload));
+  const cancelRequester =
+    dependencies.cancelRequester ?? sendJourneyDeliveryCanceled;
+
+  const run = await withOrg(input.orgId, (tx) =>
+    loadPlannerRunByIdTx({
+      tx,
+      journeyRunId: input.journeyRunId,
+    }),
+  );
+
+  if (!run) {
+    journeyPlannerLogger.warn(
+      "wait-for-confirmation-timeout: run {runId} not found, skipping",
+      {
+        runId: input.journeyRunId,
+      },
+    );
+    return { scheduledDeliveryIds: [], canceledDeliveryIds: [] };
+  }
+
+  if (run.status !== "planned" && run.status !== "running") {
+    journeyPlannerLogger.info(
+      "wait-for-confirmation-timeout: run {runId} is {status}, skipping",
+      { runId: input.journeyRunId, status: run.status },
+    );
+    return { scheduledDeliveryIds: [], canceledDeliveryIds: [] };
+  }
+
+  const parsedGraph = parseGraphFromRunSnapshot({
+    runId: input.journeyRunId,
+    journeyVersionSnapshot: run.journeyVersionSnapshot,
+    logPrefix: "wait-for-confirmation-timeout",
+  });
+  if (!parsedGraph) {
+    return { scheduledDeliveryIds: [], canceledDeliveryIds: [] };
+  }
+
+  const freshContext = await loadFreshContextByRun({
+    orgId: input.orgId,
+    triggerEntityType: run.triggerEntityType,
+    triggerEntityId: run.triggerEntityId,
+    appointmentId: run.appointmentId,
+    clientId: run.clientId,
+  });
+
+  if (!freshContext) {
+    journeyPlannerLogger.warn(
+      "wait-for-confirmation-timeout: trigger context not found for run {runId} entity {entityType}:{entityId}",
+      {
+        runId: input.journeyRunId,
+        entityType: run.triggerEntityType,
+        entityId: run.triggerEntityId,
+      },
+    );
+    return { scheduledDeliveryIds: [], canceledDeliveryIds: [] };
+  }
+
+  const requiresConfirmation = resolveAppointmentRequiresConfirmation(
+    freshContext.appointmentContext,
+  );
+  const appointmentStatus = resolveAppointmentStatus(
+    freshContext.appointmentContext,
+  );
+  const isConfirmed = appointmentStatus === "confirmed";
+
+  if (!requiresConfirmation || isConfirmed) {
+    const { pendingInngestEvents, ...reconciliationResult } = await withOrg(
+      input.orgId,
+      async (tx) => {
+        await tx
+          .update(journeyDeliveries)
+          .set({ status: "sent", updatedAt: sql`now()` })
+          .where(
+            and(
+              eq(journeyDeliveries.id, input.journeyDeliveryId),
+              eq(journeyDeliveries.status, "planned"),
+            ),
+          );
+
+        const result = await reconcileRunFromBoundaryTx({
+          tx,
+          orgId: input.orgId,
+          run,
+          graph: parsedGraph,
+          startAfterNodeId: input.stepKey,
+          now,
+          freshContext,
+        });
+        return result;
+      },
+    );
+
+    await dispatchPendingInngestEvents({
+      pendingEvents: pendingInngestEvents,
+      scheduleRequester,
+      cancelRequester,
+    });
+
+    return {
+      scheduledDeliveryIds: reconciliationResult.scheduledDeliveryIds,
+      canceledDeliveryIds: reconciliationResult.canceledDeliveryIds,
+    };
+  }
+
+  const cancelResult = await withOrg(input.orgId, async (tx) => {
+    await tx
+      .update(journeyDeliveries)
+      .set({ status: "sent", updatedAt: sql`now()` })
+      .where(
+        and(
+          eq(journeyDeliveries.id, input.journeyDeliveryId),
+          eq(journeyDeliveries.status, "planned"),
+        ),
+      );
+
+    return cancelPendingDeliveries({
+      tx,
+      runId: run.id,
+      reasonCode: "wait_for_confirmation_timeout",
+      orgId: input.orgId,
+    });
+  });
+
+  await dispatchPendingInngestEvents({
+    pendingEvents: cancelResult.pendingEvents,
+    scheduleRequester,
+    cancelRequester,
+  });
+
+  return {
+    scheduledDeliveryIds: [],
+    canceledDeliveryIds: cancelResult.canceledIds,
+  };
+}
 
 export async function executeWaitResume(
   input: WaitResumeInput,
@@ -1601,29 +2320,12 @@ export async function executeWaitResume(
   const cancelRequester =
     dependencies.cancelRequester ?? sendJourneyDeliveryCanceled;
 
-  // 1. Load the run to get the journey version snapshot and trigger identity
-  const run = await withOrg(input.orgId, async (tx) => {
-    const [row] = await tx
-      .select({
-        id: journeyRuns.id,
-        status: journeyRuns.status,
-        triggerEntityType: journeyRuns.triggerEntityType,
-        triggerEntityId: journeyRuns.triggerEntityId,
-        appointmentId: journeyRuns.appointmentId,
-        clientId: journeyRuns.clientId,
-        journeyVersionSnapshot: journeyRuns.journeyVersionSnapshot,
-        journeyVersionId: journeyRuns.journeyVersionId,
-        journeyId: journeyVersions.journeyId,
-      })
-      .from(journeyRuns)
-      .leftJoin(
-        journeyVersions,
-        eq(journeyVersions.id, journeyRuns.journeyVersionId),
-      )
-      .where(eq(journeyRuns.id, input.journeyRunId))
-      .limit(1);
-    return row ?? null;
-  });
+  const run = await withOrg(input.orgId, (tx) =>
+    loadPlannerRunByIdTx({
+      tx,
+      journeyRunId: input.journeyRunId,
+    }),
+  );
 
   if (!run) {
     journeyPlannerLogger.warn("wait-resume: run {runId} not found, skipping", {
@@ -1640,16 +2342,12 @@ export async function executeWaitResume(
     return { scheduledDeliveryIds: [], canceledDeliveryIds: [] };
   }
 
-  // 2. Parse journey graph from snapshot
-  const snapshotRecord = toRecord(run.journeyVersionSnapshot);
-  const parsedGraph = linearJourneyGraphSchema.safeParse(
-    snapshotRecord["definitionSnapshot"],
-  );
-  if (!parsedGraph.success) {
-    journeyPlannerLogger.error(
-      "wait-resume: failed to parse graph for run {runId}",
-      { runId: input.journeyRunId },
-    );
+  const parsedGraph = parseGraphFromRunSnapshot({
+    runId: input.journeyRunId,
+    journeyVersionSnapshot: run.journeyVersionSnapshot,
+    logPrefix: "wait-resume",
+  });
+  if (!parsedGraph) {
     return { scheduledDeliveryIds: [], canceledDeliveryIds: [] };
   }
 
@@ -1674,21 +2372,6 @@ export async function executeWaitResume(
     return { scheduledDeliveryIds: [], canceledDeliveryIds: [] };
   }
 
-  // 4. Build desired deliveries from the node after the wait
-  const buildResult = buildDesiredDeliveries({
-    graph: parsedGraph.data,
-    journeyRunId: run.id,
-    journeyId: run.journeyId ?? run.journeyVersionId ?? "unknown",
-    appointmentId: run.appointmentId,
-    triggerEntityId: run.triggerEntityId,
-    appointmentContext: freshContext.appointmentContext,
-    clientContext: freshContext.clientContext,
-    now,
-    orgTimezone: freshContext.orgTimezone,
-    startAfterNodeId: input.stepKey,
-  });
-
-  // 5. Reconcile deliveries within a transaction
   const { pendingInngestEvents, ...reconciliationResult } = await withOrg(
     input.orgId,
     async (tx) => {
@@ -1704,33 +2387,25 @@ export async function executeWaitResume(
           ),
         );
 
-      const result = await reconcileDeliveries({
+      const result = await reconcileRunFromBoundaryTx({
         tx,
-        runId: run.id,
         orgId: input.orgId,
-        desiredDeliveries: buildResult.desiredDeliveries,
-        desiredStepLogs: buildResult.desiredStepLogs,
-        desiredRunEvents: buildResult.desiredRunEvents,
+        run,
+        graph: parsedGraph,
+        startAfterNodeId: input.stepKey,
+        now,
+        freshContext,
       });
-
-      await refreshRunStatusTx(tx, run.id);
 
       return result;
     },
   );
 
-  // 6. Fire Inngest events after the transaction commits
-  await forEachAsync(
-    pendingInngestEvents,
-    async (pending) => {
-      if (pending.type === "schedule") {
-        await scheduleRequester(pending.actionType, pending.payload);
-      } else {
-        await cancelRequester(pending.payload);
-      }
-    },
-    { concurrency: 1 },
-  );
+  await dispatchPendingInngestEvents({
+    pendingEvents: pendingInngestEvents,
+    scheduleRequester,
+    cancelRequester,
+  });
 
   return {
     scheduledDeliveryIds: reconciliationResult.scheduledDeliveryIds,

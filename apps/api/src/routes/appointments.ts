@@ -119,6 +119,19 @@ export const reschedule = authed
     });
   });
 
+// Confirm appointment
+export const confirm = authed
+  .route({ method: "POST", path: "/appointments/{id}/confirm" })
+  .input(idInput)
+  .output(appointmentResponseSchema)
+  .handler(async ({ input, context }) => {
+    return appointmentService.confirm(input.id, {
+      orgId: context.orgId,
+      userId: context.userId,
+      authMethod: context.authMethod,
+    });
+  });
+
 // Mark appointment as no-show
 export const noShow = authed
   .route({ method: "POST", path: "/appointments/{id}/no-show" })
@@ -141,5 +154,6 @@ export const appointmentRoutes = {
   update,
   cancel,
   reschedule,
+  confirm,
   noShow,
 };

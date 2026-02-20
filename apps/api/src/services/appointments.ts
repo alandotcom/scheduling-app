@@ -135,6 +135,7 @@ function toAppointmentEntitySnapshot(appointment: Appointment) {
 function toAppointmentEventSnapshot(input: {
   appointment: Appointment;
   client: AppointmentEventClientSnapshot;
+  calendarRequiresConfirmation: boolean;
 }) {
   const appointment = toAppointmentEntitySnapshot(input.appointment);
   const client = {
@@ -149,6 +150,7 @@ function toAppointmentEventSnapshot(input: {
   return {
     appointmentId: appointment.id,
     calendarId: appointment.calendarId,
+    calendarRequiresConfirmation: input.calendarRequiresConfirmation,
     appointmentTypeId: appointment.appointmentTypeId,
     clientId: appointment.clientId,
     startAt: appointment.startAt,
@@ -156,7 +158,10 @@ function toAppointmentEventSnapshot(input: {
     timezone: appointment.timezone,
     status: appointment.status,
     notes: appointment.notes,
-    appointment,
+    appointment: {
+      ...appointment,
+      calendarRequiresConfirmation: input.calendarRequiresConfirmation,
+    },
     client,
   };
 }
@@ -169,9 +174,25 @@ async function emitAppointmentLifecycleEvent(
   const clientIds = uniq(
     compact([current.clientId, previous?.clientId ?? null]),
   );
+  const calendarIds = uniq(
+    compact([current.calendarId, previous?.calendarId ?? null]),
+  );
 
-  const clientsById = await withOrg(orgId, (tx) =>
-    appointmentRepository.findClientSnapshotsByIds(tx, orgId, clientIds),
+  const { clientsById, calendarRequiresConfirmationById } = await withOrg(
+    orgId,
+    async (tx) => {
+      const [clientsById, calendarRequiresConfirmationById] = await Promise.all(
+        [
+          appointmentRepository.findClientSnapshotsByIds(tx, orgId, clientIds),
+          appointmentRepository.findCalendarConfirmationSettingsByIds(
+            tx,
+            orgId,
+            calendarIds,
+          ),
+        ],
+      );
+      return { clientsById, calendarRequiresConfirmationById };
+    },
   );
 
   const currentClient = clientsById.get(current.clientId);
@@ -182,6 +203,8 @@ async function emitAppointmentLifecycleEvent(
   const currentSnapshot = toAppointmentEventSnapshot({
     appointment: current,
     client: currentClient,
+    calendarRequiresConfirmation:
+      calendarRequiresConfirmationById.get(current.calendarId) ?? false,
   });
   const previousSnapshot = previous
     ? (() => {
@@ -192,6 +215,8 @@ async function emitAppointmentLifecycleEvent(
         return toAppointmentEventSnapshot({
           appointment: previous,
           client: previousClient,
+          calendarRequiresConfirmation:
+            calendarRequiresConfirmationById.get(previous.calendarId) ?? false,
         });
       })()
     : null;
@@ -208,6 +233,9 @@ async function emitAppointmentLifecycleEvent(
   switch (lifecycleEvent.type) {
     case "appointment.scheduled":
       await events.appointmentScheduled(orgId, lifecycleEvent.payload);
+      return;
+    case "appointment.confirmed":
+      await events.appointmentConfirmed(orgId, lifecycleEvent.payload);
       return;
     case "appointment.rescheduled":
       await events.appointmentRescheduled(orgId, lifecycleEvent.payload);
@@ -675,6 +703,74 @@ export class AppointmentService {
       }
       throw error;
     }
+
+    await emitAppointmentLifecycleEvent(orgId, updated, existing);
+
+    return updated;
+  }
+
+  async confirm(
+    id: string,
+    context: AppointmentServiceContext,
+  ): Promise<Appointment> {
+    const { orgId } = context;
+
+    const { existing, updated } = await withOrg(orgId, async (tx) => {
+      const existing = await appointmentRepository.findById(tx, orgId, id);
+      if (!existing) {
+        throw new ApplicationError("Appointment not found", {
+          code: "NOT_FOUND",
+        });
+      }
+
+      if (existing.status === "confirmed") {
+        throw new ApplicationError(
+          "APPOINTMENT_ALREADY_CONFIRMED: Appointment is already confirmed",
+          { code: "UNPROCESSABLE_CONTENT" },
+        );
+      }
+
+      if (existing.status === "cancelled") {
+        throw new ApplicationError(
+          "APPOINTMENT_ALREADY_CANCELLED: Cannot confirm a cancelled appointment",
+          { code: "UNPROCESSABLE_CONTENT" },
+        );
+      }
+
+      if (existing.status === "no_show") {
+        throw new ApplicationError(
+          "APPOINTMENT_ALREADY_NO_SHOW: Cannot confirm a no-show appointment",
+          { code: "UNPROCESSABLE_CONTENT" },
+        );
+      }
+
+      const updated = await appointmentRepository.updateStatus(
+        tx,
+        orgId,
+        id,
+        "confirmed",
+      );
+      if (!updated) {
+        throw new ApplicationError("Appointment not found", {
+          code: "NOT_FOUND",
+        });
+      }
+
+      const authMethod = this.mapAuthMethod(context.authMethod);
+      await recordAudit(
+        createAuditContext(orgId, context.userId, authMethod),
+        {
+          action: "confirm",
+          entityType: "appointment",
+          entityId: updated.id,
+          before: toAuditSnapshot(existing),
+          after: toAuditSnapshot(updated),
+        },
+        tx,
+      );
+
+      return { existing, updated };
+    });
 
     await emitAppointmentLifecycleEvent(orgId, updated, existing);
 

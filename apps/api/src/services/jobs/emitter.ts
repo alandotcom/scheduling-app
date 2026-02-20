@@ -67,6 +67,7 @@ type EventEmitters = {
 
 export const events: EventEmitters = {
   appointmentScheduled: createTypedEmitter("appointment.scheduled"),
+  appointmentConfirmed: createTypedEmitter("appointment.confirmed"),
   appointmentRescheduled: createTypedEmitter("appointment.rescheduled"),
   appointmentCanceled: createTypedEmitter("appointment.canceled"),
   calendarCreated: createTypedEmitter("calendar.created"),

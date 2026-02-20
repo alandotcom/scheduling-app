@@ -109,6 +109,7 @@ describe("syncSvixEventCatalog", () => {
     );
 
     expect(createdEventNames).toContain("appointment.scheduled");
+    expect(createdEventNames).toContain("appointment.confirmed");
     expect(createdEventNames).toContain("appointment.rescheduled");
     expect(createdEventNames).toContain("appointment.canceled");
     expect(createdEventNames).not.toContain("appointment.created");

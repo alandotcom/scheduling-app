@@ -9,6 +9,7 @@ export type AuditAction =
   | "create"
   | "update"
   | "delete"
+  | "confirm"
   | "cancel"
   | "reschedule"
   | "no_show";

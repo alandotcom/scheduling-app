@@ -33,6 +33,7 @@ import {
 } from "@scheduling/dto";
 import {
   appointments,
+  calendars,
   clients,
   journeyDeliveries,
   journeyRunEvents,
@@ -422,6 +423,47 @@ function collectHighSignalEqualsFilters(
   return pairs;
 }
 
+function validateClientJourneyActionCompatibility(graph: LinearJourneyGraph) {
+  const triggerConfig = getTriggerConfigFromGraph(graph);
+  if (!triggerConfig || triggerConfig.triggerType !== "ClientJourney") {
+    return;
+  }
+
+  const violatingNodeIndexes = graph.nodes
+    .map((node, index) => ({ node, index }))
+    .filter(({ node }) => node.attributes.data.type === "action")
+    .filter(({ node }) => {
+      const config = isRecord(node.attributes.data.config)
+        ? node.attributes.data.config
+        : null;
+      if (!config) {
+        return false;
+      }
+
+      const actionType =
+        "actionType" in config ? config["actionType"] : undefined;
+      if (typeof actionType !== "string") {
+        return false;
+      }
+
+      return actionType.trim().toLowerCase() === "wait-for-confirmation";
+    })
+    .map(({ index }) => index);
+
+  if (violatingNodeIndexes.length === 0) {
+    return;
+  }
+
+  throw journeyDefinitionInvalidError(
+    violatingNodeIndexes.map((nodeIndex) => ({
+      code: "custom",
+      path: ["nodes", nodeIndex, "attributes", "data", "config", "actionType"],
+      message:
+        'Client journeys cannot include "Wait For Confirmation" steps. Use appointment journeys for confirmation-aware automation.',
+    })),
+  );
+}
+
 function buildOverlapWarning(input: {
   candidateName: string;
   sharedEvents: string[];
@@ -677,7 +719,9 @@ function mapAppointmentToScheduledPayload(appointment: {
     | "timezone"
     | "status"
     | "notes"
-  >;
+  > & {
+    calendarRequiresConfirmation: boolean;
+  };
   client: {
     id: string;
     firstName: string;
@@ -701,6 +745,8 @@ function mapAppointmentToScheduledPayload(appointment: {
     {
       appointmentId: appointmentSnapshot.id,
       calendarId: appointmentSnapshot.calendarId,
+      calendarRequiresConfirmation:
+        appointmentSnapshot.calendarRequiresConfirmation,
       appointmentTypeId: appointmentSnapshot.appointmentTypeId,
       clientId: appointmentSnapshot.clientId,
       startAt: appointmentSnapshot.startAt.toISOString(),
@@ -711,6 +757,8 @@ function mapAppointmentToScheduledPayload(appointment: {
       appointment: {
         id: appointmentSnapshot.id,
         calendarId: appointmentSnapshot.calendarId,
+        calendarRequiresConfirmation:
+          appointmentSnapshot.calendarRequiresConfirmation,
         appointmentTypeId: appointmentSnapshot.appointmentTypeId,
         clientId: appointmentSnapshot.clientId,
         startAt: appointmentSnapshot.startAt.toISOString(),
@@ -998,6 +1046,7 @@ export class JourneyService {
         orgId: context.orgId,
         graph: parsedGraph,
       });
+      validateClientJourneyActionCompatibility(parsedGraph);
 
       const [nextVersionRow] = await tx
         .select({
@@ -1422,6 +1471,7 @@ export class JourneyService {
           appointment: {
             id: appointments.id,
             calendarId: appointments.calendarId,
+            calendarRequiresConfirmation: calendars.requiresConfirmation,
             appointmentTypeId: appointments.appointmentTypeId,
             clientId: appointments.clientId,
             startAt: appointments.startAt,
@@ -1439,6 +1489,7 @@ export class JourneyService {
           },
         })
         .from(appointments)
+        .leftJoin(calendars, eq(calendars.id, appointments.calendarId))
         .innerJoin(clients, eq(appointments.clientId, clients.id))
         .where(eq(appointments.id, parsed.appointmentId))
         .limit(1);
@@ -1457,7 +1508,11 @@ export class JourneyService {
         );
 
       return mapAppointmentToScheduledPayload({
-        ...appointment,
+        appointment: {
+          ...appointment.appointment,
+          calendarRequiresConfirmation:
+            appointment.appointment.calendarRequiresConfirmation ?? false,
+        },
         client: { ...appointment.client, customAttributes },
       });
     });

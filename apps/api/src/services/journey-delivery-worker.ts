@@ -15,7 +15,10 @@ import {
   appendJourneyRunEvent,
   upsertJourneyRunStepLog,
 } from "./journey-run-artifacts.js";
-import { executeWaitResume } from "./journey-planner.js";
+import {
+  executeWaitForConfirmationTimeout,
+  executeWaitResume,
+} from "./journey-planner.js";
 import { refreshJourneyRunStatus } from "./journey-run-status.js";
 
 const DEFAULT_MAX_DISPATCH_ATTEMPTS = 2;
@@ -535,6 +538,31 @@ export async function executeJourneyDeliveryScheduled(
     // After cancellation check, run is guaranteed non-null and active.
     if (!run) {
       throw new Error("Unexpected: run is null after cancellation check.");
+    }
+
+    // Intercept wait-for-confirmation-timeout: either continue or cancel run.
+    if (current.delivery.actionType === "wait-for-confirmation-timeout") {
+      await executeWaitForConfirmationTimeout({
+        orgId: input.orgId,
+        journeyRunId: current.delivery.journeyRunId,
+        journeyDeliveryId: current.delivery.id,
+        stepKey: current.delivery.stepKey,
+      });
+
+      return finalizeDeliveryOutcome({
+        orgId: input.orgId,
+        delivery: current.delivery,
+        nodeType: "wait-for-confirmation-timeout",
+        dispatchStartedAt,
+        now,
+        status: "sent",
+        reasonCode: null,
+        attempts: 1,
+        logInput: {
+          stepKey: current.delivery.stepKey,
+          journeyRunId: current.delivery.journeyRunId,
+        },
+      });
     }
 
     // Intercept wait-resume: re-plan from this wait node with fresh data

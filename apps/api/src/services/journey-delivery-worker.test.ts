@@ -43,7 +43,8 @@ function createJourneyVersionSnapshot(input?: {
     | "send-slack"
     | "send-twilio"
     | "logger"
-    | "wait-resume";
+    | "wait-resume"
+    | "wait-for-confirmation-timeout";
 }) {
   const stepKey = input?.stepKey ?? "send-node";
   const actionType = input?.actionType ?? "send-resend";
@@ -216,7 +217,8 @@ async function seedPlannedDelivery(
       | "send-slack"
       | "send-twilio"
       | "logger"
-      | "wait-resume";
+      | "wait-resume"
+      | "wait-for-confirmation-timeout";
     channel?: "email" | "slack" | "sms" | "logger" | "internal";
     mode?: "live" | "test";
     appointmentId?: string;
@@ -906,5 +908,66 @@ describe("executeJourneyDeliveryScheduled", () => {
     );
     expect(waitResumeLog).toBeDefined();
     expect(waitResumeLog?.status).toBe("success");
+  });
+
+  test("intercepts wait-for-confirmation-timeout delivery", async () => {
+    const seeded = await seedPlannedDelivery(
+      context,
+      new Date("2026-02-16T12:00:00.000Z"),
+      {
+        stepKey: "wait-node",
+        actionType: "wait-for-confirmation-timeout",
+        channel: "internal",
+      },
+    );
+
+    const dispatchDelivery = mock(async () => ({
+      providerMessageId: "should-not-be-called",
+    }));
+
+    const result = await executeJourneyDeliveryScheduled(
+      {
+        orgId: context.orgId,
+        journeyDeliveryId: seeded.deliveryId,
+        journeyRunId: seeded.runId,
+        deterministicKey: seeded.deterministicKey,
+        scheduledFor: seeded.scheduledFor.toISOString(),
+      },
+      {
+        runtime: {
+          runStep: async <T>(_stepId: string, fn: () => Promise<T>) => fn(),
+          sleep: async (_stepId: string, _delayMs: number) => {},
+        },
+        now: () => new Date("2026-02-16T12:00:00.000Z"),
+        dispatchDelivery,
+      },
+    );
+
+    expect(result.status).toBe("sent");
+    expect(dispatchDelivery).toHaveBeenCalledTimes(0);
+
+    await setTestOrgContext(db, context.orgId);
+
+    const [delivery] = await db
+      .select({ status: journeyDeliveries.status })
+      .from(journeyDeliveries)
+      .where(eq(journeyDeliveries.id, seeded.deliveryId))
+      .limit(1);
+
+    expect(delivery?.status).toBe("sent");
+
+    const stepLogs = await db
+      .select({
+        status: journeyRunStepLogs.status,
+        nodeType: journeyRunStepLogs.nodeType,
+      })
+      .from(journeyRunStepLogs)
+      .where(eq(journeyRunStepLogs.journeyRunId, seeded.runId));
+
+    const timeoutLog = stepLogs.find(
+      (log) => log.nodeType === "wait-for-confirmation-timeout",
+    );
+    expect(timeoutLog).toBeDefined();
+    expect(timeoutLog?.status).toBe("success");
   });
 });

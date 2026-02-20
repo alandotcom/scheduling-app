@@ -17,6 +17,7 @@ const isoDateTimeStringSchema = z.iso.datetime();
 
 export const webhookEventTypes = [
   "appointment.scheduled",
+  "appointment.confirmed",
   "appointment.rescheduled",
   "appointment.canceled",
   "calendar.created",
@@ -41,6 +42,7 @@ export type WebhookEventType = (typeof webhookEventTypes)[number];
 const appointmentSnapshotSchema = z.object({
   appointmentId: uuidSchema,
   calendarId: uuidSchema,
+  calendarRequiresConfirmation: z.boolean().optional(),
   appointmentTypeId: uuidSchema,
   clientId: uuidSchema,
   startAt: isoDateTimeStringSchema,
@@ -51,6 +53,7 @@ const appointmentSnapshotSchema = z.object({
   appointment: z.object({
     id: uuidSchema,
     calendarId: uuidSchema,
+    calendarRequiresConfirmation: z.boolean().optional(),
     appointmentTypeId: uuidSchema,
     clientId: uuidSchema,
     startAt: isoDateTimeStringSchema,
@@ -110,6 +113,7 @@ const clientSnapshotSchema = z.object({
 
 export const webhookEventDataSchemaByType = {
   "appointment.scheduled": appointmentSnapshotSchema,
+  "appointment.confirmed": appointmentSnapshotSchema,
   "appointment.rescheduled": appointmentSnapshotSchema.extend({
     previous: appointmentSnapshotSchema,
   }),
@@ -172,6 +176,7 @@ function createWebhookEnvelopeSchema<TEventType extends WebhookEventType>(
 
 export const webhookEventEnvelopeSchemaByType = {
   "appointment.scheduled": createWebhookEnvelopeSchema("appointment.scheduled"),
+  "appointment.confirmed": createWebhookEnvelopeSchema("appointment.confirmed"),
   "appointment.rescheduled": createWebhookEnvelopeSchema(
     "appointment.rescheduled",
   ),
@@ -203,6 +208,7 @@ export const webhookEventEnvelopeSchemaByType = {
 
 export const webhookEventEnvelopeSchema = z.discriminatedUnion("type", [
   webhookEventEnvelopeSchemaByType["appointment.scheduled"],
+  webhookEventEnvelopeSchemaByType["appointment.confirmed"],
   webhookEventEnvelopeSchemaByType["appointment.rescheduled"],
   webhookEventEnvelopeSchemaByType["appointment.canceled"],
   webhookEventEnvelopeSchemaByType["calendar.created"],

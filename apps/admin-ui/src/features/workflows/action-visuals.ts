@@ -70,6 +70,11 @@ const actionIconSpecs: Record<string, ActionIconSpec> = {
     iconColorClass: "text-orange-500",
     iconBgClass: "bg-orange-500/10",
   },
+  "wait-for-confirmation": {
+    icon: HourglassIcon,
+    iconColorClass: "text-amber-500",
+    iconBgClass: "bg-amber-500/10",
+  },
   "send-resend": {
     icon: Mail01Icon,
     iconColorClass: "text-cyan-500",

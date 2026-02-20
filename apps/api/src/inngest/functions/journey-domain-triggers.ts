@@ -8,6 +8,7 @@ import { processJourneyDomainEvent } from "../../services/journey-planner.js";
 
 const journeyPlannerEventTypes = [
   "appointment.scheduled",
+  "appointment.confirmed",
   "appointment.rescheduled",
   "appointment.canceled",
   "client.created",

@@ -8,6 +8,7 @@ mock.module("../inngest/runtime-events.js", () => ({
 import { and, desc, eq } from "drizzle-orm";
 import {
   appointments,
+  calendars,
   clientCustomAttributeDefinitions,
   journeyDeliveries,
   journeyRuns,
@@ -28,6 +29,7 @@ import { clientCustomAttributeService } from "./client-custom-attributes.js";
 import { journeyService } from "./journeys.js";
 import {
   processJourneyDomainEvent,
+  executeWaitForConfirmationTimeout,
   executeWaitResume,
 } from "./journey-planner.js";
 
@@ -125,6 +127,85 @@ function createJourneyGraph(input?: {
         attributes: {
           id: "wait-to-send",
           source: "wait-node",
+          target: "send-node",
+        },
+      },
+    ],
+  };
+}
+
+function createWaitForConfirmationJourneyGraph(input?: {
+  confirmationGraceMinutes?: number;
+}): LinearJourneyGraph {
+  return {
+    attributes: {},
+    options: {
+      type: "directed",
+    },
+    nodes: [
+      {
+        key: "trigger-node",
+        attributes: {
+          id: "trigger-node",
+          type: "trigger-node",
+          position: { x: 0, y: 0 },
+          data: {
+            type: "trigger",
+            label: "Trigger",
+            config: createTriggerConfig(),
+          },
+        },
+      },
+      {
+        key: "wait-confirmation-node",
+        attributes: {
+          id: "wait-confirmation-node",
+          type: "action-node",
+          position: { x: 0, y: 120 },
+          data: {
+            type: "action",
+            label: "Wait For Confirmation",
+            config: {
+              actionType: "wait-for-confirmation",
+              confirmationGraceMinutes: input?.confirmationGraceMinutes ?? 0,
+            },
+          },
+        },
+      },
+      {
+        key: "send-node",
+        attributes: {
+          id: "send-node",
+          type: "action-node",
+          position: { x: 0, y: 240 },
+          data: {
+            type: "action",
+            label: "Send",
+            config: {
+              actionType: "send-resend",
+            },
+          },
+        },
+      },
+    ],
+    edges: [
+      {
+        key: "trigger-to-wait-confirmation",
+        source: "trigger-node",
+        target: "wait-confirmation-node",
+        attributes: {
+          id: "trigger-to-wait-confirmation",
+          source: "trigger-node",
+          target: "wait-confirmation-node",
+        },
+      },
+      {
+        key: "wait-confirmation-to-send",
+        source: "wait-confirmation-node",
+        target: "send-node",
+        attributes: {
+          id: "wait-confirmation-to-send",
+          source: "wait-confirmation-node",
           target: "send-node",
         },
       },
@@ -879,6 +960,8 @@ function createAppointmentPayload(input?: {
   appointmentId?: string;
   timezone?: string;
   previousTimezone?: string;
+  status?: "scheduled" | "confirmed" | "cancelled" | "no_show";
+  calendarRequiresConfirmation?: boolean;
 }) {
   const appointmentId =
     input?.appointmentId ?? "018f4d3a-6d80-7c5b-8a4a-6cb8f8d57d10";
@@ -892,7 +975,8 @@ function createAppointmentPayload(input?: {
     startAt: "2026-03-10T14:00:00.000Z",
     endAt: "2026-03-10T15:00:00.000Z",
     timezone: input?.timezone ?? "America/New_York",
-    status: "scheduled" as const,
+    status: input?.status ?? ("scheduled" as const),
+    calendarRequiresConfirmation: input?.calendarRequiresConfirmation ?? false,
     notes: null,
     appointment: {
       id: appointmentId,
@@ -902,7 +986,9 @@ function createAppointmentPayload(input?: {
       startAt: "2026-03-10T14:00:00.000Z",
       endAt: "2026-03-10T15:00:00.000Z",
       timezone: input?.timezone ?? "America/New_York",
-      status: "scheduled" as const,
+      status: input?.status ?? ("scheduled" as const),
+      calendarRequiresConfirmation:
+        input?.calendarRequiresConfirmation ?? false,
       notes: null,
     },
     client: {
@@ -2111,6 +2197,659 @@ describe("processJourneyDomainEvent", () => {
     expect(scheduleWaitResumeRequester).toHaveBeenCalledTimes(0);
   });
 
+  test("treats wait-for-confirmation as a no-op when confirmation is not required", async () => {
+    const created = await journeyService.create(
+      {
+        name: "Wait For Confirmation No-op Journey",
+        graph: createWaitForConfirmationJourneyGraph(),
+      },
+      context,
+    );
+
+    await journeyService.publish(created.id, { mode: "live" }, context);
+
+    const appointmentId = await createQuickAppointment(
+      db as any,
+      context.orgId,
+    );
+
+    const scheduleTimeoutRequester = mock(async () => ({
+      eventId: "evt-wfc-timeout-noop",
+    }));
+    const scheduleResendRequester = mock(async () => ({
+      eventId: "evt-wfc-send-noop",
+    }));
+
+    await processJourneyDomainEvent(
+      {
+        id: "evt-wfc-noop-1",
+        orgId: context.orgId,
+        type: "appointment.scheduled",
+        payload: createAppointmentPayload({
+          appointmentId,
+          status: "scheduled",
+          calendarRequiresConfirmation: false,
+        }),
+        timestamp: "2026-02-16T10:00:00.000Z",
+      },
+      {
+        providerRequesters: {
+          "wait-for-confirmation-timeout": scheduleTimeoutRequester,
+          "send-resend": scheduleResendRequester,
+          "send-resend-template": scheduleResendRequester,
+        },
+        now: new Date("2026-02-16T10:00:00.000Z"),
+      },
+    );
+
+    await setTestOrgContext(db, context.orgId);
+
+    const [run] = await db
+      .select({ id: journeyRuns.id })
+      .from(journeyRuns)
+      .orderBy(desc(journeyRuns.id))
+      .limit(1);
+
+    const deliveries = await db
+      .select({
+        actionType: journeyDeliveries.actionType,
+        status: journeyDeliveries.status,
+      })
+      .from(journeyDeliveries)
+      .where(eq(journeyDeliveries.journeyRunId, run!.id));
+
+    expect(deliveries).toHaveLength(1);
+    expect(deliveries[0]?.actionType).toBe("send-resend");
+    expect(deliveries[0]?.status).toBe("planned");
+    expect(scheduleResendRequester).toHaveBeenCalledTimes(1);
+    expect(scheduleTimeoutRequester).toHaveBeenCalledTimes(0);
+  });
+
+  test("schedules wait-for-confirmation timeout when confirmation is required", async () => {
+    const created = await journeyService.create(
+      {
+        name: "Wait For Confirmation Required Journey",
+        graph: createWaitForConfirmationJourneyGraph({
+          confirmationGraceMinutes: 15,
+        }),
+      },
+      context,
+    );
+
+    await journeyService.publish(created.id, { mode: "live" }, context);
+
+    const appointmentId = await createQuickAppointment(
+      db as any,
+      context.orgId,
+    );
+
+    const scheduleTimeoutRequester = mock(async () => ({
+      eventId: "evt-wfc-timeout-required",
+    }));
+    const scheduleResendRequester = mock(async () => ({
+      eventId: "evt-wfc-send-required",
+    }));
+
+    await processJourneyDomainEvent(
+      {
+        id: "evt-wfc-required-1",
+        orgId: context.orgId,
+        type: "appointment.scheduled",
+        payload: createAppointmentPayload({
+          appointmentId,
+          status: "scheduled",
+          calendarRequiresConfirmation: true,
+        }),
+        timestamp: "2026-02-16T10:00:00.000Z",
+      },
+      {
+        providerRequesters: {
+          "wait-for-confirmation-timeout": scheduleTimeoutRequester,
+          "send-resend": scheduleResendRequester,
+          "send-resend-template": scheduleResendRequester,
+        },
+        now: new Date("2026-02-16T10:00:00.000Z"),
+      },
+    );
+
+    await setTestOrgContext(db, context.orgId);
+
+    const [run] = await db
+      .select({ id: journeyRuns.id })
+      .from(journeyRuns)
+      .orderBy(desc(journeyRuns.id))
+      .limit(1);
+
+    const deliveries = await db
+      .select({
+        actionType: journeyDeliveries.actionType,
+        status: journeyDeliveries.status,
+        scheduledFor: journeyDeliveries.scheduledFor,
+      })
+      .from(journeyDeliveries)
+      .where(eq(journeyDeliveries.journeyRunId, run!.id));
+
+    expect(deliveries).toHaveLength(1);
+    expect(deliveries[0]?.actionType).toBe("wait-for-confirmation-timeout");
+    expect(deliveries[0]?.status).toBe("planned");
+    expect(deliveries[0]?.scheduledFor.toISOString()).toBe(
+      "2026-03-10T14:15:00.000Z",
+    );
+    expect(scheduleTimeoutRequester).toHaveBeenCalledTimes(1);
+    expect(scheduleResendRequester).toHaveBeenCalledTimes(0);
+  });
+
+  test("resumes run on appointment.confirmed by canceling timeout and planning next step", async () => {
+    const created = await journeyService.create(
+      {
+        name: "Wait For Confirmation Resume Journey",
+        graph: createWaitForConfirmationJourneyGraph(),
+      },
+      context,
+    );
+
+    await journeyService.publish(created.id, { mode: "live" }, context);
+
+    const appointmentId = await createQuickAppointment(
+      db as any,
+      context.orgId,
+    );
+
+    const scheduleTimeoutRequester = mock(async () => ({
+      eventId: "evt-wfc-timeout-resume",
+    }));
+    const scheduleResendRequester = mock(async () => ({
+      eventId: "evt-wfc-send-resume",
+    }));
+
+    await processJourneyDomainEvent(
+      {
+        id: "evt-wfc-resume-1",
+        orgId: context.orgId,
+        type: "appointment.scheduled",
+        payload: createAppointmentPayload({
+          appointmentId,
+          status: "scheduled",
+          calendarRequiresConfirmation: true,
+        }),
+        timestamp: "2026-02-16T10:00:00.000Z",
+      },
+      {
+        providerRequesters: {
+          "wait-for-confirmation-timeout": scheduleTimeoutRequester,
+          "send-resend": scheduleResendRequester,
+          "send-resend-template": scheduleResendRequester,
+        },
+        now: new Date("2026-02-16T10:00:00.000Z"),
+      },
+    );
+
+    await setTestOrgContext(db, context.orgId);
+
+    const [run] = await db
+      .select({ id: journeyRuns.id })
+      .from(journeyRuns)
+      .orderBy(desc(journeyRuns.id))
+      .limit(1);
+
+    const [timeoutDelivery] = await db
+      .select({
+        id: journeyDeliveries.id,
+        stepKey: journeyDeliveries.stepKey,
+      })
+      .from(journeyDeliveries)
+      .where(
+        and(
+          eq(journeyDeliveries.journeyRunId, run!.id),
+          eq(journeyDeliveries.actionType, "wait-for-confirmation-timeout"),
+          eq(journeyDeliveries.status, "planned"),
+        ),
+      )
+      .limit(1);
+
+    expect(timeoutDelivery).toBeDefined();
+
+    const [appointment] = await db
+      .select({ calendarId: appointments.calendarId })
+      .from(appointments)
+      .where(eq(appointments.id, appointmentId))
+      .limit(1);
+    expect(appointment).toBeDefined();
+
+    await db
+      .update(calendars)
+      .set({ requiresConfirmation: true })
+      .where(eq(calendars.id, appointment!.calendarId));
+    await db
+      .update(appointments)
+      .set({ status: "confirmed" })
+      .where(eq(appointments.id, appointmentId));
+
+    const cancelRequester = mock(async () => ({
+      eventId: "evt-wfc-cancel-resume",
+    }));
+
+    const confirmedResult = await processJourneyDomainEvent(
+      {
+        id: "evt-wfc-resume-2",
+        orgId: context.orgId,
+        type: "appointment.confirmed",
+        payload: createAppointmentPayload({
+          appointmentId,
+          status: "confirmed",
+          calendarRequiresConfirmation: true,
+        }),
+        timestamp: "2026-03-10T13:30:00.000Z",
+      },
+      {
+        providerRequesters: {
+          "wait-for-confirmation-timeout": scheduleTimeoutRequester,
+          "send-resend": scheduleResendRequester,
+          "send-resend-template": scheduleResendRequester,
+        },
+        cancelRequester,
+        now: new Date("2026-03-10T13:30:00.000Z"),
+      },
+    );
+
+    await setTestOrgContext(db, context.orgId);
+
+    const deliveries = await db
+      .select({
+        id: journeyDeliveries.id,
+        actionType: journeyDeliveries.actionType,
+        status: journeyDeliveries.status,
+        reasonCode: journeyDeliveries.reasonCode,
+      })
+      .from(journeyDeliveries)
+      .where(eq(journeyDeliveries.journeyRunId, run!.id));
+
+    const canceledTimeout = deliveries.find(
+      (delivery) => delivery.actionType === "wait-for-confirmation-timeout",
+    );
+    const resumedSend = deliveries.find(
+      (delivery) => delivery.actionType === "send-resend",
+    );
+
+    expect(canceledTimeout).toBeDefined();
+    expect(canceledTimeout?.status).toBe("canceled");
+    expect(canceledTimeout?.reasonCode).toBe("appointment_confirmed");
+    expect(resumedSend).toBeDefined();
+    expect(resumedSend?.status).toBe("planned");
+    expect(confirmedResult.canceledDeliveryIds).toContain(timeoutDelivery!.id);
+    expect(confirmedResult.scheduledDeliveryIds).toContain(resumedSend!.id);
+    expect(scheduleTimeoutRequester).toHaveBeenCalledTimes(1);
+    expect(scheduleResendRequester).toHaveBeenCalledTimes(1);
+    expect(cancelRequester).toHaveBeenCalledTimes(1);
+  });
+
+  test("resumes run on appointment.confirmed after journey version changes", async () => {
+    const created = await journeyService.create(
+      {
+        name: "Wait For Confirmation Resume Across Versions",
+        graph: createWaitForConfirmationJourneyGraph(),
+      },
+      context,
+    );
+
+    await journeyService.publish(created.id, { mode: "live" }, context);
+
+    const appointmentId = await createQuickAppointment(
+      db as any,
+      context.orgId,
+    );
+
+    const scheduleTimeoutRequester = mock(async () => ({
+      eventId: "evt-wfc-timeout-resume-versioned",
+    }));
+    const scheduleResendRequester = mock(async () => ({
+      eventId: "evt-wfc-send-resume-versioned",
+    }));
+
+    await processJourneyDomainEvent(
+      {
+        id: "evt-wfc-resume-versioned-1",
+        orgId: context.orgId,
+        type: "appointment.scheduled",
+        payload: createAppointmentPayload({
+          appointmentId,
+          status: "scheduled",
+          calendarRequiresConfirmation: true,
+        }),
+        timestamp: "2026-02-16T10:00:00.000Z",
+      },
+      {
+        providerRequesters: {
+          "wait-for-confirmation-timeout": scheduleTimeoutRequester,
+          "send-resend": scheduleResendRequester,
+          "send-resend-template": scheduleResendRequester,
+        },
+        now: new Date("2026-02-16T10:00:00.000Z"),
+      },
+    );
+
+    await setTestOrgContext(db, context.orgId);
+
+    const [run] = await db
+      .select({
+        id: journeyRuns.id,
+        journeyVersionId: journeyRuns.journeyVersionId,
+      })
+      .from(journeyRuns)
+      .orderBy(desc(journeyRuns.id))
+      .limit(1);
+
+    const [timeoutDelivery] = await db
+      .select({
+        id: journeyDeliveries.id,
+        stepKey: journeyDeliveries.stepKey,
+      })
+      .from(journeyDeliveries)
+      .where(
+        and(
+          eq(journeyDeliveries.journeyRunId, run!.id),
+          eq(journeyDeliveries.actionType, "wait-for-confirmation-timeout"),
+          eq(journeyDeliveries.status, "planned"),
+        ),
+      )
+      .limit(1);
+
+    expect(timeoutDelivery).toBeDefined();
+
+    const [appointment] = await db
+      .select({ calendarId: appointments.calendarId })
+      .from(appointments)
+      .where(eq(appointments.id, appointmentId))
+      .limit(1);
+    expect(appointment).toBeDefined();
+
+    await db
+      .update(calendars)
+      .set({ requiresConfirmation: true })
+      .where(eq(calendars.id, appointment!.calendarId));
+    await db
+      .update(appointments)
+      .set({ status: "confirmed" })
+      .where(eq(appointments.id, appointmentId));
+
+    await journeyService.update(
+      created.id,
+      {
+        graph: createWaitForConfirmationJourneyGraph({
+          confirmationGraceMinutes: 5,
+        }),
+      },
+      context,
+    );
+
+    const cancelRequester = mock(async () => ({
+      eventId: "evt-wfc-cancel-resume-versioned",
+    }));
+
+    const confirmedResult = await processJourneyDomainEvent(
+      {
+        id: "evt-wfc-resume-versioned-2",
+        orgId: context.orgId,
+        type: "appointment.confirmed",
+        payload: createAppointmentPayload({
+          appointmentId,
+          status: "confirmed",
+          calendarRequiresConfirmation: true,
+        }),
+        timestamp: "2026-03-10T13:30:00.000Z",
+      },
+      {
+        providerRequesters: {
+          "wait-for-confirmation-timeout": scheduleTimeoutRequester,
+          "send-resend": scheduleResendRequester,
+          "send-resend-template": scheduleResendRequester,
+        },
+        cancelRequester,
+        now: new Date("2026-03-10T13:30:00.000Z"),
+      },
+    );
+
+    await setTestOrgContext(db, context.orgId);
+
+    const deliveries = await db
+      .select({
+        id: journeyDeliveries.id,
+        actionType: journeyDeliveries.actionType,
+        status: journeyDeliveries.status,
+        reasonCode: journeyDeliveries.reasonCode,
+      })
+      .from(journeyDeliveries)
+      .where(eq(journeyDeliveries.journeyRunId, run!.id));
+
+    const canceledTimeout = deliveries.find(
+      (delivery) => delivery.actionType === "wait-for-confirmation-timeout",
+    );
+    const resumedSend = deliveries.find(
+      (delivery) => delivery.actionType === "send-resend",
+    );
+
+    expect(run?.journeyVersionId).toBeDefined();
+    expect(canceledTimeout?.status).toBe("canceled");
+    expect(canceledTimeout?.reasonCode).toBe("appointment_confirmed");
+    expect(resumedSend?.status).toBe("planned");
+    expect(confirmedResult.canceledDeliveryIds).toContain(timeoutDelivery!.id);
+    expect(confirmedResult.scheduledDeliveryIds).toContain(resumedSend!.id);
+    expect(scheduleResendRequester).toHaveBeenCalledTimes(1);
+    expect(cancelRequester).toHaveBeenCalledTimes(1);
+  });
+
+  test("resumes the earliest timeout run when multiple versioned runs are active", async () => {
+    const created = await journeyService.create(
+      {
+        name: "Wait For Confirmation Earliest Timeout Resume",
+        graph: createWaitForConfirmationJourneyGraph({
+          confirmationGraceMinutes: 30,
+        }),
+      },
+      context,
+    );
+
+    await journeyService.publish(created.id, { mode: "live" }, context);
+
+    const appointmentId = await createQuickAppointment(
+      db as any,
+      context.orgId,
+    );
+
+    await setTestOrgContext(db, context.orgId);
+    const [appointment] = await db
+      .select({ calendarId: appointments.calendarId })
+      .from(appointments)
+      .where(eq(appointments.id, appointmentId))
+      .limit(1);
+    expect(appointment).toBeDefined();
+
+    await db
+      .update(calendars)
+      .set({ requiresConfirmation: true })
+      .where(eq(calendars.id, appointment!.calendarId));
+
+    const scheduleTimeoutRequester = mock(async () => ({
+      eventId: "evt-wfc-timeout-earliest",
+    }));
+    const scheduleResendRequester = mock(async () => ({
+      eventId: "evt-wfc-send-earliest",
+    }));
+
+    await processJourneyDomainEvent(
+      {
+        id: "evt-wfc-earliest-1",
+        orgId: context.orgId,
+        type: "appointment.scheduled",
+        payload: createAppointmentPayload({
+          appointmentId,
+          status: "scheduled",
+          calendarRequiresConfirmation: true,
+        }),
+        timestamp: "2026-02-16T10:00:00.000Z",
+      },
+      {
+        providerRequesters: {
+          "wait-for-confirmation-timeout": scheduleTimeoutRequester,
+          "send-resend": scheduleResendRequester,
+          "send-resend-template": scheduleResendRequester,
+        },
+        now: new Date("2026-02-16T10:00:00.000Z"),
+      },
+    );
+
+    await journeyService.update(
+      created.id,
+      {
+        graph: createWaitForConfirmationJourneyGraph({
+          confirmationGraceMinutes: 5,
+        }),
+      },
+      context,
+    );
+
+    await processJourneyDomainEvent(
+      {
+        id: "evt-wfc-earliest-2",
+        orgId: context.orgId,
+        type: "appointment.scheduled",
+        payload: createAppointmentPayload({
+          appointmentId,
+          status: "scheduled",
+          calendarRequiresConfirmation: true,
+        }),
+        timestamp: "2026-02-16T10:05:00.000Z",
+      },
+      {
+        providerRequesters: {
+          "wait-for-confirmation-timeout": scheduleTimeoutRequester,
+          "send-resend": scheduleResendRequester,
+          "send-resend-template": scheduleResendRequester,
+        },
+        now: new Date("2026-02-16T10:05:00.000Z"),
+      },
+    );
+
+    await setTestOrgContext(db, context.orgId);
+
+    const runs = await db
+      .select({
+        id: journeyRuns.id,
+        journeyVersionId: journeyRuns.journeyVersionId,
+      })
+      .from(journeyRuns)
+      .where(eq(journeyRuns.triggerEntityId, appointmentId));
+
+    expect(runs).toHaveLength(2);
+
+    const timeoutDeliveriesBeforeConfirm = await db
+      .select({
+        id: journeyDeliveries.id,
+        journeyRunId: journeyDeliveries.journeyRunId,
+        scheduledFor: journeyDeliveries.scheduledFor,
+      })
+      .from(journeyDeliveries)
+      .where(
+        and(
+          eq(journeyDeliveries.actionType, "wait-for-confirmation-timeout"),
+          eq(journeyDeliveries.status, "planned"),
+        ),
+      );
+
+    expect(timeoutDeliveriesBeforeConfirm).toHaveLength(2);
+
+    const sortedTimeouts = [...timeoutDeliveriesBeforeConfirm].sort((a, b) => {
+      const byTime = a.scheduledFor.getTime() - b.scheduledFor.getTime();
+      if (byTime !== 0) {
+        return byTime;
+      }
+      return a.id.localeCompare(b.id);
+    });
+    const earliestTimeout = sortedTimeouts[0]!;
+    const laterTimeout = sortedTimeouts[1]!;
+
+    await db
+      .update(appointments)
+      .set({ status: "confirmed" })
+      .where(eq(appointments.id, appointmentId));
+
+    const cancelRequester = mock(async () => ({
+      eventId: "evt-wfc-cancel-earliest",
+    }));
+
+    const confirmedResult = await processJourneyDomainEvent(
+      {
+        id: "evt-wfc-earliest-3",
+        orgId: context.orgId,
+        type: "appointment.confirmed",
+        payload: createAppointmentPayload({
+          appointmentId,
+          status: "confirmed",
+          calendarRequiresConfirmation: true,
+        }),
+        timestamp: "2026-03-10T13:30:00.000Z",
+      },
+      {
+        providerRequesters: {
+          "wait-for-confirmation-timeout": scheduleTimeoutRequester,
+          "send-resend": scheduleResendRequester,
+          "send-resend-template": scheduleResendRequester,
+        },
+        cancelRequester,
+        now: new Date("2026-03-10T13:30:00.000Z"),
+      },
+    );
+
+    await setTestOrgContext(db, context.orgId);
+
+    const timeoutDeliveriesAfterConfirm = await db
+      .select({
+        id: journeyDeliveries.id,
+        journeyRunId: journeyDeliveries.journeyRunId,
+        status: journeyDeliveries.status,
+        reasonCode: journeyDeliveries.reasonCode,
+      })
+      .from(journeyDeliveries)
+      .where(eq(journeyDeliveries.actionType, "wait-for-confirmation-timeout"));
+
+    const earliestTimeoutAfterConfirm = timeoutDeliveriesAfterConfirm.find(
+      (delivery) => delivery.id === earliestTimeout.id,
+    );
+    const laterTimeoutAfterConfirm = timeoutDeliveriesAfterConfirm.find(
+      (delivery) => delivery.id === laterTimeout.id,
+    );
+    const resumedSendDeliveries = await db
+      .select({
+        journeyRunId: journeyDeliveries.journeyRunId,
+        status: journeyDeliveries.status,
+      })
+      .from(journeyDeliveries)
+      .where(eq(journeyDeliveries.actionType, "send-resend"));
+
+    expect(earliestTimeoutAfterConfirm?.status).toBe("canceled");
+    expect(earliestTimeoutAfterConfirm?.reasonCode).toBe(
+      "appointment_confirmed",
+    );
+    expect(laterTimeoutAfterConfirm?.status).toBe("planned");
+    expect(confirmedResult.canceledDeliveryIds).toContain(earliestTimeout.id);
+    expect(confirmedResult.canceledDeliveryIds).not.toContain(laterTimeout.id);
+    expect(
+      resumedSendDeliveries.some(
+        (delivery) =>
+          delivery.journeyRunId === earliestTimeout.journeyRunId &&
+          delivery.status === "planned",
+      ),
+    ).toBe(true);
+    expect(
+      resumedSendDeliveries.some(
+        (delivery) => delivery.journeyRunId === laterTimeout.journeyRunId,
+      ),
+    ).toBe(false);
+    expect(scheduleTimeoutRequester).toHaveBeenCalledTimes(2);
+    expect(scheduleResendRequester).toHaveBeenCalledTimes(1);
+    expect(cancelRequester).toHaveBeenCalledTimes(1);
+  });
+
   test("sequential waits produce one wait-resume at a time", async () => {
     const graph: LinearJourneyGraph = {
       attributes: {},
@@ -3067,5 +3806,257 @@ describe("executeWaitResume", () => {
 
     expect(result.scheduledDeliveryIds).toHaveLength(0);
     expect(result.canceledDeliveryIds).toHaveLength(0);
+  });
+});
+
+describe("executeWaitForConfirmationTimeout", () => {
+  let context: ServiceContext;
+
+  beforeEach(async () => {
+    const { org, user } = await createOrg(db as any, {
+      name: "Wait For Confirmation Timeout Org",
+    });
+
+    context = {
+      orgId: org.id,
+      userId: user.id,
+    };
+  });
+
+  async function triggerAndGetWaitForConfirmationDelivery(input: {
+    journeyId: string;
+    appointmentId: string;
+    now: Date;
+  }) {
+    const scheduleTimeoutRequester = mock(async () => ({
+      eventId: "evt-wfc-timeout-setup",
+    }));
+
+    await processJourneyDomainEvent(
+      {
+        id: `evt-wfc-timeout-setup-${Date.now()}`,
+        orgId: context.orgId,
+        type: "appointment.scheduled",
+        payload: createAppointmentPayload({
+          appointmentId: input.appointmentId,
+          status: "scheduled",
+          calendarRequiresConfirmation: true,
+        }),
+        timestamp: input.now.toISOString(),
+      },
+      {
+        providerRequesters: {
+          "wait-for-confirmation-timeout": scheduleTimeoutRequester,
+          "send-resend": mock(async () => ({ eventId: "evt-wfc-send-setup" })),
+          "send-resend-template": mock(async () => ({
+            eventId: "evt-wfc-template-setup",
+          })),
+        },
+        now: input.now,
+        journeyIds: [input.journeyId],
+      },
+    );
+
+    await setTestOrgContext(db, context.orgId);
+
+    const [run] = await db
+      .select({ id: journeyRuns.id })
+      .from(journeyRuns)
+      .orderBy(desc(journeyRuns.id))
+      .limit(1);
+
+    const [delivery] = await db
+      .select({
+        id: journeyDeliveries.id,
+        journeyRunId: journeyDeliveries.journeyRunId,
+        stepKey: journeyDeliveries.stepKey,
+        actionType: journeyDeliveries.actionType,
+      })
+      .from(journeyDeliveries)
+      .where(
+        and(
+          eq(journeyDeliveries.journeyRunId, run!.id),
+          eq(journeyDeliveries.actionType, "wait-for-confirmation-timeout"),
+        ),
+      )
+      .limit(1);
+
+    return { runId: run!.id, delivery: delivery! };
+  }
+
+  test("cancels the run when timeout fires and appointment remains unconfirmed", async () => {
+    const created = await journeyService.create(
+      {
+        name: "Wait For Confirmation Timeout Cancel Journey",
+        graph: createWaitForConfirmationJourneyGraph(),
+      },
+      context,
+    );
+
+    await journeyService.publish(created.id, { mode: "live" }, context);
+
+    const appointmentId = await createQuickAppointment(
+      db as any,
+      context.orgId,
+    );
+
+    await setTestOrgContext(db, context.orgId);
+    const [appointment] = await db
+      .select({ calendarId: appointments.calendarId })
+      .from(appointments)
+      .where(eq(appointments.id, appointmentId))
+      .limit(1);
+    expect(appointment).toBeDefined();
+
+    await db
+      .update(calendars)
+      .set({ requiresConfirmation: true })
+      .where(eq(calendars.id, appointment!.calendarId));
+
+    const { runId, delivery } = await triggerAndGetWaitForConfirmationDelivery({
+      journeyId: created.id,
+      appointmentId,
+      now: new Date("2026-02-16T10:00:00.000Z"),
+    });
+
+    const cancelRequester = mock(async () => ({
+      eventId: "evt-wfc-timeout-cancel",
+    }));
+
+    const result = await executeWaitForConfirmationTimeout(
+      {
+        orgId: context.orgId,
+        journeyRunId: runId,
+        journeyDeliveryId: delivery.id,
+        stepKey: delivery.stepKey,
+      },
+      {
+        cancelRequester,
+        now: new Date("2026-03-10T14:00:00.000Z"),
+      },
+    );
+
+    expect(result.scheduledDeliveryIds).toHaveLength(0);
+
+    await setTestOrgContext(db, context.orgId);
+
+    const [run] = await db
+      .select({ status: journeyRuns.status })
+      .from(journeyRuns)
+      .where(eq(journeyRuns.id, runId))
+      .limit(1);
+
+    const deliveries = await db
+      .select({
+        actionType: journeyDeliveries.actionType,
+        status: journeyDeliveries.status,
+      })
+      .from(journeyDeliveries)
+      .where(eq(journeyDeliveries.journeyRunId, runId));
+
+    const timeoutDelivery = deliveries.find(
+      (entry) => entry.actionType === "wait-for-confirmation-timeout",
+    );
+    const sendDelivery = deliveries.find(
+      (entry) => entry.actionType === "send-resend",
+    );
+
+    expect(run?.status).toBe("canceled");
+    expect(timeoutDelivery?.status).toBe("sent");
+    expect(sendDelivery).toBeUndefined();
+    expect(cancelRequester).toHaveBeenCalledTimes(0);
+  });
+
+  test("continues the run when timeout fires after appointment is already confirmed", async () => {
+    const created = await journeyService.create(
+      {
+        name: "Wait For Confirmation Timeout Continue Journey",
+        graph: createWaitForConfirmationJourneyGraph(),
+      },
+      context,
+    );
+
+    await journeyService.publish(created.id, { mode: "live" }, context);
+
+    const appointmentId = await createQuickAppointment(
+      db as any,
+      context.orgId,
+    );
+
+    await setTestOrgContext(db, context.orgId);
+    const [appointment] = await db
+      .select({ calendarId: appointments.calendarId })
+      .from(appointments)
+      .where(eq(appointments.id, appointmentId))
+      .limit(1);
+    expect(appointment).toBeDefined();
+
+    await db
+      .update(calendars)
+      .set({ requiresConfirmation: true })
+      .where(eq(calendars.id, appointment!.calendarId));
+
+    const { runId, delivery } = await triggerAndGetWaitForConfirmationDelivery({
+      journeyId: created.id,
+      appointmentId,
+      now: new Date("2026-02-16T10:00:00.000Z"),
+    });
+
+    await db
+      .update(appointments)
+      .set({ status: "confirmed" })
+      .where(eq(appointments.id, appointmentId));
+
+    const scheduleRequester = mock(async () => ({
+      eventId: "evt-wfc-timeout-continue",
+    }));
+    const cancelRequester = mock(async () => ({
+      eventId: "evt-wfc-timeout-continue-cancel",
+    }));
+
+    const result = await executeWaitForConfirmationTimeout(
+      {
+        orgId: context.orgId,
+        journeyRunId: runId,
+        journeyDeliveryId: delivery.id,
+        stepKey: delivery.stepKey,
+      },
+      {
+        scheduleRequester,
+        cancelRequester,
+        now: new Date("2026-03-10T14:00:00.000Z"),
+      },
+    );
+
+    await setTestOrgContext(db, context.orgId);
+
+    const [run] = await db
+      .select({ status: journeyRuns.status })
+      .from(journeyRuns)
+      .where(eq(journeyRuns.id, runId))
+      .limit(1);
+
+    const deliveries = await db
+      .select({
+        id: journeyDeliveries.id,
+        actionType: journeyDeliveries.actionType,
+        status: journeyDeliveries.status,
+      })
+      .from(journeyDeliveries)
+      .where(eq(journeyDeliveries.journeyRunId, runId));
+
+    const timeoutDelivery = deliveries.find(
+      (entry) => entry.actionType === "wait-for-confirmation-timeout",
+    );
+    const sendDelivery = deliveries.find(
+      (entry) => entry.actionType === "send-resend",
+    );
+
+    expect(run?.status).not.toBe("canceled");
+    expect(timeoutDelivery?.status).toBe("sent");
+    expect(sendDelivery?.status).toBe("planned");
+    expect(result.scheduledDeliveryIds).toContain(sendDelivery!.id);
+    expect(scheduleRequester).toHaveBeenCalledTimes(1);
+    expect(cancelRequester).toHaveBeenCalledTimes(0);
   });
 });

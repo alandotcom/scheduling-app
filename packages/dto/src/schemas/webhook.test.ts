@@ -189,6 +189,9 @@ describe("appointment webhook event taxonomy", () => {
       webhookEventTypeSchema.safeParse("appointment.rescheduled").success,
     ).toBe(true);
     expect(
+      webhookEventTypeSchema.safeParse("appointment.confirmed").success,
+    ).toBe(true);
+    expect(
       webhookEventTypeSchema.safeParse("appointment.canceled").success,
     ).toBe(true);
   });
@@ -214,6 +217,7 @@ describe("appointment domain event taxonomy", () => {
 
     expect(appointmentLifecycleEventTypes).toEqual([
       "appointment.scheduled",
+      "appointment.confirmed",
       "appointment.rescheduled",
       "appointment.canceled",
     ]);

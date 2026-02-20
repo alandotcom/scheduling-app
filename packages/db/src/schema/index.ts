@@ -194,6 +194,9 @@ export const calendars = pgTable.withRLS(
     locationId: uuid("location_id").references(() => locations.id),
     name: text("name").notNull(),
     timezone: text("timezone").notNull(),
+    requiresConfirmation: boolean("requires_confirmation")
+      .notNull()
+      .default(false),
     ...timestamps,
   },
   () => [
@@ -995,7 +998,7 @@ export const auditEvents = pgTable.withRLS(
       .references(() => orgs.id, { onDelete: "cascade" }),
     actorId: uuid("actor_id").references(() => users.id), // Who performed the action (null for system actions)
     actorType: text("actor_type").notNull(), // 'user' | 'api_token' | 'system'
-    action: text("action").notNull(), // 'create' | 'update' | 'delete' | 'cancel' | 'reschedule' | 'no_show'
+    action: text("action").notNull(), // 'create' | 'update' | 'delete' | 'confirm' | 'cancel' | 'reschedule' | 'no_show'
     entityType: text("entity_type").notNull(), // 'appointment' | 'calendar' | 'location' | 'resource' | 'appointment_type' | 'client'
     entityId: uuid("entity_id").notNull(),
     before: jsonb("before"), // Snapshot of entity before change (null for create)

@@ -1,6 +1,6 @@
-import { appointments, clients, orgs } from "@scheduling/db/schema";
+import { appointments, calendars, clients, orgs } from "@scheduling/db/schema";
 import { eq } from "drizzle-orm";
-import { withOrg } from "../lib/db.js";
+import { withOrg, type DbClient } from "../lib/db.js";
 import { clientCustomAttributeService } from "./client-custom-attributes.js";
 import {
   toDataEnvelopeContext,
@@ -18,6 +18,7 @@ export async function loadDeliveryTemplateContext(input: {
       .select({
         appointmentId: appointments.id,
         calendarId: appointments.calendarId,
+        calendarRequiresConfirmation: calendars.requiresConfirmation,
         appointmentTypeId: appointments.appointmentTypeId,
         clientId: appointments.clientId,
         startAt: appointments.startAt,
@@ -31,6 +32,7 @@ export async function loadDeliveryTemplateContext(input: {
         clientPhone: clients.phone,
       })
       .from(appointments)
+      .leftJoin(calendars, eq(calendars.id, appointments.calendarId))
       .leftJoin(clients, eq(clients.id, appointments.clientId))
       .where(eq(appointments.id, input.appointmentId))
       .limit(1);
@@ -63,6 +65,7 @@ export async function loadDeliveryTemplateContext(input: {
     return {
       appointmentId: row.appointmentId,
       calendarId: row.calendarId,
+      calendarRequiresConfirmation: row.calendarRequiresConfirmation ?? false,
       appointmentTypeId: row.appointmentTypeId,
       clientId: row.clientId,
       startAt: row.startAt.toISOString(),
@@ -73,6 +76,7 @@ export async function loadDeliveryTemplateContext(input: {
       appointment: {
         id: row.appointmentId,
         calendarId: row.calendarId,
+        calendarRequiresConfirmation: row.calendarRequiresConfirmation ?? false,
         appointmentTypeId: row.appointmentTypeId,
         clientId: row.clientId,
         startAt: row.startAt.toISOString(),
@@ -131,52 +135,83 @@ export async function loadFreshContextForPlanner(input: {
   clientContext: Record<string, unknown>;
   orgTimezone: string;
 } | null> {
-  return withOrg(input.orgId, async (tx) => {
-    const [row] = await tx
-      .select({
-        appointmentId: appointments.id,
-        calendarId: appointments.calendarId,
-        appointmentTypeId: appointments.appointmentTypeId,
-        clientId: appointments.clientId,
-        startAt: appointments.startAt,
-        endAt: appointments.endAt,
-        timezone: appointments.timezone,
-        status: appointments.status,
-        notes: appointments.notes,
-        clientFirstName: clients.firstName,
-        clientLastName: clients.lastName,
-        clientEmail: clients.email,
-        clientPhone: clients.phone,
-      })
-      .from(appointments)
-      .leftJoin(clients, eq(clients.id, appointments.clientId))
-      .where(eq(appointments.id, input.appointmentId))
-      .limit(1);
+  return withOrg(input.orgId, async (tx) =>
+    loadFreshContextForPlannerTx({
+      tx,
+      orgId: input.orgId,
+      appointmentId: input.appointmentId,
+    }),
+  );
+}
 
-    if (!row) {
-      return null;
-    }
+async function loadFreshContextForPlannerTx(input: {
+  tx: DbClient;
+  orgId: string;
+  appointmentId: string;
+}): Promise<{
+  appointmentContext: Record<string, unknown>;
+  clientContext: Record<string, unknown>;
+  orgTimezone: string;
+} | null> {
+  const [row] = await input.tx
+    .select({
+      appointmentId: appointments.id,
+      calendarId: appointments.calendarId,
+      calendarRequiresConfirmation: calendars.requiresConfirmation,
+      appointmentTypeId: appointments.appointmentTypeId,
+      clientId: appointments.clientId,
+      startAt: appointments.startAt,
+      endAt: appointments.endAt,
+      timezone: appointments.timezone,
+      status: appointments.status,
+      notes: appointments.notes,
+      clientFirstName: clients.firstName,
+      clientLastName: clients.lastName,
+      clientEmail: clients.email,
+      clientPhone: clients.phone,
+    })
+    .from(appointments)
+    .leftJoin(calendars, eq(calendars.id, appointments.calendarId))
+    .leftJoin(clients, eq(clients.id, appointments.clientId))
+    .where(eq(appointments.id, input.appointmentId))
+    .limit(1);
 
-    const [org] = await tx
-      .select({ defaultTimezone: orgs.defaultTimezone })
-      .from(orgs)
-      .where(eq(orgs.id, input.orgId))
-      .limit(1);
-    const orgTimezone = org?.defaultTimezone ?? DEFAULT_ORG_TIMEZONE;
+  if (!row) {
+    return null;
+  }
 
-    const client = row.clientId
-      ? {
-          id: row.clientId,
-          firstName: row.clientFirstName,
-          lastName: row.clientLastName,
-          email: row.clientEmail,
-          phone: row.clientPhone,
-        }
-      : null;
+  const [org] = await input.tx
+    .select({ defaultTimezone: orgs.defaultTimezone })
+    .from(orgs)
+    .where(eq(orgs.id, input.orgId))
+    .limit(1);
+  const orgTimezone = org?.defaultTimezone ?? DEFAULT_ORG_TIMEZONE;
 
-    const appointmentPayload: Record<string, unknown> = {
-      appointmentId: row.appointmentId,
+  const client = row.clientId
+    ? {
+        id: row.clientId,
+        firstName: row.clientFirstName,
+        lastName: row.clientLastName,
+        email: row.clientEmail,
+        phone: row.clientPhone,
+      }
+    : null;
+
+  const appointmentPayload: Record<string, unknown> = {
+    appointmentId: row.appointmentId,
+    calendarId: row.calendarId,
+    calendarRequiresConfirmation: row.calendarRequiresConfirmation ?? false,
+    appointmentTypeId: row.appointmentTypeId,
+    clientId: row.clientId,
+    startAt: row.startAt.toISOString(),
+    endAt: row.endAt.toISOString(),
+    timezone: row.timezone,
+    status: row.status,
+    notes: row.notes,
+    appointment: {
+      id: row.appointmentId,
       calendarId: row.calendarId,
+      calendarRequiresConfirmation: row.calendarRequiresConfirmation ?? false,
       appointmentTypeId: row.appointmentTypeId,
       clientId: row.clientId,
       startAt: row.startAt.toISOString(),
@@ -184,25 +219,85 @@ export async function loadFreshContextForPlanner(input: {
       timezone: row.timezone,
       status: row.status,
       notes: row.notes,
-      appointment: {
-        id: row.appointmentId,
-        calendarId: row.calendarId,
-        appointmentTypeId: row.appointmentTypeId,
-        clientId: row.clientId,
-        startAt: row.startAt.toISOString(),
-        endAt: row.endAt.toISOString(),
-        timezone: row.timezone,
-        status: row.status,
-        notes: row.notes,
-      },
-      client,
-    };
+    },
+    client,
+  };
 
-    const appointmentContext = toDataEnvelopeContext(appointmentPayload);
-    const clientContext = toOptionalDataEnvelopeContext(client);
+  const appointmentContext = toDataEnvelopeContext(appointmentPayload);
+  const clientContext = toOptionalDataEnvelopeContext(client);
 
-    return { appointmentContext, clientContext, orgTimezone };
-  });
+  return { appointmentContext, clientContext, orgTimezone };
+}
+
+export async function loadFreshContextForPlannerByRunTx(input: {
+  tx: DbClient;
+  orgId: string;
+  triggerEntityType: "appointment" | "client";
+  triggerEntityId: string;
+  appointmentId: string | null;
+  clientId: string | null;
+}): Promise<{
+  appointmentContext: Record<string, unknown>;
+  clientContext: Record<string, unknown>;
+  orgTimezone: string;
+} | null> {
+  if (input.triggerEntityType === "appointment") {
+    const appointmentId = input.appointmentId ?? input.triggerEntityId;
+    return loadFreshContextForPlannerTx({
+      tx: input.tx,
+      orgId: input.orgId,
+      appointmentId,
+    });
+  }
+
+  // Client-trigger runs
+  const clientId = input.clientId ?? input.triggerEntityId;
+  const [clientRow] = await input.tx
+    .select({
+      id: clients.id,
+      firstName: clients.firstName,
+      lastName: clients.lastName,
+      email: clients.email,
+      phone: clients.phone,
+    })
+    .from(clients)
+    .where(eq(clients.id, clientId))
+    .limit(1);
+
+  if (!clientRow) {
+    return null;
+  }
+
+  const [org] = await input.tx
+    .select({ defaultTimezone: orgs.defaultTimezone })
+    .from(orgs)
+    .where(eq(orgs.id, input.orgId))
+    .limit(1);
+  const orgTimezone = org?.defaultTimezone ?? DEFAULT_ORG_TIMEZONE;
+
+  const customAttributes =
+    await clientCustomAttributeService.loadClientCustomAttributes(
+      input.tx,
+      input.orgId,
+      clientRow.id,
+    );
+
+  const clientData: Record<string, unknown> = {
+    id: clientRow.id,
+    clientId: clientRow.id,
+    firstName: clientRow.firstName,
+    lastName: clientRow.lastName,
+    email: clientRow.email,
+    phone: clientRow.phone,
+    customAttributes,
+  };
+  const clientContext = toDataEnvelopeContext(clientData);
+
+  return {
+    appointmentContext: {},
+    clientContext,
+    orgTimezone,
+  };
 }
 
 export async function loadFreshContextForPlannerByRun(input: {
@@ -216,64 +311,16 @@ export async function loadFreshContextForPlannerByRun(input: {
   clientContext: Record<string, unknown>;
   orgTimezone: string;
 } | null> {
-  if (input.triggerEntityType === "appointment") {
-    const appointmentId = input.appointmentId ?? input.triggerEntityId;
-    return loadFreshContextForPlanner({
+  return withOrg(input.orgId, async (tx) =>
+    loadFreshContextForPlannerByRunTx({
+      tx,
       orgId: input.orgId,
-      appointmentId,
-    });
-  }
-
-  // Client-trigger runs
-  const clientId = input.clientId ?? input.triggerEntityId;
-  return withOrg(input.orgId, async (tx) => {
-    const [clientRow] = await tx
-      .select({
-        id: clients.id,
-        firstName: clients.firstName,
-        lastName: clients.lastName,
-        email: clients.email,
-        phone: clients.phone,
-      })
-      .from(clients)
-      .where(eq(clients.id, clientId))
-      .limit(1);
-
-    if (!clientRow) {
-      return null;
-    }
-
-    const [org] = await tx
-      .select({ defaultTimezone: orgs.defaultTimezone })
-      .from(orgs)
-      .where(eq(orgs.id, input.orgId))
-      .limit(1);
-    const orgTimezone = org?.defaultTimezone ?? DEFAULT_ORG_TIMEZONE;
-
-    const customAttributes =
-      await clientCustomAttributeService.loadClientCustomAttributes(
-        tx,
-        input.orgId,
-        clientRow.id,
-      );
-
-    const clientData: Record<string, unknown> = {
-      id: clientRow.id,
-      clientId: clientRow.id,
-      firstName: clientRow.firstName,
-      lastName: clientRow.lastName,
-      email: clientRow.email,
-      phone: clientRow.phone,
-      customAttributes,
-    };
-    const clientContext = toDataEnvelopeContext(clientData);
-
-    return {
-      appointmentContext: {},
-      clientContext,
-      orgTimezone,
-    };
-  });
+      triggerEntityType: input.triggerEntityType,
+      triggerEntityId: input.triggerEntityId,
+      appointmentId: input.appointmentId,
+      clientId: input.clientId,
+    }),
+  );
 }
 
 export async function loadClientDeliveryTemplateContext(input: {

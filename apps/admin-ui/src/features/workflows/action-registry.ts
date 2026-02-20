@@ -156,6 +156,27 @@ registerAction({
 });
 
 registerAction({
+  id: "wait-for-confirmation",
+  label: "Wait For Confirmation",
+  defaultNodeLabel: "Wait For Confirmation",
+  description:
+    "Pause until the appointment is confirmed, or cancel after the appointment start time.",
+  category: "System",
+  icon: "hourglass",
+  configFields: [
+    {
+      key: "confirmationGraceMinutes",
+      label: "Grace minutes after start",
+      type: "number",
+      defaultValue: "0",
+      min: 0,
+      helpText:
+        "Run cancels at appointment start plus this grace period if still unconfirmed.",
+    },
+  ],
+});
+
+registerAction({
   id: "send-resend",
   label: "Send Email",
   defaultNodeLabel: "Resend",

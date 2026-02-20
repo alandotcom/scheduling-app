@@ -154,6 +154,7 @@ CREATE TABLE "calendars" (
 	"location_id" uuid,
 	"name" text NOT NULL,
 	"timezone" text NOT NULL,
+	"requires_confirmation" boolean DEFAULT false NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );

@@ -42,6 +42,7 @@ interface CalendarListItem {
   orgId: string;
   name: string;
   timezone: string;
+  requiresConfirmation: boolean;
   locationId: string | null;
   createdAt: Date;
   updatedAt: Date;

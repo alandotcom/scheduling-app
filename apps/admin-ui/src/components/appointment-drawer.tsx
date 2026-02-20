@@ -124,7 +124,7 @@ export function AppointmentDrawer({
 
   // Confirm mutation
   const confirmMutation = useMutation(
-    orpc.appointments.update.mutationOptions({
+    orpc.appointments.confirm.mutationOptions({
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: orpc.appointments.key() });
         queryClient.invalidateQueries({ queryKey: orpc.clients.key() });
@@ -208,9 +208,7 @@ export function AppointmentDrawer({
   );
 
   const handleConfirm = () => {
-    // Note: confirm would need a dedicated endpoint
-    // For now, show a message since there's no status field in update
-    toast.info("Confirm feature requires API endpoint");
+    confirmMutation.mutate({ id: appointment.id });
   };
 
   return (

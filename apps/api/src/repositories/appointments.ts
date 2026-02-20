@@ -80,6 +80,7 @@ export interface AppointmentWithRelations {
     id: string;
     name: string;
     timezone: string;
+    requiresConfirmation?: boolean;
   } | null;
   appointmentType: {
     id: string;
@@ -140,6 +141,7 @@ export class AppointmentRepository {
           id: calendars.id,
           name: calendars.name,
           timezone: calendars.timezone,
+          requiresConfirmation: calendars.requiresConfirmation,
         },
         appointmentType: {
           id: appointmentTypes.id,
@@ -326,6 +328,7 @@ export class AppointmentRepository {
           id: calendars.id,
           name: calendars.name,
           timezone: calendars.timezone,
+          requiresConfirmation: calendars.requiresConfirmation,
         },
         appointmentType: {
           id: appointmentTypes.id,
@@ -591,6 +594,29 @@ export class AppointmentRepository {
     );
 
     return new Map(snapshots);
+  }
+
+  async findCalendarConfirmationSettingsByIds(
+    tx: DbClient,
+    orgId: string,
+    calendarIds: string[],
+  ): Promise<Map<string, boolean>> {
+    if (calendarIds.length === 0) {
+      return new Map();
+    }
+
+    await setOrgContext(tx, orgId);
+    const rows = await tx
+      .select({
+        id: calendars.id,
+        requiresConfirmation: calendars.requiresConfirmation,
+      })
+      .from(calendars)
+      .where(inArray(calendars.id, calendarIds));
+
+    return new Map(
+      rows.map((row) => [row.id, row.requiresConfirmation ?? false]),
+    );
   }
 
   // Get appointment type with calendar link verification

@@ -1978,6 +1978,133 @@ describe("Appointment Routes", () => {
     });
   });
 
+  describe("confirm", () => {
+    test("confirms appointment (scheduled -> confirmed)", async () => {
+      const { org, user, calendar, appointmentType } =
+        await createFixtureWithAvailability();
+      const ctx = createTestContext({ orgId: org.id, userId: user.id });
+
+      const startAt = getFutureStartTime(1, 10);
+      const endAt = new Date(startAt.getTime() + 60 * 60 * 1000);
+      const appointment = await createAppointment(db, org.id, {
+        calendarId: calendar.id,
+        appointmentTypeId: appointmentType.id,
+        clientId: (await createClient(db, org.id)).id,
+        startAt,
+        endAt,
+        status: "scheduled",
+      });
+
+      const result = await call(
+        appointmentRoutes.confirm,
+        { id: appointment.id },
+        { context: ctx },
+      );
+
+      expect(result!.status).toBe("confirmed");
+    });
+
+    test("throws error when confirming already confirmed appointment", async () => {
+      const { org, user, calendar, appointmentType } =
+        await createFixtureWithAvailability();
+      const ctx = createTestContext({ orgId: org.id, userId: user.id });
+
+      const startAt = getFutureStartTime(1, 10);
+      const endAt = new Date(startAt.getTime() + 60 * 60 * 1000);
+      const appointment = await createAppointment(db, org.id, {
+        calendarId: calendar.id,
+        appointmentTypeId: appointmentType.id,
+        clientId: (await createClient(db, org.id)).id,
+        startAt,
+        endAt,
+        status: "confirmed",
+      });
+
+      await expect(
+        call(
+          appointmentRoutes.confirm,
+          { id: appointment.id },
+          { context: ctx },
+        ),
+      ).rejects.toMatchObject({
+        code: "UNPROCESSABLE_CONTENT",
+      });
+    });
+
+    test("throws error when confirming cancelled appointment", async () => {
+      const { org, user, calendar, appointmentType } =
+        await createFixtureWithAvailability();
+      const ctx = createTestContext({ orgId: org.id, userId: user.id });
+
+      const startAt = getFutureStartTime(1, 10);
+      const endAt = new Date(startAt.getTime() + 60 * 60 * 1000);
+      const appointment = await createAppointment(db, org.id, {
+        calendarId: calendar.id,
+        appointmentTypeId: appointmentType.id,
+        clientId: (await createClient(db, org.id)).id,
+        startAt,
+        endAt,
+        status: "cancelled",
+      });
+
+      await expect(
+        call(
+          appointmentRoutes.confirm,
+          { id: appointment.id },
+          { context: ctx },
+        ),
+      ).rejects.toMatchObject({
+        code: "UNPROCESSABLE_CONTENT",
+        message:
+          "APPOINTMENT_ALREADY_CANCELLED: Cannot confirm a cancelled appointment",
+      });
+    });
+
+    test("throws error when confirming no-show appointment", async () => {
+      const { org, user, calendar, appointmentType } =
+        await createFixtureWithAvailability();
+      const ctx = createTestContext({ orgId: org.id, userId: user.id });
+
+      const startAt = getFutureStartTime(1, 10);
+      const endAt = new Date(startAt.getTime() + 60 * 60 * 1000);
+      const appointment = await createAppointment(db, org.id, {
+        calendarId: calendar.id,
+        appointmentTypeId: appointmentType.id,
+        clientId: (await createClient(db, org.id)).id,
+        startAt,
+        endAt,
+        status: "no_show",
+      });
+
+      await expect(
+        call(
+          appointmentRoutes.confirm,
+          { id: appointment.id },
+          { context: ctx },
+        ),
+      ).rejects.toMatchObject({
+        code: "UNPROCESSABLE_CONTENT",
+        message:
+          "APPOINTMENT_ALREADY_NO_SHOW: Cannot confirm a no-show appointment",
+      });
+    });
+
+    test("throws NOT_FOUND for non-existent appointment", async () => {
+      const { org, user } = await createOrg(db);
+      const ctx = createTestContext({ orgId: org.id, userId: user.id });
+
+      await expect(
+        call(
+          appointmentRoutes.confirm,
+          { id: "00000000-0000-0000-0000-000000000000" },
+          { context: ctx },
+        ),
+      ).rejects.toMatchObject({
+        code: "NOT_FOUND",
+      });
+    });
+  });
+
   describe("noShow", () => {
     test("marks appointment as no-show (scheduled -> no_show)", async () => {
       const { org, user, calendar, appointmentType } =
@@ -2119,6 +2246,7 @@ describe("Appointment Routes", () => {
       expect(routes.appointmentRoutes.update).toBeDefined();
       expect(routes.appointmentRoutes.cancel).toBeDefined();
       expect(routes.appointmentRoutes.reschedule).toBeDefined();
+      expect(routes.appointmentRoutes.confirm).toBeDefined();
       expect(routes.appointmentRoutes.noShow).toBeDefined();
     });
 
@@ -2133,6 +2261,7 @@ describe("Appointment Routes", () => {
       expect(router.appointments.update).toBeDefined();
       expect(router.appointments.cancel).toBeDefined();
       expect(router.appointments.reschedule).toBeDefined();
+      expect(router.appointments.confirm).toBeDefined();
       expect(router.appointments.noShow).toBeDefined();
     });
   });

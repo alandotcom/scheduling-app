@@ -389,6 +389,83 @@ describe("JourneyService", () => {
     expect(published.version).toBe(1);
   });
 
+  test("blocks publish when client journey includes wait-for-confirmation action", async () => {
+    const graph: LinearJourneyGraph = {
+      attributes: {},
+      options: { type: "directed" },
+      nodes: [
+        {
+          key: "client-trigger",
+          attributes: {
+            id: "client-trigger",
+            type: "trigger-node",
+            position: { x: 0, y: 0 },
+            data: {
+              label: "Client Trigger",
+              type: "trigger",
+              config: {
+                triggerType: "ClientJourney",
+                event: "client.created",
+                correlationKey: "clientId",
+              },
+            },
+          },
+        },
+        {
+          key: "wait-confirmation",
+          attributes: {
+            id: "wait-confirmation",
+            type: "action-node",
+            position: { x: 0, y: 120 },
+            data: {
+              label: "Wait For Confirmation",
+              type: "action",
+              config: {
+                actionType: "wait-for-confirmation",
+                confirmationGraceMinutes: 0,
+              },
+            },
+          },
+        },
+      ],
+      edges: [
+        {
+          key: "client-trigger-to-wait",
+          source: "client-trigger",
+          target: "wait-confirmation",
+          attributes: {
+            id: "client-trigger-to-wait",
+            source: "client-trigger",
+            target: "wait-confirmation",
+          },
+        },
+      ],
+    };
+
+    const created = await journeyService.create(
+      {
+        name: "Client Journey Wait Confirmation",
+        graph,
+      },
+      context,
+    );
+
+    await expect(
+      journeyService.publish(
+        created.id,
+        {
+          mode: "live",
+        },
+        context,
+      ),
+    ).rejects.toMatchObject({
+      code: "CONFLICT",
+      details: {
+        code: "JOURNEY_DEFINITION_INVALID",
+      },
+    });
+  });
+
   test("graph updates on published journeys create a new live version for subsequent runs", async () => {
     const location = await createLocation(db as any, context.orgId);
     const calendar = await createCalendar(db as any, context.orgId, {

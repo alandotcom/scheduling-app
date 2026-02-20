@@ -20,6 +20,7 @@ describe("AppointmentsList", () => {
         selectedId={null}
         onSelect={() => {}}
         onReschedule={onReschedule}
+        onConfirm={() => {}}
         onCancel={() => {}}
         onNoShow={() => {}}
       />,
@@ -47,6 +48,7 @@ describe("AppointmentsList", () => {
         selectedId={null}
         onSelect={() => {}}
         onReschedule={() => {}}
+        onConfirm={() => {}}
         onCancel={() => {}}
         onNoShow={() => {}}
       />,
@@ -73,6 +75,7 @@ describe("AppointmentsList", () => {
         selectedId={null}
         onSelect={() => {}}
         onReschedule={() => {}}
+        onConfirm={() => {}}
         onCancel={() => {}}
         onNoShow={() => {}}
         onCreate={onCreate}
@@ -93,6 +96,7 @@ describe("AppointmentsList", () => {
         selectedId={null}
         onSelect={() => {}}
         onReschedule={() => {}}
+        onConfirm={() => {}}
         onCancel={() => {}}
         onNoShow={() => {}}
         onCreate={() => {}}

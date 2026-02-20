@@ -414,6 +414,23 @@ function AppointmentsPage() {
   );
 
   // Cancel mutation
+  const confirmMutation = useMutation(
+    orpc.appointments.confirm.mutationOptions({
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: orpc.appointments.key() });
+        queryClient.invalidateQueries({ queryKey: orpc.clients.key() });
+        queryClient.invalidateQueries({ queryKey: orpc.calendars.key() });
+        queryClient.invalidateQueries({
+          queryKey: orpc.appointmentTypes.key(),
+        });
+      },
+      onError: (error) => {
+        toast.error(error.message || "Failed to confirm appointment");
+      },
+    }),
+  );
+
+  // Cancel mutation
   const cancelMutation = useMutation(
     orpc.appointments.cancel.mutationOptions({
       onSuccess: () => {
@@ -905,6 +922,7 @@ function AppointmentsPage() {
             selectedId={selectedId}
             onSelect={handleSelectAppointment}
             onReschedule={handleRescheduleFromList}
+            onConfirm={(id) => confirmMutation.mutate({ id })}
             onCancel={setCancellingId}
             onNoShow={setNoShowId}
             isLoading={listLoading}

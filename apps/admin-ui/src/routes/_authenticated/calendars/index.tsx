@@ -56,6 +56,7 @@ import { Icon } from "@/components/ui/icon";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ShortcutBadge } from "@/components/ui/shortcut-badge";
+import { Switch } from "@/components/ui/switch";
 import {
   Select,
   SelectContent,
@@ -129,6 +130,7 @@ interface CalendarFormProps {
     name: string;
     timezone: string;
     locationId?: string;
+    requiresConfirmation?: boolean;
   };
   locations: Array<{ id: string; name: string }>;
   onSubmit: (data: CreateCalendarInput) => void;
@@ -174,11 +176,13 @@ function CalendarForm({
     defaultValues: defaultValues ?? {
       name: "",
       timezone: "America/New_York",
+      requiresConfirmation: false,
     },
   });
 
   const timezone = watch("timezone");
   const locationId = watch("locationId");
+  const requiresConfirmation = watch("requiresConfirmation");
 
   const timezoneSelectLabel = resolveSelectValueLabel({
     value: timezone,
@@ -228,6 +232,7 @@ function CalendarForm({
         name: values.name ?? "",
         timezone: values.timezone ?? "America/New_York",
         locationId: values.locationId,
+        requiresConfirmation: values.requiresConfirmation ?? false,
       });
     });
     return () => subscription.unsubscribe();
@@ -323,6 +328,29 @@ function CalendarForm({
               </SelectContent>
             </Select>
             <FieldShortcutHint shortcut="l" visible={hintsVisible} />
+          </div>
+
+          <div className="space-y-2.5">
+            <div className="flex items-start justify-between rounded-lg border border-border/70 px-3 py-3">
+              <div className="pr-3">
+                <Label htmlFor="requires-confirmation">
+                  Require confirmation
+                </Label>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Appointments on this calendar must be confirmed.
+                </p>
+              </div>
+              <Switch
+                id="requires-confirmation"
+                checked={requiresConfirmation ?? false}
+                onCheckedChange={(checked) =>
+                  setValue("requiresConfirmation", checked, {
+                    shouldDirty: true,
+                  })
+                }
+                disabled={isSubmitting}
+              />
+            </div>
           </div>
         </div>
 
@@ -616,6 +644,7 @@ function CreateCalendarForm({
       name: "",
       timezone: "America/New_York",
       locationId: undefined,
+      requiresConfirmation: false,
       weeklySchedule: createEmptyWeeklySchedule(),
     }),
     [],
@@ -635,6 +664,7 @@ function CreateCalendarForm({
         name: draft.name,
         timezone: draft.timezone,
         locationId: draft.locationId,
+        requiresConfirmation: draft.requiresConfirmation,
       }}
       locations={locations}
       onSubmit={(calendar) =>
@@ -1094,6 +1124,8 @@ function CalendarsPage() {
                         name: displayCalendar.name,
                         timezone: displayCalendar.timezone,
                         locationId: displayCalendar.locationId ?? undefined,
+                        requiresConfirmation:
+                          displayCalendar.requiresConfirmation,
                       }}
                       locations={locations}
                       onSubmit={handleUpdate}

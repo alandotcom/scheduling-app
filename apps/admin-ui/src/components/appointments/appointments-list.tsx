@@ -55,6 +55,7 @@ interface AppointmentsListProps {
   selectedId: string | null;
   onSelect: (appointment: AppointmentWithRelations) => void;
   onReschedule: (appointment: AppointmentWithRelations) => void;
+  onConfirm: (id: string) => void;
   onCancel: (id: string) => void;
   onNoShow: (id: string) => void;
   isLoading?: boolean;
@@ -83,6 +84,7 @@ export function AppointmentsList({
   selectedId,
   onSelect,
   onReschedule,
+  onConfirm,
   onCancel,
   onNoShow,
   isLoading,
@@ -116,9 +118,7 @@ export function AppointmentsList({
         items.push({
           label: "Confirm",
           icon: CheckmarkCircle01Icon,
-          onClick: () => {
-            // Confirm logic placeholder
-          },
+          onClick: () => onConfirm(appointment.id),
         });
       }
 

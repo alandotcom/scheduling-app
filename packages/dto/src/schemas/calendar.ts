@@ -14,6 +14,7 @@ export const calendarSchema = z.object({
   locationId: uuidSchema.nullable(),
   name: z.string().min(1, "Name is required").max(255, "Name is too long"),
   timezone: timezoneSchema,
+  requiresConfirmation: z.boolean(),
   ...timestampsSchema.shape,
 });
 
@@ -22,6 +23,7 @@ export const createCalendarSchema = z.object({
   locationId: uuidSchema.optional(),
   name: z.string().min(1, "Name is required").max(255, "Name is too long"),
   timezone: timezoneSchema,
+  requiresConfirmation: z.boolean().optional(),
 });
 
 // Update calendar input
@@ -33,6 +35,7 @@ export const updateCalendarSchema = z.object({
     .max(255, "Name is too long")
     .optional(),
   timezone: timezoneSchema.optional(),
+  requiresConfirmation: z.boolean().optional(),
 });
 
 // List calendars query

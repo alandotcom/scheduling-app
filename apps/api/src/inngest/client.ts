@@ -26,7 +26,8 @@ export type ProviderExecuteEventName =
   | "journey.action.send-resend.execute"
   | "journey.action.send-slack.execute"
   | "journey.action.send-twilio.execute"
-  | "journey.wait-resume.execute";
+  | "journey.wait-resume.execute"
+  | "journey.wait-for-confirmation-timeout.execute";
 
 type SchedulingInternalEvents = {
   "scheduling/dev.ping": {

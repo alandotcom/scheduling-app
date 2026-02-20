@@ -47,6 +47,7 @@ export const journeyDeliveryReasonCodeSchema = z
 
 const supportedJourneyActionTypeSchema = z.enum([
   "wait",
+  "wait-for-confirmation",
   "send-resend",
   "send-resend-template",
   "send-slack",
@@ -252,7 +253,7 @@ export const linearJourneyGraphSchema =
         ctx.addIssue({
           code: "custom",
           message:
-            "Action steps must declare a supported step type (Wait, Send Email, Send Email Template, Send Channel Message, Send SMS, Condition, Logger)",
+            "Action steps must declare a supported step type (Wait, Wait For Confirmation, Send Email, Send Email Template, Send Channel Message, Send SMS, Condition, Logger)",
           path: ["nodes", index, "attributes", "data", "config", "actionType"],
         });
         continue;
@@ -264,7 +265,7 @@ export const linearJourneyGraphSchema =
         ctx.addIssue({
           code: "custom",
           message:
-            "Unsupported step type. Allowed step types are Trigger, Wait, Send Email, Send Email Template, Send Channel Message, Send SMS, Condition, and Logger",
+            "Unsupported step type. Allowed step types are Trigger, Wait, Wait For Confirmation, Send Email, Send Email Template, Send Channel Message, Send SMS, Condition, and Logger",
           path: ["nodes", index, "attributes", "data", "config", "actionType"],
         });
         continue;

@@ -20,12 +20,14 @@ export interface CalendarCreateInput {
   name: string;
   timezone: string;
   locationId?: string | null | undefined;
+  requiresConfirmation?: boolean | undefined;
 }
 
 export interface CalendarUpdateInput {
   name?: string | undefined;
   timezone?: string | undefined;
   locationId?: string | null | undefined;
+  requiresConfirmation?: boolean | undefined;
 }
 
 export interface CalendarListInput extends PaginationInput {
@@ -172,6 +174,7 @@ export class CalendarRepository {
         name: input.name,
         timezone: input.timezone,
         locationId: input.locationId ?? null,
+        requiresConfirmation: input.requiresConfirmation ?? false,
       })
       .returning();
     return result!;

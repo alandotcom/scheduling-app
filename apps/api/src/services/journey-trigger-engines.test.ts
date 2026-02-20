@@ -194,6 +194,58 @@ describe("resolveJourneyTriggerRuntime", () => {
     expect(runtime.routing).toBe("ignore");
   });
 
+  test("ignores appointment.confirmed for appointment trigger routing", () => {
+    const graph = createGraph({
+      triggerType: "AppointmentJourney",
+      start: "appointment.scheduled",
+      restart: "appointment.rescheduled",
+      stop: "appointment.canceled",
+      correlationKey: "appointmentId",
+    });
+
+    const runtime = resolveJourneyTriggerRuntime({
+      graph,
+      eventType: "appointment.confirmed",
+      payload: {
+        appointmentId: "018f4d3a-6d80-7c5b-8a4a-6cb8f8d57d88",
+        calendarId: "018f4d3a-6d80-7c5b-8a4a-6cb8f8d57d11",
+        appointmentTypeId: "018f4d3a-6d80-7c5b-8a4a-6cb8f8d57d12",
+        clientId: "018f4d3a-6d80-7c5b-8a4a-6cb8f8d57d13",
+        startAt: "2026-03-10T14:00:00.000Z",
+        endAt: "2026-03-10T15:00:00.000Z",
+        timezone: "America/New_York",
+        status: "confirmed",
+        notes: null,
+        appointment: {
+          id: "018f4d3a-6d80-7c5b-8a4a-6cb8f8d57d88",
+          calendarId: "018f4d3a-6d80-7c5b-8a4a-6cb8f8d57d11",
+          appointmentTypeId: "018f4d3a-6d80-7c5b-8a4a-6cb8f8d57d12",
+          clientId: "018f4d3a-6d80-7c5b-8a4a-6cb8f8d57d13",
+          startAt: "2026-03-10T14:00:00.000Z",
+          endAt: "2026-03-10T15:00:00.000Z",
+          timezone: "America/New_York",
+          status: "confirmed",
+          notes: null,
+        },
+        client: {
+          id: "018f4d3a-6d80-7c5b-8a4a-6cb8f8d57d13",
+          firstName: "Avery",
+          lastName: "Stone",
+          email: null,
+          phone: "+14155552671",
+          customAttributes: {},
+        },
+      },
+    });
+
+    expect(runtime.status).toBe("resolved");
+    if (runtime.status !== "resolved") {
+      return;
+    }
+
+    expect(runtime.routing).toBe("ignore");
+  });
+
   test("plans client.updated runs only when the tracked attribute changes", () => {
     const graph = createGraph({
       triggerType: "ClientJourney",

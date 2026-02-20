@@ -109,6 +109,21 @@ describe("classifyAppointmentLifecycleEvent", () => {
     });
   });
 
+  test("classifies confirm transitions as appointment.confirmed", () => {
+    const previous = createSnapshot({ status: "scheduled" });
+    const current = createSnapshot({ status: "confirmed" });
+
+    const lifecycleEvent = classifyAppointmentLifecycleEvent({
+      previous,
+      current,
+    });
+
+    expect(lifecycleEvent).toEqual({
+      type: "appointment.confirmed",
+      payload: current,
+    });
+  });
+
   test("returns null for non-lifecycle updates", () => {
     const previous = createSnapshot({ notes: "Initial note" });
     const current = createSnapshot({ notes: "Updated note" });

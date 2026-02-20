@@ -268,6 +268,7 @@ describe("Calendar Routes", () => {
       expect(result!.name).toBe("New Calendar");
       expect(result!.timezone).toBe("America/Los_Angeles");
       expect(result!.orgId).toBe(org.id);
+      expect(result!.requiresConfirmation).toBe(false);
 
       // Verify in database
       await setTestOrgContext(db, org.id);
@@ -370,6 +371,22 @@ describe("Calendar Routes", () => {
       );
 
       expect(result!.timezone).toBe("America/Chicago");
+    });
+
+    test("updates calendar confirmation requirement", async () => {
+      const { org, user } = await createOrg(db);
+      const ctx = createTestContext({ orgId: org.id, userId: user.id });
+      const calendar = await createCalendar(db, org.id, {
+        name: "Needs Confirmation",
+      });
+
+      const result = await call(
+        calendarRoutes.update,
+        { id: calendar.id, data: { requiresConfirmation: true } },
+        { context: ctx },
+      );
+
+      expect(result!.requiresConfirmation).toBe(true);
     });
 
     test("updates calendar location", async () => {

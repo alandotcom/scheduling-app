@@ -165,6 +165,25 @@ const providers: DeliveryProviderSpec[] = [
       );
     },
   },
+  {
+    key: "wait-for-confirmation-timeout",
+    actionTypes: ["wait-for-confirmation-timeout"],
+    channel: "internal",
+    eventName: "journey.wait-for-confirmation-timeout.execute",
+    functionId: "journey-wait-for-confirmation-timeout-execute",
+    retries: 2,
+    maxDispatchAttempts: 1,
+    perFunctionConcurrency: {
+      key: "event.data.orgId",
+      scope: "fn",
+      limit: 10,
+    },
+    dispatch: () => {
+      throw new Error(
+        "wait-for-confirmation-timeout deliveries are intercepted before dispatch; this should never be called.",
+      );
+    },
+  },
 ];
 
 const actionTypeToProvider = new Map<string, DeliveryProviderSpec>();
