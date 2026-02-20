@@ -9,6 +9,7 @@ import {
   createLocation,
   createOrg,
   createOrgMember,
+  createQuickAppointment,
   createTestContext,
   getTestDb,
   setTestOrgContext,
@@ -749,6 +750,9 @@ describe("Journey Routes", () => {
       { context: ownerContext },
     );
 
+    const liveRunApptId = await createQuickAppointment(db, ownerContext.orgId!);
+    const testRunApptId = await createQuickAppointment(db, ownerContext.orgId!);
+
     await setTestOrgContext(db, ownerContext.orgId!);
     const [versionRow] = await db
       .select({ id: journeyVersions.id })
@@ -761,7 +765,7 @@ describe("Journey Routes", () => {
       .values({
         orgId: ownerContext.orgId!,
         journeyVersionId: versionRow!.id,
-        appointmentId: crypto.randomUUID(),
+        appointmentId: liveRunApptId,
         mode: "live",
         status: "completed",
         journeyNameSnapshot: created.name,
@@ -774,7 +778,7 @@ describe("Journey Routes", () => {
       .values({
         orgId: ownerContext.orgId!,
         journeyVersionId: versionRow!.id,
-        appointmentId: crypto.randomUUID(),
+        appointmentId: testRunApptId,
         mode: "test",
         status: "completed",
         journeyNameSnapshot: created.name,
@@ -812,7 +816,10 @@ describe("Journey Routes", () => {
     expect(runDetail.run.mode).toBe("test");
     expect(runDetail.events).toBeArray();
     expect(runDetail.stepLogs).toBeArray();
-    expect(runDetail.triggerContext).toBeNull();
+    expect(runDetail.triggerContext).toMatchObject({
+      appointment: expect.objectContaining({ id: expect.any(String) }),
+      client: expect.objectContaining({ id: expect.any(String) }),
+    });
     expect(liveRun).toBeDefined();
   });
 
@@ -857,6 +864,23 @@ describe("Journey Routes", () => {
       { context: ownerContext },
     );
 
+    const targetRunApptId = await createQuickAppointment(
+      db,
+      ownerContext.orgId!,
+    );
+    const sameJourneyRunApptId = await createQuickAppointment(
+      db,
+      ownerContext.orgId!,
+    );
+    const terminalRunApptId = await createQuickAppointment(
+      db,
+      ownerContext.orgId!,
+    );
+    const otherJourneyRunApptId = await createQuickAppointment(
+      db,
+      ownerContext.orgId!,
+    );
+
     await setTestOrgContext(db, ownerContext.orgId!);
 
     const [primaryVersion] = await db
@@ -876,7 +900,7 @@ describe("Journey Routes", () => {
       .values({
         orgId: ownerContext.orgId!,
         journeyVersionId: primaryVersion!.id,
-        appointmentId: crypto.randomUUID(),
+        appointmentId: targetRunApptId,
         mode: "live",
         status: "running",
         journeyNameSnapshot: primaryJourney.name,
@@ -889,7 +913,7 @@ describe("Journey Routes", () => {
       .values({
         orgId: ownerContext.orgId!,
         journeyVersionId: primaryVersion!.id,
-        appointmentId: crypto.randomUUID(),
+        appointmentId: sameJourneyRunApptId,
         mode: "live",
         status: "planned",
         journeyNameSnapshot: primaryJourney.name,
@@ -902,7 +926,7 @@ describe("Journey Routes", () => {
       .values({
         orgId: ownerContext.orgId!,
         journeyVersionId: primaryVersion!.id,
-        appointmentId: crypto.randomUUID(),
+        appointmentId: terminalRunApptId,
         mode: "live",
         status: "completed",
         journeyNameSnapshot: primaryJourney.name,
@@ -915,7 +939,7 @@ describe("Journey Routes", () => {
       .values({
         orgId: ownerContext.orgId!,
         journeyVersionId: secondaryVersion!.id,
-        appointmentId: crypto.randomUUID(),
+        appointmentId: otherJourneyRunApptId,
         mode: "live",
         status: "running",
         journeyNameSnapshot: secondaryJourney.name,

@@ -6,7 +6,10 @@ export const timestampSchema = z.coerce.date();
 export const timezoneSchema = z.string().min(1, "Timezone is required"); // IANA timezone, e.g., 'America/New_York'
 export const timeSchema = z
   .string()
-  .regex(/^([01]\d|2[0-3]):([0-5]\d)$/, "Must be HH:MM format");
+  .regex(
+    /^([01]\d|2[0-3]):([0-5]\d)(:[0-5]\d)?$/,
+    "Must be HH:MM or HH:MM:SS format",
+  );
 export const dateSchema = z
   .string()
   .regex(/^\d{4}-\d{2}-\d{2}$/, "Must be YYYY-MM-DD format");

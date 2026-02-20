@@ -409,6 +409,7 @@ export async function createBlockedTime(
  */
 export async function createSchedulingLimits(
   db: Database,
+  orgId: string,
   options: {
     calendarId?: string;
     groupId?: string;
@@ -422,6 +423,7 @@ export async function createSchedulingLimits(
   const [limits] = await db
     .insert(schedulingLimits)
     .values({
+      orgId,
       calendarId: options.calendarId ?? null,
       groupId: options.groupId ?? null,
       minNoticeHours: options.minNoticeHours ?? null,
@@ -433,6 +435,51 @@ export async function createSchedulingLimits(
     .returning();
 
   return limits!;
+}
+
+/**
+ * Create a minimal appointment for FK references (e.g. journey runs).
+ * Sets org context internally.
+ */
+export async function createQuickAppointment(
+  db: Database,
+  orgId: string,
+): Promise<string> {
+  await setTestOrgContext(db, orgId);
+  try {
+    const [loc] = await db
+      .insert(locations)
+      .values({ orgId, name: "FK Loc", timezone: "UTC" })
+      .returning();
+    const [cal] = await db
+      .insert(calendars)
+      .values({ orgId, locationId: loc!.id, name: "FK Cal", timezone: "UTC" })
+      .returning();
+    const [at] = await db
+      .insert(appointmentTypes)
+      .values({ orgId, name: "FK Appt Type", durationMin: 30 })
+      .returning();
+    const [client] = await db
+      .insert(clients)
+      .values({ orgId, firstName: "FK", lastName: "Client" })
+      .returning();
+    const [appt] = await db
+      .insert(appointments)
+      .values({
+        orgId,
+        calendarId: cal!.id,
+        appointmentTypeId: at!.id,
+        clientId: client!.id,
+        startAt: new Date("2026-03-01T10:00:00Z"),
+        endAt: new Date("2026-03-01T10:30:00Z"),
+        timezone: "UTC",
+        status: "scheduled",
+      })
+      .returning();
+    return appt!.id;
+  } finally {
+    await clearTestOrgContext(db);
+  }
 }
 
 /**

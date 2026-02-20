@@ -18,6 +18,7 @@ import {
   createCalendar,
   createClient,
   createOrg,
+  createQuickAppointment,
 } from "../test-utils/factories.js";
 import type { ServiceContext } from "./locations.js";
 import { executeJourneyDeliveryScheduled } from "./journey-delivery-worker.js";
@@ -131,6 +132,10 @@ async function seedPlannedDelivery(
   const channel = input?.channel ?? "email";
   const mode = input?.mode ?? "live";
 
+  const appointmentId =
+    input?.appointmentId ??
+    (await createQuickAppointment(db as any, context.orgId));
+
   await setTestOrgContext(db, context.orgId);
 
   const [run] = await db
@@ -138,7 +143,7 @@ async function seedPlannedDelivery(
     .values({
       orgId: context.orgId,
       journeyVersionId: null,
-      appointmentId: input?.appointmentId ?? crypto.randomUUID(),
+      appointmentId,
       mode,
       status: "planned",
       journeyNameSnapshot: "Worker Journey",

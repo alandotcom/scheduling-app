@@ -26,6 +26,7 @@ export {
   createBlockedTime,
   createSchedulingLimits,
   createTestFixture,
+  createQuickAppointment,
 } from "./factories.js";
 
 // Setup utilities

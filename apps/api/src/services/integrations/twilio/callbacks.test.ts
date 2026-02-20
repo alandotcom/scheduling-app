@@ -7,6 +7,7 @@ import {
 } from "@scheduling/db/schema";
 import {
   createOrg,
+  createQuickAppointment,
   getTestDb,
   setTestOrgContext,
   type TestDatabase,
@@ -17,6 +18,8 @@ import { applyTwilioStatusCallback } from "./callbacks.js";
 const db: TestDatabase = getTestDb();
 
 async function seedTwilioDelivery(context: ServiceContext) {
+  const appointmentId = await createQuickAppointment(db as any, context.orgId);
+
   await setTestOrgContext(db, context.orgId);
 
   const scheduledFor = new Date("2026-02-16T09:00:00.000Z");
@@ -25,7 +28,7 @@ async function seedTwilioDelivery(context: ServiceContext) {
     .values({
       orgId: context.orgId,
       journeyVersionId: null,
-      appointmentId: crypto.randomUUID(),
+      appointmentId,
       mode: "live",
       status: "running",
       journeyNameSnapshot: "Callback Journey",

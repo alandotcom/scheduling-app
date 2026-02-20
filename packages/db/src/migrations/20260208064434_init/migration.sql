@@ -1,6 +1,7 @@
 -- Extensions
 CREATE EXTENSION IF NOT EXISTS btree_gist;
 CREATE EXTENSION IF NOT EXISTS citext;
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
 --> statement-breakpoint
 -- RLS helper functions (must exist before policies)
 CREATE OR REPLACE FUNCTION current_org_id() RETURNS uuid AS $$
@@ -122,7 +123,7 @@ ALTER TABLE "audit_events" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
 CREATE TABLE "availability_overrides" (
 	"id" uuid PRIMARY KEY DEFAULT uuidv7(),
 	"calendar_id" uuid NOT NULL,
-	"date" text NOT NULL,
+	"date" date NOT NULL,
 	"time_ranges" jsonb DEFAULT '[]' NOT NULL,
 	"interval_min" integer,
 	"group_id" uuid
@@ -132,8 +133,8 @@ CREATE TABLE "availability_rules" (
 	"id" uuid PRIMARY KEY DEFAULT uuidv7(),
 	"calendar_id" uuid NOT NULL,
 	"weekday" integer NOT NULL,
-	"start_time" text NOT NULL,
-	"end_time" text NOT NULL,
+	"start_time" time NOT NULL,
+	"end_time" time NOT NULL,
 	"interval_min" integer,
 	"group_id" uuid
 );
@@ -376,6 +377,7 @@ CREATE TABLE "resources" (
 ALTER TABLE "resources" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
 CREATE TABLE "scheduling_limits" (
 	"id" uuid PRIMARY KEY DEFAULT uuidv7(),
+	"org_id" uuid NOT NULL,
 	"calendar_id" uuid,
 	"group_id" uuid,
 	"min_notice_hours" integer,
@@ -427,7 +429,10 @@ CREATE INDEX "appointment_type_resources_resource_idx" ON "appointment_type_reso
 CREATE INDEX "appointments_org_start_at_id_idx" ON "appointments" ("org_id","start_at","id");--> statement-breakpoint
 CREATE INDEX "appointments_calendar_start_at_idx" ON "appointments" ("calendar_id","start_at") WHERE "status" <> 'cancelled';--> statement-breakpoint
 CREATE INDEX "appointments_calendar_range_gist_idx" ON "appointments" USING gist ("calendar_id",tstzrange("start_at", "end_at", '[)')) WHERE "status" <> 'cancelled';--> statement-breakpoint
-CREATE INDEX "audit_events_action_id_idx" ON "audit_events" ("action","id");--> statement-breakpoint
+CREATE INDEX "audit_events_org_id_idx" ON "audit_events" ("org_id","id");--> statement-breakpoint
+CREATE INDEX "audit_events_org_entity_id_idx" ON "audit_events" ("org_id","entity_type","entity_id","id");--> statement-breakpoint
+CREATE INDEX "audit_events_org_created_at_id_idx" ON "audit_events" ("org_id","created_at","id");--> statement-breakpoint
+CREATE INDEX "audit_events_created_at_brin_idx" ON "audit_events" USING brin ("created_at");--> statement-breakpoint
 CREATE UNIQUE INDEX "availability_overrides_calendar_date_unique_idx" ON "availability_overrides" ("calendar_id","date");--> statement-breakpoint
 CREATE INDEX "availability_overrides_calendar_id_id_idx" ON "availability_overrides" ("calendar_id","id");--> statement-breakpoint
 CREATE INDEX "availability_rules_calendar_weekday_start_id_idx" ON "availability_rules" ("calendar_id","weekday","start_time","id");--> statement-breakpoint
@@ -441,7 +446,6 @@ CREATE UNIQUE INDEX "clients_org_email_unique_idx" ON "clients" ("org_id","email
 CREATE UNIQUE INDEX "clients_org_phone_unique_idx" ON "clients" ("org_id","phone") WHERE "phone" IS NOT NULL;--> statement-breakpoint
 CREATE UNIQUE INDEX "clients_org_reference_id_unique_idx" ON "clients" ("org_id","reference_id") WHERE "reference_id" IS NOT NULL;--> statement-breakpoint
 CREATE UNIQUE INDEX "integrations_org_key_unique_idx" ON "integrations" ("org_id","key");--> statement-breakpoint
-CREATE INDEX "integrations_org_key_idx" ON "integrations" ("org_id","key");--> statement-breakpoint
 CREATE UNIQUE INDEX "journey_deliveries_org_deterministic_key_uidx" ON "journey_deliveries" ("org_id","deterministic_key");--> statement-breakpoint
 CREATE INDEX "journey_deliveries_org_run_scheduled_for_idx" ON "journey_deliveries" ("org_id","journey_run_id","scheduled_for");--> statement-breakpoint
 CREATE INDEX "journey_deliveries_org_status_idx" ON "journey_deliveries" ("org_id","status");--> statement-breakpoint
@@ -458,47 +462,56 @@ CREATE UNIQUE INDEX "journeys_org_name_ci_uidx" ON "journeys" ("org_id",lower("n
 CREATE INDEX "journeys_org_updated_at_id_idx" ON "journeys" ("org_id","updated_at","id");--> statement-breakpoint
 CREATE UNIQUE INDEX "org_memberships_org_user_idx" ON "org_memberships" ("org_id","user_id");--> statement-breakpoint
 CREATE INDEX "scheduling_limits_calendar_id_idx" ON "scheduling_limits" ("calendar_id");--> statement-breakpoint
+CREATE INDEX "appointments_client_id_idx" ON "appointments" ("client_id");--> statement-breakpoint
+CREATE INDEX "appointments_appointment_type_id_active_idx" ON "appointments" ("appointment_type_id") WHERE "status" <> 'cancelled';--> statement-breakpoint
+CREATE INDEX "sessions_user_id_idx" ON "sessions" ("user_id");--> statement-breakpoint
+CREATE INDEX "accounts_user_id_idx" ON "accounts" ("user_id");--> statement-breakpoint
+CREATE INDEX "clients_search_trgm_idx" ON "clients" USING gin ((first_name || ' ' || last_name || ' ' || COALESCE(email::text, '')) gin_trgm_ops);--> statement-breakpoint
+CREATE INDEX "journey_run_events_created_at_brin_idx" ON "journey_run_events" USING brin ("created_at");--> statement-breakpoint
+CREATE INDEX "journey_run_step_logs_created_at_brin_idx" ON "journey_run_step_logs" USING brin ("created_at");--> statement-breakpoint
 ALTER TABLE "accounts" ADD CONSTRAINT "accounts_user_id_users_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE;--> statement-breakpoint
 ALTER TABLE "apikey" ADD CONSTRAINT "apikey_user_id_users_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE;--> statement-breakpoint
 ALTER TABLE "appointment_type_calendars" ADD CONSTRAINT "appointment_type_calendars_gHcf7toxCUtt_fkey" FOREIGN KEY ("appointment_type_id") REFERENCES "appointment_types"("id") ON DELETE CASCADE;--> statement-breakpoint
 ALTER TABLE "appointment_type_calendars" ADD CONSTRAINT "appointment_type_calendars_calendar_id_calendars_id_fkey" FOREIGN KEY ("calendar_id") REFERENCES "calendars"("id") ON DELETE CASCADE;--> statement-breakpoint
 ALTER TABLE "appointment_type_resources" ADD CONSTRAINT "appointment_type_resources_6XPhdSeLmkCN_fkey" FOREIGN KEY ("appointment_type_id") REFERENCES "appointment_types"("id") ON DELETE CASCADE;--> statement-breakpoint
 ALTER TABLE "appointment_type_resources" ADD CONSTRAINT "appointment_type_resources_resource_id_resources_id_fkey" FOREIGN KEY ("resource_id") REFERENCES "resources"("id") ON DELETE CASCADE;--> statement-breakpoint
-ALTER TABLE "appointment_types" ADD CONSTRAINT "appointment_types_org_id_orgs_id_fkey" FOREIGN KEY ("org_id") REFERENCES "orgs"("id");--> statement-breakpoint
-ALTER TABLE "appointments" ADD CONSTRAINT "appointments_org_id_orgs_id_fkey" FOREIGN KEY ("org_id") REFERENCES "orgs"("id");--> statement-breakpoint
+ALTER TABLE "appointment_types" ADD CONSTRAINT "appointment_types_org_id_orgs_id_fkey" FOREIGN KEY ("org_id") REFERENCES "orgs"("id") ON DELETE CASCADE;--> statement-breakpoint
+ALTER TABLE "appointments" ADD CONSTRAINT "appointments_org_id_orgs_id_fkey" FOREIGN KEY ("org_id") REFERENCES "orgs"("id") ON DELETE CASCADE;--> statement-breakpoint
 ALTER TABLE "appointments" ADD CONSTRAINT "appointments_calendar_id_calendars_id_fkey" FOREIGN KEY ("calendar_id") REFERENCES "calendars"("id") ON DELETE CASCADE;--> statement-breakpoint
 ALTER TABLE "appointments" ADD CONSTRAINT "appointments_appointment_type_id_appointment_types_id_fkey" FOREIGN KEY ("appointment_type_id") REFERENCES "appointment_types"("id") ON DELETE CASCADE;--> statement-breakpoint
 ALTER TABLE "appointments" ADD CONSTRAINT "appointments_client_id_clients_id_fkey" FOREIGN KEY ("client_id") REFERENCES "clients"("id") ON DELETE CASCADE;--> statement-breakpoint
-ALTER TABLE "audit_events" ADD CONSTRAINT "audit_events_org_id_orgs_id_fkey" FOREIGN KEY ("org_id") REFERENCES "orgs"("id");--> statement-breakpoint
+ALTER TABLE "audit_events" ADD CONSTRAINT "audit_events_org_id_orgs_id_fkey" FOREIGN KEY ("org_id") REFERENCES "orgs"("id") ON DELETE CASCADE;--> statement-breakpoint
 ALTER TABLE "audit_events" ADD CONSTRAINT "audit_events_actor_id_users_id_fkey" FOREIGN KEY ("actor_id") REFERENCES "users"("id");--> statement-breakpoint
 ALTER TABLE "availability_overrides" ADD CONSTRAINT "availability_overrides_calendar_id_calendars_id_fkey" FOREIGN KEY ("calendar_id") REFERENCES "calendars"("id") ON DELETE CASCADE;--> statement-breakpoint
 ALTER TABLE "availability_rules" ADD CONSTRAINT "availability_rules_calendar_id_calendars_id_fkey" FOREIGN KEY ("calendar_id") REFERENCES "calendars"("id") ON DELETE CASCADE;--> statement-breakpoint
 ALTER TABLE "blocked_time" ADD CONSTRAINT "blocked_time_calendar_id_calendars_id_fkey" FOREIGN KEY ("calendar_id") REFERENCES "calendars"("id") ON DELETE CASCADE;--> statement-breakpoint
-ALTER TABLE "calendars" ADD CONSTRAINT "calendars_org_id_orgs_id_fkey" FOREIGN KEY ("org_id") REFERENCES "orgs"("id");--> statement-breakpoint
+ALTER TABLE "calendars" ADD CONSTRAINT "calendars_org_id_orgs_id_fkey" FOREIGN KEY ("org_id") REFERENCES "orgs"("id") ON DELETE CASCADE;--> statement-breakpoint
 ALTER TABLE "calendars" ADD CONSTRAINT "calendars_location_id_locations_id_fkey" FOREIGN KEY ("location_id") REFERENCES "locations"("id");--> statement-breakpoint
-ALTER TABLE "clients" ADD CONSTRAINT "clients_org_id_orgs_id_fkey" FOREIGN KEY ("org_id") REFERENCES "orgs"("id");--> statement-breakpoint
-ALTER TABLE "integrations" ADD CONSTRAINT "integrations_org_id_orgs_id_fkey" FOREIGN KEY ("org_id") REFERENCES "orgs"("id");--> statement-breakpoint
-ALTER TABLE "journey_deliveries" ADD CONSTRAINT "journey_deliveries_org_id_orgs_id_fkey" FOREIGN KEY ("org_id") REFERENCES "orgs"("id");--> statement-breakpoint
+ALTER TABLE "clients" ADD CONSTRAINT "clients_org_id_orgs_id_fkey" FOREIGN KEY ("org_id") REFERENCES "orgs"("id") ON DELETE CASCADE;--> statement-breakpoint
+ALTER TABLE "integrations" ADD CONSTRAINT "integrations_org_id_orgs_id_fkey" FOREIGN KEY ("org_id") REFERENCES "orgs"("id") ON DELETE CASCADE;--> statement-breakpoint
+ALTER TABLE "journey_deliveries" ADD CONSTRAINT "journey_deliveries_org_id_orgs_id_fkey" FOREIGN KEY ("org_id") REFERENCES "orgs"("id") ON DELETE CASCADE;--> statement-breakpoint
 ALTER TABLE "journey_deliveries" ADD CONSTRAINT "journey_deliveries_journey_run_id_journey_runs_id_fkey" FOREIGN KEY ("journey_run_id") REFERENCES "journey_runs"("id") ON DELETE CASCADE;--> statement-breakpoint
-ALTER TABLE "journey_runs" ADD CONSTRAINT "journey_runs_org_id_orgs_id_fkey" FOREIGN KEY ("org_id") REFERENCES "orgs"("id");--> statement-breakpoint
+ALTER TABLE "journey_runs" ADD CONSTRAINT "journey_runs_org_id_orgs_id_fkey" FOREIGN KEY ("org_id") REFERENCES "orgs"("id") ON DELETE CASCADE;--> statement-breakpoint
 ALTER TABLE "journey_runs" ADD CONSTRAINT "journey_runs_journey_version_id_journey_versions_id_fkey" FOREIGN KEY ("journey_version_id") REFERENCES "journey_versions"("id") ON DELETE SET NULL;--> statement-breakpoint
-ALTER TABLE "journey_run_events" ADD CONSTRAINT "journey_run_events_org_id_orgs_id_fkey" FOREIGN KEY ("org_id") REFERENCES "orgs"("id");--> statement-breakpoint
+ALTER TABLE "journey_run_events" ADD CONSTRAINT "journey_run_events_org_id_orgs_id_fkey" FOREIGN KEY ("org_id") REFERENCES "orgs"("id") ON DELETE CASCADE;--> statement-breakpoint
 ALTER TABLE "journey_run_events" ADD CONSTRAINT "journey_run_events_journey_run_id_journey_runs_id_fkey" FOREIGN KEY ("journey_run_id") REFERENCES "journey_runs"("id") ON DELETE CASCADE;--> statement-breakpoint
-ALTER TABLE "journey_run_step_logs" ADD CONSTRAINT "journey_run_step_logs_org_id_orgs_id_fkey" FOREIGN KEY ("org_id") REFERENCES "orgs"("id");--> statement-breakpoint
+ALTER TABLE "journey_run_step_logs" ADD CONSTRAINT "journey_run_step_logs_org_id_orgs_id_fkey" FOREIGN KEY ("org_id") REFERENCES "orgs"("id") ON DELETE CASCADE;--> statement-breakpoint
 ALTER TABLE "journey_run_step_logs" ADD CONSTRAINT "journey_run_step_logs_journey_run_id_journey_runs_id_fkey" FOREIGN KEY ("journey_run_id") REFERENCES "journey_runs"("id") ON DELETE CASCADE;--> statement-breakpoint
-ALTER TABLE "journey_versions" ADD CONSTRAINT "journey_versions_org_id_orgs_id_fkey" FOREIGN KEY ("org_id") REFERENCES "orgs"("id");--> statement-breakpoint
+ALTER TABLE "journey_versions" ADD CONSTRAINT "journey_versions_org_id_orgs_id_fkey" FOREIGN KEY ("org_id") REFERENCES "orgs"("id") ON DELETE CASCADE;--> statement-breakpoint
 ALTER TABLE "journey_versions" ADD CONSTRAINT "journey_versions_journey_id_journeys_id_fkey" FOREIGN KEY ("journey_id") REFERENCES "journeys"("id") ON DELETE CASCADE;--> statement-breakpoint
-ALTER TABLE "journeys" ADD CONSTRAINT "journeys_org_id_orgs_id_fkey" FOREIGN KEY ("org_id") REFERENCES "orgs"("id");--> statement-breakpoint
-ALTER TABLE "locations" ADD CONSTRAINT "locations_org_id_orgs_id_fkey" FOREIGN KEY ("org_id") REFERENCES "orgs"("id");--> statement-breakpoint
+ALTER TABLE "journeys" ADD CONSTRAINT "journeys_org_id_orgs_id_fkey" FOREIGN KEY ("org_id") REFERENCES "orgs"("id") ON DELETE CASCADE;--> statement-breakpoint
+ALTER TABLE "locations" ADD CONSTRAINT "locations_org_id_orgs_id_fkey" FOREIGN KEY ("org_id") REFERENCES "orgs"("id") ON DELETE CASCADE;--> statement-breakpoint
 ALTER TABLE "org_invitations" ADD CONSTRAINT "org_invitations_org_id_orgs_id_fkey" FOREIGN KEY ("org_id") REFERENCES "orgs"("id") ON DELETE CASCADE;--> statement-breakpoint
 ALTER TABLE "org_invitations" ADD CONSTRAINT "org_invitations_inviter_id_users_id_fkey" FOREIGN KEY ("inviter_id") REFERENCES "users"("id") ON DELETE CASCADE;--> statement-breakpoint
 ALTER TABLE "org_memberships" ADD CONSTRAINT "org_memberships_org_id_orgs_id_fkey" FOREIGN KEY ("org_id") REFERENCES "orgs"("id") ON DELETE CASCADE;--> statement-breakpoint
 ALTER TABLE "org_memberships" ADD CONSTRAINT "org_memberships_user_id_users_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE;--> statement-breakpoint
-ALTER TABLE "resources" ADD CONSTRAINT "resources_org_id_orgs_id_fkey" FOREIGN KEY ("org_id") REFERENCES "orgs"("id");--> statement-breakpoint
+ALTER TABLE "resources" ADD CONSTRAINT "resources_org_id_orgs_id_fkey" FOREIGN KEY ("org_id") REFERENCES "orgs"("id") ON DELETE CASCADE;--> statement-breakpoint
 ALTER TABLE "resources" ADD CONSTRAINT "resources_location_id_locations_id_fkey" FOREIGN KEY ("location_id") REFERENCES "locations"("id");--> statement-breakpoint
 ALTER TABLE "scheduling_limits" ADD CONSTRAINT "scheduling_limits_calendar_id_calendars_id_fkey" FOREIGN KEY ("calendar_id") REFERENCES "calendars"("id") ON DELETE CASCADE;--> statement-breakpoint
 ALTER TABLE "sessions" ADD CONSTRAINT "sessions_user_id_users_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE;--> statement-breakpoint
 ALTER TABLE "sessions" ADD CONSTRAINT "sessions_impersonated_by_users_id_fkey" FOREIGN KEY ("impersonated_by") REFERENCES "users"("id") ON DELETE SET NULL;--> statement-breakpoint
+ALTER TABLE "journey_runs" ADD CONSTRAINT "journey_runs_appointment_id_appointments_id_fkey" FOREIGN KEY ("appointment_id") REFERENCES "appointments"("id") ON DELETE CASCADE;--> statement-breakpoint
+ALTER TABLE "scheduling_limits" ADD CONSTRAINT "scheduling_limits_org_id_orgs_id_fkey" FOREIGN KEY ("org_id") REFERENCES "orgs"("id") ON DELETE CASCADE;--> statement-breakpoint
 CREATE POLICY "org_isolation_appointment_types" ON "appointment_types" AS PERMISSIVE FOR ALL TO public USING (org_id = current_org_id()) WITH CHECK (org_id = current_org_id());--> statement-breakpoint
 CREATE POLICY "org_isolation_appointments" ON "appointments" AS PERMISSIVE FOR ALL TO public USING (org_id = current_org_id()) WITH CHECK (org_id = current_org_id());--> statement-breakpoint
 CREATE POLICY "org_isolation_audit_events" ON "audit_events" AS PERMISSIVE FOR ALL TO public USING (org_id = current_org_id()) WITH CHECK (org_id = current_org_id());--> statement-breakpoint
@@ -516,8 +529,33 @@ CREATE POLICY "org_isolation_resources" ON "resources" AS PERMISSIVE FOR ALL TO 
 CREATE UNIQUE INDEX "client_cad_org_field_key_uidx" ON "client_custom_attribute_definitions" USING btree ("org_id","field_key");--> statement-breakpoint
 CREATE UNIQUE INDEX "client_cad_org_slot_column_uidx" ON "client_custom_attribute_definitions" USING btree ("org_id","slot_column");--> statement-breakpoint
 CREATE UNIQUE INDEX "client_cav_org_client_uidx" ON "client_custom_attribute_values" USING btree ("org_id","client_id");--> statement-breakpoint
-ALTER TABLE "client_custom_attribute_definitions" ADD CONSTRAINT "client_custom_attribute_definitions_org_id_orgs_id_fkey" FOREIGN KEY ("org_id") REFERENCES "orgs"("id");--> statement-breakpoint
-ALTER TABLE "client_custom_attribute_values" ADD CONSTRAINT "client_custom_attribute_values_org_id_orgs_id_fkey" FOREIGN KEY ("org_id") REFERENCES "orgs"("id");--> statement-breakpoint
+ALTER TABLE "client_custom_attribute_definitions" ADD CONSTRAINT "client_custom_attribute_definitions_org_id_orgs_id_fkey" FOREIGN KEY ("org_id") REFERENCES "orgs"("id") ON DELETE CASCADE;--> statement-breakpoint
+ALTER TABLE "client_custom_attribute_values" ADD CONSTRAINT "client_custom_attribute_values_org_id_orgs_id_fkey" FOREIGN KEY ("org_id") REFERENCES "orgs"("id") ON DELETE CASCADE;--> statement-breakpoint
 ALTER TABLE "client_custom_attribute_values" ADD CONSTRAINT "client_custom_attribute_values_client_id_clients_id_fkey" FOREIGN KEY ("client_id") REFERENCES "clients"("id") ON DELETE CASCADE;--> statement-breakpoint
 CREATE POLICY "org_isolation_client_custom_attribute_definitions" ON "client_custom_attribute_definitions" AS PERMISSIVE FOR ALL TO public USING (org_id = current_org_id()) WITH CHECK (org_id = current_org_id());--> statement-breakpoint
 CREATE POLICY "org_isolation_client_custom_attribute_values" ON "client_custom_attribute_values" AS PERMISSIVE FOR ALL TO public USING (org_id = current_org_id()) WITH CHECK (org_id = current_org_id());
+--> statement-breakpoint
+CREATE OR REPLACE FUNCTION set_updated_at() RETURNS TRIGGER AS $$
+BEGIN NEW.updated_at = now(); RETURN NEW; END;
+$$ LANGUAGE plpgsql;
+--> statement-breakpoint
+CREATE TRIGGER set_updated_at_accounts BEFORE UPDATE ON accounts FOR EACH ROW EXECUTE FUNCTION set_updated_at();--> statement-breakpoint
+CREATE TRIGGER set_updated_at_apikey BEFORE UPDATE ON apikey FOR EACH ROW EXECUTE FUNCTION set_updated_at();--> statement-breakpoint
+CREATE TRIGGER set_updated_at_users BEFORE UPDATE ON users FOR EACH ROW EXECUTE FUNCTION set_updated_at();--> statement-breakpoint
+CREATE TRIGGER set_updated_at_sessions BEFORE UPDATE ON sessions FOR EACH ROW EXECUTE FUNCTION set_updated_at();--> statement-breakpoint
+CREATE TRIGGER set_updated_at_verifications BEFORE UPDATE ON verifications FOR EACH ROW EXECUTE FUNCTION set_updated_at();--> statement-breakpoint
+CREATE TRIGGER set_updated_at_org_memberships BEFORE UPDATE ON org_memberships FOR EACH ROW EXECUTE FUNCTION set_updated_at();--> statement-breakpoint
+CREATE TRIGGER set_updated_at_orgs BEFORE UPDATE ON orgs FOR EACH ROW EXECUTE FUNCTION set_updated_at();--> statement-breakpoint
+CREATE TRIGGER set_updated_at_locations BEFORE UPDATE ON locations FOR EACH ROW EXECUTE FUNCTION set_updated_at();--> statement-breakpoint
+CREATE TRIGGER set_updated_at_calendars BEFORE UPDATE ON calendars FOR EACH ROW EXECUTE FUNCTION set_updated_at();--> statement-breakpoint
+CREATE TRIGGER set_updated_at_appointment_types BEFORE UPDATE ON appointment_types FOR EACH ROW EXECUTE FUNCTION set_updated_at();--> statement-breakpoint
+CREATE TRIGGER set_updated_at_resources BEFORE UPDATE ON resources FOR EACH ROW EXECUTE FUNCTION set_updated_at();--> statement-breakpoint
+CREATE TRIGGER set_updated_at_clients BEFORE UPDATE ON clients FOR EACH ROW EXECUTE FUNCTION set_updated_at();--> statement-breakpoint
+CREATE TRIGGER set_updated_at_client_custom_attribute_definitions BEFORE UPDATE ON client_custom_attribute_definitions FOR EACH ROW EXECUTE FUNCTION set_updated_at();--> statement-breakpoint
+CREATE TRIGGER set_updated_at_client_custom_attribute_values BEFORE UPDATE ON client_custom_attribute_values FOR EACH ROW EXECUTE FUNCTION set_updated_at();--> statement-breakpoint
+CREATE TRIGGER set_updated_at_integrations BEFORE UPDATE ON integrations FOR EACH ROW EXECUTE FUNCTION set_updated_at();--> statement-breakpoint
+CREATE TRIGGER set_updated_at_appointments BEFORE UPDATE ON appointments FOR EACH ROW EXECUTE FUNCTION set_updated_at();--> statement-breakpoint
+CREATE TRIGGER set_updated_at_journeys BEFORE UPDATE ON journeys FOR EACH ROW EXECUTE FUNCTION set_updated_at();--> statement-breakpoint
+CREATE TRIGGER set_updated_at_journey_deliveries BEFORE UPDATE ON journey_deliveries FOR EACH ROW EXECUTE FUNCTION set_updated_at();--> statement-breakpoint
+CREATE TRIGGER set_updated_at_journey_run_step_logs BEFORE UPDATE ON journey_run_step_logs FOR EACH ROW EXECUTE FUNCTION set_updated_at();--> statement-breakpoint
+CREATE TRIGGER set_updated_at_audit_events BEFORE UPDATE ON audit_events FOR EACH ROW EXECUTE FUNCTION set_updated_at();

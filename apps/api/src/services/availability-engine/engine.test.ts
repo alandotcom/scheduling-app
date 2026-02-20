@@ -422,6 +422,7 @@ describe("AvailabilityService", () => {
 
       // Set 24-hour minimum notice
       await db.insert(schedulingLimits).values({
+        orgId: org.id,
         calendarId: calendar.id,
         minNoticeHours: 24,
       });
@@ -453,6 +454,7 @@ describe("AvailabilityService", () => {
 
       // Set 7-day maximum notice
       await db.insert(schedulingLimits).values({
+        orgId: org.id,
         calendarId: calendar.id,
         maxNoticeDays: 7,
       });
@@ -500,6 +502,7 @@ describe("AvailabilityService", () => {
 
       // Set max 2 appointments per day
       await db.insert(schedulingLimits).values({
+        orgId: org.id,
         calendarId: calendar.id,
         maxPerDay: 2,
       });

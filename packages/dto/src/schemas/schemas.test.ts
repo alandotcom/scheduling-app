@@ -67,6 +67,8 @@ describe("Common schemas", () => {
       expect(timeSchema.safeParse("09:00").success).toBe(true);
       expect(timeSchema.safeParse("23:59").success).toBe(true);
       expect(timeSchema.safeParse("00:00").success).toBe(true);
+      expect(timeSchema.safeParse("09:00:00").success).toBe(true);
+      expect(timeSchema.safeParse("23:59:59").success).toBe(true);
     });
 
     test("rejects invalid time", () => {

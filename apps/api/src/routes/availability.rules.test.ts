@@ -233,8 +233,8 @@ describe("Availability Rules", () => {
       { context: ctx },
     );
 
-    expect(result.startTime).toBe("10:00");
-    expect(result.endTime).toBe("14:00");
+    expect(result.startTime).toBe("10:00:00");
+    expect(result.endTime).toBe("14:00:00");
   });
 
   test("rejects overlapping updates", async () => {

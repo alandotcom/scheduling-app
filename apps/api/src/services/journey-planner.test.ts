@@ -14,7 +14,7 @@ import {
   setTestOrgContext,
   type TestDatabase,
 } from "../test-utils/index.js";
-import { createOrg } from "../test-utils/factories.js";
+import { createOrg, createQuickAppointment } from "../test-utils/factories.js";
 import type { ServiceContext } from "./locations.js";
 import { journeyService } from "./journeys.js";
 import { processJourneyDomainEvent } from "./journey-planner.js";
@@ -654,6 +654,11 @@ describe("processJourneyDomainEvent", () => {
       context,
     );
 
+    const appointmentId = await createQuickAppointment(
+      db as any,
+      context.orgId,
+    );
+
     const scheduleResendRequester = mock(async () => ({
       eventId: "evt-scheduled-1",
     }));
@@ -663,7 +668,7 @@ describe("processJourneyDomainEvent", () => {
         id: "evt-1",
         orgId: context.orgId,
         type: "appointment.scheduled",
-        payload: createAppointmentPayload(),
+        payload: createAppointmentPayload({ appointmentId }),
         timestamp: "2026-02-16T10:00:00.000Z",
       },
       {
@@ -719,6 +724,11 @@ describe("processJourneyDomainEvent", () => {
       context,
     );
 
+    const appointmentId = await createQuickAppointment(
+      db as any,
+      context.orgId,
+    );
+
     const scheduleLoggerRequester = mock(async () => ({
       eventId: "evt-scheduled-logger",
     }));
@@ -728,9 +738,7 @@ describe("processJourneyDomainEvent", () => {
         id: "evt-logger-1",
         orgId: context.orgId,
         type: "appointment.scheduled",
-        payload: createAppointmentPayload({
-          appointmentId: "018f4d3a-6d80-7c5b-8a4a-6cb8f8d57d21",
-        }),
+        payload: createAppointmentPayload({ appointmentId }),
         timestamp: "2026-02-16T10:00:00.000Z",
       },
       {
@@ -780,6 +788,11 @@ describe("processJourneyDomainEvent", () => {
       context,
     );
 
+    const appointmentId = await createQuickAppointment(
+      db as any,
+      context.orgId,
+    );
+
     const scheduleResendRequester = mock(async () => ({
       eventId: "evt-fanout-resend",
     }));
@@ -792,9 +805,7 @@ describe("processJourneyDomainEvent", () => {
         id: "evt-fanout-1",
         orgId: context.orgId,
         type: "appointment.scheduled",
-        payload: createAppointmentPayload({
-          appointmentId: "018f4d3a-6d80-7c5b-8a4a-6cb8f8d57f01",
-        }),
+        payload: createAppointmentPayload({ appointmentId }),
         timestamp: "2026-02-16T10:00:00.000Z",
       },
       {
@@ -858,6 +869,11 @@ describe("processJourneyDomainEvent", () => {
       journeyService.publish(slackJourney.id, { mode: "live" }, context),
     ]);
 
+    const appointmentId = await createQuickAppointment(
+      db as any,
+      context.orgId,
+    );
+
     const scheduleResendRequester = mock(async () => ({
       eventId: "evt-scheduled-resend",
     }));
@@ -873,9 +889,7 @@ describe("processJourneyDomainEvent", () => {
         id: "evt-provider-scheduler-1",
         orgId: context.orgId,
         type: "appointment.scheduled",
-        payload: createAppointmentPayload({
-          appointmentId: "018f4d3a-6d80-7c5b-8a4a-6cb8f8d57daf",
-        }),
+        payload: createAppointmentPayload({ appointmentId }),
         timestamp: "2026-02-16T10:00:00.000Z",
       },
       {
@@ -911,6 +925,11 @@ describe("processJourneyDomainEvent", () => {
       context,
     );
 
+    const appointmentId = await createQuickAppointment(
+      db as any,
+      context.orgId,
+    );
+
     const scheduleResendRequester = mock(async () => ({
       eventId: "evt-scheduled-resend-template",
     }));
@@ -926,9 +945,7 @@ describe("processJourneyDomainEvent", () => {
         id: "evt-resend-template-1",
         orgId: context.orgId,
         type: "appointment.scheduled",
-        payload: createAppointmentPayload({
-          appointmentId: "018f4d3a-6d80-7c5b-8a4a-6cb8f8d57db0",
-        }),
+        payload: createAppointmentPayload({ appointmentId }),
         timestamp: "2026-02-16T10:00:00.000Z",
       },
       {
@@ -964,6 +981,11 @@ describe("processJourneyDomainEvent", () => {
       context,
     );
 
+    const appointmentId = await createQuickAppointment(
+      db as any,
+      context.orgId,
+    );
+
     const scheduleResendRequester = mock(async () => ({
       eventId: "evt-scheduled-resend-twilio",
     }));
@@ -982,9 +1004,7 @@ describe("processJourneyDomainEvent", () => {
         id: "evt-twilio-route-1",
         orgId: context.orgId,
         type: "appointment.scheduled",
-        payload: createAppointmentPayload({
-          appointmentId: "018f4d3a-6d80-7c5b-8a4a-6cb8f8d57db1",
-        }),
+        payload: createAppointmentPayload({ appointmentId }),
         timestamp: "2026-02-16T10:00:00.000Z",
       },
       {
@@ -1024,6 +1044,11 @@ describe("processJourneyDomainEvent", () => {
       context,
     );
 
+    const appointmentId = await createQuickAppointment(
+      db as any,
+      context.orgId,
+    );
+
     const scheduleResendRequester = mock(async () => ({
       eventId: "evt-scheduled-condition-branch",
     }));
@@ -1034,7 +1059,7 @@ describe("processJourneyDomainEvent", () => {
         orgId: context.orgId,
         type: "appointment.scheduled",
         payload: createAppointmentPayload({
-          appointmentId: "018f4d3a-6d80-7c5b-8a4a-6cb8f8d57d31",
+          appointmentId,
           timezone: "America/New_York",
         }),
         timestamp: "2026-02-16T10:00:00.000Z",
@@ -1090,6 +1115,11 @@ describe("processJourneyDomainEvent", () => {
       context,
     );
 
+    const appointmentId = await createQuickAppointment(
+      db as any,
+      context.orgId,
+    );
+
     const scheduleResendRequester = mock(async () => ({
       eventId: "evt-scheduled-condition-missing",
     }));
@@ -1099,9 +1129,7 @@ describe("processJourneyDomainEvent", () => {
         id: "evt-condition-2",
         orgId: context.orgId,
         type: "appointment.scheduled",
-        payload: createAppointmentPayload({
-          appointmentId: "018f4d3a-6d80-7c5b-8a4a-6cb8f8d57d32",
-        }),
+        payload: createAppointmentPayload({ appointmentId }),
         timestamp: "2026-02-16T10:00:00.000Z",
       },
       {
@@ -1173,13 +1201,18 @@ describe("processJourneyDomainEvent", () => {
       context,
     );
 
+    const appointmentId = await createQuickAppointment(
+      db as any,
+      context.orgId,
+    );
+
     await processJourneyDomainEvent(
       {
         id: "evt-2",
         orgId: context.orgId,
         type: "appointment.scheduled",
         payload: createAppointmentPayload({
-          appointmentId: "018f4d3a-6d80-7c5b-8a4a-6cb8f8d57d44",
+          appointmentId,
           timezone: "America/New_York",
         }),
         timestamp: "2026-02-16T10:00:00.000Z",
@@ -1197,7 +1230,7 @@ describe("processJourneyDomainEvent", () => {
         orgId: context.orgId,
         type: "appointment.rescheduled",
         payload: createAppointmentPayload({
-          appointmentId: "018f4d3a-6d80-7c5b-8a4a-6cb8f8d57d44",
+          appointmentId,
           timezone: "UTC",
           previousTimezone: "America/New_York",
         }),
@@ -1242,9 +1275,12 @@ describe("processJourneyDomainEvent", () => {
       context,
     );
 
-    const payload = createAppointmentPayload({
-      appointmentId: "018f4d3a-6d80-7c5b-8a4a-6cb8f8d57d55",
-    });
+    const appointmentId = await createQuickAppointment(
+      db as any,
+      context.orgId,
+    );
+
+    const payload = createAppointmentPayload({ appointmentId });
 
     await processJourneyDomainEvent({
       id: "evt-4",
@@ -1298,6 +1334,11 @@ describe("processJourneyDomainEvent", () => {
       journeyService.publish(secondJourney.id, { mode: "live" }, context),
     ]);
 
+    const appointmentId = await createQuickAppointment(
+      db as any,
+      context.orgId,
+    );
+
     const scheduleResendRequester = mock(async () => ({
       eventId: "evt-multi-journey",
     }));
@@ -1307,9 +1348,7 @@ describe("processJourneyDomainEvent", () => {
         id: "evt-multi-1",
         orgId: context.orgId,
         type: "appointment.scheduled",
-        payload: createAppointmentPayload({
-          appointmentId: "018f4d3a-6d80-7c5b-8a4a-6cb8f8d57d88",
-        }),
+        payload: createAppointmentPayload({ appointmentId }),
         timestamp: "2026-02-16T10:00:00.000Z",
       },
       {
@@ -1326,9 +1365,7 @@ describe("processJourneyDomainEvent", () => {
         id: "evt-multi-1-duplicate",
         orgId: context.orgId,
         type: "appointment.scheduled",
-        payload: createAppointmentPayload({
-          appointmentId: "018f4d3a-6d80-7c5b-8a4a-6cb8f8d57d88",
-        }),
+        payload: createAppointmentPayload({ appointmentId }),
         timestamp: "2026-02-16T10:00:00.000Z",
       },
       {
@@ -1379,6 +1416,11 @@ describe("processJourneyDomainEvent", () => {
       context,
     );
 
+    const appointmentId = await createQuickAppointment(
+      db as any,
+      context.orgId,
+    );
+
     const scheduleResendRequester = mock(async () => ({
       eventId: "evt-due-now",
     }));
@@ -1388,9 +1430,7 @@ describe("processJourneyDomainEvent", () => {
         id: "evt-due-now-1",
         orgId: context.orgId,
         type: "appointment.scheduled",
-        payload: createAppointmentPayload({
-          appointmentId: "018f4d3a-6d80-7c5b-8a4a-6cb8f8d57d99",
-        }),
+        payload: createAppointmentPayload({ appointmentId }),
         timestamp: "2026-02-16T09:00:00.000Z",
       },
       {
@@ -1442,6 +1482,11 @@ describe("processJourneyDomainEvent", () => {
       context,
     );
 
+    const appointmentId = await createQuickAppointment(
+      db as any,
+      context.orgId,
+    );
+
     const scheduleResendRequester = mock(async () => ({
       eventId: "evt-scheduled-2",
     }));
@@ -1451,9 +1496,7 @@ describe("processJourneyDomainEvent", () => {
         id: "evt-5",
         orgId: context.orgId,
         type: "appointment.scheduled",
-        payload: createAppointmentPayload({
-          appointmentId: "018f4d3a-6d80-7c5b-8a4a-6cb8f8d57d66",
-        }),
+        payload: createAppointmentPayload({ appointmentId }),
         timestamp: "2026-02-16T10:00:00.000Z",
       },
       {
@@ -1497,13 +1540,16 @@ describe("processJourneyDomainEvent", () => {
       context,
     );
 
+    const appointmentId = await createQuickAppointment(
+      db as any,
+      context.orgId,
+    );
+
     await processJourneyDomainEvent({
       id: "evt-test-mode-1",
       orgId: context.orgId,
       type: "appointment.scheduled",
-      payload: createAppointmentPayload({
-        appointmentId: "018f4d3a-6d80-7c5b-8a4a-6cb8f8d57d77",
-      }),
+      payload: createAppointmentPayload({ appointmentId }),
       timestamp: "2026-02-16T10:00:00.000Z",
     });
 
@@ -1551,6 +1597,11 @@ describe("processJourneyDomainEvent", () => {
       context,
     );
 
+    const appointmentId = await createQuickAppointment(
+      db as any,
+      context.orgId,
+    );
+
     const scheduleResendRequester = mock(async () => ({
       eventId: "evt-test-wait-invariance",
     }));
@@ -1560,9 +1611,7 @@ describe("processJourneyDomainEvent", () => {
         id: "evt-test-wait-invariance",
         orgId: context.orgId,
         type: "appointment.scheduled",
-        payload: createAppointmentPayload({
-          appointmentId: "018f4d3a-6d80-7c5b-8a4a-6cb8f8d57d88",
-        }),
+        payload: createAppointmentPayload({ appointmentId }),
         timestamp: "2026-02-16T10:00:00.000Z",
       },
       {

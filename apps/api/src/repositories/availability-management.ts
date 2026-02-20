@@ -546,6 +546,7 @@ export class AvailabilityManagementRepository {
     const [result] = await tx
       .insert(schedulingLimits)
       .values({
+        orgId,
         calendarId: input.calendarId ?? null,
         groupId: input.groupId ?? null,
         minNoticeHours: input.minNoticeHours ?? null,

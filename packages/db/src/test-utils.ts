@@ -4,6 +4,7 @@
 // run concurrently without sharing state.
 
 import { PGlite } from "@electric-sql/pglite";
+import { pg_trgm } from "@electric-sql/pglite/contrib/pg_trgm";
 import { sql } from "drizzle-orm";
 import type { BunSQLDatabase } from "drizzle-orm/bun-sql/postgres";
 import { drizzle } from "drizzle-orm/pglite";
@@ -164,7 +165,7 @@ export async function createTestDb(): Promise<TestDatabase> {
     return existingDb;
   }
 
-  const client = new PGlite();
+  const client = new PGlite({ extensions: { pg_trgm } });
   const db = drizzle({ client, schema, relations });
 
   await ensureTestCompatibility(db);

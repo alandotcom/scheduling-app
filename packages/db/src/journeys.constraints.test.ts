@@ -9,10 +9,15 @@ import {
   setTestOrgContext,
 } from "./test-utils.js";
 import {
+  appointments,
+  appointmentTypes,
+  calendars,
+  clients,
   journeyDeliveries,
   journeyRuns,
   journeyVersions,
   journeys,
+  locations,
 } from "./schema/index.js";
 
 const db: TestDatabase = getTestDb();
@@ -28,6 +33,39 @@ function resultRows<T extends Record<string, unknown>>(result: unknown): T[] {
     return (result as { rows: T[] }).rows;
   }
   return [];
+}
+
+async function createTestAppointment(orgId: string) {
+  const [loc] = await db
+    .insert(locations)
+    .values({ orgId, name: "Loc", timezone: "UTC" })
+    .returning();
+  const [cal] = await db
+    .insert(calendars)
+    .values({ orgId, locationId: loc!.id, name: "Cal", timezone: "UTC" })
+    .returning();
+  const [at] = await db
+    .insert(appointmentTypes)
+    .values({ orgId, name: "AT", durationMin: 30 })
+    .returning();
+  const [client] = await db
+    .insert(clients)
+    .values({ orgId, firstName: "Test", lastName: "Client" })
+    .returning();
+  const [appt] = await db
+    .insert(appointments)
+    .values({
+      orgId,
+      calendarId: cal!.id,
+      appointmentTypeId: at!.id,
+      clientId: client!.id,
+      startAt: new Date("2026-03-01T10:00:00Z"),
+      endAt: new Date("2026-03-01T10:30:00Z"),
+      timezone: "UTC",
+      status: "scheduled",
+    })
+    .returning();
+  return appt!.id;
 }
 
 function expectUniqueViolation(error: unknown) {
@@ -111,7 +149,7 @@ describe("journey constraints", () => {
       })
       .returning();
 
-    const appointmentId = "5a2b0128-c1a2-4abc-9152-80b36d88f111";
+    const appointmentId = await createTestAppointment(org.id);
     await db.insert(journeyRuns).values({
       orgId: org.id,
       journeyVersionId: journeyVersion!.id,
@@ -235,12 +273,13 @@ describe("journey constraints", () => {
       })
       .returning();
 
+    const deliveryApptId = await createTestAppointment(org.id);
     const [run] = await db
       .insert(journeyRuns)
       .values({
         orgId: org.id,
         journeyVersionId: journeyVersion!.id,
-        appointmentId: "8c120128-c1a2-4abc-9152-80b36d88f111",
+        appointmentId: deliveryApptId,
         mode: "live",
         status: "planned",
         journeyNameSnapshot: journey!.name,
@@ -321,12 +360,13 @@ describe("journey constraints", () => {
       })
       .returning();
 
+    const retentionApptId = await createTestAppointment(org.id);
     const [run] = await db
       .insert(journeyRuns)
       .values({
         orgId: org.id,
         journeyVersionId: journeyVersion!.id,
-        appointmentId: "7b020128-c1a2-4abc-9152-80b36d88f111",
+        appointmentId: retentionApptId,
         mode: "live",
         status: "completed",
         journeyNameSnapshot: journey!.name,

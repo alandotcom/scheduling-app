@@ -13,6 +13,8 @@ import {
   index,
   check,
   uniqueIndex,
+  date,
+  time,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 
@@ -164,7 +166,7 @@ export const locations = pgTable.withRLS(
     id,
     orgId: uuid("org_id")
       .notNull()
-      .references(() => orgs.id),
+      .references(() => orgs.id, { onDelete: "cascade" }),
     name: text("name").notNull(),
     timezone: text("timezone").notNull(),
     ...timestamps,
@@ -184,7 +186,7 @@ export const calendars = pgTable.withRLS(
     id,
     orgId: uuid("org_id")
       .notNull()
-      .references(() => orgs.id),
+      .references(() => orgs.id, { onDelete: "cascade" }),
     locationId: uuid("location_id").references(() => locations.id),
     name: text("name").notNull(),
     timezone: text("timezone").notNull(),
@@ -205,7 +207,7 @@ export const appointmentTypes = pgTable.withRLS(
     id,
     orgId: uuid("org_id")
       .notNull()
-      .references(() => orgs.id),
+      .references(() => orgs.id, { onDelete: "cascade" }),
     name: text("name").notNull(),
     durationMin: integer("duration_min").notNull(),
     paddingBeforeMin: integer("padding_before_min").default(0),
@@ -248,7 +250,7 @@ export const resources = pgTable.withRLS(
     id,
     orgId: uuid("org_id")
       .notNull()
-      .references(() => orgs.id),
+      .references(() => orgs.id, { onDelete: "cascade" }),
     locationId: uuid("location_id").references(() => locations.id),
     name: text("name").notNull(),
     quantity: integer("quantity").default(1).notNull(),
@@ -293,7 +295,7 @@ export const clients = pgTable.withRLS(
     id,
     orgId: uuid("org_id")
       .notNull()
-      .references(() => orgs.id),
+      .references(() => orgs.id, { onDelete: "cascade" }),
     firstName: text("first_name").notNull(),
     lastName: text("last_name").notNull(),
     email: citext("email"),
@@ -315,6 +317,10 @@ export const clients = pgTable.withRLS(
     uniqueIndex("clients_org_reference_id_unique_idx")
       .on(table.orgId, table.referenceId)
       .where(sql`${table.referenceId} IS NOT NULL`),
+    index("clients_search_trgm_idx").using(
+      "gin",
+      sql`(first_name || ' ' || last_name || ' ' || COALESCE(email::text, '')) gin_trgm_ops`,
+    ),
     pgPolicy("org_isolation_clients", {
       for: "all",
       using: sql`org_id = current_org_id()`,
@@ -342,7 +348,7 @@ export const clientCustomAttributeDefinitions = pgTable.withRLS(
     id,
     orgId: uuid("org_id")
       .notNull()
-      .references(() => orgs.id),
+      .references(() => orgs.id, { onDelete: "cascade" }),
     fieldKey: text("field_key").notNull(),
     label: text("label").notNull(),
     type: customAttributeTypeEnum("type").notNull(),
@@ -375,7 +381,7 @@ export const clientCustomAttributeValues = pgTable.withRLS(
     id,
     orgId: uuid("org_id")
       .notNull()
-      .references(() => orgs.id),
+      .references(() => orgs.id, { onDelete: "cascade" }),
     clientId: uuid("client_id")
       .notNull()
       .references(() => clients.id, { onDelete: "cascade" }),
@@ -427,7 +433,7 @@ export const appointments = pgTable.withRLS(
     id,
     orgId: uuid("org_id")
       .notNull()
-      .references(() => orgs.id),
+      .references(() => orgs.id, { onDelete: "cascade" }),
     calendarId: uuid("calendar_id")
       .notNull()
       .references(() => calendars.id, { onDelete: "cascade" }),
@@ -462,6 +468,10 @@ export const appointments = pgTable.withRLS(
         sql`tstzrange(${table.startAt}, ${table.endAt}, '[)')`,
       )
       .where(sql`${table.status} <> 'cancelled'`),
+    index("appointments_client_id_idx").on(table.clientId),
+    index("appointments_appointment_type_id_active_idx")
+      .on(table.appointmentTypeId)
+      .where(sql`${table.status} <> 'cancelled'`),
     pgPolicy("org_isolation_appointments", {
       for: "all",
       using: sql`org_id = current_org_id()`,
@@ -482,8 +492,8 @@ export const availabilityRules = pgTable(
       .notNull()
       .references(() => calendars.id, { onDelete: "cascade" }),
     weekday: integer("weekday").notNull(), // 0-6
-    startTime: text("start_time").notNull(), // HH:MM
-    endTime: text("end_time").notNull(),
+    startTime: time("start_time").notNull(), // HH:MM
+    endTime: time("end_time").notNull(),
     intervalMin: integer("interval_min"),
     groupId: uuid("group_id"),
   },
@@ -508,7 +518,7 @@ export const availabilityOverrides = pgTable(
     calendarId: uuid("calendar_id")
       .notNull()
       .references(() => calendars.id, { onDelete: "cascade" }),
-    date: text("date").notNull(), // YYYY-MM-DD
+    date: date("date", { mode: "string" }).notNull(), // YYYY-MM-DD
     // Empty array means the date is fully blocked.
     timeRanges: jsonb("time_ranges")
       .$type<Array<{ startTime: string; endTime: string }>>()
@@ -562,6 +572,9 @@ export const schedulingLimits = pgTable(
   "scheduling_limits",
   {
     id,
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => orgs.id, { onDelete: "cascade" }),
     calendarId: uuid("calendar_id").references(() => calendars.id, {
       onDelete: "cascade",
     }),
@@ -585,7 +598,7 @@ export const journeys = pgTable.withRLS(
     id,
     orgId: uuid("org_id")
       .notNull()
-      .references(() => orgs.id),
+      .references(() => orgs.id, { onDelete: "cascade" }),
     name: text("name").notNull(),
     state: journeyStateEnum("state").notNull().default("draft"),
     mode: journeyModeEnum("mode").notNull().default("live"),
@@ -618,7 +631,7 @@ export const journeyVersions = pgTable.withRLS(
     id,
     orgId: uuid("org_id")
       .notNull()
-      .references(() => orgs.id),
+      .references(() => orgs.id, { onDelete: "cascade" }),
     journeyId: uuid("journey_id")
       .notNull()
       .references(() => journeys.id, { onDelete: "cascade" }),
@@ -658,14 +671,16 @@ export const journeyRuns = pgTable.withRLS(
     id,
     orgId: uuid("org_id")
       .notNull()
-      .references(() => orgs.id),
+      .references(() => orgs.id, { onDelete: "cascade" }),
     journeyVersionId: uuid("journey_version_id").references(
       () => journeyVersions.id,
       {
         onDelete: "set null",
       },
     ),
-    appointmentId: uuid("appointment_id").notNull(),
+    appointmentId: uuid("appointment_id")
+      .notNull()
+      .references(() => appointments.id, { onDelete: "cascade" }),
     mode: journeyRunModeEnum("mode").notNull(),
     status: journeyRunStatusEnum("status").notNull(),
     journeyNameSnapshot: text("journey_name_snapshot").notNull(),
@@ -705,7 +720,7 @@ export const journeyDeliveries = pgTable.withRLS(
     id,
     orgId: uuid("org_id")
       .notNull()
-      .references(() => orgs.id),
+      .references(() => orgs.id, { onDelete: "cascade" }),
     journeyRunId: uuid("journey_run_id")
       .notNull()
       .references(() => journeyRuns.id, { onDelete: "cascade" }),
@@ -748,7 +763,7 @@ export const journeyRunEvents = pgTable.withRLS(
     id,
     orgId: uuid("org_id")
       .notNull()
-      .references(() => orgs.id),
+      .references(() => orgs.id, { onDelete: "cascade" }),
     journeyRunId: uuid("journey_run_id")
       .notNull()
       .references(() => journeyRuns.id, { onDelete: "cascade" }),
@@ -765,6 +780,10 @@ export const journeyRunEvents = pgTable.withRLS(
       table.journeyRunId,
       table.createdAt,
     ),
+    index("journey_run_events_created_at_brin_idx").using(
+      "brin",
+      table.createdAt,
+    ),
     pgPolicy("org_isolation_journey_run_events", {
       for: "all",
       using: sql`org_id = current_org_id()`,
@@ -779,7 +798,7 @@ export const journeyRunStepLogs = pgTable.withRLS(
     id,
     orgId: uuid("org_id")
       .notNull()
-      .references(() => orgs.id),
+      .references(() => orgs.id, { onDelete: "cascade" }),
     journeyRunId: uuid("journey_run_id")
       .notNull()
       .references(() => journeyRuns.id, { onDelete: "cascade" }),
@@ -814,6 +833,10 @@ export const journeyRunStepLogs = pgTable.withRLS(
       table.orgId,
       table.stepKey,
     ),
+    index("journey_run_step_logs_created_at_brin_idx").using(
+      "brin",
+      table.createdAt,
+    ),
     pgPolicy("org_isolation_journey_run_step_logs", {
       for: "all",
       using: sql`org_id = current_org_id()`,
@@ -832,7 +855,7 @@ export const integrations = pgTable.withRLS(
     id,
     orgId: uuid("org_id")
       .notNull()
-      .references(() => orgs.id),
+      .references(() => orgs.id, { onDelete: "cascade" }),
     key: text("key").notNull(),
     enabled: boolean("enabled").notNull().default(false),
     config: jsonb("config")
@@ -845,7 +868,6 @@ export const integrations = pgTable.withRLS(
   },
   (table) => [
     uniqueIndex("integrations_org_key_unique_idx").on(table.orgId, table.key),
-    index("integrations_org_key_idx").on(table.orgId, table.key),
     pgPolicy("org_isolation_integrations", {
       for: "all",
       using: sql`org_id = current_org_id()`,
@@ -858,42 +880,50 @@ export const integrations = pgTable.withRLS(
 // AUTH TABLES (BetterAuth)
 // ============================================================================
 
-export const sessions = pgTable("sessions", {
-  id,
-  userId: uuid("user_id")
-    .notNull()
-    .references(() => users.id, { onDelete: "cascade" }),
-  token: text("token").notNull().unique(),
-  activeOrganizationId: uuid("active_organization_id"),
-  impersonatedBy: uuid("impersonated_by").references(() => users.id, {
-    onDelete: "set null",
-  }),
-  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
-  ipAddress: text("ip_address"),
-  userAgent: text("user_agent"),
-  ...timestamps,
-});
+export const sessions = pgTable(
+  "sessions",
+  {
+    id,
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    token: text("token").notNull().unique(),
+    activeOrganizationId: uuid("active_organization_id"),
+    impersonatedBy: uuid("impersonated_by").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    ipAddress: text("ip_address"),
+    userAgent: text("user_agent"),
+    ...timestamps,
+  },
+  (table) => [index("sessions_user_id_idx").on(table.userId)],
+);
 
-export const accounts = pgTable("accounts", {
-  id,
-  userId: uuid("user_id")
-    .notNull()
-    .references(() => users.id, { onDelete: "cascade" }),
-  accountId: text("account_id").notNull(), // BetterAuth: provider's account ID
-  providerId: text("provider_id").notNull(),
-  accessToken: text("access_token"),
-  refreshToken: text("refresh_token"),
-  idToken: text("id_token"),
-  accessTokenExpiresAt: timestamp("access_token_expires_at", {
-    withTimezone: true,
-  }),
-  refreshTokenExpiresAt: timestamp("refresh_token_expires_at", {
-    withTimezone: true,
-  }),
-  scope: text("scope"),
-  password: text("password"), // Hashed password for credential auth
-  ...timestamps,
-});
+export const accounts = pgTable(
+  "accounts",
+  {
+    id,
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    accountId: text("account_id").notNull(), // BetterAuth: provider's account ID
+    providerId: text("provider_id").notNull(),
+    accessToken: text("access_token"),
+    refreshToken: text("refresh_token"),
+    idToken: text("id_token"),
+    accessTokenExpiresAt: timestamp("access_token_expires_at", {
+      withTimezone: true,
+    }),
+    refreshTokenExpiresAt: timestamp("refresh_token_expires_at", {
+      withTimezone: true,
+    }),
+    scope: text("scope"),
+    password: text("password"), // Hashed password for credential auth
+    ...timestamps,
+  },
+  (table) => [index("accounts_user_id_idx").on(table.userId)],
+);
 
 export const verifications = pgTable("verifications", {
   id,
@@ -942,7 +972,7 @@ export const auditEvents = pgTable.withRLS(
     id,
     orgId: uuid("org_id")
       .notNull()
-      .references(() => orgs.id),
+      .references(() => orgs.id, { onDelete: "cascade" }),
     actorId: uuid("actor_id").references(() => users.id), // Who performed the action (null for system actions)
     actorType: text("actor_type").notNull(), // 'user' | 'api_token' | 'system'
     action: text("action").notNull(), // 'create' | 'update' | 'delete' | 'cancel' | 'reschedule' | 'no_show'
@@ -954,7 +984,19 @@ export const auditEvents = pgTable.withRLS(
     ...timestamps,
   },
   (table) => [
-    index("audit_events_action_id_idx").on(table.action, table.id),
+    index("audit_events_org_id_idx").on(table.orgId, table.id),
+    index("audit_events_org_entity_id_idx").on(
+      table.orgId,
+      table.entityType,
+      table.entityId,
+      table.id,
+    ),
+    index("audit_events_org_created_at_id_idx").on(
+      table.orgId,
+      table.createdAt,
+      table.id,
+    ),
+    index("audit_events_created_at_brin_idx").using("brin", table.createdAt),
     pgPolicy("org_isolation_audit_events", {
       for: "all",
       using: sql`org_id = current_org_id()`,

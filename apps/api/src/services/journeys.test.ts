@@ -18,6 +18,7 @@ import {
   createClient,
   createLocation,
   createOrg,
+  createQuickAppointment,
 } from "../test-utils/factories.js";
 import { journeyService } from "./journeys.js";
 import type { ServiceContext } from "./locations.js";
@@ -456,12 +457,28 @@ describe("JourneyService", () => {
       )
       .limit(1);
 
+    const targetApptId = await createQuickAppointment(db as any, context.orgId);
+    const sameJourneyApptId = await createQuickAppointment(
+      db as any,
+      context.orgId,
+    );
+    const terminalApptId = await createQuickAppointment(
+      db as any,
+      context.orgId,
+    );
+    const otherJourneyApptId = await createQuickAppointment(
+      db as any,
+      context.orgId,
+    );
+
+    await setTestOrgContext(db, context.orgId);
+
     const [targetRun] = await db
       .insert(journeyRuns)
       .values({
         orgId: context.orgId,
         journeyVersionId: primaryVersion!.id,
-        appointmentId: crypto.randomUUID(),
+        appointmentId: targetApptId,
         mode: "live",
         status: "running",
         journeyNameSnapshot: primaryJourney.name,
@@ -474,7 +491,7 @@ describe("JourneyService", () => {
       .values({
         orgId: context.orgId,
         journeyVersionId: primaryVersion!.id,
-        appointmentId: crypto.randomUUID(),
+        appointmentId: sameJourneyApptId,
         mode: "live",
         status: "planned",
         journeyNameSnapshot: primaryJourney.name,
@@ -487,7 +504,7 @@ describe("JourneyService", () => {
       .values({
         orgId: context.orgId,
         journeyVersionId: primaryVersion!.id,
-        appointmentId: crypto.randomUUID(),
+        appointmentId: terminalApptId,
         mode: "live",
         status: "completed",
         journeyNameSnapshot: primaryJourney.name,
@@ -500,7 +517,7 @@ describe("JourneyService", () => {
       .values({
         orgId: context.orgId,
         journeyVersionId: secondaryVersion!.id,
-        appointmentId: crypto.randomUUID(),
+        appointmentId: otherJourneyApptId,
         mode: "live",
         status: "running",
         journeyNameSnapshot: secondaryJourney.name,
@@ -645,12 +662,27 @@ describe("JourneyService", () => {
 
     expect(versionRow).toBeDefined();
 
+    const runningApptId = await createQuickAppointment(
+      db as any,
+      context.orgId,
+    );
+    const plannedApptId = await createQuickAppointment(
+      db as any,
+      context.orgId,
+    );
+    const completedApptId = await createQuickAppointment(
+      db as any,
+      context.orgId,
+    );
+
+    await setTestOrgContext(db, context.orgId);
+
     const [runningRun] = await db
       .insert(journeyRuns)
       .values({
         orgId: context.orgId,
         journeyVersionId: versionRow!.id,
-        appointmentId: crypto.randomUUID(),
+        appointmentId: runningApptId,
         mode: "live",
         status: "running",
         journeyNameSnapshot: created.name,
@@ -663,7 +695,7 @@ describe("JourneyService", () => {
       .values({
         orgId: context.orgId,
         journeyVersionId: versionRow!.id,
-        appointmentId: crypto.randomUUID(),
+        appointmentId: plannedApptId,
         mode: "live",
         status: "planned",
         journeyNameSnapshot: created.name,
@@ -676,7 +708,7 @@ describe("JourneyService", () => {
       .values({
         orgId: context.orgId,
         journeyVersionId: versionRow!.id,
-        appointmentId: crypto.randomUUID(),
+        appointmentId: completedApptId,
         mode: "live",
         status: "completed",
         journeyNameSnapshot: created.name,
@@ -1095,12 +1127,19 @@ describe("JourneyService", () => {
       )
       .limit(1);
 
+    const historyApptId = await createQuickAppointment(
+      db as any,
+      context.orgId,
+    );
+
+    await setTestOrgContext(db, context.orgId);
+
     const [runRow] = await db
       .insert(journeyRuns)
       .values({
         orgId: context.orgId,
         journeyVersionId: versionRow!.id,
-        appointmentId: crypto.randomUUID(),
+        appointmentId: historyApptId,
         mode: "test",
         status: "completed",
         journeyNameSnapshot: "Deleted Journey Snapshot",
@@ -1148,7 +1187,8 @@ describe("JourneyService", () => {
     ).toContain("past_due");
     expect(runDetail.events).toEqual([]);
     expect(runDetail.stepLogs).toEqual([]);
-    expect(runDetail.triggerContext).toBeNull();
+    expect(runDetail.triggerContext).toBeDefined();
+    expect(runDetail.triggerContext?.appointment?.id).toBe(historyApptId);
   });
 
   test("get/list fail with explicit conflict when stored definition is invalid", async () => {
