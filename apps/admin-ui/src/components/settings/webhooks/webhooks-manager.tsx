@@ -2167,7 +2167,7 @@ function PropertyRow({
     >
       <div
         className="flex min-w-0 items-center gap-2.5 overflow-hidden py-3 pr-3"
-        style={{ paddingLeft: depth * 20 + 12 }}
+        style={{ paddingLeft: depth * 12 + 12 }}
       >
         {/* Expand toggle or spacer */}
         {hasNested ? (
@@ -2249,7 +2249,7 @@ function PropertyRow({
       {expanded && info.nestedProperties ? (
         <div
           className="mb-3 mr-3 overflow-hidden rounded-md border border-border/60 bg-muted/20"
-          style={{ marginLeft: depth * 20 + 12 + 20 + 10 }}
+          style={{ marginLeft: depth * 12 + 32 }}
         >
           <PropertyList
             properties={info.nestedProperties}
