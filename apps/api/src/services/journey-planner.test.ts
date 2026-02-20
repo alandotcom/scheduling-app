@@ -1564,7 +1564,7 @@ describe("processJourneyDomainEvent", () => {
     expect(run?.mode).toBe("test");
   });
 
-  test("creates wait_resume delivery when wait is in the future", async () => {
+  test("creates wait-resume delivery when wait is in the future", async () => {
     const created = await journeyService.create(
       {
         name: "Wait Resume Journey",
@@ -1597,7 +1597,7 @@ describe("processJourneyDomainEvent", () => {
       },
       {
         providerRequesters: {
-          wait_resume: scheduleWaitResumeRequester,
+          "wait-resume": scheduleWaitResumeRequester,
           "send-resend": scheduleResendRequester,
           "send-resend-template": scheduleResendRequester,
         },
@@ -1626,7 +1626,7 @@ describe("processJourneyDomainEvent", () => {
 
     expect(deliveries).toHaveLength(1);
     expect(deliveries[0]?.stepKey).toBe("wait-node");
-    expect(deliveries[0]?.actionType).toBe("wait_resume");
+    expect(deliveries[0]?.actionType).toBe("wait-resume");
     expect(deliveries[0]?.channel).toBe("internal");
     expect(deliveries[0]?.status).toBe("planned");
     expect(deliveries[0]?.scheduledFor.toISOString()).toBe(
@@ -1636,7 +1636,7 @@ describe("processJourneyDomainEvent", () => {
     expect(scheduleResendRequester).toHaveBeenCalledTimes(0);
   });
 
-  test("does not create wait_resume when wait has already elapsed", async () => {
+  test("does not create wait-resume when wait has already elapsed", async () => {
     const created = await journeyService.create(
       {
         name: "Elapsed Wait Journey",
@@ -1669,7 +1669,7 @@ describe("processJourneyDomainEvent", () => {
       },
       {
         providerRequesters: {
-          wait_resume: scheduleWaitResumeRequester,
+          "wait-resume": scheduleWaitResumeRequester,
           "send-resend": scheduleResendRequester,
           "send-resend-template": scheduleResendRequester,
         },
@@ -1700,7 +1700,7 @@ describe("processJourneyDomainEvent", () => {
     expect(scheduleWaitResumeRequester).toHaveBeenCalledTimes(0);
   });
 
-  test("sequential waits produce one wait_resume at a time", async () => {
+  test("sequential waits produce one wait-resume at a time", async () => {
     const graph: LinearJourneyGraph = {
       attributes: {},
       options: { type: "directed" },
@@ -1820,7 +1820,7 @@ describe("processJourneyDomainEvent", () => {
       },
       {
         providerRequesters: {
-          wait_resume: scheduleWaitResumeRequester,
+          "wait-resume": scheduleWaitResumeRequester,
           "send-resend": scheduleResendRequester,
           "send-resend-template": scheduleResendRequester,
         },
@@ -1845,10 +1845,10 @@ describe("processJourneyDomainEvent", () => {
       .from(journeyDeliveries)
       .where(eq(journeyDeliveries.journeyRunId, run!.id));
 
-    // Only one wait_resume at the first wait boundary
+    // Only one wait-resume at the first wait boundary
     expect(deliveries).toHaveLength(1);
     expect(deliveries[0]?.stepKey).toBe("wait-1");
-    expect(deliveries[0]?.actionType).toBe("wait_resume");
+    expect(deliveries[0]?.actionType).toBe("wait-resume");
     expect(deliveries[0]?.scheduledFor.toISOString()).toBe(
       "2026-02-16T11:00:00.000Z",
     );
@@ -1856,7 +1856,7 @@ describe("processJourneyDomainEvent", () => {
     expect(scheduleResendRequester).toHaveBeenCalledTimes(0);
   });
 
-  test("cancellation cancels pending wait_resume deliveries", async () => {
+  test("cancellation cancels pending wait-resume deliveries", async () => {
     const created = await journeyService.create(
       {
         name: "Cancel Wait Resume Journey",
@@ -1876,7 +1876,7 @@ describe("processJourneyDomainEvent", () => {
       eventId: "evt-wr-cancel-schedule",
     }));
 
-    // Schedule — creates a wait_resume delivery
+    // Schedule — creates a wait-resume delivery
     await processJourneyDomainEvent(
       {
         id: "evt-cancel-wr-1",
@@ -1886,7 +1886,7 @@ describe("processJourneyDomainEvent", () => {
         timestamp: "2026-02-16T10:00:00.000Z",
       },
       {
-        providerRequesters: { wait_resume: scheduleWaitResumeRequester },
+        providerRequesters: { "wait-resume": scheduleWaitResumeRequester },
         now: new Date("2026-02-16T10:00:00.000Z"),
       },
     );
@@ -1929,7 +1929,7 @@ describe("processJourneyDomainEvent", () => {
       .where(eq(journeyDeliveries.journeyRunId, run!.id));
 
     expect(deliveries).toHaveLength(1);
-    expect(deliveries[0]?.actionType).toBe("wait_resume");
+    expect(deliveries[0]?.actionType).toBe("wait-resume");
     expect(deliveries[0]?.status).toBe("canceled");
     expect(cancelRequester).toHaveBeenCalledTimes(1);
   });

@@ -147,8 +147,8 @@ const providers: DeliveryProviderSpec[] = [
     dispatch: dispatchLoggerDelivery,
   },
   {
-    key: "wait_resume",
-    actionTypes: ["wait_resume"],
+    key: "wait-resume",
+    actionTypes: ["wait-resume"],
     channel: "internal",
     eventName: "journey.wait-resume.execute",
     functionId: "journey-wait-resume-execute",
@@ -161,7 +161,7 @@ const providers: DeliveryProviderSpec[] = [
     },
     dispatch: () => {
       throw new Error(
-        "wait_resume deliveries are intercepted before dispatch; this should never be called.",
+        "wait-resume deliveries are intercepted before dispatch; this should never be called.",
       );
     },
   },

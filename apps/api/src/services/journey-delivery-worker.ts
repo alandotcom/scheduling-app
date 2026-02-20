@@ -529,8 +529,8 @@ export async function executeJourneyDeliveryScheduled(
       throw new Error("Unexpected: run is null after cancellation check.");
     }
 
-    // Intercept wait_resume: re-plan from this wait node with fresh data
-    if (current.delivery.actionType === "wait_resume") {
+    // Intercept wait-resume: re-plan from this wait node with fresh data
+    if (current.delivery.actionType === "wait-resume") {
       await executeWaitResume({
         orgId: input.orgId,
         journeyRunId: current.delivery.journeyRunId,
@@ -541,7 +541,7 @@ export async function executeJourneyDeliveryScheduled(
       return finalizeDeliveryOutcome({
         orgId: input.orgId,
         delivery: current.delivery,
-        nodeType: "wait_resume",
+        nodeType: "wait-resume",
         dispatchStartedAt,
         now,
         status: "sent",

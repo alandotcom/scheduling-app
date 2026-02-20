@@ -528,10 +528,10 @@ function buildDesiredDeliveries(input: {
             waitUntil: nextCursor.toISOString(),
           },
         });
-        // Stop at active wait boundary — emit a wait_resume delivery
+        // Stop at active wait boundary — emit a wait-resume delivery
         // that will re-plan from this point with fresh data when it fires.
         desiredDeliveries.push({
-          actionType: "wait_resume",
+          actionType: "wait-resume",
           deterministicKey: buildDeliveryDeterministicKey({
             journeyRunId: input.journeyRunId,
             stepKey: node.attributes.id,
@@ -1470,15 +1470,20 @@ export async function executeWaitResume(
         appointmentId: journeyRuns.appointmentId,
         journeyVersionSnapshot: journeyRuns.journeyVersionSnapshot,
         journeyVersionId: journeyRuns.journeyVersionId,
+        journeyId: journeyVersions.journeyId,
       })
       .from(journeyRuns)
+      .leftJoin(
+        journeyVersions,
+        eq(journeyVersions.id, journeyRuns.journeyVersionId),
+      )
       .where(eq(journeyRuns.id, input.journeyRunId))
       .limit(1);
     return row ?? null;
   });
 
   if (!run) {
-    journeyPlannerLogger.warn("wait_resume: run {runId} not found, skipping", {
+    journeyPlannerLogger.warn("wait-resume: run {runId} not found, skipping", {
       runId: input.journeyRunId,
     });
     return { scheduledDeliveryIds: [], canceledDeliveryIds: [] };
@@ -1486,7 +1491,7 @@ export async function executeWaitResume(
 
   if (run.status !== "planned" && run.status !== "running") {
     journeyPlannerLogger.info(
-      "wait_resume: run {runId} is {status}, skipping",
+      "wait-resume: run {runId} is {status}, skipping",
       { runId: input.journeyRunId, status: run.status },
     );
     return { scheduledDeliveryIds: [], canceledDeliveryIds: [] };
@@ -1499,7 +1504,7 @@ export async function executeWaitResume(
   );
   if (!parsedGraph.success) {
     journeyPlannerLogger.error(
-      "wait_resume: failed to parse graph for run {runId}",
+      "wait-resume: failed to parse graph for run {runId}",
       { runId: input.journeyRunId },
     );
     return { scheduledDeliveryIds: [], canceledDeliveryIds: [] };
@@ -1513,7 +1518,7 @@ export async function executeWaitResume(
 
   if (!freshContext) {
     journeyPlannerLogger.warn(
-      "wait_resume: appointment {appointmentId} not found for run {runId}",
+      "wait-resume: appointment {appointmentId} not found for run {runId}",
       { appointmentId: run.appointmentId, runId: input.journeyRunId },
     );
     return { scheduledDeliveryIds: [], canceledDeliveryIds: [] };
@@ -1523,7 +1528,7 @@ export async function executeWaitResume(
   const buildResult = buildDesiredDeliveries({
     graph: parsedGraph.data,
     journeyRunId: run.id,
-    journeyId: run.journeyVersionId ?? "unknown",
+    journeyId: run.journeyId ?? run.journeyVersionId ?? "unknown",
     appointmentId: run.appointmentId,
     appointmentContext: freshContext.appointmentContext,
     clientContext: freshContext.clientContext,
@@ -1536,6 +1541,18 @@ export async function executeWaitResume(
   const { pendingInngestEvents, ...reconciliationResult } = await withOrg(
     input.orgId,
     async (tx) => {
+      // Mark this wait-resume delivery as sent BEFORE reconciliation so it
+      // won't be detected as stale and canceled during reconcileDeliveries.
+      await tx
+        .update(journeyDeliveries)
+        .set({ status: "sent", updatedAt: sql`now()` })
+        .where(
+          and(
+            eq(journeyDeliveries.id, input.journeyDeliveryId),
+            eq(journeyDeliveries.status, "planned"),
+          ),
+        );
+
       const result = await reconcileDeliveries({
         tx,
         runId: run.id,
