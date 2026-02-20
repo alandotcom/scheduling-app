@@ -36,7 +36,7 @@ export async function backfillAppIntegrationDefaultsForAllOrgs(): Promise<void> 
     async ({ orgId }) => {
       await ensureAppIntegrationDefaultsForOrg(orgId);
     },
-    { concurrency: 1 },
+    { concurrency: 5 },
   );
 
   logger.info("Ensured app integration defaults for all orgs", {

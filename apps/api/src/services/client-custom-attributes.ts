@@ -1,4 +1,5 @@
-import { forEachAsync } from "es-toolkit/array";
+import { sql } from "drizzle-orm";
+import { clientCustomAttributeDefinitions } from "@scheduling/db/schema";
 import { retry } from "es-toolkit/function";
 import type {
   CustomAttributeType,
@@ -395,18 +396,15 @@ export class ClientCustomAttributeService {
           { code: "VALIDATION_ERROR" },
         );
       }
-      await forEachAsync(
-        orderedIds,
-        async (id, i) => {
-          await customAttributeRepository.updateDefinition(
-            tx,
-            context.orgId,
-            id,
-            { displayOrder: i },
-          );
-        },
-        { concurrency: 1 },
-      );
+      const ids = orderedIds;
+      const orders = orderedIds.map((_, i) => i);
+      await tx.execute(sql`
+        UPDATE ${clientCustomAttributeDefinitions}
+        SET display_order = data.new_order, updated_at = now()
+        FROM unnest(${ids}::uuid[], ${orders}::int[]) AS data(id, new_order)
+        WHERE ${clientCustomAttributeDefinitions.id} = data.id
+          AND ${clientCustomAttributeDefinitions.orgId} = ${context.orgId}
+      `);
     });
     return { success: true };
   }

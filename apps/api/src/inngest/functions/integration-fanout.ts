@@ -1,4 +1,3 @@
-import { forEachAsync } from "es-toolkit/array";
 import type { AnyDomainEvent, IntegrationConsumer } from "@integrations/core";
 import { integrationSupportsEvent } from "@integrations/core";
 import {
@@ -80,12 +79,10 @@ export function createIntegrationFanoutFunction<
             integrationSupportsEvent(integration, domainEvent.type),
           );
 
-          await forEachAsync(
-            targetIntegrations,
-            async (integration) => {
-              await integration.process(domainEvent);
-            },
-            { concurrency: 1 },
+          await Promise.all(
+            targetIntegrations.map((integration) =>
+              integration.process(domainEvent),
+            ),
           );
 
           return targetIntegrations.map((integration) => integration.name);
