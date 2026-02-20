@@ -17,6 +17,7 @@ CREATE TYPE "invitation_status" AS ENUM('pending', 'accepted', 'rejected', 'canc
 CREATE TYPE "journey_delivery_status" AS ENUM('planned', 'sent', 'failed', 'canceled', 'skipped');--> statement-breakpoint
 CREATE TYPE "journey_mode" AS ENUM('live', 'test');--> statement-breakpoint
 CREATE TYPE "journey_run_mode" AS ENUM('live', 'test');--> statement-breakpoint
+CREATE TYPE "journey_trigger_entity_type" AS ENUM('appointment', 'client');--> statement-breakpoint
 CREATE TYPE "journey_run_status" AS ENUM('planned', 'running', 'completed', 'canceled', 'failed');--> statement-breakpoint
 CREATE TYPE "journey_run_step_log_status" AS ENUM('pending', 'running', 'success', 'error', 'cancelled');--> statement-breakpoint
 CREATE TYPE "journey_state" AS ENUM('draft', 'published', 'paused');--> statement-breakpoint
@@ -255,7 +256,10 @@ CREATE TABLE "journey_runs" (
 	"id" uuid PRIMARY KEY DEFAULT uuidv7(),
 	"org_id" uuid NOT NULL,
 	"journey_version_id" uuid,
+	"trigger_entity_type" "journey_trigger_entity_type" DEFAULT 'appointment'::"journey_trigger_entity_type" NOT NULL,
+	"trigger_entity_id" uuid,
 	"appointment_id" uuid NOT NULL,
+	"client_id" uuid,
 	"mode" "journey_run_mode" NOT NULL,
 	"status" "journey_run_status" NOT NULL,
 	"journey_name_snapshot" text NOT NULL,
@@ -449,7 +453,7 @@ CREATE UNIQUE INDEX "integrations_org_key_unique_idx" ON "integrations" ("org_id
 CREATE UNIQUE INDEX "journey_deliveries_org_deterministic_key_uidx" ON "journey_deliveries" ("org_id","deterministic_key");--> statement-breakpoint
 CREATE INDEX "journey_deliveries_org_run_scheduled_for_idx" ON "journey_deliveries" ("org_id","journey_run_id","scheduled_for");--> statement-breakpoint
 CREATE INDEX "journey_deliveries_org_status_idx" ON "journey_deliveries" ("org_id","status");--> statement-breakpoint
-CREATE UNIQUE INDEX "journey_runs_org_identity_uidx" ON "journey_runs" ("org_id","journey_version_id","appointment_id","mode");--> statement-breakpoint
+CREATE UNIQUE INDEX "journey_runs_org_identity_uidx" ON "journey_runs" ("org_id","journey_version_id","trigger_entity_type",(coalesce("trigger_entity_id", "appointment_id")),"mode");--> statement-breakpoint
 CREATE INDEX "journey_runs_org_status_idx" ON "journey_runs" ("org_id","status");--> statement-breakpoint
 CREATE INDEX "journey_runs_org_mode_started_at_idx" ON "journey_runs" ("org_id","mode","started_at");--> statement-breakpoint
 CREATE INDEX "journey_run_events_org_run_created_at_idx" ON "journey_run_events" ("org_id","journey_run_id","created_at");--> statement-breakpoint
@@ -493,6 +497,7 @@ ALTER TABLE "journey_deliveries" ADD CONSTRAINT "journey_deliveries_org_id_orgs_
 ALTER TABLE "journey_deliveries" ADD CONSTRAINT "journey_deliveries_journey_run_id_journey_runs_id_fkey" FOREIGN KEY ("journey_run_id") REFERENCES "journey_runs"("id") ON DELETE CASCADE;--> statement-breakpoint
 ALTER TABLE "journey_runs" ADD CONSTRAINT "journey_runs_org_id_orgs_id_fkey" FOREIGN KEY ("org_id") REFERENCES "orgs"("id") ON DELETE CASCADE;--> statement-breakpoint
 ALTER TABLE "journey_runs" ADD CONSTRAINT "journey_runs_journey_version_id_journey_versions_id_fkey" FOREIGN KEY ("journey_version_id") REFERENCES "journey_versions"("id") ON DELETE SET NULL;--> statement-breakpoint
+ALTER TABLE "journey_runs" ADD CONSTRAINT "journey_runs_client_id_clients_id_fkey" FOREIGN KEY ("client_id") REFERENCES "clients"("id") ON DELETE SET NULL;--> statement-breakpoint
 ALTER TABLE "journey_run_events" ADD CONSTRAINT "journey_run_events_org_id_orgs_id_fkey" FOREIGN KEY ("org_id") REFERENCES "orgs"("id") ON DELETE CASCADE;--> statement-breakpoint
 ALTER TABLE "journey_run_events" ADD CONSTRAINT "journey_run_events_journey_run_id_journey_runs_id_fkey" FOREIGN KEY ("journey_run_id") REFERENCES "journey_runs"("id") ON DELETE CASCADE;--> statement-breakpoint
 ALTER TABLE "journey_run_step_logs" ADD CONSTRAINT "journey_run_step_logs_org_id_orgs_id_fkey" FOREIGN KEY ("org_id") REFERENCES "orgs"("id") ON DELETE CASCADE;--> statement-breakpoint

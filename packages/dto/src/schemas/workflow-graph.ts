@@ -323,7 +323,7 @@ export const journeyTriggerFilterAstSchema = z
     }
   });
 
-export const journeyTriggerConfigSchema = z
+export const appointmentJourneyTriggerConfigSchema = z
   .object({
     triggerType: z.literal("AppointmentJourney"),
     start: z.literal("appointment.scheduled"),
@@ -333,6 +333,21 @@ export const journeyTriggerConfigSchema = z
     filter: journeyTriggerFilterAstSchema.optional(),
   })
   .strict();
+
+export const clientJourneyTriggerConfigSchema = z
+  .object({
+    triggerType: z.literal("ClientJourney"),
+    event: z.enum(["client.created", "client.updated"]),
+    correlationKey: z.literal("clientId"),
+    trackedAttributeKey: z.string().trim().min(1).optional(),
+    filter: journeyTriggerFilterAstSchema.optional(),
+  })
+  .strict();
+
+export const journeyTriggerConfigSchema = z.discriminatedUnion("triggerType", [
+  appointmentJourneyTriggerConfigSchema,
+  clientJourneyTriggerConfigSchema,
+]);
 
 const workflowDomainEventTriggerConfigSchema = z
   .object({
@@ -383,14 +398,19 @@ export const workflowCustomTriggerConfigSchema = z
   .catchall(z.unknown())
   .refine(
     (value) =>
-      value.triggerType !== "DomainEvent" && value.triggerType !== "Schedule",
+      value.triggerType !== "DomainEvent" &&
+      value.triggerType !== "Schedule" &&
+      value.triggerType !== "AppointmentJourney" &&
+      value.triggerType !== "ClientJourney",
     {
-      message: 'Custom triggerType must not be "DomainEvent" or "Schedule"',
+      message:
+        'Custom triggerType must not be "DomainEvent", "Schedule", "AppointmentJourney", or "ClientJourney"',
       path: ["triggerType"],
     },
   );
 
 export const workflowTriggerConfigSchema = z.union([
+  journeyTriggerConfigSchema,
   workflowDomainEventTriggerConfigSchema,
   workflowScheduleTriggerConfigSchema,
   workflowCustomTriggerConfigSchema,
@@ -482,6 +502,12 @@ export type WorkflowNodeRuntimeStatus = z.infer<
 >;
 export type WorkflowDomainEventTriggerConfig = z.infer<
   typeof workflowDomainEventTriggerConfigSchema
+>;
+export type AppointmentJourneyTriggerConfig = z.infer<
+  typeof appointmentJourneyTriggerConfigSchema
+>;
+export type ClientJourneyTriggerConfig = z.infer<
+  typeof clientJourneyTriggerConfigSchema
 >;
 export type JourneyTriggerConfig = z.infer<typeof journeyTriggerConfigSchema>;
 export type JourneyTriggerFilterOperator = z.infer<

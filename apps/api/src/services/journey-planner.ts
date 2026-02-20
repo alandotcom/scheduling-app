@@ -1,11 +1,7 @@
 import { forEachAsync } from "es-toolkit/array";
 import { getLogger } from "@logtape/logtape";
 import {
-  journeyTriggerConfigSchema,
   linearJourneyGraphSchema,
-  type DomainEventDataByType,
-  type DomainEventType,
-  type JourneyTriggerConfig,
   type LinearJourneyGraph,
 } from "@scheduling/dto";
 import {
@@ -40,24 +36,27 @@ import {
   upsertJourneyRunStepLog,
 } from "./journey-run-artifacts.js";
 import { refreshRunStatusTx } from "./journey-run-status.js";
-import { loadFreshContextForPlanner } from "./journey-template-context.js";
+import {
+  resolveJourneyTriggerRuntime,
+  type JourneyPlannerDomainEventPayload,
+  type JourneyPlannerDomainEventType,
+  type JourneyRunIdentity,
+} from "./journey-trigger-engines.js";
+import { loadFreshContextForPlannerByRun } from "./journey-template-context.js";
 import { resolveWaitUntil } from "./workflow-wait-time.js";
+
+export type { JourneyPlannerDomainEventType };
 
 const ACTIVE_JOURNEY_STATES = ["published"] as const;
 const ACTIVE_RUN_STATUSES = ["planned", "running"] as const;
 const DEFAULT_ORG_TIMEZONE = "UTC";
 const journeyPlannerLogger = getLogger(["journeys", "planner"]);
 
-export type JourneyPlannerDomainEventType = Extract<
-  DomainEventType,
-  "appointment.scheduled" | "appointment.rescheduled" | "appointment.canceled"
->;
-
 export type JourneyDomainEventEnvelope = {
   id: string;
   orgId: string;
   type: JourneyPlannerDomainEventType;
-  payload: DomainEventDataByType[JourneyPlannerDomainEventType];
+  payload: JourneyPlannerDomainEventPayload;
   timestamp: string;
 };
 
@@ -414,46 +413,6 @@ function buildDeliveryDeterministicKey(input: {
   return `${input.journeyRunId}:${input.stepKey}:${input.scheduledFor.toISOString()}`;
 }
 
-function extractAppointmentId(payload: unknown): string | null {
-  const payloadRecord = toRecord(payload);
-  return typeof payloadRecord["appointmentId"] === "string"
-    ? payloadRecord["appointmentId"]
-    : null;
-}
-
-function resolveTriggerRouting(input: {
-  triggerConfig: JourneyTriggerConfig;
-  eventType: JourneyPlannerDomainEventType;
-}): "plan" | "cancel" | "ignore" {
-  if (input.triggerConfig.stop === input.eventType) {
-    return "cancel";
-  }
-
-  if (
-    input.triggerConfig.start === input.eventType ||
-    input.triggerConfig.restart === input.eventType
-  ) {
-    return "plan";
-  }
-
-  return "ignore";
-}
-
-function getTriggerConfig(
-  graph: LinearJourneyGraph,
-): JourneyTriggerConfig | null {
-  const triggerNode = getTriggerNode(graph);
-  if (!triggerNode) {
-    return null;
-  }
-
-  const parsed = journeyTriggerConfigSchema.safeParse(
-    triggerNode.attributes.data.config,
-  );
-
-  return parsed.success ? parsed.data : null;
-}
-
 function buildDesiredDeliveries(input: {
   graph: LinearJourneyGraph;
   journeyRunId: string;
@@ -712,16 +671,18 @@ function buildDesiredDeliveries(input: {
 async function findJourneyRun(input: {
   tx: DbClient;
   journeyVersionId: string;
-  appointmentId: string;
+  runIdentity: JourneyRunIdentity;
   mode: "live" | "test";
 }): Promise<JourneyRunRow | null> {
+  const resolvedTriggerEntityId = sql`coalesce(${journeyRuns.triggerEntityId}, ${journeyRuns.appointmentId})`;
   const [run] = await input.tx
     .select()
     .from(journeyRuns)
     .where(
       and(
         eq(journeyRuns.journeyVersionId, input.journeyVersionId),
-        eq(journeyRuns.appointmentId, input.appointmentId),
+        eq(journeyRuns.triggerEntityType, input.runIdentity.triggerEntityType),
+        eq(resolvedTriggerEntityId, input.runIdentity.triggerEntityId),
         eq(journeyRuns.mode, input.mode),
       ),
     )
@@ -735,13 +696,13 @@ async function findOrCreateJourneyRun(input: {
   orgId: string;
   journey: JourneyRow;
   journeyVersion: JourneyVersionRow;
-  appointmentId: string;
+  runIdentity: JourneyRunIdentity;
   mode: "live" | "test";
 }): Promise<{ run: JourneyRunRow; created: boolean }> {
   const existing = await findJourneyRun({
     tx: input.tx,
     journeyVersionId: input.journeyVersion.id,
-    appointmentId: input.appointmentId,
+    runIdentity: input.runIdentity,
     mode: input.mode,
   });
 
@@ -757,7 +718,10 @@ async function findOrCreateJourneyRun(input: {
     .values({
       orgId: input.orgId,
       journeyVersionId: input.journeyVersion.id,
-      appointmentId: input.appointmentId,
+      triggerEntityType: input.runIdentity.triggerEntityType,
+      triggerEntityId: input.runIdentity.triggerEntityId,
+      appointmentId: input.runIdentity.appointmentId,
+      clientId: input.runIdentity.clientId,
       mode: input.mode,
       status: "planned",
       journeyNameSnapshot: input.journey.name,
@@ -767,14 +731,7 @@ async function findOrCreateJourneyRun(input: {
         publishedAt: input.journeyVersion.publishedAt.toISOString(),
       },
     })
-    .onConflictDoNothing({
-      target: [
-        journeyRuns.orgId,
-        journeyRuns.journeyVersionId,
-        journeyRuns.appointmentId,
-        journeyRuns.mode,
-      ],
-    })
+    .onConflictDoNothing()
     .returning();
 
   if (created) {
@@ -787,7 +744,7 @@ async function findOrCreateJourneyRun(input: {
   const resolved = await findJourneyRun({
     tx: input.tx,
     journeyVersionId: input.journeyVersion.id,
-    appointmentId: input.appointmentId,
+    runIdentity: input.runIdentity,
     mode: input.mode,
   });
 
@@ -1203,11 +1160,6 @@ async function reconcileDeliveries(input: {
   };
 }
 
-function getClientFilterContext(payload: unknown): Record<string, unknown> {
-  const payloadRecord = toRecord(payload);
-  return toRecord(payloadRecord["client"]);
-}
-
 export async function processJourneyDomainEvent(
   event: JourneyDomainEventEnvelope,
   dependencies: JourneyPlannerDependencies = {},
@@ -1310,10 +1262,6 @@ export async function processJourneyDomainEvent(
     const erroredJourneyIds: string[] = [];
     const allPendingEvents: PendingInngestEvent[] = [];
 
-    const appointmentContext = toRecord(event.payload);
-    const clientContext = getClientFilterContext(event.payload);
-    const appointmentId = extractAppointmentId(event.payload);
-
     await forEachAsync(
       activeJourneys,
       async (journey) => {
@@ -1321,11 +1269,6 @@ export async function processJourneyDomainEvent(
           const latestVersion = latestVersionByJourneyId.get(journey.id);
           if (!latestVersion) {
             ignoredJourneyIds.push(journey.id);
-            return;
-          }
-
-          if (!appointmentId) {
-            erroredJourneyIds.push(journey.id);
             return;
           }
 
@@ -1338,16 +1281,34 @@ export async function processJourneyDomainEvent(
             return;
           }
 
-          const triggerConfig = getTriggerConfig(parsedGraph.data);
-          if (!triggerConfig) {
+          const triggerResolution = resolveJourneyTriggerRuntime({
+            graph: parsedGraph.data,
+            eventType: event.type,
+            payload: event.payload,
+          });
+
+          if (triggerResolution.status === "invalid_config") {
             ignoredJourneyIds.push(journey.id);
             return;
           }
 
-          const routing = resolveTriggerRouting({
+          if (triggerResolution.status === "unsupported_trigger_type") {
+            ignoredJourneyIds.push(journey.id);
+            return;
+          }
+
+          if (triggerResolution.status === "missing_run_identity") {
+            erroredJourneyIds.push(journey.id);
+            return;
+          }
+
+          const {
             triggerConfig,
-            eventType: event.type,
-          });
+            routing,
+            runIdentity,
+            appointmentContext,
+            clientContext,
+          } = triggerResolution;
 
           if (routing === "ignore") {
             ignoredJourneyIds.push(journey.id);
@@ -1360,7 +1321,7 @@ export async function processJourneyDomainEvent(
             orgId: event.orgId,
             journey,
             journeyVersion: latestVersion,
-            appointmentId,
+            runIdentity,
             mode,
           });
           const run = runResult.run;
@@ -1397,7 +1358,7 @@ export async function processJourneyDomainEvent(
               graph: parsedGraph.data,
               journeyRunId: run.id,
               journeyId: journey.id,
-              appointmentId,
+              appointmentId: runIdentity.appointmentId,
               appointmentContext,
               clientContext,
               eventType: event.type,
@@ -1482,7 +1443,7 @@ export async function processJourneyDomainEvent(
             graph: parsedGraph.data,
             journeyRunId: run.id,
             journeyId: journey.id,
-            appointmentId,
+            appointmentId: runIdentity.appointmentId,
             appointmentContext,
             clientContext,
             eventType: event.type,
@@ -1571,7 +1532,10 @@ export async function executeWaitResume(
       .select({
         id: journeyRuns.id,
         status: journeyRuns.status,
+        triggerEntityType: journeyRuns.triggerEntityType,
+        triggerEntityId: journeyRuns.triggerEntityId,
         appointmentId: journeyRuns.appointmentId,
+        clientId: journeyRuns.clientId,
         journeyVersionSnapshot: journeyRuns.journeyVersionSnapshot,
         journeyVersionId: journeyRuns.journeyVersionId,
         journeyId: journeyVersions.journeyId,
@@ -1614,16 +1578,23 @@ export async function executeWaitResume(
     return { scheduledDeliveryIds: [], canceledDeliveryIds: [] };
   }
 
-  // 3. Fetch fresh appointment + client context from DB
-  const freshContext = await loadFreshContextForPlanner({
+  // 3. Fetch fresh trigger context from DB
+  const freshContext = await loadFreshContextForPlannerByRun({
     orgId: input.orgId,
+    triggerEntityType: run.triggerEntityType,
+    triggerEntityId: run.triggerEntityId ?? run.appointmentId,
     appointmentId: run.appointmentId,
+    clientId: run.clientId,
   });
 
   if (!freshContext) {
     journeyPlannerLogger.warn(
-      "wait-resume: appointment {appointmentId} not found for run {runId}",
-      { appointmentId: run.appointmentId, runId: input.journeyRunId },
+      "wait-resume: trigger context not found for run {runId} entity {entityType}:{entityId}",
+      {
+        runId: input.journeyRunId,
+        entityType: run.triggerEntityType,
+        entityId: run.triggerEntityId ?? run.appointmentId,
+      },
     );
     return { scheduledDeliveryIds: [], canceledDeliveryIds: [] };
   }

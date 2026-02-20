@@ -234,7 +234,7 @@ export const linearJourneyGraphSchema =
           ctx.addIssue({
             code: "custom",
             message:
-              "Trigger step must use the fixed appointment journey trigger configuration",
+              "Trigger step must use a supported journey trigger configuration",
             path: ["nodes", index, "attributes", "data", "config"],
           });
         }

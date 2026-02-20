@@ -240,6 +240,10 @@ export const relations = defineRelations(schema, (r) => ({
       from: r.journeyRuns.appointmentId,
       to: r.appointments.id,
     }),
+    client: r.one.clients({
+      from: r.journeyRuns.clientId,
+      to: r.clients.id,
+    }),
     deliveries: r.many.journeyDeliveries(),
     events: r.many.journeyRunEvents(),
     stepLogs: r.many.journeyRunStepLogs(),

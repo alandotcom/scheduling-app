@@ -634,20 +634,24 @@ export function WorkflowEditorSidebar({
                         fieldOptions={fieldOptions}
                         valueOptionsByField={filterValueOptionsByField}
                         onUpdate={(next) => {
+                          const parsedConfig =
+                            journeyTriggerConfigSchema.safeParse(
+                              selectedNodeConfig,
+                            );
+                          const baseConfig = parsedConfig.success
+                            ? parsedConfig.data
+                            : journeyTriggerConfigSchema.parse({
+                                triggerType: "AppointmentJourney",
+                                start: "appointment.scheduled",
+                                restart: "appointment.rescheduled",
+                                stop: "appointment.canceled",
+                                correlationKey: "appointmentId",
+                              });
                           onUpdateNodeData({
                             id: selectedNode.id,
                             data: {
                               config: {
-                                ...journeyTriggerConfigSchema.parse({
-                                  triggerType: "AppointmentJourney",
-                                  start: "appointment.scheduled",
-                                  restart: "appointment.rescheduled",
-                                  stop: "appointment.canceled",
-                                  correlationKey: "appointmentId",
-                                }),
-                                ...(selectedNodeConfig.filter
-                                  ? { filter: selectedNodeConfig.filter }
-                                  : {}),
+                                ...baseConfig,
                                 ...next,
                               },
                             },

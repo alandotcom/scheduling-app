@@ -1,5 +1,7 @@
 import {
   journeyTriggerConfigSchema,
+  journeyTriggerFilterAstSchema,
+  type JourneyTriggerConfig,
   type JourneyMode,
   serializedJourneyGraphSchema,
   type SerializedJourneyGraph,
@@ -40,10 +42,12 @@ export type WorkflowTriggerNodeData = {
   description?: string;
   status?: WorkflowNodeStatus;
   config?: {
-    triggerType?: "AppointmentJourney";
+    triggerType?: JourneyTriggerConfig["triggerType"];
     start?: "appointment.scheduled";
     restart?: "appointment.rescheduled";
     stop?: "appointment.canceled";
+    event?: "client.created" | "client.updated";
+    trackedAttributeKey?: string;
     correlationKey?: string;
     filter?: unknown;
     [key: string]: unknown;
@@ -544,6 +548,20 @@ function getCanonicalTriggerConfig() {
   });
 }
 
+function normalizeTriggerConfig(value: unknown): JourneyTriggerConfig {
+  const parsed = journeyTriggerConfigSchema.safeParse(value);
+  if (parsed.success) {
+    return parsed.data;
+  }
+
+  const config = asRecord(value);
+  const parsedFilter = journeyTriggerFilterAstSchema.safeParse(config?.filter);
+  return {
+    ...getCanonicalTriggerConfig(),
+    ...(parsedFilter.success ? { filter: parsedFilter.data } : {}),
+  };
+}
+
 function normalizeNodeData(data: unknown): Record<string, unknown> {
   const nodeData = asRecord(data);
   if (!nodeData || nodeData.type !== "trigger") {
@@ -552,12 +570,7 @@ function normalizeNodeData(data: unknown): Record<string, unknown> {
 
   return {
     ...nodeData,
-    config: {
-      ...getCanonicalTriggerConfig(),
-      ...(asRecord(nodeData.config)?.filter
-        ? { filter: asRecord(nodeData.config)?.filter }
-        : {}),
-    },
+    config: normalizeTriggerConfig(nodeData.config),
   };
 }
 

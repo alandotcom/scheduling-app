@@ -338,7 +338,15 @@ function getTriggerConfigFromGraph(
 }
 
 function collectRoutingEvents(config: JourneyTriggerConfig): string[] {
-  return uniq([config.start, config.restart]);
+  if (config.triggerType === "AppointmentJourney") {
+    return uniq([config.start, config.restart]);
+  }
+
+  if (config.triggerType === "ClientJourney") {
+    return [config.event];
+  }
+
+  return [];
 }
 
 function collectHighSignalEqualsFilters(
@@ -1035,6 +1043,29 @@ export class JourneyService {
         throw new ApplicationError("Run not found", { code: "NOT_FOUND" });
       }
 
+      const appointmentContextPromise = run.appointmentId
+        ? tx
+            .select({
+              appointmentId: appointments.id,
+              calendarId: appointments.calendarId,
+              appointmentTypeId: appointments.appointmentTypeId,
+              clientId: appointments.clientId,
+              startAt: appointments.startAt,
+              endAt: appointments.endAt,
+              timezone: appointments.timezone,
+              status: appointments.status,
+              notes: appointments.notes,
+              clientFirstName: clients.firstName,
+              clientLastName: clients.lastName,
+              clientEmail: clients.email,
+              clientPhone: clients.phone,
+            })
+            .from(appointments)
+            .leftJoin(clients, eq(clients.id, appointments.clientId))
+            .where(eq(appointments.id, run.appointmentId))
+            .limit(1)
+        : Promise.resolve([]);
+
       const [deliveries, events, stepLogs, appointmentContext] =
         await Promise.all([
           tx
@@ -1059,26 +1090,7 @@ export class JourneyService {
               asc(journeyRunStepLogs.startedAt),
               asc(journeyRunStepLogs.id),
             ),
-          tx
-            .select({
-              appointmentId: appointments.id,
-              calendarId: appointments.calendarId,
-              appointmentTypeId: appointments.appointmentTypeId,
-              clientId: appointments.clientId,
-              startAt: appointments.startAt,
-              endAt: appointments.endAt,
-              timezone: appointments.timezone,
-              status: appointments.status,
-              notes: appointments.notes,
-              clientFirstName: clients.firstName,
-              clientLastName: clients.lastName,
-              clientEmail: clients.email,
-              clientPhone: clients.phone,
-            })
-            .from(appointments)
-            .leftJoin(clients, eq(clients.id, appointments.clientId))
-            .where(eq(appointments.id, run.appointmentId))
-            .limit(1),
+          appointmentContextPromise,
         ]);
 
       const [appointmentRow] = appointmentContext;

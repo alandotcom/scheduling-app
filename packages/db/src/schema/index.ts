@@ -46,6 +46,10 @@ export const journeyStateEnum = pgEnum("journey_state", [
 export const journeyModeEnum = pgEnum("journey_mode", ["live", "test"]);
 
 export const journeyRunModeEnum = pgEnum("journey_run_mode", ["live", "test"]);
+export const journeyTriggerEntityTypeEnum = pgEnum(
+  "journey_trigger_entity_type",
+  ["appointment", "client"],
+);
 
 export const journeyRunStatusEnum = pgEnum("journey_run_status", [
   "planned",
@@ -678,9 +682,16 @@ export const journeyRuns = pgTable.withRLS(
         onDelete: "set null",
       },
     ),
+    triggerEntityType: journeyTriggerEntityTypeEnum("trigger_entity_type")
+      .notNull()
+      .default("appointment"),
+    triggerEntityId: uuid("trigger_entity_id"),
     appointmentId: uuid("appointment_id")
       .notNull()
       .references(() => appointments.id, { onDelete: "cascade" }),
+    clientId: uuid("client_id").references(() => clients.id, {
+      onDelete: "set null",
+    }),
     mode: journeyRunModeEnum("mode").notNull(),
     status: journeyRunStatusEnum("status").notNull(),
     journeyNameSnapshot: text("journey_name_snapshot").notNull(),
@@ -697,7 +708,8 @@ export const journeyRuns = pgTable.withRLS(
     uniqueIndex("journey_runs_org_identity_uidx").on(
       table.orgId,
       table.journeyVersionId,
-      table.appointmentId,
+      table.triggerEntityType,
+      sql`coalesce(${table.triggerEntityId}, ${table.appointmentId})`,
       table.mode,
     ),
     index("journey_runs_org_status_idx").on(table.orgId, table.status),

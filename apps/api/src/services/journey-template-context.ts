@@ -198,3 +198,27 @@ export async function loadFreshContextForPlanner(input: {
     return { appointmentContext, clientContext, orgTimezone };
   });
 }
+
+export async function loadFreshContextForPlannerByRun(input: {
+  orgId: string;
+  triggerEntityType: "appointment" | "client";
+  triggerEntityId: string;
+  appointmentId: string | null;
+  clientId: string | null;
+}): Promise<{
+  appointmentContext: Record<string, unknown>;
+  clientContext: Record<string, unknown>;
+  orgTimezone: string;
+} | null> {
+  if (input.triggerEntityType === "appointment") {
+    const appointmentId = input.appointmentId ?? input.triggerEntityId;
+    return loadFreshContextForPlanner({
+      orgId: input.orgId,
+      appointmentId,
+    });
+  }
+
+  // Client-trigger runs are introduced in a follow-up phase. Keep the boundary
+  // explicit now so wait/resume can switch by run identity later.
+  return null;
+}
