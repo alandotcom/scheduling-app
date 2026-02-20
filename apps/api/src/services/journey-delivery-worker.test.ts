@@ -1,4 +1,12 @@
 import { beforeEach, describe, expect, mock, test } from "bun:test";
+
+mock.module("../inngest/runtime-events.js", () => ({
+  sendJourneyDeliveryScheduled: async () => ({}),
+  sendJourneyActionExecuteForActionType: async () => ({}),
+  sendJourneyActionSendTwilioCallbackReceived: async () => ({}),
+  sendJourneyDeliveryCanceled: async () => ({}),
+}));
+
 import { eq } from "drizzle-orm";
 import {
   journeyDeliveries,
@@ -34,7 +42,8 @@ function createJourneyVersionSnapshot(input?: {
     | "send-resend-template"
     | "send-slack"
     | "send-twilio"
-    | "logger";
+    | "logger"
+    | "wait-resume";
 }) {
   const stepKey = input?.stepKey ?? "send-node";
   const actionType = input?.actionType ?? "send-resend";
@@ -111,6 +120,91 @@ function createJourneyVersionSnapshot(input?: {
   };
 }
 
+function createWaitResumeJourneyVersionSnapshot() {
+  return {
+    version: 1,
+    definitionSnapshot: {
+      attributes: {},
+      options: { type: "directed" as const },
+      nodes: [
+        {
+          key: "trigger-node",
+          attributes: {
+            id: "trigger-node",
+            type: "trigger-node",
+            position: { x: 0, y: 0 },
+            data: {
+              type: "trigger",
+              label: "Trigger",
+              config: {
+                triggerType: "AppointmentJourney",
+                start: "appointment.scheduled",
+                restart: "appointment.rescheduled",
+                stop: "appointment.canceled",
+                correlationKey: "appointmentId",
+              },
+            },
+          },
+        },
+        {
+          key: "wait-node",
+          attributes: {
+            id: "wait-node",
+            type: "action-node",
+            position: { x: 0, y: 120 },
+            data: {
+              type: "action",
+              label: "Wait",
+              config: {
+                actionType: "wait",
+                waitDuration: "2h",
+              },
+            },
+          },
+        },
+        {
+          key: "send-node",
+          attributes: {
+            id: "send-node",
+            type: "action-node",
+            position: { x: 0, y: 240 },
+            data: {
+              type: "action",
+              label: "Send",
+              config: {
+                actionType: "send-resend",
+              },
+            },
+          },
+        },
+      ],
+      edges: [
+        {
+          key: "trigger-to-wait",
+          source: "trigger-node",
+          target: "wait-node",
+          attributes: {
+            id: "trigger-to-wait",
+            source: "trigger-node",
+            target: "wait-node",
+          },
+        },
+        {
+          key: "wait-to-send",
+          source: "wait-node",
+          target: "send-node",
+          attributes: {
+            id: "wait-to-send",
+            source: "wait-node",
+            target: "send-node",
+          },
+        },
+      ],
+    },
+    publishedAt: "2026-02-16T09:00:00.000Z",
+  };
+}
+
 async function seedPlannedDelivery(
   context: ServiceContext,
   scheduledFor: Date,
@@ -121,10 +215,12 @@ async function seedPlannedDelivery(
       | "send-resend-template"
       | "send-slack"
       | "send-twilio"
-      | "logger";
-    channel?: "email" | "slack" | "sms" | "logger";
+      | "logger"
+      | "wait-resume";
+    channel?: "email" | "slack" | "sms" | "logger" | "internal";
     mode?: "live" | "test";
     appointmentId?: string;
+    journeyVersionSnapshot?: Record<string, unknown>;
   },
 ) {
   const stepKey = input?.stepKey ?? "send-node";
@@ -147,10 +243,12 @@ async function seedPlannedDelivery(
       mode,
       status: "planned",
       journeyNameSnapshot: "Worker Journey",
-      journeyVersionSnapshot: createJourneyVersionSnapshot({
-        stepKey,
-        actionType,
-      }),
+      journeyVersionSnapshot:
+        input?.journeyVersionSnapshot ??
+        createJourneyVersionSnapshot({
+          stepKey,
+          actionType,
+        }),
     })
     .returning({ id: journeyRuns.id });
 
@@ -744,5 +842,68 @@ describe("executeJourneyDeliveryScheduled", () => {
       .limit(1);
 
     expect(stepLog?.status).toBe("running");
+  });
+
+  test("intercepts wait-resume delivery and calls executeWaitResume", async () => {
+    const seeded = await seedPlannedDelivery(
+      context,
+      new Date("2026-02-16T12:00:00.000Z"),
+      {
+        stepKey: "wait-node",
+        actionType: "wait-resume",
+        channel: "internal",
+        journeyVersionSnapshot: createWaitResumeJourneyVersionSnapshot(),
+      },
+    );
+
+    const dispatchDelivery = mock(async () => ({
+      providerMessageId: "should-not-be-called",
+    }));
+
+    const result = await executeJourneyDeliveryScheduled(
+      {
+        orgId: context.orgId,
+        journeyDeliveryId: seeded.deliveryId,
+        journeyRunId: seeded.runId,
+        deterministicKey: seeded.deterministicKey,
+        scheduledFor: seeded.scheduledFor.toISOString(),
+      },
+      {
+        runtime: {
+          runStep: async <T>(_stepId: string, fn: () => Promise<T>) => fn(),
+          sleep: async (_stepId: string, _delayMs: number) => {},
+        },
+        now: () => new Date("2026-02-16T12:00:00.000Z"),
+        dispatchDelivery,
+      },
+    );
+
+    expect(result.status).toBe("sent");
+    expect(dispatchDelivery).toHaveBeenCalledTimes(0);
+
+    await setTestOrgContext(db, context.orgId);
+
+    const [delivery] = await db
+      .select({ status: journeyDeliveries.status })
+      .from(journeyDeliveries)
+      .where(eq(journeyDeliveries.id, seeded.deliveryId))
+      .limit(1);
+
+    expect(delivery?.status).toBe("sent");
+
+    const stepLogs = await db
+      .select({
+        status: journeyRunStepLogs.status,
+        stepKey: journeyRunStepLogs.stepKey,
+        nodeType: journeyRunStepLogs.nodeType,
+      })
+      .from(journeyRunStepLogs)
+      .where(eq(journeyRunStepLogs.journeyRunId, seeded.runId));
+
+    const waitResumeLog = stepLogs.find(
+      (log) => log.nodeType === "wait-resume",
+    );
+    expect(waitResumeLog).toBeDefined();
+    expect(waitResumeLog?.status).toBe("success");
   });
 });
