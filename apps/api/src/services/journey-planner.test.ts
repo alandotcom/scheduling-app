@@ -676,7 +676,7 @@ describe("processJourneyDomainEvent", () => {
           "send-resend": scheduleResendRequester,
           "send-resend-template": scheduleResendRequester,
         },
-        now: new Date("2026-02-16T09:00:00.000Z"),
+        now: new Date("2026-02-16T12:00:00.000Z"),
       },
     );
 
@@ -743,7 +743,7 @@ describe("processJourneyDomainEvent", () => {
       },
       {
         providerRequesters: { logger: scheduleLoggerRequester },
-        now: new Date("2026-02-16T09:00:00.000Z"),
+        now: new Date("2026-02-16T10:10:00.000Z"),
       },
     );
 
@@ -899,7 +899,7 @@ describe("processJourneyDomainEvent", () => {
           "send-slack": scheduleSlackRequester,
           logger: scheduleLoggerRequester,
         },
-        now: new Date("2026-02-16T09:00:00.000Z"),
+        now: new Date("2026-02-16T10:05:00.000Z"),
       },
     );
 
@@ -955,7 +955,7 @@ describe("processJourneyDomainEvent", () => {
           "send-slack": scheduleSlackRequester,
           logger: scheduleLoggerRequester,
         },
-        now: new Date("2026-02-16T09:00:00.000Z"),
+        now: new Date("2026-02-16T10:15:00.000Z"),
       },
     );
 
@@ -1015,7 +1015,7 @@ describe("processJourneyDomainEvent", () => {
           "send-twilio": scheduleTwilioRequester,
           logger: scheduleLoggerRequester,
         },
-        now: new Date("2026-02-16T09:00:00.000Z"),
+        now: new Date("2026-02-16T10:05:00.000Z"),
       },
     );
 
@@ -1356,7 +1356,7 @@ describe("processJourneyDomainEvent", () => {
           "send-resend": scheduleResendRequester,
           "send-resend-template": scheduleResendRequester,
         },
-        now: new Date("2026-02-16T09:00:00.000Z"),
+        now: new Date("2026-02-16T10:30:00.000Z"),
       },
     );
 
@@ -1373,7 +1373,7 @@ describe("processJourneyDomainEvent", () => {
           "send-resend": scheduleResendRequester,
           "send-resend-template": scheduleResendRequester,
         },
-        now: new Date("2026-02-16T09:00:00.000Z"),
+        now: new Date("2026-02-16T10:30:00.000Z"),
       },
     );
 
@@ -1562,6 +1562,376 @@ describe("processJourneyDomainEvent", () => {
 
     expect(run).toBeDefined();
     expect(run?.mode).toBe("test");
+  });
+
+  test("creates wait_resume delivery when wait is in the future", async () => {
+    const created = await journeyService.create(
+      {
+        name: "Wait Resume Journey",
+        graph: createJourneyGraph({ waitDuration: "2h" }),
+      },
+      context,
+    );
+
+    await journeyService.publish(created.id, { mode: "live" }, context);
+
+    const appointmentId = await createQuickAppointment(
+      db as any,
+      context.orgId,
+    );
+
+    const scheduleWaitResumeRequester = mock(async () => ({
+      eventId: "evt-wait-resume-1",
+    }));
+    const scheduleResendRequester = mock(async () => ({
+      eventId: "evt-scheduled-wr",
+    }));
+
+    await processJourneyDomainEvent(
+      {
+        id: "evt-wr-1",
+        orgId: context.orgId,
+        type: "appointment.scheduled",
+        payload: createAppointmentPayload({ appointmentId }),
+        timestamp: "2026-02-16T10:00:00.000Z",
+      },
+      {
+        providerRequesters: {
+          wait_resume: scheduleWaitResumeRequester,
+          "send-resend": scheduleResendRequester,
+          "send-resend-template": scheduleResendRequester,
+        },
+        now: new Date("2026-02-16T10:00:00.000Z"),
+      },
+    );
+
+    await setTestOrgContext(db, context.orgId);
+
+    const [run] = await db
+      .select({ id: journeyRuns.id })
+      .from(journeyRuns)
+      .orderBy(desc(journeyRuns.id))
+      .limit(1);
+
+    const deliveries = await db
+      .select({
+        stepKey: journeyDeliveries.stepKey,
+        channel: journeyDeliveries.channel,
+        actionType: journeyDeliveries.actionType,
+        status: journeyDeliveries.status,
+        scheduledFor: journeyDeliveries.scheduledFor,
+      })
+      .from(journeyDeliveries)
+      .where(eq(journeyDeliveries.journeyRunId, run!.id));
+
+    expect(deliveries).toHaveLength(1);
+    expect(deliveries[0]?.stepKey).toBe("wait-node");
+    expect(deliveries[0]?.actionType).toBe("wait_resume");
+    expect(deliveries[0]?.channel).toBe("internal");
+    expect(deliveries[0]?.status).toBe("planned");
+    expect(deliveries[0]?.scheduledFor.toISOString()).toBe(
+      "2026-02-16T12:00:00.000Z",
+    );
+    expect(scheduleWaitResumeRequester).toHaveBeenCalledTimes(1);
+    expect(scheduleResendRequester).toHaveBeenCalledTimes(0);
+  });
+
+  test("does not create wait_resume when wait has already elapsed", async () => {
+    const created = await journeyService.create(
+      {
+        name: "Elapsed Wait Journey",
+        graph: createJourneyGraph({ waitDuration: "30m" }),
+      },
+      context,
+    );
+
+    await journeyService.publish(created.id, { mode: "live" }, context);
+
+    const appointmentId = await createQuickAppointment(
+      db as any,
+      context.orgId,
+    );
+
+    const scheduleWaitResumeRequester = mock(async () => ({
+      eventId: "evt-wait-resume-elapsed",
+    }));
+    const scheduleResendRequester = mock(async () => ({
+      eventId: "evt-scheduled-elapsed",
+    }));
+
+    await processJourneyDomainEvent(
+      {
+        id: "evt-elapsed-1",
+        orgId: context.orgId,
+        type: "appointment.scheduled",
+        payload: createAppointmentPayload({ appointmentId }),
+        timestamp: "2026-02-16T10:00:00.000Z",
+      },
+      {
+        providerRequesters: {
+          wait_resume: scheduleWaitResumeRequester,
+          "send-resend": scheduleResendRequester,
+          "send-resend-template": scheduleResendRequester,
+        },
+        now: new Date("2026-02-16T10:30:00.000Z"),
+      },
+    );
+
+    await setTestOrgContext(db, context.orgId);
+
+    const [run] = await db
+      .select({ id: journeyRuns.id })
+      .from(journeyRuns)
+      .orderBy(desc(journeyRuns.id))
+      .limit(1);
+
+    const deliveries = await db
+      .select({
+        stepKey: journeyDeliveries.stepKey,
+        actionType: journeyDeliveries.actionType,
+      })
+      .from(journeyDeliveries)
+      .where(eq(journeyDeliveries.journeyRunId, run!.id));
+
+    expect(deliveries).toHaveLength(1);
+    expect(deliveries[0]?.stepKey).toBe("send-node");
+    expect(deliveries[0]?.actionType).toBe("send-resend");
+    expect(scheduleResendRequester).toHaveBeenCalledTimes(1);
+    expect(scheduleWaitResumeRequester).toHaveBeenCalledTimes(0);
+  });
+
+  test("sequential waits produce one wait_resume at a time", async () => {
+    const graph: LinearJourneyGraph = {
+      attributes: {},
+      options: { type: "directed" },
+      nodes: [
+        {
+          key: "trigger-node",
+          attributes: {
+            id: "trigger-node",
+            type: "trigger-node",
+            position: { x: 0, y: 0 },
+            data: {
+              type: "trigger",
+              label: "Trigger",
+              config: createTriggerConfig(),
+            },
+          },
+        },
+        {
+          key: "wait-1",
+          attributes: {
+            id: "wait-1",
+            type: "action-node",
+            position: { x: 0, y: 120 },
+            data: {
+              type: "action",
+              label: "Wait 1",
+              config: { actionType: "wait", waitDuration: "1h" },
+            },
+          },
+        },
+        {
+          key: "wait-2",
+          attributes: {
+            id: "wait-2",
+            type: "action-node",
+            position: { x: 0, y: 240 },
+            data: {
+              type: "action",
+              label: "Wait 2",
+              config: { actionType: "wait", waitDuration: "2h" },
+            },
+          },
+        },
+        {
+          key: "send-node",
+          attributes: {
+            id: "send-node",
+            type: "action-node",
+            position: { x: 0, y: 360 },
+            data: {
+              type: "action",
+              label: "Send",
+              config: { actionType: "send-resend" },
+            },
+          },
+        },
+      ],
+      edges: [
+        {
+          key: "trigger-to-wait-1",
+          source: "trigger-node",
+          target: "wait-1",
+          attributes: {
+            id: "trigger-to-wait-1",
+            source: "trigger-node",
+            target: "wait-1",
+          },
+        },
+        {
+          key: "wait-1-to-wait-2",
+          source: "wait-1",
+          target: "wait-2",
+          attributes: {
+            id: "wait-1-to-wait-2",
+            source: "wait-1",
+            target: "wait-2",
+          },
+        },
+        {
+          key: "wait-2-to-send",
+          source: "wait-2",
+          target: "send-node",
+          attributes: {
+            id: "wait-2-to-send",
+            source: "wait-2",
+            target: "send-node",
+          },
+        },
+      ],
+    };
+
+    const created = await journeyService.create(
+      { name: "Sequential Waits", graph },
+      context,
+    );
+    await journeyService.publish(created.id, { mode: "live" }, context);
+
+    const appointmentId = await createQuickAppointment(
+      db as any,
+      context.orgId,
+    );
+
+    const scheduleWaitResumeRequester = mock(async () => ({
+      eventId: "evt-seq-wait",
+    }));
+    const scheduleResendRequester = mock(async () => ({
+      eventId: "evt-seq-resend",
+    }));
+
+    await processJourneyDomainEvent(
+      {
+        id: "evt-seq-1",
+        orgId: context.orgId,
+        type: "appointment.scheduled",
+        payload: createAppointmentPayload({ appointmentId }),
+        timestamp: "2026-02-16T10:00:00.000Z",
+      },
+      {
+        providerRequesters: {
+          wait_resume: scheduleWaitResumeRequester,
+          "send-resend": scheduleResendRequester,
+          "send-resend-template": scheduleResendRequester,
+        },
+        now: new Date("2026-02-16T10:00:00.000Z"),
+      },
+    );
+
+    await setTestOrgContext(db, context.orgId);
+
+    const [run] = await db
+      .select({ id: journeyRuns.id })
+      .from(journeyRuns)
+      .orderBy(desc(journeyRuns.id))
+      .limit(1);
+
+    const deliveries = await db
+      .select({
+        stepKey: journeyDeliveries.stepKey,
+        actionType: journeyDeliveries.actionType,
+        scheduledFor: journeyDeliveries.scheduledFor,
+      })
+      .from(journeyDeliveries)
+      .where(eq(journeyDeliveries.journeyRunId, run!.id));
+
+    // Only one wait_resume at the first wait boundary
+    expect(deliveries).toHaveLength(1);
+    expect(deliveries[0]?.stepKey).toBe("wait-1");
+    expect(deliveries[0]?.actionType).toBe("wait_resume");
+    expect(deliveries[0]?.scheduledFor.toISOString()).toBe(
+      "2026-02-16T11:00:00.000Z",
+    );
+    expect(scheduleWaitResumeRequester).toHaveBeenCalledTimes(1);
+    expect(scheduleResendRequester).toHaveBeenCalledTimes(0);
+  });
+
+  test("cancellation cancels pending wait_resume deliveries", async () => {
+    const created = await journeyService.create(
+      {
+        name: "Cancel Wait Resume Journey",
+        graph: createJourneyGraph({ waitDuration: "3h" }),
+      },
+      context,
+    );
+
+    await journeyService.publish(created.id, { mode: "live" }, context);
+
+    const appointmentId = await createQuickAppointment(
+      db as any,
+      context.orgId,
+    );
+
+    const scheduleWaitResumeRequester = mock(async () => ({
+      eventId: "evt-wr-cancel-schedule",
+    }));
+
+    // Schedule — creates a wait_resume delivery
+    await processJourneyDomainEvent(
+      {
+        id: "evt-cancel-wr-1",
+        orgId: context.orgId,
+        type: "appointment.scheduled",
+        payload: createAppointmentPayload({ appointmentId }),
+        timestamp: "2026-02-16T10:00:00.000Z",
+      },
+      {
+        providerRequesters: { wait_resume: scheduleWaitResumeRequester },
+        now: new Date("2026-02-16T10:00:00.000Z"),
+      },
+    );
+
+    const cancelRequester = mock(async () => ({
+      eventId: "evt-wr-cancel",
+    }));
+
+    // Cancel via stop trigger
+    await processJourneyDomainEvent(
+      {
+        id: "evt-cancel-wr-2",
+        orgId: context.orgId,
+        type: "appointment.canceled",
+        payload: createAppointmentPayload({ appointmentId }),
+        timestamp: "2026-02-16T11:00:00.000Z",
+      },
+      {
+        cancelRequester,
+        now: new Date("2026-02-16T11:00:00.000Z"),
+      },
+    );
+
+    await setTestOrgContext(db, context.orgId);
+
+    const [run] = await db
+      .select({ id: journeyRuns.id, status: journeyRuns.status })
+      .from(journeyRuns)
+      .orderBy(desc(journeyRuns.id))
+      .limit(1);
+
+    expect(run?.status).toBe("canceled");
+
+    const deliveries = await db
+      .select({
+        actionType: journeyDeliveries.actionType,
+        status: journeyDeliveries.status,
+      })
+      .from(journeyDeliveries)
+      .where(eq(journeyDeliveries.journeyRunId, run!.id));
+
+    expect(deliveries).toHaveLength(1);
+    expect(deliveries[0]?.actionType).toBe("wait_resume");
+    expect(deliveries[0]?.status).toBe("canceled");
+    expect(cancelRequester).toHaveBeenCalledTimes(1);
   });
 
   test("keeps test-mode wait scheduling identical to live mode", async () => {

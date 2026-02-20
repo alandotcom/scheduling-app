@@ -1,7 +1,9 @@
-import { appointments, clients } from "@scheduling/db/schema";
+import { appointments, clients, orgs } from "@scheduling/db/schema";
 import { eq } from "drizzle-orm";
 import { withOrg } from "../lib/db.js";
 import { clientCustomAttributeService } from "./client-custom-attributes.js";
+
+const DEFAULT_ORG_TIMEZONE = "UTC";
 
 export async function loadDeliveryTemplateContext(input: {
   orgId: string;
@@ -107,4 +109,92 @@ export async function loadDeliveryTemplateContext(input: {
         ? (appointmentPayload["client"] as Record<string, unknown> | null)
         : null,
   };
+}
+
+/**
+ * Loads fresh appointment + client data in the flat shape expected by
+ * `buildDesiredDeliveries` (matching the appointmentContext / clientContext
+ * shapes from `processJourneyDomainEvent`). Also fetches org timezone.
+ *
+ * Used by `executeWaitResume` to re-plan with up-to-date data after a wait.
+ */
+export async function loadFreshContextForPlanner(input: {
+  orgId: string;
+  appointmentId: string;
+}): Promise<{
+  appointmentContext: Record<string, unknown>;
+  clientContext: Record<string, unknown>;
+  orgTimezone: string;
+} | null> {
+  return withOrg(input.orgId, async (tx) => {
+    const [row] = await tx
+      .select({
+        appointmentId: appointments.id,
+        calendarId: appointments.calendarId,
+        appointmentTypeId: appointments.appointmentTypeId,
+        clientId: appointments.clientId,
+        startAt: appointments.startAt,
+        endAt: appointments.endAt,
+        timezone: appointments.timezone,
+        status: appointments.status,
+        notes: appointments.notes,
+        clientFirstName: clients.firstName,
+        clientLastName: clients.lastName,
+        clientEmail: clients.email,
+        clientPhone: clients.phone,
+      })
+      .from(appointments)
+      .leftJoin(clients, eq(clients.id, appointments.clientId))
+      .where(eq(appointments.id, input.appointmentId))
+      .limit(1);
+
+    if (!row) {
+      return null;
+    }
+
+    const [org] = await tx
+      .select({ defaultTimezone: orgs.defaultTimezone })
+      .from(orgs)
+      .where(eq(orgs.id, input.orgId))
+      .limit(1);
+    const orgTimezone = org?.defaultTimezone ?? DEFAULT_ORG_TIMEZONE;
+
+    const client = row.clientId
+      ? {
+          id: row.clientId,
+          firstName: row.clientFirstName,
+          lastName: row.clientLastName,
+          email: row.clientEmail,
+          phone: row.clientPhone,
+        }
+      : null;
+
+    const appointmentContext: Record<string, unknown> = {
+      appointmentId: row.appointmentId,
+      calendarId: row.calendarId,
+      appointmentTypeId: row.appointmentTypeId,
+      clientId: row.clientId,
+      startAt: row.startAt.toISOString(),
+      endAt: row.endAt.toISOString(),
+      timezone: row.timezone,
+      status: row.status,
+      notes: row.notes,
+      appointment: {
+        id: row.appointmentId,
+        calendarId: row.calendarId,
+        appointmentTypeId: row.appointmentTypeId,
+        clientId: row.clientId,
+        startAt: row.startAt.toISOString(),
+        endAt: row.endAt.toISOString(),
+        timezone: row.timezone,
+        status: row.status,
+        notes: row.notes,
+      },
+      client,
+    };
+
+    const clientContext: Record<string, unknown> = client ?? {};
+
+    return { appointmentContext, clientContext, orgTimezone };
+  });
 }

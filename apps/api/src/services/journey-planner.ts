@@ -40,6 +40,7 @@ import {
   upsertJourneyRunStepLog,
 } from "./journey-run-artifacts.js";
 import { refreshRunStatusTx } from "./journey-run-status.js";
+import { loadFreshContextForPlanner } from "./journey-template-context.js";
 import { resolveWaitUntil } from "./workflow-wait-time.js";
 
 const ACTIVE_JOURNEY_STATES = ["published"] as const;
@@ -401,34 +402,50 @@ function buildDesiredDeliveries(input: {
   appointmentId: string;
   appointmentContext: Record<string, unknown>;
   clientContext: Record<string, unknown>;
-  eventType: JourneyPlannerDomainEventType;
-  eventTimestamp: string;
+  eventType?: JourneyPlannerDomainEventType;
+  eventTimestamp?: string;
   now: Date;
   orgTimezone: string;
+  startAfterNodeId?: string;
 }): {
   desiredDeliveries: DesiredDelivery[];
   desiredStepLogs: DesiredStepLog[];
   desiredRunEvents: DesiredRunEvent[];
 } {
-  const triggerNode = getTriggerNode(input.graph);
-  if (!triggerNode) {
-    return {
-      desiredDeliveries: [],
-      desiredStepLogs: [],
-      desiredRunEvents: [],
-    };
-  }
-
   const nodeById = buildNodeById(input.graph);
   const outgoingEdgesBySource = buildOutgoingEdgesBySource(input.graph);
-  const initialCursor = new Date(input.eventTimestamp);
-  const startCursor = Number.isNaN(initialCursor.getTime())
-    ? input.now
-    : initialCursor;
-
   const desiredDeliveries: DesiredDelivery[] = [];
-  const desiredStepLogs: DesiredStepLog[] = [
-    {
+  const desiredStepLogs: DesiredStepLog[] = [];
+  const desiredRunEvents: DesiredRunEvent[] = [];
+  const visitedNodeIds = new Set<string>();
+
+  let pending: Array<{ nodeId: string; cursor: Date }>;
+
+  if (input.startAfterNodeId) {
+    // Resume: start from successors of the given node
+    visitedNodeIds.add(input.startAfterNodeId);
+    pending = resolveDefaultNextNodeIds({
+      sourceNodeId: input.startAfterNodeId,
+      outgoingEdgesBySource,
+    }).map((nodeId) => ({
+      nodeId,
+      cursor: input.now,
+    }));
+  } else {
+    // Normal: start from trigger node
+    const triggerNode = getTriggerNode(input.graph);
+    if (!triggerNode) {
+      return { desiredDeliveries, desiredStepLogs, desiredRunEvents };
+    }
+
+    const initialCursor = input.eventTimestamp
+      ? new Date(input.eventTimestamp)
+      : input.now;
+    const startCursor = Number.isNaN(initialCursor.getTime())
+      ? input.now
+      : initialCursor;
+
+    desiredStepLogs.push({
       stepKey: triggerNode.attributes.id,
       nodeType: "trigger",
       status: "success",
@@ -436,25 +453,23 @@ function buildDesiredDeliveries(input: {
       completedAt: startCursor,
       durationMs: 0,
       logInput: {
-        eventType: input.eventType,
+        eventType: input.eventType ?? null,
         appointmentId: input.appointmentId,
       },
       logOutput: {
         routed: true,
       },
       error: null,
-    },
-  ];
-  const desiredRunEvents: DesiredRunEvent[] = [];
-  const visitedNodeIds = new Set<string>();
-  const pending: Array<{ nodeId: string; cursor: Date }> =
-    resolveDefaultNextNodeIds({
+    });
+
+    pending = resolveDefaultNextNodeIds({
       sourceNodeId: triggerNode.attributes.id,
       outgoingEdgesBySource,
     }).map((nodeId) => ({
       nodeId,
       cursor: startCursor,
     }));
+  }
 
   while (pending.length > 0) {
     const current = pending.shift();
@@ -513,7 +528,24 @@ function buildDesiredDeliveries(input: {
             waitUntil: nextCursor.toISOString(),
           },
         });
+        // Stop at active wait boundary — emit a wait_resume delivery
+        // that will re-plan from this point with fresh data when it fires.
+        desiredDeliveries.push({
+          actionType: "wait_resume",
+          deterministicKey: buildDeliveryDeterministicKey({
+            journeyRunId: input.journeyRunId,
+            stepKey: node.attributes.id,
+            scheduledFor: nextCursor,
+          }),
+          stepKey: node.attributes.id,
+          channel: "internal",
+          scheduledFor: nextCursor,
+          status: "planned",
+          reasonCode: null,
+        });
+        continue;
       }
+      // Wait already elapsed — continue walking with snapshot data
       for (const nextNodeId of resolveDefaultNextNodeIds({
         sourceNodeId: node.attributes.id,
         outgoingEdgesBySource,
@@ -1410,4 +1442,133 @@ export async function processJourneyDomainEvent(
   );
 
   return result;
+}
+
+export type WaitResumeInput = {
+  orgId: string;
+  journeyRunId: string;
+  journeyDeliveryId: string;
+  stepKey: string;
+};
+
+export type WaitResumeResult = {
+  scheduledDeliveryIds: string[];
+  canceledDeliveryIds: string[];
+};
+
+export async function executeWaitResume(
+  input: WaitResumeInput,
+): Promise<WaitResumeResult> {
+  const now = new Date();
+
+  // 1. Load the run to get the journey version snapshot and appointment ID
+  const run = await withOrg(input.orgId, async (tx) => {
+    const [row] = await tx
+      .select({
+        id: journeyRuns.id,
+        status: journeyRuns.status,
+        appointmentId: journeyRuns.appointmentId,
+        journeyVersionSnapshot: journeyRuns.journeyVersionSnapshot,
+        journeyVersionId: journeyRuns.journeyVersionId,
+      })
+      .from(journeyRuns)
+      .where(eq(journeyRuns.id, input.journeyRunId))
+      .limit(1);
+    return row ?? null;
+  });
+
+  if (!run) {
+    journeyPlannerLogger.warn("wait_resume: run {runId} not found, skipping", {
+      runId: input.journeyRunId,
+    });
+    return { scheduledDeliveryIds: [], canceledDeliveryIds: [] };
+  }
+
+  if (run.status !== "planned" && run.status !== "running") {
+    journeyPlannerLogger.info(
+      "wait_resume: run {runId} is {status}, skipping",
+      { runId: input.journeyRunId, status: run.status },
+    );
+    return { scheduledDeliveryIds: [], canceledDeliveryIds: [] };
+  }
+
+  // 2. Parse journey graph from snapshot
+  const snapshotRecord = toRecord(run.journeyVersionSnapshot);
+  const parsedGraph = linearJourneyGraphSchema.safeParse(
+    snapshotRecord["definitionSnapshot"],
+  );
+  if (!parsedGraph.success) {
+    journeyPlannerLogger.error(
+      "wait_resume: failed to parse graph for run {runId}",
+      { runId: input.journeyRunId },
+    );
+    return { scheduledDeliveryIds: [], canceledDeliveryIds: [] };
+  }
+
+  // 3. Fetch fresh appointment + client context from DB
+  const freshContext = await loadFreshContextForPlanner({
+    orgId: input.orgId,
+    appointmentId: run.appointmentId,
+  });
+
+  if (!freshContext) {
+    journeyPlannerLogger.warn(
+      "wait_resume: appointment {appointmentId} not found for run {runId}",
+      { appointmentId: run.appointmentId, runId: input.journeyRunId },
+    );
+    return { scheduledDeliveryIds: [], canceledDeliveryIds: [] };
+  }
+
+  // 4. Build desired deliveries from the node after the wait
+  const buildResult = buildDesiredDeliveries({
+    graph: parsedGraph.data,
+    journeyRunId: run.id,
+    journeyId: run.journeyVersionId ?? "unknown",
+    appointmentId: run.appointmentId,
+    appointmentContext: freshContext.appointmentContext,
+    clientContext: freshContext.clientContext,
+    now,
+    orgTimezone: freshContext.orgTimezone,
+    startAfterNodeId: input.stepKey,
+  });
+
+  // 5. Reconcile deliveries within a transaction
+  const { pendingInngestEvents, ...reconciliationResult } = await withOrg(
+    input.orgId,
+    async (tx) => {
+      const result = await reconcileDeliveries({
+        tx,
+        runId: run.id,
+        orgId: input.orgId,
+        desiredDeliveries: buildResult.desiredDeliveries,
+        desiredStepLogs: buildResult.desiredStepLogs,
+        desiredRunEvents: buildResult.desiredRunEvents,
+      });
+
+      await refreshRunStatusTx(tx, run.id);
+
+      return result;
+    },
+  );
+
+  // 6. Fire Inngest events after the transaction commits
+  await forEachAsync(
+    pendingInngestEvents,
+    async (pending) => {
+      if (pending.type === "schedule") {
+        await sendJourneyActionExecuteForActionType(
+          pending.actionType,
+          pending.payload,
+        );
+      } else {
+        await sendJourneyDeliveryCanceled(pending.payload);
+      }
+    },
+    { concurrency: 1 },
+  );
+
+  return {
+    scheduledDeliveryIds: reconciliationResult.scheduledDeliveryIds,
+    canceledDeliveryIds: reconciliationResult.canceledDeliveryIds,
+  };
 }

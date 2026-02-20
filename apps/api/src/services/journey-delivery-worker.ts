@@ -15,6 +15,7 @@ import {
   appendJourneyRunEvent,
   upsertJourneyRunStepLog,
 } from "./journey-run-artifacts.js";
+import { executeWaitResume } from "./journey-planner.js";
 import { refreshJourneyRunStatus } from "./journey-run-status.js";
 
 const DEFAULT_MAX_DISPATCH_ATTEMPTS = 2;
@@ -526,6 +527,31 @@ export async function executeJourneyDeliveryScheduled(
     // After cancellation check, run is guaranteed non-null and active.
     if (!run) {
       throw new Error("Unexpected: run is null after cancellation check.");
+    }
+
+    // Intercept wait_resume: re-plan from this wait node with fresh data
+    if (current.delivery.actionType === "wait_resume") {
+      await executeWaitResume({
+        orgId: input.orgId,
+        journeyRunId: current.delivery.journeyRunId,
+        journeyDeliveryId: current.delivery.id,
+        stepKey: current.delivery.stepKey,
+      });
+
+      return finalizeDeliveryOutcome({
+        orgId: input.orgId,
+        delivery: current.delivery,
+        nodeType: "wait_resume",
+        dispatchStartedAt,
+        now,
+        status: "sent",
+        reasonCode: null,
+        attempts: 1,
+        logInput: {
+          stepKey: current.delivery.stepKey,
+          journeyRunId: current.delivery.journeyRunId,
+        },
+      });
     }
 
     await markRunRunning(input.orgId, current.delivery.journeyRunId);

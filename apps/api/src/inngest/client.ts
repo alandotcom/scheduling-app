@@ -25,7 +25,8 @@ type DeliveryScheduledData = {
 export type ProviderExecuteEventName =
   | "journey.action.send-resend.execute"
   | "journey.action.send-slack.execute"
-  | "journey.action.send-twilio.execute";
+  | "journey.action.send-twilio.execute"
+  | "journey.wait-resume.execute";
 
 type SchedulingInternalEvents = {
   "scheduling/dev.ping": {

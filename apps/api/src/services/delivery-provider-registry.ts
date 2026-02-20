@@ -146,6 +146,25 @@ const providers: DeliveryProviderSpec[] = [
     },
     dispatch: dispatchLoggerDelivery,
   },
+  {
+    key: "wait_resume",
+    actionTypes: ["wait_resume"],
+    channel: "internal",
+    eventName: "journey.wait-resume.execute",
+    functionId: "journey-wait-resume-execute",
+    retries: 2,
+    maxDispatchAttempts: 1,
+    perFunctionConcurrency: {
+      key: "event.data.orgId",
+      scope: "fn",
+      limit: 10,
+    },
+    dispatch: () => {
+      throw new Error(
+        "wait_resume deliveries are intercepted before dispatch; this should never be called.",
+      );
+    },
+  },
 ];
 
 const actionTypeToProvider = new Map<string, DeliveryProviderSpec>();
