@@ -29,6 +29,7 @@ import {
   type StartJourneyTestRunResponse,
   type JourneyTriggerConfig,
   type UpdateJourneyInput,
+  type CustomAttributeValues,
 } from "@scheduling/dto";
 import {
   appointments,
@@ -50,6 +51,7 @@ import {
 } from "../lib/db-errors.js";
 import { isRecord } from "../lib/type-guards.js";
 import type { ServiceContext } from "./locations.js";
+import { clientCustomAttributeService } from "./client-custom-attributes.js";
 import { processJourneyDomainEvent } from "./journey-planner.js";
 
 const JOURNEY_NAME_UNIQUE_CONSTRAINT = "journeys_org_name_ci_uidx";
@@ -627,6 +629,7 @@ function mapAppointmentToScheduledPayload(appointment: {
     lastName: string;
     email: string | null;
     phone: string | null;
+    customAttributes: CustomAttributeValues;
   };
 }) {
   const appointmentSnapshot = appointment.appointment;
@@ -636,6 +639,7 @@ function mapAppointmentToScheduledPayload(appointment: {
     lastName: appointment.client.lastName,
     email: appointment.client.email,
     phone: appointment.client.phone,
+    customAttributes: appointment.client.customAttributes,
   };
 
   const parsed = domainEventDataSchemaByType["appointment.scheduled"].safeParse(
@@ -1355,7 +1359,17 @@ export class JourneyService {
         });
       }
 
-      return mapAppointmentToScheduledPayload(appointment);
+      const customAttributes =
+        await clientCustomAttributeService.loadClientCustomAttributes(
+          tx,
+          context.orgId,
+          appointment.client.id,
+        );
+
+      return mapAppointmentToScheduledPayload({
+        ...appointment,
+        client: { ...appointment.client, customAttributes },
+      });
     });
 
     const now = new Date();

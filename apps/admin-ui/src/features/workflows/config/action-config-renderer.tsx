@@ -34,6 +34,7 @@ import {
   VALUELESS_OPERATORS,
   WORKFLOW_FILTER_FIELD_OPTIONS,
   WORKFLOW_FILTER_TEMPORAL_UNIT_OPTIONS,
+  type WorkflowFilterFieldOption,
   type WorkflowFilterValueOption,
   getWorkflowFilterFieldLabel,
   getWorkflowFilterOperatorLabel,
@@ -53,6 +54,7 @@ interface ActionConfigRendererProps {
   onUpdateConfigBatch?: (patch: Record<string, unknown>) => void;
   disabled?: boolean;
   expressionSuggestions?: EventAttributeSuggestion[];
+  fieldOptions?: WorkflowFilterFieldOption[];
   selectOptionsByKey?: Record<string, Array<{ value: string; label: string }>>;
   conditionValueOptionsByField?: Record<string, WorkflowFilterValueOption[]>;
   defaultTimezone?: string;
@@ -278,12 +280,15 @@ function toValueOptionsWithFallback(input: {
   return [...optionMap.values()];
 }
 
-export function compileConditionBuilderExpression(input: {
-  field: string;
-  operator: JourneyTriggerFilterCondition["operator"] | "";
-  value: unknown;
-  timezone?: string;
-}): string {
+export function compileConditionBuilderExpression(
+  input: {
+    field: string;
+    operator: JourneyTriggerFilterCondition["operator"] | "";
+    value: unknown;
+    timezone?: string;
+  },
+  fieldOptions?: WorkflowFilterFieldOption[],
+): string {
   if (input.field.length === 0 || input.operator.length === 0) {
     return "";
   }
@@ -294,7 +299,7 @@ export function compileConditionBuilderExpression(input: {
 
   const left = input.field;
   const isTimestampField =
-    getWorkflowFilterFieldType(input.field) === "timestamp";
+    getWorkflowFilterFieldType(input.field, fieldOptions) === "timestamp";
 
   if (isValuelessOperator(input.operator)) {
     return input.operator === "is_set" ? `${left} != null` : `${left} == null`;
@@ -708,6 +713,7 @@ function ConditionExpressionFieldRenderer({
   field,
   config,
   defaultTimezone,
+  fieldOptions = WORKFLOW_FILTER_FIELD_OPTIONS,
   onUpdateConfig,
   onUpdateConfigBatch,
   disabled,
@@ -717,6 +723,7 @@ function ConditionExpressionFieldRenderer({
   field: ActionConfigFieldBase;
   config: Record<string, unknown>;
   defaultTimezone: string;
+  fieldOptions?: WorkflowFilterFieldOption[];
   onUpdateConfig: (key: string, value: unknown) => void;
   onUpdateConfigBatch?: (patch: Record<string, unknown>) => void;
   disabled?: boolean;
@@ -751,14 +758,20 @@ function ConditionExpressionFieldRenderer({
       ? config["conditionTimezone"]
       : undefined;
   const isTimestampField =
-    getWorkflowFilterFieldType(conditionField) === "timestamp";
+    getWorkflowFilterFieldType(conditionField, fieldOptions) === "timestamp";
   const isIdField = isIdWorkflowFilterField(conditionField);
   const relativeTemporalValue = toRelativeTemporalValueDraft(conditionValue);
-  const selectedFieldLabel = getWorkflowFilterFieldLabel(conditionField);
-  const selectedOperatorLabel = getWorkflowFilterOperatorLabel({
-    field: conditionField,
-    operator: conditionOperator,
-  });
+  const selectedFieldLabel = getWorkflowFilterFieldLabel(
+    conditionField,
+    fieldOptions,
+  );
+  const selectedOperatorLabel = getWorkflowFilterOperatorLabel(
+    {
+      field: conditionField,
+      operator: conditionOperator,
+    },
+    fieldOptions,
+  );
   const isAgoOperator =
     conditionOperator === "less_than_ago" ||
     conditionOperator === "more_than_ago";
@@ -829,19 +842,22 @@ function ConditionExpressionFieldRenderer({
     const nextTimezone =
       "timezone" in patch ? patch.timezone : conditionTimezone;
     const nextIsTimestampField =
-      getWorkflowFilterFieldType(nextField) === "timestamp";
+      getWorkflowFilterFieldType(nextField, fieldOptions) === "timestamp";
     const normalizedTimezone =
       nextIsTimestampField &&
       isJourneyFilterOperator(nextOperator) &&
       isAbsoluteTemporalOperator(nextOperator)
         ? nextTimezone
         : undefined;
-    const compiledExpression = compileConditionBuilderExpression({
-      field: nextField,
-      operator: nextOperator,
-      value: nextValue,
-      timezone: normalizedTimezone,
-    });
+    const compiledExpression = compileConditionBuilderExpression(
+      {
+        field: nextField,
+        operator: nextOperator,
+        value: nextValue,
+        timezone: normalizedTimezone,
+      },
+      fieldOptions,
+    );
 
     const configPatch: Record<string, unknown> = {
       conditionMode: "builder",
@@ -917,7 +933,7 @@ function ConditionExpressionFieldRenderer({
               </SelectValue>
             </SelectTrigger>
             <SelectContent>
-              {WORKFLOW_FILTER_FIELD_OPTIONS.map((option) => (
+              {fieldOptions.map((option) => (
                 <SelectItem key={option.value} value={option.value}>
                   {option.label}
                 </SelectItem>
@@ -948,11 +964,13 @@ function ConditionExpressionFieldRenderer({
               </SelectValue>
             </SelectTrigger>
             <SelectContent>
-              {getOperatorOptionsForField(conditionField).map((operator) => (
-                <SelectItem key={operator.value} value={operator.value}>
-                  {operator.label}
-                </SelectItem>
-              ))}
+              {getOperatorOptionsForField(conditionField, fieldOptions).map(
+                (operator) => (
+                  <SelectItem key={operator.value} value={operator.value}>
+                    {operator.label}
+                  </SelectItem>
+                ),
+              )}
             </SelectContent>
           </Select>
 
@@ -1277,6 +1295,7 @@ function GroupFieldRenderer({
   onUpdateConfigBatch,
   disabled,
   expressionSuggestions,
+  fieldOptions,
   selectOptionsByKey,
   conditionValueOptionsByField,
   fieldDefaults,
@@ -1288,6 +1307,7 @@ function GroupFieldRenderer({
   onUpdateConfigBatch?: (patch: Record<string, unknown>) => void;
   disabled?: boolean;
   expressionSuggestions: EventAttributeSuggestion[];
+  fieldOptions?: WorkflowFilterFieldOption[];
   selectOptionsByKey: Record<string, Array<{ value: string; label: string }>>;
   conditionValueOptionsByField: Record<string, WorkflowFilterValueOption[]>;
   fieldDefaults: Record<string, string>;
@@ -1322,6 +1342,7 @@ function GroupFieldRenderer({
               onUpdateConfigBatch={onUpdateConfigBatch}
               disabled={disabled}
               expressionSuggestions={expressionSuggestions}
+              fieldOptions={fieldOptions}
               selectOptionsByKey={selectOptionsByKey}
               conditionValueOptionsByField={conditionValueOptionsByField}
               fieldDefaults={fieldDefaults}
@@ -1341,6 +1362,7 @@ function FieldRenderer({
   onUpdateConfigBatch,
   disabled,
   expressionSuggestions,
+  fieldOptions,
   selectOptionsByKey,
   conditionValueOptionsByField,
   fieldDefaults,
@@ -1352,6 +1374,7 @@ function FieldRenderer({
   onUpdateConfigBatch?: (patch: Record<string, unknown>) => void;
   disabled?: boolean;
   expressionSuggestions: EventAttributeSuggestion[];
+  fieldOptions?: WorkflowFilterFieldOption[];
   selectOptionsByKey: Record<string, Array<{ value: string; label: string }>>;
   conditionValueOptionsByField: Record<string, WorkflowFilterValueOption[]>;
   fieldDefaults: Record<string, string>;
@@ -1366,6 +1389,7 @@ function FieldRenderer({
         onUpdateConfigBatch={onUpdateConfigBatch}
         disabled={disabled}
         expressionSuggestions={expressionSuggestions}
+        fieldOptions={fieldOptions}
         selectOptionsByKey={selectOptionsByKey}
         conditionValueOptionsByField={conditionValueOptionsByField}
         fieldDefaults={fieldDefaults}
@@ -1434,6 +1458,7 @@ function FieldRenderer({
             field={field}
             config={config}
             defaultTimezone={defaultTimezone}
+            fieldOptions={fieldOptions}
             onUpdateConfig={onUpdateConfig}
             onUpdateConfigBatch={onUpdateConfigBatch}
             disabled={disabled}
@@ -1477,6 +1502,7 @@ export function ActionConfigRenderer({
   onUpdateConfigBatch,
   disabled,
   expressionSuggestions = [],
+  fieldOptions,
   selectOptionsByKey = {},
   conditionValueOptionsByField = {},
   defaultTimezone = "America/New_York",
@@ -1495,6 +1521,7 @@ export function ActionConfigRenderer({
           onUpdateConfigBatch={onUpdateConfigBatch}
           disabled={disabled}
           expressionSuggestions={expressionSuggestions}
+          fieldOptions={fieldOptions}
           selectOptionsByKey={selectOptionsByKey}
           conditionValueOptionsByField={conditionValueOptionsByField}
           fieldDefaults={fieldDefaults}

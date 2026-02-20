@@ -37,6 +37,7 @@ import {
   VALUELESS_OPERATORS,
   WORKFLOW_FILTER_FIELD_OPTIONS,
   WORKFLOW_FILTER_TEMPORAL_UNIT_OPTIONS,
+  type WorkflowFilterFieldOption,
   type WorkflowFilterValueOption,
   getWorkflowFilterFieldLabel,
   getWorkflowFilterOperatorLabel,
@@ -270,6 +271,7 @@ interface ConditionRowProps {
   conditionIndex: number;
   defaultTimezone: string;
   disabled: boolean;
+  fieldOptions: WorkflowFilterFieldOption[];
   groupIndex: number;
   onChange: (
     groupIndex: number,
@@ -286,16 +288,20 @@ function ConditionRow({
   conditionIndex,
   defaultTimezone,
   disabled,
+  fieldOptions,
   groupIndex,
   onChange,
   onRemove,
   valueOptionsByField,
 }: ConditionRowProps) {
   const isTimestampField =
-    getWorkflowFilterFieldType(condition.field) === "timestamp";
+    getWorkflowFilterFieldType(condition.field, fieldOptions) === "timestamp";
   const isIdField = isIdWorkflowFilterField(condition.field);
   const isLookupField = isLookupWorkflowFilterField(condition.field);
-  const baseOperatorOptions = getOperatorOptionsForField(condition.field);
+  const baseOperatorOptions = getOperatorOptionsForField(
+    condition.field,
+    fieldOptions,
+  );
   const operatorOptions =
     condition.operator.length > 0 &&
     isJourneyFilterOperator(condition.operator) &&
@@ -309,11 +315,17 @@ function ConditionRow({
         ]
       : baseOperatorOptions;
   const relativeTemporalValue = toRelativeTemporalValueDraft(condition.value);
-  const selectedFieldLabel = getWorkflowFilterFieldLabel(condition.field);
-  const selectedOperatorLabel = getWorkflowFilterOperatorLabel({
-    field: condition.field,
-    operator: condition.operator,
-  });
+  const selectedFieldLabel = getWorkflowFilterFieldLabel(
+    condition.field,
+    fieldOptions,
+  );
+  const selectedOperatorLabel = getWorkflowFilterOperatorLabel(
+    {
+      field: condition.field,
+      operator: condition.operator,
+    },
+    fieldOptions,
+  );
   const isAgoOperator =
     condition.operator === "less_than_ago" ||
     condition.operator === "more_than_ago";
@@ -387,7 +399,7 @@ function ConditionRow({
               </SelectValue>
             </SelectTrigger>
             <SelectContent>
-              {WORKFLOW_FILTER_FIELD_OPTIONS.map((field) => (
+              {fieldOptions.map((field) => (
                 <SelectItem key={field.value} value={field.value}>
                   {field.label}
                 </SelectItem>
@@ -625,6 +637,7 @@ function ConditionRow({
 interface FilterGroupCardProps {
   defaultTimezone: string;
   disabled: boolean;
+  fieldOptions: WorkflowFilterFieldOption[];
   group: FilterGroup;
   groupIndex: number;
   onAddCondition: (groupIndex: number) => void;
@@ -642,6 +655,7 @@ interface FilterGroupCardProps {
 function FilterGroupCard({
   defaultTimezone,
   disabled,
+  fieldOptions,
   group,
   groupIndex,
   onAddCondition,
@@ -687,6 +701,7 @@ function FilterGroupCard({
               conditionIndex={conditionIndex}
               defaultTimezone={defaultTimezone}
               disabled={disabled}
+              fieldOptions={fieldOptions}
               groupIndex={groupIndex}
               onChange={onConditionChange}
               onRemove={onRemoveCondition}
@@ -726,6 +741,7 @@ function FilterGroupCard({
 interface AudienceFilterSectionProps {
   defaultTimezone: string;
   disabled: boolean;
+  fieldOptions: WorkflowFilterFieldOption[];
   filter: JourneyTriggerFilterAstDraft | null;
   filterValidationError: string | null;
   isExpanded: boolean;
@@ -747,6 +763,7 @@ interface AudienceFilterSectionProps {
 function AudienceFilterSection({
   defaultTimezone,
   disabled,
+  fieldOptions,
   filter,
   filterValidationError,
   isExpanded,
@@ -822,6 +839,7 @@ function AudienceFilterSection({
                   <FilterGroupCard
                     defaultTimezone={defaultTimezone}
                     disabled={disabled}
+                    fieldOptions={fieldOptions}
                     group={group}
                     groupIndex={groupIndex}
                     onAddCondition={onAddCondition}
@@ -870,6 +888,7 @@ interface WorkflowTriggerConfigProps {
   config: Record<string, unknown>;
   defaultTimezone?: string;
   disabled: boolean;
+  fieldOptions?: WorkflowFilterFieldOption[];
   onUpdate: (next: TriggerConfigShape) => void;
   valueOptionsByField?: Record<string, WorkflowFilterValueOption[]>;
 }
@@ -878,6 +897,7 @@ export function WorkflowTriggerConfig({
   config,
   defaultTimezone = "America/New_York",
   disabled,
+  fieldOptions = WORKFLOW_FILTER_FIELD_OPTIONS,
   onUpdate,
   valueOptionsByField = {},
 }: WorkflowTriggerConfigProps) {
@@ -892,6 +912,7 @@ export function WorkflowTriggerConfig({
       config={config}
       defaultTimezone={defaultTimezone}
       disabled={disabled}
+      fieldOptions={fieldOptions}
       onUpdate={onUpdate}
       showFilters={showFilters}
       onShowFiltersChange={setShowFilters}
@@ -909,6 +930,7 @@ function WorkflowTriggerConfigInner({
   config,
   defaultTimezone = "America/New_York",
   disabled,
+  fieldOptions = WORKFLOW_FILTER_FIELD_OPTIONS,
   onUpdate,
   showFilters,
   onShowFiltersChange,
@@ -1145,6 +1167,7 @@ function WorkflowTriggerConfigInner({
       <AudienceFilterSection
         defaultTimezone={defaultTimezone}
         disabled={disabled}
+        fieldOptions={fieldOptions}
         filter={filterDraft}
         filterValidationError={filterValidationError}
         isExpanded={showFilters}

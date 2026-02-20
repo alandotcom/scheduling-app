@@ -143,6 +143,7 @@ function toAppointmentEventSnapshot(input: {
     lastName: input.client.lastName,
     email: input.client.email,
     phone: input.client.phone,
+    customAttributes: input.client.customAttributes,
   };
 
   return {

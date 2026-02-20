@@ -21,7 +21,10 @@ import { ActionGrid } from "./config/action-grid";
 import { ActionConfig } from "./config/action-config";
 import { buildEventAttributeSuggestions } from "./config/event-attribute-suggestions";
 import { getAction } from "./action-registry";
-import type { WorkflowFilterValueOption } from "./filter-builder-shared";
+import {
+  getWorkflowFilterFieldOptions,
+  type WorkflowFilterValueOption,
+} from "./filter-builder-shared";
 import { orpc } from "@/lib/query";
 
 type WorkflowEditorSidebarTab = "properties" | "runs";
@@ -343,6 +346,14 @@ export function WorkflowEditorSidebar({
     enabled: shouldLoadFilterLookups,
     placeholderData: (previous) => previous,
   });
+  const { data: customAttributeDefinitionsData } = useQuery({
+    ...orpc.customAttributes.listDefinitions.queryOptions(),
+    placeholderData: (previous) => previous,
+  });
+  const fieldOptions = useMemo(
+    () => getWorkflowFilterFieldOptions(customAttributeDefinitionsData),
+    [customAttributeDefinitionsData],
+  );
   const filterValueOptionsByField = useMemo<
     Record<string, WorkflowFilterValueOption[]>
   >(() => {
@@ -388,6 +399,7 @@ export function WorkflowEditorSidebar({
           domain: triggerDomain,
           eventTypes: triggerEventTypes,
           mode: eventSuggestionMode,
+          customAttributeDefinitions: customAttributeDefinitionsData,
         })
       : [];
     const outputSuggestions = selectedNode
@@ -406,6 +418,7 @@ export function WorkflowEditorSidebar({
 
     return [...mergedSuggestions.values()];
   }, [
+    customAttributeDefinitionsData,
     edges,
     nodes,
     selectedNode,
@@ -618,6 +631,7 @@ export function WorkflowEditorSidebar({
                         config={selectedNodeConfig}
                         defaultTimezone={defaultTimezone}
                         disabled={!canManageWorkflow}
+                        fieldOptions={fieldOptions}
                         valueOptionsByField={filterValueOptionsByField}
                         onUpdate={(next) => {
                           onUpdateNodeData({
@@ -645,6 +659,7 @@ export function WorkflowEditorSidebar({
                         <ActionConfig
                           config={selectedNodeConfig}
                           defaultTimezone={defaultTimezone}
+                          fieldOptions={fieldOptions}
                           conditionValueOptionsByField={
                             filterValueOptionsByField
                           }

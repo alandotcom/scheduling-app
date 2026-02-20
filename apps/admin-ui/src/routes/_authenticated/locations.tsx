@@ -487,7 +487,10 @@ function LocationsPage() {
             Error loading locations
           </div>
         ) : !locations.length ? (
-          <EntityListEmptyState>
+          <EntityListEmptyState
+            actionLabel="Create Location"
+            onAction={crud.openCreate}
+          >
             No locations yet. Create your first location to get started.
           </EntityListEmptyState>
         ) : (

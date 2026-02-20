@@ -62,4 +62,51 @@ describe("AppointmentsList", () => {
     expect(screen.queryByRole("button", { name: "Reschedule" })).toBeNull();
     expect(screen.getByRole("button", { name: "View Details" })).toBeDefined();
   });
+
+  test("shows create empty state action when enabled", () => {
+    const onCreate = mock(() => {});
+
+    render(
+      <AppointmentsList
+        appointments={[]}
+        displayTimezone="America/New_York"
+        selectedId={null}
+        onSelect={() => {}}
+        onReschedule={() => {}}
+        onCancel={() => {}}
+        onNoShow={() => {}}
+        onCreate={onCreate}
+        showCreateInEmptyState
+      />,
+    );
+
+    expect(screen.getByText(/No appointments yet\./)).toBeDefined();
+    fireEvent.click(screen.getByRole("button", { name: "Create Appointment" }));
+    expect(onCreate).toHaveBeenCalledTimes(1);
+  });
+
+  test("keeps filtered empty state message when create action is disabled", () => {
+    render(
+      <AppointmentsList
+        appointments={[]}
+        displayTimezone="America/New_York"
+        selectedId={null}
+        onSelect={() => {}}
+        onReschedule={() => {}}
+        onCancel={() => {}}
+        onNoShow={() => {}}
+        onCreate={() => {}}
+        showCreateInEmptyState={false}
+      />,
+    );
+
+    expect(
+      screen.getByText(
+        "No appointments found. Create your first appointment or adjust filters.",
+      ),
+    ).toBeDefined();
+    expect(
+      screen.queryByRole("button", { name: "Create Appointment" }),
+    ).toBeNull();
+  });
 });

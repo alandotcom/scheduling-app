@@ -908,6 +908,10 @@ function AppointmentsPage() {
             onCancel={setCancellingId}
             onNoShow={setNoShowId}
             isLoading={listLoading}
+            onCreate={openCreateModal}
+            showCreateInEmptyState={
+              activeFilterCount === 0 && listScope === "upcoming"
+            }
           />
         ) : (
           <div className="flex-1 overflow-hidden rounded-xl border border-border shadow-sm">

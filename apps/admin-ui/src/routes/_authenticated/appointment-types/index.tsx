@@ -577,7 +577,10 @@ function AppointmentTypesPage() {
             Error loading appointment types
           </div>
         ) : !appointmentTypes.length ? (
-          <EntityListEmptyState>
+          <EntityListEmptyState
+            actionLabel="Create Appointment Type"
+            onAction={crud.openCreate}
+          >
             No appointment types yet. Create your first appointment type to get
             started.
           </EntityListEmptyState>

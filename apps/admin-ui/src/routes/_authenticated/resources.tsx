@@ -481,7 +481,10 @@ function ResourcesPage() {
             Error loading resources
           </div>
         ) : !resources.length ? (
-          <EntityListEmptyState>
+          <EntityListEmptyState
+            actionLabel="Create Resource"
+            onAction={crud.openCreate}
+          >
             No resources yet. Create your first resource to get started.
           </EntityListEmptyState>
         ) : (

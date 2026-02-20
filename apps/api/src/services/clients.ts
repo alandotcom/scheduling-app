@@ -286,6 +286,7 @@ export class ClientService {
       lastName: client.lastName,
       email: client.email,
       phone: client.phone,
+      customAttributes,
     });
 
     return { ...client, customAttributes };
@@ -298,14 +299,20 @@ export class ClientService {
   ): Promise<ClientWithCustomAttributes> {
     const { customAttributes: customAttrsInput, ...coreData } = data;
 
-    const { existing, updated, customAttributes } = await withOrg(
-      context.orgId,
-      async (tx) => {
+    const { existing, updated, previousCustomAttributes, customAttributes } =
+      await withOrg(context.orgId, async (tx) => {
         const existing = await clientRepository.findById(tx, context.orgId, id);
 
         if (!existing) {
           throw new ApplicationError("Client not found", { code: "NOT_FOUND" });
         }
+
+        const previousCustomAttributes =
+          await clientCustomAttributeService.loadClientCustomAttributes(
+            tx,
+            context.orgId,
+            id,
+          );
 
         const normalizedChanges = normalizeUpdateInput(coreData);
 
@@ -350,9 +357,13 @@ export class ClientService {
               id,
             );
 
-        return { existing, updated, customAttributes };
-      },
-    );
+        return {
+          existing,
+          updated,
+          previousCustomAttributes,
+          customAttributes,
+        };
+      });
 
     await events.clientUpdated(context.orgId, {
       clientId: updated.id,
@@ -360,12 +371,14 @@ export class ClientService {
       lastName: updated.lastName,
       email: updated.email,
       phone: updated.phone,
+      customAttributes,
       previous: {
         clientId: existing.id,
         firstName: existing.firstName,
         lastName: existing.lastName,
         email: existing.email,
         phone: existing.phone,
+        customAttributes: previousCustomAttributes,
       },
     });
 
@@ -379,9 +392,8 @@ export class ClientService {
   ): Promise<ClientWithCustomAttributes> {
     const { customAttributes: customAttrsInput, ...coreData } = data;
 
-    const { existing, updated, customAttributes } = await withOrg(
-      context.orgId,
-      async (tx) => {
+    const { existing, updated, previousCustomAttributes, customAttributes } =
+      await withOrg(context.orgId, async (tx) => {
         const existing = await clientRepository.findByReferenceId(
           tx,
           context.orgId,
@@ -391,6 +403,13 @@ export class ClientService {
         if (!existing) {
           throw new ApplicationError("Client not found", { code: "NOT_FOUND" });
         }
+
+        const previousCustomAttributes =
+          await clientCustomAttributeService.loadClientCustomAttributes(
+            tx,
+            context.orgId,
+            existing.id,
+          );
 
         const normalizedChanges = normalizeUpdateInput(coreData);
 
@@ -435,9 +454,13 @@ export class ClientService {
               updated.id,
             );
 
-        return { existing, updated, customAttributes };
-      },
-    );
+        return {
+          existing,
+          updated,
+          previousCustomAttributes,
+          customAttributes,
+        };
+      });
 
     await events.clientUpdated(context.orgId, {
       clientId: updated.id,
@@ -445,12 +468,14 @@ export class ClientService {
       lastName: updated.lastName,
       email: updated.email,
       phone: updated.phone,
+      customAttributes,
       previous: {
         clientId: existing.id,
         firstName: existing.firstName,
         lastName: existing.lastName,
         email: existing.email,
         phone: existing.phone,
+        customAttributes: previousCustomAttributes,
       },
     });
 
@@ -462,12 +487,18 @@ export class ClientService {
     context: ServiceContext,
   ): Promise<{ success: true }> {
     const deleted = await withOrg(context.orgId, async (tx) => {
-      // Get existing for event payload
       const existing = await clientRepository.findById(tx, context.orgId, id);
 
       if (!existing) {
         throw new ApplicationError("Client not found", { code: "NOT_FOUND" });
       }
+
+      const customAttributes =
+        await clientCustomAttributeService.loadClientCustomAttributes(
+          tx,
+          context.orgId,
+          id,
+        );
 
       await clientRepository.delete(tx, context.orgId, id);
 
@@ -477,6 +508,7 @@ export class ClientService {
         lastName: existing.lastName,
         email: existing.email,
         phone: existing.phone,
+        customAttributes,
       };
     });
 
@@ -500,6 +532,13 @@ export class ClientService {
         throw new ApplicationError("Client not found", { code: "NOT_FOUND" });
       }
 
+      const customAttributes =
+        await clientCustomAttributeService.loadClientCustomAttributes(
+          tx,
+          context.orgId,
+          existing.id,
+        );
+
       await clientRepository.deleteByReferenceId(
         tx,
         context.orgId,
@@ -512,6 +551,7 @@ export class ClientService {
         lastName: existing.lastName,
         email: existing.email,
         phone: existing.phone,
+        customAttributes,
       };
     });
 

@@ -978,7 +978,10 @@ function CalendarsPage() {
             Error loading calendars
           </div>
         ) : !calendars.length ? (
-          <EntityListEmptyState>
+          <EntityListEmptyState
+            actionLabel="Create Calendar"
+            onAction={crud.openCreate}
+          >
             No calendars yet. Create your first calendar to get started.
           </EntityListEmptyState>
         ) : (

@@ -25,9 +25,11 @@ import {
   resources,
   appointmentStatusEnum,
 } from "@scheduling/db/schema";
+import type { CustomAttributeValues } from "@scheduling/dto";
 import type { PaginationInput, PaginatedResult } from "./base.js";
 import type { DbClient } from "../lib/db.js";
 import { setOrgContext } from "./base.js";
+import { clientCustomAttributeService } from "../services/client-custom-attributes.js";
 
 // Types inferred from schema
 export type Appointment = typeof appointments.$inferSelect;
@@ -98,6 +100,7 @@ export interface AppointmentEventClientSnapshot {
   lastName: string;
   email: string | null;
   phone: string | null;
+  customAttributes: CustomAttributeValues;
 }
 
 export interface AppointmentTypeData {
@@ -575,7 +578,19 @@ export class AppointmentRepository {
       .from(clients)
       .where(inArray(clients.id, clientIds));
 
-    return new Map(rows.map((row) => [row.id, row]));
+    const snapshots = await Promise.all(
+      rows.map(async (row) => {
+        const customAttributes =
+          await clientCustomAttributeService.loadClientCustomAttributes(
+            tx,
+            orgId,
+            row.id,
+          );
+        return [row.id, { ...row, customAttributes }] as const;
+      }),
+    );
+
+    return new Map(snapshots);
   }
 
   // Get appointment type with calendar link verification

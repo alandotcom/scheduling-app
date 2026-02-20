@@ -11,6 +11,7 @@ describe("emitEvent", () => {
     lastName: "Lovelace",
     email: null,
     phone: null,
+    customAttributes: {},
   };
 
   const originalSend = inngest.send.bind(inngest);
@@ -108,6 +109,7 @@ describe("emitEvent", () => {
           lastName: "Lovelace",
           email: null,
           phone: null,
+          customAttributes: {},
         },
       };
 

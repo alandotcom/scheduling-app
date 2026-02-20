@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { uuidSchema } from "./common";
 import { appointmentStatusSchema } from "./appointment";
+import { customAttributeValuesSchema } from "./custom-attribute";
 
 export const webhookSessionResponseSchema = z.object({
   appId: z.string().min(1),
@@ -64,6 +65,7 @@ const appointmentSnapshotSchema = z.object({
     lastName: z.string().min(1).max(255),
     email: z.email().nullable(),
     phone: z.string().max(50).nullable(),
+    customAttributes: customAttributeValuesSchema,
   }),
 });
 
@@ -103,6 +105,7 @@ const clientSnapshotSchema = z.object({
   lastName: z.string().min(1).max(255),
   email: z.email().nullable(),
   phone: z.string().max(50).nullable(),
+  customAttributes: customAttributeValuesSchema,
 });
 
 export const webhookEventDataSchemaByType = {

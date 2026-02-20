@@ -130,10 +130,22 @@ function isIdSuggestionPath(path: string): boolean {
   return lastSegment === "id" || lastSegment.endsWith("id");
 }
 
+type CustomAttributeDefinitionForSuggestion = {
+  fieldKey: string;
+  type: string;
+};
+
+function mapCustomAttributeTypeToSuggestionType(type: string): string {
+  if (type === "NUMBER") return "number";
+  if (type === "BOOLEAN") return "boolean";
+  return "string";
+}
+
 export function buildEventAttributeSuggestions(input: {
   domain: DomainEventDomain;
   eventTypes?: DomainEventType[];
   mode?: EventAttributeSuggestionMode;
+  customAttributeDefinitions?: CustomAttributeDefinitionForSuggestion[];
 }): EventAttributeSuggestion[] {
   const eventTypes =
     input.eventTypes && input.eventTypes.length > 0
@@ -163,6 +175,19 @@ export function buildEventAttributeSuggestions(input: {
   for (const eventType of eventTypes) {
     const jsonSchema = z.toJSONSchema(domainEventDataSchemaByType[eventType]);
     collectPaths(jsonSchema as JsonSchema, `${root}.data`, suggestions);
+  }
+
+  if (input.customAttributeDefinitions?.length) {
+    for (const def of input.customAttributeDefinitions) {
+      const path = `${root}.data.client.customAttributes.${def.fieldKey}`;
+      if (!suggestions.has(path)) {
+        suggestions.set(path, {
+          value: path,
+          type: mapCustomAttributeTypeToSuggestionType(def.type),
+          isDateTime: def.type === "DATE",
+        });
+      }
+    }
   }
 
   const values = [...suggestions.values()];

@@ -1,7 +1,7 @@
 // Webhook management dashboard — Clerk-inspired drill-in UI
 // Extracted from settings.tsx to keep that file focused on org/users/developers tabs
 
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   useEndpoints,
@@ -57,6 +57,7 @@ import {
   type WebhooksRouteState,
 } from "./types";
 import { formatWebhookPayloadPreview } from "./utils/format-webhook-payload-preview";
+import { orpc } from "@/lib/query";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -1774,12 +1775,102 @@ function JsonNode({
 }
 
 // ---------------------------------------------------------------------------
+// Schema augmentation — inject custom attribute definitions into JSON schema
+// ---------------------------------------------------------------------------
+
+type CustomAttributeDefinitionForSchema = {
+  fieldKey: string;
+  label: string;
+  type: string;
+  options: string[] | null;
+};
+
+function customAttributeDefToJsonSchema(
+  def: CustomAttributeDefinitionForSchema,
+): Record<string, unknown> {
+  switch (def.type) {
+    case "NUMBER":
+      return { type: "number", description: def.label };
+    case "DATE":
+      return { type: "string", format: "date", description: def.label };
+    case "BOOLEAN":
+      return { type: "boolean", description: def.label };
+    case "SELECT":
+      return {
+        type: "string",
+        ...(def.options?.length ? { enum: def.options } : {}),
+        description: def.label,
+      };
+    case "MULTI_SELECT":
+      return {
+        type: "array",
+        items: {
+          type: "string",
+          ...(def.options?.length ? { enum: def.options } : {}),
+        },
+        description: def.label,
+      };
+    default:
+      return { type: "string", description: def.label };
+  }
+}
+
+function augmentSchemaWithCustomAttributes(
+  schema: Record<string, unknown>,
+  definitions: CustomAttributeDefinitionForSchema[],
+): Record<string, unknown> {
+  const cloned = structuredClone(schema);
+  walkAndAugmentCustomAttributes(cloned, definitions);
+  return cloned;
+}
+
+function walkAndAugmentCustomAttributes(
+  schema: Record<string, unknown>,
+  definitions: CustomAttributeDefinitionForSchema[],
+): void {
+  const properties = schema.properties;
+  if (!isRecord(properties)) return;
+
+  for (const [key, value] of Object.entries(properties)) {
+    if (!isRecord(value)) continue;
+
+    if (
+      key === "customAttributes" &&
+      value.type === "object" &&
+      isRecord(value.additionalProperties)
+    ) {
+      const syntheticProperties: Record<string, unknown> = {};
+      for (const def of definitions) {
+        syntheticProperties[def.fieldKey] = customAttributeDefToJsonSchema(def);
+      }
+      properties[key] = { ...value, properties: syntheticProperties };
+      continue;
+    }
+
+    if (value.type === "object") {
+      walkAndAugmentCustomAttributes(value, definitions);
+    }
+
+    if (Array.isArray(value.anyOf)) {
+      for (const entry of value.anyOf) {
+        if (isRecord(entry) && entry.type === "object") {
+          walkAndAugmentCustomAttributes(entry, definitions);
+        }
+      }
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
 // EventCatalogTab
 // ---------------------------------------------------------------------------
 
 function EventCatalogTab() {
   const eventTypes = useEventTypes({ limit: 100 });
   const eventTypesData = eventTypes.data;
+  const { data: customAttributeDefinitions } = useQuery(
+    orpc.customAttributes.listDefinitions.queryOptions(),
+  );
   const [selectedEventName, setSelectedEventName] = useState<string | null>(
     null,
   );
@@ -1890,7 +1981,10 @@ function EventCatalogTab() {
           {/* Right panel — schema preview */}
           <div className="min-w-0 flex-1 overflow-hidden">
             {selectedEvent ? (
-              <EventSchemaDetail event={selectedEvent} />
+              <EventSchemaDetail
+                event={selectedEvent}
+                customAttributeDefinitions={customAttributeDefinitions}
+              />
             ) : (
               <div className="flex h-48 items-center justify-center rounded-lg border border-dashed border-border text-sm text-muted-foreground">
                 Select an event to view its schema
@@ -2174,15 +2268,25 @@ function PropertyRow({
 
 function EventSchemaDetail({
   event,
+  customAttributeDefinitions,
 }: {
   event: {
     name: string;
     description?: string | null;
     schemas?: Record<string, unknown> | null;
   };
+  customAttributeDefinitions?: CustomAttributeDefinitionForSchema[];
 }) {
   const rawV1 = event.schemas?.v1;
-  const schemaV1 = isRecord(rawV1) ? rawV1 : undefined;
+  const baseSchemaV1 = isRecord(rawV1) ? rawV1 : undefined;
+  const schemaV1 = useMemo(() => {
+    if (!baseSchemaV1 || !customAttributeDefinitions?.length)
+      return baseSchemaV1;
+    return augmentSchemaWithCustomAttributes(
+      baseSchemaV1,
+      customAttributeDefinitions,
+    );
+  }, [baseSchemaV1, customAttributeDefinitions]);
 
   return (
     <div className="rounded-lg border border-border bg-card p-5">

@@ -56,6 +56,7 @@ describe("journey domain trigger function", () => {
               lastName: "Lovelace",
               email: null,
               phone: null,
+              customAttributes: {},
             },
           },
         },

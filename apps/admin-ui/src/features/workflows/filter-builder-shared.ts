@@ -23,6 +23,33 @@ export type WorkflowFilterValueOption = {
   label: string;
 };
 
+export type CustomAttributeDefinitionForFilter = {
+  fieldKey: string;
+  label: string;
+  type: string;
+};
+
+function mapCustomAttributeTypeToFilterType(
+  type: string,
+): WorkflowFilterFieldType {
+  if (type === "DATE") return "timestamp";
+  return "string";
+}
+
+export function getWorkflowFilterFieldOptions(
+  customAttributeDefinitions?: CustomAttributeDefinitionForFilter[],
+): WorkflowFilterFieldOption[] {
+  if (!customAttributeDefinitions?.length) return WORKFLOW_FILTER_FIELD_OPTIONS;
+
+  const customFields = customAttributeDefinitions.map((def) => ({
+    label: def.label,
+    value: `client.customAttributes.${def.fieldKey}`,
+    type: mapCustomAttributeTypeToFilterType(def.type),
+  }));
+
+  return [...WORKFLOW_FILTER_FIELD_OPTIONS, ...customFields];
+}
+
 export const WORKFLOW_FILTER_FIELD_OPTIONS: WorkflowFilterFieldOption[] = [
   {
     label: "Calendar ID",
@@ -178,17 +205,17 @@ export type RelativeTemporalValueDraft = {
 
 export function getWorkflowFilterFieldType(
   field: string,
+  fieldOptions: WorkflowFilterFieldOption[] = WORKFLOW_FILTER_FIELD_OPTIONS,
 ): WorkflowFilterFieldType {
-  const option = WORKFLOW_FILTER_FIELD_OPTIONS.find(
-    (candidate) => candidate.value === field,
-  );
+  const option = fieldOptions.find((candidate) => candidate.value === field);
   return option?.type ?? "string";
 }
 
 export function getOperatorOptionsForField(
   field: string,
+  fieldOptions: WorkflowFilterFieldOption[] = WORKFLOW_FILTER_FIELD_OPTIONS,
 ): Array<{ label: string; value: JourneyTriggerFilterCondition["operator"] }> {
-  if (getWorkflowFilterFieldType(field) === "timestamp") {
+  if (getWorkflowFilterFieldType(field, fieldOptions) === "timestamp") {
     return WORKFLOW_FILTER_TIMESTAMP_OPERATOR_OPTIONS;
   }
 
@@ -203,10 +230,11 @@ export function toWorkflowFilterFallbackLabel(value: string): string {
   return value.replaceAll("_", " ");
 }
 
-export function getWorkflowFilterFieldLabel(value: string): string | undefined {
-  const option = WORKFLOW_FILTER_FIELD_OPTIONS.find(
-    (candidate) => candidate.value === value,
-  );
+export function getWorkflowFilterFieldLabel(
+  value: string,
+  fieldOptions: WorkflowFilterFieldOption[] = WORKFLOW_FILTER_FIELD_OPTIONS,
+): string | undefined {
+  const option = fieldOptions.find((candidate) => candidate.value === value);
   if (option) {
     return option.label;
   }
@@ -218,15 +246,18 @@ export function getWorkflowFilterFieldLabel(value: string): string | undefined {
   return value;
 }
 
-export function getWorkflowFilterOperatorLabel(input: {
-  field: string;
-  operator: JourneyTriggerFilterCondition["operator"] | "";
-}): string | undefined {
+export function getWorkflowFilterOperatorLabel(
+  input: {
+    field: string;
+    operator: JourneyTriggerFilterCondition["operator"] | "";
+  },
+  fieldOptions: WorkflowFilterFieldOption[] = WORKFLOW_FILTER_FIELD_OPTIONS,
+): string | undefined {
   if (input.operator.length === 0) {
     return undefined;
   }
 
-  const option = getOperatorOptionsForField(input.field).find(
+  const option = getOperatorOptionsForField(input.field, fieldOptions).find(
     (candidate) => candidate.value === input.operator,
   );
   if (option) {

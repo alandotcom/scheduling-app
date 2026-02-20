@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 
+import { Button } from "@/components/ui/button";
 import { TableSkeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 
@@ -24,12 +25,19 @@ export function EntityListLoadingState({
 interface EntityListEmptyStateProps {
   children: ReactNode;
   className?: string;
+  actionLabel?: string;
+  onAction?: () => void;
 }
 
 export function EntityListEmptyState({
   children,
   className,
+  actionLabel,
+  onAction,
 }: EntityListEmptyStateProps) {
+  const showCreateAction =
+    typeof onAction === "function" && typeof actionLabel === "string";
+
   return (
     <div
       className={cn(
@@ -37,7 +45,16 @@ export function EntityListEmptyState({
         className,
       )}
     >
-      {children}
+      <div className="space-y-4">
+        <div>{children}</div>
+        {showCreateAction ? (
+          <div className="flex flex-col items-center gap-2">
+            <Button type="button" variant="outline" onClick={onAction}>
+              {actionLabel}
+            </Button>
+          </div>
+        ) : null}
+      </div>
     </div>
   );
 }

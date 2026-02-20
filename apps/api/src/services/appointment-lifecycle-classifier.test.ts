@@ -34,6 +34,7 @@ function createSnapshot(
       lastName: "Lovelace",
       email: null,
       phone: null,
+      customAttributes: {},
     },
     ...overrides,
   };

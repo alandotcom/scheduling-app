@@ -17,7 +17,10 @@ import {
 } from "../action-registry";
 import { getActionVisualSpec } from "../action-visuals";
 import { ActionConfigRenderer } from "./action-config-renderer";
-import type { WorkflowFilterValueOption } from "../filter-builder-shared";
+import type {
+  WorkflowFilterFieldOption,
+  WorkflowFilterValueOption,
+} from "../filter-builder-shared";
 
 function filterActionsByEnvironment(input: {
   categoryMap: Map<string, ActionDefinition[]>;
@@ -46,6 +49,7 @@ interface ActionConfigProps {
   onUpdateConfigBatch?: (patch: Record<string, unknown>) => void;
   disabled?: boolean;
   expressionSuggestions?: EventAttributeSuggestion[];
+  fieldOptions?: WorkflowFilterFieldOption[];
   selectOptionsByKey?: Record<string, Array<{ value: string; label: string }>>;
   conditionValueOptionsByField?: Record<string, WorkflowFilterValueOption[]>;
   defaultTimezone?: string;
@@ -78,6 +82,7 @@ export function ActionConfig({
   onUpdateConfigBatch,
   disabled,
   expressionSuggestions = [],
+  fieldOptions,
   selectOptionsByKey = {},
   conditionValueOptionsByField = {},
   defaultTimezone = "America/New_York",
@@ -250,6 +255,7 @@ export function ActionConfig({
           onUpdateConfigBatch={onUpdateConfigBatch}
           disabled={disabled}
           expressionSuggestions={expressionSuggestions}
+          fieldOptions={fieldOptions}
           selectOptionsByKey={selectOptionsByKey}
           conditionValueOptionsByField={conditionValueOptionsByField}
         />

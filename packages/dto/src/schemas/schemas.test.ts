@@ -45,6 +45,8 @@ import {
   updateCustomAttributeDefinitionSchema,
   customAttributeValuesSchema,
   slotUsageSchema,
+  // Webhook
+  webhookEventDataSchemaByType,
 } from "./index";
 
 describe("Common schemas", () => {
@@ -872,6 +874,125 @@ describe("Custom attribute schemas", () => {
         d: { used: 0, total: 3 },
         b: { used: 0, total: 5 },
         // missing j
+      });
+      expect(result.success).toBe(false);
+    });
+  });
+});
+
+describe("Webhook schemas", () => {
+  const validUuid = "550e8400-e29b-41d4-a716-446655440000";
+
+  describe("client snapshot", () => {
+    test("accepts client.created with customAttributes", () => {
+      const result = webhookEventDataSchemaByType["client.created"].safeParse({
+        clientId: validUuid,
+        firstName: "John",
+        lastName: "Doe",
+        email: "john@example.com",
+        phone: "+15551234567",
+        customAttributes: { tier: "gold", visits: 5 },
+      });
+      expect(result.success).toBe(true);
+    });
+
+    test("accepts client.created with empty customAttributes", () => {
+      const result = webhookEventDataSchemaByType["client.created"].safeParse({
+        clientId: validUuid,
+        firstName: "John",
+        lastName: "Doe",
+        email: null,
+        phone: null,
+        customAttributes: {},
+      });
+      expect(result.success).toBe(true);
+    });
+
+    test("rejects client.created without customAttributes", () => {
+      const result = webhookEventDataSchemaByType["client.created"].safeParse({
+        clientId: validUuid,
+        firstName: "John",
+        lastName: "Doe",
+        email: null,
+        phone: null,
+      });
+      expect(result.success).toBe(false);
+    });
+
+    test("accepts client.updated with customAttributes in previous", () => {
+      const result = webhookEventDataSchemaByType["client.updated"].safeParse({
+        clientId: validUuid,
+        firstName: "John",
+        lastName: "Smith",
+        email: "john@example.com",
+        phone: null,
+        customAttributes: { tier: "platinum" },
+        previous: {
+          clientId: validUuid,
+          firstName: "John",
+          lastName: "Doe",
+          email: "john@example.com",
+          phone: null,
+          customAttributes: { tier: "gold" },
+        },
+      });
+      expect(result.success).toBe(true);
+    });
+  });
+
+  describe("appointment snapshot", () => {
+    const baseAppointment = {
+      appointmentId: validUuid,
+      calendarId: validUuid,
+      appointmentTypeId: validUuid,
+      clientId: validUuid,
+      startAt: "2024-01-15T10:00:00Z",
+      endAt: "2024-01-15T11:00:00Z",
+      timezone: "America/New_York",
+      status: "scheduled",
+      notes: null,
+      appointment: {
+        id: validUuid,
+        calendarId: validUuid,
+        appointmentTypeId: validUuid,
+        clientId: validUuid,
+        startAt: "2024-01-15T10:00:00Z",
+        endAt: "2024-01-15T11:00:00Z",
+        timezone: "America/New_York",
+        status: "scheduled",
+        notes: null,
+      },
+    };
+
+    test("accepts appointment.scheduled with client customAttributes", () => {
+      const result = webhookEventDataSchemaByType[
+        "appointment.scheduled"
+      ].safeParse({
+        ...baseAppointment,
+        client: {
+          id: validUuid,
+          firstName: "John",
+          lastName: "Doe",
+          email: "john@example.com",
+          phone: null,
+          customAttributes: { tier: "gold" },
+        },
+      });
+      expect(result.success).toBe(true);
+    });
+
+    test("rejects appointment.scheduled without client customAttributes", () => {
+      const result = webhookEventDataSchemaByType[
+        "appointment.scheduled"
+      ].safeParse({
+        ...baseAppointment,
+        client: {
+          id: validUuid,
+          firstName: "John",
+          lastName: "Doe",
+          email: "john@example.com",
+          phone: null,
+        },
       });
       expect(result.success).toBe(false);
     });

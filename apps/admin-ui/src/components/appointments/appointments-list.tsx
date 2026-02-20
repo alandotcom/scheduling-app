@@ -29,6 +29,7 @@ import { Badge } from "@/components/ui/badge";
 import { ContextMenu, type ContextMenuItem } from "@/components/context-menu";
 import {
   EntityCardField,
+  EntityListEmptyState,
   EntityMobileCard,
   EntityMobileCardList,
 } from "@/components/entity-list";
@@ -57,6 +58,8 @@ interface AppointmentsListProps {
   onCancel: (id: string) => void;
   onNoShow: (id: string) => void;
   isLoading?: boolean;
+  onCreate?: () => void;
+  showCreateInEmptyState?: boolean;
 }
 
 function getStatusVariant(status: string) {
@@ -83,6 +86,8 @@ export function AppointmentsList({
   onCancel,
   onNoShow,
   isLoading,
+  onCreate,
+  showCreateInEmptyState = true,
 }: AppointmentsListProps) {
   const [sorting, setSorting] = useState<SortingState>([]);
   const [globalFilter, setGlobalFilter] = useState("");
@@ -253,6 +258,17 @@ export function AppointmentsList({
   }
 
   if (appointments.length === 0) {
+    if (showCreateInEmptyState && typeof onCreate === "function") {
+      return (
+        <EntityListEmptyState
+          actionLabel="Create Appointment"
+          onAction={onCreate}
+        >
+          No appointments yet. Create your first appointment to get started.
+        </EntityListEmptyState>
+      );
+    }
+
     return (
       <div className="rounded-xl border border-border bg-card p-10 text-center text-muted-foreground shadow-sm">
         No appointments found. Create your first appointment or adjust filters.

@@ -538,7 +538,10 @@ function ClientsPage() {
               Error loading clients
             </div>
           ) : !clients.length ? (
-            <EntityListEmptyState>
+            <EntityListEmptyState
+              actionLabel={search ? undefined : "Create Client"}
+              onAction={search ? undefined : crud.openCreate}
+            >
               {search
                 ? "No clients found matching your search."
                 : "No clients yet. Create your first client to get started."}
