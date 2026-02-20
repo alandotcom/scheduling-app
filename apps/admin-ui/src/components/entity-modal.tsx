@@ -13,6 +13,7 @@ interface EntityModalProps {
   title: string;
   description?: string;
   headerActions?: ReactNode;
+  footer?: ReactNode;
   className?: string;
   children: ReactNode;
 }
@@ -23,6 +24,7 @@ export function EntityModal({
   title,
   description,
   headerActions,
+  footer,
   className,
   children,
 }: EntityModalProps) {
@@ -105,6 +107,15 @@ export function EntityModal({
           >
             {children}
           </div>
+
+          {footer ? (
+            <div
+              data-slot="entity-modal-footer"
+              className="shrink-0 border-t border-border px-4 py-3 sm:px-6"
+            >
+              {footer}
+            </div>
+          ) : null}
         </DialogPrimitive.Popup>
       </DialogPrimitive.Portal>
     </DialogPrimitive.Root>

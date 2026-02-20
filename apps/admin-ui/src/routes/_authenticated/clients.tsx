@@ -1,4 +1,4 @@
-// Clients management page with table list and modal-based detail/create/edit flows
+// Clients management page with table list and modal-based detail/create flows
 
 import { useCallback, useMemo, useState } from "react";
 import { useClosingSnapshot } from "@/hooks/use-closing-snapshot";
@@ -21,7 +21,6 @@ import type {
 } from "@scheduling/dto";
 import type { ContextMenuItem } from "@/components/context-menu";
 import { AppointmentModal } from "@/components/appointment-modal";
-import { ClientCustomFieldsDisplay } from "@/components/clients/client-custom-fields-display";
 import { ClientForm } from "@/components/clients/client-form";
 import { CopyIdHeaderAction } from "@/components/copy-id-header-action";
 import { DeleteConfirmDialog } from "@/components/delete-confirm-dialog";
@@ -36,7 +35,6 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { ClientsListPresentation } from "@/components/clients/clients-list-presentation";
 import { Icon } from "@/components/ui/icon";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { PageScaffold } from "@/components/layout/page-scaffold";
 import { useCrudState } from "@/hooks/use-crud-state";
 import { useCreateDraft, useResetCreateDraft } from "@/hooks/use-create-draft";
@@ -109,11 +107,11 @@ function CreateClientForm({
   );
 }
 
-type DetailTabValue = "details" | "custom-fields" | "history";
+type DetailTabValue = "details" | "history";
 type AppointmentDetailTabValue = "details" | "client" | "history";
 
 const isDetailTab = (value: string): value is DetailTabValue =>
-  value === "details" || value === "custom-fields" || value === "history";
+  value === "details" || value === "history";
 const isAppointmentDetailTab = (
   value: string,
 ): value is AppointmentDetailTabValue =>
@@ -137,6 +135,8 @@ function ClientsPage() {
     useState<{ id: string; name: string } | null>(null);
   const [appointmentTimezoneMode, setAppointmentTimezoneMode] =
     useState<SchedulingTimezoneMode>(DEFAULT_SCHEDULING_TIMEZONE_MODE);
+  const [isDetailFormDirty, setIsDetailFormDirty] = useState(false);
+  const detailFormId = "client-detail-form";
 
   const { data, isLoading, isFetching, error } = useQuery({
     ...orpc.clients.list.queryOptions({
@@ -339,7 +339,6 @@ function ClientsPage() {
     orpc.clients.update.mutationOptions({
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: orpc.clients.key() });
-        crud.closeEdit();
       },
       onError: (error) => {
         toast.error(error.message || "Failed to update client");
@@ -369,9 +368,9 @@ function ClientsPage() {
   };
 
   const handleUpdate = (formData: CreateClientInput) => {
-    if (!crud.editingItem) return;
+    if (!selectedId) return;
     updateMutation.mutate({
-      id: crud.editingItem.id,
+      id: selectedId,
       data: formData,
     });
   };
@@ -404,7 +403,7 @@ function ClientsPage() {
       {
         label: "Edit",
         icon: PencilEdit01Icon,
-        onClick: () => crud.openEdit(client),
+        onClick: () => openDetails(client.id, "details"),
         separator: true,
       },
       {
@@ -593,6 +592,88 @@ function ClientsPage() {
             ? "sm:h-[min(94dvh,60rem)] sm:min-h-[42rem]"
             : undefined
         }
+        footer={
+          isAppointmentDetailOpen ? (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={clearSelectedAppointment}
+            >
+              <Icon
+                icon={ArrowRight02Icon}
+                data-icon="inline-start"
+                className="rotate-180"
+              />
+              Back to client
+            </Button>
+          ) : activeTab === "details" && displayClient ? (
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                onClick={() => crud.openDelete(displayClient.id)}
+                disabled={updateMutation.isPending}
+              >
+                <Icon icon={Delete01Icon} data-icon="inline-start" />
+                Delete Client
+              </Button>
+              <div className="ml-auto flex items-center gap-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={clearDetails}
+                  disabled={updateMutation.isPending}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  size="sm"
+                  form={detailFormId}
+                  disabled={updateMutation.isPending || !isDetailFormDirty}
+                >
+                  {updateMutation.isPending ? "Saving..." : "Save"}
+                </Button>
+              </div>
+            </div>
+          ) : displayClient ? (
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                onClick={() => crud.openDelete(displayClient.id)}
+              >
+                <Icon icon={Delete01Icon} data-icon="inline-start" />
+                Delete Client
+              </Button>
+              <div className="ml-auto flex items-center gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    clearDetails();
+                    handleBookAppointment(displayClient);
+                  }}
+                >
+                  <Icon icon={Calendar03Icon} data-icon="inline-start" />
+                  Book
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={() => openDetails(displayClient.id, "details")}
+                >
+                  <Icon icon={PencilEdit01Icon} data-icon="inline-start" />
+                  Edit Details
+                </Button>
+              </div>
+            </div>
+          ) : null
+        }
       >
         {displayClient ? (
           <div className="flex h-full min-h-0 flex-col">
@@ -619,68 +700,45 @@ function ClientsPage() {
                     className="px-0"
                   >
                     <DetailTab value="details">Details</DetailTab>
-                    <DetailTab value="custom-fields">Custom Fields</DetailTab>
                     <DetailTab value="history">History</DetailTab>
                   </DetailTabs>
 
                   <div className="space-y-6">
                     {activeTab === "details" ? (
                       <div className="space-y-4">
-                        <div>
-                          <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                            Created
-                          </Label>
-                          <p className="mt-1 text-sm">
-                            {formatDisplayDate(displayClient.createdAt)}
-                          </p>
-                        </div>
-                        <div>
-                          <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                            Email
-                          </Label>
-                          <p className="mt-1 text-sm">
-                            {displayClient.email ?? (
-                              <span className="text-muted-foreground">
-                                Not set
-                              </span>
-                            )}
-                          </p>
-                        </div>
-                        <div>
-                          <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                            Phone
-                          </Label>
-                          <p className="mt-1 text-sm">
-                            {formatPhoneForDisplay(displayClient.phone) ?? (
-                              <span className="text-muted-foreground">
-                                Not set
-                              </span>
-                            )}
-                          </p>
-                        </div>
-                        <div>
-                          <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                            Appointments (non-cancelled)
-                          </Label>
-                          <p className="mt-1 text-sm">
-                            {displayClient.relationshipCounts?.appointments ??
-                              0}
-                          </p>
-                        </div>
+                        {isLoadingClientFull &&
+                        (customFieldDefinitions?.length ?? 0) > 0 ? (
+                          <div className="py-6 text-center text-sm text-muted-foreground">
+                            Loading client details...
+                          </div>
+                        ) : (
+                          <ClientForm
+                            key={displayClient.id}
+                            formId={detailFormId}
+                            showActions={false}
+                            defaultValues={{
+                              firstName: displayClient.firstName,
+                              lastName: displayClient.lastName,
+                              email: displayClient.email ?? undefined,
+                              phone:
+                                formatPhoneForDisplay(displayClient.phone) ??
+                                undefined,
+                              phoneCountry:
+                                deriveCountryFromPhone(displayClient.phone) ??
+                                "US",
+                              customAttributes:
+                                selectedClientFull?.customAttributes ?? {},
+                            }}
+                            onSubmit={handleUpdate}
+                            onCancel={clearDetails}
+                            isSubmitting={updateMutation.isPending}
+                            shortcutsEnabled={detailModalOpen}
+                            disableSubmitWhenPristine
+                            onDirtyChange={setIsDetailFormDirty}
+                            customFieldDefinitions={customFieldDefinitions}
+                          />
+                        )}
                       </div>
-                    ) : activeTab === "custom-fields" ? (
-                      isLoadingClientFull ? (
-                        <div className="py-6 text-center text-sm text-muted-foreground">
-                          Loading custom fields...
-                        </div>
-                      ) : (
-                        <ClientCustomFieldsDisplay
-                          definitions={customFieldDefinitions ?? []}
-                          customAttributes={
-                            selectedClientFull?.customAttributes ?? null
-                          }
-                        />
-                      )
                     ) : (
                       <div className="space-y-6">
                         {isLoadingAppointments ? (
@@ -807,59 +865,6 @@ function ClientsPage() {
                 </div>
               </div>
             )}
-
-            <div className="flex flex-wrap items-center gap-2 border-t border-border px-4 py-3 sm:px-6">
-              {isAppointmentDetailOpen ? (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={clearSelectedAppointment}
-                >
-                  <Icon
-                    icon={ArrowRight02Icon}
-                    data-icon="inline-start"
-                    className="rotate-180"
-                  />
-                  Back to client
-                </Button>
-              ) : (
-                <>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                    onClick={() => crud.openDelete(displayClient.id)}
-                  >
-                    <Icon icon={Delete01Icon} data-icon="inline-start" />
-                    Delete Client
-                  </Button>
-                  <div className="ml-auto flex items-center gap-2">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => {
-                        clearDetails();
-                        handleBookAppointment(displayClient);
-                      }}
-                    >
-                      <Icon icon={Calendar03Icon} data-icon="inline-start" />
-                      Book
-                    </Button>
-                    <Button
-                      size="sm"
-                      onClick={() => {
-                        clearDetails();
-                        crud.openEdit(displayClient);
-                      }}
-                    >
-                      <Icon icon={PencilEdit01Icon} data-icon="inline-start" />
-                      Edit
-                    </Button>
-                  </div>
-                </>
-              )}
-            </div>
           </div>
         ) : null}
       </EntityModal>
@@ -880,36 +885,6 @@ function ClientsPage() {
             customFieldDefinitions={customFieldDefinitions}
           />
         </div>
-      </EntityModal>
-
-      <EntityModal
-        open={!!crud.editingItem}
-        onOpenChange={(open) => {
-          if (!open) crud.closeEdit();
-        }}
-        title="Edit Client"
-      >
-        {crud.editingItem ? (
-          <div className="h-full overflow-y-auto px-4 py-4 sm:px-6 sm:py-5">
-            <ClientForm
-              defaultValues={{
-                firstName: crud.editingItem.firstName,
-                lastName: crud.editingItem.lastName,
-                email: crud.editingItem.email ?? undefined,
-                phone:
-                  formatPhoneForDisplay(crud.editingItem.phone) ?? undefined,
-                phoneCountry:
-                  deriveCountryFromPhone(crud.editingItem.phone) ?? "US",
-                customAttributes: selectedClientFull?.customAttributes ?? {},
-              }}
-              onSubmit={handleUpdate}
-              onCancel={crud.closeEdit}
-              isSubmitting={updateMutation.isPending}
-              shortcutsEnabled={!!crud.editingItem}
-              customFieldDefinitions={customFieldDefinitions}
-            />
-          </div>
-        ) : null}
       </EntityModal>
 
       <AppointmentModal

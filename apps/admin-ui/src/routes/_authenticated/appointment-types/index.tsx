@@ -1,6 +1,6 @@
 // Appointment Types management page with modal-based CRUD
 
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useClosingSnapshot } from "@/hooks/use-closing-snapshot";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
@@ -47,6 +47,7 @@ import { getQueryClient, orpc } from "@/lib/query";
 import { swallowIgnorableRouteLoaderError } from "@/lib/query-cancellation";
 import { CalendarsTab } from "./components/calendars-tab";
 import { ResourcesTab } from "./components/resources-tab";
+import type { ReactNode } from "react";
 
 const APPOINTMENT_TYPE_CREATE_DRAFT_KEY = "appointment-types:create";
 
@@ -61,9 +62,14 @@ interface AppointmentTypeFormProps {
   onSubmit: (data: CreateAppointmentTypeInput) => void;
   onCancel: () => void;
   isSubmitting: boolean;
+  footerStart?: ReactNode;
   onDraftChange?: (data: CreateAppointmentTypeInput) => void;
   onDiscardDraft?: () => void;
   showDiscardAction?: boolean;
+  formId?: string;
+  showActions?: boolean;
+  disableSubmitWhenPristine?: boolean;
+  onDirtyChange?: (isDirty: boolean) => void;
 }
 
 function AppointmentTypeForm({
@@ -71,16 +77,21 @@ function AppointmentTypeForm({
   onSubmit,
   onCancel,
   isSubmitting,
+  footerStart,
   onDraftChange,
   onDiscardDraft,
   showDiscardAction = false,
+  formId,
+  showActions = true,
+  disableSubmitWhenPristine = false,
+  onDirtyChange,
 }: AppointmentTypeFormProps) {
   const formRef = useRef<HTMLFormElement>(null);
   const {
     register,
     handleSubmit,
     watch,
-    formState: { errors },
+    formState: { errors, isDirty },
   } = useForm<CreateAppointmentTypeInput>({
     resolver: zodResolver(createAppointmentTypeSchema),
     mode: "onBlur",
@@ -102,7 +113,7 @@ function AppointmentTypeForm({
   });
 
   useSubmitShortcut({
-    enabled: !isSubmitting,
+    enabled: !isSubmitting && (!disableSubmitWhenPristine || isDirty),
     onSubmit: () => formRef.current?.requestSubmit(),
   });
 
@@ -120,8 +131,17 @@ function AppointmentTypeForm({
     return () => subscription.unsubscribe();
   }, [onDraftChange, watch]);
 
+  useEffect(() => {
+    onDirtyChange?.(isDirty);
+  }, [isDirty, onDirtyChange]);
+
   return (
-    <form ref={formRef} onSubmit={handleSubmit(onSubmit)} className="space-y-5">
+    <form
+      id={formId}
+      ref={formRef}
+      onSubmit={handleSubmit(onSubmit)}
+      className="space-y-5"
+    >
       <div className="space-y-2.5 relative" ref={registerField("name")}>
         <Label htmlFor="name">Name</Label>
         <Input
@@ -217,34 +237,45 @@ function AppointmentTypeForm({
         </div>
       </div>
 
-      <div className="flex justify-end gap-3 pt-2">
-        {showDiscardAction && onDiscardDraft ? (
-          <Button
-            type="button"
-            variant="ghost"
-            className="text-destructive hover:text-destructive hover:bg-destructive/10"
-            onClick={onDiscardDraft}
-            disabled={isSubmitting}
-          >
-            Discard Draft
-          </Button>
-        ) : null}
-        <Button
-          type="button"
-          variant="outline"
-          onClick={onCancel}
-          disabled={isSubmitting}
-        >
-          Cancel
-        </Button>
-        <Button type="submit" disabled={isSubmitting}>
-          {isSubmitting ? "Saving..." : "Save"}
-          <ShortcutBadge
-            shortcut="meta+enter"
-            className="ml-2 hidden sm:inline-flex"
-          />
-        </Button>
-      </div>
+      {showActions ? (
+        <div className="flex flex-wrap items-center gap-2 border-t border-border pt-3">
+          {footerStart ? <div>{footerStart}</div> : null}
+          <div className="ml-auto flex flex-wrap items-center gap-2">
+            {showDiscardAction && onDiscardDraft ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                onClick={onDiscardDraft}
+                disabled={isSubmitting}
+              >
+                Discard Draft
+              </Button>
+            ) : null}
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={onCancel}
+              disabled={isSubmitting}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              size="sm"
+              disabled={isSubmitting || (disableSubmitWhenPristine && !isDirty)}
+            >
+              {isSubmitting ? "Saving..." : "Save"}
+              <ShortcutBadge
+                shortcut="meta+enter"
+                className="ml-2 hidden sm:inline-flex"
+              />
+            </Button>
+          </div>
+        </div>
+      ) : null}
     </form>
   );
 }
@@ -302,6 +333,8 @@ function AppointmentTypesPage() {
   const { selected, tab } = Route.useSearch();
   const manageTypeId = selected ?? null;
   const manageTab: ManageTab = tab && isManageTab(tab) ? tab : "details";
+  const [isDetailFormDirty, setIsDetailFormDirty] = useState(false);
+  const detailFormId = "appointment-type-detail-form";
 
   const setManageTypeId = useCallback(
     (id: string | null) => {
@@ -590,6 +623,42 @@ function AppointmentTypesPage() {
           ) : null
         }
         title={displayManageType?.name ?? ""}
+        footer={
+          manageTab === "details" && displayManageType ? (
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                onClick={() => crud.openDelete(displayManageType.id)}
+                disabled={updateMutation.isPending}
+              >
+                <Icon icon={Delete01Icon} data-icon="inline-start" />
+                Delete Type
+              </Button>
+              <div className="ml-auto flex items-center gap-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={closeManageModal}
+                  disabled={updateMutation.isPending}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  size="sm"
+                  form={detailFormId}
+                  disabled={updateMutation.isPending || !isDetailFormDirty}
+                >
+                  {updateMutation.isPending ? "Saving..." : "Save"}
+                </Button>
+              </div>
+            </div>
+          ) : null
+        }
       >
         {displayManageType ? (
           <div className="h-full overflow-y-auto px-4 py-4 sm:px-6 sm:py-5">
@@ -624,6 +693,8 @@ function AppointmentTypesPage() {
               {manageTab === "details" && (
                 <AppointmentTypeForm
                   key={displayManageType.id}
+                  formId={detailFormId}
+                  showActions={false}
                   defaultValues={{
                     name: displayManageType.name,
                     durationMin: displayManageType.durationMin,
@@ -636,6 +707,8 @@ function AppointmentTypesPage() {
                   onSubmit={handleUpdate}
                   onCancel={closeManageModal}
                   isSubmitting={updateMutation.isPending}
+                  disableSubmitWhenPristine
+                  onDirtyChange={setIsDetailFormDirty}
                 />
               )}
 

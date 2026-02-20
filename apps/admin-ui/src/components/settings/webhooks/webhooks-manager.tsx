@@ -463,6 +463,27 @@ function CreateEndpointModal({
       onOpenChange={onOpenChange}
       title="Create Endpoint"
       description="Register a destination URL and choose which event types it receives."
+      footer={
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+            disabled={createMutation.isPending}
+          >
+            Cancel
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            disabled={createMutation.isPending}
+            onClick={onSubmit}
+          >
+            {createMutation.isPending ? "Creating..." : "Create endpoint"}
+          </Button>
+        </div>
+      }
     >
       <div className="space-y-5 p-6">
         <div className="grid gap-4 md:grid-cols-2">
@@ -555,24 +576,6 @@ function CreateEndpointModal({
               ))}
             </div>
           )}
-        </div>
-
-        <div className="flex justify-end gap-3 pt-1">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => onOpenChange(false)}
-            disabled={createMutation.isPending}
-          >
-            Cancel
-          </Button>
-          <Button
-            type="button"
-            disabled={createMutation.isPending}
-            onClick={onSubmit}
-          >
-            {createMutation.isPending ? "Creating..." : "Create endpoint"}
-          </Button>
         </div>
       </div>
     </EntityModal>
@@ -1173,6 +1176,21 @@ function EditEndpointEventsModal({
       onOpenChange={onOpenChange}
       title="Edit Subscribed Events"
       description="Select which event types this endpoint receives."
+      footer={
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+          >
+            Cancel
+          </Button>
+          <Button type="button" size="sm" disabled={isSaving} onClick={onSave}>
+            {isSaving ? "Saving..." : "Save"}
+          </Button>
+        </div>
+      }
     >
       <div className="space-y-4 p-6">
         {eventTypes.loading ? (
@@ -1229,18 +1247,6 @@ function EditEndpointEventsModal({
             </div>
           </>
         )}
-        <div className="flex justify-end gap-3">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => onOpenChange(false)}
-          >
-            Cancel
-          </Button>
-          <Button type="button" disabled={isSaving} onClick={onSave}>
-            {isSaving ? "Saving..." : "Save"}
-          </Button>
-        </div>
       </div>
     </EntityModal>
   );

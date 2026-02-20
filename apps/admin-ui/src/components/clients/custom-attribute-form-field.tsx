@@ -1,7 +1,6 @@
 import { Controller, type Control } from "react-hook-form";
 import type { CustomAttributeDefinitionResponse } from "@scheduling/dto";
 
-import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -11,6 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import {
   MultiSelectCombobox,
   type MultiSelectComboboxOption,
@@ -23,6 +23,17 @@ interface CustomAttributeFormFieldProps {
   disabled?: boolean;
 }
 
+function getFieldWrapperClass(
+  type: CustomAttributeDefinitionResponse["type"],
+): string {
+  switch (type) {
+    case "TEXT":
+      return "space-y-2.5 sm:col-span-2";
+    default:
+      return "space-y-2.5";
+  }
+}
+
 export function CustomAttributeFormField({
   definition,
   control,
@@ -30,11 +41,12 @@ export function CustomAttributeFormField({
 }: CustomAttributeFormFieldProps) {
   const fieldPath = `customAttributes.${definition.fieldKey}` as const;
   const label = `${definition.label}${definition.required ? "" : " (optional)"}`;
+  const fieldWrapperClass = getFieldWrapperClass(definition.type);
 
   switch (definition.type) {
     case "TEXT":
       return (
-        <div className="space-y-2">
+        <div className={fieldWrapperClass}>
           <Label htmlFor={`ca-${definition.fieldKey}`}>{label}</Label>
           <Controller
             name={fieldPath}
@@ -54,7 +66,7 @@ export function CustomAttributeFormField({
       );
     case "NUMBER":
       return (
-        <div className="space-y-2">
+        <div className={fieldWrapperClass}>
           <Label htmlFor={`ca-${definition.fieldKey}`}>{label}</Label>
           <Controller
             name={fieldPath}
@@ -77,7 +89,7 @@ export function CustomAttributeFormField({
       );
     case "DATE":
       return (
-        <div className="space-y-2">
+        <div className={fieldWrapperClass}>
           <Label htmlFor={`ca-${definition.fieldKey}`}>{label}</Label>
           <Controller
             name={fieldPath}
@@ -106,24 +118,29 @@ export function CustomAttributeFormField({
       );
     case "BOOLEAN":
       return (
-        <div className="space-y-2">
-          <Controller
-            name={fieldPath}
-            control={control}
-            render={({ field }) => (
-              <Checkbox
-                checked={!!field.value}
-                onChange={(checked) => field.onChange(!!checked)}
-                label={label}
-                disabled={disabled}
-              />
-            )}
-          />
+        <div className={fieldWrapperClass}>
+          <div className="flex items-center justify-between rounded-lg border border-border px-3 py-2.5">
+            <Label htmlFor={`ca-${definition.fieldKey}`} className="text-sm">
+              {label}
+            </Label>
+            <Controller
+              name={fieldPath}
+              control={control}
+              render={({ field }) => (
+                <Switch
+                  id={`ca-${definition.fieldKey}`}
+                  checked={!!field.value}
+                  onCheckedChange={(checked) => field.onChange(checked)}
+                  disabled={disabled}
+                />
+              )}
+            />
+          </div>
         </div>
       );
     case "SELECT":
       return (
-        <div className="space-y-2">
+        <div className={fieldWrapperClass}>
           <Label>{label}</Label>
           <Controller
             name={fieldPath}
@@ -134,7 +151,7 @@ export function CustomAttributeFormField({
                 onValueChange={(value) => field.onChange(value || null)}
                 disabled={disabled}
               >
-                <SelectTrigger>
+                <SelectTrigger className="w-full min-w-0">
                   <SelectValue placeholder="Select..." />
                 </SelectTrigger>
                 <SelectContent>
@@ -154,13 +171,14 @@ export function CustomAttributeFormField({
         definition.options ?? []
       ).map((opt) => ({ label: opt, value: opt }));
       return (
-        <div className="space-y-2">
+        <div className={fieldWrapperClass}>
           <Label>{label}</Label>
           <Controller
             name={fieldPath}
             control={control}
             render={({ field }) => (
               <MultiSelectCombobox
+                className="w-full"
                 options={comboboxOptions}
                 value={Array.isArray(field.value) ? field.value : []}
                 onChange={field.onChange}

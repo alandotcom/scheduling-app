@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 import { Combobox } from "@base-ui/react/combobox";
 import { Controller, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -90,6 +90,11 @@ export interface ClientFormProps {
   onDraftChange?: (data: CreateClientInput) => void;
   onDiscardDraft?: () => void;
   showDiscardAction?: boolean;
+  footerStart?: ReactNode;
+  disableSubmitWhenPristine?: boolean;
+  formId?: string;
+  showActions?: boolean;
+  onDirtyChange?: (isDirty: boolean) => void;
   customFieldDefinitions?: CustomAttributeDefinitionResponse[];
 }
 
@@ -102,6 +107,11 @@ export function ClientForm({
   onDraftChange,
   onDiscardDraft,
   showDiscardAction = false,
+  footerStart,
+  disableSubmitWhenPristine = false,
+  formId,
+  showActions = true,
+  onDirtyChange,
   customFieldDefinitions,
 }: ClientFormProps) {
   const formRef = useRef<HTMLFormElement>(null);
@@ -114,7 +124,7 @@ export function ClientForm({
     setValue,
     watch,
     getValues,
-    formState: { errors },
+    formState: { errors, isDirty },
   } = useForm<CreateClientInput>({
     resolver: zodResolver(createClientSchema),
     mode: "onBlur",
@@ -156,7 +166,10 @@ export function ClientForm({
   });
 
   useSubmitShortcut({
-    enabled: shortcutsEnabled && !isSubmitting,
+    enabled:
+      shortcutsEnabled &&
+      !isSubmitting &&
+      (!disableSubmitWhenPristine || isDirty),
     onSubmit: () => formRef.current?.requestSubmit(),
   });
 
@@ -174,287 +187,337 @@ export function ClientForm({
     return () => subscription.unsubscribe();
   }, [onDraftChange, watch]);
 
+  useEffect(() => {
+    onDirtyChange?.(isDirty);
+  }, [isDirty, onDirtyChange]);
+
   return (
-    <form ref={formRef} onSubmit={handleSubmit(onSubmit)} className="space-y-5">
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <div className="space-y-2.5 relative" ref={registerField("first-name")}>
-          <Label htmlFor="firstName">First Name</Label>
-          <Input
-            id="firstName"
-            placeholder="John"
-            aria-describedby={errors.firstName ? "firstName-error" : undefined}
-            aria-invalid={!!errors.firstName}
-            {...register("firstName")}
-            disabled={isSubmitting}
-          />
-          {errors.firstName && (
-            <p id="firstName-error" className="text-sm text-destructive">
-              {errors.firstName.message}
-            </p>
-          )}
-          <FieldShortcutHint shortcut="f" visible={hintsVisible} />
+    <form
+      id={formId}
+      ref={formRef}
+      onSubmit={handleSubmit(onSubmit)}
+      autoComplete="off"
+      className="space-y-5"
+    >
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <div className="space-y-4">
+          <div
+            className="space-y-2.5 relative"
+            ref={registerField("first-name")}
+          >
+            <Label htmlFor="firstName">First Name</Label>
+            <Input
+              id="firstName"
+              placeholder="John"
+              autoComplete="off"
+              aria-describedby={
+                errors.firstName ? "firstName-error" : undefined
+              }
+              aria-invalid={!!errors.firstName}
+              {...register("firstName")}
+              disabled={isSubmitting}
+            />
+            {errors.firstName && (
+              <p id="firstName-error" className="text-sm text-destructive">
+                {errors.firstName.message}
+              </p>
+            )}
+            <FieldShortcutHint shortcut="f" visible={hintsVisible} />
+          </div>
+
+          <div
+            className="space-y-2.5 relative"
+            ref={registerField("last-name")}
+          >
+            <Label htmlFor="lastName">Last Name</Label>
+            <Input
+              id="lastName"
+              placeholder="Smith"
+              autoComplete="off"
+              aria-describedby={errors.lastName ? "lastName-error" : undefined}
+              aria-invalid={!!errors.lastName}
+              {...register("lastName")}
+              disabled={isSubmitting}
+            />
+            {errors.lastName && (
+              <p id="lastName-error" className="text-sm text-destructive">
+                {errors.lastName.message}
+              </p>
+            )}
+            <FieldShortcutHint shortcut="l" visible={hintsVisible} />
+          </div>
         </div>
 
-        <div className="space-y-2.5 relative" ref={registerField("last-name")}>
-          <Label htmlFor="lastName">Last Name</Label>
-          <Input
-            id="lastName"
-            placeholder="Smith"
-            aria-describedby={errors.lastName ? "lastName-error" : undefined}
-            aria-invalid={!!errors.lastName}
-            {...register("lastName")}
-            disabled={isSubmitting}
-          />
-          {errors.lastName && (
-            <p id="lastName-error" className="text-sm text-destructive">
-              {errors.lastName.message}
-            </p>
-          )}
-          <FieldShortcutHint shortcut="l" visible={hintsVisible} />
-        </div>
-      </div>
+        <div className="space-y-4">
+          <div className="space-y-2.5 relative" ref={registerField("email")}>
+            <Label htmlFor="email">Email (optional)</Label>
+            <Input
+              id="email"
+              type="email"
+              placeholder="john@example.com"
+              autoComplete="off"
+              aria-describedby={errors.email ? "email-error" : undefined}
+              aria-invalid={!!errors.email}
+              {...register("email")}
+              disabled={isSubmitting}
+            />
+            {errors.email && (
+              <p id="email-error" className="text-sm text-destructive">
+                {errors.email.message}
+              </p>
+            )}
+            <FieldShortcutHint shortcut="e" visible={hintsVisible} />
+          </div>
 
-      <div className="space-y-2.5 relative" ref={registerField("email")}>
-        <Label htmlFor="email">Email (optional)</Label>
-        <Input
-          id="email"
-          type="email"
-          placeholder="john@example.com"
-          aria-describedby={errors.email ? "email-error" : undefined}
-          aria-invalid={!!errors.email}
-          {...register("email")}
-          disabled={isSubmitting}
-        />
-        {errors.email && (
-          <p id="email-error" className="text-sm text-destructive">
-            {errors.email.message}
-          </p>
-        )}
-        <FieldShortcutHint shortcut="e" visible={hintsVisible} />
-      </div>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-[220px_minmax(0,1fr)]">
+            <div
+              className="space-y-2.5 relative"
+              ref={registerField("country")}
+            >
+              <Label htmlFor="phoneCountry">Country</Label>
+              <Controller
+                name="phoneCountry"
+                control={control}
+                render={({ field }) => (
+                  <Combobox.Root
+                    items={PHONE_COUNTRY_OPTIONS}
+                    value={selectedCountryOption ?? null}
+                    open={countryComboboxOpen}
+                    itemToStringLabel={(item) => item.label}
+                    itemToStringValue={(item) => item.value}
+                    isItemEqualToValue={(item, selected) =>
+                      item.value === selected.value
+                    }
+                    onOpenChange={(open) => {
+                      setCountryComboboxOpen(open);
+                    }}
+                    onValueChange={(nextCountry) => {
+                      if (!nextCountry) return;
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-[220px_minmax(0,1fr)]">
-        <div className="space-y-2.5 relative" ref={registerField("country")}>
-          <Label htmlFor="phoneCountry">Country</Label>
-          <Controller
-            name="phoneCountry"
-            control={control}
-            render={({ field }) => (
-              <Combobox.Root
-                items={PHONE_COUNTRY_OPTIONS}
-                value={selectedCountryOption ?? null}
-                open={countryComboboxOpen}
-                itemToStringLabel={(item) => item.label}
-                itemToStringValue={(item) => item.value}
-                isItemEqualToValue={(item, selected) =>
-                  item.value === selected.value
-                }
-                onOpenChange={(open) => {
-                  setCountryComboboxOpen(open);
-                }}
-                onValueChange={(nextCountry) => {
-                  if (!nextCountry) return;
+                      field.onChange(nextCountry.value);
 
-                  field.onChange(nextCountry.value);
-
-                  const currentPhone = getValues("phone") ?? "";
-                  if (!currentPhone.startsWith("+")) {
-                    const { formatted } = formatPhoneInputAsYouType(
-                      currentPhone,
-                      nextCountry.value,
-                    );
-                    setValue("phone", formatted, {
-                      shouldDirty: true,
-                      shouldValidate: !!errors.phone,
-                    });
-                  }
-                }}
-              >
-                <Combobox.Trigger
-                  render={
-                    <Button
-                      id="phoneCountry"
-                      type="button"
-                      variant="outline"
-                      role="combobox"
-                      aria-expanded={countryComboboxOpen}
-                      aria-describedby={
-                        errors.phoneCountry ? "phone-country-error" : undefined
+                      const currentPhone = getValues("phone") ?? "";
+                      if (!currentPhone.startsWith("+")) {
+                        const { formatted } = formatPhoneInputAsYouType(
+                          currentPhone,
+                          nextCountry.value,
+                        );
+                        setValue("phone", formatted, {
+                          shouldDirty: true,
+                          shouldValidate: !!errors.phone,
+                        });
                       }
-                      aria-invalid={!!errors.phoneCountry}
-                      className="h-10 w-full justify-between px-3"
-                      disabled={isSubmitting}
-                      onKeyDown={(event) => {
-                        handleCtrlJkArrowNavigation(event, countryComboboxOpen);
-                      }}
-                    >
-                      <span className="truncate">
-                        {selectedCountryOption
-                          ? `${selectedCountryOption.label} (+${selectedCountryOption.callingCode})`
-                          : "Select country"}
-                      </span>
-                      <Icon icon={ArrowDown01Icon} className="size-4" />
-                    </Button>
-                  }
-                />
-                <Combobox.Portal keepMounted>
-                  <Combobox.Positioner
-                    positionMethod="fixed"
-                    disableAnchorTracking
-                    sideOffset={6}
-                    align="start"
-                    className="z-[90]"
+                    }}
                   >
-                    <Combobox.Popup
-                      className="w-[22rem] max-w-[calc(100vw-2rem)] overflow-hidden rounded-lg border border-border bg-background shadow-lg"
-                      onKeyDown={(event) => {
-                        handleCtrlJkArrowNavigation(event, countryComboboxOpen);
-                      }}
-                    >
-                      <div className="border-b border-border px-3 py-1">
-                        <Combobox.Input
-                          placeholder="Search country or dialing code..."
-                          className="h-9 w-full border-0 bg-transparent p-0 text-sm outline-none placeholder:text-muted-foreground"
+                    <Combobox.Trigger
+                      render={
+                        <Button
+                          id="phoneCountry"
+                          type="button"
+                          variant="outline"
+                          role="combobox"
+                          aria-expanded={countryComboboxOpen}
+                          aria-describedby={
+                            errors.phoneCountry
+                              ? "phone-country-error"
+                              : undefined
+                          }
+                          aria-invalid={!!errors.phoneCountry}
+                          className="h-10 w-full justify-between px-3 normal-case"
+                          disabled={isSubmitting}
                           onKeyDown={(event) => {
                             handleCtrlJkArrowNavigation(
                               event,
                               countryComboboxOpen,
                             );
                           }}
-                        />
-                      </div>
-                      <Combobox.Empty className="px-3 py-3 text-sm text-muted-foreground">
-                        No countries found.
-                      </Combobox.Empty>
-                      <Combobox.List className="max-h-72 overflow-y-auto p-1">
-                        {(country: PhoneCountryOption) => (
-                          <Combobox.Item
-                            key={country.value}
-                            value={country}
-                            className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-2 text-sm outline-none data-[highlighted]:bg-accent data-[highlighted]:text-accent-foreground"
-                          >
-                            <span className="flex-1 truncate">
-                              {country.label}
-                            </span>
-                            <span className="text-muted-foreground">
-                              +{country.callingCode}
-                            </span>
-                            <Combobox.ItemIndicator>
-                              <Icon icon={Tick02Icon} className="size-4" />
-                            </Combobox.ItemIndicator>
-                          </Combobox.Item>
-                        )}
-                      </Combobox.List>
-                    </Combobox.Popup>
-                  </Combobox.Positioner>
-                </Combobox.Portal>
-              </Combobox.Root>
-            )}
-          />
-          {errors.phoneCountry && (
-            <p id="phone-country-error" className="text-sm text-destructive">
-              {errors.phoneCountry.message}
-            </p>
-          )}
-          <FieldShortcutHint shortcut="c" visible={hintsVisible} />
-        </div>
-
-        <div className="space-y-2.5 relative" ref={registerField("phone")}>
-          <Label htmlFor="phone">Phone (optional)</Label>
-          <Controller
-            name="phone"
-            control={control}
-            render={({ field }) => (
-              <Input
-                id="phone"
-                type="tel"
-                placeholder="555-555-5555"
-                aria-describedby={errors.phone ? "phone-error" : undefined}
-                aria-invalid={!!errors.phone}
-                value={field.value ?? ""}
-                onBlur={field.onBlur}
-                onChange={(event) => {
-                  const typedValue = event.target.value;
-                  const { formatted, detectedCountry } =
-                    formatPhoneInputAsYouType(typedValue, activePhoneCountry);
-
-                  field.onChange(formatted);
-
-                  if (
-                    typedValue.trim().startsWith("+") &&
-                    detectedCountry &&
-                    detectedCountry !== activePhoneCountry
-                  ) {
-                    setValue("phoneCountry", detectedCountry, {
-                      shouldDirty: true,
-                      shouldValidate: true,
-                    });
-                  }
-                }}
-                disabled={isSubmitting}
+                        >
+                          <span className="truncate normal-case">
+                            {selectedCountryOption
+                              ? `${selectedCountryOption.label} (+${selectedCountryOption.callingCode})`
+                              : "Select country"}
+                          </span>
+                          <Icon icon={ArrowDown01Icon} className="size-4" />
+                        </Button>
+                      }
+                    />
+                    <Combobox.Portal keepMounted>
+                      <Combobox.Positioner
+                        positionMethod="fixed"
+                        disableAnchorTracking
+                        sideOffset={6}
+                        align="start"
+                        className="z-[90]"
+                      >
+                        <Combobox.Popup
+                          className="w-[22rem] max-w-[calc(100vw-2rem)] overflow-hidden rounded-lg border border-border bg-background shadow-lg"
+                          onKeyDown={(event) => {
+                            handleCtrlJkArrowNavigation(
+                              event,
+                              countryComboboxOpen,
+                            );
+                          }}
+                        >
+                          <div className="border-b border-border px-3 py-1">
+                            <Combobox.Input
+                              placeholder="Search country or dialing code..."
+                              className="h-9 w-full border-0 bg-transparent p-0 text-sm outline-none placeholder:text-muted-foreground"
+                              onKeyDown={(event) => {
+                                handleCtrlJkArrowNavigation(
+                                  event,
+                                  countryComboboxOpen,
+                                );
+                              }}
+                            />
+                          </div>
+                          <Combobox.Empty className="px-3 py-3 text-sm text-muted-foreground">
+                            No countries found.
+                          </Combobox.Empty>
+                          <Combobox.List className="max-h-72 overflow-y-auto p-1">
+                            {(country: PhoneCountryOption) => (
+                              <Combobox.Item
+                                key={country.value}
+                                value={country}
+                                className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-2 text-sm normal-case outline-none data-[highlighted]:bg-accent data-[highlighted]:text-accent-foreground"
+                              >
+                                <span className="flex-1 truncate">
+                                  {country.label}
+                                </span>
+                                <span className="text-muted-foreground">
+                                  +{country.callingCode}
+                                </span>
+                                <Combobox.ItemIndicator>
+                                  <Icon icon={Tick02Icon} className="size-4" />
+                                </Combobox.ItemIndicator>
+                              </Combobox.Item>
+                            )}
+                          </Combobox.List>
+                        </Combobox.Popup>
+                      </Combobox.Positioner>
+                    </Combobox.Portal>
+                  </Combobox.Root>
+                )}
               />
-            )}
-          />
-          {errors.phone && (
-            <p id="phone-error" className="text-sm text-destructive">
-              {errors.phone.message}
-            </p>
-          )}
-          <FieldShortcutHint shortcut="p" visible={hintsVisible} />
+              {errors.phoneCountry && (
+                <p
+                  id="phone-country-error"
+                  className="text-sm text-destructive"
+                >
+                  {errors.phoneCountry.message}
+                </p>
+              )}
+              <FieldShortcutHint shortcut="c" visible={hintsVisible} />
+            </div>
+
+            <div className="space-y-2.5 relative" ref={registerField("phone")}>
+              <Label htmlFor="phone">Phone (optional)</Label>
+              <Controller
+                name="phone"
+                control={control}
+                render={({ field }) => (
+                  <Input
+                    id="phone"
+                    type="tel"
+                    placeholder="555-555-5555"
+                    aria-describedby={errors.phone ? "phone-error" : undefined}
+                    aria-invalid={!!errors.phone}
+                    value={field.value ?? ""}
+                    onBlur={field.onBlur}
+                    onChange={(event) => {
+                      const typedValue = event.target.value;
+                      const { formatted, detectedCountry } =
+                        formatPhoneInputAsYouType(
+                          typedValue,
+                          activePhoneCountry,
+                        );
+
+                      field.onChange(formatted);
+
+                      if (
+                        typedValue.trim().startsWith("+") &&
+                        detectedCountry &&
+                        detectedCountry !== activePhoneCountry
+                      ) {
+                        setValue("phoneCountry", detectedCountry, {
+                          shouldDirty: true,
+                          shouldValidate: true,
+                        });
+                      }
+                    }}
+                    disabled={isSubmitting}
+                  />
+                )}
+              />
+              {errors.phone && (
+                <p id="phone-error" className="text-sm text-destructive">
+                  {errors.phone.message}
+                </p>
+              )}
+              <FieldShortcutHint shortcut="p" visible={hintsVisible} />
+            </div>
+          </div>
         </div>
       </div>
 
       {customFieldDefinitions && customFieldDefinitions.length > 0 ? (
-        <div className="space-y-4 border-t border-border pt-5">
+        <div className="space-y-4 border-t border-border pt-6">
           <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
             Custom Fields
           </Label>
-          {customFieldDefinitions
-            .toSorted((a, b) => a.displayOrder - b.displayOrder)
-            .map((def) => (
-              <CustomAttributeFormField
-                key={def.fieldKey}
-                definition={def}
-                control={control}
-                disabled={isSubmitting}
-              />
-            ))}
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-y-5">
+            {customFieldDefinitions
+              .toSorted((a, b) => a.displayOrder - b.displayOrder)
+              .map((def) => (
+                <CustomAttributeFormField
+                  key={def.fieldKey}
+                  definition={def}
+                  control={control}
+                  disabled={isSubmitting}
+                />
+              ))}
+          </div>
         </div>
       ) : null}
 
-      <div className="sticky bottom-0 z-10 -mx-4 flex justify-end gap-3 border-t border-border bg-background/95 px-4 pt-3 pb-1 sm:-mx-6 sm:px-6 sm:backdrop-blur sm:supports-[backdrop-filter]:bg-background/80">
-        {showDiscardAction && onDiscardDraft ? (
-          <Button
-            type="button"
-            variant="ghost"
-            className="text-destructive hover:text-destructive hover:bg-destructive/10"
-            onClick={onDiscardDraft}
-            disabled={isSubmitting}
-          >
-            Discard Draft
-          </Button>
-        ) : null}
-        <Button
-          type="button"
-          variant="outline"
-          className="hover:translate-y-0"
-          onClick={onCancel}
-          disabled={isSubmitting}
-        >
-          Cancel
-        </Button>
-        <Button
-          type="submit"
-          className="hover:translate-y-0"
-          disabled={isSubmitting}
-        >
-          {isSubmitting ? "Saving..." : "Save"}
-          <ShortcutBadge
-            shortcut="meta+enter"
-            className="ml-2 hidden sm:inline-flex"
-          />
-        </Button>
-      </div>
+      {showActions ? (
+        <div className="flex flex-wrap items-center gap-2 border-t border-border pt-3">
+          {footerStart ? <div>{footerStart}</div> : null}
+          <div className="ml-auto flex flex-wrap items-center gap-2">
+            {showDiscardAction && onDiscardDraft ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                onClick={onDiscardDraft}
+                disabled={isSubmitting}
+              >
+                Discard Draft
+              </Button>
+            ) : null}
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={onCancel}
+              disabled={isSubmitting}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              size="sm"
+              disabled={isSubmitting || (disableSubmitWhenPristine && !isDirty)}
+            >
+              {isSubmitting ? "Saving..." : "Save"}
+              <ShortcutBadge
+                shortcut="meta+enter"
+                className="ml-2 hidden sm:inline-flex"
+              />
+            </Button>
+          </div>
+        </div>
+      ) : null}
     </form>
   );
 }

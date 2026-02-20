@@ -1,6 +1,6 @@
 // Locations management page with modal-based CRUD and details
 
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useClosingSnapshot } from "@/hooks/use-closing-snapshot";
 import type { ReactNode } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
@@ -71,6 +71,10 @@ interface LocationFormProps {
   onDraftChange?: (data: CreateLocationInput) => void;
   onDiscardDraft?: () => void;
   showDiscardAction?: boolean;
+  formId?: string;
+  showActions?: boolean;
+  disableSubmitWhenPristine?: boolean;
+  onDirtyChange?: (isDirty: boolean) => void;
 }
 
 function LocationForm({
@@ -82,6 +86,10 @@ function LocationForm({
   onDraftChange,
   onDiscardDraft,
   showDiscardAction = false,
+  formId,
+  showActions = true,
+  disableSubmitWhenPristine = false,
+  onDirtyChange,
 }: LocationFormProps) {
   const formRef = useRef<HTMLFormElement>(null);
   const {
@@ -89,7 +97,7 @@ function LocationForm({
     handleSubmit,
     setValue,
     watch,
-    formState: { errors },
+    formState: { errors, isDirty },
   } = useForm<CreateLocationInput>({
     resolver: zodResolver(createLocationSchema),
     mode: "onBlur",
@@ -119,7 +127,7 @@ function LocationForm({
   });
 
   useSubmitShortcut({
-    enabled: !isSubmitting,
+    enabled: !isSubmitting && (!disableSubmitWhenPristine || isDirty),
     onSubmit: () => formRef.current?.requestSubmit(),
   });
 
@@ -134,8 +142,17 @@ function LocationForm({
     return () => subscription.unsubscribe();
   }, [onDraftChange, watch]);
 
+  useEffect(() => {
+    onDirtyChange?.(isDirty);
+  }, [isDirty, onDirtyChange]);
+
   return (
-    <form ref={formRef} onSubmit={handleSubmit(onSubmit)} className="space-y-5">
+    <form
+      id={formId}
+      ref={formRef}
+      onSubmit={handleSubmit(onSubmit)}
+      className="space-y-5"
+    >
       <div className="space-y-2.5 relative" ref={registerField("name")}>
         <Label htmlFor="name">Name</Label>
         <Input
@@ -180,37 +197,45 @@ function LocationForm({
         <FieldShortcutHint shortcut="t" visible={hintsVisible} />
       </div>
 
-      <div className="flex items-center gap-3 pt-2">
-        {footerStart ? <div>{footerStart}</div> : null}
-        <div className="ml-auto flex gap-3">
-          {showDiscardAction && onDiscardDraft ? (
+      {showActions ? (
+        <div className="flex flex-wrap items-center gap-2 border-t border-border pt-3">
+          {footerStart ? <div>{footerStart}</div> : null}
+          <div className="ml-auto flex flex-wrap items-center gap-2">
+            {showDiscardAction && onDiscardDraft ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                onClick={onDiscardDraft}
+                disabled={isSubmitting}
+              >
+                Discard Draft
+              </Button>
+            ) : null}
             <Button
               type="button"
-              variant="ghost"
-              className="text-destructive hover:text-destructive hover:bg-destructive/10"
-              onClick={onDiscardDraft}
+              variant="outline"
+              size="sm"
+              onClick={onCancel}
               disabled={isSubmitting}
             >
-              Discard Draft
+              Cancel
             </Button>
-          ) : null}
-          <Button
-            type="button"
-            variant="outline"
-            onClick={onCancel}
-            disabled={isSubmitting}
-          >
-            Cancel
-          </Button>
-          <Button type="submit" disabled={isSubmitting}>
-            {isSubmitting ? "Saving..." : "Save"}
-            <ShortcutBadge
-              shortcut="meta+enter"
-              className="ml-2 hidden sm:inline-flex"
-            />
-          </Button>
+            <Button
+              type="submit"
+              size="sm"
+              disabled={isSubmitting || (disableSubmitWhenPristine && !isDirty)}
+            >
+              {isSubmitting ? "Saving..." : "Save"}
+              <ShortcutBadge
+                shortcut="meta+enter"
+                className="ml-2 hidden sm:inline-flex"
+              />
+            </Button>
+          </div>
         </div>
-      </div>
+      ) : null}
     </form>
   );
 }
@@ -267,6 +292,8 @@ function LocationsPage() {
 
   const selectedId = selected ?? null;
   const activeTab: DetailTabValue = tab && isDetailTab(tab) ? tab : "details";
+  const [isDetailFormDirty, setIsDetailFormDirty] = useState(false);
+  const detailFormId = "location-detail-form";
 
   const { data, isLoading, isFetching, error } = useQuery({
     ...orpc.locations.list.queryOptions({
@@ -507,6 +534,42 @@ function LocationsPage() {
             ? formatTimezoneShort(displayLocation.timezone)
             : undefined
         }
+        footer={
+          activeTab === "details" && displayLocation ? (
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                onClick={() => crud.openDelete(displayLocation.id)}
+                disabled={updateMutation.isPending}
+              >
+                <Icon icon={Delete01Icon} data-icon="inline-start" />
+                Delete Location
+              </Button>
+              <div className="ml-auto flex items-center gap-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={clearDetails}
+                  disabled={updateMutation.isPending}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  size="sm"
+                  form={detailFormId}
+                  disabled={updateMutation.isPending || !isDetailFormDirty}
+                >
+                  {updateMutation.isPending ? "Saving..." : "Save"}
+                </Button>
+              </div>
+            </div>
+          ) : null
+        }
       >
         {displayLocation ? (
           <div className="h-full overflow-y-auto px-4 py-4 sm:px-6 sm:py-5">
@@ -534,6 +597,8 @@ function LocationsPage() {
                     </div>
                     <LocationForm
                       key={displayLocation.id}
+                      formId={detailFormId}
+                      showActions={false}
                       defaultValues={{
                         name: displayLocation.name,
                         timezone: displayLocation.timezone,
@@ -541,18 +606,8 @@ function LocationsPage() {
                       onSubmit={handleUpdate}
                       onCancel={clearDetails}
                       isSubmitting={updateMutation.isPending}
-                      footerStart={
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                          onClick={() => crud.openDelete(displayLocation.id)}
-                        >
-                          <Icon icon={Delete01Icon} data-icon="inline-start" />
-                          Delete Location
-                        </Button>
-                      }
+                      disableSubmitWhenPristine
+                      onDirtyChange={setIsDetailFormDirty}
                     />
                   </div>
                 )}

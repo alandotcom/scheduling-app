@@ -302,16 +302,21 @@ function CreateFieldForm({
         </div>
       ) : null}
 
-      <div className="flex justify-end gap-3 pt-2">
+      <div className="flex flex-wrap items-center justify-end gap-2 border-t border-border pt-3">
         <Button
           type="button"
           variant="outline"
+          size="sm"
           onClick={onCancel}
           disabled={isSubmitting}
         >
           Cancel
         </Button>
-        <Button type="submit" disabled={isSubmitting || !!slotWarning}>
+        <Button
+          type="submit"
+          size="sm"
+          disabled={isSubmitting || !!slotWarning}
+        >
           {isSubmitting ? "Creating..." : "Create field"}
         </Button>
       </div>
@@ -438,16 +443,17 @@ function EditFieldForm({
         </div>
       ) : null}
 
-      <div className="flex justify-end gap-3 pt-2">
+      <div className="flex flex-wrap items-center justify-end gap-2 border-t border-border pt-3">
         <Button
           type="button"
           variant="outline"
+          size="sm"
           onClick={onCancel}
           disabled={isSubmitting}
         >
           Cancel
         </Button>
-        <Button type="submit" disabled={isSubmitting}>
+        <Button type="submit" size="sm" disabled={isSubmitting}>
           {isSubmitting ? "Saving..." : "Save changes"}
         </Button>
       </div>

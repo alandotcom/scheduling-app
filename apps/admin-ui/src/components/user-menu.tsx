@@ -227,9 +227,34 @@ export function UserMenu({
         onOpenChange={setCreateOpen}
         title="Create Organization"
         description="Create a new workspace and switch into it immediately."
+        footer={
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => setCreateOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              size="sm"
+              form="create-organization-form"
+              disabled={creatingOrg}
+            >
+              {creatingOrg ? "Creating…" : "Create"}
+              <ShortcutBadge
+                shortcut="meta+enter"
+                className="ml-2 hidden sm:inline-flex"
+              />
+            </Button>
+          </div>
+        }
       >
         <div className="h-full overflow-y-auto px-4 py-4 sm:px-6 sm:py-5">
           <form
+            id="create-organization-form"
             ref={createFormRef}
             className="space-y-4"
             onSubmit={async (event) => {
@@ -294,23 +319,6 @@ export function UserMenu({
             {createError ? (
               <p className="text-sm text-destructive">{createError}</p>
             ) : null}
-
-            <div className="flex justify-end gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setCreateOpen(false)}
-              >
-                Cancel
-              </Button>
-              <Button type="submit" disabled={creatingOrg}>
-                {creatingOrg ? "Creating…" : "Create"}
-                <ShortcutBadge
-                  shortcut="meta+enter"
-                  className="ml-2 hidden sm:inline-flex"
-                />
-              </Button>
-            </div>
           </form>
         </div>
       </EntityModal>

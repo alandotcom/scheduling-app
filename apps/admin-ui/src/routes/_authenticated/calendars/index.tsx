@@ -1,6 +1,7 @@
 // Calendars management page with modal-based CRUD
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { ReactNode } from "react";
 import { useClosingSnapshot } from "@/hooks/use-closing-snapshot";
 import { DateTime } from "luxon";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
@@ -10,7 +11,9 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import {
   Add01Icon,
   ArrowRight02Icon,
+  Cancel01Icon,
   Clock01Icon,
+  Copy01Icon,
   Delete01Icon,
   PencilEdit01Icon,
 } from "@hugeicons/core-free-icons";
@@ -25,8 +28,19 @@ import {
 import { AvailabilitySubTabs } from "@/components/availability/availability-sub-tabs";
 import { BlockedTimeEditor } from "@/components/availability/blocked-time-editor";
 import { AppointmentModal } from "@/components/appointment-modal";
-import type { AvailabilitySubTabType } from "@/components/availability/constants";
+import {
+  WEEKDAYS,
+  type AvailabilitySubTabType,
+  type DaySchedule,
+  type TimeBlock,
+  type WeeklySchedule,
+} from "@/components/availability/constants";
 import { DateOverridesEditor } from "@/components/availability/date-overrides-editor";
+import {
+  formatTimeBlocksForInput,
+  parseTimeRanges,
+  validateTimeBlocks,
+} from "@/components/availability/time-range-parser";
 import { WeeklyScheduleEditor } from "@/components/availability/weekly-schedule-editor";
 import type { ContextMenuItem } from "@/components/context-menu";
 import { CopyIdHeaderAction } from "@/components/copy-id-header-action";
@@ -73,6 +87,43 @@ import { resolveSelectValueLabel } from "@/lib/select-value-label";
 
 const CALENDAR_CREATE_DRAFT_KEY = "calendars:create";
 
+interface CreateCalendarFormInput {
+  calendar: CreateCalendarInput;
+  weeklySchedule: WeeklySchedule;
+}
+
+interface CreateCalendarDraft extends CreateCalendarInput {
+  weeklySchedule: WeeklySchedule;
+}
+
+function createEmptyWeeklySchedule(): WeeklySchedule {
+  return Object.fromEntries(
+    WEEKDAYS.map((day) => [day.value, { enabled: false, blocks: [] }]),
+  ) as WeeklySchedule;
+}
+
+function buildRulesFromWeeklySchedule(weeklySchedule: WeeklySchedule) {
+  const rules: Array<{
+    weekday: number;
+    startTime: string;
+    endTime: string;
+  }> = [];
+
+  for (const day of WEEKDAYS) {
+    const daySchedule = weeklySchedule[day.value];
+    if (!daySchedule?.enabled) continue;
+    for (const block of daySchedule.blocks) {
+      rules.push({
+        weekday: day.value,
+        startTime: block.startTime,
+        endTime: block.endTime,
+      });
+    }
+  }
+
+  return rules;
+}
+
 interface CalendarFormProps {
   defaultValues?: {
     name: string;
@@ -83,9 +134,15 @@ interface CalendarFormProps {
   onSubmit: (data: CreateCalendarInput) => void;
   onCancel: () => void;
   isSubmitting: boolean;
+  footerStart?: ReactNode;
   onDraftChange?: (data: CreateCalendarInput) => void;
   onDiscardDraft?: () => void;
   showDiscardAction?: boolean;
+  formId?: string;
+  showActions?: boolean;
+  extraContent?: ReactNode;
+  disableSubmitWhenPristine?: boolean;
+  onDirtyChange?: (isDirty: boolean) => void;
 }
 
 function CalendarForm({
@@ -94,9 +151,15 @@ function CalendarForm({
   onSubmit,
   onCancel,
   isSubmitting,
+  footerStart,
   onDraftChange,
   onDiscardDraft,
   showDiscardAction = false,
+  formId,
+  showActions = true,
+  extraContent,
+  disableSubmitWhenPristine = false,
+  onDirtyChange,
 }: CalendarFormProps) {
   const formRef = useRef<HTMLFormElement>(null);
   const {
@@ -104,7 +167,7 @@ function CalendarForm({
     handleSubmit,
     setValue,
     watch,
-    formState: { errors },
+    formState: { errors, isDirty },
   } = useForm<CreateCalendarInput>({
     resolver: zodResolver(createCalendarSchema),
     mode: "onBlur",
@@ -154,7 +217,7 @@ function CalendarForm({
   });
 
   useSubmitShortcut({
-    enabled: !isSubmitting,
+    enabled: !isSubmitting && (!disableSubmitWhenPristine || isDirty),
     onSubmit: () => formRef.current?.requestSubmit(),
   });
 
@@ -170,116 +233,376 @@ function CalendarForm({
     return () => subscription.unsubscribe();
   }, [onDraftChange, watch]);
 
+  useEffect(() => {
+    onDirtyChange?.(isDirty);
+  }, [isDirty, onDirtyChange]);
+
   return (
-    <form ref={formRef} onSubmit={handleSubmit(onSubmit)} className="space-y-5">
-      <div className="space-y-2.5 relative" ref={registerField("name")}>
-        <Label htmlFor="name">Name</Label>
-        <Input
-          id="name"
-          placeholder="Dr. Smith's Calendar"
-          aria-describedby={errors.name ? "name-error" : undefined}
-          aria-invalid={!!errors.name}
-          {...register("name")}
-          disabled={isSubmitting}
-        />
-        {errors.name && (
-          <p id="name-error" className="text-sm text-destructive">
-            {errors.name.message}
-          </p>
-        )}
-        <FieldShortcutHint shortcut="n" visible={hintsVisible} />
+    <form
+      id={formId}
+      ref={formRef}
+      onSubmit={handleSubmit(onSubmit)}
+      className="space-y-5"
+    >
+      <div
+        className={
+          extraContent
+            ? "space-y-5 md:grid md:grid-cols-2 md:items-start md:gap-6 md:space-y-0"
+            : "space-y-5"
+        }
+      >
+        <div className="space-y-5">
+          <div className="space-y-2.5 relative" ref={registerField("name")}>
+            <Label htmlFor="name">Name</Label>
+            <Input
+              id="name"
+              placeholder="Dr. Smith's Calendar"
+              aria-describedby={errors.name ? "name-error" : undefined}
+              aria-invalid={!!errors.name}
+              {...register("name")}
+              disabled={isSubmitting}
+            />
+            {errors.name && (
+              <p id="name-error" className="text-sm text-destructive">
+                {errors.name.message}
+              </p>
+            )}
+            <FieldShortcutHint shortcut="n" visible={hintsVisible} />
+          </div>
+
+          <div className="space-y-2.5 relative" ref={registerField("timezone")}>
+            <Label htmlFor="timezone">Timezone</Label>
+            <Select
+              value={timezone}
+              onValueChange={(value) => value && setValue("timezone", value)}
+              disabled={isSubmitting}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select timezone">
+                  {timezoneSelectLabel}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {TIMEZONES.map((tz) => (
+                  <SelectItem key={tz} value={tz}>
+                    {formatTimezonePickerLabel(tz)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {errors.timezone && (
+              <p className="text-sm text-destructive">
+                {errors.timezone.message}
+              </p>
+            )}
+            <FieldShortcutHint shortcut="t" visible={hintsVisible} />
+          </div>
+
+          <div className="space-y-2.5 relative" ref={registerField("location")}>
+            <Label htmlFor="locationId">Location (optional)</Label>
+            <Select
+              value={locationId ?? "none"}
+              onValueChange={(value) =>
+                value &&
+                setValue("locationId", value === "none" ? undefined : value)
+              }
+              disabled={isSubmitting}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select location">
+                  {locationSelectLabel}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">No location</SelectItem>
+                {locations.map((loc) => (
+                  <SelectItem key={loc.id} value={loc.id}>
+                    {loc.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <FieldShortcutHint shortcut="l" visible={hintsVisible} />
+          </div>
+        </div>
+
+        {extraContent ? <div>{extraContent}</div> : null}
       </div>
 
-      <div className="space-y-2.5 relative" ref={registerField("timezone")}>
-        <Label htmlFor="timezone">Timezone</Label>
-        <Select
-          value={timezone}
-          onValueChange={(value) => value && setValue("timezone", value)}
-          disabled={isSubmitting}
-        >
-          <SelectTrigger>
-            <SelectValue placeholder="Select timezone">
-              {timezoneSelectLabel}
-            </SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            {TIMEZONES.map((tz) => (
-              <SelectItem key={tz} value={tz}>
-                {formatTimezonePickerLabel(tz)}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        {errors.timezone && (
-          <p className="text-sm text-destructive">{errors.timezone.message}</p>
-        )}
-        <FieldShortcutHint shortcut="t" visible={hintsVisible} />
-      </div>
-
-      <div className="space-y-2.5 relative" ref={registerField("location")}>
-        <Label htmlFor="locationId">Location (optional)</Label>
-        <Select
-          value={locationId ?? "none"}
-          onValueChange={(value) =>
-            value &&
-            setValue("locationId", value === "none" ? undefined : value)
-          }
-          disabled={isSubmitting}
-        >
-          <SelectTrigger>
-            <SelectValue placeholder="Select location">
-              {locationSelectLabel}
-            </SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="none">No location</SelectItem>
-            {locations.map((loc) => (
-              <SelectItem key={loc.id} value={loc.id}>
-                {loc.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <FieldShortcutHint shortcut="l" visible={hintsVisible} />
-      </div>
-
-      <div className="flex justify-end gap-3 pt-2">
-        {showDiscardAction && onDiscardDraft ? (
-          <Button
-            type="button"
-            variant="ghost"
-            className="text-destructive hover:text-destructive hover:bg-destructive/10"
-            onClick={onDiscardDraft}
-            disabled={isSubmitting}
-          >
-            Discard Draft
-          </Button>
-        ) : null}
-        <Button
-          type="button"
-          variant="outline"
-          onClick={onCancel}
-          disabled={isSubmitting}
-        >
-          Cancel
-        </Button>
-        <Button type="submit" disabled={isSubmitting}>
-          {isSubmitting ? "Saving..." : "Save"}
-          <ShortcutBadge
-            shortcut="meta+enter"
-            className="ml-2 hidden sm:inline-flex"
-          />
-        </Button>
-      </div>
+      {showActions ? (
+        <div className="flex flex-wrap items-center gap-2 border-t border-border pt-3">
+          {footerStart ? <div>{footerStart}</div> : null}
+          <div className="ml-auto flex flex-wrap items-center gap-2">
+            {showDiscardAction && onDiscardDraft ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                onClick={onDiscardDraft}
+                disabled={isSubmitting}
+              >
+                Discard Draft
+              </Button>
+            ) : null}
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={onCancel}
+              disabled={isSubmitting}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              size="sm"
+              disabled={isSubmitting || (disableSubmitWhenPristine && !isDirty)}
+            >
+              {isSubmitting ? "Saving..." : "Save"}
+              <ShortcutBadge
+                shortcut="meta+enter"
+                className="ml-2 hidden sm:inline-flex"
+              />
+            </Button>
+          </div>
+        </div>
+      ) : null}
     </form>
   );
 }
 
 interface CreateCalendarFormProps {
   locations: Array<{ id: string; name: string }>;
-  onSubmit: (data: CreateCalendarInput) => void;
+  onSubmit: (data: CreateCalendarFormInput) => void | Promise<void>;
   onCancel: () => void;
   isSubmitting: boolean;
+}
+
+function CreateAvailabilityDayInput({
+  day,
+  daySchedule,
+  onUpdate,
+  isSubmitting,
+}: {
+  day: (typeof WEEKDAYS)[number];
+  daySchedule: DaySchedule;
+  onUpdate: (weekday: number, schedule: DaySchedule) => void;
+  isSubmitting: boolean;
+}) {
+  const [draftInputValue, setDraftInputValue] = useState("");
+  const [isFocused, setIsFocused] = useState(false);
+  const [draftError, setDraftError] = useState<string | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const displayInputValue =
+    daySchedule.enabled && daySchedule.blocks.length > 0
+      ? formatTimeBlocksForInput(daySchedule.blocks)
+      : "";
+  const inputValue = isFocused ? draftInputValue : displayInputValue;
+  const error = isFocused ? draftError : null;
+  const isActive = daySchedule.enabled && daySchedule.blocks.length > 0;
+
+  const commitValue = useCallback(
+    (value: string) => {
+      const trimmed = value.trim();
+
+      if (!trimmed) {
+        onUpdate(day.value, { enabled: false, blocks: [] });
+        setDraftError(null);
+        return;
+      }
+
+      const parsed = parseTimeRanges(trimmed);
+      if (parsed.length === 0) {
+        setDraftError("Could not parse time ranges. Try: 9am-5pm");
+        return;
+      }
+
+      const validationError = validateTimeBlocks(parsed);
+      if (validationError) {
+        setDraftError(validationError);
+        return;
+      }
+
+      setDraftError(null);
+      onUpdate(day.value, { enabled: true, blocks: parsed });
+    },
+    [day.value, onUpdate],
+  );
+
+  return (
+    <div className="group flex items-start gap-3">
+      <button
+        type="button"
+        onClick={() => {
+          if (isActive) {
+            onUpdate(day.value, { enabled: false, blocks: [] });
+            setDraftInputValue("");
+            setDraftError(null);
+            return;
+          }
+          const defaultBlocks: TimeBlock[] = [
+            { startTime: "09:00", endTime: "17:00" },
+          ];
+          onUpdate(day.value, { enabled: true, blocks: defaultBlocks });
+        }}
+        disabled={isSubmitting}
+        className={`mt-1 shrink-0 h-8 w-12 flex items-center justify-center rounded-lg text-sm font-semibold transition-all ${
+          isActive
+            ? "bg-primary text-primary-foreground"
+            : "bg-muted text-muted-foreground hover:bg-muted/80"
+        }`}
+        aria-label={`Toggle ${day.label}`}
+      >
+        {day.short}
+      </button>
+
+      <div className="flex-1 min-w-0">
+        <input
+          ref={inputRef}
+          type="text"
+          value={inputValue}
+          onChange={(event) => setDraftInputValue(event.target.value)}
+          onFocus={() => {
+            setIsFocused(true);
+            setDraftError(null);
+            setDraftInputValue(displayInputValue);
+          }}
+          onBlur={() => {
+            setIsFocused(false);
+            commitValue(draftInputValue);
+          }}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") {
+              event.preventDefault();
+              commitValue(draftInputValue);
+              inputRef.current?.blur();
+            }
+          }}
+          placeholder={
+            isActive ? "9am-5pm" : "Off - type times to enable (e.g. 9am-5pm)"
+          }
+          disabled={isSubmitting}
+          className={`h-10 w-full rounded-lg border bg-transparent px-3.5 text-base transition-all focus:outline-none focus:ring-2 focus:ring-ring/50 md:text-sm ${
+            error
+              ? "border-destructive text-destructive"
+              : isActive
+                ? "border-border text-foreground"
+                : "border-border/50 text-muted-foreground"
+          }`}
+          aria-label={`Availability times for ${day.label}`}
+          aria-invalid={!!error}
+        />
+        {error ? (
+          <p className="mt-1 text-sm text-destructive" role="alert">
+            {error}
+          </p>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+function CreateWeeklyAvailabilityEditor({
+  schedule,
+  onChange,
+  isSubmitting,
+}: {
+  schedule: WeeklySchedule;
+  onChange: (next: WeeklySchedule) => void;
+  isSubmitting: boolean;
+}) {
+  const getDay = useCallback(
+    (weekday: number): DaySchedule =>
+      schedule[weekday] ?? { enabled: false, blocks: [] },
+    [schedule],
+  );
+
+  const updateDay = useCallback(
+    (weekday: number, daySchedule: DaySchedule) => {
+      onChange({
+        ...schedule,
+        [weekday]: daySchedule,
+      });
+    },
+    [onChange, schedule],
+  );
+
+  const copyMondayToWeekdays = useCallback(() => {
+    const monday = getDay(1);
+    const copiedBlocks = monday.blocks.map((block) => ({ ...block }));
+    onChange({
+      ...schedule,
+      2: {
+        enabled: monday.enabled,
+        blocks: copiedBlocks.map((block) => ({ ...block })),
+      },
+      3: {
+        enabled: monday.enabled,
+        blocks: copiedBlocks.map((block) => ({ ...block })),
+      },
+      4: {
+        enabled: monday.enabled,
+        blocks: copiedBlocks.map((block) => ({ ...block })),
+      },
+      5: {
+        enabled: monday.enabled,
+        blocks: copiedBlocks.map((block) => ({ ...block })),
+      },
+    });
+  }, [getDay, onChange, schedule]);
+
+  const clearAll = useCallback(() => {
+    onChange(createEmptyWeeklySchedule());
+  }, [onChange]);
+
+  return (
+    <div className="space-y-4">
+      <p className="text-sm leading-relaxed text-muted-foreground">
+        Type time ranges for each day, e.g.{" "}
+        <span className="font-medium text-foreground/70">9am-5pm</span> or{" "}
+        <span className="font-medium text-foreground/70">
+          9am-12pm, 1pm-5pm
+        </span>
+        . Leave blank for days off.
+      </p>
+
+      <div className="space-y-2">
+        {WEEKDAYS.map((day) => (
+          <CreateAvailabilityDayInput
+            key={day.value}
+            day={day}
+            daySchedule={getDay(day.value)}
+            onUpdate={updateDay}
+            isSubmitting={isSubmitting}
+          />
+        ))}
+      </div>
+
+      <div className="flex items-center gap-2 border-t border-border pt-2">
+        <Button
+          type="button"
+          variant="outline"
+          size="default"
+          onClick={copyMondayToWeekdays}
+          disabled={!getDay(1).enabled || isSubmitting}
+        >
+          <Icon icon={Copy01Icon} className="mr-1.5" />
+          Copy Mon
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          size="default"
+          onClick={clearAll}
+          disabled={isSubmitting}
+        >
+          <Icon icon={Cancel01Icon} className="mr-1.5" />
+          Clear
+        </Button>
+      </div>
+    </div>
+  );
 }
 
 function CreateCalendarForm({
@@ -288,11 +611,12 @@ function CreateCalendarForm({
   onCancel,
   isSubmitting,
 }: CreateCalendarFormProps) {
-  const initialValues = useMemo<CreateCalendarInput>(
+  const initialValues = useMemo<CreateCalendarDraft>(
     () => ({
       name: "",
       timezone: "America/New_York",
       locationId: undefined,
+      weeklySchedule: createEmptyWeeklySchedule(),
     }),
     [],
   );
@@ -307,14 +631,49 @@ function CreateCalendarForm({
 
   return (
     <CalendarForm
-      defaultValues={draft}
+      defaultValues={{
+        name: draft.name,
+        timezone: draft.timezone,
+        locationId: draft.locationId,
+      }}
       locations={locations}
-      onSubmit={onSubmit}
+      onSubmit={(calendar) =>
+        onSubmit({
+          calendar,
+          weeklySchedule: draft.weeklySchedule,
+        })
+      }
       onCancel={onCancel}
       isSubmitting={isSubmitting}
-      onDraftChange={setDraft}
+      onDraftChange={(calendar) => {
+        setDraft((previous) => ({
+          ...previous,
+          ...calendar,
+        }));
+      }}
       onDiscardDraft={handleDiscardDraft}
       showDiscardAction={hasDraft}
+      extraContent={
+        <div className="space-y-4 rounded-lg border border-border/70 bg-muted/20 p-4 sm:p-5">
+          <div className="space-y-1">
+            <h3 className="text-base font-medium">Availability</h3>
+            <p className="text-sm text-muted-foreground">
+              Set your weekly hours now. You can add date overrides and blocked
+              time after creating the calendar.
+            </p>
+          </div>
+          <CreateWeeklyAvailabilityEditor
+            schedule={draft.weeklySchedule}
+            onChange={(next) => {
+              setDraft((previous) => ({
+                ...previous,
+                weeklySchedule: next,
+              }));
+            }}
+            isSubmitting={isSubmitting}
+          />
+        </div>
+      }
     />
   );
 }
@@ -333,6 +692,8 @@ function CalendarsPage() {
   const [availabilitySubTab, setAvailabilitySubTab] =
     useState<AvailabilitySubTabType>("weekly");
   const [appointmentModalOpen, setAppointmentModalOpen] = useState(false);
+  const [isDetailFormDirty, setIsDetailFormDirty] = useState(false);
+  const detailFormId = "calendar-detail-form";
 
   const { data, isLoading, isFetching, error } = useQuery({
     ...orpc.calendars.list.queryOptions({
@@ -449,17 +810,13 @@ function CalendarsPage() {
 
   const createMutation = useMutation(
     orpc.calendars.create.mutationOptions({
-      onSuccess: (createdCalendar) => {
-        resetCreateDraft();
-        queryClient.invalidateQueries({ queryKey: orpc.calendars.key() });
-        queryClient.invalidateQueries({ queryKey: orpc.locations.key() });
-        crud.closeCreate();
-        openDetails(createdCalendar.id, "details");
-      },
       onError: (error) => {
         toast.error(error.message || "Failed to create calendar");
       },
     }),
+  );
+  const setWeeklyAvailabilityMutation = useMutation(
+    orpc.availability.rules.setWeekly.mutationOptions(),
   );
 
   const updateMutation = useMutation(
@@ -511,8 +868,45 @@ function CalendarsPage() {
     return location?.name ?? "-";
   };
 
-  const handleCreate = (formData: CreateCalendarInput) => {
-    createMutation.mutate(formData);
+  const handleCreate = async ({
+    calendar,
+    weeklySchedule,
+  }: CreateCalendarFormInput) => {
+    let createdCalendar: { id: string } | null = null;
+    try {
+      createdCalendar = await createMutation.mutateAsync(calendar);
+    } catch {
+      return;
+    }
+
+    queryClient.invalidateQueries({ queryKey: orpc.calendars.key() });
+    queryClient.invalidateQueries({ queryKey: orpc.locations.key() });
+
+    const rules = buildRulesFromWeeklySchedule(weeklySchedule);
+    if (rules.length === 0) {
+      resetCreateDraft();
+      crud.closeCreate();
+      openDetails(createdCalendar.id, "details");
+      return;
+    }
+
+    try {
+      await setWeeklyAvailabilityMutation.mutateAsync({
+        calendarId: createdCalendar.id,
+        rules,
+      });
+      queryClient.invalidateQueries({ queryKey: orpc.availability.key() });
+      resetCreateDraft();
+      crud.closeCreate();
+      openDetails(createdCalendar.id, "details");
+    } catch {
+      resetCreateDraft();
+      crud.closeCreate();
+      openDetails(createdCalendar.id, "availability");
+      toast.error(
+        "Calendar created, but availability could not be saved. Finish setup in Availability.",
+      );
+    }
   };
 
   const handleAppointmentCreated = useCallback(
@@ -609,7 +1003,10 @@ function CalendarsPage() {
             locations={locations}
             onSubmit={handleCreate}
             onCancel={crud.closeCreate}
-            isSubmitting={createMutation.isPending}
+            isSubmitting={
+              createMutation.isPending ||
+              setWeeklyAvailabilityMutation.isPending
+            }
           />
         </div>
       </EntityModal>
@@ -633,6 +1030,42 @@ function CalendarsPage() {
             ? `${formatTimezoneShort(displayCalendar.timezone)} · ${getLocationName(displayCalendar.locationId)}`
             : undefined
         }
+        footer={
+          activeTab === "details" && displayCalendar ? (
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                onClick={() => crud.openDelete(displayCalendar.id)}
+                disabled={updateMutation.isPending}
+              >
+                <Icon icon={Delete01Icon} data-icon="inline-start" />
+                Delete Calendar
+              </Button>
+              <div className="ml-auto flex items-center gap-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={clearDetails}
+                  disabled={updateMutation.isPending}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  size="sm"
+                  form={detailFormId}
+                  disabled={updateMutation.isPending || !isDetailFormDirty}
+                >
+                  {updateMutation.isPending ? "Saving..." : "Save"}
+                </Button>
+              </div>
+            </div>
+          ) : null
+        }
       >
         {displayCalendar ? (
           <div className="h-full overflow-y-auto px-4 py-4 sm:px-6 sm:py-5">
@@ -652,6 +1085,8 @@ function CalendarsPage() {
                   <div className="space-y-4">
                     <CalendarForm
                       key={displayCalendar.id}
+                      formId={detailFormId}
+                      showActions={false}
                       defaultValues={{
                         name: displayCalendar.name,
                         timezone: displayCalendar.timezone,
@@ -661,19 +1096,9 @@ function CalendarsPage() {
                       onSubmit={handleUpdate}
                       onCancel={clearDetails}
                       isSubmitting={updateMutation.isPending}
+                      disableSubmitWhenPristine
+                      onDirtyChange={setIsDetailFormDirty}
                     />
-                    <div className="border-t border-border pt-4">
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                        onClick={() => crud.openDelete(displayCalendar.id)}
-                      >
-                        <Icon icon={Delete01Icon} data-icon="inline-start" />
-                        Delete Calendar
-                      </Button>
-                    </div>
                   </div>
                 )}
 

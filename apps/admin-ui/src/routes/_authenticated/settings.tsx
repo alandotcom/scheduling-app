@@ -1212,9 +1212,34 @@ function ApiKeysSection() {
         onOpenChange={setIsCreateModalOpen}
         title="Create API key"
         description="Create scoped API keys for machine-to-machine integrations."
+        footer={
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => setIsCreateModalOpen(false)}
+              disabled={createApiKeyMutation.isPending}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              size="sm"
+              form="create-api-key-form"
+              disabled={createApiKeyMutation.isPending}
+            >
+              {createApiKeyMutation.isPending ? "Creating..." : "Create key"}
+            </Button>
+          </div>
+        }
       >
         <div className="p-6">
-          <form onSubmit={handleSubmit(onCreateApiKey)} className="space-y-4">
+          <form
+            id="create-api-key-form"
+            onSubmit={handleSubmit(onCreateApiKey)}
+            className="space-y-4"
+          >
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="api-key-name">Name</Label>
@@ -1287,20 +1312,6 @@ function ApiKeysSection() {
                   {errors.expiresAt.message}
                 </p>
               ) : null}
-            </div>
-
-            <div className="flex justify-end gap-3 pt-1">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setIsCreateModalOpen(false)}
-                disabled={createApiKeyMutation.isPending}
-              >
-                Cancel
-              </Button>
-              <Button type="submit" disabled={createApiKeyMutation.isPending}>
-                {createApiKeyMutation.isPending ? "Creating..." : "Create key"}
-              </Button>
             </div>
           </form>
         </div>
@@ -1920,9 +1931,34 @@ function UsersManagementSection() {
         onOpenChange={setIsCreateModalOpen}
         title="Add user"
         description="Add a user directly to this organization. Invite email delivery will be introduced in a follow-up release."
+        footer={
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => setIsCreateModalOpen(false)}
+              disabled={createUserMutation.isPending}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              size="sm"
+              form="create-org-user-form"
+              disabled={createUserMutation.isPending}
+            >
+              {createUserMutation.isPending ? "Creating..." : "Create user"}
+            </Button>
+          </div>
+        }
       >
         <div className="p-6">
-          <form onSubmit={handleSubmit(onCreateUser)} className="space-y-4">
+          <form
+            id="create-org-user-form"
+            onSubmit={handleSubmit(onCreateUser)}
+            className="space-y-4"
+          >
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="new-user-email">Email</Label>
@@ -1995,20 +2031,6 @@ function UsersManagementSection() {
                   {errors.role.message}
                 </p>
               ) : null}
-            </div>
-
-            <div className="flex justify-end gap-3 pt-1">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setIsCreateModalOpen(false)}
-                disabled={createUserMutation.isPending}
-              >
-                Cancel
-              </Button>
-              <Button type="submit" disabled={createUserMutation.isPending}>
-                {createUserMutation.isPending ? "Creating..." : "Create user"}
-              </Button>
             </div>
           </form>
         </div>

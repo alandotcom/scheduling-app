@@ -749,6 +749,18 @@ export function IntegrationsSection() {
         onOpenChange={setIsAddModalOpen}
         title="Add Connection"
         description="Select a service to connect"
+        footer={
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => setIsAddModalOpen(false)}
+            >
+              Close
+            </Button>
+          </div>
+        }
       >
         <div className="space-y-4 px-4 py-4 sm:px-6 sm:py-5">
           <Input
@@ -782,6 +794,44 @@ export function IntegrationsSection() {
         }
         description={
           selectedIntegration?.description ?? "Enter credentials and settings."
+        }
+        footer={
+          selectedIntegrationKey !== null &&
+          !isLoadingSelectedSettings &&
+          !selectedSettingsError &&
+          selectedIntegrationSettings &&
+          selectedIntegrationSettings.authStrategy !== "oauth" ? (
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => setSelectedIntegrationKey(null)}
+                disabled={isSavingSettings}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                onClick={() => void onSaveSettings()}
+                disabled={isSavingSettings}
+              >
+                Save settings
+              </Button>
+            </div>
+          ) : (
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => setSelectedIntegrationKey(null)}
+              >
+                Close
+              </Button>
+            </div>
+          )
         }
       >
         <div className="space-y-4 px-4 py-4 sm:px-6 sm:py-5">
@@ -1020,18 +1070,6 @@ export function IntegrationsSection() {
                   ) : null}
                 </>
               )}
-
-              {selectedIntegrationSettings.authStrategy !== "oauth" ? (
-                <div className="flex justify-end gap-2 border-t border-border pt-3">
-                  <Button
-                    type="button"
-                    onClick={() => void onSaveSettings()}
-                    disabled={isSavingSettings}
-                  >
-                    Save settings
-                  </Button>
-                </div>
-              ) : null}
             </>
           )}
         </div>
