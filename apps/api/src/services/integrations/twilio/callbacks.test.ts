@@ -29,6 +29,7 @@ async function seedTwilioDelivery(context: ServiceContext) {
       orgId: context.orgId,
       journeyVersionId: null,
       appointmentId,
+      triggerEntityId: appointmentId,
       mode: "live",
       status: "running",
       journeyNameSnapshot: "Callback Journey",

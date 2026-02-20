@@ -159,7 +159,10 @@ function resolveChannel(actionType: string): string {
 
 function resolveReferenceValue(
   value: unknown,
-  appointmentContext: Record<string, unknown>,
+  context: {
+    appointmentContext: Record<string, unknown>;
+    clientContext: Record<string, unknown>;
+  },
 ): unknown {
   if (typeof value !== "string") {
     return value;
@@ -171,7 +174,8 @@ function resolveReferenceValue(
   }
 
   const resolved = resolveReference(trimmed, {
-    appointment: appointmentContext,
+    appointment: context.appointmentContext,
+    client: context.clientContext,
   });
   return resolved !== null && resolved !== undefined
     ? stringifyTemplateValue(resolved) || null
@@ -182,14 +186,15 @@ function resolveWaitCursor(input: {
   node: ActionNode;
   cursor: Date;
   appointmentContext: Record<string, unknown>;
+  clientContext: Record<string, unknown>;
 }): Date {
   const config = getActionConfig(input.node);
   const waitTimezone =
     typeof config["waitTimezone"] === "string" ? config["waitTimezone"] : null;
-  const waitUntil = resolveReferenceValue(
-    config["waitUntil"],
-    input.appointmentContext,
-  );
+  const waitUntil = resolveReferenceValue(config["waitUntil"], {
+    appointmentContext: input.appointmentContext,
+    clientContext: input.clientContext,
+  });
 
   const waitResolutionInput: {
     now: Date;
@@ -362,7 +367,7 @@ function resolveConditionNextNodeIdForContext(input: {
   appointmentContext: Record<string, unknown>;
   clientContext: Record<string, unknown>;
   journeyId: string;
-  appointmentId: string;
+  triggerEntityId: string;
   now: Date;
   orgTimezone: string;
 }): {
@@ -382,11 +387,11 @@ function resolveConditionNextNodeIdForContext(input: {
 
   if (conditionResult.error) {
     journeyPlannerLogger.error(
-      "Journey condition evaluation failed for journey {journeyId} node {nodeId} appointment {appointmentId}: {errorCode} {errorMessage}",
+      "Journey condition evaluation failed for journey {journeyId} node {nodeId} entity {triggerEntityId}: {errorCode} {errorMessage}",
       {
         journeyId: input.journeyId,
         nodeId: input.node.attributes.id,
-        appointmentId: input.appointmentId,
+        triggerEntityId: input.triggerEntityId,
         errorCode: conditionResult.error.code,
         errorMessage: conditionResult.error.message,
       },
@@ -417,7 +422,8 @@ function buildDesiredDeliveries(input: {
   graph: LinearJourneyGraph;
   journeyRunId: string;
   journeyId: string;
-  appointmentId: string;
+  appointmentId: string | null;
+  triggerEntityId: string;
   appointmentContext: Record<string, unknown>;
   clientContext: Record<string, unknown>;
   eventType?: JourneyPlannerDomainEventType;
@@ -516,6 +522,7 @@ function buildDesiredDeliveries(input: {
         node,
         cursor: current.cursor,
         appointmentContext: input.appointmentContext,
+        clientContext: input.clientContext,
       });
       const isWaiting = nextCursor.getTime() > input.now.getTime();
       desiredStepLogs.push({
@@ -582,7 +589,7 @@ function buildDesiredDeliveries(input: {
         appointmentContext: input.appointmentContext,
         clientContext: input.clientContext,
         journeyId: input.journeyId,
-        appointmentId: input.appointmentId,
+        triggerEntityId: input.triggerEntityId,
         now: input.now,
         orgTimezone: input.orgTimezone,
       });
@@ -674,7 +681,6 @@ async function findJourneyRun(input: {
   runIdentity: JourneyRunIdentity;
   mode: "live" | "test";
 }): Promise<JourneyRunRow | null> {
-  const resolvedTriggerEntityId = sql`coalesce(${journeyRuns.triggerEntityId}, ${journeyRuns.appointmentId})`;
   const [run] = await input.tx
     .select()
     .from(journeyRuns)
@@ -682,7 +688,7 @@ async function findJourneyRun(input: {
       and(
         eq(journeyRuns.journeyVersionId, input.journeyVersionId),
         eq(journeyRuns.triggerEntityType, input.runIdentity.triggerEntityType),
-        eq(resolvedTriggerEntityId, input.runIdentity.triggerEntityId),
+        eq(journeyRuns.triggerEntityId, input.runIdentity.triggerEntityId),
         eq(journeyRuns.mode, input.mode),
       ),
     )
@@ -1302,18 +1308,15 @@ export async function processJourneyDomainEvent(
             return;
           }
 
-          const {
-            triggerConfig,
-            routing,
-            runIdentity,
-            appointmentContext,
-            clientContext,
-          } = triggerResolution;
+          const { triggerConfig, routing } = triggerResolution;
 
           if (routing === "ignore") {
             ignoredJourneyIds.push(journey.id);
             return;
           }
+
+          const { runIdentity, appointmentContext, clientContext } =
+            triggerResolution;
 
           const mode = dependencies.modeOverride ?? journey.mode;
           const runResult = await findOrCreateJourneyRun({
@@ -1359,6 +1362,7 @@ export async function processJourneyDomainEvent(
               journeyRunId: run.id,
               journeyId: journey.id,
               appointmentId: runIdentity.appointmentId,
+              triggerEntityId: runIdentity.triggerEntityId,
               appointmentContext,
               clientContext,
               eventType: event.type,
@@ -1444,6 +1448,7 @@ export async function processJourneyDomainEvent(
             journeyRunId: run.id,
             journeyId: journey.id,
             appointmentId: runIdentity.appointmentId,
+            triggerEntityId: runIdentity.triggerEntityId,
             appointmentContext,
             clientContext,
             eventType: event.type,
@@ -1516,6 +1521,18 @@ export type WaitResumeInput = {
   stepKey: string;
 };
 
+type WaitResumeDependencies = {
+  now?: Date;
+  loadFreshContextByRun?: typeof loadFreshContextForPlannerByRun;
+  scheduleRequester?: (
+    actionType: string,
+    payload: JourneyDeliveryScheduledEventData,
+  ) => Promise<{ eventId?: string }>;
+  cancelRequester?: (
+    payload: JourneyDeliveryCanceledEventData,
+  ) => Promise<{ eventId?: string }>;
+};
+
 export type WaitResumeResult = {
   scheduledDeliveryIds: string[];
   canceledDeliveryIds: string[];
@@ -1523,10 +1540,19 @@ export type WaitResumeResult = {
 
 export async function executeWaitResume(
   input: WaitResumeInput,
+  dependencies: WaitResumeDependencies = {},
 ): Promise<WaitResumeResult> {
-  const now = new Date();
+  const now = dependencies.now ?? new Date();
+  const loadFreshContextByRun =
+    dependencies.loadFreshContextByRun ?? loadFreshContextForPlannerByRun;
+  const scheduleRequester =
+    dependencies.scheduleRequester ??
+    ((actionType: string, payload: JourneyDeliveryScheduledEventData) =>
+      sendJourneyActionExecuteForActionType(actionType, payload));
+  const cancelRequester =
+    dependencies.cancelRequester ?? sendJourneyDeliveryCanceled;
 
-  // 1. Load the run to get the journey version snapshot and appointment ID
+  // 1. Load the run to get the journey version snapshot and trigger identity
   const run = await withOrg(input.orgId, async (tx) => {
     const [row] = await tx
       .select({
@@ -1579,10 +1605,10 @@ export async function executeWaitResume(
   }
 
   // 3. Fetch fresh trigger context from DB
-  const freshContext = await loadFreshContextForPlannerByRun({
+  const freshContext = await loadFreshContextByRun({
     orgId: input.orgId,
     triggerEntityType: run.triggerEntityType,
-    triggerEntityId: run.triggerEntityId ?? run.appointmentId,
+    triggerEntityId: run.triggerEntityId,
     appointmentId: run.appointmentId,
     clientId: run.clientId,
   });
@@ -1593,7 +1619,7 @@ export async function executeWaitResume(
       {
         runId: input.journeyRunId,
         entityType: run.triggerEntityType,
-        entityId: run.triggerEntityId ?? run.appointmentId,
+        entityId: run.triggerEntityId,
       },
     );
     return { scheduledDeliveryIds: [], canceledDeliveryIds: [] };
@@ -1605,6 +1631,7 @@ export async function executeWaitResume(
     journeyRunId: run.id,
     journeyId: run.journeyId ?? run.journeyVersionId ?? "unknown",
     appointmentId: run.appointmentId,
+    triggerEntityId: run.triggerEntityId,
     appointmentContext: freshContext.appointmentContext,
     clientContext: freshContext.clientContext,
     now,
@@ -1648,12 +1675,9 @@ export async function executeWaitResume(
     pendingInngestEvents,
     async (pending) => {
       if (pending.type === "schedule") {
-        await sendJourneyActionExecuteForActionType(
-          pending.actionType,
-          pending.payload,
-        );
+        await scheduleRequester(pending.actionType, pending.payload);
       } else {
-        await sendJourneyDeliveryCanceled(pending.payload);
+        await cancelRequester(pending.payload);
       }
     },
     { concurrency: 1 },

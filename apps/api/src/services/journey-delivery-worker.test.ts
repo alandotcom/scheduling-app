@@ -240,6 +240,7 @@ async function seedPlannedDelivery(
       orgId: context.orgId,
       journeyVersionId: null,
       appointmentId,
+      triggerEntityId: appointmentId,
       mode,
       status: "planned",
       journeyNameSnapshot: "Worker Journey",

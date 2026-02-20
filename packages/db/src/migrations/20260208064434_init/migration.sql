@@ -257,8 +257,8 @@ CREATE TABLE "journey_runs" (
 	"org_id" uuid NOT NULL,
 	"journey_version_id" uuid,
 	"trigger_entity_type" "journey_trigger_entity_type" DEFAULT 'appointment'::"journey_trigger_entity_type" NOT NULL,
-	"trigger_entity_id" uuid,
-	"appointment_id" uuid NOT NULL,
+	"trigger_entity_id" uuid NOT NULL,
+	"appointment_id" uuid,
 	"client_id" uuid,
 	"mode" "journey_run_mode" NOT NULL,
 	"status" "journey_run_status" NOT NULL,
@@ -266,7 +266,8 @@ CREATE TABLE "journey_runs" (
 	"journey_version_snapshot" jsonb NOT NULL,
 	"started_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"completed_at" timestamp with time zone,
-	"cancelled_at" timestamp with time zone
+	"cancelled_at" timestamp with time zone,
+	CONSTRAINT "journey_runs_trigger_identity_check" CHECK ((("trigger_entity_type" = 'appointment' AND "appointment_id" IS NOT NULL AND "trigger_entity_id" = "appointment_id") OR ("trigger_entity_type" = 'client' AND "appointment_id" IS NULL AND ("client_id" IS NULL OR "trigger_entity_id" = "client_id"))))
 );
 --> statement-breakpoint
 ALTER TABLE "journey_runs" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
@@ -453,7 +454,7 @@ CREATE UNIQUE INDEX "integrations_org_key_unique_idx" ON "integrations" ("org_id
 CREATE UNIQUE INDEX "journey_deliveries_org_deterministic_key_uidx" ON "journey_deliveries" ("org_id","deterministic_key");--> statement-breakpoint
 CREATE INDEX "journey_deliveries_org_run_scheduled_for_idx" ON "journey_deliveries" ("org_id","journey_run_id","scheduled_for");--> statement-breakpoint
 CREATE INDEX "journey_deliveries_org_status_idx" ON "journey_deliveries" ("org_id","status");--> statement-breakpoint
-CREATE UNIQUE INDEX "journey_runs_org_identity_uidx" ON "journey_runs" ("org_id","journey_version_id","trigger_entity_type",(coalesce("trigger_entity_id", "appointment_id")),"mode");--> statement-breakpoint
+CREATE UNIQUE INDEX "journey_runs_org_identity_uidx" ON "journey_runs" ("org_id","journey_version_id","trigger_entity_type","trigger_entity_id","mode");--> statement-breakpoint
 CREATE INDEX "journey_runs_org_status_idx" ON "journey_runs" ("org_id","status");--> statement-breakpoint
 CREATE INDEX "journey_runs_org_mode_started_at_idx" ON "journey_runs" ("org_id","mode","started_at");--> statement-breakpoint
 CREATE INDEX "journey_run_events_org_run_created_at_idx" ON "journey_run_events" ("org_id","journey_run_id","created_at");--> statement-breakpoint

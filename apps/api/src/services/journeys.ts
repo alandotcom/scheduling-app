@@ -1107,19 +1107,43 @@ export class JourneyService {
             notes: appointmentRow.notes,
           }
         : null;
-      const client =
-        appointmentRow &&
-        appointmentRow.clientId &&
+      let client: {
+        id: string;
+        firstName: string;
+        lastName: string;
+        email: string | null;
+        phone: string | null;
+      } | null = null;
+
+      if (
+        appointmentRow?.clientId &&
         appointmentRow.clientFirstName &&
         appointmentRow.clientLastName
-          ? {
-              id: appointmentRow.clientId,
-              firstName: appointmentRow.clientFirstName,
-              lastName: appointmentRow.clientLastName,
-              email: appointmentRow.clientEmail,
-              phone: appointmentRow.clientPhone,
-            }
-          : null;
+      ) {
+        client = {
+          id: appointmentRow.clientId,
+          firstName: appointmentRow.clientFirstName,
+          lastName: appointmentRow.clientLastName,
+          email: appointmentRow.clientEmail,
+          phone: appointmentRow.clientPhone,
+        };
+      } else if (!appointmentRow && run.clientId) {
+        const [clientRow] = await tx
+          .select({
+            id: clients.id,
+            firstName: clients.firstName,
+            lastName: clients.lastName,
+            email: clients.email,
+            phone: clients.phone,
+          })
+          .from(clients)
+          .where(eq(clients.id, run.clientId))
+          .limit(1);
+
+        if (clientRow) {
+          client = clientRow;
+        }
+      }
       const triggerContext = toJourneyRunTriggerContext({
         eventType: resolveTriggerEventType({ events, stepLogs }),
         payload: resolveTriggerPayload({ events, stepLogs }),

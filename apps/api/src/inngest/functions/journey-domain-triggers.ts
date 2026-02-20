@@ -10,6 +10,8 @@ const journeyPlannerEventTypes = [
   "appointment.scheduled",
   "appointment.rescheduled",
   "appointment.canceled",
+  "client.created",
+  "client.updated",
 ] as const satisfies readonly DomainEventType[];
 
 type JourneyPlannerDomainEventType = (typeof journeyPlannerEventTypes)[number];

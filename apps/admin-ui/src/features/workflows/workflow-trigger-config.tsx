@@ -51,7 +51,7 @@ import {
   toRelativeTemporalValueDraft,
 } from "./filter-builder-shared";
 
-type TriggerConfigShape = {
+type AppointmentTriggerConfigShape = {
   triggerType?: "AppointmentJourney";
   start?: "appointment.scheduled";
   restart?: "appointment.rescheduled";
@@ -59,6 +59,18 @@ type TriggerConfigShape = {
   correlationKey?: "appointmentId";
   filter?: JourneyTriggerFilterAst;
 };
+
+type ClientTriggerConfigShape = {
+  triggerType?: "ClientJourney";
+  event?: "client.created" | "client.updated";
+  correlationKey?: "clientId";
+  trackedAttributeKey?: string;
+  filter?: JourneyTriggerFilterAst;
+};
+
+type TriggerConfigShape =
+  | AppointmentTriggerConfigShape
+  | ClientTriggerConfigShape;
 
 const MAX_FILTER_GROUPS = 4;
 const MAX_FILTER_CONDITIONS = 12;
@@ -739,6 +751,8 @@ function FilterGroupCard({
 }
 
 interface AudienceFilterSectionProps {
+  audienceDescription?: string;
+  audienceHint?: string;
   defaultTimezone: string;
   disabled: boolean;
   fieldOptions: WorkflowFilterFieldOption[];
@@ -761,6 +775,8 @@ interface AudienceFilterSectionProps {
 }
 
 function AudienceFilterSection({
+  audienceDescription = "Define which appointments enter this journey",
+  audienceHint = "Rules are optional. They decide which appointments enter this journey.",
   defaultTimezone,
   disabled,
   fieldOptions,
@@ -795,7 +811,7 @@ function AudienceFilterSection({
           <div className="space-y-1">
             <p className="font-semibold text-sm">Audience Rules</p>
             <p className="text-muted-foreground text-xs">
-              Define which appointments enter this journey
+              {audienceDescription}
             </p>
           </div>
         </div>
@@ -822,10 +838,7 @@ function AudienceFilterSection({
         <div className="space-y-3 border-t pt-3">
           <div className="flex items-start gap-2 rounded-md border bg-muted/40 p-2 text-muted-foreground text-xs">
             <Icon className="mt-0.5 size-3.5 shrink-0" icon={Alert02Icon} />
-            <p>
-              Rules are optional. They decide which appointments enter this
-              journey.
-            </p>
+            <p>{audienceHint}</p>
           </div>
 
           {filterValidationError ? (
@@ -889,6 +902,9 @@ interface WorkflowTriggerConfigProps {
   defaultTimezone?: string;
   disabled: boolean;
   fieldOptions?: WorkflowFilterFieldOption[];
+  onTriggerTypeChange?: (
+    triggerType: "AppointmentJourney" | "ClientJourney",
+  ) => void;
   onUpdate: (next: TriggerConfigShape) => void;
   valueOptionsByField?: Record<string, WorkflowFilterValueOption[]>;
 }
@@ -898,6 +914,7 @@ export function WorkflowTriggerConfig({
   defaultTimezone = "America/New_York",
   disabled,
   fieldOptions = WORKFLOW_FILTER_FIELD_OPTIONS,
+  onTriggerTypeChange,
   onUpdate,
   valueOptionsByField = {},
 }: WorkflowTriggerConfigProps) {
@@ -913,6 +930,7 @@ export function WorkflowTriggerConfig({
       defaultTimezone={defaultTimezone}
       disabled={disabled}
       fieldOptions={fieldOptions}
+      onTriggerTypeChange={onTriggerTypeChange}
       onUpdate={onUpdate}
       showFilters={showFilters}
       onShowFiltersChange={setShowFilters}
@@ -931,6 +949,7 @@ function WorkflowTriggerConfigInner({
   defaultTimezone = "America/New_York",
   disabled,
   fieldOptions = WORKFLOW_FILTER_FIELD_OPTIONS,
+  onTriggerTypeChange,
   onUpdate,
   showFilters,
   onShowFiltersChange,
@@ -1126,45 +1145,181 @@ function WorkflowTriggerConfigInner({
     });
   };
 
+  const currentTriggerType =
+    config.triggerType === "ClientJourney"
+      ? "ClientJourney"
+      : "AppointmentJourney";
+  const currentClientEvent =
+    config.event === "client.updated" ? "client.updated" : "client.created";
+  const currentTrackedAttributeKey =
+    typeof config.trackedAttributeKey === "string"
+      ? config.trackedAttributeKey
+      : "";
+
+  const audienceDescription =
+    currentTriggerType === "ClientJourney"
+      ? "Define which clients enter this journey"
+      : "Define which appointments enter this journey";
+
+  const audienceHint =
+    currentTriggerType === "ClientJourney"
+      ? "Rules are optional. They decide which clients enter this journey."
+      : "Rules are optional. They decide which appointments enter this journey.";
+
   return (
     <section className="space-y-4">
-      <div className="space-y-1">
-        <h2 className="font-medium text-sm">Appointment Journey</h2>
-        <p className="text-muted-foreground text-xs">
-          Starts, stays updated, and stops for an appointment.
-        </p>
-      </div>
-
-      <div className="space-y-3 rounded-md border p-3">
-        <div className="flex flex-wrap items-center gap-1.5 text-xs">
-          <span className="rounded-md bg-muted px-2 py-1 font-medium text-foreground">
-            Scheduled starts run
-          </span>
-          <Icon
-            className="size-3.5 text-muted-foreground"
-            icon={ArrowRight02Icon}
-          />
-          <span className="rounded-md bg-muted px-2 py-1 font-medium text-foreground">
-            Rescheduled replans run
-          </span>
-          <Icon
-            className="size-3.5 text-muted-foreground"
-            icon={ArrowRight02Icon}
-          />
-          <span className="rounded-md bg-muted px-2 py-1 font-medium text-foreground">
-            Canceled stops run
-          </span>
+      {onTriggerTypeChange ? (
+        <div className="space-y-2">
+          <p className="font-medium text-xs text-muted-foreground">
+            Trigger type
+          </p>
+          <div className="inline-flex h-9 w-full items-center justify-center rounded-lg bg-muted p-[3px] text-muted-foreground">
+            <button
+              className={cn(
+                "inline-flex h-[calc(100%-1px)] flex-1 items-center justify-center rounded-sm px-2 py-1 font-medium text-xs transition-[color,box-shadow]",
+                currentTriggerType === "AppointmentJourney"
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-muted-foreground",
+              )}
+              disabled={disabled}
+              onClick={() => onTriggerTypeChange("AppointmentJourney")}
+              type="button"
+            >
+              Appointment
+            </button>
+            <button
+              className={cn(
+                "inline-flex h-[calc(100%-1px)] flex-1 items-center justify-center rounded-sm px-2 py-1 font-medium text-xs transition-[color,box-shadow]",
+                currentTriggerType === "ClientJourney"
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-muted-foreground",
+              )}
+              disabled={disabled}
+              onClick={() => onTriggerTypeChange("ClientJourney")}
+              type="button"
+            >
+              Client
+            </button>
+          </div>
         </div>
-        <ul className="list-disc space-y-1 pl-4 text-muted-foreground text-xs">
-          <li>
-            Rescheduled appointments replan the same run and shift future waits
-            and sends to the new start time.
-          </li>
-          <li>Cancellation prevents future messages from sending.</li>
-        </ul>
-      </div>
+      ) : null}
+
+      {currentTriggerType === "AppointmentJourney" ? (
+        <>
+          <div className="space-y-1">
+            <h2 className="font-medium text-sm">Appointment Journey</h2>
+            <p className="text-muted-foreground text-xs">
+              Starts, stays updated, and stops for an appointment.
+            </p>
+          </div>
+
+          <div className="space-y-3 rounded-md border p-3">
+            <div className="flex flex-wrap items-center gap-1.5 text-xs">
+              <span className="rounded-md bg-muted px-2 py-1 font-medium text-foreground">
+                Scheduled starts run
+              </span>
+              <Icon
+                className="size-3.5 text-muted-foreground"
+                icon={ArrowRight02Icon}
+              />
+              <span className="rounded-md bg-muted px-2 py-1 font-medium text-foreground">
+                Rescheduled replans run
+              </span>
+              <Icon
+                className="size-3.5 text-muted-foreground"
+                icon={ArrowRight02Icon}
+              />
+              <span className="rounded-md bg-muted px-2 py-1 font-medium text-foreground">
+                Canceled stops run
+              </span>
+            </div>
+            <ul className="list-disc space-y-1 pl-4 text-muted-foreground text-xs">
+              <li>
+                Rescheduled appointments replan the same run and shift future
+                waits and sends to the new start time.
+              </li>
+              <li>Cancellation prevents future messages from sending.</li>
+            </ul>
+          </div>
+        </>
+      ) : (
+        <>
+          <div className="space-y-1">
+            <h2 className="font-medium text-sm">Client Journey</h2>
+            <p className="text-muted-foreground text-xs">
+              Triggered when a client record is created or updated.
+            </p>
+          </div>
+
+          <div className="space-y-3 rounded-md border p-3">
+            <div className="space-y-2">
+              <p className="font-medium text-xs text-muted-foreground">Event</p>
+              <Select
+                disabled={disabled}
+                value={currentClientEvent}
+                onValueChange={(value) => {
+                  if (
+                    value !== "client.created" &&
+                    value !== "client.updated"
+                  ) {
+                    return;
+                  }
+                  onUpdate({
+                    triggerType: "ClientJourney",
+                    event: value,
+                    correlationKey: "clientId",
+                    ...(value === "client.updated" &&
+                    currentTrackedAttributeKey.length > 0
+                      ? { trackedAttributeKey: currentTrackedAttributeKey }
+                      : {}),
+                  });
+                }}
+              >
+                <SelectTrigger className="h-9 w-full" size="sm">
+                  <SelectValue placeholder="Select event" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="client.created">Client Created</SelectItem>
+                  <SelectItem value="client.updated">Client Updated</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {currentClientEvent === "client.updated" ? (
+              <div className="space-y-2">
+                <p className="font-medium text-xs text-muted-foreground">
+                  Tracked attribute key (required)
+                </p>
+                <Input
+                  className="h-9"
+                  disabled={disabled}
+                  placeholder="e.g. status, tier, plan"
+                  value={currentTrackedAttributeKey}
+                  onChange={(event) => {
+                    const trimmed = event.target.value.trim();
+                    onUpdate({
+                      triggerType: "ClientJourney",
+                      event: "client.updated",
+                      correlationKey: "clientId",
+                      ...(trimmed.length > 0
+                        ? { trackedAttributeKey: trimmed }
+                        : {}),
+                    });
+                  }}
+                />
+                <p className="text-muted-foreground text-xs">
+                  Required. Trigger fires only when this attribute changes on
+                  the client record.
+                </p>
+              </div>
+            ) : null}
+          </div>
+        </>
+      )}
 
       <AudienceFilterSection
+        audienceDescription={audienceDescription}
+        audienceHint={audienceHint}
         defaultTimezone={defaultTimezone}
         disabled={disabled}
         fieldOptions={fieldOptions}

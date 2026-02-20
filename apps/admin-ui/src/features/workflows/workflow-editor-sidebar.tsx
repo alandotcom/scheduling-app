@@ -22,9 +22,14 @@ import { ActionConfig } from "./config/action-config";
 import { buildEventAttributeSuggestions } from "./config/event-attribute-suggestions";
 import { getAction } from "./action-registry";
 import {
+  getClientWorkflowFilterFieldOptions,
   getWorkflowFilterFieldOptions,
   type WorkflowFilterValueOption,
 } from "./filter-builder-shared";
+import {
+  getDefaultAppointmentTriggerConfig,
+  getDefaultClientTriggerConfig,
+} from "./workflow-editor-store";
 import { orpc } from "@/lib/query";
 
 type WorkflowEditorSidebarTab = "properties" | "runs";
@@ -76,10 +81,31 @@ function toNodeConfig(node: Node | null): Record<string, unknown> {
   return { ...node.data.config };
 }
 
-function getTriggerDomain(nodes: Node[]): "appointment" | null {
+function getTriggerType(
+  nodes: Node[],
+): "AppointmentJourney" | "ClientJourney" | null {
   const trigger = nodes.find((node) => getNodeType(node) === "trigger");
   if (!trigger) {
     return null;
+  }
+
+  const config = toNodeConfig(trigger);
+  if (config.triggerType === "ClientJourney") {
+    return "ClientJourney";
+  }
+
+  return "AppointmentJourney";
+}
+
+function getTriggerDomain(nodes: Node[]): "appointment" | "client" | null {
+  const trigger = nodes.find((node) => getNodeType(node) === "trigger");
+  if (!trigger) {
+    return null;
+  }
+
+  const config = toNodeConfig(trigger);
+  if (config.triggerType === "ClientJourney") {
+    return "client";
   }
 
   return "appointment";
@@ -89,6 +115,13 @@ function getConfiguredTriggerEventTypes(nodes: Node[]): DomainEventType[] {
   const trigger = nodes.find((node) => getNodeType(node) === "trigger");
   if (!trigger) {
     return [];
+  }
+
+  const config = toNodeConfig(trigger);
+  if (config.triggerType === "ClientJourney") {
+    const event =
+      config.event === "client.updated" ? "client.updated" : "client.created";
+    return [event];
   }
 
   return [
@@ -350,9 +383,13 @@ export function WorkflowEditorSidebar({
     ...orpc.customAttributes.listDefinitions.queryOptions(),
     placeholderData: (previous) => previous,
   });
+  const currentTriggerType = getTriggerType(nodes);
   const fieldOptions = useMemo(
-    () => getWorkflowFilterFieldOptions(customAttributeDefinitionsData),
-    [customAttributeDefinitionsData],
+    () =>
+      currentTriggerType === "ClientJourney"
+        ? getClientWorkflowFilterFieldOptions(customAttributeDefinitionsData)
+        : getWorkflowFilterFieldOptions(customAttributeDefinitionsData),
+    [customAttributeDefinitionsData, currentTriggerType],
   );
   const filterValueOptionsByField = useMemo<
     Record<string, WorkflowFilterValueOption[]>
@@ -633,6 +670,23 @@ export function WorkflowEditorSidebar({
                         disabled={!canManageWorkflow}
                         fieldOptions={fieldOptions}
                         valueOptionsByField={filterValueOptionsByField}
+                        onTriggerTypeChange={(triggerType) => {
+                          if (triggerType === "ClientJourney") {
+                            onUpdateNodeData({
+                              id: selectedNode.id,
+                              data: {
+                                config: getDefaultClientTriggerConfig(),
+                              },
+                            });
+                          } else {
+                            onUpdateNodeData({
+                              id: selectedNode.id,
+                              data: {
+                                config: getDefaultAppointmentTriggerConfig(),
+                              },
+                            });
+                          }
+                        }}
                         onUpdate={(next) => {
                           const parsedConfig =
                             journeyTriggerConfigSchema.safeParse(
@@ -640,13 +694,9 @@ export function WorkflowEditorSidebar({
                             );
                           const baseConfig = parsedConfig.success
                             ? parsedConfig.data
-                            : journeyTriggerConfigSchema.parse({
-                                triggerType: "AppointmentJourney",
-                                start: "appointment.scheduled",
-                                restart: "appointment.rescheduled",
-                                stop: "appointment.canceled",
-                                correlationKey: "appointmentId",
-                              });
+                            : selectedNodeConfig.triggerType === "ClientJourney"
+                              ? getDefaultClientTriggerConfig()
+                              : getDefaultAppointmentTriggerConfig();
                           onUpdateNodeData({
                             id: selectedNode.id,
                             data: {

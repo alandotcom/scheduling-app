@@ -178,8 +178,19 @@ export function buildEventAttributeSuggestions(input: {
   }
 
   if (input.customAttributeDefinitions?.length) {
+    const customAttributePrefix =
+      input.domain === "client"
+        ? `${root}.data.customAttributes`
+        : input.domain === "appointment"
+          ? `${root}.data.client.customAttributes`
+          : null;
+
     for (const def of input.customAttributeDefinitions) {
-      const path = `${root}.data.client.customAttributes.${def.fieldKey}`;
+      if (!customAttributePrefix) {
+        continue;
+      }
+
+      const path = `${customAttributePrefix}.${def.fieldKey}`;
       if (!suggestions.has(path)) {
         suggestions.set(path, {
           value: path,

@@ -34,4 +34,23 @@ describe("buildEventAttributeSuggestions", () => {
     expect(values.has("Appointment.data.appointment.id")).toBeTrue();
     expect(values.has("Appointment.data.client.id")).toBeTrue();
   });
+
+  test("uses client custom attribute paths for client domain suggestions", () => {
+    const values = new Set(
+      buildEventAttributeSuggestions({
+        domain: "client",
+        eventTypes: ["client.created"],
+        mode: "condition",
+        customAttributeDefinitions: [
+          {
+            fieldKey: "plan",
+            type: "TEXT",
+          },
+        ],
+      }).map((suggestion) => suggestion.value),
+    );
+
+    expect(values.has("Client.data.customAttributes.plan")).toBeTrue();
+    expect(values.has("Client.data.client.customAttributes.plan")).toBeFalse();
+  });
 });

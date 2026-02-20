@@ -7,7 +7,7 @@ import {
   type JourneyDeliveryDispatchInput,
   type JourneyDeliveryDispatchResult,
 } from "../../delivery-dispatch-helpers.js";
-import { loadDeliveryTemplateContext } from "../../journey-template-context.js";
+import { loadDeliveryTemplateContextByRun } from "../../journey-template-context.js";
 import { resolveTemplateString } from "../../template-resolution.js";
 import {
   getAppIntegrationSecretsForOrg,
@@ -29,7 +29,9 @@ type TwilioDispatcherDependencies = {
   }) => string;
   loadTemplateContext?: (input: {
     orgId: string;
-    appointmentId: string;
+    triggerEntityType: "appointment" | "client";
+    appointmentId?: string | null;
+    clientId?: string | null;
   }) => Promise<Record<string, unknown>>;
   sendTimeoutMs?: number;
   sendMessage?: (input: {
@@ -204,14 +206,24 @@ export async function dispatchJourneySendTwilioAction(
     return testResult;
   }
 
-  const loadContext =
-    dependencies.loadTemplateContext ?? loadDeliveryTemplateContext;
-  const context = input.appointmentId
-    ? await loadContext({
-        orgId: input.orgId,
-        appointmentId: input.appointmentId,
-      })
-    : {};
+  let context: Record<string, unknown>;
+  if (dependencies.loadTemplateContext) {
+    context = await dependencies.loadTemplateContext({
+      orgId: input.orgId,
+      triggerEntityType: input.triggerEntityType ?? "appointment",
+      appointmentId: input.appointmentId ?? null,
+      clientId: input.clientId ?? null,
+    });
+  } else if (input.appointmentId || input.triggerEntityType === "client") {
+    context = await loadDeliveryTemplateContextByRun({
+      orgId: input.orgId,
+      triggerEntityType: input.triggerEntityType ?? "appointment",
+      appointmentId: input.appointmentId ?? null,
+      clientId: input.clientId ?? null,
+    });
+  } else {
+    context = {};
+  }
   const messageBody = resolveTemplateString(
     input.stepConfig["message"],
     context,
@@ -226,10 +238,9 @@ export async function dispatchJourneySendTwilioAction(
     input.stepConfig["toPhone"],
     context,
   );
-  const fallbackRecipient = resolveTemplateString(
-    "@Appointment.data.client.phone",
-    context,
-  );
+  const fallbackRecipient =
+    resolveTemplateString("@Appointment.data.client.phone", context) ??
+    resolveTemplateString("@client.phone", context);
   const recipient = normalizePhoneValue(explicitRecipient ?? fallbackRecipient);
   if (!recipient) {
     throw new JourneyDeliveryNonRetryableError(

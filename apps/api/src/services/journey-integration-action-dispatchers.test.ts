@@ -208,6 +208,45 @@ describe("journey integration action dispatchers", () => {
     });
   });
 
+  test("dispatchJourneySendTwilioAction falls back to @client.phone for client-trigger runs", async () => {
+    const sent = await dispatchJourneySendTwilioAction(
+      {
+        ...baseDispatchInput,
+        channel: "sms",
+        triggerEntityType: "client",
+        clientId: "client_1",
+        stepConfig: {
+          actionType: "send-twilio",
+          message: "Hi @client.firstName",
+        },
+      },
+      {
+        loadTemplateContext: async () => ({
+          client: {
+            firstName: "Avery",
+            phone: "+14155552671",
+          },
+        }),
+        resolveCredentials: async () => ({
+          accountSid: "AC123",
+          authToken: "secret",
+          messagingServiceSid: "MG1234567890abcdef1234567890abcdef",
+        }),
+        sendMessage: async ({ to, body }) => {
+          expect(to).toBe("+14155552671");
+          expect(body).toBe("Hi Avery");
+          return { sid: "SM125" };
+        },
+      },
+    );
+
+    expect(sent).toEqual({
+      providerMessageId: "twilio:SM125",
+      reasonCode: null,
+      awaitingAsyncCallback: true,
+    });
+  });
+
   test("dispatchJourneySendTwilioAction does not treat email addresses as template tokens", async () => {
     const templateContext = {
       Appointment: {

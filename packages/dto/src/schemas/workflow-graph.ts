@@ -342,6 +342,15 @@ export const clientJourneyTriggerConfigSchema = z
     trackedAttributeKey: z.string().trim().min(1).optional(),
     filter: journeyTriggerFilterAstSchema.optional(),
   })
+  .superRefine((value, ctx) => {
+    if (value.event === "client.updated" && !value.trackedAttributeKey) {
+      ctx.addIssue({
+        code: "custom",
+        message: 'Client updated triggers must include "trackedAttributeKey".',
+        path: ["trackedAttributeKey"],
+      });
+    }
+  })
   .strict();
 
 export const journeyTriggerConfigSchema = z.discriminatedUnion("triggerType", [

@@ -49,6 +49,7 @@ import {
   webhookEventDataSchemaByType,
   // Journey
   linearJourneyGraphSchema,
+  journeyTriggerConfigSchema,
   type LinearJourneyGraph,
 } from "./index";
 
@@ -999,6 +1000,39 @@ describe("Webhook schemas", () => {
       });
       expect(result.success).toBe(false);
     });
+  });
+});
+
+describe("Journey trigger config schema", () => {
+  test("accepts client.updated when trackedAttributeKey is provided", () => {
+    const result = journeyTriggerConfigSchema.safeParse({
+      triggerType: "ClientJourney",
+      event: "client.updated",
+      correlationKey: "clientId",
+      trackedAttributeKey: "renewalDate",
+    });
+
+    expect(result.success).toBe(true);
+  });
+
+  test("rejects client.updated when trackedAttributeKey is missing", () => {
+    const result = journeyTriggerConfigSchema.safeParse({
+      triggerType: "ClientJourney",
+      event: "client.updated",
+      correlationKey: "clientId",
+    });
+
+    expect(result.success).toBe(false);
+    if (result.success) {
+      return;
+    }
+
+    const issue = result.error.issues.find(
+      (candidate) =>
+        candidate.path.join(".") === "trackedAttributeKey" &&
+        candidate.message.includes("trackedAttributeKey"),
+    );
+    expect(issue).toBeDefined();
   });
 });
 

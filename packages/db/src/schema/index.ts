@@ -685,10 +685,10 @@ export const journeyRuns = pgTable.withRLS(
     triggerEntityType: journeyTriggerEntityTypeEnum("trigger_entity_type")
       .notNull()
       .default("appointment"),
-    triggerEntityId: uuid("trigger_entity_id"),
-    appointmentId: uuid("appointment_id")
-      .notNull()
-      .references(() => appointments.id, { onDelete: "cascade" }),
+    triggerEntityId: uuid("trigger_entity_id").notNull(),
+    appointmentId: uuid("appointment_id").references(() => appointments.id, {
+      onDelete: "cascade",
+    }),
     clientId: uuid("client_id").references(() => clients.id, {
       onDelete: "set null",
     }),
@@ -705,11 +705,19 @@ export const journeyRuns = pgTable.withRLS(
     cancelledAt: timestamp("cancelled_at", { withTimezone: true }),
   },
   (table) => [
+    check(
+      "journey_runs_trigger_identity_check",
+      sql`(
+        (${table.triggerEntityType} = 'appointment' AND ${table.appointmentId} IS NOT NULL AND ${table.triggerEntityId} = ${table.appointmentId})
+        OR
+        (${table.triggerEntityType} = 'client' AND ${table.appointmentId} IS NULL AND (${table.clientId} IS NULL OR ${table.triggerEntityId} = ${table.clientId}))
+      )`,
+    ),
     uniqueIndex("journey_runs_org_identity_uidx").on(
       table.orgId,
       table.journeyVersionId,
       table.triggerEntityType,
-      sql`coalesce(${table.triggerEntityId}, ${table.appointmentId})`,
+      table.triggerEntityId,
       table.mode,
     ),
     index("journey_runs_org_status_idx").on(table.orgId, table.status),

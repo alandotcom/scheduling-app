@@ -109,6 +109,82 @@ describe("journey domain trigger function", () => {
     );
   });
 
+  test("extracts client.updated payload and forwards to planner", async () => {
+    const processEvent = mock(async () => ({
+      eventId: "event-client-updated-1",
+      eventType: "client.updated" as const,
+      orgId: "org_1",
+      plannedRunIds: ["run_2"],
+      scheduledDeliveryIds: [],
+      canceledDeliveryIds: [],
+      skippedDeliveryIds: [],
+      ignoredJourneyIds: [],
+      erroredJourneyIds: [],
+    }));
+
+    const fn = createJourneyDomainTriggerFunction(
+      "client.updated",
+      processEvent,
+    );
+    const t = new InngestTestEngine({ function: fn });
+
+    const { result } = await t.execute({
+      events: [
+        {
+          id: "event-client-updated-1",
+          ts: 1_700_000_100_000,
+          name: "client.updated",
+          data: {
+            orgId: "org_1",
+            clientId: "018f4d3a-6d80-7c5b-8a4a-6cb8f8d57d16",
+            firstName: "Ada",
+            lastName: "Lovelace",
+            email: "ada@example.com",
+            phone: "+14155552671",
+            customAttributes: {
+              renewalDate: "2026-03-20",
+            },
+            previous: {
+              clientId: "018f4d3a-6d80-7c5b-8a4a-6cb8f8d57d16",
+              firstName: "Ada",
+              lastName: "Lovelace",
+              email: "ada@example.com",
+              phone: "+14155552671",
+              customAttributes: {
+                renewalDate: "2026-03-10",
+              },
+            },
+          },
+        },
+      ],
+    });
+
+    expect(result).toMatchObject({
+      eventId: "event-client-updated-1",
+      plannedRunIds: ["run_2"],
+    });
+    expect(processEvent).toHaveBeenCalledTimes(1);
+    expect(processEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: "event-client-updated-1",
+        orgId: "org_1",
+        type: "client.updated",
+        payload: expect.objectContaining({
+          clientId: "018f4d3a-6d80-7c5b-8a4a-6cb8f8d57d16",
+          customAttributes: {
+            renewalDate: "2026-03-20",
+          },
+          previous: expect.objectContaining({
+            customAttributes: {
+              renewalDate: "2026-03-10",
+            },
+          }),
+        }),
+        timestamp: new Date(1_700_000_100_000).toISOString(),
+      }),
+    );
+  });
+
   test("throws for invalid appointment payload shape", async () => {
     const processEvent = mock(async () => ({
       eventId: "ignored",

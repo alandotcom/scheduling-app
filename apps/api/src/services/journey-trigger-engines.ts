@@ -9,18 +9,29 @@ import { toRecord } from "../lib/type-guards.js";
 
 export type JourneyPlannerDomainEventType = Extract<
   DomainEventType,
-  "appointment.scheduled" | "appointment.rescheduled" | "appointment.canceled"
+  | "appointment.scheduled"
+  | "appointment.rescheduled"
+  | "appointment.canceled"
+  | "client.created"
+  | "client.updated"
 >;
 
 export type JourneyPlannerDomainEventPayload =
   DomainEventDataByType[JourneyPlannerDomainEventType];
 
-export type JourneyRunIdentity = {
-  triggerEntityType: "appointment";
-  triggerEntityId: string;
-  appointmentId: string;
-  clientId: string | null;
-};
+export type JourneyRunIdentity =
+  | {
+      triggerEntityType: "appointment";
+      triggerEntityId: string;
+      appointmentId: string;
+      clientId: string | null;
+    }
+  | {
+      triggerEntityType: "client";
+      triggerEntityId: string;
+      appointmentId: null;
+      clientId: string;
+    };
 
 type JourneyTriggerResolution =
   | { status: "invalid_config" }
@@ -29,7 +40,12 @@ type JourneyTriggerResolution =
   | {
       status: "resolved";
       triggerConfig: JourneyTriggerConfig;
-      routing: "plan" | "cancel" | "ignore";
+      routing: "ignore";
+    }
+  | {
+      status: "resolved";
+      triggerConfig: JourneyTriggerConfig;
+      routing: "plan" | "cancel";
       runIdentity: JourneyRunIdentity;
       appointmentContext: Record<string, unknown>;
       clientContext: Record<string, unknown>;
@@ -74,6 +90,95 @@ function resolveAppointmentTriggerRouting(input: {
   return "ignore";
 }
 
+function resolveClientTriggerRouting(input: {
+  triggerConfig: Extract<
+    JourneyTriggerConfig,
+    { triggerType: "ClientJourney" }
+  >;
+  eventType: JourneyPlannerDomainEventType;
+  payload: JourneyPlannerDomainEventPayload;
+}): "plan" | "ignore" {
+  if (input.triggerConfig.event === "client.created") {
+    return input.eventType === "client.created" ? "plan" : "ignore";
+  }
+
+  // client.updated trigger
+  if (input.eventType !== "client.updated") {
+    return "ignore";
+  }
+
+  const { trackedAttributeKey } = input.triggerConfig;
+  if (!trackedAttributeKey) {
+    return "ignore";
+  }
+
+  const payloadRecord = toRecord(input.payload);
+  const customAttributes = toRecord(payloadRecord["customAttributes"]);
+  const previousRecord = toRecord(payloadRecord["previous"]);
+  const previousCustomAttributes = toRecord(previousRecord["customAttributes"]);
+
+  const currentValue = customAttributes[trackedAttributeKey];
+  const previousValue = previousCustomAttributes[trackedAttributeKey];
+
+  if (areTrackedAttributeValuesEqual(currentValue, previousValue)) {
+    return "ignore";
+  }
+
+  return "plan";
+}
+
+function areTrackedAttributeValuesEqual(
+  currentValue: unknown,
+  previousValue: unknown,
+): boolean {
+  if (Array.isArray(currentValue) || Array.isArray(previousValue)) {
+    if (!Array.isArray(currentValue) || !Array.isArray(previousValue)) {
+      return false;
+    }
+
+    if (currentValue.length !== previousValue.length) {
+      return false;
+    }
+
+    for (let index = 0; index < currentValue.length; index += 1) {
+      if (currentValue[index] !== previousValue[index]) {
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  return currentValue === previousValue;
+}
+
+function resolveClientContextFromPayload(
+  payload: JourneyPlannerDomainEventPayload,
+): {
+  clientId: string | null;
+  clientContext: Record<string, unknown>;
+} {
+  const payloadRecord = toRecord(payload);
+  const clientId =
+    typeof payloadRecord["clientId"] === "string"
+      ? payloadRecord["clientId"]
+      : null;
+
+  const clientData: Record<string, unknown> = { ...payloadRecord };
+  if (clientId && typeof clientData["id"] !== "string") {
+    clientData["id"] = clientId;
+  }
+  const clientContext: Record<string, unknown> = {
+    ...clientData,
+    data: clientData,
+  };
+
+  return {
+    clientId,
+    clientContext,
+  };
+}
+
 export function resolveJourneyTriggerRuntime(input: {
   graph: LinearJourneyGraph;
   eventType: JourneyPlannerDomainEventType;
@@ -84,35 +189,92 @@ export function resolveJourneyTriggerRuntime(input: {
     return { status: "invalid_config" };
   }
 
-  if (triggerConfig.triggerType !== "AppointmentJourney") {
-    return { status: "unsupported_trigger_type" };
-  }
-
-  const appointmentContext = toRecord(input.payload);
-  const clientContext = toRecord(appointmentContext["client"]);
-  const appointmentId =
-    typeof appointmentContext["appointmentId"] === "string"
-      ? appointmentContext["appointmentId"]
-      : null;
-
-  if (!appointmentId) {
-    return { status: "missing_run_identity" };
-  }
-
-  return {
-    status: "resolved",
-    triggerConfig,
-    routing: resolveAppointmentTriggerRouting({
+  if (triggerConfig.triggerType === "AppointmentJourney") {
+    const routing = resolveAppointmentTriggerRouting({
       triggerConfig,
       eventType: input.eventType,
-    }),
-    runIdentity: {
-      triggerEntityType: "appointment",
-      triggerEntityId: appointmentId,
-      appointmentId,
-      clientId: null,
-    },
-    appointmentContext,
-    clientContext,
-  };
+    });
+    if (routing === "ignore") {
+      return {
+        status: "resolved",
+        triggerConfig,
+        routing: "ignore",
+      };
+    }
+
+    const appointmentPayload = toRecord(input.payload);
+    const appointmentContext: Record<string, unknown> = {
+      ...appointmentPayload,
+      data: appointmentPayload,
+    };
+    const clientPayload = toRecord(appointmentPayload["client"]);
+    const clientContext: Record<string, unknown> =
+      Object.keys(clientPayload).length > 0
+        ? {
+            ...clientPayload,
+            data: clientPayload,
+          }
+        : {};
+    const appointmentId =
+      typeof appointmentPayload["appointmentId"] === "string"
+        ? appointmentPayload["appointmentId"]
+        : null;
+
+    if (!appointmentId) {
+      return { status: "missing_run_identity" };
+    }
+
+    return {
+      status: "resolved",
+      triggerConfig,
+      routing,
+      runIdentity: {
+        triggerEntityType: "appointment",
+        triggerEntityId: appointmentId,
+        appointmentId,
+        clientId: null,
+      },
+      appointmentContext,
+      clientContext,
+    };
+  }
+
+  if (triggerConfig.triggerType === "ClientJourney") {
+    const routing = resolveClientTriggerRouting({
+      triggerConfig,
+      eventType: input.eventType,
+      payload: input.payload,
+    });
+    if (routing === "ignore") {
+      return {
+        status: "resolved",
+        triggerConfig,
+        routing: "ignore",
+      };
+    }
+
+    const { clientId, clientContext } = resolveClientContextFromPayload(
+      input.payload,
+    );
+
+    if (!clientId) {
+      return { status: "missing_run_identity" };
+    }
+
+    return {
+      status: "resolved",
+      triggerConfig,
+      routing,
+      runIdentity: {
+        triggerEntityType: "client",
+        triggerEntityId: clientId,
+        appointmentId: null,
+        clientId,
+      },
+      appointmentContext: {},
+      clientContext,
+    };
+  }
+
+  return { status: "unsupported_trigger_type" };
 }

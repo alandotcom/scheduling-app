@@ -169,7 +169,7 @@ export async function loadFreshContextForPlanner(input: {
         }
       : null;
 
-    const appointmentContext: Record<string, unknown> = {
+    const appointmentPayload: Record<string, unknown> = {
       appointmentId: row.appointmentId,
       calendarId: row.calendarId,
       appointmentTypeId: row.appointmentTypeId,
@@ -193,7 +193,17 @@ export async function loadFreshContextForPlanner(input: {
       client,
     };
 
-    const clientContext: Record<string, unknown> = client ?? {};
+    const appointmentContext: Record<string, unknown> = {
+      ...appointmentPayload,
+      data: appointmentPayload,
+    };
+
+    const clientContext: Record<string, unknown> = client
+      ? {
+          ...client,
+          data: client,
+        }
+      : {};
 
     return { appointmentContext, clientContext, orgTimezone };
   });
@@ -218,7 +228,134 @@ export async function loadFreshContextForPlannerByRun(input: {
     });
   }
 
-  // Client-trigger runs are introduced in a follow-up phase. Keep the boundary
-  // explicit now so wait/resume can switch by run identity later.
-  return null;
+  // Client-trigger runs
+  const clientId = input.clientId ?? input.triggerEntityId;
+  return withOrg(input.orgId, async (tx) => {
+    const [clientRow] = await tx
+      .select({
+        id: clients.id,
+        firstName: clients.firstName,
+        lastName: clients.lastName,
+        email: clients.email,
+        phone: clients.phone,
+      })
+      .from(clients)
+      .where(eq(clients.id, clientId))
+      .limit(1);
+
+    if (!clientRow) {
+      return null;
+    }
+
+    const [org] = await tx
+      .select({ defaultTimezone: orgs.defaultTimezone })
+      .from(orgs)
+      .where(eq(orgs.id, input.orgId))
+      .limit(1);
+    const orgTimezone = org?.defaultTimezone ?? DEFAULT_ORG_TIMEZONE;
+
+    const customAttributes =
+      await clientCustomAttributeService.loadClientCustomAttributes(
+        tx,
+        input.orgId,
+        clientRow.id,
+      );
+
+    const clientData: Record<string, unknown> = {
+      id: clientRow.id,
+      clientId: clientRow.id,
+      firstName: clientRow.firstName,
+      lastName: clientRow.lastName,
+      email: clientRow.email,
+      phone: clientRow.phone,
+      customAttributes,
+    };
+    const clientContext: Record<string, unknown> = {
+      ...clientData,
+      data: clientData,
+    };
+
+    return {
+      appointmentContext: {},
+      clientContext,
+      orgTimezone,
+    };
+  });
+}
+
+export async function loadClientDeliveryTemplateContext(input: {
+  orgId: string;
+  clientId: string;
+}): Promise<Record<string, unknown>> {
+  const clientPayload = await withOrg(input.orgId, async (tx) => {
+    const [row] = await tx
+      .select({
+        id: clients.id,
+        firstName: clients.firstName,
+        lastName: clients.lastName,
+        email: clients.email,
+        phone: clients.phone,
+      })
+      .from(clients)
+      .where(eq(clients.id, input.clientId))
+      .limit(1);
+
+    if (!row) {
+      return null;
+    }
+
+    const customAttributes =
+      await clientCustomAttributeService.loadClientCustomAttributes(
+        tx,
+        input.orgId,
+        row.id,
+      );
+
+    return {
+      id: row.id,
+      firstName: row.firstName,
+      lastName: row.lastName,
+      email: row.email,
+      phone: row.phone,
+      customAttributes,
+    };
+  });
+
+  if (!clientPayload) {
+    return {};
+  }
+
+  return {
+    Client: {
+      data: clientPayload,
+    },
+    client: {
+      data: clientPayload,
+      ...clientPayload,
+    },
+    data: clientPayload,
+  };
+}
+
+export async function loadDeliveryTemplateContextByRun(input: {
+  orgId: string;
+  triggerEntityType: "appointment" | "client";
+  appointmentId?: string | null;
+  clientId?: string | null;
+}): Promise<Record<string, unknown>> {
+  if (input.triggerEntityType === "appointment" && input.appointmentId) {
+    return loadDeliveryTemplateContext({
+      orgId: input.orgId,
+      appointmentId: input.appointmentId,
+    });
+  }
+
+  if (input.triggerEntityType === "client" && input.clientId) {
+    return loadClientDeliveryTemplateContext({
+      orgId: input.orgId,
+      clientId: input.clientId,
+    });
+  }
+
+  return {};
 }

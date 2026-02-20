@@ -538,13 +538,21 @@ function filterEdgesForConnection(input: {
   });
 }
 
-function getCanonicalTriggerConfig() {
+export function getDefaultAppointmentTriggerConfig() {
   return journeyTriggerConfigSchema.parse({
     triggerType: "AppointmentJourney",
     start: "appointment.scheduled",
     restart: "appointment.rescheduled",
     stop: "appointment.canceled",
     correlationKey: "appointmentId",
+  });
+}
+
+export function getDefaultClientTriggerConfig() {
+  return journeyTriggerConfigSchema.parse({
+    triggerType: "ClientJourney",
+    event: "client.created",
+    correlationKey: "clientId",
   });
 }
 
@@ -556,8 +564,12 @@ function normalizeTriggerConfig(value: unknown): JourneyTriggerConfig {
 
   const config = asRecord(value);
   const parsedFilter = journeyTriggerFilterAstSchema.safeParse(config?.filter);
+  const isClientJourney = config?.triggerType === "ClientJourney";
+  const baseConfig = isClientJourney
+    ? getDefaultClientTriggerConfig()
+    : getDefaultAppointmentTriggerConfig();
   return {
-    ...getCanonicalTriggerConfig(),
+    ...baseConfig,
     ...(parsedFilter.success ? { filter: parsedFilter.data } : {}),
   };
 }
@@ -1314,7 +1326,7 @@ export const addInitialTriggerNodeAtom = atom(null, (get, set) => {
       type: "trigger",
       label: "Trigger",
       status: "idle",
-      config: getCanonicalTriggerConfig(),
+      config: getDefaultAppointmentTriggerConfig(),
     },
   };
 

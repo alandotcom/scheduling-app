@@ -364,6 +364,69 @@ describe("JourneyService", () => {
     expect(runDetail.triggerContext?.appointment?.id).toBe(appointment.id);
   });
 
+  test("getRun hydrates client trigger context when run has no appointment", async () => {
+    const created = await journeyService.create(
+      {
+        name: "Client Trigger Run Context",
+        graph: createLinearGraph("trigger-client-context"),
+      },
+      context,
+    );
+    const published = await journeyService.publish(
+      created.id,
+      {
+        mode: "live",
+      },
+      context,
+    );
+    const client = await createClient(db as any, context.orgId, {
+      firstName: "Avery",
+      lastName: "Stone",
+      email: "avery@example.com",
+      phone: "+14155552671",
+    });
+
+    await setTestOrgContext(db, context.orgId);
+    const [versionRow] = await db
+      .select({ id: journeyVersions.id })
+      .from(journeyVersions)
+      .where(
+        and(
+          eq(journeyVersions.journeyId, created.id),
+          eq(journeyVersions.version, published.version),
+        ),
+      )
+      .limit(1);
+
+    const [runRow] = await db
+      .insert(journeyRuns)
+      .values({
+        orgId: context.orgId,
+        journeyVersionId: versionRow!.id,
+        triggerEntityType: "client",
+        triggerEntityId: client.id,
+        appointmentId: null,
+        clientId: client.id,
+        mode: "live",
+        status: "running",
+        journeyNameSnapshot: created.name,
+        journeyVersionSnapshot: { version: published.version },
+      })
+      .returning({ id: journeyRuns.id });
+
+    const runDetail = await journeyService.getRun(runRow!.id, context);
+
+    expect(runDetail.run.appointmentId).toBeNull();
+    expect(runDetail.triggerContext?.appointment).toBeNull();
+    expect(runDetail.triggerContext?.client).toEqual({
+      id: client.id,
+      firstName: "Avery",
+      lastName: "Stone",
+      email: "avery@example.com",
+      phone: "+14155552671",
+    });
+  });
+
   test("enforces org-scoped case-insensitive journey name uniqueness", async () => {
     await journeyService.create(
       {
@@ -479,6 +542,7 @@ describe("JourneyService", () => {
         orgId: context.orgId,
         journeyVersionId: primaryVersion!.id,
         appointmentId: targetApptId,
+        triggerEntityId: targetApptId,
         mode: "live",
         status: "running",
         journeyNameSnapshot: primaryJourney.name,
@@ -492,6 +556,7 @@ describe("JourneyService", () => {
         orgId: context.orgId,
         journeyVersionId: primaryVersion!.id,
         appointmentId: sameJourneyApptId,
+        triggerEntityId: sameJourneyApptId,
         mode: "live",
         status: "planned",
         journeyNameSnapshot: primaryJourney.name,
@@ -505,6 +570,7 @@ describe("JourneyService", () => {
         orgId: context.orgId,
         journeyVersionId: primaryVersion!.id,
         appointmentId: terminalApptId,
+        triggerEntityId: terminalApptId,
         mode: "live",
         status: "completed",
         journeyNameSnapshot: primaryJourney.name,
@@ -518,6 +584,7 @@ describe("JourneyService", () => {
         orgId: context.orgId,
         journeyVersionId: secondaryVersion!.id,
         appointmentId: otherJourneyApptId,
+        triggerEntityId: otherJourneyApptId,
         mode: "live",
         status: "running",
         journeyNameSnapshot: secondaryJourney.name,
@@ -683,6 +750,7 @@ describe("JourneyService", () => {
         orgId: context.orgId,
         journeyVersionId: versionRow!.id,
         appointmentId: runningApptId,
+        triggerEntityId: runningApptId,
         mode: "live",
         status: "running",
         journeyNameSnapshot: created.name,
@@ -696,6 +764,7 @@ describe("JourneyService", () => {
         orgId: context.orgId,
         journeyVersionId: versionRow!.id,
         appointmentId: plannedApptId,
+        triggerEntityId: plannedApptId,
         mode: "live",
         status: "planned",
         journeyNameSnapshot: created.name,
@@ -709,6 +778,7 @@ describe("JourneyService", () => {
         orgId: context.orgId,
         journeyVersionId: versionRow!.id,
         appointmentId: completedApptId,
+        triggerEntityId: completedApptId,
         mode: "live",
         status: "completed",
         journeyNameSnapshot: created.name,
@@ -1140,6 +1210,7 @@ describe("JourneyService", () => {
         orgId: context.orgId,
         journeyVersionId: versionRow!.id,
         appointmentId: historyApptId,
+        triggerEntityId: historyApptId,
         mode: "test",
         status: "completed",
         journeyNameSnapshot: "Deleted Journey Snapshot",

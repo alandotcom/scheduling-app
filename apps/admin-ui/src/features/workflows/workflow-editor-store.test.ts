@@ -385,6 +385,74 @@ describe("workflow-editor-store", () => {
     expect(serialized.edges[0]?.attributes.label).toBe("Start");
   });
 
+  test("normalizes invalid client trigger configs to canonical client defaults", () => {
+    const fixture = createGraphFixture();
+    const triggerNode = fixture.nodes[0];
+    if (!triggerNode || triggerNode.attributes.data.type !== "trigger") {
+      throw new Error("Expected trigger node fixture");
+    }
+
+    const state = deserializeWorkflowGraph({
+      ...fixture,
+      nodes: [
+        {
+          ...triggerNode,
+          attributes: {
+            ...triggerNode.attributes,
+            data: {
+              ...triggerNode.attributes.data,
+              config: {
+                triggerType: "ClientJourney",
+                event: "client.updated",
+                correlationKey: "clientId",
+                filter: {
+                  logic: "and",
+                  groups: [
+                    {
+                      logic: "and",
+                      conditions: [
+                        {
+                          field: "client.firstName",
+                          operator: "equals",
+                          value: "Avery",
+                        },
+                      ],
+                    },
+                  ],
+                },
+              },
+            },
+          },
+        },
+      ],
+    });
+
+    const normalizedTriggerData = state.nodes[0]?.data as {
+      config?: Record<string, unknown>;
+    };
+
+    expect(normalizedTriggerData.config).toEqual({
+      triggerType: "ClientJourney",
+      event: "client.created",
+      correlationKey: "clientId",
+      filter: {
+        logic: "and",
+        groups: [
+          {
+            logic: "and",
+            conditions: [
+              {
+                field: "client.firstName",
+                operator: "equals",
+                value: "Avery",
+              },
+            ],
+          },
+        ],
+      },
+    });
+  });
+
   test("switches active canvas graph to execution snapshot and back", () => {
     const store = createStore();
     const draft = deserializeWorkflowGraph(createGraphFixture());

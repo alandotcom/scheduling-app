@@ -41,7 +41,13 @@ type DeliveryRow = Pick<
 
 type RunRow = Pick<
   typeof journeyRuns.$inferSelect,
-  "id" | "status" | "mode" | "appointmentId" | "journeyVersionSnapshot"
+  | "id"
+  | "status"
+  | "mode"
+  | "triggerEntityType"
+  | "appointmentId"
+  | "clientId"
+  | "journeyVersionSnapshot"
 >;
 
 type DeliveryWithRun = {
@@ -169,7 +175,9 @@ async function loadDeliveryWithRun(
         id: journeyRuns.id,
         status: journeyRuns.status,
         mode: journeyRuns.mode,
+        triggerEntityType: journeyRuns.triggerEntityType,
         appointmentId: journeyRuns.appointmentId,
+        clientId: journeyRuns.clientId,
         journeyVersionSnapshot: journeyRuns.journeyVersionSnapshot,
       })
       .from(journeyRuns)
@@ -564,7 +572,11 @@ export async function executeJourneyDeliveryScheduled(
       idempotencyKey: current.delivery.deterministicKey,
       runMode: run.mode,
       stepConfig,
-      appointmentId: run.appointmentId,
+      triggerEntityType: run.triggerEntityType,
+      ...(run.appointmentId != null
+        ? { appointmentId: run.appointmentId }
+        : {}),
+      ...(run.clientId != null ? { clientId: run.clientId } : {}),
     };
     const dispatchLogInput = {
       orgId: dispatchPayload.orgId,

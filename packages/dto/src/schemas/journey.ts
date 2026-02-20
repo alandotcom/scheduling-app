@@ -641,7 +641,7 @@ const journeyVersionSnapshotSchema = z
 export const journeyRunSchema = z.object({
   id: uuidSchema,
   journeyVersionId: uuidSchema.nullable(),
-  appointmentId: uuidSchema,
+  appointmentId: uuidSchema.nullable(),
   mode: journeyRunModeSchema,
   status: journeyRunStatusSchema,
   journeyNameSnapshot: z.string().min(1),

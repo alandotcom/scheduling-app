@@ -50,6 +50,50 @@ export function getWorkflowFilterFieldOptions(
   return [...WORKFLOW_FILTER_FIELD_OPTIONS, ...customFields];
 }
 
+export const CLIENT_WORKFLOW_FILTER_FIELD_OPTIONS: WorkflowFilterFieldOption[] =
+  [
+    {
+      label: "Client Record ID",
+      value: "client.id",
+      type: "string",
+    },
+    {
+      label: "Client First Name",
+      value: "client.firstName",
+      type: "string",
+    },
+    {
+      label: "Client Last Name",
+      value: "client.lastName",
+      type: "string",
+    },
+    {
+      label: "Client Email",
+      value: "client.email",
+      type: "string",
+    },
+    {
+      label: "Client Phone",
+      value: "client.phone",
+      type: "string",
+    },
+  ];
+
+export function getClientWorkflowFilterFieldOptions(
+  customAttributeDefinitions?: CustomAttributeDefinitionForFilter[],
+): WorkflowFilterFieldOption[] {
+  if (!customAttributeDefinitions?.length)
+    return CLIENT_WORKFLOW_FILTER_FIELD_OPTIONS;
+
+  const customFields = customAttributeDefinitions.map((def) => ({
+    label: def.label,
+    value: `client.customAttributes.${def.fieldKey}`,
+    type: mapCustomAttributeTypeToFilterType(def.type),
+  }));
+
+  return [...CLIENT_WORKFLOW_FILTER_FIELD_OPTIONS, ...customFields];
+}
+
 export const WORKFLOW_FILTER_FIELD_OPTIONS: WorkflowFilterFieldOption[] = [
   {
     label: "Calendar ID",

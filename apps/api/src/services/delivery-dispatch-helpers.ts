@@ -10,7 +10,9 @@ export type JourneyDeliveryDispatchInput = {
   idempotencyKey: string;
   runMode?: JourneyRunMode;
   stepConfig: JsonRecord;
+  triggerEntityType?: "appointment" | "client";
   appointmentId?: string;
+  clientId?: string;
 };
 
 export type JourneyDeliveryDispatchResult = {

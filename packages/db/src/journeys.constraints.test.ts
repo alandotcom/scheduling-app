@@ -85,6 +85,24 @@ function expectUniqueViolation(error: unknown) {
   expect(message).toContain("duplicate key value");
 }
 
+function expectCheckViolation(error: unknown, constraintName: string) {
+  const message =
+    typeof error === "object" &&
+    error !== null &&
+    "cause" in error &&
+    typeof error.cause === "object" &&
+    error.cause !== null &&
+    "message" in error.cause &&
+    typeof error.cause.message === "string"
+      ? error.cause.message
+      : error instanceof Error
+        ? error.message
+        : "unknown database error";
+
+  expect(message).toContain("violates check constraint");
+  expect(message).toContain(constraintName);
+}
+
 describe("journey constraints", () => {
   test("enforces case-insensitive journey name uniqueness per org", async () => {
     const { org: orgA } = await seedTestOrg(db);
@@ -154,6 +172,7 @@ describe("journey constraints", () => {
       orgId: org.id,
       journeyVersionId: journeyVersion!.id,
       appointmentId,
+      triggerEntityId: appointmentId,
       mode: "live",
       status: "planned",
       journeyNameSnapshot: journey!.name,
@@ -165,6 +184,7 @@ describe("journey constraints", () => {
         orgId: org.id,
         journeyVersionId: journeyVersion!.id,
         appointmentId,
+        triggerEntityId: appointmentId,
         mode: "live",
         status: "planned",
         journeyNameSnapshot: journey!.name,
@@ -181,6 +201,7 @@ describe("journey constraints", () => {
         orgId: org.id,
         journeyVersionId: journeyVersion!.id,
         appointmentId,
+        triggerEntityId: appointmentId,
         mode: "test",
         status: "planned",
         journeyNameSnapshot: journey!.name,
@@ -189,6 +210,130 @@ describe("journey constraints", () => {
       .returning();
 
     expect(createdDifferentMode).toHaveLength(1);
+    await clearTestOrgContext(db);
+  });
+
+  test("enforces trigger identity invariants for appointment and client runs", async () => {
+    const { org } = await seedTestOrg(db);
+    await setTestOrgContext(db, org.id);
+
+    const [journey] = await db
+      .insert(journeys)
+      .values({
+        orgId: org.id,
+        name: "Run Identity Invariants",
+        state: "published",
+        draftDefinition: { steps: [] },
+      })
+      .returning();
+
+    const [journeyVersion] = await db
+      .insert(journeyVersions)
+      .values({
+        orgId: org.id,
+        journeyId: journey!.id,
+        version: 1,
+        definitionSnapshot: { steps: [] },
+      })
+      .returning();
+
+    const appointmentId = await createTestAppointment(org.id);
+    const [client] = await db
+      .insert(clients)
+      .values({
+        orgId: org.id,
+        firstName: "Invariant",
+        lastName: "Client",
+      })
+      .returning();
+
+    try {
+      await db.insert(journeyRuns).values({
+        orgId: org.id,
+        journeyVersionId: journeyVersion!.id,
+        triggerEntityType: "appointment",
+        triggerEntityId: appointmentId,
+        appointmentId: null,
+        mode: "live",
+        status: "planned",
+        journeyNameSnapshot: journey!.name,
+        journeyVersionSnapshot: { version: 1 },
+      });
+      throw new Error("expected check violation");
+    } catch (error) {
+      expectCheckViolation(error, "journey_runs_trigger_identity_check");
+    }
+
+    try {
+      await db.insert(journeyRuns).values({
+        orgId: org.id,
+        journeyVersionId: journeyVersion!.id,
+        triggerEntityType: "appointment",
+        triggerEntityId: client!.id,
+        appointmentId,
+        mode: "live",
+        status: "planned",
+        journeyNameSnapshot: journey!.name,
+        journeyVersionSnapshot: { version: 1 },
+      });
+      throw new Error("expected check violation");
+    } catch (error) {
+      expectCheckViolation(error, "journey_runs_trigger_identity_check");
+    }
+
+    try {
+      await db.insert(journeyRuns).values({
+        orgId: org.id,
+        journeyVersionId: journeyVersion!.id,
+        triggerEntityType: "client",
+        triggerEntityId: client!.id,
+        appointmentId,
+        clientId: client!.id,
+        mode: "live",
+        status: "planned",
+        journeyNameSnapshot: journey!.name,
+        journeyVersionSnapshot: { version: 1 },
+      });
+      throw new Error("expected check violation");
+    } catch (error) {
+      expectCheckViolation(error, "journey_runs_trigger_identity_check");
+    }
+
+    try {
+      await db.insert(journeyRuns).values({
+        orgId: org.id,
+        journeyVersionId: journeyVersion!.id,
+        triggerEntityType: "client",
+        triggerEntityId: appointmentId,
+        appointmentId: null,
+        clientId: client!.id,
+        mode: "live",
+        status: "planned",
+        journeyNameSnapshot: journey!.name,
+        journeyVersionSnapshot: { version: 1 },
+      });
+      throw new Error("expected check violation");
+    } catch (error) {
+      expectCheckViolation(error, "journey_runs_trigger_identity_check");
+    }
+
+    const createdClientRun = await db
+      .insert(journeyRuns)
+      .values({
+        orgId: org.id,
+        journeyVersionId: journeyVersion!.id,
+        triggerEntityType: "client",
+        triggerEntityId: client!.id,
+        appointmentId: null,
+        clientId: client!.id,
+        mode: "live",
+        status: "planned",
+        journeyNameSnapshot: journey!.name,
+        journeyVersionSnapshot: { version: 1 },
+      })
+      .returning();
+
+    expect(createdClientRun).toHaveLength(1);
     await clearTestOrgContext(db);
   });
 
@@ -280,6 +425,7 @@ describe("journey constraints", () => {
         orgId: org.id,
         journeyVersionId: journeyVersion!.id,
         appointmentId: deliveryApptId,
+        triggerEntityId: deliveryApptId,
         mode: "live",
         status: "planned",
         journeyNameSnapshot: journey!.name,
@@ -367,6 +513,7 @@ describe("journey constraints", () => {
         orgId: org.id,
         journeyVersionId: journeyVersion!.id,
         appointmentId: retentionApptId,
+        triggerEntityId: retentionApptId,
         mode: "live",
         status: "completed",
         journeyNameSnapshot: journey!.name,
