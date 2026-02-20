@@ -2117,6 +2117,8 @@ function SchemaPropertiesView({ schema }: { schema: Record<string, unknown> }) {
   );
 }
 
+const MAX_SCHEMA_DEPTH = 10;
+
 function PropertyList({
   properties,
   required,
@@ -2126,6 +2128,14 @@ function PropertyList({
   required: string[];
   depth: number;
 }) {
+  if (depth >= MAX_SCHEMA_DEPTH) {
+    return (
+      <div className="px-3 py-2 text-xs italic text-muted-foreground">
+        Nested properties omitted (depth limit reached)
+      </div>
+    );
+  }
+
   return (
     <div>
       {Object.entries(properties).map(([name, propSchema]) =>
