@@ -39,6 +39,7 @@ import {
 
 import { WebhooksSection } from "@/components/settings/webhooks/webhooks-section";
 import { IntegrationsSection } from "@/components/settings/integrations/integrations-section";
+import { CustomFieldsSection } from "@/components/settings/custom-fields/custom-fields-section";
 import type {
   AttemptFilter,
   WebhookTab,
@@ -99,6 +100,7 @@ const WEEKDAYS = [
 type SettingsTab =
   | "organization"
   | "users"
+  | "custom-fields"
   | "developers"
   | "integrations"
   | "webhooks";
@@ -107,6 +109,7 @@ function resolveTab(raw: string | undefined): SettingsTab {
   if (
     raw === "organization" ||
     raw === "users" ||
+    raw === "custom-fields" ||
     raw === "developers" ||
     raw === "integrations" ||
     raw === "webhooks"
@@ -173,7 +176,7 @@ const parseBusinessDays = (days: unknown): number[] => {
   return [1, 2, 3, 4, 5];
 };
 
-function canManageIntegrationsForRole(
+function canManageOrgSettingsForRole(
   role: "owner" | "admin" | "member" | null,
 ): boolean {
   return role === "owner" || role === "admin";
@@ -220,10 +223,10 @@ function SettingsPage() {
       (membership) => membership.orgId === activeOrganizationId,
     )?.role ?? null;
   const activeOrganizationRole = authContextQuery.data?.role ?? fallbackRole;
-  const canManageIntegrations = canManageIntegrationsForRole(
+  const canManageOrgSettings = canManageOrgSettingsForRole(
     activeOrganizationRole,
   );
-  const isLoadingIntegrationPermissions =
+  const isLoadingPermissions =
     authContextQuery.isLoading ||
     (authContextQuery.isError && membershipsQuery.isLoading);
 
@@ -330,7 +333,7 @@ function SettingsPage() {
 
       {activeTab === "integrations" ? (
         <div>
-          {isLoadingIntegrationPermissions ? (
+          {isLoadingPermissions ? (
             <Card>
               <CardHeader>
                 <CardTitle>Integrations</CardTitle>
@@ -342,7 +345,7 @@ function SettingsPage() {
                 <Skeleton className="h-16 w-full rounded-lg" />
               </CardContent>
             </Card>
-          ) : canManageIntegrations ? (
+          ) : canManageOrgSettings ? (
             <IntegrationsSection />
           ) : (
             <Card>
@@ -363,6 +366,33 @@ function SettingsPage() {
             routeState={webhookRouteState}
             actions={webhookActions}
           />
+        </div>
+      ) : null}
+
+      {activeTab === "custom-fields" ? (
+        <div>
+          {isLoadingPermissions ? (
+            <Card>
+              <CardHeader>
+                <CardTitle>Custom Fields</CardTitle>
+                <CardDescription>Loading permissions...</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Skeleton className="h-16 w-full rounded-lg" />
+              </CardContent>
+            </Card>
+          ) : canManageOrgSettings ? (
+            <CustomFieldsSection />
+          ) : (
+            <Card>
+              <CardHeader>
+                <CardTitle>Custom Fields</CardTitle>
+                <CardDescription>
+                  Only organization admins can manage custom fields.
+                </CardDescription>
+              </CardHeader>
+            </Card>
+          )}
         </div>
       ) : null}
     </PageScaffold>

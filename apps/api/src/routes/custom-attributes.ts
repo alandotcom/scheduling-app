@@ -2,6 +2,7 @@ import { z } from "zod";
 import {
   createCustomAttributeDefinitionSchema,
   updateCustomAttributeDefinitionSchema,
+  reorderCustomAttributeDefinitionsSchema,
   customAttributeDefinitionResponseSchema,
   slotUsageSchema,
   successResponseSchema,
@@ -71,10 +72,22 @@ export const getSlotUsage = authed
     });
   });
 
+export const reorderDefinitions = adminOnly
+  .route({ method: "PUT", path: "/clients/custom-attributes/reorder" })
+  .input(reorderCustomAttributeDefinitionsSchema)
+  .output(successResponseSchema)
+  .handler(async ({ input, context }) => {
+    return clientCustomAttributeService.reorderDefinitions(input.orderedIds, {
+      orgId: context.orgId,
+      userId: context.userId,
+    });
+  });
+
 export const customAttributeRoutes = {
   listDefinitions,
   createDefinition,
   getSlotUsage,
   updateDefinition,
   deleteDefinition,
+  reorderDefinitions,
 };

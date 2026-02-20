@@ -101,6 +101,7 @@ interface HeaderBreadcrumbItem {
 type SettingsSection =
   | "organization"
   | "users"
+  | "custom-fields"
   | "developers"
   | "integrations"
   | "webhooks";
@@ -151,6 +152,7 @@ const HEADER_BREADCRUMB_LABELS: Record<string, HeaderBreadcrumbItem[]> = {
 const SETTINGS_SECTION_LABELS: Record<SettingsSection, string> = {
   organization: "Organization",
   users: "Users",
+  "custom-fields": "Custom Fields",
   developers: "Developers",
   integrations: "Integrations",
   webhooks: "Webhooks",
@@ -175,6 +177,7 @@ function resolveSettingsSection(
   if (
     raw === "organization" ||
     raw === "users" ||
+    raw === "custom-fields" ||
     raw === "developers" ||
     raw === "integrations" ||
     raw === "webhooks"
@@ -217,7 +220,7 @@ export function getHeaderBreadcrumbItems(input: {
   return [{ label: formatPathSegmentLabel(segment) }];
 }
 
-function canManageIntegrationsForRole(
+function canManageOrgSettingsForRole(
   role: "owner" | "admin" | "member" | null,
 ): boolean {
   return role === "owner" || role === "admin";
@@ -342,7 +345,7 @@ function RootLayout() {
     memberships.find((membership) => membership.orgId === activeOrganizationId)
       ?.role ?? null;
   const activeOrganizationRole = authContextQuery.data?.role ?? fallbackRole;
-  const canManageIntegrations = canManageIntegrationsForRole(
+  const canManageOrgSettings = canManageOrgSettingsForRole(
     activeOrganizationRole,
   );
   const fallbackOrganization = activeOrganizationId
@@ -684,7 +687,7 @@ function RootLayout() {
       <AppSidebar
         user={user}
         displayActiveOrganization={displayActiveOrganization}
-        canManageIntegrations={canManageIntegrations}
+        canManageOrgSettings={canManageOrgSettings}
         navItems={navItems}
         organizationMenuItems={organizationMenuItems}
         isOrganizationsLoading={
@@ -1109,6 +1112,7 @@ function RootErrorBoundary({ error, reset }: ErrorComponentProps) {
 const BASE_SETTINGS_SUB_ITEMS = [
   { section: undefined, label: "Organization" },
   { section: "users" as const, label: "Users" },
+  { section: "custom-fields" as const, label: "Custom Fields" },
   { section: "developers" as const, label: "Developers" },
   { section: "integrations" as const, label: "Integrations" },
   { section: "webhooks" as const, label: "Webhooks" },
@@ -1119,7 +1123,7 @@ const SETTINGS_COMING_SOON = [{ label: "Security" }, { label: "Audit" }];
 function AppSidebar({
   user,
   displayActiveOrganization,
-  canManageIntegrations,
+  canManageOrgSettings,
   navItems,
   organizationMenuItems,
   isOrganizationsLoading,
@@ -1131,7 +1135,7 @@ function AppSidebar({
 }: {
   user: { name?: string | null; email: string } | undefined;
   displayActiveOrganization: OrganizationListItem | null;
-  canManageIntegrations: boolean;
+  canManageOrgSettings: boolean;
   navItems: {
     to: string;
     icon: React.ComponentProps<typeof Icon>["icon"];
@@ -1155,9 +1159,12 @@ function AppSidebar({
   const currentSection = isOnSettings
     ? (new URLSearchParams(location.searchStr).get("section") ?? undefined)
     : null;
-  const settingsSubItems = canManageIntegrations
+  const settingsSubItems = canManageOrgSettings
     ? BASE_SETTINGS_SUB_ITEMS
-    : BASE_SETTINGS_SUB_ITEMS.filter((item) => item.section !== "integrations");
+    : BASE_SETTINGS_SUB_ITEMS.filter(
+        (item) =>
+          item.section !== "integrations" && item.section !== "custom-fields",
+      );
   const [settingsExpanded, setSettingsExpanded] = useState(isOnSettings);
   const isSettingsOpen = isOnSettings || settingsExpanded;
 

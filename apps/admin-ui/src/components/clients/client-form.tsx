@@ -9,8 +9,12 @@ import {
 } from "libphonenumber-js/min";
 import { ArrowDown01Icon, Tick02Icon } from "@hugeicons/core-free-icons";
 import { createClientSchema } from "@scheduling/dto";
-import type { CreateClientInput } from "@scheduling/dto";
-
+import type {
+  CreateClientInput,
+  CustomAttributeDefinitionResponse,
+  CustomAttributeValues,
+} from "@scheduling/dto";
+import { CustomAttributeFormField } from "@/components/clients/custom-attribute-form-field";
 import { FieldShortcutHint } from "@/components/ui/field-shortcut-hint";
 import { Icon } from "@/components/ui/icon";
 import { Input } from "@/components/ui/input";
@@ -77,6 +81,7 @@ export interface ClientFormProps {
     email?: string;
     phone?: string;
     phoneCountry?: string;
+    customAttributes?: CustomAttributeValues;
   };
   onSubmit: (data: CreateClientInput) => void;
   onCancel: () => void;
@@ -85,6 +90,7 @@ export interface ClientFormProps {
   onDraftChange?: (data: CreateClientInput) => void;
   onDiscardDraft?: () => void;
   showDiscardAction?: boolean;
+  customFieldDefinitions?: CustomAttributeDefinitionResponse[];
 }
 
 export function ClientForm({
@@ -96,6 +102,7 @@ export function ClientForm({
   onDraftChange,
   onDiscardDraft,
   showDiscardAction = false,
+  customFieldDefinitions,
 }: ClientFormProps) {
   const formRef = useRef<HTMLFormElement>(null);
   const [countryComboboxOpen, setCountryComboboxOpen] = useState(false);
@@ -117,6 +124,9 @@ export function ClientForm({
       email: defaultValues?.email ?? "",
       phone: defaultValues?.phone ?? "",
       phoneCountry: defaultValues?.phoneCountry ?? "US",
+      ...(defaultValues?.customAttributes
+        ? { customAttributes: defaultValues.customAttributes }
+        : {}),
     },
   });
 
@@ -393,6 +403,24 @@ export function ClientForm({
           <FieldShortcutHint shortcut="p" visible={hintsVisible} />
         </div>
       </div>
+
+      {customFieldDefinitions && customFieldDefinitions.length > 0 ? (
+        <div className="space-y-4 border-t border-border pt-5">
+          <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+            Custom Fields
+          </Label>
+          {customFieldDefinitions
+            .toSorted((a, b) => a.displayOrder - b.displayOrder)
+            .map((def) => (
+              <CustomAttributeFormField
+                key={def.fieldKey}
+                definition={def}
+                control={control}
+                disabled={isSubmitting}
+              />
+            ))}
+        </div>
+      ) : null}
 
       <div className="sticky bottom-0 z-10 -mx-4 flex justify-end gap-3 border-t border-border bg-background/95 px-4 pt-3 pb-1 sm:-mx-6 sm:px-6 sm:backdrop-blur sm:supports-[backdrop-filter]:bg-background/80">
         {showDiscardAction && onDiscardDraft ? (

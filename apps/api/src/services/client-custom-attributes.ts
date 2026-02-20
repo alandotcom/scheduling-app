@@ -1,3 +1,4 @@
+import { forEachAsync } from "es-toolkit/array";
 import { retry } from "es-toolkit/function";
 import type {
   CustomAttributeType,
@@ -372,6 +373,42 @@ export class ClientCustomAttributeService {
         j: { used: countByPrefix["j"], total: SLOT_COUNT_BY_PREFIX["j"] },
       };
     });
+  }
+
+  async reorderDefinitions(
+    orderedIds: string[],
+    context: ServiceContext,
+  ): Promise<{ success: true }> {
+    await withOrg(context.orgId, async (tx) => {
+      const existing = await customAttributeRepository.listDefinitions(
+        tx,
+        context.orgId,
+      );
+      const existingIds = new Set(existing.map((d) => d.id));
+      const inputIds = new Set(orderedIds);
+      if (
+        existingIds.size !== inputIds.size ||
+        existing.some((d) => !inputIds.has(d.id))
+      ) {
+        throw new ApplicationError(
+          "orderedIds must contain exactly all custom attribute definition IDs",
+          { code: "VALIDATION_ERROR" },
+        );
+      }
+      await forEachAsync(
+        orderedIds,
+        async (id, i) => {
+          await customAttributeRepository.updateDefinition(
+            tx,
+            context.orgId,
+            id,
+            { displayOrder: i },
+          );
+        },
+        { concurrency: 1 },
+      );
+    });
+    return { success: true };
   }
 
   async writeValues(

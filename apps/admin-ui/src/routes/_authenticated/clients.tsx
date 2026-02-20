@@ -15,9 +15,13 @@ import {
 } from "@hugeicons/core-free-icons";
 import { toast } from "sonner";
 
-import type { CreateClientInput } from "@scheduling/dto";
+import type {
+  CreateClientInput,
+  CustomAttributeDefinitionResponse,
+} from "@scheduling/dto";
 import type { ContextMenuItem } from "@/components/context-menu";
 import { AppointmentModal } from "@/components/appointment-modal";
+import { ClientCustomFieldsDisplay } from "@/components/clients/client-custom-fields-display";
 import { ClientForm } from "@/components/clients/client-form";
 import { CopyIdHeaderAction } from "@/components/copy-id-header-action";
 import { DeleteConfirmDialog } from "@/components/delete-confirm-dialog";
@@ -60,6 +64,7 @@ interface CreateClientFormProps {
   onCancel: () => void;
   isSubmitting: boolean;
   shortcutsEnabled: boolean;
+  customFieldDefinitions?: CustomAttributeDefinitionResponse[];
 }
 
 function CreateClientForm({
@@ -67,6 +72,7 @@ function CreateClientForm({
   onCancel,
   isSubmitting,
   shortcutsEnabled,
+  customFieldDefinitions,
 }: CreateClientFormProps) {
   const initialValues = useMemo<CreateClientInput>(
     () => ({
@@ -75,6 +81,7 @@ function CreateClientForm({
       email: "",
       phone: "",
       phoneCountry: "US",
+      customAttributes: {},
     }),
     [],
   );
@@ -97,15 +104,16 @@ function CreateClientForm({
       onDraftChange={setDraft}
       onDiscardDraft={handleDiscardDraft}
       showDiscardAction={hasDraft}
+      customFieldDefinitions={customFieldDefinitions}
     />
   );
 }
 
-type DetailTabValue = "details" | "history";
+type DetailTabValue = "details" | "custom-fields" | "history";
 type AppointmentDetailTabValue = "details" | "client" | "history";
 
 const isDetailTab = (value: string): value is DetailTabValue =>
-  value === "details" || value === "history";
+  value === "details" || value === "custom-fields" || value === "history";
 const isAppointmentDetailTab = (
   value: string,
 ): value is AppointmentDetailTabValue =>
@@ -136,6 +144,17 @@ function ClientsPage() {
     }),
     placeholderData: (previous) => previous,
   });
+
+  const { data: customFieldDefinitions } = useQuery(
+    orpc.customAttributes.listDefinitions.queryOptions(),
+  );
+
+  const { data: selectedClientFull, isLoading: isLoadingClientFull } = useQuery(
+    {
+      ...orpc.clients.get.queryOptions({ input: { id: selectedId ?? "" } }),
+      enabled: !!selectedId,
+    },
+  );
 
   type ClientItem = NonNullable<typeof data>["items"][number];
 
@@ -600,6 +619,7 @@ function ClientsPage() {
                     className="px-0"
                   >
                     <DetailTab value="details">Details</DetailTab>
+                    <DetailTab value="custom-fields">Custom Fields</DetailTab>
                     <DetailTab value="history">History</DetailTab>
                   </DetailTabs>
 
@@ -648,6 +668,19 @@ function ClientsPage() {
                           </p>
                         </div>
                       </div>
+                    ) : activeTab === "custom-fields" ? (
+                      isLoadingClientFull ? (
+                        <div className="py-6 text-center text-sm text-muted-foreground">
+                          Loading custom fields...
+                        </div>
+                      ) : (
+                        <ClientCustomFieldsDisplay
+                          definitions={customFieldDefinitions ?? []}
+                          customAttributes={
+                            selectedClientFull?.customAttributes ?? null
+                          }
+                        />
+                      )
                     ) : (
                       <div className="space-y-6">
                         {isLoadingAppointments ? (
@@ -844,6 +877,7 @@ function ClientsPage() {
             onCancel={crud.closeCreate}
             isSubmitting={createMutation.isPending}
             shortcutsEnabled={crud.showCreateForm}
+            customFieldDefinitions={customFieldDefinitions}
           />
         </div>
       </EntityModal>
@@ -866,11 +900,13 @@ function ClientsPage() {
                   formatPhoneForDisplay(crud.editingItem.phone) ?? undefined,
                 phoneCountry:
                   deriveCountryFromPhone(crud.editingItem.phone) ?? "US",
+                customAttributes: selectedClientFull?.customAttributes ?? {},
               }}
               onSubmit={handleUpdate}
               onCancel={crud.closeEdit}
               isSubmitting={updateMutation.isPending}
               shortcutsEnabled={!!crud.editingItem}
+              customFieldDefinitions={customFieldDefinitions}
             />
           </div>
         ) : null}

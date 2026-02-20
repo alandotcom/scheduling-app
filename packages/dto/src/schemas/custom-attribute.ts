@@ -68,6 +68,10 @@ export const updateCustomAttributeDefinitionSchema = z.object({
   displayOrder: z.number().int().nonnegative().optional(),
 });
 
+export const reorderCustomAttributeDefinitionsSchema = z.object({
+  orderedIds: z.array(uuidSchema).min(1),
+});
+
 export const customAttributeDefinitionResponseSchema =
   customAttributeDefinitionSchema.omit({ slotColumn: true });
 
@@ -108,4 +112,10 @@ export type CreateCustomAttributeDefinitionInput = z.infer<
 export type UpdateCustomAttributeDefinitionInput = z.infer<
   typeof updateCustomAttributeDefinitionSchema
 >;
+export type CustomAttributeDefinitionResponse = z.infer<
+  typeof customAttributeDefinitionResponseSchema
+>;
 export type SlotUsage = z.infer<typeof slotUsageSchema>;
+export type ReorderCustomAttributeDefinitionsInput = z.infer<
+  typeof reorderCustomAttributeDefinitionsSchema
+>;
