@@ -2,6 +2,10 @@ import { appointments, clients, orgs } from "@scheduling/db/schema";
 import { eq } from "drizzle-orm";
 import { withOrg } from "../lib/db.js";
 import { clientCustomAttributeService } from "./client-custom-attributes.js";
+import {
+  toDataEnvelopeContext,
+  toOptionalDataEnvelopeContext,
+} from "./journey-context-shapes.js";
 
 const DEFAULT_ORG_TIMEZONE = "UTC";
 
@@ -85,6 +89,11 @@ export async function loadDeliveryTemplateContext(input: {
     return {};
   }
 
+  const appointmentClientPayload =
+    typeof appointmentPayload["client"] === "object"
+      ? (appointmentPayload["client"] as Record<string, unknown> | null)
+      : null;
+
   // TODO(workflow-templating): This context intentionally mirrors trigger
   // payload shape for Appointment references only.
   //
@@ -99,15 +108,11 @@ export async function loadDeliveryTemplateContext(input: {
     Appointment: {
       data: appointmentPayload,
     },
-    appointment: {
-      data: appointmentPayload,
-      ...appointmentPayload,
-    },
+    appointment: toDataEnvelopeContext(appointmentPayload),
     data: appointmentPayload,
-    client:
-      typeof appointmentPayload["client"] === "object"
-        ? (appointmentPayload["client"] as Record<string, unknown> | null)
-        : null,
+    client: appointmentClientPayload
+      ? toDataEnvelopeContext(appointmentClientPayload)
+      : null,
   };
 }
 
@@ -193,17 +198,8 @@ export async function loadFreshContextForPlanner(input: {
       client,
     };
 
-    const appointmentContext: Record<string, unknown> = {
-      ...appointmentPayload,
-      data: appointmentPayload,
-    };
-
-    const clientContext: Record<string, unknown> = client
-      ? {
-          ...client,
-          data: client,
-        }
-      : {};
+    const appointmentContext = toDataEnvelopeContext(appointmentPayload);
+    const clientContext = toOptionalDataEnvelopeContext(client);
 
     return { appointmentContext, clientContext, orgTimezone };
   });
@@ -270,10 +266,7 @@ export async function loadFreshContextForPlannerByRun(input: {
       phone: clientRow.phone,
       customAttributes,
     };
-    const clientContext: Record<string, unknown> = {
-      ...clientData,
-      data: clientData,
-    };
+    const clientContext = toDataEnvelopeContext(clientData);
 
     return {
       appointmentContext: {},
@@ -325,14 +318,13 @@ export async function loadClientDeliveryTemplateContext(input: {
     return {};
   }
 
+  const clientContext = toDataEnvelopeContext(clientPayload);
+
   return {
     Client: {
       data: clientPayload,
     },
-    client: {
-      data: clientPayload,
-      ...clientPayload,
-    },
+    client: clientContext,
     data: clientPayload,
   };
 }

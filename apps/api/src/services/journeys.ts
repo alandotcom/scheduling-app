@@ -50,6 +50,7 @@ import {
   getConstraintName,
 } from "../lib/db-errors.js";
 import { isRecord } from "../lib/type-guards.js";
+import { customAttributeRepository } from "../repositories/custom-attributes.js";
 import type { ServiceContext } from "./locations.js";
 import { clientCustomAttributeService } from "./client-custom-attributes.js";
 import { processJourneyDomainEvent } from "./journey-planner.js";
@@ -347,6 +348,52 @@ function collectRoutingEvents(config: JourneyTriggerConfig): string[] {
   }
 
   return [];
+}
+
+async function validateClientTriggerCustomAttributeReferences(input: {
+  tx: DbClient;
+  orgId: string;
+  graph: LinearJourneyGraph;
+}): Promise<void> {
+  const triggerConfig = getTriggerConfigFromGraph(input.graph);
+  if (
+    !triggerConfig ||
+    triggerConfig.triggerType !== "ClientJourney" ||
+    triggerConfig.event !== "client.updated"
+  ) {
+    return;
+  }
+
+  const trackedAttributeKey = triggerConfig.trackedAttributeKey?.trim();
+  if (!trackedAttributeKey) {
+    throw journeyDefinitionInvalidError([
+      {
+        code: "custom",
+        path: ["trigger", "config", "trackedAttributeKey"],
+        message: 'Client updated triggers must include "trackedAttributeKey".',
+      },
+    ]);
+  }
+
+  const definitions = await customAttributeRepository.listDefinitions(
+    input.tx,
+    input.orgId,
+  );
+  const validFieldKeys = new Set(
+    definitions.map((definition) => definition.fieldKey),
+  );
+
+  if (validFieldKeys.has(trackedAttributeKey)) {
+    return;
+  }
+
+  throw journeyDefinitionInvalidError([
+    {
+      code: "custom",
+      path: ["trigger", "config", "trackedAttributeKey"],
+      message: `Tracked attribute key "${trackedAttributeKey}" does not exist in client custom attributes.`,
+    },
+  ]);
 }
 
 function collectHighSignalEqualsFilters(
@@ -945,6 +992,13 @@ export class JourneyService {
         });
       }
 
+      const parsedGraph = parseLinearJourneyGraph(existing.draftDefinition);
+      await validateClientTriggerCustomAttributeReferences({
+        tx,
+        orgId: context.orgId,
+        graph: parsedGraph,
+      });
+
       const [nextVersionRow] = await tx
         .select({
           nextVersion: sql<number>`coalesce(max(${journeyVersions.version}), 0) + 1`,
@@ -978,7 +1032,7 @@ export class JourneyService {
       const warnings = await computePublishOverlapWarnings({
         tx,
         journeyId: id,
-        graph: parseLinearJourneyGraph(existing.draftDefinition),
+        graph: parsedGraph,
       });
 
       return {

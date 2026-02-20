@@ -208,7 +208,7 @@ describe("journey integration action dispatchers", () => {
     });
   });
 
-  test("dispatchJourneySendTwilioAction falls back to @client.phone for client-trigger runs", async () => {
+  test("dispatchJourneySendTwilioAction falls back to @client.data.phone for client-trigger runs", async () => {
     const sent = await dispatchJourneySendTwilioAction(
       {
         ...baseDispatchInput,
@@ -223,6 +223,10 @@ describe("journey integration action dispatchers", () => {
       {
         loadTemplateContext: async () => ({
           client: {
+            data: {
+              firstName: "Avery",
+              phone: "+14155552671",
+            },
             firstName: "Avery",
             phone: "+14155552671",
           },

@@ -350,6 +350,15 @@ export const clientJourneyTriggerConfigSchema = z
         path: ["trackedAttributeKey"],
       });
     }
+
+    if (value.event === "client.created" && value.trackedAttributeKey) {
+      ctx.addIssue({
+        code: "custom",
+        message:
+          'Client created triggers must not include "trackedAttributeKey".',
+        path: ["trackedAttributeKey"],
+      });
+    }
   })
   .strict();
 

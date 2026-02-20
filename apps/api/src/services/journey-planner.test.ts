@@ -8,6 +8,7 @@ mock.module("../inngest/runtime-events.js", () => ({
 import { and, desc, eq } from "drizzle-orm";
 import {
   appointments,
+  clientCustomAttributeDefinitions,
   journeyDeliveries,
   journeyRuns,
   journeyVersions,
@@ -23,6 +24,7 @@ import {
 } from "../test-utils/index.js";
 import { createOrg, createQuickAppointment } from "../test-utils/factories.js";
 import type { ServiceContext } from "./locations.js";
+import { clientCustomAttributeService } from "./client-custom-attributes.js";
 import { journeyService } from "./journeys.js";
 import {
   processJourneyDomainEvent,
@@ -123,6 +125,65 @@ function createJourneyGraph(input?: {
         attributes: {
           id: "wait-to-send",
           source: "wait-node",
+          target: "send-node",
+        },
+      },
+    ],
+  };
+}
+
+function createClientUpdatedJourneyGraph(input?: {
+  trackedAttributeKey?: string;
+}): LinearJourneyGraph {
+  return {
+    attributes: {},
+    options: {
+      type: "directed",
+    },
+    nodes: [
+      {
+        key: "trigger-node",
+        attributes: {
+          id: "trigger-node",
+          type: "trigger-node",
+          position: { x: 0, y: 0 },
+          data: {
+            type: "trigger",
+            label: "Client Trigger",
+            config: {
+              triggerType: "ClientJourney",
+              event: "client.updated",
+              correlationKey: "clientId",
+              trackedAttributeKey:
+                input?.trackedAttributeKey ?? "membershipTier",
+            },
+          },
+        },
+      },
+      {
+        key: "send-node",
+        attributes: {
+          id: "send-node",
+          type: "action-node",
+          position: { x: 0, y: 140 },
+          data: {
+            type: "action",
+            label: "Send",
+            config: {
+              actionType: "send-resend",
+            },
+          },
+        },
+      },
+    ],
+    edges: [
+      {
+        key: "trigger-to-send",
+        source: "trigger-node",
+        target: "send-node",
+        attributes: {
+          id: "trigger-to-send",
+          source: "trigger-node",
           target: "send-node",
         },
       },
@@ -871,6 +932,39 @@ function createAppointmentPayload(input?: {
   };
 }
 
+function createClientUpdatedPayload(input?: {
+  clientId?: string;
+  trackedAttributeKey?: string;
+  previousValue?: string;
+  nextValue?: string;
+}) {
+  const clientId = input?.clientId ?? "018f4d3a-6d80-7c5b-8a4a-6cb8f8d57d24";
+  const trackedAttributeKey = input?.trackedAttributeKey ?? "membershipTier";
+  const previousValue = input?.previousValue ?? "silver";
+  const nextValue = input?.nextValue ?? "gold";
+
+  return {
+    clientId,
+    firstName: "Avery",
+    lastName: "Stone",
+    email: "avery@example.com",
+    phone: "+14155552671",
+    customAttributes: {
+      [trackedAttributeKey]: nextValue,
+    },
+    previous: {
+      clientId,
+      firstName: "Avery",
+      lastName: "Stone",
+      email: "avery@example.com",
+      phone: "+14155552671",
+      customAttributes: {
+        [trackedAttributeKey]: previousValue,
+      },
+    },
+  };
+}
+
 describe("processJourneyDomainEvent", () => {
   let context: ServiceContext;
 
@@ -883,6 +977,75 @@ describe("processJourneyDomainEvent", () => {
       orgId: org.id,
       userId: user.id,
     };
+  });
+
+  test("marks journey as errored and does not create runs when tracked attribute key no longer exists", async () => {
+    const definition = await clientCustomAttributeService.createDefinition(
+      {
+        fieldKey: "membershipTier",
+        label: "Membership Tier",
+        type: "TEXT",
+        required: false,
+        displayOrder: 0,
+      },
+      context,
+    );
+
+    const created = await journeyService.create(
+      {
+        name: "Client Updated Guard Journey",
+        graph: createClientUpdatedJourneyGraph({
+          trackedAttributeKey: "membershipTier",
+        }),
+      },
+      context,
+    );
+
+    await journeyService.publish(
+      created.id,
+      {
+        mode: "live",
+      },
+      context,
+    );
+
+    await clientCustomAttributeService.deleteDefinition(definition.id, context);
+
+    const result = await processJourneyDomainEvent(
+      {
+        id: "evt-client-updated-missing-attr",
+        orgId: context.orgId,
+        type: "client.updated",
+        payload: createClientUpdatedPayload({
+          trackedAttributeKey: "membershipTier",
+        }),
+        timestamp: "2026-02-16T10:00:00.000Z",
+      },
+      {
+        providerRequesters: {
+          "send-resend": mock(async () => ({ eventId: "evt-scheduled-guard" })),
+        },
+        now: new Date("2026-02-16T10:00:00.000Z"),
+      },
+    );
+
+    expect(result.plannedRunIds).toHaveLength(0);
+    expect(result.scheduledDeliveryIds).toHaveLength(0);
+    expect(result.erroredJourneyIds).toContain(created.id);
+
+    await setTestOrgContext(db, context.orgId);
+
+    const runs = await db
+      .select({ id: journeyRuns.id })
+      .from(journeyRuns)
+      .where(eq(journeyRuns.triggerEntityType, "client"));
+    expect(runs).toHaveLength(0);
+
+    const definitions = await db
+      .select({ id: clientCustomAttributeDefinitions.id })
+      .from(clientCustomAttributeDefinitions)
+      .where(eq(clientCustomAttributeDefinitions.fieldKey, "membershipTier"));
+    expect(definitions).toHaveLength(0);
   });
 
   test("plans deterministic run and delivery for matching appointment event", async () => {

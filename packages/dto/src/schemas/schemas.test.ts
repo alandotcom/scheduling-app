@@ -1004,6 +1004,16 @@ describe("Webhook schemas", () => {
 });
 
 describe("Journey trigger config schema", () => {
+  test("accepts client.created without trackedAttributeKey", () => {
+    const result = journeyTriggerConfigSchema.safeParse({
+      triggerType: "ClientJourney",
+      event: "client.created",
+      correlationKey: "clientId",
+    });
+
+    expect(result.success).toBe(true);
+  });
+
   test("accepts client.updated when trackedAttributeKey is provided", () => {
     const result = journeyTriggerConfigSchema.safeParse({
       triggerType: "ClientJourney",
@@ -1020,6 +1030,27 @@ describe("Journey trigger config schema", () => {
       triggerType: "ClientJourney",
       event: "client.updated",
       correlationKey: "clientId",
+    });
+
+    expect(result.success).toBe(false);
+    if (result.success) {
+      return;
+    }
+
+    const issue = result.error.issues.find(
+      (candidate) =>
+        candidate.path.join(".") === "trackedAttributeKey" &&
+        candidate.message.includes("trackedAttributeKey"),
+    );
+    expect(issue).toBeDefined();
+  });
+
+  test("rejects client.created when trackedAttributeKey is provided", () => {
+    const result = journeyTriggerConfigSchema.safeParse({
+      triggerType: "ClientJourney",
+      event: "client.created",
+      correlationKey: "clientId",
+      trackedAttributeKey: "renewalDate",
     });
 
     expect(result.success).toBe(false);

@@ -6,6 +6,10 @@ import {
   type LinearJourneyGraph,
 } from "@scheduling/dto";
 import { toRecord } from "../lib/type-guards.js";
+import {
+  toDataEnvelopeContext,
+  toDataEnvelopeContextFromUnknown,
+} from "./journey-context-shapes.js";
 
 export type JourneyPlannerDomainEventType = Extract<
   DomainEventType,
@@ -168,10 +172,7 @@ function resolveClientContextFromPayload(
   if (clientId && typeof clientData["id"] !== "string") {
     clientData["id"] = clientId;
   }
-  const clientContext: Record<string, unknown> = {
-    ...clientData,
-    data: clientData,
-  };
+  const clientContext = toDataEnvelopeContext(clientData);
 
   return {
     clientId,
@@ -203,18 +204,10 @@ export function resolveJourneyTriggerRuntime(input: {
     }
 
     const appointmentPayload = toRecord(input.payload);
-    const appointmentContext: Record<string, unknown> = {
-      ...appointmentPayload,
-      data: appointmentPayload,
-    };
-    const clientPayload = toRecord(appointmentPayload["client"]);
-    const clientContext: Record<string, unknown> =
-      Object.keys(clientPayload).length > 0
-        ? {
-            ...clientPayload,
-            data: clientPayload,
-          }
-        : {};
+    const appointmentContext = toDataEnvelopeContext(appointmentPayload);
+    const clientContext = toDataEnvelopeContextFromUnknown(
+      appointmentPayload["client"],
+    );
     const appointmentId =
       typeof appointmentPayload["appointmentId"] === "string"
         ? appointmentPayload["appointmentId"]

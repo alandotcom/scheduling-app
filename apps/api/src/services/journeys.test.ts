@@ -21,6 +21,7 @@ import {
   createQuickAppointment,
 } from "../test-utils/factories.js";
 import { journeyService } from "./journeys.js";
+import { clientCustomAttributeService } from "./client-custom-attributes.js";
 import type { ServiceContext } from "./locations.js";
 import type { LinearJourneyGraph } from "@scheduling/dto";
 
@@ -175,6 +176,45 @@ function createLinearGraphWithTriggerConfig(input: {
   };
 }
 
+function createClientJourneyGraph(input: {
+  triggerId: string;
+  event: "client.created" | "client.updated";
+  trackedAttributeKey?: string;
+}): LinearJourneyGraph {
+  return {
+    attributes: {},
+    options: {
+      type: "directed",
+    },
+    nodes: [
+      {
+        key: input.triggerId,
+        attributes: {
+          id: input.triggerId,
+          type: "trigger-node",
+          position: {
+            x: 0,
+            y: 0,
+          },
+          data: {
+            label: "Client Trigger",
+            type: "trigger",
+            config: {
+              triggerType: "ClientJourney",
+              event: input.event,
+              correlationKey: "clientId",
+              ...(input.trackedAttributeKey
+                ? { trackedAttributeKey: input.trackedAttributeKey }
+                : {}),
+            },
+          },
+        },
+      },
+    ],
+    edges: [],
+  };
+}
+
 describe("JourneyService", () => {
   const db: TestDatabase = getTestDb();
   let context: ServiceContext;
@@ -282,6 +322,71 @@ describe("JourneyService", () => {
     );
     expect(switchedMode.status).toBe("published");
     expect(switchedMode.mode).toBe("test");
+  });
+
+  test("blocks publish when client.updated tracked attribute key does not exist", async () => {
+    const created = await journeyService.create(
+      {
+        name: "Client Updated Missing Attribute",
+        graph: createClientJourneyGraph({
+          triggerId: "trigger-client-updated-missing",
+          event: "client.updated",
+          trackedAttributeKey: "membershipTier",
+        }),
+      },
+      context,
+    );
+
+    await expect(
+      journeyService.publish(
+        created.id,
+        {
+          mode: "live",
+        },
+        context,
+      ),
+    ).rejects.toMatchObject({
+      code: "CONFLICT",
+      details: {
+        code: "JOURNEY_DEFINITION_INVALID",
+      },
+    });
+  });
+
+  test("allows publish when client.updated tracked attribute key exists", async () => {
+    await clientCustomAttributeService.createDefinition(
+      {
+        fieldKey: "membershipTier",
+        label: "Membership Tier",
+        type: "TEXT",
+        required: false,
+        displayOrder: 0,
+      },
+      context,
+    );
+
+    const created = await journeyService.create(
+      {
+        name: "Client Updated Known Attribute",
+        graph: createClientJourneyGraph({
+          triggerId: "trigger-client-updated-known",
+          event: "client.updated",
+          trackedAttributeKey: "membershipTier",
+        }),
+      },
+      context,
+    );
+
+    const published = await journeyService.publish(
+      created.id,
+      {
+        mode: "live",
+      },
+      context,
+    );
+
+    expect(published.journey.status).toBe("published");
+    expect(published.version).toBe(1);
   });
 
   test("graph updates on published journeys create a new live version for subsequent runs", async () => {

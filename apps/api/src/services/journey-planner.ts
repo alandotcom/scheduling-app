@@ -3,6 +3,7 @@ import { getLogger } from "@logtape/logtape";
 import {
   linearJourneyGraphSchema,
   type LinearJourneyGraph,
+  type JourneyTriggerConfig,
 } from "@scheduling/dto";
 import {
   journeyDeliveries,
@@ -14,6 +15,7 @@ import {
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { withOrg, type DbClient } from "../lib/db.js";
 import { toRecord } from "../lib/type-guards.js";
+import { customAttributeRepository } from "../repositories/custom-attributes.js";
 import {
   sendJourneyActionExecuteForActionType,
   sendJourneyDeliveryCanceled,
@@ -416,6 +418,29 @@ function buildDeliveryDeterministicKey(input: {
   scheduledFor: Date;
 }): string {
   return `${input.journeyRunId}:${input.stepKey}:${input.scheduledFor.toISOString()}`;
+}
+
+function resolveInvalidTrackedAttributeReason(input: {
+  triggerConfig: JourneyTriggerConfig;
+  validClientAttributeKeys: Set<string> | null;
+}): string | null {
+  if (
+    input.triggerConfig.triggerType !== "ClientJourney" ||
+    input.triggerConfig.event !== "client.updated"
+  ) {
+    return null;
+  }
+
+  const trackedAttributeKey = input.triggerConfig.trackedAttributeKey?.trim();
+  if (!trackedAttributeKey) {
+    return 'missing required "trackedAttributeKey"';
+  }
+
+  if (!input.validClientAttributeKeys?.has(trackedAttributeKey)) {
+    return `unknown tracked attribute key "${trackedAttributeKey}"`;
+  }
+
+  return null;
 }
 
 function buildDesiredDeliveries(input: {
@@ -1252,6 +1277,14 @@ export async function processJourneyDomainEvent(
       .where(eq(orgs.id, event.orgId))
       .limit(1);
     const orgTimezone = org?.defaultTimezone ?? DEFAULT_ORG_TIMEZONE;
+    const validClientAttributeKeys =
+      event.type === "client.updated"
+        ? new Set(
+            (
+              await customAttributeRepository.listDefinitions(tx, event.orgId)
+            ).map((definition) => definition.fieldKey),
+          )
+        : null;
 
     const latestVersionByJourneyId = new Map<string, JourneyVersionRow>();
     for (const version of versions) {
@@ -1309,6 +1342,22 @@ export async function processJourneyDomainEvent(
           }
 
           const { triggerConfig, routing } = triggerResolution;
+          const invalidTrackedAttributeReason =
+            resolveInvalidTrackedAttributeReason({
+              triggerConfig,
+              validClientAttributeKeys,
+            });
+          if (invalidTrackedAttributeReason) {
+            journeyPlannerLogger.error(
+              "Journey trigger config invalid for journey {journeyId}: {reason}",
+              {
+                journeyId: journey.id,
+                reason: invalidTrackedAttributeReason,
+              },
+            );
+            erroredJourneyIds.push(journey.id);
+            return;
+          }
 
           if (routing === "ignore") {
             ignoredJourneyIds.push(journey.id);

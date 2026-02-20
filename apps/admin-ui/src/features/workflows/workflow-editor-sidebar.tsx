@@ -383,6 +383,8 @@ export function WorkflowEditorSidebar({
     ...orpc.customAttributes.listDefinitions.queryOptions(),
     placeholderData: (previous) => previous,
   });
+  const hasLoadedCustomAttributeDefinitions =
+    customAttributeDefinitionsData !== undefined;
   const currentTriggerType = getTriggerType(nodes);
   const fieldOptions = useMemo(
     () =>
@@ -666,6 +668,12 @@ export function WorkflowEditorSidebar({
                     {selectedNodeType === "trigger" ? (
                       <WorkflowTriggerConfig
                         config={selectedNodeConfig}
+                        clientAttributeDefinitions={
+                          customAttributeDefinitionsData
+                        }
+                        clientAttributeDefinitionsLoaded={
+                          hasLoadedCustomAttributeDefinitions
+                        }
                         defaultTimezone={defaultTimezone}
                         disabled={!canManageWorkflow}
                         fieldOptions={fieldOptions}

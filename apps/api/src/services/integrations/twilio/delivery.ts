@@ -238,9 +238,10 @@ export async function dispatchJourneySendTwilioAction(
     input.stepConfig["toPhone"],
     context,
   );
-  const fallbackRecipient =
-    resolveTemplateString("@Appointment.data.client.phone", context) ??
-    resolveTemplateString("@client.phone", context);
+  const fallbackRecipient = resolveTemplateString(
+    "@client.data.phone",
+    context,
+  );
   const recipient = normalizePhoneValue(explicitRecipient ?? fallbackRecipient);
   if (!recipient) {
     throw new JourneyDeliveryNonRetryableError(

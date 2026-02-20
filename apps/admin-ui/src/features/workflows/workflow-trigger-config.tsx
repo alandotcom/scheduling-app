@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Add01Icon,
   Alert02Icon,
@@ -49,6 +49,7 @@ import {
   toDateTimeLocalInputValue,
   toWorkflowFilterFallbackLabel,
   toRelativeTemporalValueDraft,
+  type CustomAttributeDefinitionForFilter,
 } from "./filter-builder-shared";
 
 type AppointmentTriggerConfigShape = {
@@ -899,6 +900,8 @@ function AudienceFilterSection({
 
 interface WorkflowTriggerConfigProps {
   config: Record<string, unknown>;
+  clientAttributeDefinitions?: CustomAttributeDefinitionForFilter[];
+  clientAttributeDefinitionsLoaded?: boolean;
   defaultTimezone?: string;
   disabled: boolean;
   fieldOptions?: WorkflowFilterFieldOption[];
@@ -911,6 +914,8 @@ interface WorkflowTriggerConfigProps {
 
 export function WorkflowTriggerConfig({
   config,
+  clientAttributeDefinitions = [],
+  clientAttributeDefinitionsLoaded = true,
   defaultTimezone = "America/New_York",
   disabled,
   fieldOptions = WORKFLOW_FILTER_FIELD_OPTIONS,
@@ -927,6 +932,8 @@ export function WorkflowTriggerConfig({
     <WorkflowTriggerConfigInner
       key={filterSyncKey}
       config={config}
+      clientAttributeDefinitions={clientAttributeDefinitions}
+      clientAttributeDefinitionsLoaded={clientAttributeDefinitionsLoaded}
       defaultTimezone={defaultTimezone}
       disabled={disabled}
       fieldOptions={fieldOptions}
@@ -946,6 +953,8 @@ interface WorkflowTriggerConfigInnerProps extends WorkflowTriggerConfigProps {
 
 function WorkflowTriggerConfigInner({
   config,
+  clientAttributeDefinitions = [],
+  clientAttributeDefinitionsLoaded = true,
   defaultTimezone = "America/New_York",
   disabled,
   fieldOptions = WORKFLOW_FILTER_FIELD_OPTIONS,
@@ -1155,6 +1164,41 @@ function WorkflowTriggerConfigInner({
     typeof config.trackedAttributeKey === "string"
       ? config.trackedAttributeKey
       : "";
+  const trackedAttributeOptions = useMemo(
+    () =>
+      clientAttributeDefinitions.map((definition) => ({
+        value: definition.fieldKey,
+        label: definition.label,
+      })),
+    [clientAttributeDefinitions],
+  );
+  const hasTrackedAttributeOptions = trackedAttributeOptions.length > 0;
+  const isTrackedAttributeSelectionValid = clientAttributeDefinitionsLoaded
+    ? trackedAttributeOptions.some(
+        (option) => option.value === currentTrackedAttributeKey,
+      )
+    : true;
+  const selectedTrackedAttributeLabel = trackedAttributeOptions.find(
+    (option) => option.value === currentTrackedAttributeKey,
+  )?.label;
+  const showMissingTrackedAttributeWarning =
+    clientAttributeDefinitionsLoaded &&
+    currentTriggerType === "ClientJourney" &&
+    currentClientEvent === "client.updated" &&
+    currentTrackedAttributeKey.length > 0 &&
+    !isTrackedAttributeSelectionValid;
+
+  useEffect(() => {
+    if (disabled || !showMissingTrackedAttributeWarning) {
+      return;
+    }
+
+    onUpdate({
+      triggerType: "ClientJourney",
+      event: "client.updated",
+      correlationKey: "clientId",
+    });
+  }, [disabled, showMissingTrackedAttributeWarning, onUpdate]);
 
   const audienceDescription =
     currentTriggerType === "ClientJourney"
@@ -1290,23 +1334,68 @@ function WorkflowTriggerConfigInner({
                 <p className="font-medium text-xs text-muted-foreground">
                   Tracked attribute key (required)
                 </p>
-                <Input
-                  className="h-9"
-                  disabled={disabled}
-                  placeholder="e.g. status, tier, plan"
-                  value={currentTrackedAttributeKey}
-                  onChange={(event) => {
-                    const trimmed = event.target.value.trim();
+                <Select
+                  disabled={
+                    disabled ||
+                    !clientAttributeDefinitionsLoaded ||
+                    !hasTrackedAttributeOptions
+                  }
+                  value={
+                    isTrackedAttributeSelectionValid
+                      ? currentTrackedAttributeKey
+                      : null
+                  }
+                  onValueChange={(value) => {
+                    if (!value) {
+                      return;
+                    }
+
                     onUpdate({
                       triggerType: "ClientJourney",
                       event: "client.updated",
                       correlationKey: "clientId",
-                      ...(trimmed.length > 0
-                        ? { trackedAttributeKey: trimmed }
-                        : {}),
+                      trackedAttributeKey: value,
                     });
                   }}
-                />
+                >
+                  <SelectTrigger
+                    aria-label="Tracked attribute key"
+                    className="h-9 w-full"
+                    size="sm"
+                  >
+                    <SelectValue
+                      placeholder={
+                        !clientAttributeDefinitionsLoaded
+                          ? "Loading tracked attributes..."
+                          : hasTrackedAttributeOptions
+                            ? "Select tracked attribute"
+                            : "No custom attributes available"
+                      }
+                    >
+                      {selectedTrackedAttributeLabel}
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    {trackedAttributeOptions.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {clientAttributeDefinitionsLoaded &&
+                !hasTrackedAttributeOptions ? (
+                  <p className="text-destructive text-xs">
+                    Add at least one client custom attribute before using the
+                    Client Updated trigger.
+                  </p>
+                ) : null}
+                {showMissingTrackedAttributeWarning ? (
+                  <p className="text-destructive text-xs">
+                    The previously selected attribute no longer exists. Select a
+                    new tracked attribute.
+                  </p>
+                ) : null}
                 <p className="text-muted-foreground text-xs">
                   Required. Trigger fires only when this attribute changes on
                   the client record.

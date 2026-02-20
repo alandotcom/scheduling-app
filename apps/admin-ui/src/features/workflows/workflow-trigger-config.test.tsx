@@ -16,6 +16,15 @@ function createTriggerConfig() {
   } as const;
 }
 
+function createClientUpdatedTriggerConfig() {
+  return {
+    triggerType: "ClientJourney",
+    event: "client.updated",
+    correlationKey: "clientId",
+    trackedAttributeKey: "renewalDate",
+  } as const;
+}
+
 describe("WorkflowTriggerConfig", () => {
   test("renders compact appointment journey summary", () => {
     const onUpdate = mock(() => {});
@@ -825,6 +834,126 @@ describe("WorkflowTriggerConfig", () => {
     );
 
     expect(screen.getByText("You can add at most 12 conditions.")).toBeTruthy();
+    expect(onUpdate).toHaveBeenCalledTimes(0);
+  });
+
+  test("renders tracked attribute selector for client.updated trigger", () => {
+    const onUpdate = mock(() => {});
+
+    render(
+      <WorkflowTriggerConfig
+        clientAttributeDefinitions={[
+          {
+            fieldKey: "renewalDate",
+            label: "Renewal Date",
+            type: "DATE",
+          },
+        ]}
+        config={createClientUpdatedTriggerConfig()}
+        disabled={false}
+        onUpdate={onUpdate}
+      />,
+    );
+
+    const trackedAttributeCombobox = screen.getByRole("combobox", {
+      name: "Tracked attribute key",
+    });
+    expect(trackedAttributeCombobox.textContent).toContain("Renewal Date");
+  });
+
+  test("shows blocking copy when no client attributes exist for client.updated", () => {
+    const onUpdate = mock(() => {});
+
+    render(
+      <WorkflowTriggerConfig
+        clientAttributeDefinitions={[]}
+        config={createClientUpdatedTriggerConfig()}
+        disabled={false}
+        onUpdate={onUpdate}
+      />,
+    );
+
+    expect(
+      screen.getByText(
+        "Add at least one client custom attribute before using the Client Updated trigger.",
+      ),
+    ).toBeTruthy();
+  });
+
+  test("clears stale tracked attribute selections that no longer exist", () => {
+    const onUpdate = mock(() => {});
+
+    render(
+      <WorkflowTriggerConfig
+        clientAttributeDefinitions={[
+          {
+            fieldKey: "membershipTier",
+            label: "Membership Tier",
+            type: "TEXT",
+          },
+        ]}
+        config={createClientUpdatedTriggerConfig()}
+        disabled={false}
+        onUpdate={onUpdate}
+      />,
+    );
+
+    expect(
+      screen.getByText(
+        "The previously selected attribute no longer exists. Select a new tracked attribute.",
+      ),
+    ).toBeTruthy();
+    expect(onUpdate).toHaveBeenCalledWith({
+      triggerType: "ClientJourney",
+      event: "client.updated",
+      correlationKey: "clientId",
+    });
+  });
+
+  test("does not clear tracked attribute selections while definitions are still loading", () => {
+    const onUpdate = mock(() => {});
+
+    render(
+      <WorkflowTriggerConfig
+        clientAttributeDefinitions={[]}
+        clientAttributeDefinitionsLoaded={false}
+        config={createClientUpdatedTriggerConfig()}
+        disabled={false}
+        onUpdate={onUpdate}
+      />,
+    );
+
+    expect(
+      screen.queryByText(
+        "The previously selected attribute no longer exists. Select a new tracked attribute.",
+      ),
+    ).toBeNull();
+    expect(onUpdate).toHaveBeenCalledTimes(0);
+  });
+
+  test("does not clear stale tracked attribute selections when trigger config is disabled", () => {
+    const onUpdate = mock(() => {});
+
+    render(
+      <WorkflowTriggerConfig
+        clientAttributeDefinitions={[
+          {
+            fieldKey: "membershipTier",
+            label: "Membership Tier",
+            type: "TEXT",
+          },
+        ]}
+        config={createClientUpdatedTriggerConfig()}
+        disabled
+        onUpdate={onUpdate}
+      />,
+    );
+
+    expect(
+      screen.getByText(
+        "The previously selected attribute no longer exists. Select a new tracked attribute.",
+      ),
+    ).toBeTruthy();
     expect(onUpdate).toHaveBeenCalledTimes(0);
   });
 });
