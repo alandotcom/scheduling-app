@@ -2166,7 +2166,7 @@ function PropertyRow({
       className={cn(depth === 0 && "border-b border-border/50 last:border-b-0")}
     >
       <div
-        className="flex items-center gap-2.5 py-3"
+        className="flex min-w-0 items-center gap-2.5 overflow-hidden py-3 pr-3"
         style={{ paddingLeft: depth * 20 + 12 }}
       >
         {/* Expand toggle or spacer */}
@@ -2186,10 +2186,10 @@ function PropertyRow({
         )}
 
         {/* Name + optional description */}
-        <div className="flex min-w-0 flex-col">
-          <code className="shrink-0 text-[13px] font-semibold">{name}</code>
+        <div className="flex min-w-0 shrink flex-col">
+          <code className="truncate text-[13px] font-semibold">{name}</code>
           {info.description ? (
-            <span className="text-xs text-muted-foreground">
+            <span className="truncate text-xs text-muted-foreground">
               {info.description}
             </span>
           ) : null}
@@ -2224,7 +2224,7 @@ function PropertyRow({
         {info.nullable ? (
           <Badge
             variant="outline"
-            className="h-4 px-1 text-[10px] leading-none"
+            className="h-4 shrink-0 px-1 text-[10px] leading-none"
           >
             nullable
           </Badge>
@@ -2232,14 +2232,14 @@ function PropertyRow({
 
         {/* Const value */}
         {info.constValue !== undefined ? (
-          <code className="text-[10px] text-muted-foreground">
+          <code className="min-w-0 truncate text-[10px] text-muted-foreground">
             = "{info.constValue}"
           </code>
         ) : null}
 
         {/* Enum values */}
         {info.enumValues ? (
-          <code className="truncate text-[10px] text-muted-foreground">
+          <code className="min-w-0 truncate text-[10px] text-muted-foreground">
             [{info.enumValues.map((v) => `"${v}"`).join(" | ")}]
           </code>
         ) : null}
@@ -2248,7 +2248,7 @@ function PropertyRow({
       {/* Nested properties */}
       {expanded && info.nestedProperties ? (
         <div
-          className="mb-3 rounded-md border border-border/60 bg-muted/20"
+          className="mb-3 mr-3 overflow-hidden rounded-md border border-border/60 bg-muted/20"
           style={{ marginLeft: depth * 20 + 12 + 20 + 10 }}
         >
           <PropertyList
