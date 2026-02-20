@@ -25,6 +25,7 @@ import {
 } from "./action-visuals";
 
 type ConditionBranch = "true" | "false";
+type TriggerBranch = "scheduled" | "canceled";
 
 export type WorkflowNodeStatus =
   | "idle"
@@ -95,6 +96,7 @@ export type WorkflowNodeData =
 
 export type WorkflowEdgeData = {
   conditionBranch?: ConditionBranch;
+  triggerBranch?: TriggerBranch;
   branch?: string;
   switchBranch?: string;
   [key: string]: unknown;
@@ -227,6 +229,36 @@ function normalizeConditionBranch(value: unknown): ConditionBranch | null {
   return null;
 }
 
+function normalizeTriggerBranch(value: unknown): TriggerBranch | null {
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const normalized = value.trim().toLowerCase();
+  if (normalized === "scheduled" || normalized === "canceled") {
+    return normalized;
+  }
+
+  return null;
+}
+
+export function getTriggerBranchFromEdge(
+  edge: WorkflowCanvasEdge,
+): TriggerBranch | null {
+  const edgeData = asRecord(edge.data);
+  const dataBranch = normalizeTriggerBranch(edgeData?.["triggerBranch"]);
+  if (dataBranch) {
+    return dataBranch;
+  }
+
+  const labelBranch = normalizeTriggerBranch(edge.label);
+  if (labelBranch) {
+    return labelBranch;
+  }
+
+  return normalizeTriggerBranch(edge.sourceHandle);
+}
+
 function collectConditionBranches(
   edges: WorkflowCanvasEdge[],
   sourceNodeId: string,
@@ -239,6 +271,26 @@ function collectConditionBranches(
     }
 
     const branch = normalizeConditionBranch(edge.sourceHandle);
+    if (branch) {
+      branches.add(branch);
+    }
+  }
+
+  return branches;
+}
+
+function collectTriggerBranches(
+  edges: WorkflowCanvasEdge[],
+  sourceNodeId: string,
+): Set<TriggerBranch> {
+  const branches = new Set<TriggerBranch>();
+
+  for (const edge of edges) {
+    if (edge.source !== sourceNodeId) {
+      continue;
+    }
+
+    const branch = getTriggerBranchFromEdge(edge);
     if (branch) {
       branches.add(branch);
     }
@@ -275,8 +327,38 @@ function resolveConditionBranchForConnection(input: {
   return "true";
 }
 
+function resolveTriggerBranchForConnection(input: {
+  sourceNodeId: string;
+  connection: Connection;
+  currentEdges: WorkflowCanvasEdge[];
+}): TriggerBranch | null {
+  const explicitBranch = normalizeTriggerBranch(input.connection.sourceHandle);
+  if (explicitBranch) {
+    return explicitBranch;
+  }
+
+  const existingBranches = collectTriggerBranches(
+    input.currentEdges,
+    input.sourceNodeId,
+  );
+
+  if (!existingBranches.has("scheduled")) {
+    return "scheduled";
+  }
+
+  if (!existingBranches.has("canceled")) {
+    return "canceled";
+  }
+
+  return "scheduled";
+}
+
 function getConditionBranchLabel(branch: ConditionBranch): string {
   return branch === "true" ? "True" : "False";
+}
+
+function getTriggerBranchLabel(branch: TriggerBranch): string {
+  return branch === "scheduled" ? "Scheduled" : "Canceled";
 }
 
 function isConditionLabel(value: unknown): boolean {
@@ -352,6 +434,22 @@ function withoutConditionBranchData(
   };
 }
 
+function withTriggerBranchData(
+  edge: WorkflowCanvasEdge,
+  branch: TriggerBranch,
+): WorkflowCanvasEdge {
+  const edgeData = asRecord(edge.data) ?? {};
+  return {
+    ...edge,
+    sourceHandle: branch,
+    label: getTriggerBranchLabel(branch),
+    data: {
+      ...edgeData,
+      triggerBranch: branch,
+    },
+  };
+}
+
 function normalizeConnectionForSource(input: {
   sourceNodeId: string;
   connection: Connection;
@@ -360,6 +458,22 @@ function normalizeConnectionForSource(input: {
 }): Connection | null {
   if (isConditionNode(input.sourceNode)) {
     const branch = resolveConditionBranchForConnection({
+      sourceNodeId: input.sourceNodeId,
+      connection: input.connection,
+      currentEdges: input.currentEdges,
+    });
+    if (!branch) {
+      return null;
+    }
+
+    return {
+      ...input.connection,
+      sourceHandle: branch,
+    };
+  }
+
+  if (isTriggerNode(input.sourceNode)) {
+    const branch = resolveTriggerBranchForConnection({
       sourceNodeId: input.sourceNodeId,
       connection: input.connection,
       currentEdges: input.currentEdges,
@@ -390,6 +504,14 @@ function normalizeEdgesForRouting(
       const branch = normalizeConditionBranch(edge.sourceHandle);
       if (branch) {
         return withConditionBranchData(edge, branch);
+      }
+      return edge;
+    }
+
+    if (isTriggerNode(sourceNode)) {
+      const branch = getTriggerBranchFromEdge(edge);
+      if (branch) {
+        return withTriggerBranchData(edge, branch);
       }
       return edge;
     }

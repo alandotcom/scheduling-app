@@ -132,6 +132,7 @@ type DesiredRunEvent = {
 type ActionNode = LinearJourneyGraph["nodes"][number];
 type JourneyEdge = LinearJourneyGraph["edges"][number];
 type ConditionBranch = "true" | "false";
+type TriggerBranch = "scheduled" | "canceled";
 const knownActionTypes = new Set(["wait", "condition", ...deliveryActionTypes]);
 
 function getActionConfig(node: ActionNode): Record<string, unknown> {
@@ -293,6 +294,64 @@ function resolveConditionNextNodeId(input: {
   return matchingEdge?.target ?? null;
 }
 
+function normalizeTriggerBranch(value: unknown): TriggerBranch | null {
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const normalized = value.trim().toLowerCase();
+  if (normalized === "scheduled" || normalized === "canceled") {
+    return normalized;
+  }
+
+  return null;
+}
+
+function getTriggerBranchFromEdge(edge: JourneyEdge): TriggerBranch | null {
+  const attributes = toRecord(edge.attributes);
+  const data = toRecord(attributes["data"]);
+
+  return (
+    normalizeTriggerBranch(data["triggerBranch"]) ??
+    normalizeTriggerBranch(attributes["label"]) ??
+    normalizeTriggerBranch(attributes["sourceHandle"])
+  );
+}
+
+function resolveTriggerNextNodeIds(input: {
+  sourceNodeId: string;
+  branch: TriggerBranch;
+  outgoingEdgesBySource: Map<string, JourneyEdge[]>;
+}): string[] {
+  const outgoingEdges =
+    input.outgoingEdgesBySource.get(input.sourceNodeId) ?? [];
+
+  const matchingTargets: string[] = [];
+  let hasBranchLabels = false;
+
+  for (const edge of outgoingEdges) {
+    const branch = getTriggerBranchFromEdge(edge);
+    if (!branch) {
+      continue;
+    }
+
+    hasBranchLabels = true;
+    if (branch === input.branch) {
+      matchingTargets.push(edge.target);
+    }
+  }
+
+  if (!hasBranchLabels) {
+    // Backwards compat: no branch labels → "scheduled" gets all edges, "canceled" gets none
+    if (input.branch === "scheduled") {
+      return outgoingEdges.map((edge) => edge.target);
+    }
+    return [];
+  }
+
+  return matchingTargets;
+}
+
 function getConditionExpression(node: ActionNode): unknown {
   const config = getActionConfig(node);
   return config["expression"];
@@ -407,6 +466,7 @@ function buildDesiredDeliveries(input: {
   now: Date;
   orgTimezone: string;
   startAfterNodeId?: string;
+  triggerBranch?: TriggerBranch;
 }): {
   desiredDeliveries: DesiredDelivery[];
   desiredStepLogs: DesiredStepLog[];
@@ -462,8 +522,9 @@ function buildDesiredDeliveries(input: {
       error: null,
     });
 
-    pending = resolveDefaultNextNodeIds({
+    pending = resolveTriggerNextNodeIds({
       sourceNodeId: triggerNode.attributes.id,
+      branch: input.triggerBranch ?? "scheduled",
       outgoingEdgesBySource,
     }).map((nodeId) => ({
       nodeId,
@@ -1320,6 +1381,7 @@ export async function processJourneyDomainEvent(
           }
 
           if (routing === "cancel") {
+            // 1. Cancel pending scheduled-path deliveries (existing behavior)
             const cancelResult = await cancelPendingDeliveries({
               tx,
               runId: run.id,
@@ -1329,6 +1391,47 @@ export async function processJourneyDomainEvent(
 
             canceledDeliveryIds.push(...cancelResult.canceledIds);
             allPendingEvents.push(...cancelResult.pendingEvents);
+
+            // 2. Build cancel-branch deliveries (if wired)
+            const cancelBuildResult = buildDesiredDeliveries({
+              graph: parsedGraph.data,
+              journeyRunId: run.id,
+              journeyId: journey.id,
+              appointmentId,
+              appointmentContext,
+              clientContext,
+              eventType: event.type,
+              eventTimestamp: event.timestamp,
+              now,
+              orgTimezone,
+              triggerBranch: "canceled",
+            });
+
+            // 3. If cancel path has deliveries, reopen run and reconcile
+            if (cancelBuildResult.desiredDeliveries.length > 0) {
+              await markRunPlanned({
+                tx,
+                runId: run.id,
+              });
+
+              const cancelReconcileResult = await reconcileDeliveries({
+                tx,
+                runId: run.id,
+                orgId: event.orgId,
+                desiredDeliveries: cancelBuildResult.desiredDeliveries,
+                desiredStepLogs: cancelBuildResult.desiredStepLogs,
+                desiredRunEvents: cancelBuildResult.desiredRunEvents,
+              });
+
+              scheduledDeliveryIds.push(
+                ...cancelReconcileResult.scheduledDeliveryIds,
+              );
+              allPendingEvents.push(
+                ...cancelReconcileResult.pendingInngestEvents,
+              );
+
+              await refreshRunStatusTx(tx, run.id);
+            }
             return;
           }
 
@@ -1386,6 +1489,7 @@ export async function processJourneyDomainEvent(
             eventTimestamp: event.timestamp,
             now,
             orgTimezone,
+            triggerBranch: "scheduled",
           });
 
           const reconciliationResult = await reconcileDeliveries({

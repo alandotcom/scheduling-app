@@ -49,6 +49,23 @@ function getConditionBranchLabel(value: unknown): string | null {
   return null;
 }
 
+function getTriggerBranchLabel(value: unknown): string | null {
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const normalized = value.trim().toLowerCase();
+  if (normalized === "scheduled") {
+    return "Scheduled";
+  }
+
+  if (normalized === "canceled") {
+    return "Canceled";
+  }
+
+  return null;
+}
+
 function getEdgeLabel({
   label,
   data,
@@ -69,6 +86,11 @@ function getEdgeLabel({
     getConditionBranchLabel(data.branch);
   if (conditionLabel) {
     return conditionLabel;
+  }
+
+  const triggerLabel = getTriggerBranchLabel(data.triggerBranch);
+  if (triggerLabel) {
+    return triggerLabel;
   }
 
   return getSwitchBranchLabel(data.switchBranch) ?? undefined;

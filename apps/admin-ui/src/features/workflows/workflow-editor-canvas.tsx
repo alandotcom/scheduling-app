@@ -82,6 +82,14 @@ function isConditionActionNode(node: WorkflowCanvasNode | undefined): boolean {
   );
 }
 
+function isTriggerNode(node: WorkflowCanvasNode | undefined): boolean {
+  if (!node || !isRecord(node.data)) {
+    return false;
+  }
+
+  return node.data.type === "trigger";
+}
+
 function normalizeConditionBranch(value: unknown): "true" | "false" | null {
   if (typeof value !== "string") {
     return null;
@@ -93,6 +101,21 @@ function normalizeConditionBranch(value: unknown): "true" | "false" | null {
   }
 
   if (normalized === "true" || normalized === "false") {
+    return normalized;
+  }
+
+  return null;
+}
+
+function normalizeTriggerBranch(
+  value: unknown,
+): "scheduled" | "canceled" | null {
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const normalized = value.trim().toLowerCase();
+  if (normalized === "scheduled" || normalized === "canceled") {
     return normalized;
   }
 
@@ -125,6 +148,34 @@ function pickConditionBranchFromExistingEdges(input: {
   }
 
   return "true";
+}
+
+function pickTriggerBranchFromExistingEdges(input: {
+  edges: Array<{ source: string; sourceHandle?: string | null }>;
+  sourceNodeId: string;
+}): "scheduled" | "canceled" {
+  const usedBranches = new Set<string>();
+
+  for (const edge of input.edges) {
+    if (edge.source !== input.sourceNodeId) {
+      continue;
+    }
+
+    const branch = normalizeTriggerBranch(edge.sourceHandle);
+    if (branch) {
+      usedBranches.add(branch);
+    }
+  }
+
+  if (!usedBranches.has("scheduled")) {
+    return "scheduled";
+  }
+
+  if (!usedBranches.has("canceled")) {
+    return "canceled";
+  }
+
+  return "scheduled";
 }
 
 interface WorkflowEditorCanvasProps {
@@ -416,6 +467,7 @@ export function WorkflowEditorCanvas({
           : null;
       const sourceNode = nodes.find((node) => node.id === sourceId);
       const sourceIsCondition = isConditionActionNode(sourceNode);
+      const sourceIsTrigger = isTriggerNode(sourceNode);
 
       setNodes((currentNodes) => [...currentNodes, newNode]);
       setEdges((currentEdges) => {
@@ -423,6 +475,15 @@ export function WorkflowEditorCanvas({
           sourceIsCondition && connectingHandleType.current === "source"
             ? (normalizeConditionBranch(sourceHandle) ??
               pickConditionBranchFromExistingEdges({
+                edges: currentEdges,
+                sourceNodeId: sourceId,
+              }))
+            : null;
+
+        const triggerBranch =
+          sourceIsTrigger && connectingHandleType.current === "source"
+            ? (normalizeTriggerBranch(sourceHandle) ??
+              pickTriggerBranchFromExistingEdges({
                 edges: currentEdges,
                 sourceNodeId: sourceId,
               }))
@@ -436,7 +497,7 @@ export function WorkflowEditorCanvas({
               connectingHandleType.current === "source" ? sourceId : newNodeId,
             target:
               connectingHandleType.current === "source" ? newNodeId : sourceId,
-            sourceHandle: conditionBranch ?? sourceHandle,
+            sourceHandle: conditionBranch ?? triggerBranch ?? sourceHandle,
             targetHandle:
               connectingHandleType.current === "target"
                 ? connectingHandleId.current
@@ -445,6 +506,13 @@ export function WorkflowEditorCanvas({
               ? {
                   label: conditionBranch === "true" ? "True" : "False",
                   data: { conditionBranch },
+                }
+              : {}),
+            ...(triggerBranch
+              ? {
+                  label:
+                    triggerBranch === "scheduled" ? "Scheduled" : "Canceled",
+                  data: { triggerBranch },
                 }
               : {}),
             animated: true,

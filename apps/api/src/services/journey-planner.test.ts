@@ -371,6 +371,106 @@ function createTwilioJourneyGraph(input?: {
   };
 }
 
+function createTriggerBranchJourneyGraph(input?: {
+  waitDuration?: string;
+}): LinearJourneyGraph {
+  return {
+    attributes: {},
+    options: { type: "directed" },
+    nodes: [
+      {
+        key: "trigger-node",
+        attributes: {
+          id: "trigger-node",
+          type: "trigger-node",
+          position: { x: 0, y: 0 },
+          data: {
+            type: "trigger",
+            label: "Trigger",
+            config: createTriggerConfig(),
+          },
+        },
+      },
+      {
+        key: "wait-node",
+        attributes: {
+          id: "wait-node",
+          type: "action-node",
+          position: { x: -100, y: 120 },
+          data: {
+            type: "action",
+            label: "Wait",
+            config: {
+              actionType: "wait",
+              waitDuration: input?.waitDuration ?? "2h",
+            },
+          },
+        },
+      },
+      {
+        key: "send-node",
+        attributes: {
+          id: "send-node",
+          type: "action-node",
+          position: { x: -100, y: 240 },
+          data: {
+            type: "action",
+            label: "Send",
+            config: { actionType: "send-resend" },
+          },
+        },
+      },
+      {
+        key: "cancel-logger-node",
+        attributes: {
+          id: "cancel-logger-node",
+          type: "action-node",
+          position: { x: 100, y: 120 },
+          data: {
+            type: "action",
+            label: "Cancel Logger",
+            config: { actionType: "logger", message: "Canceled" },
+          },
+        },
+      },
+    ],
+    edges: [
+      {
+        key: "trigger-to-wait",
+        source: "trigger-node",
+        target: "wait-node",
+        attributes: {
+          id: "trigger-to-wait",
+          source: "trigger-node",
+          target: "wait-node",
+          data: { triggerBranch: "scheduled" },
+        },
+      },
+      {
+        key: "wait-to-send",
+        source: "wait-node",
+        target: "send-node",
+        attributes: {
+          id: "wait-to-send",
+          source: "wait-node",
+          target: "send-node",
+        },
+      },
+      {
+        key: "trigger-to-cancel-logger",
+        source: "trigger-node",
+        target: "cancel-logger-node",
+        attributes: {
+          id: "trigger-to-cancel-logger",
+          source: "trigger-node",
+          target: "cancel-logger-node",
+          data: { triggerBranch: "canceled" },
+        },
+      },
+    ],
+  };
+}
+
 function createFanoutJourneyGraph(): LinearJourneyGraph {
   return {
     attributes: {},
@@ -432,6 +532,7 @@ function createFanoutJourneyGraph(): LinearJourneyGraph {
           id: "trigger-to-logger",
           source: "trigger-node",
           target: "logger-node",
+          data: { triggerBranch: "scheduled" },
         },
       },
       {
@@ -442,6 +543,7 @@ function createFanoutJourneyGraph(): LinearJourneyGraph {
           id: "trigger-to-send",
           source: "trigger-node",
           target: "send-node",
+          data: { triggerBranch: "canceled" },
         },
       },
     ],
@@ -917,7 +1019,7 @@ describe("processJourneyDomainEvent", () => {
     expect(scheduleLoggerRequester).toHaveBeenCalledTimes(1);
   });
 
-  test("plans fan-out deliveries on multiple branches from a single step", async () => {
+  test("plans only scheduled branch deliveries on trigger fan-out", async () => {
     const created = await journeyService.create(
       {
         name: "Fan-out Planner Journey",
@@ -982,12 +1084,12 @@ describe("processJourneyDomainEvent", () => {
       .where(eq(journeyDeliveries.journeyRunId, run!.id))
       .orderBy(desc(journeyDeliveries.stepKey));
 
-    expect(deliveries).toHaveLength(2);
-    expect(new Set(deliveries.map((delivery) => delivery.stepKey))).toEqual(
-      new Set(["logger-node", "send-node"]),
-    );
-    expect(scheduleResendRequester).toHaveBeenCalledTimes(1);
+    // Only the scheduled branch (logger-node) is planned
+    expect(deliveries).toHaveLength(1);
+    expect(deliveries[0]?.stepKey).toBe("logger-node");
     expect(scheduleLoggerRequester).toHaveBeenCalledTimes(1);
+    // Canceled branch (send-node) is not planned on appointment.scheduled
+    expect(scheduleResendRequester).toHaveBeenCalledTimes(0);
   });
 
   test("hard-cuts integration actions to provider-specific schedulers", async () => {
@@ -2165,6 +2267,348 @@ describe("processJourneyDomainEvent", () => {
     expect(testDelivery?.scheduledFor.toISOString()).toBe(
       liveDelivery?.scheduledFor.toISOString(),
     );
+  });
+  test("plans only scheduled branch on appointment.scheduled with branched graph", async () => {
+    const created = await journeyService.create(
+      {
+        name: "Trigger Branch Scheduled Journey",
+        graph: createTriggerBranchJourneyGraph({ waitDuration: "2h" }),
+      },
+      context,
+    );
+
+    await journeyService.publish(created.id, { mode: "live" }, context);
+
+    const appointmentId = await createQuickAppointment(
+      db as any,
+      context.orgId,
+    );
+
+    const scheduleWaitResumeRequester = mock(async () => ({
+      eventId: "evt-branch-wr",
+    }));
+    const scheduleResendRequester = mock(async () => ({
+      eventId: "evt-branch-resend",
+    }));
+    const scheduleLoggerRequester = mock(async () => ({
+      eventId: "evt-branch-logger",
+    }));
+
+    await processJourneyDomainEvent(
+      {
+        id: "evt-branch-scheduled-1",
+        orgId: context.orgId,
+        type: "appointment.scheduled",
+        payload: createAppointmentPayload({ appointmentId }),
+        timestamp: "2026-02-16T10:00:00.000Z",
+      },
+      {
+        providerRequesters: {
+          "wait-resume": scheduleWaitResumeRequester,
+          "send-resend": scheduleResendRequester,
+          "send-resend-template": scheduleResendRequester,
+          logger: scheduleLoggerRequester,
+        },
+        now: new Date("2026-02-16T10:00:00.000Z"),
+      },
+    );
+
+    await setTestOrgContext(db, context.orgId);
+
+    const [run] = await db
+      .select({ id: journeyRuns.id })
+      .from(journeyRuns)
+      .orderBy(desc(journeyRuns.id))
+      .limit(1);
+
+    const deliveries = await db
+      .select({
+        stepKey: journeyDeliveries.stepKey,
+        actionType: journeyDeliveries.actionType,
+        status: journeyDeliveries.status,
+      })
+      .from(journeyDeliveries)
+      .where(eq(journeyDeliveries.journeyRunId, run!.id));
+
+    // Should only plan the scheduled branch (wait-node -> send-node)
+    // Wait is in the future, so we get a wait-resume delivery
+    expect(deliveries).toHaveLength(1);
+    expect(deliveries[0]?.stepKey).toBe("wait-node");
+    expect(deliveries[0]?.actionType).toBe("wait-resume");
+    // Cancel-branch logger should NOT be scheduled
+    expect(scheduleLoggerRequester).toHaveBeenCalledTimes(0);
+    expect(scheduleWaitResumeRequester).toHaveBeenCalledTimes(1);
+  });
+
+  test("cancels scheduled deliveries AND plans cancel-branch on appointment.canceled", async () => {
+    const created = await journeyService.create(
+      {
+        name: "Trigger Branch Cancel Journey",
+        graph: createTriggerBranchJourneyGraph({ waitDuration: "3h" }),
+      },
+      context,
+    );
+
+    await journeyService.publish(created.id, { mode: "live" }, context);
+
+    const appointmentId = await createQuickAppointment(
+      db as any,
+      context.orgId,
+    );
+
+    const scheduleWaitResumeRequester = mock(async () => ({
+      eventId: "evt-branch-cancel-wr",
+    }));
+    const scheduleLoggerRequester = mock(async () => ({
+      eventId: "evt-branch-cancel-logger",
+    }));
+
+    // Schedule first — creates wait-resume on scheduled branch
+    await processJourneyDomainEvent(
+      {
+        id: "evt-branch-cancel-1",
+        orgId: context.orgId,
+        type: "appointment.scheduled",
+        payload: createAppointmentPayload({ appointmentId }),
+        timestamp: "2026-02-16T10:00:00.000Z",
+      },
+      {
+        providerRequesters: {
+          "wait-resume": scheduleWaitResumeRequester,
+          logger: scheduleLoggerRequester,
+        },
+        now: new Date("2026-02-16T10:00:00.000Z"),
+      },
+    );
+
+    const cancelRequester = mock(async () => ({
+      eventId: "evt-branch-cancel-req",
+    }));
+
+    // Cancel — should cancel scheduled-path deliveries AND plan cancel-branch
+    await processJourneyDomainEvent(
+      {
+        id: "evt-branch-cancel-2",
+        orgId: context.orgId,
+        type: "appointment.canceled",
+        payload: createAppointmentPayload({ appointmentId }),
+        timestamp: "2026-02-16T11:00:00.000Z",
+      },
+      {
+        cancelRequester,
+        providerRequesters: {
+          logger: scheduleLoggerRequester,
+        },
+        now: new Date("2026-02-16T11:00:00.000Z"),
+      },
+    );
+
+    await setTestOrgContext(db, context.orgId);
+
+    const [run] = await db
+      .select({ id: journeyRuns.id, status: journeyRuns.status })
+      .from(journeyRuns)
+      .orderBy(desc(journeyRuns.id))
+      .limit(1);
+
+    const deliveries = await db
+      .select({
+        stepKey: journeyDeliveries.stepKey,
+        actionType: journeyDeliveries.actionType,
+        status: journeyDeliveries.status,
+      })
+      .from(journeyDeliveries)
+      .where(eq(journeyDeliveries.journeyRunId, run!.id));
+
+    // Wait-resume should be canceled
+    const waitResumeDelivery = deliveries.find(
+      (d) => d.actionType === "wait-resume",
+    );
+    expect(waitResumeDelivery?.status).toBe("canceled");
+
+    // Cancel-branch logger should be planned
+    const loggerDelivery = deliveries.find(
+      (d) => d.stepKey === "cancel-logger-node",
+    );
+    expect(loggerDelivery).toBeDefined();
+    expect(loggerDelivery?.status).toBe("planned");
+
+    // Logger requester should be called for the cancel-branch delivery
+    expect(scheduleLoggerRequester).toHaveBeenCalled();
+    // Cancel requester should be called for the wait-resume cancellation
+    expect(cancelRequester).toHaveBeenCalledTimes(1);
+  });
+
+  test("cancel with no cancel-branch wired preserves existing behavior", async () => {
+    // Use a graph WITHOUT trigger branch labels (backwards compat)
+    const created = await journeyService.create(
+      {
+        name: "No Cancel Branch Journey",
+        graph: createJourneyGraph({ waitDuration: "3h" }),
+      },
+      context,
+    );
+
+    await journeyService.publish(created.id, { mode: "live" }, context);
+
+    const appointmentId = await createQuickAppointment(
+      db as any,
+      context.orgId,
+    );
+
+    const scheduleWaitResumeRequester = mock(async () => ({
+      eventId: "evt-no-cancel-branch-wr",
+    }));
+
+    // Schedule first
+    await processJourneyDomainEvent(
+      {
+        id: "evt-no-cancel-1",
+        orgId: context.orgId,
+        type: "appointment.scheduled",
+        payload: createAppointmentPayload({ appointmentId }),
+        timestamp: "2026-02-16T10:00:00.000Z",
+      },
+      {
+        providerRequesters: {
+          "wait-resume": scheduleWaitResumeRequester,
+        },
+        now: new Date("2026-02-16T10:00:00.000Z"),
+      },
+    );
+
+    const cancelRequester = mock(async () => ({
+      eventId: "evt-no-cancel-branch-cancel",
+    }));
+
+    // Cancel — no cancel branch, just cancels existing deliveries
+    await processJourneyDomainEvent(
+      {
+        id: "evt-no-cancel-2",
+        orgId: context.orgId,
+        type: "appointment.canceled",
+        payload: createAppointmentPayload({ appointmentId }),
+        timestamp: "2026-02-16T11:00:00.000Z",
+      },
+      {
+        cancelRequester,
+        now: new Date("2026-02-16T11:00:00.000Z"),
+      },
+    );
+
+    await setTestOrgContext(db, context.orgId);
+
+    const [run] = await db
+      .select({ id: journeyRuns.id, status: journeyRuns.status })
+      .from(journeyRuns)
+      .orderBy(desc(journeyRuns.id))
+      .limit(1);
+
+    expect(run?.status).toBe("canceled");
+
+    const deliveries = await db
+      .select({
+        stepKey: journeyDeliveries.stepKey,
+        actionType: journeyDeliveries.actionType,
+        status: journeyDeliveries.status,
+      })
+      .from(journeyDeliveries)
+      .where(eq(journeyDeliveries.journeyRunId, run!.id));
+
+    // Only the wait-resume, which is canceled
+    expect(deliveries).toHaveLength(1);
+    expect(deliveries[0]?.actionType).toBe("wait-resume");
+    expect(deliveries[0]?.status).toBe("canceled");
+    expect(cancelRequester).toHaveBeenCalledTimes(1);
+  });
+
+  test("cancel-path deliveries use same run", async () => {
+    const created = await journeyService.create(
+      {
+        name: "Same Run Cancel Path Journey",
+        graph: createTriggerBranchJourneyGraph({ waitDuration: "2h" }),
+      },
+      context,
+    );
+
+    await journeyService.publish(created.id, { mode: "live" }, context);
+
+    const appointmentId = await createQuickAppointment(
+      db as any,
+      context.orgId,
+    );
+
+    const scheduleWaitResumeRequester = mock(async () => ({
+      eventId: "evt-same-run-wr",
+    }));
+    const scheduleLoggerRequester = mock(async () => ({
+      eventId: "evt-same-run-logger",
+    }));
+
+    // Schedule
+    await processJourneyDomainEvent(
+      {
+        id: "evt-same-run-1",
+        orgId: context.orgId,
+        type: "appointment.scheduled",
+        payload: createAppointmentPayload({ appointmentId }),
+        timestamp: "2026-02-16T10:00:00.000Z",
+      },
+      {
+        providerRequesters: {
+          "wait-resume": scheduleWaitResumeRequester,
+          logger: scheduleLoggerRequester,
+        },
+        now: new Date("2026-02-16T10:00:00.000Z"),
+      },
+    );
+
+    await setTestOrgContext(db, context.orgId);
+
+    const runsBefore = await db
+      .select({ id: journeyRuns.id })
+      .from(journeyRuns);
+    expect(runsBefore).toHaveLength(1);
+    const runId = runsBefore[0]!.id;
+
+    // Cancel
+    await processJourneyDomainEvent(
+      {
+        id: "evt-same-run-2",
+        orgId: context.orgId,
+        type: "appointment.canceled",
+        payload: createAppointmentPayload({ appointmentId }),
+        timestamp: "2026-02-16T11:00:00.000Z",
+      },
+      {
+        providerRequesters: {
+          logger: scheduleLoggerRequester,
+        },
+        now: new Date("2026-02-16T11:00:00.000Z"),
+      },
+    );
+
+    await setTestOrgContext(db, context.orgId);
+
+    const runsAfter = await db.select({ id: journeyRuns.id }).from(journeyRuns);
+    // Same run — no new run created
+    expect(runsAfter).toHaveLength(1);
+    expect(runsAfter[0]!.id).toBe(runId);
+
+    // Cancel-branch delivery on the same run
+    const deliveries = await db
+      .select({
+        journeyRunId: journeyDeliveries.journeyRunId,
+        stepKey: journeyDeliveries.stepKey,
+      })
+      .from(journeyDeliveries)
+      .where(eq(journeyDeliveries.journeyRunId, runId));
+
+    const cancelBranchDelivery = deliveries.find(
+      (d) => d.stepKey === "cancel-logger-node",
+    );
+    expect(cancelBranchDelivery).toBeDefined();
+    expect(cancelBranchDelivery?.journeyRunId).toBe(runId);
   });
 });
 

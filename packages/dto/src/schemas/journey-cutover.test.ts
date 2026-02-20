@@ -198,6 +198,7 @@ function createBranchingGraph(
           id: `${triggerId}-to-wait-step`,
           source: triggerId,
           target: "wait-step",
+          data: { triggerBranch: "scheduled" },
         },
       },
       {
@@ -208,6 +209,7 @@ function createBranchingGraph(
           id: `${triggerId}-to-logger-step`,
           source: triggerId,
           target: "logger-step",
+          data: { triggerBranch: "canceled" },
         },
       },
     ],
@@ -464,6 +466,160 @@ describe("journey cutover schema exports", () => {
     });
 
     expect(parsed.success).toBe(false);
+  });
+
+  test("accepts graph with trigger branch edges", () => {
+    const graph = createBranchingGraph("trigger-branch-test");
+    const parsed = schemas.createJourneySchema.safeParse({
+      name: "Trigger Branch Journey",
+      graph,
+    });
+
+    expect(parsed.success).toBe(true);
+  });
+
+  test("rejects wait node on canceled branch", () => {
+    const graph: LinearJourneyGraph = {
+      attributes: {},
+      options: { type: "directed" },
+      nodes: [
+        {
+          key: "trigger",
+          attributes: {
+            id: "trigger",
+            type: "trigger-node",
+            position: { x: 0, y: 0 },
+            data: {
+              label: "Trigger",
+              type: "trigger",
+              config: createTriggerConfig(),
+            },
+          },
+        },
+        {
+          key: "logger-step",
+          attributes: {
+            id: "logger-step",
+            type: "action-node",
+            position: { x: -80, y: 120 },
+            data: {
+              label: "Logger",
+              type: "action",
+              config: { actionType: "logger" },
+            },
+          },
+        },
+        {
+          key: "wait-step",
+          attributes: {
+            id: "wait-step",
+            type: "action-node",
+            position: { x: 80, y: 120 },
+            data: {
+              label: "Wait",
+              type: "action",
+              config: { actionType: "wait" },
+            },
+          },
+        },
+      ],
+      edges: [
+        {
+          key: "trigger-to-logger",
+          source: "trigger",
+          target: "logger-step",
+          attributes: {
+            id: "trigger-to-logger",
+            source: "trigger",
+            target: "logger-step",
+            data: { triggerBranch: "scheduled" },
+          },
+        },
+        {
+          key: "trigger-to-wait",
+          source: "trigger",
+          target: "wait-step",
+          attributes: {
+            id: "trigger-to-wait",
+            source: "trigger",
+            target: "wait-step",
+            data: { triggerBranch: "canceled" },
+          },
+        },
+      ],
+    };
+
+    const parsed = schemas.createJourneySchema.safeParse({
+      name: "Wait On Cancel Branch",
+      graph,
+    });
+
+    expect(parsed.success).toBe(false);
+  });
+
+  test("accepts trigger with only scheduled branch", () => {
+    const graph: LinearJourneyGraph = {
+      attributes: {},
+      options: { type: "directed" },
+      nodes: [
+        {
+          key: "trigger",
+          attributes: {
+            id: "trigger",
+            type: "trigger-node",
+            position: { x: 0, y: 0 },
+            data: {
+              label: "Trigger",
+              type: "trigger",
+              config: createTriggerConfig(),
+            },
+          },
+        },
+        {
+          key: "logger-step",
+          attributes: {
+            id: "logger-step",
+            type: "action-node",
+            position: { x: 0, y: 120 },
+            data: {
+              label: "Logger",
+              type: "action",
+              config: { actionType: "logger" },
+            },
+          },
+        },
+      ],
+      edges: [
+        {
+          key: "trigger-to-logger",
+          source: "trigger",
+          target: "logger-step",
+          attributes: {
+            id: "trigger-to-logger",
+            source: "trigger",
+            target: "logger-step",
+            data: { triggerBranch: "scheduled" },
+          },
+        },
+      ],
+    };
+
+    const parsed = schemas.createJourneySchema.safeParse({
+      name: "Single Scheduled Branch",
+      graph,
+    });
+
+    expect(parsed.success).toBe(true);
+  });
+
+  test("accepts trigger with no branch labels (backwards compat)", () => {
+    const graph = createLinearGraphWithSupportedSteps("trigger-no-labels");
+    const parsed = schemas.createJourneySchema.safeParse({
+      name: "No Branch Labels Journey",
+      graph,
+    });
+
+    expect(parsed.success).toBe(true);
   });
 
   test("rejects legacy trigger routing shape", () => {

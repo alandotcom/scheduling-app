@@ -62,6 +62,7 @@ type JourneyGraphEdge = z.infer<
   typeof serializedJourneyGraphSchema
 >["edges"][number];
 type ConditionBranch = "true" | "false";
+type TriggerBranch = "scheduled" | "canceled";
 
 function normalizeJourneyActionType(value: unknown): string | null {
   if (typeof value !== "string") {
@@ -110,6 +111,19 @@ function normalizeConditionBranch(value: unknown): ConditionBranch | null {
   return null;
 }
 
+function normalizeTriggerBranch(value: unknown): TriggerBranch | null {
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const normalized = value.trim().toLowerCase();
+  if (normalized === "scheduled" || normalized === "canceled") {
+    return normalized;
+  }
+
+  return null;
+}
+
 function getConditionBranchFromEdge(
   edge: JourneyGraphEdge,
 ): ConditionBranch | null {
@@ -140,6 +154,34 @@ function getConditionBranchFromEdge(
   return null;
 }
 
+function getTriggerBranchFromEdge(
+  edge: JourneyGraphEdge,
+): TriggerBranch | null {
+  const attributes: Record<string, unknown> = isRecord(edge.attributes)
+    ? edge.attributes
+    : {};
+  const data: Record<string, unknown> = isRecord(attributes["data"])
+    ? attributes["data"]
+    : {};
+
+  const dataBranch = normalizeTriggerBranch(data["triggerBranch"]);
+  if (dataBranch) {
+    return dataBranch;
+  }
+
+  const labelBranch = normalizeTriggerBranch(attributes["label"]);
+  if (labelBranch) {
+    return labelBranch;
+  }
+
+  const sourceHandleBranch = normalizeTriggerBranch(attributes["sourceHandle"]);
+  if (sourceHandleBranch) {
+    return sourceHandleBranch;
+  }
+
+  return null;
+}
+
 export const linearJourneyGraphSchema =
   serializedJourneyGraphSchema.superRefine((graph, ctx) => {
     if (graph.nodes.length === 0) {
@@ -161,6 +203,7 @@ export const linearJourneyGraphSchema =
       string,
       Set<ConditionBranch>
     >();
+    const triggerBranchSetBySourceId = new Map<string, Set<TriggerBranch>>();
     const triggerNodeIds: string[] = [];
 
     for (const [index, node] of graph.nodes.entries()) {
@@ -346,8 +389,33 @@ export const linearJourneyGraphSchema =
         continue;
       }
 
+      if (sourceNode.attributes.data.type === "trigger") {
+        const triggerBranch = getTriggerBranchFromEdge(edge);
+        if (triggerBranch) {
+          const existingBranches =
+            triggerBranchSetBySourceId.get(edge.source) ??
+            new Set<TriggerBranch>();
+
+          if (existingBranches.has(triggerBranch)) {
+            ctx.addIssue({
+              code: "custom",
+              message: "Trigger step cannot have duplicate branch labels",
+              path: ["edges", index, "attributes"],
+            });
+            continue;
+          }
+
+          existingBranches.add(triggerBranch);
+          triggerBranchSetBySourceId.set(edge.source, existingBranches);
+          continue;
+        }
+        // trigger edge without branch label is ok (backwards compat)
+        continue;
+      }
+
       const branch = getConditionBranchFromEdge(edge);
-      if (branch) {
+      const tBranch = getTriggerBranchFromEdge(edge);
+      if (branch || tBranch) {
         ctx.addIssue({
           code: "custom",
           message: "Only Condition steps can emit true/false branch edges",
@@ -375,6 +443,30 @@ export const linearJourneyGraphSchema =
             message: "Trigger step must have no incoming edges",
             path: ["nodes", index, "attributes", "id"],
           });
+        }
+
+        if (outgoing > 2) {
+          ctx.addIssue({
+            code: "custom",
+            message: "Trigger step can have at most two outgoing branches",
+            path: ["nodes", index, "attributes", "id"],
+          });
+        }
+
+        if (outgoing === 2) {
+          const branches = triggerBranchSetBySourceId.get(nodeId) ?? new Set();
+          // Only enforce branch labels when at least one edge is labeled (backwards compat)
+          if (
+            branches.size > 0 &&
+            !(branches.has("scheduled") && branches.has("canceled"))
+          ) {
+            ctx.addIssue({
+              code: "custom",
+              message:
+                'Trigger step with two outgoing edges must include exactly one "scheduled" and one "canceled" branch',
+              path: ["nodes", index, "attributes", "id"],
+            });
+          }
         }
 
         continue;
@@ -442,6 +534,44 @@ export const linearJourneyGraphSchema =
         message: "Journey must be connected to the Trigger step",
         path: ["nodes"],
       });
+    }
+
+    // Validate no wait nodes on canceled branch
+    const triggerNodeId2 = triggerNodeIds[0];
+    if (triggerNodeId2) {
+      const triggerOutgoingEdges =
+        outgoingEdgesBySourceId.get(triggerNodeId2) ?? [];
+      const canceledEdgeTargets = triggerOutgoingEdges
+        .filter((edge) => getTriggerBranchFromEdge(edge) === "canceled")
+        .map((edge) => edge.target);
+
+      if (canceledEdgeTargets.length > 0) {
+        const cancelPathVisited = new Set<string>();
+        const cancelStack = [...canceledEdgeTargets];
+
+        while (cancelStack.length > 0) {
+          const currentId = cancelStack.pop();
+          if (!currentId || cancelPathVisited.has(currentId)) {
+            continue;
+          }
+          cancelPathVisited.add(currentId);
+
+          const nodeActionType = actionTypeByNodeId.get(currentId);
+          if (nodeActionType === "wait") {
+            const nodeIndex = nodeIdToIndex.get(currentId);
+            ctx.addIssue({
+              code: "custom",
+              message: "Wait steps are not allowed on the canceled branch",
+              path: ["nodes", nodeIndex ?? 0, "attributes", "data", "config"],
+            });
+          }
+
+          const nextEdges = outgoingEdgesBySourceId.get(currentId) ?? [];
+          for (const edge of nextEdges) {
+            cancelStack.push(edge.target);
+          }
+        }
+      }
     }
   });
 

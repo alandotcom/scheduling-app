@@ -47,6 +47,9 @@ import {
   slotUsageSchema,
   // Webhook
   webhookEventDataSchemaByType,
+  // Journey
+  linearJourneyGraphSchema,
+  type LinearJourneyGraph,
 } from "./index";
 
 describe("Common schemas", () => {
@@ -996,5 +999,376 @@ describe("Webhook schemas", () => {
       });
       expect(result.success).toBe(false);
     });
+  });
+});
+
+describe("Journey graph trigger branching", () => {
+  function createTriggerConfig() {
+    return {
+      triggerType: "AppointmentJourney",
+      start: "appointment.scheduled",
+      restart: "appointment.rescheduled",
+      stop: "appointment.canceled",
+      correlationKey: "appointmentId",
+    };
+  }
+
+  function createBranchedTriggerGraph(): LinearJourneyGraph {
+    return {
+      attributes: {},
+      options: { type: "directed" },
+      nodes: [
+        {
+          key: "trigger",
+          attributes: {
+            id: "trigger",
+            type: "trigger",
+            position: { x: 0, y: 0 },
+            data: {
+              type: "trigger",
+              label: "Trigger",
+              config: createTriggerConfig(),
+            },
+          },
+        },
+        {
+          key: "send-scheduled",
+          attributes: {
+            id: "send-scheduled",
+            type: "action",
+            position: { x: 0, y: 120 },
+            data: {
+              type: "action",
+              label: "Send Scheduled",
+              config: { actionType: "send-resend" },
+            },
+          },
+        },
+        {
+          key: "send-canceled",
+          attributes: {
+            id: "send-canceled",
+            type: "action",
+            position: { x: 200, y: 120 },
+            data: {
+              type: "action",
+              label: "Send Canceled",
+              config: { actionType: "send-resend" },
+            },
+          },
+        },
+      ],
+      edges: [
+        {
+          key: "e-scheduled",
+          source: "trigger",
+          target: "send-scheduled",
+          attributes: {
+            id: "e-scheduled",
+            source: "trigger",
+            target: "send-scheduled",
+            sourceHandle: "scheduled",
+            label: "Scheduled",
+            data: { triggerBranch: "scheduled" },
+          },
+        },
+        {
+          key: "e-canceled",
+          source: "trigger",
+          target: "send-canceled",
+          attributes: {
+            id: "e-canceled",
+            source: "trigger",
+            target: "send-canceled",
+            sourceHandle: "canceled",
+            label: "Canceled",
+            data: { triggerBranch: "canceled" },
+          },
+        },
+      ],
+    };
+  }
+
+  test("accepts graph with trigger branch edges", () => {
+    const graph = createBranchedTriggerGraph();
+    const result = linearJourneyGraphSchema.safeParse(graph);
+    expect(result.success).toBe(true);
+  });
+
+  test("accepts trigger with only scheduled branch", () => {
+    const graph = createBranchedTriggerGraph();
+    // Remove the canceled branch edge and node
+    graph.nodes = graph.nodes.filter((n) => n.key !== "send-canceled");
+    graph.edges = graph.edges.filter((e) => e.key !== "e-canceled");
+    const result = linearJourneyGraphSchema.safeParse(graph);
+    expect(result.success).toBe(true);
+  });
+
+  test("accepts trigger with no branch labels (backwards compat)", () => {
+    const graph = {
+      attributes: {},
+      options: { type: "directed" },
+      nodes: [
+        {
+          key: "trigger",
+          attributes: {
+            id: "trigger",
+            type: "trigger",
+            position: { x: 0, y: 0 },
+            data: {
+              type: "trigger",
+              label: "Trigger",
+              config: createTriggerConfig(),
+            },
+          },
+        },
+        {
+          key: "send-node",
+          attributes: {
+            id: "send-node",
+            type: "action",
+            position: { x: 0, y: 120 },
+            data: {
+              type: "action",
+              label: "Send",
+              config: { actionType: "send-resend" },
+            },
+          },
+        },
+      ],
+      edges: [
+        {
+          key: "e1",
+          source: "trigger",
+          target: "send-node",
+          attributes: {
+            id: "e1",
+            source: "trigger",
+            target: "send-node",
+          },
+        },
+      ],
+    };
+    const result = linearJourneyGraphSchema.safeParse(graph);
+    expect(result.success).toBe(true);
+  });
+
+  test("rejects wait node on canceled branch", () => {
+    const graph = {
+      attributes: {},
+      options: { type: "directed" },
+      nodes: [
+        {
+          key: "trigger",
+          attributes: {
+            id: "trigger",
+            type: "trigger",
+            position: { x: 0, y: 0 },
+            data: {
+              type: "trigger",
+              label: "Trigger",
+              config: createTriggerConfig(),
+            },
+          },
+        },
+        {
+          key: "send-scheduled",
+          attributes: {
+            id: "send-scheduled",
+            type: "action",
+            position: { x: 0, y: 120 },
+            data: {
+              type: "action",
+              label: "Send",
+              config: { actionType: "send-resend" },
+            },
+          },
+        },
+        {
+          key: "wait-cancel",
+          attributes: {
+            id: "wait-cancel",
+            type: "action",
+            position: { x: 200, y: 120 },
+            data: {
+              type: "action",
+              label: "Wait",
+              config: { actionType: "wait", waitDuration: "10m" },
+            },
+          },
+        },
+      ],
+      edges: [
+        {
+          key: "e-scheduled",
+          source: "trigger",
+          target: "send-scheduled",
+          attributes: {
+            id: "e-scheduled",
+            source: "trigger",
+            target: "send-scheduled",
+            sourceHandle: "scheduled",
+            label: "Scheduled",
+            data: { triggerBranch: "scheduled" },
+          },
+        },
+        {
+          key: "e-canceled",
+          source: "trigger",
+          target: "wait-cancel",
+          attributes: {
+            id: "e-canceled",
+            source: "trigger",
+            target: "wait-cancel",
+            sourceHandle: "canceled",
+            label: "Canceled",
+            data: { triggerBranch: "canceled" },
+          },
+        },
+      ],
+    };
+    const result = linearJourneyGraphSchema.safeParse(graph);
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const messages = result.error.issues.map((i) => i.message);
+      expect(messages).toContain(
+        "Wait steps are not allowed on the canceled branch",
+      );
+    }
+  });
+
+  test("rejects duplicate trigger branch labels", () => {
+    const graph = {
+      attributes: {},
+      options: { type: "directed" },
+      nodes: [
+        {
+          key: "trigger",
+          attributes: {
+            id: "trigger",
+            type: "trigger",
+            position: { x: 0, y: 0 },
+            data: {
+              type: "trigger",
+              label: "Trigger",
+              config: createTriggerConfig(),
+            },
+          },
+        },
+        {
+          key: "send1",
+          attributes: {
+            id: "send1",
+            type: "action",
+            position: { x: 0, y: 120 },
+            data: {
+              type: "action",
+              label: "Send 1",
+              config: { actionType: "send-resend" },
+            },
+          },
+        },
+        {
+          key: "send2",
+          attributes: {
+            id: "send2",
+            type: "action",
+            position: { x: 200, y: 120 },
+            data: {
+              type: "action",
+              label: "Send 2",
+              config: { actionType: "send-resend" },
+            },
+          },
+        },
+      ],
+      edges: [
+        {
+          key: "e1",
+          source: "trigger",
+          target: "send1",
+          attributes: {
+            id: "e1",
+            source: "trigger",
+            target: "send1",
+            sourceHandle: "scheduled",
+            data: { triggerBranch: "scheduled" },
+          },
+        },
+        {
+          key: "e2",
+          source: "trigger",
+          target: "send2",
+          attributes: {
+            id: "e2",
+            source: "trigger",
+            target: "send2",
+            sourceHandle: "scheduled",
+            data: { triggerBranch: "scheduled" },
+          },
+        },
+      ],
+    };
+    const result = linearJourneyGraphSchema.safeParse(graph);
+    expect(result.success).toBe(false);
+  });
+
+  test("rejects trigger with more than two outgoing branches", () => {
+    const graph = createBranchedTriggerGraph();
+    graph.nodes.push({
+      key: "send-extra",
+      attributes: {
+        id: "send-extra",
+        type: "action",
+        position: { x: 0, y: 260 },
+        data: {
+          type: "action",
+          label: "Extra",
+          config: { actionType: "logger", message: "Extra" },
+        },
+      },
+    });
+    graph.edges.push({
+      key: "e-extra",
+      source: "trigger",
+      target: "send-extra",
+      attributes: {
+        id: "e-extra",
+        source: "trigger",
+        target: "send-extra",
+      },
+    });
+
+    const result = linearJourneyGraphSchema.safeParse(graph);
+    expect(result.success).toBe(false);
+
+    if (!result.success) {
+      const messages = result.error.issues.map((issue) => issue.message);
+      expect(messages).toContain(
+        "Trigger step can have at most two outgoing branches",
+      );
+    }
+  });
+
+  test("rejects trigger with two outgoing edges missing the canceled branch label", () => {
+    const graph = createBranchedTriggerGraph();
+    const cancelEdge = graph.edges.find((edge) => edge.key === "e-canceled");
+    if (cancelEdge) {
+      cancelEdge.attributes = {
+        id: cancelEdge.attributes.id,
+        source: cancelEdge.attributes.source,
+        target: cancelEdge.attributes.target,
+      };
+    }
+
+    const result = linearJourneyGraphSchema.safeParse(graph);
+    expect(result.success).toBe(false);
+
+    if (!result.success) {
+      const messages = result.error.issues.map((issue) => issue.message);
+      expect(messages).toContain(
+        'Trigger step with two outgoing edges must include exactly one "scheduled" and one "canceled" branch',
+      );
+    }
   });
 });
