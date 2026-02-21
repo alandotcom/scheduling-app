@@ -965,14 +965,10 @@ export function WorkflowTriggerConfig({
   onUpdate,
   valueOptionsByField = {},
 }: WorkflowTriggerConfigProps) {
-  const filterSyncKey = useMemo(() => {
-    return JSON.stringify(config.filter ?? null);
-  }, [config.filter]);
   const [showFilters, setShowFilters] = useState(false);
 
   return (
     <WorkflowTriggerConfigInner
-      key={filterSyncKey}
       config={config}
       clientAttributeDefinitions={clientAttributeDefinitions}
       clientAttributeDefinitionsLoaded={clientAttributeDefinitionsLoaded}
@@ -1015,6 +1011,11 @@ function WorkflowTriggerConfigInner({
   const [filterValidationError, setFilterValidationError] = useState<
     string | null
   >(null);
+
+  useEffect(() => {
+    setFilterDraft(toFilterDraft(config.filter));
+    setFilterValidationError(null);
+  }, [config.filter]);
 
   const commitFilter = (nextFilter: JourneyTriggerFilterAstDraft | null) => {
     setFilterDraft(nextFilter);

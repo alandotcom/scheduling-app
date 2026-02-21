@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, mock, test } from "bun:test";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { useState } from "react";
 import { WorkflowTriggerConfig } from "./workflow-trigger-config";
 
 afterEach(() => {
@@ -269,6 +270,60 @@ describe("WorkflowTriggerConfig", () => {
     );
 
     expect(screen.getByRole("button", { name: "Add group" })).toBeTruthy();
+  });
+
+  test("keeps value input focused while typing when filter updates are controlled", () => {
+    function ControlledWorkflowTriggerConfig() {
+      const [config, setConfig] = useState<Record<string, unknown>>({
+        ...createTriggerConfig(),
+        filter: {
+          logic: "and",
+          groups: [
+            {
+              logic: "and",
+              conditions: [
+                {
+                  field: "appointment.status",
+                  operator: "equals",
+                  value: "a",
+                },
+              ],
+            },
+          ],
+        },
+      });
+
+      return (
+        <WorkflowTriggerConfig
+          config={config}
+          disabled={false}
+          onUpdate={(next) =>
+            setConfig((current) => ({
+              ...current,
+              ...next,
+            }))
+          }
+        />
+      );
+    }
+
+    render(<ControlledWorkflowTriggerConfig />);
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Toggle audience rules" }),
+    );
+
+    const input = screen.getByDisplayValue("a") as HTMLInputElement;
+    input.focus();
+    expect(document.activeElement).toBe(input);
+
+    fireEvent.change(input, { target: { value: "ab" } });
+    expect(document.activeElement).toBe(input);
+    expect(input.value).toBe("ab");
+
+    fireEvent.change(input, { target: { value: "abc" } });
+    expect(document.activeElement).toBe(input);
+    expect(input.value).toBe("abc");
   });
 
   test("shows appointment and client trigger attributes plus timestamp-specific operators", () => {
