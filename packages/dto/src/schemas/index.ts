@@ -19,4 +19,5 @@ export * from "./domain-event";
 export * from "./webhook";
 export * from "./integration";
 export * from "./journey";
+export * from "./journey-action-compatibility";
 export * from "./workflow-graph";

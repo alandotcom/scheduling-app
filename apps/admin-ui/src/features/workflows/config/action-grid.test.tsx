@@ -73,6 +73,17 @@ describe("ActionGrid", () => {
     expect(onSelectAction).toHaveBeenCalledWith("send-resend");
   });
 
+  test("hides wait-for-confirmation for client triggers", () => {
+    render(
+      <ActionGrid
+        triggerType="ClientJourney"
+        onSelectAction={mock((_actionType: string) => {})}
+      />,
+    );
+
+    expect(screen.queryByText("Wait For Confirmation")).toBeNull();
+  });
+
   test("collapses and expands group rows", () => {
     render(<ActionGrid onSelectAction={mock(() => {})} />);
 

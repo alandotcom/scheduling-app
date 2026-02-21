@@ -3,6 +3,7 @@ import {
   cancelJourneyRunsResponseSchema,
   createJourneySchema,
   domainEventDataSchemaByType,
+  isJourneyActionAllowedForTriggerType,
   journeyTriggerConfigSchema,
   linearJourneyGraphSchema,
   listJourneyRunsQuerySchema,
@@ -454,7 +455,10 @@ function validateClientJourneyActionCompatibility(graph: LinearJourneyGraph) {
         return false;
       }
 
-      return actionType.trim().toLowerCase() === "wait-for-confirmation";
+      return !isJourneyActionAllowedForTriggerType(
+        actionType,
+        triggerConfig.triggerType,
+      );
     })
     .map(({ index }) => index);
 

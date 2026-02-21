@@ -845,6 +845,26 @@ describe("workflow-editor-store", () => {
     expect(store.get(workflowEditorHasUnsavedChangesAtom)).toBe(false);
   });
 
+  test("ignores wait-for-confirmation for client triggers", () => {
+    const store = createStore();
+    store.set(
+      setWorkflowEditorGraphAtom,
+      createStaleClientTriggerGraphFixture(),
+    );
+    store.set(workflowEditorIsReadOnlyAtom, false);
+
+    store.set(setWorkflowEditorActionTypeAtom, {
+      nodeId: "action-node",
+      actionType: "wait-for-confirmation",
+    });
+
+    const nodes = store.get(workflowEditorNodesAtom);
+    const actionNode = nodes.find((node) => node.id === "action-node");
+
+    expect(actionNode?.data.config).toMatchObject({});
+    expect(store.get(workflowEditorHasUnsavedChangesAtom)).toBe(false);
+  });
+
   test("sets a service default label when selecting an action from a generic label", () => {
     const store = createStore();
     store.set(setWorkflowEditorGraphAtom, createGraphFixture());

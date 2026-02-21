@@ -648,6 +648,7 @@ export function WorkflowEditorSidebar({
                   canManageWorkflow ? (
                     <ActionGrid
                       disabled={!canManageWorkflow}
+                      triggerType={currentTriggerType}
                       onSelectAction={handleSelectActionType}
                     />
                   ) : (
@@ -771,6 +772,7 @@ export function WorkflowEditorSidebar({
                       <>
                         <ActionConfig
                           config={selectedNodeConfig}
+                          triggerType={currentTriggerType}
                           defaultTimezone={defaultTimezone}
                           fieldOptions={fieldOptions}
                           conditionValueOptionsByField={

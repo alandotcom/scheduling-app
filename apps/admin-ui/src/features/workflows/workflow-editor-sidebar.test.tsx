@@ -86,16 +86,35 @@ function createUnconfiguredActionNodeFixture(): Node {
   };
 }
 
+function createClientTriggerNodeFixture(): Node {
+  return {
+    id: "trigger-node",
+    position: { x: 0, y: 0 },
+    data: {
+      type: "trigger",
+      label: "Client Trigger",
+      description: "Client trigger node",
+      config: {
+        triggerType: "ClientJourney",
+        event: "client.created",
+        correlationKey: "clientId",
+      },
+    },
+  };
+}
+
 function renderSidebar({
   canManageWorkflow,
   isTriggerTypeLocked = false,
   onSetActionType,
   selectedNode = createNodeFixture(),
+  nodes = [],
 }: {
   canManageWorkflow: boolean;
   isTriggerTypeLocked?: boolean;
   onSetActionType?: (input: { nodeId: string; actionType: string }) => void;
   selectedNode?: Node;
+  nodes?: Node[];
 }) {
   const queryClient = createTestQueryClient();
   const onUpdateNodeData = mock(() => {});
@@ -106,6 +125,7 @@ function renderSidebar({
         canManageWorkflow={canManageWorkflow}
         defaultTimezone="America/New_York"
         isTriggerTypeLocked={isTriggerTypeLocked}
+        nodes={nodes}
         onSetActionType={onSetActionType}
         onUpdateNodeData={onUpdateNodeData}
         selectedNode={selectedNode}
@@ -317,6 +337,19 @@ describe("WorkflowEditorSidebar role behavior", () => {
       nodeId: "action-node",
       actionType: "send-resend",
     });
+  });
+
+  test("hides wait-for-confirmation for client triggers in unconfigured action picker", () => {
+    const clientTriggerNode = createClientTriggerNodeFixture();
+    const unconfiguredActionNode = createUnconfiguredActionNodeFixture();
+
+    renderSidebar({
+      canManageWorkflow: true,
+      selectedNode: unconfiguredActionNode,
+      nodes: [clientTriggerNode, unconfiguredActionNode],
+    });
+
+    expect(screen.queryByText("Wait For Confirmation")).toBeNull();
   });
 
   test("does not allow changing trigger type when trigger type is locked", () => {

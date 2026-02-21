@@ -77,6 +77,24 @@ describe("ActionConfig", () => {
     expect(screen.getByText("Send SMS")).toBeTruthy();
   });
 
+  test("hides wait-for-confirmation in action picker for client triggers", () => {
+    render(
+      <ActionConfig
+        config={{ actionType: "wait" }}
+        triggerType="ClientJourney"
+        onUpdateConfig={mock((_key: string, _value: unknown) => {})}
+      />,
+    );
+
+    const actionTrigger = screen.getAllByRole("combobox")[1];
+    if (!actionTrigger) {
+      throw new Error("Expected action combobox");
+    }
+
+    fireEvent.click(actionTrigger);
+    expect(screen.queryByText("Wait For Confirmation")).toBeNull();
+  });
+
   test("renders token pills in resend text and textarea fields", () => {
     const { container } = render(
       <ActionConfig

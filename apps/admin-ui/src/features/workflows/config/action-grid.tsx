@@ -8,6 +8,10 @@ import {
   ViewIcon,
   ViewOffIcon,
 } from "@hugeicons/core-free-icons";
+import {
+  isJourneyActionAllowedForTriggerType,
+  type JourneyTriggerConfig,
+} from "@scheduling/dto";
 import { useMemo, useState, type ReactNode } from "react";
 import { Icon } from "@/components/ui/icon";
 import { Input } from "@/components/ui/input";
@@ -24,6 +28,7 @@ import { getActionVisualSpec } from "../action-visuals";
 
 interface ActionGridProps {
   disabled?: boolean;
+  triggerType?: JourneyTriggerConfig["triggerType"] | null;
   onSelectAction: (actionType: string) => void;
 }
 
@@ -160,7 +165,11 @@ function readViewMode(): ActionGridViewMode {
   return stored === "grid" ? "grid" : "list";
 }
 
-export function ActionGrid({ disabled, onSelectAction }: ActionGridProps) {
+export function ActionGrid({
+  disabled,
+  triggerType = null,
+  onSelectAction,
+}: ActionGridProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(
     () => new Set<string>(),
@@ -172,20 +181,22 @@ export function ActionGrid({ disabled, onSelectAction }: ActionGridProps) {
 
   const filteredActions = useMemo(() => {
     const normalizedQuery = searchQuery.trim().toLowerCase();
-    const allActions = getAllActions();
+    const eligibleActions = getAllActions().filter((action) =>
+      isJourneyActionAllowedForTriggerType(action.id, triggerType),
+    );
 
     if (!normalizedQuery) {
-      return allActions;
+      return eligibleActions;
     }
 
-    return allActions.filter((action) => {
+    return eligibleActions.filter((action) => {
       return (
         action.label.toLowerCase().includes(normalizedQuery) ||
         action.description.toLowerCase().includes(normalizedQuery) ||
         action.category.toLowerCase().includes(normalizedQuery)
       );
     });
-  }, [searchQuery]);
+  }, [searchQuery, triggerType]);
 
   const groupedActions = useMemo(
     () => sortActionGroups(filteredActions),

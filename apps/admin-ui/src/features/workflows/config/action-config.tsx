@@ -1,5 +1,9 @@
 import { useMemo, useState } from "react";
 import { Settings01Icon } from "@hugeicons/core-free-icons";
+import {
+  isJourneyActionAllowedForTriggerType,
+  type JourneyTriggerConfig,
+} from "@scheduling/dto";
 import { Icon } from "@/components/ui/icon";
 import { Label } from "@/components/ui/label";
 import { type EventAttributeSuggestion } from "./event-attribute-suggestions";
@@ -43,11 +47,32 @@ function filterActionsByEnvironment(input: {
   return filtered;
 }
 
+function filterActionsByTriggerType(input: {
+  categoryMap: Map<string, ActionDefinition[]>;
+  triggerType: JourneyTriggerConfig["triggerType"] | null;
+}): Map<string, ActionDefinition[]> {
+  const filtered = new Map<string, ActionDefinition[]>();
+
+  for (const [category, actions] of input.categoryMap.entries()) {
+    const visibleActions = actions.filter((action) =>
+      isJourneyActionAllowedForTriggerType(action.id, input.triggerType),
+    );
+    if (visibleActions.length === 0) {
+      continue;
+    }
+
+    filtered.set(category, visibleActions);
+  }
+
+  return filtered;
+}
+
 interface ActionConfigProps {
   config: Record<string, unknown>;
   onUpdateConfig: (key: string, value: unknown) => void;
   onUpdateConfigBatch?: (patch: Record<string, unknown>) => void;
   disabled?: boolean;
+  triggerType?: JourneyTriggerConfig["triggerType"] | null;
   expressionSuggestions?: EventAttributeSuggestion[];
   fieldOptions?: WorkflowFilterFieldOption[];
   selectOptionsByKey?: Record<string, Array<{ value: string; label: string }>>;
@@ -81,6 +106,7 @@ export function ActionConfig({
   onUpdateConfig,
   onUpdateConfigBatch,
   disabled,
+  triggerType = null,
   expressionSuggestions = [],
   fieldOptions,
   selectOptionsByKey = {},
@@ -90,14 +116,16 @@ export function ActionConfig({
   const isDev = String(import.meta.env.DEV) === "true";
 
   const fullCategoryMap = useMemo(() => getActionsByCategory(), []);
-  const categoryMap = useMemo(
-    () =>
-      filterActionsByEnvironment({
-        categoryMap: fullCategoryMap,
-        isDev,
-      }),
-    [fullCategoryMap, isDev],
-  );
+  const categoryMap = useMemo(() => {
+    const environmentFiltered = filterActionsByEnvironment({
+      categoryMap: fullCategoryMap,
+      isDev,
+    });
+    return filterActionsByTriggerType({
+      categoryMap: environmentFiltered,
+      triggerType,
+    });
+  }, [fullCategoryMap, isDev, triggerType]);
   const categories = useMemo(() => [...categoryMap.keys()], [categoryMap]);
 
   const currentAction =

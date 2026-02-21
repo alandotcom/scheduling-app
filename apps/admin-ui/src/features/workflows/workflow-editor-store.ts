@@ -1,4 +1,5 @@
 import {
+  isJourneyActionAllowedForTriggerType,
   journeyTriggerConfigSchema,
   journeyTriggerFilterAstSchema,
   type JourneyTriggerConfig,
@@ -710,6 +711,25 @@ function normalizeTriggerConfig(value: unknown): JourneyTriggerConfig {
   };
 }
 
+function getTriggerTypeFromNodes(
+  nodes: WorkflowCanvasNode[],
+): JourneyTriggerConfig["triggerType"] | null {
+  const triggerNode = nodes.find(
+    (node) => asRecord(node.data)?.type === "trigger",
+  );
+  if (!triggerNode) {
+    return null;
+  }
+
+  const triggerData = asRecord(triggerNode.data);
+  const triggerConfig = asRecord(triggerData?.config);
+  if (triggerConfig?.triggerType === "ClientJourney") {
+    return "ClientJourney";
+  }
+
+  return "AppointmentJourney";
+}
+
 function normalizeNodeData(data: unknown): Record<string, unknown> {
   const nodeData = asRecord(data);
   if (!nodeData || nodeData.type !== "trigger") {
@@ -1341,6 +1361,11 @@ export const setWorkflowEditorActionTypeAtom = atom(
     if (!isSupportedJourneyActionType(input.actionType)) return;
 
     const currentNodes = get(workflowEditorNodesAtom);
+    const triggerType = getTriggerTypeFromNodes(currentNodes);
+    if (!isJourneyActionAllowedForTriggerType(input.actionType, triggerType)) {
+      return;
+    }
+
     const currentEdges = get(workflowEditorEdgesAtom);
     const history = get(historyAtom);
     set(historyAtom, [
