@@ -35,6 +35,7 @@ import {
 
 const TRIGGER_SCHEDULED_HANDLE_LEFT = "37%";
 const TRIGGER_CANCELED_HANDLE_LEFT = "63%";
+const TRIGGER_CLIENT_HANDLE_LEFT = "50%";
 
 type TriggerBranchOccupancy = {
   scheduled: boolean;
@@ -128,37 +129,64 @@ const TriggerNode = memo(function TriggerNode({
   }, [id, updateNodeInternals]);
 
   const title = nodeData.label || "Trigger";
-  const description = nodeData.description || "Trigger";
   const runtimeStatus =
     selectedExecutionId !== null
       ? toRuntimeNodeStatus(executionLogsByNodeId[id]?.status)
       : undefined;
   const status = runtimeStatus ?? nodeData.status;
+  const isClientJourneyTrigger =
+    nodeData.config?.triggerType === "ClientJourney" ||
+    nodeData.config?.event === "client.created" ||
+    nodeData.config?.event === "client.updated" ||
+    nodeData.config?.correlationKey === "clientId";
+  const clientEventLabel =
+    nodeData.config?.event === "client.updated" ? "Updated" : "Created";
+  const entryBranchLeft = isClientJourneyTrigger
+    ? TRIGGER_CLIENT_HANDLE_LEFT
+    : TRIGGER_SCHEDULED_HANDLE_LEFT;
+  const entryBranchLabel = isClientJourneyTrigger
+    ? clientEventLabel
+    : "Scheduled";
+  const description =
+    nodeData.description ||
+    (isClientJourneyTrigger ? "Client trigger" : "Appointment trigger");
 
   return (
     <Node
       handles={{
         target: false,
-        source: [
-          {
-            id: "scheduled",
-            position: Position.Bottom,
-            style: {
-              left: TRIGGER_SCHEDULED_HANDLE_LEFT,
-              width: 14,
-              height: 14,
-            },
-          },
-          {
-            id: "canceled",
-            position: Position.Bottom,
-            style: {
-              left: TRIGGER_CANCELED_HANDLE_LEFT,
-              width: 14,
-              height: 14,
-            },
-          },
-        ],
+        source: isClientJourneyTrigger
+          ? [
+              {
+                id: "scheduled",
+                position: Position.Bottom,
+                style: {
+                  left: TRIGGER_CLIENT_HANDLE_LEFT,
+                  width: 14,
+                  height: 14,
+                },
+              },
+            ]
+          : [
+              {
+                id: "scheduled",
+                position: Position.Bottom,
+                style: {
+                  left: TRIGGER_SCHEDULED_HANDLE_LEFT,
+                  width: 14,
+                  height: 14,
+                },
+              },
+              {
+                id: "canceled",
+                position: Position.Bottom,
+                style: {
+                  left: TRIGGER_CANCELED_HANDLE_LEFT,
+                  width: 14,
+                  height: 14,
+                },
+              },
+            ],
       }}
       status={status}
       style={{
@@ -174,12 +202,12 @@ const TriggerNode = memo(function TriggerNode({
       {!triggerBranchOccupancy.scheduled ? (
         <div
           className="pointer-events-none absolute -bottom-8 z-30 -translate-x-1/2 rounded-sm border bg-card px-1.5 py-0.5 text-[10px] leading-none text-muted-foreground"
-          style={{ left: TRIGGER_SCHEDULED_HANDLE_LEFT }}
+          style={{ left: entryBranchLeft }}
         >
-          Scheduled
+          {entryBranchLabel}
         </div>
       ) : null}
-      {!triggerBranchOccupancy.canceled ? (
+      {!isClientJourneyTrigger && !triggerBranchOccupancy.canceled ? (
         <div
           className="pointer-events-none absolute -bottom-8 z-30 -translate-x-1/2 rounded-sm border bg-card px-1.5 py-0.5 text-[10px] leading-none text-muted-foreground"
           style={{ left: TRIGGER_CANCELED_HANDLE_LEFT }}

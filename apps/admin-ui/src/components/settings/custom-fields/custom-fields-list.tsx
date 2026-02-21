@@ -21,23 +21,12 @@ import {
   PencilEdit01Icon,
   Delete01Icon,
 } from "@hugeicons/core-free-icons";
-import type {
-  CustomAttributeDefinitionResponse,
-  CustomAttributeType,
-} from "@scheduling/dto";
+import type { CustomAttributeDefinitionResponse } from "@scheduling/dto";
 
 import { Badge } from "@/components/ui/badge";
 import { Icon } from "@/components/ui/icon";
 import { RowActions, type RowAction } from "@/components/row-actions";
-
-const TYPE_LABELS: Record<CustomAttributeType, string> = {
-  TEXT: "Text",
-  NUMBER: "Number",
-  DATE: "Date",
-  BOOLEAN: "Boolean",
-  SELECT: "Select",
-  MULTI_SELECT: "Multi-Select",
-};
+import { getCustomAttributeTypeLabel } from "@/lib/custom-attribute-type-label";
 
 function SortableRow({
   item,
@@ -96,7 +85,9 @@ function SortableRow({
         <span className="font-mono text-xs text-muted-foreground">
           {item.fieldKey}
         </span>
-        <Badge variant="secondary">{TYPE_LABELS[item.type]}</Badge>
+        <Badge variant="secondary">
+          {getCustomAttributeTypeLabel(item.type)}
+        </Badge>
         {item.required ? <Badge variant="outline">Required</Badge> : null}
         {item.options && item.options.length > 0 ? (
           <span className="text-xs text-muted-foreground">

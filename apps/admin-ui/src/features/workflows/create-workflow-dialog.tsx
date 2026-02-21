@@ -34,7 +34,7 @@ function createDefaultWorkflowGraph(): LinearJourneyGraph {
         key: triggerId,
         attributes: {
           id: triggerId,
-          type: "trigger-node",
+          type: "trigger",
           position: { x: 0, y: 0 },
           data: {
             label: "",

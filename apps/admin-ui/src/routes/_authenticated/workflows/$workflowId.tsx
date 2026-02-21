@@ -477,6 +477,7 @@ function WorkflowEditorPage() {
         status: updated.status,
         mode: updated.mode,
         currentVersion: updated.currentVersion,
+        graph: updated.graph,
         updatedAt: updated.updatedAt,
       });
       patchJourneyInDetailCache(updated.id, {
@@ -484,6 +485,7 @@ function WorkflowEditorPage() {
         status: updated.status,
         mode: updated.mode,
         currentVersion: updated.currentVersion,
+        graph: updated.graph,
         updatedAt: updated.updatedAt,
       });
       setCurrentVersionDraft(updated.currentVersion);

@@ -118,18 +118,54 @@ function resolveClientTriggerRouting(input: {
   }
 
   const payloadRecord = toRecord(input.payload);
-  const customAttributes = toRecord(payloadRecord["customAttributes"]);
   const previousRecord = toRecord(payloadRecord["previous"]);
-  const previousCustomAttributes = toRecord(previousRecord["customAttributes"]);
-
-  const currentValue = customAttributes[trackedAttributeKey];
-  const previousValue = previousCustomAttributes[trackedAttributeKey];
+  const { currentValue, previousValue } = resolveTrackedClientAttributeValues({
+    payloadRecord,
+    previousRecord,
+    trackedAttributeKey,
+  });
 
   if (areTrackedAttributeValuesEqual(currentValue, previousValue)) {
     return "ignore";
   }
 
   return "plan";
+}
+
+function resolveTrackedClientAttributeValues(input: {
+  payloadRecord: Record<string, unknown>;
+  previousRecord: Record<string, unknown>;
+  trackedAttributeKey: string;
+}): {
+  currentValue: unknown;
+  previousValue: unknown;
+} {
+  if (input.trackedAttributeKey === "client.id") {
+    return {
+      currentValue:
+        input.payloadRecord["clientId"] ?? input.payloadRecord["id"],
+      previousValue:
+        input.previousRecord["clientId"] ?? input.previousRecord["id"],
+    };
+  }
+
+  if (input.trackedAttributeKey.startsWith("client.")) {
+    const field = input.trackedAttributeKey.slice("client.".length);
+    return {
+      currentValue: input.payloadRecord[field],
+      previousValue: input.previousRecord[field],
+    };
+  }
+
+  const customAttributes = toRecord(input.payloadRecord["customAttributes"]);
+  const previousCustomAttributes = toRecord(
+    input.previousRecord["customAttributes"],
+  );
+
+  return {
+    currentValue: customAttributes[input.trackedAttributeKey],
+    previousValue: previousCustomAttributes[input.trackedAttributeKey],
+  };
 }
 
 function areTrackedAttributeValuesEqual(

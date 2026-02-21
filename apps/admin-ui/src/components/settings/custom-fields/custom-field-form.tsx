@@ -21,16 +21,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-
-const ATTRIBUTE_TYPE_OPTIONS: { value: CustomAttributeType; label: string }[] =
-  [
-    { value: "TEXT", label: "Text" },
-    { value: "NUMBER", label: "Number" },
-    { value: "DATE", label: "Date" },
-    { value: "BOOLEAN", label: "Boolean" },
-    { value: "SELECT", label: "Select" },
-    { value: "MULTI_SELECT", label: "Multi-Select" },
-  ];
+import {
+  CUSTOM_ATTRIBUTE_TYPE_OPTIONS,
+  getCustomAttributeTypeLabel,
+} from "@/lib/custom-attribute-type-label";
 
 const SLOT_PREFIX_BY_TYPE: Record<CustomAttributeType, keyof SlotUsage> = {
   TEXT: "t",
@@ -176,7 +170,7 @@ function CreateFieldForm({
     const prefix = SLOT_PREFIX_BY_TYPE[watchedType];
     const bucket = slotUsage[prefix];
     if (bucket.used >= bucket.total) {
-      return `No available slots for ${watchedType} type. Maximum ${bucket.total} reached.`;
+      return `No available slots for ${getCustomAttributeTypeLabel(watchedType)} type. Maximum ${bucket.total} reached.`;
     }
     return null;
   }, [slotUsage, watchedType]);
@@ -234,10 +228,12 @@ function CreateFieldForm({
             disabled={isSubmitting}
           >
             <SelectTrigger>
-              <SelectValue />
+              <SelectValue>
+                {getCustomAttributeTypeLabel(watchedType)}
+              </SelectValue>
             </SelectTrigger>
             <SelectContent>
-              {ATTRIBUTE_TYPE_OPTIONS.map((option) => (
+              {CUSTOM_ATTRIBUTE_TYPE_OPTIONS.map((option) => (
                 <SelectItem key={option.value} value={option.value}>
                   {option.label}
                 </SelectItem>
@@ -393,7 +389,14 @@ function EditFieldForm({
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
           <Label>Type</Label>
-          <Input value={defaultValues?.type ?? ""} disabled />
+          <Input
+            value={
+              defaultValues?.type
+                ? getCustomAttributeTypeLabel(defaultValues.type)
+                : ""
+            }
+            disabled
+          />
         </div>
 
         <div className="flex items-end pb-1">

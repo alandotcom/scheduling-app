@@ -34,6 +34,7 @@ import { cn } from "@/lib/utils";
 import {
   ABSOLUTE_TEMPORAL_OPERATORS,
   RELATIVE_TEMPORAL_OPERATORS,
+  CLIENT_WORKFLOW_FILTER_FIELD_OPTIONS,
   VALUELESS_OPERATORS,
   WORKFLOW_FILTER_FIELD_OPTIONS,
   WORKFLOW_FILTER_TEMPORAL_UNIT_OPTIONS,
@@ -72,6 +73,45 @@ type ClientTriggerConfigShape = {
 type TriggerConfigShape =
   | AppointmentTriggerConfigShape
   | ClientTriggerConfigShape;
+
+type TrackedClientAttributeOption = {
+  value: string;
+  label: string;
+  source: "builtin" | "custom";
+};
+
+function toTrackedClientAttributeOptions(
+  customAttributeDefinitions: CustomAttributeDefinitionForFilter[],
+): TrackedClientAttributeOption[] {
+  const options: TrackedClientAttributeOption[] = [];
+  const seen = new Set<string>();
+
+  for (const option of CLIENT_WORKFLOW_FILTER_FIELD_OPTIONS) {
+    if (seen.has(option.value)) {
+      continue;
+    }
+    seen.add(option.value);
+    options.push({
+      value: option.value,
+      label: option.label,
+      source: "builtin",
+    });
+  }
+
+  for (const definition of customAttributeDefinitions) {
+    if (seen.has(definition.fieldKey)) {
+      continue;
+    }
+    seen.add(definition.fieldKey);
+    options.push({
+      value: definition.fieldKey,
+      label: definition.label,
+      source: "custom",
+    });
+  }
+
+  return options;
+}
 
 const MAX_FILTER_GROUPS = 4;
 const MAX_FILTER_CONDITIONS = 12;
@@ -1155,7 +1195,10 @@ function WorkflowTriggerConfigInner({
   };
 
   const currentTriggerType =
-    config.triggerType === "ClientJourney"
+    config.triggerType === "ClientJourney" ||
+    config.event === "client.created" ||
+    config.event === "client.updated" ||
+    config.correlationKey === "clientId"
       ? "ClientJourney"
       : "AppointmentJourney";
   const currentClientEvent =
@@ -1165,22 +1208,25 @@ function WorkflowTriggerConfigInner({
       ? config.trackedAttributeKey
       : "";
   const trackedAttributeOptions = useMemo(
-    () =>
-      clientAttributeDefinitions.map((definition) => ({
-        value: definition.fieldKey,
-        label: definition.label,
-      })),
+    () => toTrackedClientAttributeOptions(clientAttributeDefinitions),
     [clientAttributeDefinitions],
   );
   const hasTrackedAttributeOptions = trackedAttributeOptions.length > 0;
-  const isTrackedAttributeSelectionValid = clientAttributeDefinitionsLoaded
-    ? trackedAttributeOptions.some(
-        (option) => option.value === currentTrackedAttributeKey,
-      )
-    : true;
+  const isTrackedAttributeSelectionValid = trackedAttributeOptions.some(
+    (option) => option.value === currentTrackedAttributeKey,
+  );
   const selectedTrackedAttributeLabel = trackedAttributeOptions.find(
     (option) => option.value === currentTrackedAttributeKey,
   )?.label;
+  const fallbackTrackedAttributeKey =
+    trackedAttributeOptions.find((option) => option.source === "custom")
+      ?.value ??
+    trackedAttributeOptions[0]?.value ??
+    null;
+  const resolvedTrackedAttributeKey =
+    currentTrackedAttributeKey.length > 0 && isTrackedAttributeSelectionValid
+      ? currentTrackedAttributeKey
+      : fallbackTrackedAttributeKey;
   const showMissingTrackedAttributeWarning =
     clientAttributeDefinitionsLoaded &&
     currentTriggerType === "ClientJourney" &&
@@ -1193,12 +1239,26 @@ function WorkflowTriggerConfigInner({
       return;
     }
 
-    onUpdate({
-      triggerType: "ClientJourney",
-      event: "client.updated",
-      correlationKey: "clientId",
-    });
-  }, [disabled, showMissingTrackedAttributeWarning, onUpdate]);
+    onUpdate(
+      resolvedTrackedAttributeKey
+        ? {
+            triggerType: "ClientJourney",
+            event: "client.updated",
+            correlationKey: "clientId",
+            trackedAttributeKey: resolvedTrackedAttributeKey,
+          }
+        : {
+            triggerType: "ClientJourney",
+            event: "client.created",
+            correlationKey: "clientId",
+          },
+    );
+  }, [
+    disabled,
+    onUpdate,
+    resolvedTrackedAttributeKey,
+    showMissingTrackedAttributeWarning,
+  ]);
 
   const audienceDescription =
     currentTriggerType === "ClientJourney"
@@ -1308,14 +1368,25 @@ function WorkflowTriggerConfigInner({
                   ) {
                     return;
                   }
+
+                  if (value === "client.created") {
+                    onUpdate({
+                      triggerType: "ClientJourney",
+                      event: "client.created",
+                      correlationKey: "clientId",
+                    });
+                    return;
+                  }
+
+                  if (!resolvedTrackedAttributeKey) {
+                    return;
+                  }
+
                   onUpdate({
                     triggerType: "ClientJourney",
-                    event: value,
+                    event: "client.updated",
                     correlationKey: "clientId",
-                    ...(value === "client.updated" &&
-                    currentTrackedAttributeKey.length > 0
-                      ? { trackedAttributeKey: currentTrackedAttributeKey }
-                      : {}),
+                    trackedAttributeKey: resolvedTrackedAttributeKey,
                   });
                 }}
               >
@@ -1335,11 +1406,7 @@ function WorkflowTriggerConfigInner({
                   Tracked attribute key (required)
                 </p>
                 <Select
-                  disabled={
-                    disabled ||
-                    !clientAttributeDefinitionsLoaded ||
-                    !hasTrackedAttributeOptions
-                  }
+                  disabled={disabled || !hasTrackedAttributeOptions}
                   value={
                     isTrackedAttributeSelectionValid
                       ? currentTrackedAttributeKey
@@ -1365,11 +1432,9 @@ function WorkflowTriggerConfigInner({
                   >
                     <SelectValue
                       placeholder={
-                        !clientAttributeDefinitionsLoaded
-                          ? "Loading tracked attributes..."
-                          : hasTrackedAttributeOptions
-                            ? "Select tracked attribute"
-                            : "No custom attributes available"
+                        hasTrackedAttributeOptions
+                          ? "Select tracked attribute"
+                          : "No client attributes available"
                       }
                     >
                       {selectedTrackedAttributeLabel}
@@ -1383,11 +1448,9 @@ function WorkflowTriggerConfigInner({
                     ))}
                   </SelectContent>
                 </Select>
-                {clientAttributeDefinitionsLoaded &&
-                !hasTrackedAttributeOptions ? (
+                {!hasTrackedAttributeOptions ? (
                   <p className="text-destructive text-xs">
-                    Add at least one client custom attribute before using the
-                    Client Updated trigger.
+                    No supported client attributes are available for tracking.
                   </p>
                 ) : null}
                 {showMissingTrackedAttributeWarning ? (
@@ -1397,8 +1460,10 @@ function WorkflowTriggerConfigInner({
                   </p>
                 ) : null}
                 <p className="text-muted-foreground text-xs">
-                  Required. Trigger fires only when this attribute changes on
-                  the client record.
+                  A tracked attribute is the specific client field this trigger
+                  watches. The journey runs only when that field changes,
+                  including built-in fields like name/email/phone or custom
+                  attributes.
                 </p>
               </div>
             ) : null}

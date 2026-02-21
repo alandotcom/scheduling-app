@@ -861,7 +861,7 @@ describe("WorkflowTriggerConfig", () => {
     expect(trackedAttributeCombobox.textContent).toContain("Renewal Date");
   });
 
-  test("shows blocking copy when no client attributes exist for client.updated", () => {
+  test("explains what tracked attributes do for client.updated triggers", () => {
     const onUpdate = mock(() => {});
 
     render(
@@ -875,9 +875,49 @@ describe("WorkflowTriggerConfig", () => {
 
     expect(
       screen.getByText(
-        "Add at least one client custom attribute before using the Client Updated trigger.",
+        "A tracked attribute is the specific client field this trigger watches. The journey runs only when that field changes, including built-in fields like name/email/phone or custom attributes.",
       ),
     ).toBeTruthy();
+  });
+
+  test("falls back to a built-in tracked attribute when client.updated has no matching custom selection", () => {
+    const onUpdate = mock(() => {});
+
+    render(
+      <WorkflowTriggerConfig
+        clientAttributeDefinitions={[]}
+        config={createClientUpdatedTriggerConfig()}
+        disabled={false}
+        onUpdate={onUpdate}
+      />,
+    );
+
+    expect(onUpdate).toHaveBeenCalledWith({
+      triggerType: "ClientJourney",
+      event: "client.updated",
+      correlationKey: "clientId",
+      trackedAttributeKey: "client.id",
+    });
+  });
+
+  test("keeps built-in tracked attributes valid without custom definitions", () => {
+    const onUpdate = mock(() => {});
+
+    render(
+      <WorkflowTriggerConfig
+        clientAttributeDefinitions={[]}
+        config={{
+          triggerType: "ClientJourney",
+          event: "client.updated",
+          correlationKey: "clientId",
+          trackedAttributeKey: "client.email",
+        }}
+        disabled={false}
+        onUpdate={onUpdate}
+      />,
+    );
+
+    expect(onUpdate).toHaveBeenCalledTimes(0);
   });
 
   test("clears stale tracked attribute selections that no longer exist", () => {
@@ -907,6 +947,7 @@ describe("WorkflowTriggerConfig", () => {
       triggerType: "ClientJourney",
       event: "client.updated",
       correlationKey: "clientId",
+      trackedAttributeKey: "membershipTier",
     });
   });
 

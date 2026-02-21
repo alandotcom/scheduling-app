@@ -221,6 +221,14 @@ export function WorkflowEditorCanvas({
     setContextMenuState(null);
   }, []);
 
+  useEffect(() => {
+    if (!canEdit || !isLoaded || nodes.length > 0) {
+      return;
+    }
+
+    addInitialTrigger();
+  }, [addInitialTrigger, canEdit, isLoaded, nodes.length]);
+
   // Show empty-state placeholder when canvas is empty and editable
   const displayNodes = useMemo(() => {
     if (nodes.length === 0 && canEdit) {
@@ -241,25 +249,15 @@ export function WorkflowEditorCanvas({
     return nodes;
   }, [nodes, canEdit]);
 
-  // Handle clicks on nodes — React Flow's onNodeClick fires reliably
-  // even when pointer events are intercepted by the node wrapper
+  // Node clicks are only used for the empty placeholder bootstrap action.
+  // Node/edge selection for the sidebar is sourced from onSelectionChange.
   const handleNodeClick = useCallback(
     (_event: React.MouseEvent, node: { id: string }) => {
       if (node.id === "__empty-placeholder__") {
         addInitialTrigger();
-        return;
       }
-
-      setSelection({ nodeId: node.id, edgeId: null });
     },
-    [addInitialTrigger, setSelection],
-  );
-
-  const handleEdgeClick = useCallback(
-    (_event: React.MouseEvent, edge: { id: string }) => {
-      setSelection({ nodeId: null, edgeId: edge.id });
-    },
-    [setSelection],
+    [addInitialTrigger],
   );
 
   // Connection-to-create-node refs
@@ -269,8 +267,6 @@ export function WorkflowEditorCanvas({
   const reconnectingEdgeId = useRef<string | null>(null);
   const edgeReconnectSuccessful = useRef(true);
   const suppressNextPaneClickClear = useRef(false);
-  const isDraggingNode = useRef(false);
-  const suppressSelectionSyncUntil = useRef(0);
   const canvasContainerRef = useRef<HTMLDivElement | null>(null);
   const reflowRequestId = useRef(0);
   const isReflowingRef = useRef(false);
@@ -549,6 +545,36 @@ export function WorkflowEditorCanvas({
     setSelection({ nodeId: null, edgeId: null });
   }, [closeContextMenu, setSelection]);
 
+  const handleSelectionChange = useCallback(
+    ({
+      nodes: selectedNodes,
+      edges: selectedEdges,
+    }: {
+      nodes: Array<{ id: string }>;
+      edges: Array<{ id: string }>;
+    }) => {
+      if (selectedNodes.length > 0) {
+        setSelection({
+          nodeId: selectedNodes[0]?.id ?? null,
+          edgeId: null,
+        });
+        return;
+      }
+
+      if (selectedEdges.length > 0) {
+        setSelection({
+          nodeId: null,
+          edgeId: selectedEdges[0]?.id ?? null,
+        });
+        return;
+      }
+
+      // Keep externally-driven selection (for example, timeline clicks in
+      // run mode). Pane clicks still clear selection via onPaneClick.
+    },
+    [setSelection],
+  );
+
   const handleCanvasConnect = useCallback(
     (connection: ReactFlowConnection) => {
       const reconnectingId = reconnectingEdgeId.current;
@@ -770,39 +796,13 @@ export function WorkflowEditorCanvas({
         onNodeContextMenu={canEdit ? onNodeContextMenu : undefined}
         onConnectStart={canEdit ? handleConnectStart : undefined}
         onConnectEnd={canEdit ? handleConnectEnd : undefined}
-        onNodeDragStart={() => {
-          isDraggingNode.current = true;
-        }}
-        onNodeDragStop={() => {
-          isDraggingNode.current = false;
-          suppressSelectionSyncUntil.current = Date.now() + 200;
-        }}
-        onEdgeClick={handleEdgeClick}
         onEdgeContextMenu={canEdit ? onEdgeContextMenu : undefined}
         onPaneClick={handlePaneClick}
         onPaneContextMenu={canEdit ? onPaneContextMenu : undefined}
         onMoveStart={markUserViewportInteraction}
         onMove={markUserViewportInteraction}
         onMoveEnd={markUserViewportInteraction}
-        onSelectionChange={({ nodes: selectedNodes, edges: selectedEdges }) => {
-          if (selectedNodes.length > 0 || selectedEdges.length > 0) {
-            if (
-              isDraggingNode.current ||
-              Date.now() < suppressSelectionSyncUntil.current
-            ) {
-              return;
-            }
-
-            setSelection({
-              nodeId: selectedNodes.at(0)?.id ?? null,
-              edgeId: selectedEdges.at(0)?.id ?? null,
-            });
-            return;
-          }
-
-          // Keep externally-driven selection (for example, timeline clicks in
-          // run mode). Pane clicks still clear selection via onPaneClick.
-        }}
+        onSelectionChange={handleSelectionChange}
       >
         <Panel position="bottom-left" className="mb-10">
           <Controls

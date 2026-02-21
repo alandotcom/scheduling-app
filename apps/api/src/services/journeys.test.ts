@@ -389,6 +389,31 @@ describe("JourneyService", () => {
     expect(published.version).toBe(1);
   });
 
+  test("allows publish when client.updated tracked attribute key is a built-in client field", async () => {
+    const created = await journeyService.create(
+      {
+        name: "Client Updated Built-in Attribute",
+        graph: createClientJourneyGraph({
+          triggerId: "trigger-client-updated-built-in",
+          event: "client.updated",
+          trackedAttributeKey: "client.email",
+        }),
+      },
+      context,
+    );
+
+    const published = await journeyService.publish(
+      created.id,
+      {
+        mode: "live",
+      },
+      context,
+    );
+
+    expect(published.journey.status).toBe("published");
+    expect(published.version).toBe(1);
+  });
+
   test("blocks publish when client journey includes wait-for-confirmation action", async () => {
     const graph: LinearJourneyGraph = {
       attributes: {},

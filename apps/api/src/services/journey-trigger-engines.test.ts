@@ -31,6 +31,8 @@ function createGraph(config: JourneyTriggerConfig) {
 
 function createClientPayload(input?: {
   clientId?: string;
+  email?: string | null;
+  previousEmail?: string | null;
   renewalDate?: string;
   previousRenewalDate?: string;
 }) {
@@ -40,7 +42,7 @@ function createClientPayload(input?: {
     clientId,
     firstName: "Avery",
     lastName: "Stone",
-    email: null,
+    email: input?.email ?? null,
     phone: "+14155552671",
     customAttributes: {
       renewalDate: input?.renewalDate ?? "2026-03-10T14:00:00.000Z",
@@ -49,7 +51,7 @@ function createClientPayload(input?: {
       clientId,
       firstName: "Avery",
       lastName: "Stone",
-      email: null,
+      email: input?.previousEmail ?? null,
       phone: "+14155552671",
       customAttributes: {
         renewalDate: input?.previousRenewalDate ?? "2026-03-01T14:00:00.000Z",
@@ -285,6 +287,56 @@ describe("resolveJourneyTriggerRuntime", () => {
       payload: createClientPayload({
         renewalDate: "2026-04-10T14:00:00.000Z",
         previousRenewalDate: "2026-04-10T14:00:00.000Z",
+      }),
+    });
+
+    expect(runtime.status).toBe("resolved");
+    if (runtime.status !== "resolved") {
+      return;
+    }
+
+    expect(runtime.routing).toBe("ignore");
+  });
+
+  test("plans client.updated runs when a built-in tracked client field changes", () => {
+    const graph = createGraph({
+      triggerType: "ClientJourney",
+      event: "client.updated",
+      correlationKey: "clientId",
+      trackedAttributeKey: "client.email",
+    });
+
+    const runtime = resolveJourneyTriggerRuntime({
+      graph,
+      eventType: "client.updated",
+      payload: createClientPayload({
+        email: "new@example.com",
+        previousEmail: "old@example.com",
+      }),
+    });
+
+    expect(runtime.status).toBe("resolved");
+    if (runtime.status !== "resolved") {
+      return;
+    }
+
+    expect(runtime.routing).toBe("plan");
+  });
+
+  test("ignores client.updated when a built-in tracked client field is unchanged", () => {
+    const graph = createGraph({
+      triggerType: "ClientJourney",
+      event: "client.updated",
+      correlationKey: "clientId",
+      trackedAttributeKey: "client.email",
+    });
+
+    const runtime = resolveJourneyTriggerRuntime({
+      graph,
+      eventType: "client.updated",
+      payload: createClientPayload({
+        email: "same@example.com",
+        previousEmail: "same@example.com",
       }),
     });
 

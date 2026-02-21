@@ -696,15 +696,28 @@ export function WorkflowEditorSidebar({
                           }
                         }}
                         onUpdate={(next) => {
+                          const nextTriggerType =
+                            next.triggerType === "ClientJourney" ||
+                            (next.triggerType !== "AppointmentJourney" &&
+                              (selectedNodeConfig.triggerType ===
+                                "ClientJourney" ||
+                                selectedNodeConfig.event === "client.created" ||
+                                selectedNodeConfig.event === "client.updated" ||
+                                selectedNodeConfig.correlationKey ===
+                                  "clientId"))
+                              ? "ClientJourney"
+                              : "AppointmentJourney";
                           const parsedConfig =
                             journeyTriggerConfigSchema.safeParse(
                               selectedNodeConfig,
                             );
-                          const baseConfig = parsedConfig.success
-                            ? parsedConfig.data
-                            : selectedNodeConfig.triggerType === "ClientJourney"
-                              ? getDefaultClientTriggerConfig()
-                              : getDefaultAppointmentTriggerConfig();
+                          const baseConfig =
+                            parsedConfig.success &&
+                            parsedConfig.data.triggerType === nextTriggerType
+                              ? parsedConfig.data
+                              : nextTriggerType === "ClientJourney"
+                                ? getDefaultClientTriggerConfig()
+                                : getDefaultAppointmentTriggerConfig();
                           onUpdateNodeData({
                             id: selectedNode.id,
                             data: {

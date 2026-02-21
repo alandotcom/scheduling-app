@@ -66,6 +66,13 @@ const HIGH_SIGNAL_FILTER_FIELDS = new Set([
   "appointment.appointmentTypeId",
   "appointment.clientId",
 ]);
+const BUILT_IN_CLIENT_TRACKED_ATTRIBUTE_KEYS = [
+  "client.id",
+  "client.firstName",
+  "client.lastName",
+  "client.email",
+  "client.phone",
+] as const;
 
 function journeyNameConflictError(): ApplicationError {
   return new ApplicationError("Journey name already exists", {
@@ -380,9 +387,10 @@ async function validateClientTriggerCustomAttributeReferences(input: {
     input.tx,
     input.orgId,
   );
-  const validFieldKeys = new Set(
-    definitions.map((definition) => definition.fieldKey),
-  );
+  const validFieldKeys = new Set<string>([
+    ...BUILT_IN_CLIENT_TRACKED_ATTRIBUTE_KEYS,
+    ...definitions.map((definition) => definition.fieldKey),
+  ]);
 
   if (validFieldKeys.has(trackedAttributeKey)) {
     return;
@@ -392,7 +400,7 @@ async function validateClientTriggerCustomAttributeReferences(input: {
     {
       code: "custom",
       path: ["trigger", "config", "trackedAttributeKey"],
-      message: `Tracked attribute key "${trackedAttributeKey}" does not exist in client custom attributes.`,
+      message: `Tracked attribute key "${trackedAttributeKey}" does not exist in supported client attributes.`,
     },
   ]);
 }

@@ -56,6 +56,13 @@ const ACTIVE_JOURNEY_STATES = ["published"] as const;
 const ACTIVE_RUN_STATUSES = ["planned", "running"] as const;
 const DEFAULT_ORG_TIMEZONE = "UTC";
 const journeyPlannerLogger = getLogger(["journeys", "planner"]);
+const BUILT_IN_CLIENT_TRACKED_ATTRIBUTE_KEYS = [
+  "client.id",
+  "client.firstName",
+  "client.lastName",
+  "client.email",
+  "client.phone",
+] as const;
 
 export type JourneyDomainEventEnvelope = {
   id: string;
@@ -1696,11 +1703,12 @@ export async function processJourneyDomainEvent(
     const orgTimezone = org?.defaultTimezone ?? DEFAULT_ORG_TIMEZONE;
     const validClientAttributeKeys =
       event.type === "client.updated"
-        ? new Set(
-            (
+        ? new Set([
+            ...BUILT_IN_CLIENT_TRACKED_ATTRIBUTE_KEYS,
+            ...(
               await customAttributeRepository.listDefinitions(tx, event.orgId)
             ).map((definition) => definition.fieldKey),
-          )
+          ])
         : null;
 
     const latestVersionByJourneyId = new Map<string, JourneyVersionRow>();
