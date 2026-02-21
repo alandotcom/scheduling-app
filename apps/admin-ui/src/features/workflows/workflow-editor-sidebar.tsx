@@ -19,7 +19,10 @@ import { WorkflowRunsPanel } from "./workflow-runs-panel";
 import { WorkflowTriggerConfig } from "./workflow-trigger-config";
 import { ActionGrid } from "./config/action-grid";
 import { ActionConfig } from "./config/action-config";
-import { buildEventAttributeSuggestions } from "./config/event-attribute-suggestions";
+import {
+  buildEventAttributeSuggestions,
+  type EventAttributeSuggestion,
+} from "./config/event-attribute-suggestions";
 import { getAction } from "./action-registry";
 import {
   getClientWorkflowFilterFieldOptions,
@@ -42,6 +45,7 @@ interface WorkflowEditorSidebarProps {
   nodes?: Node[];
   edges?: Edge[];
   canManageWorkflow: boolean;
+  isTriggerTypeLocked?: boolean;
   onUpdateNodeData: (input: {
     id: string;
     data: Record<string, unknown>;
@@ -190,6 +194,36 @@ function isDateTimeOutputAttribute(path: string): boolean {
   );
 }
 
+function humanizeSuggestionSegment(segment: string): string {
+  const normalized = segment
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .replace(/[_-]+/g, " ")
+    .trim();
+  if (!normalized) {
+    return segment;
+  }
+
+  return normalized
+    .split(/\s+/)
+    .map((part) =>
+      /^[A-Z0-9]+$/.test(part)
+        ? part
+        : `${part.charAt(0).toUpperCase()}${part.slice(1)}`,
+    )
+    .join(" ");
+}
+
+function toSuggestionLabel(path: string): string {
+  const label = path
+    .split(".")
+    .filter((segment) => segment.length > 0)
+    .map((segment) => humanizeSuggestionSegment(segment))
+    .join(" ")
+    .trim();
+
+  return label.length > 0 ? label : path;
+}
+
 function getUpstreamNodes(
   nodeId: string,
   nodes: Node[],
@@ -228,11 +262,8 @@ export function buildUpstreamOutputSuggestions(input: {
   selectedNodeId: string;
   nodes: Node[];
   edges: Edge[];
-}) {
-  const suggestions = new Map<
-    string,
-    { value: string; type: string; isDateTime: boolean }
-  >();
+}): EventAttributeSuggestion[] {
+  const suggestions = new Map<string, EventAttributeSuggestion>();
 
   const upstreamNodes = getUpstreamNodes(
     input.selectedNodeId,
@@ -269,6 +300,7 @@ export function buildUpstreamOutputSuggestions(input: {
 
       suggestions.set(value, {
         value,
+        label: toSuggestionLabel(value),
         type: "node output",
         isDateTime: isDateTimeOutputAttribute(attribute),
       });
@@ -325,6 +357,7 @@ export function WorkflowEditorSidebar({
   nodes = [],
   edges = [],
   canManageWorkflow,
+  isTriggerTypeLocked = false,
   onUpdateNodeData,
   onSetActionType,
   onDeleteNode,
@@ -677,8 +710,13 @@ export function WorkflowEditorSidebar({
                         defaultTimezone={defaultTimezone}
                         disabled={!canManageWorkflow}
                         fieldOptions={fieldOptions}
+                        triggerTypeLocked={isTriggerTypeLocked}
                         valueOptionsByField={filterValueOptionsByField}
                         onTriggerTypeChange={(triggerType) => {
+                          if (isTriggerTypeLocked) {
+                            return;
+                          }
+
                           if (triggerType === "ClientJourney") {
                             onUpdateNodeData({
                               id: selectedNode.id,

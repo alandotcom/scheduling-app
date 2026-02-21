@@ -8,6 +8,7 @@ import { z } from "zod";
 
 export type EventAttributeSuggestion = {
   value: string;
+  label: string;
   type: string;
   isDateTime: boolean;
 };
@@ -25,6 +26,46 @@ function toDomainRoot(domain: DomainEventDomain): string {
     .split("_")
     .map((segment) => segment[0]?.toUpperCase() + segment.slice(1))
     .join("");
+}
+
+function humanizeSegment(segment: string): string {
+  const normalized = segment
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .replace(/[_-]+/g, " ")
+    .trim();
+  if (!normalized) {
+    return segment;
+  }
+
+  return normalized
+    .split(/\s+/)
+    .map((part) =>
+      /^[A-Z0-9]+$/.test(part)
+        ? part
+        : `${part.charAt(0).toUpperCase()}${part.slice(1)}`,
+    )
+    .join(" ");
+}
+
+function toSuggestionLabel(
+  path: string,
+  options?: { dropCustomAttributes?: boolean },
+): string {
+  const segments = path.split(".").filter((segment) => segment.length > 0);
+  const labelSegments: string[] = [];
+
+  for (const [index, segment] of segments.entries()) {
+    if (index === 1 && segment === "data") {
+      continue;
+    }
+    if (options?.dropCustomAttributes && segment === "customAttributes") {
+      continue;
+    }
+    labelSegments.push(humanizeSegment(segment));
+  }
+
+  const label = labelSegments.join(" ").trim();
+  return label.length > 0 ? label : path;
 }
 
 function resolveNullableSchema(schema: JsonSchema): JsonSchema {
@@ -93,6 +134,7 @@ function collectPaths(
     const format = schemaFormat(resolved);
     output.set(prefix, {
       value: prefix,
+      label: toSuggestionLabel(prefix),
       type,
       isDateTime: isDateTimeSuggestion({
         path: prefix,
@@ -132,6 +174,7 @@ function isIdSuggestionPath(path: string): boolean {
 
 type CustomAttributeDefinitionForSuggestion = {
   fieldKey: string;
+  label?: string;
   type: string;
 };
 
@@ -158,16 +201,19 @@ export function buildEventAttributeSuggestions(input: {
 
   suggestions.set(`${root}.event`, {
     value: `${root}.event`,
+    label: toSuggestionLabel(`${root}.event`),
     type: "string",
     isDateTime: false,
   });
   suggestions.set(`${root}.timestamp`, {
     value: `${root}.timestamp`,
+    label: toSuggestionLabel(`${root}.timestamp`),
     type: "string",
     isDateTime: true,
   });
   suggestions.set(`${root}.data`, {
     value: `${root}.data`,
+    label: toSuggestionLabel(`${root}.data`),
     type: "object",
     isDateTime: false,
   });
@@ -191,13 +237,27 @@ export function buildEventAttributeSuggestions(input: {
       }
 
       const path = `${customAttributePrefix}.${def.fieldKey}`;
-      if (!suggestions.has(path)) {
+      const label =
+        typeof def.label === "string" && def.label.trim().length > 0
+          ? def.label.trim()
+          : toSuggestionLabel(path, { dropCustomAttributes: true });
+      const existingSuggestion = suggestions.get(path);
+      const nextSuggestion: EventAttributeSuggestion = {
+        value: path,
+        label,
+        type: mapCustomAttributeTypeToSuggestionType(def.type),
+        isDateTime: def.type === "DATE",
+      };
+
+      if (existingSuggestion) {
         suggestions.set(path, {
-          value: path,
-          type: mapCustomAttributeTypeToSuggestionType(def.type),
-          isDateTime: def.type === "DATE",
+          ...existingSuggestion,
+          ...nextSuggestion,
         });
+        continue;
       }
+
+      suggestions.set(path, nextSuggestion);
     }
   }
 

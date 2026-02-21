@@ -945,6 +945,7 @@ interface WorkflowTriggerConfigProps {
   defaultTimezone?: string;
   disabled: boolean;
   fieldOptions?: WorkflowFilterFieldOption[];
+  triggerTypeLocked?: boolean;
   onTriggerTypeChange?: (
     triggerType: "AppointmentJourney" | "ClientJourney",
   ) => void;
@@ -959,6 +960,7 @@ export function WorkflowTriggerConfig({
   defaultTimezone = "America/New_York",
   disabled,
   fieldOptions = WORKFLOW_FILTER_FIELD_OPTIONS,
+  triggerTypeLocked = false,
   onTriggerTypeChange,
   onUpdate,
   valueOptionsByField = {},
@@ -977,6 +979,7 @@ export function WorkflowTriggerConfig({
       defaultTimezone={defaultTimezone}
       disabled={disabled}
       fieldOptions={fieldOptions}
+      triggerTypeLocked={triggerTypeLocked}
       onTriggerTypeChange={onTriggerTypeChange}
       onUpdate={onUpdate}
       showFilters={showFilters}
@@ -998,6 +1001,7 @@ function WorkflowTriggerConfigInner({
   defaultTimezone = "America/New_York",
   disabled,
   fieldOptions = WORKFLOW_FILTER_FIELD_OPTIONS,
+  triggerTypeLocked = false,
   onTriggerTypeChange,
   onUpdate,
   showFilters,
@@ -1203,6 +1207,10 @@ function WorkflowTriggerConfigInner({
       : "AppointmentJourney";
   const currentClientEvent =
     config.event === "client.updated" ? "client.updated" : "client.created";
+  const selectedClientEventLabel =
+    currentClientEvent === "client.updated"
+      ? "Client Updated"
+      : "Client Created";
   const currentTrackedAttributeKey =
     typeof config.trackedAttributeKey === "string"
       ? config.trackedAttributeKey
@@ -1269,6 +1277,7 @@ function WorkflowTriggerConfigInner({
     currentTriggerType === "ClientJourney"
       ? "Rules are optional. They decide which clients enter this journey."
       : "Rules are optional. They decide which appointments enter this journey.";
+  const isTriggerTypeSelectionDisabled = disabled || triggerTypeLocked;
 
   return (
     <section className="space-y-4">
@@ -1285,7 +1294,7 @@ function WorkflowTriggerConfigInner({
                   ? "bg-background text-foreground shadow-sm"
                   : "text-muted-foreground",
               )}
-              disabled={disabled}
+              disabled={isTriggerTypeSelectionDisabled}
               onClick={() => onTriggerTypeChange("AppointmentJourney")}
               type="button"
             >
@@ -1298,13 +1307,19 @@ function WorkflowTriggerConfigInner({
                   ? "bg-background text-foreground shadow-sm"
                   : "text-muted-foreground",
               )}
-              disabled={disabled}
+              disabled={isTriggerTypeSelectionDisabled}
               onClick={() => onTriggerTypeChange("ClientJourney")}
               type="button"
             >
               Client
             </button>
           </div>
+          {triggerTypeLocked ? (
+            <p className="text-muted-foreground text-xs">
+              Trigger type is locked once the workflow includes additional
+              steps.
+            </p>
+          ) : null}
         </div>
       ) : null}
 
@@ -1391,7 +1406,9 @@ function WorkflowTriggerConfigInner({
                 }}
               >
                 <SelectTrigger className="h-9 w-full" size="sm">
-                  <SelectValue placeholder="Select event" />
+                  <SelectValue placeholder="Select event">
+                    {selectedClientEventLabel}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="client.created">Client Created</SelectItem>

@@ -76,6 +76,22 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+function isTriggerOnlyDraftGraph(input: {
+  nodes: Array<{ data?: unknown }>;
+  edges: unknown[];
+}): boolean {
+  if (input.nodes.length !== 1 || input.edges.length !== 0) {
+    return false;
+  }
+
+  const triggerNode = input.nodes[0];
+  if (!triggerNode || !isRecord(triggerNode.data)) {
+    return false;
+  }
+
+  return triggerNode.data.type === "trigger";
+}
+
 function WorkflowEditorPage() {
   const { workflowId } = Route.useParams();
   const queryClient = useQueryClient();
@@ -160,6 +176,8 @@ function WorkflowEditorPage() {
     journeyStatus === "draft" ? draftPublishMode : persistedMode;
   const currentVersion =
     currentVersionDraft ?? journeyQuery.data?.currentVersion;
+  const isTriggerTypeLocked =
+    nodes.length > 0 && !isTriggerOnlyDraftGraph({ nodes, edges });
   const mobileSelectionKey = selectedNodeId
     ? `node:${selectedNodeId}`
     : selectedEdgeId
@@ -444,9 +462,9 @@ function WorkflowEditorPage() {
     [nodes, edges],
   );
 
-  const saveJourney = useCallback(async () => {
+  const saveJourney = useCallback(async (): Promise<boolean> => {
     if (!isLoaded || !canManageCurrentView) {
-      return;
+      return false;
     }
 
     const currentStatus =
@@ -454,12 +472,19 @@ function WorkflowEditorPage() {
 
     setIsSaving(true);
     try {
+      if (persistableGraphResult.skippedNodeIds.length > 0) {
+        toast.error(
+          "Cannot save journey with disconnected or incomplete steps. Reconnect or delete them first.",
+        );
+        return false;
+      }
+
       const parsedPersistableGraph = linearJourneyGraphSchema.safeParse(
         persistableGraphResult.graph,
       );
       if (!parsedPersistableGraph.success) {
         toast.error("Failed to save journey draft");
-        return;
+        return false;
       }
 
       const updated = await updateMutation.mutateAsync({
@@ -496,7 +521,8 @@ function WorkflowEditorPage() {
       if (updated.status === "draft") {
         setDraftPublishMode(updated.mode);
       }
-      setHasUnsavedChanges(persistableGraphResult.skippedNodeIds.length > 0);
+      setHasUnsavedChanges(false);
+      return true;
     } finally {
       setIsSaving(false);
     }
@@ -625,7 +651,10 @@ function WorkflowEditorPage() {
       }
 
       if (hasUnsavedChanges) {
-        await saveJourney();
+        const didSave = await saveJourney();
+        if (!didSave) {
+          return;
+        }
       }
 
       setLifecycleDraft({
@@ -863,6 +892,7 @@ function WorkflowEditorPage() {
                 onDeleteNode={canManageCurrentView ? deleteNode : undefined}
                 onSetActionType={setActionType}
                 onUpdateNodeData={updateNodeData}
+                isTriggerTypeLocked={isTriggerTypeLocked}
                 selectedEdge={selectedEdge}
                 selectedNode={selectedNode}
                 workflowId={journeyQuery.data?.id ?? null}
@@ -881,6 +911,7 @@ function WorkflowEditorPage() {
             onDeleteNode={canManageCurrentView ? deleteNode : undefined}
             onSetActionType={setActionType}
             onUpdateNodeData={updateNodeData}
+            isTriggerTypeLocked={isTriggerTypeLocked}
             selectedEdge={selectedEdge}
             selectedNode={selectedNode}
             workflowId={journeyQuery.data?.id ?? null}

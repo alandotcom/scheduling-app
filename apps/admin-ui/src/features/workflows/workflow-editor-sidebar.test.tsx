@@ -88,10 +88,12 @@ function createUnconfiguredActionNodeFixture(): Node {
 
 function renderSidebar({
   canManageWorkflow,
+  isTriggerTypeLocked = false,
   onSetActionType,
   selectedNode = createNodeFixture(),
 }: {
   canManageWorkflow: boolean;
+  isTriggerTypeLocked?: boolean;
   onSetActionType?: (input: { nodeId: string; actionType: string }) => void;
   selectedNode?: Node;
 }) {
@@ -103,6 +105,7 @@ function renderSidebar({
       <WorkflowEditorSidebar
         canManageWorkflow={canManageWorkflow}
         defaultTimezone="America/New_York"
+        isTriggerTypeLocked={isTriggerTypeLocked}
         onSetActionType={onSetActionType}
         onUpdateNodeData={onUpdateNodeData}
         selectedNode={selectedNode}
@@ -236,6 +239,45 @@ describe("WorkflowEditorSidebar role behavior", () => {
     ).toBeFalse();
   });
 
+  test("builds human-readable labels for upstream output suggestions", () => {
+    const triggerNode = createNodeFixture();
+    const upstreamAction = createActionNodeFixture({
+      id: "action-upstream",
+      label: "Action1",
+      actionType: "wait",
+      outputAttributes: "createdAt",
+    });
+    const selectedAction = createActionNodeFixture({
+      id: "action-selected",
+      label: "Action2",
+      actionType: "send-resend",
+    });
+    const edges: Edge[] = [
+      {
+        id: "edge-trigger-upstream",
+        source: triggerNode.id,
+        target: upstreamAction.id,
+      },
+      {
+        id: "edge-upstream-selected",
+        source: upstreamAction.id,
+        target: selectedAction.id,
+      },
+    ];
+
+    const suggestions = buildUpstreamOutputSuggestions({
+      selectedNodeId: selectedAction.id,
+      nodes: [triggerNode, upstreamAction, selectedAction],
+      edges,
+    });
+    const createdAtSuggestion = suggestions.find(
+      (suggestion) => suggestion.value === "Action1.createdAt",
+    );
+
+    expect(createdAtSuggestion).toBeDefined();
+    expect(createdAtSuggestion?.label).toBe("Action1 Created At");
+  });
+
   test("shows only journey v1 step types for unconfigured actions", () => {
     renderSidebar({
       canManageWorkflow: true,
@@ -275,5 +317,21 @@ describe("WorkflowEditorSidebar role behavior", () => {
       nodeId: "action-node",
       actionType: "send-resend",
     });
+  });
+
+  test("does not allow changing trigger type when trigger type is locked", () => {
+    const { onUpdateNodeData } = renderSidebar({
+      canManageWorkflow: true,
+      isTriggerTypeLocked: true,
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Client" }));
+
+    expect(onUpdateNodeData).toHaveBeenCalledTimes(0);
+    expect(
+      screen.getByText(
+        "Trigger type is locked once the workflow includes additional steps.",
+      ),
+    ).toBeTruthy();
   });
 });

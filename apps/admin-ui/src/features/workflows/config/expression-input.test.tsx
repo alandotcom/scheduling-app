@@ -13,8 +13,18 @@ describe("ExpressionInput", () => {
         onBlur={() => {}}
         onChange={() => {}}
         suggestions={[
-          { value: "Webhook.triggered", type: "boolean", isDateTime: false },
-          { value: "Webhook.timestamp", type: "string", isDateTime: true },
+          {
+            value: "Webhook.triggered",
+            label: "Webhook Triggered",
+            type: "boolean",
+            isDateTime: false,
+          },
+          {
+            value: "Webhook.timestamp",
+            label: "Webhook Timestamp",
+            type: "string",
+            isDateTime: true,
+          },
         ]}
         value=""
       />,
@@ -43,9 +53,50 @@ describe("ExpressionInput", () => {
     );
     expect(activeRow).toBeTruthy();
     expect(activeRow?.querySelector("svg")).toBeTruthy();
-    expect(screen.getAllByText("Webhook.").length).toBeGreaterThan(0);
-    expect(screen.getByText("triggered")).toBeTruthy();
+    expect(screen.getByText("Webhook Triggered")).toBeTruthy();
+    expect(screen.getByText("Webhook.triggered")).toBeTruthy();
     expect(screen.getByText("string · date-time")).toBeTruthy();
+  });
+
+  test("filters suggestions by label text as well as path text", () => {
+    render(
+      <ExpressionInput
+        onBlur={() => {}}
+        onChange={() => {}}
+        suggestions={[
+          {
+            value: "Client.data.customAttributes.newsletterOptIn",
+            label: "Newsletter Opt-In",
+            type: "boolean",
+            isDateTime: false,
+          },
+        ]}
+        value=""
+      />,
+    );
+
+    const textbox = screen.getByRole("textbox");
+    fireEvent.focus(textbox);
+    textbox.textContent = "@opt";
+
+    const firstTextNode = textbox.firstChild;
+    if (!firstTextNode) {
+      throw new Error("Expected contentEditable text node");
+    }
+
+    const range = document.createRange();
+    range.setStart(firstTextNode, 4);
+    range.collapse(true);
+    const selection = window.getSelection();
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+
+    fireEvent.input(textbox);
+
+    expect(screen.getByText("Newsletter Opt-In")).toBeTruthy();
+    expect(
+      screen.getByText("Client.data.customAttributes.newsletterOptIn"),
+    ).toBeTruthy();
   });
 
   test("renders interpolation references as inline tokens", () => {

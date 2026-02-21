@@ -223,18 +223,6 @@ function insertTextAtSelection(text: string) {
 const BADGE_CLASS =
   "mx-0.5 inline-flex items-center gap-1 rounded border border-blue-500/20 bg-blue-500/10 px-1.5 py-0.5 font-mono text-blue-600 text-xs dark:text-blue-400";
 
-function splitSuggestionValue(value: string): { root: string; suffix: string } {
-  const dotIndex = value.indexOf(".");
-  if (dotIndex === -1) {
-    return { root: value, suffix: "" };
-  }
-
-  return {
-    root: value.slice(0, dotIndex),
-    suffix: value.slice(dotIndex + 1),
-  };
-}
-
 export function ExpressionInput({
   value,
   onChange,
@@ -351,7 +339,9 @@ export function ExpressionInput({
 
     const normalizedQuery = mentionState.query.toLowerCase();
     const filtered = suggestions.filter((suggestion) =>
-      suggestion.value.toLowerCase().includes(normalizedQuery),
+      `${suggestion.label} ${suggestion.value}`
+        .toLowerCase()
+        .includes(normalizedQuery),
     );
 
     return filtered.slice(0, 20);
@@ -522,7 +512,6 @@ export function ExpressionInput({
           ) : (
             <div className="max-h-64 overflow-y-auto">
               {filteredSuggestions.map((suggestion, index) => {
-                const parts = splitSuggestionValue(suggestion.value);
                 const description = suggestion.isDateTime
                   ? `${suggestion.type} · date-time`
                   : suggestion.type;
@@ -542,26 +531,22 @@ export function ExpressionInput({
                     onClick={() => insertSuggestion(suggestion)}
                     type="button"
                   >
-                    <span className="flex-1">
-                      <span className="block font-medium">
-                        {parts.suffix ? (
-                          <>
-                            <span className="text-muted-foreground">
-                              {parts.root}.
-                            </span>
-                            {parts.suffix}
-                          </>
-                        ) : (
-                          suggestion.value
-                        )}
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate font-medium">
+                        {suggestion.label}
                       </span>
-                      <span className="block text-muted-foreground text-xs">
-                        {description}
+                      <span className="block truncate font-mono text-muted-foreground text-xs">
+                        {suggestion.value}
                       </span>
                     </span>
-                    {index === activeIndex ? (
-                      <Icon icon={Tick02Icon} className="size-4 shrink-0" />
-                    ) : null}
+                    <span className="ml-3 flex shrink-0 items-center gap-2">
+                      <span className="text-muted-foreground text-xs">
+                        {description}
+                      </span>
+                      {index === activeIndex ? (
+                        <Icon icon={Tick02Icon} className="size-4 shrink-0" />
+                      ) : null}
+                    </span>
                   </button>
                 );
               })}

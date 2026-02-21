@@ -25,6 +25,14 @@ function createClientUpdatedTriggerConfig() {
   } as const;
 }
 
+function createClientCreatedTriggerConfig() {
+  return {
+    triggerType: "ClientJourney",
+    event: "client.created",
+    correlationKey: "clientId",
+  } as const;
+}
+
 describe("WorkflowTriggerConfig", () => {
   test("renders compact appointment journey summary", () => {
     const onUpdate = mock(() => {});
@@ -71,6 +79,41 @@ describe("WorkflowTriggerConfig", () => {
     expect(screen.queryByText("Event mapping (read-only):")).toBeNull();
     expect(screen.queryByText(/Journey key:/)).toBeNull();
     expect(screen.queryByRole("button", { name: "Advanced" })).toBeNull();
+  });
+
+  test("locks trigger type selection when trigger type is locked", () => {
+    const onUpdate = mock(() => {});
+    const onTriggerTypeChange = mock(
+      (_triggerType: "AppointmentJourney" | "ClientJourney") => {},
+    );
+
+    render(
+      <WorkflowTriggerConfig
+        config={createTriggerConfig()}
+        disabled={false}
+        onTriggerTypeChange={onTriggerTypeChange}
+        onUpdate={onUpdate}
+        triggerTypeLocked
+      />,
+    );
+
+    const appointmentButton = screen.getByRole("button", {
+      name: "Appointment",
+    }) as HTMLButtonElement;
+    const clientButton = screen.getByRole("button", {
+      name: "Client",
+    }) as HTMLButtonElement;
+
+    expect(appointmentButton.disabled).toBe(true);
+    expect(clientButton.disabled).toBe(true);
+    expect(
+      screen.getByText(
+        "Trigger type is locked once the workflow includes additional steps.",
+      ),
+    ).toBeTruthy();
+
+    fireEvent.click(clientButton);
+    expect(onTriggerTypeChange).toHaveBeenCalledTimes(0);
   });
 
   test("keeps trigger filters collapsed by default and expands on toggle", () => {
@@ -859,6 +902,51 @@ describe("WorkflowTriggerConfig", () => {
       name: "Tracked attribute key",
     });
     expect(trackedAttributeCombobox.textContent).toContain("Renewal Date");
+  });
+
+  test("renders human label for client.created event select value", () => {
+    const onUpdate = mock(() => {});
+
+    const view = render(
+      <WorkflowTriggerConfig
+        config={createClientCreatedTriggerConfig()}
+        disabled={false}
+        onUpdate={onUpdate}
+      />,
+    );
+
+    const eventCombobox = view.container.querySelector(
+      "button[role='combobox']",
+    );
+    expect(eventCombobox).toBeTruthy();
+    expect(eventCombobox?.textContent).toContain("Client Created");
+    expect(eventCombobox?.textContent).not.toContain("client.created");
+  });
+
+  test("renders human label for client.updated event select value", () => {
+    const onUpdate = mock(() => {});
+
+    const view = render(
+      <WorkflowTriggerConfig
+        clientAttributeDefinitions={[
+          {
+            fieldKey: "renewalDate",
+            label: "Renewal Date",
+            type: "DATE",
+          },
+        ]}
+        config={createClientUpdatedTriggerConfig()}
+        disabled={false}
+        onUpdate={onUpdate}
+      />,
+    );
+
+    const eventCombobox = view.container.querySelector(
+      "button[role='combobox']",
+    );
+    expect(eventCombobox).toBeTruthy();
+    expect(eventCombobox?.textContent).toContain("Client Updated");
+    expect(eventCombobox?.textContent).not.toContain("client.updated");
   });
 
   test("explains what tracked attributes do for client.updated triggers", () => {
