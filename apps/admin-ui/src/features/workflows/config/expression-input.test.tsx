@@ -1,5 +1,12 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
+import { useState } from "react";
 import { ExpressionInput } from "./expression-input";
 
 afterEach(() => {
@@ -7,6 +14,22 @@ afterEach(() => {
 });
 
 describe("ExpressionInput", () => {
+  function renderControlledExpressionInput(initialValue: string) {
+    function ControlledExpressionInput() {
+      const [value, setValue] = useState(initialValue);
+      return (
+        <ExpressionInput
+          onBlur={() => {}}
+          onChange={setValue}
+          suggestions={[]}
+          value={value}
+        />
+      );
+    }
+
+    return render(<ControlledExpressionInput />);
+  }
+
   test("renders styled autocomplete rows with active selection marker", () => {
     const { container } = render(
       <ExpressionInput
@@ -208,5 +231,80 @@ describe("ExpressionInput", () => {
     const tokens = container.querySelectorAll("[data-expression-token='true']");
     expect(tokens.length).toBe(1);
     expect(tokens[0]?.textContent).toBe("@Action1.createdAt");
+  });
+
+  test("backspace deletes token in one keypress when caret is after token", async () => {
+    const { container } = renderControlledExpressionInput("Client.timestamp");
+    const textbox = screen.getByRole("textbox");
+
+    fireEvent.focus(textbox);
+
+    const range = document.createRange();
+    range.setStart(textbox, textbox.childNodes.length);
+    range.collapse(true);
+    const selection = window.getSelection();
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+
+    fireEvent.keyDown(textbox, { key: "Backspace" });
+
+    await waitFor(() => {
+      const tokens = container.querySelectorAll(
+        "[data-expression-token='true']",
+      );
+      expect(tokens.length).toBe(0);
+    });
+  });
+
+  test("delete removes token in one keypress when caret is before token", async () => {
+    const { container } = renderControlledExpressionInput(
+      "Client.timestamp after",
+    );
+    const textbox = screen.getByRole("textbox");
+
+    fireEvent.focus(textbox);
+
+    const range = document.createRange();
+    range.setStart(textbox, 0);
+    range.collapse(true);
+    const selection = window.getSelection();
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+
+    fireEvent.keyDown(textbox, { key: "Delete" });
+
+    await waitFor(() => {
+      const tokens = container.querySelectorAll(
+        "[data-expression-token='true']",
+      );
+      expect(tokens.length).toBe(0);
+      expect(textbox.textContent).toBe(" after");
+    });
+  });
+
+  test("backspace does not delete token when caret is not at token boundary", () => {
+    const { container } = renderControlledExpressionInput(
+      "Client.timestamp after",
+    );
+    const textbox = screen.getByRole("textbox");
+    const trailingTextNode = textbox.lastChild;
+    if (!trailingTextNode) {
+      throw new Error("Expected trailing text node");
+    }
+
+    fireEvent.focus(textbox);
+
+    const range = document.createRange();
+    range.setStart(trailingTextNode, 3);
+    range.collapse(true);
+    const selection = window.getSelection();
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+
+    fireEvent.keyDown(textbox, { key: "Backspace" });
+
+    const tokens = container.querySelectorAll("[data-expression-token='true']");
+    expect(tokens.length).toBe(1);
+    expect(tokens[0]?.textContent).toBe("Client.timestamp");
   });
 });

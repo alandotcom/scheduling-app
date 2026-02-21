@@ -24,6 +24,11 @@ type MentionState = {
   query: string;
 };
 
+type TokenRange = {
+  start: number;
+  end: number;
+};
+
 function getMentionState(value: string, cursor: number): MentionState | null {
   const beforeCursor = value.slice(0, cursor);
   const mentionStart = beforeCursor.lastIndexOf("@");
@@ -68,6 +73,43 @@ function isBlockElement(node: HTMLElement): boolean {
   return ["DIV", "P", "LI"].includes(node.tagName);
 }
 
+function getNodeValueLength(node: Node, container: HTMLElement): number {
+  if (node.nodeType === Node.TEXT_NODE) {
+    return isInsideBadge(node, container) ? 0 : (node.textContent || "").length;
+  }
+
+  if (!isHTMLElement(node)) {
+    return 0;
+  }
+
+  const template = node.getAttribute("data-template");
+  if (template) {
+    return template.length;
+  }
+
+  if (isHTMLBRElement(node)) {
+    return 1;
+  }
+
+  return [...node.childNodes].reduce(
+    (total, child) => total + getNodeValueLength(child, container),
+    0,
+  );
+}
+
+function getTokenRanges(value: string): TokenRange[] {
+  const ranges: TokenRange[] = [];
+  for (const match of value.matchAll(REFERENCE_TOKEN_PATTERN)) {
+    const token = match[0];
+    const start = match.index;
+    if (!token || start === undefined) {
+      continue;
+    }
+    ranges.push({ start, end: start + token.length });
+  }
+  return ranges;
+}
+
 /** Get cursor position as character offset in the value string */
 function getCursorOffset(container: HTMLElement): number | null {
   const selection = window.getSelection();
@@ -76,6 +118,18 @@ function getCursorOffset(container: HTMLElement): number | null {
   }
 
   const range = selection.getRangeAt(0);
+  if (range.endContainer === container) {
+    let offset = 0;
+    for (let index = 0; index < range.endOffset; index += 1) {
+      const child = container.childNodes[index];
+      if (!child) {
+        continue;
+      }
+      offset += getNodeValueLength(child, container);
+    }
+    return offset;
+  }
+
   let offset = 0;
   const walker = document.createTreeWalker(
     container,
@@ -140,6 +194,25 @@ function setCursorOffset(container: HTMLElement, targetOffset: number) {
     } else if (isHTMLElement(node)) {
       const template = node.getAttribute("data-template");
       if (template) {
+        if (offset === targetOffset && node.parentNode) {
+          try {
+            const range = document.createRange();
+            const parent = node.parentNode;
+            const nodeIndex = Array.prototype.indexOf.call(
+              parent.childNodes,
+              node,
+            );
+            range.setStart(parent, Math.max(nodeIndex, 0));
+            range.collapse(true);
+            const selection = window.getSelection();
+            selection?.removeAllRanges();
+            selection?.addRange(range);
+          } catch {
+            container.focus();
+          }
+          return;
+        }
+
         if (offset + template.length >= targetOffset) {
           // Position cursor after the badge
           let target = node.nextSibling;
@@ -354,6 +427,47 @@ export function ExpressionInput({
     setActiveIndex(0);
   }
 
+  function tryDeleteTokenAtCursor(key: "Backspace" | "Delete"): boolean {
+    if (!contentRef.current) {
+      return false;
+    }
+
+    const selection = window.getSelection();
+    if (!selection || selection.rangeCount === 0 || !selection.isCollapsed) {
+      return false;
+    }
+
+    const anchorNode = selection.anchorNode;
+    if (!anchorNode || !contentRef.current.contains(anchorNode)) {
+      return false;
+    }
+
+    const cursor = getCursorOffset(contentRef.current);
+    if (cursor === null) {
+      return false;
+    }
+
+    const ranges = getTokenRanges(value);
+    const adjacentToken =
+      key === "Backspace"
+        ? ranges.find((range) => range.end === cursor)
+        : ranges.find((range) => range.start === cursor);
+
+    if (!adjacentToken) {
+      return false;
+    }
+
+    const nextValue = `${value.slice(0, adjacentToken.start)}${value.slice(adjacentToken.end)}`;
+    const nextCursor = adjacentToken.start;
+
+    pendingCursorPosition.current = nextCursor;
+    shouldUpdateDisplay.current = true;
+    onChange(nextValue);
+    updateMentionState(nextValue, nextCursor);
+
+    return true;
+  }
+
   function handleInput() {
     if (!contentRef.current) {
       return;
@@ -453,6 +567,13 @@ export function ExpressionInput({
                 event.preventDefault();
                 setOpen(false);
                 setMentionState(null);
+              }
+            }
+
+            if (event.key === "Backspace" || event.key === "Delete") {
+              if (tryDeleteTokenAtCursor(event.key)) {
+                event.preventDefault();
+                return;
               }
             }
 
