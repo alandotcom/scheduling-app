@@ -365,6 +365,142 @@ function getTriggerBranchLabel(branch: TriggerBranch): string {
   return branch === "scheduled" ? "Scheduled" : "Canceled";
 }
 
+function isClientJourneyTriggerConfig(config: JourneyTriggerConfig): boolean {
+  return config.triggerType === "ClientJourney";
+}
+
+function getClientJourneyEntryLabel(config: JourneyTriggerConfig): string {
+  if (
+    config.triggerType === "ClientJourney" &&
+    config.event === "client.updated"
+  ) {
+    return "Updated";
+  }
+
+  return "Created";
+}
+
+function normalizeTriggerEdgesForNode(input: {
+  triggerNodeId: string;
+  triggerConfig: JourneyTriggerConfig;
+  edges: WorkflowCanvasEdge[];
+}): WorkflowCanvasEdge[] {
+  const outgoingEdges = input.edges.filter(
+    (edge) => edge.source === input.triggerNodeId,
+  );
+  if (outgoingEdges.length === 0) {
+    return input.edges;
+  }
+
+  if (isClientJourneyTriggerConfig(input.triggerConfig)) {
+    const preferredEdge =
+      outgoingEdges.find(
+        (edge) => getTriggerBranchFromEdge(edge) === "scheduled",
+      ) ??
+      outgoingEdges.find((edge) => getTriggerBranchFromEdge(edge) === null) ??
+      outgoingEdges[0];
+
+    if (!preferredEdge) {
+      return input.edges;
+    }
+
+    const normalizedEdge = {
+      ...withTriggerBranchData(preferredEdge, "scheduled"),
+      label: getClientJourneyEntryLabel(input.triggerConfig),
+    };
+
+    return input.edges.flatMap((edge) => {
+      if (edge.source !== input.triggerNodeId) {
+        return [edge];
+      }
+
+      if (edge.id !== preferredEdge.id) {
+        return [];
+      }
+
+      return [normalizedEdge];
+    });
+  }
+
+  const usedBranches = new Set<TriggerBranch>();
+  const branchByEdgeId = new Map<string, TriggerBranch>();
+
+  for (const edge of outgoingEdges) {
+    const existingBranch = getTriggerBranchFromEdge(edge);
+    if (!existingBranch || usedBranches.has(existingBranch)) {
+      continue;
+    }
+
+    usedBranches.add(existingBranch);
+    branchByEdgeId.set(edge.id, existingBranch);
+  }
+
+  for (const edge of outgoingEdges) {
+    if (branchByEdgeId.has(edge.id)) {
+      continue;
+    }
+
+    const nextBranch = !usedBranches.has("scheduled")
+      ? "scheduled"
+      : !usedBranches.has("canceled")
+        ? "canceled"
+        : "scheduled";
+    usedBranches.add(nextBranch);
+    branchByEdgeId.set(edge.id, nextBranch);
+  }
+
+  return input.edges.map((edge) => {
+    if (edge.source !== input.triggerNodeId) {
+      return edge;
+    }
+
+    const branch = branchByEdgeId.get(edge.id);
+    if (!branch) {
+      return edge;
+    }
+
+    return withTriggerBranchData(edge, branch);
+  });
+}
+
+function normalizeTriggerEdgesForConfigs(input: {
+  nodes: WorkflowCanvasNode[];
+  edges: WorkflowCanvasEdge[];
+}): WorkflowCanvasEdge[] {
+  let nextEdges = input.edges;
+
+  for (const node of input.nodes) {
+    const nodeData = asRecord(node.data);
+    if (nodeData?.type !== "trigger") {
+      continue;
+    }
+
+    const triggerConfig = normalizeTriggerConfig(nodeData.config);
+    nextEdges = normalizeTriggerEdgesForNode({
+      triggerNodeId: node.id,
+      triggerConfig,
+      edges: nextEdges,
+    });
+  }
+
+  return nextEdges;
+}
+
+function normalizeWorkflowGraphForEditor(
+  input: WorkflowGraphState,
+): WorkflowGraphState {
+  const normalizedEdges = normalizeEdgesForRouting(input.edges, input.nodes);
+  const triggerNormalizedEdges = normalizeTriggerEdgesForConfigs({
+    nodes: input.nodes,
+    edges: normalizedEdges,
+  });
+
+  return {
+    nodes: input.nodes,
+    edges: triggerNormalizedEdges,
+  };
+}
+
 function isConditionLabel(value: unknown): boolean {
   return normalizeConditionBranch(value) !== null;
 }
@@ -834,8 +970,9 @@ export const setWorkflowEditorGraphAtom = atom(
   null,
   (_get, set, graph: SerializedJourneyGraph) => {
     const { nodes, edges } = deserializeWorkflowGraph(graph);
-    set(workflowEditorNodesAtom, nodes);
-    set(workflowEditorEdgesAtom, edges);
+    const normalizedGraph = normalizeWorkflowGraphForEditor({ nodes, edges });
+    set(workflowEditorNodesAtom, normalizedGraph.nodes);
+    set(workflowEditorEdgesAtom, normalizedGraph.edges);
     set(workflowEditorHasUnsavedChangesAtom, false);
     set(workflowEditorIsLoadedAtom, true);
     set(workflowEditorSelectedNodeIdAtom, null);
@@ -942,21 +1079,34 @@ export const updateWorkflowEditorNodeDataAtom = atom(
   ) => {
     if (get(workflowEditorIsReadOnlyAtom)) return;
 
-    const nextNodes = get(workflowEditorNodesAtom).map((node) => {
+    const currentNodes = get(workflowEditorNodesAtom);
+    const currentEdges = get(workflowEditorEdgesAtom);
+    const nextNodes = currentNodes.map((node) => {
       if (node.id !== input.id) return node;
+
+      const nextNodeData = normalizeNodeData({
+        ...(typeof node.data === "object" && node.data !== null
+          ? node.data
+          : {}),
+        ...input.data,
+      });
 
       return {
         ...node,
-        data: {
-          ...(typeof node.data === "object" && node.data !== null
-            ? node.data
-            : {}),
-          ...input.data,
-        },
+        data: nextNodeData,
       };
     });
 
+    const updatedNode = getNodeById(nextNodes, input.id);
+    const nextEdges = isTriggerNode(updatedNode)
+      ? normalizeWorkflowGraphForEditor({
+          nodes: nextNodes,
+          edges: currentEdges,
+        }).edges
+      : currentEdges;
+
     set(workflowEditorNodesAtom, nextNodes);
+    set(workflowEditorEdgesAtom, nextEdges);
     set(workflowEditorHasUnsavedChangesAtom, true);
   },
 );
@@ -1064,10 +1214,11 @@ export const onWorkflowEditorConnectAtom = atom(
       edgesWithoutConflicts,
     );
 
-    set(
-      workflowEditorEdgesAtom,
-      normalizeEdgesForRouting(nextEdges, currentNodes),
-    );
+    const normalizedGraph = normalizeWorkflowGraphForEditor({
+      nodes: currentNodes,
+      edges: nextEdges,
+    });
+    set(workflowEditorEdgesAtom, normalizedGraph.edges);
     set(workflowEditorHasUnsavedChangesAtom, true);
   },
 );
@@ -1121,10 +1272,11 @@ export const onWorkflowEditorReconnectAtom = atom(
       { shouldReplaceId: false },
     );
 
-    set(
-      workflowEditorEdgesAtom,
-      normalizeEdgesForRouting(nextEdges, currentNodes),
-    );
+    const normalizedGraph = normalizeWorkflowGraphForEditor({
+      nodes: currentNodes,
+      edges: nextEdges,
+    });
+    set(workflowEditorEdgesAtom, normalizedGraph.edges);
     set(workflowEditorHasUnsavedChangesAtom, true);
   },
 );

@@ -90,6 +90,32 @@ function isTriggerNode(node: WorkflowCanvasNode | undefined): boolean {
   return node.data.type === "trigger";
 }
 
+function isClientJourneyTriggerNode(
+  node: WorkflowCanvasNode | undefined,
+): boolean {
+  if (!node || !isRecord(node.data) || !isRecord(node.data.config)) {
+    return false;
+  }
+
+  const config = node.data.config;
+  return (
+    config.triggerType === "ClientJourney" ||
+    config.event === "client.created" ||
+    config.event === "client.updated" ||
+    config.correlationKey === "clientId"
+  );
+}
+
+function getClientTriggerEntryLabel(
+  node: WorkflowCanvasNode | undefined,
+): string {
+  if (!node || !isRecord(node.data) || !isRecord(node.data.config)) {
+    return "Created";
+  }
+
+  return node.data.config.event === "client.updated" ? "Updated" : "Created";
+}
+
 function normalizeConditionBranch(value: unknown): "true" | "false" | null {
   if (typeof value !== "string") {
     return null;
@@ -464,6 +490,8 @@ export function WorkflowEditorCanvas({
       const sourceNode = nodes.find((node) => node.id === sourceId);
       const sourceIsCondition = isConditionActionNode(sourceNode);
       const sourceIsTrigger = isTriggerNode(sourceNode);
+      const sourceIsClientTrigger = isClientJourneyTriggerNode(sourceNode);
+      const clientTriggerEntryLabel = getClientTriggerEntryLabel(sourceNode);
 
       setNodes((currentNodes) => [...currentNodes, newNode]);
       setEdges((currentEdges) => {
@@ -506,8 +534,11 @@ export function WorkflowEditorCanvas({
               : {}),
             ...(triggerBranch
               ? {
-                  label:
-                    triggerBranch === "scheduled" ? "Scheduled" : "Canceled",
+                  label: sourceIsClientTrigger
+                    ? clientTriggerEntryLabel
+                    : triggerBranch === "scheduled"
+                      ? "Scheduled"
+                      : "Canceled",
                   data: { triggerBranch },
                 }
               : {}),

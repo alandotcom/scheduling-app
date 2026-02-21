@@ -123,10 +123,15 @@ const TriggerNode = memo(function TriggerNode({
     [id, workflowEdges],
   );
   const updateNodeInternals = useUpdateNodeInternals();
+  const isClientJourneyTrigger =
+    nodeData.config?.triggerType === "ClientJourney" ||
+    nodeData.config?.event === "client.created" ||
+    nodeData.config?.event === "client.updated" ||
+    nodeData.config?.correlationKey === "clientId";
 
   useEffect(() => {
     updateNodeInternals(id);
-  }, [id, updateNodeInternals]);
+  }, [id, isClientJourneyTrigger, updateNodeInternals]);
 
   const title = nodeData.label || "Trigger";
   const runtimeStatus =
@@ -134,11 +139,6 @@ const TriggerNode = memo(function TriggerNode({
       ? toRuntimeNodeStatus(executionLogsByNodeId[id]?.status)
       : undefined;
   const status = runtimeStatus ?? nodeData.status;
-  const isClientJourneyTrigger =
-    nodeData.config?.triggerType === "ClientJourney" ||
-    nodeData.config?.event === "client.created" ||
-    nodeData.config?.event === "client.updated" ||
-    nodeData.config?.correlationKey === "clientId";
   const clientEventLabel =
     nodeData.config?.event === "client.updated" ? "Updated" : "Created";
   const entryBranchLeft = isClientJourneyTrigger

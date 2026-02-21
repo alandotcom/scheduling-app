@@ -257,6 +257,47 @@ function createGraphFixtureWithSecondAction(): SerializedJourneyGraph {
   };
 }
 
+function createStaleClientTriggerGraphFixture(): SerializedJourneyGraph {
+  const fixture = createGraphFixture();
+  const triggerNode = fixture.nodes[0];
+  const firstEdge = fixture.edges[0];
+  if (!triggerNode || !firstEdge) {
+    throw new Error("Expected trigger graph fixture");
+  }
+
+  return {
+    ...fixture,
+    nodes: [
+      {
+        ...triggerNode,
+        attributes: {
+          ...triggerNode.attributes,
+          data: {
+            ...triggerNode.attributes.data,
+            config: {
+              triggerType: "ClientJourney",
+              event: "client.created",
+              correlationKey: "clientId",
+            },
+          },
+        },
+      },
+      ...fixture.nodes.slice(1),
+    ],
+    edges: [
+      {
+        ...firstEdge,
+        attributes: {
+          ...firstEdge.attributes,
+          sourceHandle: "scheduled",
+          label: "Scheduled",
+          data: { triggerBranch: "scheduled" },
+        },
+      },
+    ],
+  };
+}
+
 function createConditionGraphFixture(): SerializedJourneyGraph {
   return {
     attributes: {},
@@ -631,6 +672,104 @@ describe("workflow-editor-store", () => {
 
     expect(actionNode?.data.label).toBe("Action");
     expect(store.get(workflowEditorHasUnsavedChangesAtom)).toBe(false);
+  });
+
+  test("normalizes stale client trigger edge labels when graph loads", () => {
+    const store = createStore();
+
+    store.set(
+      setWorkflowEditorGraphAtom,
+      createStaleClientTriggerGraphFixture(),
+    );
+
+    const triggerEdges = store
+      .get(workflowEditorEdgesAtom)
+      .filter((edge) => edge.source === "trigger-node");
+
+    expect(triggerEdges).toHaveLength(1);
+    expect(triggerEdges[0]?.label).toBe("Created");
+    expect(triggerEdges[0]?.sourceHandle).toBe("scheduled");
+    expect(triggerEdges[0]?.data?.triggerBranch).toBe("scheduled");
+  });
+
+  test("updates trigger edge labels immediately when switching to client trigger", () => {
+    const store = createStore();
+    store.set(setWorkflowEditorGraphAtom, createGraphFixture());
+    store.set(workflowEditorIsReadOnlyAtom, false);
+
+    store.set(updateWorkflowEditorNodeDataAtom, {
+      id: "trigger-node",
+      data: {
+        config: {
+          triggerType: "ClientJourney",
+          event: "client.created",
+          correlationKey: "clientId",
+        },
+      },
+    });
+
+    let triggerEdge = store
+      .get(workflowEditorEdgesAtom)
+      .find((edge) => edge.source === "trigger-node");
+    expect(triggerEdge?.label).toBe("Created");
+    expect(triggerEdge?.sourceHandle).toBe("scheduled");
+    expect(triggerEdge?.data?.triggerBranch).toBe("scheduled");
+
+    store.set(updateWorkflowEditorNodeDataAtom, {
+      id: "trigger-node",
+      data: {
+        config: {
+          triggerType: "ClientJourney",
+          event: "client.updated",
+          correlationKey: "clientId",
+          trackedAttributeKey: "client.email",
+        },
+      },
+    });
+
+    triggerEdge = store
+      .get(workflowEditorEdgesAtom)
+      .find((edge) => edge.source === "trigger-node");
+    expect(triggerEdge?.label).toBe("Updated");
+    expect(triggerEdge?.sourceHandle).toBe("scheduled");
+    expect(triggerEdge?.data?.triggerBranch).toBe("scheduled");
+  });
+
+  test("collapses appointment trigger branches to a single client entry path", () => {
+    const store = createStore();
+    store.set(setWorkflowEditorGraphAtom, createGraphFixtureWithSecondAction());
+    store.set(workflowEditorIsReadOnlyAtom, false);
+
+    store.set(onWorkflowEditorConnectAtom, {
+      source: "trigger-node",
+      target: "action-node-2",
+      sourceHandle: "canceled",
+      targetHandle: null,
+    });
+
+    let triggerEdges = store
+      .get(workflowEditorEdgesAtom)
+      .filter((edge) => edge.source === "trigger-node");
+    expect(triggerEdges).toHaveLength(2);
+
+    store.set(updateWorkflowEditorNodeDataAtom, {
+      id: "trigger-node",
+      data: {
+        config: {
+          triggerType: "ClientJourney",
+          event: "client.created",
+          correlationKey: "clientId",
+        },
+      },
+    });
+
+    triggerEdges = store
+      .get(workflowEditorEdgesAtom)
+      .filter((edge) => edge.source === "trigger-node");
+    expect(triggerEdges).toHaveLength(1);
+    expect(triggerEdges[0]?.target).toBe("action-node");
+    expect(triggerEdges[0]?.label).toBe("Created");
+    expect(triggerEdges[0]?.sourceHandle).toBe("scheduled");
   });
 
   test("setWorkflowEditorSelectionAtom updates selected ids", () => {
