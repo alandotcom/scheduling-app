@@ -6,19 +6,17 @@ import {
   PlayIcon,
   Search01Icon,
 } from "@hugeicons/core-free-icons";
-import { Link, useNavigate } from "@tanstack/react-router";
+import { Link } from "@tanstack/react-router";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import type {
-  JourneyListResponse,
-  SerializedJourneyGraph,
-} from "@scheduling/dto";
+import type { JourneyListResponse } from "@scheduling/dto";
 import { DeleteConfirmDialog } from "@/components/delete-confirm-dialog";
 import {
   EntityListEmptyState,
   EntityListLoadingState,
 } from "@/components/entity-list";
 import { PageScaffold } from "@/components/layout/page-scaffold";
+import { CreateWorkflowDialog } from "@/features/workflows/create-workflow-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import {
@@ -51,39 +49,6 @@ type JourneyLifecycleStatus = "draft" | "published";
 
 export function canManageWorkflowsForRole(role: OrgRole): boolean {
   return role === "owner" || role === "admin";
-}
-
-function createDefaultJourneyGraph(): SerializedJourneyGraph {
-  const triggerId = crypto.randomUUID();
-
-  return {
-    attributes: {},
-    options: { type: "directed" },
-    nodes: [
-      {
-        key: triggerId,
-        attributes: {
-          id: triggerId,
-          type: "trigger",
-          position: { x: 0, y: 0 },
-          data: {
-            label: "",
-            description: "",
-            type: "trigger",
-            status: "idle",
-            config: {
-              triggerType: "AppointmentJourney",
-              start: "appointment.scheduled",
-              restart: "appointment.rescheduled",
-              stop: "appointment.canceled",
-              correlationKey: "appointmentId",
-            },
-          },
-        },
-      },
-    ],
-    edges: [],
-  };
 }
 
 interface WorkflowListPageProps {
@@ -235,8 +200,8 @@ export function WorkflowListPage({
   searchQuery,
   onSearchQueryChange,
 }: WorkflowListPageProps) {
-  const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<{
     id: string;
     name: string;
@@ -273,21 +238,6 @@ export function WorkflowListPage({
       },
     );
   };
-
-  const createMutation = useMutation(
-    orpc.journeys.create.mutationOptions({
-      onSuccess: (data) => {
-        queryClient.invalidateQueries({ queryKey: orpc.journeys.key() });
-        navigate({
-          to: "/workflows/$workflowId",
-          params: { workflowId: data.id },
-        });
-      },
-      onError: (error) => {
-        toast.error(error.message || "Failed to create journey");
-      },
-    }),
-  );
 
   const deleteMutation = useMutation(
     orpc.journeys.remove.mutationOptions({
@@ -405,16 +355,9 @@ export function WorkflowListPage({
           ) : null}
         </div>
         {canManageWorkflows ? (
-          <Button
-            disabled={createMutation.isPending}
-            onClick={() =>
-              createMutation.mutate({
-                graph: createDefaultJourneyGraph(),
-              })
-            }
-          >
+          <Button onClick={() => setIsCreateDialogOpen(true)}>
             <Icon className="size-4" icon={Add01Icon} />
-            {createMutation.isPending ? "Creating..." : "New journey"}
+            New journey
           </Button>
         ) : null}
       </header>
@@ -703,6 +646,11 @@ export function WorkflowListPage({
         }}
         open={!!deleteTarget}
         title={`Delete "${deleteTarget?.name ?? "journey"}"?`}
+      />
+
+      <CreateWorkflowDialog
+        open={isCreateDialogOpen}
+        onOpenChange={setIsCreateDialogOpen}
       />
     </PageScaffold>
   );

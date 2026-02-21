@@ -115,7 +115,7 @@ export function CreateWorkflowDialog({
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
       <AlertDialogContent>
-        <form onSubmit={handleSubmit(onSubmit)}>
+        <form autoComplete="off" onSubmit={handleSubmit(onSubmit)}>
           <AlertDialogHeader>
             <AlertDialogTitle>Create workflow</AlertDialogTitle>
             <AlertDialogDescription>
@@ -127,6 +127,7 @@ export function CreateWorkflowDialog({
             <Input
               id="workflow-name"
               placeholder="e.g. New client onboarding"
+              autoComplete="off"
               {...register("name")}
               ref={(el) => {
                 register("name").ref(el);
