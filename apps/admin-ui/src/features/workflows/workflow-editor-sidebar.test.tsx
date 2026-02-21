@@ -181,8 +181,11 @@ describe("WorkflowEditorSidebar role behavior", () => {
     );
 
     const labelInput = screen.getByLabelText("Label") as HTMLInputElement;
-    fireEvent.change(labelInput, { target: { value: "Unsaved A" } });
-    expect(labelInput.value).toBe("Unsaved A");
+    fireEvent.input(labelInput, { target: { value: "Unsaved A" } });
+    expect(onUpdateNodeData).toHaveBeenCalledWith({
+      id: "trigger-a",
+      data: { label: "Unsaved A" },
+    });
 
     view.rerender(
       <QueryClientProvider client={queryClient}>
@@ -201,12 +204,42 @@ describe("WorkflowEditorSidebar role behavior", () => {
     ) as HTMLInputElement;
     expect(switchedLabelInput.value).toBe("Trigger B");
 
-    fireEvent.change(switchedLabelInput, { target: { value: "Edited B" } });
-    fireEvent.blur(switchedLabelInput);
+    fireEvent.input(switchedLabelInput, { target: { value: "Edited B" } });
 
     expect(onUpdateNodeData).toHaveBeenCalledWith({
       id: "trigger-b",
       data: { label: "Edited B" },
+    });
+  });
+
+  test("clearing description writes undefined immediately", () => {
+    const { onUpdateNodeData } = renderSidebar({ canManageWorkflow: true });
+
+    const descriptionInput = screen.getByLabelText(
+      "Description",
+    ) as HTMLInputElement;
+    fireEvent.input(descriptionInput, { target: { value: "   " } });
+
+    expect(onUpdateNodeData).toHaveBeenCalledWith({
+      id: "trigger-node",
+      data: { description: undefined },
+    });
+  });
+
+  test("updates label on each change event", () => {
+    const { onUpdateNodeData } = renderSidebar({ canManageWorkflow: true });
+    const labelInput = screen.getByLabelText("Label") as HTMLInputElement;
+
+    fireEvent.input(labelInput, { target: { value: "A" } });
+    fireEvent.input(labelInput, { target: { value: "AB" } });
+
+    expect(onUpdateNodeData).toHaveBeenNthCalledWith(1, {
+      id: "trigger-node",
+      data: { label: "A" },
+    });
+    expect(onUpdateNodeData).toHaveBeenNthCalledWith(2, {
+      id: "trigger-node",
+      data: { label: "AB" },
     });
   });
 

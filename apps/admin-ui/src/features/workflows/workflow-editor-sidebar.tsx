@@ -1,5 +1,5 @@
 import type { Edge, Node } from "@xyflow/react";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   journeyTriggerConfigSchema,
@@ -365,15 +365,8 @@ export function WorkflowEditorSidebar({
 }: WorkflowEditorSidebarProps) {
   const [activeTab, setActiveTab] =
     useState<WorkflowEditorSidebarTab>("properties");
-  const [labelValue, setLabelValue] = useState("");
-  const [descriptionValue, setDescriptionValue] = useState("");
   const [showDeleteNodeDialog, setShowDeleteNodeDialog] = useState(false);
   const [showDeleteEdgeDialog, setShowDeleteEdgeDialog] = useState(false);
-
-  useEffect(() => {
-    setLabelValue(toNodeLabel(selectedNode));
-    setDescriptionValue(toNodeDescription(selectedNode));
-  }, [selectedNode]);
 
   const selectedNodeType = getNodeType(selectedNode);
   const selectedNodeConfig = toNodeConfig(selectedNode);
@@ -663,16 +656,13 @@ export function WorkflowEditorSidebar({
                       <Input
                         disabled={!canManageWorkflow}
                         id="workflow-node-label"
-                        onChange={(event) => {
-                          setLabelValue(event.target.value);
-                        }}
-                        onBlur={(event) => {
+                        onInput={(event) => {
                           onUpdateNodeData({
                             id: selectedNode.id,
-                            data: { label: event.target.value },
+                            data: { label: event.currentTarget.value },
                           });
                         }}
-                        value={labelValue}
+                        value={toNodeLabel(selectedNode)}
                       />
                     </div>
 
@@ -683,19 +673,16 @@ export function WorkflowEditorSidebar({
                       <Input
                         disabled={!canManageWorkflow}
                         id="workflow-node-description"
-                        onChange={(event) => {
-                          setDescriptionValue(event.target.value);
-                        }}
-                        onBlur={(event) => {
+                        onInput={(event) => {
                           onUpdateNodeData({
                             id: selectedNode.id,
                             data: {
                               description:
-                                event.target.value.trim() || undefined,
+                                event.currentTarget.value.trim() || undefined,
                             },
                           });
                         }}
-                        value={descriptionValue}
+                        value={toNodeDescription(selectedNode)}
                       />
                     </div>
 
