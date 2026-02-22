@@ -46,9 +46,10 @@ export const createAppointmentSchema = z.object({
   notes: z.string().optional(),
 });
 
-// Update appointment input (notes/client only - use reschedule for time changes)
+// Update appointment input (notes only - client reassignment is not allowed)
 export const updateAppointmentSchema = z.object({
-  clientId: uuidSchema.optional(),
+  // Explicitly disallow client reassignment for existing appointments.
+  clientId: z.never().optional(),
   notes: z.string().nullable().optional(),
 });
 

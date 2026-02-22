@@ -108,15 +108,14 @@ export const create = authed
     });
   });
 
-// Update appointment details (notes, clientId only)
+// Update appointment details (notes only)
 export const update = authed
   .route({
     method: "PATCH",
     path: "/appointments/{id}",
     tags: ["Appointments"],
     summary: "Update appointment",
-    description:
-      "Updates mutable appointment fields such as notes and assigned client.",
+    description: "Updates mutable appointment fields such as notes.",
   })
   .input(idInput.extend(updateAppointmentSchema.shape))
   .output(appointmentResponseSchema)

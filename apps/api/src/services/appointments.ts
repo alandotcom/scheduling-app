@@ -64,7 +64,6 @@ export interface CreateAppointmentInput {
 }
 
 export interface UpdateAppointmentInput {
-  clientId?: string | undefined;
   notes?: string | null | undefined;
 }
 
@@ -483,18 +482,6 @@ export class AppointmentService {
         throw new ApplicationError("Appointment not found", {
           code: "NOT_FOUND",
         });
-      }
-
-      // Validate client if being updated
-      if (data.clientId !== undefined) {
-        const clientExists = await appointmentRepository.verifyClientAccess(
-          tx,
-          orgId,
-          data.clientId,
-        );
-        if (!clientExists) {
-          throw new ApplicationError("Client not found", { code: "NOT_FOUND" });
-        }
       }
 
       const updatedAppointment = await appointmentRepository.update(

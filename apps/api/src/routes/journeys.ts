@@ -8,6 +8,7 @@ import {
   journeyRunListResponseSchema,
   journeyListResponseSchema,
   journeyResponseSchema,
+  listJourneyRunsByEntityQuerySchema,
   listJourneyRunsQuerySchema,
   publishJourneyResponseSchema,
   publishJourneySchema,
@@ -172,6 +173,17 @@ export const listRuns = authed
     });
   });
 
+export const listRunsByEntity = authed
+  .route({ method: "GET", path: "/journeys/runs/by-entity" })
+  .input(listJourneyRunsByEntityQuerySchema)
+  .output(journeyRunListResponseSchema)
+  .handler(async ({ input, context }) => {
+    return journeyService.listRunsByEntity(input, {
+      orgId: context.orgId,
+      userId: context.userId,
+    });
+  });
+
 export const getRun = authed
   .route({ method: "GET", path: "/journeys/runs/{runId}" })
   .input(runIdInputSchema)
@@ -207,6 +219,7 @@ export const cancelRuns = adminOnly
 
 export const runs = {
   list: listRuns,
+  listByEntity: listRunsByEntity,
   get: getRun,
   cancel: cancelRun,
 };
@@ -223,6 +236,7 @@ export const journeyRoutes = {
   remove,
   startTestRun,
   listRuns,
+  listRunsByEntity,
   getRun,
   cancelRun,
   cancelRuns,

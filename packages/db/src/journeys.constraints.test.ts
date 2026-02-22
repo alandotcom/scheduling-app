@@ -581,6 +581,8 @@ describe("journey constraints", () => {
           'journey_runs_org_identity_uidx',
           'journey_runs_org_status_idx',
           'journey_runs_org_mode_started_at_idx',
+          'journey_runs_org_client_started_at_idx',
+          'journey_runs_org_appointment_started_at_idx',
           'journey_deliveries_org_deterministic_key_uidx',
           'journey_deliveries_org_run_scheduled_for_idx',
           'journey_deliveries_org_status_idx'
@@ -593,6 +595,8 @@ describe("journey constraints", () => {
       "journey_deliveries_org_deterministic_key_uidx",
       "journey_deliveries_org_run_scheduled_for_idx",
       "journey_deliveries_org_status_idx",
+      "journey_runs_org_appointment_started_at_idx",
+      "journey_runs_org_client_started_at_idx",
       "journey_runs_org_identity_uidx",
       "journey_runs_org_mode_started_at_idx",
       "journey_runs_org_status_idx",

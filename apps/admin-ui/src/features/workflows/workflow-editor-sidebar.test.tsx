@@ -124,13 +124,17 @@ function renderSidebar({
   render(
     <QueryClientProvider client={queryClient}>
       <WorkflowEditorSidebar
+        activeTab="properties"
         canManageWorkflow={canManageWorkflow}
         defaultTimezone="America/New_York"
         edges={edges}
         isTriggerTypeLocked={isTriggerTypeLocked}
         nodes={nodes}
+        onActiveTabChange={() => {}}
+        onSelectedRunIdChange={() => {}}
         onSetActionType={onSetActionType}
         onUpdateNodeData={onUpdateNodeData}
+        selectedRunId={null}
         selectedNode={selectedNode}
         workflowId={null}
       />
@@ -174,9 +178,13 @@ describe("WorkflowEditorSidebar role behavior", () => {
     const view = render(
       <QueryClientProvider client={queryClient}>
         <WorkflowEditorSidebar
+          activeTab="properties"
           canManageWorkflow={true}
           defaultTimezone="America/New_York"
+          onActiveTabChange={() => {}}
+          onSelectedRunIdChange={() => {}}
           onUpdateNodeData={onUpdateNodeData}
+          selectedRunId={null}
           selectedNode={firstNode}
           workflowId={null}
         />
@@ -193,9 +201,13 @@ describe("WorkflowEditorSidebar role behavior", () => {
     view.rerender(
       <QueryClientProvider client={queryClient}>
         <WorkflowEditorSidebar
+          activeTab="properties"
           canManageWorkflow={true}
           defaultTimezone="America/New_York"
+          onActiveTabChange={() => {}}
+          onSelectedRunIdChange={() => {}}
           onUpdateNodeData={onUpdateNodeData}
+          selectedRunId={null}
           selectedNode={secondNode}
           workflowId={null}
         />

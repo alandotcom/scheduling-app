@@ -741,6 +741,16 @@ export const journeyRuns = pgTable.withRLS(
       table.mode,
       table.startedAt,
     ),
+    index("journey_runs_org_client_started_at_idx").on(
+      table.orgId,
+      table.clientId,
+      table.startedAt,
+    ),
+    index("journey_runs_org_appointment_started_at_idx").on(
+      table.orgId,
+      table.appointmentId,
+      table.startedAt,
+    ),
     pgPolicy("org_isolation_journey_runs", {
       for: "all",
       using: sql`org_id = current_org_id()`,

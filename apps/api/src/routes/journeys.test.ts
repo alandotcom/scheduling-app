@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, test } from "bun:test";
 import { call } from "@orpc/server";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import {
   createAppointment,
   createAppointmentType,
@@ -823,6 +823,7 @@ describe("Journey Routes", () => {
     );
 
     expect(testRuns).toHaveLength(1);
+    expect(testRuns[0]?.journeyId).toBe(created.id);
     expect(testRuns[0]?.mode).toBe("test");
     expect(testRuns[0]?.sidebarSummary.subject).toMatchObject({
       type: "client",
@@ -860,6 +861,146 @@ describe("Journey Routes", () => {
       client: expect.objectContaining({ id: expect.any(String) }),
     });
     expect(liveRun).toBeDefined();
+  });
+
+  test("runs by-entity endpoint returns client and appointment scoped runs", async () => {
+    const location = await createLocation(db, ownerContext.orgId!);
+    const calendar = await createCalendar(db, ownerContext.orgId!, {
+      locationId: location.id,
+    });
+    const appointmentType = await createAppointmentType(
+      db,
+      ownerContext.orgId!,
+      {
+        calendarIds: [calendar.id],
+      },
+    );
+    const targetClient = await createClient(db, ownerContext.orgId!, {
+      firstName: "Target",
+      lastName: "Client",
+    });
+    const otherClient = await createClient(db, ownerContext.orgId!, {
+      firstName: "Other",
+      lastName: "Client",
+    });
+
+    const targetAppointment = await createAppointment(db, ownerContext.orgId!, {
+      calendarId: calendar.id,
+      appointmentTypeId: appointmentType.id,
+      clientId: targetClient.id,
+      startAt: new Date("2026-03-15T10:00:00.000Z"),
+      endAt: new Date("2026-03-15T10:30:00.000Z"),
+    });
+    const otherAppointment = await createAppointment(db, ownerContext.orgId!, {
+      calendarId: calendar.id,
+      appointmentTypeId: appointmentType.id,
+      clientId: otherClient.id,
+      startAt: new Date("2026-03-16T10:00:00.000Z"),
+      endAt: new Date("2026-03-16T10:30:00.000Z"),
+    });
+
+    const created = await call(
+      journeyRoutes.create,
+      {
+        name: "By Entity Runs Route",
+        graph: createLinearGraph("trigger-runs-by-entity-route"),
+      },
+      { context: ownerContext },
+    );
+
+    const published = await call(
+      journeyRoutes.publish,
+      {
+        id: created.id,
+        data: { mode: "live" },
+      },
+      { context: ownerContext },
+    );
+
+    await setTestOrgContext(db, ownerContext.orgId!);
+    const [versionRow] = await db
+      .select({ id: journeyVersions.id })
+      .from(journeyVersions)
+      .where(
+        and(
+          eq(journeyVersions.journeyId, created.id),
+          eq(journeyVersions.version, published.version),
+        ),
+      )
+      .limit(1);
+
+    const [directClientRun] = await db
+      .insert(journeyRuns)
+      .values({
+        orgId: ownerContext.orgId!,
+        journeyVersionId: versionRow!.id,
+        triggerEntityType: "client",
+        triggerEntityId: targetClient.id,
+        appointmentId: null,
+        clientId: targetClient.id,
+        mode: "live",
+        status: "running",
+        journeyNameSnapshot: created.name,
+        journeyVersionSnapshot: { version: published.version },
+      })
+      .returning({ id: journeyRuns.id });
+
+    const [targetAppointmentRun] = await db
+      .insert(journeyRuns)
+      .values({
+        orgId: ownerContext.orgId!,
+        journeyVersionId: versionRow!.id,
+        triggerEntityType: "appointment",
+        triggerEntityId: targetAppointment.id,
+        appointmentId: targetAppointment.id,
+        clientId: targetClient.id,
+        mode: "live",
+        status: "completed",
+        journeyNameSnapshot: created.name,
+        journeyVersionSnapshot: { version: published.version },
+      })
+      .returning({ id: journeyRuns.id });
+
+    await db.insert(journeyRuns).values({
+      orgId: ownerContext.orgId!,
+      journeyVersionId: versionRow!.id,
+      triggerEntityType: "appointment",
+      triggerEntityId: otherAppointment.id,
+      appointmentId: otherAppointment.id,
+      clientId: otherClient.id,
+      mode: "live",
+      status: "running",
+      journeyNameSnapshot: created.name,
+      journeyVersionSnapshot: { version: published.version },
+    });
+
+    const clientRuns = await call(
+      journeyRoutes.listRunsByEntity,
+      {
+        entityType: "client",
+        entityId: targetClient.id,
+        mode: "live",
+      },
+      { context: ownerContext },
+    );
+
+    expect(clientRuns.map((run) => run.id).sort()).toEqual(
+      [directClientRun!.id, targetAppointmentRun!.id].sort(),
+    );
+    expect(clientRuns.every((run) => run.journeyId === created.id)).toBe(true);
+
+    const appointmentRuns = await call(
+      journeyRoutes.listRunsByEntity,
+      {
+        entityType: "appointment",
+        entityId: targetAppointment.id,
+      },
+      { context: ownerContext },
+    );
+
+    expect(appointmentRuns).toHaveLength(1);
+    expect(appointmentRuns[0]?.id).toBe(targetAppointmentRun!.id);
+    expect(appointmentRuns[0]?.journeyId).toBe(created.id);
   });
 
   test("run cancel endpoints enforce individual and bulk cancellation scope", async () => {

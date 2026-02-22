@@ -639,6 +639,13 @@ export const listJourneyRunsQuerySchema = z.object({
   limit: z.number().int().min(1).max(100).default(20),
 });
 
+export const listJourneyRunsByEntityQuerySchema = z.object({
+  entityType: z.enum(["client", "appointment"]),
+  entityId: uuidSchema,
+  mode: journeyRunModeSchema.optional(),
+  limit: z.number().int().min(1).max(100).default(20),
+});
+
 const journeyVersionSnapshotSchema = z
   .object({
     version: positiveIntSchema.optional(),
@@ -680,6 +687,7 @@ export const journeyRunSidebarSummarySchema = z.object({
 });
 
 export const journeyRunListItemSchema = journeyRunSchema.extend({
+  journeyId: uuidSchema.nullable(),
   sidebarSummary: journeyRunSidebarSummarySchema,
 });
 
@@ -803,6 +811,9 @@ export type PublishJourneyResponse = z.infer<
   typeof publishJourneyResponseSchema
 >;
 export type ListJourneyRunsQuery = z.infer<typeof listJourneyRunsQuerySchema>;
+export type ListJourneyRunsByEntityQuery = z.infer<
+  typeof listJourneyRunsByEntityQuerySchema
+>;
 export type JourneyRun = z.infer<typeof journeyRunSchema>;
 export type JourneyRunListItem = z.infer<typeof journeyRunListItemSchema>;
 export type JourneyRunListResponse = z.infer<

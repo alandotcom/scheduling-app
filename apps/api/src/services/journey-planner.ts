@@ -6,6 +6,7 @@ import {
   type JourneyTriggerConfig,
 } from "@scheduling/dto";
 import {
+  clients,
   journeyDeliveries,
   journeyRuns,
   orgs,
@@ -968,10 +969,29 @@ async function findOrCreateJourneyRun(input: {
   runIdentity: JourneyRunIdentity;
   mode: "live" | "test";
 }): Promise<{ run: JourneyRunRow; created: boolean }> {
+  let persistedRunIdentity: JourneyRunIdentity = input.runIdentity;
+  if (
+    input.runIdentity.triggerEntityType === "appointment" &&
+    input.runIdentity.clientId
+  ) {
+    const [clientRow] = await input.tx
+      .select({ id: clients.id })
+      .from(clients)
+      .where(eq(clients.id, input.runIdentity.clientId))
+      .limit(1);
+
+    if (!clientRow) {
+      persistedRunIdentity = {
+        ...input.runIdentity,
+        clientId: null,
+      };
+    }
+  }
+
   const existing = await findJourneyRun({
     tx: input.tx,
     journeyVersionId: input.journeyVersion.id,
-    runIdentity: input.runIdentity,
+    runIdentity: persistedRunIdentity,
     mode: input.mode,
   });
 
@@ -987,10 +1007,10 @@ async function findOrCreateJourneyRun(input: {
     .values({
       orgId: input.orgId,
       journeyVersionId: input.journeyVersion.id,
-      triggerEntityType: input.runIdentity.triggerEntityType,
-      triggerEntityId: input.runIdentity.triggerEntityId,
-      appointmentId: input.runIdentity.appointmentId,
-      clientId: input.runIdentity.clientId,
+      triggerEntityType: persistedRunIdentity.triggerEntityType,
+      triggerEntityId: persistedRunIdentity.triggerEntityId,
+      appointmentId: persistedRunIdentity.appointmentId,
+      clientId: persistedRunIdentity.clientId,
       mode: input.mode,
       status: "planned",
       journeyNameSnapshot: input.journey.name,
@@ -1013,7 +1033,7 @@ async function findOrCreateJourneyRun(input: {
   const resolved = await findJourneyRun({
     tx: input.tx,
     journeyVersionId: input.journeyVersion.id,
-    runIdentity: input.runIdentity,
+    runIdentity: persistedRunIdentity,
     mode: input.mode,
   });
 
@@ -2087,7 +2107,17 @@ export async function processJourneyDomainEvent(
           allPendingEvents.push(...reconciliationResult.pendingInngestEvents);
 
           await refreshRunStatusTx(tx, run.id);
-        } catch {
+        } catch (error) {
+          journeyPlannerLogger.error(
+            "Failed processing journey {journeyId} for event {eventType}: {error}",
+            {
+              journeyId: journey.id,
+              eventType: event.type,
+              eventId: event.id,
+              error,
+              errorStack: error instanceof Error ? error.stack : undefined,
+            },
+          );
           erroredJourneyIds.push(journey.id);
         }
       },

@@ -765,7 +765,7 @@ describe("Appointment Routes", () => {
       expect(result!.notes).toBe("Updated notes");
     });
 
-    test("updates appointment client", async () => {
+    test("rejects appointment client reassignment", async () => {
       const { org, user, calendar, appointmentType } =
         await createFixtureWithAvailability();
       const ctx = createTestContext({ orgId: org.id, userId: user.id });
@@ -784,13 +784,15 @@ describe("Appointment Routes", () => {
         endAt,
       });
 
-      const result = await call(
-        appointmentRoutes.update,
-        { id: appointment.id, clientId: client.id },
-        { context: ctx },
-      );
-
-      expect(result!.clientId).toBe(client.id);
+      await expect(
+        call(
+          appointmentRoutes.update,
+          { id: appointment.id, clientId: client.id as never },
+          { context: ctx },
+        ),
+      ).rejects.toMatchObject({
+        code: "BAD_REQUEST",
+      });
     });
 
     test("keeps appointment client when clientId is omitted", async () => {
@@ -831,35 +833,6 @@ describe("Appointment Routes", () => {
           {
             id: "00000000-0000-0000-0000-000000000000",
             notes: "Updated",
-          },
-          { context: ctx },
-        ),
-      ).rejects.toMatchObject({
-        code: "NOT_FOUND",
-      });
-    });
-
-    test("throws NOT_FOUND for non-existent client", async () => {
-      const { org, user, calendar, appointmentType } =
-        await createFixtureWithAvailability();
-      const ctx = createTestContext({ orgId: org.id, userId: user.id });
-
-      const startAt = getFutureStartTime(1, 10);
-      const endAt = new Date(startAt.getTime() + 60 * 60 * 1000);
-      const appointment = await createAppointment(db, org.id, {
-        calendarId: calendar.id,
-        appointmentTypeId: appointmentType.id,
-        clientId: (await createClient(db, org.id)).id,
-        startAt,
-        endAt,
-      });
-
-      await expect(
-        call(
-          appointmentRoutes.update,
-          {
-            id: appointment.id,
-            clientId: "00000000-0000-0000-0000-000000000000",
           },
           { context: ctx },
         ),

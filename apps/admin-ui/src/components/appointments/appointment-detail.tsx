@@ -1,12 +1,13 @@
 // Appointment detail panel component for split-pane layout
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
 import type { AppointmentWithRelations } from "@scheduling/dto";
+import { getLogger } from "@logtape/logtape";
 import {
   ArrowRight02Icon,
   Calendar03Icon,
@@ -40,19 +41,29 @@ import {
 } from "@/components/ui/alert-dialog";
 import { RescheduleDialog } from "./reschedule-dialog";
 import { AppointmentHistory } from "./appointment-history";
+import {
+  toEventTypeLabel,
+  toRunStatusBadgeVariant,
+  toRunStatusLabel,
+} from "@/features/workflows/workflow-runs-helpers";
 import { useModalFieldShortcuts } from "@/hooks/use-modal-field-shortcuts";
 import { useResetFormOnOpen } from "@/hooks/use-reset-form-on-open";
 import { useSubmitShortcut } from "@/hooks/use-submit-shortcut";
 import {
+  formatDisplayDateTime,
   formatDateWithWeekday,
+  formatRelativeTime,
   formatTimeDisplay,
   formatTimezoneShort,
 } from "@/lib/date-utils";
 import type { SchedulingTimezoneMode } from "@/lib/scheduling-timezone";
 
-type DetailTabValue = "details" | "client" | "history";
+type DetailTabValue = "details" | "client" | "history" | "workflows";
 const isDetailTabValue = (value: string): value is DetailTabValue =>
-  value === "details" || value === "client" || value === "history";
+  value === "details" ||
+  value === "client" ||
+  value === "history" ||
+  value === "workflows";
 
 interface AppointmentDetailProps {
   appointment: AppointmentWithRelations | null;
@@ -62,6 +73,7 @@ interface AppointmentDetailProps {
   activeTab: DetailTabValue;
   onTabChange: (tab: DetailTabValue) => void;
   onOpenClient?: (clientId: string) => void;
+  onOpenWorkflowRun?: (input: { workflowId: string; runId: string }) => void;
   isLoading?: boolean;
   showHeader?: boolean;
 }
@@ -71,6 +83,7 @@ const notesSchema = z.object({
 });
 
 type NotesFormData = z.infer<typeof notesSchema>;
+const logger = getLogger(["ui", "workflows", "appointments"]);
 
 function getStatusBadge(status: string) {
   switch (status) {
@@ -95,6 +108,7 @@ export function AppointmentDetail({
   activeTab,
   onTabChange,
   onOpenClient,
+  onOpenWorkflowRun,
   isLoading,
   showHeader = true,
 }: AppointmentDetailProps) {
@@ -134,6 +148,44 @@ export function AppointmentDetail({
     }),
     enabled: !!appointment?.id,
   });
+
+  const workflowRunsQuery = useQuery({
+    ...orpc.journeys.runs.listByEntity.queryOptions({
+      input: {
+        entityType: "appointment",
+        entityId: appointment?.id ?? "00000000-0000-0000-0000-000000000000",
+        limit: 20,
+      },
+    }),
+    enabled: !!appointment?.id && activeTab === "workflows",
+  });
+
+  useEffect(() => {
+    if (
+      activeTab !== "workflows" ||
+      !appointment?.id ||
+      !workflowRunsQuery.isError
+    ) {
+      return;
+    }
+
+    logger.error(
+      "Failed to load workflow runs for appointment {appointmentId}: {error}",
+      {
+        appointmentId: appointment.id,
+        error: workflowRunsQuery.error,
+        errorStack:
+          workflowRunsQuery.error instanceof Error
+            ? workflowRunsQuery.error.stack
+            : undefined,
+      },
+    );
+  }, [
+    activeTab,
+    appointment?.id,
+    workflowRunsQuery.error,
+    workflowRunsQuery.isError,
+  ]);
 
   // Update notes mutation
   const updateMutation = useMutation(
@@ -285,6 +337,7 @@ export function AppointmentDetail({
           <DetailTab value="details">Details</DetailTab>
           <DetailTab value="client">Client</DetailTab>
           <DetailTab value="history">History</DetailTab>
+          <DetailTab value="workflows">Workflows</DetailTab>
         </DetailTabs>
 
         {/* Tab Content */}
@@ -486,6 +539,95 @@ export function AppointmentDetail({
               appointmentId={appointment.id}
               displayTimezone={displayTimezone}
             />
+          )}
+
+          {activeTab === "workflows" && (
+            <div className="space-y-3">
+              {workflowRunsQuery.isLoading ? (
+                <div className="text-sm text-muted-foreground">
+                  Loading workflows...
+                </div>
+              ) : workflowRunsQuery.isError ? (
+                <div className="rounded-lg border border-border p-6 text-center text-sm text-muted-foreground">
+                  Failed to load workflows for this appointment.
+                </div>
+              ) : (workflowRunsQuery.data?.length ?? 0) === 0 ? (
+                <div className="rounded-lg border border-border p-6 text-center text-sm text-muted-foreground">
+                  No workflows found for this appointment.
+                </div>
+              ) : (
+                workflowRunsQuery.data!.map((run) => {
+                  const canOpenWorkflow = !!run.journeyId;
+
+                  return (
+                    <button
+                      key={run.id}
+                      type="button"
+                      className="w-full rounded-lg border border-border p-3 text-left transition-colors hover:bg-muted/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-70"
+                      disabled={!canOpenWorkflow}
+                      onClick={() => {
+                        if (!run.journeyId) {
+                          return;
+                        }
+
+                        onOpenWorkflowRun?.({
+                          workflowId: run.journeyId,
+                          runId: run.id,
+                        });
+                      }}
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <p className="font-medium text-sm">
+                          {run.journeyNameSnapshot}
+                        </p>
+                        <span
+                          className="shrink-0 text-muted-foreground text-xs"
+                          title={formatDisplayDateTime(run.startedAt)}
+                        >
+                          {formatRelativeTime(run.startedAt)}
+                        </span>
+                      </div>
+                      <p className="mt-1 truncate text-muted-foreground text-xs">
+                        {toEventTypeLabel(
+                          run.sidebarSummary?.triggerEventType ?? null,
+                        )}
+                      </p>
+                      <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                        <Badge variant={toRunStatusBadgeVariant(run.status)}>
+                          {toRunStatusLabel(run.status)}
+                        </Badge>
+                        <Badge variant="outline">
+                          {run.mode === "live" ? "Live" : "Test"}
+                        </Badge>
+                        {run.journeyVersion ? (
+                          <Badge variant="outline">v{run.journeyVersion}</Badge>
+                        ) : null}
+                        {run.sidebarSummary?.channelHint ? (
+                          <Badge variant="outline">
+                            {run.sidebarSummary.channelHint}
+                          </Badge>
+                        ) : null}
+                        {!run.journeyId ? (
+                          <Badge variant="secondary">Deleted workflow</Badge>
+                        ) : null}
+                      </div>
+                      {run.sidebarSummary?.nextState ? (
+                        <p className="mt-1 text-muted-foreground text-xs">
+                          {run.sidebarSummary.nextState.label}
+                          {run.sidebarSummary.nextState.at
+                            ? ` ${formatDisplayDateTime(run.sidebarSummary.nextState.at)}`
+                            : ""}
+                        </p>
+                      ) : run.sidebarSummary?.statusReason ? (
+                        <p className="mt-1 text-muted-foreground text-xs">
+                          {run.sidebarSummary.statusReason}
+                        </p>
+                      ) : null}
+                    </button>
+                  );
+                })
+              )}
+            </div>
           )}
         </div>
       </div>

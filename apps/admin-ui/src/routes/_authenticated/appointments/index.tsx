@@ -77,7 +77,7 @@ import { ScheduleGrid } from "@/components/appointments/schedule-grid";
 import { SchedulingControlsSheet } from "@/components/appointments/scheduling-controls-sheet";
 
 type ViewMode = "list" | "schedule";
-type DetailTabValue = "details" | "client" | "history";
+type DetailTabValue = "details" | "client" | "history" | "workflows";
 type ListScope = "upcoming" | "history";
 const STATUS_FILTER_OPTIONS = [
   { value: "scheduled", label: "Scheduled" },
@@ -90,7 +90,10 @@ const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 const isDetailTab = (value: string): value is DetailTabValue =>
-  value === "details" || value === "client" || value === "history";
+  value === "details" ||
+  value === "client" ||
+  value === "history" ||
+  value === "workflows";
 const isListScope = (value: string): value is ListScope =>
   value === "upcoming" || value === "history";
 const isAppointmentStatusFilter = (
@@ -727,6 +730,20 @@ function AppointmentsPage() {
     [navigate],
   );
 
+  const handleOpenWorkflowRun = useCallback(
+    (input: { workflowId: string; runId: string }) => {
+      navigate({
+        to: "/workflows/$workflowId",
+        params: { workflowId: input.workflowId },
+        search: {
+          sidebarTab: "runs",
+          runId: input.runId,
+        },
+      });
+    },
+    [navigate],
+  );
+
   return (
     <PageScaffold className="pb-24 sm:pb-6">
       <div className="mt-6 hidden flex-wrap items-center gap-2 sm:flex sm:gap-3">
@@ -984,6 +1001,7 @@ function AppointmentsPage() {
               activeTab={activeTab}
               onTabChange={setActiveTab}
               onOpenClient={handleOpenClient}
+              onOpenWorkflowRun={handleOpenWorkflowRun}
               isLoading={!!selectedInSchedule && isFetchingAppointment}
               showHeader={false}
             />

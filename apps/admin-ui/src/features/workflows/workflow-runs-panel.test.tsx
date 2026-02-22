@@ -771,6 +771,57 @@ describe("WorkflowRunsPanelView", () => {
     ).toBeNull();
   });
 
+  test("renders run detail overlay for deep-linked runs not present in the list page", () => {
+    render(
+      <WorkflowRunsPanelView
+        canManageWorkflow={true}
+        isLoadingRunDetail={false}
+        isLoadingRuns={false}
+        onRefresh={() => {}}
+        onSelectRun={() => {}}
+        runs={[
+          {
+            id: "run-in-list",
+            journeyVersionId: "version-list",
+            appointmentId: "appointment-list",
+            mode: "live",
+            status: "completed",
+            startedAt: new Date("2026-03-10T14:00:00.000Z"),
+            completedAt: new Date("2026-03-10T14:05:00.000Z"),
+            cancelledAt: null,
+            journeyNameSnapshot: "Listed Journey",
+            journeyVersion: 1,
+            journeyDeleted: false,
+          },
+        ]}
+        selectedRunDetail={{
+          run: {
+            id: "run-deeplinked",
+            journeyVersionId: "version-deeplink",
+            appointmentId: "appointment-deeplink",
+            mode: "live",
+            status: "running",
+            startedAt: new Date("2026-03-11T10:00:00.000Z"),
+            completedAt: null,
+            cancelledAt: null,
+            journeyNameSnapshot: "Deep Linked Journey",
+            journeyVersion: 2,
+            journeyDeleted: false,
+          },
+          runSnapshot: { version: 2 },
+          deliveries: [],
+          events: [],
+          stepLogs: [],
+          triggerContext: null,
+        }}
+        selectedRunId="run-deeplinked"
+      />,
+    );
+
+    expect(screen.getByRole("region", { name: "Run details" })).toBeTruthy();
+    expect(screen.getByText("Run for Deep Linked Journey")).toBeTruthy();
+  });
+
   test("keeps list mounted under detail overlay and closes with Escape", () => {
     const onSelectRun = mock((_runId: string | null) => {});
 

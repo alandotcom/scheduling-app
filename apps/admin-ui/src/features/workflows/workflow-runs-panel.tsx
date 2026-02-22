@@ -31,6 +31,8 @@ import { WorkflowRunDetail } from "./workflow-run-detail";
 interface WorkflowRunsPanelProps {
   workflowId: string | null;
   canManageWorkflow: boolean;
+  selectedRunId?: string | null;
+  onSelectedRunIdChange?: (runId: string | null) => void;
 }
 
 type WorkflowRunsPanelRun = JourneyRun & {
@@ -71,7 +73,10 @@ export function WorkflowRunsPanelView({
   isCancelJourneyRunsPending = false,
 }: WorkflowRunsPanelViewProps) {
   const selectedRun = selectedRunId
-    ? (runs.find((r) => r.id === selectedRunId) ?? null)
+    ? (runs.find((r) => r.id === selectedRunId) ??
+      (selectedRunDetail?.run.id === selectedRunId
+        ? selectedRunDetail.run
+        : null))
     : null;
   const overlayRef = useRef<HTMLDivElement>(null);
   const runRowRefs = useRef(new Map<string, HTMLButtonElement>());
@@ -177,6 +182,8 @@ export function WorkflowRunsPanelView({
 export function WorkflowRunsPanel({
   workflowId,
   canManageWorkflow,
+  selectedRunId = null,
+  onSelectedRunIdChange,
 }: WorkflowRunsPanelProps) {
   const [selectedExecutionId, setSelectedExecutionId] = useAtom(
     selectedExecutionIdAtom,
@@ -246,6 +253,14 @@ export function WorkflowRunsPanel({
     refetchInterval: 2000,
   });
 
+  useEffect(() => {
+    if (selectedExecutionId === selectedRunId) {
+      return;
+    }
+
+    setSelectedExecutionId(selectedRunId);
+  }, [selectedExecutionId, selectedRunId, setSelectedExecutionId]);
+
   useEffect(
     () => () => {
       setSelectedExecutionId(null);
@@ -260,6 +275,29 @@ export function WorkflowRunsPanel({
       setSelectedExecutionId,
     ],
   );
+
+  useEffect(() => {
+    if (!selectedExecutionId || !runDetailQuery.isError) {
+      return;
+    }
+
+    const message =
+      runDetailQuery.error instanceof Error
+        ? runDetailQuery.error.message.toLowerCase()
+        : "";
+    if (!message.includes("run not found")) {
+      return;
+    }
+
+    setSelectedExecutionId(null);
+    onSelectedRunIdChange?.(null);
+  }, [
+    onSelectedRunIdChange,
+    runDetailQuery.error,
+    runDetailQuery.isError,
+    selectedExecutionId,
+    setSelectedExecutionId,
+  ]);
 
   useEffect(() => {
     if (!selectedExecutionId || !runDetailQuery.data) {
@@ -349,7 +387,10 @@ export function WorkflowRunsPanel({
       onSelectNode={(nodeId) => {
         setSelection({ nodeId, edgeId: null });
       }}
-      onSelectRun={setSelectedExecutionId}
+      onSelectRun={(runId) => {
+        setSelectedExecutionId(runId);
+        onSelectedRunIdChange?.(runId);
+      }}
       onCancelJourneyRuns={() => {
         if (!workflowId) {
           return;

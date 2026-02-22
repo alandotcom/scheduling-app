@@ -50,7 +50,6 @@ export interface AppointmentCreateInput {
 }
 
 export interface AppointmentUpdateInput {
-  clientId?: string | undefined;
   notes?: string | null | undefined;
 }
 
@@ -468,10 +467,6 @@ export class AppointmentRepository {
     const updateData: Record<string, unknown> = {
       updatedAt: new Date(),
     };
-
-    if (input.clientId !== undefined) {
-      updateData["clientId"] = input.clientId;
-    }
 
     if (input.notes !== undefined) {
       updateData["notes"] = input.notes;

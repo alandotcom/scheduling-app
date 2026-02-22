@@ -6,6 +6,7 @@ import {
   isJourneyActionAllowedForTriggerType,
   journeyTriggerConfigSchema,
   linearJourneyGraphSchema,
+  listJourneyRunsByEntityQuerySchema,
   listJourneyRunsQuerySchema,
   publishJourneySchema,
   setJourneyModeSchema,
@@ -24,6 +25,7 @@ import {
   type JourneyRunTriggerContext,
   type LinearJourneyGraph,
   type ListJourneyRunsQuery,
+  type ListJourneyRunsByEntityQuery,
   type PublishJourneyInput,
   type PublishJourneyResponse,
   type SetJourneyModeInput,
@@ -1186,6 +1188,20 @@ function validateListRunsQuery(
   return parsed.data;
 }
 
+function validateListRunsByEntityQuery(
+  input: ListJourneyRunsByEntityQuery,
+): ListJourneyRunsByEntityQuery {
+  const parsed = listJourneyRunsByEntityQuerySchema.safeParse(input);
+  if (!parsed.success) {
+    throw new ApplicationError("Invalid runs query", {
+      code: "BAD_REQUEST",
+      details: { issues: parsed.error.issues },
+    });
+  }
+
+  return parsed.data;
+}
+
 function validateStartTestRunInput(
   input: StartJourneyTestRunInput,
 ): StartJourneyTestRunInput {
@@ -1354,6 +1370,245 @@ async function cancelActiveRunsForJourney(
 
   const runIds = runRows.map((row) => row.id);
   return cancelRunsByIds(tx, runIds, reasonCode);
+}
+
+async function getJourneyIdByVersionIdMap(
+  tx: DbClient,
+  journeyVersionIds: string[],
+): Promise<Map<string, string>> {
+  if (journeyVersionIds.length === 0) {
+    return new Map();
+  }
+
+  const rows = await tx
+    .select({
+      id: journeyVersions.id,
+      journeyId: journeyVersions.journeyId,
+    })
+    .from(journeyVersions)
+    .where(inArray(journeyVersions.id, journeyVersionIds));
+
+  return new Map(rows.map((row) => [row.id, row.journeyId] as const));
+}
+
+async function buildJourneyRunListItems(input: {
+  tx: DbClient;
+  runs: Array<typeof journeyRuns.$inferSelect>;
+  resolveJourneyId: (run: typeof journeyRuns.$inferSelect) => string | null;
+}): Promise<JourneyRunListItem[]> {
+  const { tx, runs, resolveJourneyId } = input;
+  if (runs.length === 0) {
+    return [];
+  }
+
+  const runIds = runs.map((row) => row.id);
+  const appointmentIds = compact(uniq(runs.map((row) => row.appointmentId)));
+  const clientIds = compact(uniq(runs.map((row) => row.clientId)));
+
+  const [appointmentRows, clientRows, runEventRows, deliveryRows, stepLogRows] =
+    await Promise.all([
+      appointmentIds.length > 0
+        ? tx
+            .select({
+              id: appointments.id,
+              startAt: appointments.startAt,
+              timezone: appointments.timezone,
+              status: appointments.status,
+              clientId: appointments.clientId,
+              clientFirstName: clients.firstName,
+              clientLastName: clients.lastName,
+              clientEmail: clients.email,
+            })
+            .from(appointments)
+            .leftJoin(clients, eq(clients.id, appointments.clientId))
+            .where(inArray(appointments.id, appointmentIds))
+        : Promise.resolve([]),
+      clientIds.length > 0
+        ? tx
+            .select({
+              id: clients.id,
+              firstName: clients.firstName,
+              lastName: clients.lastName,
+              email: clients.email,
+            })
+            .from(clients)
+            .where(inArray(clients.id, clientIds))
+        : Promise.resolve([]),
+      tx
+        .select({
+          journeyRunId: journeyRunEvents.journeyRunId,
+          eventType: journeyRunEvents.eventType,
+          metadata: journeyRunEvents.metadata,
+          createdAt: journeyRunEvents.createdAt,
+          id: journeyRunEvents.id,
+        })
+        .from(journeyRunEvents)
+        .where(
+          and(
+            inArray(journeyRunEvents.journeyRunId, runIds),
+            inArray(journeyRunEvents.eventType, [
+              "run_planned",
+              "run_canceled",
+            ]),
+          ),
+        )
+        .orderBy(desc(journeyRunEvents.createdAt), desc(journeyRunEvents.id)),
+      tx
+        .select({
+          journeyRunId: journeyDeliveries.journeyRunId,
+          status: journeyDeliveries.status,
+          reasonCode: journeyDeliveries.reasonCode,
+          scheduledFor: journeyDeliveries.scheduledFor,
+          channel: journeyDeliveries.channel,
+          createdAt: journeyDeliveries.createdAt,
+          id: journeyDeliveries.id,
+        })
+        .from(journeyDeliveries)
+        .where(inArray(journeyDeliveries.journeyRunId, runIds))
+        .orderBy(desc(journeyDeliveries.createdAt), desc(journeyDeliveries.id)),
+      tx
+        .select({
+          journeyRunId: journeyRunStepLogs.journeyRunId,
+          nodeType: journeyRunStepLogs.nodeType,
+          status: journeyRunStepLogs.status,
+          output: journeyRunStepLogs.output,
+          input: journeyRunStepLogs.input,
+          error: journeyRunStepLogs.error,
+          startedAt: journeyRunStepLogs.startedAt,
+          id: journeyRunStepLogs.id,
+        })
+        .from(journeyRunStepLogs)
+        .where(inArray(journeyRunStepLogs.journeyRunId, runIds))
+        .orderBy(
+          desc(journeyRunStepLogs.startedAt),
+          desc(journeyRunStepLogs.id),
+        ),
+    ]);
+
+  const appointmentById = new Map(
+    appointmentRows.map((row) => [row.id, row] as const),
+  );
+  const clientById = new Map(clientRows.map((row) => [row.id, row] as const));
+
+  const triggerEventTypeByRunId = new Map<string, string>();
+  const canceledReasonCodeByRunId = new Map<string, string>();
+  for (const event of runEventRows) {
+    const metadata = isRecord(event.metadata) ? event.metadata : null;
+
+    if (
+      event.eventType === "run_planned" &&
+      !triggerEventTypeByRunId.has(event.journeyRunId)
+    ) {
+      const triggerEventType =
+        resolveTriggerEventTypeFromEventMetadata(metadata);
+      if (triggerEventType) {
+        triggerEventTypeByRunId.set(event.journeyRunId, triggerEventType);
+      }
+    }
+
+    if (
+      event.eventType === "run_canceled" &&
+      !canceledReasonCodeByRunId.has(event.journeyRunId)
+    ) {
+      const reasonCode = metadata?.["reasonCode"];
+      if (typeof reasonCode === "string" && reasonCode.trim().length > 0) {
+        canceledReasonCodeByRunId.set(event.journeyRunId, reasonCode.trim());
+      }
+    }
+  }
+
+  const deliveriesByRunId = new Map<
+    string,
+    Array<{
+      journeyRunId: string;
+      status: typeof journeyDeliveries.$inferSelect.status;
+      reasonCode: string | null;
+      scheduledFor: Date;
+      channel: string;
+      createdAt: Date;
+    }>
+  >();
+  for (const delivery of deliveryRows) {
+    const existingDeliveries = deliveriesByRunId.get(delivery.journeyRunId);
+    if (existingDeliveries) {
+      existingDeliveries.push(delivery);
+      continue;
+    }
+
+    deliveriesByRunId.set(delivery.journeyRunId, [delivery]);
+  }
+
+  const stepLogsByRunId = new Map<
+    string,
+    Array<{
+      journeyRunId: string;
+      nodeType: string;
+      status: typeof journeyRunStepLogs.$inferSelect.status;
+      output: Record<string, unknown> | null;
+      input: Record<string, unknown> | null;
+      error: string | null;
+      startedAt: Date;
+    }>
+  >();
+  for (const stepLog of stepLogRows) {
+    const normalizedStepLog = {
+      journeyRunId: stepLog.journeyRunId,
+      nodeType: stepLog.nodeType,
+      status: stepLog.status,
+      output: isRecord(stepLog.output) ? stepLog.output : null,
+      input: isRecord(stepLog.input) ? stepLog.input : null,
+      error: stepLog.error,
+      startedAt: stepLog.startedAt,
+    };
+
+    const existingStepLogs = stepLogsByRunId.get(stepLog.journeyRunId);
+    if (existingStepLogs) {
+      existingStepLogs.push(normalizedStepLog);
+      continue;
+    }
+
+    stepLogsByRunId.set(stepLog.journeyRunId, [normalizedStepLog]);
+  }
+
+  return runs.map((row) => {
+    const deliveries = deliveriesByRunId.get(row.id) ?? [];
+    const stepLogs = stepLogsByRunId.get(row.id) ?? [];
+    const nextState = resolveRunNextState({
+      run: row,
+      deliveries,
+      stepLogs,
+    });
+    const canceledReasonCode = canceledReasonCodeByRunId.get(row.id) ?? null;
+    const triggerEventType =
+      triggerEventTypeByRunId.get(row.id) ??
+      resolveTriggerEventTypeFromStepLogs({ stepLogs }) ??
+      toTriggerEventTypeFromCanceledReason(canceledReasonCode);
+
+    return {
+      ...toJourneyRun(row),
+      journeyId: resolveJourneyId(row),
+      sidebarSummary: {
+        subject: resolveRunSubject({
+          run: row,
+          appointmentById,
+          clientById,
+        }),
+        triggerEventType,
+        statusReason: resolveRunStatusReason({
+          run: row,
+          deliveries,
+          stepLogs,
+          canceledReasonCode,
+        }),
+        nextState,
+        channelHint: resolveChannelHint({
+          deliveries,
+          stepLogs,
+          nextState,
+        }),
+      },
+    };
+  });
 }
 
 export class JourneyService {
@@ -1620,232 +1875,53 @@ export class JourneyService {
         .orderBy(desc(journeyRuns.startedAt), desc(journeyRuns.id))
         .limit(parsed.limit);
 
-      if (rows.length === 0) {
-        return [];
+      return buildJourneyRunListItems({
+        tx,
+        runs: rows,
+        resolveJourneyId: () => id,
+      });
+    });
+  }
+
+  async listRunsByEntity(
+    query: ListJourneyRunsByEntityQuery,
+    context: ServiceContext,
+  ): Promise<JourneyRunListItem[]> {
+    const parsed = validateListRunsByEntityQuery(query);
+
+    return withOrg(context.orgId, async (tx) => {
+      const entityFilter =
+        parsed.entityType === "appointment"
+          ? eq(journeyRuns.appointmentId, parsed.entityId)
+          : eq(journeyRuns.clientId, parsed.entityId);
+      const filters = [entityFilter];
+      if (parsed.mode) {
+        filters.push(eq(journeyRuns.mode, parsed.mode));
       }
 
-      const runIds = rows.map((row) => row.id);
-      const appointmentIds = compact(
-        uniq(rows.map((row) => row.appointmentId)),
-      );
-      const clientIds = compact(uniq(rows.map((row) => row.clientId)));
+      const rows = await tx
+        .select({ run: journeyRuns })
+        .from(journeyRuns)
+        .where(filters.length > 1 ? and(...filters) : filters[0])
+        .orderBy(desc(journeyRuns.startedAt), desc(journeyRuns.id))
+        .limit(parsed.limit);
 
-      const [
-        appointmentRows,
-        clientRows,
-        runEventRows,
-        deliveryRows,
-        stepLogRows,
-      ] = await Promise.all([
-        appointmentIds.length > 0
-          ? tx
-              .select({
-                id: appointments.id,
-                startAt: appointments.startAt,
-                timezone: appointments.timezone,
-                status: appointments.status,
-                clientId: appointments.clientId,
-                clientFirstName: clients.firstName,
-                clientLastName: clients.lastName,
-                clientEmail: clients.email,
-              })
-              .from(appointments)
-              .leftJoin(clients, eq(clients.id, appointments.clientId))
-              .where(inArray(appointments.id, appointmentIds))
-          : Promise.resolve([]),
-        clientIds.length > 0
-          ? tx
-              .select({
-                id: clients.id,
-                firstName: clients.firstName,
-                lastName: clients.lastName,
-                email: clients.email,
-              })
-              .from(clients)
-              .where(inArray(clients.id, clientIds))
-          : Promise.resolve([]),
-        tx
-          .select({
-            journeyRunId: journeyRunEvents.journeyRunId,
-            eventType: journeyRunEvents.eventType,
-            metadata: journeyRunEvents.metadata,
-            createdAt: journeyRunEvents.createdAt,
-            id: journeyRunEvents.id,
-          })
-          .from(journeyRunEvents)
-          .where(
-            and(
-              inArray(journeyRunEvents.journeyRunId, runIds),
-              inArray(journeyRunEvents.eventType, [
-                "run_planned",
-                "run_canceled",
-              ]),
-            ),
-          )
-          .orderBy(desc(journeyRunEvents.createdAt), desc(journeyRunEvents.id)),
-        tx
-          .select({
-            journeyRunId: journeyDeliveries.journeyRunId,
-            status: journeyDeliveries.status,
-            reasonCode: journeyDeliveries.reasonCode,
-            scheduledFor: journeyDeliveries.scheduledFor,
-            channel: journeyDeliveries.channel,
-            createdAt: journeyDeliveries.createdAt,
-            id: journeyDeliveries.id,
-          })
-          .from(journeyDeliveries)
-          .where(inArray(journeyDeliveries.journeyRunId, runIds))
-          .orderBy(
-            desc(journeyDeliveries.createdAt),
-            desc(journeyDeliveries.id),
-          ),
-        tx
-          .select({
-            journeyRunId: journeyRunStepLogs.journeyRunId,
-            nodeType: journeyRunStepLogs.nodeType,
-            status: journeyRunStepLogs.status,
-            output: journeyRunStepLogs.output,
-            input: journeyRunStepLogs.input,
-            error: journeyRunStepLogs.error,
-            startedAt: journeyRunStepLogs.startedAt,
-            id: journeyRunStepLogs.id,
-          })
-          .from(journeyRunStepLogs)
-          .where(inArray(journeyRunStepLogs.journeyRunId, runIds))
-          .orderBy(
-            desc(journeyRunStepLogs.startedAt),
-            desc(journeyRunStepLogs.id),
-          ),
-      ]);
-
-      const appointmentById = new Map(
-        appointmentRows.map((row) => [row.id, row] as const),
+      const runs = rows.map((row) => row.run);
+      const journeyVersionIds = compact(
+        uniq(runs.map((run) => run.journeyVersionId)),
       );
-      const clientById = new Map(
-        clientRows.map((row) => [row.id, row] as const),
+      const journeyIdByVersionId = await getJourneyIdByVersionIdMap(
+        tx,
+        journeyVersionIds,
       );
 
-      const triggerEventTypeByRunId = new Map<string, string>();
-      const canceledReasonCodeByRunId = new Map<string, string>();
-      for (const event of runEventRows) {
-        const metadata = isRecord(event.metadata) ? event.metadata : null;
-
-        if (
-          event.eventType === "run_planned" &&
-          !triggerEventTypeByRunId.has(event.journeyRunId)
-        ) {
-          const triggerEventType =
-            resolveTriggerEventTypeFromEventMetadata(metadata);
-          if (triggerEventType) {
-            triggerEventTypeByRunId.set(event.journeyRunId, triggerEventType);
-          }
-        }
-
-        if (
-          event.eventType === "run_canceled" &&
-          !canceledReasonCodeByRunId.has(event.journeyRunId)
-        ) {
-          const reasonCode = metadata?.["reasonCode"];
-          if (typeof reasonCode === "string" && reasonCode.trim().length > 0) {
-            canceledReasonCodeByRunId.set(
-              event.journeyRunId,
-              reasonCode.trim(),
-            );
-          }
-        }
-      }
-
-      const deliveriesByRunId = new Map<
-        string,
-        Array<{
-          journeyRunId: string;
-          status: typeof journeyDeliveries.$inferSelect.status;
-          reasonCode: string | null;
-          scheduledFor: Date;
-          channel: string;
-          createdAt: Date;
-        }>
-      >();
-      for (const delivery of deliveryRows) {
-        const existingDeliveries = deliveriesByRunId.get(delivery.journeyRunId);
-        if (existingDeliveries) {
-          existingDeliveries.push(delivery);
-          continue;
-        }
-
-        deliveriesByRunId.set(delivery.journeyRunId, [delivery]);
-      }
-
-      const stepLogsByRunId = new Map<
-        string,
-        Array<{
-          journeyRunId: string;
-          nodeType: string;
-          status: typeof journeyRunStepLogs.$inferSelect.status;
-          output: Record<string, unknown> | null;
-          input: Record<string, unknown> | null;
-          error: string | null;
-          startedAt: Date;
-        }>
-      >();
-      for (const stepLog of stepLogRows) {
-        const normalizedStepLog = {
-          journeyRunId: stepLog.journeyRunId,
-          nodeType: stepLog.nodeType,
-          status: stepLog.status,
-          output: isRecord(stepLog.output) ? stepLog.output : null,
-          input: isRecord(stepLog.input) ? stepLog.input : null,
-          error: stepLog.error,
-          startedAt: stepLog.startedAt,
-        };
-
-        const existingStepLogs = stepLogsByRunId.get(stepLog.journeyRunId);
-        if (existingStepLogs) {
-          existingStepLogs.push(normalizedStepLog);
-          continue;
-        }
-
-        stepLogsByRunId.set(stepLog.journeyRunId, [normalizedStepLog]);
-      }
-
-      return rows.map((row) => {
-        const deliveries = deliveriesByRunId.get(row.id) ?? [];
-        const stepLogs = stepLogsByRunId.get(row.id) ?? [];
-        const nextState = resolveRunNextState({
-          run: row,
-          deliveries,
-          stepLogs,
-        });
-        const canceledReasonCode =
-          canceledReasonCodeByRunId.get(row.id) ?? null;
-        const triggerEventType =
-          triggerEventTypeByRunId.get(row.id) ??
-          resolveTriggerEventTypeFromStepLogs({ stepLogs }) ??
-          toTriggerEventTypeFromCanceledReason(canceledReasonCode);
-
-        return {
-          ...toJourneyRun(row),
-          sidebarSummary: {
-            subject: resolveRunSubject({
-              run: row,
-              appointmentById,
-              clientById,
-            }),
-            triggerEventType,
-            statusReason: resolveRunStatusReason({
-              run: row,
-              deliveries,
-              stepLogs,
-              canceledReasonCode,
-            }),
-            nextState,
-            channelHint: resolveChannelHint({
-              deliveries,
-              stepLogs,
-              nextState,
-            }),
-          },
-        };
+      return buildJourneyRunListItems({
+        tx,
+        runs,
+        resolveJourneyId: (run) =>
+          run.journeyVersionId
+            ? (journeyIdByVersionId.get(run.journeyVersionId) ?? null)
+            : null,
       });
     });
   }

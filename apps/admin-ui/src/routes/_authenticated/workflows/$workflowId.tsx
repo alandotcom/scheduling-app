@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Alert02Icon, Cancel01Icon } from "@hugeicons/core-free-icons";
 import { ReactFlowProvider } from "@xyflow/react";
@@ -67,6 +67,8 @@ import {
 import { getQueryClient, orpc } from "@/lib/query";
 import { swallowIgnorableRouteLoaderError } from "@/lib/query-cancellation";
 
+type WorkflowSidebarTabValue = "properties" | "runs";
+
 function resolveErrorMessage(error: unknown): string {
   if (error instanceof Error && error.message) return error.message;
   return "Failed to load journey editor.";
@@ -74,6 +76,12 @@ function resolveErrorMessage(error: unknown): string {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isWorkflowSidebarTabValue(
+  value: string,
+): value is WorkflowSidebarTabValue {
+  return value === "properties" || value === "runs";
 }
 
 function isTriggerOnlyDraftGraph(input: {
@@ -94,6 +102,8 @@ function isTriggerOnlyDraftGraph(input: {
 
 function WorkflowEditorPage() {
   const { workflowId } = Route.useParams();
+  const { sidebarTab, runId } = Route.useSearch();
+  const navigate = useNavigate({ from: Route.fullPath });
   const queryClient = useQueryClient();
   const isMobile = useIsMobile();
 
@@ -183,6 +193,35 @@ function WorkflowEditorPage() {
     : selectedEdgeId
       ? `edge:${selectedEdgeId}`
       : null;
+  const activeSidebarTab: WorkflowSidebarTabValue =
+    runId && !sidebarTab ? "runs" : (sidebarTab ?? "properties");
+
+  const setSidebarTab = useCallback(
+    (nextTab: WorkflowSidebarTabValue) => {
+      navigate({
+        search: (prev) => ({
+          ...prev,
+          sidebarTab: nextTab,
+          runId: nextTab === "runs" ? prev.runId : undefined,
+        }),
+      });
+    },
+    [navigate],
+  );
+
+  const setSelectedRunId = useCallback(
+    (nextRunId: string | null) => {
+      navigate({
+        replace: nextRunId === null,
+        search: (prev) => ({
+          ...prev,
+          sidebarTab: "runs",
+          runId: nextRunId ?? undefined,
+        }),
+      });
+    },
+    [navigate],
+  );
 
   const patchJourneyInListCache = useCallback(
     (journeyId: string, patch: Partial<JourneyListResponse[number]>) => {
@@ -884,15 +923,19 @@ function WorkflowEditorPage() {
             </SheetHeader>
             <div className="min-h-0 flex-1 overflow-hidden">
               <WorkflowEditorSidebar
+                activeTab={activeSidebarTab}
                 canManageWorkflow={canManageCurrentView}
                 defaultTimezone={defaultTimezone}
                 edges={activeCanvasEdges}
                 nodes={activeCanvasNodes}
+                onActiveTabChange={setSidebarTab}
                 onDeleteEdge={canManageCurrentView ? deleteEdge : undefined}
                 onDeleteNode={canManageCurrentView ? deleteNode : undefined}
+                onSelectedRunIdChange={setSelectedRunId}
                 onSetActionType={setActionType}
                 onUpdateNodeData={updateNodeData}
                 isTriggerTypeLocked={isTriggerTypeLocked}
+                selectedRunId={runId ?? null}
                 selectedEdge={selectedEdge}
                 selectedNode={selectedNode}
                 workflowId={journeyQuery.data?.id ?? null}
@@ -903,15 +946,19 @@ function WorkflowEditorPage() {
       ) : (
         <WorkflowSidebarPanel>
           <WorkflowEditorSidebar
+            activeTab={activeSidebarTab}
             canManageWorkflow={canManageCurrentView}
             defaultTimezone={defaultTimezone}
             edges={activeCanvasEdges}
             nodes={activeCanvasNodes}
+            onActiveTabChange={setSidebarTab}
             onDeleteEdge={canManageCurrentView ? deleteEdge : undefined}
             onDeleteNode={canManageCurrentView ? deleteNode : undefined}
+            onSelectedRunIdChange={setSelectedRunId}
             onSetActionType={setActionType}
             onUpdateNodeData={updateNodeData}
             isTriggerTypeLocked={isTriggerTypeLocked}
+            selectedRunId={runId ?? null}
             selectedEdge={selectedEdge}
             selectedNode={selectedNode}
             workflowId={journeyQuery.data?.id ?? null}
@@ -985,6 +1032,24 @@ function WorkflowEditorPageWrapper() {
 }
 
 export const Route = createFileRoute("/_authenticated/workflows/$workflowId")({
+  validateSearch: (
+    search: Record<string, unknown>,
+  ): {
+    sidebarTab?: WorkflowSidebarTabValue;
+    runId?: string;
+  } => {
+    const rawSidebarTab =
+      typeof search.sidebarTab === "string" ? search.sidebarTab : "";
+    const sidebarTab = isWorkflowSidebarTabValue(rawSidebarTab)
+      ? rawSidebarTab
+      : undefined;
+    const runId = typeof search.runId === "string" ? search.runId : undefined;
+
+    return {
+      sidebarTab,
+      runId,
+    };
+  },
   loader: async ({ params }) => {
     const queryClient = getQueryClient();
     await swallowIgnorableRouteLoaderError(

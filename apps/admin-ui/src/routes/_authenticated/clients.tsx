@@ -1,6 +1,6 @@
 // Clients management page with table list and modal-based detail/create flows
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useClosingSnapshot } from "@/hooks/use-closing-snapshot";
 import { DateTime } from "luxon";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
@@ -13,6 +13,7 @@ import {
   PencilEdit01Icon,
   Search01Icon,
 } from "@hugeicons/core-free-icons";
+import { getLogger } from "@logtape/logtape";
 import { toast } from "sonner";
 
 import type {
@@ -46,7 +47,16 @@ import {
 import { useUrlDrivenModal } from "@/hooks/use-url-driven-modal";
 import { useValidateSelection } from "@/hooks/use-selection-search-params";
 import { AppointmentDetail } from "@/components/appointments/appointment-detail";
-import { formatDisplayDate, formatDisplayDateTime } from "@/lib/date-utils";
+import {
+  toEventTypeLabel,
+  toRunStatusBadgeVariant,
+  toRunStatusLabel,
+} from "@/features/workflows/workflow-runs-helpers";
+import {
+  formatDisplayDate,
+  formatDisplayDateTime,
+  formatRelativeTime,
+} from "@/lib/date-utils";
 import { deriveCountryFromPhone, formatPhoneForDisplay } from "@/lib/phone";
 import { getQueryClient, orpc } from "@/lib/query";
 import { swallowIgnorableRouteLoaderError } from "@/lib/query-cancellation";
@@ -56,6 +66,7 @@ import {
 } from "@/lib/scheduling-timezone";
 
 const CLIENT_CREATE_DRAFT_KEY = "clients:create";
+const logger = getLogger(["ui", "workflows", "clients"]);
 
 interface CreateClientFormProps {
   onSubmit: (data: CreateClientInput) => void;
@@ -107,15 +118,18 @@ function CreateClientForm({
   );
 }
 
-type DetailTabValue = "details" | "history";
-type AppointmentDetailTabValue = "details" | "client" | "history";
+type DetailTabValue = "details" | "history" | "workflows";
+type AppointmentDetailTabValue = "details" | "client" | "history" | "workflows";
 
 const isDetailTab = (value: string): value is DetailTabValue =>
-  value === "details" || value === "history";
+  value === "details" || value === "history" || value === "workflows";
 const isAppointmentDetailTab = (
   value: string,
 ): value is AppointmentDetailTabValue =>
-  value === "details" || value === "client" || value === "history";
+  value === "details" ||
+  value === "client" ||
+  value === "history" ||
+  value === "workflows";
 
 function ClientsPage() {
   const queryClient = useQueryClient();
@@ -251,6 +265,20 @@ function ClientsPage() {
           appointment: undefined,
           appointmentTab: undefined,
         }),
+      });
+    },
+    [navigate],
+  );
+
+  const openWorkflowRun = useCallback(
+    (input: { workflowId: string; runId: string }) => {
+      navigate({
+        to: "/workflows/$workflowId",
+        params: { workflowId: input.workflowId },
+        search: {
+          sidebarTab: "runs",
+          runId: input.runId,
+        },
       });
     },
     [navigate],
@@ -437,6 +465,39 @@ function ClientsPage() {
       enabled: !!selectedId,
     },
   );
+  const {
+    data: workflowRunsData,
+    isLoading: isLoadingWorkflowRuns,
+    isError: isWorkflowRunsError,
+    error: workflowRunsError,
+  } = useQuery({
+    ...orpc.journeys.runs.listByEntity.queryOptions({
+      input: {
+        entityType: "client",
+        entityId: selectedId ?? "00000000-0000-0000-0000-000000000000",
+        limit: 20,
+      },
+    }),
+    enabled: !!selectedId && activeTab === "workflows",
+  });
+
+  useEffect(() => {
+    if (activeTab !== "workflows" || !selectedId || !isWorkflowRunsError) {
+      return;
+    }
+
+    logger.error(
+      "Failed to load workflow runs for client {clientId}: {error}",
+      {
+        clientId: selectedId,
+        error: workflowRunsError,
+        errorStack:
+          workflowRunsError instanceof Error
+            ? workflowRunsError.stack
+            : undefined,
+      },
+    );
+  }, [activeTab, isWorkflowRunsError, selectedId, workflowRunsError]);
   const deletingClientId = crud.deletingItemId ?? null;
   const {
     data: deletingClientHistorySummary,
@@ -690,6 +751,7 @@ function ClientsPage() {
                   activeTab={activeAppointmentTab}
                   onTabChange={(tabValue) => setActiveAppointmentTab(tabValue)}
                   onOpenClient={openClientFromAppointment}
+                  onOpenWorkflowRun={openWorkflowRun}
                   isLoading={isLoadingAppointment}
                   showHeader={false}
                 />
@@ -704,6 +766,7 @@ function ClientsPage() {
                   >
                     <DetailTab value="details">Details</DetailTab>
                     <DetailTab value="history">History</DetailTab>
+                    <DetailTab value="workflows">Workflows</DetailTab>
                   </DetailTabs>
 
                   <div className="space-y-6">
@@ -742,7 +805,9 @@ function ClientsPage() {
                           />
                         )}
                       </div>
-                    ) : (
+                    ) : null}
+
+                    {activeTab === "history" ? (
                       <div className="space-y-6">
                         {isLoadingAppointments ? (
                           <div className="py-6 text-center text-muted-foreground">
@@ -863,7 +928,105 @@ function ClientsPage() {
                           </>
                         )}
                       </div>
-                    )}
+                    ) : null}
+
+                    {activeTab === "workflows" ? (
+                      <div className="space-y-3">
+                        {isLoadingWorkflowRuns ? (
+                          <div className="py-6 text-center text-muted-foreground">
+                            Loading workflows...
+                          </div>
+                        ) : isWorkflowRunsError ? (
+                          <div className="rounded-lg border border-border p-6 text-center text-sm text-muted-foreground">
+                            Failed to load workflows for this client.
+                          </div>
+                        ) : (workflowRunsData?.length ?? 0) === 0 ? (
+                          <div className="rounded-lg border border-border p-6 text-center text-sm text-muted-foreground">
+                            No workflows found for this client.
+                          </div>
+                        ) : (
+                          workflowRunsData!.map((run) => {
+                            const canOpenWorkflow = !!run.journeyId;
+
+                            return (
+                              <button
+                                key={run.id}
+                                type="button"
+                                className="w-full rounded-lg border border-border p-3 text-left transition-colors hover:bg-muted/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-70"
+                                disabled={!canOpenWorkflow}
+                                onClick={() => {
+                                  if (!run.journeyId) {
+                                    return;
+                                  }
+
+                                  openWorkflowRun({
+                                    workflowId: run.journeyId,
+                                    runId: run.id,
+                                  });
+                                }}
+                              >
+                                <div className="flex items-start justify-between gap-2">
+                                  <p className="font-medium text-sm">
+                                    {run.journeyNameSnapshot}
+                                  </p>
+                                  <span
+                                    className="shrink-0 text-muted-foreground text-xs"
+                                    title={formatDisplayDateTime(run.startedAt)}
+                                  >
+                                    {formatRelativeTime(run.startedAt)}
+                                  </span>
+                                </div>
+                                <p className="mt-1 truncate text-muted-foreground text-xs">
+                                  {toEventTypeLabel(
+                                    run.sidebarSummary?.triggerEventType ??
+                                      null,
+                                  )}
+                                </p>
+                                <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                                  <Badge
+                                    variant={toRunStatusBadgeVariant(
+                                      run.status,
+                                    )}
+                                  >
+                                    {toRunStatusLabel(run.status)}
+                                  </Badge>
+                                  <Badge variant="outline">
+                                    {run.mode === "live" ? "Live" : "Test"}
+                                  </Badge>
+                                  {run.journeyVersion ? (
+                                    <Badge variant="outline">
+                                      v{run.journeyVersion}
+                                    </Badge>
+                                  ) : null}
+                                  {run.sidebarSummary?.channelHint ? (
+                                    <Badge variant="outline">
+                                      {run.sidebarSummary.channelHint}
+                                    </Badge>
+                                  ) : null}
+                                  {!run.journeyId ? (
+                                    <Badge variant="secondary">
+                                      Deleted workflow
+                                    </Badge>
+                                  ) : null}
+                                </div>
+                                {run.sidebarSummary?.nextState ? (
+                                  <p className="mt-1 text-muted-foreground text-xs">
+                                    {run.sidebarSummary.nextState.label}
+                                    {run.sidebarSummary.nextState.at
+                                      ? ` ${formatDisplayDateTime(run.sidebarSummary.nextState.at)}`
+                                      : ""}
+                                  </p>
+                                ) : run.sidebarSummary?.statusReason ? (
+                                  <p className="mt-1 text-muted-foreground text-xs">
+                                    {run.sidebarSummary.statusReason}
+                                  </p>
+                                ) : null}
+                              </button>
+                            );
+                          })
+                        )}
+                      </div>
+                    ) : null}
                   </div>
                 </div>
               </div>

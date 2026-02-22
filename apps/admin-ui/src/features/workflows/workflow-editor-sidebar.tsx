@@ -37,10 +37,14 @@ import {
 } from "./workflow-editor-store";
 import { orpc } from "@/lib/query";
 
-type WorkflowEditorSidebarTab = "properties" | "runs";
+export type WorkflowEditorSidebarTab = "properties" | "runs";
 
 interface WorkflowEditorSidebarProps {
   workflowId: string | null;
+  activeTab: WorkflowEditorSidebarTab;
+  onActiveTabChange: (tab: WorkflowEditorSidebarTab) => void;
+  selectedRunId: string | null;
+  onSelectedRunIdChange: (runId: string | null) => void;
   defaultTimezone: string;
   selectedNode: Node | null;
   selectedEdge?: Edge | null;
@@ -353,6 +357,10 @@ function toClientLookupLabel(input: {
 
 export function WorkflowEditorSidebar({
   workflowId,
+  activeTab,
+  onActiveTabChange,
+  selectedRunId,
+  onSelectedRunIdChange,
   defaultTimezone,
   selectedNode,
   selectedEdge = null,
@@ -365,8 +373,6 @@ export function WorkflowEditorSidebar({
   onDeleteNode,
   onDeleteEdge,
 }: WorkflowEditorSidebarProps) {
-  const [activeTab, setActiveTab] =
-    useState<WorkflowEditorSidebarTab>("properties");
   const [showDeleteNodeDialog, setShowDeleteNodeDialog] = useState(false);
   const [showDeleteEdgeDialog, setShowDeleteEdgeDialog] = useState(false);
 
@@ -566,7 +572,7 @@ export function WorkflowEditorSidebar({
                 ? "bg-background text-foreground shadow-sm"
                 : "text-muted-foreground"
             }`}
-            onClick={() => setActiveTab("properties")}
+            onClick={() => onActiveTabChange("properties")}
             type="button"
           >
             Properties
@@ -577,7 +583,7 @@ export function WorkflowEditorSidebar({
                 ? "bg-background text-foreground shadow-sm"
                 : "text-muted-foreground"
             }`}
-            onClick={() => setActiveTab("runs")}
+            onClick={() => onActiveTabChange("runs")}
             type="button"
           >
             Runs
@@ -591,6 +597,8 @@ export function WorkflowEditorSidebar({
           <div className="h-full p-4">
             <WorkflowRunsPanel
               canManageWorkflow={canManageWorkflow}
+              onSelectedRunIdChange={onSelectedRunIdChange}
+              selectedRunId={selectedRunId}
               workflowId={workflowId}
             />
           </div>

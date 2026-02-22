@@ -1,15 +1,18 @@
 import { describe, expect, test } from "bun:test";
 
-type DetailTabValue = "details" | "history";
-type AppointmentDetailTabValue = "details" | "client" | "history";
+type DetailTabValue = "details" | "history" | "workflows";
+type AppointmentDetailTabValue = "details" | "client" | "history" | "workflows";
 
 const isDetailTab = (value: string): value is DetailTabValue =>
-  value === "details" || value === "history";
+  value === "details" || value === "history" || value === "workflows";
 
 const isAppointmentDetailTab = (
   value: string,
 ): value is AppointmentDetailTabValue =>
-  value === "details" || value === "client" || value === "history";
+  value === "details" ||
+  value === "client" ||
+  value === "history" ||
+  value === "workflows";
 
 const validateSearch = (
   search: Record<string, unknown>,
@@ -38,15 +41,15 @@ describe("clients route validateSearch", () => {
   test("accepts client and appointment detail tabs", () => {
     const result = validateSearch({
       selected: "client-123",
-      tab: "history",
+      tab: "workflows",
       appointment: "apt-456",
-      appointmentTab: "client",
+      appointmentTab: "workflows",
     });
 
     expect(result.selected).toBe("client-123");
-    expect(result.tab).toBe("history");
+    expect(result.tab).toBe("workflows");
     expect(result.appointment).toBe("apt-456");
-    expect(result.appointmentTab).toBe("client");
+    expect(result.appointmentTab).toBe("workflows");
   });
 
   test("rejects unknown appointment tab", () => {

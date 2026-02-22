@@ -217,6 +217,43 @@ function resolveClientContextFromPayload(
   };
 }
 
+function resolveAppointmentClientIdFromPayload(
+  payloadRecord: Record<string, unknown>,
+): string | null {
+  const isUuid = (value: string) =>
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+      value,
+    );
+
+  if (
+    typeof payloadRecord["clientId"] === "string" &&
+    isUuid(payloadRecord["clientId"])
+  ) {
+    return payloadRecord["clientId"];
+  }
+
+  const appointmentRecord = toRecord(payloadRecord["appointment"]);
+  if (
+    typeof appointmentRecord["clientId"] === "string" &&
+    isUuid(appointmentRecord["clientId"])
+  ) {
+    return appointmentRecord["clientId"];
+  }
+
+  const clientRecord = toRecord(payloadRecord["client"]);
+  if (typeof clientRecord["id"] === "string" && isUuid(clientRecord["id"])) {
+    return clientRecord["id"];
+  }
+  if (
+    typeof clientRecord["clientId"] === "string" &&
+    isUuid(clientRecord["clientId"])
+  ) {
+    return clientRecord["clientId"];
+  }
+
+  return null;
+}
+
 export function resolveJourneyTriggerRuntime(input: {
   graph: LinearJourneyGraph;
   eventType: JourneyPlannerDomainEventType;
@@ -245,6 +282,7 @@ export function resolveJourneyTriggerRuntime(input: {
     const clientContext = toDataEnvelopeContextFromUnknown(
       appointmentPayload["client"],
     );
+    const clientId = resolveAppointmentClientIdFromPayload(appointmentPayload);
     const appointmentId =
       typeof appointmentPayload["appointmentId"] === "string"
         ? appointmentPayload["appointmentId"]
@@ -262,7 +300,7 @@ export function resolveJourneyTriggerRuntime(input: {
         triggerEntityType: "appointment",
         triggerEntityId: appointmentId,
         appointmentId,
-        clientId: null,
+        clientId,
       },
       appointmentContext,
       clientContext,

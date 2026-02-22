@@ -814,6 +814,7 @@ describe("JourneyService", () => {
     );
 
     const failed = runs.find((run) => run.id === failedRun!.id);
+    expect(failed?.journeyId).toBe(created.id);
     expect(failed?.sidebarSummary.subject).toMatchObject({
       type: "client",
       primary: "FK Client",
@@ -841,6 +842,143 @@ describe("JourneyService", () => {
       "appointment.canceled",
     );
     expect(canceled?.sidebarSummary.statusReason).toBe("Appointment canceled");
+  });
+
+  test("listRunsByEntity returns direct client and appointment-linked runs", async () => {
+    const location = await createLocation(db as any, context.orgId);
+    const calendar = await createCalendar(db as any, context.orgId, {
+      locationId: location.id,
+    });
+    const appointmentType = await createAppointmentType(
+      db as any,
+      context.orgId,
+      {
+        calendarIds: [calendar.id],
+      },
+    );
+    const targetClient = await createClient(db as any, context.orgId, {
+      firstName: "Target",
+      lastName: "Client",
+    });
+    const otherClient = await createClient(db as any, context.orgId, {
+      firstName: "Other",
+      lastName: "Client",
+    });
+
+    const targetAppointment = await createAppointment(
+      db as any,
+      context.orgId,
+      {
+        calendarId: calendar.id,
+        appointmentTypeId: appointmentType.id,
+        clientId: targetClient.id,
+        startAt: new Date("2026-03-15T10:00:00.000Z"),
+        endAt: new Date("2026-03-15T10:30:00.000Z"),
+      },
+    );
+    const otherAppointment = await createAppointment(db as any, context.orgId, {
+      calendarId: calendar.id,
+      appointmentTypeId: appointmentType.id,
+      clientId: otherClient.id,
+      startAt: new Date("2026-03-16T10:00:00.000Z"),
+      endAt: new Date("2026-03-16T10:30:00.000Z"),
+    });
+
+    const created = await journeyService.create(
+      {
+        name: "List Runs By Entity Service",
+        graph: createLinearGraph("trigger-list-runs-by-entity"),
+      },
+      context,
+    );
+    const published = await journeyService.publish(
+      created.id,
+      { mode: "live" },
+      context,
+    );
+
+    await setTestOrgContext(db, context.orgId);
+    const [versionRow] = await db
+      .select({ id: journeyVersions.id })
+      .from(journeyVersions)
+      .where(
+        and(
+          eq(journeyVersions.journeyId, created.id),
+          eq(journeyVersions.version, published.version),
+        ),
+      )
+      .limit(1);
+
+    const [directClientRun] = await db
+      .insert(journeyRuns)
+      .values({
+        orgId: context.orgId,
+        journeyVersionId: versionRow!.id,
+        triggerEntityType: "client",
+        triggerEntityId: targetClient.id,
+        appointmentId: null,
+        clientId: targetClient.id,
+        mode: "live",
+        status: "running",
+        journeyNameSnapshot: created.name,
+        journeyVersionSnapshot: { version: published.version },
+      })
+      .returning({ id: journeyRuns.id });
+
+    const [targetAppointmentRun] = await db
+      .insert(journeyRuns)
+      .values({
+        orgId: context.orgId,
+        journeyVersionId: versionRow!.id,
+        triggerEntityType: "appointment",
+        triggerEntityId: targetAppointment.id,
+        appointmentId: targetAppointment.id,
+        clientId: targetClient.id,
+        mode: "live",
+        status: "completed",
+        journeyNameSnapshot: created.name,
+        journeyVersionSnapshot: { version: published.version },
+      })
+      .returning({ id: journeyRuns.id });
+
+    await db.insert(journeyRuns).values({
+      orgId: context.orgId,
+      journeyVersionId: versionRow!.id,
+      triggerEntityType: "appointment",
+      triggerEntityId: otherAppointment.id,
+      appointmentId: otherAppointment.id,
+      clientId: otherClient.id,
+      mode: "live",
+      status: "running",
+      journeyNameSnapshot: created.name,
+      journeyVersionSnapshot: { version: published.version },
+    });
+
+    const clientRuns = await journeyService.listRunsByEntity(
+      {
+        entityType: "client",
+        entityId: targetClient.id,
+        mode: "live",
+        limit: 20,
+      },
+      context,
+    );
+    expect(clientRuns.map((run) => run.id).sort()).toEqual(
+      [directClientRun!.id, targetAppointmentRun!.id].sort(),
+    );
+    expect(clientRuns.every((run) => run.journeyId === created.id)).toBe(true);
+
+    const appointmentRuns = await journeyService.listRunsByEntity(
+      {
+        entityType: "appointment",
+        entityId: targetAppointment.id,
+        limit: 20,
+      },
+      context,
+    );
+    expect(appointmentRuns).toHaveLength(1);
+    expect(appointmentRuns[0]?.id).toBe(targetAppointmentRun!.id);
+    expect(appointmentRuns[0]?.journeyId).toBe(created.id);
   });
 
   test("enforces org-scoped case-insensitive journey name uniqueness", async () => {
