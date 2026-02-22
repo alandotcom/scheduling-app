@@ -25,6 +25,21 @@ describe("buildEventAttributeSuggestions", () => {
     ).toBe("Appointment Client First Name");
   });
 
+  test("dedupes adjacent repeated label segments", () => {
+    const suggestions = buildEventAttributeSuggestions({
+      domain: "appointment",
+      eventTypes: ["appointment.scheduled"],
+      mode: "general",
+    });
+
+    expect(
+      suggestions.find(
+        (suggestion) =>
+          suggestion.value === "Appointment.data.appointment.startAt",
+      )?.label,
+    ).toBe("Appointment Start At");
+  });
+
   test("keeps ID paths in condition mode", () => {
     const values = new Set(
       buildEventAttributeSuggestions({

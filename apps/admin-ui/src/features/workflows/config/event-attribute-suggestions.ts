@@ -53,6 +53,7 @@ function toSuggestionLabel(
 ): string {
   const segments = path.split(".").filter((segment) => segment.length > 0);
   const labelSegments: string[] = [];
+  let previousSegment: string | null = null;
 
   for (const [index, segment] of segments.entries()) {
     if (index === 1 && segment === "data") {
@@ -61,7 +62,17 @@ function toSuggestionLabel(
     if (options?.dropCustomAttributes && segment === "customAttributes") {
       continue;
     }
-    labelSegments.push(humanizeSegment(segment));
+
+    const humanizedSegment = humanizeSegment(segment);
+    if (
+      previousSegment &&
+      previousSegment.toLowerCase() === humanizedSegment.toLowerCase()
+    ) {
+      continue;
+    }
+
+    labelSegments.push(humanizedSegment);
+    previousSegment = humanizedSegment;
   }
 
   const label = labelSegments.join(" ").trim();
