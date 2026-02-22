@@ -17,6 +17,7 @@ This app is in active development — there are no production users yet. This me
 - **Don't abstract prematurely.** Wait until a pattern appears 3+ times before extracting a shared util/hook/component. Two similar blocks of code are fine.
 - **Match existing patterns before inventing new ones.** Before building a new page, route, or component, look at how a similar one is already built and follow the same structure.
 - **Prefer inline/co-located code.** Keep related code together. Don't split into separate files prematurely. A 200-line component file is fine.
+- **VERY IMPORTANT: Ignore unrelated concurrent edits from other agents.** Sometimes other agents will be working in parallel and touching unrelated files. Do not revert or "fix" their changes unless explicitly asked.
 
 
 ## Code Cleanliness
