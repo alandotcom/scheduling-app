@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import {
   CLIENT_WORKFLOW_FILTER_FIELD_OPTIONS,
   getClientWorkflowFilterFieldOptions,
+  getOperatorOptionsForField,
   toAbsoluteTemporalComparisonValue,
   toDateTimeLocalInputValue,
 } from "./filter-builder-shared";
@@ -54,6 +55,11 @@ describe("workflow filter temporal helpers", () => {
         label: "Plan Name",
         type: "TEXT",
       },
+      {
+        fieldKey: "newsletterOptIn",
+        label: "Newsletter Opt-In",
+        type: "BOOLEAN",
+      },
     ]);
 
     expect(options).toContainEqual({
@@ -66,5 +72,29 @@ describe("workflow filter temporal helpers", () => {
       value: "client.customAttributes.planName",
       type: "string",
     });
+    expect(options).toContainEqual({
+      label: "Newsletter Opt-In",
+      value: "client.customAttributes.newsletterOptIn",
+      type: "boolean",
+    });
+  });
+
+  test("limits boolean field operators to set checks in generic operator lists", () => {
+    const fieldOptions = getClientWorkflowFilterFieldOptions([
+      {
+        fieldKey: "newsletterOptIn",
+        label: "Newsletter Opt-In",
+        type: "BOOLEAN",
+      },
+    ]);
+    const operatorOptions = getOperatorOptionsForField(
+      "client.customAttributes.newsletterOptIn",
+      fieldOptions,
+    );
+
+    expect(operatorOptions).toEqual([
+      { label: "is set", value: "is_set" },
+      { label: "is not set", value: "is_not_set" },
+    ]);
   });
 });

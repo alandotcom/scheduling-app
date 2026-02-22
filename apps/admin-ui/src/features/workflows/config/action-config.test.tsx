@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, mock, test } from "bun:test";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { useState } from "react";
+import { getWorkflowFilterFieldOptions } from "../filter-builder-shared";
 import { ActionConfig } from "./action-config";
 
 afterEach(() => {
@@ -370,6 +371,45 @@ describe("ActionConfig", () => {
     expect(screen.queryByText("does not equal")).toBeNull();
 
     expect(screen.getByText("Main Calendar — cal-1")).toBeTruthy();
+  });
+
+  test("uses true/false/set operator choices for boolean fields", () => {
+    const fieldOptions = getWorkflowFilterFieldOptions([
+      {
+        fieldKey: "newsletterOptIn",
+        label: "Newsletter Opt-In",
+        type: "BOOLEAN",
+      },
+    ]);
+
+    render(
+      <ActionConfig
+        config={{
+          actionType: "condition",
+          expression: "client.customAttributes.newsletterOptIn == true",
+          conditionMode: "builder",
+          conditionField: "client.customAttributes.newsletterOptIn",
+          conditionOperator: "equals",
+          conditionValue: true,
+        }}
+        fieldOptions={fieldOptions}
+        onUpdateConfig={mock((_key: string, _value: unknown) => {})}
+      />,
+    );
+
+    const operatorCombobox = screen.getByRole("combobox", {
+      name: "Condition operator",
+    });
+    expect(operatorCombobox.textContent).toContain("is true");
+    expect(screen.queryByPlaceholderText("Enter value...")).toBeNull();
+
+    fireEvent.click(operatorCombobox);
+    expect(screen.getAllByText("is true").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("is false").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("is set").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("is not set").length).toBeGreaterThan(0);
+    expect(screen.queryByText("contains")).toBeNull();
+    expect(screen.queryByText("equals")).toBeNull();
   });
 
   test("humanizes fallback select labels instead of showing raw enum tokens", () => {

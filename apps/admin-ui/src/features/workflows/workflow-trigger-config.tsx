@@ -35,18 +35,23 @@ import {
   ABSOLUTE_TEMPORAL_OPERATORS,
   RELATIVE_TEMPORAL_OPERATORS,
   CLIENT_WORKFLOW_FILTER_FIELD_OPTIONS,
+  WORKFLOW_FILTER_BOOLEAN_MODE_OPTIONS,
   VALUELESS_OPERATORS,
   WORKFLOW_FILTER_FIELD_OPTIONS,
   WORKFLOW_FILTER_TEMPORAL_UNIT_OPTIONS,
   type WorkflowFilterFieldOption,
   type WorkflowFilterValueOption,
+  getWorkflowBooleanFilterMode,
+  getWorkflowBooleanFilterModeLabel,
   getWorkflowFilterFieldLabel,
   getWorkflowFilterOperatorLabel,
   getWorkflowFilterTemporalUnitLabel,
   getOperatorOptionsForField,
+  isWorkflowBooleanFilterMode,
   isIdWorkflowFilterField,
   getWorkflowFilterFieldType,
   isLookupWorkflowFilterField,
+  toWorkflowBooleanFilterCondition,
   toDateTimeLocalInputValue,
   toWorkflowFilterFallbackLabel,
   toRelativeTemporalValueDraft,
@@ -347,8 +352,12 @@ function ConditionRow({
   onRemove,
   valueOptionsByField,
 }: ConditionRowProps) {
-  const isTimestampField =
-    getWorkflowFilterFieldType(condition.field, fieldOptions) === "timestamp";
+  const conditionFieldType = getWorkflowFilterFieldType(
+    condition.field,
+    fieldOptions,
+  );
+  const isTimestampField = conditionFieldType === "timestamp";
+  const isBooleanField = conditionFieldType === "boolean";
   const isIdField = isIdWorkflowFilterField(condition.field);
   const isLookupField = isLookupWorkflowFilterField(condition.field);
   const baseOperatorOptions = getOperatorOptionsForField(
@@ -367,18 +376,28 @@ function ConditionRow({
           ...baseOperatorOptions,
         ]
       : baseOperatorOptions;
+  const booleanOperatorMode = getWorkflowBooleanFilterMode({
+    operator: condition.operator,
+    value: condition.value,
+  });
   const relativeTemporalValue = toRelativeTemporalValueDraft(condition.value);
   const selectedFieldLabel = getWorkflowFilterFieldLabel(
     condition.field,
     fieldOptions,
   );
-  const selectedOperatorLabel = getWorkflowFilterOperatorLabel(
-    {
-      field: condition.field,
-      operator: condition.operator,
-    },
-    fieldOptions,
-  );
+  const selectedOperatorLabel = isBooleanField
+    ? booleanOperatorMode
+      ? getWorkflowBooleanFilterModeLabel(booleanOperatorMode)
+      : condition.operator.length > 0
+        ? toWorkflowFilterFallbackLabel(condition.operator)
+        : undefined
+    : getWorkflowFilterOperatorLabel(
+        {
+          field: condition.field,
+          operator: condition.operator,
+        },
+        fieldOptions,
+      );
   const isAgoOperator =
     condition.operator === "less_than_ago" ||
     condition.operator === "more_than_ago";
@@ -460,42 +479,77 @@ function ConditionRow({
             </SelectContent>
           </Select>
 
-          <Select
-            disabled={disabled}
-            value={condition.operator.length > 0 ? condition.operator : null}
-            onValueChange={(operator) => {
-              if (!isJourneyFilterOperator(operator)) {
-                return;
-              }
+          {isBooleanField ? (
+            <Select
+              disabled={disabled}
+              value={booleanOperatorMode ?? null}
+              onValueChange={(mode) => {
+                if (!isWorkflowBooleanFilterMode(mode)) {
+                  return;
+                }
 
-              onChange(groupIndex, conditionIndex, {
-                operator,
-                value: undefined,
-                timezone: isAbsoluteTemporalOperator(operator)
-                  ? condition.timezone
-                  : undefined,
-              });
-            }}
-          >
-            <SelectTrigger
-              aria-label={`Group ${groupIndex + 1} condition ${conditionIndex + 1} operator`}
-              className="h-9 min-w-0 w-full"
-              size="sm"
+                onChange(groupIndex, conditionIndex, {
+                  ...toWorkflowBooleanFilterCondition(mode),
+                  timezone: undefined,
+                });
+              }}
             >
-              <SelectValue placeholder="Select operator">
-                {selectedOperatorLabel}
-              </SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              {operatorOptions.map((operator) => (
-                <SelectItem key={operator.value} value={operator.value}>
-                  {operator.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+              <SelectTrigger
+                aria-label={`Group ${groupIndex + 1} condition ${conditionIndex + 1} operator`}
+                className="h-9 min-w-0 w-full"
+                size="sm"
+              >
+                <SelectValue placeholder="Select value">
+                  {selectedOperatorLabel}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {WORKFLOW_FILTER_BOOLEAN_MODE_OPTIONS.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          ) : (
+            <Select
+              disabled={disabled}
+              value={condition.operator.length > 0 ? condition.operator : null}
+              onValueChange={(operator) => {
+                if (!isJourneyFilterOperator(operator)) {
+                  return;
+                }
 
-          {condition.operator.length === 0 ||
+                onChange(groupIndex, conditionIndex, {
+                  operator,
+                  value: undefined,
+                  timezone: isAbsoluteTemporalOperator(operator)
+                    ? condition.timezone
+                    : undefined,
+                });
+              }}
+            >
+              <SelectTrigger
+                aria-label={`Group ${groupIndex + 1} condition ${conditionIndex + 1} operator`}
+                className="h-9 min-w-0 w-full"
+                size="sm"
+              >
+                <SelectValue placeholder="Select operator">
+                  {selectedOperatorLabel}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {operatorOptions.map((operator) => (
+                  <SelectItem key={operator.value} value={operator.value}>
+                    {operator.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+
+          {isBooleanField ||
+          condition.operator.length === 0 ||
           isValueLessOperator(condition.operator) ? null : isTimestampField &&
             isRelativeTemporalOperator(condition.operator) ? (
             <div className="grid min-w-0 grid-cols-2 gap-2 min-[420px]:col-span-2">

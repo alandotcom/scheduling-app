@@ -10,7 +10,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-export type WorkflowFilterFieldType = "string" | "timestamp";
+export type WorkflowFilterFieldType = "string" | "timestamp" | "boolean";
 
 export type WorkflowFilterFieldOption = {
   label: string;
@@ -33,6 +33,7 @@ function mapCustomAttributeTypeToFilterType(
   type: string,
 ): WorkflowFilterFieldType {
   if (type === "DATE") return "timestamp";
+  if (type === "BOOLEAN") return "boolean";
   return "string";
 }
 
@@ -208,6 +209,30 @@ export const WORKFLOW_FILTER_TEXT_OPERATOR_OPTIONS: Array<{
   { label: "is not set", value: "is_not_set" },
 ];
 
+export type WorkflowBooleanFilterMode =
+  | "is_true"
+  | "is_false"
+  | "is_set"
+  | "is_not_set";
+
+export const WORKFLOW_FILTER_BOOLEAN_MODE_OPTIONS: Array<{
+  label: string;
+  value: WorkflowBooleanFilterMode;
+}> = [
+  { label: "is true", value: "is_true" },
+  { label: "is false", value: "is_false" },
+  { label: "is set", value: "is_set" },
+  { label: "is not set", value: "is_not_set" },
+];
+
+const WORKFLOW_FILTER_BOOLEAN_FALLBACK_OPERATOR_OPTIONS: Array<{
+  label: string;
+  value: JourneyTriggerFilterCondition["operator"];
+}> = [
+  { label: "is set", value: "is_set" },
+  { label: "is not set", value: "is_not_set" },
+];
+
 export const WORKFLOW_FILTER_ID_OPERATOR_OPTIONS: Array<{
   label: string;
   value: JourneyTriggerFilterCondition["operator"];
@@ -242,6 +267,71 @@ export const ABSOLUTE_TEMPORAL_OPERATORS = new Set<
   JourneyTriggerFilterCondition["operator"]
 >(["before", "after", "on_or_before", "on_or_after"]);
 
+export function isWorkflowBooleanFilterMode(
+  value: string | null,
+): value is WorkflowBooleanFilterMode {
+  return WORKFLOW_FILTER_BOOLEAN_MODE_OPTIONS.some(
+    (option) => option.value === value,
+  );
+}
+
+export function getWorkflowBooleanFilterMode(input: {
+  operator: JourneyTriggerFilterCondition["operator"] | "";
+  value: unknown;
+}): WorkflowBooleanFilterMode | null {
+  if (input.operator === "equals") {
+    if (input.value === true || input.value === "true") {
+      return "is_true";
+    }
+
+    if (input.value === false || input.value === "false") {
+      return "is_false";
+    }
+  }
+
+  if (input.operator === "is_set") {
+    return "is_set";
+  }
+
+  if (input.operator === "is_not_set") {
+    return "is_not_set";
+  }
+
+  return null;
+}
+
+export function toWorkflowBooleanFilterCondition(
+  mode: WorkflowBooleanFilterMode,
+): {
+  operator: JourneyTriggerFilterCondition["operator"];
+  value?: boolean;
+} {
+  switch (mode) {
+    case "is_true":
+      return { operator: "equals", value: true };
+    case "is_false":
+      return { operator: "equals", value: false };
+    case "is_set":
+      return { operator: "is_set" };
+    case "is_not_set":
+      return { operator: "is_not_set" };
+  }
+}
+
+export function getWorkflowBooleanFilterModeLabel(
+  mode: WorkflowBooleanFilterMode,
+): string {
+  const option = WORKFLOW_FILTER_BOOLEAN_MODE_OPTIONS.find(
+    (candidate) => candidate.value === mode,
+  );
+
+  if (option) {
+    return option.label;
+  }
+
+  return mode.replaceAll("_", " ");
+}
+
 export type RelativeTemporalValueDraft = {
   amount?: number;
   unit?: JourneyTriggerFilterTemporalUnit;
@@ -259,8 +349,14 @@ export function getOperatorOptionsForField(
   field: string,
   fieldOptions: WorkflowFilterFieldOption[] = WORKFLOW_FILTER_FIELD_OPTIONS,
 ): Array<{ label: string; value: JourneyTriggerFilterCondition["operator"] }> {
-  if (getWorkflowFilterFieldType(field, fieldOptions) === "timestamp") {
+  const fieldType = getWorkflowFilterFieldType(field, fieldOptions);
+
+  if (fieldType === "timestamp") {
     return WORKFLOW_FILTER_TIMESTAMP_OPERATOR_OPTIONS;
+  }
+
+  if (fieldType === "boolean") {
+    return WORKFLOW_FILTER_BOOLEAN_FALLBACK_OPERATOR_OPTIONS;
   }
 
   if (isIdWorkflowFilterField(field)) {

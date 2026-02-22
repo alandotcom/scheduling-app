@@ -48,4 +48,14 @@ describe("compileConditionBuilderExpression", () => {
 
     expect(expression).toBe('appointment.calendarId in ["cal-1", "cal-2"]');
   });
+
+  test("compiles boolean equality conditions", () => {
+    const expression = compileConditionBuilderExpression({
+      field: "client.customAttributes.newsletterOptIn",
+      operator: "equals",
+      value: false,
+    });
+
+    expect(expression).toBe("client.customAttributes.newsletterOptIn == false");
+  });
 });

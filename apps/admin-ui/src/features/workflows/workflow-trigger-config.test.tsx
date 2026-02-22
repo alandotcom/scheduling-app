@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, mock, test } from "bun:test";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { useState } from "react";
+import { getWorkflowFilterFieldOptions } from "./filter-builder-shared";
 import { WorkflowTriggerConfig } from "./workflow-trigger-config";
 
 afterEach(() => {
@@ -440,6 +441,61 @@ describe("WorkflowTriggerConfig", () => {
     expect(screen.queryByText("does not equal")).toBeNull();
 
     expect(screen.getByText("Main Calendar — cal-123")).toBeTruthy();
+  });
+
+  test("uses true/false/set operator choices for boolean fields", () => {
+    const onUpdate = mock(() => {});
+    const fieldOptions = getWorkflowFilterFieldOptions([
+      {
+        fieldKey: "newsletterOptIn",
+        label: "Newsletter Opt-In",
+        type: "BOOLEAN",
+      },
+    ]);
+
+    render(
+      <WorkflowTriggerConfig
+        config={{
+          ...createTriggerConfig(),
+          filter: {
+            logic: "and",
+            groups: [
+              {
+                logic: "and",
+                conditions: [
+                  {
+                    field: "client.customAttributes.newsletterOptIn",
+                    operator: "equals",
+                    value: true,
+                  },
+                ],
+              },
+            ],
+          },
+        }}
+        disabled={false}
+        fieldOptions={fieldOptions}
+        onUpdate={onUpdate}
+      />,
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Toggle audience rules" }),
+    );
+
+    const operatorCombobox = screen.getByRole("combobox", {
+      name: "Group 1 condition 1 operator",
+    });
+    expect(operatorCombobox.textContent).toContain("is true");
+    expect(screen.queryByPlaceholderText("Enter value...")).toBeNull();
+
+    fireEvent.click(operatorCombobox);
+    expect(screen.getAllByText("is true").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("is false").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("is set").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("is not set").length).toBeGreaterThan(0);
+    expect(screen.queryByText("contains")).toBeNull();
+    expect(screen.queryByText("equals")).toBeNull();
   });
 
   test("moves ago phrasing into the unit selector for past-relative operators", () => {

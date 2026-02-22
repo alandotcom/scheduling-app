@@ -31,17 +31,22 @@ import { parseTimestampWithTimezone } from "../wait-time";
 import {
   ABSOLUTE_TEMPORAL_OPERATORS,
   RELATIVE_TEMPORAL_OPERATORS,
+  WORKFLOW_FILTER_BOOLEAN_MODE_OPTIONS,
   VALUELESS_OPERATORS,
   WORKFLOW_FILTER_FIELD_OPTIONS,
   WORKFLOW_FILTER_TEMPORAL_UNIT_OPTIONS,
   type WorkflowFilterFieldOption,
   type WorkflowFilterValueOption,
+  getWorkflowBooleanFilterMode,
+  getWorkflowBooleanFilterModeLabel,
   getWorkflowFilterFieldLabel,
   getWorkflowFilterOperatorLabel,
   getWorkflowFilterTemporalUnitLabel,
   getOperatorOptionsForField,
   getWorkflowFilterFieldType,
+  isWorkflowBooleanFilterMode,
   isIdWorkflowFilterField,
+  toWorkflowBooleanFilterCondition,
   toAbsoluteTemporalComparisonValue,
   toDateTimeLocalInputValue,
   toRelativeTemporalValueDraft,
@@ -258,6 +263,17 @@ function toStringListValue(value: unknown): string[] {
   return toPrimitiveListValue(value).map((entry) => String(entry));
 }
 
+function isPrimitiveLiteralValue(
+  value: unknown,
+): value is string | number | boolean | null {
+  return (
+    value === null ||
+    typeof value === "string" ||
+    typeof value === "number" ||
+    typeof value === "boolean"
+  );
+}
+
 function toValueOptionsWithFallback(input: {
   options: WorkflowFilterValueOption[];
   selectedValues: string[];
@@ -380,17 +396,33 @@ export function compileConditionBuilderExpression(
     return `!(${left} in ${right})`;
   }
 
-  const stringValue = typeof input.value === "string" ? input.value : "";
-  if (stringValue.length === 0) {
-    return "";
-  }
-
   if (input.operator === "equals") {
-    return `${left} == ${JSON.stringify(stringValue)}`;
+    if (!isPrimitiveLiteralValue(input.value)) {
+      return "";
+    }
+
+    if (typeof input.value === "string" && input.value.length === 0) {
+      return "";
+    }
+
+    return `${left} == ${JSON.stringify(input.value)}`;
   }
 
   if (input.operator === "not_equals") {
-    return `${left} != ${JSON.stringify(stringValue)}`;
+    if (!isPrimitiveLiteralValue(input.value)) {
+      return "";
+    }
+
+    if (typeof input.value === "string" && input.value.length === 0) {
+      return "";
+    }
+
+    return `${left} != ${JSON.stringify(input.value)}`;
+  }
+
+  const stringValue = typeof input.value === "string" ? input.value : "";
+  if (stringValue.length === 0) {
+    return "";
   }
 
   if (input.operator === "contains") {
@@ -757,21 +789,35 @@ function ConditionExpressionFieldRenderer({
     config["conditionTimezone"].trim().length > 0
       ? config["conditionTimezone"]
       : undefined;
-  const isTimestampField =
-    getWorkflowFilterFieldType(conditionField, fieldOptions) === "timestamp";
+  const conditionFieldType = getWorkflowFilterFieldType(
+    conditionField,
+    fieldOptions,
+  );
+  const isTimestampField = conditionFieldType === "timestamp";
+  const isBooleanField = conditionFieldType === "boolean";
   const isIdField = isIdWorkflowFilterField(conditionField);
+  const booleanOperatorMode = getWorkflowBooleanFilterMode({
+    operator: conditionOperator,
+    value: conditionValue,
+  });
   const relativeTemporalValue = toRelativeTemporalValueDraft(conditionValue);
   const selectedFieldLabel = getWorkflowFilterFieldLabel(
     conditionField,
     fieldOptions,
   );
-  const selectedOperatorLabel = getWorkflowFilterOperatorLabel(
-    {
-      field: conditionField,
-      operator: conditionOperator,
-    },
-    fieldOptions,
-  );
+  const selectedOperatorLabel = isBooleanField
+    ? booleanOperatorMode
+      ? getWorkflowBooleanFilterModeLabel(booleanOperatorMode)
+      : conditionOperator.length > 0
+        ? conditionOperator.replaceAll("_", " ")
+        : undefined
+    : getWorkflowFilterOperatorLabel(
+        {
+          field: conditionField,
+          operator: conditionOperator,
+        },
+        fieldOptions,
+      );
   const isAgoOperator =
     conditionOperator === "less_than_ago" ||
     conditionOperator === "more_than_ago";
@@ -941,40 +987,70 @@ function ConditionExpressionFieldRenderer({
             </SelectContent>
           </Select>
 
-          <Select
-            disabled={disabled || conditionField.length === 0}
-            value={conditionOperator.length > 0 ? conditionOperator : null}
-            onValueChange={(value) => {
-              if (
-                typeof value !== "string" ||
-                !isJourneyFilterOperator(value)
-              ) {
-                return;
-              }
+          {isBooleanField ? (
+            <Select
+              disabled={disabled || conditionField.length === 0}
+              value={booleanOperatorMode ?? null}
+              onValueChange={(mode) => {
+                if (!isWorkflowBooleanFilterMode(mode)) {
+                  return;
+                }
 
-              commitBuilder({
-                operator: value,
-                value: undefined,
-              });
-            }}
-          >
-            <SelectTrigger aria-label="Condition operator" size="sm">
-              <SelectValue placeholder="Select operator">
-                {selectedOperatorLabel}
-              </SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              {getOperatorOptionsForField(conditionField, fieldOptions).map(
-                (operator) => (
-                  <SelectItem key={operator.value} value={operator.value}>
-                    {operator.label}
+                commitBuilder({
+                  ...toWorkflowBooleanFilterCondition(mode),
+                });
+              }}
+            >
+              <SelectTrigger aria-label="Condition operator" size="sm">
+                <SelectValue placeholder="Select value">
+                  {selectedOperatorLabel}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {WORKFLOW_FILTER_BOOLEAN_MODE_OPTIONS.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
                   </SelectItem>
-                ),
-              )}
-            </SelectContent>
-          </Select>
+                ))}
+              </SelectContent>
+            </Select>
+          ) : (
+            <Select
+              disabled={disabled || conditionField.length === 0}
+              value={conditionOperator.length > 0 ? conditionOperator : null}
+              onValueChange={(value) => {
+                if (
+                  typeof value !== "string" ||
+                  !isJourneyFilterOperator(value)
+                ) {
+                  return;
+                }
 
-          {conditionOperator.length === 0 ||
+                commitBuilder({
+                  operator: value,
+                  value: undefined,
+                });
+              }}
+            >
+              <SelectTrigger aria-label="Condition operator" size="sm">
+                <SelectValue placeholder="Select operator">
+                  {selectedOperatorLabel}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {getOperatorOptionsForField(conditionField, fieldOptions).map(
+                  (operator) => (
+                    <SelectItem key={operator.value} value={operator.value}>
+                      {operator.label}
+                    </SelectItem>
+                  ),
+                )}
+              </SelectContent>
+            </Select>
+          )}
+
+          {isBooleanField ||
+          conditionOperator.length === 0 ||
           !isJourneyFilterOperator(conditionOperator) ||
           isValuelessOperator(conditionOperator) ? null : isTimestampField &&
             isRelativeTemporalOperator(conditionOperator) ? (
