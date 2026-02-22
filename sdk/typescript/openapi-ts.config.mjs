@@ -2,7 +2,6 @@ export default {
   input: "./openapi/openapi.json",
   output: {
     path: "./src/generated",
-    postProcess: ["biome:format"],
   },
   plugins: [
     {

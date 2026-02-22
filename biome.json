@@ -3,7 +3,12 @@
   "formatter": {
     "enabled": true,
     "indentStyle": "space",
-    "includes": ["**/*", "!**/routeTree.gen.ts", "!**/openapi.json"]
+    "includes": [
+      "**/*",
+      "!**/routeTree.gen.ts",
+      "!**/openapi.json",
+      "!sdk/typescript/src/generated/**"
+    ]
   },
   "vcs": {
     "enabled": true,
