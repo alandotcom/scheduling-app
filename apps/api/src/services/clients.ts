@@ -247,9 +247,9 @@ export class ClientService {
       async (tx) => {
         const normalizedInput = normalizeCreateInput(coreInput);
 
-        let client: Client;
+        let createdClient: Client;
         try {
-          client = await clientRepository.create(
+          createdClient = await clientRepository.create(
             tx,
             context.orgId,
             normalizedInput,
@@ -263,20 +263,23 @@ export class ClientService {
         const defs = await clientCustomAttributeService.writeValues(
           tx,
           context.orgId,
-          client.id,
+          createdClient.id,
           customAttrsInput ?? {},
           { enforceRequired: true },
         );
 
-        const customAttributes =
+        const createdCustomAttributes =
           await clientCustomAttributeService.loadClientCustomAttributesFromDefs(
             tx,
             context.orgId,
-            client.id,
+            createdClient.id,
             defs,
           );
 
-        return { client, customAttributes };
+        return {
+          client: createdClient,
+          customAttributes: createdCustomAttributes,
+        };
       },
     );
 
@@ -301,13 +304,17 @@ export class ClientService {
 
     const { existing, updated, previousCustomAttributes, customAttributes } =
       await withOrg(context.orgId, async (tx) => {
-        const existing = await clientRepository.findById(tx, context.orgId, id);
+        const existingClient = await clientRepository.findById(
+          tx,
+          context.orgId,
+          id,
+        );
 
-        if (!existing) {
+        if (!existingClient) {
           throw new ApplicationError("Client not found", { code: "NOT_FOUND" });
         }
 
-        const previousCustomAttributes =
+        const previousCustomAttributesRecord =
           await clientCustomAttributeService.loadClientCustomAttributes(
             tx,
             context.orgId,
@@ -316,9 +323,9 @@ export class ClientService {
 
         const normalizedChanges = normalizeUpdateInput(coreData);
 
-        let updated: Client | null;
+        let updatedClient: Client | null;
         try {
-          updated = await clientRepository.update(
+          updatedClient = await clientRepository.update(
             tx,
             context.orgId,
             id,
@@ -330,7 +337,7 @@ export class ClientService {
           throw error;
         }
 
-        if (!updated) {
+        if (!updatedClient) {
           throw new ApplicationError("Client not found", { code: "NOT_FOUND" });
         }
 
@@ -344,7 +351,7 @@ export class ClientService {
           );
         }
 
-        const customAttributes = defs
+        const updatedCustomAttributes = defs
           ? await clientCustomAttributeService.loadClientCustomAttributesFromDefs(
               tx,
               context.orgId,
@@ -358,10 +365,10 @@ export class ClientService {
             );
 
         return {
-          existing,
-          updated,
-          previousCustomAttributes,
-          customAttributes,
+          existing: existingClient,
+          updated: updatedClient,
+          previousCustomAttributes: previousCustomAttributesRecord,
+          customAttributes: updatedCustomAttributes,
         };
       });
 
@@ -394,28 +401,28 @@ export class ClientService {
 
     const { existing, updated, previousCustomAttributes, customAttributes } =
       await withOrg(context.orgId, async (tx) => {
-        const existing = await clientRepository.findByReferenceId(
+        const existingClient = await clientRepository.findByReferenceId(
           tx,
           context.orgId,
           referenceId,
         );
 
-        if (!existing) {
+        if (!existingClient) {
           throw new ApplicationError("Client not found", { code: "NOT_FOUND" });
         }
 
-        const previousCustomAttributes =
+        const previousCustomAttributesRecord =
           await clientCustomAttributeService.loadClientCustomAttributes(
             tx,
             context.orgId,
-            existing.id,
+            existingClient.id,
           );
 
         const normalizedChanges = normalizeUpdateInput(coreData);
 
-        let updated: Client | null;
+        let updatedClient: Client | null;
         try {
-          updated = await clientRepository.updateByReferenceId(
+          updatedClient = await clientRepository.updateByReferenceId(
             tx,
             context.orgId,
             referenceId,
@@ -427,7 +434,7 @@ export class ClientService {
           throw error;
         }
 
-        if (!updated) {
+        if (!updatedClient) {
           throw new ApplicationError("Client not found", { code: "NOT_FOUND" });
         }
 
@@ -436,29 +443,29 @@ export class ClientService {
           defs = await clientCustomAttributeService.writeValues(
             tx,
             context.orgId,
-            updated.id,
+            updatedClient.id,
             customAttrsInput,
           );
         }
 
-        const customAttributes = defs
+        const updatedCustomAttributes = defs
           ? await clientCustomAttributeService.loadClientCustomAttributesFromDefs(
               tx,
               context.orgId,
-              updated.id,
+              updatedClient.id,
               defs,
             )
           : await clientCustomAttributeService.loadClientCustomAttributes(
               tx,
               context.orgId,
-              updated.id,
+              updatedClient.id,
             );
 
         return {
-          existing,
-          updated,
-          previousCustomAttributes,
-          customAttributes,
+          existing: existingClient,
+          updated: updatedClient,
+          previousCustomAttributes: previousCustomAttributesRecord,
+          customAttributes: updatedCustomAttributes,
         };
       });
 

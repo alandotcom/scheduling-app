@@ -496,11 +496,11 @@ describe("Journey Routes", () => {
       message: "Input validation failed",
     });
 
-    const journeys = await call(journeyRoutes.list, undefined, {
+    const journeyList = await call(journeyRoutes.list, undefined, {
       context: ownerContext,
     });
 
-    expect(journeys).toHaveLength(0);
+    expect(journeyList).toHaveLength(0);
   });
 
   test("create accepts fan-out branching payloads", async () => {

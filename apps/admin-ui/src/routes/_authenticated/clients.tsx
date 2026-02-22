@@ -329,8 +329,8 @@ function ClientsPage() {
           }),
         });
       },
-      onError: (error) => {
-        toast.error(error.message || "Failed to create client");
+      onError: (mutationError) => {
+        toast.error(mutationError.message || "Failed to create client");
       },
     }),
   );
@@ -340,8 +340,8 @@ function ClientsPage() {
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: orpc.clients.key() });
       },
-      onError: (error) => {
-        toast.error(error.message || "Failed to update client");
+      onError: (mutationError) => {
+        toast.error(mutationError.message || "Failed to update client");
       },
     }),
   );
@@ -355,9 +355,9 @@ function ClientsPage() {
         queryClient.invalidateQueries({ queryKey: orpc.clients.key() });
         crud.closeDelete();
       },
-      onError: (error) => {
+      onError: (mutationError) => {
         toast.error(
-          error.message || "Failed to delete client. Please try again.",
+          mutationError.message || "Failed to delete client. Please try again.",
         );
       },
     }),
@@ -558,8 +558,8 @@ function ClientsPage() {
 
       <EntityModal
         open={detailModalOpen && !!displayClient}
-        onOpenChange={(open) => {
-          if (!open) clearDetails();
+        onOpenChange={(isOpen) => {
+          if (!isOpen) clearDetails();
         }}
         headerActions={
           displayAppointment ? (
@@ -874,8 +874,8 @@ function ClientsPage() {
 
       <EntityModal
         open={crud.showCreateForm}
-        onOpenChange={(open) => {
-          if (!open) crud.closeCreate();
+        onOpenChange={(isOpen) => {
+          if (!isOpen) crud.closeCreate();
         }}
         title="New Client"
       >

@@ -414,8 +414,8 @@ function ResourcesPage() {
         crud.closeCreate();
         openDetails(createdResource.id);
       },
-      onError: (error) => {
-        toast.error(error.message || "Failed to create resource");
+      onError: (mutationError) => {
+        toast.error(mutationError.message || "Failed to create resource");
       },
     }),
   );
@@ -426,8 +426,8 @@ function ResourcesPage() {
         queryClient.invalidateQueries({ queryKey: orpc.resources.key() });
         queryClient.invalidateQueries({ queryKey: orpc.locations.key() });
       },
-      onError: (error) => {
-        toast.error(error.message || "Failed to update resource");
+      onError: (mutationError) => {
+        toast.error(mutationError.message || "Failed to update resource");
       },
     }),
   );
@@ -442,8 +442,8 @@ function ResourcesPage() {
         queryClient.invalidateQueries({ queryKey: orpc.locations.key() });
         crud.closeDelete();
       },
-      onError: (error) => {
-        toast.error(error.message || "Failed to delete resource");
+      onError: (mutationError) => {
+        toast.error(mutationError.message || "Failed to delete resource");
       },
     }),
   );
@@ -499,8 +499,8 @@ function ResourcesPage() {
 
       <EntityModal
         open={crud.showCreateForm}
-        onOpenChange={(open) => {
-          if (!open) crud.closeCreate();
+        onOpenChange={(isOpen) => {
+          if (!isOpen) crud.closeCreate();
         }}
         title="New Resource"
       >
@@ -516,8 +516,8 @@ function ResourcesPage() {
 
       <EntityModal
         open={detailModalOpen && !!displayResource}
-        onOpenChange={(open) => {
-          if (!open) clearDetails();
+        onOpenChange={(isOpen) => {
+          if (!isOpen) clearDetails();
         }}
         headerActions={
           displayResource ? (

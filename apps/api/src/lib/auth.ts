@@ -64,8 +64,10 @@ export const auth = betterAuth({
       allowUserToCreateOrganization: true,
       creatorRole: "owner",
       organizationHooks: {
-        afterCreateOrganization: async ({ organization }) => {
-          await ensureAppIntegrationDefaultsForOrg(organization.id);
+        afterCreateOrganization: async ({
+          organization: createdOrganization,
+        }) => {
+          await ensureAppIntegrationDefaultsForOrg(createdOrganization.id);
         },
       },
       schema: {

@@ -991,13 +991,13 @@ function ConditionExpressionFieldRenderer({
             <Select
               disabled={disabled || conditionField.length === 0}
               value={booleanOperatorMode ?? null}
-              onValueChange={(mode) => {
-                if (!isWorkflowBooleanFilterMode(mode)) {
+              onValueChange={(modeValue) => {
+                if (!isWorkflowBooleanFilterMode(modeValue)) {
                   return;
                 }
 
                 commitBuilder({
-                  ...toWorkflowBooleanFilterCondition(mode),
+                  ...toWorkflowBooleanFilterCondition(modeValue),
                 });
               }}
             >

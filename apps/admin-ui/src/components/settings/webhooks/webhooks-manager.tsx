@@ -98,6 +98,12 @@ function normalizeWebhookUrl(value: string): string | null {
   }
 }
 
+function getArrayItemStableKey(value: unknown): string {
+  const serialized = JSON.stringify(value);
+  if (serialized === undefined) return String(value);
+  return serialized;
+}
+
 // MessageStatus enum: Success=0, Pending=1, Fail=2, Sending=3
 function MessageStatusBadge({ status }: { status: number }) {
   switch (status) {
@@ -1696,13 +1702,21 @@ function JsonNode({
         </button>
         {expanded ? (
           <>
-            {value.map((item, index) => (
-              <JsonNode
-                key={`${depth}-${index}`}
-                value={item}
-                depth={depth + 1}
-              />
-            ))}
+            {(() => {
+              const arrayItemCounts = new Map<string, number>();
+              return value.map((item) => {
+                const itemKey = getArrayItemStableKey(item);
+                const itemIndex = arrayItemCounts.get(itemKey) ?? 0;
+                arrayItemCounts.set(itemKey, itemIndex + 1);
+                return (
+                  <JsonNode
+                    key={`${depth}-${itemKey}-${itemIndex}`}
+                    value={item}
+                    depth={depth + 1}
+                  />
+                );
+              });
+            })()}
             <div>]</div>
           </>
         ) : null}
@@ -1931,12 +1945,12 @@ function EventCatalogTab() {
       {eventTypes.loading ? (
         <div className="flex gap-6">
           <div className="w-[280px] shrink-0 space-y-2">
-            {Array.from({ length: 4 }, (_, i) => (
-              <div key={`skel-group-${i}`}>
+            {Array.from({ length: 4 }, (_groupIndex, groupIndex) => (
+              <div key={`skel-group-${groupIndex}`}>
                 <Skeleton className="mb-1 h-4 w-20" />
-                {Array.from({ length: 3 }, (_, j) => (
+                {Array.from({ length: 3 }, (_itemIndex, itemIndex) => (
                   <Skeleton
-                    key={`skel-item-${i}-${j}`}
+                    key={`skel-item-${groupIndex}-${itemIndex}`}
                     className="my-0.5 h-7 w-full"
                   />
                 ))}

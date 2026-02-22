@@ -243,8 +243,8 @@ export function AppointmentModal({
         setMobileClientPickerOpen(false);
         queryClient.invalidateQueries({ queryKey: orpc.clients.key() });
       },
-      onError: (error) => {
-        toast.error(error.message || "Failed to create client");
+      onError: (mutationError) => {
+        toast.error(mutationError.message || "Failed to create client");
       },
     }),
   );
@@ -293,8 +293,8 @@ export function AppointmentModal({
         handleClose();
         if (createdId) onCreated?.(createdId);
       },
-      onError: (error) => {
-        toast.error(error.message || "Failed to book appointment");
+      onError: (mutationError) => {
+        toast.error(mutationError.message || "Failed to book appointment");
       },
     }),
   );
@@ -720,9 +720,9 @@ export function AppointmentModal({
 
                       <DialogPrimitive.Root
                         open={mobileClientPickerOpen}
-                        onOpenChange={(open) => {
-                          setMobileClientPickerOpen(open);
-                          if (!open) {
+                        onOpenChange={(isOpen) => {
+                          setMobileClientPickerOpen(isOpen);
+                          if (!isOpen) {
                             // Restore clientSearch to match selection (for desktop combobox sync)
                             setDraft((previous) => ({
                               ...previous,

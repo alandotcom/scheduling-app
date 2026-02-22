@@ -203,6 +203,19 @@ function createDefaultFilter(): JourneyTriggerFilterAstDraft {
   };
 }
 
+function toConditionStableKey(
+  condition: JourneyTriggerFilterConditionDraft,
+): string {
+  const value = JSON.stringify(condition.value);
+  return `${condition.field}|${condition.operator}|${value ?? "undefined"}`;
+}
+
+function toFilterGroupStableKey(group: FilterGroup): string {
+  return `${group.logic}|${group.conditions
+    .map((condition) => toConditionStableKey(condition))
+    .join("||")}`;
+}
+
 function isValueLessOperator(operator: string): boolean {
   return isJourneyFilterOperator(operator) && VALUELESS_OPERATORS.has(operator);
 }
@@ -821,33 +834,45 @@ function FilterGroupCard({
       </div>
 
       <div className="space-y-2 p-3">
-        {group.conditions.map((condition, conditionIndex) => (
-          <div key={`condition-${groupIndex}-${conditionIndex}`}>
-            <ConditionRow
-              canRemove={group.conditions.length > 1}
-              condition={condition}
-              conditionIndex={conditionIndex}
-              defaultTimezone={defaultTimezone}
-              disabled={disabled}
-              fieldOptions={fieldOptions}
-              groupIndex={groupIndex}
-              onChange={onConditionChange}
-              onRemove={onRemoveCondition}
-              valueOptionsByField={valueOptionsByField}
-            />
+        {(() => {
+          const conditionKeyCounts = new Map<string, number>();
+          return group.conditions.map((condition, conditionIndex) => {
+            const baseConditionKey = toConditionStableKey(condition);
+            const conditionKeyIndex =
+              conditionKeyCounts.get(baseConditionKey) ?? 0;
+            conditionKeyCounts.set(baseConditionKey, conditionKeyIndex + 1);
 
-            {conditionIndex < group.conditions.length - 1 ? (
-              <div className="flex justify-start pl-4 pt-1">
-                <LogicConnector
-                  ariaLabel={`Group ${groupIndex + 1} condition connector`}
+            return (
+              <div key={`${baseConditionKey}-${conditionKeyIndex}`}>
+                <ConditionRow
+                  canRemove={group.conditions.length > 1}
+                  condition={condition}
+                  conditionIndex={conditionIndex}
+                  defaultTimezone={defaultTimezone}
                   disabled={disabled}
-                  value={group.logic}
-                  onChange={(logic) => onGroupLogicChange(groupIndex, logic)}
+                  fieldOptions={fieldOptions}
+                  groupIndex={groupIndex}
+                  onChange={onConditionChange}
+                  onRemove={onRemoveCondition}
+                  valueOptionsByField={valueOptionsByField}
                 />
+
+                {conditionIndex < group.conditions.length - 1 ? (
+                  <div className="flex justify-start pl-4 pt-1">
+                    <LogicConnector
+                      ariaLabel={`Group ${groupIndex + 1} condition connector`}
+                      disabled={disabled}
+                      value={group.logic}
+                      onChange={(logic) =>
+                        onGroupLogicChange(groupIndex, logic)
+                      }
+                    />
+                  </div>
+                ) : null}
               </div>
-            ) : null}
-          </div>
-        ))}
+            );
+          });
+        })()}
 
         <div className="pt-2">
           <Button
@@ -963,34 +988,43 @@ function AudienceFilterSection({
 
           {filter ? (
             <div className="space-y-3">
-              {filter.groups.map((group, groupIndex) => (
-                <div key={`group-${groupIndex}`}>
-                  <FilterGroupCard
-                    defaultTimezone={defaultTimezone}
-                    disabled={disabled}
-                    fieldOptions={fieldOptions}
-                    group={group}
-                    groupIndex={groupIndex}
-                    onAddCondition={onAddCondition}
-                    onConditionChange={onConditionChange}
-                    onGroupLogicChange={onGroupLogicChange}
-                    onRemoveCondition={onRemoveCondition}
-                    onRemoveGroup={onRemoveGroup}
-                    valueOptionsByField={valueOptionsByField}
-                  />
+              {(() => {
+                const groupKeyCounts = new Map<string, number>();
+                return filter.groups.map((group, groupIndex) => {
+                  const baseGroupKey = toFilterGroupStableKey(group);
+                  const groupKeyIndex = groupKeyCounts.get(baseGroupKey) ?? 0;
+                  groupKeyCounts.set(baseGroupKey, groupKeyIndex + 1);
 
-                  {groupIndex < filter.groups.length - 1 ? (
-                    <div className="flex justify-center py-1">
-                      <LogicConnector
-                        ariaLabel="Group connector"
+                  return (
+                    <div key={`${baseGroupKey}-${groupKeyIndex}`}>
+                      <FilterGroupCard
+                        defaultTimezone={defaultTimezone}
                         disabled={disabled}
-                        value={filter.logic}
-                        onChange={onFilterLogicChange}
+                        fieldOptions={fieldOptions}
+                        group={group}
+                        groupIndex={groupIndex}
+                        onAddCondition={onAddCondition}
+                        onConditionChange={onConditionChange}
+                        onGroupLogicChange={onGroupLogicChange}
+                        onRemoveCondition={onRemoveCondition}
+                        onRemoveGroup={onRemoveGroup}
+                        valueOptionsByField={valueOptionsByField}
                       />
+
+                      {groupIndex < filter.groups.length - 1 ? (
+                        <div className="flex justify-center py-1">
+                          <LogicConnector
+                            ariaLabel="Group connector"
+                            disabled={disabled}
+                            value={filter.logic}
+                            onChange={onFilterLogicChange}
+                          />
+                        </div>
+                      ) : null}
                     </div>
-                  ) : null}
-                </div>
-              ))}
+                  );
+                });
+              })()}
             </div>
           ) : null}
 

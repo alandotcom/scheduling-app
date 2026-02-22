@@ -154,11 +154,9 @@ export async function createSchedulingFixtureFast(
   const timezone = options.timezone ?? "America/New_York";
   const withWeekdayAvailability = options.withWeekdayAvailability ?? true;
 
-  const { calendar, appointmentType } = await insertManyWithOrgContext(
-    db,
-    org.id,
-    async () => {
-      const [calendar] = await db
+  const { calendar: calendarEntity, appointmentType: appointmentTypeEntity } =
+    await insertManyWithOrgContext(db, org.id, async () => {
+      const [createdCalendar] = await db
         .insert(calendars)
         .values({
           orgId: org.id,
@@ -168,7 +166,7 @@ export async function createSchedulingFixtureFast(
         })
         .returning();
 
-      const [appointmentType] = await db
+      const [createdAppointmentType] = await db
         .insert(appointmentTypes)
         .values({
           orgId: org.id,
@@ -181,13 +179,13 @@ export async function createSchedulingFixtureFast(
         .returning();
 
       await db.insert(appointmentTypeCalendars).values({
-        appointmentTypeId: appointmentType!.id,
-        calendarId: calendar!.id,
+        appointmentTypeId: createdAppointmentType!.id,
+        calendarId: createdCalendar!.id,
       });
 
       if (withWeekdayAvailability) {
         const values = Array.from({ length: 7 }, (_, weekday) => ({
-          calendarId: calendar!.id,
+          calendarId: createdCalendar!.id,
           weekday,
           startTime: "09:00",
           endTime: "17:00",
@@ -197,11 +195,19 @@ export async function createSchedulingFixtureFast(
         await db.insert(availabilityRules).values(values);
       }
 
-      return { calendar: calendar!, appointmentType: appointmentType! };
-    },
-  );
+      return {
+        calendar: createdCalendar!,
+        appointmentType: createdAppointmentType!,
+      };
+    });
 
-  return { org, user, ctx, calendar, appointmentType } as const;
+  return {
+    org,
+    user,
+    ctx,
+    calendar: calendarEntity,
+    appointmentType: appointmentTypeEntity,
+  } as const;
 }
 
 /**

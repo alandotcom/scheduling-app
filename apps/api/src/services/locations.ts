@@ -44,13 +44,13 @@ export class LocationService {
     context: ServiceContext,
   ): Promise<Location> {
     const location = await withOrg(context.orgId, async (tx) => {
-      const location = await locationRepository.create(
+      const createdLocation = await locationRepository.create(
         tx,
         context.orgId,
         input,
       );
 
-      return location;
+      return createdLocation;
     });
 
     await events.locationCreated(context.orgId, {
@@ -67,40 +67,49 @@ export class LocationService {
     data: LocationUpdateInput,
     context: ServiceContext,
   ): Promise<Location> {
-    const { existing, updated } = await withOrg(context.orgId, async (tx) => {
-      // Get existing for event payload
-      const existing = await locationRepository.findById(tx, context.orgId, id);
+    const { existing: existingLocation, updated: updatedLocation } =
+      await withOrg(context.orgId, async (tx) => {
+        // Get existing for event payload
+        const currentLocation = await locationRepository.findById(
+          tx,
+          context.orgId,
+          id,
+        );
 
-      if (!existing) {
-        throw new ApplicationError("Location not found", { code: "NOT_FOUND" });
-      }
+        if (!currentLocation) {
+          throw new ApplicationError("Location not found", {
+            code: "NOT_FOUND",
+          });
+        }
 
-      const updated = await locationRepository.update(
-        tx,
-        context.orgId,
-        id,
-        data,
-      );
+        const nextLocation = await locationRepository.update(
+          tx,
+          context.orgId,
+          id,
+          data,
+        );
 
-      if (!updated) {
-        throw new ApplicationError("Location not found", { code: "NOT_FOUND" });
-      }
+        if (!nextLocation) {
+          throw new ApplicationError("Location not found", {
+            code: "NOT_FOUND",
+          });
+        }
 
-      return { existing, updated };
-    });
+        return { existing: currentLocation, updated: nextLocation };
+      });
 
     await events.locationUpdated(context.orgId, {
-      locationId: updated.id,
-      name: updated.name,
-      timezone: updated.timezone,
+      locationId: updatedLocation.id,
+      name: updatedLocation.name,
+      timezone: updatedLocation.timezone,
       previous: {
-        locationId: existing.id,
-        name: existing.name,
-        timezone: existing.timezone,
+        locationId: existingLocation.id,
+        name: existingLocation.name,
+        timezone: existingLocation.timezone,
       },
     });
 
-    return updated;
+    return updatedLocation;
   }
 
   async delete(

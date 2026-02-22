@@ -138,7 +138,7 @@ function toAppointmentEventSnapshot(input: {
   calendarRequiresConfirmation: boolean;
 }) {
   const appointment = toAppointmentEntitySnapshot(input.appointment);
-  const client = {
+  const clientSnapshot = {
     id: input.client.id,
     firstName: input.client.firstName,
     lastName: input.client.lastName,
@@ -162,7 +162,7 @@ function toAppointmentEventSnapshot(input: {
       ...appointment,
       calendarRequiresConfirmation: input.calendarRequiresConfirmation,
     },
-    client,
+    client: clientSnapshot,
   };
 }
 
@@ -181,17 +181,19 @@ async function emitAppointmentLifecycleEvent(
   const { clientsById, calendarRequiresConfirmationById } = await withOrg(
     orgId,
     async (tx) => {
-      const [clientsById, calendarRequiresConfirmationById] = await Promise.all(
-        [
+      const [clientsByIdMap, calendarRequiresConfirmationByIdMap] =
+        await Promise.all([
           appointmentRepository.findClientSnapshotsByIds(tx, orgId, clientIds),
           appointmentRepository.findCalendarConfirmationSettingsByIds(
             tx,
             orgId,
             calendarIds,
           ),
-        ],
-      );
-      return { clientsById, calendarRequiresConfirmationById };
+        ]);
+      return {
+        clientsById: clientsByIdMap,
+        calendarRequiresConfirmationById: calendarRequiresConfirmationByIdMap,
+      };
     },
   );
 
@@ -472,8 +474,12 @@ export class AppointmentService {
 
     const { existing, updated } = await withOrg(orgId, async (tx) => {
       // Get existing appointment
-      const existing = await appointmentRepository.findById(tx, orgId, id);
-      if (!existing) {
+      const existingAppointment = await appointmentRepository.findById(
+        tx,
+        orgId,
+        id,
+      );
+      if (!existingAppointment) {
         throw new ApplicationError("Appointment not found", {
           code: "NOT_FOUND",
         });
@@ -491,8 +497,13 @@ export class AppointmentService {
         }
       }
 
-      const updated = await appointmentRepository.update(tx, orgId, id, data);
-      if (!updated) {
+      const updatedAppointment = await appointmentRepository.update(
+        tx,
+        orgId,
+        id,
+        data,
+      );
+      if (!updatedAppointment) {
         throw new ApplicationError("Appointment not found", {
           code: "NOT_FOUND",
         });
@@ -505,14 +516,14 @@ export class AppointmentService {
         {
           action: "update",
           entityType: "appointment",
-          entityId: updated.id,
-          before: toAuditSnapshot(existing),
-          after: toAuditSnapshot(updated),
+          entityId: updatedAppointment.id,
+          before: toAuditSnapshot(existingAppointment),
+          after: toAuditSnapshot(updatedAppointment),
         },
         tx,
       );
 
-      return { existing, updated };
+      return { existing: existingAppointment, updated: updatedAppointment };
     });
 
     await emitAppointmentLifecycleEvent(orgId, updated, existing);
@@ -529,14 +540,18 @@ export class AppointmentService {
 
     const { existing, updated } = await withOrg(orgId, async (tx) => {
       // Get existing appointment
-      const existing = await appointmentRepository.findById(tx, orgId, id);
-      if (!existing) {
+      const existingAppointment = await appointmentRepository.findById(
+        tx,
+        orgId,
+        id,
+      );
+      if (!existingAppointment) {
         throw new ApplicationError("Appointment not found", {
           code: "NOT_FOUND",
         });
       }
 
-      if (existing.status === "cancelled") {
+      if (existingAppointment.status === "cancelled") {
         throw new ApplicationError(
           "APPOINTMENT_ALREADY_CANCELLED: Appointment is already cancelled",
           { code: "UNPROCESSABLE_CONTENT" },
@@ -545,17 +560,17 @@ export class AppointmentService {
 
       // Build notes with cancellation reason
       const updatedNotes = data?.reason
-        ? `${existing.notes ? existing.notes + "\n" : ""}Cancelled: ${data.reason}`
-        : existing.notes;
+        ? `${existingAppointment.notes ? existingAppointment.notes + "\n" : ""}Cancelled: ${data.reason}`
+        : existingAppointment.notes;
 
-      const updated = await appointmentRepository.updateStatus(
+      const updatedAppointment = await appointmentRepository.updateStatus(
         tx,
         orgId,
         id,
         "cancelled",
         updatedNotes,
       );
-      if (!updated) {
+      if (!updatedAppointment) {
         throw new ApplicationError("Appointment not found", {
           code: "NOT_FOUND",
         });
@@ -570,14 +585,17 @@ export class AppointmentService {
         {
           action: "cancel",
           entityType: "appointment",
-          entityId: updated.id,
-          before: toAuditSnapshot(existing),
-          after: toAuditSnapshot(updated),
+          entityId: updatedAppointment.id,
+          before: toAuditSnapshot(existingAppointment),
+          after: toAuditSnapshot(updatedAppointment),
         },
         tx,
       );
 
-      return { existing, updated };
+      return {
+        existing: existingAppointment,
+        updated: updatedAppointment,
+      };
     });
 
     await emitAppointmentLifecycleEvent(orgId, updated, existing);
@@ -716,41 +734,45 @@ export class AppointmentService {
     const { orgId } = context;
 
     const { existing, updated } = await withOrg(orgId, async (tx) => {
-      const existing = await appointmentRepository.findById(tx, orgId, id);
-      if (!existing) {
+      const existingAppointment = await appointmentRepository.findById(
+        tx,
+        orgId,
+        id,
+      );
+      if (!existingAppointment) {
         throw new ApplicationError("Appointment not found", {
           code: "NOT_FOUND",
         });
       }
 
-      if (existing.status === "confirmed") {
+      if (existingAppointment.status === "confirmed") {
         throw new ApplicationError(
           "APPOINTMENT_ALREADY_CONFIRMED: Appointment is already confirmed",
           { code: "UNPROCESSABLE_CONTENT" },
         );
       }
 
-      if (existing.status === "cancelled") {
+      if (existingAppointment.status === "cancelled") {
         throw new ApplicationError(
           "APPOINTMENT_ALREADY_CANCELLED: Cannot confirm a cancelled appointment",
           { code: "UNPROCESSABLE_CONTENT" },
         );
       }
 
-      if (existing.status === "no_show") {
+      if (existingAppointment.status === "no_show") {
         throw new ApplicationError(
           "APPOINTMENT_ALREADY_NO_SHOW: Cannot confirm a no-show appointment",
           { code: "UNPROCESSABLE_CONTENT" },
         );
       }
 
-      const updated = await appointmentRepository.updateStatus(
+      const updatedAppointment = await appointmentRepository.updateStatus(
         tx,
         orgId,
         id,
         "confirmed",
       );
-      if (!updated) {
+      if (!updatedAppointment) {
         throw new ApplicationError("Appointment not found", {
           code: "NOT_FOUND",
         });
@@ -762,14 +784,14 @@ export class AppointmentService {
         {
           action: "confirm",
           entityType: "appointment",
-          entityId: updated.id,
-          before: toAuditSnapshot(existing),
-          after: toAuditSnapshot(updated),
+          entityId: updatedAppointment.id,
+          before: toAuditSnapshot(existingAppointment),
+          after: toAuditSnapshot(updatedAppointment),
         },
         tx,
       );
 
-      return { existing, updated };
+      return { existing: existingAppointment, updated: updatedAppointment };
     });
 
     await emitAppointmentLifecycleEvent(orgId, updated, existing);
@@ -785,34 +807,38 @@ export class AppointmentService {
 
     const { existing, updated } = await withOrg(orgId, async (tx) => {
       // Get existing appointment
-      const existing = await appointmentRepository.findById(tx, orgId, id);
-      if (!existing) {
+      const existingAppointment = await appointmentRepository.findById(
+        tx,
+        orgId,
+        id,
+      );
+      if (!existingAppointment) {
         throw new ApplicationError("Appointment not found", {
           code: "NOT_FOUND",
         });
       }
 
-      if (existing.status === "cancelled") {
+      if (existingAppointment.status === "cancelled") {
         throw new ApplicationError(
           "APPOINTMENT_ALREADY_CANCELLED: Cannot mark a cancelled appointment as no-show",
           { code: "UNPROCESSABLE_CONTENT" },
         );
       }
 
-      if (existing.status === "no_show") {
+      if (existingAppointment.status === "no_show") {
         throw new ApplicationError(
           "APPOINTMENT_ALREADY_NO_SHOW: Appointment is already marked as no-show",
           { code: "UNPROCESSABLE_CONTENT" },
         );
       }
 
-      const updated = await appointmentRepository.updateStatus(
+      const updatedAppointment = await appointmentRepository.updateStatus(
         tx,
         orgId,
         id,
         "no_show",
       );
-      if (!updated) {
+      if (!updatedAppointment) {
         throw new ApplicationError("Appointment not found", {
           code: "NOT_FOUND",
         });
@@ -825,14 +851,17 @@ export class AppointmentService {
         {
           action: "no_show",
           entityType: "appointment",
-          entityId: updated.id,
-          before: toAuditSnapshot(existing),
-          after: toAuditSnapshot(updated),
+          entityId: updatedAppointment.id,
+          before: toAuditSnapshot(existingAppointment),
+          after: toAuditSnapshot(updatedAppointment),
         },
         tx,
       );
 
-      return { existing, updated };
+      return {
+        existing: existingAppointment,
+        updated: updatedAppointment,
+      };
     });
 
     await emitAppointmentLifecycleEvent(orgId, updated, existing);

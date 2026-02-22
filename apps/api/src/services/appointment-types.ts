@@ -85,13 +85,13 @@ export class AppointmentTypeService {
     context: ServiceContext,
   ): Promise<AppointmentType> {
     const appointmentType = await withOrg(context.orgId, async (tx) => {
-      const appointmentType = await appointmentTypeRepository.create(
+      const createdAppointmentType = await appointmentTypeRepository.create(
         tx,
         context.orgId,
         input,
       );
 
-      return appointmentType;
+      return createdAppointmentType;
     });
 
     await events.appointmentTypeCreated(context.orgId, {
@@ -112,55 +112,61 @@ export class AppointmentTypeService {
     data: AppointmentTypeUpdateInput,
     context: ServiceContext,
   ): Promise<AppointmentType> {
-    const { existing, updated } = await withOrg(context.orgId, async (tx) => {
-      const existing = await appointmentTypeRepository.findById(
+    const {
+      existing: existingAppointmentType,
+      updated: updatedAppointmentType,
+    } = await withOrg(context.orgId, async (tx) => {
+      const currentAppointmentType = await appointmentTypeRepository.findById(
         tx,
         context.orgId,
         id,
       );
 
-      if (!existing) {
+      if (!currentAppointmentType) {
         throw new ApplicationError("Appointment type not found", {
           code: "NOT_FOUND",
         });
       }
 
-      const updated = await appointmentTypeRepository.update(
+      const nextAppointmentType = await appointmentTypeRepository.update(
         tx,
         context.orgId,
         id,
         data,
       );
 
-      if (!updated) {
+      if (!nextAppointmentType) {
         throw new ApplicationError("Appointment type not found", {
           code: "NOT_FOUND",
         });
       }
 
-      return { existing, updated };
+      return {
+        existing: currentAppointmentType,
+        updated: nextAppointmentType,
+      };
     });
 
     await events.appointmentTypeUpdated(context.orgId, {
-      appointmentTypeId: updated.id,
-      name: updated.name,
-      durationMin: updated.durationMin,
-      paddingBeforeMin: updated.paddingBeforeMin,
-      paddingAfterMin: updated.paddingAfterMin,
-      capacity: updated.capacity,
-      metadata: updated.metadata,
+      appointmentTypeId: updatedAppointmentType.id,
+      name: updatedAppointmentType.name,
+      durationMin: updatedAppointmentType.durationMin,
+      paddingBeforeMin: updatedAppointmentType.paddingBeforeMin,
+      paddingAfterMin: updatedAppointmentType.paddingAfterMin,
+      capacity: updatedAppointmentType.capacity,
+      metadata: updatedAppointmentType.metadata,
       previous: {
-        appointmentTypeId: existing.id,
-        name: existing.name,
-        durationMin: existing.durationMin,
-        paddingBeforeMin: existing.paddingBeforeMin,
-        paddingAfterMin: existing.paddingAfterMin,
-        capacity: existing.capacity,
-        metadata: existing.metadata,
+        appointmentTypeId: existingAppointmentType.id,
+        name: existingAppointmentType.name,
+        durationMin: existingAppointmentType.durationMin,
+        paddingBeforeMin: existingAppointmentType.paddingBeforeMin,
+        paddingAfterMin: existingAppointmentType.paddingAfterMin,
+        capacity: existingAppointmentType.capacity,
+        metadata: existingAppointmentType.metadata,
       },
     });
 
-    return updated;
+    return updatedAppointmentType;
   }
 
   async delete(

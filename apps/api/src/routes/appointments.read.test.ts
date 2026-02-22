@@ -748,18 +748,23 @@ describe("Appointment Routes", () => {
       const { org: org1, user: user1 } = await createOrg(db, { name: "Org 1" });
       const {
         org: org2,
-        calendar,
-        appointmentType,
+        calendar: calendar2,
+        appointmentType: appointmentType2,
       } = await (async () => {
         const { org, user } = await createOrg(db, { name: "Org 2" });
-        const calendar = await createCalendar(db, org.id, {
+        const org2Calendar = await createCalendar(db, org.id, {
           name: "Org 2 Calendar",
         });
-        const appointmentType = await createAppointmentType(db, org.id, {
+        const org2AppointmentType = await createAppointmentType(db, org.id, {
           name: "Org 2 Type",
-          calendarIds: [calendar.id],
+          calendarIds: [org2Calendar.id],
         });
-        return { org, user, calendar, appointmentType };
+        return {
+          org,
+          user,
+          calendar: org2Calendar,
+          appointmentType: org2AppointmentType,
+        };
       })();
 
       const ctx1 = createTestContext({ orgId: org1.id, userId: user1.id });
@@ -767,8 +772,8 @@ describe("Appointment Routes", () => {
       const startAt = getFutureStartTime(1, 10);
       const endAt = new Date(startAt.getTime() + 60 * 60 * 1000);
       const appointment = await createAppointment(db, org2.id, {
-        calendarId: calendar.id,
-        appointmentTypeId: appointmentType.id,
+        calendarId: calendar2.id,
+        appointmentTypeId: appointmentType2.id,
         clientId: (await createClient(db, org2.id)).id,
         startAt,
         endAt,

@@ -384,19 +384,22 @@ function CommandShortcut({ shortcut }: { shortcut: string }) {
 
   return (
     <div className="flex items-center gap-1.5">
-      {steps.map((step, index) => (
-        <div
-          key={`${shortcut}-${step}-${index}`}
-          className="flex items-center gap-1.5"
-        >
-          <kbd className="inline-flex h-7 items-center rounded-md border border-border bg-muted px-2 font-mono text-[11px] font-medium text-muted-foreground">
-            {formatShortcut(step)}
-          </kbd>
-          {index < steps.length - 1 ? (
-            <span className="text-[11px] text-muted-foreground">then</span>
-          ) : null}
-        </div>
-      ))}
+      {steps.map((step, index) => {
+        const stepPath = steps.slice(0, index + 1).join(" ");
+        return (
+          <div
+            key={`${shortcut}-${stepPath}`}
+            className="flex items-center gap-1.5"
+          >
+            <kbd className="inline-flex h-7 items-center rounded-md border border-border bg-muted px-2 font-mono text-[11px] font-medium text-muted-foreground">
+              {formatShortcut(step)}
+            </kbd>
+            {index < steps.length - 1 ? (
+              <span className="text-[11px] text-muted-foreground">then</span>
+            ) : null}
+          </div>
+        );
+      })}
     </div>
   );
 }

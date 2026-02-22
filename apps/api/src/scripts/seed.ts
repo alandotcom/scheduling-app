@@ -434,11 +434,11 @@ function buildClientFixtures(
   usedEmails: Set<string>,
 ): SeedClient[] {
   const orgSlug = slugifyOrgName(orgName);
-  const seed = createSeedFromText(`clients:${orgName}`);
-  const phoneBase = 1000 + (seed % 7000);
+  const clientSeed = createSeedFromText(`clients:${orgName}`);
+  const phoneBase = 1000 + (clientSeed % 7000);
   const fixtures: SeedClient[] = [];
 
-  faker.seed(seed);
+  faker.seed(clientSeed);
 
   for (let index = 0; index < CLIENT_FIXTURE_COUNT; index += 1) {
     let createdFixture: SeedClient | null = null;

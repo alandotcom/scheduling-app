@@ -58,7 +58,9 @@ export function RowActions({ actions, ariaLabel }: RowActionsProps) {
               )}
             >
               {actions.map((action, index) => (
-                <div key={`${action.label}-${index}`}>
+                <div
+                  key={`${action.label}-${String(action.disabled ?? false)}-${action.variant ?? "default"}`}
+                >
                   {action.separator && index > 0 ? (
                     <div className="my-1 h-px bg-border/50" />
                   ) : null}

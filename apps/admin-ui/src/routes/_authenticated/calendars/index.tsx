@@ -840,8 +840,8 @@ function CalendarsPage() {
 
   const createMutation = useMutation(
     orpc.calendars.create.mutationOptions({
-      onError: (error) => {
-        toast.error(error.message || "Failed to create calendar");
+      onError: (mutationError) => {
+        toast.error(mutationError.message || "Failed to create calendar");
       },
     }),
   );
@@ -855,8 +855,8 @@ function CalendarsPage() {
         queryClient.invalidateQueries({ queryKey: orpc.calendars.key() });
         queryClient.invalidateQueries({ queryKey: orpc.locations.key() });
       },
-      onError: (error) => {
-        toast.error(error.message || "Failed to update calendar");
+      onError: (mutationError) => {
+        toast.error(mutationError.message || "Failed to update calendar");
       },
     }),
   );
@@ -871,8 +871,8 @@ function CalendarsPage() {
         queryClient.invalidateQueries({ queryKey: orpc.locations.key() });
         crud.closeDelete();
       },
-      onError: (error) => {
-        toast.error(error.message || "Failed to delete calendar");
+      onError: (mutationError) => {
+        toast.error(mutationError.message || "Failed to delete calendar");
       },
     }),
   );
@@ -1026,8 +1026,8 @@ function CalendarsPage() {
 
       <EntityModal
         open={crud.showCreateForm}
-        onOpenChange={(open) => {
-          if (!open) crud.closeCreate();
+        onOpenChange={(isOpen) => {
+          if (!isOpen) crud.closeCreate();
         }}
         title="New Calendar"
       >
@@ -1046,8 +1046,8 @@ function CalendarsPage() {
 
       <EntityModal
         open={detailModalOpen && !!displayCalendar}
-        onOpenChange={(open) => {
-          if (!open) clearDetails();
+        onOpenChange={(isOpen) => {
+          if (!isOpen) clearDetails();
         }}
         headerActions={
           displayCalendar ? (

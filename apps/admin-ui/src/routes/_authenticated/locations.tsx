@@ -428,8 +428,8 @@ function LocationsPage() {
         crud.closeCreate();
         openDetails(createdLocation.id, "details");
       },
-      onError: (error) => {
-        toast.error(error.message || "Failed to create location");
+      onError: (mutationError) => {
+        toast.error(mutationError.message || "Failed to create location");
       },
     }),
   );
@@ -439,8 +439,8 @@ function LocationsPage() {
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: orpc.locations.key() });
       },
-      onError: (error) => {
-        toast.error(error.message || "Failed to update location");
+      onError: (mutationError) => {
+        toast.error(mutationError.message || "Failed to update location");
       },
     }),
   );
@@ -454,8 +454,8 @@ function LocationsPage() {
         queryClient.invalidateQueries({ queryKey: orpc.locations.key() });
         crud.closeDelete();
       },
-      onError: (error) => {
-        toast.error(error.message || "Failed to delete location");
+      onError: (mutationError) => {
+        toast.error(mutationError.message || "Failed to delete location");
       },
     }),
   );
@@ -504,8 +504,8 @@ function LocationsPage() {
 
       <EntityModal
         open={crud.showCreateForm}
-        onOpenChange={(open) => {
-          if (!open) crud.closeCreate();
+        onOpenChange={(isOpen) => {
+          if (!isOpen) crud.closeCreate();
         }}
         title="New Location"
       >
@@ -520,8 +520,8 @@ function LocationsPage() {
 
       <EntityModal
         open={detailModalOpen && !!displayLocation}
-        onOpenChange={(open) => {
-          if (!open) clearDetails();
+        onOpenChange={(isOpen) => {
+          if (!isOpen) clearDetails();
         }}
         headerActions={
           displayLocation ? (

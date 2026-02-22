@@ -896,7 +896,7 @@ function HeaderBreadcrumb({ items }: { items: HeaderBreadcrumbItem[] }) {
       <ol className="hidden min-w-0 items-center gap-1 text-sm md:flex">
         {items.map((item, index) => (
           <li
-            key={`${item.label}-${index}`}
+            key={`${item.label}-${item.to ?? "item"}`}
             className="flex min-w-0 items-center gap-1"
           >
             {index > 0 ? (

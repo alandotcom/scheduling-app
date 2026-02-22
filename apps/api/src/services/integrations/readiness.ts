@@ -37,11 +37,11 @@ export function hasConfiguredValue(value: unknown): boolean {
 
 export function toConfig(value: unknown): Record<string, unknown> {
   if (isRecord(value)) {
-    const config: Record<string, unknown> = {};
+    const integrationConfig: Record<string, unknown> = {};
     for (const [key, entryValue] of Object.entries(value)) {
-      config[key] = entryValue;
+      integrationConfig[key] = entryValue;
     }
-    return config;
+    return integrationConfig;
   }
 
   return {};
