@@ -22,7 +22,7 @@ describe("buildEventAttributeSuggestions", () => {
         (suggestion) =>
           suggestion.value === "Appointment.data.client.firstName",
       )?.label,
-    ).toBe("Appointment Client First Name");
+    ).toBe("Client First Name");
   });
 
   test("dedupes adjacent repeated label segments", () => {
@@ -37,7 +37,7 @@ describe("buildEventAttributeSuggestions", () => {
         (suggestion) =>
           suggestion.value === "Appointment.data.appointment.startAt",
       )?.label,
-    ).toBe("Appointment Start At");
+    ).toBe("Start At");
   });
 
   test("keeps ID paths in condition mode", () => {
@@ -53,6 +53,27 @@ describe("buildEventAttributeSuggestions", () => {
     expect(values.has("Appointment.data.clientId")).toBeTrue();
     expect(values.has("Appointment.data.appointment.id")).toBeTrue();
     expect(values.has("Appointment.data.client.id")).toBeTrue();
+  });
+
+  test("keeps trigger root prefixes in condition mode labels", () => {
+    const suggestions = buildEventAttributeSuggestions({
+      domain: "appointment",
+      eventTypes: ["appointment.scheduled"],
+      mode: "condition",
+    });
+
+    expect(
+      suggestions.find(
+        (suggestion) =>
+          suggestion.value === "Appointment.data.client.firstName",
+      )?.label,
+    ).toBe("Appointment Client First Name");
+    expect(
+      suggestions.find(
+        (suggestion) =>
+          suggestion.value === "Appointment.data.appointment.startAt",
+      )?.label,
+    ).toBe("Appointment Start At");
   });
 
   test("uses client custom attribute paths for client domain suggestions", () => {

@@ -49,13 +49,20 @@ function humanizeSegment(segment: string): string {
 
 function toSuggestionLabel(
   path: string,
-  options?: { dropCustomAttributes?: boolean },
+  options?: {
+    domainRoot?: string;
+    dropCustomAttributes?: boolean;
+    dropDomainRoot?: boolean;
+  },
 ): string {
   const segments = path.split(".").filter((segment) => segment.length > 0);
   const labelSegments: string[] = [];
   let previousSegment: string | null = null;
 
   for (const [index, segment] of segments.entries()) {
+    if (options?.dropDomainRoot && index === 0) {
+      continue;
+    }
     if (index === 1 && segment === "data") {
       continue;
     }
@@ -64,6 +71,14 @@ function toSuggestionLabel(
     }
 
     const humanizedSegment = humanizeSegment(segment);
+    if (
+      options?.dropDomainRoot &&
+      options.domainRoot &&
+      labelSegments.length === 0 &&
+      humanizedSegment.toLowerCase() === options.domainRoot.toLowerCase()
+    ) {
+      continue;
+    }
     if (
       previousSegment &&
       previousSegment.toLowerCase() === humanizedSegment.toLowerCase()
@@ -76,7 +91,12 @@ function toSuggestionLabel(
   }
 
   const label = labelSegments.join(" ").trim();
-  return label.length > 0 ? label : path;
+  if (label.length > 0) {
+    return label;
+  }
+
+  const fallbackSegment = segments.at(-1);
+  return fallbackSegment ? humanizeSegment(fallbackSegment) : path;
 }
 
 function resolveNullableSchema(schema: JsonSchema): JsonSchema {
@@ -137,6 +157,10 @@ function collectPaths(
   schema: JsonSchema,
   prefix: string,
   output: Map<string, EventAttributeSuggestion>,
+  labelOptions?: {
+    domainRoot?: string;
+    dropDomainRoot?: boolean;
+  },
 ) {
   const resolved = resolveNullableSchema(schema);
 
@@ -145,7 +169,7 @@ function collectPaths(
     const format = schemaFormat(resolved);
     output.set(prefix, {
       value: prefix,
-      label: toSuggestionLabel(prefix),
+      label: toSuggestionLabel(prefix, labelOptions),
       type,
       isDateTime: isDateTimeSuggestion({
         path: prefix,
@@ -170,7 +194,7 @@ function collectPaths(
       continue;
     }
 
-    collectPaths(value, `${prefix}.${key}`, output);
+    collectPaths(value, `${prefix}.${key}`, output, labelOptions);
   }
 }
 
@@ -208,30 +232,42 @@ export function buildEventAttributeSuggestions(input: {
   const mode = input.mode ?? "general";
 
   const root = toDomainRoot(input.domain);
+  const labelOptions =
+    mode === "general"
+      ? {
+          domainRoot: root,
+          dropDomainRoot: true,
+        }
+      : undefined;
   const suggestions = new Map<string, EventAttributeSuggestion>();
 
   suggestions.set(`${root}.event`, {
     value: `${root}.event`,
-    label: toSuggestionLabel(`${root}.event`),
+    label: toSuggestionLabel(`${root}.event`, labelOptions),
     type: "string",
     isDateTime: false,
   });
   suggestions.set(`${root}.timestamp`, {
     value: `${root}.timestamp`,
-    label: toSuggestionLabel(`${root}.timestamp`),
+    label: toSuggestionLabel(`${root}.timestamp`, labelOptions),
     type: "string",
     isDateTime: true,
   });
   suggestions.set(`${root}.data`, {
     value: `${root}.data`,
-    label: toSuggestionLabel(`${root}.data`),
+    label: toSuggestionLabel(`${root}.data`, labelOptions),
     type: "object",
     isDateTime: false,
   });
 
   for (const eventType of eventTypes) {
     const jsonSchema = z.toJSONSchema(domainEventDataSchemaByType[eventType]);
-    collectPaths(jsonSchema as JsonSchema, `${root}.data`, suggestions);
+    collectPaths(
+      jsonSchema as JsonSchema,
+      `${root}.data`,
+      suggestions,
+      labelOptions,
+    );
   }
 
   if (input.customAttributeDefinitions?.length) {
@@ -251,7 +287,10 @@ export function buildEventAttributeSuggestions(input: {
       const label =
         typeof def.label === "string" && def.label.trim().length > 0
           ? def.label.trim()
-          : toSuggestionLabel(path, { dropCustomAttributes: true });
+          : toSuggestionLabel(path, {
+              ...labelOptions,
+              dropCustomAttributes: true,
+            });
       const existingSuggestion = suggestions.get(path);
       const nextSuggestion: EventAttributeSuggestion = {
         value: path,
