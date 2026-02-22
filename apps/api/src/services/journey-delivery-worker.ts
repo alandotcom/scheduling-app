@@ -66,6 +66,8 @@ export type JourneyDeliveryWorkerRuntime = {
 export type JourneyDeliveryWorkerDependencies = {
   runtime?: JourneyDeliveryWorkerRuntime;
   dispatchDelivery?: JourneyDeliveryDispatcher;
+  executeWaitForConfirmationTimeoutFn?: typeof executeWaitForConfirmationTimeout;
+  executeWaitResumeFn?: typeof executeWaitResume;
   now?: () => Date;
   maxDispatchAttempts?: number;
 };
@@ -471,6 +473,11 @@ export async function executeJourneyDeliveryScheduled(
   const runtime = dependencies.runtime ?? defaultRuntime;
   const dispatchDelivery =
     dependencies.dispatchDelivery ?? dispatchForActionType;
+  const executeWaitForConfirmationTimeoutFn =
+    dependencies.executeWaitForConfirmationTimeoutFn ??
+    executeWaitForConfirmationTimeout;
+  const executeWaitResumeFn =
+    dependencies.executeWaitResumeFn ?? executeWaitResume;
   const now = dependencies.now ?? (() => new Date());
   const maxDispatchAttempts = Math.max(
     1,
@@ -542,7 +549,7 @@ export async function executeJourneyDeliveryScheduled(
 
     // Intercept wait-for-confirmation-timeout: either continue or cancel run.
     if (current.delivery.actionType === "wait-for-confirmation-timeout") {
-      await executeWaitForConfirmationTimeout({
+      await executeWaitForConfirmationTimeoutFn({
         orgId: input.orgId,
         journeyRunId: current.delivery.journeyRunId,
         journeyDeliveryId: current.delivery.id,
@@ -567,7 +574,7 @@ export async function executeJourneyDeliveryScheduled(
 
     // Intercept wait-resume: re-plan from this wait node with fresh data
     if (current.delivery.actionType === "wait-resume") {
-      await executeWaitResume({
+      await executeWaitResumeFn({
         orgId: input.orgId,
         journeyRunId: current.delivery.journeyRunId,
         journeyDeliveryId: current.delivery.id,

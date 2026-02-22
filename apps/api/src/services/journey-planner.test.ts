@@ -1,10 +1,4 @@
 import { beforeEach, describe, expect, mock, test } from "bun:test";
-mock.module("../inngest/runtime-events.js", () => ({
-  sendJourneyDeliveryScheduled: async () => ({}),
-  sendJourneyActionExecuteForActionType: async () => ({}),
-  sendJourneyActionSendTwilioCallbackReceived: async () => ({}),
-  sendJourneyDeliveryCanceled: async () => ({}),
-}));
 import { and, desc, eq } from "drizzle-orm";
 import {
   appointments,
@@ -27,16 +21,73 @@ import {
 import { createOrg, createQuickAppointment } from "../test-utils/factories.js";
 import type { ServiceContext } from "./locations.js";
 import { clientCustomAttributeService } from "./client-custom-attributes.js";
+import { deliveryActionTypes } from "./delivery-provider-registry.js";
 import { journeyService } from "./journeys.js";
 import {
-  processJourneyDomainEvent,
-  executeWaitForConfirmationTimeout,
-  executeWaitResume,
+  processJourneyDomainEvent as processJourneyDomainEventBase,
+  executeWaitForConfirmationTimeout as executeWaitForConfirmationTimeoutBase,
+  executeWaitResume as executeWaitResumeBase,
 } from "./journey-planner.js";
 
 registerDbTestReset("per-file");
 
 const db: TestDatabase = getTestDb();
+const defaultScheduleRequester = mock(
+  async (): Promise<{ eventId?: string }> => ({}),
+);
+const defaultCancelRequester = mock(
+  async (): Promise<{ eventId?: string }> => ({}),
+);
+const defaultProviderRequesters = Object.fromEntries(
+  deliveryActionTypes.map((actionType) => [actionType, defaultScheduleRequester]),
+);
+
+beforeEach(() => {
+  defaultScheduleRequester.mockReset();
+  defaultCancelRequester.mockReset();
+  defaultScheduleRequester.mockResolvedValue({});
+  defaultCancelRequester.mockResolvedValue({});
+});
+
+function processJourneyDomainEvent(
+  ...args: Parameters<typeof processJourneyDomainEventBase>
+) {
+  const [event, dependencies] = args;
+  const providerRequesters = {
+    ...defaultProviderRequesters,
+    ...dependencies?.providerRequesters,
+  };
+
+  return processJourneyDomainEventBase(event, {
+    ...dependencies,
+    providerRequesters,
+    cancelRequester: dependencies?.cancelRequester ?? defaultCancelRequester,
+  });
+}
+
+function executeWaitResume(...args: Parameters<typeof executeWaitResumeBase>) {
+  const [input, dependencies] = args;
+
+  return executeWaitResumeBase(input, {
+    ...dependencies,
+    scheduleRequester:
+      dependencies?.scheduleRequester ?? defaultScheduleRequester,
+    cancelRequester: dependencies?.cancelRequester ?? defaultCancelRequester,
+  });
+}
+
+function executeWaitForConfirmationTimeout(
+  ...args: Parameters<typeof executeWaitForConfirmationTimeoutBase>
+) {
+  const [input, dependencies] = args;
+
+  return executeWaitForConfirmationTimeoutBase(input, {
+    ...dependencies,
+    scheduleRequester:
+      dependencies?.scheduleRequester ?? defaultScheduleRequester,
+    cancelRequester: dependencies?.cancelRequester ?? defaultCancelRequester,
+  });
+}
 
 function createTriggerConfig(input?: { filter?: JourneyTriggerFilterAst }) {
   return {

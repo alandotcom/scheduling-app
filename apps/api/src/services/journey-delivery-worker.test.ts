@@ -1,12 +1,5 @@
 import { beforeEach, describe, expect, mock, test } from "bun:test";
 
-mock.module("../inngest/runtime-events.js", () => ({
-  sendJourneyDeliveryScheduled: async () => ({}),
-  sendJourneyActionExecuteForActionType: async () => ({}),
-  sendJourneyActionSendTwilioCallbackReceived: async () => ({}),
-  sendJourneyDeliveryCanceled: async () => ({}),
-}));
-
 import { eq } from "drizzle-orm";
 import {
   journeyDeliveries,
@@ -284,6 +277,7 @@ async function seedPlannedDelivery(
     deliveryId: delivery!.id,
     deterministicKey: delivery!.deterministicKey,
     scheduledFor: delivery!.scheduledFor,
+    stepKey,
   };
 }
 
@@ -865,6 +859,10 @@ describe("executeJourneyDeliveryScheduled", () => {
     const dispatchDelivery = mock(async () => ({
       providerMessageId: "should-not-be-called",
     }));
+    const executeWaitResumeFn = mock(async () => ({
+      scheduledDeliveryIds: [],
+      canceledDeliveryIds: [],
+    }));
 
     const result = await executeJourneyDeliveryScheduled(
       {
@@ -881,11 +879,19 @@ describe("executeJourneyDeliveryScheduled", () => {
         },
         now: () => new Date("2026-02-16T12:00:00.000Z"),
         dispatchDelivery,
+        executeWaitResumeFn,
       },
     );
 
     expect(result.status).toBe("sent");
     expect(dispatchDelivery).toHaveBeenCalledTimes(0);
+    expect(executeWaitResumeFn).toHaveBeenCalledTimes(1);
+    expect(executeWaitResumeFn).toHaveBeenCalledWith({
+      orgId: context.orgId,
+      journeyRunId: seeded.runId,
+      journeyDeliveryId: seeded.deliveryId,
+      stepKey: seeded.stepKey,
+    });
 
     await setTestOrgContext(db, context.orgId);
 
@@ -927,6 +933,10 @@ describe("executeJourneyDeliveryScheduled", () => {
     const dispatchDelivery = mock(async () => ({
       providerMessageId: "should-not-be-called",
     }));
+    const executeWaitForConfirmationTimeoutFn = mock(async () => ({
+      scheduledDeliveryIds: [],
+      canceledDeliveryIds: [],
+    }));
 
     const result = await executeJourneyDeliveryScheduled(
       {
@@ -943,11 +953,19 @@ describe("executeJourneyDeliveryScheduled", () => {
         },
         now: () => new Date("2026-02-16T12:00:00.000Z"),
         dispatchDelivery,
+        executeWaitForConfirmationTimeoutFn,
       },
     );
 
     expect(result.status).toBe("sent");
     expect(dispatchDelivery).toHaveBeenCalledTimes(0);
+    expect(executeWaitForConfirmationTimeoutFn).toHaveBeenCalledTimes(1);
+    expect(executeWaitForConfirmationTimeoutFn).toHaveBeenCalledWith({
+      orgId: context.orgId,
+      journeyRunId: seeded.runId,
+      journeyDeliveryId: seeded.deliveryId,
+      stepKey: seeded.stepKey,
+    });
 
     await setTestOrgContext(db, context.orgId);
 
