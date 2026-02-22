@@ -21,6 +21,11 @@
       "sourceType": "github",
       "computedHash": "3aad2d3d4cd1b79b585d3c17dfcc61952fccde59f35fb864fa7852cfde1fe958"
     },
+    "react-state-management": {
+      "source": "wshobson/agents",
+      "sourceType": "github",
+      "computedHash": "ab7ca5f3ff515b873a8446bdf88b9edc156741cf32c07accbbb3804f25543179"
+    },
     "vercel-react-best-practices": {
       "source": "vercel-labs/agent-skills",
       "sourceType": "github",
