@@ -6,11 +6,17 @@ on:
       - main
   pull_request:
 
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   test-and-lint:
     runs-on: ubuntu-latest
     env:
       TURBO_TELEMETRY_DISABLED: "1"
+      TURBO_TEAM: ${{ vars.TURBO_TEAM }}
+      TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
 
     # services:
     #   postgres:
@@ -46,9 +52,8 @@ jobs:
         uses: actions/cache@v4
         with:
           path: .turbo
-          key: ${{ runner.os }}-turbo-${{ github.ref_name }}-${{ hashFiles('pnpm-lock.yaml', 'package.json', 'turbo.json', '.oxlintrc.json') }}
+          key: ${{ runner.os }}-turbo-${{ hashFiles('pnpm-lock.yaml', 'package.json', 'turbo.json', '.oxlintrc.json') }}
           restore-keys: |
-            ${{ runner.os }}-turbo-${{ github.ref_name }}-
             ${{ runner.os }}-turbo-
 
       - name: Setup pnpm
@@ -92,15 +97,15 @@ jobs:
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: pnpm typecheck
 
-      - name: Build (changed)
+      - name: Build Frontend
+        run: pnpm build:frontend
+
+      - name: Test (changed)
         if: github.event_name == 'pull_request'
-        run: pnpm build:changed
+        run: pnpm test:changed
 
-      - name: Build (full)
+      - name: Test (full)
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        run: pnpm build
-
-      - name: Test
         # env:
         #   DATABASE_URL: postgres://scheduling:scheduling@localhost:5433/scheduling
         #   REDIS_URL: redis://localhost:6380
