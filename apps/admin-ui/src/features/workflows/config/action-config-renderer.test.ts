@@ -1,5 +1,8 @@
 import { describe, expect, test } from "bun:test";
-import { compileConditionBuilderExpression } from "./action-config-renderer";
+import {
+  compileConditionBuilderExpression,
+  compileConditionFilterBuilderExpression,
+} from "./action-config-renderer";
 
 describe("compileConditionBuilderExpression", () => {
   test("preserves full datetime literals for absolute temporal conditions", () => {
@@ -57,5 +60,61 @@ describe("compileConditionBuilderExpression", () => {
     });
 
     expect(expression).toBe("client.customAttributes.newsletterOptIn == false");
+  });
+
+  test("compiles grouped condition filters with root and group logic", () => {
+    const expression = compileConditionFilterBuilderExpression({
+      logic: "or",
+      groups: [
+        {
+          logic: "and",
+          conditions: [
+            {
+              field: "appointment.status",
+              operator: "equals",
+              value: "scheduled",
+            },
+            {
+              field: "client.email",
+              operator: "is_set",
+            },
+          ],
+        },
+        {
+          logic: "and",
+          conditions: [
+            {
+              field: "appointment.calendarId",
+              operator: "equals",
+              value: "cal-1",
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(expression).toBe(
+      '((appointment.status == "scheduled" && client.email != null) || appointment.calendarId == "cal-1")',
+    );
+  });
+
+  test("returns empty string when any grouped condition is incomplete", () => {
+    const expression = compileConditionFilterBuilderExpression({
+      logic: "and",
+      groups: [
+        {
+          logic: "and",
+          conditions: [
+            {
+              field: "appointment.status",
+              operator: "",
+              value: "scheduled",
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(expression).toBe("");
   });
 });

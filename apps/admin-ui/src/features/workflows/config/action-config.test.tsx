@@ -8,6 +8,11 @@ afterEach(() => {
   cleanup();
 });
 
+const defaultActionConfigProps = {
+  configScopeKey: "test-action-config-scope",
+  onUpdateConfigBatch: (_patch: Record<string, unknown>) => {},
+};
+
 function StatefulActionConfig({
   initialConfig,
 }: {
@@ -17,6 +22,7 @@ function StatefulActionConfig({
 
   return (
     <ActionConfig
+      {...defaultActionConfigProps}
       config={config}
       onUpdateConfig={(key, value) =>
         setConfig((currentConfig) => ({
@@ -38,6 +44,7 @@ describe("ActionConfig", () => {
   test("shows brand logos in service and action pickers", () => {
     render(
       <ActionConfig
+        {...defaultActionConfigProps}
         config={{ actionType: "send-slack" }}
         onUpdateConfig={mock((_key: string, _value: unknown) => {})}
       />,
@@ -70,6 +77,7 @@ describe("ActionConfig", () => {
   test("shows human-readable action labels in the trigger", () => {
     render(
       <ActionConfig
+        {...defaultActionConfigProps}
         config={{ actionType: "send-twilio" }}
         onUpdateConfig={mock((_key: string, _value: unknown) => {})}
       />,
@@ -81,6 +89,7 @@ describe("ActionConfig", () => {
   test("hides wait-for-confirmation in action picker for client triggers", () => {
     render(
       <ActionConfig
+        {...defaultActionConfigProps}
         config={{ actionType: "wait" }}
         triggerType="ClientJourney"
         onUpdateConfig={mock((_key: string, _value: unknown) => {})}
@@ -99,6 +108,7 @@ describe("ActionConfig", () => {
   test("hides configured disallowed action types in action picker", () => {
     render(
       <ActionConfig
+        {...defaultActionConfigProps}
         config={{ actionType: "logger" }}
         disallowedActionTypes={["wait", "wait-for-confirmation"]}
         onUpdateConfig={mock((_key: string, _value: unknown) => {})}
@@ -118,6 +128,7 @@ describe("ActionConfig", () => {
   test("renders token pills in resend text and textarea fields", () => {
     const { container } = render(
       <ActionConfig
+        {...defaultActionConfigProps}
         config={{
           actionType: "send-resend",
           subject: "Reminder for @Appointment.data.startAt",
@@ -134,6 +145,7 @@ describe("ActionConfig", () => {
   test("renders token pills in resend template fields", () => {
     const { container } = render(
       <ActionConfig
+        {...defaultActionConfigProps}
         config={{
           actionType: "send-resend-template",
           templateIdOrAlias: "@Action1.templateAlias",
@@ -155,6 +167,7 @@ describe("ActionConfig", () => {
 
     render(
       <ActionConfig
+        {...defaultActionConfigProps}
         config={{
           actionType: "send-resend-template",
           templateVariables: [{ key: "PRODUCT", value: "Widget" }],
@@ -171,6 +184,7 @@ describe("ActionConfig", () => {
   test("uses responsive layout classes for template variable rows", () => {
     render(
       <ActionConfig
+        {...defaultActionConfigProps}
         config={{
           actionType: "send-resend-template",
           templateVariables: [{ key: "PRODUCT", value: "Widget" }],
@@ -199,6 +213,7 @@ describe("ActionConfig", () => {
   test("uses responsive layout classes for service and action pickers", () => {
     render(
       <ActionConfig
+        {...defaultActionConfigProps}
         config={{ actionType: "send-slack" }}
         onUpdateConfig={mock((_key: string, _value: unknown) => {})}
       />,
@@ -239,6 +254,7 @@ describe("ActionConfig", () => {
 
     render(
       <ActionConfig
+        {...defaultActionConfigProps}
         config={{ actionType: "send-resend-template" }}
         onUpdateConfig={onUpdateConfig}
       />,
@@ -276,6 +292,7 @@ describe("ActionConfig", () => {
   test("renders condition builder controls with appointment and client attributes", () => {
     render(
       <ActionConfig
+        {...defaultActionConfigProps}
         config={{ actionType: "condition", expression: "true" }}
         onUpdateConfig={mock((_key: string, _value: unknown) => {})}
       />,
@@ -300,6 +317,40 @@ describe("ActionConfig", () => {
     expect(screen.queryByText("Patient Status")).toBeNull();
   });
 
+  test("supports adding condition groups in builder mode", () => {
+    render(
+      <StatefulActionConfig
+        initialConfig={{
+          actionType: "condition",
+          expression: 'appointment.status == "scheduled"',
+          conditionMode: "builder",
+          conditionFilter: {
+            logic: "and",
+            groups: [
+              {
+                logic: "and",
+                conditions: [
+                  {
+                    field: "appointment.status",
+                    operator: "equals",
+                    value: "scheduled",
+                  },
+                ],
+              },
+            ],
+          },
+        }}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Add group" }));
+
+    expect(screen.getAllByText("Condition group").length).toBe(2);
+    expect(
+      screen.getByRole("combobox", { name: "Group 2 condition 1 field" }),
+    ).toBeTruthy();
+  });
+
   test("shows human-readable selected labels in condition builder selects", () => {
     render(
       <StatefulActionConfig
@@ -307,9 +358,21 @@ describe("ActionConfig", () => {
           actionType: "condition",
           expression: "",
           conditionMode: "builder",
-          conditionField: "appointment.startAt",
-          conditionOperator: "within_next",
-          conditionValue: { amount: 3, unit: "hours" },
+          conditionFilter: {
+            logic: "and",
+            groups: [
+              {
+                logic: "and",
+                conditions: [
+                  {
+                    field: "appointment.startAt",
+                    operator: "within_next",
+                    value: { amount: 3, unit: "hours" },
+                  },
+                ],
+              },
+            ],
+          },
         }}
       />,
     );
@@ -335,13 +398,26 @@ describe("ActionConfig", () => {
   test("uses lookup dropdown values for condition builder ID fields", () => {
     render(
       <ActionConfig
+        {...defaultActionConfigProps}
         config={{
           actionType: "condition",
           expression: 'appointment.calendarId == "cal-1"',
           conditionMode: "builder",
-          conditionField: "appointment.calendarId",
-          conditionOperator: "equals",
-          conditionValue: "cal-1",
+          conditionFilter: {
+            logic: "and",
+            groups: [
+              {
+                logic: "and",
+                conditions: [
+                  {
+                    field: "appointment.calendarId",
+                    operator: "equals",
+                    value: "cal-1",
+                  },
+                ],
+              },
+            ],
+          },
         }}
         conditionValueOptionsByField={{
           "appointment.calendarId": [
@@ -362,13 +438,26 @@ describe("ActionConfig", () => {
   test("limits ID field operators to equals and contains with multi-select values", () => {
     render(
       <ActionConfig
+        {...defaultActionConfigProps}
         config={{
           actionType: "condition",
           expression: 'appointment.calendarId in ["cal-1"]',
           conditionMode: "builder",
-          conditionField: "appointment.calendarId",
-          conditionOperator: "in",
-          conditionValue: ["cal-1"],
+          conditionFilter: {
+            logic: "and",
+            groups: [
+              {
+                logic: "and",
+                conditions: [
+                  {
+                    field: "appointment.calendarId",
+                    operator: "in",
+                    value: ["cal-1"],
+                  },
+                ],
+              },
+            ],
+          },
         }}
         conditionValueOptionsByField={{
           "appointment.calendarId": [
@@ -403,13 +492,26 @@ describe("ActionConfig", () => {
 
     render(
       <ActionConfig
+        {...defaultActionConfigProps}
         config={{
           actionType: "condition",
           expression: "client.customAttributes.newsletterOptIn == true",
           conditionMode: "builder",
-          conditionField: "client.customAttributes.newsletterOptIn",
-          conditionOperator: "equals",
-          conditionValue: true,
+          conditionFilter: {
+            logic: "and",
+            groups: [
+              {
+                logic: "and",
+                conditions: [
+                  {
+                    field: "client.customAttributes.newsletterOptIn",
+                    operator: "equals",
+                    value: true,
+                  },
+                ],
+              },
+            ],
+          },
         }}
         fieldOptions={fieldOptions}
         onUpdateConfig={mock((_key: string, _value: unknown) => {})}
@@ -434,6 +536,7 @@ describe("ActionConfig", () => {
   test("humanizes fallback select labels instead of showing raw enum tokens", () => {
     render(
       <ActionConfig
+        {...defaultActionConfigProps}
         config={{
           actionType: "send-resend",
           testBehavior: "route_to_integration_test_recipient_v2",
@@ -466,9 +569,21 @@ describe("ActionConfig", () => {
           actionType: "condition",
           expression: "",
           conditionMode: "builder",
-          conditionField: "appointment.startAt",
-          conditionOperator: "more_than_ago",
-          conditionValue: { amount: 3, unit: "hours" },
+          conditionFilter: {
+            logic: "and",
+            groups: [
+              {
+                logic: "and",
+                conditions: [
+                  {
+                    field: "appointment.startAt",
+                    operator: "more_than_ago",
+                    value: { amount: 3, unit: "hours" },
+                  },
+                ],
+              },
+            ],
+          },
         }}
       />,
     );
@@ -494,14 +609,27 @@ describe("ActionConfig", () => {
   test("uses datetime-local input for absolute temporal condition values", () => {
     render(
       <ActionConfig
+        {...defaultActionConfigProps}
         config={{
           actionType: "condition",
           expression:
             'appointment.startAt != null && timestamp(string(appointment.startAt)) < date("2026-02-16T09:30", orgTimezone)',
           conditionMode: "builder",
-          conditionField: "appointment.startAt",
-          conditionOperator: "before",
-          conditionValue: "2026-02-16T09:30",
+          conditionFilter: {
+            logic: "and",
+            groups: [
+              {
+                logic: "and",
+                conditions: [
+                  {
+                    field: "appointment.startAt",
+                    operator: "before",
+                    value: "2026-02-16T09:30",
+                  },
+                ],
+              },
+            ],
+          },
         }}
         defaultTimezone="America/Chicago"
         onUpdateConfig={mock((_key: string, _value: unknown) => {})}
@@ -519,15 +647,28 @@ describe("ActionConfig", () => {
   test("shows selected explicit timezone for absolute temporal condition values", () => {
     render(
       <ActionConfig
+        {...defaultActionConfigProps}
         config={{
           actionType: "condition",
           expression:
             'appointment.startAt != null && timestamp(string(appointment.startAt)) < date("2026-02-16T09:30", "America/Los_Angeles")',
           conditionMode: "builder",
-          conditionField: "appointment.startAt",
-          conditionOperator: "before",
-          conditionValue: "2026-02-16T09:30",
-          conditionTimezone: "America/Los_Angeles",
+          conditionFilter: {
+            logic: "and",
+            groups: [
+              {
+                logic: "and",
+                conditions: [
+                  {
+                    field: "appointment.startAt",
+                    operator: "before",
+                    value: "2026-02-16T09:30",
+                    timezone: "America/Los_Angeles",
+                  },
+                ],
+              },
+            ],
+          },
         }}
         onUpdateConfig={mock((_key: string, _value: unknown) => {})}
       />,
@@ -542,6 +683,7 @@ describe("ActionConfig", () => {
   test("falls back to raw CEL mode for existing custom condition expressions", () => {
     render(
       <ActionConfig
+        {...defaultActionConfigProps}
         config={{
           actionType: "condition",
           expression: 'appointment.status == "scheduled"',

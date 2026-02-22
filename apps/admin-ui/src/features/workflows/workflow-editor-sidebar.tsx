@@ -788,6 +788,7 @@ export function WorkflowEditorSidebar({
                     ) : (
                       <>
                         <ActionConfig
+                          configScopeKey={selectedNode.id}
                           config={selectedNodeConfig}
                           disallowedActionTypes={
                             disallowedActionTypesForSelectedNode

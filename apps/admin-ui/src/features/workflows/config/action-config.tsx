@@ -90,7 +90,8 @@ function filterActionsByDisallowedTypes(input: {
 interface ActionConfigProps {
   config: Record<string, unknown>;
   onUpdateConfig: (key: string, value: unknown) => void;
-  onUpdateConfigBatch?: (patch: Record<string, unknown>) => void;
+  onUpdateConfigBatch: (patch: Record<string, unknown>) => void;
+  configScopeKey: string;
   disabled?: boolean;
   triggerType?: JourneyTriggerConfig["triggerType"] | null;
   disallowedActionTypes?: readonly string[];
@@ -126,6 +127,7 @@ export function ActionConfig({
   config,
   onUpdateConfig,
   onUpdateConfigBatch,
+  configScopeKey,
   disabled,
   triggerType = null,
   disallowedActionTypes = [],
@@ -318,6 +320,7 @@ export function ActionConfig({
 
       {currentAction ? (
         <ActionConfigRenderer
+          configScopeKey={configScopeKey}
           defaultTimezone={defaultTimezone}
           fields={currentAction.configFields}
           config={config}

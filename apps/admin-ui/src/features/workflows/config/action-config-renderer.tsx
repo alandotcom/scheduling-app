@@ -1,6 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowDown01Icon, Delete01Icon } from "@hugeicons/core-free-icons";
-import type { JourneyTriggerFilterCondition } from "@scheduling/dto";
+import {
+  Add01Icon,
+  ArrowDown01Icon,
+  Delete01Icon,
+} from "@hugeicons/core-free-icons";
+import {
+  journeyTriggerFilterAstSchema,
+  type JourneyTriggerFilterAst,
+  type JourneyTriggerFilterCondition,
+} from "@scheduling/dto";
 import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
 import { Input } from "@/components/ui/input";
@@ -50,13 +58,15 @@ import {
   toAbsoluteTemporalComparisonValue,
   toDateTimeLocalInputValue,
   toRelativeTemporalValueDraft,
+  toWorkflowFilterFallbackLabel,
 } from "../filter-builder-shared";
 
 interface ActionConfigRendererProps {
   fields: ActionConfigField[];
   config: Record<string, unknown>;
   onUpdateConfig: (key: string, value: unknown) => void;
-  onUpdateConfigBatch?: (patch: Record<string, unknown>) => void;
+  onUpdateConfigBatch: (patch: Record<string, unknown>) => void;
+  configScopeKey: string;
   disabled?: boolean;
   expressionSuggestions?: EventAttributeSuggestion[];
   fieldOptions?: WorkflowFilterFieldOption[];
@@ -444,6 +454,152 @@ export function compileConditionBuilderExpression(
   return "";
 }
 
+type LogicOperator = JourneyTriggerFilterAst["logic"];
+type ConditionFilterConditionDraft = Omit<
+  JourneyTriggerFilterCondition,
+  "operator"
+> & {
+  operator: JourneyTriggerFilterCondition["operator"] | "";
+};
+type ConditionFilterGroupDraft = {
+  logic: LogicOperator;
+  not?: boolean;
+  conditions: ConditionFilterConditionDraft[];
+};
+type ConditionFilterDraft = {
+  logic: LogicOperator;
+  groups: ConditionFilterGroupDraft[];
+};
+type ConditionFilterDraftState = {
+  sourceKey: string;
+  draft: ConditionFilterDraft | null;
+};
+
+const MAX_CONDITION_FILTER_GROUPS = 4;
+const MAX_CONDITION_FILTER_CONDITIONS = 12;
+const EMPTY_CONDITION_FILTER_SOURCE_KEY = "__empty_condition_filter_source__";
+
+function createEmptyConditionFilterCondition(): ConditionFilterConditionDraft {
+  return {
+    field: "",
+    operator: "",
+    value: undefined,
+  };
+}
+
+function createDefaultConditionFilter(): ConditionFilterDraft {
+  return {
+    logic: "and",
+    groups: [
+      {
+        logic: "and",
+        conditions: [createEmptyConditionFilterCondition()],
+      },
+    ],
+  };
+}
+
+function toConditionFilterSourceKey(
+  filter: ConditionFilterDraft | null,
+): string {
+  return filter ? JSON.stringify(filter) : EMPTY_CONDITION_FILTER_SOURCE_KEY;
+}
+
+function toConditionFilterDraft(value: unknown): ConditionFilterDraft | null {
+  const parsed = journeyTriggerFilterAstSchema.safeParse(value);
+  if (!parsed.success) {
+    return null;
+  }
+
+  return parsed.data;
+}
+
+function toConditionFilterSourceState(
+  value: unknown,
+): ConditionFilterDraftState {
+  const draft = toConditionFilterDraft(value);
+
+  return {
+    sourceKey: toConditionFilterSourceKey(draft),
+    draft,
+  };
+}
+
+function countConditionFilterConditions(
+  filter: ConditionFilterDraft | null,
+): number {
+  if (!filter) {
+    return 0;
+  }
+
+  return filter.groups.reduce(
+    (total, group) => total + group.conditions.length,
+    0,
+  );
+}
+
+function toConditionStableKey(
+  condition: ConditionFilterConditionDraft,
+): string {
+  const value = JSON.stringify(condition.value);
+  return `${condition.field}|${condition.operator}|${value ?? "undefined"}`;
+}
+
+function toConditionGroupStableKey(group: ConditionFilterGroupDraft): string {
+  return `${group.logic}|${group.conditions
+    .map((condition) => toConditionStableKey(condition))
+    .join("||")}`;
+}
+
+export function compileConditionFilterBuilderExpression(
+  filter: ConditionFilterDraft,
+  fieldOptions?: WorkflowFilterFieldOption[],
+): string {
+  if (filter.groups.length === 0) {
+    return "";
+  }
+
+  const groupExpressions: string[] = [];
+
+  for (const group of filter.groups) {
+    if (group.conditions.length === 0) {
+      return "";
+    }
+
+    const conditionExpressions = group.conditions.map((condition) =>
+      compileConditionBuilderExpression(
+        {
+          field: condition.field,
+          operator: condition.operator,
+          value: condition.value,
+          timezone: condition.timezone,
+        },
+        fieldOptions,
+      ),
+    );
+
+    if (conditionExpressions.some((expression) => expression.length === 0)) {
+      return "";
+    }
+
+    const groupOperator = group.logic === "or" ? " || " : " && ";
+    const joinedGroupExpression =
+      conditionExpressions.length === 1
+        ? conditionExpressions[0]!
+        : `(${conditionExpressions.join(groupOperator)})`;
+    groupExpressions.push(
+      group.not ? `!(${joinedGroupExpression})` : joinedGroupExpression,
+    );
+  }
+
+  if (groupExpressions.length === 1) {
+    return groupExpressions[0]!;
+  }
+
+  const rootOperator = filter.logic === "or" ? " || " : " && ";
+  return `(${groupExpressions.join(rootOperator)})`;
+}
+
 function toKeyValueRows(value: unknown): KeyValueRow[] {
   if (!Array.isArray(value)) {
     return [];
@@ -741,86 +897,161 @@ function ExpressionFieldRenderer({
   );
 }
 
-function ConditionExpressionFieldRenderer({
-  field,
-  config,
-  defaultTimezone,
-  fieldOptions = WORKFLOW_FILTER_FIELD_OPTIONS,
-  onUpdateConfig,
-  onUpdateConfigBatch,
-  disabled,
-  suggestions,
-  conditionValueOptionsByField,
-}: {
-  field: ActionConfigFieldBase;
-  config: Record<string, unknown>;
-  defaultTimezone: string;
-  fieldOptions?: WorkflowFilterFieldOption[];
-  onUpdateConfig: (key: string, value: unknown) => void;
-  onUpdateConfigBatch?: (patch: Record<string, unknown>) => void;
-  disabled?: boolean;
-  suggestions: EventAttributeSuggestion[];
-  conditionValueOptionsByField: Record<string, WorkflowFilterValueOption[]>;
-}) {
-  const configValue =
-    typeof config[field.key] === "string"
-      ? String(config[field.key])
-      : (field.defaultValue ?? "");
-  const scopedSuggestions = useMemo(
-    () => getExpressionSuggestionsForField(field.key, suggestions),
-    [field.key, suggestions],
-  );
-  const [rawValue, setRawValue] = useState(configValue);
+interface ConditionLogicConnectorProps {
+  ariaLabel: string;
+  disabled: boolean;
+  onChange: (logic: LogicOperator) => void;
+  orientation?: "vertical" | "horizontal";
+  value: LogicOperator;
+}
 
-  const conditionField =
-    typeof config["conditionField"] === "string"
-      ? config["conditionField"]
-      : "";
-  const rawOperator =
-    typeof config["conditionOperator"] === "string"
-      ? config["conditionOperator"]
-      : "";
-  const conditionOperator = isJourneyFilterOperator(rawOperator)
-    ? rawOperator
-    : "";
-  const conditionValue = config["conditionValue"];
-  const conditionTimezone =
-    typeof config["conditionTimezone"] === "string" &&
-    config["conditionTimezone"].trim().length > 0
-      ? config["conditionTimezone"]
-      : undefined;
+function ConditionLogicConnector({
+  ariaLabel,
+  disabled,
+  onChange,
+  orientation = "vertical",
+  value,
+}: ConditionLogicConnectorProps) {
+  return (
+    <div
+      className={cn(
+        "flex items-center",
+        orientation === "vertical" ? "flex-col gap-1" : "flex-row gap-2",
+      )}
+    >
+      {orientation === "vertical" ? (
+        <div className="h-2 w-px bg-border" />
+      ) : null}
+      <div className="inline-flex items-center rounded-full border border-border bg-background p-0.5">
+        <button
+          aria-label={`${ariaLabel} AND`}
+          className={cn(
+            "rounded-full px-2.5 py-0.5 font-medium text-xs transition-colors",
+            value === "and"
+              ? "bg-foreground text-background"
+              : "text-muted-foreground hover:text-foreground",
+          )}
+          disabled={disabled}
+          onClick={() => onChange("and")}
+          type="button"
+        >
+          AND
+        </button>
+        <button
+          aria-label={`${ariaLabel} OR`}
+          className={cn(
+            "rounded-full px-2.5 py-0.5 font-medium text-xs transition-colors",
+            value === "or"
+              ? "bg-foreground text-background"
+              : "text-muted-foreground hover:text-foreground",
+          )}
+          disabled={disabled}
+          onClick={() => onChange("or")}
+          type="button"
+        >
+          OR
+        </button>
+      </div>
+      {orientation === "vertical" ? (
+        <div className="h-2 w-px bg-border" />
+      ) : null}
+    </div>
+  );
+}
+
+function getConditionControlAriaLabel(input: {
+  groupIndex: number;
+  conditionIndex: number;
+  legacyLabel: string;
+  suffix: string;
+}): string {
+  if (input.groupIndex === 0 && input.conditionIndex === 0) {
+    return input.legacyLabel;
+  }
+
+  return `Group ${input.groupIndex + 1} condition ${input.conditionIndex + 1} ${input.suffix}`;
+}
+
+interface ConditionFilterConditionRowProps {
+  canRemove: boolean;
+  condition: ConditionFilterConditionDraft;
+  conditionIndex: number;
+  defaultTimezone: string;
+  disabled: boolean;
+  fieldOptions: WorkflowFilterFieldOption[];
+  groupIndex: number;
+  onChange: (
+    groupIndex: number,
+    conditionIndex: number,
+    patch: Partial<ConditionFilterConditionDraft>,
+  ) => void;
+  onRemove: (groupIndex: number, conditionIndex: number) => void;
+  valueOptionsByField: Record<string, WorkflowFilterValueOption[]>;
+}
+
+function ConditionFilterConditionRow({
+  canRemove,
+  condition,
+  conditionIndex,
+  defaultTimezone,
+  disabled,
+  fieldOptions,
+  groupIndex,
+  onChange,
+  onRemove,
+  valueOptionsByField,
+}: ConditionFilterConditionRowProps) {
   const conditionFieldType = getWorkflowFilterFieldType(
-    conditionField,
+    condition.field,
     fieldOptions,
   );
   const isTimestampField = conditionFieldType === "timestamp";
   const isBooleanField = conditionFieldType === "boolean";
-  const isIdField = isIdWorkflowFilterField(conditionField);
+  const isIdField = isIdWorkflowFilterField(condition.field);
+  const baseOperatorOptions = getOperatorOptionsForField(
+    condition.field,
+    fieldOptions,
+  );
+  const operatorOptions =
+    condition.operator.length > 0 &&
+    isJourneyFilterOperator(condition.operator) &&
+    !baseOperatorOptions.some((option) => option.value === condition.operator)
+      ? [
+          {
+            label: toWorkflowFilterFallbackLabel(condition.operator),
+            value: condition.operator,
+          },
+          ...baseOperatorOptions,
+        ]
+      : baseOperatorOptions;
   const booleanOperatorMode = getWorkflowBooleanFilterMode({
-    operator: conditionOperator,
-    value: conditionValue,
+    operator: condition.operator,
+    value: condition.value,
   });
-  const relativeTemporalValue = toRelativeTemporalValueDraft(conditionValue);
+  const parsedConditionOperator = isJourneyFilterOperator(condition.operator)
+    ? condition.operator
+    : null;
+  const relativeTemporalValue = toRelativeTemporalValueDraft(condition.value);
   const selectedFieldLabel = getWorkflowFilterFieldLabel(
-    conditionField,
+    condition.field,
     fieldOptions,
   );
   const selectedOperatorLabel = isBooleanField
     ? booleanOperatorMode
       ? getWorkflowBooleanFilterModeLabel(booleanOperatorMode)
-      : conditionOperator.length > 0
-        ? conditionOperator.replaceAll("_", " ")
+      : condition.operator.length > 0
+        ? toWorkflowFilterFallbackLabel(condition.operator)
         : undefined
     : getWorkflowFilterOperatorLabel(
         {
-          field: conditionField,
-          operator: conditionOperator,
+          field: condition.field,
+          operator: condition.operator,
         },
         fieldOptions,
       );
   const isAgoOperator =
-    conditionOperator === "less_than_ago" ||
-    conditionOperator === "more_than_ago";
+    condition.operator === "less_than_ago" ||
+    condition.operator === "more_than_ago";
   const selectedUnitLabelBase = getWorkflowFilterTemporalUnitLabel(
     relativeTemporalValue.unit,
   );
@@ -834,34 +1065,547 @@ function ConditionExpressionFieldRenderer({
       label: isAgoOperator ? `${unit.label} ago` : unit.label,
     }),
   );
-  const selectedConditionTimezone = conditionTimezone ?? defaultTimezone;
-  const stringConditionValue =
-    typeof conditionValue === "string" ? conditionValue : "";
-  const conditionValues = toStringListValue(conditionValue);
+  const selectedTimezone =
+    typeof condition.timezone === "string" &&
+    condition.timezone.trim().length > 0
+      ? condition.timezone
+      : defaultTimezone;
+  const timezoneOptions = TIMEZONES.some(
+    (timezone) => timezone === selectedTimezone,
+  )
+    ? TIMEZONES
+    : [selectedTimezone, ...TIMEZONES];
+  const conditionValue =
+    typeof condition.value === "string" ||
+    typeof condition.value === "number" ||
+    typeof condition.value === "boolean"
+      ? String(condition.value)
+      : "";
+  const conditionValues = toStringListValue(condition.value);
   const baseValueOptions = isIdField
-    ? (conditionValueOptionsByField[conditionField] ?? [])
+    ? (valueOptionsByField[condition.field] ?? [])
     : [];
   const singleValueOptions = toValueOptionsWithFallback({
     options: baseValueOptions,
-    selectedValues:
-      stringConditionValue.length > 0 ? [stringConditionValue] : [],
+    selectedValues: conditionValue.length > 0 ? [conditionValue] : [],
   });
   const multiValueOptions = toValueOptionsWithFallback({
     options: baseValueOptions,
     selectedValues: conditionValues,
   });
   const selectedValueLabel = singleValueOptions.find(
-    (option) => option.value === stringConditionValue,
+    (option) => option.value === conditionValue,
   )?.label;
-  const timezoneOptions = TIMEZONES.some(
-    (timezone) => timezone === selectedConditionTimezone,
-  )
-    ? TIMEZONES
-    : [selectedConditionTimezone, ...TIMEZONES];
-  const hasBuilderDraft =
-    conditionField.length > 0 ||
-    conditionOperator.length > 0 ||
-    conditionValue !== undefined;
+
+  return (
+    <div className="flex items-start gap-2">
+      <div className="min-w-0 flex-1">
+        <div className="grid min-w-0 grid-cols-1 gap-2 min-[420px]:grid-cols-2">
+          <Select
+            disabled={disabled}
+            value={condition.field.length > 0 ? condition.field : null}
+            onValueChange={(field) => {
+              if (typeof field !== "string" || field.length === 0) {
+                return;
+              }
+
+              onChange(groupIndex, conditionIndex, {
+                field,
+                operator: "",
+                value: undefined,
+                timezone: undefined,
+              });
+            }}
+          >
+            <SelectTrigger
+              aria-label={getConditionControlAriaLabel({
+                groupIndex,
+                conditionIndex,
+                legacyLabel: "Condition field",
+                suffix: "field",
+              })}
+              className="h-9 min-w-0 w-full"
+              size="sm"
+            >
+              <SelectValue placeholder="Select property">
+                {selectedFieldLabel}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              {fieldOptions.map((fieldOption) => (
+                <SelectItem key={fieldOption.value} value={fieldOption.value}>
+                  {fieldOption.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          {isBooleanField ? (
+            <Select
+              disabled={disabled}
+              value={booleanOperatorMode ?? null}
+              onValueChange={(mode) => {
+                if (!isWorkflowBooleanFilterMode(mode)) {
+                  return;
+                }
+
+                onChange(groupIndex, conditionIndex, {
+                  ...toWorkflowBooleanFilterCondition(mode),
+                  timezone: undefined,
+                });
+              }}
+            >
+              <SelectTrigger
+                aria-label={getConditionControlAriaLabel({
+                  groupIndex,
+                  conditionIndex,
+                  legacyLabel: "Condition operator",
+                  suffix: "operator",
+                })}
+                className="h-9 min-w-0 w-full"
+                size="sm"
+              >
+                <SelectValue placeholder="Select value">
+                  {selectedOperatorLabel}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {WORKFLOW_FILTER_BOOLEAN_MODE_OPTIONS.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          ) : (
+            <Select
+              disabled={disabled}
+              value={condition.operator.length > 0 ? condition.operator : null}
+              onValueChange={(operator) => {
+                if (
+                  typeof operator !== "string" ||
+                  !isJourneyFilterOperator(operator)
+                ) {
+                  return;
+                }
+
+                onChange(groupIndex, conditionIndex, {
+                  operator,
+                  value: undefined,
+                  timezone: isAbsoluteTemporalOperator(operator)
+                    ? condition.timezone
+                    : undefined,
+                });
+              }}
+            >
+              <SelectTrigger
+                aria-label={getConditionControlAriaLabel({
+                  groupIndex,
+                  conditionIndex,
+                  legacyLabel: "Condition operator",
+                  suffix: "operator",
+                })}
+                className="h-9 min-w-0 w-full"
+                size="sm"
+              >
+                <SelectValue placeholder="Select operator">
+                  {selectedOperatorLabel}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {operatorOptions.map((operator) => (
+                  <SelectItem key={operator.value} value={operator.value}>
+                    {operator.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+
+          {isBooleanField ||
+          !parsedConditionOperator ||
+          isValuelessOperator(
+            parsedConditionOperator,
+          ) ? null : isTimestampField &&
+            isRelativeTemporalOperator(parsedConditionOperator) ? (
+            <div className="grid min-w-0 grid-cols-2 gap-2 min-[420px]:col-span-2">
+              <Input
+                className="h-10 md:h-8"
+                disabled={disabled}
+                min={1}
+                placeholder="Amount"
+                type="number"
+                value={
+                  typeof relativeTemporalValue.amount === "number"
+                    ? String(relativeTemporalValue.amount)
+                    : ""
+                }
+                onChange={(event) => {
+                  const parsedAmount = Number.parseInt(event.target.value, 10);
+                  onChange(groupIndex, conditionIndex, {
+                    value: {
+                      ...relativeTemporalValue,
+                      amount:
+                        Number.isInteger(parsedAmount) && parsedAmount > 0
+                          ? parsedAmount
+                          : undefined,
+                    },
+                  });
+                }}
+              />
+              <Select
+                disabled={disabled}
+                value={relativeTemporalValue.unit ?? null}
+                onValueChange={(unit) => {
+                  if (
+                    unit !== "minutes" &&
+                    unit !== "hours" &&
+                    unit !== "days" &&
+                    unit !== "weeks"
+                  ) {
+                    return;
+                  }
+
+                  onChange(groupIndex, conditionIndex, {
+                    value: {
+                      ...relativeTemporalValue,
+                      unit,
+                    },
+                  });
+                }}
+              >
+                <SelectTrigger
+                  aria-label={getConditionControlAriaLabel({
+                    groupIndex,
+                    conditionIndex,
+                    legacyLabel: "Condition relative unit",
+                    suffix: "unit",
+                  })}
+                  className="h-10 min-w-0 w-full"
+                  size="sm"
+                >
+                  <SelectValue placeholder="Unit">
+                    {selectedUnitLabel}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  {temporalUnitOptions.map((unit) => (
+                    <SelectItem key={unit.value} value={unit.value}>
+                      {unit.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          ) : isTimestampField &&
+            isAbsoluteTemporalOperator(parsedConditionOperator) ? (
+            <>
+              <Input
+                className="h-9"
+                disabled={disabled}
+                placeholder="Select date and time"
+                type="datetime-local"
+                value={toDateTimeLocalInputValue(condition.value)}
+                onChange={(event) =>
+                  onChange(groupIndex, conditionIndex, {
+                    value: event.target.value,
+                  })
+                }
+              />
+              <Select
+                disabled={disabled}
+                value={selectedTimezone}
+                onValueChange={(timezone) => {
+                  if (!timezone) {
+                    return;
+                  }
+
+                  onChange(groupIndex, conditionIndex, {
+                    timezone:
+                      timezone === defaultTimezone ? undefined : timezone,
+                  });
+                }}
+              >
+                <SelectTrigger
+                  aria-label={getConditionControlAriaLabel({
+                    groupIndex,
+                    conditionIndex,
+                    legacyLabel: "Condition timezone",
+                    suffix: "timezone",
+                  })}
+                  className="h-9 min-w-0 w-full"
+                  size="sm"
+                >
+                  <SelectValue placeholder="Timezone">
+                    {formatTimezonePickerLabel(selectedTimezone)}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  {timezoneOptions.map((timezone) => (
+                    <SelectItem key={timezone} value={timezone}>
+                      {formatTimezonePickerLabel(timezone)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </>
+          ) : isIdField && parsedConditionOperator === "in" ? (
+            <div className="min-[420px]:col-span-2">
+              <MultiSelectCombobox
+                ariaLabel={getConditionControlAriaLabel({
+                  groupIndex,
+                  conditionIndex,
+                  legacyLabel: "Condition values",
+                  suffix: "values",
+                })}
+                className="w-full"
+                disabled={disabled}
+                options={multiValueOptions}
+                placeholder="Select one or more values"
+                value={conditionValues}
+                onChange={(values) =>
+                  onChange(groupIndex, conditionIndex, { value: values })
+                }
+              />
+            </div>
+          ) : isIdField && parsedConditionOperator === "equals" ? (
+            <Select
+              disabled={disabled}
+              value={conditionValue.length > 0 ? conditionValue : null}
+              onValueChange={(value) =>
+                onChange(groupIndex, conditionIndex, { value })
+              }
+            >
+              <SelectTrigger
+                aria-label={getConditionControlAriaLabel({
+                  groupIndex,
+                  conditionIndex,
+                  legacyLabel: "Condition value",
+                  suffix: "value",
+                })}
+                className="h-9 min-w-0 w-full min-[420px]:col-span-2"
+                size="sm"
+              >
+                <SelectValue placeholder="Select value">
+                  {selectedValueLabel}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {singleValueOptions.length > 0 ? (
+                  singleValueOptions.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))
+                ) : (
+                  <SelectItem disabled value="__no_options__">
+                    No values available
+                  </SelectItem>
+                )}
+              </SelectContent>
+            </Select>
+          ) : (
+            <Input
+              className="h-9 min-[420px]:col-span-2"
+              disabled={disabled}
+              placeholder="Enter value..."
+              value={conditionValue}
+              onChange={(event) =>
+                onChange(groupIndex, conditionIndex, {
+                  value: event.target.value,
+                })
+              }
+            />
+          )}
+        </div>
+      </div>
+
+      {canRemove ? (
+        <Button
+          aria-label={`Remove condition ${conditionIndex + 1}`}
+          className="h-9 w-9 p-0"
+          disabled={disabled}
+          onClick={() => onRemove(groupIndex, conditionIndex)}
+          size="sm"
+          type="button"
+          variant="ghost"
+        >
+          <Icon className="size-4" icon={Delete01Icon} />
+        </Button>
+      ) : null}
+    </div>
+  );
+}
+
+interface ConditionFilterGroupCardProps {
+  defaultTimezone: string;
+  disabled: boolean;
+  fieldOptions: WorkflowFilterFieldOption[];
+  group: ConditionFilterGroupDraft;
+  groupIndex: number;
+  onAddCondition: (groupIndex: number) => void;
+  onConditionChange: (
+    groupIndex: number,
+    conditionIndex: number,
+    patch: Partial<ConditionFilterConditionDraft>,
+  ) => void;
+  onGroupLogicChange: (groupIndex: number, logic: LogicOperator) => void;
+  onRemoveCondition: (groupIndex: number, conditionIndex: number) => void;
+  onRemoveGroup: (groupIndex: number) => void;
+  valueOptionsByField: Record<string, WorkflowFilterValueOption[]>;
+}
+
+function ConditionFilterGroupCard({
+  defaultTimezone,
+  disabled,
+  fieldOptions,
+  group,
+  groupIndex,
+  onAddCondition,
+  onConditionChange,
+  onGroupLogicChange,
+  onRemoveCondition,
+  onRemoveGroup,
+  valueOptionsByField,
+}: ConditionFilterGroupCardProps) {
+  return (
+    <div className="rounded-lg border bg-card">
+      <div className="flex items-center justify-between border-b px-3 py-2">
+        <div className="flex items-center gap-2">
+          <div className="flex size-6 items-center justify-center rounded-md bg-muted text-xs font-semibold">
+            {groupIndex + 1}
+          </div>
+          <p className="font-medium text-sm">Condition group</p>
+          <p className="text-muted-foreground text-xs">
+            {group.conditions.length} condition
+            {group.conditions.length === 1 ? "" : "s"}
+          </p>
+        </div>
+
+        <Button
+          aria-label={`Remove group ${groupIndex + 1}`}
+          className="h-8 w-8 p-0"
+          disabled={disabled}
+          onClick={() => onRemoveGroup(groupIndex)}
+          size="sm"
+          type="button"
+          variant="ghost"
+        >
+          <Icon className="size-4" icon={Delete01Icon} />
+        </Button>
+      </div>
+
+      <div className="space-y-2 p-3">
+        {(() => {
+          const conditionKeyCounts = new Map<string, number>();
+          return group.conditions.map((condition, conditionIndex) => {
+            const baseConditionKey = toConditionStableKey(condition);
+            const conditionKeyIndex =
+              conditionKeyCounts.get(baseConditionKey) ?? 0;
+            conditionKeyCounts.set(baseConditionKey, conditionKeyIndex + 1);
+
+            return (
+              <div key={`${baseConditionKey}-${conditionKeyIndex}`}>
+                <ConditionFilterConditionRow
+                  canRemove={group.conditions.length > 1}
+                  condition={condition}
+                  conditionIndex={conditionIndex}
+                  defaultTimezone={defaultTimezone}
+                  disabled={disabled}
+                  fieldOptions={fieldOptions}
+                  groupIndex={groupIndex}
+                  onChange={onConditionChange}
+                  onRemove={onRemoveCondition}
+                  valueOptionsByField={valueOptionsByField}
+                />
+
+                {conditionIndex < group.conditions.length - 1 ? (
+                  <div className="flex justify-start pl-4 pt-1">
+                    <ConditionLogicConnector
+                      ariaLabel={`Group ${groupIndex + 1} condition connector`}
+                      disabled={disabled}
+                      value={group.logic}
+                      onChange={(logic) =>
+                        onGroupLogicChange(groupIndex, logic)
+                      }
+                    />
+                  </div>
+                ) : null}
+              </div>
+            );
+          });
+        })()}
+
+        <div className="pt-2">
+          <Button
+            disabled={disabled}
+            onClick={() => onAddCondition(groupIndex)}
+            size="sm"
+            type="button"
+            variant="ghost"
+          >
+            <Icon className="size-4" icon={Add01Icon} />
+            Add condition
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ConditionExpressionFieldRenderer({
+  field,
+  config,
+  defaultTimezone,
+  fieldOptions = WORKFLOW_FILTER_FIELD_OPTIONS,
+  onUpdateConfig,
+  onUpdateConfigBatch,
+  configScopeKey,
+  disabled,
+  suggestions,
+  conditionValueOptionsByField,
+}: {
+  field: ActionConfigFieldBase;
+  config: Record<string, unknown>;
+  defaultTimezone: string;
+  fieldOptions?: WorkflowFilterFieldOption[];
+  onUpdateConfig: (key: string, value: unknown) => void;
+  onUpdateConfigBatch: (patch: Record<string, unknown>) => void;
+  configScopeKey: string;
+  disabled?: boolean;
+  suggestions: EventAttributeSuggestion[];
+  conditionValueOptionsByField: Record<string, WorkflowFilterValueOption[]>;
+}) {
+  const configValue =
+    typeof config[field.key] === "string"
+      ? String(config[field.key])
+      : (field.defaultValue ?? "");
+  const scopedSuggestions = useMemo(
+    () => getExpressionSuggestionsForField(field.key, suggestions),
+    [field.key, suggestions],
+  );
+  const [rawValue, setRawValue] = useState(configValue);
+  const configConditionFilterState = useMemo(
+    () => toConditionFilterSourceState(config["conditionFilter"]),
+    [config["conditionFilter"], configScopeKey],
+  );
+  const [conditionFilterDraftState, setConditionFilterDraftState] =
+    useState<ConditionFilterDraftState>(() => configConditionFilterState);
+  const [filterValidationError, setFilterValidationError] = useState<
+    string | null
+  >(null);
+  const hasExternalConditionFilterUpdate =
+    configConditionFilterState.sourceKey !==
+    conditionFilterDraftState.sourceKey;
+  const conditionFilterDraft = hasExternalConditionFilterUpdate
+    ? configConditionFilterState.draft
+    : conditionFilterDraftState.draft;
+  const visibleConditionFilter =
+    conditionFilterDraft ?? createDefaultConditionFilter();
+  const visibleFilterValidationError = hasExternalConditionFilterUpdate
+    ? null
+    : filterValidationError;
+  const hasBuilderDraft = conditionFilterDraft !== null;
   const modeFromConfig = config["conditionMode"];
   const mode =
     modeFromConfig === "raw" || modeFromConfig === "builder"
@@ -876,52 +1620,202 @@ function ConditionExpressionFieldRenderer({
     setRawValue(configValue);
   }, [configValue]);
 
-  const commitBuilder = (patch: {
-    field?: string;
-    operator?: JourneyTriggerFilterCondition["operator"] | "";
-    value?: unknown;
-    timezone?: string;
-  }) => {
-    const nextField = patch.field ?? conditionField;
-    const nextOperator = patch.operator ?? conditionOperator;
-    const nextValue = "value" in patch ? patch.value : conditionValue;
-    const nextTimezone =
-      "timezone" in patch ? patch.timezone : conditionTimezone;
-    const nextIsTimestampField =
-      getWorkflowFilterFieldType(nextField, fieldOptions) === "timestamp";
-    const normalizedTimezone =
-      nextIsTimestampField &&
-      isJourneyFilterOperator(nextOperator) &&
-      isAbsoluteTemporalOperator(nextOperator)
-        ? nextTimezone
-        : undefined;
-    const compiledExpression = compileConditionBuilderExpression(
-      {
-        field: nextField,
-        operator: nextOperator,
-        value: nextValue,
-        timezone: normalizedTimezone,
-      },
-      fieldOptions,
-    );
+  useEffect(() => {
+    setConditionFilterDraftState(configConditionFilterState);
+    setFilterValidationError(null);
+  }, [configConditionFilterState, configScopeKey]);
+
+  const commitConditionFilter = (nextFilter: ConditionFilterDraft | null) => {
+    setFilterValidationError(null);
+    const parsed = nextFilter
+      ? journeyTriggerFilterAstSchema.safeParse(nextFilter)
+      : null;
+    const nextSourceKey =
+      nextFilter === null
+        ? EMPTY_CONDITION_FILTER_SOURCE_KEY
+        : parsed?.success
+          ? toConditionFilterSourceKey(parsed.data)
+          : configConditionFilterState.sourceKey;
+    setConditionFilterDraftState({
+      sourceKey: nextSourceKey,
+      draft: nextFilter,
+    });
 
     const configPatch: Record<string, unknown> = {
       conditionMode: "builder",
-      conditionField: nextField,
-      conditionOperator: nextOperator,
-      conditionValue: nextValue,
-      conditionTimezone: normalizedTimezone,
-      [field.key]: compiledExpression,
+      conditionField: undefined,
+      conditionOperator: undefined,
+      conditionValue: undefined,
+      conditionTimezone: undefined,
+      [field.key]: nextFilter
+        ? compileConditionFilterBuilderExpression(nextFilter, fieldOptions)
+        : "",
     };
 
-    if (onUpdateConfigBatch) {
-      onUpdateConfigBatch(configPatch);
+    if (nextFilter === null) {
+      configPatch["conditionFilter"] = undefined;
+    } else if (parsed?.success) {
+      configPatch["conditionFilter"] = parsed.data;
+    }
+
+    onUpdateConfigBatch(configPatch);
+  };
+
+  const handleAddFilterGroup = () => {
+    const editableFilter =
+      conditionFilterDraft ?? createDefaultConditionFilter();
+
+    if (editableFilter.groups.length >= MAX_CONDITION_FILTER_GROUPS) {
+      setFilterValidationError(
+        `You can add at most ${MAX_CONDITION_FILTER_GROUPS} groups.`,
+      );
       return;
     }
 
-    for (const [key, value] of Object.entries(configPatch)) {
-      onUpdateConfig(key, value);
+    commitConditionFilter({
+      ...editableFilter,
+      groups: [
+        ...editableFilter.groups,
+        {
+          logic: "and",
+          conditions: [createEmptyConditionFilterCondition()],
+        },
+      ],
+    });
+  };
+
+  const handleRemoveFilterGroup = (groupIndex: number) => {
+    const editableFilter =
+      conditionFilterDraft ?? createDefaultConditionFilter();
+    const nextGroups = editableFilter.groups.filter(
+      (_, index) => index !== groupIndex,
+    );
+
+    if (nextGroups.length === 0) {
+      commitConditionFilter(null);
+      return;
     }
+
+    commitConditionFilter({
+      ...editableFilter,
+      groups: nextGroups,
+    });
+  };
+
+  const handleGroupLogicChange = (groupIndex: number, logic: LogicOperator) => {
+    const editableFilter =
+      conditionFilterDraft ?? createDefaultConditionFilter();
+
+    commitConditionFilter({
+      ...editableFilter,
+      groups: editableFilter.groups.map((group, index) =>
+        index === groupIndex ? { ...group, logic } : group,
+      ),
+    });
+  };
+
+  const handleFilterLogicChange = (logic: LogicOperator) => {
+    const editableFilter =
+      conditionFilterDraft ?? createDefaultConditionFilter();
+    commitConditionFilter({
+      ...editableFilter,
+      logic,
+    });
+  };
+
+  const handleAddCondition = (groupIndex: number) => {
+    const editableFilter =
+      conditionFilterDraft ?? createDefaultConditionFilter();
+
+    if (
+      countConditionFilterConditions(editableFilter) >=
+      MAX_CONDITION_FILTER_CONDITIONS
+    ) {
+      setFilterValidationError(
+        `You can add at most ${MAX_CONDITION_FILTER_CONDITIONS} conditions.`,
+      );
+      return;
+    }
+
+    commitConditionFilter({
+      ...editableFilter,
+      groups: editableFilter.groups.map((group, index) => {
+        if (index !== groupIndex) {
+          return group;
+        }
+
+        return {
+          ...group,
+          conditions: [
+            ...group.conditions,
+            createEmptyConditionFilterCondition(),
+          ],
+        };
+      }),
+    });
+  };
+
+  const handleRemoveCondition = (
+    groupIndex: number,
+    conditionIndex: number,
+  ) => {
+    const editableFilter =
+      conditionFilterDraft ?? createDefaultConditionFilter();
+
+    const nextGroups = editableFilter.groups
+      .map((group, index) => {
+        if (index !== groupIndex) {
+          return group;
+        }
+
+        return {
+          ...group,
+          conditions: group.conditions.filter(
+            (_, nestedIndex) => nestedIndex !== conditionIndex,
+          ),
+        };
+      })
+      .filter((group) => group.conditions.length > 0);
+
+    if (nextGroups.length === 0) {
+      commitConditionFilter(null);
+      return;
+    }
+
+    commitConditionFilter({
+      ...editableFilter,
+      groups: nextGroups,
+    });
+  };
+
+  const handleConditionChange = (
+    groupIndex: number,
+    conditionIndex: number,
+    patch: Partial<ConditionFilterConditionDraft>,
+  ) => {
+    const editableFilter =
+      conditionFilterDraft ?? createDefaultConditionFilter();
+
+    commitConditionFilter({
+      ...editableFilter,
+      groups: editableFilter.groups.map((group, index) => {
+        if (index !== groupIndex) {
+          return group;
+        }
+
+        return {
+          ...group,
+          conditions: group.conditions.map((condition, nestedIndex) =>
+            nestedIndex === conditionIndex
+              ? {
+                  ...condition,
+                  ...patch,
+                }
+              : condition,
+          ),
+        };
+      }),
+    });
   };
 
   return (
@@ -957,267 +1851,64 @@ function ConditionExpressionFieldRenderer({
       </div>
 
       {mode === "builder" ? (
-        <div className="grid min-w-0 grid-cols-1 gap-2 rounded-md border p-2 min-[420px]:grid-cols-2">
-          <Select
-            disabled={disabled}
-            value={conditionField.length > 0 ? conditionField : null}
-            onValueChange={(value) => {
-              if (typeof value !== "string" || value.length === 0) {
-                return;
-              }
+        <div className="space-y-3 rounded-md border p-2">
+          {visibleFilterValidationError ? (
+            <p className="text-destructive text-xs">
+              {visibleFilterValidationError}
+            </p>
+          ) : null}
 
-              commitBuilder({
-                field: value,
-                operator: "",
-                value: undefined,
-              });
-            }}
-          >
-            <SelectTrigger aria-label="Condition field" size="sm">
-              <SelectValue placeholder="Select property">
-                {selectedFieldLabel}
-              </SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              {fieldOptions.map((option) => (
-                <SelectItem key={option.value} value={option.value}>
-                  {option.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          {(() => {
+            const groupKeyCounts = new Map<string, number>();
+            return visibleConditionFilter.groups.map((group, groupIndex) => {
+              const baseGroupKey = toConditionGroupStableKey(group);
+              const groupKeyIndex = groupKeyCounts.get(baseGroupKey) ?? 0;
+              groupKeyCounts.set(baseGroupKey, groupKeyIndex + 1);
 
-          {isBooleanField ? (
-            <Select
-              disabled={disabled || conditionField.length === 0}
-              value={booleanOperatorMode ?? null}
-              onValueChange={(modeValue) => {
-                if (!isWorkflowBooleanFilterMode(modeValue)) {
-                  return;
-                }
-
-                commitBuilder({
-                  ...toWorkflowBooleanFilterCondition(modeValue),
-                });
-              }}
-            >
-              <SelectTrigger aria-label="Condition operator" size="sm">
-                <SelectValue placeholder="Select value">
-                  {selectedOperatorLabel}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                {WORKFLOW_FILTER_BOOLEAN_MODE_OPTIONS.map((option) => (
-                  <SelectItem key={option.value} value={option.value}>
-                    {option.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          ) : (
-            <Select
-              disabled={disabled || conditionField.length === 0}
-              value={conditionOperator.length > 0 ? conditionOperator : null}
-              onValueChange={(value) => {
-                if (
-                  typeof value !== "string" ||
-                  !isJourneyFilterOperator(value)
-                ) {
-                  return;
-                }
-
-                commitBuilder({
-                  operator: value,
-                  value: undefined,
-                });
-              }}
-            >
-              <SelectTrigger aria-label="Condition operator" size="sm">
-                <SelectValue placeholder="Select operator">
-                  {selectedOperatorLabel}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                {getOperatorOptionsForField(conditionField, fieldOptions).map(
-                  (operator) => (
-                    <SelectItem key={operator.value} value={operator.value}>
-                      {operator.label}
-                    </SelectItem>
-                  ),
-                )}
-              </SelectContent>
-            </Select>
-          )}
-
-          {isBooleanField ||
-          conditionOperator.length === 0 ||
-          !isJourneyFilterOperator(conditionOperator) ||
-          isValuelessOperator(conditionOperator) ? null : isTimestampField &&
-            isRelativeTemporalOperator(conditionOperator) ? (
-            <div className="grid grid-cols-2 gap-2 min-[420px]:col-span-2">
-              <Input
-                className="h-10 md:h-8"
-                disabled={disabled}
-                min={1}
-                placeholder="Amount"
-                type="number"
-                value={
-                  typeof relativeTemporalValue.amount === "number"
-                    ? String(relativeTemporalValue.amount)
-                    : ""
-                }
-                onChange={(event) => {
-                  const parsedAmount = Number.parseInt(event.target.value, 10);
-                  commitBuilder({
-                    value: {
-                      ...relativeTemporalValue,
-                      amount:
-                        Number.isInteger(parsedAmount) && parsedAmount > 0
-                          ? parsedAmount
-                          : undefined,
-                    },
-                  });
-                }}
-              />
-              <Select
-                disabled={disabled}
-                value={relativeTemporalValue.unit ?? null}
-                onValueChange={(value) => {
-                  if (
-                    value !== "minutes" &&
-                    value !== "hours" &&
-                    value !== "days" &&
-                    value !== "weeks"
-                  ) {
-                    return;
-                  }
-
-                  commitBuilder({
-                    value: {
-                      ...relativeTemporalValue,
-                      unit: value,
-                    },
-                  });
-                }}
-              >
-                <SelectTrigger
-                  aria-label="Condition relative unit"
-                  className="h-10"
-                  size="sm"
-                >
-                  <SelectValue placeholder="Unit">
-                    {selectedUnitLabel}
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  {temporalUnitOptions.map((unit) => (
-                    <SelectItem key={unit.value} value={unit.value}>
-                      {unit.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          ) : isTimestampField &&
-            isAbsoluteTemporalOperator(conditionOperator) ? (
-            <>
-              <Input
-                disabled={disabled}
-                placeholder="Select date and time"
-                type="datetime-local"
-                value={toDateTimeLocalInputValue(conditionValue)}
-                onChange={(event) =>
-                  commitBuilder({ value: event.target.value })
-                }
-              />
-              <Select
-                disabled={disabled}
-                value={selectedConditionTimezone}
-                onValueChange={(timezone) => {
-                  if (!timezone) {
-                    return;
-                  }
-
-                  commitBuilder({
-                    timezone:
-                      timezone === defaultTimezone ? undefined : timezone,
-                  });
-                }}
-              >
-                <SelectTrigger aria-label="Condition timezone" size="sm">
-                  <SelectValue placeholder="Timezone">
-                    {formatTimezonePickerLabel(selectedConditionTimezone)}
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  {timezoneOptions.map((timezone) => (
-                    <SelectItem key={timezone} value={timezone}>
-                      {formatTimezonePickerLabel(timezone)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </>
-          ) : (
-            <>
-              {isIdField && conditionOperator === "in" ? (
-                <div className="min-[420px]:col-span-2">
-                  <MultiSelectCombobox
-                    ariaLabel="Condition values"
-                    className="w-full"
-                    disabled={disabled}
-                    options={multiValueOptions}
-                    placeholder="Select one or more values"
-                    value={conditionValues}
-                    onChange={(values) => commitBuilder({ value: values })}
+              return (
+                <div key={`${baseGroupKey}-${groupKeyIndex}`}>
+                  <ConditionFilterGroupCard
+                    defaultTimezone={defaultTimezone}
+                    disabled={!!disabled}
+                    fieldOptions={fieldOptions}
+                    group={group}
+                    groupIndex={groupIndex}
+                    onAddCondition={handleAddCondition}
+                    onConditionChange={handleConditionChange}
+                    onGroupLogicChange={handleGroupLogicChange}
+                    onRemoveCondition={handleRemoveCondition}
+                    onRemoveGroup={handleRemoveFilterGroup}
+                    valueOptionsByField={conditionValueOptionsByField}
                   />
+
+                  {groupIndex < visibleConditionFilter.groups.length - 1 ? (
+                    <div className="flex justify-center py-1">
+                      <ConditionLogicConnector
+                        ariaLabel="Condition group connector"
+                        disabled={!!disabled}
+                        value={visibleConditionFilter.logic}
+                        onChange={handleFilterLogicChange}
+                      />
+                    </div>
+                  ) : null}
                 </div>
-              ) : isIdField && conditionOperator === "equals" ? (
-                <Select
-                  disabled={disabled}
-                  value={
-                    stringConditionValue.length > 0
-                      ? stringConditionValue
-                      : null
-                  }
-                  onValueChange={(value) => commitBuilder({ value })}
-                >
-                  <SelectTrigger
-                    aria-label="Condition value"
-                    className="min-w-0 min-[420px]:col-span-2"
-                    size="sm"
-                  >
-                    <SelectValue placeholder="Select value">
-                      {selectedValueLabel}
-                    </SelectValue>
-                  </SelectTrigger>
-                  <SelectContent>
-                    {singleValueOptions.length > 0 ? (
-                      singleValueOptions.map((option) => (
-                        <SelectItem key={option.value} value={option.value}>
-                          {option.label}
-                        </SelectItem>
-                      ))
-                    ) : (
-                      <SelectItem disabled value="__no_options__">
-                        No values available
-                      </SelectItem>
-                    )}
-                  </SelectContent>
-                </Select>
-              ) : (
-                <Input
-                  className="min-[420px]:col-span-2"
-                  disabled={disabled}
-                  placeholder="Enter value..."
-                  value={stringConditionValue}
-                  onChange={(event) =>
-                    commitBuilder({ value: event.target.value })
-                  }
-                />
-              )}
-            </>
-          )}
+              );
+            });
+          })()}
+
+          <div className="flex justify-center">
+            <Button
+              className="border-dashed"
+              disabled={disabled}
+              onClick={handleAddFilterGroup}
+              size="sm"
+              type="button"
+              variant="outline"
+            >
+              <Icon className="size-4" icon={Add01Icon} />
+              Add group
+            </Button>
+          </div>
         </div>
       ) : (
         <ExpressionInput
@@ -1369,6 +2060,7 @@ function GroupFieldRenderer({
   defaultTimezone,
   onUpdateConfig,
   onUpdateConfigBatch,
+  configScopeKey,
   disabled,
   expressionSuggestions,
   fieldOptions,
@@ -1380,7 +2072,8 @@ function GroupFieldRenderer({
   config: Record<string, unknown>;
   defaultTimezone: string;
   onUpdateConfig: (key: string, value: unknown) => void;
-  onUpdateConfigBatch?: (patch: Record<string, unknown>) => void;
+  onUpdateConfigBatch: (patch: Record<string, unknown>) => void;
+  configScopeKey: string;
   disabled?: boolean;
   expressionSuggestions: EventAttributeSuggestion[];
   fieldOptions?: WorkflowFilterFieldOption[];
@@ -1416,6 +2109,7 @@ function GroupFieldRenderer({
               defaultTimezone={defaultTimezone}
               onUpdateConfig={onUpdateConfig}
               onUpdateConfigBatch={onUpdateConfigBatch}
+              configScopeKey={configScopeKey}
               disabled={disabled}
               expressionSuggestions={expressionSuggestions}
               fieldOptions={fieldOptions}
@@ -1436,6 +2130,7 @@ function FieldRenderer({
   defaultTimezone,
   onUpdateConfig,
   onUpdateConfigBatch,
+  configScopeKey,
   disabled,
   expressionSuggestions,
   fieldOptions,
@@ -1447,7 +2142,8 @@ function FieldRenderer({
   config: Record<string, unknown>;
   defaultTimezone: string;
   onUpdateConfig: (key: string, value: unknown) => void;
-  onUpdateConfigBatch?: (patch: Record<string, unknown>) => void;
+  onUpdateConfigBatch: (patch: Record<string, unknown>) => void;
+  configScopeKey: string;
   disabled?: boolean;
   expressionSuggestions: EventAttributeSuggestion[];
   fieldOptions?: WorkflowFilterFieldOption[];
@@ -1463,6 +2159,7 @@ function FieldRenderer({
         defaultTimezone={defaultTimezone}
         onUpdateConfig={onUpdateConfig}
         onUpdateConfigBatch={onUpdateConfigBatch}
+        configScopeKey={configScopeKey}
         disabled={disabled}
         expressionSuggestions={expressionSuggestions}
         fieldOptions={fieldOptions}
@@ -1537,6 +2234,7 @@ function FieldRenderer({
             fieldOptions={fieldOptions}
             onUpdateConfig={onUpdateConfig}
             onUpdateConfigBatch={onUpdateConfigBatch}
+            configScopeKey={configScopeKey}
             disabled={disabled}
             suggestions={expressionSuggestions}
             conditionValueOptionsByField={conditionValueOptionsByField}
@@ -1576,6 +2274,7 @@ export function ActionConfigRenderer({
   config,
   onUpdateConfig,
   onUpdateConfigBatch,
+  configScopeKey,
   disabled,
   expressionSuggestions = [],
   fieldOptions,
@@ -1589,12 +2288,13 @@ export function ActionConfigRenderer({
     <div className="space-y-3">
       {fields.map((field) => (
         <FieldRenderer
-          key={isFieldGroup(field) ? field.label : field.key}
+          key={`${configScopeKey}:${isFieldGroup(field) ? field.label : field.key}`}
           field={field}
           config={config}
           defaultTimezone={defaultTimezone}
           onUpdateConfig={onUpdateConfig}
           onUpdateConfigBatch={onUpdateConfigBatch}
+          configScopeKey={configScopeKey}
           disabled={disabled}
           expressionSuggestions={expressionSuggestions}
           fieldOptions={fieldOptions}
