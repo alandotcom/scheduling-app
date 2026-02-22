@@ -77,6 +77,20 @@ export class ClientRepository {
     return result ?? null;
   }
 
+  async findByIds(
+    tx: DbClient,
+    orgId: string,
+    ids: string[],
+  ): Promise<Client[]> {
+    await setOrgContext(tx, orgId);
+    const dedupedIds = Array.from(new Set(ids));
+    if (dedupedIds.length === 0) {
+      return [];
+    }
+
+    return tx.select().from(clients).where(inArray(clients.id, dedupedIds));
+  }
+
   async findMany(
     tx: DbClient,
     orgId: string,
@@ -121,12 +135,19 @@ export class ClientRepository {
     }
 
     // Apply search filter if provided
-    if (search) {
-      const searchPattern = `%${search}%`;
+    if (search?.trim()) {
+      const trimmedSearch = search.trim();
+      const searchPattern = `%${trimmedSearch}%`;
+      const normalizedPhoneSearch = trimmedSearch.replace(/\D/g, "");
+      const normalizedPhoneFilter =
+        normalizedPhoneSearch.length > 0
+          ? sql`regexp_replace(coalesce(${clients.phone}, ''), '[^0-9]', '', 'g') like ${`%${normalizedPhoneSearch}%`}`
+          : undefined;
       const searchFilter = or(
         ilike(clients.firstName, searchPattern),
         ilike(clients.lastName, searchPattern),
         ilike(clients.email, searchPattern),
+        normalizedPhoneFilter,
       );
       if (searchFilter) {
         filters.push(searchFilter);

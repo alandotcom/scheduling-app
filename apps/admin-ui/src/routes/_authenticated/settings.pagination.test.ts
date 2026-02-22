@@ -1,6 +1,13 @@
 import { describe, expect, test } from "bun:test";
 
-import { filterApiKeys, resetPaginationToFirstPage } from "./settings";
+import {
+  filterApiKeys,
+  getApiKeyPermissionFilterLabel,
+  getOrgRoleFilterLabel,
+  getOrgRoleLabel,
+  getUserStatusFilterLabel,
+  resetPaginationToFirstPage,
+} from "./settings";
 import { formatWebhookPayloadPreview } from "@/components/settings/webhooks/utils/format-webhook-payload-preview";
 
 describe("settings pagination helpers", () => {
@@ -107,5 +114,28 @@ describe("formatWebhookPayloadPreview", () => {
     const result = formatWebhookPayloadPreview(undefined);
 
     expect(result).toBe("");
+  });
+});
+
+describe("settings select labels", () => {
+  test("renders org role values as human-readable labels", () => {
+    expect(getOrgRoleLabel("member")).toBe("Member");
+    expect(getOrgRoleLabel("owner")).toBe("Owner");
+    expect(getOrgRoleLabel("unknown-role")).toBe("Unknown role");
+  });
+
+  test("renders role filter values with all-roles label", () => {
+    expect(getOrgRoleFilterLabel("all")).toBe("All roles");
+    expect(getOrgRoleFilterLabel("admin")).toBe("Admin");
+  });
+
+  test("renders API key permission filter labels", () => {
+    expect(getApiKeyPermissionFilterLabel("all")).toBe("All permissions");
+    expect(getApiKeyPermissionFilterLabel("member")).toBe("Member");
+  });
+
+  test("renders user status filter labels", () => {
+    expect(getUserStatusFilterLabel("all")).toBe("All statuses");
+    expect(getUserStatusFilterLabel("active")).toBe("Active");
   });
 });

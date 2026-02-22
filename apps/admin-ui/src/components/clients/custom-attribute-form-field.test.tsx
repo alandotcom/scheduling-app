@@ -2,10 +2,12 @@
 
 import { afterEach, describe, expect, test } from "bun:test";
 import { cleanup, render, screen } from "@testing-library/react";
+import { QueryClientProvider } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import type { CustomAttributeDefinitionResponse } from "@scheduling/dto";
 
 import { CustomAttributeFormField } from "@/components/clients/custom-attribute-form-field";
+import { createTestQueryClient } from "@/test-utils/render";
 
 afterEach(() => {
   cleanup();
@@ -43,7 +45,12 @@ function renderField(definition: CustomAttributeDefinitionResponse) {
     );
   }
 
-  return render(<TestForm />);
+  const queryClient = createTestQueryClient();
+  return render(
+    <QueryClientProvider client={queryClient}>
+      <TestForm />
+    </QueryClientProvider>,
+  );
 }
 
 describe("CustomAttributeFormField layout", () => {
@@ -107,7 +114,7 @@ describe("CustomAttributeFormField layout", () => {
     expect(toggle.closest("div")?.className).toContain("justify-end");
   });
 
-  test("RELATION_CLIENT single mode renders a select", () => {
+  test("RELATION_CLIENT single mode renders a modal trigger", () => {
     function TestForm() {
       const { control } = useForm({
         defaultValues: { customAttributes: {} },
@@ -134,13 +141,22 @@ describe("CustomAttributeFormField layout", () => {
       );
     }
 
-    render(<TestForm />);
+    const queryClient = createTestQueryClient();
+    render(
+      <QueryClientProvider client={queryClient}>
+        <TestForm />
+      </QueryClientProvider>,
+    );
 
     expect(screen.getByText("Referred By (optional)")).toBeTruthy();
-    expect(screen.getByRole("combobox")).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: "Choose related client" }),
+    ).toBeTruthy();
+    const singleSummary = screen.getByText("No client selected.");
+    expect(singleSummary.closest("div")?.className).toContain("h-10");
   });
 
-  test("RELATION_CLIENT multi mode renders a multi-select combobox", () => {
+  test("RELATION_CLIENT multi mode renders a modal trigger", () => {
     function TestForm() {
       const { control } = useForm({
         defaultValues: { customAttributes: {} },
@@ -168,10 +184,18 @@ describe("CustomAttributeFormField layout", () => {
       );
     }
 
-    render(<TestForm />);
+    const queryClient = createTestQueryClient();
+    render(
+      <QueryClientProvider client={queryClient}>
+        <TestForm />
+      </QueryClientProvider>,
+    );
 
     expect(screen.getByText("Related Clients (optional)")).toBeTruthy();
-    expect(screen.getByText("Select related clients...")).toBeTruthy();
-    expect(screen.getByRole("combobox")).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: "Choose related clients" }),
+    ).toBeTruthy();
+    const multiSummary = screen.getByText("No clients selected.");
+    expect(multiSummary.closest("div")?.className).toContain("h-10");
   });
 });

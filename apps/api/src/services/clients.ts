@@ -188,6 +188,28 @@ export class ClientService {
     );
   }
 
+  async getByIds(ids: string[], context: ServiceContext): Promise<Client[]> {
+    return withOrg(context.orgId, async (tx) => {
+      const dedupedIds = Array.from(new Set(ids));
+      if (dedupedIds.length === 0) {
+        return [];
+      }
+
+      const foundClients = await clientRepository.findByIds(
+        tx,
+        context.orgId,
+        dedupedIds,
+      );
+      const indexById = new Map(
+        dedupedIds.map((clientId, index) => [clientId, index]),
+      );
+
+      return foundClients.toSorted(
+        (a, b) => (indexById.get(a.id) ?? 0) - (indexById.get(b.id) ?? 0),
+      );
+    });
+  }
+
   async get(
     id: string,
     context: ServiceContext,

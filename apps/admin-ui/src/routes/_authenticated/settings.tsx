@@ -125,6 +125,16 @@ const ORG_ROLE_OPTIONS: Array<{ value: OrgMembershipRole; label: string }> = [
   { value: "member", label: "Member" },
 ];
 
+const API_KEY_PERMISSION_OPTIONS = [
+  { value: "all", label: "All permissions" },
+  ...ORG_ROLE_OPTIONS,
+] as const;
+
+const ORG_ROLE_FILTER_OPTIONS = [
+  { value: "all", label: "All roles" },
+  ...ORG_ROLE_OPTIONS,
+] as const;
+
 const isOrgMembershipRole = (
   value: string | null | undefined,
 ): value is OrgMembershipRole =>
@@ -155,6 +165,52 @@ const isUserStatusFilter = (
 ): value is UserStatusFilter =>
   typeof value === "string" &&
   USER_STATUS_OPTIONS.some((option) => option.value === value);
+
+export function getOrgRoleLabel(
+  value: string | null | undefined,
+  unknownLabel = "Unknown role",
+): string | undefined {
+  return resolveSelectValueLabel({
+    value,
+    options: ORG_ROLE_OPTIONS,
+    getOptionValue: (option) => option.value,
+    getOptionLabel: (option) => option.label,
+    unknownLabel,
+  });
+}
+
+export function getApiKeyPermissionFilterLabel(
+  value: string | null | undefined,
+): string | undefined {
+  return resolveSelectValueLabel({
+    value,
+    options: API_KEY_PERMISSION_OPTIONS,
+    getOptionValue: (option) => option.value,
+    getOptionLabel: (option) => option.label,
+  });
+}
+
+export function getOrgRoleFilterLabel(
+  value: string | null | undefined,
+): string | undefined {
+  return resolveSelectValueLabel({
+    value,
+    options: ORG_ROLE_FILTER_OPTIONS,
+    getOptionValue: (option) => option.value,
+    getOptionLabel: (option) => option.label,
+  });
+}
+
+export function getUserStatusFilterLabel(
+  value: string | null | undefined,
+): string | undefined {
+  return resolveSelectValueLabel({
+    value,
+    options: USER_STATUS_OPTIONS,
+    getOptionValue: (option) => option.value,
+    getOptionLabel: (option) => option.label,
+  });
+}
 
 type ApiKeyPermissionFilter = "all" | OrgMembershipRole;
 
@@ -901,12 +957,7 @@ function ApiKeysSection() {
           <DataTableColumnHeader column={column} title="Permission" />
         ),
         cell: ({ row }) =>
-          resolveSelectValueLabel({
-            value: row.original.scope,
-            options: ORG_ROLE_OPTIONS,
-            getOptionValue: (option) => option.value,
-            getOptionLabel: (option) => option.label,
-          }) ?? row.original.scope,
+          getOrgRoleLabel(row.original.scope) ?? row.original.scope,
       },
       {
         id: "lastUsed",
@@ -1008,7 +1059,9 @@ function ApiKeysSection() {
             }}
           >
             <SelectTrigger className="w-full sm:w-[180px]">
-              <SelectValue placeholder="Permission" />
+              <SelectValue placeholder="Permission">
+                {getApiKeyPermissionFilterLabel(permissionFilter)}
+              </SelectValue>
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All permissions</SelectItem>
@@ -1118,12 +1171,7 @@ function ApiKeysSection() {
                   <EntityCardField
                     label="Permission"
                     value={
-                      resolveSelectValueLabel({
-                        value: row.original.scope,
-                        options: ORG_ROLE_OPTIONS,
-                        getOptionValue: (option) => option.value,
-                        getOptionLabel: (option) => option.label,
-                      }) ?? row.original.scope
+                      getOrgRoleLabel(row.original.scope) ?? row.original.scope
                     }
                   />
                   <EntityCardField
@@ -1272,7 +1320,9 @@ function ApiKeysSection() {
                       disabled={createApiKeyMutation.isPending}
                     >
                       <SelectTrigger id="api-key-scope">
-                        <SelectValue placeholder="Select permission" />
+                        <SelectValue placeholder="Select permission">
+                          {getOrgRoleLabel(field.value)}
+                        </SelectValue>
                       </SelectTrigger>
                       <SelectContent>
                         {ORG_ROLE_OPTIONS.map((role) => (
@@ -1549,7 +1599,7 @@ function UsersManagementSection() {
             }
           >
             <SelectTrigger className="w-[130px]">
-              <SelectValue />
+              <SelectValue>{getOrgRoleLabel(row.original.role)}</SelectValue>
             </SelectTrigger>
             <SelectContent>
               {ORG_ROLE_OPTIONS.map((role) => (
@@ -1668,7 +1718,9 @@ function UsersManagementSection() {
             }}
           >
             <SelectTrigger className="w-full sm:w-[160px]">
-              <SelectValue placeholder="Role" />
+              <SelectValue placeholder="Role">
+                {getOrgRoleFilterLabel(roleFilter)}
+              </SelectValue>
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All roles</SelectItem>
@@ -1689,7 +1741,9 @@ function UsersManagementSection() {
             }}
           >
             <SelectTrigger className="w-full sm:w-[200px]">
-              <SelectValue placeholder="Status" />
+              <SelectValue placeholder="Status">
+                {getUserStatusFilterLabel(statusFilter)}
+              </SelectValue>
             </SelectTrigger>
             <SelectContent>
               {USER_STATUS_OPTIONS.map((status) => (
@@ -1830,7 +1884,9 @@ function UsersManagementSection() {
                         }
                       >
                         <SelectTrigger className="w-full">
-                          <SelectValue />
+                          <SelectValue>
+                            {getOrgRoleLabel(user.role)}
+                          </SelectValue>
                         </SelectTrigger>
                         <SelectContent>
                           {ORG_ROLE_OPTIONS.map((role) => (
@@ -2014,7 +2070,9 @@ function UsersManagementSection() {
                     disabled={createUserMutation.isPending}
                   >
                     <SelectTrigger id="new-user-role">
-                      <SelectValue placeholder="Select role" />
+                      <SelectValue placeholder="Select role">
+                        {getOrgRoleLabel(field.value)}
+                      </SelectValue>
                     </SelectTrigger>
                     <SelectContent>
                       {ORG_ROLE_OPTIONS.map((role) => (

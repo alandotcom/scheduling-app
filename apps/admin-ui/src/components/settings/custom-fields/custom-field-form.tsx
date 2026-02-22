@@ -27,6 +27,7 @@ import {
   CUSTOM_ATTRIBUTE_TYPE_OPTIONS,
   getCustomAttributeTypeLabel,
 } from "@/lib/custom-attribute-type-label";
+import { resolveSelectValueLabel } from "@/lib/select-value-label";
 
 const SLOT_PREFIX_BY_TYPE: Record<
   Exclude<CustomAttributeType, "RELATION_CLIENT">,
@@ -47,6 +48,18 @@ const RELATION_VALUE_MODE_OPTIONS: ReadonlyArray<{
   { value: "single", label: "Single client" },
   { value: "multi", label: "Multiple clients" },
 ];
+
+export function getRelationValueModeLabel(
+  value: string | null | undefined,
+): string | undefined {
+  return resolveSelectValueLabel({
+    value,
+    options: RELATION_VALUE_MODE_OPTIONS,
+    getOptionValue: (option) => option.value,
+    getOptionLabel: (option) => option.label,
+    unknownLabel: "Unknown selection",
+  });
+}
 
 function labelToFieldKey(label: string): string {
   const key = label
@@ -231,8 +244,10 @@ function CreateFieldForm({
 
   const watchedLabel = watch("label");
   const watchedType = watch("type");
+  const relationValueMode = watch("relationValueMode");
   const watchedRelationCreateReverse = watch("createReverseRelation");
   const watchedReverseLabel = watch("reverseLabel");
+  const reverseValueMode = watch("reverseValueMode");
   const [fieldKeyTouched, setFieldKeyTouched] = useState(false);
   const [reverseFieldKeyTouched, setReverseFieldKeyTouched] = useState(false);
 
@@ -266,6 +281,9 @@ function CreateFieldForm({
 
     return null;
   }, [slotUsage, watchedType]);
+
+  const relationValueModeLabel = getRelationValueModeLabel(relationValueMode);
+  const reverseValueModeLabel = getRelationValueModeLabel(reverseValueMode);
 
   const handleFormSubmit = (data: CreateFormValues) => {
     onSubmit({
@@ -368,7 +386,7 @@ function CreateFieldForm({
           <div className="space-y-2">
             <Label>Relation Value Mode</Label>
             <Select
-              value={watch("relationValueMode")}
+              value={relationValueMode}
               onValueChange={(value) => {
                 const parsed =
                   customAttributeRelationValueModeSchema.safeParse(value);
@@ -379,7 +397,7 @@ function CreateFieldForm({
               disabled={isSubmitting}
             >
               <SelectTrigger>
-                <SelectValue />
+                <SelectValue>{relationValueModeLabel}</SelectValue>
               </SelectTrigger>
               <SelectContent>
                 {RELATION_VALUE_MODE_OPTIONS.map((option) => (
@@ -437,7 +455,7 @@ function CreateFieldForm({
                 <div className="space-y-2">
                   <Label>Reverse Value Mode</Label>
                   <Select
-                    value={watch("reverseValueMode")}
+                    value={reverseValueMode}
                     onValueChange={(value) => {
                       const parsed =
                         customAttributeRelationValueModeSchema.safeParse(value);
@@ -448,7 +466,7 @@ function CreateFieldForm({
                     disabled={isSubmitting}
                   >
                     <SelectTrigger>
-                      <SelectValue />
+                      <SelectValue>{reverseValueModeLabel}</SelectValue>
                     </SelectTrigger>
                     <SelectContent>
                       {RELATION_VALUE_MODE_OPTIONS.map((option) => (

@@ -5,9 +5,11 @@ import {
   createClientSchema,
   updateClientSchema,
   listClientsQuerySchema,
+  getClientsByIdsInputSchema,
   clientHistorySummarySchema,
   clientResponseSchema,
   clientListResponseSchema,
+  clientsByIdsResponseSchema,
   successResponseSchema,
 } from "@scheduling/dto";
 import { authed } from "./base.js";
@@ -49,6 +51,24 @@ export const get = authed
   .output(clientResponseSchema)
   .handler(async ({ input, context }) => {
     return clientService.get(input.id, {
+      orgId: context.orgId,
+      userId: context.userId,
+    });
+  });
+
+// Batch lookup clients by IDs
+export const getByIds = authed
+  .route({
+    method: "POST",
+    path: "/clients/by-ids",
+    tags: ["Clients"],
+    summary: "Get clients by IDs",
+    description: "Returns clients for the provided IDs in input order.",
+  })
+  .input(getClientsByIdsInputSchema)
+  .output(clientsByIdsResponseSchema)
+  .handler(async ({ input, context }) => {
+    return clientService.getByIds(input.ids, {
       orgId: context.orgId,
       userId: context.userId,
     });
@@ -222,6 +242,7 @@ export const historySummaryByReference = authed
 export const clientRoutes = {
   list,
   get,
+  getByIds,
   getByReference,
   create,
   update,

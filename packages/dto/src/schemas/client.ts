@@ -72,7 +72,7 @@ export const updateClientSchema = z.object({
 
 // List clients query
 export const listClientsQuerySchema = z.object({
-  search: z.string().optional(), // search by name or email
+  search: z.string().optional(), // search by name, email, or phone
   cursor: uuidSchema.optional(),
   sort: z.enum(["id_asc", "updated_at_desc"]).default("id_asc"),
   limit: z
@@ -81,6 +81,11 @@ export const listClientsQuerySchema = z.object({
     .min(1, "Must be at least 1")
     .max(100, "Must be at most 100")
     .default(20),
+});
+
+// Batch lookup clients query
+export const getClientsByIdsInputSchema = z.object({
+  ids: z.array(uuidSchema).min(1).max(100),
 });
 
 // Response types (includes optional custom attributes)
@@ -94,6 +99,7 @@ export const clientListItemSchema = clientSchema.extend({
 });
 export const clientListResponseSchema =
   paginatedResponseSchema(clientListItemSchema);
+export const clientsByIdsResponseSchema = z.array(clientSchema);
 
 // Client history summary
 export const clientHistorySummarySchema = z.object({
@@ -112,7 +118,9 @@ export type Client = z.infer<typeof clientSchema>;
 export type CreateClientInput = z.infer<typeof createClientSchema>;
 export type UpdateClientInput = z.infer<typeof updateClientSchema>;
 export type ListClientsQuery = z.infer<typeof listClientsQuerySchema>;
+export type GetClientsByIdsInput = z.infer<typeof getClientsByIdsInputSchema>;
 export type ClientResponse = z.infer<typeof clientResponseSchema>;
 export type ClientListItem = z.infer<typeof clientListItemSchema>;
 export type ClientListResponse = z.infer<typeof clientListResponseSchema>;
+export type ClientsByIdsResponse = z.infer<typeof clientsByIdsResponseSchema>;
 export type ClientHistorySummary = z.infer<typeof clientHistorySummarySchema>;

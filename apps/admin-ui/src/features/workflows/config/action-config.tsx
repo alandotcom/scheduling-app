@@ -257,7 +257,9 @@ export function ActionConfig({
             onValueChange={handleCategoryChange}
           >
             <SelectTrigger size="sm" className="min-w-0 w-full">
-              <SelectValue placeholder="Category" />
+              <SelectValue placeholder="Category">
+                <span className="truncate">{selectedCategory}</span>
+              </SelectValue>
             </SelectTrigger>
             <SelectContent>
               {categories.map((category) => {

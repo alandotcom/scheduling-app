@@ -624,7 +624,7 @@ function ClientsPage() {
               className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
             />
             <Input
-              placeholder="Search by name or email..."
+              placeholder="Search by name, email, or phone..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="pl-10"

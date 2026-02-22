@@ -132,6 +132,31 @@ describe("Client Routes", () => {
       expect(result.items[0]!.firstName).toBe("John");
     });
 
+    test("filters by search term (phone digits)", async () => {
+      const { org, user } = await createOrg(db);
+      const ctx = createTestContext({ orgId: org.id, userId: user.id });
+
+      await createClient(db, org.id, {
+        firstName: "John",
+        lastName: "Doe",
+        phone: "+14155552671",
+      });
+      await createClient(db, org.id, {
+        firstName: "Jane",
+        lastName: "Smith",
+        phone: "+12125550123",
+      });
+
+      const result = await call(
+        clientRoutes.list,
+        { limit: 10, search: "4155552" },
+        { context: ctx },
+      );
+
+      expect(result.items).toHaveLength(1);
+      expect(result.items[0]!.firstName).toBe("John");
+    });
+
     test("search is case-insensitive", async () => {
       const { org, user } = await createOrg(db);
       const ctx = createTestContext({ orgId: org.id, userId: user.id });
@@ -538,6 +563,63 @@ describe("Client Routes", () => {
     });
   });
 
+  describe("getByIds", () => {
+    test("returns matching clients in requested order and omits missing IDs", async () => {
+      const { org, user } = await createOrg(db);
+      const ctx = createTestContext({ orgId: org.id, userId: user.id });
+
+      const first = await createClient(db, org.id, {
+        firstName: "First",
+        lastName: "Client",
+      });
+      const second = await createClient(db, org.id, {
+        firstName: "Second",
+        lastName: "Client",
+      });
+
+      const result = await call(
+        clientRoutes.getByIds,
+        {
+          ids: [
+            second.id,
+            first.id,
+            second.id,
+            "00000000-0000-7000-8000-000000000000",
+          ],
+        },
+        { context: ctx },
+      );
+
+      expect(result.map((client) => client.id)).toEqual([second.id, first.id]);
+      expect(result).toHaveLength(2);
+    });
+
+    test("does not return clients from other orgs (RLS)", async () => {
+      const { org: org1, user: user1 } = await createOrg(db, { name: "Org 1" });
+      const { org: org2 } = await createOrg(db, { name: "Org 2" });
+      const ctx1 = createTestContext({ orgId: org1.id, userId: user1.id });
+
+      const org1Client = await createClient(db, org1.id, {
+        firstName: "Org1",
+        lastName: "Client",
+      });
+      const org2Client = await createClient(db, org2.id, {
+        firstName: "Org2",
+        lastName: "Client",
+      });
+
+      const result = await call(
+        clientRoutes.getByIds,
+        {
+          ids: [org1Client.id, org2Client.id],
+        },
+        { context: ctx1 },
+      );
+
+      expect(result.map((client) => client.id)).toEqual([org1Client.id]);
+    });
+  });
+
   describe("get", () => {
     test("returns client by id", async () => {
       const { org, user } = await createOrg(db);
@@ -658,6 +740,7 @@ describe("Client Routes", () => {
       expect(routes.clientRoutes).toBeDefined();
       expect(routes.clientRoutes.list).toBeDefined();
       expect(routes.clientRoutes.get).toBeDefined();
+      expect(routes.clientRoutes.getByIds).toBeDefined();
       expect(routes.clientRoutes.getByReference).toBeDefined();
       expect(routes.clientRoutes.create).toBeDefined();
       expect(routes.clientRoutes.update).toBeDefined();
@@ -674,6 +757,7 @@ describe("Client Routes", () => {
       expect(router.clients).toBeDefined();
       expect(router.clients.list).toBeDefined();
       expect(router.clients.get).toBeDefined();
+      expect(router.clients.getByIds).toBeDefined();
       expect(router.clients.getByReference).toBeDefined();
       expect(router.clients.create).toBeDefined();
       expect(router.clients.update).toBeDefined();

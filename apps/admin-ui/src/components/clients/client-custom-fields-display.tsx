@@ -59,7 +59,7 @@ function renderValue(
           <div className="flex flex-wrap gap-1">
             {value.map((clientId) => (
               <Badge key={clientId} variant="secondary">
-                {relatedClientLabelById?.[clientId] ?? clientId}
+                <span>{relatedClientLabelById?.[clientId] ?? clientId}</span>
               </Badge>
             ))}
           </div>

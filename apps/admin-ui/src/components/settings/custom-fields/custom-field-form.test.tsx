@@ -4,7 +4,10 @@ import { afterEach, describe, expect, test } from "bun:test";
 import { cleanup, render, screen } from "@testing-library/react";
 import type { SlotUsage } from "@scheduling/dto";
 
-import { CustomFieldForm } from "./custom-field-form";
+import {
+  CustomFieldForm,
+  getRelationValueModeLabel,
+} from "./custom-field-form";
 
 afterEach(() => {
   cleanup();
@@ -78,5 +81,11 @@ describe("CustomFieldForm type labels", () => {
         "No available slots for TEXT type. Maximum 1 reached.",
       ),
     ).toBeNull();
+  });
+
+  test("maps relation value mode keys to human-readable labels", () => {
+    expect(getRelationValueModeLabel("single")).toBe("Single client");
+    expect(getRelationValueModeLabel("multi")).toBe("Multiple clients");
+    expect(getRelationValueModeLabel("unknown-mode")).toBe("Unknown selection");
   });
 });
