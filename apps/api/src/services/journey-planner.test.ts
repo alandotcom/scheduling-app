@@ -39,7 +39,10 @@ const defaultCancelRequester = mock(
   async (): Promise<{ eventId?: string }> => ({}),
 );
 const defaultProviderRequesters = Object.fromEntries(
-  deliveryActionTypes.map((actionType) => [actionType, defaultScheduleRequester]),
+  deliveryActionTypes.map((actionType) => [
+    actionType,
+    defaultScheduleRequester,
+  ]),
 );
 
 beforeEach(() => {

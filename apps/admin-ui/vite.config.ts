@@ -15,7 +15,7 @@ export default defineConfig({
     }),
     react({
       babel: {
-        plugins: ["babel-plugin-react-compiler"],
+        plugins: ["babel-plugin-react-compiler", "jotai-babel/preset"],
       },
     }),
     tailwindcss(),
