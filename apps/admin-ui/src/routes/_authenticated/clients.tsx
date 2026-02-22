@@ -125,11 +125,14 @@ function CreateClientForm({
   );
 }
 
-type DetailTabValue = "details" | "history" | "workflows";
+type DetailTabValue = "details" | "relationships" | "history" | "workflows";
 type AppointmentDetailTabValue = "details" | "client" | "history" | "workflows";
 
 const isDetailTab = (value: string): value is DetailTabValue =>
-  value === "details" || value === "history" || value === "workflows";
+  value === "details" ||
+  value === "relationships" ||
+  value === "history" ||
+  value === "workflows";
 const isAppointmentDetailTab = (
   value: string,
 ): value is AppointmentDetailTabValue =>
@@ -170,10 +173,29 @@ function ClientsPage() {
     orpc.customAttributes.listDefinitions.queryOptions(),
   );
 
-  const hasRelationClientField =
-    customFieldDefinitions?.some(
-      (definition) => definition.type === "RELATION_CLIENT",
-    ) ?? false;
+  const { relationCustomFieldDefinitions, nonRelationCustomFieldDefinitions } =
+    useMemo(() => {
+      const relationDefinitions: CustomAttributeDefinitionResponse[] = [];
+      const nonRelationDefinitions: CustomAttributeDefinitionResponse[] = [];
+
+      for (const definition of customFieldDefinitions ?? []) {
+        if (definition.type === "RELATION_CLIENT") {
+          relationDefinitions.push(definition);
+        } else {
+          nonRelationDefinitions.push(definition);
+        }
+      }
+
+      return {
+        relationCustomFieldDefinitions: relationDefinitions,
+        nonRelationCustomFieldDefinitions: nonRelationDefinitions,
+      };
+    }, [customFieldDefinitions]);
+  const hasRelationClientField = relationCustomFieldDefinitions.length > 0;
+  const visibleActiveTab: DetailTabValue =
+    activeTab === "relationships" && !hasRelationClientField
+      ? "details"
+      : activeTab;
 
   const { data: relationClientsData } = useQuery({
     ...orpc.clients.list.queryOptions({
@@ -519,11 +541,15 @@ function ClientsPage() {
         limit: 20,
       },
     }),
-    enabled: !!selectedId && activeTab === "workflows",
+    enabled: !!selectedId && visibleActiveTab === "workflows",
   });
 
   useEffect(() => {
-    if (activeTab !== "workflows" || !selectedId || !isWorkflowRunsError) {
+    if (
+      visibleActiveTab !== "workflows" ||
+      !selectedId ||
+      !isWorkflowRunsError
+    ) {
       return;
     }
 
@@ -538,7 +564,7 @@ function ClientsPage() {
             : undefined,
       },
     );
-  }, [activeTab, isWorkflowRunsError, selectedId, workflowRunsError]);
+  }, [visibleActiveTab, isWorkflowRunsError, selectedId, workflowRunsError]);
   const deletingClientId = crud.deletingItemId ?? null;
   const {
     data: deletingClientHistorySummary,
@@ -572,6 +598,17 @@ function ClientsPage() {
     displayAppointment?.calendar?.timezone ??
     displayAppointment?.timezone ??
     "America/New_York";
+  const clientFormDefaultValues = displayClient
+    ? {
+        id: displayClient.id,
+        firstName: displayClient.firstName,
+        lastName: displayClient.lastName,
+        email: displayClient.email ?? undefined,
+        phone: formatPhoneForDisplay(displayClient.phone) ?? undefined,
+        phoneCountry: deriveCountryFromPhone(displayClient.phone) ?? "US",
+        customAttributes: selectedClientFull?.customAttributes ?? {},
+      }
+    : undefined;
 
   const { upcomingAppointments, pastAppointments } = useMemo(() => {
     const now = DateTime.now();
@@ -714,7 +751,9 @@ function ClientsPage() {
               />
               Back to client
             </Button>
-          ) : activeTab === "details" && displayClient ? (
+          ) : (visibleActiveTab === "details" ||
+              visibleActiveTab === "relationships") &&
+            displayClient ? (
             <div className="flex flex-wrap items-center gap-2">
               <Button
                 type="button"
@@ -804,17 +843,20 @@ function ClientsPage() {
               <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-6 sm:py-5">
                 <div className="space-y-4">
                   <DetailTabs
-                    value={activeTab}
+                    value={visibleActiveTab}
                     onValueChange={setActiveTab}
                     className="px-0"
                   >
                     <DetailTab value="details">Details</DetailTab>
+                    {hasRelationClientField ? (
+                      <DetailTab value="relationships">Relations</DetailTab>
+                    ) : null}
                     <DetailTab value="history">History</DetailTab>
                     <DetailTab value="workflows">Workflows</DetailTab>
                   </DetailTabs>
 
                   <div className="space-y-6">
-                    {activeTab === "details" ? (
+                    {visibleActiveTab === "details" ? (
                       <div className="space-y-4">
                         {isLoadingClientFull &&
                         (customFieldDefinitions?.length ?? 0) > 0 ? (
@@ -826,34 +868,54 @@ function ClientsPage() {
                             key={displayClient.id}
                             formId={detailFormId}
                             showActions={false}
-                            defaultValues={{
-                              id: displayClient.id,
-                              firstName: displayClient.firstName,
-                              lastName: displayClient.lastName,
-                              email: displayClient.email ?? undefined,
-                              phone:
-                                formatPhoneForDisplay(displayClient.phone) ??
-                                undefined,
-                              phoneCountry:
-                                deriveCountryFromPhone(displayClient.phone) ??
-                                "US",
-                              customAttributes:
-                                selectedClientFull?.customAttributes ?? {},
-                            }}
+                            defaultValues={clientFormDefaultValues}
                             onSubmit={handleUpdate}
                             onCancel={clearDetails}
                             isSubmitting={updateMutation.isPending}
                             shortcutsEnabled={detailModalOpen}
                             disableSubmitWhenPristine
                             onDirtyChange={setIsDetailFormDirty}
-                            customFieldDefinitions={customFieldDefinitions}
+                            customFieldDefinitions={
+                              hasRelationClientField
+                                ? nonRelationCustomFieldDefinitions
+                                : customFieldDefinitions
+                            }
                             clientRelationOptions={clientRelationOptions}
                           />
                         )}
                       </div>
                     ) : null}
 
-                    {activeTab === "history" ? (
+                    {visibleActiveTab === "relationships" ? (
+                      <div className="space-y-4">
+                        {isLoadingClientFull &&
+                        relationCustomFieldDefinitions.length > 0 ? (
+                          <div className="py-6 text-center text-sm text-muted-foreground">
+                            Loading client relations...
+                          </div>
+                        ) : (
+                          <ClientForm
+                            key={`${displayClient.id}:relationships`}
+                            formId={detailFormId}
+                            showActions={false}
+                            defaultValues={clientFormDefaultValues}
+                            onSubmit={handleUpdate}
+                            onCancel={clearDetails}
+                            isSubmitting={updateMutation.isPending}
+                            shortcutsEnabled={detailModalOpen}
+                            disableSubmitWhenPristine
+                            onDirtyChange={setIsDetailFormDirty}
+                            customFieldDefinitions={
+                              relationCustomFieldDefinitions
+                            }
+                            clientRelationOptions={clientRelationOptions}
+                            forcedSection="relationships"
+                          />
+                        )}
+                      </div>
+                    ) : null}
+
+                    {visibleActiveTab === "history" ? (
                       <div className="space-y-6">
                         {isLoadingAppointments ? (
                           <div className="py-6 text-center text-muted-foreground">
@@ -976,7 +1038,7 @@ function ClientsPage() {
                       </div>
                     ) : null}
 
-                    {activeTab === "workflows" ? (
+                    {visibleActiveTab === "workflows" ? (
                       <div className="space-y-3">
                         {isLoadingWorkflowRuns ? (
                           <div className="py-6 text-center text-muted-foreground">

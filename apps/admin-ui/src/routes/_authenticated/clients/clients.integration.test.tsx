@@ -1,10 +1,13 @@
 import { describe, expect, test } from "bun:test";
 
-type DetailTabValue = "details" | "history" | "workflows";
+type DetailTabValue = "details" | "relationships" | "history" | "workflows";
 type AppointmentDetailTabValue = "details" | "client" | "history" | "workflows";
 
 const isDetailTab = (value: string): value is DetailTabValue =>
-  value === "details" || value === "history" || value === "workflows";
+  value === "details" ||
+  value === "relationships" ||
+  value === "history" ||
+  value === "workflows";
 
 const isAppointmentDetailTab = (
   value: string,
@@ -41,13 +44,13 @@ describe("clients route validateSearch", () => {
   test("accepts client and appointment detail tabs", () => {
     const result = validateSearch({
       selected: "client-123",
-      tab: "workflows",
+      tab: "relationships",
       appointment: "apt-456",
       appointmentTab: "workflows",
     });
 
     expect(result.selected).toBe("client-123");
-    expect(result.tab).toBe("workflows");
+    expect(result.tab).toBe("relationships");
     expect(result.appointment).toBe("apt-456");
     expect(result.appointmentTab).toBe("workflows");
   });
