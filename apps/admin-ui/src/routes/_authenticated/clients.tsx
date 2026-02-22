@@ -64,6 +64,10 @@ import {
   DEFAULT_SCHEDULING_TIMEZONE_MODE,
   type SchedulingTimezoneMode,
 } from "@/lib/scheduling-timezone";
+import {
+  buildClientDetailDescription,
+  sanitizeClientMutationInput,
+} from "@/routes/_authenticated/clients/client-reference-utils";
 
 const CLIENT_CREATE_DRAFT_KEY = "clients:create";
 const logger = getLogger(["ui", "workflows", "clients"]);
@@ -392,14 +396,15 @@ function ClientsPage() {
   );
 
   const handleCreate = (formData: CreateClientInput) => {
-    createMutation.mutate(formData);
+    createMutation.mutate(sanitizeClientMutationInput(formData));
   };
 
   const handleUpdate = (formData: CreateClientInput) => {
     if (!selectedId) return;
+    const safeFormData = sanitizeClientMutationInput(formData);
     updateMutation.mutate({
       id: selectedId,
-      ...formData,
+      ...safeFormData,
     });
   };
 
@@ -646,9 +651,11 @@ function ClientsPage() {
                 appointmentDisplayTimezone,
               )
             : !isAppointmentDetailOpen
-              ? (displayClient?.email ??
-                formatPhoneForDisplay(displayClient?.phone) ??
-                undefined)
+              ? buildClientDetailDescription({
+                  email: displayClient?.email,
+                  formattedPhone: formatPhoneForDisplay(displayClient?.phone),
+                  referenceId: displayClient?.referenceId,
+                })
               : undefined
         }
         className={
