@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, mock, test } from "bun:test";
+import { describe, expect, mock, test } from "bun:test";
 import type { JourneyDeliveryScheduledEventData } from "./runtime-events.js";
 import {
   sendJourneyActionExecuteForActionType,
@@ -6,12 +6,6 @@ import {
   sendJourneyDeliveryCanceled,
   sendJourneyDeliveryScheduled,
 } from "./runtime-events.js";
-
-const sendMock = mock(
-  async (_input: unknown): Promise<unknown> => ({
-    eventId: "evt-default",
-  }),
-);
 
 const scheduledPayload: JourneyDeliveryScheduledEventData = {
   orgId: "org_1",
@@ -22,11 +16,10 @@ const scheduledPayload: JourneyDeliveryScheduledEventData = {
 };
 
 describe("journey runtime events", () => {
-  beforeEach(() => {
-    sendMock.mockReset();
-  });
-
   test("sends resend execute events with provider-specific event name", async () => {
+    const sendMock = mock(async (_input: unknown): Promise<unknown> => ({
+      eventId: "evt-default",
+    }));
     sendMock.mockResolvedValueOnce({ eventId: "evt-resend-1" });
 
     const result = await sendJourneyActionExecuteForActionType(
@@ -45,6 +38,9 @@ describe("journey runtime events", () => {
   });
 
   test("sends slack execute events and extracts event id from ids array", async () => {
+    const sendMock = mock(async (_input: unknown): Promise<unknown> => ({
+      eventId: "evt-default",
+    }));
     sendMock.mockResolvedValueOnce({ ids: ["evt-slack-1"] });
 
     const result = await sendJourneyActionExecuteForActionType(
@@ -62,6 +58,9 @@ describe("journey runtime events", () => {
   });
 
   test("sends twilio execute events and extracts event id from id field", async () => {
+    const sendMock = mock(async (_input: unknown): Promise<unknown> => ({
+      eventId: "evt-default",
+    }));
     sendMock.mockResolvedValueOnce({ id: "evt-twilio-1" });
 
     const result = await sendJourneyActionExecuteForActionType(
@@ -79,6 +78,9 @@ describe("journey runtime events", () => {
   });
 
   test("sends twilio callback received events with status-specific id", async () => {
+    const sendMock = mock(async (_input: unknown): Promise<unknown> => ({
+      eventId: "evt-default",
+    }));
     sendMock.mockResolvedValueOnce({ eventId: "evt-twilio-callback-1" });
 
     const result = await sendJourneyActionSendTwilioCallbackReceived(
@@ -107,6 +109,9 @@ describe("journey runtime events", () => {
   });
 
   test("extracts event id from array responses for cancellation events", async () => {
+    const sendMock = mock(async (_input: unknown): Promise<unknown> => ({
+      eventId: "evt-default",
+    }));
     sendMock.mockResolvedValueOnce([{ id: "evt-cancel-1" }]);
 
     const result = await sendJourneyDeliveryCanceled(
@@ -124,6 +129,9 @@ describe("journey runtime events", () => {
   });
 
   test("returns empty metadata when inngest send response has no event id", async () => {
+    const sendMock = mock(async (_input: unknown): Promise<unknown> => ({
+      eventId: "evt-default",
+    }));
     sendMock.mockResolvedValueOnce({});
 
     const result = await sendJourneyDeliveryScheduled(
