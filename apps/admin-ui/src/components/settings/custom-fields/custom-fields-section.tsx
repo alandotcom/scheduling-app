@@ -16,6 +16,40 @@ import { CustomFieldsList } from "./custom-fields-list";
 import { CustomFieldForm } from "./custom-field-form";
 import { SlotUsageDisplay } from "./slot-usage-display";
 
+const DEFAULT_DELETE_DESCRIPTION =
+  "All client values for this field will be permanently removed. This action cannot be undone.";
+
+export function getCustomFieldDeleteDescription(
+  definitions: CustomAttributeDefinitionResponse[],
+  deletingItemId: string | null,
+): string {
+  if (!deletingItemId) {
+    return DEFAULT_DELETE_DESCRIPTION;
+  }
+
+  const deletingDefinition = definitions.find(
+    (definition) => definition.id === deletingItemId,
+  );
+  if (!deletingDefinition) {
+    return DEFAULT_DELETE_DESCRIPTION;
+  }
+
+  const pairedDefinitionId =
+    deletingDefinition.relationConfig?.pairedDefinitionId;
+  if (!pairedDefinitionId) {
+    return DEFAULT_DELETE_DESCRIPTION;
+  }
+
+  const pairedDefinition = definitions.find(
+    (definition) => definition.id === pairedDefinitionId,
+  );
+  if (!pairedDefinition) {
+    return DEFAULT_DELETE_DESCRIPTION;
+  }
+
+  return `This is a paired relation field. Deleting "${deletingDefinition.label}" (${deletingDefinition.fieldKey}) will also delete "${pairedDefinition.label}" (${pairedDefinition.fieldKey}) and permanently remove all client values for both fields. This action cannot be undone.`;
+}
+
 export function CustomFieldsSection() {
   const queryClient = useQueryClient();
 
@@ -161,6 +195,10 @@ export function CustomFieldsSection() {
   };
 
   const definitionItems = definitions ?? [];
+  const deleteDescription = getCustomFieldDeleteDescription(
+    definitionItems,
+    crud.deletingItemId,
+  );
 
   return (
     <div className="space-y-5">
@@ -245,7 +283,7 @@ export function CustomFieldsSection() {
         onOpenChange={crud.closeDelete}
         onConfirm={handleDelete}
         title="Delete Custom Field"
-        description="All client values for this field will be permanently removed. This action cannot be undone."
+        description={deleteDescription}
         isPending={deleteMutation.isPending}
       />
     </div>

@@ -1,6 +1,6 @@
 import { sql } from "drizzle-orm";
 import { clientCustomAttributeDefinitions } from "@scheduling/db/schema";
-import { forEachAsync, uniq } from "es-toolkit/array";
+import { compact, forEachAsync, uniq } from "es-toolkit/array";
 import { retry } from "es-toolkit/function";
 import { getLogger } from "@logtape/logtape";
 import type {
@@ -450,27 +450,58 @@ export class ClientCustomAttributeService {
         });
       }
 
-      if (isSlotBackedDefinition(existing)) {
-        await customAttributeRepository.clearSlotColumn(
-          tx,
-          context.orgId,
-          existing.slotColumn,
-        );
-      } else {
-        await customAttributeRepository.clearRelationValuesForDefinition(
-          tx,
-          context.orgId,
+      const definitionIdsToDelete = uniq(
+        compact([
           existing.id,
-        );
-      }
-
-      await customAttributeRepository.clearDefinitionPairing(
-        tx,
-        context.orgId,
-        existing.id,
+          isRelationDefinition(existing) ? existing.pairedDefinitionId : null,
+        ]),
       );
 
-      await customAttributeRepository.deleteDefinition(tx, context.orgId, id);
+      const definitionsToDelete =
+        await customAttributeRepository.findDefinitionsByIds(
+          tx,
+          context.orgId,
+          definitionIdsToDelete,
+        );
+
+      await forEachAsync(
+        definitionsToDelete,
+        async (definition) => {
+          if (isSlotBackedDefinition(definition)) {
+            await customAttributeRepository.clearSlotColumn(
+              tx,
+              context.orgId,
+              definition.slotColumn,
+            );
+            return;
+          }
+
+          await customAttributeRepository.clearRelationValuesForDefinition(
+            tx,
+            context.orgId,
+            definition.id,
+          );
+        },
+        { concurrency: 1 },
+      );
+
+      await forEachAsync(
+        definitionIdsToDelete,
+        async (definitionId) => {
+          await customAttributeRepository.clearDefinitionPairing(
+            tx,
+            context.orgId,
+            definitionId,
+          );
+        },
+        { concurrency: 1 },
+      );
+
+      await customAttributeRepository.deleteDefinitions(
+        tx,
+        context.orgId,
+        definitionIdsToDelete,
+      );
     });
 
     return { success: true };

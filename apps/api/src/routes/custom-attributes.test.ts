@@ -10,6 +10,7 @@ import {
   registerDbTestReset,
 } from "../test-utils/index.js";
 import * as customAttributeRoutes from "./custom-attributes.js";
+import { clientRoutes } from "./clients.js";
 import type { BunSQLDatabase } from "drizzle-orm/bun-sql/postgres";
 import type * as schema from "@scheduling/db/schema";
 import type { relations } from "@scheduling/db/relations";
@@ -555,7 +556,7 @@ describe("Custom Attribute Routes", () => {
       });
     });
 
-    test("deleting one side of a relation pair unpairs the other side", async () => {
+    test("deleting one side of a relation pair deletes both sides", async () => {
       const { org, user } = await createOrg(db);
       const ctx = createTestContext({ orgId: org.id, userId: user.id });
 
@@ -589,10 +590,7 @@ describe("Custom Attribute Routes", () => {
         { context: ctx },
       );
 
-      expect(definitions).toHaveLength(1);
-      expect(definitions[0]?.fieldKey).toBe("referrals");
-      expect(definitions[0]?.relationConfig?.pairedDefinitionId).toBeNull();
-      expect(definitions[0]?.relationConfig?.pairedRole).toBeNull();
+      expect(definitions).toHaveLength(0);
     });
   });
 
@@ -672,6 +670,111 @@ describe("Custom Attribute Routes", () => {
       );
 
       expect(reused.fieldKey).toBe("multi3");
+    });
+
+    test("deleting one side of a paired relation removes relation values for both definitions", async () => {
+      const { org, user } = await createOrg(db);
+      const ctx = createTestContext({ orgId: org.id, userId: user.id });
+
+      await call(
+        customAttributeRoutes.createDefinition,
+        {
+          fieldKey: "referredBy",
+          label: "Referred By",
+          type: "RELATION_CLIENT",
+          relationConfig: {
+            valueMode: "single",
+          },
+          reverseRelation: {
+            fieldKey: "referrals",
+            label: "Referrals",
+            valueMode: "multi",
+          },
+        },
+        { context: ctx },
+      );
+
+      const alice = await call(
+        clientRoutes.create,
+        {
+          firstName: "Alice",
+          lastName: "Client",
+        },
+        { context: ctx },
+      );
+      const bob = await call(
+        clientRoutes.create,
+        {
+          firstName: "Bob",
+          lastName: "Client",
+        },
+        { context: ctx },
+      );
+
+      await call(
+        clientRoutes.update,
+        {
+          id: alice.id,
+          customAttributes: { referredBy: bob.id },
+        },
+        { context: ctx },
+      );
+
+      const beforeDeleteAlice = await call(
+        clientRoutes.get,
+        { id: alice.id },
+        { context: ctx },
+      );
+      const beforeDeleteBob = await call(
+        clientRoutes.get,
+        { id: bob.id },
+        { context: ctx },
+      );
+
+      expect(beforeDeleteAlice.customAttributes?.["referredBy"]).toBe(bob.id);
+      expect(beforeDeleteBob.customAttributes?.["referrals"]).toEqual([
+        alice.id,
+      ]);
+
+      const definitionsBeforeDelete = await call(
+        customAttributeRoutes.listDefinitions,
+        {},
+        { context: ctx },
+      );
+      const forwardDefinition = definitionsBeforeDelete.find(
+        (definition) => definition.fieldKey === "referredBy",
+      );
+      expect(forwardDefinition).toBeDefined();
+      if (!forwardDefinition) {
+        throw new Error("Forward relation definition not found");
+      }
+
+      await call(
+        customAttributeRoutes.deleteDefinition,
+        { id: forwardDefinition.id },
+        { context: ctx },
+      );
+
+      const definitionsAfterDelete = await call(
+        customAttributeRoutes.listDefinitions,
+        {},
+        { context: ctx },
+      );
+      expect(definitionsAfterDelete).toHaveLength(0);
+
+      const aliceAfterDelete = await call(
+        clientRoutes.get,
+        { id: alice.id },
+        { context: ctx },
+      );
+      const bobAfterDelete = await call(
+        clientRoutes.get,
+        { id: bob.id },
+        { context: ctx },
+      );
+
+      expect(aliceAfterDelete.customAttributes).toEqual({});
+      expect(bobAfterDelete.customAttributes).toEqual({});
     });
 
     test("throws NOT_FOUND for non-existent definition", async () => {

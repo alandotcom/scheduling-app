@@ -304,6 +304,22 @@ export class CustomAttributeRepository {
     return result.length > 0;
   }
 
+  async deleteDefinitions(
+    tx: DbClient,
+    orgId: string,
+    ids: string[],
+  ): Promise<number> {
+    if (ids.length === 0) return 0;
+
+    await setOrgContext(tx, orgId);
+    const result = await tx
+      .delete(clientCustomAttributeDefinitions)
+      .where(inArray(clientCustomAttributeDefinitions.id, ids))
+      .returning({ id: clientCustomAttributeDefinitions.id });
+
+    return result.length;
+  }
+
   async clearSlotColumn(
     tx: DbClient,
     orgId: string,
