@@ -13,6 +13,8 @@
     "db:migrate": "pnpm --filter @scheduling/db run migrate",
     "db:reset": "pnpm --filter @scheduling/db run reset",
     "db:seed": " pnpm --filter @scheduling/api run seed",
+    "sdk:typescript:openapi": "pnpm --filter @scheduling/api run export:openapi:sdk",
+    "sdk:typescript:generate": "pnpm run sdk:typescript:openapi && pnpm --filter @scheduling/client run generate",
     "bootstrap:dev": "set -a; [ -f ./.env ] && . ./.env; set +a; DATABASE_URL=${DB_PUSH_DATABASE_URL:-postgres://scheduling:scheduling@localhost:5433/scheduling} pnpm --filter @scheduling/db run push && pnpm db:seed",
     "db:reseed": "pnpm db:reset && pnpm db:migrate && pnpm db:seed",
     "build": "turbo run build",
@@ -53,7 +55,8 @@
   "workspaces": {
     "packages": [
       "apps/*",
-      "packages/*"
+      "packages/*",
+      "sdk/*"
     ],
     "catalog": {
       "@logtape/logtape": "^2.0.2",

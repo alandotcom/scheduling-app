@@ -7,11 +7,13 @@ import {
   appointmentTypes,
   appointmentTypeCalendars,
   appointmentTypeResources,
+  calendars,
   availabilityRules,
   availabilityOverrides,
   blockedTime,
   schedulingLimits,
   appointments,
+  orgs,
   resources,
 } from "@scheduling/db/schema";
 import type { DbClient } from "../lib/db.js";
@@ -76,6 +78,39 @@ export class AvailabilityRepository {
       calendarIds.push(link.calendarId);
     }
     return calendarIds;
+  }
+
+  async loadCalendarTimezones(
+    tx: DbClient,
+    orgId: string,
+    calendarIds: string[],
+  ): Promise<string[]> {
+    const uniqueCalendarIds = Array.from(new Set(calendarIds));
+    if (uniqueCalendarIds.length === 0) {
+      return [];
+    }
+
+    await setOrgContext(tx, orgId);
+    const rows = await tx
+      .select({ timezone: calendars.timezone })
+      .from(calendars)
+      .where(inArray(calendars.id, uniqueCalendarIds));
+
+    return Array.from(new Set(rows.map((row) => row.timezone)));
+  }
+
+  async loadOrgDefaultTimezone(
+    tx: DbClient,
+    orgId: string,
+  ): Promise<string | null> {
+    await setOrgContext(tx, orgId);
+    const [row] = await tx
+      .select({ defaultTimezone: orgs.defaultTimezone })
+      .from(orgs)
+      .where(eq(orgs.id, orgId))
+      .limit(1);
+
+    return row?.defaultTimezone ?? null;
   }
 
   async loadSchedulingLimits(

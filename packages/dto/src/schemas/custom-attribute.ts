@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { uuidSchema, timestampsSchema } from "./common";
+import { nonNegativeIntSchema, uuidSchema, timestampsSchema } from "./common";
 
 // Attribute type enum
 export const customAttributeTypeSchema = z.enum([
@@ -24,7 +24,7 @@ export const customAttributeDefinitionSchema = z.object({
   slotColumn: z.string(),
   required: z.boolean(),
   options: z.array(z.string()).nullable(),
-  displayOrder: z.number().int(),
+  displayOrder: nonNegativeIntSchema,
   ...timestampsSchema.shape,
 });
 
@@ -42,7 +42,7 @@ export const createCustomAttributeDefinitionSchema = z
     type: customAttributeTypeSchema,
     required: z.boolean().optional().default(false),
     options: z.array(z.string().min(1).max(255)).optional(),
-    displayOrder: z.number().int().nonnegative().optional().default(0),
+    displayOrder: nonNegativeIntSchema.optional().default(0),
   })
   .refine(
     (data) => {
@@ -65,7 +65,7 @@ export const updateCustomAttributeDefinitionSchema = z.object({
     .optional(),
   required: z.boolean().optional(),
   options: z.array(z.string().min(1).max(255)).optional(),
-  displayOrder: z.number().int().nonnegative().optional(),
+  displayOrder: nonNegativeIntSchema.optional(),
 });
 
 export const reorderCustomAttributeDefinitionsSchema = z.object({
@@ -89,8 +89,8 @@ export type CustomAttributeValues = z.infer<typeof customAttributeValuesSchema>;
 // ─── Slot usage schema ───
 
 const slotBucketSchema = z.object({
-  used: z.number().int(),
-  total: z.number().int(),
+  used: nonNegativeIntSchema,
+  total: nonNegativeIntSchema,
 });
 
 export const slotUsageSchema = z.object({

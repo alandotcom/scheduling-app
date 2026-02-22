@@ -21,11 +21,13 @@ export const weekdaySchema = z
 export const positiveIntSchema = z
   .number()
   .int()
-  .positive("Must be a positive number");
+  .min(1, "Must be a positive number")
+  .max(2147483647, "Must be less than or equal to 2147483647");
 export const nonNegativeIntSchema = z
   .number()
   .int()
-  .nonnegative("Must be zero or greater");
+  .min(0, "Must be zero or greater")
+  .max(2147483647, "Must be less than or equal to 2147483647");
 
 // Common timestamp fields
 export const timestampsSchema = z.object({

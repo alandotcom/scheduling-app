@@ -70,7 +70,9 @@ export const appointmentTypeCalendarAssociationSchema =
   });
 
 export const createAppointmentTypeCalendarSchema = z.object({
-  calendarId: uuidSchema,
+  calendarId: uuidSchema.describe(
+    "ID of an existing calendar to link to the appointment type.",
+  ),
 });
 
 // Appointment type <-> resource join
@@ -86,8 +88,13 @@ export const appointmentTypeResourceAssociationSchema =
   });
 
 export const createAppointmentTypeResourceSchema = z.object({
-  resourceId: uuidSchema,
-  quantityRequired: positiveIntSchema.optional().default(1),
+  resourceId: uuidSchema.describe(
+    "ID of an existing resource to link to the appointment type.",
+  ),
+  quantityRequired: positiveIntSchema
+    .optional()
+    .default(1)
+    .describe("Quantity of this resource required for each appointment."),
 });
 
 export const updateAppointmentTypeResourceSchema = z.object({

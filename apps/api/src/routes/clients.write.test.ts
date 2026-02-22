@@ -300,7 +300,7 @@ describe("Client Routes", () => {
 
       const result = await call(
         clientRoutes.update,
-        { id: client.id, data: { email: "new@example.com" } },
+        { id: client.id, email: "new@example.com" },
         { context: ctx },
       );
 
@@ -318,7 +318,7 @@ describe("Client Routes", () => {
 
       const result = await call(
         clientRoutes.update,
-        { id: client.id, data: { phone: "+14155559999" } },
+        { id: client.id, phone: "+14155559999" },
         { context: ctx },
       );
 
@@ -335,7 +335,7 @@ describe("Client Routes", () => {
 
       const result = await call(
         clientRoutes.update,
-        { id: client.id, data: { referenceId: "ext-updated" } },
+        { id: client.id, referenceId: "ext-updated" },
         { context: ctx },
       );
 
@@ -353,7 +353,7 @@ describe("Client Routes", () => {
 
       const result = await call(
         clientRoutes.update,
-        { id: client.id, data: { referenceId: null } },
+        { id: client.id, referenceId: null },
         { context: ctx },
       );
 
@@ -370,7 +370,7 @@ describe("Client Routes", () => {
 
       const result = await call(
         clientRoutes.update,
-        { id: client.id, data: { phone: "(415) 555-2671" } },
+        { id: client.id, phone: "(415) 555-2671" },
         { context: ctx },
       );
 
@@ -388,7 +388,7 @@ describe("Client Routes", () => {
       await expect(
         call(
           clientRoutes.update,
-          { id: client.id, data: { phone: "invalid-phone" } },
+          { id: client.id, phone: "invalid-phone" },
           { context: ctx },
         ),
       ).rejects.toMatchObject({
@@ -414,7 +414,7 @@ describe("Client Routes", () => {
       await expect(
         call(
           clientRoutes.update,
-          { id: second.id, data: { email: "FIRST@EXAMPLE.COM" } },
+          { id: second.id, email: "FIRST@EXAMPLE.COM" },
           { context: ctx },
         ),
       ).rejects.toMatchObject({
@@ -442,7 +442,7 @@ describe("Client Routes", () => {
       await expect(
         call(
           clientRoutes.update,
-          { id: second.id, data: { phone: "(415) 555-2671" } },
+          { id: second.id, phone: "(415) 555-2671" },
           { context: ctx },
         ),
       ).rejects.toMatchObject({
@@ -470,7 +470,7 @@ describe("Client Routes", () => {
       await expect(
         call(
           clientRoutes.update,
-          { id: second.id, data: { referenceId: "ext-first" } },
+          { id: second.id, referenceId: "ext-first" },
           { context: ctx },
         ),
       ).rejects.toMatchObject({
@@ -490,8 +490,9 @@ describe("Client Routes", () => {
       const updated = await call(
         clientRoutes.updateByReference,
         {
-          referenceId: "ext-old",
-          data: { firstName: "Updated", referenceId: "ext-new" },
+          clientReferenceId: "ext-old",
+          firstName: "Updated",
+          referenceId: "ext-new",
         },
         { context: ctx },
       );
@@ -537,8 +538,8 @@ describe("Client Routes", () => {
         call(
           clientRoutes.updateByReference,
           {
-            referenceId: "ext-second",
-            data: { referenceId: "ext-first" },
+            clientReferenceId: "ext-second",
+            referenceId: "ext-first",
           },
           { context: ctx },
         ),
@@ -554,7 +555,7 @@ describe("Client Routes", () => {
       await expect(
         call(
           clientRoutes.updateByReference,
-          { referenceId: "missing-reference", data: { firstName: "Nope" } },
+          { clientReferenceId: "missing-reference", firstName: "Nope" },
           { context: ctx },
         ),
       ).rejects.toMatchObject({
@@ -571,7 +572,7 @@ describe("Client Routes", () => {
           clientRoutes.update,
           {
             id: "00000000-0000-0000-0000-000000000000",
-            data: { firstName: "Updated" },
+            firstName: "Updated",
           },
           { context: ctx },
         ),
@@ -593,7 +594,7 @@ describe("Client Routes", () => {
       await expect(
         call(
           clientRoutes.update,
-          { id: client.id, data: { firstName: "Hacked!" } },
+          { id: client.id, firstName: "Hacked!" },
           { context: ctx1 },
         ),
       ).rejects.toMatchObject({
@@ -935,7 +936,7 @@ describe("Client Routes", () => {
         clientRoutes.update,
         {
           id: created.id,
-          data: { customAttributes: { color: "green" } },
+          customAttributes: { color: "green" },
         },
         { context: ctx },
       );
@@ -971,7 +972,7 @@ describe("Client Routes", () => {
         clientRoutes.update,
         {
           id: created.id,
-          data: { customAttributes: { color: "blue" } },
+          customAttributes: { color: "blue" },
         },
         { context: ctx },
       );
@@ -1004,7 +1005,7 @@ describe("Client Routes", () => {
         clientRoutes.update,
         {
           id: created.id,
-          data: { customAttributes: { color: null } },
+          customAttributes: { color: null },
         },
         { context: ctx },
       );
@@ -1223,7 +1224,7 @@ describe("Client Routes", () => {
         clientRoutes.update,
         {
           id: created.id,
-          data: { customAttributes: { optionalField: "added" } },
+          customAttributes: { optionalField: "added" },
         },
         { context: ctx },
       );
@@ -1261,7 +1262,7 @@ describe("Client Routes", () => {
           clientRoutes.update,
           {
             id: created.id,
-            data: { customAttributes: { requiredField: null } },
+            customAttributes: { requiredField: null },
           },
           { context: ctx },
         ),
@@ -1293,8 +1294,8 @@ describe("Client Routes", () => {
       const updated = await call(
         clientRoutes.updateByReference,
         {
-          referenceId: "ext-ca-update",
-          data: { customAttributes: { tier: "premium" } },
+          clientReferenceId: "ext-ca-update",
+          customAttributes: { tier: "premium" },
         },
         { context: ctx },
       );

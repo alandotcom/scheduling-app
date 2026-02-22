@@ -250,7 +250,7 @@ describe("Location Routes", () => {
 
       const result = await call(
         locationRoutes.update,
-        { id: location.id, data: { name: "Updated Name" } },
+        { id: location.id, name: "Updated Name" },
         { context: ctx },
       );
 
@@ -266,7 +266,7 @@ describe("Location Routes", () => {
 
       const result = await call(
         locationRoutes.update,
-        { id: location.id, data: { timezone: "America/Chicago" } },
+        { id: location.id, timezone: "America/Chicago" },
         { context: ctx },
       );
 
@@ -282,7 +282,7 @@ describe("Location Routes", () => {
           locationRoutes.update,
           {
             id: "00000000-0000-0000-0000-000000000000",
-            data: { name: "Updated" },
+            name: "Updated",
           },
           { context: ctx },
         ),
@@ -303,7 +303,7 @@ describe("Location Routes", () => {
       await expect(
         call(
           locationRoutes.update,
-          { id: location.id, data: { name: "Hacked!" } },
+          { id: location.id, name: "Hacked!" },
           { context: ctx1 },
         ),
       ).rejects.toMatchObject({

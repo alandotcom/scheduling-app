@@ -5,7 +5,7 @@ export interface AvailabilityQuery {
   calendarIds: string[];
   startDate: string; // YYYY-MM-DD
   endDate: string; // YYYY-MM-DD
-  timezone: string; // IANA timezone
+  timezone?: string | undefined; // IANA timezone
 }
 
 export interface TimeSlot {

@@ -10,10 +10,7 @@ import { Hono } from "hono";
 import { secureHeaders } from "hono/secure-headers";
 import { cors } from "hono/cors";
 import { RPCHandler } from "@orpc/server/fetch";
-import { OpenAPIHandler } from "@orpc/openapi/fetch";
-import { OpenAPIReferencePlugin } from "@orpc/openapi/plugins";
-import { ZodToJsonSchemaConverter } from "@orpc/zod/zod4";
-import { uiRouter, apiRouter } from "./routes/index.js";
+import { uiRouter } from "./routes/index.js";
 import { auth } from "./lib/auth.js";
 import { authMiddleware } from "./middleware/auth.js";
 import { errorHandler } from "./middleware/error-handler.js";
@@ -24,6 +21,7 @@ import { bootstrapSvixEventCatalogOnStartup } from "./services/svix-event-catalo
 import { inngestServeHandler } from "./inngest/serve.js";
 import { integrationOAuthRouter } from "./routes/integration-oauth.js";
 import { twilioStatusCallbackRouter } from "./routes/integrations/twilio-status-callback.js";
+import { createOpenApiHandler, OPENAPI_PREFIX } from "./lib/openapi.js";
 
 const app = new Hono();
 
@@ -116,50 +114,14 @@ app.all("/v1/*", async (c) => {
 // REST/OpenAPI protocol for external M2M integrations
 // ============================================================================
 
-const openAPIHandler = new OpenAPIHandler(apiRouter, {
-  plugins: [
-    new OpenAPIReferencePlugin({
-      schemaConverters: [new ZodToJsonSchemaConverter()],
-      docsProvider: "scalar",
-      docsTitle: "Scheduling API",
-      docsPath: "/docs",
-      specPath: "/openapi.json",
-      specGenerateOptions: {
-        info: {
-          title: "Scheduling API",
-          version: "1.0.0",
-          description: "REST API for appointment scheduling integrations",
-        },
-        servers: [{ url: "/api/v1" }],
-        components: {
-          securitySchemes: {
-            BearerAuth: {
-              type: "http",
-              scheme: "bearer",
-              bearerFormat: "API Key",
-              description: "Use your Better Auth API key as a Bearer token",
-            },
-            ApiKeyAuth: {
-              type: "apiKey",
-              in: "header",
-              name: "x-api-key",
-              description:
-                "Use your Better Auth API key in the x-api-key header",
-            },
-          },
-        },
-        security: [{ BearerAuth: [] }, { ApiKeyAuth: [] }],
-      },
-    }),
-  ],
-});
+const openAPIHandler = createOpenApiHandler();
 
 // Auth middleware for OpenAPI routes
-app.use("/api/v1/*", authMiddleware);
+app.use(`${OPENAPI_PREFIX}/*`, authMiddleware);
 
-app.all("/api/v1/*", async (c) => {
+app.all(`${OPENAPI_PREFIX}/*`, async (c) => {
   const { matched, response } = await openAPIHandler.handle(c.req.raw, {
-    prefix: "/api/v1",
+    prefix: OPENAPI_PREFIX,
     context: {
       userId: c.get("userId"),
       orgId: c.get("orgId"),

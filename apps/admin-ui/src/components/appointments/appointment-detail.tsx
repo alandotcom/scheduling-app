@@ -239,9 +239,7 @@ export function AppointmentDetail({
   const handleSaveNotes = (data: NotesFormData) => {
     updateMutation.mutate({
       id: appointment.id,
-      data: {
-        notes: data.notes || null,
-      },
+      notes: data.notes || null,
     });
   };
 

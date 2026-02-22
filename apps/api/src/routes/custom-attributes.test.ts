@@ -339,7 +339,7 @@ describe("Custom Attribute Routes", () => {
 
       const result = await call(
         customAttributeRoutes.updateDefinition,
-        { id: created.id, data: { label: "New Label" } },
+        { id: created.id, label: "New Label" },
         { context: ctx },
       );
 
@@ -359,7 +359,7 @@ describe("Custom Attribute Routes", () => {
 
       const result = await call(
         customAttributeRoutes.updateDefinition,
-        { id: created.id, data: { required: true } },
+        { id: created.id, required: true },
         { context: ctx },
       );
 
@@ -383,7 +383,7 @@ describe("Custom Attribute Routes", () => {
 
       const result = await call(
         customAttributeRoutes.updateDefinition,
-        { id: created.id, data: { options: ["a", "b", "c"] } },
+        { id: created.id, options: ["a", "b", "c"] },
         { context: ctx },
       );
 
@@ -399,7 +399,7 @@ describe("Custom Attribute Routes", () => {
           customAttributeRoutes.updateDefinition,
           {
             id: "00000000-0000-0000-0000-000000000000",
-            data: { label: "Updated" },
+            label: "Updated",
           },
           { context: ctx },
         ),
@@ -427,7 +427,7 @@ describe("Custom Attribute Routes", () => {
       await expect(
         call(
           customAttributeRoutes.updateDefinition,
-          { id: created.id, data: { label: "Hacked" } },
+          { id: created.id, label: "Hacked" },
           { context: ctx2 },
         ),
       ).rejects.toMatchObject({

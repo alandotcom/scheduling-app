@@ -63,7 +63,7 @@ export function useAppointmentTypeMutations(
   );
 
   const addCalendarMutation = useMutation(
-    orpc.appointmentTypes.calendars.add.mutationOptions({
+    orpc.appointmentTypes.calendars.link.mutationOptions({
       onSuccess: () => {
         invalidateAppointmentTypes();
         options.onAddCalendarSuccess?.();
@@ -75,7 +75,7 @@ export function useAppointmentTypeMutations(
   );
 
   const removeCalendarMutation = useMutation(
-    orpc.appointmentTypes.calendars.remove.mutationOptions({
+    orpc.appointmentTypes.calendars.unlink.mutationOptions({
       onSuccess: () => {
         invalidateAppointmentTypes();
         options.onRemoveCalendarSuccess?.();
@@ -87,7 +87,7 @@ export function useAppointmentTypeMutations(
   );
 
   const addResourceMutation = useMutation(
-    orpc.appointmentTypes.resources.add.mutationOptions({
+    orpc.appointmentTypes.resources.link.mutationOptions({
       onSuccess: () => {
         invalidateAppointmentTypes();
         options.onAddResourceSuccess?.();
@@ -111,7 +111,7 @@ export function useAppointmentTypeMutations(
   );
 
   const removeResourceMutation = useMutation(
-    orpc.appointmentTypes.resources.remove.mutationOptions({
+    orpc.appointmentTypes.resources.unlink.mutationOptions({
       onSuccess: () => {
         invalidateAppointmentTypes();
         options.onRemoveResourceSuccess?.();

@@ -217,7 +217,14 @@ export const deleteSchedulingLimits = authed
 // ============================================================================
 
 export const feed = authed
-  .route({ method: "GET", path: "/availability/feed" })
+  .route({
+    method: "GET",
+    path: "/availability/feed",
+    tags: ["Availability"],
+    summary: "Get availability feed",
+    description:
+      "Returns shaded availability intervals for schedule-view rendering.",
+  })
   .input(availabilityFeedQuerySchema)
   .output(availabilityFeedResponseSchema)
   .handler(async ({ input, context }) => {
@@ -273,7 +280,14 @@ export const schedulingLimitsRoutes = {
 // ============================================================================
 
 export const getDates = authed
-  .route({ method: "GET", path: "/availability/dates" })
+  .route({
+    method: "GET",
+    path: "/availability/dates",
+    tags: ["Availability"],
+    summary: "Get available dates",
+    description:
+      "Returns dates that have at least one available appointment slot for the given query.",
+  })
   .input(availabilityQuerySchema)
   .output(availableDatesResponseSchema)
   .handler(async ({ input, context }) => {
@@ -285,7 +299,14 @@ export const getDates = authed
   });
 
 export const getTimes = authed
-  .route({ method: "GET", path: "/availability/times" })
+  .route({
+    method: "GET",
+    path: "/availability/times",
+    tags: ["Availability"],
+    summary: "Get available times",
+    description:
+      "Returns appointment slots (times and remaining capacity) for the given query.",
+  })
   .input(availabilityQuerySchema)
   .output(availabilityTimesResponseSchema)
   .handler(async ({ input, context }) => {
@@ -304,7 +325,14 @@ export const getTimes = authed
   });
 
 export const checkSlot = authed
-  .route({ method: "GET", path: "/availability/check" })
+  .route({
+    method: "GET",
+    path: "/availability/check",
+    tags: ["Availability"],
+    summary: "Check slot availability",
+    description:
+      "Checks whether a specific appointment slot is currently available.",
+  })
   .input(availabilityCheckSchema)
   .output(availabilityCheckResultSchema)
   .handler(({ input, context }) =>

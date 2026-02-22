@@ -15,7 +15,13 @@ import { calendarService } from "../services/calendars.js";
 
 // List calendars with cursor pagination and optional location filter
 export const list = authed
-  .route({ method: "GET", path: "/calendars" })
+  .route({
+    method: "GET",
+    path: "/calendars",
+    tags: ["Calendars"],
+    summary: "List calendars",
+    description: "Returns calendars for the active organization.",
+  })
   .input(listCalendarsQuerySchema)
   .output(calendarListResponseSchema)
   .handler(async ({ input, context }) => {
@@ -27,7 +33,13 @@ export const list = authed
 
 // Get single calendar by ID
 export const get = authed
-  .route({ method: "GET", path: "/calendars/{id}" })
+  .route({
+    method: "GET",
+    path: "/calendars/{id}",
+    tags: ["Calendars"],
+    summary: "Get calendar",
+    description: "Returns one calendar by ID.",
+  })
   .input(z.object({ id: z.uuid() }))
   .output(calendarWithLocationSchema)
   .handler(async ({ input, context }) => {
@@ -39,7 +51,14 @@ export const get = authed
 
 // Create calendar
 export const create = authed
-  .route({ method: "POST", path: "/calendars", successStatus: 201 })
+  .route({
+    method: "POST",
+    path: "/calendars",
+    successStatus: 201,
+    tags: ["Calendars"],
+    summary: "Create calendar",
+    description: "Creates a new calendar.",
+  })
   .input(createCalendarSchema)
   .output(calendarResponseSchema)
   .handler(async ({ input, context }) => {
@@ -51,16 +70,22 @@ export const create = authed
 
 // Update calendar
 export const update = authed
-  .route({ method: "PATCH", path: "/calendars/{id}" })
+  .route({
+    method: "PATCH",
+    path: "/calendars/{id}",
+    tags: ["Calendars"],
+    summary: "Update calendar",
+    description: "Updates an existing calendar.",
+  })
   .input(
-    z.object({
+    updateCalendarSchema.extend({
       id: z.uuid(),
-      data: updateCalendarSchema,
     }),
   )
   .output(calendarResponseSchema)
   .handler(async ({ input, context }) => {
-    return calendarService.update(input.id, input.data, {
+    const { id, ...data } = input;
+    return calendarService.update(id, data, {
       orgId: context.orgId,
       userId: context.userId,
     });
@@ -68,7 +93,13 @@ export const update = authed
 
 // Delete calendar
 export const remove = authed
-  .route({ method: "DELETE", path: "/calendars/{id}" })
+  .route({
+    method: "DELETE",
+    path: "/calendars/{id}",
+    tags: ["Calendars"],
+    summary: "Delete calendar",
+    description: "Deletes a calendar.",
+  })
   .input(z.object({ id: z.uuid() }))
   .output(successResponseSchema)
   .handler(async ({ input, context }) => {

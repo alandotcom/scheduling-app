@@ -155,7 +155,7 @@ export function ClientDrawer({
 
     updateMutation.mutate({
       id: client.id,
-      data,
+      ...data,
     });
   };
 

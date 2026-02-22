@@ -264,7 +264,7 @@ describe("Resource Routes", () => {
 
       const result = await call(
         resourceRoutes.update,
-        { id: resource.id, data: { name: "Updated Name" } },
+        { id: resource.id, name: "Updated Name" },
         { context: ctx },
       );
 
@@ -278,7 +278,7 @@ describe("Resource Routes", () => {
 
       const result = await call(
         resourceRoutes.update,
-        { id: resource.id, data: { quantity: 10 } },
+        { id: resource.id, quantity: 10 },
         { context: ctx },
       );
 
@@ -295,7 +295,7 @@ describe("Resource Routes", () => {
 
       const result = await call(
         resourceRoutes.update,
-        { id: resource.id, data: { locationId: location.id } },
+        { id: resource.id, locationId: location.id },
         { context: ctx },
       );
 
@@ -311,7 +311,7 @@ describe("Resource Routes", () => {
           resourceRoutes.update,
           {
             id: "00000000-0000-0000-0000-000000000000",
-            data: { name: "Updated" },
+            name: "Updated",
           },
           { context: ctx },
         ),
@@ -330,7 +330,7 @@ describe("Resource Routes", () => {
           resourceRoutes.update,
           {
             id: resource.id,
-            data: { locationId: "00000000-0000-0000-0000-000000000000" },
+            locationId: "00000000-0000-0000-0000-000000000000",
           },
           { context: ctx },
         ),
@@ -351,7 +351,7 @@ describe("Resource Routes", () => {
       await expect(
         call(
           resourceRoutes.update,
-          { id: resource.id, data: { name: "Hacked!" } },
+          { id: resource.id, name: "Hacked!" },
           { context: ctx1 },
         ),
       ).rejects.toMatchObject({

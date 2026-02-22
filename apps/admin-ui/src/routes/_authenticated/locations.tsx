@@ -468,7 +468,7 @@ function LocationsPage() {
     if (!displayLocation) return;
     updateMutation.mutate({
       id: displayLocation.id,
-      data: formData,
+      ...formData,
     });
   };
 

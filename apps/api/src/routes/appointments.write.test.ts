@@ -758,7 +758,7 @@ describe("Appointment Routes", () => {
 
       const result = await call(
         appointmentRoutes.update,
-        { id: appointment.id, data: { notes: "Updated notes" } },
+        { id: appointment.id, notes: "Updated notes" },
         { context: ctx },
       );
 
@@ -786,7 +786,7 @@ describe("Appointment Routes", () => {
 
       const result = await call(
         appointmentRoutes.update,
-        { id: appointment.id, data: { clientId: client.id } },
+        { id: appointment.id, clientId: client.id },
         { context: ctx },
       );
 
@@ -814,7 +814,7 @@ describe("Appointment Routes", () => {
 
       const result = await call(
         appointmentRoutes.update,
-        { id: appointment.id, data: { notes: "No client change" } },
+        { id: appointment.id, notes: "No client change" },
         { context: ctx },
       );
 
@@ -830,7 +830,7 @@ describe("Appointment Routes", () => {
           appointmentRoutes.update,
           {
             id: "00000000-0000-0000-0000-000000000000",
-            data: { notes: "Updated" },
+            notes: "Updated",
           },
           { context: ctx },
         ),
@@ -859,7 +859,7 @@ describe("Appointment Routes", () => {
           appointmentRoutes.update,
           {
             id: appointment.id,
-            data: { clientId: "00000000-0000-0000-0000-000000000000" },
+            clientId: "00000000-0000-0000-0000-000000000000",
           },
           { context: ctx },
         ),
@@ -894,7 +894,7 @@ describe("Appointment Routes", () => {
       await expect(
         call(
           appointmentRoutes.update,
-          { id: appointment.id, data: { notes: "Hacked!" } },
+          { id: appointment.id, notes: "Hacked!" },
           { context: ctx1 },
         ),
       ).rejects.toMatchObject({
@@ -947,7 +947,7 @@ describe("Appointment Routes", () => {
 
       const result = await call(
         appointmentRoutes.cancel,
-        { id: appointment.id, data: { reason: "Client requested" } },
+        { id: appointment.id, reason: "Client requested" },
         { context: ctx },
       );
 
@@ -1054,7 +1054,8 @@ describe("Appointment Routes", () => {
         appointmentRoutes.reschedule,
         {
           id: appointment.id,
-          data: { newStartTime, timezone: "America/New_York" },
+          newStartTime,
+          timezone: "America/New_York",
         },
         { context: ctx },
       );
@@ -1086,7 +1087,8 @@ describe("Appointment Routes", () => {
           appointmentRoutes.reschedule,
           {
             id: appointment.id,
-            data: { newStartTime: pastTime, timezone: "America/New_York" },
+            newStartTime: pastTime,
+            timezone: "America/New_York",
           },
           { context: ctx },
         ),
@@ -1118,7 +1120,8 @@ describe("Appointment Routes", () => {
           appointmentRoutes.reschedule,
           {
             id: appointment.id,
-            data: { newStartTime, timezone: "America/New_York" },
+            newStartTime,
+            timezone: "America/New_York",
           },
           { context: ctx },
         ),
@@ -1158,7 +1161,8 @@ describe("Appointment Routes", () => {
           appointmentRoutes.reschedule,
           {
             id: appointment1.id,
-            data: { newStartTime: time2, timezone: "America/New_York" },
+            newStartTime: time2,
+            timezone: "America/New_York",
           },
           { context: ctx },
         ),
@@ -1176,7 +1180,8 @@ describe("Appointment Routes", () => {
           appointmentRoutes.reschedule,
           {
             id: "00000000-0000-0000-0000-000000000000",
-            data: { newStartTime: new Date(), timezone: "America/New_York" },
+            newStartTime: new Date(),
+            timezone: "America/New_York",
           },
           { context: ctx },
         ),
@@ -1213,10 +1218,9 @@ describe("Appointment Routes", () => {
           appointmentRoutes.reschedule,
           {
             id: appointment.id,
-            data: {
-              newStartTime: getFutureStartTime(2),
-              timezone: "America/New_York",
-            },
+
+            newStartTime: getFutureStartTime(2),
+            timezone: "America/New_York",
           },
           { context: ctx1 },
         ),

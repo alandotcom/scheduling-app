@@ -1,5 +1,7 @@
 import { z } from "zod";
 import {
+  nonNegativeIntSchema,
+  positiveIntSchema,
   successResponseSchema,
   timestampSchema,
   timestampsSchema,
@@ -582,7 +584,7 @@ export const journeySchema = z.object({
   name: z.string().trim().min(1).max(255),
   status: journeyStatusSchema,
   mode: journeyModeSchema,
-  currentVersion: z.number().int().positive().nullable(),
+  currentVersion: positiveIntSchema.nullable(),
   graph: linearJourneyGraphSchema,
   ...timestampsSchema.shape,
 });
@@ -618,13 +620,13 @@ export const journeyListResponseSchema = z.array(journeyResponseSchema);
 export const journeyVersionSchema = z.object({
   id: uuidSchema,
   journeyId: uuidSchema,
-  version: z.number().int().positive(),
+  version: positiveIntSchema,
   publishedAt: timestampSchema,
 });
 
 export const publishJourneyResponseSchema = z.object({
   journey: journeyResponseSchema,
-  version: z.number().int().positive(),
+  version: positiveIntSchema,
   warnings: z.array(z.string()),
 });
 
@@ -635,7 +637,7 @@ export const listJourneyRunsQuerySchema = z.object({
 
 const journeyVersionSnapshotSchema = z
   .object({
-    version: z.number().int().positive().optional(),
+    version: positiveIntSchema.optional(),
   })
   .catchall(z.unknown());
 
@@ -646,7 +648,7 @@ export const journeyRunSchema = z.object({
   mode: journeyRunModeSchema,
   status: journeyRunStatusSchema,
   journeyNameSnapshot: z.string().min(1),
-  journeyVersion: z.number().int().positive().nullable(),
+  journeyVersion: positiveIntSchema.nullable(),
   journeyDeleted: z.boolean(),
   startedAt: timestampSchema,
   completedAt: timestampSchema.nullable(),
@@ -711,7 +713,7 @@ export const journeyRunStepLogSchema = z.object({
   error: z.string().nullable(),
   startedAt: timestampSchema,
   completedAt: timestampSchema.nullable(),
-  durationMs: z.number().int().nonnegative().nullable(),
+  durationMs: nonNegativeIntSchema.nullable(),
   createdAt: timestampSchema,
   updatedAt: timestampSchema,
 });
@@ -759,7 +761,7 @@ export const cancelJourneyRunResponseSchema = z.object({
 
 export const cancelJourneyRunsResponseSchema = z.object({
   success: z.literal(true),
-  canceledRunCount: z.number().int().nonnegative(),
+  canceledRunCount: nonNegativeIntSchema,
 });
 
 export const startJourneyTestRunResponseSchema = z.object({

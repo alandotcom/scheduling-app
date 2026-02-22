@@ -172,12 +172,10 @@ export function RescheduleDialog({
       if (!activeSelectedTime) return;
       rescheduleMutation.mutate({
         id: appointment.id,
-        data: {
-          newStartTime: DateTime.fromISO(activeSelectedTime, {
-            setZone: true,
-          }).toJSDate(),
-          timezone: calendarTimezone,
-        },
+        newStartTime: DateTime.fromISO(activeSelectedTime, {
+          setZone: true,
+        }).toJSDate(),
+        timezone: calendarTimezone,
       });
     },
   });
@@ -324,12 +322,10 @@ export function RescheduleDialog({
                     if (activeSelectedTime) {
                       rescheduleMutation.mutate({
                         id: appointment.id,
-                        data: {
-                          newStartTime: DateTime.fromISO(activeSelectedTime, {
-                            setZone: true,
-                          }).toJSDate(),
-                          timezone: calendarTimezone,
-                        },
+                        newStartTime: DateTime.fromISO(activeSelectedTime, {
+                          setZone: true,
+                        }).toJSDate(),
+                        timezone: calendarTimezone,
                       });
                     }
                   }}

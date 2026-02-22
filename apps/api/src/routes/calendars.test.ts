@@ -352,7 +352,7 @@ describe("Calendar Routes", () => {
 
       const result = await call(
         calendarRoutes.update,
-        { id: calendar.id, data: { name: "Updated Name" } },
+        { id: calendar.id, name: "Updated Name" },
         { context: ctx },
       );
 
@@ -368,7 +368,7 @@ describe("Calendar Routes", () => {
 
       const result = await call(
         calendarRoutes.update,
-        { id: calendar.id, data: { timezone: "America/Chicago" } },
+        { id: calendar.id, timezone: "America/Chicago" },
         { context: ctx },
       );
 
@@ -384,7 +384,7 @@ describe("Calendar Routes", () => {
 
       const result = await call(
         calendarRoutes.update,
-        { id: calendar.id, data: { requiresConfirmation: true } },
+        { id: calendar.id, requiresConfirmation: true },
         { context: ctx },
       );
 
@@ -401,7 +401,7 @@ describe("Calendar Routes", () => {
 
       const result = await call(
         calendarRoutes.update,
-        { id: calendar.id, data: { locationId: location.id } },
+        { id: calendar.id, locationId: location.id },
         { context: ctx },
       );
 
@@ -417,7 +417,7 @@ describe("Calendar Routes", () => {
           calendarRoutes.update,
           {
             id: "00000000-0000-0000-0000-000000000000",
-            data: { name: "Updated" },
+            name: "Updated",
           },
           { context: ctx },
         ),
@@ -436,7 +436,7 @@ describe("Calendar Routes", () => {
           calendarRoutes.update,
           {
             id: calendar.id,
-            data: { locationId: "00000000-0000-0000-0000-000000000000" },
+            locationId: "00000000-0000-0000-0000-000000000000",
           },
           { context: ctx },
         ),
@@ -457,7 +457,7 @@ describe("Calendar Routes", () => {
       await expect(
         call(
           calendarRoutes.update,
-          { id: calendar.id, data: { name: "Hacked!" } },
+          { id: calendar.id, name: "Hacked!" },
           { context: ctx1 },
         ),
       ).rejects.toMatchObject({

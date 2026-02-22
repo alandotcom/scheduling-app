@@ -49,7 +49,7 @@ describe("API vs UI Router", () => {
     expect(apiRouterAny.dashboard).toBeUndefined();
     expect(apiRouterAny.apiKeys).toBeUndefined();
     expect(apiRouterAny.integrations).toBeUndefined();
-    expect(apiRouterAny.webhooks).toBeDefined();
+    expect(apiRouterAny.webhooks).toBeUndefined();
     expect(apiRouterAny.workflows).toBeUndefined();
   });
 

@@ -371,7 +371,7 @@ function ClientsPage() {
     if (!selectedId) return;
     updateMutation.mutate({
       id: selectedId,
-      data: formData,
+      ...formData,
     });
   };
 

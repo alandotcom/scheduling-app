@@ -956,7 +956,7 @@ function CalendarsPage() {
     if (!displayCalendar) return;
     updateMutation.mutate({
       id: displayCalendar.id,
-      data: formData,
+      ...formData,
     });
   };
 

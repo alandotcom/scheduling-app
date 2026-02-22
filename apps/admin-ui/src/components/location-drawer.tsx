@@ -157,7 +157,7 @@ export function LocationDrawer({
 
     updateMutation.mutate({
       id: location.id,
-      data,
+      ...data,
     });
   };
 

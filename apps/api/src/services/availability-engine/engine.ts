@@ -24,6 +24,7 @@ import type {
 // Pre-loaded data for slot computation
 interface AvailabilityData {
   appointmentType: AppointmentTypeData;
+  timezone: string;
   validCalendarIds: string[];
   limits: MergedSchedulingLimits;
   rules: AvailabilityRule[];
@@ -57,7 +58,7 @@ export class AvailabilityService {
     context: ServiceContext,
   ): Promise<string[]> {
     return withOrg(context.orgId, async (tx) => {
-      const { startDate, endDate, timezone } = query;
+      const { startDate, endDate } = query;
 
       // Load all data once for efficiency
       const data = await this.loadAvailabilityData(tx, context.orgId, query, {
@@ -66,6 +67,7 @@ export class AvailabilityService {
       if (!data) {
         return [];
       }
+      const { timezone } = data;
 
       const dates: string[] = [];
       let current = DateTime.fromISO(startDate, { zone: timezone });
@@ -105,7 +107,7 @@ export class AvailabilityService {
         data,
         query.startDate,
         query.endDate,
-        query.timezone,
+        data.timezone,
       );
     });
   }
@@ -117,10 +119,17 @@ export class AvailabilityService {
     appointmentTypeId: string,
     calendarId: string,
     startTime: Date,
-    timezone: string,
+    timezone: string | undefined,
     context: ServiceContext,
   ): Promise<{ available: boolean; reason?: string }> {
     return withOrg(context.orgId, async (tx) => {
+      const resolvedTimezone = await this.resolveTimezone(
+        tx,
+        context.orgId,
+        [calendarId],
+        timezone,
+      );
+
       const appointmentType = await availabilityRepository.loadAppointmentType(
         tx,
         context.orgId,
@@ -134,7 +143,7 @@ export class AvailabilityService {
         .plus({ minutes: appointmentType.durationMin })
         .toJSDate();
       const startDate = DateTime.fromJSDate(startTime, {
-        zone: timezone,
+        zone: resolvedTimezone,
       }).toISODate()!;
 
       const query: AvailabilityQuery = {
@@ -142,7 +151,7 @@ export class AvailabilityService {
         calendarIds: [calendarId],
         startDate,
         endDate: startDate,
-        timezone,
+        timezone: resolvedTimezone,
       };
 
       const data = await this.loadAvailabilityData(tx, context.orgId, query);
@@ -150,7 +159,12 @@ export class AvailabilityService {
         return { available: false, reason: "INVALID_CALENDAR" };
       }
 
-      const slots = this.computeSlots(data, startDate, startDate, timezone);
+      const slots = this.computeSlots(
+        data,
+        startDate,
+        startDate,
+        data.timezone,
+      );
 
       const matchingSlot = slots.find(
         (s) =>
@@ -459,6 +473,13 @@ export class AvailabilityService {
       return null;
     }
 
+    const resolvedTimezone = await this.resolveTimezone(
+      tx,
+      orgId,
+      validCalendarIds,
+      timezone,
+    );
+
     // 3. Load scheduling limits
     const limits = await availabilityRepository.loadSchedulingLimits(
       tx,
@@ -487,7 +508,7 @@ export class AvailabilityService {
       validCalendarIds,
       startDate,
       endDate,
-      timezone,
+      resolvedTimezone,
     );
 
     // 6. Load existing appointments
@@ -498,7 +519,7 @@ export class AvailabilityService {
         validCalendarIds,
         startDate,
         endDate,
-        timezone,
+        resolvedTimezone,
       );
 
     // 7. Load resource constraints
@@ -522,6 +543,7 @@ export class AvailabilityService {
 
     return {
       appointmentType,
+      timezone: resolvedTimezone,
       validCalendarIds,
       limits,
       rules,
@@ -532,6 +554,39 @@ export class AvailabilityService {
       resourceConstraints,
       resourcesData,
     };
+  }
+
+  private async resolveTimezone(
+    tx: DbClient,
+    orgId: string,
+    calendarIds: string[],
+    requestedTimezone?: string,
+  ): Promise<string> {
+    if (requestedTimezone) {
+      return requestedTimezone;
+    }
+
+    const calendarTimezones =
+      await availabilityRepository.loadCalendarTimezones(
+        tx,
+        orgId,
+        calendarIds,
+      );
+    if (calendarTimezones.length === 1) {
+      return calendarTimezones[0]!;
+    }
+
+    const orgDefaultTimezone =
+      await availabilityRepository.loadOrgDefaultTimezone(tx, orgId);
+    if (orgDefaultTimezone) {
+      return orgDefaultTimezone;
+    }
+
+    if (calendarTimezones.length > 0) {
+      return calendarTimezones[0]!;
+    }
+
+    return "America/New_York";
   }
 
   // ============================================================================

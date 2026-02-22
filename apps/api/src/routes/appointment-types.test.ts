@@ -315,7 +315,7 @@ describe("Appointment Type Routes", () => {
 
       const result = await call(
         appointmentTypeRoutes.update,
-        { id: appointmentType.id, data: { name: "Updated Name" } },
+        { id: appointmentType.id, name: "Updated Name" },
         { context: ctx },
       );
 
@@ -331,7 +331,7 @@ describe("Appointment Type Routes", () => {
 
       const result = await call(
         appointmentTypeRoutes.update,
-        { id: appointmentType.id, data: { durationMin: 60 } },
+        { id: appointmentType.id, durationMin: 60 },
         { context: ctx },
       );
 
@@ -350,7 +350,8 @@ describe("Appointment Type Routes", () => {
         appointmentTypeRoutes.update,
         {
           id: appointmentType.id,
-          data: { paddingBeforeMin: 10, paddingAfterMin: 5 },
+          paddingBeforeMin: 10,
+          paddingAfterMin: 5,
         },
         { context: ctx },
       );
@@ -368,7 +369,7 @@ describe("Appointment Type Routes", () => {
           appointmentTypeRoutes.update,
           {
             id: "00000000-0000-0000-0000-000000000000",
-            data: { name: "Updated" },
+            name: "Updated",
           },
           { context: ctx },
         ),
@@ -389,7 +390,7 @@ describe("Appointment Type Routes", () => {
       await expect(
         call(
           appointmentTypeRoutes.update,
-          { id: appointmentType.id, data: { name: "Hacked!" } },
+          { id: appointmentType.id, name: "Hacked!" },
           { context: ctx1 },
         ),
       ).rejects.toMatchObject({
@@ -602,7 +603,7 @@ describe("Appointment Type Routes", () => {
         appointmentTypeRoutes.addCalendar,
         {
           appointmentTypeId: appointmentType.id,
-          data: { calendarId: calendar.id },
+          calendarId: calendar.id,
         },
         { context: ctx },
       );
@@ -623,7 +624,7 @@ describe("Appointment Type Routes", () => {
           appointmentTypeRoutes.addCalendar,
           {
             appointmentTypeId: "00000000-0000-0000-0000-000000000000",
-            data: { calendarId: calendar.id },
+            calendarId: calendar.id,
           },
           { context: ctx },
         ),
@@ -645,7 +646,7 @@ describe("Appointment Type Routes", () => {
           appointmentTypeRoutes.addCalendar,
           {
             appointmentTypeId: appointmentType.id,
-            data: { calendarId: "00000000-0000-0000-0000-000000000000" },
+            calendarId: "00000000-0000-0000-0000-000000000000",
           },
           { context: ctx },
         ),
@@ -669,7 +670,7 @@ describe("Appointment Type Routes", () => {
           appointmentTypeRoutes.addCalendar,
           {
             appointmentTypeId: appointmentType.id,
-            data: { calendarId: calendar.id },
+            calendarId: calendar.id,
           },
           { context: ctx },
         ),
@@ -820,7 +821,8 @@ describe("Appointment Type Routes", () => {
         appointmentTypeRoutes.addResource,
         {
           appointmentTypeId: appointmentType.id,
-          data: { resourceId: resource.id, quantityRequired: 3 },
+          resourceId: resource.id,
+          quantityRequired: 3,
         },
         { context: ctx },
       );
@@ -842,7 +844,8 @@ describe("Appointment Type Routes", () => {
           appointmentTypeRoutes.addResource,
           {
             appointmentTypeId: "00000000-0000-0000-0000-000000000000",
-            data: { resourceId: resource.id, quantityRequired: 1 },
+            resourceId: resource.id,
+            quantityRequired: 1,
           },
           { context: ctx },
         ),
@@ -864,10 +867,8 @@ describe("Appointment Type Routes", () => {
           appointmentTypeRoutes.addResource,
           {
             appointmentTypeId: appointmentType.id,
-            data: {
-              resourceId: "00000000-0000-0000-0000-000000000000",
-              quantityRequired: 1,
-            },
+            resourceId: "00000000-0000-0000-0000-000000000000",
+            quantityRequired: 1,
           },
           { context: ctx },
         ),
@@ -891,7 +892,8 @@ describe("Appointment Type Routes", () => {
           appointmentTypeRoutes.addResource,
           {
             appointmentTypeId: appointmentType.id,
-            data: { resourceId: resource.id, quantityRequired: 2 },
+            resourceId: resource.id,
+            quantityRequired: 2,
           },
           { context: ctx },
         ),
@@ -917,7 +919,7 @@ describe("Appointment Type Routes", () => {
         {
           appointmentTypeId: appointmentType.id,
           resourceId: resource.id,
-          data: { quantityRequired: 5 },
+          quantityRequired: 5,
         },
         { context: ctx },
       );
@@ -940,7 +942,7 @@ describe("Appointment Type Routes", () => {
           {
             appointmentTypeId: appointmentType.id,
             resourceId: resource.id,
-            data: { quantityRequired: 5 },
+            quantityRequired: 5,
           },
           { context: ctx },
         ),
@@ -1017,13 +1019,13 @@ describe("Appointment Type Routes", () => {
       expect(routes.appointmentTypeRoutes.remove).toBeDefined();
       expect(routes.appointmentTypeRoutes.calendars).toBeDefined();
       expect(routes.appointmentTypeRoutes.calendars.list).toBeDefined();
-      expect(routes.appointmentTypeRoutes.calendars.add).toBeDefined();
-      expect(routes.appointmentTypeRoutes.calendars.remove).toBeDefined();
+      expect(routes.appointmentTypeRoutes.calendars.link).toBeDefined();
+      expect(routes.appointmentTypeRoutes.calendars.unlink).toBeDefined();
       expect(routes.appointmentTypeRoutes.resources).toBeDefined();
       expect(routes.appointmentTypeRoutes.resources.list).toBeDefined();
-      expect(routes.appointmentTypeRoutes.resources.add).toBeDefined();
+      expect(routes.appointmentTypeRoutes.resources.link).toBeDefined();
       expect(routes.appointmentTypeRoutes.resources.update).toBeDefined();
-      expect(routes.appointmentTypeRoutes.resources.remove).toBeDefined();
+      expect(routes.appointmentTypeRoutes.resources.unlink).toBeDefined();
     });
 
     test("main router includes appointment type routes", async () => {

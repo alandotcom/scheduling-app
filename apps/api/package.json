@@ -19,6 +19,7 @@
     "test:coverage": "bun test --coverage",
     "typecheck": "tsgo -p tsconfig.typecheck.json --noEmit --incremental --tsBuildInfoFile node_modules/.cache.typecheck.tsbuildinfo --pretty false",
     "seed": "bun --env-file=../../.env src/scripts/seed.ts",
+    "export:openapi:sdk": "bun --env-file=../../.env src/scripts/export-openapi-sdk.ts",
     "sync:svix-event-catalog": "bun --env-file=../../.env src/scripts/sync-svix-event-catalog.ts"
   },
   "dependencies": {

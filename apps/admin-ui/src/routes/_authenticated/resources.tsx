@@ -462,7 +462,7 @@ function ResourcesPage() {
     if (!displayResource) return;
     updateMutation.mutate({
       id: displayResource.id,
-      data: formData,
+      ...formData,
     });
   };
 

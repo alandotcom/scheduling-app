@@ -123,7 +123,7 @@ export function ResourceDrawer({
 
     updateMutation.mutate({
       id: resource.id,
-      data,
+      ...data,
     });
   };
 

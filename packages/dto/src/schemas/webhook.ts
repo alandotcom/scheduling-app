@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { uuidSchema } from "./common";
+import { nonNegativeIntSchema, positiveIntSchema, uuidSchema } from "./common";
 import { appointmentStatusSchema } from "./appointment";
 import { customAttributeValuesSchema } from "./custom-attribute";
 
@@ -7,7 +7,7 @@ export const webhookSessionResponseSchema = z.object({
   appId: z.string().min(1),
   token: z.string().min(1),
   serverUrl: z.url().optional(),
-  expiresInSeconds: z.number().int().positive(),
+  expiresInSeconds: positiveIntSchema,
 });
 export type WebhookSessionResponse = z.infer<
   typeof webhookSessionResponseSchema
@@ -82,17 +82,17 @@ const calendarSnapshotSchema = z.object({
 const appointmentTypeSnapshotSchema = z.object({
   appointmentTypeId: uuidSchema,
   name: z.string().min(1).max(255),
-  durationMin: z.number().int().positive(),
-  paddingBeforeMin: z.number().int().nonnegative().nullable(),
-  paddingAfterMin: z.number().int().nonnegative().nullable(),
-  capacity: z.number().int().positive().nullable(),
+  durationMin: positiveIntSchema,
+  paddingBeforeMin: nonNegativeIntSchema.nullable(),
+  paddingAfterMin: nonNegativeIntSchema.nullable(),
+  capacity: positiveIntSchema.nullable(),
   metadata: z.record(z.string(), z.unknown()).nullable(),
 });
 
 const resourceSnapshotSchema = z.object({
   resourceId: uuidSchema,
   name: z.string().min(1).max(255),
-  quantity: z.number().int().positive(),
+  quantity: positiveIntSchema,
   locationId: uuidSchema.nullable(),
 });
 

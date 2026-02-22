@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { positiveIntSchema } from "./common";
 import {
   domainEventDomainSchema,
   domainEventTypeSchema,
@@ -110,7 +111,7 @@ function isRelativeTemporalValue(
 ): value is { amount: number; unit: "minutes" | "hours" | "days" | "weeks" } {
   const parsed = z
     .object({
-      amount: z.number().int().positive(),
+      amount: positiveIntSchema,
       unit: journeyTriggerFilterTemporalUnitSchema,
     })
     .safeParse(value);

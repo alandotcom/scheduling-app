@@ -190,7 +190,7 @@ export const availabilityQuerySchema = z.object({
   calendarIds: z.array(uuidSchema).min(1, "At least one calendar is required"),
   startDate: dateSchema,
   endDate: dateSchema,
-  timezone: timezoneSchema,
+  timezone: timezoneSchema.optional(),
 });
 
 export const availableDateSchema = z.object({
@@ -221,7 +221,7 @@ export const availabilityCheckSchema = z.object({
   appointmentTypeId: uuidSchema,
   calendarId: uuidSchema,
   startTime: timestampSchema,
-  timezone: timezoneSchema,
+  timezone: timezoneSchema.optional(),
 });
 
 export const availabilityCheckResultSchema = z.object({

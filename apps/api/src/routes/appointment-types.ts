@@ -22,7 +22,13 @@ import { appointmentTypeService } from "../services/appointment-types.js";
 
 // List appointment types with cursor pagination
 export const list = authed
-  .route({ method: "GET", path: "/appointment-types" })
+  .route({
+    method: "GET",
+    path: "/appointment-types",
+    tags: ["Appointment Types"],
+    summary: "List appointment types",
+    description: "Returns appointment types for the active organization.",
+  })
   .input(listAppointmentTypesQuerySchema)
   .output(appointmentTypeListResponseSchema)
   .handler(async ({ input, context }) => {
@@ -35,7 +41,14 @@ export const list = authed
 
 // Get single appointment type by ID (with linked calendars/resources)
 export const get = authed
-  .route({ method: "GET", path: "/appointment-types/{id}" })
+  .route({
+    method: "GET",
+    path: "/appointment-types/{id}",
+    tags: ["Appointment Types"],
+    summary: "Get appointment type",
+    description:
+      "Returns a single appointment type, including linked calendars and resources.",
+  })
   .input(z.object({ id: z.uuid() }))
   .output(appointmentTypeWithLinksSchema)
   .handler(async ({ input, context }) => {
@@ -48,7 +61,14 @@ export const get = authed
 
 // Create appointment type
 export const create = authed
-  .route({ method: "POST", path: "/appointment-types", successStatus: 201 })
+  .route({
+    method: "POST",
+    path: "/appointment-types",
+    successStatus: 201,
+    tags: ["Appointment Types"],
+    summary: "Create appointment type",
+    description: "Creates a new appointment type in the active organization.",
+  })
   .input(createAppointmentTypeSchema)
   .output(appointmentTypeResponseSchema)
   .handler(async ({ input, context }) => {
@@ -61,16 +81,22 @@ export const create = authed
 
 // Update appointment type
 export const update = authed
-  .route({ method: "PATCH", path: "/appointment-types/{id}" })
+  .route({
+    method: "PATCH",
+    path: "/appointment-types/{id}",
+    tags: ["Appointment Types"],
+    summary: "Update appointment type",
+    description: "Updates an existing appointment type.",
+  })
   .input(
-    z.object({
+    updateAppointmentTypeSchema.extend({
       id: z.uuid(),
-      data: updateAppointmentTypeSchema,
     }),
   )
   .output(appointmentTypeResponseSchema)
   .handler(async ({ input, context }) => {
-    const result = await appointmentTypeService.update(input.id, input.data, {
+    const { id, ...data } = input;
+    const result = await appointmentTypeService.update(id, data, {
       orgId: context.orgId,
       userId: context.userId,
     });
@@ -79,7 +105,13 @@ export const update = authed
 
 // Delete appointment type
 export const remove = authed
-  .route({ method: "DELETE", path: "/appointment-types/{id}" })
+  .route({
+    method: "DELETE",
+    path: "/appointment-types/{id}",
+    tags: ["Appointment Types"],
+    summary: "Delete appointment type",
+    description: "Deletes an appointment type.",
+  })
   .input(z.object({ id: z.uuid() }))
   .output(successResponseSchema)
   .handler(async ({ input, context }) => {
@@ -98,6 +130,9 @@ export const listCalendars = authed
   .route({
     method: "GET",
     path: "/appointment-types/{appointmentTypeId}/calendars",
+    tags: ["Appointment Types"],
+    summary: "List linked calendars",
+    description: "Lists calendars currently linked to an appointment type.",
   })
   .input(z.object({ appointmentTypeId: z.uuid() }))
   .output(z.array(appointmentTypeCalendarAssociationSchema))
@@ -114,18 +149,21 @@ export const addCalendar = authed
     method: "POST",
     path: "/appointment-types/{appointmentTypeId}/calendars",
     successStatus: 201,
+    tags: ["Appointment Types"],
+    summary: "Link calendar to appointment type",
+    description:
+      "Links an existing calendar to an appointment type. This does not create a calendar.",
   })
   .input(
-    z.object({
+    createAppointmentTypeCalendarSchema.extend({
       appointmentTypeId: z.uuid(),
-      data: createAppointmentTypeCalendarSchema,
     }),
   )
   .output(appointmentTypeCalendarSchema)
   .handler(async ({ input, context }) => {
     return appointmentTypeService.linkCalendar(
       input.appointmentTypeId,
-      { calendarId: input.data.calendarId },
+      { calendarId: input.calendarId },
       {
         orgId: context.orgId,
         userId: context.userId,
@@ -138,6 +176,9 @@ export const removeCalendar = authed
   .route({
     method: "DELETE",
     path: "/appointment-types/{appointmentTypeId}/calendars/{calendarId}",
+    tags: ["Appointment Types"],
+    summary: "Unlink calendar from appointment type",
+    description: "Removes an existing calendar link from an appointment type.",
   })
   .input(
     z.object({
@@ -166,6 +207,9 @@ export const listResources = authed
   .route({
     method: "GET",
     path: "/appointment-types/{appointmentTypeId}/resources",
+    tags: ["Appointment Types"],
+    summary: "List linked resources",
+    description: "Lists resources currently linked to an appointment type.",
   })
   .input(z.object({ appointmentTypeId: z.uuid() }))
   .output(z.array(appointmentTypeResourceAssociationSchema))
@@ -182,11 +226,14 @@ export const addResource = authed
     method: "POST",
     path: "/appointment-types/{appointmentTypeId}/resources",
     successStatus: 201,
+    tags: ["Appointment Types"],
+    summary: "Link resource to appointment type",
+    description:
+      "Links an existing resource to an appointment type. This does not create a resource.",
   })
   .input(
-    z.object({
+    createAppointmentTypeResourceSchema.extend({
       appointmentTypeId: z.uuid(),
-      data: createAppointmentTypeResourceSchema,
     }),
   )
   .output(appointmentTypeResourceSchema)
@@ -194,8 +241,8 @@ export const addResource = authed
     return appointmentTypeService.linkResource(
       input.appointmentTypeId,
       {
-        resourceId: input.data.resourceId,
-        quantityRequired: input.data.quantityRequired,
+        resourceId: input.resourceId,
+        quantityRequired: input.quantityRequired,
       },
       {
         orgId: context.orgId,
@@ -209,16 +256,19 @@ export const updateResource = authed
   .route({
     method: "PATCH",
     path: "/appointment-types/{appointmentTypeId}/resources/{resourceId}",
+    tags: ["Appointment Types"],
+    summary: "Update linked resource",
+    description: "Updates an existing resource link for an appointment type.",
   })
   .input(
-    z.object({
-      appointmentTypeId: z.uuid(),
-      resourceId: z.uuid(),
-      data: updateAppointmentTypeResourceSchema.refine(
-        (data) => data.quantityRequired !== undefined,
-        { message: "quantityRequired is required for update" },
-      ),
-    }),
+    updateAppointmentTypeResourceSchema
+      .refine((data) => data.quantityRequired !== undefined, {
+        message: "quantityRequired is required for update",
+      })
+      .extend({
+        appointmentTypeId: z.uuid(),
+        resourceId: z.uuid(),
+      }),
   )
   .output(appointmentTypeResourceSchema)
   .handler(async ({ input, context }) => {
@@ -226,7 +276,7 @@ export const updateResource = authed
       input.appointmentTypeId,
       {
         resourceId: input.resourceId,
-        quantityRequired: input.data.quantityRequired!,
+        quantityRequired: input.quantityRequired!,
       },
       {
         orgId: context.orgId,
@@ -240,6 +290,9 @@ export const removeResource = authed
   .route({
     method: "DELETE",
     path: "/appointment-types/{appointmentTypeId}/resources/{resourceId}",
+    tags: ["Appointment Types"],
+    summary: "Unlink resource from appointment type",
+    description: "Removes an existing resource link from an appointment type.",
   })
   .input(
     z.object({
@@ -269,14 +322,14 @@ export const appointmentTypeRoutes = {
   // Calendar associations
   calendars: {
     list: listCalendars,
-    add: addCalendar,
-    remove: removeCalendar,
+    link: addCalendar,
+    unlink: removeCalendar,
   },
   // Resource associations
   resources: {
     list: listResources,
-    add: addResource,
+    link: addResource,
     update: updateResource,
-    remove: removeResource,
+    unlink: removeResource,
   },
 };

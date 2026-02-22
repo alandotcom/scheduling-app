@@ -460,7 +460,7 @@ function AppointmentTypesPage() {
     if (!displayManageType) return;
     updateMutation.mutate({
       id: displayManageType.id,
-      data: formData,
+      ...formData,
     });
   };
 
@@ -474,7 +474,7 @@ function AppointmentTypesPage() {
       if (!manageType) return;
       addCalendarMutation.mutate({
         appointmentTypeId: manageType.id,
-        data: { calendarId },
+        calendarId,
       });
     },
     [addCalendarMutation, manageType],
@@ -496,7 +496,8 @@ function AppointmentTypesPage() {
       if (!manageType) return;
       addResourceMutation.mutate({
         appointmentTypeId: manageType.id,
-        data: { resourceId, quantityRequired },
+        resourceId,
+        quantityRequired,
       });
     },
     [addResourceMutation, manageType],
@@ -508,7 +509,7 @@ function AppointmentTypesPage() {
       updateResourceMutation.mutate({
         appointmentTypeId: manageType.id,
         resourceId,
-        data: { quantityRequired },
+        quantityRequired,
       });
     },
     [manageType, updateResourceMutation],

@@ -133,11 +133,9 @@ export function CustomFieldsSection() {
     if (!crud.editingItem) return;
     updateMutation.mutate({
       id: crud.editingItem.id,
-      data: {
-        label: data.label,
-        required: data.required,
-        options: data.options,
-      },
+      label: data.label,
+      required: data.required,
+      options: data.options,
     });
   };
 

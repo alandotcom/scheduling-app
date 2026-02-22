@@ -1,0 +1,19 @@
+{
+  "name": "@scheduling/client",
+  "version": "0.0.1",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "lint": "pnpm --dir ../.. exec oxlint --type-aware --config .oxlintrc.json --tsconfig tsconfig.json sdk/typescript --ignore-pattern 'sdk/typescript/src/generated/**'",
+    "test": "node -e \"console.log('No tests for @scheduling/client yet')\"",
+    "typecheck": "tsgo -p tsconfig.typecheck.json --noEmit --incremental --tsBuildInfoFile node_modules/.cache.typecheck.tsbuildinfo --pretty false",
+    "generate": "openapi-ts -f ./openapi-ts.config.mjs"
+  },
+  "devDependencies": {
+    "@hey-api/openapi-ts": "^0.92.4",
+    "typescript": "catalog:"
+  }
+}

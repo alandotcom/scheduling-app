@@ -163,7 +163,7 @@ describe("Client Routes", () => {
 
       await call(
         clientRoutes.update,
-        { id: older.id, data: { lastName: "Recently Updated" } },
+        { id: older.id, lastName: "Recently Updated" },
         { context: ctx },
       );
 
@@ -196,7 +196,7 @@ describe("Client Routes", () => {
 
       await call(
         clientRoutes.update,
-        { id: first.id, data: { lastName: "Most Recent" } },
+        { id: first.id, lastName: "Most Recent" },
         { context: ctx },
       );
 

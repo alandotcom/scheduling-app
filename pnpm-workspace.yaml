@@ -1,6 +1,7 @@
 packages:
   - apps/*
   - packages/*
+  - sdk/*
 
 confirmModulesPurge: false
 storeDir: .pnpm-store

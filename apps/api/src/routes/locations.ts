@@ -14,7 +14,13 @@ import { locationService } from "../services/locations.js";
 
 // List locations with cursor pagination
 export const list = authed
-  .route({ method: "GET", path: "/locations" })
+  .route({
+    method: "GET",
+    path: "/locations",
+    tags: ["Locations"],
+    summary: "List locations",
+    description: "Returns locations for the active organization.",
+  })
   .input(listLocationsQuerySchema)
   .output(locationListResponseSchema)
   .handler(async ({ input, context }) => {
@@ -26,7 +32,13 @@ export const list = authed
 
 // Get single location by ID
 export const get = authed
-  .route({ method: "GET", path: "/locations/{id}" })
+  .route({
+    method: "GET",
+    path: "/locations/{id}",
+    tags: ["Locations"],
+    summary: "Get location",
+    description: "Returns one location by ID.",
+  })
   .input(z.object({ id: z.uuid() }))
   .output(locationResponseSchema)
   .handler(async ({ input, context }) => {
@@ -38,7 +50,14 @@ export const get = authed
 
 // Create location
 export const create = authed
-  .route({ method: "POST", path: "/locations", successStatus: 201 })
+  .route({
+    method: "POST",
+    path: "/locations",
+    successStatus: 201,
+    tags: ["Locations"],
+    summary: "Create location",
+    description: "Creates a new location.",
+  })
   .input(createLocationSchema)
   .output(locationResponseSchema)
   .handler(async ({ input, context }) => {
@@ -50,16 +69,22 @@ export const create = authed
 
 // Update location
 export const update = authed
-  .route({ method: "PATCH", path: "/locations/{id}" })
+  .route({
+    method: "PATCH",
+    path: "/locations/{id}",
+    tags: ["Locations"],
+    summary: "Update location",
+    description: "Updates an existing location.",
+  })
   .input(
-    z.object({
+    updateLocationSchema.extend({
       id: z.uuid(),
-      data: updateLocationSchema,
     }),
   )
   .output(locationResponseSchema)
   .handler(async ({ input, context }) => {
-    return locationService.update(input.id, input.data, {
+    const { id, ...data } = input;
+    return locationService.update(id, data, {
       orgId: context.orgId,
       userId: context.userId,
     });
@@ -67,7 +92,13 @@ export const update = authed
 
 // Delete location
 export const remove = authed
-  .route({ method: "DELETE", path: "/locations/{id}" })
+  .route({
+    method: "DELETE",
+    path: "/locations/{id}",
+    tags: ["Locations"],
+    summary: "Delete location",
+    description: "Deletes a location.",
+  })
   .input(z.object({ id: z.uuid() }))
   .output(successResponseSchema)
   .handler(async ({ input, context }) => {

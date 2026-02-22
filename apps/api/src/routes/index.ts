@@ -26,7 +26,13 @@ export { authed, adminOnly } from "./base.js";
 
 // Health check procedure
 export const health = base
-  .route({ method: "GET", path: "/health" })
+  .route({
+    method: "GET",
+    path: "/health",
+    tags: ["System"],
+    summary: "Health check",
+    description: "Returns a basic service health status.",
+  })
   .output(z.object({ status: z.literal("ok") }))
   .handler(async () => {
     return { status: "ok" as const };
@@ -71,7 +77,6 @@ export const apiRouter = {
   appointments: appointmentRoutes,
   clients: clientRoutes,
   customAttributes: customAttributeRoutes,
-  webhooks: webhookRoutes,
 };
 
 // Legacy export for backwards compatibility (points to UI router)
