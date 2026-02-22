@@ -5,7 +5,7 @@
 - `docs/ARCHITECTURE.md`
 - `docs/guides/journey-engine-domain-events.md`
 - `docs/guides/journey-execution-lifecycle.md`
-- `PLAN.md`
+- `docs/plans/README.md`
 
 ## Commands
 

@@ -87,7 +87,7 @@ Use these docs as canonical references for runtime behavior and implementation c
 - `docs/ARCHITECTURE.md`
 - `docs/guides/journey-engine-domain-events.md`
 - `docs/guides/journey-execution-lifecycle.md`
-- `PLAN.md`
+- `docs/plans/README.md`
 
 ### Typecheck Usage (Turbo)
 

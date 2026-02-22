@@ -199,4 +199,3 @@ pnpm --filter @scheduling/api run sync:svix-event-catalog
 - UI guide: [`./guides/mobile-first-container-pattern.md`](./guides/mobile-first-container-pattern.md)
 - Implementation plans index: [`./plans/README.md`](./plans/README.md)
 - Root setup/commands: [`../README.md`](../README.md)
-- Active implementation plan: [`../PLAN.md`](../PLAN.md)
