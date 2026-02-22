@@ -553,7 +553,7 @@ export function AppointmentModal({
               <div className="mb-5 grid grid-cols-1 gap-4 sm:mb-6 lg:grid-cols-2">
                 <div className="space-y-4">
                   <div className="space-y-2">
-                    <Label>Appointment Type</Label>
+                    <Label>Appointment Type *</Label>
                     <div
                       className="relative"
                       ref={registerField("appointment-type")}
@@ -584,7 +584,7 @@ export function AppointmentModal({
                   </div>
 
                   <div className="space-y-2">
-                    <Label>Calendar</Label>
+                    <Label>Calendar *</Label>
                     <div className="relative" ref={registerField("calendar")}>
                       <Select
                         value={activeSelectedCalendarId}
@@ -621,7 +621,7 @@ export function AppointmentModal({
 
                 <div className="rounded-lg border border-border bg-muted/30 px-4 py-3">
                   <div className="space-y-2">
-                    <Label>Time Display</Label>
+                    <Label>Time Display *</Label>
                     <TimeDisplayToggle
                       value={timezoneMode}
                       onValueChange={(value) => {
@@ -691,7 +691,7 @@ export function AppointmentModal({
               >
                 {/* Client selection */}
                 <div>
-                  <Label>Client</Label>
+                  <Label>Client *</Label>
                   <div
                     className="mt-2 space-y-2 relative"
                     ref={registerField("client")}
@@ -1006,7 +1006,7 @@ export function AppointmentModal({
 
                 {/* Notes */}
                 <div>
-                  <Label>Notes (optional)</Label>
+                  <Label>Notes</Label>
                   <div className="relative mt-2" ref={registerField("notes")}>
                     <Textarea
                       placeholder="Add any notes..."

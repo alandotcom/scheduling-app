@@ -1002,7 +1002,7 @@ function OrganizationSelectionScreen({
             }}
           >
             <div className="space-y-1.5">
-              <Label htmlFor="org-select-name">Organization name</Label>
+              <Label htmlFor="org-select-name">Organization name *</Label>
               <Input
                 id="org-select-name"
                 value={createOrganizationName}
@@ -1014,7 +1014,7 @@ function OrganizationSelectionScreen({
               />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="org-select-slug">Slug (optional)</Label>
+              <Label htmlFor="org-select-slug">Slug</Label>
               <Input
                 id="org-select-slug"
                 value={createOrganizationSlug}

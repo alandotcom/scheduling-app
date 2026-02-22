@@ -138,17 +138,13 @@ describe("ClientForm", () => {
 
     expect(screen.getByRole("tab", { name: "Profile" })).toBeTruthy();
     expect(screen.getByRole("tab", { name: "Relationships" })).toBeTruthy();
-    expect(screen.getByLabelText("Lead Score (optional)")).toBeTruthy();
-    expect(
-      screen.queryByRole("button", { name: "Related Client (optional)" }),
-    ).toBeNull();
+    expect(screen.getByLabelText("Lead Score")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Related Client" })).toBeNull();
 
     await user.click(screen.getByRole("tab", { name: "Relationships" }));
 
-    expect(
-      screen.getByRole("button", { name: "Related Client (optional)" }),
-    ).toBeTruthy();
-    expect(screen.queryByLabelText("Lead Score (optional)")).toBeNull();
+    expect(screen.getByRole("button", { name: "Related Client" })).toBeTruthy();
+    expect(screen.queryByLabelText("Lead Score")).toBeNull();
   });
 
   test("supports forcing the relationships section without rendering sub-tabs", () => {
@@ -171,11 +167,9 @@ describe("ClientForm", () => {
 
     expect(screen.queryByRole("tab", { name: "Profile" })).toBeNull();
     expect(screen.queryByRole("tab", { name: "Relationships" })).toBeNull();
-    expect(
-      screen.getByRole("button", { name: "Related Client (optional)" }),
-    ).toBeTruthy();
-    expect(screen.queryByLabelText("First Name")).toBeNull();
-    expect(screen.queryByLabelText("Lead Score (optional)")).toBeNull();
+    expect(screen.getByRole("button", { name: "Related Client" })).toBeTruthy();
+    expect(screen.queryByLabelText("First Name *")).toBeNull();
+    expect(screen.queryByLabelText("Lead Score")).toBeNull();
   });
 
   test("hides relationships tab when there are no relation fields", () => {
@@ -221,9 +215,7 @@ describe("ClientForm", () => {
         .getByRole("tab", { name: "Relationships" })
         .getAttribute("aria-selected"),
     ).toBe("true");
-    expect(
-      screen.getByRole("button", { name: "Related Client (optional)" }),
-    ).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Related Client" })).toBeTruthy();
     await waitFor(() => {
       expect(document.activeElement?.id).toBe("ca-relatedClient");
     });
@@ -251,7 +243,7 @@ describe("ClientForm", () => {
     const saveButton = screen.getByRole("button", { name: /save/i });
     expect(saveButton.hasAttribute("disabled")).toBe(true);
 
-    await user.type(screen.getByLabelText("First Name"), "x");
+    await user.type(screen.getByLabelText("First Name *"), "x");
     expect(saveButton.hasAttribute("disabled")).toBe(false);
   });
 

@@ -467,7 +467,7 @@ export function ClientForm({
                 className="space-y-2.5 relative"
                 ref={registerField("first-name")}
               >
-                <Label htmlFor="firstName">First Name</Label>
+                <Label htmlFor="firstName">First Name *</Label>
                 <Input
                   id="firstName"
                   placeholder="John"
@@ -491,7 +491,7 @@ export function ClientForm({
                 className="space-y-2.5 relative"
                 ref={registerField("last-name")}
               >
-                <Label htmlFor="lastName">Last Name</Label>
+                <Label htmlFor="lastName">Last Name *</Label>
                 <Input
                   id="lastName"
                   placeholder="Smith"
@@ -517,7 +517,7 @@ export function ClientForm({
                 className="space-y-2.5 relative"
                 ref={registerField("email")}
               >
-                <Label htmlFor="email">Email (optional)</Label>
+                <Label htmlFor="email">Email</Label>
                 <Input
                   id="email"
                   type="email"
@@ -683,7 +683,7 @@ export function ClientForm({
                   className="space-y-2.5 relative"
                   ref={registerField("phone")}
                 >
-                  <Label htmlFor="phone">Phone (optional)</Label>
+                  <Label htmlFor="phone">Phone</Label>
                   <Controller
                     name="phone"
                     control={control}

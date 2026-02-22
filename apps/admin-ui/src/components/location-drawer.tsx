@@ -207,7 +207,7 @@ export function LocationDrawer({
                 className="space-y-5"
               >
                 <div className="space-y-2 relative" ref={registerField("name")}>
-                  <Label htmlFor="name">Name</Label>
+                  <Label htmlFor="name">Name *</Label>
                   <Input
                     id="name"
                     {...form.register("name")}
@@ -225,7 +225,7 @@ export function LocationDrawer({
                   className="space-y-2 relative"
                   ref={registerField("timezone")}
                 >
-                  <Label>Timezone</Label>
+                  <Label>Timezone *</Label>
                   <Select
                     value={timezone}
                     onValueChange={(v) => v && form.setValue("timezone", v)}

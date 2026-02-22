@@ -63,7 +63,7 @@ describe("CustomAttributeFormField layout", () => {
       }),
     );
 
-    const input = screen.getByLabelText("Notes (optional)");
+    const input = screen.getByLabelText("Notes");
     expect(input.closest("div")?.className).toContain("sm:col-span-2");
   });
 
@@ -77,7 +77,7 @@ describe("CustomAttributeFormField layout", () => {
       }),
     );
 
-    const label = screen.getByText("Tags (optional)");
+    const label = screen.getByText("Tags");
     expect(label.closest("div")?.className).not.toContain("sm:col-span-2");
   });
 
@@ -90,7 +90,7 @@ describe("CustomAttributeFormField layout", () => {
       }),
     );
 
-    const input = screen.getByLabelText("Lead Score (optional)");
+    const input = screen.getByLabelText("Lead Score");
     expect(input.closest("div")?.className).not.toContain("sm:col-span-2");
   });
 
@@ -103,9 +103,9 @@ describe("CustomAttributeFormField layout", () => {
       }),
     );
 
-    const label = screen.getByText("SMS Opt in (optional)");
+    const label = screen.getByText("SMS Opt in");
     const wrapper = label.closest("div");
-    const input = screen.getByLabelText("SMS Opt in (optional)");
+    const input = screen.getByLabelText("SMS Opt in");
     const toggle = screen.getByRole("switch");
 
     expect(wrapper?.className).not.toContain("sm:col-span-2");
@@ -148,10 +148,8 @@ describe("CustomAttributeFormField layout", () => {
       </QueryClientProvider>,
     );
 
-    expect(screen.getByText("Referred By (optional)")).toBeTruthy();
-    expect(
-      screen.getByRole("button", { name: "Referred By (optional)" }),
-    ).toBeTruthy();
+    expect(screen.getByText("Referred By")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Referred By" })).toBeTruthy();
     const singleSummary = screen.getByText("No client selected.");
     expect(singleSummary.closest("div")?.className).toContain("h-10");
   });
@@ -191,9 +189,9 @@ describe("CustomAttributeFormField layout", () => {
       </QueryClientProvider>,
     );
 
-    expect(screen.getByText("Related Clients (optional)")).toBeTruthy();
+    expect(screen.getByText("Related Clients")).toBeTruthy();
     expect(
-      screen.getByRole("button", { name: "Related Clients (optional)" }),
+      screen.getByRole("button", { name: "Related Clients" }),
     ).toBeTruthy();
     const multiSummary = screen.getByText("No clients selected.");
     expect(multiSummary.closest("div")?.className).toContain("h-10");

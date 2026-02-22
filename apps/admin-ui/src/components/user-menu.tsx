@@ -291,7 +291,7 @@ export function UserMenu({
               className="space-y-1.5 relative"
               ref={registerField("org-name")}
             >
-              <Label htmlFor="org-name">Organization name</Label>
+              <Label htmlFor="org-name">Organization name *</Label>
               <Input
                 id="org-name"
                 value={name}
@@ -306,7 +306,7 @@ export function UserMenu({
               className="space-y-1.5 relative"
               ref={registerField("org-slug")}
             >
-              <Label htmlFor="org-slug">Slug (optional)</Label>
+              <Label htmlFor="org-slug">Slug</Label>
               <Input
                 id="org-slug"
                 value={slug}

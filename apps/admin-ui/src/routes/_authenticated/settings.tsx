@@ -1290,7 +1290,7 @@ function ApiKeysSection() {
           >
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
-                <Label htmlFor="api-key-name">Name</Label>
+                <Label htmlFor="api-key-name">Name *</Label>
                 <Input
                   id="api-key-name"
                   placeholder="Production integration"
@@ -1305,7 +1305,7 @@ function ApiKeysSection() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="api-key-scope">Permission</Label>
+                <Label htmlFor="api-key-scope">Permission *</Label>
                 <Controller
                   name="scope"
                   control={control}
@@ -1343,7 +1343,7 @@ function ApiKeysSection() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="api-key-expires-at">Expires at (optional)</Label>
+              <Label htmlFor="api-key-expires-at">Expires at</Label>
               <Input
                 id="api-key-expires-at"
                 type="datetime-local"
@@ -2017,7 +2017,7 @@ function UsersManagementSection() {
           >
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
-                <Label htmlFor="new-user-email">Email</Label>
+                <Label htmlFor="new-user-email">Email *</Label>
                 <Input
                   id="new-user-email"
                   type="email"
@@ -2033,7 +2033,7 @@ function UsersManagementSection() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="new-user-name">Name (optional)</Label>
+                <Label htmlFor="new-user-name">Name</Label>
                 <Input
                   id="new-user-name"
                   placeholder="Full name"
@@ -2055,7 +2055,7 @@ function UsersManagementSection() {
             </div>
 
             <div className="max-w-[220px] space-y-2">
-              <Label htmlFor="new-user-role">Role</Label>
+              <Label htmlFor="new-user-role">Role *</Label>
               <Controller
                 name="role"
                 control={control}

@@ -143,7 +143,7 @@ function AppointmentTypeForm({
       className="space-y-5"
     >
       <div className="space-y-2.5 relative" ref={registerField("name")}>
-        <Label htmlFor="name">Name</Label>
+        <Label htmlFor="name">Name *</Label>
         <Input
           id="name"
           placeholder="Consultation"
@@ -162,7 +162,7 @@ function AppointmentTypeForm({
 
       <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
         <div className="space-y-2.5 relative" ref={registerField("duration")}>
-          <Label htmlFor="durationMin">Duration (minutes)</Label>
+          <Label htmlFor="durationMin">Duration (minutes) *</Label>
           <Input
             id="durationMin"
             type="number"
@@ -182,7 +182,7 @@ function AppointmentTypeForm({
         </div>
 
         <div className="space-y-2.5 relative" ref={registerField("capacity")}>
-          <Label htmlFor="capacity">Capacity (optional)</Label>
+          <Label htmlFor="capacity">Capacity</Label>
           <Input
             id="capacity"
             type="number"

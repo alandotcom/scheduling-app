@@ -154,7 +154,7 @@ function LocationForm({
       className="space-y-5"
     >
       <div className="space-y-2.5 relative" ref={registerField("name")}>
-        <Label htmlFor="name">Name</Label>
+        <Label htmlFor="name">Name *</Label>
         <Input
           id="name"
           placeholder="Main Office"
@@ -172,7 +172,7 @@ function LocationForm({
       </div>
 
       <div className="space-y-2.5 relative" ref={registerField("timezone")}>
-        <Label htmlFor="timezone">Timezone</Label>
+        <Label htmlFor="timezone">Timezone *</Label>
         <Select
           value={timezone}
           onValueChange={(value) => value && setValue("timezone", value)}

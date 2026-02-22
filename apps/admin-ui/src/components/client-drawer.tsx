@@ -227,7 +227,7 @@ export function ClientDrawer({
                     className="space-y-2 relative"
                     ref={registerField("first-name")}
                   >
-                    <Label htmlFor="firstName">First Name</Label>
+                    <Label htmlFor="firstName">First Name *</Label>
                     <Input
                       id="firstName"
                       {...form.register("firstName")}
@@ -244,7 +244,7 @@ export function ClientDrawer({
                     className="space-y-2 relative"
                     ref={registerField("last-name")}
                   >
-                    <Label htmlFor="lastName">Last Name</Label>
+                    <Label htmlFor="lastName">Last Name *</Label>
                     <Input
                       id="lastName"
                       {...form.register("lastName")}

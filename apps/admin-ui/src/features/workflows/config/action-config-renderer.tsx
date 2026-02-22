@@ -26,6 +26,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { formatFieldLabel } from "@/lib/field-label";
 import { cn } from "@/lib/utils";
 import { TIMEZONES } from "@/lib/constants";
 import { formatTimezonePickerLabel } from "@/lib/date-utils";
@@ -762,7 +763,7 @@ function TextFieldRenderer({
 
   return (
     <div className="space-y-2">
-      <Label>{field.label}</Label>
+      <Label>{formatFieldLabel(field.label, field.required === true)}</Label>
       <ExpressionInput
         disabled={disabled}
         onChange={(nextValue) => setLocalValue(nextValue)}
@@ -815,7 +816,7 @@ function TextareaFieldRenderer({
 
   return (
     <div className="space-y-2">
-      <Label>{field.label}</Label>
+      <Label>{formatFieldLabel(field.label, field.required === true)}</Label>
       <ExpressionInput
         disabled={disabled}
         multiline
@@ -856,7 +857,7 @@ function NumberFieldRenderer({
 
   return (
     <div className="space-y-2">
-      <Label>{field.label}</Label>
+      <Label>{formatFieldLabel(field.label, field.required === true)}</Label>
       <Input
         disabled={disabled}
         min={field.min}
@@ -912,7 +913,7 @@ function SelectFieldRenderer({
 
   return (
     <div className="space-y-2">
-      <Label>{field.label}</Label>
+      <Label>{formatFieldLabel(field.label, field.required === true)}</Label>
       <Select
         disabled={disabled}
         value={currentValue}
@@ -974,7 +975,7 @@ function ExpressionFieldRenderer({
 
   return (
     <div className="space-y-2">
-      <Label>{field.label}</Label>
+      <Label>{formatFieldLabel(field.label, field.required === true)}</Label>
       <ExpressionInput
         disabled={disabled}
         onBlur={() => {
@@ -1922,7 +1923,7 @@ function ConditionExpressionFieldRenderer({
 
   return (
     <div className="space-y-2">
-      <Label>{field.label}</Label>
+      <Label>{formatFieldLabel(field.label, field.required === true)}</Label>
       <div className="inline-flex items-center rounded-full border border-border bg-background p-0.5">
         <button
           className={cn(
@@ -2082,7 +2083,7 @@ function KeyValueListFieldRenderer({
 
   return (
     <div className="space-y-2">
-      <Label>{field.label}</Label>
+      <Label>{formatFieldLabel(field.label, field.required === true)}</Label>
       <div className="space-y-2">
         {rows.map((row) => (
           <div

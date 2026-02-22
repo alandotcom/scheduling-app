@@ -127,7 +127,7 @@ registerAction({
     },
     {
       key: "waitOffset",
-      label: "Send before/after that time (optional)",
+      label: "Send before/after that time",
       type: "expression",
       placeholder: "-1d, 6h, 30m",
       helpText: "Example: -1d sends one day before the target time.",
@@ -163,7 +163,7 @@ registerAction({
     },
     {
       key: "waitTimezone",
-      label: "Timezone (optional)",
+      label: "Timezone",
       type: "text",
       placeholder: "UTC",
       helpText: "Used when the target date/time does not include an offset.",
@@ -222,7 +222,7 @@ registerAction({
     },
     {
       key: "fromName",
-      label: "From name (optional)",
+      label: "From name",
       type: "text",
       placeholder: "Acme Scheduling",
       helpText:
@@ -230,7 +230,7 @@ registerAction({
     },
     {
       key: "fromAddress",
-      label: "From address (optional)",
+      label: "From address",
       type: "text",
       placeholder: "notifications@example.com",
       helpText:
@@ -238,7 +238,7 @@ registerAction({
     },
     {
       key: "cc",
-      label: "CC (optional)",
+      label: "CC",
       type: "text",
       placeholder: "ops@example.com, manager@example.com",
       helpText:
@@ -246,7 +246,7 @@ registerAction({
     },
     {
       key: "bcc",
-      label: "BCC (optional)",
+      label: "BCC",
       type: "text",
       placeholder: "audit@example.com, archive@example.com",
       helpText:
@@ -291,7 +291,7 @@ registerAction({
     },
     {
       key: "fromName",
-      label: "From name (optional)",
+      label: "From name",
       type: "text",
       placeholder: "Acme Scheduling",
       helpText:
@@ -299,7 +299,7 @@ registerAction({
     },
     {
       key: "fromAddress",
-      label: "From address (optional)",
+      label: "From address",
       type: "text",
       placeholder: "notifications@example.com",
       helpText:
@@ -307,7 +307,7 @@ registerAction({
     },
     {
       key: "cc",
-      label: "CC (optional)",
+      label: "CC",
       type: "text",
       placeholder: "ops@example.com, manager@example.com",
       helpText:
@@ -315,7 +315,7 @@ registerAction({
     },
     {
       key: "bcc",
-      label: "BCC (optional)",
+      label: "BCC",
       type: "text",
       placeholder: "audit@example.com, archive@example.com",
       helpText:
@@ -403,7 +403,7 @@ registerAction({
   configFields: [
     {
       key: "toPhone",
-      label: "Recipient phone (optional)",
+      label: "Recipient phone",
       type: "text",
       placeholder: "@Appointment.data.client.phone",
       helpText:

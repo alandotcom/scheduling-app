@@ -1557,7 +1557,7 @@ function WorkflowTriggerConfigInner({
             {currentClientEvent === "client.updated" ? (
               <div className="space-y-2">
                 <p className="font-medium text-xs text-muted-foreground">
-                  Tracked attribute key (required)
+                  Tracked attribute key *
                 </p>
                 <Select
                   disabled={disabled || !hasTrackedAttributeOptions}

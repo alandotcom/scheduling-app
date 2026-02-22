@@ -22,6 +22,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { formatFieldLabel } from "@/lib/field-label";
 import { orpc } from "@/lib/query";
 
 interface CustomAttributeFormFieldProps {
@@ -244,7 +245,7 @@ export function CustomAttributeFormField({
   const fieldPath = `customAttributes.${definition.fieldKey}` as const;
   const fieldId = `ca-${definition.fieldKey}`;
   const errorId = `ca-${definition.fieldKey}-error`;
-  const label = `${definition.label}${definition.required ? "" : " (optional)"}`;
+  const label = formatFieldLabel(definition.label, definition.required);
   const fieldWrapperClass = getFieldWrapperClass(definition.type);
 
   switch (definition.type) {

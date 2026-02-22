@@ -123,7 +123,7 @@ export function CreateWorkflowDialog({
             </AlertDialogDescription>
           </AlertDialogHeader>
           <div className="mt-4">
-            <Label htmlFor="workflow-name">Name</Label>
+            <Label htmlFor="workflow-name">Name *</Label>
             <Input
               id="workflow-name"
               placeholder="e.g. New client onboarding"

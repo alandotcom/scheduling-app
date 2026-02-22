@@ -315,7 +315,7 @@ function CreateFieldForm({
   return (
     <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-4">
       <div className="space-y-2">
-        <Label htmlFor="cf-label">Label</Label>
+        <Label htmlFor="cf-label">Label *</Label>
         <Input
           id="cf-label"
           placeholder="e.g. Insurance Provider"
@@ -328,7 +328,7 @@ function CreateFieldForm({
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="cf-field-key">Field Key</Label>
+        <Label htmlFor="cf-field-key">Field Key *</Label>
         <Input
           id="cf-field-key"
           placeholder="e.g. insurance_provider"
@@ -345,7 +345,7 @@ function CreateFieldForm({
 
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
-          <Label>Type</Label>
+          <Label>Type *</Label>
           <Select
             value={watchedType}
             onValueChange={(value) => {
@@ -384,7 +384,7 @@ function CreateFieldForm({
       {isRelationType ? (
         <div className="space-y-4 rounded-md border border-border p-3">
           <div className="space-y-2">
-            <Label>Relation Value Mode</Label>
+            <Label>Relation Value Mode *</Label>
             <Select
               value={relationValueMode}
               onValueChange={(value) => {
@@ -419,7 +419,7 @@ function CreateFieldForm({
           {watchedRelationCreateReverse ? (
             <div className="space-y-3 rounded-md border border-border p-3">
               <div className="space-y-2">
-                <Label htmlFor="cf-reverse-label">Reverse Label</Label>
+                <Label htmlFor="cf-reverse-label">Reverse Label *</Label>
                 <Input
                   id="cf-reverse-label"
                   placeholder="e.g. Referrals"
@@ -434,7 +434,9 @@ function CreateFieldForm({
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="cf-reverse-field-key">Reverse Field Key</Label>
+                <Label htmlFor="cf-reverse-field-key">
+                  Reverse Field Key *
+                </Label>
                 <Input
                   id="cf-reverse-field-key"
                   placeholder="e.g. referrals"
@@ -453,7 +455,7 @@ function CreateFieldForm({
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label>Reverse Value Mode</Label>
+                  <Label>Reverse Value Mode *</Label>
                   <Select
                     value={reverseValueMode}
                     onValueChange={(value) => {
@@ -620,7 +622,7 @@ function EditFieldForm({
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="cf-edit-label">Label</Label>
+        <Label htmlFor="cf-edit-label">Label *</Label>
         <Input
           id="cf-edit-label"
           disabled={isSubmitting}

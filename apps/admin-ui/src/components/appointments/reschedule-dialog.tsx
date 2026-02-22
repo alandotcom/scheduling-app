@@ -252,7 +252,7 @@ export function RescheduleDialog({
                   ref={registerField("time-display")}
                 >
                   <div className="space-y-2">
-                    <Label>Time Display</Label>
+                    <Label>Time Display *</Label>
                     <TimeDisplayToggle
                       value={timezoneMode}
                       onValueChange={(value) => {

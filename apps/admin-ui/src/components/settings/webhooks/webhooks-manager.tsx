@@ -495,7 +495,7 @@ function CreateEndpointModal({
       <div className="space-y-5 p-6">
         <div className="grid gap-4 md:grid-cols-2">
           <div className="space-y-2">
-            <Label htmlFor="webhook-endpoint-url">Endpoint URL</Label>
+            <Label htmlFor="webhook-endpoint-url">Endpoint URL *</Label>
             <Input
               id="webhook-endpoint-url"
               type="url"
@@ -506,9 +506,7 @@ function CreateEndpointModal({
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="webhook-endpoint-description">
-              Description (optional)
-            </Label>
+            <Label htmlFor="webhook-endpoint-description">Description</Label>
             <Input
               id="webhook-endpoint-description"
               value={description}

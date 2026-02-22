@@ -173,7 +173,7 @@ export function ResourceDrawer({
               className="space-y-5"
             >
               <div className="space-y-2 relative" ref={registerField("name")}>
-                <Label htmlFor="name">Name</Label>
+                <Label htmlFor="name">Name *</Label>
                 <Input
                   id="name"
                   {...form.register("name")}
@@ -191,7 +191,7 @@ export function ResourceDrawer({
                 className="space-y-2 relative"
                 ref={registerField("quantity")}
               >
-                <Label htmlFor="quantity">Quantity</Label>
+                <Label htmlFor="quantity">Quantity *</Label>
                 <Input
                   id="quantity"
                   type="number"
@@ -211,7 +211,7 @@ export function ResourceDrawer({
                 className="space-y-2 relative"
                 ref={registerField("location")}
               >
-                <Label>Location (optional)</Label>
+                <Label>Location</Label>
                 <Select
                   value={locationId ?? "none"}
                   onValueChange={(v) =>

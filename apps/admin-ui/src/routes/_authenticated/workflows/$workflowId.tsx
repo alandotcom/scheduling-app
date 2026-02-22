@@ -985,7 +985,7 @@ function WorkflowEditorPage() {
             </AlertDialogHeader>
 
             <div className="mt-4">
-              <Label htmlFor="rename-journey-name">Name</Label>
+              <Label htmlFor="rename-journey-name">Name *</Label>
               <Input
                 id="rename-journey-name"
                 value={renameInputValue}
