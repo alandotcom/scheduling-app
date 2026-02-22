@@ -265,6 +265,8 @@ describe("journey integration action dispatchers", () => {
         loadTemplateContext: async () => templateContext,
         resolveCredentials: async () => ({
           accountSid: "AC123",
+          apiKeySid: "SK123",
+          apiKeySecret: "api-key-secret",
           authToken: "secret",
           messagingServiceSid: "MG1234567890abcdef1234567890abcdef",
         }),
@@ -320,6 +322,8 @@ describe("journey integration action dispatchers", () => {
         }),
         resolveCredentials: async () => ({
           accountSid: "AC123",
+          apiKeySid: "SK123",
+          apiKeySecret: "api-key-secret",
           authToken: "secret",
           messagingServiceSid: "MG1234567890abcdef1234567890abcdef",
         }),
@@ -364,6 +368,8 @@ describe("journey integration action dispatchers", () => {
         loadTemplateContext: async () => templateContext,
         resolveCredentials: async () => ({
           accountSid: "AC123",
+          apiKeySid: "SK123",
+          apiKeySecret: "api-key-secret",
           authToken: "secret",
           messagingServiceSid: "MG1234567890abcdef1234567890abcdef",
         }),
@@ -450,6 +456,8 @@ describe("journey integration action dispatchers", () => {
         {
           resolveCredentials: async () => ({
             accountSid: "AC123",
+            apiKeySid: "SK123",
+            apiKeySecret: "api-key-secret",
             authToken: "secret",
             messagingServiceSid: "MG1234567890abcdef1234567890abcdef",
           }),
@@ -483,6 +491,8 @@ describe("journey integration action dispatchers", () => {
         {
           resolveCredentials: async () => ({
             accountSid: "AC123",
+            apiKeySid: "SK123",
+            apiKeySecret: "api-key-secret",
             authToken: "secret",
             messagingServiceSid: "MG1234567890abcdef1234567890abcdef",
           }),
@@ -521,6 +531,8 @@ describe("journey integration action dispatchers", () => {
           sendTimeoutMs: 1,
           resolveCredentials: async () => ({
             accountSid: "AC123",
+            apiKeySid: "SK123",
+            apiKeySecret: "api-key-secret",
             authToken: "secret",
             messagingServiceSid: "MG1234567890abcdef1234567890abcdef",
           }),

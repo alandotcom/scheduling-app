@@ -304,7 +304,7 @@ describe("Integration Routes", () => {
     });
   });
 
-  test("twilio requires messagingServiceSid and account credentials to be configured", async () => {
+  test("twilio requires messagingServiceSid, api key credentials, and webhook auth token to be configured", async () => {
     const { org, user } = await createOrg(db);
     const context = createTestContext({
       orgId: org.id,
@@ -349,6 +349,8 @@ describe("Integration Routes", () => {
         key: "twilio",
         set: {
           accountSid: "AC1234567890abcdef1234567890abcdef",
+          apiKeySid: "SK1234567890abcdef1234567890abcdef",
+          apiKeySecret: "twilio-api-key-secret",
           authToken: "twilio-auth-token",
         },
       },
@@ -363,6 +365,8 @@ describe("Integration Routes", () => {
     expect(afterSecrets.configured).toBe(true);
     expect(afterSecrets.secretFields).toMatchObject({
       accountSid: true,
+      apiKeySid: true,
+      apiKeySecret: true,
       authToken: true,
     });
   });

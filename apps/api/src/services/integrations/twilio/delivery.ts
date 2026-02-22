@@ -16,6 +16,8 @@ import {
 
 export type TwilioCredentials = {
   accountSid: string;
+  apiKeySid: string;
+  apiKeySecret: string;
   authToken: string;
   messagingServiceSid: string;
 };
@@ -36,7 +38,8 @@ type TwilioDispatcherDependencies = {
   sendTimeoutMs?: number;
   sendMessage?: (input: {
     accountSid: string;
-    authToken: string;
+    apiKeySid: string;
+    apiKeySecret: string;
     messagingServiceSid: string;
     to: string;
     body: string;
@@ -100,20 +103,34 @@ export async function resolveTwilioCredentialsForOrg(
     typeof secrets["accountSid"] === "string"
       ? secrets["accountSid"].trim()
       : "";
+  const apiKeySid =
+    typeof secrets["apiKeySid"] === "string" ? secrets["apiKeySid"].trim() : "";
+  const apiKeySecret =
+    typeof secrets["apiKeySecret"] === "string"
+      ? secrets["apiKeySecret"].trim()
+      : "";
   const authToken =
     typeof secrets["authToken"] === "string" ? secrets["authToken"].trim() : "";
   const messagingServiceSid = normalizeMessagingServiceSid(
     integrationState.config["messagingServiceSid"],
   );
 
-  if (!accountSid || !authToken || !messagingServiceSid) {
+  if (
+    !accountSid ||
+    !apiKeySid ||
+    !apiKeySecret ||
+    !authToken ||
+    !messagingServiceSid
+  ) {
     throw new JourneyDeliveryNonRetryableError(
-      "Twilio integration is not fully configured. Expected accountSid, authToken, and messagingServiceSid.",
+      "Twilio integration is not fully configured. Expected accountSid, apiKeySid, apiKeySecret, authToken, and messagingServiceSid.",
     );
   }
 
   return {
     accountSid,
+    apiKeySid,
+    apiKeySecret,
     authToken,
     messagingServiceSid,
   };
@@ -134,13 +151,16 @@ export function buildTwilioStatusCallbackUrl(input: {
 
 async function sendTwilioMessage(input: {
   accountSid: string;
-  authToken: string;
+  apiKeySid: string;
+  apiKeySecret: string;
   messagingServiceSid: string;
   to: string;
   body: string;
   statusCallback: string;
 }): Promise<{ sid: string }> {
-  const client = twilio(input.accountSid, input.authToken);
+  const client = twilio(input.apiKeySid, input.apiKeySecret, {
+    accountSid: input.accountSid,
+  });
   const message = await client.messages.create({
     to: input.to,
     body: input.body,
@@ -272,7 +292,8 @@ export async function dispatchJourneySendTwilioAction(
     const message = await sendTwilioMessageWithTimeout(
       send({
         accountSid: credentials.accountSid,
-        authToken: credentials.authToken,
+        apiKeySid: credentials.apiKeySid,
+        apiKeySecret: credentials.apiKeySecret,
         messagingServiceSid: credentials.messagingServiceSid,
         to: recipient,
         body: messageBody,

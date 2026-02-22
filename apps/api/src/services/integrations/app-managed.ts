@@ -165,14 +165,30 @@ const appManagedIntegrations: readonly AppManagedIntegrationDefinition[] = [
       {
         key: "accountSid",
         label: "Account SID",
-        description: "Twilio Account SID (starts with AC).",
+        description:
+          "Twilio Account SID (starts with AC). Used together with API Key auth.",
         placeholder: "AC...",
         required: true,
       },
       {
+        key: "apiKeySid",
+        label: "API Key SID",
+        description: "Twilio API Key SID (starts with SK).",
+        placeholder: "SK...",
+        required: true,
+      },
+      {
+        key: "apiKeySecret",
+        label: "API Key Secret",
+        description: "Twilio API Key Secret.",
+        placeholder: "••••••••",
+        required: true,
+      },
+      {
         key: "authToken",
-        label: "Auth token",
-        description: "Twilio Auth Token.",
+        label: "Webhook auth token",
+        description:
+          "Twilio Auth Token used to validate webhook signatures for status callbacks.",
         placeholder: "••••••••",
         required: true,
       },
