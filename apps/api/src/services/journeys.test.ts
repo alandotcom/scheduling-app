@@ -8,6 +8,7 @@ import {
 } from "@scheduling/db/schema";
 import {
   getTestDb,
+  registerDbTestReset,
   setTestOrgContext,
   type TestDatabase,
 } from "../test-utils/index.js";
@@ -216,6 +217,7 @@ function createClientJourneyGraph(input: {
 }
 
 describe("JourneyService", () => {
+  registerDbTestReset();
   const db: TestDatabase = getTestDb();
   let context: ServiceContext;
   let otherContext: ServiceContext;

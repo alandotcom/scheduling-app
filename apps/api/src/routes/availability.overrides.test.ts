@@ -6,6 +6,7 @@ import {
   createOrg,
   createCalendar,
   getTestDb,
+  registerDbTestReset,
 } from "../test-utils/index.js";
 import {
   createCalendarFixture,
@@ -15,6 +16,7 @@ import {
 } from "../test-utils/availability-test-helpers.js";
 
 describe("Availability Overrides", () => {
+  registerDbTestReset("per-file");
   const db = getTestDb() as AvailabilityTestDb;
 
   test("creates, lists, and gets overrides", async () => {

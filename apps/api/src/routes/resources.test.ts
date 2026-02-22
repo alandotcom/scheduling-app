@@ -9,6 +9,7 @@ import {
   createLocation,
   createResource,
   getTestDb,
+  registerDbTestReset,
   setTestOrgContext,
 } from "../test-utils/index.js";
 import * as resourceRoutes from "./resources.js";
@@ -20,6 +21,7 @@ import type { relations } from "@scheduling/db/relations";
 type Database = BunSQLDatabase<typeof schema, typeof relations>;
 
 describe("Resource Routes", () => {
+  registerDbTestReset("per-file");
   const db = getTestDb() as Database;
 
   describe("list", () => {

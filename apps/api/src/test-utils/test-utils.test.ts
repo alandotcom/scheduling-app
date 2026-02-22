@@ -16,6 +16,7 @@ import {
   createClient,
   createTestFixture,
   getTestDb,
+  registerDbTestReset,
   resetTestDb,
   setTestOrgContext,
   clearTestOrgContext,
@@ -28,6 +29,7 @@ import type { relations } from "@scheduling/db/relations";
 type Database = BunSQLDatabase<typeof schema, typeof relations>;
 
 describe("Test Utilities", () => {
+  registerDbTestReset("per-file");
   const db = getTestDb() as Database;
 
   describe("createTestContext", () => {

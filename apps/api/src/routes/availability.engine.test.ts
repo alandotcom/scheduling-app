@@ -6,6 +6,7 @@ import {
   createCalendar,
   createAvailabilityRule,
   getTestDb,
+  registerDbTestReset,
 } from "../test-utils/index.js";
 import {
   createAvailabilityFixture,
@@ -14,6 +15,7 @@ import {
 } from "../test-utils/availability-test-helpers.js";
 
 describe("Availability Engine", () => {
+  registerDbTestReset("per-file");
   const db = getTestDb() as AvailabilityTestDb;
 
   test("getDates returns available dates", async () => {

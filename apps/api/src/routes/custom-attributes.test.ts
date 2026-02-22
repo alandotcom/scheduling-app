@@ -7,6 +7,7 @@ import {
   createTestContext,
   createOrg,
   getTestDb,
+  registerDbTestReset,
 } from "../test-utils/index.js";
 import * as customAttributeRoutes from "./custom-attributes.js";
 import type { BunSQLDatabase } from "drizzle-orm/bun-sql/postgres";
@@ -16,6 +17,7 @@ import type { relations } from "@scheduling/db/relations";
 type Database = BunSQLDatabase<typeof schema, typeof relations>;
 
 describe("Custom Attribute Routes", () => {
+  registerDbTestReset("per-file");
   const db = getTestDb() as Database;
 
   describe("listDefinitions", () => {

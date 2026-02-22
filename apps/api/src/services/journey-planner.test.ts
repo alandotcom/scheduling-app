@@ -20,6 +20,7 @@ import type {
 } from "@scheduling/dto";
 import {
   getTestDb,
+  registerDbTestReset,
   setTestOrgContext,
   type TestDatabase,
 } from "../test-utils/index.js";
@@ -32,6 +33,8 @@ import {
   executeWaitForConfirmationTimeout,
   executeWaitResume,
 } from "./journey-planner.js";
+
+registerDbTestReset("per-file");
 
 const db: TestDatabase = getTestDb();
 

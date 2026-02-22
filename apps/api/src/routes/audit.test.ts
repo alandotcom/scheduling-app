@@ -9,6 +9,7 @@ import {
   createOrg,
   createOrgMember,
   getTestDb,
+  registerDbTestReset,
   setTestOrgContext,
   clearTestOrgContext,
 } from "../test-utils/index.js";
@@ -21,6 +22,7 @@ import type { relations } from "@scheduling/db/relations";
 type Database = BunSQLDatabase<typeof schema, typeof relations>;
 
 describe("Audit Routes", () => {
+  registerDbTestReset("per-file");
   const db = getTestDb() as Database;
 
   async function insertAuditEvent(options: {

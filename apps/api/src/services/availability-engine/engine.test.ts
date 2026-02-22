@@ -11,6 +11,7 @@ import {
 } from "bun:test";
 import {
   getTestDb,
+  registerDbTestReset,
   seedTestOrg,
   setTestOrgContext,
 } from "../../test-utils/index.js";
@@ -38,6 +39,7 @@ import type { ServiceContext } from "../locations.js";
 type Database = BunSQLDatabase<typeof schema, typeof relations>;
 
 describe("AvailabilityService", () => {
+  registerDbTestReset();
   const db = getTestDb() as Database;
   let org: { id: string; name: string };
   let user: { id: string };

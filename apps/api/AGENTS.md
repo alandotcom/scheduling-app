@@ -85,6 +85,14 @@ Core helpers:
 
 Keep these tests for behavior that cannot be trusted with pure mocks (query semantics, constraints, RLS).
 
+### DB Reset Strategy (Selective)
+
+- API test preload initializes a shared test DB, but it does **not** auto-reset per test.
+- Any test file that uses `getTestDb()` must call `registerDbTestReset()` once in that file/suite.
+- Prefer `registerDbTestReset("per-file")` when each test builds its own isolated fixtures (for example, fresh org-scoped data) and does not depend on global table emptiness.
+- Use `registerDbTestReset()` (`per-test`) for stateful suites that assert global counts/uniqueness or otherwise fail under per-file isolation.
+- Do not add global reset hooks in preload files; keep reset registration local to DB test files.
+
 ## Test File Placement
 
 - Prefer co-located tests: `*.test.ts` next to implementation files.

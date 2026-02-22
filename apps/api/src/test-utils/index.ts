@@ -39,8 +39,10 @@ export {
   createTestDb,
   resetTestDb,
   closeTestDb,
+  registerDbTestReset,
   setTestOrgContext,
   clearTestOrgContext,
+  type DbResetMode,
   type TestDatabase,
 } from "./setup.js";
 

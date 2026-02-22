@@ -11,12 +11,14 @@ import {
   createTestContext,
   createTokenContext,
   getTestDb,
+  registerDbTestReset,
 } from "../test-utils/index.js";
 import { orgUserRoutes } from "./org-users.js";
 
 type Database = BunSQLDatabase<typeof schema, typeof relations>;
 
 describe("Org User Routes", () => {
+  registerDbTestReset();
   const db = getTestDb() as Database;
 
   test("list returns members for active organization only", async () => {

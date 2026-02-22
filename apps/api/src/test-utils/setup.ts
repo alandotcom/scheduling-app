@@ -4,6 +4,7 @@
 // Use createTestDb/resetTestDb/closeTestDb from @scheduling/db/test-utils
 // in your test files with beforeAll/beforeEach/afterAll.
 
+import { beforeAll, beforeEach } from "bun:test";
 import {
   getTestDb as getRawTestDb,
   resetTestDb as resetRawTestDb,
@@ -30,6 +31,27 @@ export async function resetTestDb(db?: TestDatabase): Promise<void> {
 export async function closeTestDb(db?: TestDatabase): Promise<void> {
   if (!db) return;
   await closeRawTestDb(db);
+}
+
+export type DbResetMode = "per-test" | "per-file";
+
+/**
+ * Register DB reset hooks for the current test file/describe scope.
+ *
+ * - per-test: reset before each test (strict isolation)
+ * - per-file: reset once before the file/scope (faster for read-only suites)
+ */
+export function registerDbTestReset(mode: DbResetMode = "per-test"): void {
+  if (mode === "per-file") {
+    beforeAll(async () => {
+      await resetRawTestDb(getRawTestDb());
+    });
+    return;
+  }
+
+  beforeEach(async () => {
+    await resetRawTestDb(getRawTestDb());
+  });
 }
 
 export { setTestOrgContext, clearTestOrgContext };

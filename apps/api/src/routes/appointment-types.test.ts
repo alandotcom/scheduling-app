@@ -12,6 +12,7 @@ import {
   createClient,
   createAppointment,
   getTestDb,
+  registerDbTestReset,
   setTestOrgContext,
 } from "../test-utils/index.js";
 import * as appointmentTypeRoutes from "./appointment-types.js";
@@ -28,6 +29,7 @@ import type { relations } from "@scheduling/db/relations";
 type Database = BunSQLDatabase<typeof schema, typeof relations>;
 
 describe("Appointment Type Routes", () => {
+  registerDbTestReset();
   const db = getTestDb() as Database;
 
   describe("list", () => {

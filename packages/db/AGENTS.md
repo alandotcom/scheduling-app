@@ -180,6 +180,15 @@ closeTestDb()    // → closes connection, use in afterAll
 getTestDb()      // → returns current db instance (throws if not initialized)
 ```
 
+### Selective Reset Policy (apps/api)
+
+- `apps/api` uses selective reset now: there is no global auto-reset in preload.
+- DB test files opt in by calling `registerDbTestReset()` from `apps/api/src/test-utils/index.ts`.
+- Keep `resetTestDb()` as the low-level primitive, but avoid reintroducing global reset hooks in test preload code.
+- For new API DB test files:
+  - prefer `registerDbTestReset("per-file")` when each test seeds isolated fixtures and does not require globally empty tables.
+  - use `registerDbTestReset()` for stateful suites that are not safe under per-file isolation.
+
 ### Seeding
 
 ```typescript

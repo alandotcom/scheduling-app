@@ -5,7 +5,12 @@ import type * as schema from "@scheduling/db/schema";
 import type { relations } from "@scheduling/db/relations";
 import { auth } from "../lib/auth.js";
 import { authMiddleware } from "./auth.js";
-import { createOrg, createOrgMember, getTestDb } from "../test-utils/index.js";
+import {
+  createOrg,
+  createOrgMember,
+  getTestDb,
+  registerDbTestReset,
+} from "../test-utils/index.js";
 
 type Database = BunSQLDatabase<typeof schema, typeof relations>;
 
@@ -36,6 +41,7 @@ function createProbeApp() {
 }
 
 describe("Auth Middleware - API Key Security", () => {
+  registerDbTestReset("per-file");
   const db = getTestDb() as Database;
   const originalGetSession = auth.api.getSession;
   const originalVerifyApiKey = auth.api.verifyApiKey;

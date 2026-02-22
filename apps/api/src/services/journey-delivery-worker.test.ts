@@ -17,6 +17,7 @@ import {
 import { withOrg } from "../lib/db.js";
 import {
   getTestDb,
+  registerDbTestReset,
   setTestOrgContext,
   type TestDatabase,
 } from "../test-utils/index.js";
@@ -32,6 +33,8 @@ import type { ServiceContext } from "./locations.js";
 import { executeJourneyDeliveryScheduled } from "./journey-delivery-worker.js";
 import { dispatchJourneySendResendAction } from "./integrations/resend/delivery.js";
 import { JourneyDeliveryNonRetryableError } from "./delivery-dispatch-helpers.js";
+
+registerDbTestReset("per-file");
 
 const db: TestDatabase = getTestDb();
 

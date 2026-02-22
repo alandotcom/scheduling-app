@@ -9,11 +9,14 @@ import {
   createOrg,
   createQuickAppointment,
   getTestDb,
+  registerDbTestReset,
   setTestOrgContext,
   type TestDatabase,
 } from "../../../test-utils/index.js";
 import type { ServiceContext } from "../../locations.js";
 import { applyTwilioStatusCallback } from "./callbacks.js";
+
+registerDbTestReset("per-file");
 
 const db: TestDatabase = getTestDb();
 

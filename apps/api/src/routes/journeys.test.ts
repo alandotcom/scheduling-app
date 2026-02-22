@@ -12,6 +12,7 @@ import {
   createQuickAppointment,
   createTestContext,
   getTestDb,
+  registerDbTestReset,
   setTestOrgContext,
 } from "../test-utils/index.js";
 import {
@@ -277,6 +278,7 @@ function createGraphWithLegacyActionAlias(
 }
 
 describe("Journey Routes", () => {
+  registerDbTestReset();
   const db = getTestDb();
 
   let ownerContext: ReturnType<typeof createTestContext>;

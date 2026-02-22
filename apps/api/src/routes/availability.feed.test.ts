@@ -9,6 +9,7 @@ import {
   createAvailabilityOverride,
   createBlockedTime,
   getTestDb,
+  registerDbTestReset,
 } from "../test-utils/index.js";
 import {
   defaultTimezone,
@@ -17,6 +18,7 @@ import {
 } from "../test-utils/availability-test-helpers.js";
 
 describe("Availability Feed", () => {
+  registerDbTestReset("per-file");
   const db = getTestDb() as AvailabilityTestDb;
 
   test("returns rules, overrides, and blocked time in range", async () => {

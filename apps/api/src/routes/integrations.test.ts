@@ -9,6 +9,7 @@ import {
   createOrg,
   createTestContext,
   getTestDb,
+  registerDbTestReset,
   type TestDatabase,
 } from "../test-utils/index.js";
 import { integrationRoutes } from "./integrations.js";
@@ -27,6 +28,7 @@ function createContext(overrides: Partial<Context> = {}): Context {
 }
 
 describe("Integration Routes", () => {
+  registerDbTestReset("per-file");
   const db = getTestDb() as TestDatabase;
   const originalEncryptionKey = config.integrations.encryptionKey;
 
