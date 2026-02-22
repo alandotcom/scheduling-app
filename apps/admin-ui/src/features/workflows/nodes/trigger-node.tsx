@@ -33,8 +33,8 @@ import {
   WORKFLOW_NODE_WIDTH,
 } from "../workflow-node-dimensions";
 
-const TRIGGER_SCHEDULED_HANDLE_LEFT = "37%";
-const TRIGGER_CANCELED_HANDLE_LEFT = "63%";
+const TRIGGER_SCHEDULED_HANDLE_LEFT = "31%";
+const TRIGGER_CANCELED_HANDLE_LEFT = "69%";
 const TRIGGER_CLIENT_HANDLE_LEFT = "50%";
 
 type TriggerBranchOccupancy = {

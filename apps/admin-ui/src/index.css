@@ -48,6 +48,63 @@
   --sidebar-ring: oklch(0.708 0.165 254);
   --workflow-edge-default: oklch(0.61 0.11 226);
   --workflow-edge-active: oklch(0.64 0.14 194);
+  --workflow-edge-traversed: oklch(0.66 0.18 151);
+  --workflow-edge-label-bg: color-mix(
+    in oklab,
+    var(--background),
+    var(--workflow-edge-default) 8%
+  );
+  --workflow-edge-label-border: color-mix(
+    in oklab,
+    var(--workflow-edge-default),
+    var(--border) 32%
+  );
+  --workflow-edge-label-text: color-mix(
+    in oklab,
+    var(--workflow-edge-default),
+    var(--foreground) 18%
+  );
+  --workflow-edge-label-selected-bg: color-mix(
+    in oklab,
+    var(--background),
+    var(--foreground) 6%
+  );
+  --workflow-edge-label-selected-border: color-mix(
+    in oklab,
+    var(--foreground),
+    var(--border) 46%
+  );
+  --workflow-edge-label-selected-text: var(--foreground);
+  --workflow-edge-label-active-bg: color-mix(
+    in oklab,
+    var(--background),
+    var(--workflow-edge-active) 10%
+  );
+  --workflow-edge-label-active-border: color-mix(
+    in oklab,
+    var(--workflow-edge-active),
+    var(--border) 36%
+  );
+  --workflow-edge-label-active-text: color-mix(
+    in oklab,
+    var(--workflow-edge-active),
+    var(--foreground) 14%
+  );
+  --workflow-edge-label-traversed-bg: color-mix(
+    in oklab,
+    var(--background),
+    var(--workflow-edge-traversed) 10%
+  );
+  --workflow-edge-label-traversed-border: color-mix(
+    in oklab,
+    var(--workflow-edge-traversed),
+    var(--border) 34%
+  );
+  --workflow-edge-label-traversed-text: color-mix(
+    in oklab,
+    var(--workflow-edge-traversed),
+    var(--foreground) 12%
+  );
   --workflow-trigger-border: oklch(0.69 0.08 240);
   --workflow-trigger-bg: oklch(0.985 0.012 242);
   --workflow-action-border: oklch(0.66 0.07 212);
@@ -93,6 +150,63 @@
   --sidebar-ring: oklch(0.552 0.016 250);
   --workflow-edge-default: oklch(0.75 0.08 228);
   --workflow-edge-active: oklch(0.78 0.1 194);
+  --workflow-edge-traversed: oklch(0.79 0.11 156);
+  --workflow-edge-label-bg: color-mix(
+    in oklab,
+    var(--background),
+    var(--workflow-edge-default) 14%
+  );
+  --workflow-edge-label-border: color-mix(
+    in oklab,
+    var(--workflow-edge-default),
+    var(--border) 30%
+  );
+  --workflow-edge-label-text: color-mix(
+    in oklab,
+    var(--workflow-edge-default),
+    var(--foreground) 30%
+  );
+  --workflow-edge-label-selected-bg: color-mix(
+    in oklab,
+    var(--background),
+    var(--foreground) 12%
+  );
+  --workflow-edge-label-selected-border: color-mix(
+    in oklab,
+    var(--foreground),
+    var(--border) 48%
+  );
+  --workflow-edge-label-selected-text: var(--foreground);
+  --workflow-edge-label-active-bg: color-mix(
+    in oklab,
+    var(--background),
+    var(--workflow-edge-active) 14%
+  );
+  --workflow-edge-label-active-border: color-mix(
+    in oklab,
+    var(--workflow-edge-active),
+    var(--border) 34%
+  );
+  --workflow-edge-label-active-text: color-mix(
+    in oklab,
+    var(--workflow-edge-active),
+    var(--foreground) 26%
+  );
+  --workflow-edge-label-traversed-bg: color-mix(
+    in oklab,
+    var(--background),
+    var(--workflow-edge-traversed) 14%
+  );
+  --workflow-edge-label-traversed-border: color-mix(
+    in oklab,
+    var(--workflow-edge-traversed),
+    var(--border) 34%
+  );
+  --workflow-edge-label-traversed-text: color-mix(
+    in oklab,
+    var(--workflow-edge-traversed),
+    var(--foreground) 26%
+  );
   --workflow-trigger-border: oklch(0.73 0.045 245);
   --workflow-trigger-bg: oklch(0.22 0.015 245);
   --workflow-action-border: oklch(0.69 0.04 208);
@@ -266,6 +380,53 @@
 
 .react-flow__edge {
   cursor: pointer !important;
+}
+
+.workflow-edge-label {
+  --workflow-edge-label-bg-current: var(--workflow-edge-label-bg);
+  --workflow-edge-label-border-current: var(--workflow-edge-label-border);
+  --workflow-edge-label-text-current: var(--workflow-edge-label-text);
+  pointer-events: none;
+  border-radius: 999px;
+  border: 1px solid var(--workflow-edge-label-border-current);
+  background: var(--workflow-edge-label-bg-current);
+  color: var(--workflow-edge-label-text-current);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  line-height: 1.2;
+  padding: 2px 8px;
+  white-space: nowrap;
+  box-shadow: 0 1px 2px
+    color-mix(
+      in oklab,
+      var(--workflow-edge-label-border-current),
+      transparent 78%
+    );
+}
+
+.workflow-edge-label--selected {
+  --workflow-edge-label-bg-current: var(--workflow-edge-label-selected-bg);
+  --workflow-edge-label-border-current: var(
+    --workflow-edge-label-selected-border
+  );
+  --workflow-edge-label-text-current: var(--workflow-edge-label-selected-text);
+}
+
+.workflow-edge-label--active {
+  --workflow-edge-label-bg-current: var(--workflow-edge-label-active-bg);
+  --workflow-edge-label-border-current: var(
+    --workflow-edge-label-active-border
+  );
+  --workflow-edge-label-text-current: var(--workflow-edge-label-active-text);
+}
+
+.workflow-edge-label--traversed {
+  --workflow-edge-label-bg-current: var(--workflow-edge-label-traversed-bg);
+  --workflow-edge-label-border-current: var(
+    --workflow-edge-label-traversed-border
+  );
+  --workflow-edge-label-text-current: var(--workflow-edge-label-traversed-text);
 }
 
 /* React Flow handle positioning and styling */

@@ -137,6 +137,12 @@ type JourneyTriggerFilterAstDraft = {
   }>;
 };
 type FilterGroup = JourneyTriggerFilterAstDraft["groups"][number];
+type FilterDraftState = {
+  sourceKey: string;
+  draft: JourneyTriggerFilterAstDraft | null;
+};
+
+const EMPTY_FILTER_SOURCE_KEY = "__empty_filter_source__";
 
 function toFilterDraft(value: unknown): JourneyTriggerFilterAstDraft | null {
   const parsed = journeyTriggerFilterAstSchema.safeParse(value);
@@ -145,6 +151,21 @@ function toFilterDraft(value: unknown): JourneyTriggerFilterAstDraft | null {
   }
 
   return parsed.data;
+}
+
+function toFilterSourceKey(
+  filter: JourneyTriggerFilterAstDraft | null,
+): string {
+  return filter ? JSON.stringify(filter) : EMPTY_FILTER_SOURCE_KEY;
+}
+
+function toFilterSourceState(value: unknown): FilterDraftState {
+  const draft = toFilterDraft(value);
+
+  return {
+    sourceKey: toFilterSourceKey(draft),
+    draft,
+  };
 }
 
 function countFilterConditions(
@@ -1058,30 +1079,47 @@ function WorkflowTriggerConfigInner({
   onShowFiltersChange,
   valueOptionsByField = {},
 }: WorkflowTriggerConfigInnerProps) {
-  const [filterDraft, setFilterDraft] =
-    useState<JourneyTriggerFilterAstDraft | null>(() =>
-      toFilterDraft(config.filter),
-    );
+  const configFilterState = useMemo(
+    () => toFilterSourceState(config.filter),
+    [config.filter],
+  );
+  const [filterDraftState, setFilterDraftState] = useState<FilterDraftState>(
+    () => configFilterState,
+  );
   const [filterValidationError, setFilterValidationError] = useState<
     string | null
   >(null);
-
-  useEffect(() => {
-    setFilterDraft(toFilterDraft(config.filter));
-    setFilterValidationError(null);
-  }, [config.filter]);
+  const hasExternalFilterUpdate =
+    configFilterState.sourceKey !== filterDraftState.sourceKey;
+  const filterDraft = hasExternalFilterUpdate
+    ? configFilterState.draft
+    : filterDraftState.draft;
+  const visibleFilterValidationError = hasExternalFilterUpdate
+    ? null
+    : filterValidationError;
 
   const commitFilter = (nextFilter: JourneyTriggerFilterAstDraft | null) => {
-    setFilterDraft(nextFilter);
     setFilterValidationError(null);
+    const parsed = nextFilter
+      ? journeyTriggerFilterAstSchema.safeParse(nextFilter)
+      : null;
+    const nextSourceKey =
+      nextFilter === null
+        ? EMPTY_FILTER_SOURCE_KEY
+        : parsed?.success
+          ? toFilterSourceKey(parsed.data)
+          : configFilterState.sourceKey;
+    setFilterDraftState({
+      sourceKey: nextSourceKey,
+      draft: nextFilter,
+    });
 
     if (!nextFilter) {
       onUpdate({ filter: undefined });
       return;
     }
 
-    const parsed = journeyTriggerFilterAstSchema.safeParse(nextFilter);
-    if (parsed.success) {
+    if (parsed?.success) {
       onUpdate({ filter: parsed.data });
     }
   };
@@ -1550,7 +1588,7 @@ function WorkflowTriggerConfigInner({
         disabled={disabled}
         fieldOptions={fieldOptions}
         filter={filterDraft}
-        filterValidationError={filterValidationError}
+        filterValidationError={visibleFilterValidationError}
         isExpanded={showFilters}
         onAddCondition={handleAddCondition}
         onAddGroup={handleAddFilterGroup}

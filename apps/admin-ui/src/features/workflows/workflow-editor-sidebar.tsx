@@ -568,9 +568,9 @@ export function WorkflowEditorSidebar({
       </div>
 
       {/* Tab content */}
-      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain [scrollbar-gutter:stable]">
+      <div className="min-h-0 flex-1 overflow-hidden">
         {activeTab === "runs" ? (
-          <div className="p-4">
+          <div className="h-full p-4">
             <WorkflowRunsPanel
               canManageWorkflow={canManageWorkflow}
               workflowId={workflowId}
@@ -579,7 +579,7 @@ export function WorkflowEditorSidebar({
         ) : null}
 
         {activeTab === "properties" ? (
-          <div className="space-y-4 p-4">
+          <div className="h-full space-y-4 overflow-y-auto overscroll-contain [scrollbar-gutter:stable] p-4">
             {/* Edge selected */}
             {selectedEdge && !selectedNode ? (
               <>

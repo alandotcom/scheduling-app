@@ -1,5 +1,6 @@
 import {
   BaseEdge,
+  EdgeLabelRenderer,
   type EdgeProps,
   getSmoothStepPath,
   type InternalNode,
@@ -13,22 +14,24 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function getSwitchBranchLabel(value: unknown): string | null {
-  if (value === "created") {
+  const normalized = normalizeSwitchBranch(value);
+
+  if (normalized === "created") {
     return "Created";
   }
 
-  if (value === "updated") {
+  if (normalized === "updated") {
     return "Updated";
   }
 
-  if (value === "deleted") {
+  if (normalized === "deleted") {
     return "Deleted";
   }
 
   return null;
 }
 
-function getConditionBranchLabel(value: unknown): string | null {
+function normalizeConditionBranch(value: unknown): "true" | "false" | null {
   if (typeof value !== "string") {
     return null;
   }
@@ -38,6 +41,15 @@ function getConditionBranchLabel(value: unknown): string | null {
     normalized = normalized.slice("branch-".length);
   }
 
+  if (normalized === "true" || normalized === "false") {
+    return normalized;
+  }
+
+  return null;
+}
+
+function getConditionBranchLabel(value: unknown): string | null {
+  const normalized = normalizeConditionBranch(value);
   if (normalized === "true") {
     return "True";
   }
@@ -49,18 +61,48 @@ function getConditionBranchLabel(value: unknown): string | null {
   return null;
 }
 
-function getTriggerBranchLabel(value: unknown): string | null {
+function normalizeTriggerBranch(
+  value: unknown,
+): "scheduled" | "canceled" | null {
   if (typeof value !== "string") {
     return null;
   }
 
   const normalized = value.trim().toLowerCase();
+  if (normalized === "scheduled" || normalized === "canceled") {
+    return normalized;
+  }
+
+  return null;
+}
+
+function getTriggerBranchLabel(value: unknown): string | null {
+  const normalized = normalizeTriggerBranch(value);
   if (normalized === "scheduled") {
     return "Scheduled";
   }
 
   if (normalized === "canceled") {
     return "Canceled";
+  }
+
+  return null;
+}
+
+function normalizeSwitchBranch(
+  value: unknown,
+): "created" | "updated" | "deleted" | null {
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const normalized = value.trim().toLowerCase();
+  if (
+    normalized === "created" ||
+    normalized === "updated" ||
+    normalized === "deleted"
+  ) {
+    return normalized;
   }
 
   return null;
@@ -102,12 +144,11 @@ type EdgePalette = {
   strokeOpacity?: number;
   strokeDasharray?: number;
   animation: string;
-  labelFill: string;
-  labelBgFill: string;
-  labelBgStroke: string;
+  labelVariant: EdgeLabelVariant;
 };
 
 type ExecutionEdgeStatus = "default" | "active" | "traversed";
+type EdgeLabelVariant = "default" | "selected" | "active" | "traversed";
 
 function getExecutionEdgeStatus(data: EdgeProps["data"]): ExecutionEdgeStatus {
   if (!isRecord(data)) {
@@ -128,13 +169,11 @@ function getEdgePalette(input: {
 }): EdgePalette {
   if (input.executionStatus === "traversed") {
     return {
-      stroke: "oklch(0.66 0.18 151)",
+      stroke: "var(--workflow-edge-traversed)",
       strokeWidth: 2.2,
       animation: "dashdraw 0.5s linear infinite",
       strokeDasharray: 6,
-      labelFill: "oklch(0.56 0.14 151)",
-      labelBgFill: "var(--background)",
-      labelBgStroke: "oklch(0.66 0.18 151)",
+      labelVariant: "traversed",
     };
   }
 
@@ -144,9 +183,7 @@ function getEdgePalette(input: {
       strokeWidth: 2.2,
       animation: "dashdraw 0.45s linear infinite",
       strokeDasharray: 6,
-      labelFill: "var(--workflow-edge-active)",
-      labelBgFill: "var(--background)",
-      labelBgStroke: "var(--workflow-edge-active)",
+      labelVariant: "active",
     };
   }
 
@@ -156,9 +193,7 @@ function getEdgePalette(input: {
       strokeWidth: 2.2,
       animation: "dashdraw 0.6s linear infinite",
       strokeDasharray: 5,
-      labelFill: "var(--foreground)",
-      labelBgFill: "var(--background)",
-      labelBgStroke: "var(--border)",
+      labelVariant: "selected",
     };
   }
 
@@ -166,10 +201,90 @@ function getEdgePalette(input: {
     stroke: "var(--workflow-edge-default)",
     strokeWidth: 1.9,
     animation: "none",
-    labelFill: "var(--workflow-edge-default)",
-    labelBgFill: "var(--background)",
-    labelBgStroke: "var(--workflow-edge-default)",
+    labelVariant: "default",
   };
+}
+
+function getEdgeLabelClassName(variant: EdgeLabelVariant): string {
+  return `workflow-edge-label workflow-edge-label--${variant} nodrag nopan`;
+}
+
+function getOffsetFromNormalizedBranches(input: {
+  conditionBranch: "true" | "false" | null;
+  triggerBranch: "scheduled" | "canceled" | null;
+  switchBranch: "created" | "updated" | "deleted" | null;
+}): { x: number; y: number } | null {
+  if (input.conditionBranch === "true") {
+    return { x: 0, y: -14 };
+  }
+
+  if (input.conditionBranch === "false") {
+    return { x: 0, y: 14 };
+  }
+
+  if (input.triggerBranch === "scheduled") {
+    return { x: 0, y: -14 };
+  }
+
+  if (input.triggerBranch === "canceled") {
+    return { x: 0, y: 14 };
+  }
+
+  if (input.switchBranch === "created") {
+    return { x: 0, y: -18 };
+  }
+
+  if (input.switchBranch === "updated") {
+    return { x: 0, y: 0 };
+  }
+
+  if (input.switchBranch === "deleted") {
+    return { x: 0, y: 18 };
+  }
+
+  return null;
+}
+
+function getEdgeLabelOffset(input: {
+  data: EdgeProps["data"];
+  sourceHandleId?: string | null;
+  edgeLabel?: string;
+}): { x: number; y: number } {
+  const labelOffset = getOffsetFromNormalizedBranches({
+    conditionBranch: normalizeConditionBranch(input.edgeLabel),
+    triggerBranch: normalizeTriggerBranch(input.edgeLabel),
+    switchBranch: normalizeSwitchBranch(input.edgeLabel),
+  });
+  if (labelOffset) {
+    return labelOffset;
+  }
+
+  const metadataOffset = getOffsetFromNormalizedBranches({
+    conditionBranch: isRecord(input.data)
+      ? (normalizeConditionBranch(input.data.conditionBranch) ??
+        normalizeConditionBranch(input.data.branch))
+      : null,
+    triggerBranch: isRecord(input.data)
+      ? normalizeTriggerBranch(input.data.triggerBranch)
+      : null,
+    switchBranch: isRecord(input.data)
+      ? normalizeSwitchBranch(input.data.switchBranch)
+      : null,
+  });
+  if (metadataOffset) {
+    return metadataOffset;
+  }
+
+  const sourceHandleOffset = getOffsetFromNormalizedBranches({
+    conditionBranch: normalizeConditionBranch(input.sourceHandleId),
+    triggerBranch: normalizeTriggerBranch(input.sourceHandleId),
+    switchBranch: null,
+  });
+  if (sourceHandleOffset) {
+    return sourceHandleOffset;
+  }
+
+  return { x: 0, y: 0 };
 }
 
 function getTemporaryEdgeStroke(selected: boolean | undefined): string {
@@ -344,31 +459,44 @@ const Animated = memo(function Animated({
     selected,
     executionStatus: getExecutionEdgeStatus(data),
   });
+  const labelOffset = getEdgeLabelOffset({
+    data,
+    sourceHandleId,
+    edgeLabel,
+  });
+
+  const hasEdgeLabel = typeof edgeLabel === "string" && edgeLabel.length > 0;
 
   return (
-    <BaseEdge
-      id={id}
-      label={edgeLabel}
-      labelBgBorderRadius={999}
-      labelBgPadding={[8, 3]}
-      labelBgStyle={{
-        fill: palette.labelBgFill,
-        stroke: palette.labelBgStroke,
-      }}
-      labelStyle={{ fill: palette.labelFill, fontSize: 11, fontWeight: 600 }}
-      labelX={labelX}
-      labelY={labelY}
-      labelShowBg={!!edgeLabel}
-      path={edgePath}
-      style={{
-        ...style,
-        stroke: palette.stroke,
-        strokeOpacity: palette.strokeOpacity,
-        strokeWidth: palette.strokeWidth,
-        animation: palette.animation,
-        strokeDasharray: palette.strokeDasharray,
-      }}
-    />
+    <>
+      <BaseEdge
+        id={id}
+        path={edgePath}
+        style={{
+          ...style,
+          stroke: palette.stroke,
+          strokeOpacity: palette.strokeOpacity,
+          strokeWidth: palette.strokeWidth,
+          animation: palette.animation,
+          strokeDasharray: palette.strokeDasharray,
+        }}
+      />
+      {hasEdgeLabel ? (
+        <EdgeLabelRenderer>
+          <div
+            className={getEdgeLabelClassName(palette.labelVariant)}
+            style={{
+              position: "absolute",
+              left: 0,
+              top: 0,
+              transform: `translate(-50%, -50%) translate(${labelX + labelOffset.x}px, ${labelY + labelOffset.y}px)`,
+            }}
+          >
+            {edgeLabel}
+          </div>
+        </EdgeLabelRenderer>
+      ) : null}
+    </>
   );
 });
 
