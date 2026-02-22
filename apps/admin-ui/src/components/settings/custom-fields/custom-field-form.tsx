@@ -5,6 +5,8 @@ import { z } from "zod";
 import { Add01Icon, Delete01Icon } from "@hugeicons/core-free-icons";
 import {
   customAttributeTypeSchema,
+  customAttributeRelationValueModeSchema,
+  type CustomAttributeRelationValueMode,
   type CustomAttributeType,
   type SlotUsage,
 } from "@scheduling/dto";
@@ -26,7 +28,10 @@ import {
   getCustomAttributeTypeLabel,
 } from "@/lib/custom-attribute-type-label";
 
-const SLOT_PREFIX_BY_TYPE: Record<CustomAttributeType, keyof SlotUsage> = {
+const SLOT_PREFIX_BY_TYPE: Record<
+  Exclude<CustomAttributeType, "RELATION_CLIENT">,
+  keyof SlotUsage
+> = {
   TEXT: "t",
   SELECT: "t",
   NUMBER: "n",
@@ -34,6 +39,14 @@ const SLOT_PREFIX_BY_TYPE: Record<CustomAttributeType, keyof SlotUsage> = {
   BOOLEAN: "b",
   MULTI_SELECT: "j",
 };
+
+const RELATION_VALUE_MODE_OPTIONS: ReadonlyArray<{
+  value: CustomAttributeRelationValueMode;
+  label: string;
+}> = [
+  { value: "single", label: "Single client" },
+  { value: "multi", label: "Multiple clients" },
+];
 
 function labelToFieldKey(label: string): string {
   const key = label
@@ -44,20 +57,61 @@ function labelToFieldKey(label: string): string {
   return key || "field";
 }
 
-const createFormSchema = z.object({
-  fieldKey: z
-    .string()
-    .min(1, "Field key is required")
-    .max(100, "Field key is too long")
-    .regex(
-      /^[a-zA-Z][a-zA-Z0-9_]*$/,
-      "Must start with a letter and contain only letters, numbers, and underscores",
-    ),
-  label: z.string().min(1, "Label is required").max(255, "Label is too long"),
-  type: z.enum(["TEXT", "NUMBER", "DATE", "BOOLEAN", "SELECT", "MULTI_SELECT"]),
-  required: z.boolean(),
-  options: z.array(z.object({ value: z.string().min(1).max(255) })),
-});
+const createFormSchema = z
+  .object({
+    fieldKey: z
+      .string()
+      .min(1, "Field key is required")
+      .max(100, "Field key is too long")
+      .regex(
+        /^[a-zA-Z][a-zA-Z0-9_]*$/,
+        "Must start with a letter and contain only letters, numbers, and underscores",
+      ),
+    label: z.string().min(1, "Label is required").max(255, "Label is too long"),
+    type: customAttributeTypeSchema,
+    required: z.boolean(),
+    options: z.array(z.object({ value: z.string().min(1).max(255) })),
+    relationValueMode: customAttributeRelationValueModeSchema,
+    createReverseRelation: z.boolean(),
+    reverseFieldKey: z.string().max(100, "Field key is too long"),
+    reverseLabel: z.string().max(255, "Label is too long"),
+    reverseValueMode: customAttributeRelationValueModeSchema,
+    reverseRequired: z.boolean(),
+  })
+  .superRefine((value, ctx) => {
+    if (value.type === "RELATION_CLIENT" && value.createReverseRelation) {
+      if (!value.reverseLabel || value.reverseLabel.trim().length === 0) {
+        ctx.addIssue({
+          code: "custom",
+          message: "Label is required",
+          path: ["reverseLabel"],
+        });
+      }
+
+      if (!value.reverseFieldKey || value.reverseFieldKey.trim().length === 0) {
+        ctx.addIssue({
+          code: "custom",
+          message: "Field key is required",
+          path: ["reverseFieldKey"],
+        });
+      } else if (!/^[a-zA-Z][a-zA-Z0-9_]*$/.test(value.reverseFieldKey)) {
+        ctx.addIssue({
+          code: "custom",
+          message:
+            "Must start with a letter and contain only letters, numbers, and underscores",
+          path: ["reverseFieldKey"],
+        });
+      }
+
+      if (value.reverseFieldKey === value.fieldKey) {
+        ctx.addIssue({
+          code: "custom",
+          message: "Reverse field key must differ from primary field key",
+          path: ["reverseFieldKey"],
+        });
+      }
+    }
+  });
 
 type CreateFormValues = z.infer<typeof createFormSchema>;
 
@@ -77,6 +131,12 @@ interface CustomFieldFormProps {
     type?: CustomAttributeType;
     required?: boolean;
     options?: string[] | null;
+    relationConfig?: {
+      targetEntity: "CLIENT";
+      valueMode: CustomAttributeRelationValueMode;
+      pairedDefinitionId: string | null;
+      pairedRole: "forward" | "reverse" | null;
+    } | null;
   };
   slotUsage: SlotUsage | undefined;
   onSubmit: (data: {
@@ -85,6 +145,16 @@ interface CustomFieldFormProps {
     type?: CustomAttributeType;
     required: boolean;
     options?: string[];
+    relationConfig?: {
+      targetEntity?: "CLIENT";
+      valueMode: CustomAttributeRelationValueMode;
+    };
+    reverseRelation?: {
+      fieldKey: string;
+      label: string;
+      valueMode: CustomAttributeRelationValueMode;
+      required?: boolean;
+    };
   }) => void;
   onCancel: () => void;
   isSubmitting: boolean;
@@ -145,6 +215,12 @@ function CreateFieldForm({
       type: "TEXT",
       required: false,
       options: [],
+      relationValueMode: "single",
+      createReverseRelation: false,
+      reverseFieldKey: "",
+      reverseLabel: "",
+      reverseValueMode: "multi",
+      reverseRequired: false,
     },
   });
 
@@ -155,7 +231,10 @@ function CreateFieldForm({
 
   const watchedLabel = watch("label");
   const watchedType = watch("type");
+  const watchedRelationCreateReverse = watch("createReverseRelation");
+  const watchedReverseLabel = watch("reverseLabel");
   const [fieldKeyTouched, setFieldKeyTouched] = useState(false);
+  const [reverseFieldKeyTouched, setReverseFieldKeyTouched] = useState(false);
 
   useEffect(() => {
     if (!fieldKeyTouched && watchedLabel) {
@@ -163,15 +242,28 @@ function CreateFieldForm({
     }
   }, [watchedLabel, fieldKeyTouched, setValue]);
 
+  useEffect(() => {
+    if (!reverseFieldKeyTouched && watchedReverseLabel) {
+      setValue("reverseFieldKey", labelToFieldKey(watchedReverseLabel));
+    }
+  }, [watchedReverseLabel, reverseFieldKeyTouched, setValue]);
+
   const showOptions =
     watchedType === "SELECT" || watchedType === "MULTI_SELECT";
+  const isRelationType = watchedType === "RELATION_CLIENT";
+
   const slotWarning = useMemo(() => {
-    if (!slotUsage || !watchedType) return null;
+    if (!slotUsage || !watchedType || watchedType === "RELATION_CLIENT") {
+      return null;
+    }
+
     const prefix = SLOT_PREFIX_BY_TYPE[watchedType];
     const bucket = slotUsage[prefix];
+
     if (bucket.used >= bucket.total) {
       return `No available slots for ${getCustomAttributeTypeLabel(watchedType)} type. Maximum ${bucket.total} reached.`;
     }
+
     return null;
   }, [slotUsage, watchedType]);
 
@@ -181,7 +273,24 @@ function CreateFieldForm({
       label: data.label,
       type: data.type,
       required: data.required,
-      options: showOptions ? data.options.map((o) => o.value) : undefined,
+      options: showOptions
+        ? data.options.map((option) => option.value)
+        : undefined,
+      relationConfig: isRelationType
+        ? {
+            targetEntity: "CLIENT",
+            valueMode: data.relationValueMode,
+          }
+        : undefined,
+      reverseRelation:
+        isRelationType && data.createReverseRelation
+          ? {
+              fieldKey: data.reverseFieldKey,
+              label: data.reverseLabel,
+              valueMode: data.reverseValueMode,
+              required: data.reverseRequired,
+            }
+          : undefined,
     });
   };
 
@@ -223,7 +332,9 @@ function CreateFieldForm({
             value={watchedType}
             onValueChange={(value) => {
               const parsed = customAttributeTypeSchema.safeParse(value);
-              if (parsed.success) setValue("type", parsed.data);
+              if (parsed.success) {
+                setValue("type", parsed.data);
+              }
             }}
             disabled={isSubmitting}
           >
@@ -251,6 +362,119 @@ function CreateFieldForm({
           />
         </div>
       </div>
+
+      {isRelationType ? (
+        <div className="space-y-4 rounded-md border border-border p-3">
+          <div className="space-y-2">
+            <Label>Relation Value Mode</Label>
+            <Select
+              value={watch("relationValueMode")}
+              onValueChange={(value) => {
+                const parsed =
+                  customAttributeRelationValueModeSchema.safeParse(value);
+                if (parsed.success) {
+                  setValue("relationValueMode", parsed.data);
+                }
+              }}
+              disabled={isSubmitting}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {RELATION_VALUE_MODE_OPTIONS.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <Checkbox
+            checked={watchedRelationCreateReverse}
+            onChange={(checked) => setValue("createReverseRelation", !!checked)}
+            label="Create reverse field"
+            disabled={isSubmitting}
+          />
+
+          {watchedRelationCreateReverse ? (
+            <div className="space-y-3 rounded-md border border-border p-3">
+              <div className="space-y-2">
+                <Label htmlFor="cf-reverse-label">Reverse Label</Label>
+                <Input
+                  id="cf-reverse-label"
+                  placeholder="e.g. Referrals"
+                  disabled={isSubmitting}
+                  {...register("reverseLabel")}
+                />
+                {errors.reverseLabel ? (
+                  <p className="text-xs text-destructive">
+                    {errors.reverseLabel.message}
+                  </p>
+                ) : null}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="cf-reverse-field-key">Reverse Field Key</Label>
+                <Input
+                  id="cf-reverse-field-key"
+                  placeholder="e.g. referrals"
+                  className="font-mono text-sm"
+                  disabled={isSubmitting}
+                  {...register("reverseFieldKey", {
+                    onChange: () => setReverseFieldKeyTouched(true),
+                  })}
+                />
+                {errors.reverseFieldKey ? (
+                  <p className="text-xs text-destructive">
+                    {errors.reverseFieldKey.message}
+                  </p>
+                ) : null}
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Reverse Value Mode</Label>
+                  <Select
+                    value={watch("reverseValueMode")}
+                    onValueChange={(value) => {
+                      const parsed =
+                        customAttributeRelationValueModeSchema.safeParse(value);
+                      if (parsed.success) {
+                        setValue("reverseValueMode", parsed.data);
+                      }
+                    }}
+                    disabled={isSubmitting}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {RELATION_VALUE_MODE_OPTIONS.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="flex items-end pb-1">
+                  <Checkbox
+                    checked={watch("reverseRequired")}
+                    onChange={(checked) =>
+                      setValue("reverseRequired", !!checked)
+                    }
+                    label="Required"
+                    disabled={isSubmitting}
+                  />
+                </div>
+              </div>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
 
       {slotWarning ? (
         <p className="text-sm text-destructive">{slotWarning}</p>
@@ -333,6 +557,7 @@ function EditFieldForm({
 }) {
   const showOptions =
     defaultValues?.type === "SELECT" || defaultValues?.type === "MULTI_SELECT";
+  const isRelationType = defaultValues?.type === "RELATION_CLIENT";
 
   const {
     register,
@@ -346,7 +571,7 @@ function EditFieldForm({
     defaultValues: {
       label: defaultValues?.label ?? "",
       required: defaultValues?.required ?? false,
-      options: (defaultValues?.options ?? []).map((v) => ({ value: v })),
+      options: (defaultValues?.options ?? []).map((value) => ({ value })),
     },
   });
 
@@ -359,7 +584,9 @@ function EditFieldForm({
     onSubmit({
       label: data.label,
       required: data.required,
-      options: showOptions ? data.options.map((o) => o.value) : undefined,
+      options: showOptions
+        ? data.options.map((option) => option.value)
+        : undefined,
     });
   };
 
@@ -408,6 +635,20 @@ function EditFieldForm({
           />
         </div>
       </div>
+
+      {isRelationType ? (
+        <div className="space-y-2 rounded-md border border-border p-3">
+          <Label>Relation Value Mode</Label>
+          <Input
+            value={
+              defaultValues?.relationConfig?.valueMode === "multi"
+                ? "Multiple clients"
+                : "Single client"
+            }
+            disabled
+          />
+        </div>
+      ) : null}
 
       {showOptions ? (
         <div className="space-y-2">

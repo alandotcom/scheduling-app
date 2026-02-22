@@ -174,16 +174,23 @@ CREATE TABLE "clients" (
 );
 --> statement-breakpoint
 ALTER TABLE "clients" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
-CREATE TYPE "custom_attribute_type" AS ENUM('TEXT', 'NUMBER', 'DATE', 'BOOLEAN', 'SELECT', 'MULTI_SELECT');--> statement-breakpoint
+CREATE TYPE "custom_attribute_type" AS ENUM('TEXT', 'NUMBER', 'DATE', 'BOOLEAN', 'SELECT', 'MULTI_SELECT', 'RELATION_CLIENT');--> statement-breakpoint
+CREATE TYPE "custom_attribute_relation_target_entity" AS ENUM('CLIENT');--> statement-breakpoint
+CREATE TYPE "custom_attribute_relation_value_mode" AS ENUM('single', 'multi');--> statement-breakpoint
+CREATE TYPE "custom_attribute_relation_paired_role" AS ENUM('forward', 'reverse');--> statement-breakpoint
 CREATE TABLE "client_custom_attribute_definitions" (
 	"id" uuid PRIMARY KEY DEFAULT uuidv7(),
 	"org_id" uuid NOT NULL,
 	"field_key" text NOT NULL,
 	"label" text NOT NULL,
 	"type" "custom_attribute_type" NOT NULL,
-	"slot_column" text NOT NULL,
+	"slot_column" text,
 	"required" boolean DEFAULT false NOT NULL,
 	"options" jsonb,
+	"relation_target_entity" "custom_attribute_relation_target_entity",
+	"relation_value_mode" "custom_attribute_relation_value_mode",
+	"paired_definition_id" uuid,
+	"paired_role" "custom_attribute_relation_paired_role",
 	"display_order" integer DEFAULT 0 NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
@@ -224,6 +231,18 @@ CREATE TABLE "client_custom_attribute_values" (
 );
 --> statement-breakpoint
 ALTER TABLE "client_custom_attribute_values" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
+CREATE TABLE "client_custom_attribute_relations" (
+	"id" uuid PRIMARY KEY DEFAULT uuidv7(),
+	"org_id" uuid NOT NULL,
+	"definition_id" uuid NOT NULL,
+	"source_client_id" uuid NOT NULL,
+	"target_client_id" uuid NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "client_car_source_target_distinct_chk" CHECK ("source_client_id" <> "target_client_id")
+);
+--> statement-breakpoint
+ALTER TABLE "client_custom_attribute_relations" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
 CREATE TABLE "integrations" (
 	"id" uuid PRIMARY KEY DEFAULT uuidv7(),
 	"org_id" uuid NOT NULL,
@@ -541,11 +560,21 @@ CREATE POLICY "org_isolation_resources" ON "resources" AS PERMISSIVE FOR ALL TO 
 CREATE UNIQUE INDEX "client_cad_org_field_key_uidx" ON "client_custom_attribute_definitions" USING btree ("org_id","field_key");--> statement-breakpoint
 CREATE UNIQUE INDEX "client_cad_org_slot_column_uidx" ON "client_custom_attribute_definitions" USING btree ("org_id","slot_column");--> statement-breakpoint
 CREATE UNIQUE INDEX "client_cav_org_client_uidx" ON "client_custom_attribute_values" USING btree ("org_id","client_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "client_car_org_definition_source_target_uidx" ON "client_custom_attribute_relations" USING btree ("org_id","definition_id","source_client_id","target_client_id");--> statement-breakpoint
+CREATE INDEX "client_car_org_definition_source_idx" ON "client_custom_attribute_relations" USING btree ("org_id","definition_id","source_client_id");--> statement-breakpoint
+CREATE INDEX "client_car_org_definition_target_idx" ON "client_custom_attribute_relations" USING btree ("org_id","definition_id","target_client_id");--> statement-breakpoint
 ALTER TABLE "client_custom_attribute_definitions" ADD CONSTRAINT "client_custom_attribute_definitions_org_id_orgs_id_fkey" FOREIGN KEY ("org_id") REFERENCES "orgs"("id") ON DELETE CASCADE;--> statement-breakpoint
+ALTER TABLE "client_custom_attribute_definitions" ADD CONSTRAINT "client_custom_attribute_definitions_paired_definition_id_client_custom_attribute_definitions_id_fkey" FOREIGN KEY ("paired_definition_id") REFERENCES "client_custom_attribute_definitions"("id") ON DELETE SET NULL;--> statement-breakpoint
 ALTER TABLE "client_custom_attribute_values" ADD CONSTRAINT "client_custom_attribute_values_org_id_orgs_id_fkey" FOREIGN KEY ("org_id") REFERENCES "orgs"("id") ON DELETE CASCADE;--> statement-breakpoint
 ALTER TABLE "client_custom_attribute_values" ADD CONSTRAINT "client_custom_attribute_values_client_id_clients_id_fkey" FOREIGN KEY ("client_id") REFERENCES "clients"("id") ON DELETE CASCADE;--> statement-breakpoint
+ALTER TABLE "client_custom_attribute_relations" ADD CONSTRAINT "client_custom_attribute_relations_org_id_orgs_id_fkey" FOREIGN KEY ("org_id") REFERENCES "orgs"("id") ON DELETE CASCADE;--> statement-breakpoint
+ALTER TABLE "client_custom_attribute_relations" ADD CONSTRAINT "client_custom_attribute_relations_definition_id_client_custom_attribute_definitions_id_fkey" FOREIGN KEY ("definition_id") REFERENCES "client_custom_attribute_definitions"("id") ON DELETE CASCADE;--> statement-breakpoint
+ALTER TABLE "client_custom_attribute_relations" ADD CONSTRAINT "client_custom_attribute_relations_source_client_id_clients_id_fkey" FOREIGN KEY ("source_client_id") REFERENCES "clients"("id") ON DELETE CASCADE;--> statement-breakpoint
+ALTER TABLE "client_custom_attribute_relations" ADD CONSTRAINT "client_custom_attribute_relations_target_client_id_clients_id_fkey" FOREIGN KEY ("target_client_id") REFERENCES "clients"("id") ON DELETE CASCADE;--> statement-breakpoint
 CREATE POLICY "org_isolation_client_custom_attribute_definitions" ON "client_custom_attribute_definitions" AS PERMISSIVE FOR ALL TO public USING (org_id = current_org_id()) WITH CHECK (org_id = current_org_id());--> statement-breakpoint
 CREATE POLICY "org_isolation_client_custom_attribute_values" ON "client_custom_attribute_values" AS PERMISSIVE FOR ALL TO public USING (org_id = current_org_id()) WITH CHECK (org_id = current_org_id());
+--> statement-breakpoint
+CREATE POLICY "org_isolation_client_custom_attribute_relations" ON "client_custom_attribute_relations" AS PERMISSIVE FOR ALL TO public USING (org_id = current_org_id()) WITH CHECK (org_id = current_org_id());
 --> statement-breakpoint
 CREATE OR REPLACE FUNCTION set_updated_at() RETURNS TRIGGER AS $$
 BEGIN NEW.updated_at = now(); RETURN NEW; END;
@@ -565,6 +594,7 @@ CREATE TRIGGER set_updated_at_resources BEFORE UPDATE ON resources FOR EACH ROW 
 CREATE TRIGGER set_updated_at_clients BEFORE UPDATE ON clients FOR EACH ROW EXECUTE FUNCTION set_updated_at();--> statement-breakpoint
 CREATE TRIGGER set_updated_at_client_custom_attribute_definitions BEFORE UPDATE ON client_custom_attribute_definitions FOR EACH ROW EXECUTE FUNCTION set_updated_at();--> statement-breakpoint
 CREATE TRIGGER set_updated_at_client_custom_attribute_values BEFORE UPDATE ON client_custom_attribute_values FOR EACH ROW EXECUTE FUNCTION set_updated_at();--> statement-breakpoint
+CREATE TRIGGER set_updated_at_client_custom_attribute_relations BEFORE UPDATE ON client_custom_attribute_relations FOR EACH ROW EXECUTE FUNCTION set_updated_at();--> statement-breakpoint
 CREATE TRIGGER set_updated_at_integrations BEFORE UPDATE ON integrations FOR EACH ROW EXECUTE FUNCTION set_updated_at();--> statement-breakpoint
 CREATE TRIGGER set_updated_at_appointments BEFORE UPDATE ON appointments FOR EACH ROW EXECUTE FUNCTION set_updated_at();--> statement-breakpoint
 CREATE TRIGGER set_updated_at_journeys BEFORE UPDATE ON journeys FOR EACH ROW EXECUTE FUNCTION set_updated_at();--> statement-breakpoint

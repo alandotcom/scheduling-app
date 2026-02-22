@@ -9,6 +9,7 @@ export const CUSTOM_ATTRIBUTE_TYPE_LABELS: Readonly<
   BOOLEAN: "Boolean",
   SELECT: "Select",
   MULTI_SELECT: "Multi-Select",
+  RELATION_CLIENT: "Client Relation",
 };
 
 export const CUSTOM_ATTRIBUTE_TYPE_OPTIONS: ReadonlyArray<{
@@ -23,6 +24,10 @@ export const CUSTOM_ATTRIBUTE_TYPE_OPTIONS: ReadonlyArray<{
   {
     value: "MULTI_SELECT",
     label: CUSTOM_ATTRIBUTE_TYPE_LABELS.MULTI_SELECT,
+  },
+  {
+    value: "RELATION_CLIENT",
+    label: CUSTOM_ATTRIBUTE_TYPE_LABELS.RELATION_CLIENT,
   },
 ];
 

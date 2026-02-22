@@ -137,6 +137,7 @@ export const relations = defineRelations(schema, (r) => ({
       from: r.clientCustomAttributeDefinitions.orgId,
       to: r.orgs.id,
     }),
+    relationValues: r.many.clientCustomAttributeRelations(),
   },
 
   clientCustomAttributeValues: {
@@ -147,6 +148,17 @@ export const relations = defineRelations(schema, (r) => ({
     client: r.one.clients({
       from: r.clientCustomAttributeValues.clientId,
       to: r.clients.id,
+    }),
+  },
+
+  clientCustomAttributeRelations: {
+    org: r.one.orgs({
+      from: r.clientCustomAttributeRelations.orgId,
+      to: r.orgs.id,
+    }),
+    definition: r.one.clientCustomAttributeDefinitions({
+      from: r.clientCustomAttributeRelations.definitionId,
+      to: r.clientCustomAttributeDefinitions.id,
     }),
   },
 

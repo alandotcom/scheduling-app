@@ -1342,5 +1342,414 @@ describe("Client Routes", () => {
         code: "BAD_REQUEST",
       });
     });
+
+    test("relation custom attributes sync bidirectionally when paired", async () => {
+      const { org, user } = await createOrg(db);
+      const ctx = createTestContext({ orgId: org.id, userId: user.id });
+
+      await call(
+        customAttributeRoutes.createDefinition,
+        {
+          fieldKey: "referredBy",
+          label: "Referred By",
+          type: "RELATION_CLIENT",
+          relationConfig: {
+            valueMode: "single",
+          },
+          reverseRelation: {
+            fieldKey: "referrals",
+            label: "Referrals",
+            valueMode: "multi",
+          },
+        },
+        { context: ctx },
+      );
+
+      const alice = await call(
+        clientRoutes.create,
+        {
+          firstName: "Alice",
+          lastName: "Client",
+        },
+        { context: ctx },
+      );
+      const bob = await call(
+        clientRoutes.create,
+        {
+          firstName: "Bob",
+          lastName: "Client",
+        },
+        { context: ctx },
+      );
+
+      await call(
+        clientRoutes.update,
+        {
+          id: alice.id,
+          customAttributes: { referredBy: bob.id },
+        },
+        { context: ctx },
+      );
+
+      const updatedAlice = await call(
+        clientRoutes.get,
+        { id: alice.id },
+        { context: ctx },
+      );
+      const updatedBob = await call(
+        clientRoutes.get,
+        { id: bob.id },
+        { context: ctx },
+      );
+
+      expect(updatedAlice.customAttributes?.["referredBy"]).toBe(bob.id);
+      expect(updatedBob.customAttributes?.["referrals"]).toEqual([alice.id]);
+    });
+
+    test("relation custom attributes remove stale reverse links when replaced", async () => {
+      const { org, user } = await createOrg(db);
+      const ctx = createTestContext({ orgId: org.id, userId: user.id });
+
+      await call(
+        customAttributeRoutes.createDefinition,
+        {
+          fieldKey: "referredBy",
+          label: "Referred By",
+          type: "RELATION_CLIENT",
+          relationConfig: {
+            valueMode: "single",
+          },
+          reverseRelation: {
+            fieldKey: "referrals",
+            label: "Referrals",
+            valueMode: "multi",
+          },
+        },
+        { context: ctx },
+      );
+
+      const alice = await call(
+        clientRoutes.create,
+        {
+          firstName: "Alice",
+          lastName: "Client",
+        },
+        { context: ctx },
+      );
+      const bob = await call(
+        clientRoutes.create,
+        {
+          firstName: "Bob",
+          lastName: "Client",
+        },
+        { context: ctx },
+      );
+      const charlie = await call(
+        clientRoutes.create,
+        {
+          firstName: "Charlie",
+          lastName: "Client",
+        },
+        { context: ctx },
+      );
+
+      await call(
+        clientRoutes.update,
+        {
+          id: alice.id,
+          customAttributes: { referredBy: bob.id },
+        },
+        { context: ctx },
+      );
+
+      await call(
+        clientRoutes.update,
+        {
+          id: alice.id,
+          customAttributes: { referredBy: charlie.id },
+        },
+        { context: ctx },
+      );
+
+      const updatedBob = await call(
+        clientRoutes.get,
+        { id: bob.id },
+        { context: ctx },
+      );
+      const updatedCharlie = await call(
+        clientRoutes.get,
+        { id: charlie.id },
+        { context: ctx },
+      );
+
+      expect(updatedBob.customAttributes?.["referrals"]).toBeNull();
+      expect(updatedCharlie.customAttributes?.["referrals"]).toEqual([
+        alice.id,
+      ]);
+    });
+
+    test("relation custom attributes reject self-links", async () => {
+      const { org, user } = await createOrg(db);
+      const ctx = createTestContext({ orgId: org.id, userId: user.id });
+
+      await call(
+        customAttributeRoutes.createDefinition,
+        {
+          fieldKey: "referredBy",
+          label: "Referred By",
+          type: "RELATION_CLIENT",
+          relationConfig: {
+            valueMode: "single",
+          },
+        },
+        { context: ctx },
+      );
+
+      const alice = await call(
+        clientRoutes.create,
+        {
+          firstName: "Alice",
+          lastName: "Client",
+        },
+        { context: ctx },
+      );
+
+      await expect(
+        call(
+          clientRoutes.update,
+          {
+            id: alice.id,
+            customAttributes: { referredBy: alice.id },
+          },
+          { context: ctx },
+        ),
+      ).rejects.toMatchObject({
+        code: "BAD_REQUEST",
+      });
+    });
+
+    test("relation custom attributes reject unknown target client IDs", async () => {
+      const { org, user } = await createOrg(db);
+      const ctx = createTestContext({ orgId: org.id, userId: user.id });
+
+      await call(
+        customAttributeRoutes.createDefinition,
+        {
+          fieldKey: "referredBy",
+          label: "Referred By",
+          type: "RELATION_CLIENT",
+          relationConfig: {
+            valueMode: "single",
+          },
+        },
+        { context: ctx },
+      );
+
+      const alice = await call(
+        clientRoutes.create,
+        {
+          firstName: "Alice",
+          lastName: "Client",
+        },
+        { context: ctx },
+      );
+
+      await expect(
+        call(
+          clientRoutes.update,
+          {
+            id: alice.id,
+            customAttributes: {
+              referredBy: "00000000-0000-7000-8000-000000000099",
+            },
+          },
+          { context: ctx },
+        ),
+      ).rejects.toMatchObject({
+        code: "BAD_REQUEST",
+      });
+    });
+
+    test("relation custom attributes reject multiple targets in single mode", async () => {
+      const { org, user } = await createOrg(db);
+      const ctx = createTestContext({ orgId: org.id, userId: user.id });
+
+      await call(
+        customAttributeRoutes.createDefinition,
+        {
+          fieldKey: "referredBy",
+          label: "Referred By",
+          type: "RELATION_CLIENT",
+          relationConfig: {
+            valueMode: "single",
+          },
+        },
+        { context: ctx },
+      );
+
+      const alice = await call(
+        clientRoutes.create,
+        {
+          firstName: "Alice",
+          lastName: "Client",
+        },
+        { context: ctx },
+      );
+      const bob = await call(
+        clientRoutes.create,
+        {
+          firstName: "Bob",
+          lastName: "Client",
+        },
+        { context: ctx },
+      );
+      const charlie = await call(
+        clientRoutes.create,
+        {
+          firstName: "Charlie",
+          lastName: "Client",
+        },
+        { context: ctx },
+      );
+
+      await expect(
+        call(
+          clientRoutes.update,
+          {
+            id: alice.id,
+            customAttributes: { referredBy: [bob.id, charlie.id] },
+          },
+          { context: ctx },
+        ),
+      ).rejects.toMatchObject({
+        code: "BAD_REQUEST",
+      });
+    });
+
+    test("single-single paired relations displace previous reverse links", async () => {
+      const { org, user } = await createOrg(db);
+      const ctx = createTestContext({ orgId: org.id, userId: user.id });
+
+      await call(
+        customAttributeRoutes.createDefinition,
+        {
+          fieldKey: "referredBy",
+          label: "Referred By",
+          type: "RELATION_CLIENT",
+          relationConfig: {
+            valueMode: "single",
+          },
+          reverseRelation: {
+            fieldKey: "currentReferral",
+            label: "Current Referral",
+            valueMode: "single",
+          },
+        },
+        { context: ctx },
+      );
+
+      const alice = await call(
+        clientRoutes.create,
+        {
+          firstName: "Alice",
+          lastName: "Client",
+        },
+        { context: ctx },
+      );
+      const bob = await call(
+        clientRoutes.create,
+        {
+          firstName: "Bob",
+          lastName: "Client",
+        },
+        { context: ctx },
+      );
+      const charlie = await call(
+        clientRoutes.create,
+        {
+          firstName: "Charlie",
+          lastName: "Client",
+        },
+        { context: ctx },
+      );
+
+      await call(
+        clientRoutes.update,
+        {
+          id: alice.id,
+          customAttributes: { referredBy: bob.id },
+        },
+        { context: ctx },
+      );
+
+      await call(
+        clientRoutes.update,
+        {
+          id: charlie.id,
+          customAttributes: { referredBy: bob.id },
+        },
+        { context: ctx },
+      );
+
+      const updatedAlice = await call(
+        clientRoutes.get,
+        { id: alice.id },
+        { context: ctx },
+      );
+      const updatedBob = await call(
+        clientRoutes.get,
+        { id: bob.id },
+        { context: ctx },
+      );
+      const updatedCharlie = await call(
+        clientRoutes.get,
+        { id: charlie.id },
+        { context: ctx },
+      );
+
+      expect(updatedAlice.customAttributes?.["referredBy"]).toBeNull();
+      expect(updatedBob.customAttributes?.["currentReferral"]).toBe(charlie.id);
+      expect(updatedCharlie.customAttributes?.["referredBy"]).toBe(bob.id);
+    });
+
+    test("relation custom attributes reject malformed target IDs", async () => {
+      const { org, user } = await createOrg(db);
+      const ctx = createTestContext({ orgId: org.id, userId: user.id });
+
+      await call(
+        customAttributeRoutes.createDefinition,
+        {
+          fieldKey: "referredBy",
+          label: "Referred By",
+          type: "RELATION_CLIENT",
+          relationConfig: {
+            valueMode: "single",
+          },
+        },
+        { context: ctx },
+      );
+
+      const alice = await call(
+        clientRoutes.create,
+        {
+          firstName: "Alice",
+          lastName: "Client",
+        },
+        { context: ctx },
+      );
+
+      await expect(
+        call(
+          clientRoutes.update,
+          {
+            id: alice.id,
+            customAttributes: { referredBy: "not-a-uuid" },
+          },
+          { context: ctx },
+        ),
+      ).rejects.toMatchObject({
+        code: "BAD_REQUEST",
+      });
+    });
   });
 });

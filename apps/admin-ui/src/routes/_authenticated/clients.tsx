@@ -78,6 +78,7 @@ interface CreateClientFormProps {
   isSubmitting: boolean;
   shortcutsEnabled: boolean;
   customFieldDefinitions?: CustomAttributeDefinitionResponse[];
+  clientRelationOptions?: Array<{ value: string; label: string }>;
 }
 
 function CreateClientForm({
@@ -86,6 +87,7 @@ function CreateClientForm({
   isSubmitting,
   shortcutsEnabled,
   customFieldDefinitions,
+  clientRelationOptions,
 }: CreateClientFormProps) {
   const initialValues = useMemo<CreateClientInput>(
     () => ({
@@ -118,6 +120,7 @@ function CreateClientForm({
       onDiscardDraft={handleDiscardDraft}
       showDiscardAction={hasDraft}
       customFieldDefinitions={customFieldDefinitions}
+      clientRelationOptions={clientRelationOptions}
     />
   );
 }
@@ -167,6 +170,19 @@ function ClientsPage() {
     orpc.customAttributes.listDefinitions.queryOptions(),
   );
 
+  const hasRelationClientField =
+    customFieldDefinitions?.some(
+      (definition) => definition.type === "RELATION_CLIENT",
+    ) ?? false;
+
+  const { data: relationClientsData } = useQuery({
+    ...orpc.clients.list.queryOptions({
+      input: { limit: 100 },
+    }),
+    enabled: hasRelationClientField,
+    placeholderData: (previous) => previous,
+  });
+
   const { data: selectedClientFull, isLoading: isLoadingClientFull } = useQuery(
     {
       ...orpc.clients.get.queryOptions({ input: { id: selectedId ?? "" } }),
@@ -182,6 +198,15 @@ function ClientsPage() {
   useCreateIntentTrigger("clients", crud.openCreate);
 
   const clients = data?.items ?? [];
+  const relationClients = relationClientsData?.items ?? clients;
+  const clientRelationOptions = useMemo(
+    () =>
+      relationClients.map((client) => ({
+        value: client.id,
+        label: `${client.firstName} ${client.lastName}`,
+      })),
+    [relationClients],
+  );
   const isSelectionDataResolved = !isLoading && !isFetching && !error;
   const selectedClient =
     clients.find((client) => client.id === selectedId) ?? null;
@@ -802,6 +827,7 @@ function ClientsPage() {
                             formId={detailFormId}
                             showActions={false}
                             defaultValues={{
+                              id: displayClient.id,
                               firstName: displayClient.firstName,
                               lastName: displayClient.lastName,
                               email: displayClient.email ?? undefined,
@@ -821,6 +847,7 @@ function ClientsPage() {
                             disableSubmitWhenPristine
                             onDirtyChange={setIsDetailFormDirty}
                             customFieldDefinitions={customFieldDefinitions}
+                            clientRelationOptions={clientRelationOptions}
                           />
                         )}
                       </div>
@@ -1068,6 +1095,7 @@ function ClientsPage() {
             isSubmitting={createMutation.isPending}
             shortcutsEnabled={crud.showCreateForm}
             customFieldDefinitions={customFieldDefinitions}
+            clientRelationOptions={clientRelationOptions}
           />
         </div>
       </EntityModal>

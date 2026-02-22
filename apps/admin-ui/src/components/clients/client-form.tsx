@@ -148,6 +148,7 @@ const sanitizeCustomAttributes = (
 
 export interface ClientFormProps {
   defaultValues?: {
+    id?: string;
     firstName: string;
     lastName: string;
     email?: string;
@@ -155,6 +156,7 @@ export interface ClientFormProps {
     phoneCountry?: string;
     customAttributes?: CustomAttributeValues;
   };
+  clientRelationOptions?: Array<{ value: string; label: string }>;
   onSubmit: (data: CreateClientInput) => void;
   onCancel: () => void;
   isSubmitting: boolean;
@@ -186,6 +188,7 @@ export function ClientForm({
   showActions = true,
   onDirtyChange,
   customFieldDefinitions,
+  clientRelationOptions,
   onInvalidSubmit,
 }: ClientFormProps) {
   const formRef = useRef<HTMLFormElement>(null);
@@ -607,6 +610,8 @@ export function ClientForm({
                 <CustomAttributeFormField
                   key={def.fieldKey}
                   definition={def}
+                  clientOptions={clientRelationOptions}
+                  currentClientId={defaultValues?.id}
                   control={control}
                   disabled={isSubmitting}
                 />

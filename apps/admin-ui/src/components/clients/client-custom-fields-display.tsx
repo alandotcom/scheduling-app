@@ -1,7 +1,4 @@
-import type {
-  CustomAttributeDefinitionResponse,
-  CustomAttributeType,
-} from "@scheduling/dto";
+import type { CustomAttributeDefinitionResponse } from "@scheduling/dto";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { formatDisplayDate } from "@/lib/date-utils";
@@ -12,12 +9,16 @@ interface ClientCustomFieldsDisplayProps {
     | Record<string, string | number | boolean | string[] | null>
     | null
     | undefined;
+  relatedClientLabelById?: Record<string, string>;
 }
 
 function renderValue(
-  type: CustomAttributeType,
+  definition: CustomAttributeDefinitionResponse,
   value: string | number | boolean | string[] | null | undefined,
+  relatedClientLabelById?: Record<string, string>,
 ) {
+  const { type } = definition;
+
   if (value === null || value === undefined) {
     return <span className="text-muted-foreground">Not set</span>;
   }
@@ -44,6 +45,29 @@ function renderValue(
         );
       }
       return <span className="text-muted-foreground">Not set</span>;
+    case "RELATION_CLIENT": {
+      if (definition.relationConfig?.valueMode === "single") {
+        if (typeof value !== "string") {
+          return <span className="text-muted-foreground">Not set</span>;
+        }
+
+        return <span>{relatedClientLabelById?.[value] ?? value}</span>;
+      }
+
+      if (Array.isArray(value) && value.length > 0) {
+        return (
+          <div className="flex flex-wrap gap-1">
+            {value.map((clientId) => (
+              <Badge key={clientId} variant="secondary">
+                {relatedClientLabelById?.[clientId] ?? clientId}
+              </Badge>
+            ))}
+          </div>
+        );
+      }
+
+      return <span className="text-muted-foreground">Not set</span>;
+    }
     default:
       return <span>{String(value)}</span>;
   }
@@ -52,6 +76,7 @@ function renderValue(
 export function ClientCustomFieldsDisplay({
   definitions,
   customAttributes,
+  relatedClientLabelById,
 }: ClientCustomFieldsDisplayProps) {
   if (definitions.length === 0) {
     return (
@@ -73,7 +98,11 @@ export function ClientCustomFieldsDisplay({
             {def.label}
           </Label>
           <div className="mt-1 text-sm">
-            {renderValue(def.type, customAttributes?.[def.fieldKey])}
+            {renderValue(
+              def,
+              customAttributes?.[def.fieldKey],
+              relatedClientLabelById,
+            )}
           </div>
         </div>
       ))}

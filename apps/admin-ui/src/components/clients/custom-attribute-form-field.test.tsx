@@ -26,6 +26,7 @@ function createDefinition(
     type: partial.type,
     required: partial.required ?? false,
     options: partial.options ?? null,
+    relationConfig: partial.relationConfig ?? null,
     displayOrder: partial.displayOrder ?? 0,
     createdAt: new Date("2026-01-01T00:00:00.000Z"),
     updatedAt: new Date("2026-01-01T00:00:00.000Z"),
@@ -104,5 +105,73 @@ describe("CustomAttributeFormField layout", () => {
     expect(wrapper?.firstElementChild).toBe(label);
     expect(input.getAttribute("id")).toBe("ca-smsOptIn");
     expect(toggle.closest("div")?.className).toContain("justify-end");
+  });
+
+  test("RELATION_CLIENT single mode renders a select", () => {
+    function TestForm() {
+      const { control } = useForm({
+        defaultValues: { customAttributes: {} },
+      });
+      return (
+        <CustomAttributeFormField
+          definition={createDefinition({
+            fieldKey: "referredBy",
+            label: "Referred By",
+            type: "RELATION_CLIENT",
+            relationConfig: {
+              targetEntity: "CLIENT",
+              valueMode: "single",
+              pairedDefinitionId: null,
+              pairedRole: null,
+            },
+          })}
+          control={control}
+          clientOptions={[
+            { value: "client-1", label: "Client One" },
+            { value: "client-2", label: "Client Two" },
+          ]}
+        />
+      );
+    }
+
+    render(<TestForm />);
+
+    expect(screen.getByText("Referred By (optional)")).toBeTruthy();
+    expect(screen.getByRole("combobox")).toBeTruthy();
+  });
+
+  test("RELATION_CLIENT multi mode renders a multi-select combobox", () => {
+    function TestForm() {
+      const { control } = useForm({
+        defaultValues: { customAttributes: {} },
+      });
+      return (
+        <CustomAttributeFormField
+          definition={createDefinition({
+            fieldKey: "relatedClients",
+            label: "Related Clients",
+            type: "RELATION_CLIENT",
+            relationConfig: {
+              targetEntity: "CLIENT",
+              valueMode: "multi",
+              pairedDefinitionId: null,
+              pairedRole: null,
+            },
+          })}
+          control={control}
+          currentClientId="client-1"
+          clientOptions={[
+            { value: "client-1", label: "Current Client" },
+            { value: "client-2", label: "Client Two" },
+          ]}
+        />
+      );
+    }
+
+    render(<TestForm />);
+
+    expect(screen.getByText("Related Clients (optional)")).toBeTruthy();
+    expect(screen.getByText("Select related clients...")).toBeTruthy();
+    expect(screen.getByRole("combobox")).toBeTruthy();
   });
 });

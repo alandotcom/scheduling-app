@@ -2,6 +2,7 @@ import {
   pgTable,
   pgPolicy,
   pgEnum,
+  type AnyPgColumn,
   customType,
   uuid,
   text,
@@ -359,7 +360,23 @@ export const customAttributeTypeEnum = pgEnum("custom_attribute_type", [
   "BOOLEAN",
   "SELECT",
   "MULTI_SELECT",
+  "RELATION_CLIENT",
 ]);
+
+export const customAttributeRelationTargetEntityEnum = pgEnum(
+  "custom_attribute_relation_target_entity",
+  ["CLIENT"],
+);
+
+export const customAttributeRelationValueModeEnum = pgEnum(
+  "custom_attribute_relation_value_mode",
+  ["single", "multi"],
+);
+
+export const customAttributeRelationPairedRoleEnum = pgEnum(
+  "custom_attribute_relation_paired_role",
+  ["forward", "reverse"],
+);
 
 export const clientCustomAttributeDefinitions = pgTable.withRLS(
   "client_custom_attribute_definitions",
@@ -371,9 +388,20 @@ export const clientCustomAttributeDefinitions = pgTable.withRLS(
     fieldKey: text("field_key").notNull(),
     label: text("label").notNull(),
     type: customAttributeTypeEnum("type").notNull(),
-    slotColumn: text("slot_column").notNull(),
+    slotColumn: text("slot_column"),
     required: boolean("required").default(false).notNull(),
     options: jsonb("options").$type<string[]>(),
+    relationTargetEntity: customAttributeRelationTargetEntityEnum(
+      "relation_target_entity",
+    ),
+    relationValueMode: customAttributeRelationValueModeEnum(
+      "relation_value_mode",
+    ),
+    pairedDefinitionId: uuid("paired_definition_id").references(
+      (): AnyPgColumn => clientCustomAttributeDefinitions.id,
+      { onDelete: "set null" },
+    ),
+    pairedRole: customAttributeRelationPairedRoleEnum("paired_role"),
     displayOrder: integer("display_order").default(0).notNull(),
     ...timestamps,
   },
@@ -439,6 +467,55 @@ export const clientCustomAttributeValues = pgTable.withRLS(
   (table) => [
     uniqueIndex("client_cav_org_client_uidx").on(table.orgId, table.clientId),
     pgPolicy("org_isolation_client_custom_attribute_values", {
+      for: "all",
+      using: sql`org_id = current_org_id()`,
+      withCheck: sql`org_id = current_org_id()`,
+    }),
+  ],
+);
+
+export const clientCustomAttributeRelations = pgTable.withRLS(
+  "client_custom_attribute_relations",
+  {
+    id,
+    orgId: uuid("org_id")
+      .notNull()
+      .references(() => orgs.id, { onDelete: "cascade" }),
+    definitionId: uuid("definition_id")
+      .notNull()
+      .references(() => clientCustomAttributeDefinitions.id, {
+        onDelete: "cascade",
+      }),
+    sourceClientId: uuid("source_client_id")
+      .notNull()
+      .references(() => clients.id, { onDelete: "cascade" }),
+    targetClientId: uuid("target_client_id")
+      .notNull()
+      .references(() => clients.id, { onDelete: "cascade" }),
+    ...timestamps,
+  },
+  (table) => [
+    check(
+      "client_car_source_target_distinct_chk",
+      sql`${table.sourceClientId} <> ${table.targetClientId}`,
+    ),
+    uniqueIndex("client_car_org_definition_source_target_uidx").on(
+      table.orgId,
+      table.definitionId,
+      table.sourceClientId,
+      table.targetClientId,
+    ),
+    index("client_car_org_definition_source_idx").on(
+      table.orgId,
+      table.definitionId,
+      table.sourceClientId,
+    ),
+    index("client_car_org_definition_target_idx").on(
+      table.orgId,
+      table.definitionId,
+      table.targetClientId,
+    ),
+    pgPolicy("org_isolation_client_custom_attribute_relations", {
       for: "all",
       using: sql`org_id = current_org_id()`,
       withCheck: sql`org_id = current_org_id()`,

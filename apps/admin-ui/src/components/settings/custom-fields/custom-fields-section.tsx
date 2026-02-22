@@ -114,6 +114,16 @@ export function CustomFieldsSection() {
     type?: CustomAttributeType;
     required: boolean;
     options?: string[];
+    relationConfig?: {
+      targetEntity?: "CLIENT";
+      valueMode: "single" | "multi";
+    };
+    reverseRelation?: {
+      fieldKey: string;
+      label: string;
+      valueMode: "single" | "multi";
+      required?: boolean;
+    };
   }) => {
     if (!data.fieldKey || !data.type) return;
     createMutation.mutate({
@@ -122,6 +132,8 @@ export function CustomFieldsSection() {
       type: data.type,
       required: data.required,
       options: data.options,
+      relationConfig: data.relationConfig,
+      reverseRelation: data.reverseRelation,
     });
   };
 
@@ -217,6 +229,7 @@ export function CustomFieldsSection() {
                 type: crud.editingItem.type,
                 required: crud.editingItem.required,
                 options: crud.editingItem.options,
+                relationConfig: crud.editingItem.relationConfig,
               }}
               slotUsage={slotUsage}
               onSubmit={handleUpdate}

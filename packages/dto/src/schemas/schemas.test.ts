@@ -612,6 +612,7 @@ describe("Custom attribute schemas", () => {
         "BOOLEAN",
         "SELECT",
         "MULTI_SELECT",
+        "RELATION_CLIENT",
       ];
       for (const type of types) {
         expect(customAttributeTypeSchema.safeParse(type).success).toBe(true);
@@ -754,6 +755,100 @@ describe("Custom attribute schemas", () => {
         type: "DATE",
       });
       expect(result.success).toBe(true);
+    });
+
+    test("accepts RELATION_CLIENT type with relation config", () => {
+      const result = createCustomAttributeDefinitionSchema.safeParse({
+        fieldKey: "referredBy",
+        label: "Referred By",
+        type: "RELATION_CLIENT",
+        relationConfig: {
+          valueMode: "single",
+        },
+      });
+      expect(result.success).toBe(true);
+    });
+
+    test("accepts RELATION_CLIENT with reverse relation configuration", () => {
+      const result = createCustomAttributeDefinitionSchema.safeParse({
+        fieldKey: "referredBy",
+        label: "Referred By",
+        type: "RELATION_CLIENT",
+        relationConfig: {
+          valueMode: "single",
+        },
+        reverseRelation: {
+          fieldKey: "referrals",
+          label: "Referrals",
+          valueMode: "multi",
+        },
+      });
+      expect(result.success).toBe(true);
+    });
+
+    test("rejects RELATION_CLIENT without relation config", () => {
+      const result = createCustomAttributeDefinitionSchema.safeParse({
+        fieldKey: "referredBy",
+        label: "Referred By",
+        type: "RELATION_CLIENT",
+      });
+      expect(result.success).toBe(false);
+    });
+
+    test("rejects RELATION_CLIENT with options", () => {
+      const result = createCustomAttributeDefinitionSchema.safeParse({
+        fieldKey: "referredBy",
+        label: "Referred By",
+        type: "RELATION_CLIENT",
+        relationConfig: {
+          valueMode: "single",
+        },
+        options: ["x"],
+      });
+      expect(result.success).toBe(false);
+    });
+
+    test("rejects non-relation types with relationConfig", () => {
+      const result = createCustomAttributeDefinitionSchema.safeParse({
+        fieldKey: "notes",
+        label: "Notes",
+        type: "TEXT",
+        relationConfig: {
+          valueMode: "single",
+        },
+      });
+      expect(result.success).toBe(false);
+    });
+
+    test("rejects non-relation types with reverseRelation", () => {
+      const result = createCustomAttributeDefinitionSchema.safeParse({
+        fieldKey: "notes",
+        label: "Notes",
+        type: "TEXT",
+        reverseRelation: {
+          fieldKey: "reverseNotes",
+          label: "Reverse Notes",
+          valueMode: "multi",
+        },
+      });
+      expect(result.success).toBe(false);
+    });
+
+    test("rejects RELATION_CLIENT when reverse field key matches primary field key", () => {
+      const result = createCustomAttributeDefinitionSchema.safeParse({
+        fieldKey: "referredBy",
+        label: "Referred By",
+        type: "RELATION_CLIENT",
+        relationConfig: {
+          valueMode: "single",
+        },
+        reverseRelation: {
+          fieldKey: "referredBy",
+          label: "Referrals",
+          valueMode: "multi",
+        },
+      });
+      expect(result.success).toBe(false);
     });
   });
 

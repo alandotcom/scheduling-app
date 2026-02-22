@@ -18,6 +18,8 @@ import {
 
 interface CustomAttributeFormFieldProps {
   definition: CustomAttributeDefinitionResponse;
+  clientOptions?: MultiSelectComboboxOption[];
+  currentClientId?: string;
   // biome-ignore lint/suspicious/noExplicitAny: dynamic form fields bypass strict typing
   control: Control<any>;
   disabled?: boolean;
@@ -36,6 +38,8 @@ function getFieldWrapperClass(
 
 export function CustomAttributeFormField({
   definition,
+  clientOptions,
+  currentClientId,
   control,
   disabled = false,
 }: CustomAttributeFormFieldProps) {
@@ -236,6 +240,82 @@ export function CustomAttributeFormField({
                   value={Array.isArray(field.value) ? field.value : []}
                   onChange={field.onChange}
                   placeholder="Select options..."
+                  disabled={disabled}
+                />
+                {fieldState.error ? (
+                  <p id={errorId} className="text-sm text-destructive">
+                    {fieldState.error.message}
+                  </p>
+                ) : null}
+              </>
+            )}
+          />
+        </div>
+      );
+    }
+    case "RELATION_CLIENT": {
+      const relationMode = definition.relationConfig?.valueMode ?? "single";
+      const relationOptions = (clientOptions ?? []).filter(
+        (option) => option.value !== currentClientId,
+      );
+
+      if (relationMode === "single") {
+        return (
+          <div className={fieldWrapperClass}>
+            <Label>{label}</Label>
+            <Controller
+              name={fieldPath}
+              control={control}
+              defaultValue={null}
+              render={({ field, fieldState }) => (
+                <>
+                  <Select
+                    value={typeof field.value === "string" ? field.value : ""}
+                    onValueChange={(value) => field.onChange(value || null)}
+                    disabled={disabled}
+                  >
+                    <SelectTrigger
+                      className="w-full min-w-0"
+                      aria-describedby={fieldState.error ? errorId : undefined}
+                      aria-invalid={!!fieldState.error}
+                    >
+                      <SelectValue placeholder="Select client..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {relationOptions.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {fieldState.error ? (
+                    <p id={errorId} className="text-sm text-destructive">
+                      {fieldState.error.message}
+                    </p>
+                  ) : null}
+                </>
+              )}
+            />
+          </div>
+        );
+      }
+
+      return (
+        <div className={fieldWrapperClass}>
+          <Label>{label}</Label>
+          <Controller
+            name={fieldPath}
+            control={control}
+            defaultValue={[]}
+            render={({ field, fieldState }) => (
+              <>
+                <MultiSelectCombobox
+                  className="w-full"
+                  options={relationOptions}
+                  value={Array.isArray(field.value) ? field.value : []}
+                  onChange={field.onChange}
+                  placeholder="Select related clients..."
                   disabled={disabled}
                 />
                 {fieldState.error ? (

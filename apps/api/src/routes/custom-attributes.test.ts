@@ -215,6 +215,98 @@ describe("Custom Attribute Routes", () => {
       expect(result.required).toBe(true);
     });
 
+    test("creates RELATION_CLIENT definition", async () => {
+      const { org, user } = await createOrg(db);
+      const ctx = createTestContext({ orgId: org.id, userId: user.id });
+
+      const result = await call(
+        customAttributeRoutes.createDefinition,
+        {
+          fieldKey: "referredBy",
+          label: "Referred By",
+          type: "RELATION_CLIENT",
+          relationConfig: {
+            valueMode: "single",
+          },
+        },
+        { context: ctx },
+      );
+
+      expect(result.type).toBe("RELATION_CLIENT");
+      expect(result.relationConfig?.targetEntity).toBe("CLIENT");
+      expect(result.relationConfig?.valueMode).toBe("single");
+      expect(result.relationConfig?.pairedDefinitionId).toBeNull();
+    });
+
+    test("creates paired RELATION_CLIENT definitions", async () => {
+      const { org, user } = await createOrg(db);
+      const ctx = createTestContext({ orgId: org.id, userId: user.id });
+
+      const forward = await call(
+        customAttributeRoutes.createDefinition,
+        {
+          fieldKey: "referredBy",
+          label: "Referred By",
+          type: "RELATION_CLIENT",
+          relationConfig: {
+            valueMode: "single",
+          },
+          reverseRelation: {
+            fieldKey: "referrals",
+            label: "Referrals",
+            valueMode: "multi",
+          },
+        },
+        { context: ctx },
+      );
+
+      const definitions = await call(
+        customAttributeRoutes.listDefinitions,
+        {},
+        { context: ctx },
+      );
+
+      expect(definitions).toHaveLength(2);
+      const reverse = definitions.find((d) => d.fieldKey === "referrals");
+      expect(reverse).toBeDefined();
+      expect(forward.relationConfig?.pairedDefinitionId).toBe(reverse?.id);
+      expect(reverse?.relationConfig?.pairedDefinitionId).toBe(forward.id);
+      expect(reverse?.relationConfig?.pairedRole).toBe("reverse");
+    });
+
+    test("rejects reverse relation when reverse field key already exists", async () => {
+      const { org, user } = await createOrg(db);
+      const ctx = createTestContext({ orgId: org.id, userId: user.id });
+
+      await call(
+        customAttributeRoutes.createDefinition,
+        { fieldKey: "referrals", label: "Referrals", type: "TEXT" },
+        { context: ctx },
+      );
+
+      await expect(
+        call(
+          customAttributeRoutes.createDefinition,
+          {
+            fieldKey: "referredBy",
+            label: "Referred By",
+            type: "RELATION_CLIENT",
+            relationConfig: {
+              valueMode: "single",
+            },
+            reverseRelation: {
+              fieldKey: "referrals",
+              label: "Referrals",
+              valueMode: "multi",
+            },
+          },
+          { context: ctx },
+        ),
+      ).rejects.toMatchObject({
+        code: "CONFLICT",
+      });
+    });
+
     test("throws CONFLICT for duplicate fieldKey", async () => {
       const { org, user } = await createOrg(db);
       const ctx = createTestContext({ orgId: org.id, userId: user.id });
@@ -390,6 +482,34 @@ describe("Custom Attribute Routes", () => {
       expect(result.options).toEqual(["a", "b", "c"]);
     });
 
+    test("rejects options update for RELATION_CLIENT", async () => {
+      const { org, user } = await createOrg(db);
+      const ctx = createTestContext({ orgId: org.id, userId: user.id });
+
+      const created = await call(
+        customAttributeRoutes.createDefinition,
+        {
+          fieldKey: "referredBy",
+          label: "Referred By",
+          type: "RELATION_CLIENT",
+          relationConfig: {
+            valueMode: "single",
+          },
+        },
+        { context: ctx },
+      );
+
+      await expect(
+        call(
+          customAttributeRoutes.updateDefinition,
+          { id: created.id, options: ["x"] },
+          { context: ctx },
+        ),
+      ).rejects.toMatchObject({
+        code: "BAD_REQUEST",
+      });
+    });
+
     test("throws NOT_FOUND for non-existent definition", async () => {
       const { org, user } = await createOrg(db);
       const ctx = createTestContext({ orgId: org.id, userId: user.id });
@@ -433,6 +553,46 @@ describe("Custom Attribute Routes", () => {
       ).rejects.toMatchObject({
         code: "NOT_FOUND",
       });
+    });
+
+    test("deleting one side of a relation pair unpairs the other side", async () => {
+      const { org, user } = await createOrg(db);
+      const ctx = createTestContext({ orgId: org.id, userId: user.id });
+
+      const forward = await call(
+        customAttributeRoutes.createDefinition,
+        {
+          fieldKey: "referredBy",
+          label: "Referred By",
+          type: "RELATION_CLIENT",
+          relationConfig: {
+            valueMode: "single",
+          },
+          reverseRelation: {
+            fieldKey: "referrals",
+            label: "Referrals",
+            valueMode: "multi",
+          },
+        },
+        { context: ctx },
+      );
+
+      await call(
+        customAttributeRoutes.deleteDefinition,
+        { id: forward.id },
+        { context: ctx },
+      );
+
+      const definitions = await call(
+        customAttributeRoutes.listDefinitions,
+        {},
+        { context: ctx },
+      );
+
+      expect(definitions).toHaveLength(1);
+      expect(definitions[0]?.fieldKey).toBe("referrals");
+      expect(definitions[0]?.relationConfig?.pairedDefinitionId).toBeNull();
+      expect(definitions[0]?.relationConfig?.pairedRole).toBeNull();
     });
   });
 

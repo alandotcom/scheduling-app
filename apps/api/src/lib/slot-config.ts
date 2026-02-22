@@ -8,8 +8,15 @@ export type SlotColumn = Exclude<
 >;
 
 export type SlotPrefix = "t" | "n" | "d" | "b" | "j";
+export type SlotBackedCustomAttributeType = Exclude<
+  CustomAttributeType,
+  "RELATION_CLIENT"
+>;
 
-export const SLOT_PREFIX_BY_TYPE: Record<CustomAttributeType, SlotPrefix> = {
+export const SLOT_PREFIX_BY_TYPE: Record<
+  SlotBackedCustomAttributeType,
+  SlotPrefix
+> = {
   TEXT: "t",
   SELECT: "t",
   NUMBER: "n",
