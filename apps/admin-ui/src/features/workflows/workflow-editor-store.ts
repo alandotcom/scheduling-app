@@ -89,6 +89,9 @@ export type WorkflowActionNodeData = {
     waitUntil?: unknown;
     waitOffset?: unknown;
     waitTimezone?: unknown;
+    waitAllowedHoursMode?: unknown;
+    waitAllowedStartTime?: unknown;
+    waitAllowedEndTime?: unknown;
     expression?: string;
     [key: string]: unknown;
   };

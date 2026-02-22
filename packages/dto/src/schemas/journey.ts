@@ -1,5 +1,9 @@
 import { z } from "zod";
 import {
+  isValidIanaTimeZone,
+  validateWaitAllowedHoursConfig,
+} from "../wait-allowed-hours";
+import {
   nonNegativeIntSchema,
   positiveIntSchema,
   successResponseSchema,
@@ -285,6 +289,57 @@ export const linearJourneyGraphSchema =
       }
 
       actionTypeByNodeId.set(nodeId, actionType);
+
+      if (actionType === "wait") {
+        const waitAllowedHoursIssues = validateWaitAllowedHoursConfig({
+          mode: data.config?.["waitAllowedHoursMode"],
+          startTime: data.config?.["waitAllowedStartTime"],
+          endTime: data.config?.["waitAllowedEndTime"],
+        });
+
+        for (const issue of waitAllowedHoursIssues) {
+          const pathKey =
+            issue.field === "mode"
+              ? "waitAllowedHoursMode"
+              : issue.field === "start"
+                ? "waitAllowedStartTime"
+                : "waitAllowedEndTime";
+          const message =
+            issue.field === "mode"
+              ? 'Wait allowed-hours mode must be either "off" or "daily_window"'
+              : issue.field === "start"
+                ? "Wait allowed-hours start must use HH:MM (24-hour) format"
+                : issue.field === "end"
+                  ? "Wait allowed-hours end must use HH:MM (24-hour) format"
+                  : "Wait allowed-hours start must be earlier than end (same-day window only)";
+
+          ctx.addIssue({
+            code: "custom",
+            message,
+            path: ["nodes", index, "attributes", "data", "config", pathKey],
+          });
+        }
+
+        const waitTimezone = data.config?.["waitTimezone"];
+        if (
+          typeof waitTimezone === "string" &&
+          waitTimezone.trim().length > 0 &&
+          !isValidIanaTimeZone(waitTimezone)
+        ) {
+          ctx.addIssue({
+            code: "custom",
+            message: "Wait timezone must be a valid IANA timezone",
+            path: [
+              "nodes",
+              index,
+              "attributes",
+              "data",
+              "config",
+              "waitTimezone",
+            ],
+          });
+        }
+      }
 
       if (actionType === "condition") {
         const expression = getConditionExpression(data.config);

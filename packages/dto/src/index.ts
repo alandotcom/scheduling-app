@@ -2,3 +2,4 @@
 
 // Re-export all schemas
 export * from "./schemas";
+export * from "./wait-allowed-hours";

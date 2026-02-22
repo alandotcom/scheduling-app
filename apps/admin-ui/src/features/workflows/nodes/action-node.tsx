@@ -59,6 +59,9 @@ type RuntimeWaitInput = {
   waitUntil?: unknown;
   waitOffset?: unknown;
   waitTimezone?: unknown;
+  waitAllowedHoursMode?: unknown;
+  waitAllowedStartTime?: unknown;
+  waitAllowedEndTime?: unknown;
 };
 
 const CONDITION_TRUE_HANDLE_LEFT = "37%";
@@ -174,6 +177,9 @@ function useConfigWaitPreview(
   const waitDuration = config?.waitDuration;
   const waitUntil = config?.waitUntil;
   const waitOffset = config?.waitOffset;
+  const waitAllowedHoursMode = config?.waitAllowedHoursMode;
+  const waitAllowedStartTime = config?.waitAllowedStartTime;
+  const waitAllowedEndTime = config?.waitAllowedEndTime;
   const waitTimezone =
     typeof config?.waitTimezone === "string" && config.waitTimezone.trim()
       ? config.waitTimezone.trim()
@@ -189,6 +195,9 @@ function useConfigWaitPreview(
     toSignaturePart(waitDuration),
     toSignaturePart(waitUntil),
     toSignaturePart(waitOffset),
+    toSignaturePart(waitAllowedHoursMode),
+    toSignaturePart(waitAllowedStartTime),
+    toSignaturePart(waitAllowedEndTime),
     toSignaturePart(waitTimezone),
   ].join("|");
   const previewBaseNowMs = useMemo(
@@ -207,6 +216,9 @@ function useConfigWaitPreview(
       waitUntil: delayTimingMode === "until" ? waitUntil : undefined,
       waitOffset: delayTimingMode === "until" ? waitOffset : undefined,
       waitTimezone,
+      waitAllowedHoursMode,
+      waitAllowedStartTime,
+      waitAllowedEndTime,
     });
   }, [
     shouldShowWaitPreview,
@@ -216,6 +228,9 @@ function useConfigWaitPreview(
     waitDuration,
     waitUntil,
     waitOffset,
+    waitAllowedHoursMode,
+    waitAllowedStartTime,
+    waitAllowedEndTime,
     waitTimezone,
   ]);
 
@@ -330,6 +345,9 @@ function useRuntimeWaitPreview(
     waitUntil: runtimeInput.waitUntil,
     waitOffset: runtimeInput.waitOffset,
     waitTimezone,
+    waitAllowedHoursMode: runtimeInput.waitAllowedHoursMode,
+    waitAllowedStartTime: runtimeInput.waitAllowedStartTime,
+    waitAllowedEndTime: runtimeInput.waitAllowedEndTime,
   });
 
   if (!resolution.waitUntil) {

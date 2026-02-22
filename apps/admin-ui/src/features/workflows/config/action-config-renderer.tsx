@@ -5,7 +5,9 @@ import {
   Delete01Icon,
 } from "@hugeicons/core-free-icons";
 import {
+  isValidIanaTimeZone,
   journeyTriggerFilterAstSchema,
+  parseTimeOfDayMinutes,
   type JourneyTriggerFilterAst,
   type JourneyTriggerFilterCondition,
 } from "@scheduling/dto";
@@ -157,6 +159,13 @@ function getExpressionSuggestionsForField(
     return [];
   }
 
+  if (
+    fieldKey === "waitAllowedStartTime" ||
+    fieldKey === "waitAllowedEndTime"
+  ) {
+    return [];
+  }
+
   return suggestions;
 }
 
@@ -193,6 +202,76 @@ function validateWaitUntilValue(
   }
 
   return `"${invalidReference}" is not a datetime attribute.`;
+}
+
+function validateWaitAllowedTimeValue(input: {
+  fieldKey: string;
+  value: string;
+  config: Record<string, unknown>;
+}): string | null {
+  if (
+    input.fieldKey !== "waitAllowedStartTime" &&
+    input.fieldKey !== "waitAllowedEndTime"
+  ) {
+    return null;
+  }
+
+  const mode =
+    typeof input.config.waitAllowedHoursMode === "string"
+      ? input.config.waitAllowedHoursMode
+      : "off";
+  if (mode !== "daily_window") {
+    return null;
+  }
+
+  const trimmed = input.value.trim();
+  if (trimmed.length === 0) {
+    return "Required when daily window mode is enabled.";
+  }
+
+  const selfMinutes = parseTimeOfDayMinutes(trimmed);
+  if (selfMinutes === null) {
+    return "Use HH:MM in 24-hour format.";
+  }
+
+  const startRaw =
+    input.fieldKey === "waitAllowedStartTime"
+      ? trimmed
+      : input.config.waitAllowedStartTime;
+  const endRaw =
+    input.fieldKey === "waitAllowedEndTime"
+      ? trimmed
+      : input.config.waitAllowedEndTime;
+  const startMinutes = parseTimeOfDayMinutes(startRaw);
+  const endMinutes = parseTimeOfDayMinutes(endRaw);
+
+  if (
+    startMinutes !== null &&
+    endMinutes !== null &&
+    startMinutes >= endMinutes
+  ) {
+    return "Window start must be earlier than window end.";
+  }
+
+  return null;
+}
+
+function validateWaitTimezoneValue(input: {
+  fieldKey: string;
+  value: string;
+}): string | null {
+  if (input.fieldKey !== "waitTimezone") {
+    return null;
+  }
+
+  const trimmed = input.value.trim();
+  if (trimmed.length === 0) {
+    return null;
+  }
+
+  return isValidIanaTimeZone(trimmed)
+    ? null
+    : "Use a valid IANA timezone, like America/New_York.";
 }
 
 function isJourneyFilterOperator(
@@ -661,6 +740,21 @@ function TextFieldRenderer({
     () => getExpressionSuggestionsForField(field.key, suggestions),
     [field.key, suggestions],
   );
+  const validationError = useMemo(() => {
+    const waitAllowedError = validateWaitAllowedTimeValue({
+      fieldKey: field.key,
+      value: localValue,
+      config,
+    });
+    if (waitAllowedError) {
+      return waitAllowedError;
+    }
+
+    return validateWaitTimezoneValue({
+      fieldKey: field.key,
+      value: localValue,
+    });
+  }, [field.key, localValue, config]);
 
   useEffect(() => {
     setLocalValue(configValue);
@@ -672,11 +766,19 @@ function TextFieldRenderer({
       <ExpressionInput
         disabled={disabled}
         onChange={(nextValue) => setLocalValue(nextValue)}
-        onBlur={() => onUpdateConfig(field.key, localValue)}
+        onBlur={() => {
+          if (validationError) {
+            return;
+          }
+          onUpdateConfig(field.key, localValue);
+        }}
         placeholder={field.placeholder}
         suggestions={scopedSuggestions}
         value={localValue}
       />
+      {validationError ? (
+        <p className="text-destructive text-xs">{validationError}</p>
+      ) : null}
       {field.helpText ? (
         <p className="text-muted-foreground text-xs">{field.helpText}</p>
       ) : null}

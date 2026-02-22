@@ -41,6 +41,34 @@ function StatefulActionConfig({
 }
 
 describe("ActionConfig", () => {
+  test("shows wait allowed-window fields when daily window mode is enabled", () => {
+    render(
+      <StatefulActionConfig
+        initialConfig={{
+          actionType: "wait",
+          waitAllowedHoursMode: "daily_window",
+        }}
+      />,
+    );
+
+    expect(screen.getByText("Window start (24-hour)")).toBeTruthy();
+    expect(screen.getByText("Window end (24-hour)")).toBeTruthy();
+  });
+
+  test("hides wait allowed-window fields when mode is off", () => {
+    render(
+      <StatefulActionConfig
+        initialConfig={{
+          actionType: "wait",
+          waitAllowedHoursMode: "off",
+        }}
+      />,
+    );
+
+    expect(screen.queryByText("Window start (24-hour)")).toBeNull();
+    expect(screen.queryByText("Window end (24-hour)")).toBeNull();
+  });
+
   test("shows brand logos in service and action pickers", () => {
     render(
       <ActionConfig

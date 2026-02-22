@@ -134,16 +134,32 @@ registerAction({
       showWhen: { field: "waitDelayTimingMode", equals: "until" },
     },
     {
-      key: "waitGateMode",
-      label: "Continue only if time actually elapsed",
+      key: "waitAllowedHoursMode",
+      label: "Allowed send window",
       type: "select",
       defaultValue: "off",
       options: [
-        { value: "off", label: "Off (continue immediately)" },
-        { value: "require_actual_wait", label: "Skip branch when already due" },
+        { value: "off", label: "Off (allow any time)" },
+        { value: "daily_window", label: "Daily window" },
       ],
       helpText:
-        "Prevents immediate sends when computed time is now or in the past after an update.",
+        "When enabled, times outside the window shift to the next allowed start.",
+    },
+    {
+      key: "waitAllowedStartTime",
+      label: "Window start (24-hour)",
+      type: "text",
+      placeholder: "09:00",
+      helpText: "Use HH:MM format.",
+      showWhen: { field: "waitAllowedHoursMode", equals: "daily_window" },
+    },
+    {
+      key: "waitAllowedEndTime",
+      label: "Window end (24-hour)",
+      type: "text",
+      placeholder: "17:00",
+      helpText: "Use HH:MM format. End must be later than start.",
+      showWhen: { field: "waitAllowedHoursMode", equals: "daily_window" },
     },
     {
       key: "waitTimezone",

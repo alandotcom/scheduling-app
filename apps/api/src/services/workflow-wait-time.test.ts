@@ -43,4 +43,67 @@ describe("workflow wait time utilities", () => {
 
     expect(parsed?.toISOString()).toBe("2026-03-10T13:00:00.000Z");
   });
+
+  test("shifts wait-until forward to the same-day allowed-hours start", () => {
+    const result = resolveWaitUntil({
+      waitUntil: "2026-03-10T08:00:00",
+      waitTimezone: "America/New_York",
+      waitAllowedHoursMode: "daily_window",
+      waitAllowedStartTime: "09:00",
+      waitAllowedEndTime: "17:00",
+    });
+
+    expect(result.error).toBeUndefined();
+    expect(result.waitUntil?.toISOString()).toBe("2026-03-10T13:00:00.000Z");
+  });
+
+  test("shifts wait-until after window end to next-day window start", () => {
+    const result = resolveWaitUntil({
+      waitUntil: "2026-03-10T19:30:00",
+      waitTimezone: "America/New_York",
+      waitAllowedHoursMode: "daily_window",
+      waitAllowedStartTime: "09:00",
+      waitAllowedEndTime: "17:00",
+    });
+
+    expect(result.error).toBeUndefined();
+    expect(result.waitUntil?.toISOString()).toBe("2026-03-11T13:00:00.000Z");
+  });
+
+  test("uses org timezone fallback for allowed-hours enforcement", () => {
+    const result = resolveWaitUntil({
+      waitUntil: "2026-03-10",
+      orgTimezone: "America/New_York",
+      waitAllowedHoursMode: "daily_window",
+      waitAllowedStartTime: "09:00",
+      waitAllowedEndTime: "17:00",
+    });
+
+    expect(result.error).toBeUndefined();
+    expect(result.waitUntil?.toISOString()).toBe("2026-03-10T13:00:00.000Z");
+  });
+
+  test("returns validation error for invalid allowed-hours windows", () => {
+    const result = resolveWaitUntil({
+      waitDuration: "1h",
+      waitAllowedHoursMode: "daily_window",
+      waitAllowedStartTime: "17:00",
+      waitAllowedEndTime: "09:00",
+    });
+
+    expect(result.error).toBe(
+      "Invalid allowed-hours window. waitAllowedStartTime must be earlier than waitAllowedEndTime.",
+    );
+  });
+
+  test("returns validation error for invalid wait timezone", () => {
+    const result = resolveWaitUntil({
+      waitUntil: "2026-03-10T09:00:00",
+      waitTimezone: "Not/AZone",
+    });
+
+    expect(result.error).toBe(
+      "Invalid waitTimezone value. Use a valid IANA timezone like America/New_York.",
+    );
+  });
 });

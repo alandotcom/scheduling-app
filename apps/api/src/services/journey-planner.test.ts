@@ -108,6 +108,10 @@ function createJourneyGraph(input?: {
   waitDuration?: string;
   waitUntil?: string;
   waitOffset?: string;
+  waitTimezone?: string;
+  waitAllowedHoursMode?: "off" | "daily_window";
+  waitAllowedStartTime?: string;
+  waitAllowedEndTime?: string;
 }): LinearJourneyGraph {
   return {
     attributes: {},
@@ -146,6 +150,18 @@ function createJourneyGraph(input?: {
                 : {}),
               ...(input?.waitUntil ? { waitUntil: input.waitUntil } : {}),
               ...(input?.waitOffset ? { waitOffset: input.waitOffset } : {}),
+              ...(input?.waitTimezone
+                ? { waitTimezone: input.waitTimezone }
+                : {}),
+              ...(input?.waitAllowedHoursMode
+                ? { waitAllowedHoursMode: input.waitAllowedHoursMode }
+                : {}),
+              ...(input?.waitAllowedStartTime
+                ? { waitAllowedStartTime: input.waitAllowedStartTime }
+                : {}),
+              ...(input?.waitAllowedEndTime
+                ? { waitAllowedEndTime: input.waitAllowedEndTime }
+                : {}),
             },
           },
         },
@@ -2287,6 +2303,77 @@ describe("processJourneyDomainEvent", () => {
     expect(deliveries[0]?.status).toBe("planned");
     expect(deliveries[0]?.scheduledFor.toISOString()).toBe(
       "2026-02-16T12:00:00.000Z",
+    );
+    expect(scheduleWaitResumeRequester).toHaveBeenCalledTimes(1);
+    expect(scheduleResendRequester).toHaveBeenCalledTimes(0);
+  });
+
+  test("shifts date-only wait-until to the next allowed window start", async () => {
+    const created = await journeyService.create(
+      {
+        name: "Date Wait Window Journey",
+        graph: createJourneyGraph({
+          waitUntil: "2026-02-16",
+          waitAllowedHoursMode: "daily_window",
+          waitAllowedStartTime: "09:00",
+          waitAllowedEndTime: "17:00",
+        }),
+      },
+      context,
+    );
+
+    await journeyService.publish(created.id, { mode: "live" }, context);
+
+    const appointmentId = await createQuickAppointment(
+      db as any,
+      context.orgId,
+    );
+
+    const scheduleWaitResumeRequester = mock(async () => ({
+      eventId: "evt-wait-window-1",
+    }));
+    const scheduleResendRequester = mock(async () => ({
+      eventId: "evt-wait-window-send-1",
+    }));
+
+    await processJourneyDomainEvent(
+      {
+        id: "evt-wait-window-1",
+        orgId: context.orgId,
+        type: "appointment.scheduled",
+        payload: createAppointmentPayload({ appointmentId }),
+        timestamp: "2026-02-15T10:00:00.000Z",
+      },
+      {
+        providerRequesters: {
+          "wait-resume": scheduleWaitResumeRequester,
+          "send-resend": scheduleResendRequester,
+          "send-resend-template": scheduleResendRequester,
+        },
+        now: new Date("2026-02-15T10:00:00.000Z"),
+      },
+    );
+
+    await setTestOrgContext(db, context.orgId);
+
+    const [run] = await db
+      .select({ id: journeyRuns.id })
+      .from(journeyRuns)
+      .orderBy(desc(journeyRuns.id))
+      .limit(1);
+
+    const deliveries = await db
+      .select({
+        actionType: journeyDeliveries.actionType,
+        scheduledFor: journeyDeliveries.scheduledFor,
+      })
+      .from(journeyDeliveries)
+      .where(eq(journeyDeliveries.journeyRunId, run!.id));
+
+    expect(deliveries).toHaveLength(1);
+    expect(deliveries[0]?.actionType).toBe("wait-resume");
+    expect(deliveries[0]?.scheduledFor.toISOString()).toBe(
+      "2026-02-16T14:00:00.000Z",
     );
     expect(scheduleWaitResumeRequester).toHaveBeenCalledTimes(1);
     expect(scheduleResendRequester).toHaveBeenCalledTimes(0);

@@ -235,6 +235,7 @@ function resolveWaitCursor(input: {
   cursor: Date;
   appointmentContext: Record<string, unknown>;
   clientContext: Record<string, unknown>;
+  orgTimezone: string;
 }): Date {
   const config = getActionConfig(input.node);
   const waitTimezone =
@@ -250,11 +251,19 @@ function resolveWaitCursor(input: {
     waitUntil?: unknown;
     waitOffset?: unknown;
     waitTimezone?: string;
+    orgTimezone?: string;
+    waitAllowedHoursMode?: unknown;
+    waitAllowedStartTime?: unknown;
+    waitAllowedEndTime?: unknown;
   } = {
     now: input.cursor,
     waitDuration: config["waitDuration"],
     waitUntil,
     waitOffset: config["waitOffset"],
+    orgTimezone: input.orgTimezone,
+    waitAllowedHoursMode: config["waitAllowedHoursMode"],
+    waitAllowedStartTime: config["waitAllowedStartTime"],
+    waitAllowedEndTime: config["waitAllowedEndTime"],
   };
 
   if (waitTimezone) {
@@ -706,6 +715,7 @@ function buildDesiredDeliveries(input: {
         cursor: current.cursor,
         appointmentContext: input.appointmentContext,
         clientContext: input.clientContext,
+        orgTimezone: input.orgTimezone,
       });
       const isWaiting = nextCursor.getTime() > input.now.getTime();
       desiredStepLogs.push({
@@ -722,6 +732,9 @@ function buildDesiredDeliveries(input: {
           waitUntil: config["waitUntil"] ?? null,
           waitOffset: config["waitOffset"] ?? null,
           waitTimezone: config["waitTimezone"] ?? null,
+          waitAllowedHoursMode: config["waitAllowedHoursMode"] ?? null,
+          waitAllowedStartTime: config["waitAllowedStartTime"] ?? null,
+          waitAllowedEndTime: config["waitAllowedEndTime"] ?? null,
           cursor: current.cursor.toISOString(),
         },
         logOutput: {

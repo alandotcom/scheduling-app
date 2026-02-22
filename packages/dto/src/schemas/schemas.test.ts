@@ -1364,6 +1364,182 @@ describe("Journey graph trigger branching", () => {
     expect(result.success).toBe(true);
   });
 
+  test("accepts wait node with valid allowed-hours window", () => {
+    const graph = {
+      attributes: {},
+      options: { type: "directed" },
+      nodes: [
+        {
+          key: "trigger",
+          attributes: {
+            id: "trigger",
+            type: "trigger",
+            position: { x: 0, y: 0 },
+            data: {
+              type: "trigger",
+              label: "Trigger",
+              config: createTriggerConfig(),
+            },
+          },
+        },
+        {
+          key: "wait-node",
+          attributes: {
+            id: "wait-node",
+            type: "action",
+            position: { x: 0, y: 120 },
+            data: {
+              type: "action",
+              label: "Wait",
+              config: {
+                actionType: "wait",
+                waitDuration: "10m",
+                waitAllowedHoursMode: "daily_window",
+                waitAllowedStartTime: "09:00",
+                waitAllowedEndTime: "17:00",
+              },
+            },
+          },
+        },
+      ],
+      edges: [
+        {
+          key: "e1",
+          source: "trigger",
+          target: "wait-node",
+          attributes: {
+            id: "e1",
+            source: "trigger",
+            target: "wait-node",
+          },
+        },
+      ],
+    };
+
+    const result = linearJourneyGraphSchema.safeParse(graph);
+    expect(result.success).toBe(true);
+  });
+
+  test("rejects wait node with invalid allowed-hours window", () => {
+    const graph = {
+      attributes: {},
+      options: { type: "directed" },
+      nodes: [
+        {
+          key: "trigger",
+          attributes: {
+            id: "trigger",
+            type: "trigger",
+            position: { x: 0, y: 0 },
+            data: {
+              type: "trigger",
+              label: "Trigger",
+              config: createTriggerConfig(),
+            },
+          },
+        },
+        {
+          key: "wait-node",
+          attributes: {
+            id: "wait-node",
+            type: "action",
+            position: { x: 0, y: 120 },
+            data: {
+              type: "action",
+              label: "Wait",
+              config: {
+                actionType: "wait",
+                waitDuration: "10m",
+                waitAllowedHoursMode: "daily_window",
+                waitAllowedStartTime: "17:00",
+                waitAllowedEndTime: "09:00",
+              },
+            },
+          },
+        },
+      ],
+      edges: [
+        {
+          key: "e1",
+          source: "trigger",
+          target: "wait-node",
+          attributes: {
+            id: "e1",
+            source: "trigger",
+            target: "wait-node",
+          },
+        },
+      ],
+    };
+
+    const result = linearJourneyGraphSchema.safeParse(graph);
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const messages = result.error.issues.map((issue) => issue.message);
+      expect(messages).toContain(
+        "Wait allowed-hours start must be earlier than end (same-day window only)",
+      );
+    }
+  });
+
+  test("rejects wait node with invalid wait timezone", () => {
+    const graph = {
+      attributes: {},
+      options: { type: "directed" },
+      nodes: [
+        {
+          key: "trigger",
+          attributes: {
+            id: "trigger",
+            type: "trigger",
+            position: { x: 0, y: 0 },
+            data: {
+              type: "trigger",
+              label: "Trigger",
+              config: createTriggerConfig(),
+            },
+          },
+        },
+        {
+          key: "wait-node",
+          attributes: {
+            id: "wait-node",
+            type: "action",
+            position: { x: 0, y: 120 },
+            data: {
+              type: "action",
+              label: "Wait",
+              config: {
+                actionType: "wait",
+                waitDuration: "10m",
+                waitTimezone: "Not/AZone",
+              },
+            },
+          },
+        },
+      ],
+      edges: [
+        {
+          key: "e1",
+          source: "trigger",
+          target: "wait-node",
+          attributes: {
+            id: "e1",
+            source: "trigger",
+            target: "wait-node",
+          },
+        },
+      ],
+    };
+
+    const result = linearJourneyGraphSchema.safeParse(graph);
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const messages = result.error.issues.map((issue) => issue.message);
+      expect(messages).toContain("Wait timezone must be a valid IANA timezone");
+    }
+  });
+
   test("rejects wait node on canceled branch", () => {
     const graph = {
       attributes: {},
