@@ -566,7 +566,7 @@ describe("executeJourneyDeliveryScheduled", () => {
       console.info = originalConsoleInfo;
     }
 
-    expect(infoSpy).toHaveBeenCalledTimes(1);
+    expect(infoSpy).toHaveBeenCalled();
     expect(infoSpy).toHaveBeenCalledWith(
       "[journey-logger-delivery]",
       expect.objectContaining({

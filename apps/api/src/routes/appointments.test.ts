@@ -14,6 +14,7 @@ import {
   createClient,
   createAppointment,
   createAvailabilityRule,
+  createSchedulingFixtureFast,
   getTestDb,
   setTestOrgContext,
 } from "../test-utils/index.js";
@@ -30,27 +31,7 @@ describe("Appointment Routes", () => {
 
   // Helper to create a complete test fixture with availability
   async function createFixtureWithAvailability() {
-    const { org, user } = await createOrg(db);
-    const calendar = await createCalendar(db, org.id, {
-      name: "Test Calendar",
-      timezone: "America/New_York",
-    });
-    const appointmentType = await createAppointmentType(db, org.id, {
-      name: "Consultation",
-      durationMin: 60,
-      calendarIds: [calendar.id],
-    });
-
-    // Add availability for all weekdays 9am-5pm
-    for (let weekday = 0; weekday < 7; weekday++) {
-      await createAvailabilityRule(db, calendar.id, {
-        weekday,
-        startTime: "09:00",
-        endTime: "17:00",
-      });
-    }
-
-    return { org, user, calendar, appointmentType };
+    return createSchedulingFixtureFast(db);
   }
 
   // Helper to get a valid future start time during business hours
@@ -158,7 +139,7 @@ describe("Appointment Routes", () => {
     });
 
     test("filters by calendarId", async () => {
-      const { org, user, appointmentType } =
+      const { org, user, calendar, appointmentType } =
         await createFixtureWithAvailability();
       const ctx = createTestContext({ orgId: org.id, userId: user.id });
 
@@ -176,9 +157,6 @@ describe("Appointment Routes", () => {
       const endAt1 = new Date(startAt1.getTime() + 60 * 60 * 1000);
       const startAt2 = getFutureStartTime(2, 10);
       const endAt2 = new Date(startAt2.getTime() + 60 * 60 * 1000);
-
-      // Get the first calendar from fixture
-      const { calendar } = await createFixtureWithAvailability();
 
       await createAppointment(db, org.id, {
         calendarId: calendar.id,

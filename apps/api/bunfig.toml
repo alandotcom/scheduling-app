@@ -1,4 +1,6 @@
 [test]
+# Intentionally keep test bodies non-concurrent for now.
+# Current API test infrastructure shares a worker DB/global context.
 preload = [
   "./src/test-utils/test-db-preload.ts",
   "../../packages/db/src/test-matchers.ts",

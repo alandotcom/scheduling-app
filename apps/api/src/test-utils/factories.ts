@@ -29,9 +29,8 @@ import {
 import {
   setTestOrgContext,
   clearTestOrgContext,
-  setTestUserContext,
-  clearTestUserContext,
 } from "@scheduling/db/test-utils";
+import { createTestContext } from "./context.js";
 
 type Database = BunSQLDatabase<typeof schema, typeof relations>;
 
@@ -64,17 +63,11 @@ export async function createOrg(
     })
     .returning();
 
-  // Set user context for RLS before inserting org_membership
-  await setTestUserContext(db, user!.id);
-  try {
-    await db.insert(orgMemberships).values({
-      orgId: org!.id,
-      userId: user!.id,
-      role: "owner",
-    });
-  } finally {
-    await clearTestUserContext(db);
-  }
+  await db.insert(orgMemberships).values({
+    orgId: org!.id,
+    userId: user!.id,
+    role: "owner",
+  });
 
   return { org: org!, user: user! };
 }
@@ -101,19 +94,114 @@ export async function createOrgMember(
     })
     .returning();
 
-  // Set user context for RLS before inserting org_membership
-  await setTestUserContext(db, user!.id);
-  try {
-    await db.insert(orgMemberships).values({
-      orgId,
-      userId: user!.id,
-      role: options.role ?? "member",
-    });
-  } finally {
-    await clearTestUserContext(db);
-  }
+  await db.insert(orgMemberships).values({
+    orgId,
+    userId: user!.id,
+    role: options.role ?? "member",
+  });
 
   return user!;
+}
+
+/**
+ * Run multiple writes under a single org context set/clear cycle.
+ * Useful for reducing per-helper context overhead in integration tests.
+ */
+export async function insertManyWithOrgContext<T>(
+  db: Database,
+  orgId: string,
+  fn: () => Promise<T>,
+): Promise<T> {
+  await setTestOrgContext(db, orgId);
+  try {
+    return await fn();
+  } finally {
+    await clearTestOrgContext(db);
+  }
+}
+
+/**
+ * Create an org/user pair and prebuilt route context object.
+ */
+export async function createRouteTestContext(
+  db: Database,
+  options: { name?: string; email?: string; userName?: string } = {},
+) {
+  const { org, user } = await createOrg(db, options);
+  const ctx = createTestContext({ orgId: org.id, userId: user.id });
+  return { org, user, ctx } as const;
+}
+
+/**
+ * Fast fixture for scheduling route tests with one calendar and one linked
+ * appointment type. Optionally seeds weekday availability.
+ */
+export async function createSchedulingFixtureFast(
+  db: Database,
+  options: {
+    orgName?: string;
+    calendarName?: string;
+    appointmentTypeName?: string;
+    timezone?: string;
+    withWeekdayAvailability?: boolean;
+  } = {},
+) {
+  const { org, user, ctx } = await createRouteTestContext(
+    db,
+    options.orgName ? { name: options.orgName } : {},
+  );
+
+  const timezone = options.timezone ?? "America/New_York";
+  const withWeekdayAvailability = options.withWeekdayAvailability ?? true;
+
+  const { calendar, appointmentType } = await insertManyWithOrgContext(
+    db,
+    org.id,
+    async () => {
+      const [calendar] = await db
+        .insert(calendars)
+        .values({
+          orgId: org.id,
+          locationId: null,
+          name: options.calendarName ?? "Test Calendar",
+          timezone,
+        })
+        .returning();
+
+      const [appointmentType] = await db
+        .insert(appointmentTypes)
+        .values({
+          orgId: org.id,
+          name: options.appointmentTypeName ?? "Consultation",
+          durationMin: 60,
+          paddingBeforeMin: 0,
+          paddingAfterMin: 0,
+          capacity: 1,
+        })
+        .returning();
+
+      await db.insert(appointmentTypeCalendars).values({
+        appointmentTypeId: appointmentType!.id,
+        calendarId: calendar!.id,
+      });
+
+      if (withWeekdayAvailability) {
+        const values = Array.from({ length: 7 }, (_, weekday) => ({
+          calendarId: calendar!.id,
+          weekday,
+          startTime: "09:00",
+          endTime: "17:00",
+          intervalMin: null,
+          groupId: null,
+        }));
+        await db.insert(availabilityRules).values(values);
+      }
+
+      return { calendar: calendar!, appointmentType: appointmentType! };
+    },
+  );
+
+  return { org, user, ctx, calendar, appointmentType } as const;
 }
 
 /**
