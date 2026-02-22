@@ -2,6 +2,15 @@
 
 This file is focused on testing guidance for `apps/api`.
 
+## Documentation
+
+Use these as canonical implementation references:
+
+- `docs/ARCHITECTURE.md`
+- `docs/guides/journey-engine-domain-events.md`
+- `docs/guides/journey-execution-lifecycle.md`
+- `PLAN.md`
+
 ## Test Stack
 
 - Runtime and test runner: `bun:test`

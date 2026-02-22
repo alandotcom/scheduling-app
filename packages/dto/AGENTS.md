@@ -1,5 +1,12 @@
 # DTO Package — CLAUDE.md
 
+## Documentation
+
+- `docs/ARCHITECTURE.md`
+- `docs/guides/journey-engine-domain-events.md`
+- `docs/guides/journey-execution-lifecycle.md`
+- `PLAN.md`
+
 ## Commands
 
 ```bash

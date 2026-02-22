@@ -49,7 +49,6 @@ Use these components for route-level page scaffolding:
 
 - `apps/admin-ui/src/components/layout/page-scaffold.tsx`
   - `PageScaffold`
-  - `PageHeader`
 
 ## CRUD List Pattern
 

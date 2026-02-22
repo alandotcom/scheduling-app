@@ -8,6 +8,7 @@ This app is in active development — there are no production users yet. This me
 
 - **No backwards compatibility needed.** Don't add migration shims, deprecation layers, or feature flags to preserve old behavior. Just change the code directly.
 - **No legacy code during refactors.** When refactoring, remove old implementations and replace them directly. Do not keep legacy paths in parallel.
+- **No legacy files or docs.** If a file or document is obsolete, delete it. Do not keep legacy copies or archives in the repo.
 - **No new database migrations.** Instead of creating incremental migrations, update the initial SQL migration file and reset the dev database (`pnpm --filter @scheduling/db run push`). We'll create proper migrations when we approach production.
 - **Consistency over configurability.** When changing UI behavior (e.g., how modals work, how forms validate), pick one approach and apply it everywhere. Don't add props/options to make behavior configurable unless there's a concrete need — that just adds complexity. The goal is a uniform, predictable UI.
 - **Schema changes are free.** Rename columns, change types, drop tables — there's no real data to preserve. But remember to update the seed script (`pnpm db:seed`) if it references changed schema.
@@ -77,6 +78,16 @@ pnpm --filter @scheduling/db run push       # Push schema to dev database
 
 - API-specific testing guidance lives in `apps/api/AGENTS.md`.
 - Use it for `bun:test` conventions, `@inngest/test` patterns, and API test command examples.
+
+## Documentation
+
+Use these docs as canonical references for runtime behavior and implementation context:
+
+- `docs/README.md`
+- `docs/ARCHITECTURE.md`
+- `docs/guides/journey-engine-domain-events.md`
+- `docs/guides/journey-execution-lifecycle.md`
+- `PLAN.md`
 
 ### Typecheck Usage (Turbo)
 

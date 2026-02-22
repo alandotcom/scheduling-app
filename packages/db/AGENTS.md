@@ -1,5 +1,12 @@
 # Database Package — CLAUDE.md
 
+## Documentation
+
+- `docs/ARCHITECTURE.md`
+- `docs/guides/journey-engine-domain-events.md`
+- `docs/guides/journey-execution-lifecycle.md`
+- `PLAN.md`
+
 ## Commands
 
 ```bash
@@ -34,11 +41,10 @@ src/
   test-setup.ts         # Preload: creates test DB, runs migrations
   rls.test.ts           # RLS policy tests (~50 tests)
   reset.ts              # Dev DB truncation script
-  seed.ts               # Redirects to apps/api/src/seed.ts
+  seed.ts               # Stub; real seed runs from apps/api
   migrations/
     20260208064434_init/         # Schema + RLS functions + policies
     20260208064456_triggers/     # Capacity check trigger
-    20260208154419_.../          # Appointment index addition
 drizzle.config.ts               # Dev DB config
 drizzle.test.config.ts          # Test DB config
 bunfig.toml                     # Preloads test-setup.ts

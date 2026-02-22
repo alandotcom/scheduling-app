@@ -21,34 +21,18 @@ packages/
 - Auth: BetterAuth with Drizzle adapter, API keys for server-to-server access
 - Database: Drizzle ORM + Bun SQL, Postgres 18 with native `uuidv7()`
 - Webhooks: Svix (self-hosted via Docker Compose or hosted Svix Cloud)
-- Eventing + workflows: Inngest (self-hosted or dev server)
+- Eventing + workflow runtime: Inngest
 - Testing: Real Postgres via Docker
 - Linting: oxlint (Rust-based, strict rules)
-
-## Database Model
-
-Key entities:
-
-- Organizations (`orgs`): tenant boundary with RLS
-- Users and sessions: BetterAuth-managed auth/session state
-- Locations: physical or virtual appointment locations
-- Calendars: schedulable calendars linked to locations
-- Appointment types: duration, padding, capacity
-- Resources: bookable resources with quantity constraints
-- Availability rules and overrides
-- Blocked time entries (including RRULE)
-- Appointments and client records
-- API keys for M2M auth
-- Audit events for mutation history
 
 ## API Shape
 
 Two transports:
 
-| Transport    | Base Path    | Purpose              | Auth      |
-| ------------ | ------------ | -------------------- | --------- |
-| oRPC         | `/v1/*`      | Admin UI (type-safe) | Session   |
-| OpenAPI/REST | `/api/v1/*`  | M2M integrations     | API Key   |
+| Transport | Base Path | Purpose | Auth |
+| --- | --- | --- | --- |
+| oRPC | `/v1/*` | Admin UI (type-safe) | Session |
+| OpenAPI/REST | `/api/v1/*` | M2M integrations | API Key |
 
 OpenAPI docs:
 
@@ -57,201 +41,146 @@ OpenAPI docs:
 
 ## Multi-Tenancy
 
-All org-scoped data uses PostgreSQL row-level security. Organization context is derived from active org session or API key metadata and applied before data access.
+All org-scoped data uses PostgreSQL RLS. Organization context is derived from active org session or API key metadata and applied before data access.
 
 ## Event and Integration System
 
-Inngest is the runtime for both domain-event fanout and journey workflow execution.
+Inngest is the runtime for domain-event fanout and journey execution.
 
 Domain events on mutations follow this path:
 
-1. Domain mutation commits successfully.
-2. API emits one typed Inngest event via `inngest.send`.
-3. Inngest triggers matching functions (integration fanout, journey planning, etc.).
-4. Integration handlers execute independently with function-level retries and observability.
+1. Domain mutation commits.
+2. API emits one typed Inngest event.
+3. Inngest triggers matching functions (integration fanout, journey planning, and provider execution).
+4. Handlers execute independently with function-level retry and observability.
 
-Current integration registry:
+Integration consumers:
 
-- `svix` (`apps/api/src/services/integrations/svix.ts`)
-- `logger` (`integrations/logger/src/index.ts`)
+- System integration: `svix` (`apps/api/src/services/integrations/svix.ts`)
+- App-managed consumer: `logger` (`integrations/logger/src/index.ts`)
 
-Integrations are enabled with `INTEGRATIONS_ENABLED`.
+System integrations are enabled by `INTEGRATIONS_ENABLED`. Org-managed integration enablement is resolved at runtime from `integrations` table state.
 
-## Journey Delivery Pipeline
+## Journey Runtime
 
-Journeys are the appointment-communication automation system. A journey defines a graph of actions (emails, SMS, Slack messages) triggered by appointment lifecycle events, with waits and conditions controlling timing and branching.
+Journeys are graph-based automations for appointment/client lifecycle events. Graphs can include waits, wait-for-confirmation, conditions, and delivery actions.
 
 ### Data Model
 
-```
-journeys                 → draft/published journey definitions
-journey_versions         → immutable snapshots of published journey graphs
-journey_runs             → one run per (journey_version, appointment, mode)
-journey_deliveries       → individual planned/sent/canceled delivery actions
-journey_run_step_logs    → per-node execution logs (timing, input/output, errors)
-journey_run_events       → append-only audit trail of run lifecycle events
+```text
+journeys              → draft/published/paused journey definitions
+journey_versions      → immutable snapshots of published journey graphs
+journey_runs          → one run per (journey_version, trigger entity, mode)
+journey_deliveries    → planned/sent/failed/canceled/skipped delivery actions
+journey_run_step_logs → per-step execution logs
+journey_run_events    → append-only run lifecycle events
 ```
 
 Key constraints:
 
-- `journey_runs` has a unique index on `(org_id, journey_version_id, appointment_id, mode)` — one run per journey+appointment+mode
-- `journey_deliveries.deterministic_key` is unique per org — prevents duplicate deliveries on retries/replans
-- All tables are RLS-protected with `org_id`
+- `journey_runs` unique key: `(org_id, journey_version_id, trigger_entity_type, trigger_entity_id, mode)`
+- `journey_deliveries` unique key: `(org_id, deterministic_key)`
+- All runtime tables are RLS-protected with `org_id`
 
-### Trigger Events
+### Trigger Types
 
-Three appointment domain events can trigger journeys:
+Trigger config schema lives in `packages/dto/src/schemas/workflow-graph.ts`.
 
-| Event | Routing |
-|-------|---------|
-| `appointment.scheduled` | Typically `start` |
-| `appointment.rescheduled` | Typically `restart` (re-plans the graph) |
-| `appointment.canceled` | Typically `stop` (cancels pending deliveries) |
+#### AppointmentJourney
 
-Each journey's trigger config maps these events to routing decisions: `start`, `restart`, `stop`, or `ignore`. An optional filter (expression AST) can further gate whether the journey applies to a given appointment.
+- `start`: `appointment.scheduled`
+- `restart`: `appointment.rescheduled`
+- `stop`: `appointment.canceled`
+- correlation key: `appointmentId`
+
+#### ClientJourney
+
+- `event`: `client.created` or `client.updated`
+- correlation key: `clientId`
+- `client.updated` requires `trackedAttributeKey`
+
+### Trigger Event Coverage
+
+Journey trigger functions are registered for:
+
+- `appointment.scheduled`
+- `appointment.confirmed`
+- `appointment.rescheduled`
+- `appointment.canceled`
+- `client.created`
+- `client.updated`
+
+Source: `apps/api/src/inngest/functions/journey-domain-triggers.ts`
 
 ### End-to-End Flow
 
-```
-Appointment mutation
-  → Domain event emitted via inngest.send()
-  → Inngest function: journey-domain-trigger-{event-type}
+```text
+Domain mutation
+  → Domain event emitted to Inngest
+  → journey-domain-trigger-{event-type}
   → processJourneyDomainEvent()
-    → For each active published journey:
-      1. Parse trigger config + graph from latest journey_version
-      2. Resolve trigger routing (start/restart/stop/ignore)
-      3. If stop: cancel all pending deliveries for this run
-      4. If start/restart: apply optional trigger filter
-      5. Find or create journey_run
-      6. Walk the graph (buildDesiredDeliveries)
-      7. Reconcile desired deliveries against existing ones
-      8. Fire Inngest events for new/canceled deliveries
-  → Inngest functions: provider-specific execute functions
-    → Delivery worker sleeps until scheduledFor
-    → Re-checks cancellation status (stale key, canceled run)
-    → Dispatches through provider (Resend, Twilio, Slack, etc.)
+    → For each matching published journey:
+      1. Parse trigger config and latest journey graph snapshot
+      2. Resolve routing (plan/cancel/ignore)
+      3. Evaluate optional trigger filter
+      4. Find or create journey_run (trigger entity identity)
+      5. Walk graph to build desired deliveries
+      6. Reconcile desired vs existing deliveries
+      7. Emit schedule/cancel runtime events
+  → provider execute function(s)
+    → sleep until scheduled time
+    → cancellation re-check
+    → dispatch and finalize
 ```
 
-### Graph Planning (`buildDesiredDeliveries`)
+### Wait-Boundary Planning
 
-The planner walks the journey graph starting from the trigger node, advancing a time cursor through each node:
+When a wait node resolves to future time, planner emits an internal `wait-resume` delivery and stops traversal past that node. When it fires, planner resumes from that boundary with fresh context.
 
-- **Trigger node**: sets the initial cursor from the event timestamp
-- **Wait node**: resolves the wait duration/until to a target time
-  - If the wait is in the future (`isWaiting`): emits a `wait_resume` delivery and **stops walking** (see Wait-Boundary Planning below)
-  - If the wait has elapsed: advances the cursor and continues
-- **Condition node**: evaluates the expression against appointment/client context and follows the matching branch (true/false)
-- **Delivery action node** (send-resend, send-slack, send-twilio, logger): emits a `planned` delivery at the current cursor time
-- **Unknown/unrecognized nodes**: skips to successors
-
-Each delivery gets a deterministic key (`{runId}:{stepKey}:{scheduledFor}`) that enables idempotent reconciliation.
-
-### Wait-Boundary Phase Planning
-
-When the planner encounters an active wait (wait time is in the future), it does **not** continue walking past the wait. Instead:
-
-1. The planner emits a `wait_resume` delivery (actionType `"wait_resume"`, channel `"internal"`) scheduled for the wait expiry time.
-2. Successor nodes are not visited — no deliveries are planned downstream of the active wait.
-3. When the `wait_resume` delivery fires after sleeping:
-   - Fresh appointment and client data is fetched from the database
-   - The planner resumes from the wait node's successors using the fresh data
-   - New downstream deliveries are planned with up-to-date context
-
-This ensures that conditions evaluated after a wait (e.g., "is the appointment still confirmed?") use current data rather than the stale trigger snapshot. Nodes before a wait execute immediately and correctly use the trigger snapshot since no time has elapsed.
-
-**Sequential waits** produce one `wait_resume` at a time. A graph like `trigger → wait1 → wait2 → action` creates a single `wait_resume` at `wait1`. When that fires, fresh planning hits `wait2` and creates another `wait_resume` if it's still in the future.
-
-**Cancellation** works unchanged because `cancelPendingDeliveries` cancels all `planned` deliveries for a run, including `wait_resume` entries.
-
-**Rescheduling** works because `reconcileDeliveries` compares deterministic keys and cancels stale deliveries (including old `wait_resume` entries).
+Wait-for-confirmation nodes emit internal `wait-for-confirmation-timeout` deliveries and execute timeout logic when due.
 
 ### Delivery Providers
 
-Providers are registered in `delivery-provider-registry.ts`. Each provider defines:
-
-| Field | Purpose |
-|-------|---------|
-| `key` | Unique provider name |
-| `actionTypes` | Action types this provider handles |
-| `channel` | Logical channel (email, sms, slack, internal) |
-| `eventName` | Inngest event name for the execute function |
-| `functionId` | Inngest function ID |
-| `retries` | Inngest retry count |
-| `maxDispatchAttempts` | Application-level retry count |
-| `dispatch` | The actual dispatch function |
-
-Current providers:
+Providers are registered in `apps/api/src/services/delivery-provider-registry.ts`.
 
 | Provider | Action Types | Channel | Event |
-|----------|-------------|---------|-------|
+| --- | --- | --- | --- |
 | resend | `send-resend`, `send-resend-template` | email | `journey.action.send-resend.execute` |
 | slack | `send-slack` | slack | `journey.action.send-slack.execute` |
 | twilio | `send-twilio` | sms | `journey.action.send-twilio.execute` |
 | logger | `logger` | logger | `journey.delivery.scheduled` |
-| wait_resume | `wait_resume` | internal | `journey.wait-resume.execute` |
-
-One Inngest function is auto-generated per provider from the `deliveryProviders` array. All share a common execution path through `executeJourneyDeliveryScheduled` which handles sleeping, cancellation checks, and dispatch — with a special intercept for `wait_resume` that calls `executeWaitResume()` instead of dispatching through a provider.
-
-### Delivery Worker (`executeJourneyDeliveryScheduled`)
-
-The delivery worker handles the full lifecycle of a single delivery:
-
-1. **Load**: fetch delivery + run from DB
-2. **Sleep**: wait until `scheduledFor` using Inngest `step.sleep()`
-3. **Re-check**: reload delivery and verify it's still `planned` (not canceled during sleep)
-4. **Cancellation checks**: stale deterministic key, inactive run, already-terminal status
-5. **Intercept**: if `actionType === "wait_resume"`, call `executeWaitResume()` and finalize
-6. **Dispatch**: call the provider's dispatch function with retry (via `es-toolkit/retry`)
-7. **Finalize**: mark delivery as `sent` or `failed`, update step logs and run status
-
-Inngest's `cancelOn` mechanism also allows deliveries to be canceled mid-sleep via a `journey.delivery.canceled` event.
-
-### Reconciliation (`reconcileDeliveries`)
-
-When a journey is re-planned (e.g., on `appointment.rescheduled`), the reconciler:
-
-1. Writes all step logs and run events from the build phase
-2. Lists existing deliveries for the run
-3. Identifies stale `planned` deliveries whose deterministic keys are no longer in the desired set → cancels them
-4. Inserts new deliveries that don't yet exist (matched by deterministic key)
-5. Fires Inngest events for new schedules and cancellations
-
-This makes re-planning idempotent — duplicate events produce the same deterministic keys and skip insertion.
+| wait-resume | `wait-resume` | internal | `journey.wait-resume.execute` |
+| wait-for-confirmation-timeout | `wait-for-confirmation-timeout` | internal | `journey.wait-for-confirmation-timeout.execute` |
 
 ### Run Status Lifecycle
 
-`journey_runs.status` transitions:
+`journey_runs.status` values:
 
-```
-planned → running → completed
-planned → canceled
-running → completed
-running → failed
-running → canceled
-```
+- `planned`
+- `running`
+- `completed`
+- `canceled`
+- `failed`
 
-Status is derived from delivery statuses:
-- Any `planned` deliveries → `planned` or `running` (if any terminal deliveries also exist)
-- Any `failed` → `failed`
-- All `canceled` → `canceled`
-- No deliveries or all terminal non-failed → `completed`
+Status is derived from delivery status composition in `apps/api/src/services/journey-run-status.ts`.
 
 ### Key Files
 
 | File | Purpose |
-|------|---------|
-| `apps/api/src/services/journey-planner.ts` | Graph planning, reconciliation, wait_resume execution |
-| `apps/api/src/services/journey-delivery-worker.ts` | Delivery execution (sleep, cancel-check, dispatch) |
-| `apps/api/src/services/delivery-provider-registry.ts` | Provider registration and dispatch routing |
-| `apps/api/src/services/journey-template-context.ts` | Fresh data loading for template rendering and wait resume |
+| --- | --- |
+| `apps/api/src/services/journey-planner.ts` | Trigger resolution, planning, reconciliation |
+| `apps/api/src/services/journey-trigger-engines.ts` | Appointment/client trigger routing and identity resolution |
+| `apps/api/src/services/journey-delivery-worker.ts` | Sleep, cancellation checks, dispatch, finalize |
+| `apps/api/src/services/delivery-provider-registry.ts` | Provider registration and action-type routing |
+| `apps/api/src/services/journey-template-context.ts` | Context hydration for planning/template rendering |
 | `apps/api/src/services/journey-condition-evaluator.ts` | Condition expression evaluation |
-| `apps/api/src/services/journey-trigger-filters.ts` | Trigger filter evaluation |
-| `apps/api/src/services/journey-run-artifacts.ts` | Step log and run event persistence |
-| `apps/api/src/services/journey-run-status.ts` | Run status derivation from delivery statuses |
-| `apps/api/src/inngest/functions/journey-domain-triggers.ts` | Inngest functions that receive domain events |
-| `apps/api/src/inngest/functions/journey-action-send-provider-execute.ts` | Auto-generated Inngest functions per provider |
-| `apps/api/src/inngest/runtime-events.ts` | Typed Inngest event senders |
-| `apps/api/src/inngest/client.ts` | Inngest client with event type definitions |
+| `apps/api/src/services/journey-trigger-filters.ts` | Trigger-level filter evaluation |
+| `apps/api/src/services/journey-run-artifacts.ts` | Run-event append and step-log upsert |
+| `apps/api/src/services/journey-run-status.ts` | Run status refresh derivation |
+| `apps/api/src/inngest/functions/journey-domain-triggers.ts` | Domain-event trigger functions |
+| `apps/api/src/inngest/functions/journey-action-send-provider-execute.ts` | Provider execution function factory |
+| `apps/api/src/inngest/runtime-events.ts` | Runtime Inngest event senders |
+| `apps/api/src/inngest/client.ts` | Typed Inngest client and event schema map |
 
 ## Webhook Delivery (Svix)
 
@@ -268,9 +197,10 @@ pnpm --filter @scheduling/api run sync:svix-event-catalog
 ## Related Docs
 
 - Docs index: [`./README.md`](./README.md)
-- Workflow engine guide: [`./guides/workflow-engine-domain-events.md`](./guides/workflow-engine-domain-events.md)
-- Workflow lifecycle guide: [`./guides/workflow-execution-lifecycle.md`](./guides/workflow-execution-lifecycle.md)
+- Journey engine guide: [`./guides/journey-engine-domain-events.md`](./guides/journey-engine-domain-events.md)
+- Journey lifecycle guide: [`./guides/journey-execution-lifecycle.md`](./guides/journey-execution-lifecycle.md)
+- UI guide: [`./guides/mobile-first-container-pattern.md`](./guides/mobile-first-container-pattern.md)
 - Implementation plans index: [`./plans/README.md`](./plans/README.md)
 - Integration authoring: [`../integrations/README.md`](../integrations/README.md)
 - Root setup/commands: [`../README.md`](../README.md)
-- Workflow runtime plan: [`../PLAN.md`](../PLAN.md)
+- Active implementation plan: [`../PLAN.md`](../PLAN.md)

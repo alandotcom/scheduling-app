@@ -6,8 +6,8 @@ A multi-tenant appointment scheduling platform (Acuity-style) built with modern 
 
 - Implementation plans index: [`docs/plans/README.md`](docs/plans/README.md)
 - Architecture: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
-- Workflow engine guide: [`docs/guides/workflow-engine-domain-events.md`](docs/guides/workflow-engine-domain-events.md)
-- Event bus/workflow runtime RFC (accepted): [`docs/plans/workflow-runtime-rfc.md`](docs/plans/workflow-runtime-rfc.md)
+- Journey engine guide: [`docs/guides/journey-engine-domain-events.md`](docs/guides/journey-engine-domain-events.md)
+- Journey lifecycle guide: [`docs/guides/journey-execution-lifecycle.md`](docs/guides/journey-execution-lifecycle.md)
 - Integration authoring guide: [`integrations/README.md`](integrations/README.md)
 - API docs (Scalar): [`http://localhost:3000/api/v1/docs`](http://localhost:3000/api/v1/docs)
 - OpenAPI spec JSON: [`http://localhost:3000/api/v1/openapi.json`](http://localhost:3000/api/v1/openapi.json)
