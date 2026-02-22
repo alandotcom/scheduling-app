@@ -53,11 +53,12 @@ function sortById<T extends { id: string }>(items: T[]): T[] {
 }
 
 function getEdgeWeight(edge: WorkflowCanvasEdge): number {
-  if (edge.sourceHandle === "true") {
+  const sourceHandle = edge.sourceHandle?.trim().toLowerCase();
+  if (sourceHandle === "true" || sourceHandle === "scheduled") {
     return 4;
   }
 
-  if (edge.sourceHandle === "false") {
+  if (sourceHandle === "false" || sourceHandle === "canceled") {
     return 3;
   }
 
@@ -154,11 +155,12 @@ function layoutWorkflowNodesWithDagre(input: {
 }
 
 function getTreeSortRank(sourceHandle: string | null | undefined): number {
-  if (sourceHandle === "true") {
+  const normalizedHandle = sourceHandle?.trim().toLowerCase();
+  if (normalizedHandle === "true" || normalizedHandle === "scheduled") {
     return 0;
   }
 
-  if (sourceHandle === "false") {
+  if (normalizedHandle === "false" || normalizedHandle === "canceled") {
     return 1;
   }
 

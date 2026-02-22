@@ -115,6 +115,43 @@ describe("layoutWorkflowNodes", () => {
     ).toBeLessThanOrEqual(1);
   });
 
+  test("keeps trigger branches aligned to handle side ordering", async () => {
+    const nodes = [
+      createNode("trigger", "trigger"),
+      createNode("scheduled-node", "action"),
+      createNode("canceled-node", "action"),
+    ];
+
+    const edges = [
+      createEdge(
+        "e-trigger-scheduled",
+        "trigger",
+        "scheduled-node",
+        "scheduled",
+      ),
+      createEdge("e-trigger-canceled", "trigger", "canceled-node", "canceled"),
+    ];
+
+    const result = await layoutWorkflowNodes({ nodes, edges });
+    const trigger = result.nodes.find((node) => node.id === "trigger");
+    const scheduledNode = result.nodes.find(
+      (node) => node.id === "scheduled-node",
+    );
+    const canceledNode = result.nodes.find(
+      (node) => node.id === "canceled-node",
+    );
+
+    expect(trigger).toBeDefined();
+    expect(scheduledNode).toBeDefined();
+    expect(canceledNode).toBeDefined();
+    expect(scheduledNode!.position.x).toBeLessThan(canceledNode!.position.x);
+    const siblingMidpoint =
+      (scheduledNode!.position.x + canceledNode!.position.x) / 2;
+    expect(Math.abs(siblingMidpoint - trigger!.position.x)).toBeLessThanOrEqual(
+      1,
+    );
+  });
+
   test("positions disconnected nodes as well", async () => {
     const nodes = [
       createNode("trigger", "trigger"),
