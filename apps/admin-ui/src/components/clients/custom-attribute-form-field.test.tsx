@@ -150,7 +150,7 @@ describe("CustomAttributeFormField layout", () => {
 
     expect(screen.getByText("Referred By (optional)")).toBeTruthy();
     expect(
-      screen.getByRole("button", { name: "Choose related client" }),
+      screen.getByRole("button", { name: "Referred By (optional)" }),
     ).toBeTruthy();
     const singleSummary = screen.getByText("No client selected.");
     expect(singleSummary.closest("div")?.className).toContain("h-10");
@@ -193,7 +193,7 @@ describe("CustomAttributeFormField layout", () => {
 
     expect(screen.getByText("Related Clients (optional)")).toBeTruthy();
     expect(
-      screen.getByRole("button", { name: "Choose related clients" }),
+      screen.getByRole("button", { name: "Related Clients (optional)" }),
     ).toBeTruthy();
     const multiSummary = screen.getByText("No clients selected.");
     expect(multiSummary.closest("div")?.className).toContain("h-10");

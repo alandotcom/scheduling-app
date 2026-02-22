@@ -36,6 +36,7 @@ interface CustomAttributeFormFieldProps {
 interface RelationClientFieldProps {
   definition: CustomAttributeDefinitionResponse;
   fieldPath: `customAttributes.${string}`;
+  fieldId: string;
   errorId: string;
   label: string;
   fieldWrapperClass: string;
@@ -113,6 +114,7 @@ function buildRelationSummary(
 function RelationClientField({
   definition,
   fieldPath,
+  fieldId,
   errorId,
   label,
   fieldWrapperClass,
@@ -160,7 +162,7 @@ function RelationClientField({
 
   return (
     <div className={fieldWrapperClass}>
-      <Label>{label}</Label>
+      <Label htmlFor={fieldId}>{label}</Label>
       <Controller
         name={fieldPath}
         control={control}
@@ -180,6 +182,7 @@ function RelationClientField({
           return (
             <>
               <Button
+                id={fieldId}
                 type="button"
                 variant="outline"
                 className="w-full justify-start text-left"
@@ -239,6 +242,7 @@ export function CustomAttributeFormField({
   disabled = false,
 }: CustomAttributeFormFieldProps) {
   const fieldPath = `customAttributes.${definition.fieldKey}` as const;
+  const fieldId = `ca-${definition.fieldKey}`;
   const errorId = `ca-${definition.fieldKey}-error`;
   const label = `${definition.label}${definition.required ? "" : " (optional)"}`;
   const fieldWrapperClass = getFieldWrapperClass(definition.type);
@@ -247,7 +251,7 @@ export function CustomAttributeFormField({
     case "TEXT":
       return (
         <div className={fieldWrapperClass}>
-          <Label htmlFor={`ca-${definition.fieldKey}`}>{label}</Label>
+          <Label htmlFor={fieldId}>{label}</Label>
           <Controller
             name={fieldPath}
             control={control}
@@ -255,7 +259,7 @@ export function CustomAttributeFormField({
             render={({ field, fieldState }) => (
               <>
                 <Input
-                  id={`ca-${definition.fieldKey}`}
+                  id={fieldId}
                   type="text"
                   value={field.value ?? ""}
                   onChange={field.onChange}
@@ -277,7 +281,7 @@ export function CustomAttributeFormField({
     case "NUMBER":
       return (
         <div className={fieldWrapperClass}>
-          <Label htmlFor={`ca-${definition.fieldKey}`}>{label}</Label>
+          <Label htmlFor={fieldId}>{label}</Label>
           <Controller
             name={fieldPath}
             control={control}
@@ -285,7 +289,7 @@ export function CustomAttributeFormField({
             render={({ field, fieldState }) => (
               <>
                 <Input
-                  id={`ca-${definition.fieldKey}`}
+                  id={fieldId}
                   type="number"
                   value={field.value ?? ""}
                   onChange={(e) => {
@@ -310,7 +314,7 @@ export function CustomAttributeFormField({
     case "DATE":
       return (
         <div className={fieldWrapperClass}>
-          <Label htmlFor={`ca-${definition.fieldKey}`}>{label}</Label>
+          <Label htmlFor={fieldId}>{label}</Label>
           <Controller
             name={fieldPath}
             control={control}
@@ -323,7 +327,7 @@ export function CustomAttributeFormField({
               return (
                 <>
                   <Input
-                    id={`ca-${definition.fieldKey}`}
+                    id={fieldId}
                     type="date"
                     value={dateValue}
                     onChange={(e) => {
@@ -349,7 +353,7 @@ export function CustomAttributeFormField({
     case "BOOLEAN":
       return (
         <div className={fieldWrapperClass}>
-          <Label htmlFor={`ca-${definition.fieldKey}`}>{label}</Label>
+          <Label htmlFor={fieldId}>{label}</Label>
           <Controller
             name={fieldPath}
             control={control}
@@ -358,7 +362,7 @@ export function CustomAttributeFormField({
               <>
                 <div className="flex items-center justify-end rounded-lg border border-border px-3 py-2.5">
                   <Switch
-                    id={`ca-${definition.fieldKey}`}
+                    id={fieldId}
                     checked={!!field.value}
                     onCheckedChange={(checked) => field.onChange(checked)}
                     aria-describedby={fieldState.error ? errorId : undefined}
@@ -392,6 +396,7 @@ export function CustomAttributeFormField({
                   disabled={disabled}
                 >
                   <SelectTrigger
+                    id={fieldId}
                     className="w-full min-w-0"
                     aria-describedby={fieldState.error ? errorId : undefined}
                     aria-invalid={!!fieldState.error}
@@ -434,6 +439,7 @@ export function CustomAttributeFormField({
             render={({ field, fieldState }) => (
               <>
                 <MultiSelectCombobox
+                  id={fieldId}
                   className="w-full"
                   options={comboboxOptions}
                   value={Array.isArray(field.value) ? field.value : []}
@@ -457,6 +463,7 @@ export function CustomAttributeFormField({
         <RelationClientField
           definition={definition}
           fieldPath={fieldPath}
+          fieldId={fieldId}
           errorId={errorId}
           label={label}
           fieldWrapperClass={fieldWrapperClass}
