@@ -40,6 +40,7 @@ export function CustomAttributeFormField({
   disabled = false,
 }: CustomAttributeFormFieldProps) {
   const fieldPath = `customAttributes.${definition.fieldKey}` as const;
+  const errorId = `ca-${definition.fieldKey}-error`;
   const label = `${definition.label}${definition.required ? "" : " (optional)"}`;
   const fieldWrapperClass = getFieldWrapperClass(definition.type);
 
@@ -51,15 +52,25 @@ export function CustomAttributeFormField({
           <Controller
             name={fieldPath}
             control={control}
-            render={({ field }) => (
-              <Input
-                id={`ca-${definition.fieldKey}`}
-                type="text"
-                value={field.value ?? ""}
-                onChange={field.onChange}
-                onBlur={field.onBlur}
-                disabled={disabled}
-              />
+            defaultValue={null}
+            render={({ field, fieldState }) => (
+              <>
+                <Input
+                  id={`ca-${definition.fieldKey}`}
+                  type="text"
+                  value={field.value ?? ""}
+                  onChange={field.onChange}
+                  onBlur={field.onBlur}
+                  aria-describedby={fieldState.error ? errorId : undefined}
+                  aria-invalid={!!fieldState.error}
+                  disabled={disabled}
+                />
+                {fieldState.error ? (
+                  <p id={errorId} className="text-sm text-destructive">
+                    {fieldState.error.message}
+                  </p>
+                ) : null}
+              </>
             )}
           />
         </div>
@@ -71,18 +82,28 @@ export function CustomAttributeFormField({
           <Controller
             name={fieldPath}
             control={control}
-            render={({ field }) => (
-              <Input
-                id={`ca-${definition.fieldKey}`}
-                type="number"
-                value={field.value ?? ""}
-                onChange={(e) => {
-                  const val = e.target.value;
-                  field.onChange(val === "" ? null : Number(val));
-                }}
-                onBlur={field.onBlur}
-                disabled={disabled}
-              />
+            defaultValue={null}
+            render={({ field, fieldState }) => (
+              <>
+                <Input
+                  id={`ca-${definition.fieldKey}`}
+                  type="number"
+                  value={field.value ?? ""}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    field.onChange(val === "" ? null : Number(val));
+                  }}
+                  onBlur={field.onBlur}
+                  aria-describedby={fieldState.error ? errorId : undefined}
+                  aria-invalid={!!fieldState.error}
+                  disabled={disabled}
+                />
+                {fieldState.error ? (
+                  <p id={errorId} className="text-sm text-destructive">
+                    {fieldState.error.message}
+                  </p>
+                ) : null}
+              </>
             )}
           />
         </div>
@@ -94,23 +115,33 @@ export function CustomAttributeFormField({
           <Controller
             name={fieldPath}
             control={control}
-            render={({ field }) => {
+            defaultValue={null}
+            render={({ field, fieldState }) => {
               let dateValue = "";
               if (field.value && typeof field.value === "string") {
                 dateValue = field.value.slice(0, 10);
               }
               return (
-                <Input
-                  id={`ca-${definition.fieldKey}`}
-                  type="date"
-                  value={dateValue}
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    field.onChange(val || null);
-                  }}
-                  onBlur={field.onBlur}
-                  disabled={disabled}
-                />
+                <>
+                  <Input
+                    id={`ca-${definition.fieldKey}`}
+                    type="date"
+                    value={dateValue}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      field.onChange(val || null);
+                    }}
+                    onBlur={field.onBlur}
+                    aria-describedby={fieldState.error ? errorId : undefined}
+                    aria-invalid={!!fieldState.error}
+                    disabled={disabled}
+                  />
+                  {fieldState.error ? (
+                    <p id={errorId} className="text-sm text-destructive">
+                      {fieldState.error.message}
+                    </p>
+                  ) : null}
+                </>
               );
             }}
           />
@@ -119,23 +150,36 @@ export function CustomAttributeFormField({
     case "BOOLEAN":
       return (
         <div className={fieldWrapperClass}>
-          <div className="flex items-center justify-between rounded-lg border border-border px-3 py-2.5">
-            <Label htmlFor={`ca-${definition.fieldKey}`} className="text-sm">
-              {label}
-            </Label>
-            <Controller
-              name={fieldPath}
-              control={control}
-              render={({ field }) => (
-                <Switch
-                  id={`ca-${definition.fieldKey}`}
-                  checked={!!field.value}
-                  onCheckedChange={(checked) => field.onChange(checked)}
-                  disabled={disabled}
-                />
-              )}
-            />
-          </div>
+          <Controller
+            name={fieldPath}
+            control={control}
+            defaultValue={null}
+            render={({ field, fieldState }) => (
+              <>
+                <div className="flex items-center justify-between rounded-lg border border-border px-3 py-2.5">
+                  <Label
+                    htmlFor={`ca-${definition.fieldKey}`}
+                    className="text-sm"
+                  >
+                    {label}
+                  </Label>
+                  <Switch
+                    id={`ca-${definition.fieldKey}`}
+                    checked={!!field.value}
+                    onCheckedChange={(checked) => field.onChange(checked)}
+                    aria-describedby={fieldState.error ? errorId : undefined}
+                    aria-invalid={!!fieldState.error}
+                    disabled={disabled}
+                  />
+                </div>
+                {fieldState.error ? (
+                  <p id={errorId} className="text-sm text-destructive">
+                    {fieldState.error.message}
+                  </p>
+                ) : null}
+              </>
+            )}
+          />
         </div>
       );
     case "SELECT":
@@ -145,23 +189,35 @@ export function CustomAttributeFormField({
           <Controller
             name={fieldPath}
             control={control}
-            render={({ field }) => (
-              <Select
-                value={field.value ?? ""}
-                onValueChange={(value) => field.onChange(value || null)}
-                disabled={disabled}
-              >
-                <SelectTrigger className="w-full min-w-0">
-                  <SelectValue placeholder="Select..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {(definition.options ?? []).map((option) => (
-                    <SelectItem key={option} value={option}>
-                      {option}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            defaultValue={null}
+            render={({ field, fieldState }) => (
+              <>
+                <Select
+                  value={field.value ?? ""}
+                  onValueChange={(value) => field.onChange(value || null)}
+                  disabled={disabled}
+                >
+                  <SelectTrigger
+                    className="w-full min-w-0"
+                    aria-describedby={fieldState.error ? errorId : undefined}
+                    aria-invalid={!!fieldState.error}
+                  >
+                    <SelectValue placeholder="Select..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(definition.options ?? []).map((option) => (
+                      <SelectItem key={option} value={option}>
+                        {option}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {fieldState.error ? (
+                  <p id={errorId} className="text-sm text-destructive">
+                    {fieldState.error.message}
+                  </p>
+                ) : null}
+              </>
             )}
           />
         </div>
@@ -176,15 +232,23 @@ export function CustomAttributeFormField({
           <Controller
             name={fieldPath}
             control={control}
-            render={({ field }) => (
-              <MultiSelectCombobox
-                className="w-full"
-                options={comboboxOptions}
-                value={Array.isArray(field.value) ? field.value : []}
-                onChange={field.onChange}
-                placeholder="Select options..."
-                disabled={disabled}
-              />
+            defaultValue={[]}
+            render={({ field, fieldState }) => (
+              <>
+                <MultiSelectCombobox
+                  className="w-full"
+                  options={comboboxOptions}
+                  value={Array.isArray(field.value) ? field.value : []}
+                  onChange={field.onChange}
+                  placeholder="Select options..."
+                  disabled={disabled}
+                />
+                {fieldState.error ? (
+                  <p id={errorId} className="text-sm text-destructive">
+                    {fieldState.error.message}
+                  </p>
+                ) : null}
+              </>
             )}
           />
         </div>

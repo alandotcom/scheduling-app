@@ -1,6 +1,11 @@
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { Combobox } from "@base-ui/react/combobox";
-import { Controller, useForm } from "react-hook-form";
+import {
+  Controller,
+  type FieldErrors,
+  useForm,
+  useWatch,
+} from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   getCountries,
@@ -14,6 +19,7 @@ import type {
   CustomAttributeDefinitionResponse,
   CustomAttributeValues,
 } from "@scheduling/dto";
+import { toast } from "sonner";
 import { CustomAttributeFormField } from "@/components/clients/custom-attribute-form-field";
 import { FieldShortcutHint } from "@/components/ui/field-shortcut-hint";
 import { Icon } from "@/components/ui/icon";
@@ -74,6 +80,72 @@ const PHONE_COUNTRY_OPTIONS: PhoneCountryOption[] = [
 const isPhoneCountryCode = (value: string): value is CountryCode =>
   PHONE_COUNTRY_OPTIONS.some((option) => option.value === value);
 
+const FOCUSABLE_FIELDS = [
+  "firstName",
+  "lastName",
+  "email",
+  "phone",
+  "phoneCountry",
+  "referenceId",
+  "customAttributes",
+] as const;
+
+type FocusableField = (typeof FOCUSABLE_FIELDS)[number];
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null;
+
+const isFocusableField = (value: string): value is FocusableField =>
+  FOCUSABLE_FIELDS.some((field) => field === value);
+
+const isFieldError = (value: unknown): value is { type: unknown } =>
+  typeof value === "object" && value !== null && "type" in value;
+
+const findFirstErrorPath = (
+  errors: unknown,
+  parentPath = "",
+): string | null => {
+  if (!isRecord(errors)) {
+    return null;
+  }
+
+  for (const [key, value] of Object.entries(errors)) {
+    if (!value) continue;
+
+    const nextPath = parentPath ? `${parentPath}.${key}` : key;
+    if (isFieldError(value)) {
+      return nextPath;
+    }
+
+    if (isRecord(value)) {
+      const nestedPath = findFirstErrorPath(value, nextPath);
+      if (nestedPath) {
+        return nestedPath;
+      }
+    }
+  }
+
+  return null;
+};
+
+const sanitizeCustomAttributes = (
+  customAttributes: CreateClientInput["customAttributes"],
+): CreateClientInput["customAttributes"] => {
+  if (!customAttributes) {
+    return undefined;
+  }
+
+  const sanitized: CustomAttributeValues = {};
+
+  for (const [key, value] of Object.entries(customAttributes)) {
+    if (value !== undefined) {
+      sanitized[key] = value;
+    }
+  }
+
+  return Object.keys(sanitized).length > 0 ? sanitized : undefined;
+};
+
 export interface ClientFormProps {
   defaultValues?: {
     firstName: string;
@@ -96,6 +168,7 @@ export interface ClientFormProps {
   showActions?: boolean;
   onDirtyChange?: (isDirty: boolean) => void;
   customFieldDefinitions?: CustomAttributeDefinitionResponse[];
+  onInvalidSubmit?: (errors: FieldErrors<CreateClientInput>) => void;
 }
 
 export function ClientForm({
@@ -113,6 +186,7 @@ export function ClientForm({
   showActions = true,
   onDirtyChange,
   customFieldDefinitions,
+  onInvalidSubmit,
 }: ClientFormProps) {
   const formRef = useRef<HTMLFormElement>(null);
   const [countryComboboxOpen, setCountryComboboxOpen] = useState(false);
@@ -122,9 +196,9 @@ export function ClientForm({
     register,
     handleSubmit,
     setValue,
-    watch,
+    setFocus,
     getValues,
-    formState: { errors, isDirty },
+    formState: { errors, isDirty, submitCount },
   } = useForm<CreateClientInput>({
     resolver: zodResolver(createClientSchema),
     mode: "onBlur",
@@ -140,13 +214,36 @@ export function ClientForm({
     },
   });
 
-  const phoneCountry = watch("phoneCountry") ?? "US";
-  const activePhoneCountry = isPhoneCountryCode(phoneCountry)
-    ? phoneCountry
+  const phoneCountry = useWatch({
+    control,
+    name: "phoneCountry",
+  });
+  const draftFirstName = useWatch({
+    control,
+    name: "firstName",
+  });
+  const draftLastName = useWatch({
+    control,
+    name: "lastName",
+  });
+  const draftEmail = useWatch({
+    control,
+    name: "email",
+  });
+  const draftPhone = useWatch({
+    control,
+    name: "phone",
+  });
+  const draftPhoneCountry = phoneCountry;
+
+  const activePhoneCountryValue = phoneCountry ?? "US";
+  const activeDraftPhoneCountry = draftPhoneCountry ?? "US";
+  const activePhoneCountry = isPhoneCountryCode(activePhoneCountryValue)
+    ? activePhoneCountryValue
     : "US";
   const selectedCountryOption =
     PHONE_COUNTRY_OPTIONS.find(
-      (option) => option.value === activePhoneCountry,
+      (option) => option.value === activePhoneCountryValue,
     ) ?? PHONE_COUNTRY_OPTIONS.find((option) => option.value === "US");
 
   const { hintsVisible, registerField } = useModalFieldShortcuts({
@@ -175,27 +272,66 @@ export function ClientForm({
 
   useEffect(() => {
     if (!onDraftChange) return;
-    const subscription = watch((values) => {
+    const timeoutId = setTimeout(() => {
       onDraftChange({
-        firstName: values.firstName ?? "",
-        lastName: values.lastName ?? "",
-        email: values.email ?? "",
-        phone: values.phone ?? "",
-        phoneCountry: values.phoneCountry ?? "US",
+        firstName: draftFirstName ?? "",
+        lastName: draftLastName ?? "",
+        email: draftEmail ?? "",
+        phone: draftPhone ?? "",
+        phoneCountry: activeDraftPhoneCountry,
       });
-    });
-    return () => subscription.unsubscribe();
-  }, [onDraftChange, watch]);
+    }, 150);
+
+    return () => clearTimeout(timeoutId);
+  }, [
+    activeDraftPhoneCountry,
+    draftEmail,
+    draftFirstName,
+    draftLastName,
+    draftPhone,
+    onDraftChange,
+  ]);
 
   useEffect(() => {
     onDirtyChange?.(isDirty);
   }, [isDirty, onDirtyChange]);
 
+  const handleValidSubmit = (data: CreateClientInput) => {
+    const sanitizedCustomAttributes = sanitizeCustomAttributes(
+      data.customAttributes,
+    );
+
+    onSubmit({
+      ...data,
+      ...(sanitizedCustomAttributes
+        ? { customAttributes: sanitizedCustomAttributes }
+        : {}),
+    });
+  };
+
+  const handleInvalidSubmit = (
+    submitErrors: FieldErrors<CreateClientInput>,
+  ) => {
+    const firstErrorPath = findFirstErrorPath(submitErrors);
+
+    if (firstErrorPath) {
+      const topLevelField = firstErrorPath.split(".")[0] ?? "";
+      if (isFocusableField(topLevelField)) {
+        setFocus(topLevelField);
+      }
+    }
+
+    toast.error("Please fix highlighted fields before saving");
+    onInvalidSubmit?.(submitErrors);
+  };
+
+  const hasSubmitErrors = submitCount > 0 && Object.keys(errors).length > 0;
+
   return (
     <form
       id={formId}
       ref={formRef}
-      onSubmit={handleSubmit(onSubmit)}
+      onSubmit={handleSubmit(handleValidSubmit, handleInvalidSubmit)}
       autoComplete="off"
       className="space-y-5"
     >
@@ -476,6 +612,15 @@ export function ClientForm({
                 />
               ))}
           </div>
+        </div>
+      ) : null}
+
+      {hasSubmitErrors ? (
+        <div
+          role="alert"
+          className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive"
+        >
+          Please review the highlighted fields and try saving again.
         </div>
       ) : null}
 
