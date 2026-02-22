@@ -85,4 +85,24 @@ describe("CustomAttributeFormField layout", () => {
     const input = screen.getByLabelText("Lead Score (optional)");
     expect(input.closest("div")?.className).not.toContain("sm:col-span-2");
   });
+
+  test("BOOLEAN fields render a stacked label and switch row", () => {
+    renderField(
+      createDefinition({
+        fieldKey: "smsOptIn",
+        label: "SMS Opt in",
+        type: "BOOLEAN",
+      }),
+    );
+
+    const label = screen.getByText("SMS Opt in (optional)");
+    const wrapper = label.closest("div");
+    const input = screen.getByLabelText("SMS Opt in (optional)");
+    const toggle = screen.getByRole("switch");
+
+    expect(wrapper?.className).not.toContain("sm:col-span-2");
+    expect(wrapper?.firstElementChild).toBe(label);
+    expect(input.getAttribute("id")).toBe("ca-smsOptIn");
+    expect(toggle.closest("div")?.className).toContain("justify-end");
+  });
 });

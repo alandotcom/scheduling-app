@@ -150,19 +150,14 @@ export function CustomAttributeFormField({
     case "BOOLEAN":
       return (
         <div className={fieldWrapperClass}>
+          <Label htmlFor={`ca-${definition.fieldKey}`}>{label}</Label>
           <Controller
             name={fieldPath}
             control={control}
             defaultValue={null}
             render={({ field, fieldState }) => (
               <>
-                <div className="flex items-center justify-between rounded-lg border border-border px-3 py-2.5">
-                  <Label
-                    htmlFor={`ca-${definition.fieldKey}`}
-                    className="text-sm"
-                  >
-                    {label}
-                  </Label>
+                <div className="flex items-center justify-end rounded-lg border border-border px-3 py-2.5">
                   <Switch
                     id={`ca-${definition.fieldKey}`}
                     checked={!!field.value}
