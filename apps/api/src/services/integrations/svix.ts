@@ -1,4 +1,4 @@
-import { createIntegration } from "@integrations/core";
+import { createIntegration } from "./contract.js";
 import { publishWebhookEvent } from "../svix.js";
 
 export const svixIntegration = createIntegration({

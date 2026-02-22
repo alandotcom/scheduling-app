@@ -52,8 +52,7 @@
   "workspaces": {
     "packages": [
       "apps/*",
-      "packages/*",
-      "integrations/*"
+      "packages/*"
     ],
     "catalog": {
       "@logtape/logtape": "^2.0.2",

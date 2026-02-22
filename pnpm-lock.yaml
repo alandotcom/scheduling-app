@@ -222,12 +222,6 @@ importers:
 
   apps/api:
     dependencies:
-      '@integrations/core':
-        specifier: workspace:*
-        version: link:../../integrations/core
-      '@integrations/logger':
-        specifier: workspace:*
-        version: link:../../integrations/logger
       '@logtape/logtape':
         specifier: 'catalog:'
         version: 2.0.2
@@ -310,35 +304,6 @@ importers:
       '@types/luxon':
         specifier: ^3.7.1
         version: 3.7.1
-      typescript:
-        specifier: 'catalog:'
-        version: 5.9.3
-
-  integrations/core:
-    dependencies:
-      '@scheduling/dto':
-        specifier: workspace:*
-        version: link:../../packages/dto
-    devDependencies:
-      '@types/bun':
-        specifier: 'catalog:'
-        version: 1.3.8
-      typescript:
-        specifier: 'catalog:'
-        version: 5.9.3
-
-  integrations/logger:
-    dependencies:
-      '@integrations/core':
-        specifier: workspace:*
-        version: link:../core
-      '@logtape/logtape':
-        specifier: 'catalog:'
-        version: 2.0.2
-    devDependencies:
-      '@types/bun':
-        specifier: 'catalog:'
-        version: 1.3.8
       typescript:
         specifier: 'catalog:'
         version: 5.9.3

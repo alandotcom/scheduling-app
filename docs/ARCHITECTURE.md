@@ -6,9 +6,6 @@
 apps/
   api/          → Hono backend with oRPC (UI) + OpenAPI (M2M), BetterAuth
   admin-ui/     → React 19 + TanStack Router/Query frontend
-integrations/
-  core/         → Shared integration interfaces and event types
-  logger/       → Example integration consumer (console logging)
 packages/
   db/           → Drizzle ORM schema + Bun SQL
   dto/          → Shared Zod schemas for validation
@@ -57,7 +54,7 @@ Domain events on mutations follow this path:
 Integration consumers:
 
 - System integration: `svix` (`apps/api/src/services/integrations/svix.ts`)
-- App-managed consumer: `logger` (`integrations/logger/src/index.ts`)
+- App-managed consumer: `logger` (`apps/api/src/services/integrations/logger.ts`)
 
 System integrations are enabled by `INTEGRATIONS_ENABLED`. Org-managed integration enablement is resolved at runtime from `integrations` table state.
 
@@ -201,6 +198,5 @@ pnpm --filter @scheduling/api run sync:svix-event-catalog
 - Journey lifecycle guide: [`./guides/journey-execution-lifecycle.md`](./guides/journey-execution-lifecycle.md)
 - UI guide: [`./guides/mobile-first-container-pattern.md`](./guides/mobile-first-container-pattern.md)
 - Implementation plans index: [`./plans/README.md`](./plans/README.md)
-- Integration authoring: [`../integrations/README.md`](../integrations/README.md)
 - Root setup/commands: [`../README.md`](../README.md)
 - Active implementation plan: [`../PLAN.md`](../PLAN.md)

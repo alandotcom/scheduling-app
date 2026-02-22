@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { createIntegration } from "@integrations/core";
+import { createIntegration } from "./contract.js";
 import { assertUniqueIntegrationNames } from "./unique.js";
 
 describe("assertUniqueIntegrationNames", () => {

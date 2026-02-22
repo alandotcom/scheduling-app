@@ -1,5 +1,5 @@
 import { describe, expect, mock, test } from "bun:test";
-import { createIntegration } from "@integrations/core";
+import { createIntegration } from "../../services/integrations/contract.js";
 import { InngestTestEngine } from "@inngest/test";
 import {
   createIntegrationFanoutFunction,

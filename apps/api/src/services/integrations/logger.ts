@@ -1,5 +1,5 @@
 import { getLogger } from "@logtape/logtape";
-import { createIntegration } from "@integrations/core";
+import { createIntegration } from "./contract.js";
 
 const logger = getLogger(["integrations", "logger"]);
 

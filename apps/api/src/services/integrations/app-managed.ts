@@ -1,5 +1,5 @@
-import type { IntegrationConsumer } from "@integrations/core";
-import { loggerIntegration } from "@integrations/logger";
+import type { IntegrationConsumer } from "./contract.js";
+import { loggerIntegration } from "./logger.js";
 import type {
   AppIntegrationKey,
   IntegrationAuthStrategy,

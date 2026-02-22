@@ -1,5 +1,5 @@
 import { getLogger } from "@logtape/logtape";
-import type { IntegrationConsumer } from "@integrations/core";
+import type { IntegrationConsumer } from "./contract.js";
 import { config } from "../../config.js";
 import { isAppManagedIntegrationKey } from "./app-managed.js";
 import { svixIntegration } from "./svix.js";

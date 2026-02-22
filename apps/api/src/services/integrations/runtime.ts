@@ -1,5 +1,5 @@
 import { getLogger } from "@logtape/logtape";
-import type { IntegrationConsumer } from "@integrations/core";
+import type { IntegrationConsumer } from "./contract.js";
 import type { AppIntegrationKey } from "@scheduling/dto";
 import { LRUCache } from "lru-cache";
 import { withOrg } from "../../lib/db.js";

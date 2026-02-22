@@ -1,4 +1,4 @@
-import type { IntegrationConsumer } from "@integrations/core";
+import type { IntegrationConsumer } from "./contract.js";
 
 export function assertUniqueIntegrationNames(
   integrations: readonly IntegrationConsumer[],

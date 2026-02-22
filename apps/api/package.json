@@ -22,8 +22,6 @@
     "sync:svix-event-catalog": "bun --env-file=../../.env src/scripts/sync-svix-event-catalog.ts"
   },
   "dependencies": {
-    "@integrations/core": "workspace:*",
-    "@integrations/logger": "workspace:*",
     "@logtape/logtape": "catalog:",
     "@marcbachmann/cel-js": "^7.5.0",
     "@orpc/openapi": "^1.13.4",

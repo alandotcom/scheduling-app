@@ -1,5 +1,8 @@
-import type { AnyDomainEvent, IntegrationConsumer } from "@integrations/core";
-import { integrationSupportsEvent } from "@integrations/core";
+import type {
+  AnyDomainEvent,
+  IntegrationConsumer,
+} from "../../services/integrations/contract.js";
+import { integrationSupportsEvent } from "../../services/integrations/contract.js";
 import {
   domainEventDataSchemaByType,
   domainEventTypes,

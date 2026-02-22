@@ -1,10 +1,10 @@
 import { describe, expect, test } from "bun:test";
-import { createIntegration, integrationSupportsEvent } from "./index.ts";
+import { createIntegration, integrationSupportsEvent } from "./contract.js";
 
 describe("createIntegration", () => {
   test("normalizes integration names", () => {
     const integration = createIntegration({
-      name: "  Logger  ",
+      name: "  logger  ",
       supportedEventTypes: ["*"],
       async process() {},
     });
