@@ -423,6 +423,29 @@ describe("WorkflowEditorSidebar role behavior", () => {
     expect(screen.queryByText("Wait For Confirmation")).toBeNull();
   });
 
+  test("hides wait actions on no-show trigger branch in unconfigured action picker", () => {
+    const triggerNode = createNodeFixture();
+    const unconfiguredActionNode = createUnconfiguredActionNodeFixture();
+    const noShowEdge: Edge = {
+      id: "edge-no-show",
+      source: triggerNode.id,
+      target: unconfiguredActionNode.id,
+      sourceHandle: "no_show",
+      label: "No Show",
+      data: { triggerBranch: "no_show" },
+    };
+
+    renderSidebar({
+      canManageWorkflow: true,
+      selectedNode: unconfiguredActionNode,
+      nodes: [triggerNode, unconfiguredActionNode],
+      edges: [noShowEdge],
+    });
+
+    expect(screen.queryByText("Wait")).toBeNull();
+    expect(screen.queryByText("Wait For Confirmation")).toBeNull();
+  });
+
   test("does not allow changing trigger type when trigger type is locked", () => {
     const { onUpdateNodeData } = renderSidebar({
       canManageWorkflow: true,

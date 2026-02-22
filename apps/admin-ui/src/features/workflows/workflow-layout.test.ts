@@ -152,6 +152,41 @@ describe("layoutWorkflowNodes", () => {
     );
   });
 
+  test("places no-show trigger branch to the right of canceled", async () => {
+    const nodes = [
+      createNode("trigger", "trigger"),
+      createNode("scheduled-node", "action"),
+      createNode("canceled-node", "action"),
+      createNode("no-show-node", "action"),
+    ];
+
+    const edges = [
+      createEdge(
+        "e-trigger-scheduled",
+        "trigger",
+        "scheduled-node",
+        "scheduled",
+      ),
+      createEdge("e-trigger-canceled", "trigger", "canceled-node", "canceled"),
+      createEdge("e-trigger-no-show", "trigger", "no-show-node", "no_show"),
+    ];
+
+    const result = await layoutWorkflowNodes({ nodes, edges });
+    const scheduledNode = result.nodes.find(
+      (node) => node.id === "scheduled-node",
+    );
+    const canceledNode = result.nodes.find(
+      (node) => node.id === "canceled-node",
+    );
+    const noShowNode = result.nodes.find((node) => node.id === "no-show-node");
+
+    expect(scheduledNode).toBeDefined();
+    expect(canceledNode).toBeDefined();
+    expect(noShowNode).toBeDefined();
+    expect(scheduledNode!.position.x).toBeLessThan(canceledNode!.position.x);
+    expect(canceledNode!.position.x).toBeLessThan(noShowNode!.position.x);
+  });
+
   test("positions disconnected nodes as well", async () => {
     const nodes = [
       createNode("trigger", "trigger"),

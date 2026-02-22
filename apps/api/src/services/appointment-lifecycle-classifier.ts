@@ -19,6 +19,10 @@ export type AppointmentLifecycleEvent =
   | {
       type: "appointment.canceled";
       payload: DomainEventDataByType["appointment.canceled"];
+    }
+  | {
+      type: "appointment.no_show";
+      payload: DomainEventDataByType["appointment.no_show"];
     };
 
 export function classifyAppointmentLifecycleEvent(input: {
@@ -37,6 +41,13 @@ export function classifyAppointmentLifecycleEvent(input: {
   if (previous.status !== "cancelled" && current.status === "cancelled") {
     return {
       type: "appointment.canceled",
+      payload: current,
+    };
+  }
+
+  if (previous.status !== "no_show" && current.status === "no_show") {
+    return {
+      type: "appointment.no_show",
       payload: current,
     };
   }

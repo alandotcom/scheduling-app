@@ -30,10 +30,10 @@ import {
   type WorkflowFilterValueOption,
 } from "./filter-builder-shared";
 import {
-  DISALLOWED_ACTION_TYPES_ON_CANCELED_TRIGGER_BRANCH,
+  DISALLOWED_ACTION_TYPES_ON_TERMINAL_TRIGGER_BRANCH,
   getDefaultAppointmentTriggerConfig,
   getDefaultClientTriggerConfig,
-  isNodeOnCanceledTriggerBranch,
+  isNodeOnTerminalTriggerBranch,
 } from "./workflow-editor-store";
 import { orpc } from "@/lib/query";
 
@@ -138,6 +138,7 @@ function getConfiguredTriggerEventTypes(nodes: Node[]): DomainEventType[] {
     "appointment.scheduled",
     "appointment.rescheduled",
     "appointment.canceled",
+    "appointment.no_show",
   ];
 }
 
@@ -425,16 +426,16 @@ export function WorkflowEditorSidebar({
       return [];
     }
 
-    const isOnCanceledBranch = isNodeOnCanceledTriggerBranch({
+    const isOnTerminalBranch = isNodeOnTerminalTriggerBranch({
       nodeId: selectedNode.id,
       nodes,
       edges,
     });
-    if (!isOnCanceledBranch) {
+    if (!isOnTerminalBranch) {
       return [];
     }
 
-    return [...DISALLOWED_ACTION_TYPES_ON_CANCELED_TRIGGER_BRANCH];
+    return [...DISALLOWED_ACTION_TYPES_ON_TERMINAL_TRIGGER_BRANCH];
   }, [selectedNode, selectedNodeType, nodes, edges]);
   const fieldOptions = useMemo(
     () =>

@@ -34,12 +34,14 @@ import {
 } from "../workflow-node-dimensions";
 
 const TRIGGER_SCHEDULED_HANDLE_LEFT = "31%";
-const TRIGGER_CANCELED_HANDLE_LEFT = "69%";
+const TRIGGER_CANCELED_HANDLE_LEFT = "57%";
+const TRIGGER_NO_SHOW_HANDLE_LEFT = "83%";
 const TRIGGER_CLIENT_HANDLE_LEFT = "50%";
 
 type TriggerBranchOccupancy = {
   scheduled: boolean;
   canceled: boolean;
+  no_show: boolean;
 };
 
 function getTriggerBranchOccupancy(input: {
@@ -49,6 +51,7 @@ function getTriggerBranchOccupancy(input: {
   const occupancy: TriggerBranchOccupancy = {
     scheduled: false,
     canceled: false,
+    no_show: false,
   };
 
   for (const edge of input.edges) {
@@ -186,6 +189,15 @@ const TriggerNode = memo(function TriggerNode({
                   height: 14,
                 },
               },
+              {
+                id: "no_show",
+                position: Position.Bottom,
+                style: {
+                  left: TRIGGER_NO_SHOW_HANDLE_LEFT,
+                  width: 14,
+                  height: 14,
+                },
+              },
             ],
       }}
       status={status}
@@ -213,6 +225,14 @@ const TriggerNode = memo(function TriggerNode({
           style={{ left: TRIGGER_CANCELED_HANDLE_LEFT }}
         >
           Canceled
+        </div>
+      ) : null}
+      {!isClientJourneyTrigger && !triggerBranchOccupancy.no_show ? (
+        <div
+          className="pointer-events-none absolute -bottom-8 z-30 -translate-x-1/2 rounded-sm border bg-card px-1.5 py-0.5 text-[10px] leading-none text-muted-foreground"
+          style={{ left: TRIGGER_NO_SHOW_HANDLE_LEFT }}
+        >
+          No Show
         </div>
       ) : null}
       <div className="flex flex-col items-center gap-2 p-4 text-center">

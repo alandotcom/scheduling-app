@@ -126,8 +126,12 @@ describe("emitEvent", () => {
       ...appointmentSnapshot,
       status: "cancelled",
     });
+    await events.appointmentNoShow(orgId, {
+      ...appointmentSnapshot,
+      status: "no_show",
+    });
 
-    expect(sendMock).toHaveBeenCalledTimes(4);
+    expect(sendMock).toHaveBeenCalledTimes(5);
     expect(sendMock).toHaveBeenNthCalledWith(
       1,
       expect.objectContaining({ name: "appointment.scheduled" }),
@@ -143,6 +147,10 @@ describe("emitEvent", () => {
     expect(sendMock).toHaveBeenNthCalledWith(
       4,
       expect.objectContaining({ name: "appointment.canceled" }),
+    );
+    expect(sendMock).toHaveBeenNthCalledWith(
+      5,
+      expect.objectContaining({ name: "appointment.no_show" }),
     );
   });
 

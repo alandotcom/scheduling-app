@@ -194,6 +194,9 @@ describe("appointment webhook event taxonomy", () => {
     expect(
       webhookEventTypeSchema.safeParse("appointment.canceled").success,
     ).toBe(true);
+    expect(
+      webhookEventTypeSchema.safeParse("appointment.no_show").success,
+    ).toBe(true);
   });
 
   test("rejects legacy appointment lifecycle aliases", () => {
@@ -220,6 +223,7 @@ describe("appointment domain event taxonomy", () => {
       "appointment.confirmed",
       "appointment.rescheduled",
       "appointment.canceled",
+      "appointment.no_show",
     ]);
   });
 

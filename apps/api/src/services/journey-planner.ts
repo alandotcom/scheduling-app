@@ -174,7 +174,7 @@ type DesiredRunEvent = {
 type ActionNode = LinearJourneyGraph["nodes"][number];
 type JourneyEdge = LinearJourneyGraph["edges"][number];
 type ConditionBranch = "true" | "false";
-type TriggerBranch = "scheduled" | "canceled";
+type TriggerBranch = "scheduled" | "canceled" | "no_show";
 const knownActionTypes = new Set([
   "wait",
   "wait-for-confirmation",
@@ -450,9 +450,20 @@ function normalizeTriggerBranch(value: unknown): TriggerBranch | null {
     return null;
   }
 
-  const normalized = value.trim().toLowerCase();
-  if (normalized === "scheduled" || normalized === "canceled") {
+  const normalized = value
+    .trim()
+    .toLowerCase()
+    .replaceAll(/[\s-]+/g, "_");
+  if (
+    normalized === "scheduled" ||
+    normalized === "canceled" ||
+    normalized === "no_show"
+  ) {
     return normalized;
+  }
+
+  if (normalized === "noshow") {
+    return "no_show";
   }
 
   return null;
@@ -493,7 +504,7 @@ function resolveTriggerNextNodeIds(input: {
   }
 
   if (!hasBranchLabels) {
-    // Backwards compat: no branch labels → "scheduled" gets all edges, "canceled" gets none
+    // Backwards compat: no branch labels -> "scheduled" gets all edges, terminal branches get none.
     if (input.branch === "scheduled") {
       return outgoingEdges.map((edge) => edge.target);
     }
@@ -667,8 +678,10 @@ function buildDesiredDeliveries(input: {
     }));
   }
 
-  while (pending.length > 0) {
-    const current = pending.shift();
+  let pendingCursor = 0;
+  while (pendingCursor < pending.length) {
+    const current = pending[pendingCursor];
+    pendingCursor += 1;
     if (!current) {
       continue;
     }
@@ -1977,6 +1990,8 @@ export async function processJourneyDomainEvent(
           }
 
           if (routing === "cancel") {
+            const terminalTriggerBranch = triggerResolution.triggerBranch;
+
             // 1. Cancel pending scheduled-path deliveries (existing behavior)
             const cancelResult = await cancelPendingDeliveries({
               tx,
@@ -1988,8 +2003,8 @@ export async function processJourneyDomainEvent(
             canceledDeliveryIds.push(...cancelResult.canceledIds);
             allPendingEvents.push(...cancelResult.pendingEvents);
 
-            // 2. Build cancel-branch deliveries (if wired)
-            const cancelBuildResult = buildDesiredDeliveries({
+            // 2. Build terminal-branch deliveries (if wired)
+            const terminalBuildResult = buildDesiredDeliveries({
               graph: parsedGraph.data,
               journeyRunId: run.id,
               journeyId: journey.id,
@@ -2001,30 +2016,30 @@ export async function processJourneyDomainEvent(
               eventTimestamp: event.timestamp,
               now,
               orgTimezone,
-              triggerBranch: "canceled",
+              triggerBranch: terminalTriggerBranch,
             });
 
-            // 3. If cancel path has deliveries, reopen run and reconcile
-            if (cancelBuildResult.desiredDeliveries.length > 0) {
+            // 3. If a terminal path has deliveries, reopen run and reconcile.
+            if (terminalBuildResult.desiredDeliveries.length > 0) {
               await markRunPlanned({
                 tx,
                 runId: run.id,
               });
 
-              const cancelReconcileResult = await reconcileDeliveries({
+              const terminalReconcileResult = await reconcileDeliveries({
                 tx,
                 runId: run.id,
                 orgId: event.orgId,
-                desiredDeliveries: cancelBuildResult.desiredDeliveries,
-                desiredStepLogs: cancelBuildResult.desiredStepLogs,
-                desiredRunEvents: cancelBuildResult.desiredRunEvents,
+                desiredDeliveries: terminalBuildResult.desiredDeliveries,
+                desiredStepLogs: terminalBuildResult.desiredStepLogs,
+                desiredRunEvents: terminalBuildResult.desiredRunEvents,
               });
 
               scheduledDeliveryIds.push(
-                ...cancelReconcileResult.scheduledDeliveryIds,
+                ...terminalReconcileResult.scheduledDeliveryIds,
               );
               allPendingEvents.push(
-                ...cancelReconcileResult.pendingInngestEvents,
+                ...terminalReconcileResult.pendingInngestEvents,
               );
 
               await refreshRunStatusTx(tx, run.id);

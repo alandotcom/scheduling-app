@@ -244,6 +244,9 @@ async function emitAppointmentLifecycleEvent(
     case "appointment.canceled":
       await events.appointmentCanceled(orgId, lifecycleEvent.payload);
       return;
+    case "appointment.no_show":
+      await events.appointmentNoShow(orgId, lifecycleEvent.payload);
+      return;
   }
 }
 

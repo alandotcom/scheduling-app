@@ -63,14 +63,25 @@ function getConditionBranchLabel(value: unknown): string | null {
 
 function normalizeTriggerBranch(
   value: unknown,
-): "scheduled" | "canceled" | null {
+): "scheduled" | "canceled" | "no_show" | null {
   if (typeof value !== "string") {
     return null;
   }
 
-  const normalized = value.trim().toLowerCase();
-  if (normalized === "scheduled" || normalized === "canceled") {
+  const normalized = value
+    .trim()
+    .toLowerCase()
+    .replaceAll(/[\s-]+/g, "_");
+  if (
+    normalized === "scheduled" ||
+    normalized === "canceled" ||
+    normalized === "no_show"
+  ) {
     return normalized;
+  }
+
+  if (normalized === "noshow") {
+    return "no_show";
   }
 
   return null;
@@ -84,6 +95,10 @@ function getTriggerBranchLabel(value: unknown): string | null {
 
   if (normalized === "canceled") {
     return "Canceled";
+  }
+
+  if (normalized === "no_show") {
+    return "No Show";
   }
 
   return null;
@@ -211,7 +226,7 @@ function getEdgeLabelClassName(variant: EdgeLabelVariant): string {
 
 function getOffsetFromNormalizedBranches(input: {
   conditionBranch: "true" | "false" | null;
-  triggerBranch: "scheduled" | "canceled" | null;
+  triggerBranch: "scheduled" | "canceled" | "no_show" | null;
   switchBranch: "created" | "updated" | "deleted" | null;
 }): { x: number; y: number } | null {
   if (input.conditionBranch === "true") {
@@ -227,6 +242,10 @@ function getOffsetFromNormalizedBranches(input: {
   }
 
   if (input.triggerBranch === "canceled") {
+    return { x: 0, y: 0 };
+  }
+
+  if (input.triggerBranch === "no_show") {
     return { x: 0, y: 14 };
   }
 

@@ -316,6 +316,65 @@ function createCanceledBranchActionGraphFixture(): SerializedJourneyGraph {
   };
 }
 
+function createNoShowBranchActionGraphFixture(): SerializedJourneyGraph {
+  return {
+    attributes: {},
+    options: { type: "directed", allowSelfLoops: false, multi: false },
+    nodes: [
+      {
+        key: "trigger-node",
+        attributes: {
+          id: "trigger-node",
+          type: "trigger",
+          position: { x: 100, y: 120 },
+          data: {
+            type: "trigger",
+            label: "Trigger",
+            status: "idle",
+            config: {
+              triggerType: "AppointmentJourney",
+              start: "appointment.scheduled",
+              restart: "appointment.rescheduled",
+              stop: "appointment.canceled",
+              correlationKey: "appointmentId",
+            },
+          },
+        },
+      },
+      {
+        key: "action-node",
+        attributes: {
+          id: "action-node",
+          type: "action",
+          position: { x: 320, y: 140 },
+          data: {
+            type: "action",
+            label: "Action",
+            status: "idle",
+            config: {},
+          },
+        },
+      },
+    ],
+    edges: [
+      {
+        key: "edge-no-show",
+        source: "trigger-node",
+        target: "action-node",
+        undirected: false,
+        attributes: {
+          id: "edge-no-show",
+          source: "trigger-node",
+          target: "action-node",
+          sourceHandle: "no_show",
+          label: "No Show",
+          data: { triggerBranch: "no_show" },
+        },
+      },
+    ],
+  };
+}
+
 function createStaleClientTriggerGraphFixture(): SerializedJourneyGraph {
   const fixture = createGraphFixture();
   const triggerNode = fixture.nodes[0];
@@ -949,6 +1008,31 @@ describe("workflow-editor-store", () => {
     expect(store.get(workflowEditorHasUnsavedChangesAtom)).toBe(false);
   });
 
+  test("blocks wait action types on no-show trigger branch", () => {
+    const store = createStore();
+    store.set(
+      setWorkflowEditorGraphAtom,
+      createNoShowBranchActionGraphFixture(),
+    );
+    store.set(workflowEditorIsReadOnlyAtom, false);
+
+    store.set(setWorkflowEditorActionTypeAtom, {
+      nodeId: "action-node",
+      actionType: "wait",
+    });
+    store.set(setWorkflowEditorActionTypeAtom, {
+      nodeId: "action-node",
+      actionType: "wait-for-confirmation",
+    });
+
+    const actionNode = store
+      .get(workflowEditorNodesAtom)
+      .find((node) => node.id === "action-node");
+
+    expect(actionNode?.data.config).toMatchObject({});
+    expect(store.get(workflowEditorHasUnsavedChangesAtom)).toBe(false);
+  });
+
   test("allows wait action types on scheduled trigger branch", () => {
     const store = createStore();
     store.set(setWorkflowEditorGraphAtom, createGraphFixture());
@@ -1074,6 +1158,50 @@ describe("workflow-editor-store", () => {
     expect(
       outgoingFromTrigger.some((edge) => edge.target === "action-node-2"),
     ).toBeTrue();
+  });
+
+  test("auto-assigns no-show branch for the third trigger edge", () => {
+    const store = createStore();
+    store.set(setWorkflowEditorGraphAtom, createGraphFixtureWithSecondAction());
+    store.set(workflowEditorIsReadOnlyAtom, false);
+
+    store.set(onWorkflowEditorConnectAtom, {
+      source: "trigger-node",
+      target: "action-node-2",
+      sourceHandle: "canceled",
+      targetHandle: null,
+    });
+
+    store.set(addWorkflowEditorNodeAtom, {
+      id: "action-node-3",
+      type: "action",
+      position: { x: 760, y: 140 },
+      data: {
+        type: "action",
+        label: "Action 3",
+        status: "idle",
+        config: {},
+      },
+    });
+
+    store.set(onWorkflowEditorConnectAtom, {
+      source: "trigger-node",
+      target: "action-node-3",
+      sourceHandle: null,
+      targetHandle: null,
+    });
+
+    const edge = store
+      .get(workflowEditorEdgesAtom)
+      .find(
+        (currentEdge) =>
+          currentEdge.source === "trigger-node" &&
+          currentEdge.target === "action-node-3",
+      );
+
+    expect(edge?.sourceHandle).toBe("no_show");
+    expect(edge?.label).toBe("No Show");
+    expect(edge?.data?.triggerBranch).toBe("no_show");
   });
 
   test("keeps a single incoming edge to a target step", () => {

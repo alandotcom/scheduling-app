@@ -62,6 +62,10 @@ function getEdgeWeight(edge: WorkflowCanvasEdge): number {
     return 3;
   }
 
+  if (sourceHandle === "no_show") {
+    return 2;
+  }
+
   return 6;
 }
 
@@ -164,7 +168,11 @@ function getTreeSortRank(sourceHandle: string | null | undefined): number {
     return 1;
   }
 
-  return 2;
+  if (normalizedHandle === "no_show") {
+    return 2;
+  }
+
+  return 3;
 }
 
 function buildTreeLayoutData(input: {

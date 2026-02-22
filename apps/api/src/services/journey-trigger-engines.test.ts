@@ -308,6 +308,112 @@ describe("resolveJourneyTriggerRuntime", () => {
     expect(runtime.routing).toBe("ignore");
   });
 
+  test("routes appointment.no_show to cancel semantics on no_show branch", () => {
+    const graph = createGraph({
+      triggerType: "AppointmentJourney",
+      start: "appointment.scheduled",
+      restart: "appointment.rescheduled",
+      stop: "appointment.canceled",
+      correlationKey: "appointmentId",
+    });
+
+    const runtime = resolveJourneyTriggerRuntime({
+      graph,
+      eventType: "appointment.no_show",
+      payload: {
+        appointmentId: "018f4d3a-6d80-7c5b-8a4a-6cb8f8d57d88",
+        calendarId: "018f4d3a-6d80-7c5b-8a4a-6cb8f8d57d11",
+        appointmentTypeId: "018f4d3a-6d80-7c5b-8a4a-6cb8f8d57d12",
+        clientId: "018f4d3a-6d80-7c5b-8a4a-6cb8f8d57d13",
+        startAt: "2026-03-10T14:00:00.000Z",
+        endAt: "2026-03-10T15:00:00.000Z",
+        timezone: "America/New_York",
+        status: "no_show",
+        notes: null,
+        appointment: {
+          id: "018f4d3a-6d80-7c5b-8a4a-6cb8f8d57d88",
+          calendarId: "018f4d3a-6d80-7c5b-8a4a-6cb8f8d57d11",
+          appointmentTypeId: "018f4d3a-6d80-7c5b-8a4a-6cb8f8d57d12",
+          clientId: "018f4d3a-6d80-7c5b-8a4a-6cb8f8d57d13",
+          startAt: "2026-03-10T14:00:00.000Z",
+          endAt: "2026-03-10T15:00:00.000Z",
+          timezone: "America/New_York",
+          status: "no_show",
+          notes: null,
+        },
+        client: {
+          id: "018f4d3a-6d80-7c5b-8a4a-6cb8f8d57d13",
+          firstName: "Avery",
+          lastName: "Stone",
+          email: null,
+          phone: "+14155552671",
+          customAttributes: {},
+        },
+      },
+    });
+
+    expect(runtime.status).toBe("resolved");
+    if (runtime.status !== "resolved" || runtime.routing !== "cancel") {
+      return;
+    }
+
+    expect(runtime.routing).toBe("cancel");
+    expect(runtime.triggerBranch).toBe("no_show");
+  });
+
+  test("routes appointment.canceled to cancel semantics on canceled branch", () => {
+    const graph = createGraph({
+      triggerType: "AppointmentJourney",
+      start: "appointment.scheduled",
+      restart: "appointment.rescheduled",
+      stop: "appointment.canceled",
+      correlationKey: "appointmentId",
+    });
+
+    const runtime = resolveJourneyTriggerRuntime({
+      graph,
+      eventType: "appointment.canceled",
+      payload: {
+        appointmentId: "018f4d3a-6d80-7c5b-8a4a-6cb8f8d57d88",
+        calendarId: "018f4d3a-6d80-7c5b-8a4a-6cb8f8d57d11",
+        appointmentTypeId: "018f4d3a-6d80-7c5b-8a4a-6cb8f8d57d12",
+        clientId: "018f4d3a-6d80-7c5b-8a4a-6cb8f8d57d13",
+        startAt: "2026-03-10T14:00:00.000Z",
+        endAt: "2026-03-10T15:00:00.000Z",
+        timezone: "America/New_York",
+        status: "cancelled",
+        notes: null,
+        appointment: {
+          id: "018f4d3a-6d80-7c5b-8a4a-6cb8f8d57d88",
+          calendarId: "018f4d3a-6d80-7c5b-8a4a-6cb8f8d57d11",
+          appointmentTypeId: "018f4d3a-6d80-7c5b-8a4a-6cb8f8d57d12",
+          clientId: "018f4d3a-6d80-7c5b-8a4a-6cb8f8d57d13",
+          startAt: "2026-03-10T14:00:00.000Z",
+          endAt: "2026-03-10T15:00:00.000Z",
+          timezone: "America/New_York",
+          status: "cancelled",
+          notes: null,
+        },
+        client: {
+          id: "018f4d3a-6d80-7c5b-8a4a-6cb8f8d57d13",
+          firstName: "Avery",
+          lastName: "Stone",
+          email: null,
+          phone: "+14155552671",
+          customAttributes: {},
+        },
+      },
+    });
+
+    expect(runtime.status).toBe("resolved");
+    if (runtime.status !== "resolved" || runtime.routing !== "cancel") {
+      return;
+    }
+
+    expect(runtime.routing).toBe("cancel");
+    expect(runtime.triggerBranch).toBe("canceled");
+  });
+
   test("plans client.updated runs only when the tracked attribute changes", () => {
     const graph = createGraph({
       triggerType: "ClientJourney",

@@ -53,6 +53,7 @@ function getSvixEventGroupName(eventType: WebhookEventType): string {
     case "appointment.confirmed":
     case "appointment.rescheduled":
     case "appointment.canceled":
+    case "appointment.no_show":
       return "Appointment";
     case "appointment_type.created":
     case "appointment_type.updated":

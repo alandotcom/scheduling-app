@@ -135,14 +135,25 @@ function normalizeConditionBranch(value: unknown): "true" | "false" | null {
 
 function normalizeTriggerBranch(
   value: unknown,
-): "scheduled" | "canceled" | null {
+): "scheduled" | "canceled" | "no_show" | null {
   if (typeof value !== "string") {
     return null;
   }
 
-  const normalized = value.trim().toLowerCase();
-  if (normalized === "scheduled" || normalized === "canceled") {
+  const normalized = value
+    .trim()
+    .toLowerCase()
+    .replaceAll(/[\s-]+/g, "_");
+  if (
+    normalized === "scheduled" ||
+    normalized === "canceled" ||
+    normalized === "no_show"
+  ) {
     return normalized;
+  }
+
+  if (normalized === "noshow") {
+    return "no_show";
   }
 
   return null;
@@ -179,7 +190,7 @@ function pickConditionBranchFromExistingEdges(input: {
 function pickTriggerBranchFromExistingEdges(input: {
   edges: Array<{ source: string; sourceHandle?: string | null }>;
   sourceNodeId: string;
-}): "scheduled" | "canceled" {
+}): "scheduled" | "canceled" | "no_show" {
   const usedBranches = new Set<string>();
 
   for (const edge of input.edges) {
@@ -199,6 +210,10 @@ function pickTriggerBranchFromExistingEdges(input: {
 
   if (!usedBranches.has("canceled")) {
     return "canceled";
+  }
+
+  if (!usedBranches.has("no_show")) {
+    return "no_show";
   }
 
   return "scheduled";
@@ -538,7 +553,9 @@ export function WorkflowEditorCanvas({
                     ? clientTriggerEntryLabel
                     : triggerBranch === "scheduled"
                       ? "Scheduled"
-                      : "Canceled",
+                      : triggerBranch === "canceled"
+                        ? "Canceled"
+                        : "No Show",
                   data: { triggerBranch },
                 }
               : {}),

@@ -28,7 +28,7 @@ import {
 } from "./action-visuals";
 
 type ConditionBranch = "true" | "false";
-type TriggerBranch = "scheduled" | "canceled";
+type TriggerBranch = "scheduled" | "canceled" | "no_show";
 type WorkflowTriggerBranchNodeLike = {
   id: string;
   data: unknown;
@@ -41,13 +41,14 @@ type WorkflowTriggerBranchEdgeLike = {
   data?: unknown;
 };
 
-export const DISALLOWED_ACTION_TYPES_ON_CANCELED_TRIGGER_BRANCH = [
+export const DISALLOWED_ACTION_TYPES_ON_TERMINAL_TRIGGER_BRANCH = [
   "wait",
   "wait-for-confirmation",
 ] as const;
-const disallowedActionTypesOnCanceledTriggerBranch = new Set<string>(
-  DISALLOWED_ACTION_TYPES_ON_CANCELED_TRIGGER_BRANCH,
+const disallowedActionTypesOnTerminalTriggerBranch = new Set<string>(
+  DISALLOWED_ACTION_TYPES_ON_TERMINAL_TRIGGER_BRANCH,
 );
+const terminalTriggerBranches = new Set<TriggerBranch>(["canceled", "no_show"]);
 
 export type WorkflowNodeStatus =
   | "idle"
@@ -258,9 +259,20 @@ function normalizeTriggerBranch(value: unknown): TriggerBranch | null {
     return null;
   }
 
-  const normalized = value.trim().toLowerCase();
-  if (normalized === "scheduled" || normalized === "canceled") {
+  const normalized = value
+    .trim()
+    .toLowerCase()
+    .replaceAll(/[\s-]+/g, "_");
+  if (
+    normalized === "scheduled" ||
+    normalized === "canceled" ||
+    normalized === "no_show"
+  ) {
     return normalized;
+  }
+
+  if (normalized === "noshow") {
+    return "no_show";
   }
 
   return null;
@@ -302,7 +314,7 @@ function getTriggerNodeId(
   return triggerNode.id;
 }
 
-export function getNodeIdsOnCanceledTriggerBranch(input: {
+export function getNodeIdsOnTerminalTriggerBranch(input: {
   nodes: readonly WorkflowTriggerBranchNodeLike[];
   edges: readonly WorkflowTriggerBranchEdgeLike[];
 }): Set<string> {
@@ -311,15 +323,18 @@ export function getNodeIdsOnCanceledTriggerBranch(input: {
     return new Set<string>();
   }
 
-  const canceledBranchStartNodeIds = input.edges
-    .filter(
-      (edge) =>
-        edge.source === triggerNodeId &&
-        getTriggerBranchFromEdgeLike(edge) === "canceled",
-    )
+  const terminalBranchStartNodeIds = input.edges
+    .filter((edge) => {
+      if (edge.source !== triggerNodeId) {
+        return false;
+      }
+
+      const branch = getTriggerBranchFromEdgeLike(edge);
+      return branch ? terminalTriggerBranches.has(branch) : false;
+    })
     .map((edge) => edge.target);
 
-  if (canceledBranchStartNodeIds.length === 0) {
+  if (terminalBranchStartNodeIds.length === 0) {
     return new Set<string>();
   }
 
@@ -330,30 +345,30 @@ export function getNodeIdsOnCanceledTriggerBranch(input: {
     edgesBySource.set(edge.source, sourceEdges);
   }
 
-  const canceledPathNodeIds = new Set<string>();
-  const stack = [...canceledBranchStartNodeIds];
+  const terminalPathNodeIds = new Set<string>();
+  const stack = [...terminalBranchStartNodeIds];
   while (stack.length > 0) {
     const nodeId = stack.pop();
-    if (!nodeId || canceledPathNodeIds.has(nodeId)) {
+    if (!nodeId || terminalPathNodeIds.has(nodeId)) {
       continue;
     }
 
-    canceledPathNodeIds.add(nodeId);
+    terminalPathNodeIds.add(nodeId);
     const outgoingEdges = edgesBySource.get(nodeId) ?? [];
     for (const edge of outgoingEdges) {
       stack.push(edge.target);
     }
   }
 
-  return canceledPathNodeIds;
+  return terminalPathNodeIds;
 }
 
-export function isNodeOnCanceledTriggerBranch(input: {
+export function isNodeOnTerminalTriggerBranch(input: {
   nodeId: string;
   nodes: readonly WorkflowTriggerBranchNodeLike[];
   edges: readonly WorkflowTriggerBranchEdgeLike[];
 }): boolean {
-  return getNodeIdsOnCanceledTriggerBranch(input).has(input.nodeId);
+  return getNodeIdsOnTerminalTriggerBranch(input).has(input.nodeId);
 }
 
 function collectConditionBranches(
@@ -447,6 +462,10 @@ function resolveTriggerBranchForConnection(input: {
     return "canceled";
   }
 
+  if (!existingBranches.has("no_show")) {
+    return "no_show";
+  }
+
   return "scheduled";
 }
 
@@ -455,7 +474,15 @@ function getConditionBranchLabel(branch: ConditionBranch): string {
 }
 
 function getTriggerBranchLabel(branch: TriggerBranch): string {
-  return branch === "scheduled" ? "Scheduled" : "Canceled";
+  if (branch === "scheduled") {
+    return "Scheduled";
+  }
+
+  if (branch === "canceled") {
+    return "Canceled";
+  }
+
+  return "No Show";
 }
 
 function isClientJourneyTriggerConfig(config: JourneyTriggerConfig): boolean {
@@ -537,7 +564,9 @@ function normalizeTriggerEdgesForNode(input: {
       ? "scheduled"
       : !usedBranches.has("canceled")
         ? "canceled"
-        : "scheduled";
+        : !usedBranches.has("no_show")
+          ? "no_show"
+          : "scheduled";
     usedBranches.add(nextBranch);
     branchByEdgeId.set(edge.id, nextBranch);
   }
@@ -1461,8 +1490,8 @@ export const setWorkflowEditorActionTypeAtom = atom(
 
     const normalizedActionType = input.actionType.trim().toLowerCase();
     if (
-      disallowedActionTypesOnCanceledTriggerBranch.has(normalizedActionType) &&
-      isNodeOnCanceledTriggerBranch({
+      disallowedActionTypesOnTerminalTriggerBranch.has(normalizedActionType) &&
+      isNodeOnTerminalTriggerBranch({
         nodeId: input.nodeId,
         nodes: currentNodes,
         edges: currentEdges,

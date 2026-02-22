@@ -50,6 +50,7 @@ describe("WorkflowTriggerConfig", () => {
     expect(screen.getByText("Scheduled starts run")).toBeTruthy();
     expect(screen.getByText("Rescheduled replans run")).toBeTruthy();
     expect(screen.getByText("Canceled stops run")).toBeTruthy();
+    expect(screen.getByText("No Show stops run")).toBeTruthy();
     expect(
       screen.getByText(
         "Rescheduled appointments replan the same run and shift future waits and sends to the new start time.",
@@ -57,6 +58,11 @@ describe("WorkflowTriggerConfig", () => {
     ).toBeTruthy();
     expect(
       screen.getByText("Cancellation prevents future messages from sending."),
+    ).toBeTruthy();
+    expect(
+      screen.getByText(
+        "No-show events follow the same terminal behavior as cancel.",
+      ),
     ).toBeTruthy();
     expect(screen.getByText("Audience Rules")).toBeTruthy();
 

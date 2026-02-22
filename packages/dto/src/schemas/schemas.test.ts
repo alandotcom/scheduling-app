@@ -1160,6 +1160,57 @@ describe("Journey graph trigger branching", () => {
     expect(result.success).toBe(true);
   });
 
+  test("accepts graph with scheduled, canceled, and no-show trigger branches", () => {
+    const graph = createBranchedTriggerGraph();
+    graph.nodes.push({
+      key: "send-no-show",
+      attributes: {
+        id: "send-no-show",
+        type: "action",
+        position: { x: 320, y: 120 },
+        data: {
+          type: "action",
+          label: "Send No Show",
+          config: { actionType: "send-resend" },
+        },
+      },
+    });
+    graph.edges.push({
+      key: "e-no-show",
+      source: "trigger",
+      target: "send-no-show",
+      attributes: {
+        id: "e-no-show",
+        source: "trigger",
+        target: "send-no-show",
+        sourceHandle: "no_show",
+        label: "No Show",
+        data: { triggerBranch: "no_show" },
+      },
+    });
+
+    const result = linearJourneyGraphSchema.safeParse(graph);
+    expect(result.success).toBe(true);
+  });
+
+  test("accepts trigger with scheduled and no-show branches", () => {
+    const graph = createBranchedTriggerGraph();
+    const cancelEdge = graph.edges.find((edge) => edge.key === "e-canceled");
+    if (!cancelEdge) {
+      throw new Error("Expected canceled branch edge in fixture");
+    }
+
+    cancelEdge.attributes = {
+      ...cancelEdge.attributes,
+      sourceHandle: "no_show",
+      label: "No Show",
+      data: { triggerBranch: "no_show" },
+    };
+
+    const result = linearJourneyGraphSchema.safeParse(graph);
+    expect(result.success).toBe(true);
+  });
+
   test("accepts trigger with only scheduled branch", () => {
     const graph = createBranchedTriggerGraph();
     // Remove the canceled branch edge and node
@@ -1297,7 +1348,47 @@ describe("Journey graph trigger branching", () => {
     if (!result.success) {
       const messages = result.error.issues.map((i) => i.message);
       expect(messages).toContain(
-        "Wait and Wait For Confirmation steps are not allowed on the canceled branch",
+        "Wait and Wait For Confirmation steps are not allowed on canceled or no-show branches",
+      );
+    }
+  });
+
+  test("rejects wait node on no-show branch", () => {
+    const graph = createBranchedTriggerGraph();
+    const terminalNode = graph.nodes.find(
+      (node) => node.key === "send-canceled",
+    );
+    const terminalEdge = graph.edges.find((edge) => edge.key === "e-canceled");
+
+    if (!terminalNode || terminalNode.attributes.data.type !== "action") {
+      throw new Error("Expected no-show terminal action node in fixture");
+    }
+
+    if (!terminalEdge) {
+      throw new Error("Expected no-show terminal edge in fixture");
+    }
+
+    terminalNode.attributes = {
+      ...terminalNode.attributes,
+      data: {
+        ...terminalNode.attributes.data,
+        label: "Wait",
+        config: { actionType: "wait", waitDuration: "10m" },
+      },
+    };
+    terminalEdge.attributes = {
+      ...terminalEdge.attributes,
+      sourceHandle: "no_show",
+      label: "No Show",
+      data: { triggerBranch: "no_show" },
+    };
+
+    const result = linearJourneyGraphSchema.safeParse(graph);
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const messages = result.error.issues.map((issue) => issue.message);
+      expect(messages).toContain(
+        "Wait and Wait For Confirmation steps are not allowed on canceled or no-show branches",
       );
     }
   });
@@ -1384,7 +1475,7 @@ describe("Journey graph trigger branching", () => {
     if (!result.success) {
       const messages = result.error.issues.map((i) => i.message);
       expect(messages).toContain(
-        "Wait and Wait For Confirmation steps are not allowed on the canceled branch",
+        "Wait and Wait For Confirmation steps are not allowed on canceled or no-show branches",
       );
     }
   });
@@ -1494,7 +1585,7 @@ describe("Journey graph trigger branching", () => {
     if (!result.success) {
       const messages = result.error.issues.map((i) => i.message);
       expect(messages).toContain(
-        "Wait and Wait For Confirmation steps are not allowed on the canceled branch",
+        "Wait and Wait For Confirmation steps are not allowed on canceled or no-show branches",
       );
     }
   });
@@ -1575,7 +1666,7 @@ describe("Journey graph trigger branching", () => {
     expect(result.success).toBe(false);
   });
 
-  test("rejects trigger with more than two outgoing branches", () => {
+  test("rejects trigger with four outgoing branches", () => {
     const graph = createBranchedTriggerGraph();
     graph.nodes.push({
       key: "send-extra",
@@ -1583,6 +1674,66 @@ describe("Journey graph trigger branching", () => {
         id: "send-extra",
         type: "action",
         position: { x: 0, y: 260 },
+        data: {
+          type: "action",
+          label: "Extra",
+          config: { actionType: "logger", message: "Extra" },
+        },
+      },
+    });
+    graph.nodes.push({
+      key: "send-extra-2",
+      attributes: {
+        id: "send-extra-2",
+        type: "action",
+        position: { x: 120, y: 260 },
+        data: {
+          type: "action",
+          label: "Extra 2",
+          config: { actionType: "logger", message: "Extra 2" },
+        },
+      },
+    });
+    graph.edges.push({
+      key: "e-extra",
+      source: "trigger",
+      target: "send-extra",
+      attributes: {
+        id: "e-extra",
+        source: "trigger",
+        target: "send-extra",
+      },
+    });
+    graph.edges.push({
+      key: "e-extra-2",
+      source: "trigger",
+      target: "send-extra-2",
+      attributes: {
+        id: "e-extra-2",
+        source: "trigger",
+        target: "send-extra-2",
+      },
+    });
+
+    const result = linearJourneyGraphSchema.safeParse(graph);
+    expect(result.success).toBe(false);
+
+    if (!result.success) {
+      const messages = result.error.issues.map((issue) => issue.message);
+      expect(messages).toContain(
+        "Trigger step can have at most three outgoing branches",
+      );
+    }
+  });
+
+  test("rejects trigger with three outgoing edges missing no-show branch label", () => {
+    const graph = createBranchedTriggerGraph();
+    graph.nodes.push({
+      key: "send-extra",
+      attributes: {
+        id: "send-extra",
+        type: "action",
+        position: { x: 320, y: 260 },
         data: {
           type: "action",
           label: "Extra",
@@ -1607,7 +1758,7 @@ describe("Journey graph trigger branching", () => {
     if (!result.success) {
       const messages = result.error.issues.map((issue) => issue.message);
       expect(messages).toContain(
-        "Trigger step can have at most two outgoing branches",
+        'Trigger step with three outgoing edges must include exactly "scheduled", "canceled", and "no_show" branches',
       );
     }
   });
@@ -1629,7 +1780,7 @@ describe("Journey graph trigger branching", () => {
     if (!result.success) {
       const messages = result.error.issues.map((issue) => issue.message);
       expect(messages).toContain(
-        'Trigger step with two outgoing edges must include exactly one "scheduled" and one "canceled" branch',
+        'Trigger step with two outgoing edges must include exactly one "scheduled" branch and one terminal branch ("canceled" or "no_show")',
       );
     }
   });

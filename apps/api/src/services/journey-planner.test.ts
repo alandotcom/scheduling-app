@@ -670,6 +670,108 @@ function createTriggerBranchJourneyGraph(input?: {
   };
 }
 
+function createNoShowBranchJourneyGraph(input?: {
+  waitDuration?: string;
+}): LinearJourneyGraph {
+  return {
+    attributes: {},
+    options: {
+      type: "directed",
+    },
+    nodes: [
+      {
+        key: "trigger-node",
+        attributes: {
+          id: "trigger-node",
+          type: "trigger-node",
+          position: { x: 0, y: 0 },
+          data: {
+            type: "trigger",
+            label: "Trigger",
+            config: createTriggerConfig(),
+          },
+        },
+      },
+      {
+        key: "wait-node",
+        attributes: {
+          id: "wait-node",
+          type: "action-node",
+          position: { x: -100, y: 120 },
+          data: {
+            type: "action",
+            label: "Wait",
+            config: {
+              actionType: "wait",
+              waitDuration: input?.waitDuration ?? "2h",
+            },
+          },
+        },
+      },
+      {
+        key: "send-node",
+        attributes: {
+          id: "send-node",
+          type: "action-node",
+          position: { x: -100, y: 240 },
+          data: {
+            type: "action",
+            label: "Send",
+            config: { actionType: "send-resend" },
+          },
+        },
+      },
+      {
+        key: "no-show-logger-node",
+        attributes: {
+          id: "no-show-logger-node",
+          type: "action-node",
+          position: { x: 100, y: 120 },
+          data: {
+            type: "action",
+            label: "No Show Logger",
+            config: { actionType: "logger", message: "No Show" },
+          },
+        },
+      },
+    ],
+    edges: [
+      {
+        key: "trigger-to-wait",
+        source: "trigger-node",
+        target: "wait-node",
+        attributes: {
+          id: "trigger-to-wait",
+          source: "trigger-node",
+          target: "wait-node",
+          data: { triggerBranch: "scheduled" },
+        },
+      },
+      {
+        key: "wait-to-send",
+        source: "wait-node",
+        target: "send-node",
+        attributes: {
+          id: "wait-to-send",
+          source: "wait-node",
+          target: "send-node",
+        },
+      },
+      {
+        key: "trigger-to-no-show-logger",
+        source: "trigger-node",
+        target: "no-show-logger-node",
+        attributes: {
+          id: "trigger-to-no-show-logger",
+          source: "trigger-node",
+          target: "no-show-logger-node",
+          data: { triggerBranch: "no_show" },
+        },
+      },
+    ],
+  };
+}
+
 function createFanoutJourneyGraph(): LinearJourneyGraph {
   return {
     attributes: {},
@@ -3478,6 +3580,102 @@ describe("processJourneyDomainEvent", () => {
     expect(deliveries).toHaveLength(1);
     expect(deliveries[0]?.actionType).toBe("wait-resume");
     expect(deliveries[0]?.status).toBe("canceled");
+    expect(cancelRequester).toHaveBeenCalledTimes(1);
+  });
+
+  test("cancels scheduled deliveries AND plans no-show branch on appointment.no_show", async () => {
+    const created = await journeyService.create(
+      {
+        name: "Trigger Branch No Show Journey",
+        graph: createNoShowBranchJourneyGraph({ waitDuration: "3h" }),
+      },
+      context,
+    );
+
+    await journeyService.publish(created.id, { mode: "live" }, context);
+
+    const appointmentId = await createQuickAppointment(
+      db as any,
+      context.orgId,
+    );
+
+    const scheduleWaitResumeRequester = mock(async () => ({
+      eventId: "evt-branch-no-show-wr",
+    }));
+    const scheduleLoggerRequester = mock(async () => ({
+      eventId: "evt-branch-no-show-logger",
+    }));
+
+    await processJourneyDomainEvent(
+      {
+        id: "evt-branch-no-show-1",
+        orgId: context.orgId,
+        type: "appointment.scheduled",
+        payload: createAppointmentPayload({ appointmentId }),
+        timestamp: "2026-02-16T10:00:00.000Z",
+      },
+      {
+        providerRequesters: {
+          "wait-resume": scheduleWaitResumeRequester,
+          logger: scheduleLoggerRequester,
+        },
+        now: new Date("2026-02-16T10:00:00.000Z"),
+      },
+    );
+
+    const cancelRequester = mock(async () => ({
+      eventId: "evt-branch-no-show-cancel-req",
+    }));
+
+    await processJourneyDomainEvent(
+      {
+        id: "evt-branch-no-show-2",
+        orgId: context.orgId,
+        type: "appointment.no_show",
+        payload: createAppointmentPayload({
+          appointmentId,
+          status: "no_show",
+        }),
+        timestamp: "2026-02-16T11:00:00.000Z",
+      },
+      {
+        cancelRequester,
+        providerRequesters: {
+          logger: scheduleLoggerRequester,
+        },
+        now: new Date("2026-02-16T11:00:00.000Z"),
+      },
+    );
+
+    await setTestOrgContext(db, context.orgId);
+
+    const [run] = await db
+      .select({ id: journeyRuns.id, status: journeyRuns.status })
+      .from(journeyRuns)
+      .orderBy(desc(journeyRuns.id))
+      .limit(1);
+
+    const deliveries = await db
+      .select({
+        stepKey: journeyDeliveries.stepKey,
+        actionType: journeyDeliveries.actionType,
+        status: journeyDeliveries.status,
+      })
+      .from(journeyDeliveries)
+      .where(eq(journeyDeliveries.journeyRunId, run!.id));
+
+    const waitResumeDelivery = deliveries.find(
+      (d) => d.actionType === "wait-resume",
+    );
+    expect(waitResumeDelivery?.status).toBe("canceled");
+
+    const noShowDelivery = deliveries.find(
+      (d) => d.stepKey === "no-show-logger-node",
+    );
+    expect(noShowDelivery).toBeDefined();
+    expect(noShowDelivery?.status).toBe("planned");
+
+    expect(scheduleLoggerRequester).toHaveBeenCalled();
     expect(cancelRequester).toHaveBeenCalledTimes(1);
   });
 

@@ -17,6 +17,7 @@ export type JourneyPlannerDomainEventType = Extract<
   | "appointment.confirmed"
   | "appointment.rescheduled"
   | "appointment.canceled"
+  | "appointment.no_show"
   | "client.created"
   | "client.updated"
 >;
@@ -50,7 +51,16 @@ type JourneyTriggerResolution =
   | {
       status: "resolved";
       triggerConfig: JourneyTriggerConfig;
-      routing: "plan" | "cancel";
+      routing: "plan";
+      runIdentity: JourneyRunIdentity;
+      appointmentContext: Record<string, unknown>;
+      clientContext: Record<string, unknown>;
+    }
+  | {
+      status: "resolved";
+      triggerConfig: JourneyTriggerConfig;
+      routing: "cancel";
+      triggerBranch: "canceled" | "no_show";
       runIdentity: JourneyRunIdentity;
       appointmentContext: Record<string, unknown>;
       clientContext: Record<string, unknown>;
@@ -80,19 +90,26 @@ function resolveAppointmentTriggerRouting(input: {
     { triggerType: "AppointmentJourney" }
   >;
   eventType: JourneyPlannerDomainEventType;
-}): "plan" | "cancel" | "ignore" {
+}):
+  | { routing: "plan" }
+  | { routing: "cancel"; triggerBranch: "canceled" | "no_show" }
+  | { routing: "ignore" } {
+  if (input.eventType === "appointment.no_show") {
+    return { routing: "cancel", triggerBranch: "no_show" };
+  }
+
   if (input.triggerConfig.stop === input.eventType) {
-    return "cancel";
+    return { routing: "cancel", triggerBranch: "canceled" };
   }
 
   if (
     input.triggerConfig.start === input.eventType ||
     input.triggerConfig.restart === input.eventType
   ) {
-    return "plan";
+    return { routing: "plan" };
   }
 
-  return "ignore";
+  return { routing: "ignore" };
 }
 
 function resolveClientTriggerRouting(input: {
@@ -269,7 +286,7 @@ export function resolveJourneyTriggerRuntime(input: {
       triggerConfig,
       eventType: input.eventType,
     });
-    if (routing === "ignore") {
+    if (routing.routing === "ignore") {
       return {
         status: "resolved",
         triggerConfig,
@@ -292,10 +309,27 @@ export function resolveJourneyTriggerRuntime(input: {
       return { status: "missing_run_identity" };
     }
 
+    if (routing.routing === "cancel") {
+      return {
+        status: "resolved",
+        triggerConfig,
+        routing: "cancel",
+        triggerBranch: routing.triggerBranch,
+        runIdentity: {
+          triggerEntityType: "appointment",
+          triggerEntityId: appointmentId,
+          appointmentId,
+          clientId,
+        },
+        appointmentContext,
+        clientContext,
+      };
+    }
+
     return {
       status: "resolved",
       triggerConfig,
-      routing,
+      routing: "plan",
       runIdentity: {
         triggerEntityType: "appointment",
         triggerEntityId: appointmentId,

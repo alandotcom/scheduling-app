@@ -65,7 +65,7 @@ type JourneyGraphEdge = z.infer<
   typeof serializedJourneyGraphSchema
 >["edges"][number];
 type ConditionBranch = "true" | "false";
-type TriggerBranch = "scheduled" | "canceled";
+type TriggerBranch = "scheduled" | "canceled" | "no_show";
 
 function normalizeJourneyActionType(value: unknown): string | null {
   if (typeof value !== "string") {
@@ -119,9 +119,20 @@ function normalizeTriggerBranch(value: unknown): TriggerBranch | null {
     return null;
   }
 
-  const normalized = value.trim().toLowerCase();
-  if (normalized === "scheduled" || normalized === "canceled") {
+  const normalized = value
+    .trim()
+    .toLowerCase()
+    .replaceAll(/[\s-]+/g, "_");
+  if (
+    normalized === "scheduled" ||
+    normalized === "canceled" ||
+    normalized === "no_show"
+  ) {
     return normalized;
+  }
+
+  if (normalized === "noshow") {
+    return "no_show";
   }
 
   return null;
@@ -448,10 +459,10 @@ export const linearJourneyGraphSchema =
           });
         }
 
-        if (outgoing > 2) {
+        if (outgoing > 3) {
           ctx.addIssue({
             code: "custom",
-            message: "Trigger step can have at most two outgoing branches",
+            message: "Trigger step can have at most three outgoing branches",
             path: ["nodes", index, "attributes", "id"],
           });
         }
@@ -461,12 +472,35 @@ export const linearJourneyGraphSchema =
           // Only enforce branch labels when at least one edge is labeled (backwards compat)
           if (
             branches.size > 0 &&
-            !(branches.has("scheduled") && branches.has("canceled"))
+            !(
+              branches.size === 2 &&
+              branches.has("scheduled") &&
+              (branches.has("canceled") || branches.has("no_show"))
+            )
           ) {
             ctx.addIssue({
               code: "custom",
               message:
-                'Trigger step with two outgoing edges must include exactly one "scheduled" and one "canceled" branch',
+                'Trigger step with two outgoing edges must include exactly one "scheduled" branch and one terminal branch ("canceled" or "no_show")',
+              path: ["nodes", index, "attributes", "id"],
+            });
+          }
+        }
+
+        if (outgoing === 3) {
+          const branches = triggerBranchSetBySourceId.get(nodeId) ?? new Set();
+          if (
+            !(
+              branches.size === 3 &&
+              branches.has("scheduled") &&
+              branches.has("canceled") &&
+              branches.has("no_show")
+            )
+          ) {
+            ctx.addIssue({
+              code: "custom",
+              message:
+                'Trigger step with three outgoing edges must include exactly "scheduled", "canceled", and "no_show" branches',
               path: ["nodes", index, "attributes", "id"],
             });
           }
@@ -539,25 +573,28 @@ export const linearJourneyGraphSchema =
       });
     }
 
-    // Validate no wait nodes on canceled branch
+    // Validate no wait nodes on terminal trigger branches (canceled/no_show)
     const triggerNodeId2 = triggerNodeIds[0];
     if (triggerNodeId2) {
       const triggerOutgoingEdges =
         outgoingEdgesBySourceId.get(triggerNodeId2) ?? [];
-      const canceledEdgeTargets = triggerOutgoingEdges
-        .filter((edge) => getTriggerBranchFromEdge(edge) === "canceled")
+      const terminalEdgeTargets = triggerOutgoingEdges
+        .filter((edge) => {
+          const branch = getTriggerBranchFromEdge(edge);
+          return branch === "canceled" || branch === "no_show";
+        })
         .map((edge) => edge.target);
 
-      if (canceledEdgeTargets.length > 0) {
-        const cancelPathVisited = new Set<string>();
-        const cancelStack = [...canceledEdgeTargets];
+      if (terminalEdgeTargets.length > 0) {
+        const terminalPathVisited = new Set<string>();
+        const terminalStack = [...terminalEdgeTargets];
 
-        while (cancelStack.length > 0) {
-          const currentId = cancelStack.pop();
-          if (!currentId || cancelPathVisited.has(currentId)) {
+        while (terminalStack.length > 0) {
+          const currentId = terminalStack.pop();
+          if (!currentId || terminalPathVisited.has(currentId)) {
             continue;
           }
-          cancelPathVisited.add(currentId);
+          terminalPathVisited.add(currentId);
 
           const nodeActionType = actionTypeByNodeId.get(currentId);
           if (
@@ -568,14 +605,14 @@ export const linearJourneyGraphSchema =
             ctx.addIssue({
               code: "custom",
               message:
-                "Wait and Wait For Confirmation steps are not allowed on the canceled branch",
+                "Wait and Wait For Confirmation steps are not allowed on canceled or no-show branches",
               path: ["nodes", nodeIndex ?? 0, "attributes", "data", "config"],
             });
           }
 
           const nextEdges = outgoingEdgesBySourceId.get(currentId) ?? [];
           for (const edge of nextEdges) {
-            cancelStack.push(edge.target);
+            terminalStack.push(edge.target);
           }
         }
       }

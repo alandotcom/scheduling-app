@@ -1478,6 +1478,13 @@ function WorkflowTriggerConfigInner({
               <span className="rounded-md bg-muted px-2 py-1 font-medium text-foreground">
                 Canceled stops run
               </span>
+              <Icon
+                className="size-3.5 text-muted-foreground"
+                icon={ArrowRight02Icon}
+              />
+              <span className="rounded-md bg-muted px-2 py-1 font-medium text-foreground">
+                No Show stops run
+              </span>
             </div>
             <ul className="list-disc space-y-1 pl-4 text-muted-foreground text-xs">
               <li>
@@ -1485,6 +1492,9 @@ function WorkflowTriggerConfigInner({
                 waits and sends to the new start time.
               </li>
               <li>Cancellation prevents future messages from sending.</li>
+              <li>
+                No-show events follow the same terminal behavior as cancel.
+              </li>
             </ul>
           </div>
         </>

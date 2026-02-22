@@ -124,6 +124,21 @@ describe("classifyAppointmentLifecycleEvent", () => {
     });
   });
 
+  test("classifies no-show transitions as appointment.no_show", () => {
+    const previous = createSnapshot({ status: "scheduled" });
+    const current = createSnapshot({ status: "no_show" });
+
+    const lifecycleEvent = classifyAppointmentLifecycleEvent({
+      previous,
+      current,
+    });
+
+    expect(lifecycleEvent).toEqual({
+      type: "appointment.no_show",
+      payload: current,
+    });
+  });
+
   test("returns null for non-lifecycle updates", () => {
     const previous = createSnapshot({ notes: "Initial note" });
     const current = createSnapshot({ notes: "Updated note" });
