@@ -6,10 +6,6 @@ This is the canonical place to start implementation work.
 
 1. Client-Triggered Journeys Plan
    - Plan: [`./client-triggered-journeys-plan.md`](./client-triggered-journeys-plan.md)
-2. TypeScript SDK Generation
-   - Plan: [`./typescript-sdk-generation.md`](./typescript-sdk-generation.md)
-   - References:
-     - [`../ARCHITECTURE.md`](../ARCHITECTURE.md)
 
 ## Notes
 
