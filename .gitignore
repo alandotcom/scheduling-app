@@ -7,7 +7,6 @@ dist/
 .turbo/
 
 # Generated files
-routeTree.gen.ts
 apps/api/.well-known/
 
 # Environment
