@@ -11,6 +11,7 @@
   "scripts": {
     "dev": "bun --env-file=../../.env --hot src/index.ts",
     "build": "bun build ./src/index.ts --outdir ./dist --target bun",
+    "lint": "pnpm --dir ../.. exec oxlint --type-aware --config .oxlintrc.json --tsconfig tsconfig.json apps/api",
     "compile": "bun build ./src/index.ts --compile --outfile ./dist/server --target ${BUN_COMPILE_TARGET:-bun}",
     "start": "set -a; [ -f ../../.env ] && . ../../.env; set +a; PORT=${API_PORT:-${PORT:-3000}} bun dist/index.js",
     "start:compiled": "set -a; [ -f ../../.env ] && . ../../.env; set +a; PORT=${API_PORT:-${PORT:-3000}} ./dist/server",
@@ -30,9 +31,7 @@
     "@orpc/zod": "^1.13.4",
     "@scheduling/db": "workspace:*",
     "@scheduling/dto": "workspace:*",
-    "@swc/core": "^1.15.11",
     "better-auth": "^1.4.18",
-    "cron-parser": "^5.5.0",
     "drizzle-orm": "catalog:",
     "es-toolkit": "^1.44.0",
     "hono": "^4.11.9",

@@ -15,28 +15,115 @@ const baseDispatchInput = {
 
 describe("journey integration action dispatchers", () => {
   test("dispatchJourneySendResendAction supports resend and resend-template actions", async () => {
-    const resendResult = await dispatchJourneySendResendAction({
-      ...baseDispatchInput,
-      stepConfig: {
-        actionType: "send-resend",
+    const sentPayloads: Array<Record<string, unknown>> = [];
+    const templateContext = {
+      Appointment: {
+        data: {
+          startAt: "2026-02-16T10:00:00.000Z",
+          client: {
+            email: "client@example.com",
+          },
+        },
       },
-    });
+      client: {
+        data: {
+          email: "client@example.com",
+          firstName: "Avery",
+        },
+      },
+    };
 
-    const resendTemplateResult = await dispatchJourneySendResendAction({
-      ...baseDispatchInput,
-      stepConfig: {
-        actionType: "send-resend-template",
+    const resendResult = await dispatchJourneySendResendAction(
+      {
+        ...baseDispatchInput,
+        stepConfig: {
+          actionType: "send-resend",
+          subject: "Reminder for @Appointment.data.startAt",
+          message: "Hi @client.data.firstName",
+        },
       },
-    });
+      {
+        resolveConfig: async () => ({
+          apiKey: "re_test_key",
+          defaultFromAddress: "notifications@example.com",
+          defaultFromName: "Acme Scheduling",
+          defaultReplyTo: "support@example.com",
+        }),
+        loadTemplateContext: async () => templateContext,
+        sendEmail: async (sendInput) => {
+          sentPayloads.push(sendInput as unknown as Record<string, unknown>);
+          return { providerMessageId: "resend:msg_1" };
+        },
+      },
+    );
+
+    const resendTemplateResult = await dispatchJourneySendResendAction(
+      {
+        ...baseDispatchInput,
+        stepConfig: {
+          actionType: "send-resend-template",
+          templateIdOrAlias: "appointment-reminder",
+          templateVariables: [
+            { key: "FIRST_NAME", value: "@client.data.firstName" },
+          ],
+          fromName: "Support Team",
+          fromAddress: "support@example.com",
+          cc: "ops@example.com, manager@example.com",
+        },
+      },
+      {
+        resolveConfig: async () => ({
+          apiKey: "re_test_key",
+          defaultFromAddress: "notifications@example.com",
+          defaultFromName: "Acme Scheduling",
+          defaultReplyTo: "support@example.com",
+        }),
+        loadTemplateContext: async () => templateContext,
+        sendEmail: async (sendInput) => {
+          sentPayloads.push(sendInput as unknown as Record<string, unknown>);
+          return { providerMessageId: "resend:msg_2" };
+        },
+      },
+    );
 
     expect(resendResult).toEqual({
-      providerMessageId: `resend:${baseDispatchInput.idempotencyKey}`,
+      providerMessageId: "resend:msg_1",
       reasonCode: null,
     });
     expect(resendTemplateResult).toEqual({
-      providerMessageId: `resend:${baseDispatchInput.idempotencyKey}`,
+      providerMessageId: "resend:msg_2",
       reasonCode: null,
     });
+    expect(sentPayloads).toHaveLength(2);
+    expect(sentPayloads[0]).toEqual(
+      expect.objectContaining({
+        apiKey: "re_test_key",
+        payload: expect.objectContaining({
+          from: "Acme Scheduling <notifications@example.com>",
+          to: "client@example.com",
+          subject: "Reminder for 2026-02-16T10:00:00.000Z",
+          text: "Hi Avery",
+          replyTo: "support@example.com",
+        }),
+      }),
+    );
+    expect(sentPayloads[1]).toEqual(
+      expect.objectContaining({
+        apiKey: "re_test_key",
+        payload: expect.objectContaining({
+          from: "Support Team <support@example.com>",
+          to: "client@example.com",
+          cc: ["ops@example.com", "manager@example.com"],
+          template: {
+            id: "appointment-reminder",
+            variables: {
+              FIRST_NAME: "Avery",
+            },
+          },
+          replyTo: "support@example.com",
+        }),
+      }),
+    );
   });
 
   test("dispatchJourneySendSlackAction normalizes actionType and returns slack provider id", async () => {

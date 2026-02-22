@@ -5,8 +5,9 @@
   },
   "workspaces": {
     "apps/admin-ui": {
-      "entry": ["src/main.tsx!"],
-      "ignoreDependencies": ["@happy-dom/global-registrator"]
+      "entry": ["src/main.tsx!", "src/routes/**/*.{ts,tsx}!"],
+      "ignoreDependencies": ["@happy-dom/global-registrator"],
+      "ignoreUnresolved": ["^\\./routeTree\\.gen$"]
     },
     "apps/api": {
       "entry": ["src/index.ts!"],

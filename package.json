@@ -24,11 +24,12 @@
     "knip:deps": "knip --strict --dependencies --cache",
     "knip:deps:ci": "knip --strict --dependencies --max-issues 0 --no-progress",
     "knip:audit": "knip --no-exit-code --cache",
-    "lint": "oxlint --type-aware .",
+    "lint": "turbo run lint --output-logs=errors-only",
+    "lint:all": "oxlint --type-aware .",
+    "lint:changed": "turbo run lint --filter='...[origin/main]' --output-logs=errors-only",
     "format": "biome format . --write",
     "format:check": "biome check .",
     "typecheck": "turbo run typecheck --output-logs=errors-only",
-    "typecheck:all": "turbo run typecheck --force",
     "typecheck:changed": "turbo run typecheck --filter='...[origin/main]'"
   },
   "devDependencies": {

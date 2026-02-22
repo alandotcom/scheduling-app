@@ -9,30 +9,34 @@ on:
 jobs:
   test-and-lint:
     runs-on: ubuntu-latest
+    env:
+      TURBO_TELEMETRY_DISABLED: "1"
+      TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+      TURBO_TEAM: ${{ vars.TURBO_TEAM }}
 
-    services:
-      postgres:
-        image: postgres:18
-        env:
-          POSTGRES_DB: scheduling
-          POSTGRES_USER: scheduling
-          POSTGRES_PASSWORD: scheduling
-        ports:
-          - 5433:5432
-        options: >-
-          --health-cmd "pg_isready -U scheduling -d scheduling"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-      valkey:
-        image: valkey/valkey:8
-        ports:
-          - 6380:6379
-        options: >-
-          --health-cmd "valkey-cli ping"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
+    # services:
+    #   postgres:
+    #     image: postgres:18
+    #     env:
+    #       POSTGRES_DB: scheduling
+    #       POSTGRES_USER: scheduling
+    #       POSTGRES_PASSWORD: scheduling
+    #     ports:
+    #       - 5433:5432
+    #     options: >-
+    #       --health-cmd "pg_isready -U scheduling -d scheduling"
+    #       --health-interval 10s
+    #       --health-timeout 5s
+    #       --health-retries 5
+    #   valkey:
+    #     image: valkey/valkey:8
+    #     ports:
+    #       - 6380:6379
+    #     options: >-
+    #       --health-cmd "valkey-cli ping"
+    #       --health-interval 10s
+    #       --health-timeout 5s
+    #       --health-retries 5
 
     steps:
       - name: Checkout
@@ -40,13 +44,22 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Cache Turbo
+        uses: actions/cache@v4
+        with:
+          path: .turbo
+          key: ${{ runner.os }}-turbo-${{ github.ref_name }}-${{ hashFiles('pnpm-lock.yaml', 'package.json', 'turbo.json', '.oxlintrc.json') }}
+          restore-keys: |
+            ${{ runner.os }}-turbo-${{ github.ref_name }}-
+            ${{ runner.os }}-turbo-
+
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
 
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: 22
+          node-version: 24
           cache: pnpm
 
       - name: Setup Bun
@@ -69,18 +82,18 @@ jobs:
 
       - name: Typecheck (full)
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        run: pnpm typecheck:all
+        run: pnpm typecheck
 
-      - name: Build (full)
+      - name: Build (changed)
         if: github.event_name == 'pull_request'
-        run: pnpm build:all
+        run: pnpm build:changed
 
       - name: Build (full)
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        run: pnpm build:all
+        run: pnpm build
 
       - name: Test
-        env:
-          DATABASE_URL: postgres://scheduling:scheduling@localhost:5433/scheduling
-          REDIS_URL: redis://localhost:6380
+        # env:
+        #   DATABASE_URL: postgres://scheduling:scheduling@localhost:5433/scheduling
+        #   REDIS_URL: redis://localhost:6380
         run: pnpm test
