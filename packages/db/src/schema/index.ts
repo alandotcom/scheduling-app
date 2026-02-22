@@ -324,10 +324,22 @@ export const clients = pgTable.withRLS(
     uniqueIndex("clients_org_reference_id_unique_idx")
       .on(table.orgId, table.referenceId)
       .where(sql`${table.referenceId} IS NOT NULL`),
-    index("clients_search_trgm_idx").using(
-      "gin",
-      sql`(first_name || ' ' || last_name || ' ' || COALESCE(email::text, '')) gin_trgm_ops`,
+    index("clients_org_updated_id_idx").on(
+      table.orgId,
+      table.updatedAt,
+      table.id,
     ),
+    index("clients_first_name_trgm_idx").using(
+      "gin",
+      sql`${table.firstName} gin_trgm_ops`,
+    ),
+    index("clients_last_name_trgm_idx").using(
+      "gin",
+      sql`${table.lastName} gin_trgm_ops`,
+    ),
+    index("clients_email_trgm_idx")
+      .using("gin", sql`${table.email}::text gin_trgm_ops`)
+      .where(sql`${table.email} IS NOT NULL`),
     pgPolicy("org_isolation_clients", {
       for: "all",
       using: sql`org_id = current_org_id()`,

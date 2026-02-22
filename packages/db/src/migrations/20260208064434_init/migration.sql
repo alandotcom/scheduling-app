@@ -451,6 +451,10 @@ CREATE INDEX "blocked_time_calendar_recurring_idx" ON "blocked_time" ("calendar_
 CREATE UNIQUE INDEX "clients_org_email_unique_idx" ON "clients" ("org_id","email") WHERE "email" IS NOT NULL;--> statement-breakpoint
 CREATE UNIQUE INDEX "clients_org_phone_unique_idx" ON "clients" ("org_id","phone") WHERE "phone" IS NOT NULL;--> statement-breakpoint
 CREATE UNIQUE INDEX "clients_org_reference_id_unique_idx" ON "clients" ("org_id","reference_id") WHERE "reference_id" IS NOT NULL;--> statement-breakpoint
+CREATE INDEX "clients_org_updated_id_idx" ON "clients" ("org_id","updated_at","id");--> statement-breakpoint
+CREATE INDEX "clients_first_name_trgm_idx" ON "clients" USING gin ("first_name" gin_trgm_ops);--> statement-breakpoint
+CREATE INDEX "clients_last_name_trgm_idx" ON "clients" USING gin ("last_name" gin_trgm_ops);--> statement-breakpoint
+CREATE INDEX "clients_email_trgm_idx" ON "clients" USING gin ((email::text) gin_trgm_ops) WHERE "email" IS NOT NULL;--> statement-breakpoint
 CREATE UNIQUE INDEX "integrations_org_key_unique_idx" ON "integrations" ("org_id","key");--> statement-breakpoint
 CREATE UNIQUE INDEX "journey_deliveries_org_deterministic_key_uidx" ON "journey_deliveries" ("org_id","deterministic_key");--> statement-breakpoint
 CREATE INDEX "journey_deliveries_org_run_scheduled_for_idx" ON "journey_deliveries" ("org_id","journey_run_id","scheduled_for");--> statement-breakpoint
@@ -472,7 +476,6 @@ CREATE INDEX "appointments_client_id_idx" ON "appointments" ("client_id");--> st
 CREATE INDEX "appointments_appointment_type_id_active_idx" ON "appointments" ("appointment_type_id") WHERE "status" <> 'cancelled';--> statement-breakpoint
 CREATE INDEX "sessions_user_id_idx" ON "sessions" ("user_id");--> statement-breakpoint
 CREATE INDEX "accounts_user_id_idx" ON "accounts" ("user_id");--> statement-breakpoint
-CREATE INDEX "clients_search_trgm_idx" ON "clients" USING gin ((first_name || ' ' || last_name || ' ' || COALESCE(email::text, '')) gin_trgm_ops);--> statement-breakpoint
 CREATE INDEX "journey_run_events_created_at_brin_idx" ON "journey_run_events" USING brin ("created_at");--> statement-breakpoint
 CREATE INDEX "journey_run_step_logs_created_at_brin_idx" ON "journey_run_step_logs" USING brin ("created_at");--> statement-breakpoint
 ALTER TABLE "accounts" ADD CONSTRAINT "accounts_user_id_users_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE;--> statement-breakpoint
