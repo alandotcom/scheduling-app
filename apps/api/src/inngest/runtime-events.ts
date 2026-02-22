@@ -1,5 +1,5 @@
 import { getProviderForActionType } from "../services/delivery-provider-registry.js";
-import { inngest } from "./client.js";
+import { inngest, type ProviderExecuteEventName } from "./client.js";
 
 export type JourneyDeliveryScheduledEventData = {
   orgId: string;
@@ -38,6 +38,34 @@ type InngestSendResult =
       id?: string;
       eventIds?: string[];
     }>;
+
+type RuntimeEvent =
+  | {
+      id: string;
+      name: "journey.delivery.scheduled";
+      data: JourneyDeliveryScheduledEventData;
+    }
+  | {
+      id: string;
+      name: ProviderExecuteEventName | "journey.delivery.scheduled";
+      data: JourneyDeliveryScheduledEventData;
+    }
+  | {
+      id: string;
+      name: "journey.action.send-twilio.callback-received";
+      data: JourneyActionSendTwilioCallbackReceivedEventData;
+    }
+  | {
+      id: string;
+      name: "journey.delivery.canceled";
+      data: JourneyDeliveryCanceledEventData;
+    };
+
+type InngestSend = (event: RuntimeEvent) => Promise<unknown>;
+
+function sendViaInngest(event: RuntimeEvent): Promise<unknown> {
+  return inngest.send(event);
+}
 
 function getEventId(result: unknown): string | undefined {
   if (!result) {
@@ -79,8 +107,9 @@ function getEventId(result: unknown): string | undefined {
 
 export async function sendJourneyDeliveryScheduled(
   input: JourneyDeliveryScheduledEventData,
+  send: InngestSend = sendViaInngest,
 ): Promise<{ eventId?: string }> {
-  const response = await inngest.send({
+  const response = await send({
     id: `journey-delivery-scheduled-${input.journeyDeliveryId}`,
     name: "journey.delivery.scheduled",
     data: input,
@@ -97,6 +126,7 @@ export async function sendJourneyDeliveryScheduled(
 export async function sendJourneyActionExecuteForActionType(
   actionType: string,
   input: JourneyDeliveryScheduledEventData,
+  send: InngestSend = sendViaInngest,
 ): Promise<{ eventId?: string }> {
   const provider = getProviderForActionType(actionType);
   if (!provider) {
@@ -105,7 +135,7 @@ export async function sendJourneyActionExecuteForActionType(
     );
   }
 
-  const response = await inngest.send({
+  const response = await send({
     id: `${provider.functionId}-${input.journeyDeliveryId}`,
     name: provider.eventName,
     data: input,
@@ -121,8 +151,9 @@ export async function sendJourneyActionExecuteForActionType(
 
 export async function sendJourneyActionSendTwilioCallbackReceived(
   input: JourneyActionSendTwilioCallbackReceivedEventData,
+  send: InngestSend = sendViaInngest,
 ): Promise<{ eventId?: string }> {
-  const response = await inngest.send({
+  const response = await send({
     id: `journey-action-send-twilio-callback-received-${input.journeyDeliveryId}-${input.messageSid}-${input.messageStatus.toLowerCase()}`,
     name: "journey.action.send-twilio.callback-received",
     data: input,
@@ -138,8 +169,9 @@ export async function sendJourneyActionSendTwilioCallbackReceived(
 
 export async function sendJourneyDeliveryCanceled(
   input: JourneyDeliveryCanceledEventData,
+  send: InngestSend = sendViaInngest,
 ): Promise<{ eventId?: string }> {
-  const response = await inngest.send({
+  const response = await send({
     id: `journey-delivery-canceled-${input.journeyDeliveryId}`,
     name: "journey.delivery.canceled",
     data: input,

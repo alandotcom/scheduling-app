@@ -1,5 +1,4 @@
-import { afterEach, beforeEach, describe, expect, mock, test } from "bun:test";
-import { inngest } from "./client.js";
+import { beforeEach, describe, expect, mock, test } from "bun:test";
 import type { JourneyDeliveryScheduledEventData } from "./runtime-events.js";
 import {
   sendJourneyActionExecuteForActionType,
@@ -13,7 +12,6 @@ const sendMock = mock(
     eventId: "evt-default",
   }),
 );
-const originalSend = inngest.send.bind(inngest);
 
 const scheduledPayload: JourneyDeliveryScheduledEventData = {
   orgId: "org_1",
@@ -26,15 +24,6 @@ const scheduledPayload: JourneyDeliveryScheduledEventData = {
 describe("journey runtime events", () => {
   beforeEach(() => {
     sendMock.mockReset();
-    Object.assign(inngest, {
-      send: sendMock as typeof inngest.send,
-    });
-  });
-
-  afterEach(() => {
-    Object.assign(inngest, {
-      send: originalSend,
-    });
   });
 
   test("sends resend execute events with provider-specific event name", async () => {
@@ -43,6 +32,7 @@ describe("journey runtime events", () => {
     const result = await sendJourneyActionExecuteForActionType(
       "send-resend",
       scheduledPayload,
+      sendMock,
     );
 
     expect(sendMock).toHaveBeenCalledTimes(1);
@@ -60,6 +50,7 @@ describe("journey runtime events", () => {
     const result = await sendJourneyActionExecuteForActionType(
       "send-slack",
       scheduledPayload,
+      sendMock,
     );
 
     expect(sendMock).toHaveBeenCalledWith({
@@ -76,6 +67,7 @@ describe("journey runtime events", () => {
     const result = await sendJourneyActionExecuteForActionType(
       "send-twilio",
       scheduledPayload,
+      sendMock,
     );
 
     expect(sendMock).toHaveBeenCalledWith({
@@ -89,13 +81,16 @@ describe("journey runtime events", () => {
   test("sends twilio callback received events with status-specific id", async () => {
     sendMock.mockResolvedValueOnce({ eventId: "evt-twilio-callback-1" });
 
-    const result = await sendJourneyActionSendTwilioCallbackReceived({
-      orgId: "org_1",
-      journeyDeliveryId: "delivery_1",
-      messageSid: "SM123",
-      messageStatus: "DELIVERED",
-      errorCode: null,
-    });
+    const result = await sendJourneyActionSendTwilioCallbackReceived(
+      {
+        orgId: "org_1",
+        journeyDeliveryId: "delivery_1",
+        messageSid: "SM123",
+        messageStatus: "DELIVERED",
+        errorCode: null,
+      },
+      sendMock,
+    );
 
     expect(sendMock).toHaveBeenCalledWith({
       id: "journey-action-send-twilio-callback-received-delivery_1-SM123-delivered",
@@ -114,13 +109,16 @@ describe("journey runtime events", () => {
   test("extracts event id from array responses for cancellation events", async () => {
     sendMock.mockResolvedValueOnce([{ id: "evt-cancel-1" }]);
 
-    const result = await sendJourneyDeliveryCanceled({
-      orgId: "org_1",
-      journeyDeliveryId: "delivery_1",
-      journeyRunId: "run_1",
-      deterministicKey: "run_1:send-node:2026-02-16T10:00:00.000Z",
-      reasonCode: "execution_terminal",
-    });
+    const result = await sendJourneyDeliveryCanceled(
+      {
+        orgId: "org_1",
+        journeyDeliveryId: "delivery_1",
+        journeyRunId: "run_1",
+        deterministicKey: "run_1:send-node:2026-02-16T10:00:00.000Z",
+        reasonCode: "execution_terminal",
+      },
+      sendMock,
+    );
 
     expect(result).toEqual({ eventId: "evt-cancel-1" });
   });
@@ -128,7 +126,10 @@ describe("journey runtime events", () => {
   test("returns empty metadata when inngest send response has no event id", async () => {
     sendMock.mockResolvedValueOnce({});
 
-    const result = await sendJourneyDeliveryScheduled(scheduledPayload);
+    const result = await sendJourneyDeliveryScheduled(
+      scheduledPayload,
+      sendMock,
+    );
 
     expect(result).toEqual({});
   });
