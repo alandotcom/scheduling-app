@@ -93,9 +93,10 @@ export function WorkflowRunDetail({
   return (
     <section className="flex h-full flex-col">
       {/* Header */}
-      <div className="space-y-1 border-b px-3 py-3">
+      <div className="sticky top-0 z-10 shrink-0 space-y-1 border-b bg-card px-3 py-3">
         <div className="flex items-start gap-2">
           <Button
+            aria-label="Back to runs"
             className="mt-0.5 shrink-0"
             onClick={onBack}
             size="icon-sm"
@@ -134,7 +135,7 @@ export function WorkflowRunDetail({
       </div>
 
       {/* Content */}
-      <div className="min-h-0 flex-1 overflow-y-auto px-3 py-3 space-y-4">
+      <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-3 py-3 [scrollbar-gutter:stable]">
         {isLoadingDetail ? (
           <p className="text-muted-foreground text-xs">Loading timeline...</p>
         ) : null}

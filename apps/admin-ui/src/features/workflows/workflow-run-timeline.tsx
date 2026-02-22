@@ -95,12 +95,33 @@ function StepLogTimeline({
   triggerContext: JourneyRunDetailResponse["triggerContext"];
 }) {
   // Track which steps are expanded locally (independent of canvas selection)
-  const [expandedStepKey, setExpandedStepKey] = useState<string | null>(null);
+  const [expandedStepKeys, setExpandedStepKeys] = useState<Set<string>>(
+    () => new Set(),
+  );
 
   const handleStepClick = (stepKey: string) => {
-    const isExpanding = expandedStepKey !== stepKey;
-    setExpandedStepKey(isExpanding ? stepKey : null);
-    onSelectNode(isExpanding ? stepKey : null);
+    const isExpanded = expandedStepKeys.has(stepKey);
+
+    setExpandedStepKeys((previous) => {
+      const next = new Set(previous);
+
+      if (next.has(stepKey)) {
+        next.delete(stepKey);
+      } else {
+        next.add(stepKey);
+      }
+
+      return next;
+    });
+
+    if (isExpanded) {
+      if (selectedNodeId === stepKey) {
+        onSelectNode(null);
+      }
+      return;
+    }
+
+    onSelectNode(stepKey);
   };
 
   return (
@@ -121,7 +142,7 @@ function StepLogTimeline({
         const duration = formatDurationMs(stepLog.durationMs);
         const isSelected =
           selectedNodeId === stepLog.stepKey ||
-          expandedStepKey === stepLog.stepKey;
+          expandedStepKeys.has(stepLog.stepKey);
         const isLast = index === stepLogs.length - 1;
         const isTriggerStep = nodeTypeByStepKey[stepLog.stepKey] === "trigger";
 

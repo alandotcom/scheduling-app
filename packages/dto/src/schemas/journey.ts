@@ -653,7 +653,31 @@ export const journeyRunSchema = z.object({
   cancelledAt: timestampSchema.nullable(),
 });
 
-export const journeyRunListResponseSchema = z.array(journeyRunSchema);
+export const journeyRunSidebarSubjectSchema = z.object({
+  type: z.enum(["client", "appointment", "unknown"]),
+  primary: z.string().trim().min(1).nullable(),
+  secondary: z.string().trim().min(1).nullable(),
+});
+
+export const journeyRunSidebarNextStateSchema = z.object({
+  label: z.string().trim().min(1),
+  at: timestampSchema.nullable(),
+  channel: z.string().trim().min(1).nullable(),
+});
+
+export const journeyRunSidebarSummarySchema = z.object({
+  subject: journeyRunSidebarSubjectSchema,
+  triggerEventType: z.string().trim().min(1).nullable(),
+  statusReason: z.string().trim().min(1).nullable(),
+  nextState: journeyRunSidebarNextStateSchema.nullable(),
+  channelHint: z.string().trim().min(1).nullable(),
+});
+
+export const journeyRunListItemSchema = journeyRunSchema.extend({
+  sidebarSummary: journeyRunSidebarSummarySchema,
+});
+
+export const journeyRunListResponseSchema = z.array(journeyRunListItemSchema);
 
 export const journeyRunDeliverySchema = z.object({
   id: uuidSchema,
@@ -774,6 +798,7 @@ export type PublishJourneyResponse = z.infer<
 >;
 export type ListJourneyRunsQuery = z.infer<typeof listJourneyRunsQuerySchema>;
 export type JourneyRun = z.infer<typeof journeyRunSchema>;
+export type JourneyRunListItem = z.infer<typeof journeyRunListItemSchema>;
 export type JourneyRunListResponse = z.infer<
   typeof journeyRunListResponseSchema
 >;

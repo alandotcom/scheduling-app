@@ -17,6 +17,7 @@ import {
 } from "../test-utils/index.js";
 import {
   journeyDeliveries,
+  journeyRunEvents,
   journeyRuns,
   journeys,
   journeyVersions,
@@ -784,11 +785,33 @@ describe("Journey Routes", () => {
         appointmentId: testRunApptId,
         triggerEntityId: testRunApptId,
         mode: "test",
-        status: "completed",
+        status: "running",
         journeyNameSnapshot: created.name,
         journeyVersionSnapshot: { version: published.version },
       })
       .returning({ id: journeyRuns.id });
+
+    await db.insert(journeyRunEvents).values({
+      orgId: ownerContext.orgId!,
+      journeyRunId: testRun!.id,
+      eventType: "run_planned",
+      message: "Run planned",
+      metadata: {
+        eventType: "appointment.scheduled",
+      },
+    });
+
+    await db.insert(journeyDeliveries).values({
+      orgId: ownerContext.orgId!,
+      journeyRunId: testRun!.id,
+      stepKey: "send-step",
+      channel: "email",
+      actionType: "send-resend",
+      status: "planned",
+      reasonCode: null,
+      scheduledFor: new Date("2026-03-11T10:00:00.000Z"),
+      deterministicKey: "test-list-runs-delivery",
+    });
 
     const testRuns = await call(
       journeyRoutes.listRuns,
@@ -801,6 +824,18 @@ describe("Journey Routes", () => {
 
     expect(testRuns).toHaveLength(1);
     expect(testRuns[0]?.mode).toBe("test");
+    expect(testRuns[0]?.sidebarSummary.subject).toMatchObject({
+      type: "client",
+      primary: "FK Client",
+    });
+    expect(testRuns[0]?.sidebarSummary.triggerEventType).toBe(
+      "appointment.scheduled",
+    );
+    expect(testRuns[0]?.sidebarSummary.nextState).toMatchObject({
+      label: "Next Email",
+      channel: "email",
+    });
+    expect(testRuns[0]?.sidebarSummary.channelHint).toBe("email");
 
     await db
       .delete(journeyVersions)

@@ -1,8 +1,13 @@
-import { useEffect } from "react";
-import type { JourneyRun, JourneyRunDetailResponse } from "@scheduling/dto";
+import { useCallback, useEffect, useRef } from "react";
+import type {
+  JourneyRun,
+  JourneyRunDetailResponse,
+  JourneyRunListItem,
+} from "@scheduling/dto";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
 import { orpc } from "@/lib/query";
+import { cn } from "@/lib/utils";
 import {
   deserializeWorkflowGraph,
   setWorkflowEditorSelectionAtom,
@@ -28,8 +33,12 @@ interface WorkflowRunsPanelProps {
   canManageWorkflow: boolean;
 }
 
+type WorkflowRunsPanelRun = JourneyRun & {
+  sidebarSummary?: JourneyRunListItem["sidebarSummary"];
+};
+
 export interface WorkflowRunsPanelViewProps {
-  runs: JourneyRun[];
+  runs: WorkflowRunsPanelRun[];
   selectedRunId: string | null;
   selectedRunDetail: JourneyRunDetailResponse | null;
   canManageWorkflow: boolean;
@@ -64,32 +73,104 @@ export function WorkflowRunsPanelView({
   const selectedRun = selectedRunId
     ? (runs.find((r) => r.id === selectedRunId) ?? null)
     : null;
+  const overlayRef = useRef<HTMLDivElement>(null);
+  const runRowRefs = useRef(new Map<string, HTMLButtonElement>());
 
-  if (selectedRun) {
-    return (
-      <WorkflowRunDetail
-        run={selectedRun}
-        runDetail={selectedRunDetail}
-        isLoadingDetail={isLoadingRunDetail}
-        canManageWorkflow={canManageWorkflow}
-        selectedNodeId={selectedNodeId}
-        onSelectNode={(nodeId) => onSelectNode?.(nodeId)}
-        onBack={() => onSelectRun(null)}
-        onCancelRun={onCancelRun}
-        onCancelJourneyRuns={onCancelJourneyRuns}
-        isCancelRunPending={isCancelRunPending}
-        isCancelJourneyRunsPending={isCancelJourneyRunsPending}
-      />
-    );
-  }
+  const setRunRowRef = useCallback(
+    (runId: string, element: HTMLButtonElement | null) => {
+      if (element) {
+        runRowRefs.current.set(runId, element);
+        return;
+      }
+
+      runRowRefs.current.delete(runId);
+    },
+    [],
+  );
+
+  const handleSelectRun = useCallback(
+    (runId: string) => {
+      onSelectRun(runId);
+    },
+    [onSelectRun],
+  );
+
+  const handleCloseDetail = useCallback(() => {
+    const runIdToFocus = selectedRun?.id ?? null;
+    onSelectRun(null);
+
+    if (!runIdToFocus) {
+      return;
+    }
+
+    window.requestAnimationFrame(() => {
+      runRowRefs.current.get(runIdToFocus)?.focus({ preventScroll: true });
+    });
+  }, [onSelectRun, selectedRun]);
+
+  useEffect(() => {
+    if (!selectedRun) {
+      return;
+    }
+
+    const animationFrameId = window.requestAnimationFrame(() => {
+      overlayRef.current?.focus({ preventScroll: true });
+    });
+
+    return () => {
+      window.cancelAnimationFrame(animationFrameId);
+    };
+  }, [selectedRun]);
 
   return (
-    <WorkflowRunsList
-      runs={runs}
-      isLoading={isLoadingRuns}
-      onSelectRun={(runId) => onSelectRun(runId)}
-      onRefresh={onRefresh}
-    />
+    <section className="relative flex h-full min-h-0 flex-col overflow-hidden">
+      <div className="min-h-0 flex-1">
+        <WorkflowRunsList
+          runs={runs}
+          isLoading={isLoadingRuns}
+          selectedRunId={selectedRunId}
+          onSelectRun={handleSelectRun}
+          onRunRowRef={setRunRowRef}
+          onRefresh={onRefresh}
+        />
+      </div>
+
+      <div
+        aria-hidden={!selectedRun}
+        className={cn(
+          "absolute inset-0 z-10 flex h-full flex-col overflow-hidden bg-card transition-opacity duration-150 ease-out motion-reduce:transition-none",
+          selectedRun ? "opacity-100" : "pointer-events-none opacity-0",
+        )}
+        onKeyDown={(event) => {
+          if (event.key !== "Escape" || !selectedRun) {
+            return;
+          }
+
+          event.stopPropagation();
+          handleCloseDetail();
+        }}
+        ref={overlayRef}
+        role="region"
+        aria-label="Run details"
+        tabIndex={selectedRun ? -1 : undefined}
+      >
+        {selectedRun ? (
+          <WorkflowRunDetail
+            run={selectedRun}
+            runDetail={selectedRunDetail}
+            isLoadingDetail={isLoadingRunDetail}
+            canManageWorkflow={canManageWorkflow}
+            selectedNodeId={selectedNodeId}
+            onSelectNode={(nodeId) => onSelectNode?.(nodeId)}
+            onBack={handleCloseDetail}
+            onCancelRun={onCancelRun}
+            onCancelJourneyRuns={onCancelJourneyRuns}
+            isCancelRunPending={isCancelRunPending}
+            isCancelJourneyRunsPending={isCancelJourneyRunsPending}
+          />
+        ) : null}
+      </div>
+    </section>
   );
 }
 

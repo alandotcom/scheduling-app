@@ -1,5 +1,12 @@
 import { afterEach, describe, expect, mock, test } from "bun:test";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { useState } from "react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  within,
+} from "@testing-library/react";
 import { WorkflowRunsPanelView } from "./workflow-runs-panel";
 
 afterEach(() => {
@@ -7,7 +14,7 @@ afterEach(() => {
 });
 
 describe("WorkflowRunsPanelView", () => {
-  test("supports test/live mode filters in list view", () => {
+  test("renders semantic list metadata and supports mode filters", () => {
     const onSelectRun = mock((_runId: string | null) => {});
 
     render(
@@ -30,6 +37,21 @@ describe("WorkflowRunsPanelView", () => {
             journeyNameSnapshot: "Live Journey",
             journeyVersion: 1,
             journeyDeleted: false,
+            sidebarSummary: {
+              subject: {
+                type: "client",
+                primary: "Ada Lovelace",
+                secondary: "Mar 10, 2026, 10:00 AM",
+              },
+              triggerEventType: "appointment.scheduled",
+              statusReason: null,
+              nextState: {
+                label: "Next Email",
+                at: new Date("2026-03-10T14:05:00.000Z"),
+                channel: "email",
+              },
+              channelHint: "email",
+            },
           },
           {
             id: "run-test",
@@ -43,6 +65,17 @@ describe("WorkflowRunsPanelView", () => {
             journeyNameSnapshot: "Test Journey",
             journeyVersion: 1,
             journeyDeleted: false,
+            sidebarSummary: {
+              subject: {
+                type: "client",
+                primary: "Grace Hopper",
+                secondary: "Mar 10, 2026, 11:00 AM",
+              },
+              triggerEventType: "appointment.rescheduled",
+              statusReason: null,
+              nextState: null,
+              channelHint: "sms",
+            },
           },
         ]}
         selectedRunDetail={null}
@@ -50,15 +83,16 @@ describe("WorkflowRunsPanelView", () => {
       />,
     );
 
-    // List view shows journey names and mode as lowercase text
-    expect(screen.getByText("Live Journey")).toBeTruthy();
-    expect(screen.getByText("Test Journey")).toBeTruthy();
+    expect(screen.getByText("Ada Lovelace")).toBeTruthy();
+    expect(screen.getByText("Grace Hopper")).toBeTruthy();
+    expect(screen.getByText("appointment / scheduled")).toBeTruthy();
+    expect(screen.getByText(/Next Email/)).toBeTruthy();
 
     // Filter to test mode only
     fireEvent.click(screen.getByRole("button", { name: "Test" }));
 
-    expect(screen.queryByText("Live Journey")).toBeNull();
-    expect(screen.getByText("Test Journey")).toBeTruthy();
+    expect(screen.queryByText("Ada Lovelace")).toBeNull();
+    expect(screen.getByText("Grace Hopper")).toBeTruthy();
   });
 
   test("renders logger timeline entries and typed reason code labels", () => {
@@ -377,6 +411,139 @@ describe("WorkflowRunsPanelView", () => {
     expect(onSelectNode).toHaveBeenCalledWith("wait-step");
   });
 
+  test("keeps previously expanded step details open when opening another step", () => {
+    function StatefulNodeSelectionRunsPanel() {
+      const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+
+      return (
+        <WorkflowRunsPanelView
+          canManageWorkflow={true}
+          isLoadingRunDetail={false}
+          isLoadingRuns={false}
+          onRefresh={() => {}}
+          onSelectNode={setSelectedNodeId}
+          onSelectRun={() => {}}
+          runs={[
+            {
+              id: "run-context",
+              journeyVersionId: "version-context",
+              appointmentId: "appointment-context",
+              mode: "live",
+              status: "running",
+              startedAt: new Date("2026-03-10T14:00:00.000Z"),
+              completedAt: null,
+              cancelledAt: null,
+              journeyNameSnapshot: "Journey Context",
+              journeyVersion: 2,
+              journeyDeleted: false,
+            },
+          ]}
+          selectedNodeId={selectedNodeId}
+          selectedRunDetail={{
+            run: {
+              id: "run-context",
+              journeyVersionId: "version-context",
+              appointmentId: "appointment-context",
+              mode: "live",
+              status: "running",
+              startedAt: new Date("2026-03-10T14:00:00.000Z"),
+              completedAt: null,
+              cancelledAt: null,
+              journeyNameSnapshot: "Journey Context",
+              journeyVersion: 2,
+              journeyDeleted: false,
+            },
+            runSnapshot: {
+              version: 2,
+              definitionSnapshot: {
+                attributes: {},
+                options: { type: "directed" },
+                nodes: [
+                  {
+                    key: "wait-step-a",
+                    attributes: {
+                      id: "wait-step-a",
+                      data: {
+                        type: "action",
+                        label: "Wait A",
+                        config: { actionType: "wait" },
+                      },
+                    },
+                  },
+                  {
+                    key: "wait-step-b",
+                    attributes: {
+                      id: "wait-step-b",
+                      data: {
+                        type: "action",
+                        label: "Wait B",
+                        config: { actionType: "wait" },
+                      },
+                    },
+                  },
+                ],
+                edges: [],
+              },
+            },
+            deliveries: [],
+            events: [],
+            stepLogs: [
+              {
+                id: "step-context-a",
+                journeyRunId: "run-context",
+                stepKey: "wait-step-a",
+                nodeType: "wait",
+                status: "running",
+                input: null,
+                output: {
+                  waitUntil: "2026-03-10T14:05:00.000Z",
+                },
+                error: null,
+                startedAt: new Date("2026-03-10T14:00:00.000Z"),
+                completedAt: null,
+                durationMs: null,
+                createdAt: new Date("2026-03-10T14:00:00.000Z"),
+                updatedAt: new Date("2026-03-10T14:00:00.000Z"),
+              },
+              {
+                id: "step-context-b",
+                journeyRunId: "run-context",
+                stepKey: "wait-step-b",
+                nodeType: "wait",
+                status: "running",
+                input: null,
+                output: {
+                  waitUntil: "2026-03-10T14:10:00.000Z",
+                },
+                error: null,
+                startedAt: new Date("2026-03-10T14:00:01.000Z"),
+                completedAt: null,
+                durationMs: null,
+                createdAt: new Date("2026-03-10T14:00:01.000Z"),
+                updatedAt: new Date("2026-03-10T14:00:01.000Z"),
+              },
+            ],
+            triggerContext: null,
+          }}
+          selectedRunId="run-context"
+        />
+      );
+    }
+
+    render(<StatefulNodeSelectionRunsPanel />);
+
+    const detailRegion = screen.getByRole("region", { name: "Run details" });
+    const waitStepButtons = within(detailRegion).getAllByRole("button", {
+      name: /Wait Running/i,
+    });
+
+    fireEvent.click(waitStepButtons[0]!);
+    expect(within(detailRegion).getAllByText("Wait until")).toHaveLength(1);
+
+    fireEvent.click(waitStepButtons[1]!);
+    expect(within(detailRegion).getAllByText("Wait until")).toHaveLength(2);
+  });
+
   test("treats stale running wait steps as completed for terminal runs", () => {
     render(
       <WorkflowRunsPanelView
@@ -476,9 +643,10 @@ describe("WorkflowRunsPanelView", () => {
       />,
     );
 
-    // List view shows journey name and version/deleted metadata
+    // List view falls back to snapshot journey name and still surfaces metadata chips
     expect(screen.getByText("Archived Journey")).toBeTruthy();
-    expect(screen.getByText(/v7.*deleted/)).toBeTruthy();
+    expect(screen.getByText("v7")).toBeTruthy();
+    expect(screen.getByText("Deleted")).toBeTruthy();
   });
 
   test("shows run-level and journey-level cancel actions with explicit scope", () => {
@@ -601,5 +769,212 @@ describe("WorkflowRunsPanelView", () => {
     expect(
       screen.queryByRole("button", { name: "Cancel this run" }),
     ).toBeNull();
+  });
+
+  test("keeps list mounted under detail overlay and closes with Escape", () => {
+    const onSelectRun = mock((_runId: string | null) => {});
+
+    render(
+      <WorkflowRunsPanelView
+        canManageWorkflow={true}
+        isLoadingRunDetail={false}
+        isLoadingRuns={false}
+        onRefresh={() => {}}
+        onSelectRun={onSelectRun}
+        runs={[
+          {
+            id: "run-open",
+            journeyVersionId: "version-open",
+            appointmentId: "appointment-open",
+            mode: "live",
+            status: "completed",
+            startedAt: new Date("2026-03-10T14:00:00.000Z"),
+            completedAt: new Date("2026-03-10T14:05:00.000Z"),
+            cancelledAt: null,
+            journeyNameSnapshot: "Open Journey",
+            journeyVersion: 4,
+            journeyDeleted: false,
+          },
+        ]}
+        selectedRunDetail={{
+          run: {
+            id: "run-open",
+            journeyVersionId: "version-open",
+            appointmentId: "appointment-open",
+            mode: "live",
+            status: "completed",
+            startedAt: new Date("2026-03-10T14:00:00.000Z"),
+            completedAt: new Date("2026-03-10T14:05:00.000Z"),
+            cancelledAt: null,
+            journeyNameSnapshot: "Open Journey",
+            journeyVersion: 4,
+            journeyDeleted: false,
+          },
+          runSnapshot: { version: 4 },
+          deliveries: [],
+          events: [],
+          stepLogs: [],
+          triggerContext: null,
+        }}
+        selectedRunId="run-open"
+      />,
+    );
+
+    // List controls remain mounted beneath the overlay.
+    expect(screen.getByRole("button", { name: "All" })).toBeTruthy();
+    expect(screen.getByRole("region", { name: "Run details" })).toBeTruthy();
+
+    fireEvent.keyDown(screen.getByRole("region", { name: "Run details" }), {
+      key: "Escape",
+    });
+
+    expect(onSelectRun).toHaveBeenCalledWith(null);
+  });
+
+  test("uses opacity-only classes for run detail overlay states", () => {
+    const runs = [
+      {
+        id: "run-open",
+        journeyVersionId: "version-open",
+        appointmentId: "appointment-open",
+        mode: "live" as const,
+        status: "completed" as const,
+        startedAt: new Date("2026-03-10T14:00:00.000Z"),
+        completedAt: new Date("2026-03-10T14:05:00.000Z"),
+        cancelledAt: null,
+        journeyNameSnapshot: "Open Journey",
+        journeyVersion: 4,
+        journeyDeleted: false,
+      },
+    ];
+
+    const { rerender } = render(
+      <WorkflowRunsPanelView
+        canManageWorkflow={true}
+        isLoadingRunDetail={false}
+        isLoadingRuns={false}
+        onRefresh={() => {}}
+        onSelectRun={() => {}}
+        runs={runs}
+        selectedRunDetail={null}
+        selectedRunId={null}
+      />,
+    );
+
+    const hiddenOverlay = screen.getByRole("region", { hidden: true });
+    expect(hiddenOverlay.getAttribute("aria-label")).toBe("Run details");
+    expect(hiddenOverlay.className).toContain("transition-opacity");
+    expect(hiddenOverlay.className).toContain("pointer-events-none");
+    expect(hiddenOverlay.className).not.toContain("translate-x");
+    expect(hiddenOverlay.className).not.toContain(
+      "transition-[opacity,transform]",
+    );
+
+    rerender(
+      <WorkflowRunsPanelView
+        canManageWorkflow={true}
+        isLoadingRunDetail={false}
+        isLoadingRuns={false}
+        onRefresh={() => {}}
+        onSelectRun={() => {}}
+        runs={runs}
+        selectedRunDetail={{
+          run: runs[0]!,
+          runSnapshot: { version: 4 },
+          deliveries: [],
+          events: [],
+          stepLogs: [],
+          triggerContext: null,
+        }}
+        selectedRunId="run-open"
+      />,
+    );
+
+    const visibleOverlay = screen.getByRole("region", { name: "Run details" });
+    expect(visibleOverlay.className).toContain("transition-opacity");
+    expect(visibleOverlay.className).toContain("opacity-100");
+    expect(visibleOverlay.className).not.toContain("translate-x");
+    expect(visibleOverlay.className).not.toContain(
+      "transition-[opacity,transform]",
+    );
+  });
+
+  test("preserves list filter after closing detail", () => {
+    const runs = [
+      {
+        id: "run-live",
+        journeyVersionId: "version-live",
+        appointmentId: "appointment-live",
+        mode: "live" as const,
+        status: "completed" as const,
+        startedAt: new Date("2026-03-10T14:00:00.000Z"),
+        completedAt: new Date("2026-03-10T14:05:00.000Z"),
+        cancelledAt: null,
+        journeyNameSnapshot: "Live Journey",
+        journeyVersion: 1,
+        journeyDeleted: false,
+      },
+      {
+        id: "run-test",
+        journeyVersionId: "version-test",
+        appointmentId: "appointment-test",
+        mode: "test" as const,
+        status: "completed" as const,
+        startedAt: new Date("2026-03-10T15:00:00.000Z"),
+        completedAt: new Date("2026-03-10T15:01:00.000Z"),
+        cancelledAt: null,
+        journeyNameSnapshot: "Test Journey",
+        journeyVersion: 1,
+        journeyDeleted: false,
+      },
+    ];
+
+    function StatefulRunsPanelView() {
+      const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
+      const selectedRun = selectedRunId
+        ? (runs.find((run) => run.id === selectedRunId) ?? null)
+        : null;
+
+      return (
+        <WorkflowRunsPanelView
+          canManageWorkflow={true}
+          isLoadingRunDetail={false}
+          isLoadingRuns={false}
+          onRefresh={() => {}}
+          onSelectRun={setSelectedRunId}
+          runs={runs}
+          selectedRunDetail={
+            selectedRun
+              ? {
+                  run: selectedRun,
+                  runSnapshot: { version: selectedRun.journeyVersion ?? 1 },
+                  deliveries: [],
+                  events: [],
+                  stepLogs: [],
+                  triggerContext: null,
+                }
+              : null
+          }
+          selectedRunId={selectedRunId}
+        />
+      );
+    }
+
+    render(<StatefulRunsPanelView />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Test" }));
+    expect(screen.queryByText("Live Journey")).toBeNull();
+
+    const testRunButton = screen.getByText("Test Journey").closest("button");
+    if (!testRunButton) {
+      throw new Error("Expected test run button to exist");
+    }
+
+    fireEvent.click(testRunButton);
+    fireEvent.click(screen.getByRole("button", { name: "Back to runs" }));
+
+    expect(screen.queryByRole("region", { name: "Run details" })).toBeNull();
+    expect(screen.queryByText("Live Journey")).toBeNull();
+    expect(screen.getByText("Test Journey")).toBeTruthy();
   });
 });

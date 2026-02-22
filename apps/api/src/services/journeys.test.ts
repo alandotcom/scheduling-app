@@ -2,6 +2,8 @@ import { beforeEach, describe, expect, test } from "bun:test";
 import { and, asc, eq, inArray } from "drizzle-orm";
 import {
   journeyDeliveries,
+  journeyRunEvents,
+  journeyRunStepLogs,
   journeyRuns,
   journeys,
   journeyVersions,
@@ -634,6 +636,211 @@ describe("JourneyService", () => {
       email: "avery@example.com",
       phone: "+14155552671",
     });
+  });
+
+  test("listRuns returns semantic sidebar summary fields", async () => {
+    const created = await journeyService.create(
+      {
+        name: "List Runs Summary",
+        graph: createLinearGraphWithSendMessage({
+          triggerId: "trigger-list-runs-summary",
+        }),
+      },
+      context,
+    );
+    const published = await journeyService.publish(
+      created.id,
+      {
+        mode: "live",
+      },
+      context,
+    );
+    const failedAppointmentId = await createQuickAppointment(db, context.orgId);
+    const activeAppointmentId = await createQuickAppointment(db, context.orgId);
+    const canceledAppointmentId = await createQuickAppointment(
+      db,
+      context.orgId,
+    );
+
+    await setTestOrgContext(db, context.orgId);
+    const [versionRow] = await db
+      .select({ id: journeyVersions.id })
+      .from(journeyVersions)
+      .where(
+        and(
+          eq(journeyVersions.journeyId, created.id),
+          eq(journeyVersions.version, published.version),
+        ),
+      )
+      .limit(1);
+
+    const [failedRun] = await db
+      .insert(journeyRuns)
+      .values({
+        orgId: context.orgId,
+        journeyVersionId: versionRow!.id,
+        triggerEntityId: failedAppointmentId,
+        appointmentId: failedAppointmentId,
+        mode: "live",
+        status: "failed",
+        journeyNameSnapshot: created.name,
+        journeyVersionSnapshot: { version: published.version },
+        startedAt: new Date("2026-03-11T09:00:00.000Z"),
+      })
+      .returning({ id: journeyRuns.id });
+
+    const [activeRun] = await db
+      .insert(journeyRuns)
+      .values({
+        orgId: context.orgId,
+        journeyVersionId: versionRow!.id,
+        triggerEntityId: activeAppointmentId,
+        appointmentId: activeAppointmentId,
+        mode: "live",
+        status: "running",
+        journeyNameSnapshot: created.name,
+        journeyVersionSnapshot: { version: published.version },
+        startedAt: new Date("2026-03-11T10:00:00.000Z"),
+      })
+      .returning({ id: journeyRuns.id });
+
+    const [canceledRun] = await db
+      .insert(journeyRuns)
+      .values({
+        orgId: context.orgId,
+        journeyVersionId: versionRow!.id,
+        triggerEntityId: canceledAppointmentId,
+        appointmentId: canceledAppointmentId,
+        mode: "live",
+        status: "canceled",
+        journeyNameSnapshot: created.name,
+        journeyVersionSnapshot: { version: published.version },
+        startedAt: new Date("2026-03-11T11:00:00.000Z"),
+        cancelledAt: new Date("2026-03-11T11:05:00.000Z"),
+      })
+      .returning({ id: journeyRuns.id });
+
+    await db.insert(journeyRunEvents).values([
+      {
+        orgId: context.orgId,
+        journeyRunId: failedRun!.id,
+        eventType: "run_planned",
+        message: "Run planned",
+        metadata: {
+          eventType: "appointment.rescheduled",
+        },
+      },
+      {
+        orgId: context.orgId,
+        journeyRunId: activeRun!.id,
+        eventType: "run_planned",
+        message: "Run planned",
+        metadata: {
+          eventType: "appointment.scheduled",
+        },
+      },
+      {
+        orgId: context.orgId,
+        journeyRunId: canceledRun!.id,
+        eventType: "run_canceled",
+        message: "Run canceled",
+        metadata: {
+          reasonCode: "appointment_canceled",
+        },
+      },
+    ]);
+
+    await db.insert(journeyRunStepLogs).values([
+      {
+        orgId: context.orgId,
+        journeyRunId: failedRun!.id,
+        stepKey: "send-step",
+        nodeType: "send-resend",
+        status: "error",
+        input: null,
+        output: null,
+        error: "Provider timeout while sending email",
+        startedAt: new Date("2026-03-11T09:01:00.000Z"),
+        completedAt: new Date("2026-03-11T09:01:05.000Z"),
+      },
+      {
+        orgId: context.orgId,
+        journeyRunId: activeRun!.id,
+        stepKey: "wait-step",
+        nodeType: "wait",
+        status: "running",
+        input: null,
+        output: {
+          waitUntil: "2026-03-11T10:30:00.000Z",
+        },
+        error: null,
+        startedAt: new Date("2026-03-11T10:01:00.000Z"),
+        completedAt: null,
+      },
+    ]);
+
+    await db.insert(journeyDeliveries).values([
+      {
+        orgId: context.orgId,
+        journeyRunId: failedRun!.id,
+        stepKey: "send-step",
+        channel: "email",
+        actionType: "send-resend",
+        status: "failed",
+        reasonCode: "past_due",
+        scheduledFor: new Date("2026-03-11T09:02:00.000Z"),
+        deterministicKey: "failed-run-summary-delivery",
+      },
+      {
+        orgId: context.orgId,
+        journeyRunId: activeRun!.id,
+        stepKey: "send-sms-step",
+        channel: "sms",
+        actionType: "send-twilio",
+        status: "planned",
+        reasonCode: null,
+        scheduledFor: new Date("2026-03-11T10:15:00.000Z"),
+        deterministicKey: "active-run-summary-delivery",
+      },
+    ]);
+
+    const runs = await journeyService.listRuns(
+      created.id,
+      {
+        mode: "live",
+        limit: 20,
+      },
+      context,
+    );
+
+    const failed = runs.find((run) => run.id === failedRun!.id);
+    expect(failed?.sidebarSummary.subject).toMatchObject({
+      type: "client",
+      primary: "FK Client",
+    });
+    expect(failed?.sidebarSummary.triggerEventType).toBe(
+      "appointment.rescheduled",
+    );
+    expect(failed?.sidebarSummary.statusReason).toContain("Provider timeout");
+    expect(failed?.sidebarSummary.nextState).toBeNull();
+    expect(failed?.sidebarSummary.channelHint).toBe("email");
+
+    const active = runs.find((run) => run.id === activeRun!.id);
+    expect(active?.sidebarSummary.triggerEventType).toBe(
+      "appointment.scheduled",
+    );
+    expect(active?.sidebarSummary.nextState).toMatchObject({
+      label: "Waiting until",
+      at: new Date("2026-03-11T10:30:00.000Z"),
+    });
+    expect(active?.sidebarSummary.statusReason).toBeNull();
+    expect(active?.sidebarSummary.channelHint).toBe("sms");
+
+    const canceled = runs.find((run) => run.id === canceledRun!.id);
+    expect(canceled?.sidebarSummary.triggerEventType).toBe(
+      "appointment.canceled",
+    );
+    expect(canceled?.sidebarSummary.statusReason).toBe("Appointment canceled");
   });
 
   test("enforces org-scoped case-insensitive journey name uniqueness", async () => {
