@@ -96,6 +96,25 @@ describe("ActionConfig", () => {
     expect(screen.queryByText("Wait For Confirmation")).toBeNull();
   });
 
+  test("hides configured disallowed action types in action picker", () => {
+    render(
+      <ActionConfig
+        config={{ actionType: "logger" }}
+        disallowedActionTypes={["wait", "wait-for-confirmation"]}
+        onUpdateConfig={mock((_key: string, _value: unknown) => {})}
+      />,
+    );
+
+    const actionTrigger = screen.getAllByRole("combobox")[1];
+    if (!actionTrigger) {
+      throw new Error("Expected action combobox");
+    }
+
+    fireEvent.click(actionTrigger);
+    expect(screen.queryByText("Wait")).toBeNull();
+    expect(screen.queryByText("Wait For Confirmation")).toBeNull();
+  });
+
   test("renders token pills in resend text and textarea fields", () => {
     const { container } = render(
       <ActionConfig

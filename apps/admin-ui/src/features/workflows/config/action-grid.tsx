@@ -29,6 +29,7 @@ import { getActionVisualSpec } from "../action-visuals";
 interface ActionGridProps {
   disabled?: boolean;
   triggerType?: JourneyTriggerConfig["triggerType"] | null;
+  disallowedActionTypes?: readonly string[];
   onSelectAction: (actionType: string) => void;
 }
 
@@ -168,6 +169,7 @@ function readViewMode(): ActionGridViewMode {
 export function ActionGrid({
   disabled,
   triggerType = null,
+  disallowedActionTypes = [],
   onSelectAction,
 }: ActionGridProps) {
   const [searchQuery, setSearchQuery] = useState("");
@@ -178,11 +180,22 @@ export function ActionGrid({
     useState<Set<string>>(readHiddenGroups);
   const [showHiddenGroups, setShowHiddenGroups] = useState(false);
   const [viewMode, setViewMode] = useState<ActionGridViewMode>(readViewMode);
+  const disallowedActionTypeSet = useMemo(
+    () =>
+      new Set(
+        disallowedActionTypes
+          .map((actionType) => actionType.trim().toLowerCase())
+          .filter((actionType) => actionType.length > 0),
+      ),
+    [disallowedActionTypes],
+  );
 
   const filteredActions = useMemo(() => {
     const normalizedQuery = searchQuery.trim().toLowerCase();
-    const eligibleActions = getAllActions().filter((action) =>
-      isJourneyActionAllowedForTriggerType(action.id, triggerType),
+    const eligibleActions = getAllActions().filter(
+      (action) =>
+        isJourneyActionAllowedForTriggerType(action.id, triggerType) &&
+        !disallowedActionTypeSet.has(action.id.toLowerCase()),
     );
 
     if (!normalizedQuery) {
@@ -196,7 +209,7 @@ export function ActionGrid({
         action.category.toLowerCase().includes(normalizedQuery)
       );
     });
-  }, [searchQuery, triggerType]);
+  }, [searchQuery, triggerType, disallowedActionTypeSet]);
 
   const groupedActions = useMemo(
     () => sortActionGroups(filteredActions),

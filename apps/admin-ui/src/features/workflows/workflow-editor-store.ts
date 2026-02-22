@@ -29,6 +29,25 @@ import {
 
 type ConditionBranch = "true" | "false";
 type TriggerBranch = "scheduled" | "canceled";
+type WorkflowTriggerBranchNodeLike = {
+  id: string;
+  data: unknown;
+};
+type WorkflowTriggerBranchEdgeLike = {
+  source: string;
+  target: string;
+  sourceHandle?: unknown;
+  label?: unknown;
+  data?: unknown;
+};
+
+export const DISALLOWED_ACTION_TYPES_ON_CANCELED_TRIGGER_BRANCH = [
+  "wait",
+  "wait-for-confirmation",
+] as const;
+const disallowedActionTypesOnCanceledTriggerBranch = new Set<string>(
+  DISALLOWED_ACTION_TYPES_ON_CANCELED_TRIGGER_BRANCH,
+);
 
 export type WorkflowNodeStatus =
   | "idle"
@@ -247,8 +266,8 @@ function normalizeTriggerBranch(value: unknown): TriggerBranch | null {
   return null;
 }
 
-export function getTriggerBranchFromEdge(
-  edge: WorkflowCanvasEdge,
+function getTriggerBranchFromEdgeLike(
+  edge: WorkflowTriggerBranchEdgeLike,
 ): TriggerBranch | null {
   const edgeData = asRecord(edge.data);
   const dataBranch = normalizeTriggerBranch(edgeData?.["triggerBranch"]);
@@ -262,6 +281,79 @@ export function getTriggerBranchFromEdge(
   }
 
   return normalizeTriggerBranch(edge.sourceHandle);
+}
+
+export function getTriggerBranchFromEdge(
+  edge: WorkflowCanvasEdge,
+): TriggerBranch | null {
+  return getTriggerBranchFromEdgeLike(edge);
+}
+
+function getTriggerNodeId(
+  nodes: readonly WorkflowTriggerBranchNodeLike[],
+): string | null {
+  const triggerNode = nodes.find(
+    (node) => asRecord(node.data)?.type === "trigger",
+  );
+  if (!triggerNode) {
+    return null;
+  }
+
+  return triggerNode.id;
+}
+
+export function getNodeIdsOnCanceledTriggerBranch(input: {
+  nodes: readonly WorkflowTriggerBranchNodeLike[];
+  edges: readonly WorkflowTriggerBranchEdgeLike[];
+}): Set<string> {
+  const triggerNodeId = getTriggerNodeId(input.nodes);
+  if (!triggerNodeId) {
+    return new Set<string>();
+  }
+
+  const canceledBranchStartNodeIds = input.edges
+    .filter(
+      (edge) =>
+        edge.source === triggerNodeId &&
+        getTriggerBranchFromEdgeLike(edge) === "canceled",
+    )
+    .map((edge) => edge.target);
+
+  if (canceledBranchStartNodeIds.length === 0) {
+    return new Set<string>();
+  }
+
+  const edgesBySource = new Map<string, WorkflowTriggerBranchEdgeLike[]>();
+  for (const edge of input.edges) {
+    const sourceEdges = edgesBySource.get(edge.source) ?? [];
+    sourceEdges.push(edge);
+    edgesBySource.set(edge.source, sourceEdges);
+  }
+
+  const canceledPathNodeIds = new Set<string>();
+  const stack = [...canceledBranchStartNodeIds];
+  while (stack.length > 0) {
+    const nodeId = stack.pop();
+    if (!nodeId || canceledPathNodeIds.has(nodeId)) {
+      continue;
+    }
+
+    canceledPathNodeIds.add(nodeId);
+    const outgoingEdges = edgesBySource.get(nodeId) ?? [];
+    for (const edge of outgoingEdges) {
+      stack.push(edge.target);
+    }
+  }
+
+  return canceledPathNodeIds;
+}
+
+export function isNodeOnCanceledTriggerBranch(input: {
+  nodeId: string;
+  nodes: readonly WorkflowTriggerBranchNodeLike[];
+  edges: readonly WorkflowTriggerBranchEdgeLike[];
+}): boolean {
+  return getNodeIdsOnCanceledTriggerBranch(input).has(input.nodeId);
 }
 
 function collectConditionBranches(
@@ -1361,12 +1453,23 @@ export const setWorkflowEditorActionTypeAtom = atom(
     if (!isSupportedJourneyActionType(input.actionType)) return;
 
     const currentNodes = get(workflowEditorNodesAtom);
+    const currentEdges = get(workflowEditorEdgesAtom);
     const triggerType = getTriggerTypeFromNodes(currentNodes);
     if (!isJourneyActionAllowedForTriggerType(input.actionType, triggerType)) {
       return;
     }
 
-    const currentEdges = get(workflowEditorEdgesAtom);
+    const normalizedActionType = input.actionType.trim().toLowerCase();
+    if (
+      disallowedActionTypesOnCanceledTriggerBranch.has(normalizedActionType) &&
+      isNodeOnCanceledTriggerBranch({
+        nodeId: input.nodeId,
+        nodes: currentNodes,
+        edges: currentEdges,
+      })
+    ) {
+      return;
+    }
     const history = get(historyAtom);
     set(historyAtom, [
       ...history,

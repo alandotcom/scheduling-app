@@ -1297,7 +1297,204 @@ describe("Journey graph trigger branching", () => {
     if (!result.success) {
       const messages = result.error.issues.map((i) => i.message);
       expect(messages).toContain(
-        "Wait steps are not allowed on the canceled branch",
+        "Wait and Wait For Confirmation steps are not allowed on the canceled branch",
+      );
+    }
+  });
+
+  test("rejects wait-for-confirmation node on canceled branch", () => {
+    const graph = {
+      attributes: {},
+      options: { type: "directed" },
+      nodes: [
+        {
+          key: "trigger",
+          attributes: {
+            id: "trigger",
+            type: "trigger",
+            position: { x: 0, y: 0 },
+            data: {
+              type: "trigger",
+              label: "Trigger",
+              config: createTriggerConfig(),
+            },
+          },
+        },
+        {
+          key: "send-scheduled",
+          attributes: {
+            id: "send-scheduled",
+            type: "action",
+            position: { x: 0, y: 120 },
+            data: {
+              type: "action",
+              label: "Send",
+              config: { actionType: "send-resend" },
+            },
+          },
+        },
+        {
+          key: "wait-confirmation-cancel",
+          attributes: {
+            id: "wait-confirmation-cancel",
+            type: "action",
+            position: { x: 200, y: 120 },
+            data: {
+              type: "action",
+              label: "Wait For Confirmation",
+              config: {
+                actionType: "wait-for-confirmation",
+                confirmationGraceMinutes: 0,
+              },
+            },
+          },
+        },
+      ],
+      edges: [
+        {
+          key: "e-scheduled",
+          source: "trigger",
+          target: "send-scheduled",
+          attributes: {
+            id: "e-scheduled",
+            source: "trigger",
+            target: "send-scheduled",
+            sourceHandle: "scheduled",
+            label: "Scheduled",
+            data: { triggerBranch: "scheduled" },
+          },
+        },
+        {
+          key: "e-canceled",
+          source: "trigger",
+          target: "wait-confirmation-cancel",
+          attributes: {
+            id: "e-canceled",
+            source: "trigger",
+            target: "wait-confirmation-cancel",
+            sourceHandle: "canceled",
+            label: "Canceled",
+            data: { triggerBranch: "canceled" },
+          },
+        },
+      ],
+    };
+    const result = linearJourneyGraphSchema.safeParse(graph);
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const messages = result.error.issues.map((i) => i.message);
+      expect(messages).toContain(
+        "Wait and Wait For Confirmation steps are not allowed on the canceled branch",
+      );
+    }
+  });
+
+  test("rejects downstream wait-for-confirmation node on canceled branch", () => {
+    const graph = {
+      attributes: {},
+      options: { type: "directed" },
+      nodes: [
+        {
+          key: "trigger",
+          attributes: {
+            id: "trigger",
+            type: "trigger",
+            position: { x: 0, y: 0 },
+            data: {
+              type: "trigger",
+              label: "Trigger",
+              config: createTriggerConfig(),
+            },
+          },
+        },
+        {
+          key: "send-scheduled",
+          attributes: {
+            id: "send-scheduled",
+            type: "action",
+            position: { x: -160, y: 120 },
+            data: {
+              type: "action",
+              label: "Send",
+              config: { actionType: "send-resend" },
+            },
+          },
+        },
+        {
+          key: "logger-cancel",
+          attributes: {
+            id: "logger-cancel",
+            type: "action",
+            position: { x: 160, y: 120 },
+            data: {
+              type: "action",
+              label: "Logger",
+              config: { actionType: "logger" },
+            },
+          },
+        },
+        {
+          key: "wait-confirmation-cancel",
+          attributes: {
+            id: "wait-confirmation-cancel",
+            type: "action",
+            position: { x: 160, y: 240 },
+            data: {
+              type: "action",
+              label: "Wait For Confirmation",
+              config: {
+                actionType: "wait-for-confirmation",
+                confirmationGraceMinutes: 0,
+              },
+            },
+          },
+        },
+      ],
+      edges: [
+        {
+          key: "e-scheduled",
+          source: "trigger",
+          target: "send-scheduled",
+          attributes: {
+            id: "e-scheduled",
+            source: "trigger",
+            target: "send-scheduled",
+            sourceHandle: "scheduled",
+            label: "Scheduled",
+            data: { triggerBranch: "scheduled" },
+          },
+        },
+        {
+          key: "e-canceled",
+          source: "trigger",
+          target: "logger-cancel",
+          attributes: {
+            id: "e-canceled",
+            source: "trigger",
+            target: "logger-cancel",
+            sourceHandle: "canceled",
+            label: "Canceled",
+            data: { triggerBranch: "canceled" },
+          },
+        },
+        {
+          key: "e-cancel-next",
+          source: "logger-cancel",
+          target: "wait-confirmation-cancel",
+          attributes: {
+            id: "e-cancel-next",
+            source: "logger-cancel",
+            target: "wait-confirmation-cancel",
+          },
+        },
+      ],
+    };
+    const result = linearJourneyGraphSchema.safeParse(graph);
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const messages = result.error.issues.map((i) => i.message);
+      expect(messages).toContain(
+        "Wait and Wait For Confirmation steps are not allowed on the canceled branch",
       );
     }
   });

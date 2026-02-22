@@ -257,6 +257,65 @@ function createGraphFixtureWithSecondAction(): SerializedJourneyGraph {
   };
 }
 
+function createCanceledBranchActionGraphFixture(): SerializedJourneyGraph {
+  return {
+    attributes: {},
+    options: { type: "directed", allowSelfLoops: false, multi: false },
+    nodes: [
+      {
+        key: "trigger-node",
+        attributes: {
+          id: "trigger-node",
+          type: "trigger",
+          position: { x: 100, y: 120 },
+          data: {
+            type: "trigger",
+            label: "Trigger",
+            status: "idle",
+            config: {
+              triggerType: "AppointmentJourney",
+              start: "appointment.scheduled",
+              restart: "appointment.rescheduled",
+              stop: "appointment.canceled",
+              correlationKey: "appointmentId",
+            },
+          },
+        },
+      },
+      {
+        key: "action-node",
+        attributes: {
+          id: "action-node",
+          type: "action",
+          position: { x: 320, y: 140 },
+          data: {
+            type: "action",
+            label: "Action",
+            status: "idle",
+            config: {},
+          },
+        },
+      },
+    ],
+    edges: [
+      {
+        key: "edge-canceled",
+        source: "trigger-node",
+        target: "action-node",
+        undirected: false,
+        attributes: {
+          id: "edge-canceled",
+          source: "trigger-node",
+          target: "action-node",
+          sourceHandle: "canceled",
+          label: "Canceled",
+          data: { triggerBranch: "canceled" },
+        },
+      },
+    ],
+  };
+}
+
 function createStaleClientTriggerGraphFixture(): SerializedJourneyGraph {
   const fixture = createGraphFixture();
   const triggerNode = fixture.nodes[0];
@@ -863,6 +922,61 @@ describe("workflow-editor-store", () => {
 
     expect(actionNode?.data.config).toMatchObject({});
     expect(store.get(workflowEditorHasUnsavedChangesAtom)).toBe(false);
+  });
+
+  test("blocks wait action types on canceled trigger branch", () => {
+    const store = createStore();
+    store.set(
+      setWorkflowEditorGraphAtom,
+      createCanceledBranchActionGraphFixture(),
+    );
+    store.set(workflowEditorIsReadOnlyAtom, false);
+
+    store.set(setWorkflowEditorActionTypeAtom, {
+      nodeId: "action-node",
+      actionType: "wait",
+    });
+    store.set(setWorkflowEditorActionTypeAtom, {
+      nodeId: "action-node",
+      actionType: "wait-for-confirmation",
+    });
+
+    const actionNode = store
+      .get(workflowEditorNodesAtom)
+      .find((node) => node.id === "action-node");
+
+    expect(actionNode?.data.config).toMatchObject({});
+    expect(store.get(workflowEditorHasUnsavedChangesAtom)).toBe(false);
+  });
+
+  test("allows wait action types on scheduled trigger branch", () => {
+    const store = createStore();
+    store.set(setWorkflowEditorGraphAtom, createGraphFixture());
+    store.set(workflowEditorIsReadOnlyAtom, false);
+
+    store.set(setWorkflowEditorActionTypeAtom, {
+      nodeId: "action-node",
+      actionType: "wait",
+    });
+
+    let actionNode = store
+      .get(workflowEditorNodesAtom)
+      .find((node) => node.id === "action-node");
+
+    expect(actionNode?.data.config).toMatchObject({ actionType: "wait" });
+
+    store.set(setWorkflowEditorActionTypeAtom, {
+      nodeId: "action-node",
+      actionType: "wait-for-confirmation",
+    });
+
+    actionNode = store
+      .get(workflowEditorNodesAtom)
+      .find((node) => node.id === "action-node");
+
+    expect(actionNode?.data.config).toMatchObject({
+      actionType: "wait-for-confirmation",
+    });
   });
 
   test("sets a service default label when selecting an action from a generic label", () => {

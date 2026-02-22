@@ -560,11 +560,15 @@ export const linearJourneyGraphSchema =
           cancelPathVisited.add(currentId);
 
           const nodeActionType = actionTypeByNodeId.get(currentId);
-          if (nodeActionType === "wait") {
+          if (
+            nodeActionType === "wait" ||
+            nodeActionType === "wait-for-confirmation"
+          ) {
             const nodeIndex = nodeIdToIndex.get(currentId);
             ctx.addIssue({
               code: "custom",
-              message: "Wait steps are not allowed on the canceled branch",
+              message:
+                "Wait and Wait For Confirmation steps are not allowed on the canceled branch",
               path: ["nodes", nodeIndex ?? 0, "attributes", "data", "config"],
             });
           }

@@ -557,6 +557,88 @@ describe("journey cutover schema exports", () => {
     expect(parsed.success).toBe(false);
   });
 
+  test("rejects wait-for-confirmation node on canceled branch", () => {
+    const graph: LinearJourneyGraph = {
+      attributes: {},
+      options: { type: "directed" },
+      nodes: [
+        {
+          key: "trigger",
+          attributes: {
+            id: "trigger",
+            type: "trigger-node",
+            position: { x: 0, y: 0 },
+            data: {
+              label: "Trigger",
+              type: "trigger",
+              config: createTriggerConfig(),
+            },
+          },
+        },
+        {
+          key: "logger-step",
+          attributes: {
+            id: "logger-step",
+            type: "action-node",
+            position: { x: -80, y: 120 },
+            data: {
+              label: "Logger",
+              type: "action",
+              config: { actionType: "logger" },
+            },
+          },
+        },
+        {
+          key: "wait-confirmation-step",
+          attributes: {
+            id: "wait-confirmation-step",
+            type: "action-node",
+            position: { x: 80, y: 120 },
+            data: {
+              label: "Wait For Confirmation",
+              type: "action",
+              config: {
+                actionType: "wait-for-confirmation",
+                confirmationGraceMinutes: 0,
+              },
+            },
+          },
+        },
+      ],
+      edges: [
+        {
+          key: "trigger-to-logger",
+          source: "trigger",
+          target: "logger-step",
+          attributes: {
+            id: "trigger-to-logger",
+            source: "trigger",
+            target: "logger-step",
+            data: { triggerBranch: "scheduled" },
+          },
+        },
+        {
+          key: "trigger-to-wait-confirmation",
+          source: "trigger",
+          target: "wait-confirmation-step",
+          attributes: {
+            id: "trigger-to-wait-confirmation",
+            source: "trigger",
+            target: "wait-confirmation-step",
+            data: { triggerBranch: "canceled" },
+          },
+        },
+      ],
+    };
+
+    const parsed = schemas.createJourneySchema.safeParse({
+      name: "Wait For Confirmation On Cancel Branch",
+      graph,
+    });
+
+    expect(parsed.success).toBe(false);
+  });
+
   test("accepts trigger with only scheduled branch", () => {
     const graph: LinearJourneyGraph = {
       attributes: {},

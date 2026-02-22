@@ -84,6 +84,18 @@ describe("ActionGrid", () => {
     expect(screen.queryByText("Wait For Confirmation")).toBeNull();
   });
 
+  test("hides configured disallowed action types", () => {
+    render(
+      <ActionGrid
+        disallowedActionTypes={["wait", "wait-for-confirmation"]}
+        onSelectAction={mock((_actionType: string) => {})}
+      />,
+    );
+
+    expect(screen.queryByText("Wait")).toBeNull();
+    expect(screen.queryByText("Wait For Confirmation")).toBeNull();
+  });
+
   test("collapses and expands group rows", () => {
     render(<ActionGrid onSelectAction={mock(() => {})} />);
 

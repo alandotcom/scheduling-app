@@ -108,6 +108,7 @@ export function AppointmentDetail({
     resolver: zodResolver(notesSchema),
     defaultValues: { notes: appointment?.notes ?? "" },
   });
+  const isNotesDirty = notesForm.formState.isDirty;
 
   useResetFormOnOpen({
     open: !!appointment && !isLoading,
@@ -137,8 +138,9 @@ export function AppointmentDetail({
   // Update notes mutation
   const updateMutation = useMutation(
     orpc.appointments.update.mutationOptions({
-      onSuccess: () => {
+      onSuccess: (_updatedAppointment, variables) => {
         queryClient.invalidateQueries({ queryKey: orpc.appointments.key() });
+        notesForm.reset({ notes: variables.notes ?? "" });
       },
       onError: (error) => {
         toast.error(error.message || "Failed to update notes");
@@ -208,6 +210,7 @@ export function AppointmentDetail({
       !isLoading &&
       isActionable &&
       activeTab === "details" &&
+      isNotesDirty &&
       !updateMutation.isPending,
     onSubmit: () => notesFormRef.current?.requestSubmit(),
   });
@@ -351,9 +354,10 @@ export function AppointmentDetail({
                 </Label>
                 {isActionable ? (
                   <form
+                    id={`appointment-notes-form-${appointment.id}`}
                     ref={notesFormRef}
                     onSubmit={notesForm.handleSubmit(handleSaveNotes)}
-                    className="mt-2 space-y-3"
+                    className="mt-2"
                   >
                     <div className="relative" ref={registerField("notes")}>
                       <Textarea
@@ -362,19 +366,6 @@ export function AppointmentDetail({
                         rows={3}
                       />
                       <FieldShortcutHint shortcut="n" visible={hintsVisible} />
-                    </div>
-                    <div className="flex gap-2">
-                      <Button
-                        type="submit"
-                        size="sm"
-                        disabled={updateMutation.isPending}
-                      >
-                        {updateMutation.isPending ? "Saving..." : "Save"}
-                        <ShortcutBadge
-                          shortcut="meta+enter"
-                          className="ml-2 hidden sm:inline-flex"
-                        />
-                      </Button>
                     </div>
                   </form>
                 ) : (
@@ -391,48 +382,66 @@ export function AppointmentDetail({
               {/* Actions */}
               {isActionable && (
                 <div className="border-t border-border pt-4">
-                  <div className="flex flex-wrap gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setShowRescheduleDialog(true)}
-                    >
-                      <Icon icon={TimeScheduleIcon} data-icon="inline-start" />
-                      Reschedule
-                    </Button>
-                    {appointment.status === "scheduled" && (
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="flex flex-wrap gap-2">
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() =>
-                          confirmMutation.mutate({ id: appointment.id })
-                        }
-                        disabled={confirmMutation.isPending}
+                        onClick={() => setShowRescheduleDialog(true)}
                       >
                         <Icon
-                          icon={CheckmarkCircle01Icon}
+                          icon={TimeScheduleIcon}
                           data-icon="inline-start"
                         />
-                        {confirmMutation.isPending
-                          ? "Confirming..."
-                          : "Confirm"}
+                        Reschedule
                       </Button>
-                    )}
+                      {appointment.status === "scheduled" && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() =>
+                            confirmMutation.mutate({ id: appointment.id })
+                          }
+                          disabled={confirmMutation.isPending}
+                        >
+                          <Icon
+                            icon={CheckmarkCircle01Icon}
+                            data-icon="inline-start"
+                          />
+                          {confirmMutation.isPending
+                            ? "Confirming..."
+                            : "Confirm"}
+                        </Button>
+                      )}
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setShowNoShowDialog(true)}
+                      >
+                        <Icon icon={Clock01Icon} data-icon="inline-start" />
+                        No-Show
+                      </Button>
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        onClick={() => setShowCancelDialog(true)}
+                      >
+                        <Icon icon={Cancel01Icon} data-icon="inline-start" />
+                        Cancel
+                      </Button>
+                    </div>
                     <Button
-                      variant="outline"
+                      type="submit"
                       size="sm"
-                      onClick={() => setShowNoShowDialog(true)}
+                      form={`appointment-notes-form-${appointment.id}`}
+                      disabled={updateMutation.isPending || !isNotesDirty}
+                      className="w-full sm:w-auto"
                     >
-                      <Icon icon={Clock01Icon} data-icon="inline-start" />
-                      No-Show
-                    </Button>
-                    <Button
-                      variant="destructive"
-                      size="sm"
-                      onClick={() => setShowCancelDialog(true)}
-                    >
-                      <Icon icon={Cancel01Icon} data-icon="inline-start" />
-                      Cancel
+                      {updateMutation.isPending ? "Saving..." : "Save"}
+                      <ShortcutBadge
+                        shortcut="meta+enter"
+                        className="ml-2 hidden sm:inline-flex"
+                      />
                     </Button>
                   </div>
                 </div>

@@ -30,8 +30,10 @@ import {
   type WorkflowFilterValueOption,
 } from "./filter-builder-shared";
 import {
+  DISALLOWED_ACTION_TYPES_ON_CANCELED_TRIGGER_BRANCH,
   getDefaultAppointmentTriggerConfig,
   getDefaultClientTriggerConfig,
+  isNodeOnCanceledTriggerBranch,
 } from "./workflow-editor-store";
 import { orpc } from "@/lib/query";
 
@@ -412,6 +414,22 @@ export function WorkflowEditorSidebar({
   const hasLoadedCustomAttributeDefinitions =
     customAttributeDefinitionsData !== undefined;
   const currentTriggerType = getTriggerType(nodes);
+  const disallowedActionTypesForSelectedNode = useMemo(() => {
+    if (!selectedNode || selectedNodeType !== "action") {
+      return [];
+    }
+
+    const isOnCanceledBranch = isNodeOnCanceledTriggerBranch({
+      nodeId: selectedNode.id,
+      nodes,
+      edges,
+    });
+    if (!isOnCanceledBranch) {
+      return [];
+    }
+
+    return [...DISALLOWED_ACTION_TYPES_ON_CANCELED_TRIGGER_BRANCH];
+  }, [selectedNode, selectedNodeType, nodes, edges]);
   const fieldOptions = useMemo(
     () =>
       currentTriggerType === "ClientJourney"
@@ -641,6 +659,9 @@ export function WorkflowEditorSidebar({
                   canManageWorkflow ? (
                     <ActionGrid
                       disabled={!canManageWorkflow}
+                      disallowedActionTypes={
+                        disallowedActionTypesForSelectedNode
+                      }
                       triggerType={currentTriggerType}
                       onSelectAction={handleSelectActionType}
                     />
@@ -759,6 +780,9 @@ export function WorkflowEditorSidebar({
                       <>
                         <ActionConfig
                           config={selectedNodeConfig}
+                          disallowedActionTypes={
+                            disallowedActionTypesForSelectedNode
+                          }
                           triggerType={currentTriggerType}
                           defaultTimezone={defaultTimezone}
                           fieldOptions={fieldOptions}

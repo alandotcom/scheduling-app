@@ -109,12 +109,14 @@ function renderSidebar({
   onSetActionType,
   selectedNode = createNodeFixture(),
   nodes = [],
+  edges = [],
 }: {
   canManageWorkflow: boolean;
   isTriggerTypeLocked?: boolean;
   onSetActionType?: (input: { nodeId: string; actionType: string }) => void;
   selectedNode?: Node;
   nodes?: Node[];
+  edges?: Edge[];
 }) {
   const queryClient = createTestQueryClient();
   const onUpdateNodeData = mock(() => {});
@@ -124,6 +126,7 @@ function renderSidebar({
       <WorkflowEditorSidebar
         canManageWorkflow={canManageWorkflow}
         defaultTimezone="America/New_York"
+        edges={edges}
         isTriggerTypeLocked={isTriggerTypeLocked}
         nodes={nodes}
         onSetActionType={onSetActionType}
@@ -382,6 +385,29 @@ describe("WorkflowEditorSidebar role behavior", () => {
       nodes: [clientTriggerNode, unconfiguredActionNode],
     });
 
+    expect(screen.queryByText("Wait For Confirmation")).toBeNull();
+  });
+
+  test("hides wait actions on canceled trigger branch in unconfigured action picker", () => {
+    const triggerNode = createNodeFixture();
+    const unconfiguredActionNode = createUnconfiguredActionNodeFixture();
+    const canceledEdge: Edge = {
+      id: "edge-canceled",
+      source: triggerNode.id,
+      target: unconfiguredActionNode.id,
+      sourceHandle: "canceled",
+      label: "Canceled",
+      data: { triggerBranch: "canceled" },
+    };
+
+    renderSidebar({
+      canManageWorkflow: true,
+      selectedNode: unconfiguredActionNode,
+      nodes: [triggerNode, unconfiguredActionNode],
+      edges: [canceledEdge],
+    });
+
+    expect(screen.queryByText("Wait")).toBeNull();
     expect(screen.queryByText("Wait For Confirmation")).toBeNull();
   });
 

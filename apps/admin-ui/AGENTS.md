@@ -10,3 +10,4 @@
 - When working on workflow canvas code that relies on React Flow (`@xyflow/react`), use the React Flow skills first (`react-flow`, `react-flow-advanced`, `react-flow-architecture`, `react-flow-code-review`).
 - Client country selector casing: the trigger/options can inherit `text-transform: uppercase` from ancestor containers. Apply `normal-case` on selector trigger/value/item text so country names stay human-readable (e.g. `United States`, not uppercase).
 - BaseUI Select label/value guardrail: when `SelectItem` values are machine codes (e.g. `client.created`, IDs, enum keys), render a human label explicitly inside `SelectValue` (`<SelectValue>{label}</SelectValue>`). Do not rely on default value rendering for trigger text.
+- Testing scope: prefer creating tests when behavior needs verification or the UI flow is moderately/very complex. For very basic UI tweaks (for example simple button placement/style adjustments), do not add tests by default.

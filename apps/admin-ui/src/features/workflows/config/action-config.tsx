@@ -67,12 +67,33 @@ function filterActionsByTriggerType(input: {
   return filtered;
 }
 
+function filterActionsByDisallowedTypes(input: {
+  categoryMap: Map<string, ActionDefinition[]>;
+  disallowedActionTypes: Set<string>;
+}): Map<string, ActionDefinition[]> {
+  const filtered = new Map<string, ActionDefinition[]>();
+
+  for (const [category, actions] of input.categoryMap.entries()) {
+    const visibleActions = actions.filter(
+      (action) => !input.disallowedActionTypes.has(action.id.toLowerCase()),
+    );
+    if (visibleActions.length === 0) {
+      continue;
+    }
+
+    filtered.set(category, visibleActions);
+  }
+
+  return filtered;
+}
+
 interface ActionConfigProps {
   config: Record<string, unknown>;
   onUpdateConfig: (key: string, value: unknown) => void;
   onUpdateConfigBatch?: (patch: Record<string, unknown>) => void;
   disabled?: boolean;
   triggerType?: JourneyTriggerConfig["triggerType"] | null;
+  disallowedActionTypes?: readonly string[];
   expressionSuggestions?: EventAttributeSuggestion[];
   fieldOptions?: WorkflowFilterFieldOption[];
   selectOptionsByKey?: Record<string, Array<{ value: string; label: string }>>;
@@ -107,6 +128,7 @@ export function ActionConfig({
   onUpdateConfigBatch,
   disabled,
   triggerType = null,
+  disallowedActionTypes = [],
   expressionSuggestions = [],
   fieldOptions,
   selectOptionsByKey = {},
@@ -114,6 +136,15 @@ export function ActionConfig({
   defaultTimezone = "America/New_York",
 }: ActionConfigProps) {
   const isDev = String(import.meta.env.DEV) === "true";
+  const disallowedActionTypeSet = useMemo(
+    () =>
+      new Set(
+        disallowedActionTypes
+          .map((actionType) => actionType.trim().toLowerCase())
+          .filter((actionType) => actionType.length > 0),
+      ),
+    [disallowedActionTypes],
+  );
 
   const fullCategoryMap = useMemo(() => getActionsByCategory(), []);
   const categoryMap = useMemo(() => {
@@ -126,7 +157,18 @@ export function ActionConfig({
       triggerType,
     });
   }, [fullCategoryMap, isDev, triggerType]);
-  const categories = useMemo(() => [...categoryMap.keys()], [categoryMap]);
+  const filteredCategoryMap = useMemo(
+    () =>
+      filterActionsByDisallowedTypes({
+        categoryMap,
+        disallowedActionTypes: disallowedActionTypeSet,
+      }),
+    [categoryMap, disallowedActionTypeSet],
+  );
+  const categories = useMemo(
+    () => [...filteredCategoryMap.keys()],
+    [filteredCategoryMap],
+  );
 
   const currentAction =
     typeof config.actionType === "string"
@@ -155,8 +197,8 @@ export function ActionConfig({
   ]);
 
   const actionsInCategory = useMemo(
-    () => categoryMap.get(selectedCategory) ?? [],
-    [categoryMap, selectedCategory],
+    () => filteredCategoryMap.get(selectedCategory) ?? [],
+    [filteredCategoryMap, selectedCategory],
   );
   const actionOptions = useMemo(() => {
     if (!currentAction) {
@@ -175,10 +217,10 @@ export function ActionConfig({
       new Map(
         categories.map((category) => [
           category,
-          (categoryMap.get(category) ?? [])[0],
+          (filteredCategoryMap.get(category) ?? [])[0],
         ]),
       ),
-    [categories, categoryMap],
+    [categories, filteredCategoryMap],
   );
 
   const handleCategoryChange = (value: string | null) => {
