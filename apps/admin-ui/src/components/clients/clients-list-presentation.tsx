@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type {
   ColumnDef,
   PaginationState,
@@ -52,12 +52,14 @@ interface ClientListItem {
 interface ClientsListPresentationProps {
   clients: ClientListItem[];
   onOpen: (clientId: string) => void;
+  onHoverIntent?: (clientId: string) => void;
   getActions: (client: ClientListItem) => ContextMenuItem[];
 }
 
 export function ClientsListPresentation({
   clients,
   onOpen,
+  onHoverIntent,
   getActions,
 }: ClientsListPresentationProps) {
   const [sorting, setSorting] = useState<SortingState>([]);
@@ -65,6 +67,27 @@ export function ClientsListPresentation({
     pageIndex: 0,
     pageSize: 20,
   });
+  const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const clearHoverIntentTimer = useCallback(() => {
+    if (hoverTimerRef.current === null) return;
+    clearTimeout(hoverTimerRef.current);
+    hoverTimerRef.current = null;
+  }, []);
+
+  useEffect(() => clearHoverIntentTimer, [clearHoverIntentTimer]);
+
+  const scheduleHoverIntent = useCallback(
+    (clientId: string) => {
+      if (!onHoverIntent) return;
+      clearHoverIntentTimer();
+      hoverTimerRef.current = setTimeout(() => {
+        onHoverIntent(clientId);
+        hoverTimerRef.current = null;
+      }, 250);
+    },
+    [clearHoverIntentTimer, onHoverIntent],
+  );
 
   const columns = useMemo<ColumnDef<ClientListItem>[]>(
     () => [
@@ -264,6 +287,8 @@ export function ClientsListPresentation({
                   <TableRow
                     className="cursor-pointer transition-colors hover:bg-muted/50"
                     tabIndex={0}
+                    onMouseEnter={() => scheduleHoverIntent(row.original.id)}
+                    onMouseLeave={clearHoverIntentTimer}
                     onClick={() => onOpen(row.original.id)}
                     onKeyDown={(event) => {
                       if (event.key === "Enter" || event.key === " ") {

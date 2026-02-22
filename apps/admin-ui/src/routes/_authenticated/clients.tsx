@@ -449,6 +449,17 @@ function ClientsPage() {
     [openDetails, handleBookAppointment, crud],
   );
 
+  const prefetchClientOnHover = useCallback(
+    (clientId: string) => {
+      void queryClient
+        .ensureQueryData(
+          orpc.clients.get.queryOptions({ input: { id: clientId } }),
+        )
+        .catch(() => {});
+    },
+    [queryClient],
+  );
+
   const handleAppointmentCreated = useCallback(
     (appointmentId: string) => {
       navigate({
@@ -616,6 +627,7 @@ function ClientsPage() {
             <ClientsListPresentation
               clients={clients}
               onOpen={openDetails}
+              onHoverIntent={prefetchClientOnHover}
               getActions={getContextMenuItems}
             />
           )}
