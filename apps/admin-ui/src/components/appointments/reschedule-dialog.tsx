@@ -121,6 +121,7 @@ export function RescheduleDialog({
       input: {
         appointmentTypeId: appointment.appointmentTypeId,
         calendarId: appointment.calendarId,
+        excludeAppointmentId: appointment.id,
         startDate: monthStartDateStr,
         endDate: monthEndDateStr,
         timezone: calendarTimezone,

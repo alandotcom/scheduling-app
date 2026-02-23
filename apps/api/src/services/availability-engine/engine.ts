@@ -89,6 +89,16 @@ export class AvailabilityService {
       if (!data) {
         return [];
       }
+      const existingAppointments =
+        query.excludeAppointmentId == null
+          ? data.existingAppointments
+          : data.existingAppointments.filter(
+              (appointment) => appointment.id !== query.excludeAppointmentId,
+            );
+      const filteredData: AvailabilityData = {
+        ...data,
+        existingAppointments,
+      };
       const { timezone } = data;
 
       const dates: string[] = [];
@@ -97,7 +107,7 @@ export class AvailabilityService {
 
       while (current <= end) {
         const dateStr = current.toISODate()!;
-        const slots = this.computeSlotsForDate(data, dateStr, timezone);
+        const slots = this.computeSlotsForDate(filteredData, dateStr, timezone);
 
         if (slots.some((s) => s.available)) {
           dates.push(dateStr);
@@ -124,9 +134,19 @@ export class AvailabilityService {
       if (!data) {
         return [];
       }
+      const existingAppointments =
+        query.excludeAppointmentId == null
+          ? data.existingAppointments
+          : data.existingAppointments.filter(
+              (appointment) => appointment.id !== query.excludeAppointmentId,
+            );
+      const filteredData: AvailabilityData = {
+        ...data,
+        existingAppointments,
+      };
 
       return this.computeSlots(
-        data,
+        filteredData,
         query.startDate,
         query.endDate,
         data.timezone,
@@ -167,6 +187,7 @@ export class AvailabilityService {
     startTime: Date,
     timezone: string | undefined,
     context: ServiceContext,
+    options?: { excludeAppointmentId?: string | undefined },
   ): Promise<{ available: boolean; reason?: string }> {
     return withOrg(context.orgId, async (tx) => {
       const resolvedTimezone = await this.resolveTimezone(
@@ -204,9 +225,19 @@ export class AvailabilityService {
       if (!data) {
         return { available: false, reason: "INVALID_CALENDAR" };
       }
+      const existingAppointments =
+        options?.excludeAppointmentId == null
+          ? data.existingAppointments
+          : data.existingAppointments.filter(
+              (appointment) => appointment.id !== options.excludeAppointmentId,
+            );
+      const filteredData: AvailabilityData = {
+        ...data,
+        existingAppointments,
+      };
 
       const slots = this.computeSlots(
-        data,
+        filteredData,
         startDate,
         startDate,
         data.timezone,

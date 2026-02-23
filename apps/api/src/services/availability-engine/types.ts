@@ -3,6 +3,7 @@
 export interface AvailabilityQuery {
   appointmentTypeId: string;
   calendarId: string;
+  excludeAppointmentId?: string | undefined;
   startDate: string; // YYYY-MM-DD
   endDate: string; // YYYY-MM-DD
   timezone?: string | undefined; // IANA timezone

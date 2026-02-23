@@ -325,14 +325,19 @@ export const checkSlot = authed
       new Date(input.startTime),
       input.timezone,
       { orgId: context.orgId, userId: context.userId },
+      { excludeAppointmentId: input.excludeAppointmentId },
     ),
   );
 
 export const availabilityEngineRoutes = {
   dates: getDates,
   times: getTimes,
-  previewTimes: getPreviewTimes,
   check: checkSlot,
+};
+
+const uiAvailabilityEngineRoutes = {
+  ...availabilityEngineRoutes,
+  previewTimes: getPreviewTimes,
 };
 
 export const availabilityRoutes = {
@@ -340,5 +345,5 @@ export const availabilityRoutes = {
   overrides: availabilityOverridesRoutes,
   blockedTime: blockedTimeRoutes,
   feed,
-  engine: availabilityEngineRoutes,
+  engine: uiAvailabilityEngineRoutes,
 };

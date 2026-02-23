@@ -72,7 +72,7 @@ describe("API vs UI Router", () => {
 
     expect(apiAvailability.dates).toBeDefined();
     expect(apiAvailability.times).toBeDefined();
-    expect(apiAvailability.previewTimes).toBeDefined();
+    expect(apiAvailability.previewTimes).toBeUndefined();
     expect(apiAvailability.check).toBeDefined();
     expect(apiAvailability.rules).toBeUndefined();
     expect(apiAvailability.overrides).toBeUndefined();

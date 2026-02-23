@@ -182,6 +182,7 @@ export const updateSchedulingLimitsSchema = z.object({
 export const availabilityQuerySchema = z.object({
   appointmentTypeId: uuidSchema,
   calendarId: uuidSchema,
+  excludeAppointmentId: uuidSchema.optional(),
   startDate: dateSchema,
   endDate: dateSchema,
   timezone: timezoneSchema.optional(),
@@ -238,6 +239,7 @@ export const availabilityPreviewTimesResponseSchema =
 export const availabilityCheckSchema = z.object({
   appointmentTypeId: uuidSchema,
   calendarId: uuidSchema,
+  excludeAppointmentId: uuidSchema.optional(),
   startTime: timestampSchema,
   timezone: timezoneSchema.optional(),
 });

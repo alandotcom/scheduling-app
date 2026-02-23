@@ -589,6 +589,7 @@ describe("Availability schemas", () => {
       const result = availabilityQuerySchema.safeParse({
         appointmentTypeId: "550e8400-e29b-41d4-a716-446655440000",
         calendarId: "550e8400-e29b-41d4-a716-446655440001",
+        excludeAppointmentId: "550e8400-e29b-41d4-a716-446655440002",
         startDate: "2024-01-15",
         endDate: "2024-01-31",
         timezone: "America/New_York",
@@ -649,6 +650,7 @@ describe("Availability schemas", () => {
       const result = availabilityCheckSchema.safeParse({
         appointmentTypeId: "550e8400-e29b-41d4-a716-446655440000",
         calendarId: "550e8400-e29b-41d4-a716-446655440001",
+        excludeAppointmentId: "550e8400-e29b-41d4-a716-446655440002",
         startTime: "2024-01-15T10:00:00Z",
         timezone: "America/New_York",
       });

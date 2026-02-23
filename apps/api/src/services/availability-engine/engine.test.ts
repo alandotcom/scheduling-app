@@ -311,6 +311,57 @@ describe("AvailabilityService", () => {
       expect(slots[2]!.available).toBe(true);
     });
 
+    test("ignores excluded appointment when computing availability", async () => {
+      await db.insert(availabilityRules).values({
+        calendarId: calendar.id,
+        weekday: 2,
+        startTime: "09:00",
+        endTime: "12:00",
+      });
+
+      const startAt = new Date("2026-01-27T15:00:00Z"); // 10am EST
+      const endAt = new Date("2026-01-27T16:00:00Z"); // 11am EST
+      const [existing] = await db
+        .insert(appointments)
+        .values({
+          orgId: org.id,
+          calendarId: calendar.id,
+          appointmentTypeId: appointmentType.id,
+          clientId: client.id,
+          startAt,
+          endAt,
+          timezone: "America/New_York",
+          status: "scheduled",
+        })
+        .returning({ id: appointments.id });
+
+      const slotsWithoutExclusion = await availabilityService.getAvailableSlots(
+        {
+          appointmentTypeId: appointmentType.id,
+          calendarId: calendar.id,
+          startDate: "2026-01-27",
+          endDate: "2026-01-27",
+          timezone: "America/New_York",
+        },
+        testContext,
+      );
+      const slotsWithExclusion = await availabilityService.getAvailableSlots(
+        {
+          appointmentTypeId: appointmentType.id,
+          calendarId: calendar.id,
+          excludeAppointmentId: existing!.id,
+          startDate: "2026-01-27",
+          endDate: "2026-01-27",
+          timezone: "America/New_York",
+        },
+        testContext,
+      );
+
+      expect(slotsWithoutExclusion[1]!.available).toBe(false);
+      expect(slotsWithExclusion[1]!.available).toBe(true);
+      expect(slotsWithExclusion[1]!.remainingCapacity).toBe(1);
+    });
+
     test("treats overlapping appointments as unavailable", async () => {
       await db.insert(availabilityRules).values({
         calendarId: calendar.id,
@@ -678,6 +729,54 @@ describe("AvailabilityService", () => {
       expect(dates).not.toContain("2026-01-28"); // Wednesday
       expect(dates).not.toContain("2026-01-30"); // Friday
     });
+
+    test("returns date when only conflicting appointment is excluded", async () => {
+      await db.insert(availabilityRules).values({
+        calendarId: calendar.id,
+        weekday: 2,
+        startTime: "09:00",
+        endTime: "10:00",
+      });
+
+      const [existing] = await db
+        .insert(appointments)
+        .values({
+          orgId: org.id,
+          calendarId: calendar.id,
+          appointmentTypeId: appointmentType.id,
+          clientId: client.id,
+          startAt: new Date("2026-01-27T14:00:00Z"),
+          endAt: new Date("2026-01-27T15:00:00Z"),
+          timezone: "America/New_York",
+          status: "scheduled",
+        })
+        .returning({ id: appointments.id });
+
+      const datesWithoutExclusion = await availabilityService.getAvailableDates(
+        {
+          appointmentTypeId: appointmentType.id,
+          calendarId: calendar.id,
+          startDate: "2026-01-27",
+          endDate: "2026-01-27",
+          timezone: "America/New_York",
+        },
+        testContext,
+      );
+      const datesWithExclusion = await availabilityService.getAvailableDates(
+        {
+          appointmentTypeId: appointmentType.id,
+          calendarId: calendar.id,
+          excludeAppointmentId: existing!.id,
+          startDate: "2026-01-27",
+          endDate: "2026-01-27",
+          timezone: "America/New_York",
+        },
+        testContext,
+      );
+
+      expect(datesWithoutExclusion).not.toContain("2026-01-27");
+      expect(datesWithExclusion).toContain("2026-01-27");
+    });
   });
 
   describe("checkSlot", () => {
@@ -745,6 +844,41 @@ describe("AvailabilityService", () => {
 
       expect(result.available).toBe(false);
       expect(result.reason).toBe("SLOT_UNAVAILABLE");
+    });
+
+    test("returns available when excluding the conflicting appointment", async () => {
+      await db.insert(availabilityRules).values({
+        calendarId: calendar.id,
+        weekday: 2,
+        startTime: "09:00",
+        endTime: "17:00",
+      });
+
+      const [existing] = await db
+        .insert(appointments)
+        .values({
+          orgId: org.id,
+          calendarId: calendar.id,
+          appointmentTypeId: appointmentType.id,
+          clientId: client.id,
+          startAt: new Date("2026-01-27T14:00:00Z"),
+          endAt: new Date("2026-01-27T15:00:00Z"),
+          timezone: "America/New_York",
+          status: "scheduled",
+        })
+        .returning({ id: appointments.id });
+
+      const result = await availabilityService.checkSlot(
+        appointmentType.id,
+        calendar.id,
+        new Date("2026-01-27T14:00:00Z"),
+        "America/New_York",
+        testContext,
+        { excludeAppointmentId: existing!.id },
+      );
+
+      expect(result.available).toBe(true);
+      expect(result.reason).toBeUndefined();
     });
   });
 

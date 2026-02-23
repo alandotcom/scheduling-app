@@ -5,6 +5,8 @@ import {
   createTestContext,
   createCalendar,
   createAvailabilityRule,
+  createClient,
+  createAppointment,
   getTestDb,
   registerDbTestReset,
 } from "../test-utils/index.js";
@@ -95,6 +97,71 @@ describe("Availability Engine", () => {
     expect(slot.start).toBe(expectedStart);
     expect(slot.end).toBe(expectedEnd);
     expect(slot.available).toBe(true);
+  });
+
+  test("getTimes can exclude an existing appointment", async () => {
+    const { org, user, calendar, appointmentType, timezone } =
+      await createAvailabilityFixture(db);
+    const ctx = createTestContext({ orgId: org.id, userId: user.id });
+    const availabilityRoutes = await getAvailabilityRoutes();
+
+    const day = DateTime.fromObject(
+      { year: 2030, month: 1, day: 16 },
+      { zone: timezone },
+    ).startOf("day");
+    const weekday = day.weekday % 7;
+
+    await createAvailabilityRule(db, calendar.id, {
+      weekday,
+      startTime: "09:00",
+      endTime: "10:00",
+    });
+
+    const client = await createClient(db, org.id, {
+      firstName: "Slot",
+      lastName: "Holder",
+    });
+    const appointment = await createAppointment(db, org.id, {
+      calendarId: calendar.id,
+      appointmentTypeId: appointmentType.id,
+      clientId: client.id,
+      startAt: day
+        .set({ hour: 9, minute: 0, second: 0, millisecond: 0 })
+        .toJSDate(),
+      endAt: day
+        .set({ hour: 10, minute: 0, second: 0, millisecond: 0 })
+        .toJSDate(),
+      timezone,
+    });
+
+    const withoutExclusion = await call(
+      availabilityRoutes.engine.times,
+      {
+        appointmentTypeId: appointmentType.id,
+        calendarId: calendar.id,
+        startDate: day.toISODate()!,
+        endDate: day.toISODate()!,
+        timezone,
+      },
+      { context: ctx },
+    );
+    const withExclusion = await call(
+      availabilityRoutes.engine.times,
+      {
+        appointmentTypeId: appointmentType.id,
+        calendarId: calendar.id,
+        excludeAppointmentId: appointment.id,
+        startDate: day.toISODate()!,
+        endDate: day.toISODate()!,
+        timezone,
+      },
+      { context: ctx },
+    );
+
+    expect(withoutExclusion.slots).toHaveLength(1);
+    expect(withoutExclusion.slots[0]?.available).toBe(false);
+    expect(withExclusion.slots).toHaveLength(1);
+    expect(withExclusion.slots[0]?.available).toBe(true);
   });
 
   test("getPreviewTimes applies draft overlays", async () => {
@@ -224,6 +291,49 @@ describe("Availability Engine", () => {
     );
 
     expect(available.available).toBe(true);
+
+    const client = await createClient(db, org.id, {
+      firstName: "Booked",
+      lastName: "Client",
+    });
+    const bookedAppointment = await createAppointment(db, org.id, {
+      calendarId: calendar.id,
+      appointmentTypeId: appointmentType.id,
+      clientId: client.id,
+      startAt: slotStart,
+      endAt: day
+        .set({ hour: 10, minute: 0, second: 0, millisecond: 0 })
+        .toJSDate(),
+      timezone,
+    });
+
+    const unavailable = await call(
+      availabilityRoutes.engine.check,
+      {
+        appointmentTypeId: appointmentType.id,
+        calendarId: calendar.id,
+        startTime: slotStart.toISOString(),
+        timezone,
+      },
+      { context: ctx },
+    );
+
+    expect(unavailable.available).toBe(false);
+    expect(unavailable.reason).toBe("SLOT_UNAVAILABLE");
+
+    const excluded = await call(
+      availabilityRoutes.engine.check,
+      {
+        appointmentTypeId: appointmentType.id,
+        calendarId: calendar.id,
+        excludeAppointmentId: bookedAppointment.id,
+        startTime: slotStart.toISOString(),
+        timezone,
+      },
+      { context: ctx },
+    );
+
+    expect(excluded.available).toBe(true);
 
     const invalidCalendar = await call(
       availabilityRoutes.engine.check,
