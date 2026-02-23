@@ -179,6 +179,7 @@ export type CalendarsListResponses = {
             locationId: string | null;
             name: string;
             timezone: string;
+            slotIntervalMin: number;
             requiresConfirmation: boolean;
             createdAt: string;
             updatedAt: string;
@@ -198,6 +199,7 @@ export type CalendarsCreateData = {
         locationId?: string;
         name: string;
         timezone: string;
+        slotIntervalMin?: number;
         requiresConfirmation?: boolean;
     };
     path?: never;
@@ -215,6 +217,7 @@ export type CalendarsCreateResponses = {
         locationId: string | null;
         name: string;
         timezone: string;
+        slotIntervalMin: number;
         requiresConfirmation: boolean;
         createdAt: string;
         updatedAt: string;
@@ -264,6 +267,7 @@ export type CalendarsGetResponses = {
         locationId: string | null;
         name: string;
         timezone: string;
+        slotIntervalMin: number;
         requiresConfirmation: boolean;
         createdAt: string;
         updatedAt: string;
@@ -282,6 +286,7 @@ export type CalendarsUpdateData = {
         locationId?: string | null;
         name?: string;
         timezone?: string;
+        slotIntervalMin?: number;
         requiresConfirmation?: boolean;
     };
     path: {
@@ -301,6 +306,7 @@ export type CalendarsUpdateResponses = {
         locationId: string | null;
         name: string;
         timezone: string;
+        slotIntervalMin: number;
         requiresConfirmation: boolean;
         createdAt: string;
         updatedAt: string;
@@ -308,6 +314,68 @@ export type CalendarsUpdateResponses = {
 };
 
 export type CalendarsUpdateResponse = CalendarsUpdateResponses[keyof CalendarsUpdateResponses];
+
+export type CalendarsSchedulingLimitsGetData = {
+    body?: never;
+    path: {
+        calendarId: string;
+    };
+    query?: never;
+    url: '/calendars/{calendarId}/scheduling-limits';
+};
+
+export type CalendarsSchedulingLimitsGetResponses = {
+    /**
+     * OK
+     */
+    200: {
+        id: string;
+        calendarId: string | null;
+        groupId: string | null;
+        minNoticeMinutes: number | null;
+        maxNoticeDays: number | null;
+        maxPerSlot: number | null;
+        maxPerDay: number | null;
+        maxPerWeek: number | null;
+    } | null;
+};
+
+export type CalendarsSchedulingLimitsGetResponse = CalendarsSchedulingLimitsGetResponses[keyof CalendarsSchedulingLimitsGetResponses];
+
+export type CalendarsSchedulingLimitsUpsertData = {
+    body: {
+        data: {
+            minNoticeMinutes?: number | null;
+            maxNoticeDays?: number | null;
+            maxPerSlot?: number | null;
+            maxPerDay?: number | null;
+            maxPerWeek?: number | null;
+        };
+    };
+    path: {
+        calendarId: string;
+    };
+    query?: never;
+    url: '/calendars/{calendarId}/scheduling-limits';
+};
+
+export type CalendarsSchedulingLimitsUpsertResponses = {
+    /**
+     * OK
+     */
+    200: {
+        id: string;
+        calendarId: string | null;
+        groupId: string | null;
+        minNoticeMinutes: number | null;
+        maxNoticeDays: number | null;
+        maxPerSlot: number | null;
+        maxPerDay: number | null;
+        maxPerWeek: number | null;
+    };
+};
+
+export type CalendarsSchedulingLimitsUpsertResponse = CalendarsSchedulingLimitsUpsertResponses[keyof CalendarsSchedulingLimitsUpsertResponses];
 
 export type ResourcesListData = {
     body?: never;
@@ -652,6 +720,7 @@ export type AppointmentTypesCalendarsListResponses = {
             locationId: string | null;
             name: string;
             timezone: string;
+            slotIntervalMin: number;
             requiresConfirmation: boolean;
             createdAt: string;
             updatedAt: string;
@@ -829,7 +898,8 @@ export type AvailabilityDatesData = {
     path?: never;
     query: {
         appointmentTypeId: string;
-        calendarIds: Array<string>;
+        calendarId: string;
+        excludeAppointmentId?: string;
         startDate: string;
         endDate: string;
         timezone?: string;
@@ -853,7 +923,8 @@ export type AvailabilityTimesData = {
     path?: never;
     query: {
         appointmentTypeId: string;
-        calendarIds: Array<string>;
+        calendarId: string;
+        excludeAppointmentId?: string;
         startDate: string;
         endDate: string;
         timezone?: string;
@@ -883,6 +954,7 @@ export type AvailabilityCheckData = {
     query: {
         appointmentTypeId: string;
         calendarId: string;
+        excludeAppointmentId?: string;
         startTime: string;
         timezone?: string;
     };
@@ -1425,6 +1497,34 @@ export type ClientsUpdateResponses = {
 
 export type ClientsUpdateResponse = ClientsUpdateResponses[keyof ClientsUpdateResponses];
 
+export type ClientsGetByIdsData = {
+    body: {
+        ids: Array<string>;
+    };
+    path?: never;
+    query?: never;
+    url: '/clients/by-ids';
+};
+
+export type ClientsGetByIdsResponses = {
+    /**
+     * OK
+     */
+    200: Array<{
+        id: string;
+        orgId: string;
+        firstName: string;
+        lastName: string;
+        email: string | null;
+        phone: string | null;
+        referenceId: string | null;
+        createdAt: string;
+        updatedAt: string;
+    }>;
+};
+
+export type ClientsGetByIdsResponse = ClientsGetByIdsResponses[keyof ClientsGetByIdsResponses];
+
 export type ClientsRemoveByReferenceData = {
     body?: {
         [key: string]: unknown;
@@ -1589,9 +1689,15 @@ export type CustomAttributesListDefinitionsResponses = {
         orgId: string;
         fieldKey: string;
         label: string;
-        type: 'TEXT' | 'NUMBER' | 'DATE' | 'BOOLEAN' | 'SELECT' | 'MULTI_SELECT';
+        type: 'TEXT' | 'NUMBER' | 'DATE' | 'BOOLEAN' | 'SELECT' | 'MULTI_SELECT' | 'RELATION_CLIENT';
         required: boolean;
         options: Array<string> | null;
+        relationConfig?: {
+            targetEntity: 'CLIENT';
+            valueMode: 'single' | 'multi';
+            pairedDefinitionId: string | null;
+            pairedRole: 'forward' | 'reverse' | null;
+        } | null;
         displayOrder: number;
         createdAt: string;
         updatedAt: string;
@@ -1604,9 +1710,19 @@ export type CustomAttributesCreateDefinitionData = {
     body: {
         fieldKey: string;
         label: string;
-        type: 'TEXT' | 'NUMBER' | 'DATE' | 'BOOLEAN' | 'SELECT' | 'MULTI_SELECT';
+        type: 'TEXT' | 'NUMBER' | 'DATE' | 'BOOLEAN' | 'SELECT' | 'MULTI_SELECT' | 'RELATION_CLIENT';
         required?: boolean;
         options?: Array<string>;
+        relationConfig?: {
+            targetEntity?: 'CLIENT';
+            valueMode: 'single' | 'multi';
+        };
+        reverseRelation?: {
+            fieldKey: string;
+            label: string;
+            valueMode: 'single' | 'multi';
+            required?: boolean;
+        };
         displayOrder?: number;
     };
     path?: never;
@@ -1623,9 +1739,15 @@ export type CustomAttributesCreateDefinitionResponses = {
         orgId: string;
         fieldKey: string;
         label: string;
-        type: 'TEXT' | 'NUMBER' | 'DATE' | 'BOOLEAN' | 'SELECT' | 'MULTI_SELECT';
+        type: 'TEXT' | 'NUMBER' | 'DATE' | 'BOOLEAN' | 'SELECT' | 'MULTI_SELECT' | 'RELATION_CLIENT';
         required: boolean;
         options: Array<string> | null;
+        relationConfig?: {
+            targetEntity: 'CLIENT';
+            valueMode: 'single' | 'multi';
+            pairedDefinitionId: string | null;
+            pairedRole: 'forward' | 'reverse' | null;
+        } | null;
         displayOrder: number;
         createdAt: string;
         updatedAt: string;
@@ -1716,9 +1838,15 @@ export type CustomAttributesUpdateDefinitionResponses = {
         orgId: string;
         fieldKey: string;
         label: string;
-        type: 'TEXT' | 'NUMBER' | 'DATE' | 'BOOLEAN' | 'SELECT' | 'MULTI_SELECT';
+        type: 'TEXT' | 'NUMBER' | 'DATE' | 'BOOLEAN' | 'SELECT' | 'MULTI_SELECT' | 'RELATION_CLIENT';
         required: boolean;
         options: Array<string> | null;
+        relationConfig?: {
+            targetEntity: 'CLIENT';
+            valueMode: 'single' | 'multi';
+            pairedDefinitionId: string | null;
+            pairedRole: 'forward' | 'reverse' | null;
+        } | null;
         displayOrder: number;
         createdAt: string;
         updatedAt: string;

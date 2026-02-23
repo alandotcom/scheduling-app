@@ -2,7 +2,7 @@
 
 import { buildClientParams, type Client as Client2, type Options as Options2, type TDataShape } from './client';
 import { client } from './client.gen';
-import type { AppointmentsCancelResponses, AppointmentsConfirmResponses, AppointmentsCreateResponses, AppointmentsGetResponses, AppointmentsListResponses, AppointmentsNoShowResponses, AppointmentsRangeResponses, AppointmentsRescheduleResponses, AppointmentsUpdateResponses, AppointmentTypesCalendarsLinkResponses, AppointmentTypesCalendarsListResponses, AppointmentTypesCalendarsUnlinkResponses, AppointmentTypesCreateResponses, AppointmentTypesGetResponses, AppointmentTypesListResponses, AppointmentTypesRemoveResponses, AppointmentTypesResourcesLinkResponses, AppointmentTypesResourcesListResponses, AppointmentTypesResourcesUnlinkResponses, AppointmentTypesResourcesUpdateResponses, AppointmentTypesUpdateResponses, AvailabilityCheckResponses, AvailabilityDatesResponses, AvailabilityTimesResponses, CalendarsCreateResponses, CalendarsGetResponses, CalendarsListResponses, CalendarsRemoveResponses, CalendarsUpdateResponses, ClientsCreateResponses, ClientsGetByReferenceResponses, ClientsGetResponses, ClientsHistorySummaryByReferenceResponses, ClientsHistorySummaryResponses, ClientsListResponses, ClientsRemoveByReferenceResponses, ClientsRemoveResponses, ClientsUpdateByReferenceResponses, ClientsUpdateResponses, CustomAttributesCreateDefinitionResponses, CustomAttributesDeleteDefinitionResponses, CustomAttributesGetSlotUsageResponses, CustomAttributesListDefinitionsResponses, CustomAttributesReorderDefinitionsResponses, CustomAttributesUpdateDefinitionResponses, HealthResponses, LocationsCreateResponses, LocationsGetResponses, LocationsListResponses, LocationsRemoveResponses, LocationsUpdateResponses, ResourcesCreateResponses, ResourcesGetResponses, ResourcesListResponses, ResourcesRemoveResponses, ResourcesUpdateResponses } from './types.gen';
+import type { AppointmentsCancelResponses, AppointmentsConfirmResponses, AppointmentsCreateResponses, AppointmentsGetResponses, AppointmentsListResponses, AppointmentsNoShowResponses, AppointmentsRangeResponses, AppointmentsRescheduleResponses, AppointmentsUpdateResponses, AppointmentTypesCalendarsLinkResponses, AppointmentTypesCalendarsListResponses, AppointmentTypesCalendarsUnlinkResponses, AppointmentTypesCreateResponses, AppointmentTypesGetResponses, AppointmentTypesListResponses, AppointmentTypesRemoveResponses, AppointmentTypesResourcesLinkResponses, AppointmentTypesResourcesListResponses, AppointmentTypesResourcesUnlinkResponses, AppointmentTypesResourcesUpdateResponses, AppointmentTypesUpdateResponses, AvailabilityCheckResponses, AvailabilityDatesResponses, AvailabilityTimesResponses, CalendarsCreateResponses, CalendarsGetResponses, CalendarsListResponses, CalendarsRemoveResponses, CalendarsSchedulingLimitsGetResponses, CalendarsSchedulingLimitsUpsertResponses, CalendarsUpdateResponses, ClientsCreateResponses, ClientsGetByIdsResponses, ClientsGetByReferenceResponses, ClientsGetResponses, ClientsHistorySummaryByReferenceResponses, ClientsHistorySummaryResponses, ClientsListResponses, ClientsRemoveByReferenceResponses, ClientsRemoveResponses, ClientsUpdateByReferenceResponses, ClientsUpdateResponses, CustomAttributesCreateDefinitionResponses, CustomAttributesDeleteDefinitionResponses, CustomAttributesGetSlotUsageResponses, CustomAttributesListDefinitionsResponses, CustomAttributesReorderDefinitionsResponses, CustomAttributesUpdateDefinitionResponses, HealthResponses, LocationsCreateResponses, LocationsGetResponses, LocationsListResponses, LocationsRemoveResponses, LocationsUpdateResponses, ResourcesCreateResponses, ResourcesGetResponses, ResourcesListResponses, ResourcesRemoveResponses, ResourcesUpdateResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean> = Options2<TData, ThrowOnError> & {
     /**
@@ -159,6 +159,54 @@ export class Locations extends HeyApiClient {
     }
 }
 
+export class SchedulingLimits extends HeyApiClient {
+    /**
+     * Get calendar scheduling limits
+     *
+     * Returns scheduling limits configured for a calendar, or null when it inherits organization defaults.
+     */
+    public get<ThrowOnError extends boolean = false>(parameters: {
+        calendarId: string;
+    }, options?: Options<never, ThrowOnError>) {
+        const params = buildClientParams([parameters], [{ args: [{ in: 'path', key: 'calendarId' }] }]);
+        return (options?.client ?? this.client).get<CalendarsSchedulingLimitsGetResponses, unknown, ThrowOnError>({
+            security: [{ scheme: 'bearer', type: 'http' }, { name: 'x-api-key', type: 'apiKey' }],
+            url: '/calendars/{calendarId}/scheduling-limits',
+            ...options,
+            ...params
+        });
+    }
+    
+    /**
+     * Upsert calendar scheduling limits
+     *
+     * Creates or updates scheduling limits for a calendar to override organization defaults.
+     */
+    public upsert<ThrowOnError extends boolean = false>(parameters: {
+        calendarId: string;
+        data?: {
+            minNoticeMinutes?: number | null;
+            maxNoticeDays?: number | null;
+            maxPerSlot?: number | null;
+            maxPerDay?: number | null;
+            maxPerWeek?: number | null;
+        };
+    }, options?: Options<never, ThrowOnError>) {
+        const params = buildClientParams([parameters], [{ args: [{ in: 'path', key: 'calendarId' }, { in: 'body', key: 'data' }] }]);
+        return (options?.client ?? this.client).post<CalendarsSchedulingLimitsUpsertResponses, unknown, ThrowOnError>({
+            security: [{ scheme: 'bearer', type: 'http' }, { name: 'x-api-key', type: 'apiKey' }],
+            url: '/calendars/{calendarId}/scheduling-limits',
+            ...options,
+            ...params,
+            headers: {
+                'Content-Type': 'application/json',
+                ...options?.headers,
+                ...params.headers
+            }
+        });
+    }
+}
+
 export class Calendars extends HeyApiClient {
     /**
      * List calendars
@@ -192,12 +240,14 @@ export class Calendars extends HeyApiClient {
         locationId?: string;
         name?: string;
         timezone?: string;
+        slotIntervalMin?: number;
         requiresConfirmation?: boolean;
     }, options?: Options<never, ThrowOnError>) {
         const params = buildClientParams([parameters], [{ args: [
                     { in: 'body', key: 'locationId' },
                     { in: 'body', key: 'name' },
                     { in: 'body', key: 'timezone' },
+                    { in: 'body', key: 'slotIntervalMin' },
                     { in: 'body', key: 'requiresConfirmation' }
                 ] }]);
         return (options?.client ?? this.client).post<CalendarsCreateResponses, unknown, ThrowOnError>({
@@ -265,6 +315,7 @@ export class Calendars extends HeyApiClient {
         locationId?: string | null;
         name?: string;
         timezone?: string;
+        slotIntervalMin?: number;
         requiresConfirmation?: boolean;
     }, options?: Options<never, ThrowOnError>) {
         const params = buildClientParams([parameters], [{ args: [
@@ -272,6 +323,7 @@ export class Calendars extends HeyApiClient {
                     { in: 'body', key: 'locationId' },
                     { in: 'body', key: 'name' },
                     { in: 'body', key: 'timezone' },
+                    { in: 'body', key: 'slotIntervalMin' },
                     { in: 'body', key: 'requiresConfirmation' }
                 ] }]);
         return (options?.client ?? this.client).patch<CalendarsUpdateResponses, unknown, ThrowOnError>({
@@ -285,6 +337,11 @@ export class Calendars extends HeyApiClient {
                 ...params.headers
             }
         });
+    }
+    
+    private _schedulingLimits?: SchedulingLimits;
+    get schedulingLimits(): SchedulingLimits {
+        return this._schedulingLimits ??= new SchedulingLimits({ client: this.client });
     }
 }
 
@@ -744,14 +801,16 @@ export class Availability extends HeyApiClient {
      */
     public dates<ThrowOnError extends boolean = false>(parameters: {
         appointmentTypeId: string;
-        calendarIds: Array<string>;
+        calendarId: string;
+        excludeAppointmentId?: string;
         startDate: string;
         endDate: string;
         timezone?: string;
     }, options?: Options<never, ThrowOnError>) {
         const params = buildClientParams([parameters], [{ args: [
                     { in: 'query', key: 'appointmentTypeId' },
-                    { in: 'query', key: 'calendarIds' },
+                    { in: 'query', key: 'calendarId' },
+                    { in: 'query', key: 'excludeAppointmentId' },
                     { in: 'query', key: 'startDate' },
                     { in: 'query', key: 'endDate' },
                     { in: 'query', key: 'timezone' }
@@ -771,14 +830,16 @@ export class Availability extends HeyApiClient {
      */
     public times<ThrowOnError extends boolean = false>(parameters: {
         appointmentTypeId: string;
-        calendarIds: Array<string>;
+        calendarId: string;
+        excludeAppointmentId?: string;
         startDate: string;
         endDate: string;
         timezone?: string;
     }, options?: Options<never, ThrowOnError>) {
         const params = buildClientParams([parameters], [{ args: [
                     { in: 'query', key: 'appointmentTypeId' },
-                    { in: 'query', key: 'calendarIds' },
+                    { in: 'query', key: 'calendarId' },
+                    { in: 'query', key: 'excludeAppointmentId' },
                     { in: 'query', key: 'startDate' },
                     { in: 'query', key: 'endDate' },
                     { in: 'query', key: 'timezone' }
@@ -799,12 +860,14 @@ export class Availability extends HeyApiClient {
     public check<ThrowOnError extends boolean = false>(parameters: {
         appointmentTypeId: string;
         calendarId: string;
+        excludeAppointmentId?: string;
         startTime: string;
         timezone?: string;
     }, options?: Options<never, ThrowOnError>) {
         const params = buildClientParams([parameters], [{ args: [
                     { in: 'query', key: 'appointmentTypeId' },
                     { in: 'query', key: 'calendarId' },
+                    { in: 'query', key: 'excludeAppointmentId' },
                     { in: 'query', key: 'startTime' },
                     { in: 'query', key: 'timezone' }
                 ] }]);
@@ -1216,6 +1279,28 @@ export class Clients extends HeyApiClient {
     }
     
     /**
+     * Get clients by IDs
+     *
+     * Returns clients for the provided IDs in input order.
+     */
+    public getByIds<ThrowOnError extends boolean = false>(parameters?: {
+        ids?: Array<string>;
+    }, options?: Options<never, ThrowOnError>) {
+        const params = buildClientParams([parameters], [{ args: [{ in: 'body', key: 'ids' }] }]);
+        return (options?.client ?? this.client).post<ClientsGetByIdsResponses, unknown, ThrowOnError>({
+            security: [{ scheme: 'bearer', type: 'http' }, { name: 'x-api-key', type: 'apiKey' }],
+            url: '/clients/by-ids',
+            ...options,
+            ...params,
+            headers: {
+                'Content-Type': 'application/json',
+                ...options?.headers,
+                ...params.headers
+            }
+        });
+    }
+    
+    /**
      * Delete client by reference
      *
      * Deletes a client using the external/by-reference identifier path.
@@ -1354,9 +1439,19 @@ export class CustomAttributes extends HeyApiClient {
     public createDefinition<ThrowOnError extends boolean = false>(parameters?: {
         fieldKey?: string;
         label?: string;
-        type?: 'TEXT' | 'NUMBER' | 'DATE' | 'BOOLEAN' | 'SELECT' | 'MULTI_SELECT';
+        type?: 'TEXT' | 'NUMBER' | 'DATE' | 'BOOLEAN' | 'SELECT' | 'MULTI_SELECT' | 'RELATION_CLIENT';
         required?: boolean;
         options?: Array<string>;
+        relationConfig?: {
+            targetEntity?: 'CLIENT';
+            valueMode: 'single' | 'multi';
+        };
+        reverseRelation?: {
+            fieldKey: string;
+            label: string;
+            valueMode: 'single' | 'multi';
+            required?: boolean;
+        };
         displayOrder?: number;
     }, options?: Options<never, ThrowOnError>) {
         const params = buildClientParams([parameters], [{ args: [
@@ -1365,6 +1460,8 @@ export class CustomAttributes extends HeyApiClient {
                     { in: 'body', key: 'type' },
                     { in: 'body', key: 'required' },
                     { in: 'body', key: 'options' },
+                    { in: 'body', key: 'relationConfig' },
+                    { in: 'body', key: 'reverseRelation' },
                     { in: 'body', key: 'displayOrder' }
                 ] }]);
         return (options?.client ?? this.client).post<CustomAttributesCreateDefinitionResponses, unknown, ThrowOnError>({
