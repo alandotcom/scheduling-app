@@ -42,7 +42,7 @@
     "eslint-plugin-react-hooks": "^7.0.1",
     "inngest-cli": "^1.17.1",
     "knip": "^5.85.0",
-    "oxlint": "^1.49.0",
+    "oxlint": "^1.50.0",
     "oxlint-tsgolint": "^0.14.2",
     "turbo": "^2.8.10",
     "typescript": "catalog:"
