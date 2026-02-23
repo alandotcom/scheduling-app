@@ -1,6 +1,6 @@
 // Appointments page with list/schedule views and modal detail panel
 
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo, useRef } from "react";
 import { DateTime } from "luxon";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -14,6 +14,7 @@ import { getQueryClient, orpc } from "@/lib/query";
 import { swallowIgnorableRouteLoaderError } from "@/lib/query-cancellation";
 import {
   formatDisplayDate,
+  formatDisplayDateTime,
   formatTimezoneShort,
   getUserTimezone,
   parseDateParamInTimezone,
@@ -73,8 +74,12 @@ import { AppointmentsTimezoneControl } from "@/components/appointments/appointme
 import { AppointmentsList } from "@/components/appointments/appointments-list";
 import { AppointmentDetail } from "@/components/appointments/appointment-detail";
 import { RescheduleDialog } from "@/components/appointments/reschedule-dialog";
-import { ScheduleGrid } from "@/components/appointments/schedule-grid";
 import { SchedulingControlsSheet } from "@/components/appointments/scheduling-controls-sheet";
+import {
+  AppointmentCalendarScheduler,
+  type AppointmentCalendarRange,
+  type AppointmentCalendarSchedulerRef,
+} from "@/components/appointments/fullcalendar/scheduler";
 
 type ViewMode = "list" | "schedule";
 type DetailTabValue = "details" | "client" | "history" | "workflows";
@@ -86,8 +91,30 @@ const STATUS_FILTER_OPTIONS = [
   { value: "no_show", label: "No Show" },
 ] as const;
 type AppointmentStatusFilter = (typeof STATUS_FILTER_OPTIONS)[number]["value"];
+const STATUS_FILTER_DOT_CLASS: Record<AppointmentStatusFilter, string> = {
+  scheduled: "bg-blue-500",
+  confirmed: "bg-emerald-500",
+  cancelled: "bg-slate-400",
+  no_show: "bg-amber-500",
+};
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+interface CreateAppointmentPrefill {
+  calendarId?: string;
+  typeId?: string;
+  dateISO?: string;
+  startTimeISO?: string;
+}
+
+interface PendingCalendarReschedule {
+  appointmentId: string;
+  oldStartAt: Date;
+  oldEndAt: Date;
+  newStartAt: Date;
+  newEndAt: Date;
+  timezone: string;
+}
 
 const isDetailTab = (value: string): value is DetailTabValue =>
   value === "details" ||
@@ -125,14 +152,21 @@ function AppointmentsPage() {
     urlListScope && isListScope(urlListScope) ? urlListScope : "upcoming";
 
   // Confirmation dialogs
+  const schedulerRef = useRef<AppointmentCalendarSchedulerRef | null>(null);
   const [cancellingId, setCancellingId] = useState<string | null>(null);
+  const [confirmingId, setConfirmingId] = useState<string | null>(null);
   const [noShowId, setNoShowId] = useState<string | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
+  const [createPrefill, setCreatePrefill] =
+    useState<CreateAppointmentPrefill | null>(null);
+  const [pendingCalendarReschedule, setPendingCalendarReschedule] =
+    useState<PendingCalendarReschedule | null>(null);
   const [rescheduleAppointment, setRescheduleAppointment] =
     useState<AppointmentWithRelations | null>(null);
   const [mobileControlsOpen, setMobileControlsOpen] = useState(false);
   const isCreateModalOpen = modalOpen;
-  const openCreateModal = useCallback(() => {
+  const openCreateModal = useCallback((prefill?: CreateAppointmentPrefill) => {
+    setCreatePrefill(prefill ?? null);
     setModalOpen(true);
   }, []);
 
@@ -186,10 +220,10 @@ function AppointmentsPage() {
         search: (prev) => ({
           ...prev,
           view: newView,
-          // Set date to current week start when switching to schedule
+          // Set date to today's local date when switching to schedule.
           date:
             newView === "schedule" && !prev.date
-              ? formatDateParam(getWeekStart(DateTime.now()))
+              ? formatDateParam(DateTime.now())
               : prev.date,
         }),
       });
@@ -330,14 +364,35 @@ function AppointmentsPage() {
   });
   const listAppointments = useMemo(() => listData?.items ?? [], [listData]);
 
-  // Parse date param for schedule view or default to current week
-  const weekStart = useMemo(() => {
+  // Parse active schedule date for FullCalendar navigation.
+  const scheduleDate = useMemo(() => {
     if (date) {
-      const parsed = parseDateParamInTimezone(date, displayTimezone);
-      return getWeekStart(parsed);
+      return parseDateParamInTimezone(date, displayTimezone);
     }
-    return getWeekStart(DateTime.now().setZone(displayTimezone));
+    return DateTime.now().setZone(displayTimezone).startOf("day");
   }, [date, displayTimezone]);
+  const [scheduleRange, setScheduleRange] = useState<AppointmentCalendarRange>(
+    () => {
+      const rangeStart = getWeekStart(scheduleDate);
+      return {
+        rangeStart,
+        rangeEnd: rangeStart.plus({ days: 7 }),
+        activeDate: scheduleDate,
+      };
+    },
+  );
+  const scheduleCalendarIds = useMemo(
+    () =>
+      filters.calendarId ? [filters.calendarId] : calendars.map((c) => c.id),
+    [calendars, filters.calendarId],
+  );
+  const calendarTimezoneById = useMemo(
+    () =>
+      Object.fromEntries(
+        calendars.map((calendar) => [calendar.id, calendar.timezone]),
+      ),
+    [calendars],
+  );
 
   // Fetch appointments for schedule view
   const {
@@ -345,7 +400,8 @@ function AppointmentsPage() {
     isLoading: scheduleLoading,
     isFetching: scheduleFetching,
   } = useScheduleAppointments({
-    weekStart,
+    rangeStart: scheduleRange.rangeStart,
+    rangeEnd: scheduleRange.rangeEnd,
     displayTimezone,
     filters: {
       calendarId: filters.calendarId || undefined,
@@ -353,40 +409,61 @@ function AppointmentsPage() {
       appointmentTypeId: filters.appointmentTypeId || undefined,
       status: statusFilter,
     },
-    enabled: true,
+    enabled: currentView === "schedule",
   });
 
-  // Week navigation for schedule view
-  const goToPreviousWeek = useCallback(() => {
-    const newStart = weekStart.minus({ days: 7 });
-    navigate({
-      search: (prev) => ({
-        ...prev,
-        date: formatDateParam(newStart),
-      }),
-    });
-  }, [navigate, weekStart]);
+  const { data: availabilityFeedData } = useQuery({
+    ...orpc.availability.feed.queryOptions({
+      input: {
+        calendarIds: scheduleCalendarIds,
+        startAt: scheduleRange.rangeStart.toJSDate(),
+        endAt: scheduleRange.rangeEnd.toJSDate(),
+        timezone: displayTimezone,
+      },
+    }),
+    enabled: currentView === "schedule" && scheduleCalendarIds.length > 0,
+    placeholderData: (previous) => previous,
+  });
+  const availabilityFeedItems = availabilityFeedData?.items ?? [];
 
-  const goToNextWeek = useCallback(() => {
-    const newStart = weekStart.plus({ days: 7 });
-    navigate({
-      search: (prev) => ({
-        ...prev,
-        date: formatDateParam(newStart),
-      }),
-    });
-  }, [navigate, weekStart]);
+  const handleScheduleRangeChange = useCallback(
+    (nextRange: AppointmentCalendarRange) => {
+      setScheduleRange((previous) => {
+        const sameRange =
+          previous.rangeStart.toMillis() === nextRange.rangeStart.toMillis() &&
+          previous.rangeEnd.toMillis() === nextRange.rangeEnd.toMillis() &&
+          previous.activeDate.hasSame(nextRange.activeDate, "day");
+        return sameRange ? previous : nextRange;
+      });
+
+      const nextDate = formatDateParam(nextRange.activeDate);
+      navigate({
+        search: (previous) => {
+          if (previous.date === nextDate) {
+            return previous;
+          }
+          return {
+            ...previous,
+            date: nextDate,
+          };
+        },
+        replace: true,
+      });
+    },
+    [navigate],
+  );
+
+  const goToPreviousPeriod = useCallback(() => {
+    schedulerRef.current?.goToPrevious();
+  }, []);
+
+  const goToNextPeriod = useCallback(() => {
+    schedulerRef.current?.goToNext();
+  }, []);
 
   const goToToday = useCallback(() => {
-    navigate({
-      search: (prev) => ({
-        ...prev,
-        date: formatDateParam(
-          getWeekStart(DateTime.now().setZone(displayTimezone)),
-        ),
-      }),
-    });
-  }, [displayTimezone, navigate]);
+    schedulerRef.current?.goToToday();
+  }, []);
 
   const setTimezoneMode = useCallback(
     (mode: SchedulingTimezoneMode) => {
@@ -426,6 +503,7 @@ function AppointmentsPage() {
         queryClient.invalidateQueries({
           queryKey: orpc.appointmentTypes.key(),
         });
+        setConfirmingId(null);
       },
       onError: (error) => {
         toast.error(error.message || "Failed to confirm appointment");
@@ -447,6 +525,23 @@ function AppointmentsPage() {
       },
       onError: (error) => {
         toast.error(error.message || "Failed to cancel appointment");
+      },
+    }),
+  );
+
+  const calendarRescheduleMutation = useMutation(
+    orpc.appointments.reschedule.mutationOptions({
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: orpc.appointments.key() });
+        queryClient.invalidateQueries({ queryKey: orpc.clients.key() });
+        queryClient.invalidateQueries({ queryKey: orpc.calendars.key() });
+        queryClient.invalidateQueries({
+          queryKey: orpc.appointmentTypes.key(),
+        });
+        setPendingCalendarReschedule(null);
+      },
+      onError: (error) => {
+        toast.error(error.message || "Failed to reschedule appointment");
       },
     }),
   );
@@ -496,6 +591,15 @@ function AppointmentsPage() {
     noneLabel: "All statuses",
     unknownLabel: "Unknown status",
   });
+  const calendarColorById = useMemo(() => {
+    const colors = new Map<string, string>();
+    for (const appointment of scheduleAppointments) {
+      if (appointment.calendarColor && !colors.has(appointment.calendarId)) {
+        colors.set(appointment.calendarId, appointment.calendarColor);
+      }
+    }
+    return colors;
+  }, [scheduleAppointments]);
 
   // Check if selected appointment is in list data (full relations available)
   const selectedInList = useMemo(
@@ -606,13 +710,13 @@ function AppointmentsPage() {
       },
       {
         key: "[",
-        action: goToPreviousWeek,
-        description: "Previous week",
+        action: goToPreviousPeriod,
+        description: "Previous period",
       },
       {
         key: "]",
-        action: goToNextWeek,
-        description: "Next week",
+        action: goToNextPeriod,
+        description: "Next period",
       },
       {
         key: "t",
@@ -627,9 +731,23 @@ function AppointmentsPage() {
     cancelMutation.mutate({ id: cancellingId });
   };
 
+  const handleConfirm = () => {
+    if (!confirmingId) return;
+    confirmMutation.mutate({ id: confirmingId });
+  };
+
   const handleNoShow = () => {
     if (!noShowId) return;
     noShowMutation.mutate({ id: noShowId });
+  };
+
+  const handleCalendarRescheduleConfirm = () => {
+    if (!pendingCalendarReschedule) return;
+    calendarRescheduleMutation.mutate({
+      id: pendingCalendarReschedule.appointmentId,
+      newStartTime: pendingCalendarReschedule.newStartAt,
+      timezone: pendingCalendarReschedule.timezone,
+    });
   };
 
   // Active filter count and display
@@ -676,6 +794,9 @@ function AppointmentsPage() {
       onRemove: () => clearFilter("status"),
     });
   }
+  const scheduleActiveFiltersDisplay = activeFiltersDisplay.filter(
+    (filter) => filter.label === "Client",
+  );
   const mobileTimezoneSummaryLabel =
     timezoneMode === "viewer"
       ? "My time"
@@ -702,6 +823,36 @@ function AppointmentsPage() {
       openDetails(id, "details");
     },
     [openDetails],
+  );
+
+  const handleCreateFromScheduleSlot = useCallback(
+    ({ startAt }: { startAt: Date; endAt: Date }) => {
+      const defaultCalendarId = filters.calendarId || calendars[0]?.id;
+      const slotDate = DateTime.fromJSDate(startAt, {
+        zone: displayTimezone,
+      });
+
+      openCreateModal({
+        calendarId: defaultCalendarId,
+        typeId: filters.appointmentTypeId || undefined,
+        dateISO: slotDate.toISODate() ?? undefined,
+        startTimeISO: slotDate.toISO() ?? undefined,
+      });
+    },
+    [
+      calendars,
+      displayTimezone,
+      filters.appointmentTypeId,
+      filters.calendarId,
+      openCreateModal,
+    ],
+  );
+
+  const handleCalendarRescheduleRequest = useCallback(
+    (input: PendingCalendarReschedule) => {
+      setPendingCalendarReschedule(input);
+    },
+    [],
   );
 
   const handleAppointmentCreated = useCallback(
@@ -744,15 +895,119 @@ function AppointmentsPage() {
     [navigate],
   );
 
+  const renderCalendarFilterField = () => (
+    <FilterField label="Calendar">
+      <Select
+        value={filters.calendarId || "all"}
+        onValueChange={(value) =>
+          value && setFilters({ calendarId: value === "all" ? "" : value })
+        }
+      >
+        <SelectTrigger className="w-full">
+          <SelectValue placeholder="All calendars">
+            {calendarFilterLabel}
+          </SelectValue>
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="all">All calendars</SelectItem>
+          {calendars.map((cal) => {
+            const color = calendarColorById.get(cal.id);
+            return (
+              <SelectItem key={cal.id} value={cal.id}>
+                <span className="flex items-center gap-2">
+                  <span
+                    className="size-2 shrink-0 rounded-full"
+                    style={{
+                      backgroundColor: color ?? "var(--color-muted-foreground)",
+                    }}
+                  />
+                  <span>{cal.name}</span>
+                </span>
+              </SelectItem>
+            );
+          })}
+        </SelectContent>
+      </Select>
+    </FilterField>
+  );
+
+  const renderTypeFilterField = () => (
+    <FilterField label="Type">
+      <Select
+        value={filters.appointmentTypeId || "all"}
+        onValueChange={(value) =>
+          value &&
+          setFilters({ appointmentTypeId: value === "all" ? "" : value })
+        }
+      >
+        <SelectTrigger className="w-full">
+          <SelectValue placeholder="All types">{typeFilterLabel}</SelectValue>
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="all">All types</SelectItem>
+          {appointmentTypes.map((type) => (
+            <SelectItem key={type.id} value={type.id}>
+              {type.name}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </FilterField>
+  );
+
+  const renderStatusFilterField = () => (
+    <FilterField label="Status">
+      <Select
+        value={filters.status || "all"}
+        onValueChange={(value) =>
+          value && setFilters({ status: value === "all" ? "" : value })
+        }
+      >
+        <SelectTrigger className="w-full">
+          <SelectValue placeholder="All statuses">
+            {statusFilterLabel}
+          </SelectValue>
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="all">All statuses</SelectItem>
+          {STATUS_FILTER_OPTIONS.map((status) => (
+            <SelectItem key={status.value} value={status.value}>
+              <span className="flex items-center gap-2">
+                <span
+                  className={cn(
+                    "size-2 shrink-0 rounded-full",
+                    STATUS_FILTER_DOT_CLASS[status.value],
+                  )}
+                />
+                <span>{status.label}</span>
+              </span>
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </FilterField>
+  );
+
+  const filterPopoverContent = (
+    <>
+      {renderCalendarFilterField()}
+      {renderTypeFilterField()}
+      {renderStatusFilterField()}
+    </>
+  );
+
   return (
     <PageScaffold className="pb-24 sm:pb-6">
-      <div className="mt-6 hidden flex-wrap items-center gap-2 sm:flex sm:gap-3">
-        <ViewToggle view={currentView} onViewChange={setView} size="sm" />
+      <div className="hidden mt-2 items-center gap-2 sm:flex sm:flex-nowrap sm:overflow-x-auto sm:pb-1">
+        <div className="shrink-0">
+          <ViewToggle view={currentView} onViewChange={setView} size="sm" />
+        </div>
         <div
           className={cn(
-            "inline-flex items-center rounded-lg border border-border bg-muted/30 p-0.5",
-            currentView !== "list" && "invisible",
+            "inline-flex shrink-0 items-center rounded-lg border border-border bg-muted/30 p-0.5",
+            currentView !== "list" && "invisible pointer-events-none",
           )}
+          aria-hidden={currentView !== "list"}
         >
           <button
             type="button"
@@ -763,6 +1018,7 @@ function AppointmentsPage() {
                 ? "bg-background text-foreground shadow-sm"
                 : "text-muted-foreground hover:text-foreground",
             )}
+            tabIndex={currentView === "list" ? 0 : -1}
           >
             Upcoming
           </button>
@@ -775,6 +1031,7 @@ function AppointmentsPage() {
                 ? "bg-background text-foreground shadow-sm"
                 : "text-muted-foreground hover:text-foreground",
             )}
+            tabIndex={currentView === "list" ? 0 : -1}
           >
             History
           </button>
@@ -783,6 +1040,7 @@ function AppointmentsPage() {
           value={timezoneMode}
           onValueChange={setTimezoneMode}
           size="sm"
+          className="shrink-0"
         />
         <AppointmentsTimezoneControl
           timezoneMode={timezoneMode}
@@ -791,9 +1049,139 @@ function AppointmentsPage() {
           selectedCalendarTimezone={selectedCalendar?.timezone}
           onTimezoneChange={setDisplayTimezone}
         />
+        {currentView === "schedule" ? (
+          <>
+            <div className="flex shrink-0 items-center gap-2">
+              <Select
+                value={filters.calendarId || "all"}
+                onValueChange={(value) =>
+                  value &&
+                  setFilters({ calendarId: value === "all" ? "" : value })
+                }
+              >
+                <SelectTrigger size="sm" className="w-[10.5rem]">
+                  <SelectValue placeholder="All calendars">
+                    {filters.calendarId ? (
+                      <span className="flex items-center gap-2">
+                        <span
+                          className="size-2 shrink-0 rounded-full"
+                          style={{
+                            backgroundColor:
+                              calendarColorById.get(filters.calendarId) ??
+                              "var(--color-muted-foreground)",
+                          }}
+                        />
+                        <span className="truncate">{calendarFilterLabel}</span>
+                      </span>
+                    ) : (
+                      <span className="flex items-center gap-2">
+                        <span className="flex -space-x-1">
+                          {calendars.slice(0, 3).map((cal) => (
+                            <span
+                              key={cal.id}
+                              className="size-2 rounded-full ring-1 ring-background"
+                              style={{
+                                backgroundColor:
+                                  calendarColorById.get(cal.id) ??
+                                  "var(--color-muted-foreground)",
+                              }}
+                            />
+                          ))}
+                        </span>
+                        <span className="truncate">All calendars</span>
+                      </span>
+                    )}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All calendars</SelectItem>
+                  {calendars.map((cal) => {
+                    const color = calendarColorById.get(cal.id);
+                    return (
+                      <SelectItem key={cal.id} value={cal.id}>
+                        <span className="flex items-center gap-2">
+                          <span
+                            className="size-2 shrink-0 rounded-full"
+                            style={{
+                              backgroundColor:
+                                color ?? "var(--color-muted-foreground)",
+                            }}
+                          />
+                          <span>{cal.name}</span>
+                        </span>
+                      </SelectItem>
+                    );
+                  })}
+                </SelectContent>
+              </Select>
+
+              <Select
+                value={filters.status || "all"}
+                onValueChange={(value) =>
+                  value && setFilters({ status: value === "all" ? "" : value })
+                }
+              >
+                <SelectTrigger size="sm" className="w-[9rem]">
+                  <SelectValue placeholder="All statuses">
+                    {statusFilterLabel}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All statuses</SelectItem>
+                  {STATUS_FILTER_OPTIONS.map((status) => (
+                    <SelectItem key={status.value} value={status.value}>
+                      <span className="flex items-center gap-2">
+                        <span
+                          className={cn(
+                            "size-2 shrink-0 rounded-full",
+                            STATUS_FILTER_DOT_CLASS[status.value],
+                          )}
+                        />
+                        <span>{status.label}</span>
+                      </span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              <Select
+                value={filters.appointmentTypeId || "all"}
+                onValueChange={(value) =>
+                  value &&
+                  setFilters({
+                    appointmentTypeId: value === "all" ? "" : value,
+                  })
+                }
+              >
+                <SelectTrigger size="sm" className="w-[9rem]">
+                  <SelectValue placeholder="All types">
+                    {typeFilterLabel}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All types</SelectItem>
+                  {appointmentTypes.map((type) => (
+                    <SelectItem key={type.id} value={type.id}>
+                      {type.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {scheduleActiveFiltersDisplay.length > 0 ? (
+              <ActiveFilters filters={scheduleActiveFiltersDisplay} />
+            ) : null}
+          </>
+        ) : null}
       </div>
 
-      <div className="mt-6 space-y-2 sm:hidden">
+      <div
+        className={cn(
+          "space-y-2 sm:hidden",
+          currentView === "schedule" ? "mt-2" : "mt-6",
+        )}
+      >
         <div className="flex items-center gap-2">
           <ViewToggle view={currentView} onViewChange={setView} size="sm" />
           <Button
@@ -821,86 +1209,20 @@ function AppointmentsPage() {
       </div>
 
       {/* Filters */}
-      <div className="mt-6 hidden items-center gap-4 sm:flex">
-        <FilterPopover
-          activeFilterCount={activeFilterCount}
-          onClear={clearAllFilters}
-        >
-          <FilterField label="Calendar">
-            <Select
-              value={filters.calendarId || "all"}
-              onValueChange={(value) =>
-                value &&
-                setFilters({ calendarId: value === "all" ? "" : value })
-              }
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="All calendars">
-                  {calendarFilterLabel}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All calendars</SelectItem>
-                {calendars.map((cal) => (
-                  <SelectItem key={cal.id} value={cal.id}>
-                    {cal.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </FilterField>
+      {currentView === "list" ? (
+        <div className="mt-6 hidden items-center gap-4 sm:flex">
+          <FilterPopover
+            activeFilterCount={activeFilterCount}
+            onClear={clearAllFilters}
+          >
+            {filterPopoverContent}
+          </FilterPopover>
 
-          <FilterField label="Type">
-            <Select
-              value={filters.appointmentTypeId || "all"}
-              onValueChange={(value) =>
-                value &&
-                setFilters({ appointmentTypeId: value === "all" ? "" : value })
-              }
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="All types">
-                  {typeFilterLabel}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All types</SelectItem>
-                {appointmentTypes.map((type) => (
-                  <SelectItem key={type.id} value={type.id}>
-                    {type.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </FilterField>
-
-          <FilterField label="Status">
-            <Select
-              value={filters.status || "all"}
-              onValueChange={(value) =>
-                value && setFilters({ status: value === "all" ? "" : value })
-              }
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="All statuses">
-                  {statusFilterLabel}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All statuses</SelectItem>
-                <SelectItem value="scheduled">Scheduled</SelectItem>
-                <SelectItem value="confirmed">Confirmed</SelectItem>
-                <SelectItem value="cancelled">Cancelled</SelectItem>
-                <SelectItem value="no_show">No Show</SelectItem>
-              </SelectContent>
-            </Select>
-          </FilterField>
-        </FilterPopover>
-
-        {activeFiltersDisplay.length > 0 && (
-          <ActiveFilters filters={activeFiltersDisplay} />
-        )}
-      </div>
+          {activeFiltersDisplay.length > 0 ? (
+            <ActiveFilters filters={activeFiltersDisplay} />
+          ) : null}
+        </div>
+      ) : null}
 
       <SchedulingControlsSheet
         open={mobileControlsOpen}
@@ -931,7 +1253,13 @@ function AppointmentsPage() {
       />
 
       {/* Main Content */}
-      <div id={FOCUS_ZONES.LIST} className="mt-6 flex min-h-[600px] flex-col">
+      <div
+        id={FOCUS_ZONES.LIST}
+        className={cn(
+          "flex min-h-[600px] flex-col",
+          currentView === "schedule" ? "mt-2" : "mt-6",
+        )}
+      >
         {currentView === "list" ? (
           <AppointmentsList
             appointments={listAppointments}
@@ -939,7 +1267,7 @@ function AppointmentsPage() {
             selectedId={selectedId}
             onSelect={handleSelectAppointment}
             onReschedule={handleRescheduleFromList}
-            onConfirm={(id) => confirmMutation.mutate({ id })}
+            onConfirm={setConfirmingId}
             onCancel={setCancellingId}
             onNoShow={setNoShowId}
             isLoading={listLoading}
@@ -949,17 +1277,24 @@ function AppointmentsPage() {
             }
           />
         ) : (
-          <div className="flex-1 overflow-hidden rounded-xl border border-border shadow-sm">
-            <ScheduleGrid
+          <div className="h-[clamp(35rem,calc(100dvh-12.25rem),68rem)] overflow-hidden rounded-xl border border-border bg-card shadow-sm">
+            <AppointmentCalendarScheduler
+              ref={schedulerRef}
               appointments={scheduleAppointments}
+              availabilityItems={availabilityFeedItems}
               displayTimezone={displayTimezone}
-              weekStart={weekStart}
+              initialDate={scheduleDate}
               selectedId={selectedId}
+              calendarTimezoneById={calendarTimezoneById}
+              onRangeChange={handleScheduleRangeChange}
               onSelectAppointment={handleSelectScheduleAppointment}
-              onPreviousWeek={goToPreviousWeek}
-              onNextWeek={goToNextWeek}
-              onToday={goToToday}
+              onCreateFromSlot={handleCreateFromScheduleSlot}
+              onRequestConfirm={setConfirmingId}
+              onRequestCancel={setCancellingId}
+              onRequestNoShow={setNoShowId}
+              onRequestReschedule={handleCalendarRescheduleRequest}
               isLoading={scheduleLoading}
+              isRefreshing={!scheduleLoading && scheduleFetching}
             />
           </div>
         )}
@@ -1012,7 +1347,16 @@ function AppointmentsPage() {
       {/* Appointment Modal */}
       <AppointmentModal
         open={isCreateModalOpen}
-        onOpenChange={setModalOpen}
+        onOpenChange={(open) => {
+          setModalOpen(open);
+          if (!open) {
+            setCreatePrefill(null);
+          }
+        }}
+        defaultCalendarId={createPrefill?.calendarId}
+        defaultTypeId={createPrefill?.typeId}
+        prefillDateISO={createPrefill?.dateISO}
+        prefillStartTimeISO={createPrefill?.startTimeISO}
         timezoneMode={timezoneMode}
         onTimezoneModeChange={setTimezoneMode}
         displayTimezone={displayTimezone}
@@ -1038,6 +1382,62 @@ function AppointmentsPage() {
           }
         />
       ) : null}
+
+      {/* Confirm Status Change */}
+      <AlertDialog
+        open={!!confirmingId}
+        onOpenChange={() => setConfirmingId(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirm Appointment</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to mark this appointment as confirmed?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Keep Scheduled</AlertDialogCancel>
+            <AlertDialogAction onClick={handleConfirm}>
+              {confirmMutation.isPending ? "Confirming..." : "Confirm"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Drag Reschedule Confirmation */}
+      <AlertDialog
+        open={!!pendingCalendarReschedule}
+        onOpenChange={(open) => {
+          if (!open) {
+            setPendingCalendarReschedule(null);
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Reschedule Appointment</AlertDialogTitle>
+            <AlertDialogDescription>
+              {pendingCalendarReschedule
+                ? `Change this appointment from ${formatDisplayDateTime(
+                    pendingCalendarReschedule.oldStartAt,
+                    displayTimezone,
+                  )} to ${formatDisplayDateTime(
+                    pendingCalendarReschedule.newStartAt,
+                    displayTimezone,
+                  )}?`
+                : "Confirm the new appointment time."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Keep Original Time</AlertDialogCancel>
+            <AlertDialogAction onClick={handleCalendarRescheduleConfirm}>
+              {calendarRescheduleMutation.isPending
+                ? "Rescheduling..."
+                : "Reschedule"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Cancel Confirmation */}
       <AlertDialog
@@ -1082,7 +1482,7 @@ function AppointmentsPage() {
       </AlertDialog>
 
       <div className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background/95 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:hidden">
-        <Button className="w-full" onClick={openCreateModal}>
+        <Button className="w-full" onClick={() => openCreateModal()}>
           <Icon icon={Add01Icon} data-icon="inline-start" />
           New Appointment
         </Button>

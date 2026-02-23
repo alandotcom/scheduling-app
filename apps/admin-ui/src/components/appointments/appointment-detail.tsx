@@ -113,6 +113,7 @@ export function AppointmentDetail({
   showHeader = true,
 }: AppointmentDetailProps) {
   const queryClient = useQueryClient();
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [showCancelDialog, setShowCancelDialog] = useState(false);
   const [showNoShowDialog, setShowNoShowDialog] = useState(false);
   const [showRescheduleDialog, setShowRescheduleDialog] = useState(false);
@@ -210,6 +211,7 @@ export function AppointmentDetail({
         queryClient.invalidateQueries({
           queryKey: orpc.appointmentTypes.key(),
         });
+        setShowConfirmDialog(false);
       },
       onError: (error) => {
         toast.error(error.message || "Failed to confirm appointment");
@@ -452,9 +454,7 @@ export function AppointmentDetail({
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() =>
-                            confirmMutation.mutate({ id: appointment.id })
-                          }
+                          onClick={() => setShowConfirmDialog(true)}
                           disabled={confirmMutation.isPending}
                         >
                           <Icon
@@ -631,6 +631,26 @@ export function AppointmentDetail({
           )}
         </div>
       </div>
+
+      {/* Cancel Dialog */}
+      <AlertDialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirm Appointment</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to mark this appointment as confirmed?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Keep Scheduled</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => confirmMutation.mutate({ id: appointment.id })}
+            >
+              {confirmMutation.isPending ? "Confirming..." : "Confirm"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Cancel Dialog */}
       <AlertDialog open={showCancelDialog} onOpenChange={setShowCancelDialog}>

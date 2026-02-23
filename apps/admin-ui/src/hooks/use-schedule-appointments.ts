@@ -40,20 +40,19 @@ export interface ScheduleAppointment {
 }
 
 interface UseScheduleAppointmentsOptions {
-  weekStart: DateTime;
+  rangeStart: DateTime;
+  rangeEnd: DateTime;
   displayTimezone: string;
   filters?: ScheduleFilters;
   enabled?: boolean;
 }
 
 export function useScheduleAppointments({
-  weekStart,
-  displayTimezone,
+  rangeStart,
+  rangeEnd,
   filters = {},
   enabled = true,
 }: UseScheduleAppointmentsOptions) {
-  // Calculate week end (Sunday to Saturday)
-  const weekEnd = useMemo(() => weekStart.plus({ days: 7 }), [weekStart]);
   const statusFilter =
     filters.status && isScheduleStatus(filters.status)
       ? filters.status
@@ -62,9 +61,9 @@ export function useScheduleAppointments({
   // Build query input
   const input = useMemo(
     () => ({
-      limit: 200, // Should be enough for a week
-      startAt: weekStart.toISO() ?? "",
-      endAt: weekEnd.toISO() ?? "",
+      limit: 500,
+      startAt: rangeStart.toISO() ?? "",
+      endAt: rangeEnd.toISO() ?? "",
       ...(filters.calendarId && { calendarId: filters.calendarId }),
       ...(filters.appointmentTypeId && {
         appointmentTypeId: filters.appointmentTypeId,
@@ -73,8 +72,8 @@ export function useScheduleAppointments({
       ...(statusFilter && { status: statusFilter }),
     }),
     [
-      weekStart,
-      weekEnd,
+      rangeStart,
+      rangeEnd,
       filters.calendarId,
       filters.appointmentTypeId,
       filters.clientId,
@@ -85,6 +84,7 @@ export function useScheduleAppointments({
   const { data, isLoading, isFetching, error, refetch } = useQuery({
     ...orpc.appointments.range.queryOptions({ input }),
     enabled,
+    placeholderData: (previous) => previous,
   });
 
   const appointments: ScheduleAppointment[] = useMemo(() => {
@@ -92,8 +92,9 @@ export function useScheduleAppointments({
 
     return data.items.map((item) => ({
       id: item.id,
-      startAt: parseISO(item.startAt, displayTimezone),
-      endAt: parseISO(item.endAt, displayTimezone),
+      // Keep absolute instants from API; FullCalendar applies display timezone.
+      startAt: parseISO(item.startAt),
+      endAt: parseISO(item.endAt),
       calendarId: item.calendarId,
       calendarColor: item.calendarColor,
       status: item.status,
@@ -103,7 +104,7 @@ export function useScheduleAppointments({
       hasNotes: item.hasNotes,
       resourceSummary: item.resourceSummary,
     }));
-  }, [data, displayTimezone]);
+  }, [data]);
 
   return {
     appointments,

@@ -27,6 +27,7 @@ export {
   setMockAvailabilityRules,
   setMockDateOverrides,
   setMockBlockedTimes,
+  setMockAvailabilityFeedItems,
   setMockAppointmentTypeCalendars,
   setMockAvailabilityEngineTimeSlots,
   setMockDashboardSummary,

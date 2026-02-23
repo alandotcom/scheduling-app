@@ -5,6 +5,7 @@ import type {
   DashboardSummary,
   AppointmentWithRelations,
   AppointmentScheduleEvent,
+  AvailabilityFeedItem,
 } from "@scheduling/dto";
 
 // Types for fixtures
@@ -311,6 +312,7 @@ let mockLocations: LocationFixture[] = [];
 let mockAvailabilityRules: AvailabilityRuleFixture[] = [];
 let mockDateOverrides: DateOverrideFixture[] = [];
 let mockBlockedTimes: BlockedTimeFixture[] = [];
+let mockAvailabilityFeedItems: AvailabilityFeedItem[] = [];
 let mockAppointmentTypeCalendars: AppointmentTypeCalendarFixture[] = [];
 let mockAvailabilityEngineTimeSlots: AvailabilityEngineTimeSlotFixture[] = [];
 let mockDashboardSummary: DashboardSummary = {
@@ -358,6 +360,10 @@ export function setMockBlockedTimes(blockedTimes: BlockedTimeFixture[]) {
   mockBlockedTimes = blockedTimes;
 }
 
+export function setMockAvailabilityFeedItems(items: AvailabilityFeedItem[]) {
+  mockAvailabilityFeedItems = items;
+}
+
 export function setMockAppointmentTypeCalendars(
   appointmentTypeCalendars: AppointmentTypeCalendarFixture[],
 ) {
@@ -384,6 +390,7 @@ export function resetMockData() {
   mockAvailabilityRules = [];
   mockDateOverrides = [];
   mockBlockedTimes = [];
+  mockAvailabilityFeedItems = [];
   mockAppointmentTypeCalendars = [];
   mockAvailabilityEngineTimeSlots = [];
   mockDashboardSummary = {
@@ -439,6 +446,39 @@ export const handlers = [
       mockAppointments[index] = {
         ...mockAppointments[index]!,
         status: "cancelled",
+      };
+    }
+    return HttpResponse.json({ success: true });
+  }),
+
+  // Confirm appointment
+  http.post("*/v1/appointments/confirm", async ({ request }) => {
+    const body = (await request.json()) as { id: string };
+    const index = mockAppointments.findIndex((a) => a.id === body.id);
+    if (index !== -1) {
+      mockAppointments[index] = {
+        ...mockAppointments[index]!,
+        status: "confirmed",
+      };
+    }
+    return HttpResponse.json({ success: true });
+  }),
+
+  // Reschedule appointment
+  http.post("*/v1/appointments/reschedule", async ({ request }) => {
+    const body = (await request.json()) as {
+      id: string;
+      newStartTime: string;
+    };
+    const index = mockAppointments.findIndex((a) => a.id === body.id);
+    if (index !== -1) {
+      const previous = mockAppointments[index]!;
+      const nextStart = new Date(body.newStartTime);
+      const duration = previous.endAt.getTime() - previous.startAt.getTime();
+      mockAppointments[index] = {
+        ...previous,
+        startAt: nextStart,
+        endAt: new Date(nextStart.getTime() + duration),
       };
     }
     return HttpResponse.json({ success: true });
@@ -529,6 +569,13 @@ export const handlers = [
   http.post("*/v1/availability/engine/times", () => {
     return HttpResponse.json({
       slots: mockAvailabilityEngineTimeSlots,
+    });
+  }),
+
+  // Availability feed
+  http.post("*/v1/availability/feed", () => {
+    return HttpResponse.json({
+      items: mockAvailabilityFeedItems,
     });
   }),
 ];

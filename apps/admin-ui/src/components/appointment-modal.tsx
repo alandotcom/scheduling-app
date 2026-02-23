@@ -1,6 +1,6 @@
 // Appointment booking modal with availability calendar
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { DateTime } from "luxon";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
@@ -60,6 +60,8 @@ interface AppointmentModalProps {
   defaultTypeId?: string;
   defaultClientId?: string;
   defaultClientName?: string;
+  prefillDateISO?: string;
+  prefillStartTimeISO?: string;
   timezoneMode?: SchedulingTimezoneMode;
   onTimezoneModeChange?: (mode: SchedulingTimezoneMode) => void;
   displayTimezone?: string;
@@ -92,6 +94,8 @@ export function AppointmentModal({
   defaultTypeId,
   defaultClientId,
   defaultClientName,
+  prefillDateISO,
+  prefillStartTimeISO,
   timezoneMode: controlledTimezoneMode,
   onTimezoneModeChange,
   displayTimezone,
@@ -104,13 +108,20 @@ export function AppointmentModal({
     () => ({
       selectedTypeId: defaultTypeId ?? "",
       selectedCalendarId: defaultCalendarId ?? "",
-      selectedDateISO: null,
-      selectedTime: "",
+      selectedDateISO: prefillDateISO ?? null,
+      selectedTime: prefillStartTimeISO ?? "",
       notes: "",
       clientSearch: defaultClientName ?? "",
       selectedClientId: defaultClientId ?? "",
     }),
-    [defaultCalendarId, defaultClientId, defaultClientName, defaultTypeId],
+    [
+      defaultCalendarId,
+      defaultClientId,
+      defaultClientName,
+      defaultTypeId,
+      prefillDateISO,
+      prefillStartTimeISO,
+    ],
   );
   const { draft, setDraft, resetDraft, hasDraft } =
     useCreateDraft<AppointmentModalDraft>({
@@ -137,6 +148,26 @@ export function AppointmentModal({
   const [availabilityModalOpen, setAvailabilityModalOpen] = useState(false);
   const timezoneMode = controlledTimezoneMode ?? localTimezoneMode;
   const selectedDisplayTimezone = displayTimezone ?? defaultTimezone;
+
+  useEffect(() => {
+    if (!open) return;
+    if (!prefillDateISO && !prefillStartTimeISO) return;
+
+    setDraft((previous) => ({
+      ...previous,
+      selectedTypeId: defaultTypeId ?? previous.selectedTypeId,
+      selectedCalendarId: defaultCalendarId ?? previous.selectedCalendarId,
+      selectedDateISO: prefillDateISO ?? previous.selectedDateISO,
+      selectedTime: prefillStartTimeISO ?? previous.selectedTime,
+    }));
+  }, [
+    defaultCalendarId,
+    defaultTypeId,
+    open,
+    prefillDateISO,
+    prefillStartTimeISO,
+    setDraft,
+  ]);
 
   // Current month for calendar
   const [viewMonth, setViewMonth] = useState(() => {

@@ -467,3 +467,227 @@
 .react-flow__handle-right {
   right: -0.5px !important;
 }
+
+.appointment-fullcalendar {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background:
+    radial-gradient(
+      130% 90% at 100% 0%,
+      color-mix(in oklab, var(--color-chart-2), transparent 92%) 0%,
+      transparent 55%
+    ),
+    var(--color-card);
+}
+
+.appointment-fullcalendar .fc {
+  --fc-border-color: color-mix(in oklab, var(--color-border), transparent 15%);
+  --fc-page-bg-color: var(--color-card);
+  --fc-neutral-bg-color: color-mix(
+    in oklab,
+    var(--color-muted),
+    transparent 30%
+  );
+  --fc-list-event-hover-bg-color: var(--color-accent);
+  --fc-now-indicator-color: var(--color-chart-5);
+  --fc-button-bg-color: color-mix(
+    in oklab,
+    var(--color-secondary),
+    transparent 5%
+  );
+  --fc-button-border-color: var(--color-border);
+  --fc-button-hover-bg-color: color-mix(
+    in oklab,
+    var(--color-accent),
+    transparent 0%
+  );
+  --fc-button-hover-border-color: var(--color-border);
+  --fc-button-active-bg-color: var(--color-primary);
+  --fc-button-active-border-color: var(--color-primary);
+  --fc-button-text-color: var(--color-foreground);
+  --fc-event-border-color: color-mix(in oklab, var(--color-chart-1), black 12%);
+  --fc-event-text-color: var(--color-foreground);
+  --fc-today-bg-color: color-mix(
+    in oklab,
+    var(--color-chart-2),
+    transparent 92%
+  );
+  font-family: var(--font-sans);
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.appointment-fullcalendar .fc .fc-view-harness {
+  flex: 1 1 auto;
+  min-height: 0;
+  transition: opacity 180ms ease;
+}
+
+.appointment-fullcalendar.is-loading .fc .fc-view-harness {
+  opacity: 0.74;
+}
+
+.appointment-fullcalendar .fc .fc-scroller {
+  scroll-behavior: smooth;
+}
+
+.appointment-fullcalendar .fc .fc-toolbar.fc-header-toolbar {
+  margin: 0;
+  padding: 0.58rem 0.72rem;
+  border-bottom: 1px solid var(--color-border);
+  gap: 0.45rem;
+  background: color-mix(in oklab, var(--color-background), transparent 8%);
+}
+
+.appointment-fullcalendar .fc .fc-toolbar-chunk {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.appointment-fullcalendar .fc .fc-toolbar-title {
+  font-size: 0.88rem;
+  font-weight: 620;
+  letter-spacing: 0.01em;
+}
+
+.appointment-fullcalendar .fc .fc-button-primary {
+  border-color: var(--color-border);
+  color: var(--color-foreground);
+  box-shadow: none;
+  border-radius: 0.5rem;
+  font-weight: 500;
+  line-height: 1;
+  min-height: 2rem;
+  padding: 0.38rem 0.65rem;
+  text-transform: lowercase;
+}
+
+.appointment-fullcalendar .fc .fc-button-primary:hover {
+  border-color: var(--color-border);
+}
+
+.appointment-fullcalendar .fc .fc-button-primary.fc-button-active {
+  color: var(--color-primary-foreground);
+}
+
+.appointment-fullcalendar .fc .fc-scrollgrid {
+  border: 1px solid var(--color-border);
+  border-radius: 0.75rem;
+  overflow: hidden;
+}
+
+.appointment-fullcalendar .fc .fc-col-header-cell {
+  background: color-mix(in oklab, var(--color-muted), transparent 45%);
+}
+
+.appointment-fullcalendar .fc .fc-col-header-cell-cushion {
+  font-weight: 600;
+  padding: 0.25rem 0.1rem;
+  font-size: 0.72rem;
+  letter-spacing: 0.01em;
+}
+
+.appointment-fullcalendar .fc .fc-daygrid-day.fc-day-today {
+  background: color-mix(in oklab, var(--color-chart-2), transparent 94%);
+}
+
+.appointment-fullcalendar .fc .fc-timegrid-col.fc-day-today {
+  background: color-mix(in oklab, var(--color-chart-2), transparent 96%);
+}
+
+.appointment-fullcalendar .fc .fc-timegrid-slot {
+  height: 2.05rem;
+}
+
+.appointment-fullcalendar .fc .fc-timegrid-slot-label {
+  color: var(--color-muted-foreground);
+  font-size: 0.68rem;
+}
+
+.appointment-fullcalendar .fc .fc-timegrid-axis {
+  background: color-mix(in oklab, var(--color-muted), transparent 68%);
+}
+
+.appointment-fullcalendar .fc .fc-timegrid-axis-cushion {
+  font-size: 0.66rem;
+  letter-spacing: 0.02em;
+}
+
+.appointment-fullcalendar .fc .fc-timegrid-now-indicator-line {
+  border-color: color-mix(in oklab, var(--color-destructive), black 6%);
+  border-top-width: 2px;
+  position: relative;
+  z-index: 6;
+}
+
+.appointment-fullcalendar .fc .fc-timegrid-now-indicator-line::before {
+  content: "";
+  position: absolute;
+  left: -7px;
+  top: -5px;
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--color-destructive), white 12%);
+  box-shadow: 0 0 0 2px
+    color-mix(in oklab, var(--color-background), transparent 8%);
+}
+
+.appointment-fullcalendar .fc .fc-timegrid-now-indicator-arrow {
+  border-color: color-mix(in oklab, var(--color-destructive), black 6%);
+}
+
+.appointment-fullcalendar .fc-appointment-event {
+  border-radius: 0.5rem;
+  border-width: 1px;
+  border-left-width: 3px;
+  overflow: hidden;
+  padding: 0;
+  box-shadow: 0 2px 4px
+    color-mix(in oklab, var(--color-foreground), transparent 88%);
+}
+
+.appointment-fullcalendar .fc-appointment-selected {
+  box-shadow:
+    0 0 0 2px color-mix(in oklab, var(--color-primary), white 30%),
+    0 6px 14px color-mix(in oklab, var(--color-primary), transparent 85%);
+}
+
+.appointment-fullcalendar .calendar-event-card {
+  transition:
+    transform 120ms ease,
+    filter 120ms ease;
+  background: linear-gradient(
+    180deg,
+    color-mix(in oklab, white, transparent 80%) 0%,
+    color-mix(in oklab, transparent, black 6%) 100%
+  );
+}
+
+.appointment-fullcalendar .calendar-event-card:hover {
+  transform: translateY(-1px);
+  filter: saturate(1.08);
+}
+
+.appointment-fullcalendar .fc-availability-working {
+  background: color-mix(in oklab, oklch(0.7 0.14 145), transparent 82%);
+}
+
+.appointment-fullcalendar .fc-availability-open {
+  background: color-mix(in oklab, oklch(0.72 0.16 147), transparent 74%);
+}
+
+.appointment-fullcalendar .fc-availability-closed {
+  background: color-mix(
+    in oklab,
+    var(--color-muted-foreground),
+    transparent 74%
+  );
+}
+
+.appointment-fullcalendar .fc-availability-blocked {
+  background: color-mix(in oklab, var(--color-destructive), transparent 74%);
+}
