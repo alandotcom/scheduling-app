@@ -32,7 +32,7 @@ export type CustomAttributeDefinitionForFilter = {
 function mapCustomAttributeTypeToFilterType(
   type: string,
 ): WorkflowFilterFieldType {
-  if (type === "DATE") return "timestamp";
+  if (type === "DATE" || type === "DATE_TIME") return "timestamp";
   if (type === "BOOLEAN") return "boolean";
   return "string";
 }

@@ -94,6 +94,20 @@ describe("CustomAttributeFormField layout", () => {
     expect(input.closest("div")?.className).not.toContain("sm:col-span-2");
   });
 
+  test("DATE_TIME fields render datetime-local inputs", () => {
+    renderField(
+      createDefinition({
+        fieldKey: "consultationAt",
+        label: "Consultation Date Time",
+        type: "DATE_TIME",
+      }),
+    );
+
+    const input = screen.getByLabelText("Consultation Date Time");
+    expect(input.getAttribute("type")).toBe("datetime-local");
+    expect(input.closest("div")?.className).not.toContain("sm:col-span-2");
+  });
+
   test("BOOLEAN fields render a stacked label and switch row", () => {
     renderField(
       createDefinition({

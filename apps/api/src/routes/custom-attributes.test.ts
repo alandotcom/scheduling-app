@@ -161,6 +161,23 @@ describe("Custom Attribute Routes", () => {
       expect(result.type).toBe("DATE");
     });
 
+    test("creates a DATE_TIME definition", async () => {
+      const { org, user } = await createOrg(db);
+      const ctx = createTestContext({ orgId: org.id, userId: user.id });
+
+      const result = await call(
+        customAttributeRoutes.createDefinition,
+        {
+          fieldKey: "consultationAt",
+          label: "Consultation Date Time",
+          type: "DATE_TIME",
+        },
+        { context: ctx },
+      );
+
+      expect(result.type).toBe("DATE_TIME");
+    });
+
     test("creates a SELECT definition with options", async () => {
       const { org, user } = await createOrg(db);
       const ctx = createTestContext({ orgId: org.id, userId: user.id });

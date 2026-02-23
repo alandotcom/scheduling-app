@@ -148,6 +148,10 @@ function classifyJourneyTriggerFilterField(
   return "generic";
 }
 
+function isClientCustomAttributeField(fieldPath: string): boolean {
+  return fieldPath.startsWith("client.customAttributes.");
+}
+
 export const journeyTriggerFilterConditionSchema = z
   .object({
     field: z.string().trim().regex(FILTER_FIELD_PATTERN, {
@@ -177,7 +181,8 @@ export const journeyTriggerFilterConditionSchema = z
 
     if (
       TEMPORAL_FILTER_OPERATOR_SET.has(condition.operator) &&
-      fieldKind !== "temporal"
+      fieldKind !== "temporal" &&
+      !isClientCustomAttributeField(condition.field)
     ) {
       ctx.addIssue({
         code: "custom",

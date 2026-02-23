@@ -666,6 +666,7 @@ describe("Custom attribute schemas", () => {
         "TEXT",
         "NUMBER",
         "DATE",
+        "DATE_TIME",
         "BOOLEAN",
         "SELECT",
         "MULTI_SELECT",
@@ -810,6 +811,15 @@ describe("Custom attribute schemas", () => {
         fieldKey: "birthDate",
         label: "Birth Date",
         type: "DATE",
+      });
+      expect(result.success).toBe(true);
+    });
+
+    test("accepts DATE_TIME type", () => {
+      const result = createCustomAttributeDefinitionSchema.safeParse({
+        fieldKey: "consultationAt",
+        label: "Consultation Date Time",
+        type: "DATE_TIME",
       });
       expect(result.success).toBe(true);
     });

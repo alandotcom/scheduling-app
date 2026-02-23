@@ -1689,7 +1689,7 @@ export type CustomAttributesListDefinitionsResponses = {
         orgId: string;
         fieldKey: string;
         label: string;
-        type: 'TEXT' | 'NUMBER' | 'DATE' | 'BOOLEAN' | 'SELECT' | 'MULTI_SELECT' | 'RELATION_CLIENT';
+        type: 'TEXT' | 'NUMBER' | 'DATE' | 'DATE_TIME' | 'BOOLEAN' | 'SELECT' | 'MULTI_SELECT' | 'RELATION_CLIENT';
         required: boolean;
         options: Array<string> | null;
         relationConfig?: {
@@ -1710,7 +1710,7 @@ export type CustomAttributesCreateDefinitionData = {
     body: {
         fieldKey: string;
         label: string;
-        type: 'TEXT' | 'NUMBER' | 'DATE' | 'BOOLEAN' | 'SELECT' | 'MULTI_SELECT' | 'RELATION_CLIENT';
+        type: 'TEXT' | 'NUMBER' | 'DATE' | 'DATE_TIME' | 'BOOLEAN' | 'SELECT' | 'MULTI_SELECT' | 'RELATION_CLIENT';
         required?: boolean;
         options?: Array<string>;
         relationConfig?: {
@@ -1739,7 +1739,7 @@ export type CustomAttributesCreateDefinitionResponses = {
         orgId: string;
         fieldKey: string;
         label: string;
-        type: 'TEXT' | 'NUMBER' | 'DATE' | 'BOOLEAN' | 'SELECT' | 'MULTI_SELECT' | 'RELATION_CLIENT';
+        type: 'TEXT' | 'NUMBER' | 'DATE' | 'DATE_TIME' | 'BOOLEAN' | 'SELECT' | 'MULTI_SELECT' | 'RELATION_CLIENT';
         required: boolean;
         options: Array<string> | null;
         relationConfig?: {
@@ -1838,7 +1838,7 @@ export type CustomAttributesUpdateDefinitionResponses = {
         orgId: string;
         fieldKey: string;
         label: string;
-        type: 'TEXT' | 'NUMBER' | 'DATE' | 'BOOLEAN' | 'SELECT' | 'MULTI_SELECT' | 'RELATION_CLIENT';
+        type: 'TEXT' | 'NUMBER' | 'DATE' | 'DATE_TIME' | 'BOOLEAN' | 'SELECT' | 'MULTI_SELECT' | 'RELATION_CLIENT';
         required: boolean;
         options: Array<string> | null;
         relationConfig?: {

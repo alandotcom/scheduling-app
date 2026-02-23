@@ -296,7 +296,7 @@ export function buildEventAttributeSuggestions(input: {
         value: path,
         label,
         type: mapCustomAttributeTypeToSuggestionType(def.type),
-        isDateTime: def.type === "DATE",
+        isDateTime: def.type === "DATE" || def.type === "DATE_TIME",
       };
 
       if (existingSuggestion) {

@@ -1813,6 +1813,8 @@ function customAttributeDefToJsonSchema(
       return { type: "number", description: def.label };
     case "DATE":
       return { type: "string", format: "date", description: def.label };
+    case "DATE_TIME":
+      return { type: "string", format: "date-time", description: def.label };
     case "BOOLEAN":
       return { type: "boolean", description: def.label };
     case "SELECT":

@@ -6,6 +6,7 @@ export const CUSTOM_ATTRIBUTE_TYPE_LABELS: Readonly<
   TEXT: "Text",
   NUMBER: "Number",
   DATE: "Date",
+  DATE_TIME: "Date & Time",
   BOOLEAN: "Boolean",
   SELECT: "Select",
   MULTI_SELECT: "Multi-Select",
@@ -19,6 +20,7 @@ export const CUSTOM_ATTRIBUTE_TYPE_OPTIONS: ReadonlyArray<{
   { value: "TEXT", label: CUSTOM_ATTRIBUTE_TYPE_LABELS.TEXT },
   { value: "NUMBER", label: CUSTOM_ATTRIBUTE_TYPE_LABELS.NUMBER },
   { value: "DATE", label: CUSTOM_ATTRIBUTE_TYPE_LABELS.DATE },
+  { value: "DATE_TIME", label: CUSTOM_ATTRIBUTE_TYPE_LABELS.DATE_TIME },
   { value: "BOOLEAN", label: CUSTOM_ATTRIBUTE_TYPE_LABELS.BOOLEAN },
   { value: "SELECT", label: CUSTOM_ATTRIBUTE_TYPE_LABELS.SELECT },
   {

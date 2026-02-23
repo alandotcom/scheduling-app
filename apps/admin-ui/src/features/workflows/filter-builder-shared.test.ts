@@ -51,6 +51,11 @@ describe("workflow filter temporal helpers", () => {
         type: "DATE",
       },
       {
+        fieldKey: "consultationAt",
+        label: "Consultation Date Time",
+        type: "DATE_TIME",
+      },
+      {
         fieldKey: "planName",
         label: "Plan Name",
         type: "TEXT",
@@ -65,6 +70,11 @@ describe("workflow filter temporal helpers", () => {
     expect(options).toContainEqual({
       label: "Renewal Date",
       value: "client.customAttributes.renewalDate",
+      type: "timestamp",
+    });
+    expect(options).toContainEqual({
+      label: "Consultation Date Time",
+      value: "client.customAttributes.consultationAt",
       type: "timestamp",
     });
     expect(options).toContainEqual({

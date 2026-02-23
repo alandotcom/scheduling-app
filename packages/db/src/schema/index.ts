@@ -358,6 +358,7 @@ export const customAttributeTypeEnum = pgEnum("custom_attribute_type", [
   "TEXT",
   "NUMBER",
   "DATE",
+  "DATE_TIME",
   "BOOLEAN",
   "SELECT",
   "MULTI_SELECT",
@@ -450,7 +451,7 @@ export const clientCustomAttributeValues = pgTable.withRLS(
     n2: numeric("n2", { precision: 18, scale: 4 }),
     n3: numeric("n3", { precision: 18, scale: 4 }),
     n4: numeric("n4", { precision: 18, scale: 4 }),
-    // Date slots (DATE)
+    // Date slots (DATE, DATE_TIME)
     d0: timestamp("d0", { withTimezone: true }),
     d1: timestamp("d1", { withTimezone: true }),
     d2: timestamp("d2", { withTimezone: true }),

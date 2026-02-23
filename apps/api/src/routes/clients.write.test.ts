@@ -786,6 +786,15 @@ describe("Client Routes", () => {
       await call(
         customAttributeRoutes.createDefinition,
         {
+          fieldKey: "consultationAt",
+          label: "Consultation Date Time",
+          type: "DATE_TIME",
+        },
+        { context: ctx },
+      );
+      await call(
+        customAttributeRoutes.createDefinition,
+        {
           fieldKey: "status",
           label: "Status",
           type: "SELECT",
@@ -819,6 +828,7 @@ describe("Client Routes", () => {
             color: "blue",
             score: 95,
             isVip: true,
+            consultationAt: "2026-03-01T15:30:00.000Z",
             status: "active",
             tags: ["vip", "new"],
           },
@@ -831,6 +841,9 @@ describe("Client Routes", () => {
       expect(result.customAttributes!["color"]).toBe("blue");
       expect(result.customAttributes!["score"]).toBe(95);
       expect(result.customAttributes!["isVip"]).toBe(true);
+      expect(result.customAttributes!["consultationAt"]).toBe(
+        "2026-03-01T15:30:00.000Z",
+      );
       expect(result.customAttributes!["status"]).toBe("active");
       expect(result.customAttributes!["tags"]).toEqual(["vip", "new"]);
     });
@@ -1111,6 +1124,62 @@ describe("Client Routes", () => {
             firstName: "Bad",
             lastName: "Multi",
             customAttributes: { tags: ["vip", "invalid_tag"] },
+          },
+          { context: ctx },
+        ),
+      ).rejects.toMatchObject({
+        code: "BAD_REQUEST",
+      });
+    });
+
+    test("throws BAD_REQUEST for invalid DATE_TIME value", async () => {
+      const { org, user } = await createOrg(db);
+      const ctx = createTestContext({ orgId: org.id, userId: user.id });
+      await call(
+        customAttributeRoutes.createDefinition,
+        {
+          fieldKey: "consultationAt",
+          label: "Consultation Date Time",
+          type: "DATE_TIME",
+        },
+        { context: ctx },
+      );
+
+      await expect(
+        call(
+          clientRoutes.create,
+          {
+            firstName: "Bad",
+            lastName: "DateTime",
+            customAttributes: { consultationAt: "not-a-date" },
+          },
+          { context: ctx },
+        ),
+      ).rejects.toMatchObject({
+        code: "BAD_REQUEST",
+      });
+    });
+
+    test("throws BAD_REQUEST for DATE_TIME value without time component", async () => {
+      const { org, user } = await createOrg(db);
+      const ctx = createTestContext({ orgId: org.id, userId: user.id });
+      await call(
+        customAttributeRoutes.createDefinition,
+        {
+          fieldKey: "consultationAt",
+          label: "Consultation Date Time",
+          type: "DATE_TIME",
+        },
+        { context: ctx },
+      );
+
+      await expect(
+        call(
+          clientRoutes.create,
+          {
+            firstName: "Bad",
+            lastName: "DateOnly",
+            customAttributes: { consultationAt: "2026-03-01" },
           },
           { context: ctx },
         ),

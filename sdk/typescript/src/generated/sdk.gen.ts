@@ -1439,7 +1439,7 @@ export class CustomAttributes extends HeyApiClient {
     public createDefinition<ThrowOnError extends boolean = false>(parameters?: {
         fieldKey?: string;
         label?: string;
-        type?: 'TEXT' | 'NUMBER' | 'DATE' | 'BOOLEAN' | 'SELECT' | 'MULTI_SELECT' | 'RELATION_CLIENT';
+        type?: 'TEXT' | 'NUMBER' | 'DATE' | 'DATE_TIME' | 'BOOLEAN' | 'SELECT' | 'MULTI_SELECT' | 'RELATION_CLIENT';
         required?: boolean;
         options?: Array<string>;
         relationConfig?: {

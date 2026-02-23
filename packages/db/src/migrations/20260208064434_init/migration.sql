@@ -173,7 +173,7 @@ CREATE TABLE "clients" (
 );
 --> statement-breakpoint
 ALTER TABLE "clients" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
-CREATE TYPE "custom_attribute_type" AS ENUM('TEXT', 'NUMBER', 'DATE', 'BOOLEAN', 'SELECT', 'MULTI_SELECT', 'RELATION_CLIENT');--> statement-breakpoint
+CREATE TYPE "custom_attribute_type" AS ENUM('TEXT', 'NUMBER', 'DATE', 'DATE_TIME', 'BOOLEAN', 'SELECT', 'MULTI_SELECT', 'RELATION_CLIENT');--> statement-breakpoint
 CREATE TYPE "custom_attribute_relation_target_entity" AS ENUM('CLIENT');--> statement-breakpoint
 CREATE TYPE "custom_attribute_relation_value_mode" AS ENUM('single', 'multi');--> statement-breakpoint
 CREATE TYPE "custom_attribute_relation_paired_role" AS ENUM('forward', 'reverse');--> statement-breakpoint

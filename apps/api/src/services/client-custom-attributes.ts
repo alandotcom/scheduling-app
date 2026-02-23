@@ -36,6 +36,7 @@ import type { ServiceContext } from "./locations.js";
 import type { DbClient } from "../lib/db.js";
 
 const logger = getLogger(["clients", "custom-attributes"]);
+const DATE_ONLY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
 function isRelationDefinition(
   definition: ValidatedDefinition,
@@ -124,6 +125,7 @@ function mapFromSlots(
         result[definition.fieldKey] = Boolean(raw);
         break;
       case "DATE":
+      case "DATE_TIME":
         result[definition.fieldKey] =
           raw instanceof Date
             ? raw.toISOString()
@@ -679,6 +681,36 @@ export class ClientCustomAttributeService {
           if (Number.isNaN(parsed.getTime())) {
             throw new ApplicationError(
               `Custom attribute "${fieldKey}" has an invalid date value`,
+              { code: "BAD_REQUEST", details: { field: fieldKey } },
+            );
+          }
+
+          slotUpdates[definition.slotColumn] = parsed;
+          break;
+        }
+        case "DATE_TIME": {
+          let parsed: Date;
+          if (rawValue instanceof Date) {
+            parsed = rawValue;
+          } else if (typeof rawValue === "string") {
+            const normalized = rawValue.trim();
+            if (DATE_ONLY_PATTERN.test(normalized)) {
+              throw new ApplicationError(
+                `Custom attribute "${fieldKey}" must include both date and time`,
+                { code: "BAD_REQUEST", details: { field: fieldKey } },
+              );
+            }
+            parsed = new Date(normalized);
+          } else {
+            throw new ApplicationError(
+              `Custom attribute "${fieldKey}" must be a date/time string or Date`,
+              { code: "BAD_REQUEST", details: { field: fieldKey } },
+            );
+          }
+
+          if (Number.isNaN(parsed.getTime())) {
+            throw new ApplicationError(
+              `Custom attribute "${fieldKey}" has an invalid date/time value`,
               { code: "BAD_REQUEST", details: { field: fieldKey } },
             );
           }

@@ -1,7 +1,7 @@
 import type { CustomAttributeDefinitionResponse } from "@scheduling/dto";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
-import { formatDisplayDate } from "@/lib/date-utils";
+import { formatDisplayDate, formatDisplayDateTime } from "@/lib/date-utils";
 
 interface ClientCustomFieldsDisplayProps {
   definitions: CustomAttributeDefinitionResponse[];
@@ -30,6 +30,14 @@ function renderValue(
       return (
         <span>
           {typeof value === "string" ? formatDisplayDate(value) : String(value)}
+        </span>
+      );
+    case "DATE_TIME":
+      return (
+        <span>
+          {typeof value === "string"
+            ? formatDisplayDateTime(value)
+            : String(value)}
         </span>
       );
     case "MULTI_SELECT":

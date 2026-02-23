@@ -15,6 +15,7 @@ export const customAttributeTypeSchema = z.enum([
   "TEXT",
   "NUMBER",
   "DATE",
+  "DATE_TIME",
   "BOOLEAN",
   "SELECT",
   "MULTI_SELECT",

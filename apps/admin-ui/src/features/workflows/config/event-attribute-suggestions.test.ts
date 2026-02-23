@@ -100,4 +100,29 @@ describe("buildEventAttributeSuggestions", () => {
       )?.label,
     ).toBe("Plan Name");
   });
+
+  test("marks DATE_TIME custom attributes as datetime suggestions", () => {
+    const suggestions = buildEventAttributeSuggestions({
+      domain: "client",
+      eventTypes: ["client.created"],
+      mode: "condition",
+      customAttributeDefinitions: [
+        {
+          fieldKey: "consultationAt",
+          label: "Consultation Date Time",
+          type: "DATE_TIME",
+        },
+      ],
+    });
+
+    expect(
+      suggestions.find(
+        (suggestion) =>
+          suggestion.value === "Client.data.customAttributes.consultationAt",
+      ),
+    ).toMatchObject({
+      label: "Consultation Date Time",
+      isDateTime: true,
+    });
+  });
 });

@@ -163,6 +163,26 @@ describe("journey trigger filter AST schema", () => {
     expect(parsed.success).toBe(true);
   });
 
+  test("accepts temporal operators for client custom attribute fields", () => {
+    const parsed = journeyTriggerFilterAstSchema.safeParse({
+      logic: "and",
+      groups: [
+        {
+          logic: "and",
+          conditions: [
+            {
+              field: "client.customAttributes.followUp",
+              operator: "before",
+              value: "2026-02-16T10:00:00.000Z",
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(parsed.success).toBe(true);
+  });
+
   test("accepts timezone for absolute temporal operators", () => {
     const parsed = journeyTriggerFilterAstSchema.safeParse({
       logic: "and",

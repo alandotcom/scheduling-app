@@ -59,6 +59,41 @@ function getFieldWrapperClass(
   }
 }
 
+function padDateTimePart(value: number): string {
+  return String(value).padStart(2, "0");
+}
+
+function toDateTimeLocalInputValue(value: unknown): string {
+  if (typeof value !== "string" || value.length === 0) {
+    return "";
+  }
+
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return "";
+  }
+
+  const year = parsed.getFullYear();
+  const month = padDateTimePart(parsed.getMonth() + 1);
+  const day = padDateTimePart(parsed.getDate());
+  const hours = padDateTimePart(parsed.getHours());
+  const minutes = padDateTimePart(parsed.getMinutes());
+  return `${year}-${month}-${day}T${hours}:${minutes}`;
+}
+
+function toUtcIsoDateTime(value: string): string | null {
+  if (value.length === 0) {
+    return null;
+  }
+
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return null;
+  }
+
+  return parsed.toISOString();
+}
+
 function normalizeRelationFieldValue(
   value: unknown,
   mode: "single" | "multi",
@@ -348,6 +383,38 @@ export function CustomAttributeFormField({
                 </>
               );
             }}
+          />
+        </div>
+      );
+    case "DATE_TIME":
+      return (
+        <div className={fieldWrapperClass}>
+          <Label htmlFor={fieldId}>{label}</Label>
+          <Controller
+            name={fieldPath}
+            control={control}
+            defaultValue={null}
+            render={({ field, fieldState }) => (
+              <>
+                <Input
+                  id={fieldId}
+                  type="datetime-local"
+                  value={toDateTimeLocalInputValue(field.value)}
+                  onChange={(e) => {
+                    field.onChange(toUtcIsoDateTime(e.target.value));
+                  }}
+                  onBlur={field.onBlur}
+                  aria-describedby={fieldState.error ? errorId : undefined}
+                  aria-invalid={!!fieldState.error}
+                  disabled={disabled}
+                />
+                {fieldState.error ? (
+                  <p id={errorId} className="text-sm text-destructive">
+                    {fieldState.error.message}
+                  </p>
+                ) : null}
+              </>
+            )}
           />
         </div>
       );

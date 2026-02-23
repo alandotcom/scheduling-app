@@ -21,6 +21,7 @@ export const SLOT_PREFIX_BY_TYPE: Record<
   SELECT: "t",
   NUMBER: "n",
   DATE: "d",
+  DATE_TIME: "d",
   BOOLEAN: "b",
   MULTI_SELECT: "j",
 };
