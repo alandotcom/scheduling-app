@@ -156,7 +156,7 @@ export const schedulingLimitsSchema = z.object({
   id: uuidSchema,
   calendarId: uuidSchema.nullable(),
   groupId: uuidSchema.nullable(),
-  minNoticeHours: nonNegativeIntSchema.nullable(),
+  minNoticeMinutes: nonNegativeIntSchema.nullable(),
   maxNoticeDays: positiveIntSchema.nullable(),
   maxPerSlot: positiveIntSchema.nullable(),
   maxPerDay: positiveIntSchema.nullable(),
@@ -166,7 +166,7 @@ export const schedulingLimitsSchema = z.object({
 export const createSchedulingLimitsSchema = z.object({
   calendarId: uuidSchema.optional(),
   groupId: uuidSchema.optional(),
-  minNoticeHours: nonNegativeIntSchema.optional(),
+  minNoticeMinutes: nonNegativeIntSchema.optional(),
   maxNoticeDays: positiveIntSchema.optional(),
   maxPerSlot: positiveIntSchema.optional(),
   maxPerDay: positiveIntSchema.optional(),
@@ -174,7 +174,7 @@ export const createSchedulingLimitsSchema = z.object({
 });
 
 export const updateSchedulingLimitsSchema = z.object({
-  minNoticeHours: nonNegativeIntSchema.nullable().optional(),
+  minNoticeMinutes: nonNegativeIntSchema.nullable().optional(),
   maxNoticeDays: positiveIntSchema.nullable().optional(),
   maxPerSlot: positiveIntSchema.nullable().optional(),
   maxPerDay: positiveIntSchema.nullable().optional(),
@@ -187,7 +187,7 @@ export const updateSchedulingLimitsSchema = z.object({
 
 export const availabilityQuerySchema = z.object({
   appointmentTypeId: uuidSchema,
-  calendarIds: z.array(uuidSchema).min(1, "At least one calendar is required"),
+  calendarId: uuidSchema,
   startDate: dateSchema,
   endDate: dateSchema,
   timezone: timezoneSchema.optional(),

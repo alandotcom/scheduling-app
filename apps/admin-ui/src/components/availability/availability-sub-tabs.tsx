@@ -13,6 +13,7 @@ const TABS: { id: AvailabilitySubTabType; label: string }[] = [
   { id: "weekly", label: "Weekly Schedule" },
   { id: "overrides", label: "Date Overrides" },
   { id: "blocked", label: "Blocked Time" },
+  { id: "limits", label: "Scheduling Limits" },
 ];
 
 export function AvailabilitySubTabs({

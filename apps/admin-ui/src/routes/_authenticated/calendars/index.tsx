@@ -36,6 +36,7 @@ import {
   type WeeklySchedule,
 } from "@/components/availability/constants";
 import { DateOverridesEditor } from "@/components/availability/date-overrides-editor";
+import { CalendarSchedulingLimitsEditor } from "@/components/availability/scheduling-limits-editor";
 import {
   formatTimeBlocksForInput,
   parseTimeRanges,
@@ -1160,6 +1161,11 @@ function CalendarsPage() {
                       <BlockedTimeEditor
                         calendarId={displayCalendar.id}
                         timezone={displayCalendar.timezone}
+                      />
+                    )}
+                    {availabilitySubTab === "limits" && (
+                      <CalendarSchedulingLimitsEditor
+                        calendarId={displayCalendar.id}
                       />
                     )}
                   </div>

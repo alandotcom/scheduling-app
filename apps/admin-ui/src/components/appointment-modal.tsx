@@ -291,7 +291,7 @@ export function AppointmentModal({
     ...orpc.availability.engine.times.queryOptions({
       input: {
         appointmentTypeId: selectedTypeId,
-        calendarIds: [activeSelectedCalendarId],
+        calendarId: activeSelectedCalendarId,
         startDate: monthStartDateStr,
         endDate: monthEndDateStr,
         timezone: schedulingTimezone,

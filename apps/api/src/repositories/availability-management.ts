@@ -1,6 +1,6 @@
 // Availability management repository - CRUD for rules, overrides, blocked time, limits
 
-import { eq, and, gt, gte, lte, inArray, sql } from "drizzle-orm";
+import { eq, and, gt, gte, lte, inArray, isNull, sql } from "drizzle-orm";
 import {
   availabilityRules,
   availabilityOverrides,
@@ -63,19 +63,9 @@ export interface BlockedTimeUpdateInput {
   recurringRule?: string | null | undefined;
 }
 
-// Input types for scheduling limits
-export interface LimitsCreateInput {
-  calendarId?: string | null | undefined;
-  groupId?: string | null | undefined;
-  minNoticeHours?: number | null | undefined;
-  maxNoticeDays?: number | null | undefined;
-  maxPerSlot?: number | null | undefined;
-  maxPerDay?: number | null | undefined;
-  maxPerWeek?: number | null | undefined;
-}
-
 export interface LimitsUpdateInput {
-  minNoticeHours?: number | null | undefined;
+  groupId?: string | null | undefined;
+  minNoticeMinutes?: number | null | undefined;
   maxNoticeDays?: number | null | undefined;
   maxPerSlot?: number | null | undefined;
   maxPerDay?: number | null | undefined;
@@ -499,92 +489,117 @@ export class AvailabilityManagementRepository {
   // SCHEDULING LIMITS
   // ============================================================================
 
-  async findLimitsById(
+  async findOrgDefaultLimits(
     tx: DbClient,
     orgId: string,
-    id: string,
   ): Promise<SchedulingLimits | null> {
     await setOrgContext(tx, orgId);
     const [result] = await tx
       .select()
       .from(schedulingLimits)
-      .where(eq(schedulingLimits.id, id))
+      .where(isNull(schedulingLimits.calendarId))
       .limit(1);
     return result ?? null;
   }
 
-  async findLimitsByCalendar(
+  async findLimitsByCalendarId(
     tx: DbClient,
     orgId: string,
     calendarId: string,
-    input: PaginationInput,
-  ): Promise<PaginatedResult<SchedulingLimits>> {
+  ): Promise<SchedulingLimits | null> {
     await setOrgContext(tx, orgId);
-    const { cursor, limit } = input;
-
-    const results = await tx
+    const [result] = await tx
       .select()
       .from(schedulingLimits)
-      .where(
-        and(
-          eq(schedulingLimits.calendarId, calendarId),
-          cursor ? gt(schedulingLimits.id, cursor) : undefined,
-        ),
-      )
-      .limit(limit + 1)
-      .orderBy(schedulingLimits.id);
-
-    return paginate(results, limit);
+      .where(eq(schedulingLimits.calendarId, calendarId))
+      .limit(1);
+    return result ?? null;
   }
 
-  async createLimits(
+  private buildLimitsUpsertSet(
+    input: LimitsUpdateInput,
+    noOp: Record<string, unknown>,
+  ): Record<string, unknown> {
+    const set: Record<string, unknown> = {};
+    if (input.groupId !== undefined) set["groupId"] = input.groupId;
+    if (input.minNoticeMinutes !== undefined) {
+      set["minNoticeMinutes"] = input.minNoticeMinutes;
+    }
+    if (input.maxNoticeDays !== undefined) {
+      set["maxNoticeDays"] = input.maxNoticeDays;
+    }
+    if (input.maxPerSlot !== undefined) {
+      set["maxPerSlot"] = input.maxPerSlot;
+    }
+    if (input.maxPerDay !== undefined) {
+      set["maxPerDay"] = input.maxPerDay;
+    }
+    if (input.maxPerWeek !== undefined) {
+      set["maxPerWeek"] = input.maxPerWeek;
+    }
+
+    return Object.keys(set).length > 0 ? set : noOp;
+  }
+
+  async upsertOrgDefaultLimits(
     tx: DbClient,
     orgId: string,
-    input: LimitsCreateInput,
+    input: LimitsUpdateInput,
   ): Promise<SchedulingLimits> {
     await setOrgContext(tx, orgId);
     const [result] = await tx
       .insert(schedulingLimits)
       .values({
         orgId,
-        calendarId: input.calendarId ?? null,
+        calendarId: null,
         groupId: input.groupId ?? null,
-        minNoticeHours: input.minNoticeHours ?? null,
+        minNoticeMinutes: input.minNoticeMinutes ?? null,
         maxNoticeDays: input.maxNoticeDays ?? null,
         maxPerSlot: input.maxPerSlot ?? null,
         maxPerDay: input.maxPerDay ?? null,
         maxPerWeek: input.maxPerWeek ?? null,
       })
+      .onConflictDoUpdate({
+        target: [schedulingLimits.orgId],
+        targetWhere: isNull(schedulingLimits.calendarId),
+        set: this.buildLimitsUpsertSet(input, {
+          orgId: sql`${schedulingLimits.orgId}`,
+        }),
+      })
       .returning();
+
     return result!;
   }
 
-  async updateLimits(
+  async upsertCalendarLimits(
     tx: DbClient,
     orgId: string,
-    id: string,
+    calendarId: string,
     input: LimitsUpdateInput,
-  ): Promise<SchedulingLimits | null> {
+  ): Promise<SchedulingLimits> {
     await setOrgContext(tx, orgId);
     const [result] = await tx
-      .update(schedulingLimits)
-      .set(input)
-      .where(eq(schedulingLimits.id, id))
+      .insert(schedulingLimits)
+      .values({
+        orgId,
+        calendarId,
+        groupId: input.groupId ?? null,
+        minNoticeMinutes: input.minNoticeMinutes ?? null,
+        maxNoticeDays: input.maxNoticeDays ?? null,
+        maxPerSlot: input.maxPerSlot ?? null,
+        maxPerDay: input.maxPerDay ?? null,
+        maxPerWeek: input.maxPerWeek ?? null,
+      })
+      .onConflictDoUpdate({
+        target: [schedulingLimits.orgId, schedulingLimits.calendarId],
+        targetWhere: sql`${schedulingLimits.calendarId} is not null`,
+        set: this.buildLimitsUpsertSet(input, {
+          calendarId: sql`${schedulingLimits.calendarId}`,
+        }),
+      })
       .returning();
-    return result ?? null;
-  }
 
-  async deleteLimits(
-    tx: DbClient,
-    orgId: string,
-    id: string,
-  ): Promise<boolean> {
-    await setOrgContext(tx, orgId);
-    const result = await tx
-      .delete(schedulingLimits)
-      .where(eq(schedulingLimits.id, id))
-      .returning({ id: schedulingLimits.id });
-    return result.length > 0;
+    return result!;
   }
 }
 

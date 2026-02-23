@@ -40,7 +40,7 @@ describe("Availability Engine", () => {
       availabilityRoutes.engine.dates,
       {
         appointmentTypeId: appointmentType.id,
-        calendarIds: [calendar.id],
+        calendarId: calendar.id,
         startDate: day.toISODate()!,
         endDate: day.toISODate()!,
         timezone,
@@ -73,7 +73,7 @@ describe("Availability Engine", () => {
       availabilityRoutes.engine.times,
       {
         appointmentTypeId: appointmentType.id,
-        calendarIds: [calendar.id],
+        calendarId: calendar.id,
         startDate: day.toISODate()!,
         endDate: day.toISODate()!,
         timezone,
@@ -117,7 +117,7 @@ describe("Availability Engine", () => {
         availabilityRoutes.engine.dates,
         {
           appointmentTypeId: appointmentType.id,
-          calendarIds: [calendar.id],
+          calendarId: calendar.id,
           startDate: date,
           endDate: date,
           timezone,

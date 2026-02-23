@@ -552,7 +552,7 @@ describe("Availability schemas", () => {
   describe("createSchedulingLimitsSchema", () => {
     test("accepts valid input", () => {
       const result = createSchedulingLimitsSchema.safeParse({
-        minNoticeHours: 24,
+        minNoticeMinutes: 15,
         maxNoticeDays: 30,
         maxPerDay: 10,
       });
@@ -569,7 +569,7 @@ describe("Availability schemas", () => {
     test("accepts valid input", () => {
       const result = availabilityQuerySchema.safeParse({
         appointmentTypeId: "550e8400-e29b-41d4-a716-446655440000",
-        calendarIds: ["550e8400-e29b-41d4-a716-446655440001"],
+        calendarId: "550e8400-e29b-41d4-a716-446655440001",
         startDate: "2024-01-15",
         endDate: "2024-01-31",
         timezone: "America/New_York",
@@ -577,10 +577,9 @@ describe("Availability schemas", () => {
       expect(result.success).toBe(true);
     });
 
-    test("rejects empty calendarIds", () => {
+    test("rejects missing calendarId", () => {
       const result = availabilityQuerySchema.safeParse({
         appointmentTypeId: "550e8400-e29b-41d4-a716-446655440000",
-        calendarIds: [],
         startDate: "2024-01-15",
         endDate: "2024-01-31",
         timezone: "America/New_York",

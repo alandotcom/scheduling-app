@@ -52,51 +52,40 @@ export class AvailabilityRepository {
     return appointmentType ?? null;
   }
 
-  async getValidCalendars(
+  async getValidCalendar(
     tx: DbClient,
     orgId: string,
     appointmentTypeId: string,
-    requestedCalendarIds: string[],
-  ): Promise<string[]> {
-    const uniqueCalendarIds = Array.from(new Set(requestedCalendarIds));
-    if (uniqueCalendarIds.length === 0) {
-      return [];
-    }
+    requestedCalendarId: string,
+  ): Promise<string | null> {
     await setOrgContext(tx, orgId);
-    const links = await tx
+    const [link] = await tx
       .select({ calendarId: appointmentTypeCalendars.calendarId })
       .from(appointmentTypeCalendars)
       .where(
         and(
           eq(appointmentTypeCalendars.appointmentTypeId, appointmentTypeId),
-          inArray(appointmentTypeCalendars.calendarId, uniqueCalendarIds),
+          eq(appointmentTypeCalendars.calendarId, requestedCalendarId),
         ),
-      );
+      )
+      .limit(1);
 
-    const calendarIds: string[] = [];
-    for (const link of links) {
-      calendarIds.push(link.calendarId);
-    }
-    return calendarIds;
+    return link?.calendarId ?? null;
   }
 
-  async loadCalendarTimezones(
+  async loadCalendarTimezone(
     tx: DbClient,
     orgId: string,
-    calendarIds: string[],
-  ): Promise<string[]> {
-    const uniqueCalendarIds = Array.from(new Set(calendarIds));
-    if (uniqueCalendarIds.length === 0) {
-      return [];
-    }
-
+    calendarId: string,
+  ): Promise<string | null> {
     await setOrgContext(tx, orgId);
-    const rows = await tx
+    const [row] = await tx
       .select({ timezone: calendars.timezone })
       .from(calendars)
-      .where(inArray(calendars.id, uniqueCalendarIds));
+      .where(eq(calendars.id, calendarId))
+      .limit(1);
 
-    return Array.from(new Set(rows.map((row) => row.timezone)));
+    return row?.timezone ?? null;
   }
 
   async loadOrgDefaultTimezone(
@@ -116,69 +105,44 @@ export class AvailabilityRepository {
   async loadSchedulingLimits(
     tx: DbClient,
     orgId: string,
-    calendarIds: string[],
+    calendarId: string,
   ): Promise<MergedSchedulingLimits> {
     await setOrgContext(tx, orgId);
-    // Load all limits for these calendars
+
     const results = await tx
       .select()
       .from(schedulingLimits)
       .where(
         or(
-          inArray(schedulingLimits.calendarId, calendarIds),
+          eq(schedulingLimits.calendarId, calendarId),
           isNull(schedulingLimits.calendarId),
         ),
       );
 
-    // Merge limits - use the most restrictive
-    const merged: MergedSchedulingLimits = {
-      minNoticeHours: null,
-      maxNoticeDays: null,
-      maxPerSlot: null,
-      maxPerDay: null,
-      maxPerWeek: null,
+    const orgDefault =
+      results.find((limit) => limit.calendarId == null) ?? null;
+    const calendarOverride =
+      results.find((limit) => limit.calendarId === calendarId) ?? null;
+
+    return {
+      minNoticeMinutes:
+        calendarOverride?.minNoticeMinutes ??
+        orgDefault?.minNoticeMinutes ??
+        null,
+      maxNoticeDays:
+        calendarOverride?.maxNoticeDays ?? orgDefault?.maxNoticeDays ?? null,
+      maxPerSlot:
+        calendarOverride?.maxPerSlot ?? orgDefault?.maxPerSlot ?? null,
+      maxPerDay: calendarOverride?.maxPerDay ?? orgDefault?.maxPerDay ?? null,
+      maxPerWeek:
+        calendarOverride?.maxPerWeek ?? orgDefault?.maxPerWeek ?? null,
     };
-
-    for (const limit of results) {
-      if (limit.minNoticeHours != null) {
-        merged.minNoticeHours =
-          merged.minNoticeHours == null
-            ? limit.minNoticeHours
-            : Math.max(merged.minNoticeHours, limit.minNoticeHours);
-      }
-      if (limit.maxNoticeDays != null) {
-        merged.maxNoticeDays =
-          merged.maxNoticeDays == null
-            ? limit.maxNoticeDays
-            : Math.min(merged.maxNoticeDays, limit.maxNoticeDays);
-      }
-      if (limit.maxPerSlot != null) {
-        merged.maxPerSlot =
-          merged.maxPerSlot == null
-            ? limit.maxPerSlot
-            : Math.min(merged.maxPerSlot, limit.maxPerSlot);
-      }
-      if (limit.maxPerDay != null) {
-        merged.maxPerDay =
-          merged.maxPerDay == null
-            ? limit.maxPerDay
-            : Math.min(merged.maxPerDay, limit.maxPerDay);
-      }
-      if (limit.maxPerWeek != null) {
-        merged.maxPerWeek =
-          merged.maxPerWeek == null
-            ? limit.maxPerWeek
-            : Math.min(merged.maxPerWeek, limit.maxPerWeek);
-      }
-    }
-
-    return merged;
   }
 
   async loadAvailabilityRules(
     tx: DbClient,
     orgId: string,
-    calendarIds: string[],
+    calendarId: string,
   ): Promise<AvailabilityRule[]> {
     await setOrgContext(tx, orgId);
     return tx
@@ -192,13 +156,13 @@ export class AvailabilityRepository {
         groupId: availabilityRules.groupId,
       })
       .from(availabilityRules)
-      .where(inArray(availabilityRules.calendarId, calendarIds));
+      .where(eq(availabilityRules.calendarId, calendarId));
   }
 
   async loadOverrides(
     tx: DbClient,
     orgId: string,
-    calendarIds: string[],
+    calendarId: string,
     startDate: string,
     endDate: string,
   ): Promise<AvailabilityOverride[]> {
@@ -215,7 +179,7 @@ export class AvailabilityRepository {
       .from(availabilityOverrides)
       .where(
         and(
-          inArray(availabilityOverrides.calendarId, calendarIds),
+          eq(availabilityOverrides.calendarId, calendarId),
           gte(availabilityOverrides.date, startDate),
           lte(availabilityOverrides.date, endDate),
         ),
@@ -225,12 +189,11 @@ export class AvailabilityRepository {
   async loadBlockedTimes(
     tx: DbClient,
     orgId: string,
-    calendarIds: string[],
+    calendarId: string,
     startDate: string,
     endDate: string,
     timezone: string,
   ): Promise<BlockedTimeEntry[]> {
-    if (calendarIds.length === 0) return [];
     await setOrgContext(tx, orgId);
     // Convert dates to UTC for database query
     const startDateTime = DateTime.fromISO(startDate, { zone: timezone })
@@ -253,7 +216,7 @@ export class AvailabilityRepository {
       .from(blockedTime)
       .where(
         and(
-          inArray(blockedTime.calendarId, calendarIds),
+          eq(blockedTime.calendarId, calendarId),
           or(
             sql`tstzrange(${blockedTime.startAt}, ${blockedTime.endAt}, '[)') && tstzrange(${rangeStart}, ${rangeEnd}, '[)')`,
             sql`${blockedTime.recurringRule} is not null`,
@@ -265,7 +228,7 @@ export class AvailabilityRepository {
   async loadExistingAppointments(
     tx: DbClient,
     orgId: string,
-    calendarIds: string[],
+    calendarId: string,
     startDate: string,
     endDate: string,
     timezone: string,
@@ -293,7 +256,7 @@ export class AvailabilityRepository {
       .from(appointments)
       .where(
         and(
-          inArray(appointments.calendarId, calendarIds),
+          eq(appointments.calendarId, calendarId),
           ne(appointments.status, "cancelled"),
           sql`tstzrange(${appointments.startAt}, ${appointments.endAt}, '[)') && tstzrange(${rangeStart}, ${rangeEnd}, '[)')`,
         ),

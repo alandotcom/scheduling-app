@@ -8,7 +8,6 @@ describe("Availability Routes Module", () => {
     expect(availabilityRoutes.rules).toBeDefined();
     expect(availabilityRoutes.overrides).toBeDefined();
     expect(availabilityRoutes.blockedTime).toBeDefined();
-    expect(availabilityRoutes.schedulingLimits).toBeDefined();
     expect(availabilityRoutes.engine).toBeDefined();
     expect(availabilityRoutes.engine.dates).toBeDefined();
     expect(availabilityRoutes.engine.times).toBeDefined();
@@ -23,8 +22,9 @@ describe("Availability Routes Module", () => {
     expect(routerAny.availability.rules).toBeDefined();
     expect(routerAny.availability.overrides).toBeDefined();
     expect(routerAny.availability.blockedTime).toBeDefined();
-    expect(routerAny.availability.schedulingLimits).toBeDefined();
     expect(routerAny.availability.engine).toBeDefined();
+    expect(routerAny.calendars.schedulingLimits).toBeDefined();
+    expect(routerAny.org.settings.schedulingLimits).toBeDefined();
   });
 });
 
@@ -67,7 +67,7 @@ describe("API vs UI Router", () => {
     expect(uiAvailability.rules).toBeDefined();
     expect(uiAvailability.overrides).toBeDefined();
     expect(uiAvailability.blockedTime).toBeDefined();
-    expect(uiAvailability.schedulingLimits).toBeDefined();
+    expect(uiAvailability.schedulingLimits).toBeUndefined();
 
     expect(apiAvailability.dates).toBeDefined();
     expect(apiAvailability.times).toBeDefined();

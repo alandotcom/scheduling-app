@@ -121,7 +121,7 @@ export function RescheduleDialog({
     ...orpc.availability.engine.times.queryOptions({
       input: {
         appointmentTypeId: appointment.appointmentTypeId,
-        calendarIds: [appointment.calendarId],
+        calendarId: appointment.calendarId,
         startDate: monthStartDateStr,
         endDate: monthEndDateStr,
         timezone: calendarTimezone,

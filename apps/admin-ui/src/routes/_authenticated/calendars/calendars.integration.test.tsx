@@ -124,6 +124,7 @@ describe("calendars availability tab integration", () => {
     expect(screen.getByText("Weekly Schedule")).toBeTruthy();
     expect(screen.getByText("Date Overrides")).toBeTruthy();
     expect(screen.getByText("Blocked Time")).toBeTruthy();
+    expect(screen.getByText("Scheduling Limits")).toBeTruthy();
 
     await waitFor(() => {
       expect(screen.getByText("Mon")).toBeTruthy();

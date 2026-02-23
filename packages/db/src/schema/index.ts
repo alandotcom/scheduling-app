@@ -675,13 +675,21 @@ export const schedulingLimits = pgTable(
       onDelete: "cascade",
     }),
     groupId: uuid("group_id"),
-    minNoticeHours: integer("min_notice_hours"),
+    minNoticeMinutes: integer("min_notice_minutes"),
     maxNoticeDays: integer("max_notice_days"),
     maxPerSlot: integer("max_per_slot"),
     maxPerDay: integer("max_per_day"),
     maxPerWeek: integer("max_per_week"),
   },
-  (table) => [index("scheduling_limits_calendar_id_idx").on(table.calendarId)],
+  (table) => [
+    index("scheduling_limits_calendar_id_idx").on(table.calendarId),
+    uniqueIndex("scheduling_limits_org_default_uidx")
+      .on(table.orgId)
+      .where(sql`${table.calendarId} is null`),
+    uniqueIndex("scheduling_limits_org_calendar_uidx")
+      .on(table.orgId, table.calendarId)
+      .where(sql`${table.calendarId} is not null`),
+  ],
 );
 
 // ============================================================================

@@ -507,7 +507,7 @@ export async function createSchedulingLimits(
   options: {
     calendarId?: string;
     groupId?: string;
-    minNoticeHours?: number;
+    minNoticeMinutes?: number;
     maxNoticeDays?: number;
     maxPerSlot?: number;
     maxPerDay?: number;
@@ -520,7 +520,7 @@ export async function createSchedulingLimits(
       orgId,
       calendarId: options.calendarId ?? null,
       groupId: options.groupId ?? null,
-      minNoticeHours: options.minNoticeHours ?? null,
+      minNoticeMinutes: options.minNoticeMinutes ?? null,
       maxNoticeDays: options.maxNoticeDays ?? null,
       maxPerSlot: options.maxPerSlot ?? null,
       maxPerDay: options.maxPerDay ?? null,

@@ -28,4 +28,8 @@ export interface DaySchedule {
 
 export type WeeklySchedule = Record<number, DaySchedule>;
 
-export type AvailabilitySubTabType = "weekly" | "overrides" | "blocked";
+export type AvailabilitySubTabType =
+  | "weekly"
+  | "overrides"
+  | "blocked"
+  | "limits";

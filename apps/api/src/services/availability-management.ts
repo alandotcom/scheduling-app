@@ -13,7 +13,6 @@ import type {
   OverrideUpdateInput,
   BlockedTimeCreateInput,
   BlockedTimeUpdateInput,
-  LimitsCreateInput,
   LimitsUpdateInput,
 } from "../repositories/availability-management.js";
 import type { PaginationInput, PaginatedResult } from "../repositories/base.js";
@@ -548,132 +547,56 @@ export class AvailabilityManagementService {
   // SCHEDULING LIMITS
   // ============================================================================
 
-  async listLimits(
-    calendarId: string,
-    input: PaginationInput,
+  async getOrgDefaultLimits(
     context: ServiceContext,
-  ): Promise<PaginatedResult<SchedulingLimits>> {
+  ): Promise<SchedulingLimits | null> {
+    return withOrg(context.orgId, (tx) =>
+      availabilityManagementRepository.findOrgDefaultLimits(tx, context.orgId),
+    );
+  }
+
+  async getCalendarLimits(
+    calendarId: string,
+    context: ServiceContext,
+  ): Promise<SchedulingLimits | null> {
     await this.ensureCalendarAccess(context.orgId, calendarId);
     return withOrg(context.orgId, (tx) =>
-      availabilityManagementRepository.findLimitsByCalendar(
+      availabilityManagementRepository.findLimitsByCalendarId(
+        tx,
+        context.orgId,
+        calendarId,
+      ),
+    );
+  }
+
+  async upsertOrgDefaultLimits(
+    input: LimitsUpdateInput,
+    context: ServiceContext,
+  ): Promise<SchedulingLimits> {
+    return withOrg(context.orgId, (tx) =>
+      availabilityManagementRepository.upsertOrgDefaultLimits(
+        tx,
+        context.orgId,
+        input,
+      ),
+    );
+  }
+
+  async upsertCalendarLimits(
+    calendarId: string,
+    input: LimitsUpdateInput,
+    context: ServiceContext,
+  ): Promise<SchedulingLimits> {
+    await this.ensureCalendarAccess(context.orgId, calendarId);
+
+    return withOrg(context.orgId, (tx) =>
+      availabilityManagementRepository.upsertCalendarLimits(
         tx,
         context.orgId,
         calendarId,
         input,
       ),
     );
-  }
-
-  async getLimits(
-    id: string,
-    context: ServiceContext,
-  ): Promise<SchedulingLimits> {
-    return withOrg(context.orgId, async (tx) => {
-      const limits = await availabilityManagementRepository.findLimitsById(
-        tx,
-        context.orgId,
-        id,
-      );
-      if (!limits) {
-        throw new ApplicationError("Scheduling limits not found", {
-          code: "NOT_FOUND",
-        });
-      }
-      if (limits.calendarId) {
-        await this.ensureCalendarAccess(context.orgId, limits.calendarId, tx);
-      }
-      return limits;
-    });
-  }
-
-  async createLimits(
-    input: LimitsCreateInput,
-    context: ServiceContext,
-  ): Promise<SchedulingLimits> {
-    if (input.calendarId) {
-      await this.ensureCalendarAccess(context.orgId, input.calendarId);
-    }
-    return withOrg(context.orgId, (tx) =>
-      availabilityManagementRepository.createLimits(tx, context.orgId, input),
-    );
-  }
-
-  async updateLimits(
-    id: string,
-    input: LimitsUpdateInput,
-    context: ServiceContext,
-  ): Promise<SchedulingLimits> {
-    return withOrg(context.orgId, async (tx) => {
-      const existing = await availabilityManagementRepository.findLimitsById(
-        tx,
-        context.orgId,
-        id,
-      );
-      if (!existing) {
-        throw new ApplicationError("Scheduling limits not found", {
-          code: "NOT_FOUND",
-        });
-      }
-      if (existing.calendarId) {
-        await this.ensureCalendarAccess(context.orgId, existing.calendarId, tx);
-      }
-
-      const updated = await availabilityManagementRepository.updateLimits(
-        tx,
-        context.orgId,
-        id,
-        {
-          minNoticeHours:
-            input.minNoticeHours !== undefined
-              ? input.minNoticeHours
-              : existing.minNoticeHours,
-          maxNoticeDays:
-            input.maxNoticeDays !== undefined
-              ? input.maxNoticeDays
-              : existing.maxNoticeDays,
-          maxPerSlot:
-            input.maxPerSlot !== undefined
-              ? input.maxPerSlot
-              : existing.maxPerSlot,
-          maxPerDay:
-            input.maxPerDay !== undefined
-              ? input.maxPerDay
-              : existing.maxPerDay,
-          maxPerWeek:
-            input.maxPerWeek !== undefined
-              ? input.maxPerWeek
-              : existing.maxPerWeek,
-        },
-      );
-      return updated!;
-    });
-  }
-
-  async deleteLimits(
-    id: string,
-    context: ServiceContext,
-  ): Promise<{ success: true }> {
-    return withOrg(context.orgId, async (tx) => {
-      const existing = await availabilityManagementRepository.findLimitsById(
-        tx,
-        context.orgId,
-        id,
-      );
-      if (!existing) {
-        throw new ApplicationError("Scheduling limits not found", {
-          code: "NOT_FOUND",
-        });
-      }
-      if (existing.calendarId) {
-        await this.ensureCalendarAccess(context.orgId, existing.calendarId, tx);
-      }
-      await availabilityManagementRepository.deleteLimits(
-        tx,
-        context.orgId,
-        id,
-      );
-      return { success: true };
-    });
   }
 
   // ============================================================================

@@ -30,6 +30,8 @@ export {
   setMockAvailabilityFeedItems,
   setMockAppointmentTypeCalendars,
   setMockAvailabilityEngineTimeSlots,
+  setMockOrgSchedulingLimits,
+  setMockCalendarSchedulingLimits,
   setMockDashboardSummary,
   resetMockData,
   resetIdCounter,

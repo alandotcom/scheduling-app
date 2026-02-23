@@ -125,7 +125,7 @@ describe("AvailabilityService", () => {
       const slots = await availabilityService.getAvailableSlots(
         {
           appointmentTypeId: appointmentType.id,
-          calendarIds: [calendar.id],
+          calendarId: calendar.id,
           startDate: "2026-01-27", // Tuesday
           endDate: "2026-01-27",
           timezone: "America/New_York",
@@ -149,7 +149,7 @@ describe("AvailabilityService", () => {
       const slots = await availabilityService.getAvailableSlots(
         {
           appointmentTypeId: appointmentType.id,
-          calendarIds: [calendar.id],
+          calendarId: calendar.id,
           startDate: "2026-01-27", // Tuesday
           endDate: "2026-01-27",
           timezone: "America/New_York",
@@ -185,7 +185,7 @@ describe("AvailabilityService", () => {
       const slots = await availabilityService.getAvailableSlots(
         {
           appointmentTypeId: appointmentType.id,
-          calendarIds: [calendar.id],
+          calendarId: calendar.id,
           startDate: "2026-01-27",
           endDate: "2026-01-27",
           timezone: "America/New_York",
@@ -220,7 +220,7 @@ describe("AvailabilityService", () => {
       const slots = await availabilityService.getAvailableSlots(
         {
           appointmentTypeId: appointmentType.id,
-          calendarIds: [calendar.id],
+          calendarId: calendar.id,
           startDate: "2026-01-27",
           endDate: "2026-01-27",
           timezone: "America/New_York",
@@ -252,7 +252,7 @@ describe("AvailabilityService", () => {
       const slots = await availabilityService.getAvailableSlots(
         {
           appointmentTypeId: appointmentType.id,
-          calendarIds: [calendar.id],
+          calendarId: calendar.id,
           startDate: "2026-01-27",
           endDate: "2026-01-27",
           timezone: "America/New_York",
@@ -290,7 +290,7 @@ describe("AvailabilityService", () => {
       const slots = await availabilityService.getAvailableSlots(
         {
           appointmentTypeId: appointmentType.id,
-          calendarIds: [calendar.id],
+          calendarId: calendar.id,
           startDate: "2026-01-27",
           endDate: "2026-01-27",
           timezone: "America/New_York",
@@ -329,7 +329,7 @@ describe("AvailabilityService", () => {
       const slots = await availabilityService.getAvailableSlots(
         {
           appointmentTypeId: appointmentType.id,
-          calendarIds: [calendar.id],
+          calendarId: calendar.id,
           startDate: "2026-01-27",
           endDate: "2026-01-27",
           timezone: "America/New_York",
@@ -363,7 +363,7 @@ describe("AvailabilityService", () => {
       const slots = await availabilityService.getAvailableSlots(
         {
           appointmentTypeId: appointmentType.id,
-          calendarIds: [calendar.id],
+          calendarId: calendar.id,
           startDate: "2026-01-27",
           endDate: "2026-01-27",
           timezone: "America/New_York",
@@ -398,7 +398,7 @@ describe("AvailabilityService", () => {
       const slots = await availabilityService.getAvailableSlots(
         {
           appointmentTypeId: appointmentType.id,
-          calendarIds: [calendar.id],
+          calendarId: calendar.id,
           startDate: "2026-01-27",
           endDate: "2026-01-27",
           timezone: "America/New_York",
@@ -413,7 +413,7 @@ describe("AvailabilityService", () => {
       expect(nineAmSlot?.available).toBe(false);
     });
 
-    test("respects min notice hours", async () => {
+    test("respects min notice minutes", async () => {
       await db.insert(availabilityRules).values({
         calendarId: calendar.id,
         weekday: 2,
@@ -422,17 +422,17 @@ describe("AvailabilityService", () => {
         intervalMin: 60,
       });
 
-      // Set 24-hour minimum notice
+      // Set 24-hour minimum notice (1440 minutes)
       await db.insert(schedulingLimits).values({
         orgId: org.id,
         calendarId: calendar.id,
-        minNoticeHours: 24,
+        minNoticeMinutes: 1440,
       });
 
       const slots = await availabilityService.getAvailableSlots(
         {
           appointmentTypeId: appointmentType.id,
-          calendarIds: [calendar.id],
+          calendarId: calendar.id,
           startDate: "2026-01-27",
           endDate: "2026-01-27",
           timezone: "America/New_York",
@@ -465,7 +465,7 @@ describe("AvailabilityService", () => {
       const slots = await availabilityService.getAvailableSlots(
         {
           appointmentTypeId: appointmentType.id,
-          calendarIds: [calendar.id],
+          calendarId: calendar.id,
           startDate: "2026-12-01", // ~11 months away
           endDate: "2026-12-01",
           timezone: "America/New_York",
@@ -475,6 +475,78 @@ describe("AvailabilityService", () => {
 
       // All slots should be unavailable (beyond max notice window)
       expect(slots.every((s) => !s.available)).toBe(true);
+    });
+
+    test("calendar override takes precedence over org default", async () => {
+      await db.insert(availabilityRules).values({
+        calendarId: calendar.id,
+        weekday: 2,
+        startTime: "09:00",
+        endTime: "17:00",
+        intervalMin: 60,
+      });
+
+      await db.insert(schedulingLimits).values({
+        orgId: org.id,
+        calendarId: null,
+        maxNoticeDays: 5,
+      });
+
+      await db.insert(schedulingLimits).values({
+        orgId: org.id,
+        calendarId: calendar.id,
+        maxNoticeDays: 14,
+      });
+
+      const slots = await availabilityService.getAvailableSlots(
+        {
+          appointmentTypeId: appointmentType.id,
+          calendarId: calendar.id,
+          startDate: "2026-01-27", // 7 days from fixed "now"
+          endDate: "2026-01-27",
+          timezone: "America/New_York",
+        },
+        testContext,
+      );
+
+      expect(slots.some((slot) => slot.available)).toBe(true);
+    });
+
+    test("null calendar override inherits org default", async () => {
+      await db.insert(availabilityRules).values({
+        calendarId: calendar.id,
+        weekday: 3,
+        startTime: "09:00",
+        endTime: "17:00",
+        intervalMin: 60,
+      });
+
+      await db.insert(schedulingLimits).values({
+        orgId: org.id,
+        calendarId: null,
+        minNoticeMinutes: 1440,
+      });
+
+      await db.insert(schedulingLimits).values({
+        orgId: org.id,
+        calendarId: calendar.id,
+        minNoticeMinutes: null,
+      });
+
+      const slots = await availabilityService.getAvailableSlots(
+        {
+          appointmentTypeId: appointmentType.id,
+          calendarId: calendar.id,
+          startDate: "2026-01-21",
+          endDate: "2026-01-21",
+          timezone: "America/New_York",
+        },
+        testContext,
+      );
+
+      expect(slots.length).toBeGreaterThan(0);
+      expect(slots[0]!.available).toBe(false);
+      expect(slots.some((slot) => slot.available)).toBe(true);
     });
 
     test("respects max per day limit", async () => {
@@ -536,7 +608,7 @@ describe("AvailabilityService", () => {
       const slots = await availabilityService.getAvailableSlots(
         {
           appointmentTypeId: highCapAt!.id,
-          calendarIds: [calendar.id],
+          calendarId: calendar.id,
           startDate: "2026-01-27",
           endDate: "2026-01-27",
           timezone: "America/New_York",
@@ -548,8 +620,7 @@ describe("AvailabilityService", () => {
       expect(slots.every((s) => !s.available)).toBe(true);
     });
 
-    test("throws NOT_FOUND when any requested calendar is unlinked", async () => {
-      // Create another calendar NOT linked to the appointment type
+    test("throws NOT_FOUND when requested calendar is unlinked", async () => {
       const [cal2] = await db
         .insert(calendars)
         .values({
@@ -563,7 +634,7 @@ describe("AvailabilityService", () => {
         availabilityService.getAvailableSlots(
           {
             appointmentTypeId: appointmentType.id,
-            calendarIds: [calendar.id, cal2!.id],
+            calendarId: cal2!.id,
             startDate: "2026-01-27",
             endDate: "2026-01-27",
             timezone: "America/New_York",
@@ -598,7 +669,7 @@ describe("AvailabilityService", () => {
       const dates = await availabilityService.getAvailableDates(
         {
           appointmentTypeId: appointmentType.id,
-          calendarIds: [calendar.id],
+          calendarId: calendar.id,
           startDate: "2026-01-27", // Tuesday
           endDate: "2026-01-31", // Saturday
           timezone: "America/New_York",
@@ -737,7 +808,7 @@ describe("AvailabilityService", () => {
       const slots = await availabilityService.getAvailableSlots(
         {
           appointmentTypeId: groupAt!.id,
-          calendarIds: [calendar.id],
+          calendarId: calendar.id,
           startDate: "2026-01-27",
           endDate: "2026-01-27",
           timezone: "America/New_York",
@@ -796,7 +867,7 @@ describe("AvailabilityService", () => {
       const slots = await availabilityService.getAvailableSlots(
         {
           appointmentTypeId: appointmentType.id,
-          calendarIds: [calendar.id],
+          calendarId: calendar.id,
           startDate: "2026-01-27",
           endDate: "2026-01-27",
           timezone: "America/New_York",
@@ -870,7 +941,7 @@ describe("AvailabilityService", () => {
       const slots = await availabilityService.getAvailableSlots(
         {
           appointmentTypeId: appointmentType.id,
-          calendarIds: [calendar.id],
+          calendarId: calendar.id,
           startDate: "2026-01-27",
           endDate: "2026-01-27",
           timezone: "America/New_York",
@@ -930,7 +1001,7 @@ describe("AvailabilityService", () => {
       const slots = await availabilityService.getAvailableSlots(
         {
           appointmentTypeId: paddedAt!.id,
-          calendarIds: [calendar.id],
+          calendarId: calendar.id,
           startDate: "2026-01-27",
           endDate: "2026-01-27",
           timezone: "America/New_York",

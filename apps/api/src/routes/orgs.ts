@@ -1,6 +1,11 @@
 // oRPC routes for org settings
 
-import { createOrgSchema, updateOrgSettingsSchema } from "@scheduling/dto";
+import {
+  createOrgSchema,
+  updateOrgSettingsSchema,
+  schedulingLimitsSchema,
+  updateSchedulingLimitsSchema,
+} from "@scheduling/dto";
 import { orgMemberships, orgs } from "@scheduling/db/schema";
 import { asc, eq } from "drizzle-orm";
 import { z } from "zod";
@@ -8,6 +13,7 @@ import { authUser, authed, adminOnly } from "./base.js";
 import { db } from "../lib/db.js";
 import { auth } from "../lib/auth.js";
 import { ApplicationError } from "../errors/application-error.js";
+import { availabilityManagementService } from "../services/availability-management.js";
 import { orgUserRoutes } from "./org-users.js";
 
 // Get current org with settings
@@ -116,7 +122,7 @@ export const setActive = authUser
   });
 
 // Update org settings (admin only)
-export const updateSettings = adminOnly
+const updateSettings = adminOnly
   .route({ method: "PATCH", path: "/org/settings" })
   .input(updateOrgSettingsSchema)
   .handler(async ({ input, context }) => {
@@ -133,12 +139,36 @@ export const updateSettings = adminOnly
     return updated;
   });
 
+export const getOrgSchedulingLimits = authed
+  .input(z.object({}))
+  .output(schedulingLimitsSchema.nullable())
+  .handler(({ context }) =>
+    availabilityManagementService.getOrgDefaultLimits(context),
+  );
+
+export const upsertOrgSchedulingLimits = adminOnly
+  .input(
+    z.object({
+      data: updateSchedulingLimitsSchema,
+    }),
+  )
+  .output(schedulingLimitsSchema)
+  .handler(({ input, context }) =>
+    availabilityManagementService.upsertOrgDefaultLimits(input.data, context),
+  );
+
 // Export as route object
 export const orgRoutes = {
   get,
   listMemberships,
   create,
   setActive,
-  updateSettings,
+  settings: {
+    update: updateSettings,
+    schedulingLimits: {
+      get: getOrgSchedulingLimits,
+      upsert: upsertOrgSchedulingLimits,
+    },
+  },
   users: orgUserRoutes,
 };

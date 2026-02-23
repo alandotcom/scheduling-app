@@ -25,7 +25,6 @@ import type {
 interface AvailabilityData {
   appointmentType: AppointmentTypeData;
   timezone: string;
-  validCalendarIds: string[];
   limits: MergedSchedulingLimits;
   rules: AvailabilityRule[];
   overrides: AvailabilityOverride[];
@@ -126,7 +125,7 @@ export class AvailabilityService {
       const resolvedTimezone = await this.resolveTimezone(
         tx,
         context.orgId,
-        [calendarId],
+        calendarId,
         timezone,
       );
 
@@ -148,7 +147,7 @@ export class AvailabilityService {
 
       const query: AvailabilityQuery = {
         appointmentTypeId,
-        calendarIds: [calendarId],
+        calendarId,
         startDate,
         endDate: startDate,
         timezone: resolvedTimezone,
@@ -231,7 +230,7 @@ export class AvailabilityService {
 
       const query: AvailabilityQuery = {
         appointmentTypeId,
-        calendarIds: [calendarId],
+        calendarId,
         startDate,
         endDate: startDate,
         timezone,
@@ -276,8 +275,8 @@ export class AvailabilityService {
       const slotStart = DateTime.fromJSDate(startTime);
       const now = DateTime.now();
 
-      if (data.limits.minNoticeHours != null) {
-        const minNotice = now.plus({ hours: data.limits.minNoticeHours });
+      if (data.limits.minNoticeMinutes != null) {
+        const minNotice = now.plus({ minutes: data.limits.minNoticeMinutes });
         if (slotStart < minNotice) {
           return {
             available: false,
@@ -442,7 +441,7 @@ export class AvailabilityService {
     query: AvailabilityQuery,
     options?: { requireAllCalendars?: boolean },
   ): Promise<AvailabilityData | null> {
-    const { appointmentTypeId, calendarIds, startDate, endDate, timezone } =
+    const { appointmentTypeId, calendarId, startDate, endDate, timezone } =
       query;
 
     // 1. Load appointment type details
@@ -456,27 +455,23 @@ export class AvailabilityService {
     }
 
     // 2. Validate calendars are linked to this appointment type
-    const uniqueCalendarIds = Array.from(new Set(calendarIds));
-    const validCalendarIds = await availabilityRepository.getValidCalendars(
+    const validCalendarId = await availabilityRepository.getValidCalendar(
       tx,
       orgId,
       appointmentTypeId,
-      uniqueCalendarIds,
+      calendarId,
     );
-    if (
-      options?.requireAllCalendars &&
-      validCalendarIds.length !== uniqueCalendarIds.length
-    ) {
+    if (options?.requireAllCalendars && !validCalendarId) {
       throw new ApplicationError("Calendar not found", { code: "NOT_FOUND" });
     }
-    if (validCalendarIds.length === 0) {
+    if (!validCalendarId) {
       return null;
     }
 
     const resolvedTimezone = await this.resolveTimezone(
       tx,
       orgId,
-      validCalendarIds,
+      validCalendarId,
       timezone,
     );
 
@@ -484,28 +479,28 @@ export class AvailabilityService {
     const limits = await availabilityRepository.loadSchedulingLimits(
       tx,
       orgId,
-      validCalendarIds,
+      validCalendarId,
     );
 
     // 4. Load availability rules for all calendars
     const rules = await availabilityRepository.loadAvailabilityRules(
       tx,
       orgId,
-      validCalendarIds,
+      validCalendarId,
     );
 
     // 5. Load overrides and blocked time
     const overrides = await availabilityRepository.loadOverrides(
       tx,
       orgId,
-      validCalendarIds,
+      validCalendarId,
       startDate,
       endDate,
     );
     const blockedTimes = await availabilityRepository.loadBlockedTimes(
       tx,
       orgId,
-      validCalendarIds,
+      validCalendarId,
       startDate,
       endDate,
       resolvedTimezone,
@@ -516,7 +511,7 @@ export class AvailabilityService {
       await availabilityRepository.loadExistingAppointments(
         tx,
         orgId,
-        validCalendarIds,
+        validCalendarId,
         startDate,
         endDate,
         resolvedTimezone,
@@ -544,7 +539,6 @@ export class AvailabilityService {
     return {
       appointmentType,
       timezone: resolvedTimezone,
-      validCalendarIds,
       limits,
       rules,
       overrides,
@@ -559,31 +553,26 @@ export class AvailabilityService {
   private async resolveTimezone(
     tx: DbClient,
     orgId: string,
-    calendarIds: string[],
+    calendarId: string,
     requestedTimezone?: string,
   ): Promise<string> {
     if (requestedTimezone) {
       return requestedTimezone;
     }
 
-    const calendarTimezones =
-      await availabilityRepository.loadCalendarTimezones(
-        tx,
-        orgId,
-        calendarIds,
-      );
-    if (calendarTimezones.length === 1) {
-      return calendarTimezones[0]!;
+    const calendarTimezone = await availabilityRepository.loadCalendarTimezone(
+      tx,
+      orgId,
+      calendarId,
+    );
+    if (calendarTimezone) {
+      return calendarTimezone;
     }
 
     const orgDefaultTimezone =
       await availabilityRepository.loadOrgDefaultTimezone(tx, orgId);
     if (orgDefaultTimezone) {
       return orgDefaultTimezone;
-    }
-
-    if (calendarTimezones.length > 0) {
-      return calendarTimezones[0]!;
     }
 
     return "America/New_York";
@@ -638,8 +627,8 @@ export class AvailabilityService {
       const slotEnd = DateTime.fromJSDate(slot.end);
 
       // Check min notice
-      if (available && limits.minNoticeHours != null) {
-        const minNotice = now.plus({ hours: limits.minNoticeHours });
+      if (available && limits.minNoticeMinutes != null) {
+        const minNotice = now.plus({ minutes: limits.minNoticeMinutes });
         if (slotStart < minNotice) {
           available = false;
         }

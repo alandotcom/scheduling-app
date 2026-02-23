@@ -405,7 +405,7 @@ CREATE TABLE "scheduling_limits" (
 	"org_id" uuid NOT NULL,
 	"calendar_id" uuid,
 	"group_id" uuid,
-	"min_notice_hours" integer,
+	"min_notice_minutes" integer,
 	"max_notice_days" integer,
 	"max_per_slot" integer,
 	"max_per_day" integer,
@@ -493,6 +493,8 @@ CREATE UNIQUE INDEX "journeys_org_name_ci_uidx" ON "journeys" ("org_id",lower("n
 CREATE INDEX "journeys_org_updated_at_id_idx" ON "journeys" ("org_id","updated_at","id");--> statement-breakpoint
 CREATE UNIQUE INDEX "org_memberships_org_user_idx" ON "org_memberships" ("org_id","user_id");--> statement-breakpoint
 CREATE INDEX "scheduling_limits_calendar_id_idx" ON "scheduling_limits" ("calendar_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "scheduling_limits_org_default_uidx" ON "scheduling_limits" ("org_id") WHERE "calendar_id" is null;--> statement-breakpoint
+CREATE UNIQUE INDEX "scheduling_limits_org_calendar_uidx" ON "scheduling_limits" ("org_id","calendar_id") WHERE "calendar_id" is not null;--> statement-breakpoint
 CREATE INDEX "appointments_client_id_idx" ON "appointments" ("client_id");--> statement-breakpoint
 CREATE INDEX "appointments_appointment_type_id_active_idx" ON "appointments" ("appointment_type_id") WHERE "status" <> 'cancelled';--> statement-breakpoint
 CREATE INDEX "sessions_user_id_idx" ON "sessions" ("user_id");--> statement-breakpoint

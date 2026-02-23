@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
 import { AvailabilitySubTabs } from "@/components/availability/availability-sub-tabs";
 import { CompactBlockedTimeEditor } from "@/components/availability/blocked-time-editor";
+import { CalendarSchedulingLimitsEditor } from "@/components/availability/scheduling-limits-editor";
 import type { AvailabilitySubTabType } from "@/components/availability/constants";
 import { DateOverridesEditor } from "@/components/availability/date-overrides-editor";
 import { CompactWeeklyScheduleEditor } from "@/components/availability/weekly-schedule-editor";
@@ -132,6 +133,9 @@ function AvailabilityManageModalContent({
       )}
       {activeTab === "blocked" && (
         <CompactBlockedTimeEditor calendarId={calendarId} timezone={timezone} />
+      )}
+      {activeTab === "limits" && (
+        <CalendarSchedulingLimitsEditor calendarId={calendarId} compact />
       )}
     </div>
   );

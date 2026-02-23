@@ -2,7 +2,6 @@
 // - Weekly availability rules (per weekday, start/end time, interval)
 // - Date overrides (specific dates, blocked or custom hours)
 // - Blocked time ranges (single or recurring via RRULE)
-// - Scheduling limits (min/max notice, per-slot/day/week caps)
 
 import { z } from "zod";
 import {
@@ -13,8 +12,6 @@ import {
   updateAvailabilityOverrideSchema,
   createBlockedTimeSchema,
   updateBlockedTimeSchema,
-  createSchedulingLimitsSchema,
-  updateSchedulingLimitsSchema,
   availabilityQuerySchema,
   availabilityCheckSchema,
   availabilityFeedQuerySchema,
@@ -179,40 +176,6 @@ export const deleteBlockedTime = authed
   );
 
 // ============================================================================
-// SCHEDULING LIMITS
-// ============================================================================
-
-export const listSchedulingLimits = authed
-  .input(calendarIdInput.extend(cursorPaginationInput.shape))
-  .handler(({ input, context }) =>
-    availabilityManagementService.listLimits(input.calendarId, input, context),
-  );
-
-export const getSchedulingLimits = authed
-  .input(idInput)
-  .handler(({ input, context }) =>
-    availabilityManagementService.getLimits(input.id, context),
-  );
-
-export const createSchedulingLimits = authed
-  .input(z.object({ data: createSchedulingLimitsSchema }))
-  .handler(({ input, context }) =>
-    availabilityManagementService.createLimits(input.data, context),
-  );
-
-export const updateSchedulingLimits = authed
-  .input(idInput.extend({ data: updateSchedulingLimitsSchema }))
-  .handler(({ input, context }) =>
-    availabilityManagementService.updateLimits(input.id, input.data, context),
-  );
-
-export const deleteSchedulingLimits = authed
-  .input(idInput)
-  .handler(({ input, context }) =>
-    availabilityManagementService.deleteLimits(input.id, context),
-  );
-
-// ============================================================================
 // AVAILABILITY FEED (Schedule shading)
 // ============================================================================
 
@@ -265,14 +228,6 @@ export const blockedTimeRoutes = {
   create: createBlockedTime,
   update: updateBlockedTime,
   delete: deleteBlockedTime,
-};
-
-export const schedulingLimitsRoutes = {
-  list: listSchedulingLimits,
-  get: getSchedulingLimits,
-  create: createSchedulingLimits,
-  update: updateSchedulingLimits,
-  delete: deleteSchedulingLimits,
 };
 
 // ============================================================================
@@ -355,7 +310,6 @@ export const availabilityRoutes = {
   rules: availabilityRulesRoutes,
   overrides: availabilityOverridesRoutes,
   blockedTime: blockedTimeRoutes,
-  schedulingLimits: schedulingLimitsRoutes,
   feed,
   engine: availabilityEngineRoutes,
 };

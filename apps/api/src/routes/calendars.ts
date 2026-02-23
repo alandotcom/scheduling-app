@@ -9,9 +9,14 @@ import {
   calendarWithLocationSchema,
   calendarListResponseSchema,
   successResponseSchema,
+  schedulingLimitsSchema,
+  updateSchedulingLimitsSchema,
 } from "@scheduling/dto";
 import { authed } from "./base.js";
 import { calendarService } from "../services/calendars.js";
+import { availabilityManagementService } from "../services/availability-management.js";
+
+const calendarIdInput = z.object({ calendarId: z.uuid() });
 
 // List calendars with cursor pagination and optional location filter
 export const list = authed
@@ -109,6 +114,45 @@ export const remove = authed
     });
   });
 
+// Calendar scheduling limits (override org defaults per calendar)
+export const getSchedulingLimits = authed
+  .route({
+    method: "GET",
+    path: "/calendars/{calendarId}/scheduling-limits",
+    tags: ["Calendars"],
+    summary: "Get calendar scheduling limits",
+    description:
+      "Returns scheduling limits configured for a calendar, or null when it inherits organization defaults.",
+  })
+  .input(calendarIdInput)
+  .output(schedulingLimitsSchema.nullable())
+  .handler(({ input, context }) =>
+    availabilityManagementService.getCalendarLimits(input.calendarId, context),
+  );
+
+export const upsertSchedulingLimits = authed
+  .route({
+    method: "POST",
+    path: "/calendars/{calendarId}/scheduling-limits",
+    tags: ["Calendars"],
+    summary: "Upsert calendar scheduling limits",
+    description:
+      "Creates or updates scheduling limits for a calendar to override organization defaults.",
+  })
+  .input(
+    calendarIdInput.extend({
+      data: updateSchedulingLimitsSchema,
+    }),
+  )
+  .output(schedulingLimitsSchema)
+  .handler(({ input, context }) =>
+    availabilityManagementService.upsertCalendarLimits(
+      input.calendarId,
+      input.data,
+      context,
+    ),
+  );
+
 // Export as route object
 export const calendarRoutes = {
   list,
@@ -116,4 +160,8 @@ export const calendarRoutes = {
   create,
   update,
   remove,
+  schedulingLimits: {
+    get: getSchedulingLimits,
+    upsert: upsertSchedulingLimits,
+  },
 };

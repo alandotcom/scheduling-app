@@ -2,7 +2,7 @@
 
 export interface AvailabilityQuery {
   appointmentTypeId: string;
-  calendarIds: string[];
+  calendarId: string;
   startDate: string; // YYYY-MM-DD
   endDate: string; // YYYY-MM-DD
   timezone?: string | undefined; // IANA timezone
@@ -46,7 +46,7 @@ export interface SchedulingLimitsEntry {
   id: string;
   calendarId: string | null;
   groupId: string | null;
-  minNoticeHours: number | null;
+  minNoticeMinutes: number | null;
   maxNoticeDays: number | null;
   maxPerSlot: number | null;
   maxPerDay: number | null;
@@ -89,7 +89,7 @@ export interface AppointmentResource {
 }
 
 export interface MergedSchedulingLimits {
-  minNoticeHours: number | null;
+  minNoticeMinutes: number | null;
   maxNoticeDays: number | null;
   maxPerSlot: number | null;
   maxPerDay: number | null;

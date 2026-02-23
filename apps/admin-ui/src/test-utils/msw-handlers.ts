@@ -103,6 +103,18 @@ interface AvailabilityEngineTimeSlotFixture {
   remainingCapacity: number;
 }
 
+interface SchedulingLimitsFixture {
+  id: string;
+  orgId: string;
+  calendarId: string | null;
+  groupId: string | null;
+  minNoticeMinutes: number | null;
+  maxNoticeDays: number | null;
+  maxPerSlot: number | null;
+  maxPerDay: number | null;
+  maxPerWeek: number | null;
+}
+
 // Counter for unique IDs
 let idCounter = 1;
 
@@ -315,6 +327,8 @@ let mockBlockedTimes: BlockedTimeFixture[] = [];
 let mockAvailabilityFeedItems: AvailabilityFeedItem[] = [];
 let mockAppointmentTypeCalendars: AppointmentTypeCalendarFixture[] = [];
 let mockAvailabilityEngineTimeSlots: AvailabilityEngineTimeSlotFixture[] = [];
+let mockOrgSchedulingLimits: SchedulingLimitsFixture | null = null;
+let mockCalendarSchedulingLimits = new Map<string, SchedulingLimitsFixture>();
 let mockDashboardSummary: DashboardSummary = {
   todayAppointments: 0,
   weekAppointments: 0,
@@ -376,6 +390,23 @@ export function setMockAvailabilityEngineTimeSlots(
   mockAvailabilityEngineTimeSlots = slots;
 }
 
+export function setMockOrgSchedulingLimits(
+  limits: SchedulingLimitsFixture | null,
+) {
+  mockOrgSchedulingLimits = limits;
+}
+
+export function setMockCalendarSchedulingLimits(
+  calendarId: string,
+  limits: SchedulingLimitsFixture | null,
+) {
+  if (!limits) {
+    mockCalendarSchedulingLimits.delete(calendarId);
+    return;
+  }
+  mockCalendarSchedulingLimits.set(calendarId, limits);
+}
+
 export function setMockDashboardSummary(summary: DashboardSummary) {
   mockDashboardSummary = summary;
 }
@@ -393,6 +424,8 @@ export function resetMockData() {
   mockAvailabilityFeedItems = [];
   mockAppointmentTypeCalendars = [];
   mockAvailabilityEngineTimeSlots = [];
+  mockOrgSchedulingLimits = null;
+  mockCalendarSchedulingLimits = new Map<string, SchedulingLimitsFixture>();
   mockDashboardSummary = {
     todayAppointments: 0,
     weekAppointments: 0,
@@ -563,6 +596,65 @@ export const handlers = [
       nextCursor: null,
       hasMore: false,
     });
+  }),
+
+  http.post("*/v1/org/settings/schedulingLimits/get", () => {
+    return HttpResponse.json(mockOrgSchedulingLimits);
+  }),
+
+  http.post("*/v1/calendars/schedulingLimits/get", async ({ request }) => {
+    const body = (await request.json()) as { calendarId: string };
+    return HttpResponse.json(
+      mockCalendarSchedulingLimits.get(body.calendarId) ?? null,
+    );
+  }),
+
+  http.post(
+    "*/v1/org/settings/schedulingLimits/upsert",
+    async ({ request }) => {
+      const body = (await request.json()) as {
+        data: Omit<
+          SchedulingLimitsFixture,
+          "id" | "orgId" | "calendarId" | "groupId"
+        >;
+      };
+      const next: SchedulingLimitsFixture = {
+        id: mockOrgSchedulingLimits?.id ?? nextId(),
+        orgId: "test-org-id",
+        calendarId: null,
+        groupId: null,
+        minNoticeMinutes: body.data.minNoticeMinutes ?? null,
+        maxNoticeDays: body.data.maxNoticeDays ?? null,
+        maxPerSlot: body.data.maxPerSlot ?? null,
+        maxPerDay: body.data.maxPerDay ?? null,
+        maxPerWeek: body.data.maxPerWeek ?? null,
+      };
+      mockOrgSchedulingLimits = next;
+      return HttpResponse.json(next);
+    },
+  ),
+
+  http.post("*/v1/calendars/schedulingLimits/upsert", async ({ request }) => {
+    const body = (await request.json()) as {
+      calendarId: string;
+      data: Omit<
+        SchedulingLimitsFixture,
+        "id" | "orgId" | "calendarId" | "groupId"
+      >;
+    };
+    const next: SchedulingLimitsFixture = {
+      id: mockCalendarSchedulingLimits.get(body.calendarId)?.id ?? nextId(),
+      orgId: "test-org-id",
+      calendarId: body.calendarId,
+      groupId: null,
+      minNoticeMinutes: body.data.minNoticeMinutes ?? null,
+      maxNoticeDays: body.data.maxNoticeDays ?? null,
+      maxPerSlot: body.data.maxPerSlot ?? null,
+      maxPerDay: body.data.maxPerDay ?? null,
+      maxPerWeek: body.data.maxPerWeek ?? null,
+    };
+    mockCalendarSchedulingLimits.set(body.calendarId, next);
+    return HttpResponse.json(next);
   }),
 
   // Availability engine time slots

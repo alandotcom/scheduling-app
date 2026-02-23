@@ -40,6 +40,7 @@ import {
 import { WebhooksSection } from "@/components/settings/webhooks/webhooks-section";
 import { IntegrationsSection } from "@/components/settings/integrations/integrations-section";
 import { CustomFieldsSection } from "@/components/settings/custom-fields/custom-fields-section";
+import { OrgSchedulingLimitsCard } from "@/components/availability/scheduling-limits-editor";
 import type {
   AttemptFilter,
   WebhookTab,
@@ -60,13 +61,14 @@ import { DataTablePagination } from "@/components/ui/data-table-pagination";
 import { Icon } from "@/components/ui/icon";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Checkbox } from "@/components/ui/checkbox";
+import { Switch } from "@/components/ui/switch";
 import { ShortcutBadge } from "@/components/ui/shortcut-badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useSubmitShortcut } from "@/hooks/use-submit-shortcut";
 import {
   Card,
   CardHeader,
+  CardFooter,
   CardTitle,
   CardDescription,
   CardContent,
@@ -491,7 +493,12 @@ function OrganizationTab() {
     );
   }
 
-  return <OrgSettingsForm org={org} />;
+  return (
+    <div className="grid gap-6 lg:grid-cols-2 lg:items-stretch">
+      <OrgSettingsForm org={org} />
+      <OrgSchedulingLimitsCard />
+    </div>
+  );
 }
 
 interface SettingsFormProps {
@@ -504,7 +511,7 @@ function OrgSettingsForm({ org }: SettingsFormProps) {
 
   // Update settings mutation
   const updateMutation = useMutation(
-    orpc.org.updateSettings.mutationOptions({
+    orpc.org.settings.update.mutationOptions({
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: orpc.org.key() });
       },
@@ -553,193 +560,217 @@ function OrgSettingsForm({ org }: SettingsFormProps) {
   });
 
   return (
-    <form ref={formRef} onSubmit={handleSubmit(onSubmit)}>
-      <dl className="divide-y divide-border">
-        {/* Default timezone */}
-        <div className="grid grid-cols-1 gap-x-8 gap-y-2 py-6 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] sm:items-start">
-          <div>
-            <dt className="text-sm font-medium">Default timezone</dt>
-            <dd className="mt-1 text-sm text-muted-foreground">
-              The default timezone used for new locations and calendars.
-            </dd>
-          </div>
-          <dd className="sm:justify-self-end">
-            <div className="w-full sm:w-64">
-              <Controller
-                name="defaultTimezone"
-                control={control}
-                render={({ field }) => {
-                  const timezoneSelectLabel = resolveSelectValueLabel({
-                    value: field.value,
-                    options: TIMEZONES,
-                    getOptionValue: (timezone) => timezone,
-                    getOptionLabel: (timezone) => timezone,
-                    unknownLabel: "Unknown timezone",
-                  });
+    <Card className="h-full">
+      <CardHeader>
+        <CardTitle>Organization Settings</CardTitle>
+        <CardDescription>
+          Manage organization-wide defaults for timezone, notifications, and
+          business hours.
+        </CardDescription>
+      </CardHeader>
+      <form
+        ref={formRef}
+        onSubmit={handleSubmit(onSubmit)}
+        className="flex h-full flex-col"
+      >
+        <CardContent className="flex-1">
+          <dl className="divide-y divide-border">
+            {/* Default timezone */}
+            <div className="grid grid-cols-1 gap-x-8 gap-y-2 py-6 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
+              <div>
+                <dt className="text-sm font-medium">Default timezone</dt>
+                <dd className="mt-1 text-sm text-muted-foreground">
+                  The default timezone used for new locations and calendars.
+                </dd>
+              </div>
+              <dd className="sm:justify-self-end">
+                <div className="w-full sm:w-72">
+                  <Controller
+                    name="defaultTimezone"
+                    control={control}
+                    render={({ field }) => {
+                      const timezoneSelectLabel = resolveSelectValueLabel({
+                        value: field.value,
+                        options: TIMEZONES,
+                        getOptionValue: (timezone) => timezone,
+                        getOptionLabel: (timezone) => timezone,
+                        unknownLabel: "Unknown timezone",
+                      });
 
-                  return (
-                    <Select
-                      value={field.value}
-                      onValueChange={field.onChange}
+                      return (
+                        <Select
+                          value={field.value}
+                          onValueChange={field.onChange}
+                          disabled={updateMutation.isPending}
+                        >
+                          <SelectTrigger id="timezone" className="w-full">
+                            <SelectValue placeholder="Select timezone">
+                              {timezoneSelectLabel}
+                            </SelectValue>
+                          </SelectTrigger>
+                          <SelectContent>
+                            {TIMEZONES.map((timezone) => (
+                              <SelectItem key={timezone} value={timezone}>
+                                {timezone}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      );
+                    }}
+                  />
+                  {errors.defaultTimezone && (
+                    <p className="mt-2 text-sm text-destructive">
+                      {errors.defaultTimezone.message}
+                    </p>
+                  )}
+                </div>
+              </dd>
+            </div>
+
+            {/* Email notifications */}
+            <div className="grid grid-cols-1 gap-x-8 gap-y-2 py-6 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
+              <div>
+                <dt className="text-sm font-medium">Email notifications</dt>
+                <dd className="mt-1 text-sm text-muted-foreground">
+                  Control email and notification preferences for the
+                  organization.
+                </dd>
+              </div>
+              <dd className="sm:justify-self-end">
+                <Controller
+                  name="notificationsEnabled"
+                  control={control}
+                  render={({ field }) => (
+                    <div className="flex items-center gap-2.5 rounded-lg border border-border/70 px-3 py-2">
+                      <Switch
+                        id="notifications-enabled"
+                        checked={field.value ?? true}
+                        onCheckedChange={field.onChange}
+                      />
+                      <Label
+                        htmlFor="notifications-enabled"
+                        className="text-sm font-medium"
+                      >
+                        Enable email notifications
+                      </Label>
+                    </div>
+                  )}
+                />
+              </dd>
+            </div>
+
+            {/* Default business hours */}
+            <div className="grid grid-cols-1 gap-x-8 gap-y-2 py-6 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
+              <div>
+                <dt className="text-sm font-medium">Default business hours</dt>
+                <dd className="mt-1 text-sm text-muted-foreground">
+                  The default working hours applied to new calendars.
+                </dd>
+              </div>
+              <dd className="sm:justify-self-end">
+                <div className="flex items-end gap-3">
+                  <div className="space-y-1">
+                    <Label htmlFor="startTime" className="text-xs">
+                      Start
+                    </Label>
+                    <Controller
+                      name="defaultBusinessHoursStart"
+                      control={control}
+                      render={({ field }) => (
+                        <Input
+                          id="startTime"
+                          type="time"
+                          className="w-40"
+                          disabled={updateMutation.isPending}
+                          {...field}
+                        />
+                      )}
+                    />
+                    {errors.defaultBusinessHoursStart && (
+                      <p className="text-xs text-destructive">
+                        {errors.defaultBusinessHoursStart.message}
+                      </p>
+                    )}
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="endTime" className="text-xs">
+                      End
+                    </Label>
+                    <Controller
+                      name="defaultBusinessHoursEnd"
+                      control={control}
+                      render={({ field }) => (
+                        <Input
+                          id="endTime"
+                          type="time"
+                          className="w-40"
+                          disabled={updateMutation.isPending}
+                          {...field}
+                        />
+                      )}
+                    />
+                    {errors.defaultBusinessHoursEnd && (
+                      <p className="text-xs text-destructive">
+                        {errors.defaultBusinessHoursEnd.message}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </dd>
+            </div>
+
+            {/* Business days */}
+            <div className="grid grid-cols-1 gap-x-8 gap-y-2 py-6 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
+              <div>
+                <dt className="text-sm font-medium">Business days</dt>
+                <dd className="mt-1 text-sm text-muted-foreground">
+                  Select which days of the week your business operates.
+                </dd>
+              </div>
+              <dd className="sm:justify-self-end">
+                <div className="flex flex-wrap gap-1.5 sm:flex-nowrap">
+                  {WEEKDAYS.map((day) => (
+                    <button
+                      key={day.value}
+                      type="button"
+                      onClick={() => toggleDay(day.value)}
                       disabled={updateMutation.isPending}
+                      className={cn(
+                        "shrink-0 rounded-lg border px-2.5 py-1.5 text-sm font-medium whitespace-nowrap transition-colors",
+                        selectedDays.includes(day.value)
+                          ? "border-primary bg-primary text-primary-foreground"
+                          : "border-border bg-background hover:bg-muted",
+                        "disabled:cursor-not-allowed disabled:opacity-50",
+                      )}
+                      aria-pressed={selectedDays.includes(day.value)}
                     >
-                      <SelectTrigger id="timezone">
-                        <SelectValue placeholder="Select timezone">
-                          {timezoneSelectLabel}
-                        </SelectValue>
-                      </SelectTrigger>
-                      <SelectContent>
-                        {TIMEZONES.map((timezone) => (
-                          <SelectItem key={timezone} value={timezone}>
-                            {timezone}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  );
-                }}
-              />
-              {errors.defaultTimezone && (
-                <p className="mt-2 text-sm text-destructive">
-                  {errors.defaultTimezone.message}
-                </p>
-              )}
+                      {day.label}
+                    </button>
+                  ))}
+                </div>
+                {errors.defaultBusinessDays && (
+                  <p className="mt-2 text-sm text-destructive">
+                    {errors.defaultBusinessDays.message}
+                  </p>
+                )}
+              </dd>
             </div>
-          </dd>
-        </div>
+          </dl>
+        </CardContent>
 
-        {/* Email notifications */}
-        <div className="grid grid-cols-1 gap-x-8 gap-y-2 py-6 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] sm:items-start">
-          <div>
-            <dt className="text-sm font-medium">Email notifications</dt>
-            <dd className="mt-1 text-sm text-muted-foreground">
-              Control email and notification preferences for the organization.
-            </dd>
-          </div>
-          <dd className="sm:justify-self-end">
-            <Controller
-              name="notificationsEnabled"
-              control={control}
-              render={({ field }) => (
-                <Checkbox
-                  checked={field.value ?? true}
-                  onChange={field.onChange}
-                  label="Enable email notifications"
-                />
-              )}
+        <CardFooter className="justify-end gap-3">
+          {isDirty ? <Badge variant="warning">Unsaved changes</Badge> : null}
+          <Button type="submit" disabled={updateMutation.isPending || !isDirty}>
+            {updateMutation.isPending ? "Saving..." : "Save changes"}
+            <ShortcutBadge
+              shortcut="meta+enter"
+              className="ml-2 hidden sm:inline-flex"
             />
-          </dd>
-        </div>
-
-        {/* Default business hours */}
-        <div className="grid grid-cols-1 gap-x-8 gap-y-2 py-6 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] sm:items-start">
-          <div>
-            <dt className="text-sm font-medium">Default business hours</dt>
-            <dd className="mt-1 text-sm text-muted-foreground">
-              The default working hours applied to new calendars.
-            </dd>
-          </div>
-          <dd className="sm:justify-self-end">
-            <div className="flex items-end gap-3">
-              <div className="space-y-1">
-                <Label htmlFor="startTime" className="text-xs">
-                  Start
-                </Label>
-                <Controller
-                  name="defaultBusinessHoursStart"
-                  control={control}
-                  render={({ field }) => (
-                    <Input
-                      id="startTime"
-                      type="time"
-                      className="w-28"
-                      disabled={updateMutation.isPending}
-                      {...field}
-                    />
-                  )}
-                />
-                {errors.defaultBusinessHoursStart && (
-                  <p className="text-xs text-destructive">
-                    {errors.defaultBusinessHoursStart.message}
-                  </p>
-                )}
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="endTime" className="text-xs">
-                  End
-                </Label>
-                <Controller
-                  name="defaultBusinessHoursEnd"
-                  control={control}
-                  render={({ field }) => (
-                    <Input
-                      id="endTime"
-                      type="time"
-                      className="w-28"
-                      disabled={updateMutation.isPending}
-                      {...field}
-                    />
-                  )}
-                />
-                {errors.defaultBusinessHoursEnd && (
-                  <p className="text-xs text-destructive">
-                    {errors.defaultBusinessHoursEnd.message}
-                  </p>
-                )}
-              </div>
-            </div>
-          </dd>
-        </div>
-
-        {/* Business days */}
-        <div className="grid grid-cols-1 gap-x-8 gap-y-2 py-6 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] sm:items-start">
-          <div>
-            <dt className="text-sm font-medium">Business days</dt>
-            <dd className="mt-1 text-sm text-muted-foreground">
-              Select which days of the week your business operates.
-            </dd>
-          </div>
-          <dd className="sm:justify-self-end">
-            <div className="flex flex-wrap gap-1.5">
-              {WEEKDAYS.map((day) => (
-                <button
-                  key={day.value}
-                  type="button"
-                  onClick={() => toggleDay(day.value)}
-                  disabled={updateMutation.isPending}
-                  className={cn(
-                    "rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors",
-                    selectedDays.includes(day.value)
-                      ? "border-primary bg-primary text-primary-foreground"
-                      : "border-border bg-background hover:bg-muted",
-                    "disabled:cursor-not-allowed disabled:opacity-50",
-                  )}
-                  aria-pressed={selectedDays.includes(day.value)}
-                >
-                  {day.label}
-                </button>
-              ))}
-            </div>
-            {errors.defaultBusinessDays && (
-              <p className="mt-2 text-sm text-destructive">
-                {errors.defaultBusinessDays.message}
-              </p>
-            )}
-          </dd>
-        </div>
-      </dl>
-
-      <div className="flex items-center justify-end gap-3 border-t border-border pt-6 mt-2">
-        {isDirty ? <Badge variant="warning">Unsaved changes</Badge> : null}
-        <Button type="submit" disabled={updateMutation.isPending || !isDirty}>
-          {updateMutation.isPending ? "Saving..." : "Save changes"}
-          <ShortcutBadge
-            shortcut="meta+enter"
-            className="ml-2 hidden sm:inline-flex"
-          />
-        </Button>
-      </div>
-    </form>
+          </Button>
+        </CardFooter>
+      </form>
+    </Card>
   );
 }
 

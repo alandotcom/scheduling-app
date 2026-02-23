@@ -2365,7 +2365,7 @@
       "default": null,
       "generated": null,
       "identity": null,
-      "name": "min_notice_hours",
+      "name": "min_notice_minutes",
       "entityType": "columns",
       "schema": "public",
       "table": "scheduling_limits"
