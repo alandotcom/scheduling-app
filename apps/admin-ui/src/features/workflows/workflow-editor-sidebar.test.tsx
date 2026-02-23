@@ -258,6 +258,46 @@ describe("WorkflowEditorSidebar role behavior", () => {
     });
   });
 
+  test("renders label and description after trigger configuration", () => {
+    renderSidebar({ canManageWorkflow: true });
+
+    const toggleAudienceRulesButton = screen.getByRole("button", {
+      name: "Toggle audience rules",
+    });
+    const labelInput = screen.getByLabelText("Label") as HTMLInputElement;
+    const descriptionInput = screen.getByLabelText(
+      "Description",
+    ) as HTMLInputElement;
+
+    expect(
+      toggleAudienceRulesButton.compareDocumentPosition(labelInput) & 4,
+    ).toBe(4);
+    expect(labelInput.compareDocumentPosition(descriptionInput) & 4).toBe(4);
+  });
+
+  test("renders label and description after action controls", () => {
+    const actionNode = createActionNodeFixture({
+      id: "action-node",
+      label: "Send update",
+      actionType: "logger",
+    });
+
+    renderSidebar({
+      canManageWorkflow: true,
+      nodes: [createNodeFixture(), actionNode],
+      selectedNode: actionNode,
+    });
+
+    const disableButton = screen.getByRole("button", { name: "Disable" });
+    const labelInput = screen.getByLabelText("Label") as HTMLInputElement;
+    const descriptionInput = screen.getByLabelText(
+      "Description",
+    ) as HTMLInputElement;
+
+    expect(disableButton.compareDocumentPosition(labelInput) & 4).toBe(4);
+    expect(labelInput.compareDocumentPosition(descriptionInput) & 4).toBe(4);
+  });
+
   test("does not expose logger output attributes in upstream suggestions", () => {
     const triggerNode = createNodeFixture();
     const upstreamAction = createActionNodeFixture({

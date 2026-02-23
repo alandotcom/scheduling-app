@@ -681,41 +681,6 @@ export function WorkflowEditorSidebar({
                   )
                 ) : (
                   <>
-                    <div className="space-y-2">
-                      <Label htmlFor="workflow-node-label">Label</Label>
-                      <Input
-                        disabled={!canManageWorkflow}
-                        id="workflow-node-label"
-                        onInput={(event) => {
-                          onUpdateNodeData({
-                            id: selectedNode.id,
-                            data: { label: event.currentTarget.value },
-                          });
-                        }}
-                        value={toNodeLabel(selectedNode)}
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="workflow-node-description">
-                        Description
-                      </Label>
-                      <Input
-                        disabled={!canManageWorkflow}
-                        id="workflow-node-description"
-                        onInput={(event) => {
-                          onUpdateNodeData({
-                            id: selectedNode.id,
-                            data: {
-                              description:
-                                event.currentTarget.value.trim() || undefined,
-                            },
-                          });
-                        }}
-                        value={toNodeDescription(selectedNode)}
-                      />
-                    </div>
-
                     {selectedNodeType === "trigger" ? (
                       <WorkflowTriggerConfig
                         config={selectedNodeConfig}
@@ -907,6 +872,41 @@ export function WorkflowEditorSidebar({
                         ) : null}
                       </>
                     )}
+
+                    <div className="space-y-2">
+                      <Label htmlFor="workflow-node-label">Label</Label>
+                      <Input
+                        disabled={!canManageWorkflow}
+                        id="workflow-node-label"
+                        onInput={(event) => {
+                          onUpdateNodeData({
+                            id: selectedNode.id,
+                            data: { label: event.currentTarget.value },
+                          });
+                        }}
+                        value={toNodeLabel(selectedNode)}
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="workflow-node-description">
+                        Description
+                      </Label>
+                      <Input
+                        disabled={!canManageWorkflow}
+                        id="workflow-node-description"
+                        onInput={(event) => {
+                          onUpdateNodeData({
+                            id: selectedNode.id,
+                            data: {
+                              description:
+                                event.currentTarget.value.trim() || undefined,
+                            },
+                          });
+                        }}
+                        value={toNodeDescription(selectedNode)}
+                      />
+                    </div>
                   </>
                 )}
               </>
