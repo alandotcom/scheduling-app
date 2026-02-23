@@ -6,8 +6,10 @@
   "scripts": {
     "dev": "vite --host",
     "build": "vite build",
+    "build:worker": "vite build",
     "lint": "pnpm --dir ../.. exec oxlint --type-aware --config .oxlintrc.json --tsconfig tsconfig.json apps/admin-ui",
     "preview": "vite preview",
+    "deploy:worker": "wrangler deploy --config wrangler.toml",
     "test": "bun test",
     "test:coverage": "bun test --coverage",
     "typecheck": "tsgo -p tsconfig.typecheck.json --noEmit --incremental --tsBuildInfoFile node_modules/.cache.typecheck.tsbuildinfo --pretty false"

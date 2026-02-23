@@ -1,0 +1,95 @@
+name: Deploy Cloudflare Worker
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Deployment environment"
+        required: true
+        type: choice
+        options:
+          - preview
+          - production
+      ref:
+        description: "Git ref to deploy (branch, tag, or SHA)"
+        required: false
+        default: "main"
+        type: string
+
+concurrency:
+  group: deploy-cloudflare-${{ inputs.environment }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  deployments: write
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+
+    env:
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_WORKER_NAME: ${{ vars.CLOUDFLARE_WORKER_NAME }}
+      RAILWAY_API_ORIGIN: ${{ vars.RAILWAY_API_ORIGIN }}
+      CLOUDFLARE_ROUTE: ${{ vars.CLOUDFLARE_ROUTE }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.ref }}
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build admin UI assets
+        run: pnpm --filter @scheduling/admin-ui run build
+
+      - name: Deploy Worker
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [ -z "${CLOUDFLARE_ACCOUNT_ID:-}" ]; then
+            echo "Missing required secret: CLOUDFLARE_ACCOUNT_ID"
+            exit 1
+          fi
+
+          if [ -z "${CLOUDFLARE_API_TOKEN:-}" ]; then
+            echo "Missing required secret: CLOUDFLARE_API_TOKEN"
+            exit 1
+          fi
+
+          if [ -z "${CLOUDFLARE_WORKER_NAME:-}" ]; then
+            echo "Missing required variable: CLOUDFLARE_WORKER_NAME"
+            exit 1
+          fi
+
+          if [ -z "${RAILWAY_API_ORIGIN:-}" ]; then
+            echo "Missing required variable: RAILWAY_API_ORIGIN"
+            exit 1
+          fi
+
+          DEPLOY_ARGS=(
+            "--config" "apps/admin-ui/wrangler.toml"
+            "--name" "${CLOUDFLARE_WORKER_NAME}"
+            "--var" "RAILWAY_API_ORIGIN:${RAILWAY_API_ORIGIN}"
+          )
+
+          if [ -n "${CLOUDFLARE_ROUTE:-}" ]; then
+            DEPLOY_ARGS+=("--route" "${CLOUDFLARE_ROUTE}")
+          fi
+
+          pnpm dlx wrangler@4 deploy "${DEPLOY_ARGS[@]}"

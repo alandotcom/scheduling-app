@@ -153,6 +153,96 @@ The app supports org-scoped OAuth integrations in Settings > Integrations.
   - `GET /api/integrations/oauth/:provider/start`
   - `GET /api/integrations/oauth/:provider/callback`
 
+## Deployment
+
+This repo ships CI/CD workflows for:
+
+1. Building and publishing the API Docker image to GHCR
+2. Deploying the admin app + Worker proxy to Cloudflare (manual trigger)
+3. Releasing a unified API/SDK version and publishing the SDK to npm
+
+### GitHub Actions Workflows
+
+- `.github/workflows/publish-api-image.yml`
+  - Triggered on pushes to `main`, version tags (`v*`), and manual dispatch
+  - Publishes image tags to `ghcr.io/<owner>/<repo>-api`
+- `.github/workflows/deploy-cloudflare.yml`
+  - Manual trigger only (`workflow_dispatch`)
+  - Builds `apps/admin-ui`, deploys Worker with asset bundle and API proxy
+- `.github/workflows/release-version.yml`
+  - Manual trigger only
+  - Updates `apps/api/package.json` and `sdk/typescript/package.json` to the same version, commits, tags `vX.Y.Z`, and creates a GitHub Release
+- `.github/workflows/publish-sdk.yml`
+  - Triggered on version tags (`v*`) and manual dispatch
+  - Verifies API and SDK versions match target tag, then publishes `@scheduling/client` to npm
+
+### API Docker Publishing (GHCR)
+
+No extra repository secrets are required for GHCR publish when using the repository `GITHUB_TOKEN`.
+
+Published image format:
+
+- `ghcr.io/<owner>/<repo>-api:sha-<commit>`
+- `ghcr.io/<owner>/<repo>-api:main` (default branch)
+- `ghcr.io/<owner>/<repo>-api:vX.Y.Z` (on version tags)
+- `ghcr.io/<owner>/<repo>-api:latest` (on version tags)
+
+### Cloudflare Worker Deploy
+
+The deploy workflow is environment-driven and fork-friendly.
+
+Create two GitHub Environments (recommended):
+
+1. `preview`
+2. `production`
+
+For each environment, set:
+
+Secrets:
+
+- `CLOUDFLARE_API_TOKEN`
+- `CLOUDFLARE_ACCOUNT_ID`
+
+Variables:
+
+- `CLOUDFLARE_WORKER_NAME` (e.g. `scheduling-web`)
+- `RAILWAY_API_ORIGIN` (e.g. `https://your-api.up.railway.app`)
+- `CLOUDFLARE_ROUTE` (optional, e.g. `app.example.com/*`)
+
+The Worker config lives at:
+
+- `apps/admin-ui/wrangler.toml`
+- `apps/admin-ui/worker/index.ts`
+
+Behavior:
+
+- Static assets are served from the Vite build output (`dist`)
+- Requests to `/v1/*` and `/api/*` are proxied to `RAILWAY_API_ORIGIN`
+- Browser traffic stays same-origin at the app domain, reducing cross-origin preflight overhead
+
+### Unified API + SDK Versioning
+
+Release flow (recommended):
+
+1. Run **Create Versioned Release** workflow with a semver version (example: `0.3.0`)
+2. Workflow updates both:
+   - `apps/api/package.json`
+   - `sdk/typescript/package.json`
+3. Workflow creates tag `v0.3.0` and GitHub release
+4. Tag triggers:
+   - API image publish (`publish-api-image.yml`)
+   - SDK npm publish (`publish-sdk.yml`)
+
+### SDK npm Publish Setup
+
+The SDK package is `@scheduling/client` in `sdk/typescript`.
+
+Set repository secret:
+
+- `NPM_TOKEN` (token with publish rights for the package scope)
+
+The publish workflow validates that SDK and API versions match the target release tag before publishing.
+
 ## License
 
 Private - All rights reserved.

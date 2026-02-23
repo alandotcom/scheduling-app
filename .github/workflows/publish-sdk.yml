@@ -1,0 +1,84 @@
+name: Publish SDK Package
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Semver version to publish (without v). If omitted, uses git tag."
+        required: false
+        type: string
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish-sdk:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: pnpm
+          registry-url: https://registry.npmjs.org
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Resolve target version
+        id: version
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          if [ -n "${INPUT_VERSION:-}" ]; then
+            TARGET_VERSION="$INPUT_VERSION"
+          elif [[ "${GITHUB_REF:-}" == refs/tags/v* ]]; then
+            TARGET_VERSION="${GITHUB_REF_NAME#v}"
+          else
+            echo "Unable to resolve target version: provide workflow input or push a v* tag"
+            exit 1
+          fi
+
+          echo "value=$TARGET_VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Verify API and SDK versions are aligned
+        env:
+          TARGET_VERSION: ${{ steps.version.outputs.value }}
+        run: |
+          API_VERSION=$(node -p "require('./apps/api/package.json').version")
+          SDK_VERSION=$(node -p "require('./sdk/typescript/package.json').version")
+
+          echo "Target version: $TARGET_VERSION"
+          echo "API version:    $API_VERSION"
+          echo "SDK version:    $SDK_VERSION"
+
+          if [ "$API_VERSION" != "$TARGET_VERSION" ]; then
+            echo "apps/api/package.json version does not match target version"
+            exit 1
+          fi
+
+          if [ "$SDK_VERSION" != "$TARGET_VERSION" ]; then
+            echo "sdk/typescript/package.json version does not match target version"
+            exit 1
+          fi
+
+      - name: Build SDK
+        run: pnpm --filter @scheduling/client run build
+
+      - name: Publish SDK to npm
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: pnpm --filter @scheduling/client exec npm publish --access public --provenance

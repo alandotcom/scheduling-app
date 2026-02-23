@@ -1,0 +1,81 @@
+name: Create Versioned Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Semver version (without v prefix), e.g. 0.3.0"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  version-and-tag:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Validate version
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$ ]]; then
+            echo "Invalid semver: $VERSION"
+            exit 1
+          fi
+
+      - name: Update API and SDK package versions together
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          npm pkg set version="$VERSION" --workspace @scheduling/api
+          npm pkg set version="$VERSION" --workspace @scheduling/client
+
+      - name: Ensure version files changed
+        run: |
+          if git diff --quiet -- apps/api/package.json sdk/typescript/package.json; then
+            echo "No version change detected; aborting"
+            exit 1
+          fi
+
+      - name: Commit version bump
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add apps/api/package.json sdk/typescript/package.json
+          git commit -m "chore(release): v${VERSION}"
+
+      - name: Tag release
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          git tag "v${VERSION}"
+
+      - name: Push commit and tag
+        run: |
+          git push origin HEAD
+          git push origin --tags
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ inputs.version }}
+          name: v${{ inputs.version }}
+          generate_release_notes: true
