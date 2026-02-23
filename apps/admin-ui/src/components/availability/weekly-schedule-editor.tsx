@@ -13,6 +13,7 @@ import { toast } from "sonner";
 import { orpc } from "@/lib/query";
 import { Icon } from "@/components/ui/icon";
 import { Button } from "@/components/ui/button";
+import { useBufferedPending } from "@/hooks/use-buffered-pending";
 import { useSubmitShortcut } from "@/hooks/use-submit-shortcut";
 import {
   WEEKDAYS,
@@ -247,6 +248,7 @@ function WeeklyScheduleEditorBody({
       },
     }),
   );
+  const showSavePendingVisual = useBufferedPending(setWeeklyMutation.isPending);
 
   const getDay = (weekday: number): DaySchedule =>
     activeSchedule[weekday] ?? { enabled: false, blocks: [] };
@@ -400,9 +402,12 @@ function WeeklyScheduleEditorBody({
             size={compact ? "sm" : "default"}
             onClick={handleSave}
             disabled={!hasChanges || setWeeklyMutation.isPending}
+            className={
+              setWeeklyMutation.isPending ? "disabled:opacity-100" : undefined
+            }
           >
             <Icon icon={FloppyDiskIcon} className="mr-1.5" />
-            {setWeeklyMutation.isPending ? "Saving..." : "Save"}
+            {showSavePendingVisual ? "Saving..." : "Save"}
           </Button>
         </div>
       </div>

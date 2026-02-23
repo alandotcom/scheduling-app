@@ -32,6 +32,7 @@ import { Icon } from "@/components/ui/icon";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useCrudState } from "@/hooks/use-crud-state";
+import { useBufferedPending } from "@/hooks/use-buffered-pending";
 import { useCreateDraft, useResetCreateDraft } from "@/hooks/use-create-draft";
 import { useCreateIntentTrigger } from "@/hooks/use-create-intent";
 import {
@@ -87,6 +88,7 @@ function AppointmentTypeForm({
   onDirtyChange,
 }: AppointmentTypeFormProps) {
   const formRef = useRef<HTMLFormElement>(null);
+  const showSubmittingVisual = useBufferedPending(isSubmitting);
   const {
     register,
     handleSubmit,
@@ -266,8 +268,9 @@ function AppointmentTypeForm({
               type="submit"
               size="sm"
               disabled={isSubmitting || (disableSubmitWhenPristine && !isDirty)}
+              className={isSubmitting ? "disabled:opacity-100" : undefined}
             >
-              {isSubmitting ? "Saving..." : "Save"}
+              {showSubmittingVisual ? "Saving..." : "Save"}
             </Button>
           </div>
         </div>
@@ -453,6 +456,8 @@ function AppointmentTypesPage() {
       }
     },
   });
+  const showCreatePendingVisual = useBufferedPending(createMutation.isPending);
+  const showUpdatePendingVisual = useBufferedPending(updateMutation.isPending);
 
   const handleCreate = (formData: CreateAppointmentTypeInput) => {
     createMutation.mutate(formData);
@@ -621,8 +626,11 @@ function AppointmentTypesPage() {
               size="sm"
               form={APPOINTMENT_TYPE_CREATE_FORM_ID}
               disabled={createMutation.isPending}
+              className={
+                createMutation.isPending ? "disabled:opacity-100" : undefined
+              }
             >
-              {createMutation.isPending ? "Saving..." : "Save"}
+              {showCreatePendingVisual ? "Saving..." : "Save"}
             </Button>
           </div>
         }
@@ -681,8 +689,13 @@ function AppointmentTypesPage() {
                   size="sm"
                   form={detailFormId}
                   disabled={updateMutation.isPending || !isDetailFormDirty}
+                  className={
+                    updateMutation.isPending
+                      ? "disabled:opacity-100"
+                      : undefined
+                  }
                 >
-                  {updateMutation.isPending ? "Saving..." : "Save"}
+                  {showUpdatePendingVisual ? "Saving..." : "Save"}
                 </Button>
               </div>
             </div>

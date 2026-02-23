@@ -50,6 +50,7 @@ import { FieldShortcutHint } from "@/components/ui/field-shortcut-hint";
 import { useModalFieldShortcuts } from "@/hooks/use-modal-field-shortcuts";
 import { useCreateDraft } from "@/hooks/use-create-draft";
 import { useSubmitShortcut } from "@/hooks/use-submit-shortcut";
+import { useBufferedPending } from "@/hooks/use-buffered-pending";
 
 interface AppointmentModalProps {
   open: boolean;
@@ -278,6 +279,9 @@ export function AppointmentModal({
         toast.error(mutationError.message || "Failed to create client");
       },
     }),
+  );
+  const showCreateClientPendingVisual = useBufferedPending(
+    createClientMutation.isPending,
   );
 
   // Fetch available time slots for visible month
@@ -1144,8 +1148,13 @@ export function AppointmentModal({
               size="sm"
               form={createClientFormId}
               disabled={createClientMutation.isPending}
+              className={
+                createClientMutation.isPending
+                  ? "disabled:opacity-100"
+                  : undefined
+              }
             >
-              {createClientMutation.isPending ? "Saving..." : "Save"}
+              {showCreateClientPendingVisual ? "Saving..." : "Save"}
             </Button>
           </div>
         }

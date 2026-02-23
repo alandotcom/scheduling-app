@@ -4,6 +4,7 @@ import { toast } from "sonner";
 
 import { orpc } from "@/lib/query";
 import { Button } from "@/components/ui/button";
+import { useBufferedPending } from "@/hooks/use-buffered-pending";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
@@ -190,6 +191,7 @@ export function CalendarSchedulingLimitsEditor({
       },
     }),
   );
+  const showUpsertPendingVisual = useBufferedPending(upsertMutation.isPending);
 
   const isLoading = isOrgDefaultLoading || isCalendarLoading;
   const hasChanges = useMemo(
@@ -323,8 +325,11 @@ export function CalendarSchedulingLimitsEditor({
             type="button"
             onClick={save}
             disabled={upsertMutation.isPending || !hasChanges}
+            className={
+              upsertMutation.isPending ? "disabled:opacity-100" : undefined
+            }
           >
-            {upsertMutation.isPending ? "Saving..." : "Save limits"}
+            {showUpsertPendingVisual ? "Saving..." : "Save limits"}
           </Button>
         </div>
       </div>
@@ -397,8 +402,11 @@ export function CalendarSchedulingLimitsEditor({
           type="button"
           onClick={save}
           disabled={upsertMutation.isPending || !hasChanges}
+          className={
+            upsertMutation.isPending ? "disabled:opacity-100" : undefined
+          }
         >
-          {upsertMutation.isPending ? "Saving..." : "Save limits"}
+          {showUpsertPendingVisual ? "Saving..." : "Save limits"}
         </Button>
       </div>
     </div>
@@ -441,6 +449,7 @@ export function OrgSchedulingLimitsCard() {
       },
     }),
   );
+  const showUpsertPendingVisual = useBufferedPending(upsertMutation.isPending);
 
   const hasChanges = useMemo(
     () => !areFormsEqual(form, sourceForm),
@@ -511,8 +520,11 @@ export function OrgSchedulingLimitsCard() {
                 type="button"
                 onClick={save}
                 disabled={upsertMutation.isPending || !hasChanges}
+                className={
+                  upsertMutation.isPending ? "disabled:opacity-100" : undefined
+                }
               >
-                {upsertMutation.isPending ? "Saving..." : "Save defaults"}
+                {showUpsertPendingVisual ? "Saving..." : "Save defaults"}
               </Button>
             </div>
           </>

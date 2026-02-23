@@ -61,6 +61,7 @@ import {
 } from "@/hooks/use-keyboard-shortcuts";
 import { useClosingSnapshot } from "@/hooks/use-closing-snapshot";
 import { useCreateIntentTrigger } from "@/hooks/use-create-intent";
+import { useBufferedPending } from "@/hooks/use-buffered-pending";
 import { useUrlDrivenModal } from "@/hooks/use-url-driven-modal";
 import { useValidateSelection } from "@/hooks/use-selection-search-params";
 import {
@@ -563,6 +564,7 @@ function AppointmentsPage() {
       },
     }),
   );
+  const showNoShowPendingVisual = useBufferedPending(noShowMutation.isPending);
 
   const calendarFilterLabel = resolveSelectValueLabel({
     value: filters.calendarId || "all",
@@ -1475,7 +1477,7 @@ function AppointmentsPage() {
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={handleNoShow}>
-              {noShowMutation.isPending ? "Saving..." : "Mark as No-Show"}
+              {showNoShowPendingVisual ? "Saving..." : "Mark as No-Show"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

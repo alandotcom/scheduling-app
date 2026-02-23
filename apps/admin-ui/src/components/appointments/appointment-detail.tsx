@@ -47,6 +47,7 @@ import {
   toRunStatusLabel,
 } from "@/features/workflows/workflow-runs-helpers";
 import { useModalFieldShortcuts } from "@/hooks/use-modal-field-shortcuts";
+import { useBufferedPending } from "@/hooks/use-buffered-pending";
 import { useResetFormOnOpen } from "@/hooks/use-reset-form-on-open";
 import { useSubmitShortcut } from "@/hooks/use-submit-shortcut";
 import {
@@ -254,6 +255,8 @@ export function AppointmentDetail({
       },
     }),
   );
+  const showUpdatePendingVisual = useBufferedPending(updateMutation.isPending);
+  const showNoShowPendingVisual = useBufferedPending(noShowMutation.isPending);
 
   const isActionable =
     appointment?.status === "scheduled" || appointment?.status === "confirmed";
@@ -488,9 +491,9 @@ export function AppointmentDetail({
                       size="sm"
                       form={`appointment-notes-form-${appointment.id}`}
                       disabled={updateMutation.isPending || !isNotesDirty}
-                      className="w-full sm:w-auto"
+                      className={`w-full sm:w-auto ${updateMutation.isPending ? "disabled:opacity-100" : ""}`}
                     >
-                      {updateMutation.isPending ? "Saving..." : "Save"}
+                      {showUpdatePendingVisual ? "Saving..." : "Save"}
                       <ShortcutBadge
                         shortcut="meta+enter"
                         className="ml-2 hidden sm:inline-flex"
@@ -689,7 +692,7 @@ export function AppointmentDetail({
             <AlertDialogAction
               onClick={() => noShowMutation.mutate({ id: appointment.id })}
             >
-              {noShowMutation.isPending ? "Saving..." : "Mark as No-Show"}
+              {showNoShowPendingVisual ? "Saving..." : "Mark as No-Show"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

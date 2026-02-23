@@ -48,6 +48,7 @@ import {
   formatTimezoneShort,
 } from "@/lib/date-utils";
 import { useModalFieldShortcuts } from "@/hooks/use-modal-field-shortcuts";
+import { useBufferedPending } from "@/hooks/use-buffered-pending";
 import { useSubmitShortcut } from "@/hooks/use-submit-shortcut";
 
 interface AppointmentDrawerProps {
@@ -174,6 +175,8 @@ export function AppointmentDrawer({
       },
     }),
   );
+  const showUpdatePendingVisual = useBufferedPending(updateMutation.isPending);
+  const showNoShowPendingVisual = useBufferedPending(noShowMutation.isPending);
 
   const isActionable =
     appointment?.status === "scheduled" || appointment?.status === "confirmed";
@@ -331,8 +334,13 @@ export function AppointmentDrawer({
                       type="submit"
                       size="sm"
                       disabled={updateMutation.isPending}
+                      className={
+                        updateMutation.isPending
+                          ? "disabled:opacity-100"
+                          : undefined
+                      }
                     >
-                      {updateMutation.isPending ? "Saving..." : "Save"}
+                      {showUpdatePendingVisual ? "Saving..." : "Save"}
                       <ShortcutBadge
                         shortcut="meta+enter"
                         className="ml-2 hidden sm:inline-flex"
@@ -445,7 +453,7 @@ export function AppointmentDrawer({
             <AlertDialogAction
               onClick={() => noShowMutation.mutate({ id: appointment.id })}
             >
-              {noShowMutation.isPending ? "Saving..." : "Mark as No-Show"}
+              {showNoShowPendingVisual ? "Saving..." : "Mark as No-Show"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

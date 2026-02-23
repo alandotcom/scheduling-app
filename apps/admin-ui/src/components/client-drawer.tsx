@@ -35,6 +35,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { DeleteConfirmDialog } from "@/components/delete-confirm-dialog";
 import { useModalFieldShortcuts } from "@/hooks/use-modal-field-shortcuts";
+import { useBufferedPending } from "@/hooks/use-buffered-pending";
 import { useResetFormOnOpen } from "@/hooks/use-reset-form-on-open";
 import { useSubmitShortcut } from "@/hooks/use-submit-shortcut";
 import { formatDisplayDateTime } from "@/lib/date-utils";
@@ -89,6 +90,7 @@ export function ClientDrawer({
       },
     }),
   );
+  const showUpdatePendingVisual = useBufferedPending(updateMutation.isPending);
 
   // Delete mutation
   const deleteMutation = useMutation(
@@ -462,8 +464,13 @@ export function ClientDrawer({
                     form={formId}
                     size="sm"
                     disabled={updateMutation.isPending}
+                    className={
+                      updateMutation.isPending
+                        ? "disabled:opacity-100"
+                        : undefined
+                    }
                   >
-                    {updateMutation.isPending ? "Saving..." : "Save Changes"}
+                    {showUpdatePendingVisual ? "Saving..." : "Save Changes"}
                   </Button>
                 </div>
               )}

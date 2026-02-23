@@ -29,6 +29,7 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { ShortcutBadge } from "@/components/ui/shortcut-badge";
 import { useModalFieldShortcuts } from "@/hooks/use-modal-field-shortcuts";
+import { useBufferedPending } from "@/hooks/use-buffered-pending";
 import { useSubmitShortcut } from "@/hooks/use-submit-shortcut";
 import { handleCtrlJkArrowNavigation } from "@/lib/keyboard-navigation";
 import { formatPhoneInputAsYouType } from "@/lib/phone";
@@ -217,6 +218,7 @@ export function ClientForm({
   onInvalidSubmit,
   forcedSection,
 }: ClientFormProps) {
+  const showSubmittingVisual = useBufferedPending(isSubmitting);
   const formRef = useRef<HTMLFormElement>(null);
   const [countryComboboxOpen, setCountryComboboxOpen] = useState(false);
   const [activeSection, setActiveSection] =
@@ -804,8 +806,9 @@ export function ClientForm({
               type="submit"
               size="sm"
               disabled={isSubmitting || (disableSubmitWhenPristine && !isDirty)}
+              className={isSubmitting ? "disabled:opacity-100" : undefined}
             >
-              {isSubmitting ? "Saving..." : "Save"}
+              {showSubmittingVisual ? "Saving..." : "Save"}
               <ShortcutBadge
                 shortcut="meta+enter"
                 className="ml-2 hidden sm:inline-flex"

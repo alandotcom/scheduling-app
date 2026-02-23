@@ -65,6 +65,7 @@ import { Switch } from "@/components/ui/switch";
 import { ShortcutBadge } from "@/components/ui/shortcut-badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useSubmitShortcut } from "@/hooks/use-submit-shortcut";
+import { useBufferedPending } from "@/hooks/use-buffered-pending";
 import {
   Card,
   CardHeader,
@@ -520,6 +521,7 @@ function OrgSettingsForm({ org }: SettingsFormProps) {
       },
     }),
   );
+  const showUpdatePendingVisual = useBufferedPending(updateMutation.isPending);
 
   // Form setup with defaults from fetched org data
   const {
@@ -761,8 +763,14 @@ function OrgSettingsForm({ org }: SettingsFormProps) {
 
         <CardFooter className="justify-end gap-3">
           {isDirty ? <Badge variant="warning">Unsaved changes</Badge> : null}
-          <Button type="submit" disabled={updateMutation.isPending || !isDirty}>
-            {updateMutation.isPending ? "Saving..." : "Save changes"}
+          <Button
+            type="submit"
+            disabled={updateMutation.isPending || !isDirty}
+            className={
+              updateMutation.isPending ? "disabled:opacity-100" : undefined
+            }
+          >
+            {showUpdatePendingVisual ? "Saving..." : "Save changes"}
             <ShortcutBadge
               shortcut="meta+enter"
               className="ml-2 hidden sm:inline-flex"

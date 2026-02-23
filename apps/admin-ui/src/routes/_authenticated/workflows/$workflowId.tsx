@@ -34,6 +34,7 @@ import {
 } from "@/components/ui/sheet";
 import { PageScaffold } from "@/components/layout/page-scaffold";
 import { useKeyboardShortcuts } from "@/hooks/use-keyboard-shortcuts";
+import { useBufferedPending } from "@/hooks/use-buffered-pending";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { canManageWorkflowsForRole } from "@/features/workflows/workflow-list-page";
 import { WorkflowEditorCanvas } from "@/features/workflows/workflow-editor-canvas";
@@ -356,6 +357,7 @@ function WorkflowEditorPage() {
       },
     }),
   );
+  const showRenamePendingVisual = useBufferedPending(renameMutation.isPending);
 
   const publishMutation = useMutation(
     orpc.journeys.publish.mutationOptions({
@@ -1012,8 +1014,11 @@ function WorkflowEditorPage() {
               <AlertDialogAction
                 type="submit"
                 disabled={renameMutation.isPending}
+                className={
+                  renameMutation.isPending ? "disabled:opacity-100" : undefined
+                }
               >
-                {renameMutation.isPending ? "Saving..." : "Save"}
+                {showRenamePendingVisual ? "Saving..." : "Save"}
               </AlertDialogAction>
             </AlertDialogFooter>
           </form>

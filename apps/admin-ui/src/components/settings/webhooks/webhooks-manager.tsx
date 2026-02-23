@@ -36,6 +36,7 @@ import { DeleteConfirmDialog } from "@/components/delete-confirm-dialog";
 import { EntityModal } from "@/components/entity-modal";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { useBufferedPending } from "@/hooks/use-buffered-pending";
 import { Icon } from "@/components/ui/icon";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -1145,6 +1146,7 @@ function EditEndpointEventsModal({
   const eventTypes = useEventTypes({ limit: 100 });
   const [selected, setSelected] = useState<string[]>(currentFilterTypes);
   const [isSaving, setIsSaving] = useState(false);
+  const showSavingVisual = useBufferedPending(isSaving);
 
   // Reset selection when modal opens
   const prevOpen = useState(open)[0];
@@ -1191,8 +1193,14 @@ function EditEndpointEventsModal({
           >
             Cancel
           </Button>
-          <Button type="button" size="sm" disabled={isSaving} onClick={onSave}>
-            {isSaving ? "Saving..." : "Save"}
+          <Button
+            type="button"
+            size="sm"
+            disabled={isSaving}
+            onClick={onSave}
+            className={isSaving ? "disabled:opacity-100" : undefined}
+          >
+            {showSavingVisual ? "Saving..." : "Save"}
           </Button>
         </div>
       }
