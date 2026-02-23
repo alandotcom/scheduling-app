@@ -88,6 +88,21 @@ export class AvailabilityRepository {
     return row?.timezone ?? null;
   }
 
+  async loadCalendarSlotInterval(
+    tx: DbClient,
+    orgId: string,
+    calendarId: string,
+  ): Promise<number | null> {
+    await setOrgContext(tx, orgId);
+    const [row] = await tx
+      .select({ slotIntervalMin: calendars.slotIntervalMin })
+      .from(calendars)
+      .where(eq(calendars.id, calendarId))
+      .limit(1);
+
+    return row?.slotIntervalMin ?? null;
+  }
+
   async loadOrgDefaultTimezone(
     tx: DbClient,
     orgId: string,
@@ -152,7 +167,6 @@ export class AvailabilityRepository {
         weekday: availabilityRules.weekday,
         startTime: availabilityRules.startTime,
         endTime: availabilityRules.endTime,
-        intervalMin: availabilityRules.intervalMin,
         groupId: availabilityRules.groupId,
       })
       .from(availabilityRules)
@@ -173,7 +187,6 @@ export class AvailabilityRepository {
         calendarId: availabilityOverrides.calendarId,
         date: availabilityOverrides.date,
         timeRanges: availabilityOverrides.timeRanges,
-        intervalMin: availabilityOverrides.intervalMin,
         groupId: availabilityOverrides.groupId,
       })
       .from(availabilityOverrides)

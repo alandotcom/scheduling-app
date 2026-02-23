@@ -53,7 +53,16 @@ function toClientSubLabel(client: RelatedClientOption): string {
   return client.unresolvedId ?? "";
 }
 
-export function ClientRelationPickerModal({
+export function ClientRelationPickerModal(
+  props: ClientRelationPickerModalProps,
+) {
+  const selectionKey = dedupeIds(props.selectedIds).join("|");
+  const modalKey = `${props.open ? "open" : "closed"}:${selectionKey}:${props.mode}`;
+
+  return <ClientRelationPickerModalContent key={modalKey} {...props} />;
+}
+
+function ClientRelationPickerModalContent({
   open,
   mode,
   selectedIds,
@@ -69,14 +78,6 @@ export function ClientRelationPickerModal({
   const [draftSelectedIds, setDraftSelectedIds] = useState<string[]>(() =>
     dedupeIds(selectedIds),
   );
-
-  useEffect(() => {
-    if (!open) return;
-    setSearchInput("");
-    setDebouncedSearch("");
-    setMobileFilter("all");
-    setDraftSelectedIds(dedupeIds(selectedIds));
-  }, [open, selectedIds]);
 
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {

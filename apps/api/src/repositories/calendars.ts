@@ -19,6 +19,7 @@ export type CalendarWithRelationshipCounts = Calendar & {
 export interface CalendarCreateInput {
   name: string;
   timezone: string;
+  slotIntervalMin?: number | undefined;
   locationId?: string | null | undefined;
   requiresConfirmation?: boolean | undefined;
 }
@@ -26,6 +27,7 @@ export interface CalendarCreateInput {
 export interface CalendarUpdateInput {
   name?: string | undefined;
   timezone?: string | undefined;
+  slotIntervalMin?: number | undefined;
   locationId?: string | null | undefined;
   requiresConfirmation?: boolean | undefined;
 }
@@ -173,6 +175,7 @@ export class CalendarRepository {
         orgId,
         name: input.name,
         timezone: input.timezone,
+        slotIntervalMin: input.slotIntervalMin ?? 15,
         locationId: input.locationId ?? null,
         requiresConfirmation: input.requiresConfirmation ?? false,
       })

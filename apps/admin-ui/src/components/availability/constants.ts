@@ -33,3 +33,29 @@ export type AvailabilitySubTabType =
   | "overrides"
   | "blocked"
   | "limits";
+
+export interface AvailabilityPreviewWeeklyRuleDraft {
+  weekday: number;
+  startTime: string;
+  endTime: string;
+}
+
+export interface AvailabilityPreviewBlockedTimeDraft {
+  startAt: Date;
+  endAt: Date;
+  recurringRule?: string | null | undefined;
+}
+
+export interface AvailabilityPreviewSchedulingLimitsDraft {
+  minNoticeMinutes?: number | null | undefined;
+  maxNoticeDays?: number | null | undefined;
+  maxPerSlot?: number | null | undefined;
+  maxPerDay?: number | null | undefined;
+  maxPerWeek?: number | null | undefined;
+}
+
+export interface AvailabilityPreviewDraftState {
+  weeklyRules?: AvailabilityPreviewWeeklyRuleDraft[] | undefined;
+  blockedTime?: AvailabilityPreviewBlockedTimeDraft[] | undefined;
+  schedulingLimits?: AvailabilityPreviewSchedulingLimitsDraft | undefined;
+}

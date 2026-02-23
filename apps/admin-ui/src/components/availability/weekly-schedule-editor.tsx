@@ -1,6 +1,6 @@
 // Weekly schedule editor - with free-text time range input per day
 
-import { useState, useCallback, useRef, useMemo } from "react";
+import { useState, useCallback, useRef, useMemo, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   FloppyDiskIcon,
@@ -17,6 +17,7 @@ import { ShortcutBadge } from "@/components/ui/shortcut-badge";
 import { useSubmitShortcut } from "@/hooks/use-submit-shortcut";
 import {
   WEEKDAYS,
+  type AvailabilityPreviewWeeklyRuleDraft,
   type TimeBlock,
   type DaySchedule,
   type WeeklySchedule,
@@ -30,6 +31,9 @@ import {
 interface WeeklyScheduleEditorProps {
   calendarId: string;
   timezone: string;
+  onDraftRulesChange?: (
+    rules: AvailabilityPreviewWeeklyRuleDraft[] | null,
+  ) => void;
 }
 
 interface WeeklyScheduleEditorBodyProps extends WeeklyScheduleEditorProps {
@@ -211,6 +215,7 @@ function WeeklyScheduleEditorBody({
   calendarId,
   timezone: _timezone,
   compact,
+  onDraftRulesChange,
 }: WeeklyScheduleEditorBodyProps) {
   const queryClient = useQueryClient();
 
@@ -311,6 +316,29 @@ function WeeklyScheduleEditorBody({
     setWeeklyMutation.mutate({ calendarId, rules });
   };
 
+  useEffect(() => {
+    if (!onDraftRulesChange) return;
+
+    if (!hasChanges) {
+      onDraftRulesChange(null);
+      return;
+    }
+
+    const draftRules: AvailabilityPreviewWeeklyRuleDraft[] = [];
+    for (const [weekdayStr, daySchedule] of Object.entries(activeSchedule)) {
+      const weekday = parseInt(weekdayStr, 10);
+      if (!daySchedule.enabled) continue;
+      for (const block of daySchedule.blocks) {
+        draftRules.push({
+          weekday,
+          startTime: block.startTime,
+          endTime: block.endTime,
+        });
+      }
+    }
+    onDraftRulesChange(draftRules);
+  }, [activeSchedule, hasChanges, onDraftRulesChange]);
+
   useSubmitShortcut({
     enabled: hasChanges && !setWeeklyMutation.isPending,
     onSubmit: handleSave,
@@ -323,7 +351,7 @@ function WeeklyScheduleEditorBody({
   }
 
   return (
-    <div className="space-y-4">
+    <div className="flex min-h-0 flex-col gap-4">
       {/* Hint */}
       <p className="text-xs text-muted-foreground leading-relaxed">
         Type time ranges for each day, e.g.{" "}
@@ -335,7 +363,7 @@ function WeeklyScheduleEditorBody({
       </p>
 
       {/* Day Rows */}
-      <div className="space-y-2">
+      <div className="max-h-[min(50dvh,28rem)] space-y-2 overflow-y-auto pr-1">
         {WEEKDAYS.map((day) => (
           <DayTimeInput
             key={day.value}
@@ -348,38 +376,40 @@ function WeeklyScheduleEditorBody({
       </div>
 
       {/* Actions */}
-      <div className="flex items-center justify-between gap-2 flex-wrap pt-2 border-t border-border">
-        <div className="flex gap-2">
+      <div className="sticky bottom-0 z-10 border-t border-border bg-background/95 pt-3 backdrop-blur supports-[backdrop-filter]:bg-background/85">
+        <div className="flex items-center justify-between gap-2 flex-wrap">
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size={compact ? "sm" : "default"}
+              onClick={copyMondayToWeekdays}
+              disabled={!getDay(1).enabled}
+            >
+              <Icon icon={Copy01Icon} className="mr-1.5" />
+              {compact ? "Copy Mon" : "Copy Monday to weekdays"}
+            </Button>
+            <Button
+              variant="ghost"
+              size={compact ? "sm" : "default"}
+              onClick={clearAll}
+            >
+              <Icon icon={Cancel01Icon} className="mr-1.5" />
+              Clear
+            </Button>
+          </div>
           <Button
-            variant="outline"
             size={compact ? "sm" : "default"}
-            onClick={copyMondayToWeekdays}
-            disabled={!getDay(1).enabled}
+            onClick={handleSave}
+            disabled={!hasChanges || setWeeklyMutation.isPending}
           >
-            <Icon icon={Copy01Icon} className="mr-1.5" />
-            {compact ? "Copy Mon" : "Copy Monday to weekdays"}
-          </Button>
-          <Button
-            variant="ghost"
-            size={compact ? "sm" : "default"}
-            onClick={clearAll}
-          >
-            <Icon icon={Cancel01Icon} className="mr-1.5" />
-            Clear
+            <Icon icon={FloppyDiskIcon} className="mr-1.5" />
+            {setWeeklyMutation.isPending ? "Saving..." : "Save"}
+            <ShortcutBadge
+              shortcut="meta+enter"
+              className="ml-2 hidden sm:inline-flex"
+            />
           </Button>
         </div>
-        <Button
-          size={compact ? "sm" : "default"}
-          onClick={handleSave}
-          disabled={!hasChanges || setWeeklyMutation.isPending}
-        >
-          <Icon icon={FloppyDiskIcon} className="mr-1.5" />
-          {setWeeklyMutation.isPending ? "Saving..." : "Save"}
-          <ShortcutBadge
-            shortcut="meta+enter"
-            className="ml-2 hidden sm:inline-flex"
-          />
-        </Button>
       </div>
     </div>
   );

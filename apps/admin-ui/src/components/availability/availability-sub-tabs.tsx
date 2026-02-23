@@ -7,6 +7,7 @@ import type { AvailabilitySubTabType } from "./constants";
 interface AvailabilitySubTabsProps {
   value: AvailabilitySubTabType;
   onChange: (tab: AvailabilitySubTabType) => void;
+  includeOverrides?: boolean;
 }
 
 const TABS: { id: AvailabilitySubTabType; label: string }[] = [
@@ -19,10 +20,15 @@ const TABS: { id: AvailabilitySubTabType; label: string }[] = [
 export function AvailabilitySubTabs({
   value,
   onChange,
+  includeOverrides = true,
 }: AvailabilitySubTabsProps) {
+  const visibleTabs = includeOverrides
+    ? TABS
+    : TABS.filter((tab) => tab.id !== "overrides");
+
   return (
     <div className="inline-flex rounded-lg border border-border bg-muted/30 p-0.5">
-      {TABS.map((tab) => (
+      {visibleTabs.map((tab) => (
         <button
           key={tab.id}
           onClick={() => onChange(tab.id)}

@@ -8,7 +8,7 @@ import type { TimeBlock } from "./constants";
  * Parse a single time string into HH:MM (24h) format.
  * Supports: "9am", "9:30am", "09:00", "17:00", "9a", "5p", "9", "13", "noon", "midnight"
  */
-function parseTimeString(raw: string): string | null {
+export function parseTimeInput(raw: string): string | null {
   const s = raw.trim().toLowerCase();
 
   // Special tokens
@@ -61,8 +61,8 @@ function parseTimeRange(raw: string): TimeBlock | null {
   const [rawStart, rawEnd] = parts;
   if (!rawStart || !rawEnd) return null;
 
-  const startTime = parseTimeString(rawStart);
-  const endTime = parseTimeString(rawEnd);
+  const startTime = parseTimeInput(rawStart);
+  const endTime = parseTimeInput(rawEnd);
 
   if (!startTime || !endTime) return null;
 
@@ -115,7 +115,7 @@ export function formatTimeBlocksForInput(blocks: TimeBlock[]): string {
 /**
  * Convert "HH:MM" 24h format to "h:mm AM/PM" 12h format.
  */
-function formatTime24to12(time: string): string {
+export function formatTime24to12(time: string): string {
   const [hStr, mStr] = time.split(":");
   if (!hStr || !mStr) return time;
 

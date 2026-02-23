@@ -9,6 +9,7 @@ import {
   beforeEach,
   setSystemTime,
 } from "bun:test";
+import { eq } from "drizzle-orm";
 import {
   getTestDb,
   registerDbTestReset,
@@ -85,6 +86,7 @@ describe("AvailabilityService", () => {
         locationId: location.id,
         name: "Room 1",
         timezone: "America/New_York",
+        slotIntervalMin: 60,
       })
       .returning();
     calendar = cal!;
@@ -137,13 +139,17 @@ describe("AvailabilityService", () => {
     });
 
     test("generates slots based on availability rules", async () => {
+      await db
+        .update(calendars)
+        .set({ slotIntervalMin: 30 })
+        .where(eq(calendars.id, calendar.id));
+
       // Tuesday availability: 9am-12pm with 30-min intervals
       await db.insert(availabilityRules).values({
         calendarId: calendar.id,
         weekday: 2, // Tuesday (2026-01-27 is a Tuesday in America/New_York)
         startTime: "09:00",
         endTime: "12:00",
-        intervalMin: 30,
       });
 
       const slots = await availabilityService.getAvailableSlots(
@@ -171,14 +177,12 @@ describe("AvailabilityService", () => {
           weekday: 2,
           startTime: "09:00",
           endTime: "11:00",
-          intervalMin: 60,
         },
         {
           calendarId: calendar.id,
           weekday: 2,
           startTime: "14:00",
           endTime: "16:00",
-          intervalMin: 60,
         },
       ]);
 
@@ -207,7 +211,6 @@ describe("AvailabilityService", () => {
         weekday: 2,
         startTime: "09:00",
         endTime: "17:00",
-        intervalMin: 30,
       });
 
       // Block the entire day
@@ -232,13 +235,17 @@ describe("AvailabilityService", () => {
     });
 
     test("uses override hours instead of regular rules", async () => {
+      await db
+        .update(calendars)
+        .set({ slotIntervalMin: 30 })
+        .where(eq(calendars.id, calendar.id));
+
       // Regular Monday hours
       await db.insert(availabilityRules).values({
         calendarId: calendar.id,
         weekday: 2,
         startTime: "09:00",
         endTime: "17:00",
-        intervalMin: 30,
       });
 
       // Override with limited hours
@@ -246,7 +253,6 @@ describe("AvailabilityService", () => {
         calendarId: calendar.id,
         date: "2026-01-27",
         timeRanges: [{ startTime: "10:00", endTime: "12:00" }],
-        intervalMin: 30,
       });
 
       const slots = await availabilityService.getAvailableSlots(
@@ -270,7 +276,6 @@ describe("AvailabilityService", () => {
         weekday: 2,
         startTime: "09:00",
         endTime: "12:00",
-        intervalMin: 60,
       });
 
       // Book the 10:00 slot
@@ -312,7 +317,6 @@ describe("AvailabilityService", () => {
         weekday: 2,
         startTime: "09:00",
         endTime: "12:00",
-        intervalMin: 60,
       });
 
       await db.insert(appointments).values({
@@ -350,7 +354,6 @@ describe("AvailabilityService", () => {
         weekday: 2,
         startTime: "09:00",
         endTime: "17:00",
-        intervalMin: 60,
       });
 
       // Block 12:00-13:00 (lunch)
@@ -386,7 +389,6 @@ describe("AvailabilityService", () => {
         weekday: 2,
         startTime: "09:00",
         endTime: "17:00",
-        intervalMin: 60,
       });
 
       await db.insert(blockedTime).values({
@@ -419,7 +421,6 @@ describe("AvailabilityService", () => {
         weekday: 2,
         startTime: "09:00",
         endTime: "17:00",
-        intervalMin: 60,
       });
 
       // Set 24-hour minimum notice (1440 minutes)
@@ -451,7 +452,6 @@ describe("AvailabilityService", () => {
         weekday: 2,
         startTime: "09:00",
         endTime: "17:00",
-        intervalMin: 60,
       });
 
       // Set 7-day maximum notice
@@ -483,7 +483,6 @@ describe("AvailabilityService", () => {
         weekday: 2,
         startTime: "09:00",
         endTime: "17:00",
-        intervalMin: 60,
       });
 
       await db.insert(schedulingLimits).values({
@@ -518,7 +517,6 @@ describe("AvailabilityService", () => {
         weekday: 3,
         startTime: "09:00",
         endTime: "17:00",
-        intervalMin: 60,
       });
 
       await db.insert(schedulingLimits).values({
@@ -571,7 +569,6 @@ describe("AvailabilityService", () => {
         weekday: 2,
         startTime: "09:00",
         endTime: "17:00",
-        intervalMin: 60,
       });
 
       // Set max 2 appointments per day
@@ -655,14 +652,12 @@ describe("AvailabilityService", () => {
           weekday: 2, // Tuesday
           startTime: "09:00",
           endTime: "17:00",
-          intervalMin: 60,
         },
         {
           calendarId: calendar.id,
           weekday: 4, // Thursday
           startTime: "09:00",
           endTime: "17:00",
-          intervalMin: 60,
         },
       ]);
 
@@ -692,7 +687,6 @@ describe("AvailabilityService", () => {
         weekday: 2,
         startTime: "09:00",
         endTime: "17:00",
-        intervalMin: 60,
       });
 
       const result = await availabilityService.checkSlot(
@@ -727,7 +721,6 @@ describe("AvailabilityService", () => {
         weekday: 2,
         startTime: "09:00",
         endTime: "17:00",
-        intervalMin: 60,
       });
 
       // Book the 9am slot
@@ -778,7 +771,6 @@ describe("AvailabilityService", () => {
         weekday: 2,
         startTime: "09:00",
         endTime: "12:00",
-        intervalMin: 60,
       });
 
       // Book 2 of 3 spots for 9am
@@ -849,7 +841,6 @@ describe("AvailabilityService", () => {
         weekday: 2,
         startTime: "09:00",
         endTime: "12:00",
-        intervalMin: 60,
       });
 
       // Book appointment using the resource
@@ -924,7 +915,6 @@ describe("AvailabilityService", () => {
         weekday: 2,
         startTime: "09:00",
         endTime: "12:00",
-        intervalMin: 60,
       });
 
       await db.insert(appointments).values({
@@ -959,6 +949,11 @@ describe("AvailabilityService", () => {
 
   describe("padding handling", () => {
     test("accounts for padding when checking overlaps", async () => {
+      await db
+        .update(calendars)
+        .set({ slotIntervalMin: 30 })
+        .where(eq(calendars.id, calendar.id));
+
       // Update appointment type to have padding
       const [paddedAt] = await db
         .insert(appointmentTypes)
@@ -982,7 +977,6 @@ describe("AvailabilityService", () => {
         weekday: 2,
         startTime: "09:00",
         endTime: "17:00",
-        intervalMin: 30,
       });
 
       // Book 10:00-11:00 with 15min padding on each side

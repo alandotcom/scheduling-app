@@ -10,6 +10,11 @@ import type { ServiceContext } from "../locations.js";
 import type { AppointmentConflict } from "@scheduling/dto";
 import type {
   AvailabilityQuery,
+  CalendarPreviewQuery,
+  AvailabilityPreviewDraft,
+  DraftWeeklyRule,
+  DraftBlockedTime,
+  DraftDayOverride,
   TimeSlot,
   AvailabilityRule,
   AvailabilityOverride,
@@ -25,6 +30,7 @@ import type {
 interface AvailabilityData {
   appointmentType: AppointmentTypeData;
   timezone: string;
+  slotIntervalMin: number;
   limits: MergedSchedulingLimits;
   rules: AvailabilityRule[];
   overrides: AvailabilityOverride[];
@@ -33,6 +39,23 @@ interface AvailabilityData {
   resourceConstraintsByAppointmentTypeId: Map<string, ResourceConstraint[]>;
   resourceConstraints: ResourceConstraint[];
   resourcesData: ResourceData[];
+}
+
+interface CalendarPreviewData {
+  timezone: string;
+  slotIntervalMin: number;
+  limits: MergedSchedulingLimits;
+  rules: AvailabilityRule[];
+  overrides: AvailabilityOverride[];
+  blockedTimes: BlockedTimeEntry[];
+  existingAppointments: ExistingAppointment[];
+}
+
+interface DraftOverlayData {
+  limits: MergedSchedulingLimits;
+  rules: AvailabilityRule[];
+  overrides: AvailabilityOverride[];
+  blockedTimes: BlockedTimeEntry[];
 }
 
 function makeConflict(
@@ -107,6 +130,30 @@ export class AvailabilityService {
         query.startDate,
         query.endDate,
         data.timezone,
+      );
+    });
+  }
+
+  /**
+   * Get available time slots with draft availability overlays.
+   */
+  async getPreviewSlots(
+    query: CalendarPreviewQuery,
+    context: ServiceContext,
+  ): Promise<TimeSlot[]> {
+    return withOrg(context.orgId, async (tx) => {
+      const data = await this.loadCalendarPreviewData(tx, context.orgId, query);
+      const draftData = this.applyDraftOverlay<CalendarPreviewData>(
+        data,
+        query.calendarId,
+        query.draft,
+      );
+
+      return this.computeCalendarPreviewSlots(
+        draftData,
+        query.startDate,
+        query.endDate,
+        draftData.timezone,
       );
     });
   }
@@ -253,6 +300,7 @@ export class AvailabilityService {
         data.rules,
         data.overrides,
         appointmentType.durationMin,
+        data.slotIntervalMin,
       );
       const matchesCandidate = candidateSlots.some(
         (slot) =>
@@ -481,6 +529,15 @@ export class AvailabilityService {
       orgId,
       validCalendarId,
     );
+    const slotIntervalMin =
+      await availabilityRepository.loadCalendarSlotInterval(
+        tx,
+        orgId,
+        validCalendarId,
+      );
+    if (slotIntervalMin == null) {
+      throw new ApplicationError("Calendar not found", { code: "NOT_FOUND" });
+    }
 
     // 4. Load availability rules for all calendars
     const rules = await availabilityRepository.loadAvailabilityRules(
@@ -539,6 +596,7 @@ export class AvailabilityService {
     return {
       appointmentType,
       timezone: resolvedTimezone,
+      slotIntervalMin,
       limits,
       rules,
       overrides,
@@ -547,6 +605,184 @@ export class AvailabilityService {
       resourceConstraintsByAppointmentTypeId,
       resourceConstraints,
       resourcesData,
+    };
+  }
+
+  private async loadCalendarPreviewData(
+    tx: DbClient,
+    orgId: string,
+    query: CalendarPreviewQuery,
+  ): Promise<CalendarPreviewData> {
+    const { calendarId, startDate, endDate, timezone } = query;
+
+    const slotIntervalMin =
+      await availabilityRepository.loadCalendarSlotInterval(
+        tx,
+        orgId,
+        calendarId,
+      );
+    if (slotIntervalMin == null) {
+      throw new ApplicationError("Calendar not found", { code: "NOT_FOUND" });
+    }
+
+    const resolvedTimezone = await this.resolveTimezone(
+      tx,
+      orgId,
+      calendarId,
+      timezone,
+    );
+    const limits = await availabilityRepository.loadSchedulingLimits(
+      tx,
+      orgId,
+      calendarId,
+    );
+    const rules = await availabilityRepository.loadAvailabilityRules(
+      tx,
+      orgId,
+      calendarId,
+    );
+    const overrides = await availabilityRepository.loadOverrides(
+      tx,
+      orgId,
+      calendarId,
+      startDate,
+      endDate,
+    );
+    const blockedTimes = await availabilityRepository.loadBlockedTimes(
+      tx,
+      orgId,
+      calendarId,
+      startDate,
+      endDate,
+      resolvedTimezone,
+    );
+    const existingAppointments =
+      await availabilityRepository.loadExistingAppointments(
+        tx,
+        orgId,
+        calendarId,
+        startDate,
+        endDate,
+        resolvedTimezone,
+      );
+
+    return {
+      timezone: resolvedTimezone,
+      slotIntervalMin,
+      limits,
+      rules,
+      overrides,
+      blockedTimes,
+      existingAppointments,
+    };
+  }
+
+  private applyDraftOverlay<T extends DraftOverlayData>(
+    data: T,
+    calendarId: string,
+    draft?: AvailabilityPreviewDraft,
+  ): T {
+    if (!draft) {
+      return data;
+    }
+
+    const next: T = {
+      ...data,
+      limits: { ...data.limits },
+      rules: [...data.rules],
+      overrides: [...data.overrides],
+      blockedTimes: [...data.blockedTimes],
+    };
+
+    if (draft.schedulingLimits) {
+      if (draft.schedulingLimits.minNoticeMinutes !== undefined) {
+        next.limits.minNoticeMinutes = draft.schedulingLimits.minNoticeMinutes;
+      }
+      if (draft.schedulingLimits.maxNoticeDays !== undefined) {
+        next.limits.maxNoticeDays = draft.schedulingLimits.maxNoticeDays;
+      }
+      if (draft.schedulingLimits.maxPerSlot !== undefined) {
+        next.limits.maxPerSlot = draft.schedulingLimits.maxPerSlot;
+      }
+      if (draft.schedulingLimits.maxPerDay !== undefined) {
+        next.limits.maxPerDay = draft.schedulingLimits.maxPerDay;
+      }
+      if (draft.schedulingLimits.maxPerWeek !== undefined) {
+        next.limits.maxPerWeek = draft.schedulingLimits.maxPerWeek;
+      }
+    }
+
+    if (draft.weeklyRules) {
+      next.rules = draft.weeklyRules.map((rule, index) =>
+        this.toDraftAvailabilityRule(calendarId, rule, index),
+      );
+    }
+
+    if (draft.blockedTime) {
+      next.blockedTimes = draft.blockedTime.map((block, index) =>
+        this.toDraftBlockedTime(calendarId, block, index),
+      );
+    }
+
+    if (draft.dayOverrides) {
+      const byDate = new Map<string, AvailabilityOverride>();
+      for (const override of next.overrides) {
+        byDate.set(override.date, override);
+      }
+      draft.dayOverrides.forEach((override, index) => {
+        byDate.set(
+          override.date,
+          this.toDraftAvailabilityOverride(calendarId, override, index),
+        );
+      });
+      next.overrides = Array.from(byDate.values()).toSorted((a, b) =>
+        a.date.localeCompare(b.date),
+      );
+    }
+
+    return next;
+  }
+
+  private toDraftAvailabilityRule(
+    calendarId: string,
+    rule: DraftWeeklyRule,
+    index: number,
+  ): AvailabilityRule {
+    return {
+      id: `draft-rule-${index}`,
+      calendarId,
+      weekday: rule.weekday,
+      startTime: rule.startTime,
+      endTime: rule.endTime,
+      groupId: rule.groupId ?? null,
+    };
+  }
+
+  private toDraftBlockedTime(
+    calendarId: string,
+    block: DraftBlockedTime,
+    index: number,
+  ): BlockedTimeEntry {
+    return {
+      id: `draft-block-${index}`,
+      calendarId,
+      startAt: block.startAt,
+      endAt: block.endAt,
+      recurringRule: block.recurringRule ?? null,
+    };
+  }
+
+  private toDraftAvailabilityOverride(
+    calendarId: string,
+    override: DraftDayOverride,
+    index: number,
+  ): AvailabilityOverride {
+    return {
+      id: `draft-override-${index}`,
+      calendarId,
+      date: override.date,
+      timeRanges: override.timeRanges,
+      groupId: override.groupId ?? null,
     };
   }
 
@@ -613,6 +849,7 @@ export class AvailabilityService {
       rules,
       overrides,
       durationMin,
+      data.slotIntervalMin,
     );
 
     // Apply filters
@@ -746,6 +983,113 @@ export class AvailabilityService {
     return this.computeSlots(data, dateStr, dateStr, timezone);
   }
 
+  private computeCalendarPreviewSlots(
+    data: CalendarPreviewData,
+    startDate: string,
+    endDate: string,
+    timezone: string,
+  ): TimeSlot[] {
+    const candidateSlots = this.generateCandidateSlots(
+      startDate,
+      endDate,
+      timezone,
+      data.rules,
+      data.overrides,
+      data.slotIntervalMin,
+      data.slotIntervalMin,
+    );
+
+    const now = DateTime.now();
+    const slots: TimeSlot[] = [];
+
+    for (const slot of candidateSlots) {
+      let available = true;
+      const slotStart = DateTime.fromJSDate(slot.start);
+      const slotEnd = DateTime.fromJSDate(slot.end);
+      let overlappingCount = 0;
+
+      if (available && data.limits.minNoticeMinutes != null) {
+        const minNotice = now.plus({ minutes: data.limits.minNoticeMinutes });
+        if (slotStart < minNotice) {
+          available = false;
+        }
+      }
+
+      if (available && data.limits.maxNoticeDays != null) {
+        const maxNotice = now.plus({ days: data.limits.maxNoticeDays });
+        if (slotStart > maxNotice) {
+          available = false;
+        }
+      }
+
+      if (available && slotStart < now) {
+        available = false;
+      }
+
+      if (available) {
+        for (const blocked of data.blockedTimes) {
+          if (this.isBlockedAt(slot.start, slot.end, blocked)) {
+            available = false;
+            break;
+          }
+        }
+      }
+
+      if (available && data.limits.maxPerSlot != null) {
+        for (const appointment of data.existingAppointments) {
+          if (
+            this.intervalsOverlap(
+              { start: slotStart.toJSDate(), end: slotEnd.toJSDate() },
+              { start: appointment.startAt, end: appointment.endAt },
+            )
+          ) {
+            overlappingCount++;
+          }
+        }
+        if (overlappingCount >= data.limits.maxPerSlot) {
+          available = false;
+        }
+      }
+
+      if (available && data.limits.maxPerDay != null) {
+        const dailyCount = data.existingAppointments.filter((a) =>
+          DateTime.fromJSDate(a.startAt).hasSame(slotStart, "day"),
+        ).length;
+        if (dailyCount >= data.limits.maxPerDay) {
+          available = false;
+        }
+      }
+
+      if (available && data.limits.maxPerWeek != null) {
+        const weekStart = slotStart.startOf("week");
+        const weekEnd = slotStart.endOf("week");
+        const weeklyCount = data.existingAppointments.filter((a) => {
+          const apptStart = DateTime.fromJSDate(a.startAt);
+          return apptStart >= weekStart && apptStart <= weekEnd;
+        }).length;
+        if (weeklyCount >= data.limits.maxPerWeek) {
+          available = false;
+        }
+      }
+
+      const remainingCapacity =
+        data.limits.maxPerSlot != null
+          ? Math.max(0, data.limits.maxPerSlot - overlappingCount)
+          : available
+            ? 1
+            : 0;
+
+      slots.push({
+        start: slot.start,
+        end: slot.end,
+        available,
+        remainingCapacity,
+      });
+    }
+
+    return slots;
+  }
+
   private generateCandidateSlots(
     startDate: string,
     endDate: string,
@@ -753,6 +1097,7 @@ export class AvailabilityService {
     rules: AvailabilityRule[],
     overrides: AvailabilityOverride[],
     durationMin: number,
+    slotIntervalMin: number,
   ): Array<{ start: Date; end: Date }> {
     const slots: Array<{ start: Date; end: Date }> = [];
 
@@ -784,14 +1129,12 @@ export class AvailabilityService {
         | Array<{
             startTime: string;
             endTime: string;
-            intervalMin: number | null;
           }>
         | AvailabilityRule[] =
         override && override.timeRanges.length > 0
           ? override.timeRanges.map((timeRange) => ({
               startTime: timeRange.startTime,
               endTime: timeRange.endTime,
-              intervalMin: override.intervalMin,
             }))
           : dayRules;
 
@@ -804,7 +1147,7 @@ export class AvailabilityService {
       for (const rule of ruleWindows) {
         const dayStart = rule.startTime;
         const dayEnd = rule.endTime;
-        const interval = rule.intervalMin ?? 15;
+        const interval = slotIntervalMin;
 
         // Generate slots for this day
         const [startHour, startMin] = dayStart.split(":").map(Number);

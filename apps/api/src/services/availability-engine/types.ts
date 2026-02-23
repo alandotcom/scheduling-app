@@ -8,6 +8,48 @@ export interface AvailabilityQuery {
   timezone?: string | undefined; // IANA timezone
 }
 
+export interface DraftWeeklyRule {
+  weekday: number;
+  startTime: string;
+  endTime: string;
+  groupId?: string | null | undefined;
+}
+
+export interface DraftBlockedTime {
+  startAt: Date;
+  endAt: Date;
+  recurringRule?: string | null | undefined;
+}
+
+export interface DraftDayOverride {
+  date: string;
+  timeRanges: Array<{ startTime: string; endTime: string }>;
+  groupId?: string | null | undefined;
+}
+
+export interface AvailabilityPreviewDraft {
+  weeklyRules?: DraftWeeklyRule[] | undefined;
+  blockedTime?: DraftBlockedTime[] | undefined;
+  schedulingLimits?:
+    | {
+        minNoticeMinutes?: number | null | undefined;
+        maxNoticeDays?: number | null | undefined;
+        maxPerSlot?: number | null | undefined;
+        maxPerDay?: number | null | undefined;
+        maxPerWeek?: number | null | undefined;
+      }
+    | undefined;
+  dayOverrides?: DraftDayOverride[] | undefined;
+}
+
+export interface CalendarPreviewQuery {
+  calendarId: string;
+  startDate: string; // YYYY-MM-DD
+  endDate: string; // YYYY-MM-DD
+  timezone?: string | undefined; // IANA timezone
+  draft?: AvailabilityPreviewDraft | undefined;
+}
+
 export interface TimeSlot {
   start: Date;
   end: Date;
@@ -21,7 +63,6 @@ export interface AvailabilityRule {
   weekday: number; // 0-6, Sunday = 0
   startTime: string; // HH:MM
   endTime: string;
-  intervalMin: number | null;
   groupId: string | null;
 }
 
@@ -30,7 +71,6 @@ export interface AvailabilityOverride {
   calendarId: string;
   date: string; // YYYY-MM-DD
   timeRanges: Array<{ startTime: string; endTime: string }>;
-  intervalMin: number | null;
   groupId: string | null;
 }
 

@@ -23,7 +23,6 @@ export interface RuleCreateInput {
   weekday: number;
   startTime: string;
   endTime: string;
-  intervalMin?: number | null | undefined;
   groupId?: string | null | undefined;
 }
 
@@ -31,7 +30,6 @@ export interface RuleUpdateInput {
   weekday?: number | undefined;
   startTime?: string | undefined;
   endTime?: string | undefined;
-  intervalMin?: number | null | undefined;
   groupId?: string | null | undefined;
 }
 
@@ -39,14 +37,12 @@ export interface RuleUpdateInput {
 export interface OverrideCreateInput {
   date: string;
   timeRanges: Array<{ startTime: string; endTime: string }>;
-  intervalMin?: number | null | undefined;
   groupId?: string | null | undefined;
 }
 
 export interface OverrideUpdateInput {
   date?: string | undefined;
   timeRanges?: Array<{ startTime: string; endTime: string }> | undefined;
-  intervalMin?: number | null | undefined;
   groupId?: string | null | undefined;
 }
 
@@ -179,7 +175,6 @@ export class AvailabilityManagementRepository {
         weekday: input.weekday,
         startTime: input.startTime,
         endTime: input.endTime,
-        intervalMin: input.intervalMin ?? null,
         groupId: input.groupId ?? null,
       })
       .returning();
@@ -237,7 +232,6 @@ export class AvailabilityManagementRepository {
           weekday: rule.weekday,
           startTime: rule.startTime,
           endTime: rule.endTime,
-          intervalMin: rule.intervalMin ?? null,
           groupId: rule.groupId ?? null,
         })),
       )
@@ -341,7 +335,6 @@ export class AvailabilityManagementRepository {
         calendarId,
         date: input.date,
         timeRanges: input.timeRanges,
-        intervalMin: input.intervalMin ?? null,
         groupId: input.groupId ?? null,
       })
       .returning();

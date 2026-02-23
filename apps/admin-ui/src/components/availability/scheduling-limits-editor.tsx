@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import type { AvailabilityPreviewSchedulingLimitsDraft } from "./constants";
 
 type LimitKey =
   | "minNoticeMinutes"
@@ -128,45 +129,22 @@ function areFormsEqual(a: LimitsFormState, b: LimitsFormState): boolean {
   );
 }
 
-function InheritHint({
-  field,
-  orgDefault,
-  formValue,
-}: {
-  field: LimitKey;
-  orgDefault: LimitsPayload | null;
-  formValue: string;
-}) {
-  if (formValue.trim() !== "") {
-    return (
-      <span className="text-xs text-muted-foreground">Calendar override</span>
-    );
-  }
-
-  const inherited = orgDefault?.[field] ?? null;
-  if (inherited == null) {
-    return (
-      <span className="text-xs text-muted-foreground">
-        No limit (no org default)
-      </span>
-    );
-  }
-
-  return (
-    <span className="text-xs text-muted-foreground">
-      Inheriting org default: {inherited}
-    </span>
-  );
+function formatLimitValue(value: number | null | undefined): string {
+  return value == null ? "No limit" : String(value);
 }
 
 interface CalendarSchedulingLimitsEditorProps {
   calendarId: string;
   compact?: boolean;
+  onDraftSchedulingLimitsChange?: (
+    limits: AvailabilityPreviewSchedulingLimitsDraft | null,
+  ) => void;
 }
 
 export function CalendarSchedulingLimitsEditor({
   calendarId,
   compact = false,
+  onDraftSchedulingLimitsChange,
 }: CalendarSchedulingLimitsEditorProps) {
   const queryClient = useQueryClient();
 
@@ -181,20 +159,13 @@ export function CalendarSchedulingLimitsEditor({
     }),
   );
 
-  const [form, setForm] = useState<LimitsFormState>(() =>
-    toFormState(calendarOverride),
+  const sourceForm = useMemo(
+    () => toFormState(calendarOverride),
+    [calendarOverride],
   );
-  const [initialForm, setInitialForm] = useState<LimitsFormState>(() =>
-    toFormState(calendarOverride),
-  );
+  const [draftForm, setDraftForm] = useState<LimitsFormState | null>(null);
   const [errors, setErrors] = useState<LimitsErrors>({});
-
-  useEffect(() => {
-    const next = toFormState(calendarOverride);
-    setForm(next);
-    setInitialForm(next);
-    setErrors({});
-  }, [calendarOverride]);
+  const form = draftForm ?? sourceForm;
 
   const upsertMutation = useMutation(
     orpc.calendars.schedulingLimits.upsert.mutationOptions({
@@ -208,6 +179,8 @@ export function CalendarSchedulingLimitsEditor({
         queryClient.invalidateQueries({
           queryKey: orpc.availability.engine.key(),
         });
+        setDraftForm(null);
+        setErrors({});
         toast.success("Calendar scheduling limits saved");
       },
       onError: (error) => {
@@ -220,12 +193,22 @@ export function CalendarSchedulingLimitsEditor({
 
   const isLoading = isOrgDefaultLoading || isCalendarLoading;
   const hasChanges = useMemo(
-    () => !areFormsEqual(form, initialForm),
-    [form, initialForm],
+    () => !areFormsEqual(form, sourceForm),
+    [form, sourceForm],
   );
-  const isInheritedOnly = LIMIT_FIELDS.every(
-    (field) => form[field.key].trim() === "",
+  const overrideCount = useMemo(
+    () => LIMIT_FIELDS.filter((field) => form[field.key].trim() !== "").length,
+    [form],
   );
+  const orgDefaultValues: LimitsPayload | null = orgDefault
+    ? {
+        minNoticeMinutes: orgDefault.minNoticeMinutes,
+        maxNoticeDays: orgDefault.maxNoticeDays,
+        maxPerSlot: orgDefault.maxPerSlot,
+        maxPerDay: orgDefault.maxPerDay,
+        maxPerWeek: orgDefault.maxPerWeek,
+      }
+    : null;
 
   const save = () => {
     const parsed = parseLimits(form);
@@ -241,14 +224,26 @@ export function CalendarSchedulingLimitsEditor({
   };
 
   const resetToInherited = () => {
-    const next = toFormState(null);
-    setForm(next);
+    setDraftForm(toFormState(null));
     setErrors({});
   };
 
-  const containerClassName = compact
-    ? "space-y-4 rounded-lg border border-border bg-card p-4"
-    : "space-y-4 rounded-lg border border-border bg-card p-5";
+  useEffect(() => {
+    if (!onDraftSchedulingLimitsChange) return;
+
+    if (!hasChanges) {
+      onDraftSchedulingLimitsChange(null);
+      return;
+    }
+
+    const parsed = parseLimits(form);
+    if (!parsed.data) {
+      onDraftSchedulingLimitsChange(null);
+      return;
+    }
+
+    onDraftSchedulingLimitsChange(parsed.data);
+  }, [form, hasChanges, onDraftSchedulingLimitsChange]);
 
   if (isLoading) {
     return (
@@ -256,63 +251,137 @@ export function CalendarSchedulingLimitsEditor({
     );
   }
 
-  return (
-    <div className={containerClassName}>
-      <div className="flex items-center justify-between gap-2">
-        <div className="space-y-1">
-          <h3 className="text-sm font-medium">Scheduling Limits</h3>
-          <p className="text-xs text-muted-foreground">
-            Blank values inherit organization defaults.
-          </p>
+  if (compact) {
+    return (
+      <div className="space-y-3">
+        <div className="flex items-center justify-end">
+          <Badge variant={overrideCount === 0 ? "secondary" : "outline"}>
+            {overrideCount === 0
+              ? "Using org defaults"
+              : `${overrideCount} override${overrideCount === 1 ? "" : "s"}`}
+          </Badge>
         </div>
-        {isInheritedOnly ? (
-          <Badge variant="secondary">Using org defaults</Badge>
-        ) : null}
+
+        <div className="space-y-2.5">
+          {LIMIT_FIELDS.map((field) => {
+            const isOverride = form[field.key].trim() !== "";
+            const inheritedValue = orgDefaultValues?.[field.key] ?? null;
+            const inheritedHint =
+              inheritedValue == null
+                ? null
+                : `${isOverride ? "Org default" : "Inherited"}: ${formatLimitValue(inheritedValue)}`;
+
+            return (
+              <div key={field.key} className="space-y-1">
+                <Label htmlFor={`${calendarId}-${field.key}`}>
+                  {field.label}
+                </Label>
+                <Input
+                  id={`${calendarId}-${field.key}`}
+                  type="number"
+                  min={field.min}
+                  step={1}
+                  className="h-9"
+                  value={form[field.key]}
+                  onChange={(event) =>
+                    setDraftForm((previous) => {
+                      const base = previous ?? sourceForm;
+                      const next = {
+                        ...base,
+                        [field.key]: event.target.value,
+                      };
+                      return areFormsEqual(next, sourceForm) ? null : next;
+                    })
+                  }
+                  placeholder="No limit"
+                />
+                {inheritedHint ? (
+                  <p className="text-[11px] text-muted-foreground">
+                    {inheritedHint}
+                  </p>
+                ) : null}
+                {errors[field.key] ? (
+                  <p className="text-xs text-destructive">
+                    {errors[field.key]}
+                  </p>
+                ) : null}
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="flex flex-wrap items-center justify-end gap-2 pt-1">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={resetToInherited}
+            disabled={upsertMutation.isPending}
+          >
+            Reset to inherited
+          </Button>
+          <Button
+            type="button"
+            onClick={save}
+            disabled={upsertMutation.isPending || !hasChanges}
+          >
+            {upsertMutation.isPending ? "Saving..." : "Save limits"}
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4 rounded-lg border border-border bg-card p-5">
+      <div className="flex items-center justify-end">
+        <Badge variant={overrideCount === 0 ? "secondary" : "outline"}>
+          {overrideCount === 0
+            ? "Using org defaults"
+            : `${overrideCount} override${overrideCount === 1 ? "" : "s"}`}
+        </Badge>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2">
-        {LIMIT_FIELDS.map((field) => (
-          <div key={field.key} className="space-y-1.5">
-            <Label htmlFor={`${calendarId}-${field.key}`}>{field.label}</Label>
-            <Input
-              id={`${calendarId}-${field.key}`}
-              type="number"
-              min={field.min}
-              step={1}
-              value={form[field.key]}
-              onChange={(event) =>
-                setForm((previous) => ({
-                  ...previous,
-                  [field.key]: event.target.value,
-                }))
-              }
-              placeholder="No limit"
-            />
-            <div className="flex items-center justify-between gap-2">
-              <span className="text-xs text-muted-foreground">
-                {field.description}
-              </span>
-              <InheritHint
-                field={field.key}
-                orgDefault={
-                  orgDefault
-                    ? {
-                        minNoticeMinutes: orgDefault.minNoticeMinutes,
-                        maxNoticeDays: orgDefault.maxNoticeDays,
-                        maxPerSlot: orgDefault.maxPerSlot,
-                        maxPerDay: orgDefault.maxPerDay,
-                        maxPerWeek: orgDefault.maxPerWeek,
-                      }
-                    : null
+      <div className="space-y-3">
+        {LIMIT_FIELDS.map((field) => {
+          const isOverride = form[field.key].trim() !== "";
+          const inheritedValue = orgDefaultValues?.[field.key] ?? null;
+          const inheritedHint =
+            inheritedValue == null
+              ? null
+              : `${isOverride ? "Org default" : "Inherited"}: ${formatLimitValue(inheritedValue)}`;
+
+          return (
+            <div key={field.key} className="space-y-1">
+              <Label htmlFor={`${calendarId}-${field.key}`}>
+                {field.label}
+              </Label>
+              <Input
+                id={`${calendarId}-${field.key}`}
+                type="number"
+                min={field.min}
+                step={1}
+                value={form[field.key]}
+                onChange={(event) =>
+                  setDraftForm((previous) => {
+                    const base = previous ?? sourceForm;
+                    const next = {
+                      ...base,
+                      [field.key]: event.target.value,
+                    };
+                    return areFormsEqual(next, sourceForm) ? null : next;
+                  })
                 }
-                formValue={form[field.key]}
+                placeholder="No limit"
               />
+              {inheritedHint ? (
+                <p className="text-xs text-muted-foreground">{inheritedHint}</p>
+              ) : null}
+              {errors[field.key] ? (
+                <p className="text-xs text-destructive">{errors[field.key]}</p>
+              ) : null}
             </div>
-            {errors[field.key] ? (
-              <p className="text-xs text-destructive">{errors[field.key]}</p>
-            ) : null}
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       <div className="flex flex-wrap items-center justify-end gap-2">
@@ -344,20 +413,10 @@ export function OrgSchedulingLimitsCard() {
     }),
   );
 
-  const [form, setForm] = useState<LimitsFormState>(() =>
-    toFormState(orgDefault),
-  );
-  const [initialForm, setInitialForm] = useState<LimitsFormState>(() =>
-    toFormState(orgDefault),
-  );
+  const sourceForm = useMemo(() => toFormState(orgDefault), [orgDefault]);
+  const [draftForm, setDraftForm] = useState<LimitsFormState | null>(null);
   const [errors, setErrors] = useState<LimitsErrors>({});
-
-  useEffect(() => {
-    const next = toFormState(orgDefault);
-    setForm(next);
-    setInitialForm(next);
-    setErrors({});
-  }, [orgDefault]);
+  const form = draftForm ?? sourceForm;
 
   const upsertMutation = useMutation(
     orpc.org.settings.schedulingLimits.upsert.mutationOptions({
@@ -371,6 +430,8 @@ export function OrgSchedulingLimitsCard() {
         queryClient.invalidateQueries({
           queryKey: orpc.availability.engine.key(),
         });
+        setDraftForm(null);
+        setErrors({});
         toast.success("Organization scheduling limits saved");
       },
       onError: (error) => {
@@ -382,8 +443,8 @@ export function OrgSchedulingLimitsCard() {
   );
 
   const hasChanges = useMemo(
-    () => !areFormsEqual(form, initialForm),
-    [form, initialForm],
+    () => !areFormsEqual(form, sourceForm),
+    [form, sourceForm],
   );
 
   const save = () => {
@@ -423,10 +484,14 @@ export function OrgSchedulingLimitsCard() {
                     step={1}
                     value={form[field.key]}
                     onChange={(event) =>
-                      setForm((previous) => ({
-                        ...previous,
-                        [field.key]: event.target.value,
-                      }))
+                      setDraftForm((previous) => {
+                        const base = previous ?? sourceForm;
+                        const next = {
+                          ...base,
+                          [field.key]: event.target.value,
+                        };
+                        return areFormsEqual(next, sourceForm) ? null : next;
+                      })
                     }
                     placeholder="No limit"
                   />

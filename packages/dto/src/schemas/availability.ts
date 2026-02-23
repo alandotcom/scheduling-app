@@ -20,7 +20,6 @@ export const availabilityRuleSchema = z.object({
   weekday: weekdaySchema,
   startTime: timeSchema,
   endTime: timeSchema,
-  intervalMin: positiveIntSchema.nullable(),
   groupId: uuidSchema.nullable(),
 });
 
@@ -29,7 +28,6 @@ export const createAvailabilityRuleSchema = z
     weekday: weekdaySchema,
     startTime: timeSchema,
     endTime: timeSchema,
-    intervalMin: positiveIntSchema.optional(),
     groupId: uuidSchema.optional(),
   })
   .refine((data) => data.startTime < data.endTime, {
@@ -41,7 +39,6 @@ export const updateAvailabilityRuleSchema = z.object({
   weekday: weekdaySchema.optional(),
   startTime: timeSchema.optional(),
   endTime: timeSchema.optional(),
-  intervalMin: positiveIntSchema.nullable().optional(),
   groupId: uuidSchema.nullable().optional(),
 });
 
@@ -86,7 +83,6 @@ export const availabilityOverrideSchema = z.object({
   calendarId: uuidSchema,
   date: dateSchema,
   timeRanges: z.array(availabilityTimeRangeSchema),
-  intervalMin: positiveIntSchema.nullable(),
   groupId: uuidSchema.nullable(),
 });
 
@@ -94,7 +90,6 @@ export const createAvailabilityOverrideSchema = z
   .object({
     date: dateSchema,
     timeRanges: z.array(availabilityTimeRangeSchema),
-    intervalMin: positiveIntSchema.optional(),
     groupId: uuidSchema.optional(),
   })
   .refine((data) => !hasOverlappingTimeRanges(data.timeRanges), {
@@ -106,7 +101,6 @@ export const updateAvailabilityOverrideSchema = z
   .object({
     date: dateSchema.optional(),
     timeRanges: z.array(availabilityTimeRangeSchema).optional(),
-    intervalMin: positiveIntSchema.nullable().optional(),
     groupId: uuidSchema.nullable().optional(),
   })
   .refine(
@@ -217,6 +211,30 @@ export const availabilityTimesResponseSchema = z.object({
   slots: z.array(availabilityTimeSlotApiSchema),
 });
 
+const draftWeeklyRuleSchema = createAvailabilityRuleSchema;
+const draftBlockedTimeSchema = createBlockedTimeSchema;
+const draftDayOverrideSchema = createAvailabilityOverrideSchema.safeExtend({
+  date: dateSchema,
+});
+
+export const availabilityPreviewDraftSchema = z.object({
+  weeklyRules: z.array(draftWeeklyRuleSchema).optional(),
+  blockedTime: z.array(draftBlockedTimeSchema).optional(),
+  schedulingLimits: updateSchedulingLimitsSchema.optional(),
+  dayOverrides: z.array(draftDayOverrideSchema).optional(),
+});
+
+export const availabilityCalendarPreviewQuerySchema = z.object({
+  calendarId: uuidSchema,
+  startDate: dateSchema,
+  endDate: dateSchema,
+  timezone: timezoneSchema.optional(),
+  draft: availabilityPreviewDraftSchema.optional(),
+});
+
+export const availabilityPreviewTimesResponseSchema =
+  availabilityTimesResponseSchema;
+
 export const availabilityCheckSchema = z.object({
   appointmentTypeId: uuidSchema,
   calendarId: uuidSchema,
@@ -314,6 +332,15 @@ export type AvailabilityTimeSlotApi = z.infer<
 >;
 export type AvailabilityTimesResponse = z.infer<
   typeof availabilityTimesResponseSchema
+>;
+export type AvailabilityPreviewDraft = z.infer<
+  typeof availabilityPreviewDraftSchema
+>;
+export type AvailabilityCalendarPreviewQuery = z.infer<
+  typeof availabilityCalendarPreviewQuerySchema
+>;
+export type AvailabilityPreviewTimesResponse = z.infer<
+  typeof availabilityPreviewTimesResponseSchema
 >;
 export type AvailabilityCheck = z.infer<typeof availabilityCheckSchema>;
 export type AvailabilityCheckResult = z.infer<

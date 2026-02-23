@@ -1,6 +1,7 @@
 // oRPC instance setup with context type
 
 import { os, ORPCError } from "@orpc/server";
+import { getLogger } from "@logtape/logtape";
 import {
   ApplicationError,
   type ApplicationErrorCode,
@@ -53,6 +54,8 @@ const errorCodeMap: Record<
   INTERNAL_ERROR: { orpcCode: "INTERNAL_SERVER_ERROR", status: 500 },
 };
 
+const logger = getLogger(["api", "orpc"]);
+
 // Create the base oRPC instance with context type and error transformer
 const osWithContext = os.$context<Context>();
 
@@ -70,6 +73,16 @@ export const base = osWithContext.use(async ({ next }) => {
         cause: error,
       });
     }
+
+    if (error instanceof Error) {
+      logger.error("Unhandled oRPC error: {message}\n{stack}", {
+        message: error.message,
+        stack: error.stack ?? "No stack available",
+      });
+    } else {
+      logger.error("Unhandled oRPC non-Error throwable: {error}", { error });
+    }
+
     throw error;
   }
 });

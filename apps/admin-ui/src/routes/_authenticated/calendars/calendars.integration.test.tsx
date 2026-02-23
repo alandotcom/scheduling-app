@@ -12,7 +12,7 @@ import {
 } from "@testing-library/react";
 import { AvailabilitySubTabs } from "@/components/availability/availability-sub-tabs";
 import { CompactBlockedTimeEditor } from "@/components/availability/blocked-time-editor";
-import { CompactDateOverridesEditor } from "@/components/availability/date-overrides-editor";
+import { CalendarSchedulingLimitsEditor } from "@/components/availability/scheduling-limits-editor";
 import { CompactWeeklyScheduleEditor } from "@/components/availability/weekly-schedule-editor";
 import type { AvailabilitySubTabType } from "@/components/availability/constants";
 import {
@@ -30,25 +30,30 @@ function AvailabilityHarness({
   calendarId: string;
   timezone: string;
 }) {
-  const [tab, setTab] = useState<AvailabilitySubTabType>("weekly");
+  const [tab, setTab] =
+    useState<Exclude<AvailabilitySubTabType, "overrides">>("weekly");
 
   return (
     <div>
-      <AvailabilitySubTabs value={tab} onChange={setTab} />
+      <AvailabilitySubTabs
+        value={tab}
+        onChange={(nextTab) => {
+          if (nextTab === "overrides") return;
+          setTab(nextTab);
+        }}
+        includeOverrides={false}
+      />
       {tab === "weekly" && (
         <CompactWeeklyScheduleEditor
           calendarId={calendarId}
           timezone={timezone}
         />
       )}
-      {tab === "overrides" && (
-        <CompactDateOverridesEditor
-          calendarId={calendarId}
-          timezone={timezone}
-        />
-      )}
       {tab === "blocked" && (
         <CompactBlockedTimeEditor calendarId={calendarId} timezone={timezone} />
+      )}
+      {tab === "limits" && (
+        <CalendarSchedulingLimitsEditor calendarId={calendarId} compact />
       )}
     </div>
   );
@@ -122,7 +127,7 @@ describe("calendars availability tab integration", () => {
     renderAvailabilityHarness();
 
     expect(screen.getByText("Weekly Schedule")).toBeTruthy();
-    expect(screen.getByText("Date Overrides")).toBeTruthy();
+    expect(screen.queryByText("Date Overrides")).toBeNull();
     expect(screen.getByText("Blocked Time")).toBeTruthy();
     expect(screen.getByText("Scheduling Limits")).toBeTruthy();
 
@@ -131,21 +136,19 @@ describe("calendars availability tab integration", () => {
     });
   });
 
-  test("switches between weekly, overrides, and blocked editors", async () => {
+  test("switches between weekly, blocked, and limits editors", async () => {
     renderAvailabilityHarness();
 
     expect(screen.getByText("Weekly Schedule")).toBeTruthy();
 
-    fireEvent.click(screen.getByRole("button", { name: "Date Overrides" }));
-    await waitFor(() => {
-      expect(
-        screen.getByText("No upcoming overrides configured."),
-      ).toBeTruthy();
-    });
-
     fireEvent.click(screen.getByRole("button", { name: "Blocked Time" }));
     await waitFor(() => {
       expect(screen.getByText("No blocked time configured.")).toBeTruthy();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Scheduling Limits" }));
+    await waitFor(() => {
+      expect(screen.getByText("Scheduling Limits")).toBeTruthy();
     });
   });
 });

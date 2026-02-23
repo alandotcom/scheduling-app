@@ -11,6 +11,7 @@ describe("Availability Routes Module", () => {
     expect(availabilityRoutes.engine).toBeDefined();
     expect(availabilityRoutes.engine.dates).toBeDefined();
     expect(availabilityRoutes.engine.times).toBeDefined();
+    expect(availabilityRoutes.engine.previewTimes).toBeDefined();
     expect(availabilityRoutes.engine.check).toBeDefined();
   });
 
@@ -71,6 +72,7 @@ describe("API vs UI Router", () => {
 
     expect(apiAvailability.dates).toBeDefined();
     expect(apiAvailability.times).toBeDefined();
+    expect(apiAvailability.previewTimes).toBeDefined();
     expect(apiAvailability.check).toBeDefined();
     expect(apiAvailability.rules).toBeUndefined();
     expect(apiAvailability.overrides).toBeUndefined();

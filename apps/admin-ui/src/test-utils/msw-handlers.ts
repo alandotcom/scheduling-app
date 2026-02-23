@@ -13,6 +13,7 @@ interface CalendarFixture {
   id: string;
   name: string;
   timezone: string;
+  slotIntervalMin: number;
   orgId: string;
   locationId: string;
   isActive: boolean;
@@ -135,6 +136,7 @@ export function createCalendarFixture(
     id,
     name: `Calendar ${id}`,
     timezone: "America/New_York",
+    slotIntervalMin: 15,
     orgId: "test-org-id",
     locationId: "test-location-id",
     isActive: true,
@@ -659,6 +661,13 @@ export const handlers = [
 
   // Availability engine time slots
   http.post("*/v1/availability/engine/times", () => {
+    return HttpResponse.json({
+      slots: mockAvailabilityEngineTimeSlots,
+    });
+  }),
+
+  // Availability engine preview time slots
+  http.post("*/v1/availability/engine/previewTimes", () => {
     return HttpResponse.json({
       slots: mockAvailabilityEngineTimeSlots,
     });

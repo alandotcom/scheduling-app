@@ -26,16 +26,17 @@ import {
   EntityListLoadingState,
 } from "@/components/entity-list";
 import { AvailabilitySubTabs } from "@/components/availability/availability-sub-tabs";
+import { AvailabilityPreviewPanel } from "@/components/availability/availability-preview-panel";
 import { BlockedTimeEditor } from "@/components/availability/blocked-time-editor";
 import { AppointmentModal } from "@/components/appointment-modal";
 import {
   WEEKDAYS,
+  type AvailabilityPreviewDraftState,
   type AvailabilitySubTabType,
   type DaySchedule,
   type TimeBlock,
   type WeeklySchedule,
 } from "@/components/availability/constants";
-import { DateOverridesEditor } from "@/components/availability/date-overrides-editor";
 import { CalendarSchedulingLimitsEditor } from "@/components/availability/scheduling-limits-editor";
 import {
   formatTimeBlocksForInput,
@@ -130,6 +131,7 @@ interface CalendarFormProps {
   defaultValues?: {
     name: string;
     timezone: string;
+    slotIntervalMin?: number;
     locationId?: string;
     requiresConfirmation?: boolean;
   };
@@ -177,11 +179,13 @@ function CalendarForm({
     defaultValues: defaultValues ?? {
       name: "",
       timezone: "America/New_York",
+      slotIntervalMin: 15,
       requiresConfirmation: false,
     },
   });
 
   const timezone = watch("timezone");
+  const slotIntervalMin = watch("slotIntervalMin");
   const locationId = watch("locationId");
   const requiresConfirmation = watch("requiresConfirmation");
 
@@ -232,6 +236,7 @@ function CalendarForm({
       onDraftChange({
         name: values.name ?? "",
         timezone: values.timezone ?? "America/New_York",
+        slotIntervalMin: values.slotIntervalMin ?? 15,
         locationId: values.locationId,
         requiresConfirmation: values.requiresConfirmation ?? false,
       });
@@ -329,6 +334,35 @@ function CalendarForm({
               </SelectContent>
             </Select>
             <FieldShortcutHint shortcut="l" visible={hintsVisible} />
+          </div>
+
+          <div className="space-y-2.5">
+            <Label htmlFor="slotIntervalMin">Start Time Interval *</Label>
+            <Input
+              id="slotIntervalMin"
+              type="number"
+              min={1}
+              max={120}
+              step={1}
+              value={slotIntervalMin ?? 15}
+              onChange={(event) => {
+                const parsed = Number(event.target.value);
+                setValue(
+                  "slotIntervalMin",
+                  Number.isInteger(parsed) ? parsed : 15,
+                  { shouldDirty: true },
+                );
+              }}
+              disabled={isSubmitting}
+            />
+            <p className="text-sm text-muted-foreground">
+              Minutes between available start times (1-120).
+            </p>
+            {errors.slotIntervalMin && (
+              <p className="text-sm text-destructive">
+                {errors.slotIntervalMin.message}
+              </p>
+            )}
           </div>
 
           <div className="space-y-2.5">
@@ -644,6 +678,7 @@ function CreateCalendarForm({
     () => ({
       name: "",
       timezone: "America/New_York",
+      slotIntervalMin: 15,
       locationId: undefined,
       requiresConfirmation: false,
       weeklySchedule: createEmptyWeeklySchedule(),
@@ -664,6 +699,7 @@ function CreateCalendarForm({
       defaultValues={{
         name: draft.name,
         timezone: draft.timezone,
+        slotIntervalMin: draft.slotIntervalMin,
         locationId: draft.locationId,
         requiresConfirmation: draft.requiresConfirmation,
       }}
@@ -722,6 +758,10 @@ function CalendarsPage() {
   const activeTab: DetailTabValue = tab && isDetailTab(tab) ? tab : "details";
   const [availabilitySubTab, setAvailabilitySubTab] =
     useState<AvailabilitySubTabType>("weekly");
+  const activeAvailabilitySubTab: Exclude<AvailabilitySubTabType, "overrides"> =
+    availabilitySubTab === "overrides" ? "weekly" : availabilitySubTab;
+  const [availabilityPreviewDraft, setAvailabilityPreviewDraft] =
+    useState<AvailabilityPreviewDraftState>({});
   const [appointmentModalOpen, setAppointmentModalOpen] = useState(false);
   const [isDetailFormDirty, setIsDetailFormDirty] = useState(false);
   const detailFormId = "calendar-detail-form";
@@ -753,6 +793,7 @@ function CalendarsPage() {
 
   const openDetails = useCallback(
     (calendarId: string, nextTab: DetailTabValue = "details") => {
+      setAvailabilityPreviewDraft({});
       navigate({
         search: (prev) => ({
           ...prev,
@@ -767,6 +808,7 @@ function CalendarsPage() {
   const clearDetails = useCallback(() => {
     closeDetailModalNow();
     setAvailabilitySubTab("weekly");
+    setAvailabilityPreviewDraft({});
     navigate({
       search: (prev) => ({
         ...prev,
@@ -776,6 +818,55 @@ function CalendarsPage() {
       replace: true,
     });
   }, [closeDetailModalNow, navigate]);
+
+  const handleDraftWeeklyRulesChange = useCallback(
+    (rules: AvailabilityPreviewDraftState["weeklyRules"] | null) => {
+      const nextRules = rules ?? undefined;
+      setAvailabilityPreviewDraft((previous) =>
+        previous.weeklyRules === nextRules
+          ? previous
+          : {
+              ...previous,
+              weeklyRules: nextRules,
+            },
+      );
+    },
+    [],
+  );
+
+  const handleDraftBlockedTimeChange = useCallback(
+    (blockedTime: AvailabilityPreviewDraftState["blockedTime"] | null) => {
+      const nextBlockedTime = blockedTime ?? undefined;
+      setAvailabilityPreviewDraft((previous) =>
+        previous.blockedTime === nextBlockedTime
+          ? previous
+          : {
+              ...previous,
+              blockedTime: nextBlockedTime,
+            },
+      );
+    },
+    [],
+  );
+
+  const handleDraftSchedulingLimitsChange = useCallback(
+    (
+      schedulingLimits:
+        | AvailabilityPreviewDraftState["schedulingLimits"]
+        | null,
+    ) => {
+      const nextSchedulingLimits = schedulingLimits ?? undefined;
+      setAvailabilityPreviewDraft((previous) =>
+        previous.schedulingLimits === nextSchedulingLimits
+          ? previous
+          : {
+              ...previous,
+              schedulingLimits: nextSchedulingLimits,
+            },
+      );
+    },
+    [],
+  );
 
   const setActiveTab = useCallback(
     (value: string) => {
@@ -1124,6 +1215,7 @@ function CalendarsPage() {
                       defaultValues={{
                         name: displayCalendar.name,
                         timezone: displayCalendar.timezone,
+                        slotIntervalMin: displayCalendar.slotIntervalMin,
                         locationId: displayCalendar.locationId ?? undefined,
                         requiresConfirmation:
                           displayCalendar.requiresConfirmation,
@@ -1139,35 +1231,51 @@ function CalendarsPage() {
                 )}
 
                 {activeTab === "availability" && (
-                  <div className="space-y-6">
-                    <AvailabilitySubTabs
-                      value={availabilitySubTab}
-                      onChange={setAvailabilitySubTab}
-                    />
+                  <div className="xl:min-h-0">
+                    <div className="grid gap-6 xl:min-h-0 xl:grid-cols-[minmax(0,1fr)_24rem] xl:items-start">
+                      <div className="space-y-6 xl:pr-1">
+                        <AvailabilitySubTabs
+                          value={activeAvailabilitySubTab}
+                          onChange={setAvailabilitySubTab}
+                          includeOverrides={false}
+                        />
 
-                    {availabilitySubTab === "weekly" && (
-                      <WeeklyScheduleEditor
-                        calendarId={displayCalendar.id}
-                        timezone={displayCalendar.timezone}
-                      />
-                    )}
-                    {availabilitySubTab === "overrides" && (
-                      <DateOverridesEditor
-                        calendarId={displayCalendar.id}
-                        timezone={displayCalendar.timezone}
-                      />
-                    )}
-                    {availabilitySubTab === "blocked" && (
-                      <BlockedTimeEditor
-                        calendarId={displayCalendar.id}
-                        timezone={displayCalendar.timezone}
-                      />
-                    )}
-                    {availabilitySubTab === "limits" && (
-                      <CalendarSchedulingLimitsEditor
-                        calendarId={displayCalendar.id}
-                      />
-                    )}
+                        {activeAvailabilitySubTab === "weekly" && (
+                          <WeeklyScheduleEditor
+                            calendarId={displayCalendar.id}
+                            timezone={displayCalendar.timezone}
+                            onDraftRulesChange={handleDraftWeeklyRulesChange}
+                          />
+                        )}
+                        {activeAvailabilitySubTab === "blocked" && (
+                          <BlockedTimeEditor
+                            calendarId={displayCalendar.id}
+                            timezone={displayCalendar.timezone}
+                            onDraftBlockedTimeChange={
+                              handleDraftBlockedTimeChange
+                            }
+                          />
+                        )}
+                        {activeAvailabilitySubTab === "limits" && (
+                          <CalendarSchedulingLimitsEditor
+                            calendarId={displayCalendar.id}
+                            onDraftSchedulingLimitsChange={
+                              handleDraftSchedulingLimitsChange
+                            }
+                          />
+                        )}
+                      </div>
+
+                      <div className="xl:pl-1">
+                        <AvailabilityPreviewPanel
+                          key={`${displayCalendar.id}:${displayCalendar.timezone}`}
+                          calendarId={displayCalendar.id}
+                          timezone={displayCalendar.timezone}
+                          activeTab={activeAvailabilitySubTab}
+                          draft={availabilityPreviewDraft}
+                        />
+                      </div>
+                    </div>
                   </div>
                 )}
 

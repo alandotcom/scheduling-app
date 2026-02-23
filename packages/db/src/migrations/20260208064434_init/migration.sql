@@ -126,7 +126,6 @@ CREATE TABLE "availability_overrides" (
 	"calendar_id" uuid NOT NULL,
 	"date" date NOT NULL,
 	"time_ranges" jsonb DEFAULT '[]' NOT NULL,
-	"interval_min" integer,
 	"group_id" uuid
 );
 --> statement-breakpoint
@@ -136,7 +135,6 @@ CREATE TABLE "availability_rules" (
 	"weekday" integer NOT NULL,
 	"start_time" time NOT NULL,
 	"end_time" time NOT NULL,
-	"interval_min" integer,
 	"group_id" uuid
 );
 --> statement-breakpoint
@@ -154,6 +152,7 @@ CREATE TABLE "calendars" (
 	"location_id" uuid,
 	"name" text NOT NULL,
 	"timezone" text NOT NULL,
+	"slot_interval_min" integer DEFAULT 15 NOT NULL,
 	"requires_confirmation" boolean DEFAULT false NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL

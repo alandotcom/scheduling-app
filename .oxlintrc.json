@@ -32,7 +32,7 @@
     "react-hooks-js/immutability": "warn",
     "react-hooks-js/globals": "warn",
     "react-hooks-js/refs": "warn",
-    "react-hooks-js/set-state-in-effect": "warn",
+    "react-hooks-js/set-state-in-effect": "error",
     "react-hooks-js/error-boundaries": "warn",
     "react-hooks-js/purity": "warn",
     "react-hooks-js/set-state-in-render": "warn",

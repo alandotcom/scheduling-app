@@ -97,6 +97,70 @@ describe("Availability Engine", () => {
     expect(slot.available).toBe(true);
   });
 
+  test("getPreviewTimes applies draft overlays", async () => {
+    const { org, user, calendar, timezone } =
+      await createAvailabilityFixture(db);
+    const ctx = createTestContext({ orgId: org.id, userId: user.id });
+    const availabilityRoutes = await getAvailabilityRoutes();
+
+    const day = DateTime.fromObject(
+      { year: 2030, month: 1, day: 17 },
+      { zone: timezone },
+    ).startOf("day");
+    const dayIso = day.toISODate()!;
+    const weekday = day.weekday % 7;
+
+    const previewWithDraftRule = await call(
+      availabilityRoutes.engine.previewTimes,
+      {
+        calendarId: calendar.id,
+        startDate: dayIso,
+        endDate: dayIso,
+        timezone,
+        draft: {
+          weeklyRules: [
+            {
+              weekday,
+              startTime: "09:00",
+              endTime: "10:00",
+            },
+          ],
+        },
+      },
+      { context: ctx },
+    );
+
+    expect(previewWithDraftRule.slots).toHaveLength(4);
+
+    const previewWithDraftOverride = await call(
+      availabilityRoutes.engine.previewTimes,
+      {
+        calendarId: calendar.id,
+        startDate: dayIso,
+        endDate: dayIso,
+        timezone,
+        draft: {
+          weeklyRules: [
+            {
+              weekday,
+              startTime: "09:00",
+              endTime: "10:00",
+            },
+          ],
+          dayOverrides: [
+            {
+              date: dayIso,
+              timeRanges: [],
+            },
+          ],
+        },
+      },
+      { context: ctx },
+    );
+
+    expect(previewWithDraftOverride.slots).toHaveLength(0);
+  });
+
   test("getDates throws when calendar is not linked", async () => {
     const { org, user, appointmentType, timezone } =
       await createAvailabilityFixture(db);

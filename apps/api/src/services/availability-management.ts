@@ -200,10 +200,6 @@ export class AvailabilityManagementService {
           weekday: input.weekday ?? existing.weekday,
           startTime: input.startTime ?? existing.startTime,
           endTime: input.endTime ?? existing.endTime,
-          intervalMin:
-            input.intervalMin !== undefined
-              ? input.intervalMin
-              : existing.intervalMin,
           groupId:
             input.groupId !== undefined ? input.groupId : existing.groupId,
         },
@@ -388,10 +384,6 @@ export class AvailabilityManagementService {
             input.timeRanges !== undefined
               ? input.timeRanges
               : existing.timeRanges,
-          intervalMin:
-            input.intervalMin !== undefined
-              ? input.intervalMin
-              : existing.intervalMin,
           groupId:
             input.groupId !== undefined ? input.groupId : existing.groupId,
         },

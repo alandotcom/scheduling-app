@@ -332,16 +332,6 @@ export function ClientForm({
     ? nonRelationCustomFieldDefinitions
     : sortedCustomFieldDefinitions;
 
-  useEffect(() => {
-    if (forcedSection) {
-      return;
-    }
-
-    if (!hasRelationCustomFields && activeSection !== "profile") {
-      setActiveSection("profile");
-    }
-  }, [activeSection, forcedSection, hasRelationCustomFields]);
-
   useSubmitShortcut({
     enabled:
       shortcutsEnabled &&

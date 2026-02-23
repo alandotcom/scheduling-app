@@ -774,6 +774,7 @@ async function seed() {
               locationId,
               name: calendar.name,
               timezone: calendar.timezone,
+              slotIntervalMin: 15,
             })
             .returning({ id: calendars.id });
 
@@ -947,7 +948,6 @@ async function seed() {
         weekday: number;
         startTime: string;
         endTime: string;
-        intervalMin: number;
       }> = [];
 
       for (const [calendarKey, calendarId] of calendarIds.entries()) {
@@ -961,14 +961,12 @@ async function seed() {
               weekday,
               startTime: "09:00",
               endTime: "12:00",
-              intervalMin: 15,
             });
             availabilityRuleRows.push({
               calendarId,
               weekday,
               startTime: "13:00",
               endTime: "17:00",
-              intervalMin: 15,
             });
           }
         } else {
@@ -978,14 +976,12 @@ async function seed() {
               weekday,
               startTime: "08:00",
               endTime: "12:00",
-              intervalMin: 15,
             });
             availabilityRuleRows.push({
               calendarId,
               weekday,
               startTime: "12:30",
               endTime: "16:00",
-              intervalMin: 15,
             });
           }
           availabilityRuleRows.push({
@@ -993,7 +989,6 @@ async function seed() {
             weekday: 6,
             startTime: "09:00",
             endTime: "12:00",
-            intervalMin: 30,
           });
         }
       }
@@ -1017,21 +1012,18 @@ async function seed() {
           calendarId: providerACalendarId,
           date: dateStringAtDayOffset(startOfDayUtc, 7),
           timeRanges: [],
-          intervalMin: null,
           groupId: null,
         },
         {
           calendarId: providerBCalendarId,
           date: dateStringAtDayOffset(startOfDayUtc, 9),
           timeRanges: [{ startTime: "10:00", endTime: "14:00" }],
-          intervalMin: 20,
           groupId: null,
         },
         {
           calendarId: supportCalendarId,
           date: dateStringAtDayOffset(startOfDayUtc, 8),
           timeRanges: [{ startTime: "09:00", endTime: "11:30" }],
-          intervalMin: 15,
           groupId: null,
         },
       ]);

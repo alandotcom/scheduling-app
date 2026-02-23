@@ -13,11 +13,13 @@ import {
   createBlockedTimeSchema,
   updateBlockedTimeSchema,
   availabilityQuerySchema,
+  availabilityCalendarPreviewQuerySchema,
   availabilityCheckSchema,
   availabilityFeedQuerySchema,
   availabilityFeedResponseSchema,
   availableDatesResponseSchema,
   availabilityTimesResponseSchema,
+  availabilityPreviewTimesResponseSchema,
   availabilityCheckResultSchema,
 } from "@scheduling/dto";
 import { authed } from "./base.js";
@@ -279,6 +281,32 @@ export const getTimes = authed
     };
   });
 
+export const getPreviewTimes = authed
+  .route({
+    method: "GET",
+    path: "/availability/preview-times",
+    tags: ["Availability"],
+    summary: "Get preview available times",
+    description:
+      "Returns appointment slots with optional draft overlays applied for live availability preview.",
+  })
+  .input(availabilityCalendarPreviewQuerySchema)
+  .output(availabilityPreviewTimesResponseSchema)
+  .handler(async ({ input, context }) => {
+    const slots = await availabilityService.getPreviewSlots(input, {
+      orgId: context.orgId,
+      userId: context.userId,
+    });
+    return {
+      slots: slots.map((slot) => ({
+        start: slot.start.toISOString(),
+        end: slot.end.toISOString(),
+        available: slot.available,
+        remainingCapacity: slot.remainingCapacity,
+      })),
+    };
+  });
+
 export const checkSlot = authed
   .route({
     method: "GET",
@@ -303,6 +331,7 @@ export const checkSlot = authed
 export const availabilityEngineRoutes = {
   dates: getDates,
   times: getTimes,
+  previewTimes: getPreviewTimes,
   check: checkSlot,
 };
 

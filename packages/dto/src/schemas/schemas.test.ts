@@ -38,6 +38,7 @@ import {
   createBlockedTimeSchema,
   createSchedulingLimitsSchema,
   availabilityQuerySchema,
+  availabilityCalendarPreviewQuerySchema,
   availabilityCheckSchema,
   // Custom Attributes
   customAttributeTypeSchema,
@@ -270,6 +271,24 @@ describe("Calendar schemas", () => {
         locationId: "550e8400-e29b-41d4-a716-446655440000",
       });
       expect(result.success).toBe(true);
+    });
+
+    test("accepts with slot interval", () => {
+      const result = createCalendarSchema.safeParse({
+        name: "Room A",
+        timezone: "America/Chicago",
+        slotIntervalMin: 30,
+      });
+      expect(result.success).toBe(true);
+    });
+
+    test("rejects invalid slot interval", () => {
+      const result = createCalendarSchema.safeParse({
+        name: "Room A",
+        timezone: "America/Chicago",
+        slotIntervalMin: 0,
+      });
+      expect(result.success).toBe(false);
     });
   });
 });
@@ -585,6 +604,43 @@ describe("Availability schemas", () => {
         timezone: "America/New_York",
       });
       expect(result.success).toBe(false);
+    });
+  });
+
+  describe("availabilityCalendarPreviewQuerySchema", () => {
+    test("accepts valid draft overlay", () => {
+      const result = availabilityCalendarPreviewQuerySchema.safeParse({
+        calendarId: "550e8400-e29b-41d4-a716-446655440001",
+        startDate: "2026-01-01",
+        endDate: "2026-01-31",
+        timezone: "America/New_York",
+        draft: {
+          weeklyRules: [
+            {
+              weekday: 1,
+              startTime: "09:00",
+              endTime: "17:00",
+            },
+          ],
+          blockedTime: [
+            {
+              startAt: "2026-01-10T15:00:00Z",
+              endAt: "2026-01-10T16:00:00Z",
+            },
+          ],
+          schedulingLimits: {
+            minNoticeMinutes: 30,
+          },
+          dayOverrides: [
+            {
+              date: "2026-01-12",
+              timeRanges: [{ startTime: "10:00", endTime: "12:00" }],
+            },
+          ],
+        },
+      });
+
+      expect(result.success).toBe(true);
     });
   });
 

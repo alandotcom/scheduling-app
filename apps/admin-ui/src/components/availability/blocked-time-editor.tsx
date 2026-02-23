@@ -1,6 +1,6 @@
 // Blocked time editor - self-contained component for managing blocked time periods
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { DateTime } from "luxon";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
@@ -28,6 +28,8 @@ import {
 } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { RECURRENCE_OPTIONS, WEEKDAYS } from "./constants";
+import type { AvailabilityPreviewBlockedTimeDraft } from "./constants";
+import { formatTime24to12, parseTimeInput } from "./time-range-parser";
 import {
   buildRecurrenceRule,
   type BlockRecurrenceType,
@@ -42,6 +44,9 @@ import {
 interface BlockedTimeEditorProps {
   calendarId: string;
   timezone: string;
+  onDraftBlockedTimeChange?: (
+    blockedTime: AvailabilityPreviewBlockedTimeDraft[] | null,
+  ) => void;
 }
 
 interface BlockedTimeEditorBodyProps extends BlockedTimeEditorProps {
@@ -62,10 +67,51 @@ export function CompactBlockedTimeEditor(props: BlockedTimeEditorProps) {
   return <BlockedTimeEditorBody {...props} compact />;
 }
 
+function TimeTextInput({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  const [draftValue, setDraftValue] = useState(() => formatTime24to12(value));
+
+  useEffect(() => {
+    setDraftValue(formatTime24to12(value));
+  }, [value]);
+
+  const commitValue = () => {
+    const parsed = parseTimeInput(draftValue);
+    if (!parsed) {
+      setDraftValue(formatTime24to12(value));
+      return;
+    }
+    onChange(parsed);
+    setDraftValue(formatTime24to12(parsed));
+  };
+
+  return (
+    <Input
+      type="text"
+      inputMode="text"
+      value={draftValue}
+      placeholder="9:00 AM"
+      onChange={(e) => setDraftValue(e.target.value)}
+      onBlur={commitValue}
+      onKeyDown={(e) => {
+        if (e.key !== "Enter") return;
+        e.preventDefault();
+        commitValue();
+      }}
+    />
+  );
+}
+
 function BlockedTimeEditorBody({
   calendarId,
   timezone,
   compact,
+  onDraftBlockedTimeChange,
 }: BlockedTimeEditorBodyProps) {
   type EditingBlock = {
     id?: string;
@@ -348,6 +394,79 @@ function BlockedTimeEditorBody({
   const isSaving = createMutation.isPending || updateMutation.isPending;
   const canSave = !!editingBlock && !isSaving;
 
+  useEffect(() => {
+    if (!onDraftBlockedTimeChange) return;
+
+    if (!showForm || !editingBlock) {
+      onDraftBlockedTimeChange(null);
+      return;
+    }
+
+    const startAtIso = parseInTimezone(
+      editingBlock.startDate,
+      editingBlock.startTime,
+      timezone,
+    );
+    const endAtIso = parseInTimezone(
+      editingBlock.recurrence !== "none"
+        ? editingBlock.startDate
+        : editingBlock.endDate,
+      editingBlock.endTime,
+      timezone,
+    );
+    const startAt = DateTime.fromISO(startAtIso);
+    const endAt = DateTime.fromISO(endAtIso);
+    if (!startAt.isValid || !endAt.isValid || endAt <= startAt) {
+      onDraftBlockedTimeChange(null);
+      return;
+    }
+
+    const recurringRule = buildRecurrenceRule({
+      type: editingBlock.recurrence,
+      startDate: editingBlock.startDate,
+      startTime: editingBlock.startTime,
+      endDate: editingBlock.endDate,
+      timezone,
+      weekdays: editingBlock.weekdays,
+    });
+
+    const draftBlock: AvailabilityPreviewBlockedTimeDraft = {
+      startAt: startAt.toJSDate(),
+      endAt: endAt.toJSDate(),
+      recurringRule: recurringRule ?? null,
+    };
+
+    const persisted = blockedTimes.map((block) => ({
+      id: block.id,
+      startAt:
+        block.startAt instanceof Date ? block.startAt : new Date(block.startAt),
+      endAt: block.endAt instanceof Date ? block.endAt : new Date(block.endAt),
+      recurringRule: block.recurringRule,
+    }));
+
+    const merged = editingBlock.id
+      ? persisted.map((block) =>
+          block.id === editingBlock.id
+            ? { ...draftBlock, id: block.id }
+            : { ...block },
+        )
+      : [...persisted, { ...draftBlock, id: "draft-new-block" }];
+
+    onDraftBlockedTimeChange(
+      merged.map((block) => ({
+        startAt: block.startAt,
+        endAt: block.endAt,
+        recurringRule: block.recurringRule ?? null,
+      })),
+    );
+  }, [
+    blockedTimes,
+    editingBlock,
+    onDraftBlockedTimeChange,
+    showForm,
+    timezone,
+  ]);
+
   useSubmitShortcut({
     enabled: canSave,
     onSubmit: handleSave,
@@ -416,24 +535,22 @@ function BlockedTimeEditorBody({
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
                 <Label className="text-xs">Start Time</Label>
-                <Input
-                  type="time"
+                <TimeTextInput
                   value={editingBlock.startTime}
-                  onChange={(e) =>
+                  onChange={(value) =>
                     setEditingBlock((prev) =>
-                      prev ? { ...prev, startTime: e.target.value } : null,
+                      prev ? { ...prev, startTime: value } : null,
                     )
                   }
                 />
               </div>
               <div className="space-y-1">
                 <Label className="text-xs">End Time</Label>
-                <Input
-                  type="time"
+                <TimeTextInput
                   value={editingBlock.endTime}
-                  onChange={(e) =>
+                  onChange={(value) =>
                     setEditingBlock((prev) =>
-                      prev ? { ...prev, endTime: e.target.value } : null,
+                      prev ? { ...prev, endTime: value } : null,
                     )
                   }
                 />
@@ -653,24 +770,22 @@ function BlockedTimeEditorBody({
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1.5">
                 <Label>Start Time</Label>
-                <Input
-                  type="time"
+                <TimeTextInput
                   value={editingBlock.startTime}
-                  onChange={(e) =>
+                  onChange={(value) =>
                     setEditingBlock((prev) =>
-                      prev ? { ...prev, startTime: e.target.value } : null,
+                      prev ? { ...prev, startTime: value } : null,
                     )
                   }
                 />
               </div>
               <div className="space-y-1.5">
                 <Label>End Time</Label>
-                <Input
-                  type="time"
+                <TimeTextInput
                   value={editingBlock.endTime}
-                  onChange={(e) =>
+                  onChange={(value) =>
                     setEditingBlock((prev) =>
-                      prev ? { ...prev, endTime: e.target.value } : null,
+                      prev ? { ...prev, endTime: value } : null,
                     )
                   }
                 />

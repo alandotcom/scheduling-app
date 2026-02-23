@@ -195,6 +195,7 @@ export const calendars = pgTable.withRLS(
     locationId: uuid("location_id").references(() => locations.id),
     name: text("name").notNull(),
     timezone: text("timezone").notNull(),
+    slotIntervalMin: integer("slot_interval_min").notNull().default(15),
     requiresConfirmation: boolean("requires_confirmation")
       .notNull()
       .default(false),
@@ -590,7 +591,6 @@ export const availabilityRules = pgTable(
     weekday: integer("weekday").notNull(), // 0-6
     startTime: time("start_time").notNull(), // HH:MM
     endTime: time("end_time").notNull(),
-    intervalMin: integer("interval_min"),
     groupId: uuid("group_id"),
   },
   (table) => [
@@ -620,7 +620,6 @@ export const availabilityOverrides = pgTable(
       .$type<Array<{ startTime: string; endTime: string }>>()
       .notNull()
       .default([]),
-    intervalMin: integer("interval_min"),
     groupId: uuid("group_id"),
   },
   (table) => [

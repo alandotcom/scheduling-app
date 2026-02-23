@@ -163,6 +163,7 @@ export async function createSchedulingFixtureFast(
           locationId: null,
           name: options.calendarName ?? "Test Calendar",
           timezone,
+          slotIntervalMin: 60,
         })
         .returning();
 
@@ -189,7 +190,6 @@ export async function createSchedulingFixtureFast(
           weekday,
           startTime: "09:00",
           endTime: "17:00",
-          intervalMin: null,
           groupId: null,
         }));
         await db.insert(availabilityRules).values(values);
@@ -240,7 +240,12 @@ export async function createLocation(
 export async function createCalendar(
   db: Database,
   orgId: string,
-  options: { locationId?: string; name?: string; timezone?: string } = {},
+  options: {
+    locationId?: string;
+    name?: string;
+    timezone?: string;
+    slotIntervalMin?: number;
+  } = {},
 ) {
   await setTestOrgContext(db, orgId);
   try {
@@ -251,6 +256,7 @@ export async function createCalendar(
         locationId: options.locationId ?? null,
         name: options.name ?? "Test Calendar",
         timezone: options.timezone ?? "America/New_York",
+        slotIntervalMin: options.slotIntervalMin ?? 15,
       })
       .returning();
     return calendar!;
@@ -424,7 +430,6 @@ export async function createAvailabilityRule(
     weekday: number; // 0-6 (Sun-Sat)
     startTime: string; // HH:MM
     endTime: string; // HH:MM
-    intervalMin?: number;
     groupId?: string;
   },
 ) {
@@ -435,7 +440,6 @@ export async function createAvailabilityRule(
       weekday: options.weekday,
       startTime: options.startTime,
       endTime: options.endTime,
-      intervalMin: options.intervalMin ?? null,
       groupId: options.groupId ?? null,
     })
     .returning();
@@ -453,7 +457,6 @@ export async function createAvailabilityOverride(
   options: {
     date: string; // YYYY-MM-DD
     timeRanges?: Array<{ startTime: string; endTime: string }>;
-    intervalMin?: number;
     groupId?: string;
   },
 ) {
@@ -463,7 +466,6 @@ export async function createAvailabilityOverride(
       calendarId,
       date: options.date,
       timeRanges: options.timeRanges ?? [],
-      intervalMin: options.intervalMin ?? null,
       groupId: options.groupId ?? null,
     })
     .returning();

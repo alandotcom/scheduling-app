@@ -64,6 +64,7 @@ export interface CalendarAssociation {
     orgId: string;
     name: string;
     timezone: string;
+    slotIntervalMin: number;
     requiresConfirmation: boolean;
     locationId: string | null;
     createdAt: Date;
