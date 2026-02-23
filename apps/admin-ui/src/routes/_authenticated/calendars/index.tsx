@@ -57,7 +57,6 @@ import { FieldShortcutHint } from "@/components/ui/field-shortcut-hint";
 import { Icon } from "@/components/ui/icon";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ShortcutBadge } from "@/components/ui/shortcut-badge";
 import { Switch } from "@/components/ui/switch";
 import {
   Select,
@@ -89,6 +88,7 @@ import { swallowIgnorableRouteLoaderError } from "@/lib/query-cancellation";
 import { resolveSelectValueLabel } from "@/lib/select-value-label";
 
 const CALENDAR_CREATE_DRAFT_KEY = "calendars:create";
+const CALENDAR_CREATE_FORM_ID = "calendar-create-form";
 
 interface CreateCalendarFormInput {
   calendar: CreateCalendarInput;
@@ -423,10 +423,6 @@ function CalendarForm({
               disabled={isSubmitting || (disableSubmitWhenPristine && !isDirty)}
             >
               {isSubmitting ? "Saving..." : "Save"}
-              <ShortcutBadge
-                shortcut="meta+enter"
-                className="ml-2 hidden sm:inline-flex"
-              />
             </Button>
           </div>
         </div>
@@ -440,6 +436,8 @@ interface CreateCalendarFormProps {
   onSubmit: (data: CreateCalendarFormInput) => void | Promise<void>;
   onCancel: () => void;
   isSubmitting: boolean;
+  formId?: string;
+  showActions?: boolean;
 }
 
 function CreateAvailabilityDayInput({
@@ -673,6 +671,8 @@ function CreateCalendarForm({
   onSubmit,
   onCancel,
   isSubmitting,
+  formId,
+  showActions = true,
 }: CreateCalendarFormProps) {
   const initialValues = useMemo<CreateCalendarDraft>(
     () => ({
@@ -720,6 +720,8 @@ function CreateCalendarForm({
       }}
       onDiscardDraft={handleDiscardDraft}
       showDiscardAction={hasDraft}
+      formId={formId}
+      showActions={showActions}
       extraContent={
         <div className="space-y-4 rounded-lg border border-border/70 bg-muted/20 p-4 sm:p-5">
           <div className="space-y-1">
@@ -1122,6 +1124,36 @@ function CalendarsPage() {
           if (!isOpen) crud.closeCreate();
         }}
         title="New Calendar"
+        footer={
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={crud.closeCreate}
+              disabled={
+                createMutation.isPending ||
+                setWeeklyAvailabilityMutation.isPending
+              }
+            >
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              size="sm"
+              form={CALENDAR_CREATE_FORM_ID}
+              disabled={
+                createMutation.isPending ||
+                setWeeklyAvailabilityMutation.isPending
+              }
+            >
+              {createMutation.isPending ||
+              setWeeklyAvailabilityMutation.isPending
+                ? "Saving..."
+                : "Save"}
+            </Button>
+          </div>
+        }
       >
         <div className="h-full overflow-y-auto px-4 py-4 sm:px-6 sm:py-5">
           <CreateCalendarForm
@@ -1132,6 +1164,8 @@ function CalendarsPage() {
               createMutation.isPending ||
               setWeeklyAvailabilityMutation.isPending
             }
+            formId={CALENDAR_CREATE_FORM_ID}
+            showActions={false}
           />
         </div>
       </EntityModal>

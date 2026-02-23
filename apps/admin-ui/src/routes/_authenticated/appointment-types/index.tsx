@@ -31,7 +31,6 @@ import { FieldShortcutHint } from "@/components/ui/field-shortcut-hint";
 import { Icon } from "@/components/ui/icon";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ShortcutBadge } from "@/components/ui/shortcut-badge";
 import { useCrudState } from "@/hooks/use-crud-state";
 import { useCreateDraft, useResetCreateDraft } from "@/hooks/use-create-draft";
 import { useCreateIntentTrigger } from "@/hooks/use-create-intent";
@@ -50,6 +49,7 @@ import { ResourcesTab } from "./components/resources-tab";
 import type { ReactNode } from "react";
 
 const APPOINTMENT_TYPE_CREATE_DRAFT_KEY = "appointment-types:create";
+const APPOINTMENT_TYPE_CREATE_FORM_ID = "appointment-type-create-form";
 
 interface AppointmentTypeFormProps {
   defaultValues?: {
@@ -268,10 +268,6 @@ function AppointmentTypeForm({
               disabled={isSubmitting || (disableSubmitWhenPristine && !isDirty)}
             >
               {isSubmitting ? "Saving..." : "Save"}
-              <ShortcutBadge
-                shortcut="meta+enter"
-                className="ml-2 hidden sm:inline-flex"
-              />
             </Button>
           </div>
         </div>
@@ -284,12 +280,16 @@ interface CreateAppointmentTypeFormProps {
   onSubmit: (data: CreateAppointmentTypeInput) => void;
   onCancel: () => void;
   isSubmitting: boolean;
+  formId?: string;
+  showActions?: boolean;
 }
 
 function CreateAppointmentTypeForm({
   onSubmit,
   onCancel,
   isSubmitting,
+  formId,
+  showActions = true,
 }: CreateAppointmentTypeFormProps) {
   const initialValues = useMemo<CreateAppointmentTypeInput>(
     () => ({
@@ -319,6 +319,8 @@ function CreateAppointmentTypeForm({
       onDraftChange={setDraft}
       onDiscardDraft={handleDiscardDraft}
       showDiscardAction={hasDraft}
+      formId={formId}
+      showActions={showActions}
     />
   );
 }
@@ -603,12 +605,35 @@ function AppointmentTypesPage() {
           if (!open) crud.closeCreate();
         }}
         title="New Appointment Type"
+        footer={
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={crud.closeCreate}
+              disabled={createMutation.isPending}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              size="sm"
+              form={APPOINTMENT_TYPE_CREATE_FORM_ID}
+              disabled={createMutation.isPending}
+            >
+              {createMutation.isPending ? "Saving..." : "Save"}
+            </Button>
+          </div>
+        }
       >
         <div className="h-full overflow-y-auto px-4 py-4 sm:px-6 sm:py-5">
           <CreateAppointmentTypeForm
             onSubmit={handleCreate}
             onCancel={crud.closeCreate}
             isSubmitting={createMutation.isPending}
+            formId={APPOINTMENT_TYPE_CREATE_FORM_ID}
+            showActions={false}
           />
         </div>
       </EntityModal>

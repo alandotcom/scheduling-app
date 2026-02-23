@@ -22,7 +22,6 @@ import { Button } from "@/components/ui/button";
 import { FieldShortcutHint } from "@/components/ui/field-shortcut-hint";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ShortcutBadge } from "@/components/ui/shortcut-badge";
 import {
   Select,
   SelectContent,
@@ -55,6 +54,7 @@ export function ResourceDrawer({
   const queryClient = useQueryClient();
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
+  const formId = "resource-details-form";
 
   // Fetch locations for dropdown
   const { data: locationsData } = useQuery(
@@ -168,6 +168,7 @@ export function ResourceDrawer({
 
           <DrawerBody>
             <form
+              id={formId}
               ref={formRef}
               onSubmit={form.handleSubmit(handleSave)}
               className="space-y-5"
@@ -234,27 +235,37 @@ export function ResourceDrawer({
                 </Select>
                 <FieldShortcutHint shortcut="l" visible={hintsVisible} />
               </div>
-
-              <div className="flex gap-2 pt-4">
-                <Button type="submit" disabled={updateMutation.isPending}>
-                  {updateMutation.isPending ? "Saving..." : "Save Changes"}
-                  <ShortcutBadge
-                    shortcut="meta+enter"
-                    className="ml-2 hidden sm:inline-flex"
-                  />
-                </Button>
-              </div>
             </form>
           </DrawerBody>
 
           <DrawerFooter>
-            <Button
-              variant="destructive"
-              size="sm"
-              onClick={() => setShowDeleteDialog(true)}
-            >
-              Delete Resource
-            </Button>
+            <div className="flex w-full items-center gap-2">
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={() => setShowDeleteDialog(true)}
+              >
+                Delete Resource
+              </Button>
+              <div className="ml-auto flex items-center gap-2">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={onClose}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  form={formId}
+                  size="sm"
+                  disabled={updateMutation.isPending}
+                >
+                  {updateMutation.isPending ? "Saving..." : "Save Changes"}
+                </Button>
+              </div>
+            </div>
           </DrawerFooter>
         </DrawerContent>
       </Drawer>

@@ -29,7 +29,6 @@ import { Button } from "@/components/ui/button";
 import { FieldShortcutHint } from "@/components/ui/field-shortcut-hint";
 import { Icon } from "@/components/ui/icon";
 import { Label } from "@/components/ui/label";
-import { ShortcutBadge } from "@/components/ui/shortcut-badge";
 import { useModalFieldShortcuts } from "@/hooks/use-modal-field-shortcuts";
 import { useSubmitShortcut } from "@/hooks/use-submit-shortcut";
 
@@ -335,10 +334,6 @@ export function RescheduleDialog({
                   {rescheduleMutation.isPending
                     ? "Rescheduling..."
                     : "Reschedule"}
-                  <ShortcutBadge
-                    shortcut="meta+enter"
-                    className="ml-2 hidden sm:inline-flex"
-                  />
                 </Button>
               </div>
             </div>

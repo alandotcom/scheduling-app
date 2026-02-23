@@ -27,7 +27,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { PageScaffold } from "@/components/layout/page-scaffold";
 import { ResourcesListPresentation } from "@/components/resources/resources-list-presentation";
-import { ShortcutBadge } from "@/components/ui/shortcut-badge";
 import {
   Select,
   SelectContent,
@@ -54,6 +53,7 @@ export const resourceFormSchema = z.extend(createResourceSchema, {
   quantity: z.number().check(z.int(), z.positive()),
 });
 const RESOURCE_CREATE_DRAFT_KEY = "resources:create";
+const RESOURCE_CREATE_FORM_ID = "resource-create-form";
 
 interface ResourceFormProps {
   defaultValues?: { name: string; quantity: number; locationId?: string };
@@ -246,10 +246,6 @@ export function ResourceForm({
               disabled={isSubmitting || (disableSubmitWhenPristine && !isDirty)}
             >
               {isSubmitting ? "Saving..." : "Save"}
-              <ShortcutBadge
-                shortcut="meta+enter"
-                className="ml-2 hidden sm:inline-flex"
-              />
             </Button>
           </div>
         </div>
@@ -263,6 +259,8 @@ interface CreateResourceFormProps {
   onSubmit: (data: CreateResourceInput) => void;
   onCancel: () => void;
   isSubmitting: boolean;
+  formId?: string;
+  showActions?: boolean;
 }
 
 function CreateResourceForm({
@@ -270,6 +268,8 @@ function CreateResourceForm({
   onSubmit,
   onCancel,
   isSubmitting,
+  formId,
+  showActions = true,
 }: CreateResourceFormProps) {
   const initialValues = useMemo<CreateResourceInput>(
     () => ({
@@ -298,6 +298,8 @@ function CreateResourceForm({
       onDraftChange={setDraft}
       onDiscardDraft={handleDiscardDraft}
       showDiscardAction={hasDraft}
+      formId={formId}
+      showActions={showActions}
     />
   );
 }
@@ -503,6 +505,27 @@ function ResourcesPage() {
           if (!isOpen) crud.closeCreate();
         }}
         title="New Resource"
+        footer={
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={crud.closeCreate}
+              disabled={createMutation.isPending}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              size="sm"
+              form={RESOURCE_CREATE_FORM_ID}
+              disabled={createMutation.isPending}
+            >
+              {createMutation.isPending ? "Saving..." : "Save"}
+            </Button>
+          </div>
+        }
       >
         <div className="h-full overflow-y-auto px-4 py-4 sm:px-6 sm:py-5">
           <CreateResourceForm
@@ -510,6 +533,8 @@ function ResourcesPage() {
             onSubmit={handleCreate}
             onCancel={crud.closeCreate}
             isSubmitting={createMutation.isPending}
+            formId={RESOURCE_CREATE_FORM_ID}
+            showActions={false}
           />
         </div>
       </EntityModal>

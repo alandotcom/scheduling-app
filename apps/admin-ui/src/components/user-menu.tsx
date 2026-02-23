@@ -12,7 +12,6 @@ import { FieldShortcutHint } from "@/components/ui/field-shortcut-hint";
 import { Icon } from "@/components/ui/icon";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ShortcutBadge } from "@/components/ui/shortcut-badge";
 import { useModalFieldShortcuts } from "@/hooks/use-modal-field-shortcuts";
 import { useSubmitShortcut } from "@/hooks/use-submit-shortcut";
 import { cn } from "@/lib/utils";
@@ -244,10 +243,6 @@ export function UserMenu({
               disabled={creatingOrg}
             >
               {creatingOrg ? "Creating…" : "Create"}
-              <ShortcutBadge
-                shortcut="meta+enter"
-                className="ml-2 hidden sm:inline-flex"
-              />
             </Button>
           </div>
         }

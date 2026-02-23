@@ -79,6 +79,8 @@ interface CreateClientFormProps {
   shortcutsEnabled: boolean;
   customFieldDefinitions?: CustomAttributeDefinitionResponse[];
   clientRelationOptions?: Array<{ value: string; label: string }>;
+  formId?: string;
+  showActions?: boolean;
 }
 
 function CreateClientForm({
@@ -88,6 +90,8 @@ function CreateClientForm({
   shortcutsEnabled,
   customFieldDefinitions,
   clientRelationOptions,
+  formId,
+  showActions = true,
 }: CreateClientFormProps) {
   const initialValues = useMemo<CreateClientInput>(
     () => ({
@@ -119,6 +123,8 @@ function CreateClientForm({
       onDraftChange={setDraft}
       onDiscardDraft={handleDiscardDraft}
       showDiscardAction={hasDraft}
+      showActions={showActions}
+      formId={formId}
       customFieldDefinitions={customFieldDefinitions}
       clientRelationOptions={clientRelationOptions}
     />
@@ -155,6 +161,7 @@ function ClientsPage() {
 
   const [search, setSearch] = useState("");
   const [appointmentModalOpen, setAppointmentModalOpen] = useState(false);
+  const createClientFormId = "client-create-form";
   const [appointmentModalClientPrefill, setAppointmentModalClientPrefill] =
     useState<{ id: string; name: string } | null>(null);
   const [appointmentTimezoneMode, setAppointmentTimezoneMode] =
@@ -1149,6 +1156,27 @@ function ClientsPage() {
           if (!isOpen) crud.closeCreate();
         }}
         title="New Client"
+        footer={
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={crud.closeCreate}
+              disabled={createMutation.isPending}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              size="sm"
+              form={createClientFormId}
+              disabled={createMutation.isPending}
+            >
+              {createMutation.isPending ? "Saving..." : "Save"}
+            </Button>
+          </div>
+        }
       >
         <div className="h-full overflow-y-auto px-4 py-4 sm:px-6 sm:py-5">
           <CreateClientForm
@@ -1156,6 +1184,8 @@ function ClientsPage() {
             onCancel={crud.closeCreate}
             isSubmitting={createMutation.isPending}
             shortcutsEnabled={crud.showCreateForm}
+            formId={createClientFormId}
+            showActions={false}
             customFieldDefinitions={customFieldDefinitions}
             clientRelationOptions={clientRelationOptions}
           />

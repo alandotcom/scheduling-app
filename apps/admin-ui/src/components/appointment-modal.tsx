@@ -47,7 +47,6 @@ import {
 } from "@/components/ui/select";
 import { AvailabilityManageModal } from "@/components/availability/availability-manage-modal";
 import { FieldShortcutHint } from "@/components/ui/field-shortcut-hint";
-import { ShortcutBadge } from "@/components/ui/shortcut-badge";
 import { useModalFieldShortcuts } from "@/hooks/use-modal-field-shortcuts";
 import { useCreateDraft } from "@/hooks/use-create-draft";
 import { useSubmitShortcut } from "@/hooks/use-submit-shortcut";
@@ -144,6 +143,7 @@ export function AppointmentModal({
   const [clientComboboxOpen, setClientComboboxOpen] = useState(false);
   const [mobileClientPickerOpen, setMobileClientPickerOpen] = useState(false);
   const [createClientModalOpen, setCreateClientModalOpen] = useState(false);
+  const createClientFormId = "appointment-new-client-form";
   const [createdClients, setCreatedClients] = useState<ClientOption[]>([]);
   const [availabilityModalOpen, setAvailabilityModalOpen] = useState(false);
   const timezoneMode = controlledTimezoneMode ?? localTimezoneMode;
@@ -1102,10 +1102,6 @@ export function AppointmentModal({
                     {createMutation.isPending
                       ? "Booking..."
                       : "Book Appointment"}
-                    <ShortcutBadge
-                      shortcut="meta+enter"
-                      className="ml-2 hidden sm:inline-flex"
-                    />
                   </Button>
                 </div>
               </div>
@@ -1132,6 +1128,27 @@ export function AppointmentModal({
           setCreateClientModalOpen(nextOpen);
         }}
         title="New Client"
+        footer={
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => setCreateClientModalOpen(false)}
+              disabled={createClientMutation.isPending}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              size="sm"
+              form={createClientFormId}
+              disabled={createClientMutation.isPending}
+            >
+              {createClientMutation.isPending ? "Saving..." : "Save"}
+            </Button>
+          </div>
+        }
       >
         <div className="h-full overflow-y-auto px-4 py-4 sm:px-6 sm:py-5">
           <ClientForm
@@ -1139,6 +1156,8 @@ export function AppointmentModal({
             onCancel={() => setCreateClientModalOpen(false)}
             isSubmitting={createClientMutation.isPending}
             shortcutsEnabled={createClientModalOpen}
+            showActions={false}
+            formId={createClientFormId}
           />
         </div>
       </EntityModal>

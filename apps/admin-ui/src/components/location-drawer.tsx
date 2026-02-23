@@ -33,7 +33,6 @@ import { Icon } from "@/components/ui/icon";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { ShortcutBadge } from "@/components/ui/shortcut-badge";
 import {
   Select,
   SelectContent,
@@ -69,6 +68,7 @@ export function LocationDrawer({
   const queryClient = useQueryClient();
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
+  const formId = "location-details-form";
 
   // Fetch calendars at this location
   const { data: calendarsData } = useQuery({
@@ -202,6 +202,7 @@ export function LocationDrawer({
           <DrawerBody>
             {activeTab === "details" && (
               <form
+                id={formId}
                 ref={formRef}
                 onSubmit={form.handleSubmit(handleSave)}
                 className="space-y-5"
@@ -245,16 +246,6 @@ export function LocationDrawer({
                     </SelectContent>
                   </Select>
                   <FieldShortcutHint shortcut="t" visible={hintsVisible} />
-                </div>
-
-                <div className="flex gap-2 pt-4">
-                  <Button type="submit" disabled={updateMutation.isPending}>
-                    {updateMutation.isPending ? "Saving..." : "Save Changes"}
-                    <ShortcutBadge
-                      shortcut="meta+enter"
-                      className="ml-2 hidden sm:inline-flex"
-                    />
-                  </Button>
                 </div>
               </form>
             )}
@@ -343,13 +334,35 @@ export function LocationDrawer({
           </DrawerBody>
 
           <DrawerFooter>
-            <Button
-              variant="destructive"
-              size="sm"
-              onClick={() => setShowDeleteDialog(true)}
-            >
-              Delete Location
-            </Button>
+            <div className="flex w-full items-center gap-2">
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={() => setShowDeleteDialog(true)}
+              >
+                Delete Location
+              </Button>
+              {activeTab === "details" && (
+                <div className="ml-auto flex items-center gap-2">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={onClose}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    type="submit"
+                    form={formId}
+                    size="sm"
+                    disabled={updateMutation.isPending}
+                  >
+                    {updateMutation.isPending ? "Saving..." : "Save Changes"}
+                  </Button>
+                </div>
+              )}
+            </div>
           </DrawerFooter>
         </DrawerContent>
       </Drawer>

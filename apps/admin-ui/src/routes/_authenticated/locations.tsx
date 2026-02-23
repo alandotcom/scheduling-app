@@ -31,7 +31,6 @@ import { Input } from "@/components/ui/input";
 import { PageScaffold } from "@/components/layout/page-scaffold";
 import { Label } from "@/components/ui/label";
 import { LocationsListPresentation } from "@/components/locations/locations-list-presentation";
-import { ShortcutBadge } from "@/components/ui/shortcut-badge";
 import {
   Select,
   SelectContent,
@@ -61,6 +60,7 @@ import { swallowIgnorableRouteLoaderError } from "@/lib/query-cancellation";
 import { resolveSelectValueLabel } from "@/lib/select-value-label";
 
 const LOCATION_CREATE_DRAFT_KEY = "locations:create";
+const LOCATION_CREATE_FORM_ID = "location-create-form";
 
 interface LocationFormProps {
   defaultValues?: { name: string; timezone: string };
@@ -228,10 +228,6 @@ function LocationForm({
               disabled={isSubmitting || (disableSubmitWhenPristine && !isDirty)}
             >
               {isSubmitting ? "Saving..." : "Save"}
-              <ShortcutBadge
-                shortcut="meta+enter"
-                className="ml-2 hidden sm:inline-flex"
-              />
             </Button>
           </div>
         </div>
@@ -244,12 +240,16 @@ interface CreateLocationFormProps {
   onSubmit: (data: CreateLocationInput) => void;
   onCancel: () => void;
   isSubmitting: boolean;
+  formId?: string;
+  showActions?: boolean;
 }
 
 function CreateLocationForm({
   onSubmit,
   onCancel,
   isSubmitting,
+  formId,
+  showActions = true,
 }: CreateLocationFormProps) {
   const initialValues = useMemo<CreateLocationInput>(
     () => ({
@@ -276,6 +276,8 @@ function CreateLocationForm({
       onDraftChange={setDraft}
       onDiscardDraft={handleDiscardDraft}
       showDiscardAction={hasDraft}
+      formId={formId}
+      showActions={showActions}
     />
   );
 }
@@ -508,12 +510,35 @@ function LocationsPage() {
           if (!isOpen) crud.closeCreate();
         }}
         title="New Location"
+        footer={
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={crud.closeCreate}
+              disabled={createMutation.isPending}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              size="sm"
+              form={LOCATION_CREATE_FORM_ID}
+              disabled={createMutation.isPending}
+            >
+              {createMutation.isPending ? "Saving..." : "Save"}
+            </Button>
+          </div>
+        }
       >
         <div className="h-full overflow-y-auto px-4 py-4 sm:px-6 sm:py-5">
           <CreateLocationForm
             onSubmit={handleCreate}
             onCancel={crud.closeCreate}
             isSubmitting={createMutation.isPending}
+            formId={LOCATION_CREATE_FORM_ID}
+            showActions={false}
           />
         </div>
       </EntityModal>
