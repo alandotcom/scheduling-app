@@ -20,6 +20,10 @@ import {
 } from "@hugeicons/core-free-icons";
 
 import { orpc } from "@/lib/query";
+import {
+  formatStatusLabel,
+  getStatusBadgeVariant,
+} from "@/lib/appointment-status";
 import { Icon } from "@/components/ui/icon";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -87,18 +91,11 @@ type NotesFormData = z.infer<typeof notesSchema>;
 const logger = getLogger(["ui", "workflows", "appointments"]);
 
 function getStatusBadge(status: string) {
-  switch (status) {
-    case "scheduled":
-      return <Badge variant="secondary">Scheduled</Badge>;
-    case "confirmed":
-      return <Badge variant="success">Confirmed</Badge>;
-    case "cancelled":
-      return <Badge variant="destructive">Cancelled</Badge>;
-    case "no_show":
-      return <Badge variant="warning">No Show</Badge>;
-    default:
-      return <Badge variant="secondary">{status}</Badge>;
-  }
+  return (
+    <Badge variant={getStatusBadgeVariant(status)}>
+      {formatStatusLabel(status)}
+    </Badge>
+  );
 }
 
 export function AppointmentDetail({
@@ -437,67 +434,70 @@ export function AppointmentDetail({
                 )}
               </div>
 
-              {/* Actions */}
+              {/* Notes save */}
+              {isActionable && isNotesDirty && (
+                <div className="flex justify-end">
+                  <Button
+                    type="submit"
+                    size="sm"
+                    form={`appointment-notes-form-${appointment.id}`}
+                    disabled={updateMutation.isPending}
+                    className={
+                      updateMutation.isPending ? "disabled:opacity-100" : ""
+                    }
+                  >
+                    {showUpdatePendingVisual ? "Saving..." : "Save Notes"}
+                    <ShortcutBadge
+                      shortcut="meta+enter"
+                      className="ml-2 hidden sm:inline-flex"
+                    />
+                  </Button>
+                </div>
+              )}
+
+              {/* Status actions */}
               {isActionable && (
                 <div className="border-t border-border pt-4">
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                    <div className="flex flex-wrap gap-2">
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setShowRescheduleDialog(true)}
+                    >
+                      <Icon icon={TimeScheduleIcon} data-icon="inline-start" />
+                      Reschedule
+                    </Button>
+                    {appointment.status === "scheduled" && (
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => setShowRescheduleDialog(true)}
+                        onClick={() => setShowConfirmDialog(true)}
+                        disabled={confirmMutation.isPending}
                       >
                         <Icon
-                          icon={TimeScheduleIcon}
+                          icon={CheckmarkCircle01Icon}
                           data-icon="inline-start"
                         />
-                        Reschedule
+                        {confirmMutation.isPending
+                          ? "Confirming..."
+                          : "Confirm"}
                       </Button>
-                      {appointment.status === "scheduled" && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setShowConfirmDialog(true)}
-                          disabled={confirmMutation.isPending}
-                        >
-                          <Icon
-                            icon={CheckmarkCircle01Icon}
-                            data-icon="inline-start"
-                          />
-                          {confirmMutation.isPending
-                            ? "Confirming..."
-                            : "Confirm"}
-                        </Button>
-                      )}
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setShowNoShowDialog(true)}
-                      >
-                        <Icon icon={Clock01Icon} data-icon="inline-start" />
-                        No-Show
-                      </Button>
-                      <Button
-                        variant="destructive"
-                        size="sm"
-                        onClick={() => setShowCancelDialog(true)}
-                      >
-                        <Icon icon={Cancel01Icon} data-icon="inline-start" />
-                        Cancel
-                      </Button>
-                    </div>
+                    )}
                     <Button
-                      type="submit"
+                      variant="outline"
                       size="sm"
-                      form={`appointment-notes-form-${appointment.id}`}
-                      disabled={updateMutation.isPending || !isNotesDirty}
-                      className={`w-full sm:w-auto ${updateMutation.isPending ? "disabled:opacity-100" : ""}`}
+                      onClick={() => setShowNoShowDialog(true)}
                     >
-                      {showUpdatePendingVisual ? "Saving..." : "Save"}
-                      <ShortcutBadge
-                        shortcut="meta+enter"
-                        className="ml-2 hidden sm:inline-flex"
-                      />
+                      <Icon icon={Clock01Icon} data-icon="inline-start" />
+                      No-Show
+                    </Button>
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={() => setShowCancelDialog(true)}
+                    >
+                      <Icon icon={Cancel01Icon} data-icon="inline-start" />
+                      Cancel
                     </Button>
                   </div>
                 </div>

@@ -1,4 +1,4 @@
-import type { EventInput } from "@fullcalendar/core";
+import type { EventInput } from "@fullcalendar/react";
 import type { AvailabilityFeedItem } from "@scheduling/dto";
 
 import type { ScheduleAppointment } from "@/hooks/use-schedule-appointments";
@@ -14,20 +14,13 @@ export interface CalendarAppointmentEventMeta {
   appointmentId: string;
   status: CalendarAppointmentStatus;
   calendarId: string;
-  calendarColor: string | null;
+  calendarColor: string;
   clientName: string;
   appointmentTypeName: string | null;
   locationName: string | null;
   hasNotes: boolean;
   resourceSummary: string | null;
 }
-
-const STATUS_BORDER_COLOR: Record<CalendarAppointmentStatus, string> = {
-  scheduled: "var(--color-chart-1)",
-  confirmed: "var(--color-chart-2)",
-  cancelled: "var(--color-muted-foreground)",
-  no_show: "var(--color-chart-4)",
-};
 
 const OVERLAY_CLASS_BY_TYPE: Record<AvailabilityFeedItem["type"], string> = {
   working_hours: "fc-availability-working",
@@ -38,26 +31,6 @@ const OVERLAY_CLASS_BY_TYPE: Record<AvailabilityFeedItem["type"], string> = {
 
 function parseDateInput(value: Date | string): Date {
   return value instanceof Date ? value : new Date(value);
-}
-
-function hexToRgba(hex: string, alpha: number): string {
-  const normalized = hex.trim().replace(/^#/, "");
-  const expanded =
-    normalized.length === 3
-      ? normalized
-          .split("")
-          .map((char) => `${char}${char}`)
-          .join("")
-      : normalized;
-
-  if (!/^[0-9a-fA-F]{6}$/.test(expanded)) {
-    return `color-mix(in oklab, var(--color-primary), transparent ${Math.round((1 - alpha) * 100)}%)`;
-  }
-
-  const red = Number.parseInt(expanded.slice(0, 2), 16);
-  const green = Number.parseInt(expanded.slice(2, 4), 16);
-  const blue = Number.parseInt(expanded.slice(4, 6), 16);
-  return `rgba(${red}, ${green}, ${blue}, ${alpha})`;
 }
 
 export function isCalendarAppointmentEventMeta(
@@ -76,10 +49,13 @@ export function isCalendarAppointmentEventMeta(
 export function toAppointmentEvents(
   appointments: ScheduleAppointment[],
   selectedId: string | null,
+  calendarColorById?: Map<string, string>,
 ): EventInput[] {
   return appointments.map((appointment) => {
-    const statusBorder = STATUS_BORDER_COLOR[appointment.status];
-    const baseColor = appointment.calendarColor ?? "#3b82f6";
+    const baseColor =
+      calendarColorById?.get(appointment.calendarId) ??
+      appointment.calendarColor ??
+      "#3b82f6";
     const isSelected = appointment.id === selectedId;
 
     return {
@@ -91,9 +67,8 @@ export function toAppointmentEvents(
       editable:
         appointment.status === "scheduled" ||
         appointment.status === "confirmed",
-      backgroundColor: hexToRgba(baseColor, isSelected ? 0.45 : 0.24),
-      borderColor: statusBorder,
-      textColor: "var(--color-foreground)",
+      color: baseColor,
+      contrastColor: "var(--color-foreground)",
       classNames: [
         "fc-appointment-event",
         `fc-appointment-status-${appointment.status}`,
@@ -104,7 +79,7 @@ export function toAppointmentEvents(
         appointmentId: appointment.id,
         status: appointment.status,
         calendarId: appointment.calendarId,
-        calendarColor: appointment.calendarColor ?? null,
+        calendarColor: baseColor,
         clientName: appointment.clientName,
         appointmentTypeName: appointment.appointmentTypeName,
         locationName: appointment.locationName,

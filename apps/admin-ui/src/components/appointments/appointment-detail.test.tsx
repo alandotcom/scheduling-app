@@ -75,9 +75,11 @@ describe("AppointmentDetail", () => {
       />,
     );
 
+    // Textarea is always rendered for actionable appointments (no Edit toggle)
     expect(container.querySelector("textarea")).not.toBeNull();
-    expect(container.textContent).toContain("Save");
     expect(container.textContent).not.toContain("Edit");
+    // Save button only appears when notes are dirty, so not visible initially
+    expect(container.textContent).not.toContain("Save");
   });
 
   test("uses clickable client row instead of separate profile button", () => {

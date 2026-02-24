@@ -57,6 +57,9 @@ interface SchedulingControlsSheetProps {
     onRemove: () => void;
   }>;
   onClearAllFilters: () => void;
+  calendarColorById?: Map<string, string>;
+  hiddenCalendarIds?: Set<string>;
+  onToggleCalendarVisibility?: (calendarId: string) => void;
 }
 
 export function SchedulingControlsSheet({
@@ -81,6 +84,9 @@ export function SchedulingControlsSheet({
   activeFilterCount,
   activeFiltersDisplay,
   onClearAllFilters,
+  calendarColorById,
+  hiddenCalendarIds,
+  onToggleCalendarVisibility,
 }: SchedulingControlsSheetProps) {
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -162,29 +168,62 @@ export function SchedulingControlsSheet({
               ) : null}
             </div>
 
-            <FilterField label="Calendar">
-              <Select
-                value={filters.calendarId || "all"}
-                onValueChange={(value) => {
-                  if (!value) return;
-                  onFilterChange({ calendarId: value === "all" ? "" : value });
-                }}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="All calendars">
-                    {calendarFilterLabel}
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All calendars</SelectItem>
-                  {calendars.map((cal) => (
-                    <SelectItem key={cal.id} value={cal.id}>
-                      {cal.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </FilterField>
+            {currentView === "schedule" &&
+            calendarColorById &&
+            hiddenCalendarIds &&
+            onToggleCalendarVisibility ? (
+              <FilterField label="Calendars">
+                <div className="flex flex-wrap gap-1">
+                  {calendars.map((cal) => {
+                    const color = calendarColorById.get(cal.id) ?? "#3b82f6";
+                    const isHidden = hiddenCalendarIds.has(cal.id);
+                    return (
+                      <button
+                        key={cal.id}
+                        type="button"
+                        onClick={() => onToggleCalendarVisibility(cal.id)}
+                        className={cn(
+                          "flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm font-medium transition-opacity hover:bg-muted/50",
+                          isHidden && "opacity-35 line-through",
+                        )}
+                      >
+                        <span
+                          className="size-2.5 shrink-0 rounded-full"
+                          style={{ backgroundColor: color }}
+                        />
+                        <span>{cal.name}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </FilterField>
+            ) : (
+              <FilterField label="Calendar">
+                <Select
+                  value={filters.calendarId || "all"}
+                  onValueChange={(value) => {
+                    if (!value) return;
+                    onFilterChange({
+                      calendarId: value === "all" ? "" : value,
+                    });
+                  }}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="All calendars">
+                      {calendarFilterLabel}
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All calendars</SelectItem>
+                    {calendars.map((cal) => (
+                      <SelectItem key={cal.id} value={cal.id}>
+                        {cal.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </FilterField>
+            )}
 
             <FilterField label="Type">
               <Select

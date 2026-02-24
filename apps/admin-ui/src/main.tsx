@@ -1,6 +1,8 @@
 // Main entry point for the admin UI
 
 import { configure, getConsoleSink } from "@logtape/logtape";
+// oxlint-disable-next-line import/no-unassigned-import
+import "temporal-polyfill/global";
 
 await configure({
   sinks: { console: getConsoleSink() },
@@ -28,6 +30,10 @@ import { getQueryClient } from "./lib/query";
 
 // oxlint-disable-next-line import/no-unassigned-import
 import "./index.css";
+// oxlint-disable-next-line import/no-unassigned-import
+import "@fullcalendar/react/skeleton.css";
+// oxlint-disable-next-line import/no-unassigned-import
+import "@fullcalendar/react/themes/classic/theme.css";
 
 // Create a new router instance
 const router = createRouter({

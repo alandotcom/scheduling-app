@@ -36,6 +36,7 @@ const databaseUrl =
 
 const MINUTE_MS = 60_000;
 const DAY_MS = 86_400_000;
+const PACIFIC_TZ = "America/Los_Angeles";
 
 type AppointmentStatus = "scheduled" | "confirmed" | "cancelled" | "no_show";
 type CalendarProfile = "provider" | "support";
@@ -497,18 +498,38 @@ function startOfUtcDay(): Date {
   );
 }
 
+/**
+ * Get the UTC offset (in ms) for a timezone at a given instant.
+ * Positive when timezone is behind UTC (e.g. UTC-8 → +28_800_000).
+ */
+function getTimezoneOffsetMs(date: Date, timezone: string): number {
+  const utcStr = date.toLocaleString("en-US", { timeZone: "UTC" });
+  const tzStr = date.toLocaleString("en-US", { timeZone: timezone });
+  return new Date(utcStr).getTime() - new Date(tzStr).getTime();
+}
+
+/**
+ * Build a UTC Date from a day offset + local hour/minute.
+ * When `timezone` is provided, hour/minute are interpreted as local time
+ * in that timezone and converted to UTC.
+ */
 function dateAtDayOffset(
   startOfDayUtc: Date,
   dayOffset: number,
   hour: number,
   minute: number,
+  timezone?: string,
 ): Date {
-  return new Date(
+  const utcBase = new Date(
     startOfDayUtc.getTime() +
       dayOffset * DAY_MS +
       hour * 60 * MINUTE_MS +
       minute * MINUTE_MS,
   );
+  if (!timezone) return utcBase;
+
+  const offsetMs = getTimezoneOffsetMs(utcBase, timezone);
+  return new Date(utcBase.getTime() + offsetMs);
 }
 
 function dateStringAtDayOffset(startOfDayUtc: Date, dayOffset: number): string {
@@ -1079,6 +1100,7 @@ async function seed() {
             spec.dayOffset,
             spec.hour,
             spec.minute,
+            PACIFIC_TZ,
           );
           const endAt = new Date(
             startAt.getTime() + appointmentType.durationMin * MINUTE_MS,

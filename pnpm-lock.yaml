@@ -77,24 +77,9 @@ importers:
       '@fontsource-variable/noto-sans':
         specifier: ^5.2.10
         version: 5.2.10
-      '@fullcalendar/core':
-        specifier: ^6.1.20
-        version: 6.1.20
-      '@fullcalendar/daygrid':
-        specifier: ^6.1.20
-        version: 6.1.20(@fullcalendar/core@6.1.20)
-      '@fullcalendar/interaction':
-        specifier: ^6.1.20
-        version: 6.1.20(@fullcalendar/core@6.1.20)
-      '@fullcalendar/luxon3':
-        specifier: ^6.1.20
-        version: 6.1.20(@fullcalendar/core@6.1.20)(luxon@3.7.2)
       '@fullcalendar/react':
-        specifier: ^6.1.20
-        version: 6.1.20(@fullcalendar/core@6.1.20)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
-      '@fullcalendar/timegrid':
-        specifier: ^6.1.20
-        version: 6.1.20(@fullcalendar/core@6.1.20)
+        specifier: 7.0.0-beta.7
+        version: 7.0.0-beta.7(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(temporal-polyfill@0.3.0)
       '@hookform/resolvers':
         specifier: ^5.2.2
         version: 5.2.2(react-hook-form@7.71.2(react@19.2.4))
@@ -128,6 +113,9 @@ importers:
       '@tanstack/react-table':
         specifier: ^8.21.3
         version: 8.21.3(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
+      '@use-gesture/react':
+        specifier: ^10.3.1
+        version: 10.3.1(react@19.2.4)
       '@xyflow/react':
         specifier: ^12.10.1
         version: 12.10.1(@types/react@19.2.14)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
@@ -185,6 +173,9 @@ importers:
       tailwindcss:
         specifier: ^4.2.1
         version: 4.2.1
+      temporal-polyfill:
+        specifier: ^0.3.0
+        version: 0.3.0
       tw-animate-css:
         specifier: ^1.4.0
         version: 1.4.0
@@ -1285,36 +1276,23 @@ packages:
   '@fontsource-variable/noto-sans@5.2.10':
     resolution: {integrity: sha512-wyFgKkFu7jki5kEL8qv7avjQ8rxHX0J/nhLWvbR9T0hOH1HRKZEvb9EW9lMjZfWHHfEzKkYf5J+NadwgCS7TXA==}
 
-  '@fullcalendar/core@6.1.20':
-    resolution: {integrity: sha512-1cukXLlePFiJ8YKXn/4tMKsy0etxYLCkXk8nUCFi11nRONF2Ba2CD5b21/ovtOO2tL6afTJfwmc1ed3HG7eB1g==}
-
-  '@fullcalendar/daygrid@6.1.20':
-    resolution: {integrity: sha512-AO9vqhkLP77EesmJzuU+IGXgxNulsA8mgQHynclJ8U70vSwAVnbcLG9qftiTAFSlZjiY/NvhE7sflve6cJelyQ==}
+  '@full-ui/headless-calendar@7.0.0-beta.7':
+    resolution: {integrity: sha512-6tQ7+ARLjTd/9606enUD08QBUVAb6PXZC+iNJMoJNEM7z/sqSC5BcwweU4ntx4rBCLAvz29T5TUOCBdj87ySXA==}
     peerDependencies:
-      '@fullcalendar/core': ~6.1.20
+      temporal-polyfill: ^0.3.0
 
-  '@fullcalendar/interaction@6.1.20':
-    resolution: {integrity: sha512-p6txmc5txL0bMiPaJxe2ip6o0T384TyoD2KGdsU6UjZ5yoBlaY+dg7kxfnYKpYMzEJLG58n+URrHr2PgNL2fyA==}
+  '@fullcalendar/core@7.0.0-beta.7':
+    resolution: {integrity: sha512-TvtvVGGQcPto4w+ysgyQ5IXoEDFfXEhqA+43YGnKpg1yh5faYm+W1tbveB22WwJmC/EqNzk11sDYNcnM6iFuCg==}
     peerDependencies:
-      '@fullcalendar/core': ~6.1.20
+      '@full-ui/headless-calendar': 7.0.0-beta.7
+      temporal-polyfill: ^0.3.0
 
-  '@fullcalendar/luxon3@6.1.20':
-    resolution: {integrity: sha512-lHebDK1lLQ25ilDO68KoLSVZaS9/mSjDGjWedPrpbgJNwSSIME7NCD3kRoskWOqayk4j0mFylEGO8TNrW3gzOQ==}
+  '@fullcalendar/react@7.0.0-beta.7':
+    resolution: {integrity: sha512-5Q2nV3yKqW0U/7GBN90/FPPwv1qXuiNz4gV742WPZd39HerNo7STl4iWsO3rzYlFkM9Woj48FimUkqTA/5O7Pw==}
     peerDependencies:
-      '@fullcalendar/core': ~6.1.20
-      luxon: ^3.0.0
-
-  '@fullcalendar/react@6.1.20':
-    resolution: {integrity: sha512-1w0pZtceaUdfAnxMSCGHCQalhi+mR1jOe76sXzyAXpcPz/Lf0zHSdcGK/U2XpZlnQgQtBZW+d+QBnnzVQKCxAA==}
-    peerDependencies:
-      '@fullcalendar/core': ~6.1.20
       react: ^16.7.0 || ^17 || ^18 || ^19
       react-dom: ^16.7.0 || ^17 || ^18 || ^19
-
-  '@fullcalendar/timegrid@6.1.20':
-    resolution: {integrity: sha512-4H+/MWbz3ntA50lrPif+7TsvMeX3R1GSYjiLULz0+zEJ7/Yfd9pupZmAwUs/PBpA6aAcFmeRr0laWfcz1a9V1A==}
-    peerDependencies:
-      '@fullcalendar/core': ~6.1.20
+      temporal-polyfill: ^0.3.0
 
   '@grpc/grpc-js@1.14.3':
     resolution: {integrity: sha512-Iq8QQQ/7X3Sac15oB6p0FmUg/klxQvXLeileoqrTRGJYLV+/9tubbr9ipz0GKHjmXVsgFPo/+W+2cA8eNcR+XA==}
@@ -3094,6 +3072,14 @@ packages:
   '@typespec/ts-http-runtime@0.3.3':
     resolution: {integrity: sha512-91fp6CAAJSRtH5ja95T1FHSKa8aPW9/Zw6cta81jlZTUw/+Vq8jM/AfF/14h2b71wwR84JUTW/3Y8QPhDAawFA==}
     engines: {node: '>=20.0.0'}
+
+  '@use-gesture/core@10.3.1':
+    resolution: {integrity: sha512-WcINiDt8WjqBdUXye25anHiNxPc0VOrlT8F6LLkU6cycrOGUDyY/yyFmsg3k8i5OLvv25llc0QC45GhR/C8llw==}
+
+  '@use-gesture/react@10.3.1':
+    resolution: {integrity: sha512-Yy19y6O2GJq8f7CHf7L0nxL8bf4PZCPaVOCgJrusOeFHY1LvHgYXnmnXg6N5iwAnbgbZCDjo60SiM6IPJi9C5g==}
+    peerDependencies:
+      react: '>= 16.8.0'
 
   '@vitejs/plugin-react@5.1.4':
     resolution: {integrity: sha512-VIcFLdRi/VYRU8OL/puL7QXMYafHmqOnwTZY50U1JPlCNj30PxCMx65c494b1K9be9hX83KVt0+gTEwTWLqToA==}
@@ -5030,9 +5016,6 @@ packages:
     resolution: {integrity: sha512-dM0jVuXJPsDN6DvRpea484tCUaMiXWjuCn++HGTqUWzGDjv5tZkEZldAJ/UMlqRYGFrD/etByo4/xOuC/snX2A==}
     engines: {node: '>=20'}
 
-  preact@10.12.1:
-    resolution: {integrity: sha512-l8386ixSsBdbreOAkqtrwqHwdvR35ID8c3rKPa8lCWuO86dBi32QWHV4vfsZK1utLLFMvw+Z5Ad4XLkZzchscg==}
-
   prelude-ls@1.2.1:
     resolution: {integrity: sha512-vkcDPrRZo1QZLbn5RLGPpg/WmIQ65qoWWhcGKf/b5eplkkarX0m9z8ppCat4mlOqUsWpyNuYgO3VRyrYHSzX5g==}
     engines: {node: '>= 0.8.0'}
@@ -5494,8 +5477,14 @@ packages:
   temporal-polyfill@0.2.5:
     resolution: {integrity: sha512-ye47xp8Cb0nDguAhrrDS1JT1SzwEV9e26sSsrWzVu+yPZ7LzceEcH0i2gci9jWfOfSCCgM3Qv5nOYShVUUFUXA==}
 
+  temporal-polyfill@0.3.0:
+    resolution: {integrity: sha512-qNsTkX9K8hi+FHDfHmf22e/OGuXmfBm9RqNismxBrnSmZVJKegQ+HYYXT+R7Ha8F/YSm2Y34vmzD4cxMu2u95g==}
+
   temporal-spec@0.2.4:
     resolution: {integrity: sha512-lDMFv4nKQrSjlkHKAlHVqKrBG4DyFfa9F74cmBZ3Iy3ed8yvWnlWSIdi4IKfSqwmazAohBNwiN64qGx4y5Q3IQ==}
+
+  temporal-spec@0.3.0:
+    resolution: {integrity: sha512-n+noVpIqz4hYgFSMOSiINNOUOMFtV5cZQNCmmszA6GiVFVRt3G7AqVyhXjhCSmowvQn+NsGn+jMDMKJYHd3bSQ==}
 
   tiny-invariant@1.3.3:
     resolution: {integrity: sha512-+FbBPE1o9QAYvviau/qC5SE3caw21q3xkvWKBtja5vgqOWIHHJ3ioaq1VPfn/Szqctz2bU/oYeKd9/z5BL+PVg==}
@@ -6690,33 +6679,22 @@ snapshots:
 
   '@fontsource-variable/noto-sans@5.2.10': {}
 
-  '@fullcalendar/core@6.1.20':
+  '@full-ui/headless-calendar@7.0.0-beta.7(temporal-polyfill@0.3.0)':
     dependencies:
-      preact: 10.12.1
+      temporal-polyfill: 0.3.0
 
-  '@fullcalendar/daygrid@6.1.20(@fullcalendar/core@6.1.20)':
+  '@fullcalendar/core@7.0.0-beta.7(@full-ui/headless-calendar@7.0.0-beta.7(temporal-polyfill@0.3.0))(temporal-polyfill@0.3.0)':
     dependencies:
-      '@fullcalendar/core': 6.1.20
+      '@full-ui/headless-calendar': 7.0.0-beta.7(temporal-polyfill@0.3.0)
+      temporal-polyfill: 0.3.0
 
-  '@fullcalendar/interaction@6.1.20(@fullcalendar/core@6.1.20)':
+  '@fullcalendar/react@7.0.0-beta.7(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(temporal-polyfill@0.3.0)':
     dependencies:
-      '@fullcalendar/core': 6.1.20
-
-  '@fullcalendar/luxon3@6.1.20(@fullcalendar/core@6.1.20)(luxon@3.7.2)':
-    dependencies:
-      '@fullcalendar/core': 6.1.20
-      luxon: 3.7.2
-
-  '@fullcalendar/react@6.1.20(@fullcalendar/core@6.1.20)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)':
-    dependencies:
-      '@fullcalendar/core': 6.1.20
+      '@full-ui/headless-calendar': 7.0.0-beta.7(temporal-polyfill@0.3.0)
+      '@fullcalendar/core': 7.0.0-beta.7(@full-ui/headless-calendar@7.0.0-beta.7(temporal-polyfill@0.3.0))(temporal-polyfill@0.3.0)
       react: 19.2.4
       react-dom: 19.2.4(react@19.2.4)
-
-  '@fullcalendar/timegrid@6.1.20(@fullcalendar/core@6.1.20)':
-    dependencies:
-      '@fullcalendar/core': 6.1.20
-      '@fullcalendar/daygrid': 6.1.20(@fullcalendar/core@6.1.20)
+      temporal-polyfill: 0.3.0
 
   '@grpc/grpc-js@1.14.3':
     dependencies:
@@ -8637,6 +8615,13 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
+  '@use-gesture/core@10.3.1': {}
+
+  '@use-gesture/react@10.3.1(react@19.2.4)':
+    dependencies:
+      '@use-gesture/core': 10.3.1
+      react: 19.2.4
+
   '@vitejs/plugin-react@5.1.4(vite@7.3.1(@types/node@25.3.0)(jiti@2.6.1)(lightningcss@1.31.1)(tsx@4.21.0)(yaml@2.8.2))':
     dependencies:
       '@babel/core': 7.29.0
@@ -10464,8 +10449,6 @@ snapshots:
 
   powershell-utils@0.1.0: {}
 
-  preact@10.12.1: {}
-
   prelude-ls@1.2.1: {}
 
   prettier@3.8.1: {}
@@ -11013,7 +10996,13 @@ snapshots:
     dependencies:
       temporal-spec: 0.2.4
 
+  temporal-polyfill@0.3.0:
+    dependencies:
+      temporal-spec: 0.3.0
+
   temporal-spec@0.2.4: {}
+
+  temporal-spec@0.3.0: {}
 
   tiny-invariant@1.3.3: {}
 

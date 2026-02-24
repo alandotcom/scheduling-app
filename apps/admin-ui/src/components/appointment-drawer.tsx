@@ -18,6 +18,10 @@ import { zodResolver } from "@hookform/resolvers/zod";
 
 import { orpc } from "@/lib/query";
 import {
+  formatStatusLabel,
+  getStatusBadgeVariant,
+} from "@/lib/appointment-status";
+import {
   Drawer,
   DrawerContent,
   DrawerHeader,
@@ -79,18 +83,11 @@ const notesSchema = z.object({
 type NotesFormData = z.infer<typeof notesSchema>;
 
 function getStatusBadge(status: string) {
-  switch (status) {
-    case "scheduled":
-      return <Badge variant="secondary">Scheduled</Badge>;
-    case "confirmed":
-      return <Badge variant="success">Confirmed</Badge>;
-    case "cancelled":
-      return <Badge variant="destructive">Cancelled</Badge>;
-    case "no_show":
-      return <Badge variant="warning">No Show</Badge>;
-    default:
-      return <Badge variant="secondary">{status}</Badge>;
-  }
+  return (
+    <Badge variant={getStatusBadgeVariant(status)}>
+      {formatStatusLabel(status)}
+    </Badge>
+  );
 }
 
 export function AppointmentDrawer({

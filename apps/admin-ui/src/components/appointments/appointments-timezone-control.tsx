@@ -20,6 +20,7 @@ interface AppointmentsTimezoneControlProps {
   selectedCalendarTimezone?: string;
   onTimezoneChange: (timezone: string) => void;
   className?: string;
+  compact?: boolean;
 }
 
 export function AppointmentsTimezoneControl({
@@ -29,6 +30,7 @@ export function AppointmentsTimezoneControl({
   selectedCalendarTimezone,
   onTimezoneChange,
   className,
+  compact = false,
 }: AppointmentsTimezoneControlProps) {
   const isEditable =
     timezoneMode === "calendar" && typeof selectedCalendarTimezone !== "string";
@@ -53,7 +55,9 @@ export function AppointmentsTimezoneControl({
         >
           <SelectTrigger size="sm" className="w-full" aria-label="Timezone">
             <SelectValue>
-              {formatTimezonePickerLabel(displayTimezone)}
+              {compact
+                ? displayTimezoneShort
+                : formatTimezonePickerLabel(displayTimezone)}
             </SelectValue>
           </SelectTrigger>
           <SelectContent>
@@ -70,10 +74,14 @@ export function AppointmentsTimezoneControl({
           title={formatTimezonePath(displayTimezone)}
         >
           <span className="truncate">
-            <span className="text-muted-foreground">
-              {timezoneMode === "viewer" ? "My time" : "Calendar timezone"}
-            </span>
-            <span className="mx-1 text-muted-foreground">·</span>
+            {compact ? null : (
+              <>
+                <span className="text-muted-foreground">
+                  {timezoneMode === "viewer" ? "My time" : "Calendar timezone"}
+                </span>
+                <span className="mx-1 text-muted-foreground">·</span>
+              </>
+            )}
             <span>{displayTimezoneShort}</span>
           </span>
         </div>

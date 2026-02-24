@@ -26,6 +26,10 @@ import {
 } from "@hugeicons/core-free-icons";
 
 import { Badge } from "@/components/ui/badge";
+import {
+  formatStatusLabel,
+  getStatusBadgeVariant,
+} from "@/lib/appointment-status";
 import { ContextMenu, type ContextMenuItem } from "@/components/context-menu";
 import {
   EntityCardField,
@@ -64,18 +68,7 @@ interface AppointmentsListProps {
 }
 
 function getStatusVariant(status: string) {
-  switch (status) {
-    case "scheduled":
-      return "secondary";
-    case "confirmed":
-      return "success";
-    case "cancelled":
-      return "destructive";
-    case "no_show":
-      return "warning";
-    default:
-      return "secondary";
-  }
+  return getStatusBadgeVariant(status);
 }
 
 export function AppointmentsList({
@@ -157,21 +150,14 @@ export function AppointmentsList({
             : value.getTime();
         },
         header: ({ column }) => (
-          <DataTableColumnHeader column={column} title="Date/Time" />
+          <DataTableColumnHeader
+            column={column}
+            title={`Date/Time (${timezoneShortLabel})`}
+          />
         ),
         cell: ({ row }) => (
           <div className="font-medium">
-            <div>
-              {formatDisplayDateTime(row.original.startAt, displayTimezone)}
-            </div>
-            <div className="text-xs text-muted-foreground">
-              {timezoneShortLabel}
-            </div>
-            {row.original.appointmentType?.durationMin && (
-              <div className="text-xs text-muted-foreground">
-                {row.original.appointmentType.durationMin} min
-              </div>
-            )}
+            {formatDisplayDateTime(row.original.startAt, displayTimezone)}
           </div>
         ),
       },
@@ -181,7 +167,21 @@ export function AppointmentsList({
         header: ({ column }) => (
           <DataTableColumnHeader column={column} title="Type" />
         ),
-        cell: ({ row }) => row.original.appointmentType?.name ?? "-",
+        cell: ({ row }) => {
+          const typeName = row.original.appointmentType?.name;
+          const duration = row.original.appointmentType?.durationMin;
+          if (!typeName) return "-";
+          return (
+            <div>
+              <span>{typeName}</span>
+              {duration ? (
+                <span className="ml-1.5 text-muted-foreground">
+                  &middot; {duration} min
+                </span>
+              ) : null}
+            </div>
+          );
+        },
       },
       {
         id: "calendar",
@@ -208,7 +208,7 @@ export function AppointmentsList({
         ),
         cell: ({ row }) => (
           <Badge variant={getStatusVariant(row.original.status)}>
-            {row.original.status.replace("_", " ")}
+            {formatStatusLabel(row.original.status)}
           </Badge>
         ),
       },
@@ -335,7 +335,7 @@ export function AppointmentsList({
                     label="Status"
                     value={
                       <Badge variant={getStatusVariant(appointment.status)}>
-                        {appointment.status.replace("_", " ")}
+                        {formatStatusLabel(appointment.status)}
                       </Badge>
                     }
                   />

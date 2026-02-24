@@ -20,36 +20,42 @@ export function TimeDisplayToggle({
         "inline-flex items-center rounded-lg border border-border bg-muted/30 p-0.5",
         className,
       )}
+      role="tablist"
+      aria-label="Time display"
     >
       <button
         type="button"
+        role="tab"
+        aria-selected={value === "calendar"}
         onClick={() => onValueChange("calendar")}
         className={cn(
           "rounded-md font-medium transition-colors",
           size === "sm"
-            ? "h-10 px-3 text-sm md:h-8"
+            ? "h-10 px-2.5 text-[13px] md:h-8"
             : "h-10 px-3.5 text-sm md:h-9",
           value === "calendar"
             ? "bg-background text-foreground shadow-sm"
             : "text-muted-foreground hover:text-foreground",
         )}
       >
-        Calendar time
+        {size === "sm" ? "Calendar" : "Calendar time"}
       </button>
       <button
         type="button"
+        role="tab"
+        aria-selected={value === "viewer"}
         onClick={() => onValueChange("viewer")}
         className={cn(
           "rounded-md font-medium transition-colors",
           size === "sm"
-            ? "h-10 px-3 text-sm md:h-8"
+            ? "h-10 px-2.5 text-[13px] md:h-8"
             : "h-10 px-3.5 text-sm md:h-9",
           value === "viewer"
             ? "bg-background text-foreground shadow-sm"
             : "text-muted-foreground hover:text-foreground",
         )}
       >
-        My time
+        {size === "sm" ? "My" : "My time"}
       </button>
     </div>
   );

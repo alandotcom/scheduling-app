@@ -16,14 +16,20 @@ export function ViewToggle({
   size = "default",
 }: ViewToggleProps) {
   return (
-    <div className="inline-flex items-center rounded-lg border border-border bg-muted/30 p-0.5">
+    <div
+      className="inline-flex items-center rounded-lg border border-border bg-muted/30 p-0.5"
+      role="tablist"
+      aria-label="View mode"
+    >
       <button
         type="button"
+        role="tab"
+        aria-selected={view === "list"}
         onClick={() => onViewChange("list")}
         className={cn(
           "flex items-center gap-1.5 rounded-md font-medium transition-colors",
           size === "sm"
-            ? "h-10 px-3 text-sm md:h-8"
+            ? "h-10 px-2.5 text-[13px] md:h-8"
             : "h-10 px-3.5 text-sm md:h-9",
           view === "list"
             ? "bg-background text-foreground shadow-sm"
@@ -35,11 +41,13 @@ export function ViewToggle({
       </button>
       <button
         type="button"
+        role="tab"
+        aria-selected={view === "schedule"}
         onClick={() => onViewChange("schedule")}
         className={cn(
           "flex items-center gap-1.5 rounded-md font-medium transition-colors",
           size === "sm"
-            ? "h-10 px-3 text-sm md:h-8"
+            ? "h-10 px-2.5 text-[13px] md:h-8"
             : "h-10 px-3.5 text-sm md:h-9",
           view === "schedule"
             ? "bg-background text-foreground shadow-sm"
