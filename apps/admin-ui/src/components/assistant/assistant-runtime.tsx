@@ -5,10 +5,8 @@ import {
   useChatRuntime,
 } from "@assistant-ui/react-ai-sdk";
 import { authClient } from "@/lib/auth-client";
-import {
-  loadSessionHistory,
-  useSaveSessionHistory,
-} from "@/hooks/use-assistant-session-history";
+import { loadSessionHistory } from "@/hooks/assistant-session-storage";
+import { useSaveSessionHistory } from "@/hooks/use-assistant-session-history";
 
 const transport = new AssistantChatTransport({
   api: "/api/assistant/chat",

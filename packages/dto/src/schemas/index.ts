@@ -22,4 +22,3 @@ export * from "./journey";
 export * from "./journey-action-compatibility";
 export * from "./workflow-graph";
 export * from "./assistant";
-export * from "./assistant-catalog";

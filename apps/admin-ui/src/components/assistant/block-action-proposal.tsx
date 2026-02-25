@@ -7,6 +7,7 @@ import {
   UserRemove01Icon,
 } from "@hugeicons/core-free-icons";
 import type { AssistantActionProposal } from "@scheduling/dto";
+import { DateTime } from "luxon";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
@@ -50,7 +51,10 @@ const PAYLOAD_LABELS: Record<string, string> = {
 };
 
 export function formatPayloadEntries(payload: Record<string, unknown>) {
-  const HIDDEN_KEYS = new Set(["proposalId"]);
+  const HIDDEN_KEYS = new Set(["proposalId", "timezone"]);
+  // Extract timezone from payload for formatting timestamps
+  const timezone =
+    typeof payload.timezone === "string" ? payload.timezone : undefined;
   const entries: { label: string; value: string }[] = [];
   for (const [key, value] of Object.entries(payload)) {
     if (HIDDEN_KEYS.has(key) || key === "id" || key.endsWith("Id")) continue;
@@ -65,12 +69,11 @@ export function formatPayloadEntries(payload: Record<string, unknown>) {
     if (typeof value === "string") {
       // Detect ISO timestamp strings and format them
       if (/^\d{4}-\d{2}-\d{2}T/.test(value)) {
-        const d = new Date(value);
-        if (!Number.isNaN(d.getTime())) {
-          formatted = d.toLocaleString([], {
-            dateStyle: "medium",
-            timeStyle: "short",
-          });
+        const dt = timezone
+          ? DateTime.fromISO(value, { zone: timezone })
+          : DateTime.fromISO(value, { setZone: true });
+        if (dt.isValid) {
+          formatted = dt.toFormat("LLL d, yyyy 'at' h:mm a");
         } else {
           formatted = value;
         }

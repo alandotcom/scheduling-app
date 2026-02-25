@@ -24,21 +24,21 @@ import {
 import type { z } from "zod";
 import { orpc } from "@/lib/query";
 import { authClient } from "@/lib/auth-client";
+import { isRecord } from "@/hooks/assistant-session-storage";
 
 // ---------- Persistence helpers ----------
 
 const STORAGE_KEY_PREFIX = "assistant-proposals:v1";
 
-function buildProposalStorageKey(orgId: string | null, userId: string | null) {
+export function buildProposalStorageKey(
+  orgId: string | null,
+  userId: string | null,
+) {
   if (!orgId || !userId) return null;
   return `${STORAGE_KEY_PREFIX}:${orgId}:${userId}`;
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
-
-function isAssistantActionResult(
+export function isAssistantActionResult(
   value: unknown,
 ): value is AssistantActionResult {
   if (!isRecord(value)) return false;
@@ -50,7 +50,7 @@ function isAssistantActionResult(
   );
 }
 
-function loadProposalResults(
+export function loadProposalResults(
   orgId: string | null,
   userId: string | null,
 ): Record<string, AssistantActionResult> {
@@ -85,6 +85,22 @@ function saveProposalResults(
   }
 }
 
+/**
+ * Clear persisted proposal results from sessionStorage (e.g. on "New chat").
+ */
+export function clearProposalResults(input: {
+  orgId: string | null;
+  userId: string | null;
+}) {
+  const key = buildProposalStorageKey(input.orgId, input.userId);
+  if (!key) return;
+  try {
+    sessionStorage.removeItem(key);
+  } catch {
+    // Ignore storage failures
+  }
+}
+
 // ---------- Helpers ----------
 
 function parseProposalPayload<T>(
@@ -97,6 +113,15 @@ function parseProposalPayload<T>(
   }
   return parsed.data;
 }
+
+const PROPOSAL_MESSAGES: Record<AssistantActionProposal["actionType"], string> =
+  {
+    book: "Appointment booked.",
+    reschedule: "Appointment rescheduled.",
+    confirm: "Appointment confirmed.",
+    cancel: "Appointment canceled.",
+    no_show: "Appointment marked as no-show.",
+  };
 
 interface ProposalContextValue {
   runningProposalId: string | null;
@@ -124,6 +149,10 @@ export function ProposalProvider({ children }: { children: ReactNode }) {
   const [runningProposalId, setRunningProposalId] = useState<string | null>(
     null,
   );
+  // Ref-based guard to prevent double-execution from rapid clicks.
+  // React state updates are async, so `runningProposalId` may not be set
+  // before a second click fires.
+  const executingRef = useRef<string | null>(null);
   const [proposalResults, setProposalResults] = useState<
     Record<string, AssistantActionResult>
   >(() => loadProposalResults(orgId, userId));
@@ -181,72 +210,70 @@ export function ProposalProvider({ children }: { children: ReactNode }) {
 
   const onConfirmProposal = useCallback(
     async (proposal: AssistantActionProposal) => {
+      // Ref-based guard: prevent double-execution from rapid clicks
+      if (executingRef.current === proposal.proposalId) return;
+      executingRef.current = proposal.proposalId;
       setRunningProposalId(proposal.proposalId);
       const m = mutationsRef.current;
 
       try {
-        let resultMessage = "Action completed.";
-        let entityId: string | undefined;
+        const handlers: Record<
+          AssistantActionProposal["actionType"],
+          () => Promise<{ id: string }>
+        > = {
+          book: async () => {
+            const p = parseProposalPayload(
+              assistantBookProposalPayloadSchema,
+              proposal,
+            );
+            return m.create.mutateAsync({
+              calendarId: p.calendarId,
+              appointmentTypeId: p.appointmentTypeId,
+              startTime: new Date(p.startTime),
+              timezone: p.timezone,
+              clientId: p.clientId,
+              ...(p.notes != null ? { notes: p.notes } : {}),
+            });
+          },
+          reschedule: async () => {
+            const p = parseProposalPayload(
+              assistantRescheduleProposalPayloadSchema,
+              proposal,
+            );
+            return m.reschedule.mutateAsync({
+              id: p.appointmentId,
+              newStartTime: new Date(p.newStartTime),
+              timezone: p.timezone,
+            });
+          },
+          confirm: async () => {
+            const p = parseProposalPayload(
+              assistantConfirmProposalPayloadSchema,
+              proposal,
+            );
+            return m.confirm.mutateAsync({ id: p.appointmentId });
+          },
+          cancel: async () => {
+            const p = parseProposalPayload(
+              assistantCancelProposalPayloadSchema,
+              proposal,
+            );
+            return m.cancel.mutateAsync({
+              id: p.appointmentId,
+              ...(p.reason != null ? { reason: p.reason } : {}),
+            });
+          },
+          no_show: async () => {
+            const p = parseProposalPayload(
+              assistantNoShowProposalPayloadSchema,
+              proposal,
+            );
+            return m.noShow.mutateAsync({ id: p.appointmentId });
+          },
+        };
 
-        if (proposal.actionType === "book") {
-          const payload = parseProposalPayload(
-            assistantBookProposalPayloadSchema,
-            proposal,
-          );
-          const created = await m.create.mutateAsync({
-            calendarId: payload.calendarId,
-            appointmentTypeId: payload.appointmentTypeId,
-            startTime: new Date(payload.startTime),
-            timezone: payload.timezone,
-            clientId: payload.clientId,
-            ...(payload.notes != null ? { notes: payload.notes } : {}),
-          });
-          entityId = created.id;
-          resultMessage = "Appointment booked.";
-        } else if (proposal.actionType === "reschedule") {
-          const payload = parseProposalPayload(
-            assistantRescheduleProposalPayloadSchema,
-            proposal,
-          );
-          const updated = await m.reschedule.mutateAsync({
-            id: payload.appointmentId,
-            newStartTime: new Date(payload.newStartTime),
-            timezone: payload.timezone,
-          });
-          entityId = updated.id;
-          resultMessage = "Appointment rescheduled.";
-        } else if (proposal.actionType === "confirm") {
-          const payload = parseProposalPayload(
-            assistantConfirmProposalPayloadSchema,
-            proposal,
-          );
-          const updated = await m.confirm.mutateAsync({
-            id: payload.appointmentId,
-          });
-          entityId = updated.id;
-          resultMessage = "Appointment confirmed.";
-        } else if (proposal.actionType === "cancel") {
-          const payload = parseProposalPayload(
-            assistantCancelProposalPayloadSchema,
-            proposal,
-          );
-          const updated = await m.cancel.mutateAsync({
-            id: payload.appointmentId,
-            ...(payload.reason != null ? { reason: payload.reason } : {}),
-          });
-          entityId = updated.id;
-          resultMessage = "Appointment canceled.";
-        } else if (proposal.actionType === "no_show") {
-          const payload = parseProposalPayload(
-            assistantNoShowProposalPayloadSchema,
-            proposal,
-          );
-          const updated = await m.noShow.mutateAsync({
-            id: payload.appointmentId,
-          });
-          entityId = updated.id;
-          resultMessage = "Appointment marked as no-show.";
-        }
+        const { id: entityId } = await handlers[proposal.actionType]();
+        const resultMessage = PROPOSAL_MESSAGES[proposal.actionType];
 
         await invalidateSchedulingQueries();
 
@@ -275,6 +302,7 @@ export function ProposalProvider({ children }: { children: ReactNode }) {
           },
         }));
       } finally {
+        executingRef.current = null;
         setRunningProposalId(null);
       }
     },

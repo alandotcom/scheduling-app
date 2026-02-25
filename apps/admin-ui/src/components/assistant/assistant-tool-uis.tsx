@@ -1,4 +1,5 @@
 import { type ReactElement, useState } from "react";
+import { useNavigate } from "@tanstack/react-router";
 import { makeAssistantToolUI } from "@assistant-ui/react";
 import {
   Alert01Icon,
@@ -6,17 +7,24 @@ import {
   Tick02Icon,
 } from "@hugeicons/core-free-icons";
 import {
+  type AssistantAppointmentTableRow,
+  type AssistantClientTableRow,
   assistantActionProposalSchema,
   assistantAppointmentTableRowSchema,
   assistantClientTableRowSchema,
 } from "@scheduling/dto";
+import { DateTime } from "luxon";
 import { z } from "zod";
 import { cn } from "@/lib/utils";
 import { Icon } from "@/components/ui/icon";
+import { useSetCommandCenterOpen } from "@/hooks/use-command-center";
 import { useProposalContext } from "./assistant-proposal-context";
 import { ActionProposalBlock } from "./block-action-proposal";
 import { ActionResultBlock } from "./block-action-result";
-import { AppointmentTableBlock } from "./block-appointment-table";
+import {
+  type AppointmentAction,
+  AppointmentTableBlock,
+} from "./block-appointment-table";
 import { ClientTableBlock } from "./block-client-table";
 import { useAppendSelection } from "./use-append-selection";
 
@@ -53,6 +61,7 @@ const lookupRowsSchema = z.object({
 });
 const availabilitySlotsSchema = z.object({
   availableCount: z.number(),
+  calendarTimezone: z.string(),
   slots: z.array(
     z.object({
       start: z.string(),
@@ -95,7 +104,6 @@ function FindAppointmentTypesResult({ data }: { data: unknown }) {
   return (
     <LookupList
       rows={parsed.data.rows}
-      mode="single"
       onSelect={(row) => {
         const name = typeof row.name === "string" ? row.name : "this type";
         select(`I'll go with ${name}`);
@@ -112,16 +120,9 @@ function FindCalendarsResult({ data }: { data: unknown }) {
   return (
     <LookupList
       rows={parsed.data.rows}
-      mode="multi"
       onSelect={(row) => {
         const name = typeof row.name === "string" ? row.name : "this calendar";
-        select(`I'd like to check ${name}`);
-      }}
-      onMultiSubmit={(rows) => {
-        const names = rows.map((r) =>
-          typeof r.name === "string" ? r.name : "unknown",
-        );
-        select(`I'd like to check ${names.join(" and ")}`);
+        select(`I'll go with ${name}`);
       }}
       disabled={isRunning}
     />
@@ -132,22 +133,100 @@ function GetAvailableSlotsResult({ data }: { data: unknown }) {
   const { select, isRunning } = useAppendSelection();
   const parsed = availabilitySlotsSchema.safeParse(data);
   if (!parsed.success) return null;
+  const { calendarTimezone } = parsed.data;
   return (
     <SlotGrid
       slots={parsed.data.slots}
+      timezone={calendarTimezone}
       onSelect={(slot) => {
-        const start = new Date(slot.start);
-        const time = start.toLocaleTimeString([], {
-          hour: "numeric",
-          minute: "2-digit",
-        });
-        const date = start.toLocaleDateString([], {
-          weekday: "short",
-          month: "short",
-          day: "numeric",
-        });
-        select(`I'd like the ${time} on ${date} slot`);
+        const dt = DateTime.fromISO(slot.start, { zone: calendarTimezone });
+        const time = dt.toFormat("h:mm a");
+        const date = dt.toFormat("ccc, LLL d");
+        select(`I'd like the ${time} on ${date} slot (${slot.start})`);
       }}
+      disabled={isRunning}
+    />
+  );
+}
+
+// ---------- Interactive data tool result components (clients/appointments) ----------
+
+function FindClientsResult({ data }: { data: unknown }) {
+  const { select, isRunning } = useAppendSelection();
+  const parsed = clientRowsSchema.safeParse(data);
+  if (!parsed.success) return null;
+  const handleSelect = (row: AssistantClientTableRow) => {
+    select(`I'll go with ${row.fullName}`);
+  };
+  // Only make rows interactive when there are multiple results to choose from.
+  // A single result is auto-advanced by the AI, so clicks would just echo redundantly.
+  const interactive = parsed.data.rows.length > 1;
+  return (
+    <ClientTableBlock
+      rows={parsed.data.rows}
+      onSelect={interactive ? handleSelect : undefined}
+      disabled={isRunning}
+    />
+  );
+}
+
+function formatAppointmentLabel(row: AssistantAppointmentTableRow) {
+  const dt = DateTime.fromISO(row.startAt, { zone: row.timezone });
+  const time = dt.isValid ? dt.toFormat("LLL d, h:mm a") : row.startAt;
+  let label = row.clientName;
+  if (row.appointmentTypeName) label += `'s ${row.appointmentTypeName}`;
+  label += ` on ${time}`;
+  return label;
+}
+
+function useAppointmentAction() {
+  const { select, isRunning } = useAppendSelection();
+  const setOpen = useSetCommandCenterOpen();
+  const navigate = useNavigate();
+
+  const handleAction = (
+    row: AssistantAppointmentTableRow,
+    action: AppointmentAction,
+  ) => {
+    const label = formatAppointmentLabel(row);
+    switch (action) {
+      case "open":
+        setOpen(false);
+        navigate({ to: "/appointments", search: { selected: row.id } });
+        break;
+      case "reschedule":
+        select(`Reschedule ${label}`);
+        break;
+      case "cancel":
+        select(`Cancel ${label}`);
+        break;
+    }
+  };
+
+  return { handleAction, isRunning };
+}
+
+function FindAppointmentsResult({ data }: { data: unknown }) {
+  const { handleAction, isRunning } = useAppointmentAction();
+  const parsed = appointmentRowsSchema.safeParse(data);
+  if (!parsed.success) return null;
+  return (
+    <AppointmentTableBlock
+      rows={parsed.data.rows}
+      onAction={handleAction}
+      disabled={isRunning}
+    />
+  );
+}
+
+function GetAppointmentResult({ data }: { data: unknown }) {
+  const { handleAction, isRunning } = useAppointmentAction();
+  const parsed = appointmentRowsSchema.safeParse(data);
+  if (!parsed.success) return null;
+  return (
+    <AppointmentTableBlock
+      rows={parsed.data.rows}
+      onAction={handleAction}
       disabled={isRunning}
     />
   );
@@ -158,34 +237,25 @@ function GetAvailableSlotsResult({ data }: { data: unknown }) {
 const FindClientsToolUI = makeAssistantToolUI({
   toolName: "findClients",
   render: ({ result, status }) =>
-    renderToolStatus(status, result, (data) => {
-      const parsed = clientRowsSchema.safeParse(data);
-      return parsed.success ? (
-        <ClientTableBlock rows={parsed.data.rows} />
-      ) : null;
-    }),
+    renderToolStatus(status, result, (data) => (
+      <FindClientsResult data={data} />
+    )),
 });
 
 const FindAppointmentsToolUI = makeAssistantToolUI({
   toolName: "findAppointments",
   render: ({ result, status }) =>
-    renderToolStatus(status, result, (data) => {
-      const parsed = appointmentRowsSchema.safeParse(data);
-      return parsed.success ? (
-        <AppointmentTableBlock rows={parsed.data.rows} />
-      ) : null;
-    }),
+    renderToolStatus(status, result, (data) => (
+      <FindAppointmentsResult data={data} />
+    )),
 });
 
 const GetAppointmentToolUI = makeAssistantToolUI({
   toolName: "getAppointment",
   render: ({ result, status }) =>
-    renderToolStatus(status, result, (data) => {
-      const parsed = appointmentRowsSchema.safeParse(data);
-      return parsed.success ? (
-        <AppointmentTableBlock rows={parsed.data.rows} />
-      ) : null;
-    }),
+    renderToolStatus(status, result, (data) => (
+      <GetAppointmentResult data={data} />
+    )),
 });
 
 const FindCalendarsToolUI = makeAssistantToolUI({
@@ -241,47 +311,43 @@ function formatLookupLabel(key: string): string {
   return LOOKUP_LABELS[key] ?? key;
 }
 
+function LookupRowFields({ row }: { row: Record<string, unknown> }) {
+  return (
+    <span className="flex min-w-0 flex-1 flex-wrap gap-x-3 gap-y-0.5">
+      {Object.entries(row).map(([k, value]) => {
+        if (value == null) return null;
+        if (isInternalField(k, value)) return null;
+        return (
+          <span key={k}>
+            <span className="font-medium text-muted-foreground">
+              {formatLookupLabel(k)}:
+            </span>{" "}
+            <span className="text-foreground/80">
+              {typeof value === "string" ? value : JSON.stringify(value)}
+            </span>
+          </span>
+        );
+      })}
+    </span>
+  );
+}
+
 function LookupList({
   rows,
-  mode = "single",
   onSelect,
-  onMultiSubmit,
   disabled,
 }: {
   rows: Record<string, unknown>[];
-  mode?: "single" | "multi";
   onSelect?: (row: Record<string, unknown>) => void;
-  onMultiSubmit?: (rows: Record<string, unknown>[]) => void;
   disabled?: boolean;
 }) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [checkedIds, setCheckedIds] = useState<Set<string>>(new Set());
 
-  const handleSingleClick = (row: Record<string, unknown>) => {
+  const handleClick = (row: Record<string, unknown>) => {
     if (disabled) return;
     const key = lookupRowKey(row);
     setSelectedId(key);
     onSelect?.(row);
-  };
-
-  const handleCheckToggle = (row: Record<string, unknown>) => {
-    if (disabled) return;
-    const key = lookupRowKey(row);
-    setCheckedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(key)) {
-        next.delete(key);
-      } else {
-        next.add(key);
-      }
-      return next;
-    });
-  };
-
-  const handleMultiSubmit = () => {
-    if (disabled || checkedIds.size === 0) return;
-    const selected = rows.filter((r) => checkedIds.has(lookupRowKey(r)));
-    onMultiSubmit?.(selected);
   };
 
   return (
@@ -289,65 +355,14 @@ function LookupList({
       <div className="divide-y divide-border/50">
         {rows.map((row) => {
           const key = lookupRowKey(row);
-          const isSelected =
-            mode === "single" ? selectedId === key : checkedIds.has(key);
-
-          if (mode === "multi") {
-            return (
-              <button
-                key={key}
-                type="button"
-                disabled={disabled}
-                onClick={() => handleCheckToggle(row)}
-                className={cn(
-                  "flex w-full items-center gap-2.5 px-3 py-2 text-left text-xs",
-                  "transition-colors",
-                  isSelected
-                    ? "border-l-2 border-l-primary bg-primary/10"
-                    : "hover:bg-muted/50 active:bg-muted/70",
-                  disabled && "cursor-not-allowed opacity-60",
-                )}
-              >
-                <span
-                  className={cn(
-                    "flex size-4 shrink-0 items-center justify-center rounded border",
-                    isSelected
-                      ? "border-primary bg-primary text-primary-foreground"
-                      : "border-border",
-                  )}
-                >
-                  {isSelected ? (
-                    <Icon icon={Tick02Icon} className="size-3" />
-                  ) : null}
-                </span>
-                <span className="flex min-w-0 flex-1 flex-wrap gap-x-3 gap-y-0.5">
-                  {Object.entries(row).map(([k, value]) => {
-                    if (value == null) return null;
-                    if (isInternalField(k, value)) return null;
-                    return (
-                      <span key={k}>
-                        <span className="font-medium text-muted-foreground">
-                          {formatLookupLabel(k)}:
-                        </span>{" "}
-                        <span className="text-foreground/80">
-                          {typeof value === "string"
-                            ? value
-                            : JSON.stringify(value)}
-                        </span>
-                      </span>
-                    );
-                  })}
-                </span>
-              </button>
-            );
-          }
+          const isSelected = selectedId === key;
 
           return (
             <button
               key={key}
               type="button"
               disabled={disabled}
-              onClick={() => handleSingleClick(row)}
+              onClick={() => handleClick(row)}
               className={cn(
                 "flex w-full items-center gap-2.5 px-3 py-2 text-left text-xs",
                 "transition-colors",
@@ -357,24 +372,7 @@ function LookupList({
                 disabled && "cursor-not-allowed opacity-60",
               )}
             >
-              <span className="flex min-w-0 flex-1 flex-wrap gap-x-3 gap-y-0.5">
-                {Object.entries(row).map(([k, value]) => {
-                  if (value == null) return null;
-                  if (isInternalField(k, value)) return null;
-                  return (
-                    <span key={k}>
-                      <span className="font-medium text-muted-foreground">
-                        {formatLookupLabel(k)}:
-                      </span>{" "}
-                      <span className="text-foreground/80">
-                        {typeof value === "string"
-                          ? value
-                          : JSON.stringify(value)}
-                      </span>
-                    </span>
-                  );
-                })}
-              </span>
+              <LookupRowFields row={row} />
               {isSelected ? (
                 <Icon
                   icon={Tick02Icon}
@@ -385,28 +383,13 @@ function LookupList({
           );
         })}
       </div>
-      {mode === "multi" && checkedIds.size > 0 ? (
-        <div className="border-t border-border/50 px-3 py-2">
-          <button
-            type="button"
-            disabled={disabled}
-            onClick={handleMultiSubmit}
-            className={cn(
-              "rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground",
-              "transition-colors hover:bg-primary/90 active:scale-[0.98]",
-              disabled && "cursor-not-allowed opacity-60",
-            )}
-          >
-            Check availability ({checkedIds.size})
-          </button>
-        </div>
-      ) : null}
     </div>
   );
 }
 
 function groupSlotsByDay(
   slots: { start: string; end: string; remainingCapacity: number }[],
+  timezone: string,
 ) {
   const groups: Map<
     string,
@@ -417,19 +400,11 @@ function groupSlotsByDay(
   > = new Map();
 
   for (const slot of slots) {
-    const start = new Date(slot.start);
-    const dateKey = start.toLocaleDateString([], {
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-    });
+    const dt = DateTime.fromISO(slot.start, { zone: timezone });
+    const dateKey = dt.toISODate() ?? slot.start;
     if (!groups.has(dateKey)) {
       groups.set(dateKey, {
-        label: start.toLocaleDateString([], {
-          weekday: "long",
-          month: "short",
-          day: "numeric",
-        }),
+        label: dt.toFormat("cccc, LLL d"),
         slots: [],
       });
     }
@@ -441,10 +416,12 @@ function groupSlotsByDay(
 
 function SlotGrid({
   slots,
+  timezone,
   onSelect,
   disabled,
 }: {
   slots: { start: string; end: string; remainingCapacity: number }[];
+  timezone: string;
   onSelect?: (slot: { start: string; end: string }) => void;
   disabled?: boolean;
 }) {
@@ -469,7 +446,7 @@ function SlotGrid({
     onSelect?.(slot);
   };
 
-  const dayGroups = groupSlotsByDay(slots);
+  const dayGroups = groupSlotsByDay(slots, timezone);
 
   return (
     <div className="overflow-hidden rounded-lg border border-border/70 p-2 space-y-2.5">
@@ -480,11 +457,8 @@ function SlotGrid({
           </div>
           <div className="flex flex-wrap gap-1.5">
             {group.slots.map((slot) => {
-              const start = new Date(slot.start);
-              const time = start.toLocaleTimeString([], {
-                hour: "numeric",
-                minute: "2-digit",
-              });
+              const dt = DateTime.fromISO(slot.start, { zone: timezone });
+              const time = dt.toFormat("h:mm a");
               const isSelected = selectedStart === slot.start;
               return (
                 <button

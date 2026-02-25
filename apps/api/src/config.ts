@@ -74,7 +74,7 @@ export const config = envParse(Bun.env, {
     assistantModel: {
       format: z.string().min(1),
       env: "ASSISTANT_MODEL",
-      default: "anthropic/claude-sonnet-4.6",
+      default: "google/gemini-3-flash",
     },
   },
   webhooks: {

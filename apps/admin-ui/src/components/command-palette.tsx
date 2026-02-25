@@ -1,6 +1,6 @@
 // Global command center (Cmd+K / Ctrl+K)
 
-import { useCallback, useMemo, type ReactNode } from "react";
+import { lazy, Suspense, useCallback, useMemo, type ReactNode } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
 import { Command } from "cmdk";
@@ -22,7 +22,6 @@ import { formatShortcut } from "@/lib/shortcuts";
 import { Icon } from "@/components/ui/icon";
 import { ShortcutBadge } from "@/components/ui/shortcut-badge";
 import { Button } from "@/components/ui/button";
-import { AssistantPane } from "@/components/assistant/assistant-pane";
 import { useCreateCommand } from "@/hooks/use-create-command";
 import { useKeyboardShortcuts } from "@/hooks/use-keyboard-shortcuts";
 import {
@@ -31,6 +30,12 @@ import {
   useSetCommandCenterMode,
   useSetCommandCenterOpen,
 } from "@/hooks/use-command-center";
+
+const AssistantPane = lazy(() =>
+  import("@/components/assistant/assistant-pane").then((m) => ({
+    default: m.AssistantPane,
+  })),
+);
 
 interface CommandAction {
   id: string;
@@ -419,7 +424,15 @@ export function CommandPalette() {
                   className="ml-auto hidden sm:inline-flex"
                 />
               </div>
-              <AssistantPane />
+              <Suspense
+                fallback={
+                  <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">
+                    Loading assistant...
+                  </div>
+                }
+              >
+                <AssistantPane />
+              </Suspense>
             </div>
           )}
         </DialogPrimitive.Popup>

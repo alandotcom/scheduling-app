@@ -6,25 +6,26 @@ describe("formatPayloadEntries", () => {
     const entries = formatPayloadEntries({
       calendarId: "abc-123",
       appointmentTypeId: "def-456",
-      timezone: "America/New_York",
+      clientName: "Ada Lovelace",
     });
-    expect(entries).toEqual([{ label: "Timezone", value: "America/New_York" }]);
+    expect(entries).toEqual([{ label: "Client", value: "Ada Lovelace" }]);
   });
 
   test("hides the 'id' field", () => {
     const entries = formatPayloadEntries({
       id: "abc-123",
-      timezone: "America/New_York",
+      clientName: "Ada Lovelace",
     });
-    expect(entries).toEqual([{ label: "Timezone", value: "America/New_York" }]);
+    expect(entries).toEqual([{ label: "Client", value: "Ada Lovelace" }]);
   });
 
-  test("hides proposalId key", () => {
+  test("hides proposalId and timezone keys", () => {
     const entries = formatPayloadEntries({
       proposalId: "hidden",
-      timezone: "visible",
+      timezone: "America/New_York",
+      clientName: "Ada Lovelace",
     });
-    expect(entries).toEqual([{ label: "Timezone", value: "visible" }]);
+    expect(entries).toEqual([{ label: "Client", value: "Ada Lovelace" }]);
   });
 
   test("skips null and undefined values", () => {
@@ -60,8 +61,8 @@ describe("formatPayloadEntries", () => {
   });
 
   test("handles single-word keys", () => {
-    const entries = formatPayloadEntries({ timezone: "America/New_York" });
-    expect(entries).toEqual([{ label: "Timezone", value: "America/New_York" }]);
+    const entries = formatPayloadEntries({ reason: "Patient requested" });
+    expect(entries).toEqual([{ label: "Reason", value: "Patient requested" }]);
   });
 
   test("preserves order of payload entries (excluding hidden keys)", () => {
@@ -100,8 +101,9 @@ describe("formatPayloadEntries", () => {
       clientId: "client-uuid",
       notes: null,
     });
-    expect(entries).toHaveLength(2);
-    expect(entries.map((e) => e.label)).toEqual(["Start Time", "Timezone"]);
+    // timezone is hidden (used for formatting), IDs hidden, null notes hidden
+    expect(entries).toHaveLength(1);
+    expect(entries.map((e) => e.label)).toEqual(["Start Time"]);
   });
 
   test("shows display name fields with clean labels", () => {

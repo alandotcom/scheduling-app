@@ -7,8 +7,6 @@ import {
   tool,
   validateUIMessages,
 } from "ai";
-import { eq } from "drizzle-orm";
-import { appointmentTypeCalendars } from "@scheduling/db/schema";
 import {
   assistantActionProposalSchema,
   assistantAppointmentTableRowSchema,
@@ -16,7 +14,6 @@ import {
 } from "@scheduling/dto";
 import { z } from "zod";
 import { config } from "../config.js";
-import { db } from "../lib/db.js";
 import { appointmentTypeService } from "../services/appointment-types.js";
 import { appointmentService } from "../services/appointments.js";
 import { availabilityService } from "../services/availability-engine/index.js";
@@ -24,12 +21,12 @@ import { calendarService } from "../services/calendars.js";
 import { clientService } from "../services/clients.js";
 import type { ServiceContext } from "../services/locations.js";
 
-const findClientsInputSchema = z.object({
+export const findClientsInputSchema = z.object({
   query: z.string().trim().min(1).optional(),
   limit: z.number().int().min(1).max(25).default(10),
 });
 
-const findAppointmentsInputSchema = z.object({
+export const findAppointmentsInputSchema = z.object({
   clientId: z.uuid().optional(),
   status: z.enum(["scheduled", "confirmed", "cancelled", "no_show"]).optional(),
   scope: z.enum(["upcoming", "history", "all"]).default("upcoming"),
@@ -44,11 +41,11 @@ const findAppointmentsInputSchema = z.object({
   limit: z.number().int().min(1).max(25).default(10),
 });
 
-const getAppointmentInputSchema = z.object({
+export const getAppointmentInputSchema = z.object({
   appointmentId: z.uuid(),
 });
 
-const findCalendarsInputSchema = z.object({
+export const findCalendarsInputSchema = z.object({
   query: z.string().trim().min(1).optional(),
   appointmentTypeId: z
     .uuid()
@@ -59,25 +56,43 @@ const findCalendarsInputSchema = z.object({
   limit: z.number().int().min(1).max(25).default(10),
 });
 
-const findAppointmentTypesInputSchema = z.object({
+export const findAppointmentTypesInputSchema = z.object({
   query: z.string().trim().min(1).optional(),
   limit: z.number().int().min(1).max(25).default(10),
 });
 
-const getAvailableSlotsInputSchema = z.object({
-  calendarId: z.uuid(),
-  appointmentTypeId: z.uuid(),
-  startDate: z
-    .string()
-    .regex(/^\d{4}-\d{2}-\d{2}$/)
-    .describe("Start date (YYYY-MM-DD)"),
-  endDate: z
-    .string()
-    .regex(/^\d{4}-\d{2}-\d{2}$/)
-    .describe("End date (YYYY-MM-DD). Max 7 days from startDate."),
-});
+export const MAX_SLOT_RANGE_DAYS = 7;
 
-const proposeBookAppointmentInputSchema = z.object({
+export const getAvailableSlotsInputSchema = z
+  .object({
+    calendarId: z.uuid(),
+    appointmentTypeId: z.uuid(),
+    startDate: z
+      .string()
+      .regex(/^\d{4}-\d{2}-\d{2}$/)
+      .describe("Start date (YYYY-MM-DD)"),
+    endDate: z
+      .string()
+      .regex(/^\d{4}-\d{2}-\d{2}$/)
+      .describe(
+        `End date (YYYY-MM-DD). Max ${MAX_SLOT_RANGE_DAYS} days from startDate.`,
+      ),
+  })
+  .refine(
+    (d) => {
+      const start = new Date(d.startDate);
+      const end = new Date(d.endDate);
+      if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()))
+        return false;
+      const diffMs = end.getTime() - start.getTime();
+      return diffMs >= 0 && diffMs <= MAX_SLOT_RANGE_DAYS * 86_400_000;
+    },
+    {
+      message: `Date range must not exceed ${MAX_SLOT_RANGE_DAYS} days and endDate must be >= startDate.`,
+    },
+  );
+
+export const proposeBookAppointmentInputSchema = z.object({
   calendarId: z.uuid(),
   appointmentTypeId: z.uuid(),
   startTime: z.string().min(1),
@@ -87,25 +102,25 @@ const proposeBookAppointmentInputSchema = z.object({
   summary: z.string().trim().min(1).optional(),
 });
 
-const proposeRescheduleAppointmentInputSchema = z.object({
+export const proposeRescheduleAppointmentInputSchema = z.object({
   appointmentId: z.uuid(),
   newStartTime: z.string().min(1),
   timezone: z.string().min(1),
   summary: z.string().trim().min(1).optional(),
 });
 
-const proposeConfirmAppointmentInputSchema = z.object({
+export const proposeConfirmAppointmentInputSchema = z.object({
   appointmentId: z.uuid(),
   summary: z.string().trim().min(1).optional(),
 });
 
-const proposeCancelAppointmentInputSchema = z.object({
+export const proposeCancelAppointmentInputSchema = z.object({
   appointmentId: z.uuid(),
   reason: z.string().nullable().optional(),
   summary: z.string().trim().min(1).optional(),
 });
 
-const proposeNoShowAppointmentInputSchema = z.object({
+export const proposeNoShowAppointmentInputSchema = z.object({
   appointmentId: z.uuid(),
   summary: z.string().trim().min(1).optional(),
 });
@@ -206,10 +221,15 @@ export function buildSystemPrompt(now: Date) {
     "4. **Select time slot** → call getAvailableSlots for the chosen calendar + type, wait for selection",
     "5. **Propose booking** → call proposeBookAppointment with all gathered IDs",
     "",
+    "## Reschedule Flow",
+    "When rescheduling, the appointment already has a calendarId and appointmentTypeId — use them directly.",
+    "1. Identify the appointment (via findAppointments or getAppointment).",
+    "2. Immediately call getAvailableSlots with the appointment's calendarId and appointmentTypeId for the next 7 days. Do NOT ask the user what date/time — show available slots first so they can pick.",
+    "3. Once the user selects a slot, call proposeRescheduleAppointment.",
+    "",
     "## Rules",
     "- When a lookup returns exactly one result, proceed to the next step automatically — do not ask the user to pick.",
     "- Track the user's intent throughout the conversation. If the user asked to reschedule, always use proposeRescheduleAppointment — never proposeBookAppointment, even if you called getAvailableSlots in between.",
-    "- Client and appointment results link to their detail pages in the app. Do not expect users to click these to make selections — they will type their choice or you should proceed when there's only one result.",
     "- When asked about availability or open slots: first resolve the calendarId and appointmentTypeId using findCalendars/findAppointmentTypes, then call getAvailableSlots. Never say you can't check availability.",
     "- For booking/rescheduling/confirming/cancelling/no-show: do not execute changes directly. Call the matching proposal tool and let the user confirm in the UI.",
     "- Before proposing changes, use lookup tools first to verify exact IDs.",
@@ -331,18 +351,13 @@ function buildAssistantTools(context: ServiceContext) {
         );
         const query = input.query?.toLowerCase();
 
-        // If an appointmentTypeId is provided, resolve linked calendar IDs
+        // If an appointmentTypeId is provided, resolve linked calendar IDs via the service
         let linkedCalendarIds: Set<string> | null = null;
         if (input.appointmentTypeId) {
-          const links = await db
-            .select({ calendarId: appointmentTypeCalendars.calendarId })
-            .from(appointmentTypeCalendars)
-            .where(
-              eq(
-                appointmentTypeCalendars.appointmentTypeId,
-                input.appointmentTypeId,
-              ),
-            );
+          const links = await appointmentTypeService.listCalendars(
+            input.appointmentTypeId,
+            context,
+          );
           linkedCalendarIds = new Set(links.map((l) => l.calendarId));
         }
 
@@ -400,21 +415,25 @@ function buildAssistantTools(context: ServiceContext) {
         "Get available time slots for a calendar and appointment type within a date range. Use this to answer availability questions. Requires calendarId and appointmentTypeId — use findCalendars and findAppointmentTypes first if needed.",
       inputSchema: getAvailableSlotsInputSchema,
       execute: async (input) => {
-        const slots = await availabilityService.getAvailableSlots(
-          {
-            calendarId: input.calendarId,
-            appointmentTypeId: input.appointmentTypeId,
-            startDate: input.startDate,
-            endDate: input.endDate,
-          },
-          context,
-        );
+        const [slots, calendar] = await Promise.all([
+          availabilityService.getAvailableSlots(
+            {
+              calendarId: input.calendarId,
+              appointmentTypeId: input.appointmentTypeId,
+              startDate: input.startDate,
+              endDate: input.endDate,
+            },
+            context,
+          ),
+          calendarService.get(input.calendarId, context),
+        ]);
 
         const availableSlots = slots.filter((s) => s.available);
 
         return {
           totalSlots: slots.length,
           availableCount: availableSlots.length,
+          calendarTimezone: calendar.timezone,
           slots: availableSlots.slice(0, 20).map((slot) => ({
             start: slot.start.toISOString(),
             end: slot.end.toISOString(),
@@ -481,26 +500,8 @@ function buildAssistantTools(context: ServiceContext) {
           throw new Error("Invalid newStartTime. Use a valid ISO datetime.");
         }
 
-        // Resolve display names from the appointment
-        let clientName: string | undefined;
-        let calendarName: string | undefined;
-        let appointmentTypeName: string | undefined;
-        let currentStartTime: string | undefined;
-        try {
-          const appointment = await appointmentService.get(
-            input.appointmentId,
-            context,
-          );
-          const name =
-            `${appointment.client.firstName} ${appointment.client.lastName}`.trim() ||
-            undefined;
-          clientName = name;
-          calendarName = appointment.calendar?.name || undefined;
-          appointmentTypeName = appointment.appointmentType?.name || undefined;
-          currentStartTime = toIsoString(appointment.startAt);
-        } catch {
-          // Continue without display names
-        }
+        const { startTime: currentStartTime, ...displayNames } =
+          await resolveAppointmentDisplayNames(input.appointmentId, context);
 
         return buildProposal({
           actionType: "reschedule",
@@ -511,9 +512,7 @@ function buildAssistantTools(context: ServiceContext) {
             appointmentId: input.appointmentId,
             newStartTime: parsedStartTime.toISOString(),
             timezone: input.timezone,
-            ...(clientName && { clientName }),
-            ...(calendarName && { calendarName }),
-            ...(appointmentTypeName && { appointmentTypeName }),
+            ...displayNames,
             ...(currentStartTime && { currentStartTime }),
           },
         });
@@ -634,9 +633,12 @@ assistantRouter.post("/chat", async (c) => {
 
   const serviceContext: ServiceContext = { orgId, userId };
   const tools = buildAssistantTools(serviceContext);
-  const messages = await validateUIMessages({
+  const validatedMessages = await validateUIMessages({
     messages: rawMessages,
   });
+  // Strip system-role messages to prevent prompt injection via crafted requests.
+  // The server controls the system prompt exclusively via buildSystemPrompt().
+  const messages = validatedMessages.filter((m) => m.role !== "system");
   if (messages.length === 0) {
     return c.json(
       {
@@ -648,12 +650,15 @@ assistantRouter.post("/chat", async (c) => {
       400,
     );
   }
+  /** Max tool-call round-trips before the AI stops. Prevents runaway loops. */
+  const MAX_ASSISTANT_STEPS = 8;
+
   const result = streamText({
     model: gateway(config.ai.assistantModel),
     system: buildSystemPrompt(new Date()),
     messages: await convertToModelMessages(messages, { tools }),
     tools,
-    stopWhen: stepCountIs(8),
+    stopWhen: stepCountIs(MAX_ASSISTANT_STEPS),
   });
 
   return result.toUIMessageStreamResponse({ originalMessages: messages });

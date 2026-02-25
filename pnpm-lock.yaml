@@ -368,12 +368,6 @@ importers:
 
   packages/dto:
     dependencies:
-      '@json-render/core':
-        specifier: ^0.9.1
-        version: 0.9.1(zod@4.3.6)
-      '@json-render/react':
-        specifier: ^0.9.1
-        version: 0.9.1(react@19.2.4)(zod@4.3.6)
       zod:
         specifier: 'catalog:'
         version: 4.3.6
@@ -1566,16 +1560,6 @@ packages:
 
   '@jsdevtools/ono@7.1.3':
     resolution: {integrity: sha512-4JQNk+3mVzK3xh2rqd6RB4J46qUR19azEHBneZyTZM+c456qOrbbM/5xcR8huNCCcbVt7+UmizG6GuUvPvKUYg==}
-
-  '@json-render/core@0.9.1':
-    resolution: {integrity: sha512-QVvkzrE2grGjo16P6QgC45NvMyyqMAbAW9EIt4F2PNwQn8hAVxyXDp6GtxbSoT6FzEpS4ytuzmlZ9gLRlsHAJA==}
-    peerDependencies:
-      zod: ^4.0.0
-
-  '@json-render/react@0.9.1':
-    resolution: {integrity: sha512-r4WXuHhywiJjp7fTEpHwwmlyxcqmaoYdVJFkBJWf31BmKebEYd1+t4HiR51VlLpXOAYkcui+nZ2Mr4sJlyVmCA==}
-    peerDependencies:
-      react: ^19.2.3
 
   '@logtape/logtape@2.0.2':
     resolution: {integrity: sha512-cveUBLbCMFkvkLycP/2vNWvywl47JcJbazHIju94/QNGboZ/jyYAgZIm0ZXezAOx3eIz8OG1EOZ5CuQP3+2FQg==}
@@ -7617,17 +7601,6 @@ snapshots:
       jsbi: 4.3.2
 
   '@jsdevtools/ono@7.1.3': {}
-
-  '@json-render/core@0.9.1(zod@4.3.6)':
-    dependencies:
-      zod: 4.3.6
-
-  '@json-render/react@0.9.1(react@19.2.4)(zod@4.3.6)':
-    dependencies:
-      '@json-render/core': 0.9.1(zod@4.3.6)
-      react: 19.2.4
-    transitivePeerDependencies:
-      - zod
 
   '@logtape/logtape@2.0.2': {}
 

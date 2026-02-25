@@ -24,9 +24,12 @@ import { cn } from "@/lib/utils";
 import { Icon } from "@/components/ui/icon";
 import { AssistantRuntime } from "./assistant-runtime";
 import { AssistantToolUIs } from "./assistant-tool-uis";
-import { ProposalProvider } from "./assistant-proposal-context";
+import {
+  ProposalProvider,
+  clearProposalResults,
+} from "./assistant-proposal-context";
 import { MarkdownText } from "./assistant-markdown";
-import { clearSessionHistory } from "@/hooks/use-assistant-session-history";
+import { clearSessionHistory } from "@/hooks/assistant-session-storage";
 import { authClient } from "@/lib/auth-client";
 
 const SUGGESTION_CHIPS = [
@@ -247,10 +250,12 @@ function NewChatButton() {
       )}
       title="New chat"
       onClick={() => {
-        clearSessionHistory({
+        const ids = {
           orgId: session?.session.activeOrganizationId ?? null,
           userId: session?.user.id ?? null,
-        });
+        };
+        clearSessionHistory(ids);
+        clearProposalResults(ids);
         aui.thread().reset();
       }}
     >

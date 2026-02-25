@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
 import { useOpenCommandCenter } from "@/hooks/use-command-center";
 import { authClient } from "@/lib/auth-client";
-import { hasSessionHistory } from "@/hooks/use-assistant-session-history";
+import { hasSessionHistory } from "@/hooks/assistant-session-storage";
 
 export function AssistantLauncher() {
   const openCommandCenter = useOpenCommandCenter();
