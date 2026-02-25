@@ -1,6 +1,11 @@
 {
   "version": 1,
   "skills": {
+    "assistant-ui": {
+      "source": "assistant-ui/skills",
+      "sourceType": "github",
+      "computedHash": "a3fad19a3876a40e065f1add36fc2d24a5aebb0ea7242c74e1ed854d050e4101"
+    },
     "react-flow": {
       "source": "existential-birds/beagle",
       "sourceType": "github",
@@ -25,6 +30,11 @@
       "source": "wshobson/agents",
       "sourceType": "github",
       "computedHash": "ab7ca5f3ff515b873a8446bdf88b9edc156741cf32c07accbbb3804f25543179"
+    },
+    "tools": {
+      "source": "assistant-ui/skills",
+      "sourceType": "github",
+      "computedHash": "55a64b569cf4eac3bc8877e216e401af6b40d296e5180eb71174ac80b68d670d"
     },
     "vercel-react-best-practices": {
       "source": "vercel-labs/agent-skills",

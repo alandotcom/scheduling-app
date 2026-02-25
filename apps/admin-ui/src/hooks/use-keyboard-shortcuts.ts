@@ -32,12 +32,15 @@ const registrations = new Set<ShortcutRegistration>();
 let isListenerAttached = false;
 
 function normalizeKey(event: KeyboardEvent) {
-  let key = event.key.toLowerCase();
-  if (event.metaKey) key = `meta+${key}`;
-  if (event.ctrlKey) key = `ctrl+${key}`;
-  if (event.altKey) key = `alt+${key}`;
-  if (event.shiftKey && key.length === 1) key = `shift+${key}`;
-  return key;
+  const key = event.key.toLowerCase();
+  const modifiers: string[] = [];
+  if (event.metaKey) modifiers.push("meta");
+  if (event.ctrlKey) modifiers.push("ctrl");
+  if (event.altKey) modifiers.push("alt");
+  if (event.shiftKey && /^[a-z]$/.test(key)) modifiers.push("shift");
+
+  if (modifiers.length === 0) return key;
+  return `${modifiers.join("+")}+${key}`;
 }
 
 function isTypingInInput(target: EventTarget | null) {

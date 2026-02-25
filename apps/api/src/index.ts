@@ -20,6 +20,7 @@ import { backfillAppIntegrationDefaultsForAllOrgs } from "./services/integration
 import { bootstrapSvixEventCatalogOnStartup } from "./services/svix-event-catalog.js";
 import { inngestServeHandler } from "./inngest/serve.js";
 import { integrationOAuthRouter } from "./routes/integration-oauth.js";
+import { assistantRouter } from "./routes/assistant.js";
 import { twilioStatusCallbackRouter } from "./routes/integrations/twilio-status-callback.js";
 import { createOpenApiHandler, OPENAPI_PREFIX } from "./lib/openapi.js";
 
@@ -70,6 +71,10 @@ app.on(["GET", "POST"], "/api/auth/*", (c) => {
 // Org-level OAuth integration routes (Slack, etc)
 app.route("/api/integrations/oauth", integrationOAuthRouter);
 app.route("/api/integrations/twilio", twilioStatusCallbackRouter);
+
+// Assistant chat routes
+app.use("/api/assistant/*", authMiddleware);
+app.route("/api/assistant", assistantRouter);
 
 // Inngest serve endpoint
 app.on(["GET", "POST", "PUT"], config.inngest.servePath, inngestServeHandler);

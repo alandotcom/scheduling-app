@@ -96,7 +96,6 @@ pnpm build:changed    # Build only changed packages since origin/main (+ depende
 pnpm build:all        # Force full uncached build across all packages
 pnpm typecheck        # Type-check via Turborepo graph (dependency-aware + cached)
 pnpm typecheck:changed # Type-check only changed packages since origin/main (+ dependents)
-pnpm typecheck:all    # Force full uncached type-check across all packages
 
 # Database (from packages/db)
 pnpm --filter @scheduling/db run generate   # Generate migration from schema changes

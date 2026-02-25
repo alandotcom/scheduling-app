@@ -52,6 +52,18 @@ import {
   linearJourneyGraphSchema,
   journeyTriggerConfigSchema,
   type LinearJourneyGraph,
+  // Assistant
+  assistantClientTableRowSchema,
+  assistantAppointmentTableRowSchema,
+  assistantBookProposalPayloadSchema,
+  assistantRescheduleProposalPayloadSchema,
+  assistantConfirmProposalPayloadSchema,
+  assistantCancelProposalPayloadSchema,
+  assistantNoShowProposalPayloadSchema,
+  assistantActionProposalSchema,
+  assistantActionResultSchema,
+  assistantErrorNoticeSchema,
+  assistantProposalTypeSchema,
 } from "./index";
 
 describe("Common schemas", () => {
@@ -2121,5 +2133,419 @@ describe("Journey graph trigger branching", () => {
         'Trigger step with two outgoing edges must include exactly one "scheduled" branch and one terminal branch ("canceled" or "no_show")',
       );
     }
+  });
+});
+
+describe("Assistant schemas", () => {
+  const validUuid = "550e8400-e29b-41d4-a716-446655440000";
+  const validUuid2 = "550e8400-e29b-41d4-a716-446655440001";
+
+  describe("assistantClientTableRowSchema", () => {
+    test("accepts valid client row", () => {
+      const result = assistantClientTableRowSchema.safeParse({
+        id: validUuid,
+        fullName: "Ada Lovelace",
+        email: "ada@example.com",
+        phone: "+1-555-0100",
+        appointmentCount: 5,
+        createdAt: "2026-01-01T00:00:00.000Z",
+      });
+      expect(result.success).toBe(true);
+    });
+
+    test("accepts null email and phone", () => {
+      const result = assistantClientTableRowSchema.safeParse({
+        id: validUuid,
+        fullName: "Ada Lovelace",
+        email: null,
+        phone: null,
+        appointmentCount: 0,
+        createdAt: "2026-01-01T00:00:00.000Z",
+      });
+      expect(result.success).toBe(true);
+    });
+
+    test("rejects negative appointmentCount", () => {
+      const result = assistantClientTableRowSchema.safeParse({
+        id: validUuid,
+        fullName: "Ada Lovelace",
+        email: null,
+        phone: null,
+        appointmentCount: -1,
+        createdAt: "2026-01-01T00:00:00.000Z",
+      });
+      expect(result.success).toBe(false);
+    });
+
+    test("rejects non-integer appointmentCount", () => {
+      const result = assistantClientTableRowSchema.safeParse({
+        id: validUuid,
+        fullName: "Ada Lovelace",
+        email: null,
+        phone: null,
+        appointmentCount: 2.5,
+        createdAt: "2026-01-01T00:00:00.000Z",
+      });
+      expect(result.success).toBe(false);
+    });
+
+    test("rejects invalid UUID for id", () => {
+      const result = assistantClientTableRowSchema.safeParse({
+        id: "not-a-uuid",
+        fullName: "Ada Lovelace",
+        email: null,
+        phone: null,
+        appointmentCount: 0,
+        createdAt: "2026-01-01T00:00:00.000Z",
+      });
+      expect(result.success).toBe(false);
+    });
+  });
+
+  describe("assistantAppointmentTableRowSchema", () => {
+    test("accepts valid appointment row", () => {
+      const result = assistantAppointmentTableRowSchema.safeParse({
+        id: validUuid,
+        clientId: validUuid2,
+        clientName: "Ada Lovelace",
+        calendarId: validUuid,
+        appointmentTypeId: validUuid2,
+        startAt: "2026-03-15T10:00:00.000Z",
+        endAt: "2026-03-15T10:30:00.000Z",
+        timezone: "America/New_York",
+        status: "scheduled",
+        calendarName: "Dr. Smith",
+        appointmentTypeName: "Follow-up",
+      });
+      expect(result.success).toBe(true);
+    });
+
+    test("accepts null calendarName, appointmentTypeName, calendarId, appointmentTypeId", () => {
+      const result = assistantAppointmentTableRowSchema.safeParse({
+        id: validUuid,
+        clientId: validUuid2,
+        clientName: "Ada Lovelace",
+        calendarId: null,
+        appointmentTypeId: null,
+        startAt: "2026-03-15T10:00:00.000Z",
+        endAt: "2026-03-15T10:30:00.000Z",
+        timezone: "America/New_York",
+        status: "confirmed",
+        calendarName: null,
+        appointmentTypeName: null,
+      });
+      expect(result.success).toBe(true);
+    });
+
+    test("accepts all valid status values", () => {
+      for (const status of ["scheduled", "confirmed", "cancelled", "no_show"]) {
+        const result = assistantAppointmentTableRowSchema.safeParse({
+          id: validUuid,
+          clientId: validUuid2,
+          clientName: "Ada Lovelace",
+          calendarId: null,
+          appointmentTypeId: null,
+          startAt: "2026-03-15T10:00:00.000Z",
+          endAt: "2026-03-15T10:30:00.000Z",
+          timezone: "America/New_York",
+          status,
+          calendarName: null,
+          appointmentTypeName: null,
+        });
+        expect(result.success).toBe(true);
+      }
+    });
+
+    test("rejects invalid status", () => {
+      const result = assistantAppointmentTableRowSchema.safeParse({
+        id: validUuid,
+        clientId: validUuid2,
+        clientName: "Ada Lovelace",
+        calendarId: null,
+        appointmentTypeId: null,
+        startAt: "2026-03-15T10:00:00.000Z",
+        endAt: "2026-03-15T10:30:00.000Z",
+        timezone: "America/New_York",
+        status: "completed",
+        calendarName: null,
+        appointmentTypeName: null,
+      });
+      expect(result.success).toBe(false);
+    });
+  });
+
+  describe("assistantProposalTypeSchema", () => {
+    test("accepts all proposal types", () => {
+      for (const type of [
+        "book",
+        "reschedule",
+        "confirm",
+        "cancel",
+        "no_show",
+      ]) {
+        expect(assistantProposalTypeSchema.safeParse(type).success).toBe(true);
+      }
+    });
+
+    test("rejects invalid proposal type", () => {
+      expect(assistantProposalTypeSchema.safeParse("complete").success).toBe(
+        false,
+      );
+    });
+  });
+
+  describe("assistantBookProposalPayloadSchema", () => {
+    test("accepts valid book payload", () => {
+      const result = assistantBookProposalPayloadSchema.safeParse({
+        calendarId: validUuid,
+        appointmentTypeId: validUuid2,
+        startTime: "2026-03-15T10:00:00.000Z",
+        timezone: "America/New_York",
+        clientId: validUuid,
+        notes: "First visit",
+      });
+      expect(result.success).toBe(true);
+    });
+
+    test("accepts null notes", () => {
+      const result = assistantBookProposalPayloadSchema.safeParse({
+        calendarId: validUuid,
+        appointmentTypeId: validUuid2,
+        startTime: "2026-03-15T10:00:00.000Z",
+        timezone: "America/New_York",
+        clientId: validUuid,
+        notes: null,
+      });
+      expect(result.success).toBe(true);
+    });
+
+    test("accepts omitted notes", () => {
+      const result = assistantBookProposalPayloadSchema.safeParse({
+        calendarId: validUuid,
+        appointmentTypeId: validUuid2,
+        startTime: "2026-03-15T10:00:00.000Z",
+        timezone: "America/New_York",
+        clientId: validUuid,
+      });
+      expect(result.success).toBe(true);
+    });
+
+    test("rejects missing required fields", () => {
+      const result = assistantBookProposalPayloadSchema.safeParse({
+        calendarId: validUuid,
+        // missing appointmentTypeId, startTime, timezone, clientId
+      });
+      expect(result.success).toBe(false);
+    });
+
+    test("rejects invalid UUID for calendarId", () => {
+      const result = assistantBookProposalPayloadSchema.safeParse({
+        calendarId: "bad",
+        appointmentTypeId: validUuid2,
+        startTime: "2026-03-15T10:00:00.000Z",
+        timezone: "America/New_York",
+        clientId: validUuid,
+      });
+      expect(result.success).toBe(false);
+    });
+  });
+
+  describe("assistantRescheduleProposalPayloadSchema", () => {
+    test("accepts valid reschedule payload", () => {
+      const result = assistantRescheduleProposalPayloadSchema.safeParse({
+        appointmentId: validUuid,
+        newStartTime: "2026-03-22T10:00:00.000Z",
+        timezone: "America/New_York",
+      });
+      expect(result.success).toBe(true);
+    });
+
+    test("rejects missing appointmentId", () => {
+      const result = assistantRescheduleProposalPayloadSchema.safeParse({
+        newStartTime: "2026-03-22T10:00:00.000Z",
+        timezone: "America/New_York",
+      });
+      expect(result.success).toBe(false);
+    });
+  });
+
+  describe("assistantConfirmProposalPayloadSchema", () => {
+    test("accepts valid confirm payload", () => {
+      const result = assistantConfirmProposalPayloadSchema.safeParse({
+        appointmentId: validUuid,
+      });
+      expect(result.success).toBe(true);
+    });
+
+    test("rejects missing appointmentId", () => {
+      const result = assistantConfirmProposalPayloadSchema.safeParse({});
+      expect(result.success).toBe(false);
+    });
+  });
+
+  describe("assistantCancelProposalPayloadSchema", () => {
+    test("accepts valid cancel payload with reason", () => {
+      const result = assistantCancelProposalPayloadSchema.safeParse({
+        appointmentId: validUuid,
+        reason: "Patient requested",
+      });
+      expect(result.success).toBe(true);
+    });
+
+    test("accepts cancel payload with null reason", () => {
+      const result = assistantCancelProposalPayloadSchema.safeParse({
+        appointmentId: validUuid,
+        reason: null,
+      });
+      expect(result.success).toBe(true);
+    });
+
+    test("accepts cancel payload without reason", () => {
+      const result = assistantCancelProposalPayloadSchema.safeParse({
+        appointmentId: validUuid,
+      });
+      expect(result.success).toBe(true);
+    });
+  });
+
+  describe("assistantNoShowProposalPayloadSchema", () => {
+    test("accepts valid no_show payload", () => {
+      const result = assistantNoShowProposalPayloadSchema.safeParse({
+        appointmentId: validUuid,
+      });
+      expect(result.success).toBe(true);
+    });
+  });
+
+  describe("assistantActionProposalSchema", () => {
+    test("accepts valid book action proposal", () => {
+      const result = assistantActionProposalSchema.safeParse({
+        proposalId: "abc-123",
+        actionType: "book",
+        summary: "Book appointment for Ada Lovelace",
+        payload: {
+          calendarId: validUuid,
+          appointmentTypeId: validUuid2,
+          startTime: "2026-03-15T10:00:00.000Z",
+          timezone: "America/New_York",
+          clientId: validUuid,
+          notes: null,
+        },
+      });
+      expect(result.success).toBe(true);
+    });
+
+    test("accepts valid confirm action proposal", () => {
+      const result = assistantActionProposalSchema.safeParse({
+        proposalId: "xyz-456",
+        actionType: "confirm",
+        summary: "Confirm appointment",
+        payload: { appointmentId: validUuid },
+      });
+      expect(result.success).toBe(true);
+    });
+
+    test("rejects empty proposalId", () => {
+      const result = assistantActionProposalSchema.safeParse({
+        proposalId: "",
+        actionType: "confirm",
+        summary: "Confirm",
+        payload: { appointmentId: validUuid },
+      });
+      expect(result.success).toBe(false);
+    });
+
+    test("rejects empty summary", () => {
+      const result = assistantActionProposalSchema.safeParse({
+        proposalId: "abc",
+        actionType: "confirm",
+        summary: "",
+        payload: { appointmentId: validUuid },
+      });
+      expect(result.success).toBe(false);
+    });
+
+    test("rejects invalid actionType", () => {
+      const result = assistantActionProposalSchema.safeParse({
+        proposalId: "abc",
+        actionType: "delete",
+        summary: "Delete appointment",
+        payload: { appointmentId: validUuid },
+      });
+      expect(result.success).toBe(false);
+    });
+
+    test("preserves cancel payload reason field", () => {
+      const result = assistantActionProposalSchema.safeParse({
+        proposalId: "cancel-1",
+        actionType: "cancel",
+        summary: "Cancel appointment",
+        payload: {
+          appointmentId: validUuid,
+          reason: "Patient requested cancellation",
+        },
+      });
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.payload).toHaveProperty(
+          "reason",
+          "Patient requested cancellation",
+        );
+      }
+    });
+  });
+
+  describe("assistantActionResultSchema", () => {
+    test("accepts successful result", () => {
+      const result = assistantActionResultSchema.safeParse({
+        proposalId: "abc-123",
+        actionType: "book",
+        success: true,
+        message: "Appointment booked successfully",
+        entityId: validUuid,
+      });
+      expect(result.success).toBe(true);
+    });
+
+    test("accepts failure result without entityId", () => {
+      const result = assistantActionResultSchema.safeParse({
+        proposalId: "abc-123",
+        actionType: "book",
+        success: false,
+        message: "Calendar not found",
+      });
+      expect(result.success).toBe(true);
+    });
+
+    test("rejects empty proposalId", () => {
+      const result = assistantActionResultSchema.safeParse({
+        proposalId: "",
+        actionType: "book",
+        success: true,
+        message: "OK",
+      });
+      expect(result.success).toBe(false);
+    });
+  });
+
+  describe("assistantErrorNoticeSchema", () => {
+    test("accepts valid error notice", () => {
+      const result = assistantErrorNoticeSchema.safeParse({
+        message: "Something went wrong",
+      });
+      expect(result.success).toBe(true);
+    });
+
+    test("rejects empty message", () => {
+      const result = assistantErrorNoticeSchema.safeParse({
+        message: "",
+      });
+      expect(result.success).toBe(false);
+    });
+
+    test("rejects missing message", () => {
+      const result = assistantErrorNoticeSchema.safeParse({});
+      expect(result.success).toBe(false);
+    });
   });
 });

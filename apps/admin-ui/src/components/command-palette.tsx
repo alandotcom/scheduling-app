@@ -1,10 +1,12 @@
-// Global command palette (Cmd+K / Ctrl+K)
+// Global command center (Cmd+K / Ctrl+K)
 
-import { useState, useCallback, useMemo, type ReactNode } from "react";
+import { useCallback, useMemo, type ReactNode } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
 import { Command } from "cmdk";
 import {
+  AiChatIcon,
+  ArrowLeft01Icon,
   Calendar03Icon,
   Clock01Icon,
   Add01Icon,
@@ -19,8 +21,16 @@ import { cn } from "@/lib/utils";
 import { formatShortcut } from "@/lib/shortcuts";
 import { Icon } from "@/components/ui/icon";
 import { ShortcutBadge } from "@/components/ui/shortcut-badge";
+import { Button } from "@/components/ui/button";
+import { AssistantPane } from "@/components/assistant/assistant-pane";
 import { useCreateCommand } from "@/hooks/use-create-command";
 import { useKeyboardShortcuts } from "@/hooks/use-keyboard-shortcuts";
+import {
+  useCommandCenterState,
+  useOpenCommandCenter,
+  useSetCommandCenterMode,
+  useSetCommandCenterOpen,
+} from "@/hooks/use-command-center";
 
 interface CommandAction {
   id: string;
@@ -33,7 +43,10 @@ interface CommandAction {
 }
 
 export function CommandPalette() {
-  const [open, setOpen] = useState(false);
+  const { open, mode } = useCommandCenterState();
+  const setOpen = useSetCommandCenterOpen();
+  const setMode = useSetCommandCenterMode();
+  const openCommandCenter = useOpenCommandCenter();
   const navigate = useNavigate();
   const { runCreateCommand: executeCreate, preloadRoute } = useCreateCommand();
 
@@ -41,18 +54,33 @@ export function CommandPalette() {
     shortcuts: [
       {
         key: ["meta+k", "ctrl+k"],
-        action: () => setOpen((isOpen) => !isOpen),
+        action: () => {
+          if (open) {
+            setOpen(false);
+            return;
+          }
+          openCommandCenter("commands");
+        },
         description: "Toggle command menu",
+        ignoreInputs: false,
+      },
+      {
+        key: ["meta+shift+k", "ctrl+shift+k"],
+        action: () => openCommandCenter("assistant"),
+        description: "Open assistant",
         ignoreInputs: false,
       },
     ],
     scope: "all",
   });
 
-  const runCommand = useCallback((command: () => void) => {
-    setOpen(false);
-    command();
-  }, []);
+  const runCommand = useCallback(
+    (command: () => void) => {
+      setOpen(false);
+      command();
+    },
+    [setOpen],
+  );
 
   const openApiDocs = useCallback(() => {
     if (typeof window === "undefined") return;
@@ -67,6 +95,17 @@ export function CommandPalette() {
   );
 
   const actions = useMemo<CommandAction[]>(() => {
+    const assistantActions: CommandAction[] = [
+      {
+        id: "open-assistant",
+        group: "Assistant",
+        label: "AI Assistant",
+        icon: AiChatIcon,
+        shortcut: "meta+shift+k",
+        onSelect: () => setMode("assistant"),
+      },
+    ];
+
     const createActions: CommandAction[] = [
       {
         id: "create-appointment",
@@ -268,12 +307,20 @@ export function CommandPalette() {
     ];
 
     return [
+      ...assistantActions,
       ...createActions,
       ...navActions,
       ...settingsActions,
       ...docsActions,
     ];
-  }, [navigate, openApiDocs, preloadRoute, runCommand, runCreateCommand]);
+  }, [
+    navigate,
+    openApiDocs,
+    preloadRoute,
+    runCommand,
+    runCreateCommand,
+    setMode,
+  ]);
 
   const groups = useMemo(() => {
     const map = new Map<string, CommandAction[]>();
@@ -308,51 +355,73 @@ export function CommandPalette() {
             "duration-200",
           )}
         >
-          <Command
-            label="Command Menu"
-            className="h-[min(80dvh,46rem)] overflow-hidden rounded-2xl border border-border/70 bg-background shadow-[0_20px_70px_-20px_rgba(0,0,0,0.45)]"
-          >
-            <div className="flex items-center border-b border-border/70 px-5 py-3">
-              <Icon
-                icon={Search01Icon}
-                className="mr-3 shrink-0 text-muted-foreground"
-              />
-              <Command.Input
-                placeholder="Type a command or search..."
-                className="h-11 w-full bg-transparent text-lg outline-none placeholder:text-muted-foreground/90 sm:text-[1.5rem]"
-              />
-              <ShortcutBadge
-                shortcut="escape"
-                className="ml-3 hidden sm:inline-flex"
-              />
-            </div>
-
-            <Command.List
-              className="h-[calc(min(80dvh,46rem)-4.75rem)] overflow-y-scroll px-3 pb-3 pt-2"
-              style={{ scrollbarGutter: "stable" }}
+          {mode === "commands" ? (
+            <Command
+              label="Command Menu"
+              className="flex h-[min(80dvh,46rem)] flex-col overflow-hidden rounded-2xl border border-border/70 bg-background shadow-[0_20px_70px_-20px_rgba(0,0,0,0.45)]"
             >
-              <Command.Empty className="py-8 text-center text-sm text-muted-foreground">
-                No results found.
-              </Command.Empty>
+              <div className="flex items-center border-b border-border/70 px-5 py-3">
+                <Icon
+                  icon={Search01Icon}
+                  className="mr-3 shrink-0 text-muted-foreground"
+                />
+                <Command.Input
+                  placeholder="Type a command or search..."
+                  className="h-11 w-full bg-transparent text-lg outline-none placeholder:text-muted-foreground/90 sm:text-[1.5rem]"
+                />
+                <ShortcutBadge
+                  shortcut="escape"
+                  className="ml-3 hidden sm:inline-flex"
+                />
+              </div>
 
-              {groups.map(([groupLabel, groupActions]) => (
-                <Command.Group key={groupLabel} className="px-1 py-1">
-                  <CommandGroupHeading>{groupLabel}</CommandGroupHeading>
-                  {groupActions.map((action) => (
-                    <CommandItem
-                      key={action.id}
-                      onSelect={action.onSelect}
-                      onHighlight={action.onHighlight}
-                      icon={action.icon}
-                      shortcut={action.shortcut}
-                    >
-                      {action.label}
-                    </CommandItem>
-                  ))}
-                </Command.Group>
-              ))}
-            </Command.List>
-          </Command>
+              <Command.List
+                className="flex-1 overflow-y-scroll px-3 pb-3 pt-2"
+                style={{ scrollbarGutter: "stable" }}
+              >
+                <Command.Empty className="py-8 text-center text-sm text-muted-foreground">
+                  No results found.
+                </Command.Empty>
+
+                {groups.map(([groupLabel, groupActions]) => (
+                  <Command.Group key={groupLabel} className="px-1 py-1">
+                    <CommandGroupHeading>{groupLabel}</CommandGroupHeading>
+                    {groupActions.map((action) => (
+                      <CommandItem
+                        key={action.id}
+                        onSelect={action.onSelect}
+                        onHighlight={action.onHighlight}
+                        icon={action.icon}
+                        shortcut={action.shortcut}
+                      >
+                        {action.label}
+                      </CommandItem>
+                    ))}
+                  </Command.Group>
+                ))}
+              </Command.List>
+            </Command>
+          ) : (
+            <div className="flex h-[min(80dvh,46rem)] flex-col overflow-hidden rounded-2xl border border-border/70 bg-background shadow-[0_20px_70px_-20px_rgba(0,0,0,0.45)]">
+              <div className="flex items-center gap-2 border-b border-border/70 px-4 py-2.5">
+                <Button
+                  type="button"
+                  size="xs"
+                  variant="ghost"
+                  onClick={() => setMode("commands")}
+                >
+                  <Icon icon={ArrowLeft01Icon} className="size-4" />
+                  Back
+                </Button>
+                <span className="text-sm font-medium">AI Assistant</span>
+                <ShortcutBadge
+                  shortcut="escape"
+                  className="ml-auto hidden sm:inline-flex"
+                />
+              </div>
+              <AssistantPane />
+            </div>
+          )}
         </DialogPrimitive.Popup>
       </DialogPrimitive.Portal>
     </DialogPrimitive.Root>

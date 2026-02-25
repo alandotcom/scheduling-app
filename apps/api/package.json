@@ -23,6 +23,7 @@
     "sync:svix-event-catalog": "bun --env-file=../../.env src/scripts/sync-svix-event-catalog.ts"
   },
   "dependencies": {
+    "@ai-sdk/gateway": "^3.0.55",
     "@logtape/logtape": "catalog:",
     "@marcbachmann/cel-js": "^7.5.1",
     "@orpc/openapi": "^1.13.5",
@@ -30,6 +31,7 @@
     "@orpc/zod": "^1.13.5",
     "@scheduling/db": "workspace:*",
     "@scheduling/dto": "workspace:*",
+    "ai": "^6.0.99",
     "better-auth": "^1.4.19",
     "drizzle-orm": "catalog:",
     "es-toolkit": "^1.44.0",

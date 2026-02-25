@@ -59,11 +59,13 @@ import {
 } from "@/components/ui/sidebar";
 import { Toaster } from "sonner";
 import { CommandPalette } from "@/components/command-palette";
+import { AssistantLauncher } from "@/components/assistant/assistant-launcher";
 import { CreateMenu } from "@/components/create-menu";
 import {
   useKeyboardShortcuts,
   useNavigationShortcuts,
 } from "@/hooks/use-keyboard-shortcuts";
+import { useOpenCommandCenter } from "@/hooks/use-command-center";
 import { getQueryClient, orpc } from "@/lib/query";
 import { isIgnorableRouteLoaderError } from "@/lib/query-cancellation";
 
@@ -273,6 +275,7 @@ function RootLayout() {
   const queryClient = useQueryClient();
   const location = useLocation();
   const navigate = useNavigate();
+  const openCommandCenter = useOpenCommandCenter();
   const user = session?.user;
   const isAuthenticated = !!session;
   const isInitialAuthCheck = isLoading && !session;
@@ -713,11 +716,7 @@ function RootLayout() {
           <div className="hidden items-center gap-2 md:flex">
             <button
               type="button"
-              onClick={() => {
-                document.dispatchEvent(
-                  new KeyboardEvent("keydown", { key: "k", metaKey: true }),
-                );
-              }}
+              onClick={() => openCommandCenter("commands")}
               className="flex items-center gap-2 rounded-lg border border-border bg-muted/50 px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-muted"
             >
               <Icon icon={Search01Icon} className="size-3.5" />
@@ -880,6 +879,7 @@ function RootLayout() {
 
       <Toaster richColors position="top-right" />
       <CommandPalette />
+      {activeOrganizationId ? <AssistantLauncher /> : null}
       <ShortcutsHelpDialog
         open={shortcutsHelpOpen}
         onOpenChange={setShortcutsHelpOpen}

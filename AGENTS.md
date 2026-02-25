@@ -60,7 +60,6 @@ pnpm build:changed    # Build only changed packages since origin/main (+ depende
 pnpm build:all        # Force full uncached build across all packages
 pnpm typecheck        # Type-check via Turborepo graph (dependency-aware + cached)
 pnpm typecheck:changed # Type-check only changed packages since origin/main (+ dependents)
-pnpm typecheck:all    # Force full uncached type-check across all packages
 pnpm knip             # Run full Knip analysis (cached)
 pnpm knip:deps        # Run strict dependency-focused Knip checks
 pnpm knip:deps:ci     # CI dependency gate (strict, zero issues)
@@ -95,7 +94,6 @@ Use these docs as canonical references for runtime behavior and implementation c
 - **IMPORTANT:** Never run typecheck in individual projects/packages. Only run typecheck from the repo top level.
 - Use `pnpm typecheck` for normal local development (fast reruns with task cache).
 - Use `pnpm typecheck:changed` for PR validation and focused local checks against `origin/main`.
-- Use `pnpm typecheck:all` when you need a clean full pass that bypasses cache.
 - If `origin/main` is missing locally, run `git fetch origin main` before `pnpm typecheck:changed`.
 - For every workspace package, keep the `typecheck` script on the fast pattern:
   `tsc -p tsconfig.typecheck.json --noEmit --incremental --tsBuildInfoFile node_modules/.cache.typecheck.tsbuildinfo --pretty false`

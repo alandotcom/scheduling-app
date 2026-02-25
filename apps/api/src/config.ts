@@ -70,6 +70,13 @@ export const config = envParse(Bun.env, {
       default: "http://localhost:5173,http://localhost:4173",
     },
   },
+  ai: {
+    assistantModel: {
+      format: z.string().min(1),
+      env: "ASSISTANT_MODEL",
+      default: "anthropic/claude-sonnet-4.6",
+    },
+  },
   webhooks: {
     enabled: {
       format: z.string().transform((v) => v === "true"),

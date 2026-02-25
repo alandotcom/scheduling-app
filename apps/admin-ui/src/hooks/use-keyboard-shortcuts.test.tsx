@@ -341,6 +341,20 @@ describe("useKeyboardShortcuts", () => {
     expect(onShortcut).toHaveBeenCalledTimes(1);
   });
 
+  test("normalizes Cmd/Ctrl + Shift combos for letter shortcuts", () => {
+    const onShortcut = mock(() => {});
+    renderHarness(
+      <DynamicShortcutHarness
+        shortcutKey="meta+shift+k"
+        onAction={onShortcut}
+      />,
+    );
+
+    dispatchKeyWithInit("K", { metaKey: true, shiftKey: true });
+
+    expect(onShortcut).toHaveBeenCalledTimes(1);
+  });
+
   test("closes detail immediately on escape when detail panel is open", () => {
     const onEscape = mock(() => {});
     const view = renderHarness(

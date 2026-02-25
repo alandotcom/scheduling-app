@@ -16,6 +16,8 @@
     "typecheck": "tsgo -p tsconfig.typecheck.json --noEmit --incremental --tsBuildInfoFile node_modules/.cache.typecheck.tsbuildinfo --pretty false"
   },
   "dependencies": {
+    "@json-render/core": "^0.9.1",
+    "@json-render/react": "^0.9.1",
     "zod": "catalog:"
   },
   "devDependencies": {

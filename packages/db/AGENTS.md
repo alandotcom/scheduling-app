@@ -269,7 +269,7 @@ When adding columns to `clientCustomAttributeValues` (e.g., expanding capacity f
 
 6. **Run verification:**
    ```bash
-   pnpm typecheck:all   # Compile-time slot shape assertion catches mismatches
+   pnpm typecheck   # Compile-time slot shape assertion catches mismatches
    pnpm lint            # No unsafe type assertions allowed
    pnpm --filter @scheduling/api run test
    ```

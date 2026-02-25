@@ -34,6 +34,8 @@ import "./index.css";
 import "@fullcalendar/react/skeleton.css";
 // oxlint-disable-next-line import/no-unassigned-import
 import "@fullcalendar/react/themes/classic/theme.css";
+// oxlint-disable-next-line import/no-unassigned-import
+import "@assistant-ui/react-markdown/styles/dot.css";
 
 // Create a new router instance
 const router = createRouter({

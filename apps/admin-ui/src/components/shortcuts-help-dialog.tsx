@@ -27,6 +27,7 @@ const SHORTCUT_SECTIONS: ShortcutSection[] = [
     title: "General",
     rows: [
       { shortcut: "meta+k", description: "Open command menu" },
+      { shortcut: "meta+shift+k", description: "Open assistant chat" },
       { shortcut: "meta+enter", description: "Save or submit" },
       { shortcut: "escape", description: "Back" },
       { shortcut: "meta+/", description: "View keyboard shortcuts" },
