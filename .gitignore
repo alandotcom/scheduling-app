@@ -46,3 +46,6 @@ tmp/
 
 .pnpm-store/
 .inngest/
+
+# Evalite storage + cache
+apps/api/.evalite/

@@ -1,0 +1,28 @@
+diff --git a/dist/ai-sdk.js b/dist/ai-sdk.js
+index 2cf16caa94a778e431b082e633bfae261c56b306..f1d11305130916b7f1e5de64219daa7609ab3459 100644
+--- a/dist/ai-sdk.js
++++ b/dist/ai-sdk.js
+@@ -30,7 +30,12 @@ const handlePromptContent = (content) => {
+             output: content.output,
+         };
+     }
+-    // Unsupported content types (file, reasoning, tool-approval-response, etc.)
++    // Skip reasoning content (from AI SDK thinking/extended reasoning)
++    // See: https://github.com/mattpocock/evalite/issues/361
++    if (content.type === "reasoning") {
++        return null;
++    }
++    // Unsupported content types (file, tool-approval-response, etc.)
+     throw new Error(`Unsupported content type: ${content.type}. Not supported yet.`);
+ };
+ const processPromptForTracing = (prompt) => {
+@@ -41,7 +46,8 @@ const processPromptForTracing = (prompt) => {
+                 content: prompt.content,
+             };
+         }
+-        const content = prompt.content.map(handlePromptContent);
++        // Filter out null values (e.g., reasoning content that we skip)
++        const content = prompt.content.map(handlePromptContent).filter(Boolean);
+         return {
+             role: prompt.role,
+             content,

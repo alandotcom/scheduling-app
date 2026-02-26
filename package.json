@@ -17,6 +17,8 @@
     "sdk:typescript:generate": "pnpm run sdk:typescript:openapi && pnpm --filter @scheduling/client run generate",
     "bootstrap:dev": "set -a; [ -f ./.env ] && . ./.env; set +a; DATABASE_URL=${DB_PUSH_DATABASE_URL:-postgres://scheduling:scheduling@localhost:5433/scheduling} pnpm --filter @scheduling/db run push && pnpm db:seed",
     "db:reseed": "pnpm db:reset && pnpm db:migrate && pnpm db:seed",
+    "eval": "pnpm --filter @scheduling/api run eval",
+    "eval:watch": "pnpm --filter @scheduling/api run eval:watch",
     "build": "turbo run build",
     "build:frontend": "turbo run build --filter=@scheduling/admin-ui --output-logs=errors-only",
     "build:all": "turbo run build --force",

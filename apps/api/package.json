@@ -20,7 +20,9 @@
     "typecheck": "tsgo -p tsconfig.typecheck.json --noEmit --incremental --tsBuildInfoFile node_modules/.cache.typecheck.tsbuildinfo --pretty false",
     "seed": "bun --env-file=../../.env src/scripts/seed.ts",
     "export:openapi:sdk": "bun --env-file=../../.env src/scripts/export-openapi-sdk.ts",
-    "sync:svix-event-catalog": "bun --env-file=../../.env src/scripts/sync-svix-event-catalog.ts"
+    "sync:svix-event-catalog": "bun --env-file=../../.env src/scripts/sync-svix-event-catalog.ts",
+    "eval": "set -a; [ -f ../../.env ] && . ../../.env; set +a; evalite",
+    "eval:watch": "set -a; [ -f ../../.env ] && . ../../.env; set +a; evalite watch"
   },
   "dependencies": {
     "@ai-sdk/gateway": "^3.0.55",
@@ -54,6 +56,11 @@
     "@inngest/test": "^0.1.9",
     "@types/bun": "catalog:",
     "@types/luxon": "^3.7.1",
-    "typescript": "catalog:"
+    "autoevals": "^0.0.132",
+    "better-sqlite3": "^11.10.0",
+    "evalite": "1.0.0-beta.16",
+    "typescript": "catalog:",
+    "vite-tsconfig-paths": "^6.1.1",
+    "vitest": "^4.0.18"
   }
 }
