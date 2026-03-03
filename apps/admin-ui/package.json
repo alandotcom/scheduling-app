@@ -32,7 +32,7 @@
     "@hugeicons/core-free-icons": "^3.1.1",
     "@hugeicons/react": "^1.1.5",
     "@logtape/logtape": "catalog:",
-    "@orpc/client": "^1.13.5",
+    "@orpc/client": "^1.13.6",
     "@orpc/tanstack-query": "^1.13.5",
     "@scheduling/api": "workspace:*",
     "@scheduling/dto": "workspace:*",
