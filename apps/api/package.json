@@ -33,7 +33,7 @@
     "better-auth": "^1.4.19",
     "drizzle-orm": "catalog:",
     "es-toolkit": "^1.44.0",
-    "hono": "^4.12.2",
+    "hono": "^4.12.12",
     "inngest": "^3.52.3",
     "libphonenumber-js": "^1.12.37",
     "lru-cache": "^11.2.6",
