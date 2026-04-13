@@ -7,8 +7,8 @@ confirmModulesPurge: false
 storeDir: .pnpm-store
 
 catalog:
-  '@logtape/logtape': ^2.0.2
-  '@types/bun': ^1.3.9
+  '@logtape/logtape': ^2.0.5
+  '@types/bun': ^1.3.12
   drizzle-orm: 1.0.0-beta.15-859cf75
   typescript: ^5.9.3
   zod: ^4.3.6
