@@ -23,7 +23,7 @@
     "seed": "bun run src/seed.ts"
   },
   "dependencies": {
-    "@electric-sql/pglite": "^0.3.15",
+    "@electric-sql/pglite": "^0.4.4",
     "drizzle-orm": "catalog:"
   },
   "devDependencies": {
