@@ -34,7 +34,7 @@
     "drizzle-orm": "catalog:",
     "es-toolkit": "^1.44.0",
     "hono": "^4.12.2",
-    "inngest": "^3.52.3",
+    "inngest": "^3.54.0",
     "libphonenumber-js": "^1.12.37",
     "lru-cache": "^11.2.6",
     "luxon": "^3.7.2",
