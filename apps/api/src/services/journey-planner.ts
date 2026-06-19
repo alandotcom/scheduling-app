@@ -1,9 +1,13 @@
 import { forEachAsync } from "es-toolkit/array";
 import { getLogger } from "@logtape/logtape";
 import {
+  getConditionBranchFromEdge,
+  getTriggerBranchFromEdge,
   linearJourneyGraphSchema,
-  type LinearJourneyGraph,
+  type ConditionBranch,
   type JourneyTriggerConfig,
+  type LinearJourneyGraph,
+  type TriggerBranch,
 } from "@scheduling/dto";
 import {
   clients,
@@ -173,8 +177,6 @@ type DesiredRunEvent = {
 
 type ActionNode = LinearJourneyGraph["nodes"][number];
 type JourneyEdge = LinearJourneyGraph["edges"][number];
-type ConditionBranch = "true" | "false";
-type TriggerBranch = "scheduled" | "canceled" | "no_show";
 const knownActionTypes = new Set([
   "wait",
   "wait-for-confirmation",
@@ -404,34 +406,6 @@ function getTriggerNode(graph: LinearJourneyGraph): ActionNode | null {
   );
 }
 
-function normalizeConditionBranch(value: unknown): ConditionBranch | null {
-  if (typeof value !== "string") {
-    return null;
-  }
-
-  let normalized = value.trim().toLowerCase();
-  if (normalized.startsWith("branch-")) {
-    normalized = normalized.slice("branch-".length);
-  }
-
-  if (normalized === "true" || normalized === "false") {
-    return normalized;
-  }
-
-  return null;
-}
-
-function getConditionBranchFromEdge(edge: JourneyEdge): ConditionBranch | null {
-  const attributes = toRecord(edge.attributes);
-  const data = toRecord(attributes["data"]);
-
-  return (
-    normalizeConditionBranch(data["conditionBranch"]) ??
-    normalizeConditionBranch(attributes["label"]) ??
-    normalizeConditionBranch(attributes["sourceHandle"])
-  );
-}
-
 function resolveDefaultNextNodeIds(input: {
   sourceNodeId: string;
   outgoingEdgesBySource: Map<string, JourneyEdge[]>;
@@ -452,41 +426,6 @@ function resolveConditionNextNodeId(input: {
     (edge) => getConditionBranchFromEdge(edge) === input.branch,
   );
   return matchingEdge?.target ?? null;
-}
-
-function normalizeTriggerBranch(value: unknown): TriggerBranch | null {
-  if (typeof value !== "string") {
-    return null;
-  }
-
-  const normalized = value
-    .trim()
-    .toLowerCase()
-    .replaceAll(/[\s-]+/g, "_");
-  if (
-    normalized === "scheduled" ||
-    normalized === "canceled" ||
-    normalized === "no_show"
-  ) {
-    return normalized;
-  }
-
-  if (normalized === "noshow") {
-    return "no_show";
-  }
-
-  return null;
-}
-
-function getTriggerBranchFromEdge(edge: JourneyEdge): TriggerBranch | null {
-  const attributes = toRecord(edge.attributes);
-  const data = toRecord(attributes["data"]);
-
-  return (
-    normalizeTriggerBranch(data["triggerBranch"]) ??
-    normalizeTriggerBranch(attributes["label"]) ??
-    normalizeTriggerBranch(attributes["sourceHandle"])
-  );
 }
 
 function resolveTriggerNextNodeIds(input: {

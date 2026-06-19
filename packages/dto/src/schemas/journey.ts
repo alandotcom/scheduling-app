@@ -15,6 +15,12 @@ import {
   journeyTriggerConfigSchema,
   serializedJourneyGraphSchema,
 } from "./workflow-graph";
+import {
+  getConditionBranchFromEdge,
+  getTriggerBranchFromEdge,
+  type ConditionBranch,
+  type TriggerBranch,
+} from "./workflow-graph-branches";
 
 export const journeyStatusSchema = z.enum(["draft", "published", "paused"]);
 
@@ -68,8 +74,6 @@ type JourneyGraphNode = z.infer<
 type JourneyGraphEdge = z.infer<
   typeof serializedJourneyGraphSchema
 >["edges"][number];
-type ConditionBranch = "true" | "false";
-type TriggerBranch = "scheduled" | "canceled" | "no_show";
 
 function normalizeJourneyActionType(value: unknown): string | null {
   if (typeof value !== "string") {
@@ -99,105 +103,6 @@ function getConditionExpression(value: unknown): string | null {
   }
 
   return expression;
-}
-
-function normalizeConditionBranch(value: unknown): ConditionBranch | null {
-  if (typeof value !== "string") {
-    return null;
-  }
-
-  let normalized = value.trim().toLowerCase();
-  if (normalized.startsWith("branch-")) {
-    normalized = normalized.slice("branch-".length);
-  }
-
-  if (normalized === "true" || normalized === "false") {
-    return normalized;
-  }
-
-  return null;
-}
-
-function normalizeTriggerBranch(value: unknown): TriggerBranch | null {
-  if (typeof value !== "string") {
-    return null;
-  }
-
-  const normalized = value
-    .trim()
-    .toLowerCase()
-    .replaceAll(/[\s-]+/g, "_");
-  if (
-    normalized === "scheduled" ||
-    normalized === "canceled" ||
-    normalized === "no_show"
-  ) {
-    return normalized;
-  }
-
-  if (normalized === "noshow") {
-    return "no_show";
-  }
-
-  return null;
-}
-
-function getConditionBranchFromEdge(
-  edge: JourneyGraphEdge,
-): ConditionBranch | null {
-  const attributes: Record<string, unknown> = isRecord(edge.attributes)
-    ? edge.attributes
-    : {};
-  const data: Record<string, unknown> = isRecord(attributes["data"])
-    ? attributes["data"]
-    : {};
-
-  const dataBranch = normalizeConditionBranch(data["conditionBranch"]);
-  if (dataBranch) {
-    return dataBranch;
-  }
-
-  const labelBranch = normalizeConditionBranch(attributes["label"]);
-  if (labelBranch) {
-    return labelBranch;
-  }
-
-  const sourceHandleBranch = normalizeConditionBranch(
-    attributes["sourceHandle"],
-  );
-  if (sourceHandleBranch) {
-    return sourceHandleBranch;
-  }
-
-  return null;
-}
-
-function getTriggerBranchFromEdge(
-  edge: JourneyGraphEdge,
-): TriggerBranch | null {
-  const attributes: Record<string, unknown> = isRecord(edge.attributes)
-    ? edge.attributes
-    : {};
-  const data: Record<string, unknown> = isRecord(attributes["data"])
-    ? attributes["data"]
-    : {};
-
-  const dataBranch = normalizeTriggerBranch(data["triggerBranch"]);
-  if (dataBranch) {
-    return dataBranch;
-  }
-
-  const labelBranch = normalizeTriggerBranch(attributes["label"]);
-  if (labelBranch) {
-    return labelBranch;
-  }
-
-  const sourceHandleBranch = normalizeTriggerBranch(attributes["sourceHandle"]);
-  if (sourceHandleBranch) {
-    return sourceHandleBranch;
-  }
-
-  return null;
 }
 
 export const linearJourneyGraphSchema =
