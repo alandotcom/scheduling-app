@@ -826,6 +826,17 @@ export const journeyRuns = pgTable.withRLS(
         table.mode,
       )
       .where(sql`${table.status} in ('planned', 'running')`),
+    // Seek the active run(s) for one entity — the cancel/restart projection
+    // filters by (entity_type, entity_id, mode) across versions on every
+    // appointment cancel/reschedule/no-show.
+    index("journey_runs_org_entity_mode_active_idx")
+      .on(
+        table.orgId,
+        table.triggerEntityType,
+        table.triggerEntityId,
+        table.mode,
+      )
+      .where(sql`${table.status} in ('planned', 'running')`),
     index("journey_runs_org_status_idx").on(table.orgId, table.status),
     index("journey_runs_org_mode_started_at_idx").on(
       table.orgId,

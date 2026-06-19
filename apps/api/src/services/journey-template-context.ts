@@ -120,30 +120,6 @@ export async function loadDeliveryTemplateContext(input: {
   };
 }
 
-/**
- * Loads fresh appointment + client data in the flat shape expected by
- * `buildDesiredDeliveries` (matching the appointmentContext / clientContext
- * shapes from `processJourneyDomainEvent`). Also fetches org timezone.
- *
- * Used by `executeWaitResume` to re-plan with up-to-date data after a wait.
- */
-export async function loadFreshContextForPlanner(input: {
-  orgId: string;
-  appointmentId: string;
-}): Promise<{
-  appointmentContext: Record<string, unknown>;
-  clientContext: Record<string, unknown>;
-  orgTimezone: string;
-} | null> {
-  return withOrg(input.orgId, async (tx) =>
-    loadFreshContextForPlannerTx({
-      tx,
-      orgId: input.orgId,
-      appointmentId: input.appointmentId,
-    }),
-  );
-}
-
 async function loadFreshContextForPlannerTx(input: {
   tx: DbClient;
   orgId: string;

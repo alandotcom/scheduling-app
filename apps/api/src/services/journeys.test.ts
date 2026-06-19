@@ -726,7 +726,7 @@ describe("JourneyService", () => {
       {
         orgId: context.orgId,
         journeyRunId: failedRun!.id,
-        eventType: "run_planned",
+        eventType: "run_created",
         message: "Run planned",
         metadata: {
           eventType: "appointment.rescheduled",
@@ -735,7 +735,7 @@ describe("JourneyService", () => {
       {
         orgId: context.orgId,
         journeyRunId: activeRun!.id,
-        eventType: "run_planned",
+        eventType: "run_created",
         message: "Run planned",
         metadata: {
           eventType: "appointment.scheduled",

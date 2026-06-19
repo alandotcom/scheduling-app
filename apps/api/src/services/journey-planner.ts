@@ -68,7 +68,6 @@ type JourneyPlannerResult = {
   eventType: JourneyPlannerDomainEventType;
   orgId: string;
   plannedRunIds: string[];
-  canceledRunIds: string[];
   ignoredJourneyIds: string[];
   erroredJourneyIds: string[];
 };
@@ -251,6 +250,7 @@ async function insertFreshInngestRun(input: {
       journeyId: input.journey.id,
       journeyVersion: input.journeyVersion.version,
       mode: input.mode,
+      eventType: input.triggerEventType,
     },
   });
 
@@ -443,7 +443,6 @@ export async function processJourneyDomainEvent(
         eventType: event.type,
         orgId: event.orgId,
         plannedRunIds: [],
-        canceledRunIds: [],
         ignoredJourneyIds: [],
         erroredJourneyIds: [],
       };
@@ -504,7 +503,6 @@ export async function processJourneyDomainEvent(
       }
 
       const plannedRunIds: string[] = [];
-      const canceledRunIds: string[] = [];
       const ignoredJourneyIds: string[] = [];
       const erroredJourneyIds: string[] = [];
       const runStartPayloads: JourneyRunStartEventData[] = [];
@@ -580,7 +578,6 @@ export async function processJourneyDomainEvent(
           eventType: event.type,
           orgId: event.orgId,
           plannedRunIds,
-          canceledRunIds,
           ignoredJourneyIds,
           erroredJourneyIds,
         },

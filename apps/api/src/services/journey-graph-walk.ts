@@ -19,13 +19,13 @@ import {
 } from "./template-resolution.js";
 import { resolveWaitUntil } from "./workflow-wait-time.js";
 
-// Pure graph-walk helpers shared by the legacy planner (`journey-planner.ts`)
-// and the Inngest-native run executor (`journey-run-executor.ts`). Everything
-// here is a pure function of the (pinned) graph plus the trigger context — no DB
-// access, no transactions, no side effects — so the same logic decides how a run
-// advances regardless of which engine drives it.
+// Pure graph-walk helpers shared by the journey dispatcher (`journey-planner.ts`)
+// and the run executor (`journey-run-executor.ts`). Everything here is a pure
+// function of the (pinned) graph plus the trigger context — no DB access, no
+// transactions, no side effects — so the same logic decides how a run advances
+// regardless of which half of the engine calls it.
 
-type ActionNode = LinearJourneyGraph["nodes"][number];
+export type ActionNode = LinearJourneyGraph["nodes"][number];
 export type JourneyEdge = LinearJourneyGraph["edges"][number];
 
 const graphWalkLogger = getLogger(["journeys", "graph-walk"]);

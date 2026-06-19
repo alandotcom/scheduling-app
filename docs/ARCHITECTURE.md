@@ -111,73 +111,74 @@ Source: `apps/api/src/inngest/functions/journey-domain-triggers.ts`
 
 ### End-to-End Flow
 
+The engine is split into a dispatcher and a per-run Inngest function. See
+`docs/guides/journey-execution-lifecycle.md` for the full runtime contract.
+
 ```text
 Domain mutation
   → Domain event emitted to Inngest
   → journey-domain-trigger-{event-type}
-  → processJourneyDomainEvent()
+  → processJourneyDomainEvent()  (dispatcher)
     → For each matching published journey:
-      1. Parse trigger config and latest journey graph snapshot
+      1. Parse trigger config + latest pinned graph snapshot
       2. Resolve routing (plan/cancel/ignore)
-      3. Evaluate optional trigger filter
-      4. Find or create journey_run (trigger entity identity)
-      5. Walk graph to build desired deliveries
-      6. Reconcile desired vs existing deliveries
-      7. Emit schedule/cancel runtime events
-  → provider execute function(s)
-    → sleep until scheduled time
-    → cancellation re-check
-    → dispatch and finalize
+      3. start/restart → create a planned journey_run + emit journey.run.start
+         stop/no_show  → cancel active run(s) (+ start terminal branch if any)
+  → journey-run function (one per run)
+    → walk the pinned graph, one durable primitive per node:
+        step.run (exactly-once sends) · step.sleepUntil (waits)
+        step.waitForEvent (confirmation) · cancelOn (cancellation)
+    → project step logs / run events / delivery rows for the overlay
 ```
 
-### Wait-Boundary Planning
+### Per-node primitives and waits
 
-When a wait node resolves to future time, planner emits an internal `wait-resume` delivery and stops traversal past that node. When it fires, planner resumes from that boundary with fresh context.
-
-Wait-for-confirmation nodes emit internal `wait-for-confirmation-timeout` deliveries and execute timeout logic when due.
+A `wait` node maps to `step.sleepUntil`; `wait-for-confirmation` maps to
+`step.waitForEvent("appointment.confirmed", { timeout })`. There are no internal
+wait-resume / wait-for-confirmation-timeout deliveries — Inngest's durable sleep
+and wait-for-event replace them. A trigger/condition branch may fan out to
+multiple nodes that all run (parallel via `Promise.all`).
 
 ### Delivery Providers
 
-Providers are registered in `apps/api/src/services/delivery-provider-registry.ts`.
+Providers are registered in `apps/api/src/services/delivery-provider-registry.ts`
+and dispatched by the run function's send step via `dispatchForActionType`.
 
-| Provider | Action Types | Channel | Event |
-| --- | --- | --- | --- |
-| resend | `send-resend`, `send-resend-template` | email | `journey.action.send-resend.execute` |
-| slack | `send-slack` | slack | `journey.action.send-slack.execute` |
-| twilio | `send-twilio` | sms | `journey.action.send-twilio.execute` |
-| logger | `logger` | logger | `journey.delivery.scheduled` |
-| wait-resume | `wait-resume` | internal | `journey.wait-resume.execute` |
-| wait-for-confirmation-timeout | `wait-for-confirmation-timeout` | internal | `journey.wait-for-confirmation-timeout.execute` |
+| Provider | Action Types | Channel |
+| --- | --- | --- |
+| resend | `send-resend`, `send-resend-template` | email |
+| slack | `send-slack` | slack |
+| twilio | `send-twilio` | sms |
+| logger | `logger` | logger |
+
+Twilio is async: the send is accepted, the row stays `planned`, and the status
+callback finalizes it (`integrations/twilio/callbacks.ts`).
 
 ### Run Status Lifecycle
 
-`journey_runs.status` values:
-
-- `planned`
-- `running`
-- `completed`
-- `canceled`
-- `failed`
-
-Status is derived from delivery status composition in `apps/api/src/services/journey-run-status.ts`.
+`journey_runs.status` values: `planned`, `running`, `completed`, `canceled`,
+`failed`. The run function owns status directly (`planned → running →
+completed/failed`); the dispatcher's cancellation projection sets `canceled`;
+the function's `onFailure` records `failed` after retries are exhausted. Status
+is never inferred from delivery rows.
 
 ### Key Files
 
 | File | Purpose |
 | --- | --- |
-| `apps/api/src/services/journey-planner.ts` | Trigger resolution, planning, reconciliation |
+| `apps/api/src/services/journey-planner.ts` | Dispatcher: trigger routing, run identity, emits journey.run.start |
+| `apps/api/src/services/journey-run-executor.ts` | The run walk over the pinned graph (durable primitives + projection) |
+| `apps/api/src/services/journey-graph-walk.ts` | Pure graph-walk helpers shared by both halves |
 | `apps/api/src/services/journey-trigger-engines.ts` | Appointment/client trigger routing and identity resolution |
-| `apps/api/src/services/journey-delivery-worker.ts` | Sleep, cancellation checks, dispatch, finalize |
-| `apps/api/src/services/delivery-provider-registry.ts` | Provider registration and action-type routing |
-| `apps/api/src/services/journey-template-context.ts` | Context hydration for planning/template rendering |
+| `apps/api/src/services/delivery-provider-registry.ts` | Provider registration and action-type dispatch |
+| `apps/api/src/services/journey-template-context.ts` | Context hydration for branch evaluation/template rendering |
 | `apps/api/src/services/journey-condition-evaluator.ts` | Condition expression evaluation |
 | `apps/api/src/services/journey-trigger-filters.ts` | Trigger-level filter evaluation |
 | `apps/api/src/services/journey-run-artifacts.ts` | Run-event append and step-log upsert |
-| `apps/api/src/services/journey-run-status.ts` | Run status refresh derivation |
-| `apps/api/src/inngest/functions/journey-domain-triggers.ts` | Domain-event trigger functions |
-| `apps/api/src/inngest/functions/journey-action-send-provider-execute.ts` | Provider execution function factory |
+| `apps/api/src/inngest/functions/journey-domain-triggers.ts` | Domain-event trigger functions (dispatcher entry) |
+| `apps/api/src/inngest/functions/journey-run.ts` | The journey-run Inngest function (durable runtime wiring) |
 | `apps/api/src/inngest/runtime-events.ts` | Runtime Inngest event senders |
-| `apps/api/src/inngest/client.ts` | Typed Inngest client and event schema map |
+| `apps/api/src/inngest/client.ts` | Typed Inngest client and internal event definitions |
 
 ## Webhook Delivery (Svix)
 

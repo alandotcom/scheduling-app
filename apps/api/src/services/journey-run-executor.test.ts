@@ -18,6 +18,7 @@ import {
   type TestDatabase,
 } from "../test-utils/index.js";
 import { createOrg, createQuickAppointment } from "../test-utils/factories.js";
+import { JourneyDeliveryNonRetryableError } from "./delivery-dispatch-helpers.js";
 import {
   executeJourneyRun,
   type JourneyRunStartInput,
@@ -156,6 +157,104 @@ function edge(id: string, source: string, target: string) {
     source,
     target,
     attributes: { id, source, target },
+  };
+}
+
+function triggerNode(): LinearJourneyGraph["nodes"][number] {
+  return {
+    key: "trigger-node",
+    attributes: {
+      id: "trigger-node",
+      type: "trigger-node",
+      position: { x: 0, y: 0 },
+      data: {
+        type: "trigger",
+        label: "Trigger",
+        config: {
+          triggerType: "AppointmentJourney",
+          start: "appointment.scheduled",
+          restart: "appointment.rescheduled",
+          stop: "appointment.canceled",
+          correlationKey: "appointmentId",
+        },
+      },
+    },
+  };
+}
+
+function sendNode(id: string): LinearJourneyGraph["nodes"][number] {
+  return {
+    key: id,
+    attributes: {
+      id,
+      type: "action-node",
+      position: { x: 0, y: 120 },
+      data: {
+        type: "action",
+        label: "Send",
+        config: { actionType: "send-resend" },
+      },
+    },
+  };
+}
+
+function createSingleSendGraph(): LinearJourneyGraph {
+  return {
+    attributes: {},
+    options: { type: "directed" },
+    nodes: [triggerNode(), sendNode("send-node")],
+    edges: [edge("e1", "trigger-node", "send-node")],
+  };
+}
+
+// trigger -> condition, with the true branch fanning out to two sends.
+function createConditionFanOutGraph(): LinearJourneyGraph {
+  return {
+    attributes: {},
+    options: { type: "directed" },
+    nodes: [
+      triggerNode(),
+      {
+        key: "condition-node",
+        attributes: {
+          id: "condition-node",
+          type: "action-node",
+          position: { x: 0, y: 120 },
+          data: {
+            type: "action",
+            label: "Condition",
+            config: { actionType: "condition", expression: "true" },
+          },
+        },
+      },
+      sendNode("send-x"),
+      sendNode("send-y"),
+    ],
+    edges: [
+      edge("e1", "trigger-node", "condition-node"),
+      {
+        key: "e2",
+        source: "condition-node",
+        target: "send-x",
+        attributes: {
+          id: "e2",
+          source: "condition-node",
+          target: "send-x",
+          data: { conditionBranch: "true" },
+        },
+      },
+      {
+        key: "e3",
+        source: "condition-node",
+        target: "send-y",
+        attributes: {
+          id: "e3",
+          source: "condition-node",
+          target: "send-y",
+          data: { conditionBranch: "true" },
+        },
+      },
+    ],
   };
 }
 
@@ -392,6 +491,52 @@ async function countDeliveries(orgId: string, runId: string): Promise<number> {
   return rows.length;
 }
 
+async function countDeliveriesByStatus(
+  orgId: string,
+  runId: string,
+  status: "planned" | "sent" | "failed" | "canceled" | "skipped",
+): Promise<number> {
+  await setTestOrgContext(db, orgId);
+  const rows = await db
+    .select({ id: journeyDeliveries.id })
+    .from(journeyDeliveries)
+    .where(
+      and(
+        eq(journeyDeliveries.journeyRunId, runId),
+        eq(journeyDeliveries.status, status),
+      ),
+    );
+  return rows.length;
+}
+
+async function seedRunWithRawSnapshot(
+  orgId: string,
+  definitionSnapshot: unknown,
+): Promise<{ runId: string; appointmentId: string }> {
+  const appointmentId = await createQuickAppointment(db, orgId);
+  await setTestOrgContext(db, orgId);
+  const [run] = await db
+    .insert(journeyRuns)
+    .values({
+      orgId,
+      journeyVersionId: null,
+      triggerEntityType: "appointment",
+      triggerEntityId: appointmentId,
+      appointmentId,
+      mode: "live",
+      status: "planned",
+      journeyNameSnapshot: "Invalid Snapshot Journey",
+      journeyVersionSnapshot: {
+        version: 1,
+        definitionSnapshot,
+        publishedAt: EVENT_TIMESTAMP,
+      },
+    })
+    .returning({ id: journeyRuns.id });
+
+  return { runId: run!.id, appointmentId };
+}
+
 describe("executeJourneyRun", () => {
   beforeEach(async () => {
     await setTestOrgContext(db, "00000000-0000-0000-0000-000000000000");
@@ -618,5 +763,144 @@ describe("executeJourneyRun", () => {
     const stepKeys = await readStepKeys(org.id, runId);
     expect(stepKeys).toContain("send-a");
     expect(stepKeys).toContain("send-b");
+  });
+
+  test("an async-callback send leaves the delivery planned and advances the walk", async () => {
+    const { org } = await createOrg(db);
+    const graph = createSingleSendGraph();
+    const { runId, appointmentId } = await seedInngestRun(org.id, graph);
+    const loadContext = mock(async () => buildContext());
+    const dispatchDelivery = mock(async () => ({
+      providerMessageId: "SM-async",
+      awaitingAsyncCallback: true,
+    }));
+    const { runtime } = createFakeRuntime({ waitForEvent: () => null });
+
+    const result = await executeJourneyRun(
+      startInput({ orgId: org.id, runId, appointmentId }),
+      { runtime, loadContext, dispatchDelivery, now: () => FIXED_NOW },
+    );
+
+    expect(result.status).toBe("completed");
+    expect(dispatchDelivery).toHaveBeenCalledTimes(1);
+    // The row stays `planned` (the status callback finalizes it), not `sent`.
+    expect(await countDeliveriesByStatus(org.id, runId, "planned")).toBe(1);
+    expect(await countDeliveriesByStatus(org.id, runId, "sent")).toBe(0);
+    const events = await readEventTypes(org.id, runId);
+    expect(events).toContain("delivery_provider_accepted");
+    expect(events).not.toContain("delivery_sent");
+  });
+
+  test("a run with an invalid pinned graph is finalized failed without sending", async () => {
+    const { org } = await createOrg(db);
+    const { runId, appointmentId } = await seedRunWithRawSnapshot(org.id, {
+      nodes: [],
+      edges: [],
+    });
+    const loadContext = mock(async () => buildContext());
+    const dispatchDelivery = mock(async () => ({ providerMessageId: "msg" }));
+    const { runtime } = createFakeRuntime({ waitForEvent: () => null });
+
+    const result = await executeJourneyRun(
+      startInput({ orgId: org.id, runId, appointmentId }),
+      { runtime, loadContext, dispatchDelivery, now: () => FIXED_NOW },
+    );
+
+    expect(result.outcome).toBe("skipped_invalid_graph");
+    expect(result.status).toBe("failed");
+    expect(await readRunStatus(runId)).toBe("failed");
+    expect(await readEventTypes(org.id, runId)).toContain("run_failed");
+    expect(dispatchDelivery).toHaveBeenCalledTimes(0);
+  });
+
+  test("a run whose trigger entity is gone is finalized canceled", async () => {
+    const { org } = await createOrg(db);
+    const graph = createSingleSendGraph();
+    const { runId, appointmentId } = await seedInngestRun(org.id, graph);
+    const loadContext = mock(async () => null);
+    const dispatchDelivery = mock(async () => ({ providerMessageId: "msg" }));
+    const { runtime } = createFakeRuntime({ waitForEvent: () => null });
+
+    const result = await executeJourneyRun(
+      startInput({ orgId: org.id, runId, appointmentId }),
+      { runtime, loadContext, dispatchDelivery, now: () => FIXED_NOW },
+    );
+
+    expect(result.outcome).toBe("skipped_missing_context");
+    expect(result.status).toBe("canceled");
+    expect(await readRunStatus(runId)).toBe("canceled");
+    expect(await readEventTypes(org.id, runId)).toContain("run_canceled");
+    expect(dispatchDelivery).toHaveBeenCalledTimes(0);
+  });
+
+  test("a condition true-branch fans out to multiple sends", async () => {
+    const { org } = await createOrg(db);
+    const graph = createConditionFanOutGraph();
+    expect(linearJourneyGraphSchema.safeParse(graph).success).toBe(true);
+    const { runId, appointmentId } = await seedInngestRun(org.id, graph);
+    const loadContext = mock(async () => buildContext());
+    const dispatchDelivery = mock(async () => ({ providerMessageId: "msg" }));
+    const { runtime } = createFakeRuntime({ waitForEvent: () => null });
+
+    const result = await executeJourneyRun(
+      startInput({ orgId: org.id, runId, appointmentId }),
+      { runtime, loadContext, dispatchDelivery, now: () => FIXED_NOW },
+    );
+
+    expect(result.status).toBe("completed");
+    expect([...result.visitedNodeIds].sort()).toEqual([
+      "condition-node",
+      "send-x",
+      "send-y",
+    ]);
+    expect(dispatchDelivery).toHaveBeenCalledTimes(2);
+    expect(await countDeliveries(org.id, runId)).toBe(2);
+  });
+
+  test("a transient send error retries within the step, then sends once", async () => {
+    const { org } = await createOrg(db);
+    const graph = createSingleSendGraph();
+    const { runId, appointmentId } = await seedInngestRun(org.id, graph);
+    const loadContext = mock(async () => buildContext());
+    let calls = 0;
+    const dispatchDelivery = mock(async () => {
+      calls += 1;
+      if (calls === 1) {
+        throw new Error("transient provider error");
+      }
+      return { providerMessageId: "msg-retry" };
+    });
+    const { runtime } = createFakeRuntime({ waitForEvent: () => null });
+
+    const result = await executeJourneyRun(
+      startInput({ orgId: org.id, runId, appointmentId }),
+      { runtime, loadContext, dispatchDelivery, now: () => FIXED_NOW },
+    );
+
+    expect(result.status).toBe("completed");
+    // send-resend allows 2 attempts: first throws, second succeeds.
+    expect(dispatchDelivery).toHaveBeenCalledTimes(2);
+    expect(await countDeliveries(org.id, runId)).toBe(1);
+  });
+
+  test("a non-retryable send error is not retried and surfaces the failure", async () => {
+    const { org } = await createOrg(db);
+    const graph = createSingleSendGraph();
+    const { runId, appointmentId } = await seedInngestRun(org.id, graph);
+    const loadContext = mock(async () => buildContext());
+    const dispatchDelivery = mock(async () => {
+      throw new JourneyDeliveryNonRetryableError("invalid recipient");
+    });
+    const { runtime } = createFakeRuntime({ waitForEvent: () => null });
+
+    await expect(
+      executeJourneyRun(startInput({ orgId: org.id, runId, appointmentId }), {
+        runtime,
+        loadContext,
+        dispatchDelivery,
+        now: () => FIXED_NOW,
+      }),
+    ).rejects.toThrow("invalid recipient");
+    expect(dispatchDelivery).toHaveBeenCalledTimes(1);
   });
 });

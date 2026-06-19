@@ -23,6 +23,11 @@ export type JourneyRunStartEventData = {
   eventTimestamp: string;
 };
 
+export type JourneyRunCancelEventData = {
+  orgId: string;
+  journeyRunId: string;
+};
+
 type InngestSendResult =
   | {
       eventId?: string;
@@ -47,6 +52,11 @@ type RuntimeEvent =
       id: string;
       name: "journey.run.start";
       data: JourneyRunStartEventData;
+    }
+  | {
+      id: string;
+      name: "journey.run.cancel";
+      data: JourneyRunCancelEventData;
     };
 
 type InngestSend = (event: RuntimeEvent) => Promise<unknown>;
@@ -120,6 +130,24 @@ export async function sendJourneyRunStart(
   const response = await send({
     id: `journey-run-start-${input.journeyRunId}`,
     name: "journey.run.start",
+    data: input,
+  });
+
+  const eventId = getEventId(response);
+  if (eventId) {
+    return { eventId };
+  }
+
+  return {};
+}
+
+export async function sendJourneyRunCancel(
+  input: JourneyRunCancelEventData,
+  send: InngestSend = sendViaInngest,
+): Promise<{ eventId?: string }> {
+  const response = await send({
+    id: `journey-run-cancel-${input.journeyRunId}`,
+    name: "journey.run.cancel",
     data: input,
   });
 

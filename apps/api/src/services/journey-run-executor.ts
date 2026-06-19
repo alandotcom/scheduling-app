@@ -35,6 +35,7 @@ import {
   resolveWaitCursor,
   resolveWaitForConfirmationTimeoutAt,
   toNumber,
+  type ActionNode,
   type JourneyEdge,
 } from "./journey-graph-walk.js";
 import {
@@ -59,7 +60,7 @@ const DEFAULT_MAX_DISPATCH_ATTEMPTS = 2;
 const ACTIVE_RUN_STATUSES = ["planned", "running"] as const;
 
 function isActiveRunStatus(status: string): boolean {
-  return status === "planned" || status === "running";
+  return ACTIVE_RUN_STATUSES.some((active) => active === status);
 }
 
 export type JourneyRunStartInput = {
@@ -177,6 +178,25 @@ function combineWalkResults(results: WalkResult[]): WalkResult {
     finalStatus: "completed",
     outcome: timedOut ? "confirmation_timed_out" : "completed",
   };
+}
+
+function resolveRunCompletionEvent(walk: WalkResult): {
+  eventType: string;
+  message: string;
+} {
+  if (walk.finalStatus === "canceled") {
+    return { eventType: "run_canceled", message: "Run canceled" };
+  }
+  if (walk.finalStatus === "failed") {
+    return { eventType: "run_failed", message: "Run failed" };
+  }
+  if (walk.outcome === "confirmation_timed_out") {
+    return {
+      eventType: "run_confirmation_timed_out",
+      message: "Run completed: confirmation window elapsed",
+    };
+  }
+  return { eventType: "run_completed", message: "Run completed" };
 }
 
 export async function executeJourneyRun(
@@ -473,14 +493,35 @@ export async function executeJourneyRun(
     if (actionType && isJourneyDeliveryActionType(actionType)) {
       const channel = resolveChannel(actionType);
       const scheduledFor = new Date(cursor);
-      await runtime.runStep(`send:${stepKey}`, () =>
-        dispatchSendStep({
+      const deterministicKey = `${input.journeyRunId}:${stepKey}`;
+
+      // Three ordered steps so the non-idempotent provider send is isolated:
+      // (1) record the delivery row in `planned` (so a status callback always
+      // finds a row, and the delivery id is stable across replays), (2) dispatch
+      // — the only non-idempotent effect, memoized so a later failure never
+      // re-sends, (3) finalize the projection from the memoized send result.
+      const journeyDeliveryId = await runtime.runStep(
+        `send-prepare:${stepKey}`,
+        () =>
+          prepareSendStep({
+            orgId: input.orgId,
+            runId: input.journeyRunId,
+            stepKey,
+            actionType,
+            channel,
+            scheduledFor,
+            deterministicKey,
+          }),
+      );
+      const sendResult = await runtime.runStep(`send:${stepKey}`, () =>
+        dispatchSendOnly({
           orgId: input.orgId,
           runId: input.journeyRunId,
           stepKey,
           actionType,
           channel,
-          scheduledFor,
+          journeyDeliveryId,
+          deterministicKey,
           stepConfig: getActionConfig(node),
           mode: input.mode,
           triggerEntityType: input.triggerEntityType,
@@ -488,6 +529,18 @@ export async function executeJourneyRun(
           clientId: input.clientId,
           dispatchDelivery,
           maxDispatchAttempts,
+        }),
+      );
+      await runtime.runStep(`send-finalize:${stepKey}`, () =>
+        finalizeSendStep({
+          orgId: input.orgId,
+          runId: input.journeyRunId,
+          stepKey,
+          actionType,
+          channel,
+          deterministicKey,
+          scheduledFor,
+          result: sendResult,
         }),
       );
       return walkAll(successors(), cursor, nodeContext);
@@ -499,27 +552,14 @@ export async function executeJourneyRun(
 
   const walk = await walkAll(firstNodes, startCursor, context);
 
+  const completion = resolveRunCompletionEvent(walk);
   await runtime.runStep("complete-run", () =>
     finalizeRun({
       orgId: input.orgId,
       runId: input.journeyRunId,
       status: walk.finalStatus,
-      eventType:
-        walk.finalStatus === "completed"
-          ? walk.outcome === "confirmation_timed_out"
-            ? "run_confirmation_timed_out"
-            : "run_completed"
-          : walk.finalStatus === "canceled"
-            ? "run_canceled"
-            : "run_failed",
-      message:
-        walk.finalStatus === "completed"
-          ? walk.outcome === "confirmation_timed_out"
-            ? "Run completed: confirmation window elapsed"
-            : "Run completed"
-          : walk.finalStatus === "canceled"
-            ? "Run canceled"
-            : "Run failed",
+      eventType: completion.eventType,
+      message: completion.message,
     }),
   );
 
@@ -605,7 +645,7 @@ async function startRunExecution(input: {
 async function enterWaitStep(input: {
   orgId: string;
   runId: string;
-  node: Parameters<typeof getActionConfig>[0];
+  node: ActionNode;
   stepKey: string;
   label: string;
   cursor: Date;
@@ -685,7 +725,7 @@ async function exitWaitStep(input: {
 async function evaluateConditionStep(input: {
   orgId: string;
   runId: string;
-  node: Parameters<typeof getConditionExpression>[0];
+  node: ActionNode;
   stepKey: string;
   journeyId: string;
   triggerEntityId: string;
@@ -854,13 +894,94 @@ async function exitWaitForConfirmationStep(input: {
   });
 }
 
-async function dispatchSendStep(input: {
+type SendResult = {
+  providerMessageId: string | null;
+  reasonCode: string | null;
+  awaitingAsyncCallback: boolean;
+  attempts: number;
+};
+
+// Step 1: record the delivery in `planned` before the send. Insert-or-get so the
+// returned id is stable across replays (it is the row's id, the same value the
+// provider receives as its callback correlation handle). Also writes a `running`
+// step log so the overlay shows the send in progress.
+async function prepareSendStep(input: {
   orgId: string;
   runId: string;
   stepKey: string;
   actionType: string;
   channel: string;
   scheduledFor: Date;
+  deterministicKey: string;
+}): Promise<string> {
+  return withOrg(input.orgId, async (tx) => {
+    const [inserted] = await tx
+      .insert(journeyDeliveries)
+      .values({
+        orgId: input.orgId,
+        journeyRunId: input.runId,
+        stepKey: input.stepKey,
+        channel: input.channel,
+        actionType: input.actionType,
+        scheduledFor: input.scheduledFor,
+        status: "planned",
+        deterministicKey: input.deterministicKey,
+      })
+      .onConflictDoNothing({
+        target: [journeyDeliveries.orgId, journeyDeliveries.deterministicKey],
+      })
+      .returning({ id: journeyDeliveries.id });
+
+    let deliveryId = inserted?.id;
+    if (!deliveryId) {
+      const [existing] = await tx
+        .select({ id: journeyDeliveries.id })
+        .from(journeyDeliveries)
+        .where(
+          and(
+            eq(journeyDeliveries.orgId, input.orgId),
+            eq(journeyDeliveries.deterministicKey, input.deterministicKey),
+          ),
+        )
+        .limit(1);
+      if (!existing) {
+        throw new Error("Delivery row missing after conflict during prepare.");
+      }
+      deliveryId = existing.id;
+    }
+
+    await upsertJourneyRunStepLog({
+      tx,
+      orgId: input.orgId,
+      runId: input.runId,
+      stepKey: input.stepKey,
+      nodeType: input.actionType,
+      status: "running",
+      startedAt: input.scheduledFor,
+      completedAt: null,
+      durationMs: null,
+      logInput: {
+        channel: input.channel,
+        idempotencyKey: input.deterministicKey,
+      },
+      logOutput: { status: "planned" },
+    });
+
+    return deliveryId;
+  });
+}
+
+// Step 2: the only non-idempotent effect — dispatch the provider send. Runs in
+// its own memoized step, so a successful send is checkpointed and never replays
+// when a later step (finalize) fails and Inngest retries the function.
+async function dispatchSendOnly(input: {
+  orgId: string;
+  runId: string;
+  stepKey: string;
+  actionType: string;
+  channel: string;
+  journeyDeliveryId: string;
+  deterministicKey: string;
   stepConfig: Record<string, unknown>;
   mode: JourneyRunMode;
   triggerEntityType: "appointment" | "client";
@@ -868,16 +989,13 @@ async function dispatchSendStep(input: {
   clientId: string | null;
   dispatchDelivery: JourneyDeliveryDispatcher;
   maxDispatchAttempts: number;
-}): Promise<void> {
-  const journeyDeliveryId = Bun.randomUUIDv7();
-  const deterministicKey = `${input.runId}:${input.stepKey}`;
-
+}): Promise<SendResult> {
   const dispatchPayload: JourneyDeliveryDispatchInput = {
     orgId: input.orgId,
-    journeyDeliveryId,
+    journeyDeliveryId: input.journeyDeliveryId,
     journeyRunId: input.runId,
     channel: input.channel,
-    idempotencyKey: deterministicKey,
+    idempotencyKey: input.deterministicKey,
     runMode: input.mode,
     stepConfig: input.stepConfig,
     triggerEntityType: input.triggerEntityType,
@@ -903,35 +1021,46 @@ async function dispatchSendStep(input: {
     },
   );
 
-  const providerMessageId =
-    typeof dispatched.providerMessageId === "string"
-      ? dispatched.providerMessageId
-      : null;
+  return {
+    providerMessageId:
+      typeof dispatched.providerMessageId === "string"
+        ? dispatched.providerMessageId
+        : null,
+    reasonCode: dispatched.reasonCode ?? null,
+    awaitingAsyncCallback: dispatched.awaitingAsyncCallback === true,
+    attempts,
+  };
+}
 
-  // Async-callback providers (e.g. Twilio) accept the send and report final
-  // status later via a webhook. The run does not block on it: the projection
-  // delivery row stays `planned` and the journey-action callback function
-  // finalizes it by journeyDeliveryId; the walk advances immediately.
-  const awaitingCallback = dispatched.awaitingAsyncCallback === true;
+// Step 3: finalize the projection from the memoized send result. Async-callback
+// providers (Twilio) leave the row `planned`; the journey-action callback
+// function finalizes it by id later. The walk advances regardless.
+async function finalizeSendStep(input: {
+  orgId: string;
+  runId: string;
+  stepKey: string;
+  actionType: string;
+  channel: string;
+  deterministicKey: string;
+  scheduledFor: Date;
+  result: SendResult;
+}): Promise<void> {
+  const awaitingCallback = input.result.awaitingAsyncCallback;
 
   await withOrg(input.orgId, async (tx) => {
     await tx
-      .insert(journeyDeliveries)
-      .values({
-        id: journeyDeliveryId,
-        orgId: input.orgId,
-        journeyRunId: input.runId,
-        stepKey: input.stepKey,
-        channel: input.channel,
-        actionType: input.actionType,
-        scheduledFor: input.scheduledFor,
+      .update(journeyDeliveries)
+      .set({
         status: awaitingCallback ? "planned" : "sent",
-        reasonCode: dispatched.reasonCode ?? null,
-        deterministicKey,
+        reasonCode: input.result.reasonCode,
+        updatedAt: sql`now()`,
       })
-      .onConflictDoNothing({
-        target: [journeyDeliveries.orgId, journeyDeliveries.deterministicKey],
-      });
+      .where(
+        and(
+          eq(journeyDeliveries.orgId, input.orgId),
+          eq(journeyDeliveries.deterministicKey, input.deterministicKey),
+        ),
+      );
 
     await upsertJourneyRunStepLog({
       tx,
@@ -943,12 +1072,15 @@ async function dispatchSendStep(input: {
       startedAt: input.scheduledFor,
       completedAt: awaitingCallback ? null : input.scheduledFor,
       durationMs: awaitingCallback ? null : 0,
-      logInput: { channel: input.channel, idempotencyKey: deterministicKey },
+      logInput: {
+        channel: input.channel,
+        idempotencyKey: input.deterministicKey,
+      },
       logOutput: {
         status: awaitingCallback ? "planned" : "sent",
-        attempts,
-        reasonCode: dispatched.reasonCode ?? null,
-        providerMessageId,
+        attempts: input.result.attempts,
+        reasonCode: input.result.reasonCode,
+        providerMessageId: input.result.providerMessageId,
         ...(awaitingCallback
           ? { providerState: "accepted_pending_callback" }
           : {}),
@@ -968,7 +1100,9 @@ async function dispatchSendStep(input: {
       metadata: {
         stepKey: input.stepKey,
         channel: input.channel,
-        ...(providerMessageId ? { providerMessageId } : {}),
+        ...(input.result.providerMessageId
+          ? { providerMessageId: input.result.providerMessageId }
+          : {}),
       },
     });
   });
@@ -1004,5 +1138,22 @@ async function finalizeRun(input: {
       eventType: input.eventType,
       message: input.message,
     });
+  });
+}
+
+// Called from the Inngest function's onFailure (retries exhausted) so a run whose
+// walk threw past its retries is recorded `failed` in the projection the overlay
+// reads, rather than left stuck `running`. Guarded to active runs, so it never
+// overrides a run already completed/canceled.
+export async function markJourneyRunFailed(
+  orgId: string,
+  runId: string,
+): Promise<void> {
+  await finalizeRun({
+    orgId,
+    runId,
+    status: "failed",
+    eventType: "run_failed",
+    message: "Run failed after exhausting retries",
   });
 }

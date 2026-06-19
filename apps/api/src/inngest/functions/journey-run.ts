@@ -1,6 +1,7 @@
 import superjson from "superjson";
 import {
   executeJourneyRun,
+  markJourneyRunFailed,
   type JourneyRunStartInput,
   type JourneyRunStepRuntime,
 } from "../../services/journey-run-executor.js";
@@ -20,20 +21,36 @@ export function createJourneyRunFunction(
       // DB identity index; a redelivered start event no-ops.
       idempotency: "event.data.journeyRunId",
       // `event` is the run-start trigger, `async` is the incoming event. Cancel
-      // the in-flight run when the appointment is canceled or rescheduled; the
-      // dispatcher records the DB cancellation and (for reschedule) starts a
-      // fresh run.
+      // the in-flight run when the appointment is canceled/rescheduled (the
+      // dispatcher records the DB cancellation and, for reschedule, starts a
+      // fresh run) or when a run is canceled directly (admin/manual). Each
+      // predicate also scopes by orgId so tenant isolation is structural.
       cancelOn: [
         {
           event: "appointment.canceled",
-          if: "async.data.appointmentId == event.data.appointmentId",
+          if: "async.data.orgId == event.data.orgId && async.data.appointmentId == event.data.appointmentId",
         },
         {
           event: "appointment.rescheduled",
-          if: "async.data.appointmentId == event.data.appointmentId",
+          if: "async.data.orgId == event.data.orgId && async.data.appointmentId == event.data.appointmentId",
+        },
+        {
+          event: "journey.run.cancel",
+          if: "async.data.orgId == event.data.orgId && async.data.journeyRunId == event.data.journeyRunId",
         },
       ],
       concurrency: { key: "event.data.orgId", limit: 50 },
+      // Retries exhausted: record the run `failed` in the projection the overlay
+      // reads, rather than leaving it stuck `running`.
+      onFailure: async ({ event }) => {
+        const original = toRecord(toRecord(event.data)["event"]);
+        const data = toRecord(original["data"]);
+        const orgId = data["orgId"];
+        const runId = data["journeyRunId"];
+        if (typeof orgId === "string" && typeof runId === "string") {
+          await markJourneyRunFailed(orgId, runId);
+        }
+      },
       triggers: [journeyRunStartEvent],
     },
     async ({ event, step }) => {

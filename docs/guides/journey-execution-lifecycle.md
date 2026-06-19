@@ -95,7 +95,11 @@ an async-callback provider (Twilio) writes `planned` and is finalized to
   `run_confirmation_timed_out`, `run_canceled`, `run_failed`
 - `run_waiting`, `run_waiting_confirmation`, `run_confirmation_received`,
   `run_confirmation_timeout`
-- `delivery_sent`, `delivery_provider_accepted`
+- `delivery_sent`, `delivery_provider_accepted`, `delivery_failed`
+
+A failed async delivery (e.g. Twilio reporting `failed`) is recorded as a
+`delivery_failed` run event and on the delivery row by the callback; the run's
+own status is not changed by it (the run completes when its walk finishes).
 
 ## Restart and Cancellation
 

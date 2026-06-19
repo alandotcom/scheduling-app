@@ -794,7 +794,7 @@ describe("Journey Routes", () => {
     await db.insert(journeyRunEvents).values({
       orgId: ownerContext.orgId!,
       journeyRunId: testRun!.id,
-      eventType: "run_planned",
+      eventType: "run_created",
       message: "Run planned",
       metadata: {
         eventType: "appointment.scheduled",
