@@ -61,6 +61,11 @@ type DeliveryWithRun = {
 export type JourneyDeliveryWorkerRuntime = {
   runStep: <T>(stepId: string, fn: () => Promise<T>) => Promise<T>;
   sleep: (stepId: string, delayMs: number) => Promise<void>;
+  // Memoized step for the non-idempotent provider send: under Inngest this maps
+  // to step.run so a successful send is checkpointed and never replayed when a
+  // later DB write fails and the function is retried. Falls back to runStep
+  // (plain) when absent, so a single send still happens per invocation.
+  runMemoizedStep?: <T>(stepId: string, fn: () => Promise<T>) => Promise<T>;
 };
 
 export type JourneyDeliveryWorkerDependencies = {
@@ -471,6 +476,7 @@ export async function executeJourneyDeliveryScheduled(
   dependencies: JourneyDeliveryWorkerDependencies = {},
 ): Promise<JourneyDeliveryWorkerResult> {
   const runtime = dependencies.runtime ?? defaultRuntime;
+  const runMemoizedStep = runtime.runMemoizedStep ?? runtime.runStep;
   const dispatchDelivery =
     dependencies.dispatchDelivery ?? dispatchForActionType;
   const executeWaitForConfirmationTimeoutFn =
@@ -651,18 +657,26 @@ export async function executeJourneyDeliveryScheduled(
       }),
     );
 
-    let attempts = 0;
+    let dispatchAttempts = 0;
     try {
-      const dispatched = await retry(
-        async () => {
-          attempts++;
-          return dispatchDelivery(dispatchPayload);
-        },
-        {
-          retries: maxDispatchAttempts,
-          shouldRetry: (error) =>
-            !(error instanceof JourneyDeliveryNonRetryableError),
-        },
+      // The actual provider send is the only non-idempotent operation here, so
+      // it runs inside a memoized step. Once it succeeds it is checkpointed; if
+      // a later DB write throws and Inngest retries the function, the send is
+      // replayed from the checkpoint rather than re-executed (no double-send).
+      const dispatched = await runMemoizedStep(
+        `provider-send:${current.delivery.id}`,
+        () =>
+          retry(
+            async () => {
+              dispatchAttempts++;
+              return dispatchDelivery(dispatchPayload);
+            },
+            {
+              retries: maxDispatchAttempts,
+              shouldRetry: (error) =>
+                !(error instanceof JourneyDeliveryNonRetryableError),
+            },
+          ),
       );
 
       const providerMessageId =
@@ -683,7 +697,7 @@ export async function executeJourneyDeliveryScheduled(
             logInput: dispatchLogInput,
             logOutput: {
               status: "planned",
-              attempts,
+              attempts: dispatchAttempts,
               reasonCode: dispatched.reasonCode ?? null,
               providerMessageId: providerMessageId ?? null,
               providerState: "accepted_pending_callback",
@@ -699,7 +713,7 @@ export async function executeJourneyDeliveryScheduled(
             message: `Delivery ${current.delivery.stepKey} accepted by provider; waiting for status callback`,
             metadata: {
               stepKey: current.delivery.stepKey,
-              attempts,
+              attempts: dispatchAttempts,
               ...(providerMessageId ? { providerMessageId } : {}),
             },
           }),
@@ -709,7 +723,7 @@ export async function executeJourneyDeliveryScheduled(
           journeyDeliveryId: current.delivery.id,
           journeyRunId: current.delivery.journeyRunId,
           status: "sent",
-          attempts,
+          attempts: dispatchAttempts,
           reasonCode: dispatched.reasonCode ?? null,
           ...(providerMessageId ? { providerMessageId } : {}),
         };
@@ -723,7 +737,7 @@ export async function executeJourneyDeliveryScheduled(
         now,
         status: "sent",
         reasonCode: dispatched.reasonCode ?? null,
-        attempts,
+        attempts: dispatchAttempts,
         ...(providerMessageId ? { providerMessageId } : {}),
         logInput: dispatchLogInput,
       });
@@ -736,7 +750,7 @@ export async function executeJourneyDeliveryScheduled(
         now,
         status: "failed",
         reasonCode: toProviderErrorReasonCode(error),
-        attempts,
+        attempts: dispatchAttempts,
         logInput: dispatchLogInput,
       });
     }

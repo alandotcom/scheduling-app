@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, mock, test } from "bun:test";
 
 import { eq } from "drizzle-orm";
+import superjson from "superjson";
 import {
   journeyDeliveries,
   journeyRunEvents,
@@ -354,6 +355,72 @@ describe("executeJourneyDeliveryScheduled", () => {
     expect(events.some((event) => event.eventType === "delivery_sent")).toBe(
       true,
     );
+  });
+
+  test("does not re-send a memoized provider step when the function retries", async () => {
+    const seeded = await seedPlannedDelivery(
+      context,
+      new Date("2026-02-16T10:00:00.000Z"),
+    );
+
+    const dispatchDelivery = mock(async () => ({
+      providerMessageId: "provider-message-memoized",
+    }));
+
+    // Simulate Inngest step memoization: a successful step result is cached by
+    // step id and replayed on later invocations (function retries) without
+    // re-running the step body.
+    const memoCache = new Map<string, string>();
+    const memoizingRuntime = {
+      runStep: async <T>(_stepId: string, fn: () => Promise<T>) => fn(),
+      sleep: async () => {},
+      runMemoizedStep: async <T>(stepId: string, fn: () => Promise<T>) => {
+        const cached = memoCache.get(stepId);
+        if (cached !== undefined) {
+          return superjson.parse<T>(cached);
+        }
+        const value = await fn();
+        memoCache.set(stepId, superjson.stringify(value));
+        return value;
+      },
+    };
+
+    const invoke = () =>
+      executeJourneyDeliveryScheduled(
+        {
+          orgId: context.orgId,
+          journeyDeliveryId: seeded.deliveryId,
+          journeyRunId: seeded.runId,
+          deterministicKey: seeded.deterministicKey,
+          scheduledFor: seeded.scheduledFor.toISOString(),
+        },
+        {
+          runtime: memoizingRuntime,
+          now: () => new Date("2026-02-16T09:00:00.000Z"),
+          dispatchDelivery,
+        },
+      );
+
+    const first = await invoke();
+    expect(first.status).toBe("sent");
+    expect(dispatchDelivery).toHaveBeenCalledTimes(1);
+
+    // Simulate a crash after the provider send committed but before the
+    // planned->sent flip durably landed: reset the delivery (and reopen the run)
+    // to planned, then retry. The memoized send must NOT run again.
+    await setTestOrgContext(db, context.orgId);
+    await db
+      .update(journeyDeliveries)
+      .set({ status: "planned", reasonCode: null })
+      .where(eq(journeyDeliveries.id, seeded.deliveryId));
+    await db
+      .update(journeyRuns)
+      .set({ status: "running", completedAt: null })
+      .where(eq(journeyRuns.id, seeded.runId));
+
+    const second = await invoke();
+    expect(second.status).toBe("sent");
+    expect(dispatchDelivery).toHaveBeenCalledTimes(1);
   });
 
   test("suppresses send when delivery is canceled during sleep", async () => {
