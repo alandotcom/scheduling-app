@@ -46,6 +46,7 @@ type ResendSendPayload = {
 type ResendSendEmailInput = {
   apiKey: string;
   payload: ResendSendPayload;
+  idempotencyKey?: string;
 };
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -286,7 +287,12 @@ async function sendResendEmail(
   let response: Awaited<ReturnType<typeof resend.emails.send>> | undefined =
     undefined;
   try {
-    response = await resend.emails.send(input.payload);
+    // The deterministic delivery key is stable across retries, so passing it as
+    // the Resend idempotency key lets the provider dedupe a re-dispatch.
+    response = await resend.emails.send(
+      input.payload,
+      input.idempotencyKey ? { idempotencyKey: input.idempotencyKey } : {},
+    );
   } catch (error) {
     if (isNonRetryableStatusCode(getErrorStatusCode(error))) {
       throw new JourneyDeliveryNonRetryableError(getErrorMessage(error), {
@@ -485,6 +491,7 @@ export async function dispatchJourneySendResendAction(
   const sent = await sendEmail({
     apiKey: resendConfig.apiKey,
     payload,
+    idempotencyKey: input.idempotencyKey,
   });
 
   return {
