@@ -20,6 +20,9 @@ import {
   clientCustomAttributeValues,
   clients,
   integrations,
+  journeyRuns,
+  journeyVersions,
+  journeys,
   locations,
   orgMemberships,
   orgs,
@@ -538,6 +541,158 @@ function dateStringAtDayOffset(startOfDayUtc: Date, dayOffset: number): string {
     .slice(0, 10);
 }
 
+// An appointment-reminder journey exercising every node kind the Inngest-native
+// run engine handles: trigger -> condition -> wait -> send -> wait-for-confirmation
+// -> send. Published so a seeded appointment.scheduled event spawns a run.
+function buildReminderJourneyGraph(): Record<string, unknown> {
+  return {
+    attributes: {},
+    options: { type: "directed" },
+    nodes: [
+      {
+        key: "trigger",
+        attributes: {
+          id: "trigger",
+          type: "trigger-node",
+          position: { x: 0, y: 0 },
+          data: {
+            type: "trigger",
+            label: "Appointment scheduled",
+            config: {
+              triggerType: "AppointmentJourney",
+              start: "appointment.scheduled",
+              restart: "appointment.rescheduled",
+              stop: "appointment.canceled",
+              correlationKey: "appointmentId",
+            },
+          },
+        },
+      },
+      {
+        key: "condition",
+        attributes: {
+          id: "condition",
+          type: "action-node",
+          position: { x: 0, y: 120 },
+          data: {
+            type: "action",
+            label: "Only if scheduled",
+            config: { actionType: "condition", expression: "true" },
+          },
+        },
+      },
+      {
+        key: "wait",
+        attributes: {
+          id: "wait",
+          type: "action-node",
+          position: { x: 0, y: 240 },
+          data: {
+            type: "action",
+            label: "Wait 24h",
+            config: { actionType: "wait", waitDuration: "24h" },
+          },
+        },
+      },
+      {
+        key: "send-reminder",
+        attributes: {
+          id: "send-reminder",
+          type: "action-node",
+          position: { x: 0, y: 360 },
+          data: {
+            type: "action",
+            label: "Send reminder",
+            config: { actionType: "send-resend" },
+          },
+        },
+      },
+      {
+        key: "wait-for-confirmation",
+        attributes: {
+          id: "wait-for-confirmation",
+          type: "action-node",
+          position: { x: 0, y: 480 },
+          data: {
+            type: "action",
+            label: "Wait for confirmation",
+            config: {
+              actionType: "wait-for-confirmation",
+              confirmationGraceMinutes: 0,
+            },
+          },
+        },
+      },
+      {
+        key: "send-thanks",
+        attributes: {
+          id: "send-thanks",
+          type: "action-node",
+          position: { x: 0, y: 600 },
+          data: {
+            type: "action",
+            label: "Send thank-you",
+            config: { actionType: "send-resend" },
+          },
+        },
+      },
+    ],
+    edges: [
+      {
+        key: "trigger-condition",
+        source: "trigger",
+        target: "condition",
+        attributes: {
+          id: "trigger-condition",
+          source: "trigger",
+          target: "condition",
+        },
+      },
+      {
+        key: "condition-wait",
+        source: "condition",
+        target: "wait",
+        attributes: {
+          id: "condition-wait",
+          source: "condition",
+          target: "wait",
+          data: { conditionBranch: "true" },
+        },
+      },
+      {
+        key: "wait-send",
+        source: "wait",
+        target: "send-reminder",
+        attributes: {
+          id: "wait-send",
+          source: "wait",
+          target: "send-reminder",
+        },
+      },
+      {
+        key: "send-wfc",
+        source: "send-reminder",
+        target: "wait-for-confirmation",
+        attributes: {
+          id: "send-wfc",
+          source: "send-reminder",
+          target: "wait-for-confirmation",
+        },
+      },
+      {
+        key: "wfc-thanks",
+        source: "wait-for-confirmation",
+        target: "send-thanks",
+        attributes: {
+          id: "wfc-thanks",
+          source: "wait-for-confirmation",
+          target: "send-thanks",
+        },
+      },
+    ],
+  };
+}
+
 async function seed() {
   const isLocal =
     databaseUrl.includes("localhost") || databaseUrl.includes("127.0.0.1");
@@ -687,6 +842,10 @@ async function seed() {
         .where(eq(appointmentTypes.orgId, orgId));
       const appointmentTypeIds = existingAppointmentTypes.map((row) => row.id);
 
+      // Journey runs cascade their deliveries/events/step-logs; deleting
+      // journeys cascades their versions. Clear both so the seed stays idempotent.
+      await tx.delete(journeyRuns).where(eq(journeyRuns.orgId, orgId));
+      await tx.delete(journeys).where(eq(journeys.orgId, orgId));
       await tx.delete(appointments).where(eq(appointments.orgId, orgId));
       await tx
         .delete(clientCustomAttributeValues)
@@ -756,6 +915,28 @@ async function seed() {
         usedClientNames,
         usedClientEmails,
       );
+
+      // Publish an appointment-reminder journey on the Inngest-native engine so a
+      // seeded appointment.scheduled event spawns a run.
+      const reminderGraph = buildReminderJourneyGraph();
+      const [reminderJourney] = await tx
+        .insert(journeys)
+        .values({
+          orgId,
+          name: "Appointment Reminder",
+          state: "published",
+          mode: "live",
+          draftDefinition: reminderGraph,
+        })
+        .returning({ id: journeys.id });
+      if (reminderJourney) {
+        await tx.insert(journeyVersions).values({
+          orgId,
+          journeyId: reminderJourney.id,
+          version: 1,
+          definitionSnapshot: reminderGraph,
+        });
+      }
 
       await mapAsync(
         seedOrg.locations,

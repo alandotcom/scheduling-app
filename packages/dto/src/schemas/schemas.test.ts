@@ -1940,7 +1940,7 @@ describe("Journey graph trigger branching", () => {
     }
   });
 
-  test("rejects duplicate trigger branch labels", () => {
+  test("allows a trigger branch to fan out to multiple targets", () => {
     const graph = {
       attributes: {},
       options: { type: "directed" },
@@ -2013,10 +2013,10 @@ describe("Journey graph trigger branching", () => {
       ],
     };
     const result = linearJourneyGraphSchema.safeParse(graph);
-    expect(result.success).toBe(false);
+    expect(result.success).toBe(true);
   });
 
-  test("rejects trigger with four outgoing branches", () => {
+  test("allows a trigger to fan out to more than three targets", () => {
     const graph = createBranchedTriggerGraph();
     graph.nodes.push({
       key: "send-extra",
@@ -2066,17 +2066,10 @@ describe("Journey graph trigger branching", () => {
     });
 
     const result = linearJourneyGraphSchema.safeParse(graph);
-    expect(result.success).toBe(false);
-
-    if (!result.success) {
-      const messages = result.error.issues.map((issue) => issue.message);
-      expect(messages).toContain(
-        "Trigger step can have at most three outgoing branches",
-      );
-    }
+    expect(result.success).toBe(true);
   });
 
-  test("rejects trigger with three outgoing edges missing no-show branch label", () => {
+  test("allows a trigger with three outgoing edges and a fanned-out branch", () => {
     const graph = createBranchedTriggerGraph();
     graph.nodes.push({
       key: "send-extra",
@@ -2103,17 +2096,10 @@ describe("Journey graph trigger branching", () => {
     });
 
     const result = linearJourneyGraphSchema.safeParse(graph);
-    expect(result.success).toBe(false);
-
-    if (!result.success) {
-      const messages = result.error.issues.map((issue) => issue.message);
-      expect(messages).toContain(
-        'Trigger step with three outgoing edges must include exactly "scheduled", "canceled", and "no_show" branches',
-      );
-    }
+    expect(result.success).toBe(true);
   });
 
-  test("rejects trigger with two outgoing edges missing the canceled branch label", () => {
+  test("allows a trigger with two outgoing edges on the same branch", () => {
     const graph = createBranchedTriggerGraph();
     const cancelEdge = graph.edges.find((edge) => edge.key === "e-canceled");
     if (cancelEdge) {
@@ -2125,14 +2111,7 @@ describe("Journey graph trigger branching", () => {
     }
 
     const result = linearJourneyGraphSchema.safeParse(graph);
-    expect(result.success).toBe(false);
-
-    if (!result.success) {
-      const messages = result.error.issues.map((issue) => issue.message);
-      expect(messages).toContain(
-        'Trigger step with two outgoing edges must include exactly one "scheduled" branch and one terminal branch ("canceled" or "no_show")',
-      );
-    }
+    expect(result.success).toBe(true);
   });
 });
 

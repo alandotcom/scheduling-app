@@ -81,8 +81,9 @@ All journey tables are org-scoped with RLS (`org_id`) in `packages/db/src/schema
 ## Idempotency and Dedupe
 
 - Domain-event dedupe uses canonical `event.id` in Inngest event ids.
-- Run identity is unique by `(org_id, journey_version_id, trigger_entity_type, trigger_entity_id, mode)`.
-- Delivery dedupe is unique by `(org_id, deterministic_key)`.
+- Run identity is unique by `(org_id, journey_version_id, trigger_entity_type, trigger_entity_id, mode)` over active runs only (`WHERE status IN ('planned','running')`), so terminal runs free the slot for cancel-and-restart.
+- The run dispatcher emits one `journey.run.start` event per run; the `journey-run` function walks the graph (see the execution-lifecycle guide).
+- Delivery projection rows are unique by `(org_id, deterministic_key)`.
 
 ## Runtime Artifacts
 

@@ -568,10 +568,12 @@ describe("JourneyService", () => {
     const runDetail = await journeyService.getRun(testRun.runId, context);
 
     expect(runDetail.run.journeyVersion).toBe(2);
-    expect(runDetail.deliveries).toHaveLength(1);
+    // The run pins the latest version; deliveries and the trigger step log (which
+    // carries eventType) are projected by the run function, not synchronously at
+    // dispatch time. The appointment context is hydrated from the run row.
+    expect(runDetail.deliveries).toHaveLength(0);
     expect(runDetail.events).toBeArray();
     expect(runDetail.stepLogs).toBeArray();
-    expect(runDetail.triggerContext?.eventType).toBe("appointment.scheduled");
     expect(runDetail.triggerContext?.appointment?.id).toBe(appointment.id);
   });
 
@@ -1482,6 +1484,8 @@ describe("JourneyService", () => {
     expect(run).toBeDefined();
     expect(run?.mode).toBe("test");
 
+    // The dispatcher creates the run and emits journey.run.start; deliveries are
+    // a projection written by the run function, not synchronously at start.
     const deliveries = await db
       .select({
         id: journeyDeliveries.id,
@@ -1490,7 +1494,7 @@ describe("JourneyService", () => {
       .from(journeyDeliveries)
       .where(eq(journeyDeliveries.journeyRunId, result.runId));
 
-    expect(deliveries).toHaveLength(1);
+    expect(deliveries).toHaveLength(0);
   });
 
   test("manual test start allows email steps without requiring override", async () => {
@@ -1543,13 +1547,10 @@ describe("JourneyService", () => {
       .select({ id: journeyRuns.id })
       .from(journeyRuns)
       .where(eq(journeyRuns.id, result.runId));
-    const deliveries = await db
-      .select({ id: journeyDeliveries.id })
-      .from(journeyDeliveries)
-      .where(eq(journeyDeliveries.journeyRunId, result.runId));
 
+    // Test-mode email starts without requiring an integration override; the run
+    // is created and a run-start emitted (the send projection lands later).
     expect(runs).toHaveLength(1);
-    expect(deliveries).toHaveLength(1);
   });
 
   test("manual test start allows template email steps without requiring override", async () => {

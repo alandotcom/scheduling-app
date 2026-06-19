@@ -440,23 +440,25 @@ describe("journey cutover schema exports", () => {
     expect(parsed.success).toBe(false);
   });
 
-  test("rejects duplicate condition branch labels", () => {
-    const graph = createConditionGraph("trigger-condition-duplicate-branch");
+  test("allows a condition branch to fan out to multiple targets", () => {
+    const graph = createConditionGraph("trigger-condition-fanout-branch");
     const falseEdge = graph.edges.find(
       (edge) => edge.key === "condition-step-to-send-false",
     );
 
+    // Re-label the false edge as a second "true" branch: the condition's true
+    // outcome now fans out to two targets, which is valid.
     if (falseEdge) {
       falseEdge.attributes["label"] = "true";
       falseEdge.attributes["data"] = { conditionBranch: "true" };
     }
 
     const parsed = schemas.createJourneySchema.safeParse({
-      name: "Duplicate Condition Branch Journey",
+      name: "Fan-out Condition Branch Journey",
       graph,
     });
 
-    expect(parsed.success).toBe(false);
+    expect(parsed.success).toBe(true);
   });
 
   test("rejects legacy action aliases outside supported step set", () => {

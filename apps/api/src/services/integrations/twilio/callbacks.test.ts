@@ -134,16 +134,6 @@ describe("applyTwilioStatusCallback", () => {
       .limit(1);
 
     expect(stepLog?.status).toBe("success");
-
-    const [run] = await db
-      .select({
-        status: journeyRuns.status,
-      })
-      .from(journeyRuns)
-      .where(eq(journeyRuns.id, seeded.runId))
-      .limit(1);
-
-    expect(run?.status).toBe("completed");
   }, 20_000);
 
   test("marks delivery failed on undelivered callback", async () => {
@@ -185,16 +175,6 @@ describe("applyTwilioStatusCallback", () => {
 
     expect(delivery?.status).toBe("failed");
     expect(delivery?.reasonCode).toBe("twilio_status:undelivered:error_30007");
-
-    const [run] = await db
-      .select({
-        status: journeyRuns.status,
-      })
-      .from(journeyRuns)
-      .where(eq(journeyRuns.id, seeded.runId))
-      .limit(1);
-
-    expect(run?.status).toBe("failed");
   }, 20_000);
 
   test("ignores non-terminal callback statuses", async () => {

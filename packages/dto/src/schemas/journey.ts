@@ -18,8 +18,6 @@ import {
 import {
   getConditionBranchFromEdge,
   getTriggerBranchFromEdge,
-  type ConditionBranch,
-  type TriggerBranch,
 } from "./workflow-graph-branches";
 
 export const journeyStatusSchema = z.enum(["draft", "published", "paused"]);
@@ -119,14 +117,8 @@ export const linearJourneyGraphSchema =
     const nodeIdToIndex = new Map<string, number>();
     const nodeById = new Map<string, JourneyGraphNode>();
     const incomingByNodeId = new Map<string, number>();
-    const outgoingByNodeId = new Map<string, number>();
     const outgoingEdgesBySourceId = new Map<string, JourneyGraphEdge[]>();
     const actionTypeByNodeId = new Map<string, string>();
-    const conditionBranchSetBySourceId = new Map<
-      string,
-      Set<ConditionBranch>
-    >();
-    const triggerBranchSetBySourceId = new Map<string, Set<TriggerBranch>>();
     const triggerNodeIds: string[] = [];
 
     for (const [index, node] of graph.nodes.entries()) {
@@ -143,7 +135,6 @@ export const linearJourneyGraphSchema =
       nodeIdToIndex.set(nodeId, index);
       nodeById.set(nodeId, node);
       incomingByNodeId.set(nodeId, 0);
-      outgoingByNodeId.set(nodeId, 0);
       outgoingEdgesBySourceId.set(nodeId, []);
 
       const data = node.attributes.data;
@@ -303,10 +294,6 @@ export const linearJourneyGraphSchema =
         });
       }
 
-      outgoingByNodeId.set(
-        edge.source,
-        (outgoingByNodeId.get(edge.source) ?? 0) + 1,
-      );
       incomingByNodeId.set(
         edge.target,
         (incomingByNodeId.get(edge.target) ?? 0) + 1,
@@ -342,48 +329,14 @@ export const linearJourneyGraphSchema =
               'Condition edges must be labeled as either "true" or "false"',
             path: ["edges", index, "attributes"],
           });
-          continue;
         }
-
-        const existingBranches =
-          conditionBranchSetBySourceId.get(edge.source) ??
-          new Set<ConditionBranch>();
-
-        if (existingBranches.has(conditionBranch)) {
-          ctx.addIssue({
-            code: "custom",
-            message: "Condition step cannot have duplicate branch labels",
-            path: ["edges", index, "attributes"],
-          });
-          continue;
-        }
-
-        existingBranches.add(conditionBranch);
-        conditionBranchSetBySourceId.set(edge.source, existingBranches);
+        // A condition branch may fan out to multiple targets that all run.
         continue;
       }
 
       if (sourceNode.attributes.data.type === "trigger") {
-        const triggerBranch = getTriggerBranchFromEdge(edge);
-        if (triggerBranch) {
-          const existingBranches =
-            triggerBranchSetBySourceId.get(edge.source) ??
-            new Set<TriggerBranch>();
-
-          if (existingBranches.has(triggerBranch)) {
-            ctx.addIssue({
-              code: "custom",
-              message: "Trigger step cannot have duplicate branch labels",
-              path: ["edges", index, "attributes"],
-            });
-            continue;
-          }
-
-          existingBranches.add(triggerBranch);
-          triggerBranchSetBySourceId.set(edge.source, existingBranches);
-          continue;
-        }
-        // trigger edge without branch label is ok (backwards compat)
+        // A trigger branch (scheduled/canceled/no_show) may fan out to multiple
+        // targets that all run; labeled and unlabeled edges are both allowed.
         continue;
       }
 
@@ -405,7 +358,6 @@ export const linearJourneyGraphSchema =
       }
 
       const incoming = incomingByNodeId.get(nodeId) ?? 0;
-      const outgoing = outgoingByNodeId.get(nodeId) ?? 0;
       const actionType = actionTypeByNodeId.get(nodeId);
       const isTrigger = node.attributes.data.type === "trigger";
       const isCondition = actionType === "condition";
@@ -418,54 +370,9 @@ export const linearJourneyGraphSchema =
             path: ["nodes", index, "attributes", "id"],
           });
         }
-
-        if (outgoing > 3) {
-          ctx.addIssue({
-            code: "custom",
-            message: "Trigger step can have at most three outgoing branches",
-            path: ["nodes", index, "attributes", "id"],
-          });
-        }
-
-        if (outgoing === 2) {
-          const branches = triggerBranchSetBySourceId.get(nodeId) ?? new Set();
-          // Only enforce branch labels when at least one edge is labeled (backwards compat)
-          if (
-            branches.size > 0 &&
-            !(
-              branches.size === 2 &&
-              branches.has("scheduled") &&
-              (branches.has("canceled") || branches.has("no_show"))
-            )
-          ) {
-            ctx.addIssue({
-              code: "custom",
-              message:
-                'Trigger step with two outgoing edges must include exactly one "scheduled" branch and one terminal branch ("canceled" or "no_show")',
-              path: ["nodes", index, "attributes", "id"],
-            });
-          }
-        }
-
-        if (outgoing === 3) {
-          const branches = triggerBranchSetBySourceId.get(nodeId) ?? new Set();
-          if (
-            !(
-              branches.size === 3 &&
-              branches.has("scheduled") &&
-              branches.has("canceled") &&
-              branches.has("no_show")
-            )
-          ) {
-            ctx.addIssue({
-              code: "custom",
-              message:
-                'Trigger step with three outgoing edges must include exactly "scheduled", "canceled", and "no_show" branches',
-              path: ["nodes", index, "attributes", "id"],
-            });
-          }
-        }
-
+        // A trigger branch may fan out to multiple targets that all run; branch
+        // labels are validated per edge, so there is no outgoing count or
+        // branch-combination limit.
         continue;
       }
 
@@ -477,28 +384,9 @@ export const linearJourneyGraphSchema =
         });
       }
 
+      // Condition branches (true/false) may also fan out to multiple targets;
+      // each edge's label is validated per edge above.
       if (isCondition) {
-        if (outgoing > 2) {
-          ctx.addIssue({
-            code: "custom",
-            message: "Condition step can have at most two outgoing branches",
-            path: ["nodes", index, "attributes", "id"],
-          });
-        }
-
-        if (outgoing === 2) {
-          const branches =
-            conditionBranchSetBySourceId.get(nodeId) ?? new Set();
-          if (!(branches.has("true") && branches.has("false"))) {
-            ctx.addIssue({
-              code: "custom",
-              message:
-                'Condition step with two outgoing edges must include exactly one "true" and one "false" branch',
-              path: ["nodes", index, "attributes", "id"],
-            });
-          }
-        }
-
         continue;
       }
     }

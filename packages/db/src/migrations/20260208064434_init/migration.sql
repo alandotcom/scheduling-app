@@ -477,7 +477,7 @@ CREATE UNIQUE INDEX "integrations_org_key_unique_idx" ON "integrations" ("org_id
 CREATE UNIQUE INDEX "journey_deliveries_org_deterministic_key_uidx" ON "journey_deliveries" ("org_id","deterministic_key");--> statement-breakpoint
 CREATE INDEX "journey_deliveries_org_run_scheduled_for_idx" ON "journey_deliveries" ("org_id","journey_run_id","scheduled_for");--> statement-breakpoint
 CREATE INDEX "journey_deliveries_org_status_idx" ON "journey_deliveries" ("org_id","status");--> statement-breakpoint
-CREATE UNIQUE INDEX "journey_runs_org_identity_uidx" ON "journey_runs" ("org_id","journey_version_id","trigger_entity_type","trigger_entity_id","mode");--> statement-breakpoint
+CREATE UNIQUE INDEX "journey_runs_org_identity_uidx" ON "journey_runs" ("org_id","journey_version_id","trigger_entity_type","trigger_entity_id","mode") WHERE "journey_runs"."status" in ('planned', 'running');--> statement-breakpoint
 CREATE INDEX "journey_runs_org_status_idx" ON "journey_runs" ("org_id","status");--> statement-breakpoint
 CREATE INDEX "journey_runs_org_mode_started_at_idx" ON "journey_runs" ("org_id","mode","started_at");--> statement-breakpoint
 CREATE INDEX "journey_runs_org_client_started_at_idx" ON "journey_runs" ("org_id","client_id","started_at");--> statement-breakpoint

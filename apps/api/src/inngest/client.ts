@@ -12,14 +12,6 @@ import { config } from "../config.js";
 // transform-free shapes, so we define them as typed eventType() triggers: Zod
 // gives compile-time typing for handlers plus runtime validation on receipt.
 
-const deliveryScheduledData = z.object({
-  orgId: z.string(),
-  journeyDeliveryId: z.string(),
-  journeyRunId: z.string(),
-  deterministicKey: z.string(),
-  scheduledFor: z.string(),
-});
-
 const twilioCallbackReceivedData = z.object({
   orgId: z.string(),
   journeyDeliveryId: z.string(),
@@ -30,45 +22,23 @@ const twilioCallbackReceivedData = z.object({
 
 const devPingData = z.object({ orgId: z.string() });
 
-export const providerExecuteEventNames = [
-  "journey.action.send-resend.execute",
-  "journey.action.send-slack.execute",
-  "journey.action.send-twilio.execute",
-  "journey.wait-resume.execute",
-  "journey.wait-for-confirmation-timeout.execute",
-] as const;
-
-export type ProviderExecuteEventName =
-  (typeof providerExecuteEventNames)[number];
-
-// The provider-execute events plus the legacy journey.delivery.scheduled fanout
-// event all carry the same delivery-scheduled payload shape. Written as an
-// explicit literal so each value's EventType is inferred precisely without a
-// narrowing cast.
-export const deliveryEvents = {
-  "journey.action.send-resend.execute": eventType(
-    "journey.action.send-resend.execute",
-    { schema: deliveryScheduledData },
-  ),
-  "journey.action.send-slack.execute": eventType(
-    "journey.action.send-slack.execute",
-    { schema: deliveryScheduledData },
-  ),
-  "journey.action.send-twilio.execute": eventType(
-    "journey.action.send-twilio.execute",
-    { schema: deliveryScheduledData },
-  ),
-  "journey.wait-resume.execute": eventType("journey.wait-resume.execute", {
-    schema: deliveryScheduledData,
-  }),
-  "journey.wait-for-confirmation-timeout.execute": eventType(
-    "journey.wait-for-confirmation-timeout.execute",
-    { schema: deliveryScheduledData },
-  ),
-  "journey.delivery.scheduled": eventType("journey.delivery.scheduled", {
-    schema: deliveryScheduledData,
-  }),
-};
+// Inngest-native journey run: one `journey.run.start` event spawns one
+// `journey-run` function invocation that walks the pinned graph snapshot. Flat,
+// transform-free shape so it can be a typed eventType() trigger.
+const journeyRunStartData = z.object({
+  orgId: z.string(),
+  journeyRunId: z.string(),
+  journeyId: z.string(),
+  journeyVersionId: z.string().nullable(),
+  triggerEntityType: z.enum(["appointment", "client"]),
+  triggerEntityId: z.string(),
+  appointmentId: z.string().nullable(),
+  clientId: z.string().nullable(),
+  mode: z.enum(["live", "test"]),
+  triggerBranch: z.enum(["scheduled", "canceled", "no_show"]).optional(),
+  triggerEventType: z.string(),
+  eventTimestamp: z.string(),
+});
 
 // Domain events (appointment.* / client.*) are dynamic and DTO-validated in the
 // handler. A type-only envelope trigger gives the handler a typed event.data
@@ -89,6 +59,10 @@ export const twilioCallbackReceivedEvent = eventType(
   "journey.action.send-twilio.callback-received",
   { schema: twilioCallbackReceivedData },
 );
+
+export const journeyRunStartEvent = eventType("journey.run.start", {
+  schema: journeyRunStartData,
+});
 
 export const inngest = new Inngest({
   id: "scheduling-api",

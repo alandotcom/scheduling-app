@@ -11,7 +11,6 @@ import {
   appendJourneyRunEvent,
   upsertJourneyRunStepLog,
 } from "../../journey-run-artifacts.js";
-import { refreshJourneyRunStatus } from "../../journey-run-status.js";
 
 const TWILIO_SUCCESS_STATUSES = new Set(["sent", "delivered", "read"]);
 const TWILIO_FAILURE_STATUSES = new Set(["failed", "undelivered", "canceled"]);
@@ -265,10 +264,6 @@ export async function applyTwilioStatusCallback(
       runId: updated.journeyRunId,
     };
   });
-
-  if (result.applied && result.runId) {
-    await refreshJourneyRunStatus(payload.orgId, result.runId);
-  }
 
   return {
     applied: result.applied,

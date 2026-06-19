@@ -813,13 +813,19 @@ export const journeyRuns = pgTable.withRLS(
         (${table.triggerEntityType} = 'client' AND ${table.appointmentId} IS NULL AND (${table.clientId} IS NULL OR ${table.triggerEntityId} = ${table.clientId}))
       )`,
     ),
-    uniqueIndex("journey_runs_org_identity_uidx").on(
-      table.orgId,
-      table.journeyVersionId,
-      table.triggerEntityType,
-      table.triggerEntityId,
-      table.mode,
-    ),
+    // Partial unique index: at most one ACTIVE run per identity. Terminal runs
+    // (completed/canceled/failed) do not occupy the slot, which lets
+    // cancel-and-restart and terminal-branch runs create a fresh active run once
+    // the prior run has finished.
+    uniqueIndex("journey_runs_org_identity_uidx")
+      .on(
+        table.orgId,
+        table.journeyVersionId,
+        table.triggerEntityType,
+        table.triggerEntityId,
+        table.mode,
+      )
+      .where(sql`${table.status} in ('planned', 'running')`),
     index("journey_runs_org_status_idx").on(table.orgId, table.status),
     index("journey_runs_org_mode_started_at_idx").on(
       table.orgId,

@@ -9,9 +9,7 @@ describe("journey domain trigger function", () => {
       eventType: "appointment.scheduled" as const,
       orgId: "org_1",
       plannedRunIds: ["run_1"],
-      scheduledDeliveryIds: ["delivery_1"],
-      canceledDeliveryIds: [],
-      skippedDeliveryIds: [],
+      canceledRunIds: [],
       ignoredJourneyIds: [],
       erroredJourneyIds: [],
     }));
@@ -115,9 +113,7 @@ describe("journey domain trigger function", () => {
       eventType: "client.updated" as const,
       orgId: "org_1",
       plannedRunIds: ["run_2"],
-      scheduledDeliveryIds: [],
-      canceledDeliveryIds: [],
-      skippedDeliveryIds: [],
+      canceledRunIds: [],
       ignoredJourneyIds: [],
       erroredJourneyIds: [],
     }));
@@ -191,9 +187,7 @@ describe("journey domain trigger function", () => {
       eventType: "appointment.scheduled" as const,
       orgId: "org_1",
       plannedRunIds: [],
-      scheduledDeliveryIds: [],
-      canceledDeliveryIds: [],
-      skippedDeliveryIds: [],
+      canceledRunIds: [],
       ignoredJourneyIds: [],
       erroredJourneyIds: [],
     }));

@@ -1,5 +1,4 @@
 import { getLogger } from "@logtape/logtape";
-import type { ProviderExecuteEventName } from "../inngest/client.js";
 import {
   normalizeActionType,
   type JourneyDeliveryDispatchInput,
@@ -42,46 +41,15 @@ async function dispatchLoggerDelivery(
   };
 }
 
-type InngestRetryCount =
-  | 0
-  | 1
-  | 2
-  | 3
-  | 4
-  | 5
-  | 6
-  | 7
-  | 8
-  | 9
-  | 10
-  | 11
-  | 12
-  | 13
-  | 14
-  | 15
-  | 16
-  | 17
-  | 18
-  | 19
-  | 20;
-
-type DeliveryProviderEventName =
-  | ProviderExecuteEventName
-  | "journey.delivery.scheduled";
-
+// A delivery provider for one channel. The journey-run executor dispatches sends
+// through `dispatch`, derives the channel hint from `channel`, and uses
+// `maxDispatchAttempts` to bound in-step retries (Twilio is 1 since the real
+// status arrives via an async callback, so a retry would risk a double-send).
 export type DeliveryProviderSpec = {
   key: string;
   actionTypes: readonly string[];
   channel: string;
-  eventName: DeliveryProviderEventName;
-  functionId: string;
-  retries: InngestRetryCount;
   maxDispatchAttempts: number;
-  perFunctionConcurrency: {
-    key: string;
-    scope: "env" | "fn" | "account";
-    limit: number;
-  };
   dispatch: JourneyDeliveryDispatcher;
 };
 
@@ -90,99 +58,29 @@ const providers: DeliveryProviderSpec[] = [
     key: "resend",
     actionTypes: ["send-resend", "send-resend-template"],
     channel: "email",
-    eventName: "journey.action.send-resend.execute",
-    functionId: "journey-action-send-resend-execute",
-    retries: 2,
     maxDispatchAttempts: 2,
-    perFunctionConcurrency: {
-      key: "event.data.orgId",
-      scope: "fn",
-      limit: 10,
-    },
     dispatch: dispatchJourneySendResendAction,
   },
   {
     key: "slack",
     actionTypes: ["send-slack"],
     channel: "slack",
-    eventName: "journey.action.send-slack.execute",
-    functionId: "journey-action-send-slack-execute",
-    retries: 2,
     maxDispatchAttempts: 2,
-    perFunctionConcurrency: {
-      key: "event.data.orgId",
-      scope: "fn",
-      limit: 10,
-    },
     dispatch: dispatchJourneySendSlackAction,
   },
   {
     key: "twilio",
     actionTypes: ["send-twilio"],
     channel: "sms",
-    eventName: "journey.action.send-twilio.execute",
-    functionId: "journey-action-send-twilio-execute",
-    retries: 0,
     maxDispatchAttempts: 1,
-    perFunctionConcurrency: {
-      key: "event.data.orgId",
-      scope: "fn",
-      limit: 10,
-    },
     dispatch: dispatchJourneySendTwilioAction,
   },
   {
     key: "logger",
     actionTypes: ["logger"],
     channel: "logger",
-    eventName: "journey.delivery.scheduled",
-    functionId: "journey-delivery-scheduled",
-    retries: 2,
     maxDispatchAttempts: 2,
-    perFunctionConcurrency: {
-      key: "event.data.orgId",
-      scope: "fn",
-      limit: 20,
-    },
     dispatch: dispatchLoggerDelivery,
-  },
-  {
-    key: "wait-resume",
-    actionTypes: ["wait-resume"],
-    channel: "internal",
-    eventName: "journey.wait-resume.execute",
-    functionId: "journey-wait-resume-execute",
-    retries: 2,
-    maxDispatchAttempts: 1,
-    perFunctionConcurrency: {
-      key: "event.data.orgId",
-      scope: "fn",
-      limit: 10,
-    },
-    dispatch: () => {
-      throw new Error(
-        "wait-resume deliveries are intercepted before dispatch; this should never be called.",
-      );
-    },
-  },
-  {
-    key: "wait-for-confirmation-timeout",
-    actionTypes: ["wait-for-confirmation-timeout"],
-    channel: "internal",
-    eventName: "journey.wait-for-confirmation-timeout.execute",
-    functionId: "journey-wait-for-confirmation-timeout-execute",
-    retries: 2,
-    maxDispatchAttempts: 1,
-    perFunctionConcurrency: {
-      key: "event.data.orgId",
-      scope: "fn",
-      limit: 10,
-    },
-    dispatch: () => {
-      throw new Error(
-        "wait-for-confirmation-timeout deliveries are intercepted before dispatch; this should never be called.",
-      );
-    },
   },
 ];
 
@@ -202,8 +100,6 @@ export function getProviderForActionType(
 export const deliveryActionTypes: readonly string[] = providers.flatMap(
   (p) => p.actionTypes,
 );
-
-export const deliveryProviders: readonly DeliveryProviderSpec[] = providers;
 
 export const SHARED_ORG_CONCURRENCY = {
   key: '"journey-delivery:" + event.data.orgId',

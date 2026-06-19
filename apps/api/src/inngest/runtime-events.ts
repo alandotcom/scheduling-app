@@ -1,13 +1,4 @@
-import { getProviderForActionType } from "../services/delivery-provider-registry.js";
-import { inngest, type ProviderExecuteEventName } from "./client.js";
-
-export type JourneyDeliveryScheduledEventData = {
-  orgId: string;
-  journeyDeliveryId: string;
-  journeyRunId: string;
-  deterministicKey: string;
-  scheduledFor: string;
-};
+import { inngest } from "./client.js";
 
 export type JourneyActionSendTwilioCallbackReceivedEventData = {
   orgId: string;
@@ -17,12 +8,19 @@ export type JourneyActionSendTwilioCallbackReceivedEventData = {
   errorCode?: string | null;
 };
 
-export type JourneyDeliveryCanceledEventData = {
+export type JourneyRunStartEventData = {
   orgId: string;
-  journeyDeliveryId: string;
   journeyRunId: string;
-  deterministicKey: string;
-  reasonCode: string;
+  journeyId: string;
+  journeyVersionId: string | null;
+  triggerEntityType: "appointment" | "client";
+  triggerEntityId: string;
+  appointmentId: string | null;
+  clientId: string | null;
+  mode: "live" | "test";
+  triggerBranch?: "scheduled" | "canceled" | "no_show";
+  triggerEventType: string;
+  eventTimestamp: string;
 };
 
 type InngestSendResult =
@@ -42,23 +40,13 @@ type InngestSendResult =
 type RuntimeEvent =
   | {
       id: string;
-      name: "journey.delivery.scheduled";
-      data: JourneyDeliveryScheduledEventData;
-    }
-  | {
-      id: string;
-      name: ProviderExecuteEventName | "journey.delivery.scheduled";
-      data: JourneyDeliveryScheduledEventData;
-    }
-  | {
-      id: string;
       name: "journey.action.send-twilio.callback-received";
       data: JourneyActionSendTwilioCallbackReceivedEventData;
     }
   | {
       id: string;
-      name: "journey.delivery.canceled";
-      data: JourneyDeliveryCanceledEventData;
+      name: "journey.run.start";
+      data: JourneyRunStartEventData;
     };
 
 type InngestSend = (event: RuntimeEvent) => Promise<unknown>;
@@ -105,50 +93,6 @@ function getEventId(result: unknown): string | undefined {
   return;
 }
 
-export async function sendJourneyDeliveryScheduled(
-  input: JourneyDeliveryScheduledEventData,
-  send: InngestSend = sendViaInngest,
-): Promise<{ eventId?: string }> {
-  const response = await send({
-    id: `journey-delivery-scheduled-${input.journeyDeliveryId}`,
-    name: "journey.delivery.scheduled",
-    data: input,
-  });
-
-  const eventId = getEventId(response);
-  if (eventId) {
-    return { eventId };
-  }
-
-  return {};
-}
-
-export async function sendJourneyActionExecuteForActionType(
-  actionType: string,
-  input: JourneyDeliveryScheduledEventData,
-  send: InngestSend = sendViaInngest,
-): Promise<{ eventId?: string }> {
-  const provider = getProviderForActionType(actionType);
-  if (!provider) {
-    throw new Error(
-      `No delivery provider registered for action type "${actionType}".`,
-    );
-  }
-
-  const response = await send({
-    id: `${provider.functionId}-${input.journeyDeliveryId}`,
-    name: provider.eventName,
-    data: input,
-  });
-
-  const eventId = getEventId(response);
-  if (eventId) {
-    return { eventId };
-  }
-
-  return {};
-}
-
 export async function sendJourneyActionSendTwilioCallbackReceived(
   input: JourneyActionSendTwilioCallbackReceivedEventData,
   send: InngestSend = sendViaInngest,
@@ -167,13 +111,15 @@ export async function sendJourneyActionSendTwilioCallbackReceived(
   return {};
 }
 
-export async function sendJourneyDeliveryCanceled(
-  input: JourneyDeliveryCanceledEventData,
+export async function sendJourneyRunStart(
+  input: JourneyRunStartEventData,
   send: InngestSend = sendViaInngest,
 ): Promise<{ eventId?: string }> {
+  // Stable event id keyed on the run row so a redelivered domain event cannot
+  // spawn a duplicate run (composes with the function's idempotency key).
   const response = await send({
-    id: `journey-delivery-canceled-${input.journeyDeliveryId}`,
-    name: "journey.delivery.canceled",
+    id: `journey-run-start-${input.journeyRunId}`,
+    name: "journey.run.start",
     data: input,
   });
 
