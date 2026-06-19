@@ -1983,6 +1983,62 @@ describe("processJourneyDomainEvent", () => {
     expect(deliveries).toHaveLength(1);
   });
 
+  test("tolerates concurrent planners for the same appointment without aborting", async () => {
+    const created = await journeyService.create(
+      {
+        name: "Concurrent Journey",
+        graph: createJourneyGraph(),
+      },
+      context,
+    );
+
+    await journeyService.publish(created.id, { mode: "live" }, context);
+
+    const appointmentId = await createQuickAppointment(
+      db as any,
+      context.orgId,
+    );
+    const payload = createAppointmentPayload({ appointmentId });
+    const timestamp = "2026-02-16T10:00:00.000Z";
+
+    // Two separate domain-event Inngest functions (start + restart) can run
+    // concurrently for the same entity. They find-or-create the same run and
+    // reconcile the same deterministic delivery key; the unique-violation must
+    // be absorbed by onConflictDoNothing rather than aborting the transaction.
+    const results = await Promise.allSettled([
+      processJourneyDomainEvent({
+        id: "evt-concurrent-a",
+        orgId: context.orgId,
+        type: "appointment.scheduled",
+        payload,
+        timestamp,
+      }),
+      processJourneyDomainEvent({
+        id: "evt-concurrent-b",
+        orgId: context.orgId,
+        type: "appointment.rescheduled",
+        payload,
+        timestamp,
+      }),
+    ]);
+
+    for (const result of results) {
+      expect(result.status).toBe("fulfilled");
+    }
+
+    await setTestOrgContext(db, context.orgId);
+
+    const runs = await db.select().from(journeyRuns);
+    expect(runs).toHaveLength(1);
+
+    const deliveries = await db
+      .select()
+      .from(journeyDeliveries)
+      .where(eq(journeyDeliveries.journeyRunId, runs[0]!.id));
+
+    expect(deliveries).toHaveLength(1);
+  });
+
   test("creates independent run and delivery sets when two journeys match the same appointment", async () => {
     const [firstJourney, secondJourney] = await Promise.all([
       journeyService.create(

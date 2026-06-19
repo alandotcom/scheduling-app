@@ -40,26 +40,32 @@ function parseConditionDateValue(value: string, timezone: string): Date {
   return parsed.toUTC().toJSDate();
 }
 
-const conditionEnvironment = new Environment({
-  unlistedVariablesAreDyn: false,
-  limits: {
-    maxAstNodes: 512,
-    maxDepth: 64,
-    maxListElements: 128,
-    maxMapEntries: 128,
-    maxCallArguments: 8,
-  },
-})
-  .registerVariable("appointment", "map")
-  .registerVariable("client", "map")
-  .registerVariable("now", "dyn")
-  .registerVariable("orgTimezone", "string")
-  .registerFunction("date(string): dyn", (value) =>
-    parseConditionDateValue(value, DEFAULT_ORG_TIMEZONE),
-  )
-  .registerFunction("date(string, string): dyn", (value, timezone) =>
-    parseConditionDateValue(value, timezone),
-  );
+// The single-arg `date(value)` overload resolves a bare date literal in the
+// org's timezone, so the environment is rebuilt per evaluation with the caller's
+// timezone closed over. A module-level singleton would bake in UTC and silently
+// flip true/false branches near midnight for org timezones that are not UTC.
+function buildConditionEnvironment(orgTimezone: string) {
+  return new Environment({
+    unlistedVariablesAreDyn: false,
+    limits: {
+      maxAstNodes: 512,
+      maxDepth: 64,
+      maxListElements: 128,
+      maxMapEntries: 128,
+      maxCallArguments: 8,
+    },
+  })
+    .registerVariable("appointment", "map")
+    .registerVariable("client", "map")
+    .registerVariable("now", "dyn")
+    .registerVariable("orgTimezone", "string")
+    .registerFunction("date(string): dyn", (value) =>
+      parseConditionDateValue(value, orgTimezone),
+    )
+    .registerFunction("date(string, string): dyn", (value, timezone) =>
+      parseConditionDateValue(value, timezone),
+    );
+}
 
 export function evaluateJourneyConditionExpression(input: {
   expression: unknown;
@@ -80,6 +86,9 @@ export function evaluateJourneyConditionExpression(input: {
     };
   }
 
+  const orgTimezone = input.orgTimezone ?? DEFAULT_ORG_TIMEZONE;
+  const conditionEnvironment = buildConditionEnvironment(orgTimezone);
+
   try {
     const checkResult = conditionEnvironment.check(input.expression);
     if (!checkResult.valid) {
@@ -96,7 +105,7 @@ export function evaluateJourneyConditionExpression(input: {
       appointment: input.context.appointment,
       client: input.context.client,
       now: input.now ?? new Date(),
-      orgTimezone: input.orgTimezone ?? DEFAULT_ORG_TIMEZONE,
+      orgTimezone,
     });
 
     if (evaluated instanceof Promise) {

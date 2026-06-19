@@ -1046,7 +1046,15 @@ async function findOrCreateJourneyRun(input: {
         publishedAt: input.journeyVersion.publishedAt.toISOString(),
       },
     })
-    .onConflictDoNothing()
+    .onConflictDoNothing({
+      target: [
+        journeyRuns.orgId,
+        journeyRuns.journeyVersionId,
+        journeyRuns.triggerEntityType,
+        journeyRuns.triggerEntityId,
+        journeyRuns.mode,
+      ],
+    })
     .returning();
 
   if (created) {
@@ -1498,6 +1506,14 @@ async function reconcileDeliveries(input: {
           reasonCode: desired.reasonCode,
           deterministicKey: desired.deterministicKey,
         })
+        // A concurrent planner (a different domain-event Inngest function firing
+        // for the same entity) can insert the same (orgId, deterministicKey)
+        // first. Ignore the conflict instead of throwing — a thrown unique
+        // violation would abort the whole event's transaction. The no-row result
+        // is handled below as "already created by the other pass".
+        .onConflictDoNothing({
+          target: [journeyDeliveries.orgId, journeyDeliveries.deterministicKey],
+        })
         .returning({
           id: journeyDeliveries.id,
           journeyRunId: journeyDeliveries.journeyRunId,
@@ -1722,8 +1738,12 @@ export async function processJourneyDomainEvent(
       };
     }
 
+    // Only the latest version per journey is used, so fetch exactly that with
+    // DISTINCT ON instead of pulling every historical version's full graph
+    // snapshot and discarding all but the newest in app code. The (journey_id,
+    // version DESC) ordering makes Postgres keep the highest version per journey.
     const versions = await tx
-      .select({
+      .selectDistinctOn([journeyVersions.journeyId], {
         id: journeyVersions.id,
         journeyId: journeyVersions.journeyId,
         version: journeyVersions.version,
@@ -1737,7 +1757,11 @@ export async function processJourneyDomainEvent(
           activeJourneys.map((j) => j.id),
         ),
       )
-      .orderBy(desc(journeyVersions.version), desc(journeyVersions.id));
+      .orderBy(
+        journeyVersions.journeyId,
+        desc(journeyVersions.version),
+        desc(journeyVersions.id),
+      );
 
     const [org] = await tx
       .select({
