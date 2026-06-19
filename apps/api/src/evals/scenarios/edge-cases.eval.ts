@@ -2,7 +2,6 @@ import { evalite } from "evalite";
 import { createScorer } from "evalite";
 import { defaultFixtures } from "../fixtures/index.js";
 import { responseQualityScorer } from "../scorers/response-quality.js";
-import { toolSelectionScorer } from "../scorers/tool-call.js";
 import type { EvalInput, EvalOutput } from "../task.js";
 import { runAssistant } from "../task.js";
 

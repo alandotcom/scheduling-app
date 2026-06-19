@@ -25,7 +25,10 @@ async function seedTwilioDelivery(context: ServiceContext) {
 
   await setTestOrgContext(db, context.orgId);
 
-  const scheduledFor = new Date("2026-02-16T09:00:00.000Z");
+  // Anchor near "now" so the callback's computed durationMs (completedAt -
+  // startedAt) stays within the int4 duration_ms column. A fixed absolute date
+  // overflows int4 once "now" drifts more than ~24 days past it.
+  const scheduledFor = new Date(Date.now() - 60_000);
   const [run] = await db
     .insert(journeyRuns)
     .values({

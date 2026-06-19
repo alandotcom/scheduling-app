@@ -19,6 +19,12 @@ catalog:
 
 confirmModulesPurge: false
 
+overrides:
+  # Pin a single better-sqlite3 version across the workspace. evalite wants ^11
+  # and better-auth wants ^12; without this they fork drizzle-orm's optional
+  # better-sqlite3 peer into two incompatible type instances, breaking typecheck.
+  better-sqlite3: 11.10.0
+
 onlyBuiltDependencies:
   - '-'
   - /
