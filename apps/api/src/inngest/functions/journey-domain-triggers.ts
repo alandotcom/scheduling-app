@@ -3,7 +3,7 @@ import {
   type DomainEventDataByType,
   type DomainEventType,
 } from "@scheduling/dto";
-import { inngest } from "../client.js";
+import { domainTriggerEvent, inngest } from "../client.js";
 import { processJourneyDomainEvent } from "../../services/journey-planner.js";
 
 const journeyPlannerEventTypes = [
@@ -44,8 +44,8 @@ export function createJourneyDomainTriggerFunction<
         key: "event.data.orgId",
         limit: 20,
       },
+      triggers: [domainTriggerEvent(eventType)],
     },
-    { event: eventType },
     async ({ event }) => {
       const { orgId, ...payloadInput } = event.data;
       const payload = parsePayloadForEvent(eventType, payloadInput);

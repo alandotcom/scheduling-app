@@ -9,7 +9,7 @@ import {
   type DomainEventType,
 } from "@scheduling/dto";
 import { getEnabledIntegrationsForOrg } from "../../services/integrations/runtime.js";
-import { inngest } from "../client.js";
+import { domainTriggerEvent, inngest } from "../client.js";
 
 type ResolveIntegrations = (
   orgId: string,
@@ -56,8 +56,8 @@ export function createIntegrationFanoutFunction<
         period: "1m",
         burst: INTEGRATION_FANOUT_FLOW_CONTROL.throttleBurstPerMinute,
       },
+      triggers: [domainTriggerEvent(eventType)],
     },
-    { event: eventType },
     async ({ event, step }) => {
       const { orgId, ...payloadInput } = event.data;
       const domainEventCandidate: DomainEventCandidate = {

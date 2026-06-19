@@ -1,15 +1,11 @@
 import { serve } from "inngest/hono";
-import { config } from "../config.js";
 import { inngest } from "./client.js";
 import { inngestFunctions } from "./functions/index.js";
 
+// In v4, signingKey / baseUrl / serveOrigin / servePath are configured on the
+// Inngest client (see client.ts), so the serve handler only needs the client
+// and the function list.
 export const inngestServeHandler = serve({
   client: inngest,
   functions: inngestFunctions,
-  ...(config.inngest.signingKey
-    ? { signingKey: config.inngest.signingKey }
-    : {}),
-  ...(config.inngest.baseUrl ? { baseUrl: config.inngest.baseUrl } : {}),
-  ...(config.inngest.serveHost ? { serveHost: config.inngest.serveHost } : {}),
-  ...(config.inngest.servePath ? { servePath: config.inngest.servePath } : {}),
 });

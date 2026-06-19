@@ -1,8 +1,7 @@
-import { inngest } from "../client.js";
+import { devPingEvent, inngest } from "../client.js";
 
 export const devPingFunction = inngest.createFunction(
-  { id: "dev-ping" },
-  { event: "scheduling/dev.ping" },
+  { id: "dev-ping", triggers: [devPingEvent] },
   async ({ event, step }) => {
     return step.run("acknowledge-ping", async () => ({
       ok: true,

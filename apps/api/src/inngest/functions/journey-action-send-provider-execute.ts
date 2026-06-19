@@ -4,7 +4,7 @@ import {
   SHARED_ORG_CONCURRENCY,
   type DeliveryProviderSpec,
 } from "../../services/delivery-provider-registry.js";
-import { inngest } from "../client.js";
+import { deliveryEvents, inngest } from "../client.js";
 
 type ExecuteJourneyDeliveryScheduled = typeof executeJourneyDeliveryScheduled;
 
@@ -23,8 +23,8 @@ function createProviderExecuteFunction(
         },
       ],
       concurrency: [SHARED_ORG_CONCURRENCY, provider.perFunctionConcurrency],
+      triggers: [deliveryEvents[provider.eventName]],
     },
-    { event: provider.eventName },
     async ({ event, step }) =>
       executeDelivery(event["data"], {
         maxDispatchAttempts: provider.maxDispatchAttempts,
