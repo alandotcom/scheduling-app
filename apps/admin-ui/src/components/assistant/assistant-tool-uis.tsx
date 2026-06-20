@@ -3,8 +3,10 @@ import { useNavigate } from "@tanstack/react-router";
 import type { ToolCallMessagePartComponent } from "@assistant-ui/react";
 import {
   Alert01Icon,
+  ArrowRight01Icon,
   Clock01Icon,
   Tick02Icon,
+  WrenchIcon,
 } from "@hugeicons/core-free-icons";
 import {
   type AssistantAppointmentTableRow,
@@ -299,35 +301,26 @@ function isInternalField(key: string, value: unknown): boolean {
   return false;
 }
 
-const LOOKUP_LABELS: Record<string, string> = {
-  name: "Name",
-  timezone: "Timezone",
-  durationMin: "Duration (min)",
-};
+/**
+ * Fields that are useful to the model for tool chaining but add noise for a user
+ * picking from the list (e.g. capacity on appointment types).
+ */
+const LOOKUP_HIDDEN_FIELDS = new Set(["capacity"]);
 
-function formatLookupLabel(key: string): string {
-  return LOOKUP_LABELS[key] ?? key;
+function formatLookupValue(key: string, value: unknown): string {
+  if (key === "durationMin" && typeof value === "number") return `${value} min`;
+  return typeof value === "string" ? value : JSON.stringify(value);
 }
 
-function LookupRowFields({ row }: { row: Record<string, unknown> }) {
-  return (
-    <span className="flex min-w-0 flex-1 flex-wrap gap-x-3 gap-y-0.5">
-      {Object.entries(row).map(([k, value]) => {
-        if (value == null) return null;
-        if (isInternalField(k, value)) return null;
-        return (
-          <span key={k}>
-            <span className="font-medium text-muted-foreground">
-              {formatLookupLabel(k)}:
-            </span>{" "}
-            <span className="text-foreground/80">
-              {typeof value === "string" ? value : JSON.stringify(value)}
-            </span>
-          </span>
-        );
-      })}
-    </span>
-  );
+/** Compact secondary line: non-name display fields joined into a subtitle. */
+function lookupSecondary(row: Record<string, unknown>): string {
+  const parts: string[] = [];
+  for (const [key, value] of Object.entries(row)) {
+    if (key === "name" || value == null) continue;
+    if (isInternalField(key, value) || LOOKUP_HIDDEN_FIELDS.has(key)) continue;
+    parts.push(formatLookupValue(key, value));
+  }
+  return parts.join(" · ");
 }
 
 function LookupList({
@@ -354,6 +347,8 @@ function LookupList({
         {rows.map((row) => {
           const key = lookupRowKey(row);
           const isSelected = selectedId === key;
+          const name = typeof row.name === "string" ? row.name : key;
+          const secondary = lookupSecondary(row);
 
           return (
             <button
@@ -362,7 +357,7 @@ function LookupList({
               disabled={disabled}
               onClick={() => handleClick(row)}
               className={cn(
-                "flex w-full items-center gap-2.5 px-3 py-2 text-left text-xs",
+                "flex w-full items-center gap-3 px-3 py-2 text-left text-xs",
                 "transition-colors",
                 isSelected
                   ? "border-l-2 border-l-primary bg-primary/10"
@@ -370,7 +365,14 @@ function LookupList({
                 disabled && "cursor-not-allowed opacity-60",
               )}
             >
-              <LookupRowFields row={row} />
+              <span className="min-w-0 flex-1 truncate font-medium text-foreground">
+                {name}
+              </span>
+              {secondary ? (
+                <span className="shrink-0 truncate text-muted-foreground">
+                  {secondary}
+                </span>
+              ) : null}
               {isSelected ? (
                 <Icon
                   icon={Tick02Icon}
@@ -523,6 +525,97 @@ const ProposalToolRender: ToolCallMessagePartComponent = ({
   if (!result) return null;
   return <ProposalToolResult output={result} />;
 };
+
+// ---------- Generic fallback for unrecognized tool parts ----------
+
+function humanizeToolName(toolName: string): string {
+  return toolName
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .replace(/[_-]+/g, " ")
+    .replace(/^./, (c) => c.toUpperCase())
+    .trim();
+}
+
+/**
+ * Renders any tool-call part that has no dedicated renderer in
+ * `assistantToolRenderers`. Keeps the surface graceful if the model calls a tool
+ * the UI doesn't know about (or a new tool is added server-side first): shows the
+ * tool name + status, with collapsible raw input/output instead of leaking JSON
+ * into the message body.
+ */
+export const ToolFallback: ToolCallMessagePartComponent = ({
+  toolName,
+  args,
+  result,
+  status,
+}) => {
+  const [expanded, setExpanded] = useState(false);
+  const isRunning =
+    status.type === "running" || status.type === "requires-action";
+  const isError = status.type === "incomplete";
+  const hasDetails =
+    (args && Object.keys(args).length > 0) || result !== undefined;
+
+  return (
+    <div className="overflow-hidden rounded-lg border border-border/70 text-xs">
+      <button
+        type="button"
+        disabled={!hasDetails}
+        onClick={() => setExpanded((v) => !v)}
+        className={cn(
+          "flex w-full items-center gap-2 px-3 py-2 text-left",
+          hasDetails && "transition-colors hover:bg-muted/40",
+        )}
+      >
+        <Icon
+          icon={isError ? Alert01Icon : WrenchIcon}
+          className={cn(
+            "size-3.5 shrink-0",
+            isError ? "text-destructive" : "text-muted-foreground",
+          )}
+        />
+        <span className="min-w-0 flex-1 truncate font-medium text-foreground/90">
+          {humanizeToolName(toolName)}
+        </span>
+        {isRunning ? (
+          <span className="inline-block size-1.5 animate-pulse rounded-full bg-primary/50" />
+        ) : null}
+        {hasDetails ? (
+          <Icon
+            icon={ArrowRight01Icon}
+            className={cn(
+              "size-3.5 shrink-0 text-muted-foreground/60 transition-transform",
+              expanded && "rotate-90",
+            )}
+          />
+        ) : null}
+      </button>
+      {expanded && hasDetails ? (
+        <div className="space-y-2 border-t border-border/40 bg-muted/20 px-3 py-2.5">
+          {args && Object.keys(args).length > 0 ? (
+            <ToolJsonSection label="Input" value={args} />
+          ) : null}
+          {result !== undefined ? (
+            <ToolJsonSection label="Output" value={result} />
+          ) : null}
+        </div>
+      ) : null}
+    </div>
+  );
+};
+
+function ToolJsonSection({ label, value }: { label: string; value: unknown }) {
+  return (
+    <div>
+      <div className="mb-1 text-[11px] font-medium text-muted-foreground">
+        {label}
+      </div>
+      <pre className="overflow-x-auto rounded-md bg-background/60 px-2 py-1.5 font-mono text-[11px] leading-relaxed text-foreground/80">
+        {JSON.stringify(value, null, 2)}
+      </pre>
+    </div>
+  );
+}
 
 // ---------- Tool renderer registry ----------
 

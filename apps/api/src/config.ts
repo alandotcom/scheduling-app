@@ -74,7 +74,10 @@ export const config = envParse(Bun.env, {
     assistantModel: {
       format: z.string().min(1),
       env: "ASSISTANT_MODEL",
-      default: "google/gemini-3-flash",
+      // Must support structured tool calling via the gateway. Open-weight models
+      // (e.g. openai/gpt-oss-*) leak tool calls into plain text and break the
+      // assistant's interactive tool UI.
+      default: "minimax/minimax-m3",
     },
   },
   webhooks: {

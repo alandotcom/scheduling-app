@@ -23,7 +23,7 @@ import {
 import { cn } from "@/lib/utils";
 import { Icon } from "@/components/ui/icon";
 import { AssistantRuntime } from "./assistant-runtime";
-import { assistantToolRenderers } from "./assistant-tool-uis";
+import { assistantToolRenderers, ToolFallback } from "./assistant-tool-uis";
 import {
   ProposalProvider,
   clearProposalResults,
@@ -85,7 +85,7 @@ function UserMessageBubble() {
   return (
     <MessagePrimitive.Root className="group relative flex justify-end py-1.5">
       <div className="max-w-[85%] rounded-2xl rounded-br-md bg-primary px-3.5 py-2.5 text-sm text-primary-foreground shadow-sm">
-        <MessagePrimitive.Content
+        <MessagePrimitive.Parts
           components={{
             Text: ({ text }) => (
               <p className="whitespace-pre-wrap leading-relaxed">{text}</p>
@@ -104,11 +104,11 @@ function AssistantMessageBubble() {
         <Icon icon={AiChatIcon} className="size-3.5 text-muted-foreground" />
       </div>
       <div className="min-w-0 flex-1 space-y-2 pt-0.5">
-        <MessagePrimitive.Content
+        <MessagePrimitive.Parts
           components={{
             Text: MarkdownText,
             Empty: TypingIndicator,
-            tools: { by_name: assistantToolRenderers },
+            tools: { by_name: assistantToolRenderers, Fallback: ToolFallback },
           }}
         />
         {/* Fixed-height wrapper prevents layout shift when action bar mounts on hover */}
