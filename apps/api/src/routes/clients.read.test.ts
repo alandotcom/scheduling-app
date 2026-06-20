@@ -1,7 +1,7 @@
 // Integration tests for client routes
 // Tests actual handler logic with database operations
 
-import { describe, test, expect } from "bun:test";
+import { afterEach, describe, test, expect, setSystemTime } from "bun:test";
 import { call } from "@orpc/server";
 import { DateTime } from "luxon";
 import {
@@ -26,6 +26,13 @@ describe("Client Routes", () => {
   const db = getTestDb() as Database;
 
   describe("list", () => {
+    // The updated-at sorting test below mocks the system clock to control
+    // ordering. pglite runs in-process, so its now() follows the process
+    // clock; always restore real time afterwards so other tests are unaffected.
+    afterEach(() => {
+      setSystemTime();
+    });
+
     test("returns empty list when no clients exist", async () => {
       const { org, user } = await createOrg(db);
       const ctx = createTestContext({ orgId: org.id, userId: user.id });
@@ -177,15 +184,21 @@ describe("Client Routes", () => {
       const { org, user } = await createOrg(db);
       const ctx = createTestContext({ orgId: org.id, userId: user.id });
 
+      // Give each write a strictly increasing now() so the update lands after
+      // the newer client's insert. Otherwise they can share a timestamp and the
+      // desc(id) tiebreak sorts the newer client first, flaking the assertion.
+      setSystemTime(new Date("2026-01-01T00:00:00.000Z"));
       const older = await createClient(db, org.id, {
         firstName: "Older",
         lastName: "Client",
       });
+      setSystemTime(new Date("2026-01-01T00:00:01.000Z"));
       await createClient(db, org.id, {
         firstName: "Newer",
         lastName: "Client",
       });
 
+      setSystemTime(new Date("2026-01-01T00:00:02.000Z"));
       await call(
         clientRoutes.update,
         { id: older.id, lastName: "Recently Updated" },
