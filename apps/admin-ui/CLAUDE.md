@@ -14,7 +14,7 @@ Before starting the dev server, check for stale processes: `ps aux | grep -E "vi
 
 ## Tech Stack
 
-- **Framework:** React 19 + Vite 7
+- **Framework:** React 19 + Vite 8
 - **Routing/Data:** TanStack Router (file-based) + TanStack Query
 - **API:** oRPC client (`@orpc/client`) — typed against `Router` from `@scheduling/api`
 - **Auth:** BetterAuth React client with organization plugin
