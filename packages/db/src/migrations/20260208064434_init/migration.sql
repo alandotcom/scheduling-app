@@ -77,7 +77,7 @@ CREATE TABLE "appointment_type_resources" (
 --> statement-breakpoint
 CREATE TABLE "appointment_types" (
 	"id" uuid PRIMARY KEY DEFAULT uuidv7(),
-	"org_id" uuid NOT NULL,
+	"org_id" uuid DEFAULT current_org_id() NOT NULL,
 	"name" text NOT NULL,
 	"duration_min" integer NOT NULL,
 	"padding_before_min" integer DEFAULT 0,
@@ -91,7 +91,7 @@ CREATE TABLE "appointment_types" (
 ALTER TABLE "appointment_types" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
 CREATE TABLE "appointments" (
 	"id" uuid PRIMARY KEY DEFAULT uuidv7(),
-	"org_id" uuid NOT NULL,
+	"org_id" uuid DEFAULT current_org_id() NOT NULL,
 	"calendar_id" uuid NOT NULL,
 	"appointment_type_id" uuid NOT NULL,
 	"client_id" uuid NOT NULL,
@@ -107,7 +107,7 @@ CREATE TABLE "appointments" (
 ALTER TABLE "appointments" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
 CREATE TABLE "audit_events" (
 	"id" uuid PRIMARY KEY DEFAULT uuidv7(),
-	"org_id" uuid NOT NULL,
+	"org_id" uuid DEFAULT current_org_id() NOT NULL,
 	"actor_id" uuid,
 	"actor_type" text NOT NULL,
 	"action" text NOT NULL,
@@ -148,7 +148,7 @@ CREATE TABLE "blocked_time" (
 --> statement-breakpoint
 CREATE TABLE "calendars" (
 	"id" uuid PRIMARY KEY DEFAULT uuidv7(),
-	"org_id" uuid NOT NULL,
+	"org_id" uuid DEFAULT current_org_id() NOT NULL,
 	"location_id" uuid,
 	"name" text NOT NULL,
 	"timezone" text NOT NULL,
@@ -161,7 +161,7 @@ CREATE TABLE "calendars" (
 ALTER TABLE "calendars" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
 CREATE TABLE "clients" (
 	"id" uuid PRIMARY KEY DEFAULT uuidv7(),
-	"org_id" uuid NOT NULL,
+	"org_id" uuid DEFAULT current_org_id() NOT NULL,
 	"first_name" text NOT NULL,
 	"last_name" text NOT NULL,
 	"email" citext,
@@ -179,7 +179,7 @@ CREATE TYPE "custom_attribute_relation_value_mode" AS ENUM('single', 'multi');--
 CREATE TYPE "custom_attribute_relation_paired_role" AS ENUM('forward', 'reverse');--> statement-breakpoint
 CREATE TABLE "client_custom_attribute_definitions" (
 	"id" uuid PRIMARY KEY DEFAULT uuidv7(),
-	"org_id" uuid NOT NULL,
+	"org_id" uuid DEFAULT current_org_id() NOT NULL,
 	"field_key" text NOT NULL,
 	"label" text NOT NULL,
 	"type" "custom_attribute_type" NOT NULL,
@@ -198,7 +198,7 @@ CREATE TABLE "client_custom_attribute_definitions" (
 ALTER TABLE "client_custom_attribute_definitions" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
 CREATE TABLE "client_custom_attribute_values" (
 	"id" uuid PRIMARY KEY DEFAULT uuidv7(),
-	"org_id" uuid NOT NULL,
+	"org_id" uuid DEFAULT current_org_id() NOT NULL,
 	"client_id" uuid NOT NULL,
 	"t0" text,
 	"t1" text,
@@ -232,7 +232,7 @@ CREATE TABLE "client_custom_attribute_values" (
 ALTER TABLE "client_custom_attribute_values" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
 CREATE TABLE "client_custom_attribute_relations" (
 	"id" uuid PRIMARY KEY DEFAULT uuidv7(),
-	"org_id" uuid NOT NULL,
+	"org_id" uuid DEFAULT current_org_id() NOT NULL,
 	"definition_id" uuid NOT NULL,
 	"source_client_id" uuid NOT NULL,
 	"target_client_id" uuid NOT NULL,
@@ -244,7 +244,7 @@ CREATE TABLE "client_custom_attribute_relations" (
 ALTER TABLE "client_custom_attribute_relations" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
 CREATE TABLE "integrations" (
 	"id" uuid PRIMARY KEY DEFAULT uuidv7(),
-	"org_id" uuid NOT NULL,
+	"org_id" uuid DEFAULT current_org_id() NOT NULL,
 	"key" text NOT NULL,
 	"enabled" boolean DEFAULT false NOT NULL,
 	"config" jsonb DEFAULT '{}'::jsonb NOT NULL,
@@ -257,7 +257,7 @@ CREATE TABLE "integrations" (
 ALTER TABLE "integrations" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
 CREATE TABLE "journey_deliveries" (
 	"id" uuid PRIMARY KEY DEFAULT uuidv7(),
-	"org_id" uuid NOT NULL,
+	"org_id" uuid DEFAULT current_org_id() NOT NULL,
 	"journey_run_id" uuid NOT NULL,
 	"step_key" text NOT NULL,
 	"channel" text NOT NULL,
@@ -273,7 +273,7 @@ CREATE TABLE "journey_deliveries" (
 ALTER TABLE "journey_deliveries" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
 CREATE TABLE "journey_runs" (
 	"id" uuid PRIMARY KEY DEFAULT uuidv7(),
-	"org_id" uuid NOT NULL,
+	"org_id" uuid DEFAULT current_org_id() NOT NULL,
 	"journey_version_id" uuid,
 	"trigger_entity_type" "journey_trigger_entity_type" DEFAULT 'appointment'::"journey_trigger_entity_type" NOT NULL,
 	"trigger_entity_id" uuid NOT NULL,
@@ -292,7 +292,7 @@ CREATE TABLE "journey_runs" (
 ALTER TABLE "journey_runs" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
 CREATE TABLE "journey_run_events" (
 	"id" uuid PRIMARY KEY DEFAULT uuidv7(),
-	"org_id" uuid NOT NULL,
+	"org_id" uuid DEFAULT current_org_id() NOT NULL,
 	"journey_run_id" uuid NOT NULL,
 	"event_type" text NOT NULL,
 	"message" text NOT NULL,
@@ -303,7 +303,7 @@ CREATE TABLE "journey_run_events" (
 ALTER TABLE "journey_run_events" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
 CREATE TABLE "journey_run_step_logs" (
 	"id" uuid PRIMARY KEY DEFAULT uuidv7(),
-	"org_id" uuid NOT NULL,
+	"org_id" uuid DEFAULT current_org_id() NOT NULL,
 	"journey_run_id" uuid NOT NULL,
 	"step_key" text NOT NULL,
 	"node_type" text NOT NULL,
@@ -321,7 +321,7 @@ CREATE TABLE "journey_run_step_logs" (
 ALTER TABLE "journey_run_step_logs" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
 CREATE TABLE "journey_versions" (
 	"id" uuid PRIMARY KEY DEFAULT uuidv7(),
-	"org_id" uuid NOT NULL,
+	"org_id" uuid DEFAULT current_org_id() NOT NULL,
 	"journey_id" uuid NOT NULL,
 	"version" integer NOT NULL,
 	"definition_snapshot" jsonb NOT NULL,
@@ -332,7 +332,7 @@ CREATE TABLE "journey_versions" (
 ALTER TABLE "journey_versions" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
 CREATE TABLE "journeys" (
 	"id" uuid PRIMARY KEY DEFAULT uuidv7(),
-	"org_id" uuid NOT NULL,
+	"org_id" uuid DEFAULT current_org_id() NOT NULL,
 	"name" text NOT NULL,
 	"state" "journey_state" DEFAULT 'draft'::"journey_state" NOT NULL,
 	"mode" "journey_mode" DEFAULT 'live'::"journey_mode" NOT NULL,
@@ -344,7 +344,7 @@ CREATE TABLE "journeys" (
 ALTER TABLE "journeys" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
 CREATE TABLE "locations" (
 	"id" uuid PRIMARY KEY DEFAULT uuidv7(),
-	"org_id" uuid NOT NULL,
+	"org_id" uuid DEFAULT current_org_id() NOT NULL,
 	"name" text NOT NULL,
 	"timezone" text NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
@@ -390,7 +390,7 @@ CREATE TABLE "orgs" (
 --> statement-breakpoint
 CREATE TABLE "resources" (
 	"id" uuid PRIMARY KEY DEFAULT uuidv7(),
-	"org_id" uuid NOT NULL,
+	"org_id" uuid DEFAULT current_org_id() NOT NULL,
 	"location_id" uuid,
 	"name" text NOT NULL,
 	"quantity" integer DEFAULT 1 NOT NULL,
@@ -401,7 +401,7 @@ CREATE TABLE "resources" (
 ALTER TABLE "resources" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
 CREATE TABLE "scheduling_limits" (
 	"id" uuid PRIMARY KEY DEFAULT uuidv7(),
-	"org_id" uuid NOT NULL,
+	"org_id" uuid DEFAULT current_org_id() NOT NULL,
 	"calendar_id" uuid,
 	"group_id" uuid,
 	"min_notice_minutes" integer,
@@ -411,6 +411,7 @@ CREATE TABLE "scheduling_limits" (
 	"max_per_week" integer
 );
 --> statement-breakpoint
+ALTER TABLE "scheduling_limits" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
 CREATE TABLE "sessions" (
 	"id" uuid PRIMARY KEY DEFAULT uuidv7(),
 	"user_id" uuid NOT NULL,
@@ -558,6 +559,7 @@ CREATE POLICY "org_isolation_journey_versions" ON "journey_versions" AS PERMISSI
 CREATE POLICY "org_isolation_journeys" ON "journeys" AS PERMISSIVE FOR ALL TO public USING (org_id = current_org_id()) WITH CHECK (org_id = current_org_id());--> statement-breakpoint
 CREATE POLICY "org_isolation_locations" ON "locations" AS PERMISSIVE FOR ALL TO public USING (org_id = current_org_id()) WITH CHECK (org_id = current_org_id());--> statement-breakpoint
 CREATE POLICY "org_isolation_resources" ON "resources" AS PERMISSIVE FOR ALL TO public USING (org_id = current_org_id()) WITH CHECK (org_id = current_org_id());--> statement-breakpoint
+CREATE POLICY "org_isolation_scheduling_limits" ON "scheduling_limits" AS PERMISSIVE FOR ALL TO public USING (org_id = current_org_id()) WITH CHECK (org_id = current_org_id());--> statement-breakpoint
 CREATE UNIQUE INDEX "client_cad_org_field_key_uidx" ON "client_custom_attribute_definitions" USING btree ("org_id","field_key");--> statement-breakpoint
 CREATE UNIQUE INDEX "client_cad_org_slot_column_uidx" ON "client_custom_attribute_definitions" USING btree ("org_id","slot_column");--> statement-breakpoint
 CREATE UNIQUE INDEX "client_cav_org_client_uidx" ON "client_custom_attribute_values" USING btree ("org_id","client_id");--> statement-breakpoint

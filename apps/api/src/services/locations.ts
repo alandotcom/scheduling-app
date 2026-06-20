@@ -23,13 +23,13 @@ export class LocationService {
     context: ServiceContext,
   ): Promise<PaginatedResult<LocationWithRelationshipCounts>> {
     return withOrg(context.orgId, (tx) =>
-      locationRepository.findMany(tx, context.orgId, input),
+      locationRepository.findMany(tx, input),
     );
   }
 
   async get(id: string, context: ServiceContext): Promise<Location> {
     return withOrg(context.orgId, async (tx) => {
-      const location = await locationRepository.findById(tx, context.orgId, id);
+      const location = await locationRepository.findById(tx, id);
 
       if (!location) {
         throw new ApplicationError("Location not found", { code: "NOT_FOUND" });
@@ -44,11 +44,7 @@ export class LocationService {
     context: ServiceContext,
   ): Promise<Location> {
     const location = await withOrg(context.orgId, async (tx) => {
-      const createdLocation = await locationRepository.create(
-        tx,
-        context.orgId,
-        input,
-      );
+      const createdLocation = await locationRepository.create(tx, input);
 
       return createdLocation;
     });
@@ -70,11 +66,7 @@ export class LocationService {
     const { existing: existingLocation, updated: updatedLocation } =
       await withOrg(context.orgId, async (tx) => {
         // Get existing for event payload
-        const currentLocation = await locationRepository.findById(
-          tx,
-          context.orgId,
-          id,
-        );
+        const currentLocation = await locationRepository.findById(tx, id);
 
         if (!currentLocation) {
           throw new ApplicationError("Location not found", {
@@ -82,12 +74,7 @@ export class LocationService {
           });
         }
 
-        const nextLocation = await locationRepository.update(
-          tx,
-          context.orgId,
-          id,
-          data,
-        );
+        const nextLocation = await locationRepository.update(tx, id, data);
 
         if (!nextLocation) {
           throw new ApplicationError("Location not found", {
@@ -118,13 +105,13 @@ export class LocationService {
   ): Promise<{ success: true }> {
     const deleted = await withOrg(context.orgId, async (tx) => {
       // Get existing for event payload
-      const existing = await locationRepository.findById(tx, context.orgId, id);
+      const existing = await locationRepository.findById(tx, id);
 
       if (!existing) {
         throw new ApplicationError("Location not found", { code: "NOT_FOUND" });
       }
 
-      await locationRepository.delete(tx, context.orgId, id);
+      await locationRepository.delete(tx, id);
 
       return {
         locationId: id,

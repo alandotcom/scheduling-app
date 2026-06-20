@@ -3,7 +3,7 @@ import type {
   AppIntegrationKey,
   IntegrationOAuthStatus,
 } from "@scheduling/dto";
-import type { DbClient } from "../../lib/db.js";
+import type { OrgScopedTx } from "../../lib/db.js";
 import { config } from "../../config.js";
 import { withOrg } from "../../lib/db.js";
 import { isRecord } from "../../lib/type-guards.js";
@@ -171,8 +171,7 @@ function toStateFromRow(
 }
 
 export async function getAppIntegrationStatesByKeys(input: {
-  tx: DbClient;
-  orgId: string;
+  tx: OrgScopedTx;
   keys: readonly AppIntegrationKey[];
 }): Promise<Map<AppIntegrationKey, AppManagedIntegrationState>> {
   const uniqueKeys = [...new Set(input.keys)];
@@ -180,11 +179,7 @@ export async function getAppIntegrationStatesByKeys(input: {
     return new Map();
   }
 
-  const rows = await integrationRepository.listByKeys(
-    input.tx,
-    input.orgId,
-    uniqueKeys,
-  );
+  const rows = await integrationRepository.listByKeys(input.tx, uniqueKeys);
   const rowByKey = new Map(rows.map((row) => [row.key, row]));
 
   const result = new Map<AppIntegrationKey, AppManagedIntegrationState>();
@@ -197,15 +192,10 @@ export async function getAppIntegrationStatesByKeys(input: {
 }
 
 export async function getAppIntegrationState(input: {
-  tx: DbClient;
-  orgId: string;
+  tx: OrgScopedTx;
   key: AppIntegrationKey;
 }): Promise<AppManagedIntegrationState> {
-  const row = await integrationRepository.findByKey(
-    input.tx,
-    input.orgId,
-    input.key,
-  );
+  const row = await integrationRepository.findByKey(input.tx, input.key);
   return toStateFromRow(input.key, row);
 }
 
@@ -216,7 +206,6 @@ export async function getAppIntegrationStateForOrg(
   return withOrg(orgId, async (tx) =>
     getAppIntegrationState({
       tx,
-      orgId,
       key,
     }),
   );
@@ -227,7 +216,7 @@ export async function getAppIntegrationSecretsForOrg(input: {
   key: AppIntegrationKey;
 }): Promise<Record<string, string>> {
   const row = await withOrg(input.orgId, async (tx) =>
-    integrationRepository.findByKey(tx, input.orgId, input.key),
+    integrationRepository.findByKey(tx, input.key),
   );
 
   if (!row?.secretsEncrypted || !row.secretSalt) {

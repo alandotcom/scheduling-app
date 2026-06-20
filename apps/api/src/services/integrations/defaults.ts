@@ -18,7 +18,6 @@ export async function ensureAppIntegrationDefaultsForOrg(
   await withOrg(orgId, (tx) =>
     integrationRepository.ensureDefaults(
       tx,
-      orgId,
       definitions.map((definition) => ({
         key: definition.key,
         enabled: definition.defaultEnabled,

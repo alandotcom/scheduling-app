@@ -29,7 +29,7 @@ export class CalendarService {
     context: ServiceContext,
   ): Promise<PaginatedResult<CalendarWithRelationshipCounts>> {
     return withOrg(context.orgId, (tx) =>
-      calendarRepository.findMany(tx, context.orgId, input),
+      calendarRepository.findMany(tx, input),
     );
   }
 
@@ -38,11 +38,7 @@ export class CalendarService {
     context: ServiceContext,
   ): Promise<ReturnType<typeof toCalendarResponse>> {
     return withOrg(context.orgId, async (tx) => {
-      const result = await calendarRepository.findByIdWithLocation(
-        tx,
-        context.orgId,
-        id,
-      );
+      const result = await calendarRepository.findByIdWithLocation(tx, id);
 
       if (!result) {
         throw new ApplicationError("Calendar not found", { code: "NOT_FOUND" });
@@ -63,7 +59,6 @@ export class CalendarService {
       if (input.locationId) {
         const locationExists = await calendarRepository.verifyLocationAccess(
           tx,
-          orgId,
           input.locationId,
         );
         if (!locationExists) {
@@ -73,7 +68,7 @@ export class CalendarService {
         }
       }
 
-      const newCalendar = await calendarRepository.create(tx, orgId, input);
+      const newCalendar = await calendarRepository.create(tx, input);
       return newCalendar;
     });
 
@@ -100,7 +95,6 @@ export class CalendarService {
         if (data.locationId !== undefined && data.locationId !== null) {
           const locationExists = await calendarRepository.verifyLocationAccess(
             tx,
-            orgId,
             data.locationId,
           );
           if (!locationExists) {
@@ -110,11 +104,7 @@ export class CalendarService {
           }
         }
 
-        const currentCalendar = await calendarRepository.findById(
-          tx,
-          orgId,
-          id,
-        );
+        const currentCalendar = await calendarRepository.findById(tx, id);
 
         if (!currentCalendar) {
           throw new ApplicationError("Calendar not found", {
@@ -122,12 +112,7 @@ export class CalendarService {
           });
         }
 
-        const nextCalendar = await calendarRepository.update(
-          tx,
-          orgId,
-          id,
-          data,
-        );
+        const nextCalendar = await calendarRepository.update(tx, id, data);
 
         if (!nextCalendar) {
           throw new ApplicationError("Calendar not found", {
@@ -159,13 +144,13 @@ export class CalendarService {
     context: ServiceContext,
   ): Promise<{ success: true }> {
     const deleted = await withOrg(context.orgId, async (tx) => {
-      const existing = await calendarRepository.findById(tx, context.orgId, id);
+      const existing = await calendarRepository.findById(tx, id);
 
       if (!existing) {
         throw new ApplicationError("Calendar not found", { code: "NOT_FOUND" });
       }
 
-      await calendarRepository.delete(tx, context.orgId, id);
+      await calendarRepository.delete(tx, id);
 
       return {
         calendarId: id,

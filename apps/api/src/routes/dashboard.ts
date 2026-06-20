@@ -7,9 +7,7 @@ export const summary = authed
   .route({ method: "GET", path: "/dashboard/summary" })
   .output(dashboardSummarySchema)
   .handler(async ({ context }) => {
-    return withOrg(context.orgId, (tx) =>
-      dashboardRepository.getSummary(tx, context.orgId),
-    );
+    return withOrg(context.orgId, (tx) => dashboardRepository.getSummary(tx));
   });
 
 export const dashboardRoutes = {

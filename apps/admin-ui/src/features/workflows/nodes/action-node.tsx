@@ -44,6 +44,7 @@ import {
   WORKFLOW_NODE_HEIGHT,
   WORKFLOW_NODE_WIDTH,
 } from "../workflow-node-dimensions";
+import { normalizeConditionBranch } from "../graph-branches";
 
 type ActionFlowNode = ReactFlowNode<WorkflowActionNodeData, "action">;
 type ActionNodeProps = NodeProps<ActionFlowNode>;
@@ -67,29 +68,10 @@ type RuntimeWaitInput = {
 const CONDITION_TRUE_HANDLE_LEFT = "37%";
 const CONDITION_FALSE_HANDLE_LEFT = "63%";
 
-type ConditionBranch = "true" | "false";
-
 type ConditionBranchOccupancy = {
   true: boolean;
   false: boolean;
 };
-
-function normalizeConditionBranch(value: unknown): ConditionBranch | null {
-  if (typeof value !== "string") {
-    return null;
-  }
-
-  let normalized = value.trim().toLowerCase();
-  if (normalized.startsWith("branch-")) {
-    normalized = normalized.slice("branch-".length);
-  }
-
-  if (normalized === "true" || normalized === "false") {
-    return normalized;
-  }
-
-  return null;
-}
 
 function getConditionBranchOccupancy(input: {
   nodeId: string;

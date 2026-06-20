@@ -45,7 +45,7 @@ export async function getEnabledIntegrationsForOrg(
   }
 
   const enabledAppManagedKeys = await withOrg(orgId, (tx) =>
-    integrationRepository.listEnabledKeys(tx, orgId),
+    integrationRepository.listEnabledKeys(tx),
   );
 
   const appManagedIntegrations = getAppManagedIntegrationConsumersByKeys(

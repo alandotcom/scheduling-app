@@ -23,6 +23,10 @@ import {
 import { ActionNode } from "./nodes/action-node";
 import { AddNode } from "./nodes/add-node";
 import { TriggerNode } from "./nodes/trigger-node";
+import {
+  normalizeConditionBranch,
+  normalizeTriggerBranch,
+} from "./graph-branches";
 import { layoutWorkflowNodes } from "./workflow-layout";
 import {
   computeViewportForTriggerVisibility,
@@ -114,49 +118,6 @@ function getClientTriggerEntryLabel(
   }
 
   return node.data.config.event === "client.updated" ? "Updated" : "Created";
-}
-
-function normalizeConditionBranch(value: unknown): "true" | "false" | null {
-  if (typeof value !== "string") {
-    return null;
-  }
-
-  let normalized = value.trim().toLowerCase();
-  if (normalized.startsWith("branch-")) {
-    normalized = normalized.slice("branch-".length);
-  }
-
-  if (normalized === "true" || normalized === "false") {
-    return normalized;
-  }
-
-  return null;
-}
-
-function normalizeTriggerBranch(
-  value: unknown,
-): "scheduled" | "canceled" | "no_show" | null {
-  if (typeof value !== "string") {
-    return null;
-  }
-
-  const normalized = value
-    .trim()
-    .toLowerCase()
-    .replaceAll(/[\s-]+/g, "_");
-  if (
-    normalized === "scheduled" ||
-    normalized === "canceled" ||
-    normalized === "no_show"
-  ) {
-    return normalized;
-  }
-
-  if (normalized === "noshow") {
-    return "no_show";
-  }
-
-  return null;
 }
 
 function pickConditionBranchFromExistingEdges(input: {

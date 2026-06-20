@@ -9,8 +9,8 @@ import {
   calendars,
 } from "@scheduling/db/schema";
 import type { PaginationInput, PaginatedResult } from "./base.js";
-import type { DbClient } from "../lib/db.js";
-import { paginate, setOrgContext } from "./base.js";
+import type { OrgScopedTx } from "../lib/db.js";
+import { paginate } from "./base.js";
 
 // Types inferred from schema
 export type AvailabilityRule = typeof availabilityRules.$inferSelect;
@@ -74,11 +74,9 @@ export class AvailabilityManagementRepository {
   // ============================================================================
 
   async verifyCalendarAccess(
-    tx: DbClient,
-    orgId: string,
+    tx: OrgScopedTx,
     calendarId: string,
   ): Promise<boolean> {
-    await setOrgContext(tx, orgId);
     const [calendar] = await tx
       .select({ id: calendars.id })
       .from(calendars)
@@ -92,11 +90,9 @@ export class AvailabilityManagementRepository {
   // ============================================================================
 
   async findRuleById(
-    tx: DbClient,
-    orgId: string,
+    tx: OrgScopedTx,
     id: string,
   ): Promise<AvailabilityRule | null> {
-    await setOrgContext(tx, orgId);
     const [result] = await tx
       .select()
       .from(availabilityRules)
@@ -106,12 +102,10 @@ export class AvailabilityManagementRepository {
   }
 
   async findRulesByCalendar(
-    tx: DbClient,
-    orgId: string,
+    tx: OrgScopedTx,
     calendarId: string,
     input: PaginationInput,
   ): Promise<PaginatedResult<AvailabilityRule>> {
-    await setOrgContext(tx, orgId);
     const { cursor, limit } = input;
 
     const results = await tx
@@ -130,12 +124,10 @@ export class AvailabilityManagementRepository {
   }
 
   async findRulesByCalendarIds(
-    tx: DbClient,
-    orgId: string,
+    tx: OrgScopedTx,
     calendarIds: string[],
   ): Promise<AvailabilityRule[]> {
     if (calendarIds.length === 0) return [];
-    await setOrgContext(tx, orgId);
     return tx
       .select()
       .from(availabilityRules)
@@ -144,12 +136,10 @@ export class AvailabilityManagementRepository {
   }
 
   async findRulesByWeekday(
-    tx: DbClient,
-    orgId: string,
+    tx: OrgScopedTx,
     calendarId: string,
     weekday: number,
   ): Promise<AvailabilityRule[]> {
-    await setOrgContext(tx, orgId);
     return tx
       .select()
       .from(availabilityRules)
@@ -162,12 +152,10 @@ export class AvailabilityManagementRepository {
   }
 
   async createRule(
-    tx: DbClient,
-    orgId: string,
+    tx: OrgScopedTx,
     calendarId: string,
     input: RuleCreateInput,
   ): Promise<AvailabilityRule> {
-    await setOrgContext(tx, orgId);
     const [result] = await tx
       .insert(availabilityRules)
       .values({
@@ -182,12 +170,10 @@ export class AvailabilityManagementRepository {
   }
 
   async updateRule(
-    tx: DbClient,
-    orgId: string,
+    tx: OrgScopedTx,
     id: string,
     input: RuleUpdateInput,
   ): Promise<AvailabilityRule | null> {
-    await setOrgContext(tx, orgId);
     const [result] = await tx
       .update(availabilityRules)
       .set(input)
@@ -196,8 +182,7 @@ export class AvailabilityManagementRepository {
     return result ?? null;
   }
 
-  async deleteRule(tx: DbClient, orgId: string, id: string): Promise<boolean> {
-    await setOrgContext(tx, orgId);
+  async deleteRule(tx: OrgScopedTx, id: string): Promise<boolean> {
     const result = await tx
       .delete(availabilityRules)
       .where(eq(availabilityRules.id, id))
@@ -206,24 +191,20 @@ export class AvailabilityManagementRepository {
   }
 
   async deleteRulesByCalendar(
-    tx: DbClient,
-    orgId: string,
+    tx: OrgScopedTx,
     calendarId: string,
   ): Promise<void> {
-    await setOrgContext(tx, orgId);
     await tx
       .delete(availabilityRules)
       .where(eq(availabilityRules.calendarId, calendarId));
   }
 
   async createRulesBatch(
-    tx: DbClient,
-    orgId: string,
+    tx: OrgScopedTx,
     calendarId: string,
     rules: RuleCreateInput[],
   ): Promise<AvailabilityRule[]> {
     if (rules.length === 0) return [];
-    await setOrgContext(tx, orgId);
     return tx
       .insert(availabilityRules)
       .values(
@@ -243,11 +224,9 @@ export class AvailabilityManagementRepository {
   // ============================================================================
 
   async findOverrideById(
-    tx: DbClient,
-    orgId: string,
+    tx: OrgScopedTx,
     id: string,
   ): Promise<AvailabilityOverride | null> {
-    await setOrgContext(tx, orgId);
     const [result] = await tx
       .select()
       .from(availabilityOverrides)
@@ -257,12 +236,10 @@ export class AvailabilityManagementRepository {
   }
 
   async findOverridesByCalendar(
-    tx: DbClient,
-    orgId: string,
+    tx: OrgScopedTx,
     calendarId: string,
     input: PaginationInput,
   ): Promise<PaginatedResult<AvailabilityOverride>> {
-    await setOrgContext(tx, orgId);
     const { cursor, limit } = input;
 
     const results = await tx
@@ -281,14 +258,12 @@ export class AvailabilityManagementRepository {
   }
 
   async findOverridesByCalendarIdsInRange(
-    tx: DbClient,
-    orgId: string,
+    tx: OrgScopedTx,
     calendarIds: string[],
     startDate: string,
     endDate: string,
   ): Promise<AvailabilityOverride[]> {
     if (calendarIds.length === 0) return [];
-    await setOrgContext(tx, orgId);
     return tx
       .select()
       .from(availabilityOverrides)
@@ -303,12 +278,10 @@ export class AvailabilityManagementRepository {
   }
 
   async findOverrideByDate(
-    tx: DbClient,
-    orgId: string,
+    tx: OrgScopedTx,
     calendarId: string,
     date: string,
   ): Promise<AvailabilityOverride | null> {
-    await setOrgContext(tx, orgId);
     const [result] = await tx
       .select()
       .from(availabilityOverrides)
@@ -323,12 +296,10 @@ export class AvailabilityManagementRepository {
   }
 
   async createOverride(
-    tx: DbClient,
-    orgId: string,
+    tx: OrgScopedTx,
     calendarId: string,
     input: OverrideCreateInput,
   ): Promise<AvailabilityOverride> {
-    await setOrgContext(tx, orgId);
     const [result] = await tx
       .insert(availabilityOverrides)
       .values({
@@ -342,12 +313,10 @@ export class AvailabilityManagementRepository {
   }
 
   async updateOverride(
-    tx: DbClient,
-    orgId: string,
+    tx: OrgScopedTx,
     id: string,
     input: OverrideUpdateInput,
   ): Promise<AvailabilityOverride | null> {
-    await setOrgContext(tx, orgId);
     const [result] = await tx
       .update(availabilityOverrides)
       .set(input)
@@ -356,12 +325,7 @@ export class AvailabilityManagementRepository {
     return result ?? null;
   }
 
-  async deleteOverride(
-    tx: DbClient,
-    orgId: string,
-    id: string,
-  ): Promise<boolean> {
-    await setOrgContext(tx, orgId);
+  async deleteOverride(tx: OrgScopedTx, id: string): Promise<boolean> {
     const result = await tx
       .delete(availabilityOverrides)
       .where(eq(availabilityOverrides.id, id))
@@ -374,11 +338,9 @@ export class AvailabilityManagementRepository {
   // ============================================================================
 
   async findBlockedTimeById(
-    tx: DbClient,
-    orgId: string,
+    tx: OrgScopedTx,
     id: string,
   ): Promise<BlockedTime | null> {
-    await setOrgContext(tx, orgId);
     const [result] = await tx
       .select()
       .from(blockedTime)
@@ -388,12 +350,10 @@ export class AvailabilityManagementRepository {
   }
 
   async findBlockedTimeByCalendar(
-    tx: DbClient,
-    orgId: string,
+    tx: OrgScopedTx,
     calendarId: string,
     input: PaginationInput,
   ): Promise<PaginatedResult<BlockedTime>> {
-    await setOrgContext(tx, orgId);
     const { cursor, limit } = input;
 
     const results = await tx
@@ -412,14 +372,12 @@ export class AvailabilityManagementRepository {
   }
 
   async findBlockedTimeByCalendarIdsInRange(
-    tx: DbClient,
-    orgId: string,
+    tx: OrgScopedTx,
     calendarIds: string[],
     startAt: Date,
     endAt: Date,
   ): Promise<BlockedTime[]> {
     if (calendarIds.length === 0) return [];
-    await setOrgContext(tx, orgId);
     return tx
       .select()
       .from(blockedTime)
@@ -432,12 +390,10 @@ export class AvailabilityManagementRepository {
   }
 
   async createBlockedTime(
-    tx: DbClient,
-    orgId: string,
+    tx: OrgScopedTx,
     calendarId: string,
     input: BlockedTimeCreateInput,
   ): Promise<BlockedTime> {
-    await setOrgContext(tx, orgId);
     const [result] = await tx
       .insert(blockedTime)
       .values({
@@ -451,12 +407,10 @@ export class AvailabilityManagementRepository {
   }
 
   async updateBlockedTime(
-    tx: DbClient,
-    orgId: string,
+    tx: OrgScopedTx,
     id: string,
     input: BlockedTimeUpdateInput,
   ): Promise<BlockedTime | null> {
-    await setOrgContext(tx, orgId);
     const [result] = await tx
       .update(blockedTime)
       .set(input)
@@ -465,12 +419,7 @@ export class AvailabilityManagementRepository {
     return result ?? null;
   }
 
-  async deleteBlockedTime(
-    tx: DbClient,
-    orgId: string,
-    id: string,
-  ): Promise<boolean> {
-    await setOrgContext(tx, orgId);
+  async deleteBlockedTime(tx: OrgScopedTx, id: string): Promise<boolean> {
     const result = await tx
       .delete(blockedTime)
       .where(eq(blockedTime.id, id))
@@ -483,10 +432,8 @@ export class AvailabilityManagementRepository {
   // ============================================================================
 
   async findOrgDefaultLimits(
-    tx: DbClient,
-    orgId: string,
+    tx: OrgScopedTx,
   ): Promise<SchedulingLimits | null> {
-    await setOrgContext(tx, orgId);
     const [result] = await tx
       .select()
       .from(schedulingLimits)
@@ -496,11 +443,9 @@ export class AvailabilityManagementRepository {
   }
 
   async findLimitsByCalendarId(
-    tx: DbClient,
-    orgId: string,
+    tx: OrgScopedTx,
     calendarId: string,
   ): Promise<SchedulingLimits | null> {
-    await setOrgContext(tx, orgId);
     const [result] = await tx
       .select()
       .from(schedulingLimits)
@@ -535,15 +480,12 @@ export class AvailabilityManagementRepository {
   }
 
   async upsertOrgDefaultLimits(
-    tx: DbClient,
-    orgId: string,
+    tx: OrgScopedTx,
     input: LimitsUpdateInput,
   ): Promise<SchedulingLimits> {
-    await setOrgContext(tx, orgId);
     const [result] = await tx
       .insert(schedulingLimits)
       .values({
-        orgId,
         calendarId: null,
         groupId: input.groupId ?? null,
         minNoticeMinutes: input.minNoticeMinutes ?? null,
@@ -565,16 +507,13 @@ export class AvailabilityManagementRepository {
   }
 
   async upsertCalendarLimits(
-    tx: DbClient,
-    orgId: string,
+    tx: OrgScopedTx,
     calendarId: string,
     input: LimitsUpdateInput,
   ): Promise<SchedulingLimits> {
-    await setOrgContext(tx, orgId);
     const [result] = await tx
       .insert(schedulingLimits)
       .values({
-        orgId,
         calendarId,
         groupId: input.groupId ?? null,
         minNoticeMinutes: input.minNoticeMinutes ?? null,

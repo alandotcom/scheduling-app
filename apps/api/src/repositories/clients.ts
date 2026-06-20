@@ -15,8 +15,8 @@ import {
 } from "drizzle-orm";
 import { clients, appointments } from "@scheduling/db/schema";
 import type { PaginationInput, PaginatedResult } from "./base.js";
-import type { DbClient } from "../lib/db.js";
-import { paginate, setOrgContext } from "./base.js";
+import type { OrgScopedTx } from "../lib/db.js";
+import { paginate } from "./base.js";
 
 // Types inferred from schema
 export type Client = typeof clients.$inferSelect;
@@ -49,12 +49,7 @@ export interface ClientListInput extends PaginationInput {
 }
 
 export class ClientRepository {
-  async findById(
-    tx: DbClient,
-    orgId: string,
-    id: string,
-  ): Promise<Client | null> {
-    await setOrgContext(tx, orgId);
+  async findById(tx: OrgScopedTx, id: string): Promise<Client | null> {
     const [result] = await tx
       .select()
       .from(clients)
@@ -64,11 +59,9 @@ export class ClientRepository {
   }
 
   async findByReferenceId(
-    tx: DbClient,
-    orgId: string,
+    tx: OrgScopedTx,
     referenceId: string,
   ): Promise<Client | null> {
-    await setOrgContext(tx, orgId);
     const [result] = await tx
       .select()
       .from(clients)
@@ -77,12 +70,7 @@ export class ClientRepository {
     return result ?? null;
   }
 
-  async findByIds(
-    tx: DbClient,
-    orgId: string,
-    ids: string[],
-  ): Promise<Client[]> {
-    await setOrgContext(tx, orgId);
+  async findByIds(tx: OrgScopedTx, ids: string[]): Promise<Client[]> {
     const dedupedIds = Array.from(new Set(ids));
     if (dedupedIds.length === 0) {
       return [];
@@ -92,11 +80,9 @@ export class ClientRepository {
   }
 
   async findMany(
-    tx: DbClient,
-    orgId: string,
+    tx: OrgScopedTx,
     input: ClientListInput,
   ): Promise<PaginatedResult<ClientWithRelationshipCounts>> {
-    await setOrgContext(tx, orgId);
     const { cursor, limit, search, sort = "id_asc" } = input;
 
     let query = tx.select().from(clients).$dynamic();
@@ -214,16 +200,10 @@ export class ClientRepository {
     };
   }
 
-  async create(
-    tx: DbClient,
-    orgId: string,
-    input: ClientCreateInput,
-  ): Promise<Client> {
-    await setOrgContext(tx, orgId);
+  async create(tx: OrgScopedTx, input: ClientCreateInput): Promise<Client> {
     const [result] = await tx
       .insert(clients)
       .values({
-        orgId,
         firstName: input.firstName,
         lastName: input.lastName,
         email: input.email ?? null,
@@ -235,12 +215,10 @@ export class ClientRepository {
   }
 
   async update(
-    tx: DbClient,
-    orgId: string,
+    tx: OrgScopedTx,
     id: string,
     input: ClientUpdateInput,
   ): Promise<Client | null> {
-    await setOrgContext(tx, orgId);
     const [result] = await tx
       .update(clients)
       .set({
@@ -253,12 +231,10 @@ export class ClientRepository {
   }
 
   async updateByReferenceId(
-    tx: DbClient,
-    orgId: string,
+    tx: OrgScopedTx,
     referenceId: string,
     input: ClientUpdateInput,
   ): Promise<Client | null> {
-    await setOrgContext(tx, orgId);
     const [result] = await tx
       .update(clients)
       .set({
@@ -270,8 +246,7 @@ export class ClientRepository {
     return result ?? null;
   }
 
-  async delete(tx: DbClient, orgId: string, id: string): Promise<boolean> {
-    await setOrgContext(tx, orgId);
+  async delete(tx: OrgScopedTx, id: string): Promise<boolean> {
     const result = await tx
       .delete(clients)
       .where(eq(clients.id, id))
@@ -280,11 +255,9 @@ export class ClientRepository {
   }
 
   async deleteByReferenceId(
-    tx: DbClient,
-    orgId: string,
+    tx: OrgScopedTx,
     referenceId: string,
   ): Promise<boolean> {
-    await setOrgContext(tx, orgId);
     const result = await tx
       .delete(clients)
       .where(eq(clients.referenceId, referenceId))
@@ -293,8 +266,7 @@ export class ClientRepository {
   }
 
   async getHistorySummary(
-    tx: DbClient,
-    orgId: string,
+    tx: OrgScopedTx,
     clientId: string,
   ): Promise<{
     totalAppointments: number;
@@ -305,7 +277,6 @@ export class ClientRepository {
     lastAppointmentAt: Date | null;
     nextAppointmentAt: Date | null;
   }> {
-    await setOrgContext(tx, orgId);
     const now = new Date();
 
     const [summary] = await tx

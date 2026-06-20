@@ -1,4 +1,5 @@
 import {
+  type ConditionBranch,
   isJourneyActionAllowedForTriggerType,
   journeyTriggerConfigSchema,
   journeyTriggerFilterAstSchema,
@@ -6,7 +7,15 @@ import {
   type JourneyMode,
   serializedJourneyGraphSchema,
   type SerializedJourneyGraph,
+  type TriggerBranch,
 } from "@scheduling/dto";
+import {
+  conditionBranchLabel,
+  getTriggerBranch,
+  normalizeConditionBranch,
+  normalizeTriggerBranch,
+  triggerBranchLabel,
+} from "./graph-branches";
 import {
   addEdge,
   applyEdgeChanges,
@@ -27,8 +36,6 @@ import {
   isGenericActionNodeLabel,
 } from "./action-visuals";
 
-type ConditionBranch = "true" | "false";
-type TriggerBranch = "scheduled" | "canceled" | "no_show";
 type WorkflowTriggerBranchNodeLike = {
   id: string;
   data: unknown;
@@ -240,68 +247,10 @@ function collectReachableNodeIds(input: {
   return reachableNodeIds;
 }
 
-function normalizeConditionBranch(value: unknown): ConditionBranch | null {
-  if (typeof value !== "string") {
-    return null;
-  }
-
-  let normalized = value.trim().toLowerCase();
-  if (normalized.startsWith("branch-")) {
-    normalized = normalized.slice("branch-".length);
-  }
-
-  if (normalized === "true" || normalized === "false") {
-    return normalized;
-  }
-
-  return null;
-}
-
-function normalizeTriggerBranch(value: unknown): TriggerBranch | null {
-  if (typeof value !== "string") {
-    return null;
-  }
-
-  const normalized = value
-    .trim()
-    .toLowerCase()
-    .replaceAll(/[\s-]+/g, "_");
-  if (
-    normalized === "scheduled" ||
-    normalized === "canceled" ||
-    normalized === "no_show"
-  ) {
-    return normalized;
-  }
-
-  if (normalized === "noshow") {
-    return "no_show";
-  }
-
-  return null;
-}
-
-function getTriggerBranchFromEdgeLike(
-  edge: WorkflowTriggerBranchEdgeLike,
-): TriggerBranch | null {
-  const edgeData = asRecord(edge.data);
-  const dataBranch = normalizeTriggerBranch(edgeData?.["triggerBranch"]);
-  if (dataBranch) {
-    return dataBranch;
-  }
-
-  const labelBranch = normalizeTriggerBranch(edge.label);
-  if (labelBranch) {
-    return labelBranch;
-  }
-
-  return normalizeTriggerBranch(edge.sourceHandle);
-}
-
 export function getTriggerBranchFromEdge(
   edge: WorkflowCanvasEdge,
 ): TriggerBranch | null {
-  return getTriggerBranchFromEdgeLike(edge);
+  return getTriggerBranch(edge);
 }
 
 function getTriggerNodeId(
@@ -332,7 +281,7 @@ export function getNodeIdsOnTerminalTriggerBranch(input: {
         return false;
       }
 
-      const branch = getTriggerBranchFromEdgeLike(edge);
+      const branch = getTriggerBranch(edge);
       return branch ? terminalTriggerBranches.has(branch) : false;
     })
     .map((edge) => edge.target);
@@ -470,22 +419,6 @@ function resolveTriggerBranchForConnection(input: {
   }
 
   return "scheduled";
-}
-
-function getConditionBranchLabel(branch: ConditionBranch): string {
-  return branch === "true" ? "True" : "False";
-}
-
-function getTriggerBranchLabel(branch: TriggerBranch): string {
-  if (branch === "scheduled") {
-    return "Scheduled";
-  }
-
-  if (branch === "canceled") {
-    return "Canceled";
-  }
-
-  return "No Show";
 }
 
 function isClientJourneyTriggerConfig(config: JourneyTriggerConfig): boolean {
@@ -671,7 +604,7 @@ function withConditionBranchData(
   return {
     ...edge,
     sourceHandle: branch,
-    label: getConditionBranchLabel(branch),
+    label: conditionBranchLabel(branch),
     data: {
       ...edgeData,
       conditionBranch: branch,
@@ -707,7 +640,7 @@ function withTriggerBranchData(
   return {
     ...edge,
     sourceHandle: branch,
-    label: getTriggerBranchLabel(branch),
+    label: triggerBranchLabel(branch),
     data: {
       ...edgeData,
       triggerBranch: branch,

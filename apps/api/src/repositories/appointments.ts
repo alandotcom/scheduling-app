@@ -27,8 +27,7 @@ import {
 } from "@scheduling/db/schema";
 import type { CustomAttributeValues } from "@scheduling/dto";
 import type { PaginationInput, PaginatedResult } from "./base.js";
-import type { DbClient } from "../lib/db.js";
-import { setOrgContext } from "./base.js";
+import type { OrgScopedTx } from "../lib/db.js";
 import { clientCustomAttributeService } from "../services/client-custom-attributes.js";
 
 // Types inferred from schema
@@ -113,12 +112,7 @@ export interface AppointmentTypeData {
 }
 
 export class AppointmentRepository {
-  async findById(
-    tx: DbClient,
-    orgId: string,
-    id: string,
-  ): Promise<Appointment | null> {
-    await setOrgContext(tx, orgId);
+  async findById(tx: OrgScopedTx, id: string): Promise<Appointment | null> {
     const [result] = await tx
       .select()
       .from(appointments)
@@ -128,11 +122,9 @@ export class AppointmentRepository {
   }
 
   async findByIdWithRelations(
-    tx: DbClient,
-    orgId: string,
+    tx: OrgScopedTx,
     id: string,
   ): Promise<AppointmentWithRelations | null> {
-    await setOrgContext(tx, orgId);
     const results = await tx
       .select({
         appointment: appointments,
@@ -167,11 +159,9 @@ export class AppointmentRepository {
   }
 
   async findMany(
-    tx: DbClient,
-    orgId: string,
+    tx: OrgScopedTx,
     input: AppointmentListInput,
   ): Promise<PaginatedResult<AppointmentWithRelations>> {
-    await setOrgContext(tx, orgId);
     const {
       cursor,
       limit,
@@ -365,13 +355,11 @@ export class AppointmentRepository {
   }
 
   async getLocationNamesByCalendarIds(
-    tx: DbClient,
-    orgId: string,
+    tx: OrgScopedTx,
     calendarIds: string[],
   ): Promise<Map<string, string | null>> {
     if (calendarIds.length === 0) return new Map();
 
-    await setOrgContext(tx, orgId);
     const results = await tx
       .select({
         calendarId: calendars.id,
@@ -389,13 +377,11 @@ export class AppointmentRepository {
   }
 
   async getResourceSummariesByAppointmentTypeIds(
-    tx: DbClient,
-    orgId: string,
+    tx: OrgScopedTx,
     appointmentTypeIds: string[],
   ): Promise<Map<string, string | null>> {
     if (appointmentTypeIds.length === 0) return new Map();
 
-    await setOrgContext(tx, orgId);
     const results = await tx
       .select({
         appointmentTypeId: appointmentTypeResources.appointmentTypeId,
@@ -435,15 +421,12 @@ export class AppointmentRepository {
   }
 
   async create(
-    tx: DbClient,
-    orgId: string,
+    tx: OrgScopedTx,
     input: AppointmentCreateInput,
   ): Promise<Appointment> {
-    await setOrgContext(tx, orgId);
     const [result] = await tx
       .insert(appointments)
       .values({
-        orgId,
         calendarId: input.calendarId,
         appointmentTypeId: input.appointmentTypeId,
         clientId: input.clientId,
@@ -458,12 +441,10 @@ export class AppointmentRepository {
   }
 
   async update(
-    tx: DbClient,
-    orgId: string,
+    tx: OrgScopedTx,
     id: string,
     input: AppointmentUpdateInput,
   ): Promise<Appointment | null> {
-    await setOrgContext(tx, orgId);
     const updateData: Record<string, unknown> = {
       updatedAt: new Date(),
     };
@@ -481,13 +462,11 @@ export class AppointmentRepository {
   }
 
   async updateStatus(
-    tx: DbClient,
-    orgId: string,
+    tx: OrgScopedTx,
     id: string,
     status: string,
     notes?: string | null,
   ): Promise<Appointment | null> {
-    await setOrgContext(tx, orgId);
     const updateData: Record<string, unknown> = {
       status,
       updatedAt: new Date(),
@@ -506,12 +485,10 @@ export class AppointmentRepository {
   }
 
   async reschedule(
-    tx: DbClient,
-    orgId: string,
+    tx: OrgScopedTx,
     id: string,
     input: AppointmentRescheduleInput,
   ): Promise<Appointment | null> {
-    await setOrgContext(tx, orgId);
     const [result] = await tx
       .update(appointments)
       .set({
@@ -527,11 +504,9 @@ export class AppointmentRepository {
 
   // Verify calendar exists and belongs to org
   async verifyCalendarAccess(
-    tx: DbClient,
-    orgId: string,
+    tx: OrgScopedTx,
     calendarId: string,
   ): Promise<boolean> {
-    await setOrgContext(tx, orgId);
     const [calendar] = await tx
       .select({ id: calendars.id })
       .from(calendars)
@@ -542,11 +517,9 @@ export class AppointmentRepository {
 
   // Verify client exists and belongs to org
   async verifyClientAccess(
-    tx: DbClient,
-    orgId: string,
+    tx: OrgScopedTx,
     clientId: string,
   ): Promise<boolean> {
-    await setOrgContext(tx, orgId);
     const [client] = await tx
       .select({ id: clients.id })
       .from(clients)
@@ -556,15 +529,13 @@ export class AppointmentRepository {
   }
 
   async findClientSnapshotsByIds(
-    tx: DbClient,
-    orgId: string,
+    tx: OrgScopedTx,
     clientIds: string[],
   ): Promise<Map<string, AppointmentEventClientSnapshot>> {
     if (clientIds.length === 0) {
       return new Map();
     }
 
-    await setOrgContext(tx, orgId);
     const rows = await tx
       .select({
         id: clients.id,
@@ -581,7 +552,6 @@ export class AppointmentRepository {
         const customAttributes =
           await clientCustomAttributeService.loadClientCustomAttributes(
             tx,
-            orgId,
             row.id,
           );
         return [row.id, { ...row, customAttributes }] as const;
@@ -592,15 +562,13 @@ export class AppointmentRepository {
   }
 
   async findCalendarConfirmationSettingsByIds(
-    tx: DbClient,
-    orgId: string,
+    tx: OrgScopedTx,
     calendarIds: string[],
   ): Promise<Map<string, boolean>> {
     if (calendarIds.length === 0) {
       return new Map();
     }
 
-    await setOrgContext(tx, orgId);
     const rows = await tx
       .select({
         id: calendars.id,
@@ -616,13 +584,10 @@ export class AppointmentRepository {
 
   // Get appointment type with calendar link verification
   async getAppointmentTypeForCalendar(
-    tx: DbClient,
-    orgId: string,
+    tx: OrgScopedTx,
     appointmentTypeId: string,
     calendarId: string,
   ): Promise<AppointmentTypeData | null> {
-    await setOrgContext(tx, orgId);
-
     // First verify the appointment type exists
     const [appointmentType] = await tx
       .select()
@@ -662,11 +627,9 @@ export class AppointmentRepository {
 
   // Get appointment type by ID (without calendar check)
   async getAppointmentType(
-    tx: DbClient,
-    orgId: string,
+    tx: OrgScopedTx,
     appointmentTypeId: string,
   ): Promise<AppointmentTypeData | null> {
-    await setOrgContext(tx, orgId);
     const [result] = await tx
       .select()
       .from(appointmentTypes)
@@ -689,15 +652,12 @@ export class AppointmentRepository {
 
   // Count overlapping appointments for capacity check
   async countOverlappingAppointments(
-    tx: DbClient,
-    orgId: string,
+    tx: OrgScopedTx,
     calendarId: string,
     startAt: Date,
     endAt: Date,
     excludeAppointmentId?: string,
   ): Promise<number> {
-    await setOrgContext(tx, orgId);
-
     const conditions = [
       eq(appointments.calendarId, calendarId),
       ne(appointments.status, "cancelled"),

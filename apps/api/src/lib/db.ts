@@ -43,6 +43,12 @@ export type DbTransaction = Parameters<
 >[0];
 export type DbClient = Database | DbTransaction;
 
+// A transaction with org context already established by withOrg. Repositories
+// that touch RLS tables require this brand, so calling one without org context
+// is a compile error. The brand is phantom — it exists only at the type level.
+declare const orgScopedBrand: unique symbol;
+export type OrgScopedTx = DbClient & { readonly [orgScopedBrand]: true };
+
 function createDefaultDb(): Database {
   return drizzle({
     client,
@@ -73,16 +79,21 @@ export const db: Database = isDatabaseOverride(testDbOverride)
   ? testDbOverride
   : defaultDb;
 
-// Helper to run queries with org context (RLS)
+// Helper to run queries with org context (RLS). Sets the org context once and
+// yields a branded OrgScopedTx that repositories require.
 export async function withOrg<T>(
   orgId: string,
-  fn: (tx: DbClient) => Promise<T>,
+  fn: (tx: OrgScopedTx) => Promise<T>,
 ): Promise<T> {
   return db.transaction(async (tx) => {
     // set_config with true makes it local to the current transaction
     await tx.execute(
       sql`SELECT set_config('app.current_org_id', ${orgId}, true)`,
     );
-    return fn(tx);
+    // The sole sanctioned brand mint: org context is now set on this tx, so it
+    // satisfies the OrgScopedTx contract. The phantom brand is unreachable to
+    // the type system, so this assertion is unavoidable and intentionally local.
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion
+    return fn(tx as OrgScopedTx);
   });
 }

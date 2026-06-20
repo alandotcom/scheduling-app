@@ -1,6 +1,6 @@
 import { appointments, calendars, clients, orgs } from "@scheduling/db/schema";
 import { eq } from "drizzle-orm";
-import { withOrg, type DbClient } from "../../lib/db.js";
+import { withOrg, type OrgScopedTx } from "../../lib/db.js";
 import { clientCustomAttributeService } from "../client-custom-attributes.js";
 import {
   toDataEnvelopeContext,
@@ -46,7 +46,6 @@ export async function loadDeliveryTemplateContext(input: {
       customAttributes =
         await clientCustomAttributeService.loadClientCustomAttributes(
           tx,
-          input.orgId,
           row.clientId,
         );
     }
@@ -121,7 +120,7 @@ export async function loadDeliveryTemplateContext(input: {
 }
 
 async function loadFreshContextForPlannerTx(input: {
-  tx: DbClient;
+  tx: OrgScopedTx;
   orgId: string;
   appointmentId: string;
 }): Promise<{
@@ -206,7 +205,7 @@ async function loadFreshContextForPlannerTx(input: {
 }
 
 export async function loadFreshContextForPlannerByRunTx(input: {
-  tx: DbClient;
+  tx: OrgScopedTx;
   orgId: string;
   triggerEntityType: "appointment" | "client";
   triggerEntityId: string;
@@ -254,7 +253,6 @@ export async function loadFreshContextForPlannerByRunTx(input: {
   const customAttributes =
     await clientCustomAttributeService.loadClientCustomAttributes(
       input.tx,
-      input.orgId,
       clientRow.id,
     );
 
@@ -321,11 +319,7 @@ export async function loadClientDeliveryTemplateContext(input: {
     }
 
     const customAttributes =
-      await clientCustomAttributeService.loadClientCustomAttributes(
-        tx,
-        input.orgId,
-        row.id,
-      );
+      await clientCustomAttributeService.loadClientCustomAttributes(tx, row.id);
 
     return {
       id: row.id,

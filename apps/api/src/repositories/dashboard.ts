@@ -2,21 +2,20 @@ import { DateTime } from "luxon";
 import { eq, sql } from "drizzle-orm";
 import { appointments, calendars, clients, orgs } from "@scheduling/db/schema";
 import type { DashboardSummary } from "@scheduling/dto";
-import type { DbClient } from "../lib/db.js";
-import { setOrgContext } from "./base.js";
+import type { OrgScopedTx } from "../lib/db.js";
 
 const DEFAULT_TIMEZONE = "America/New_York";
 
 export class DashboardRepository {
-  async getSummary(tx: DbClient, orgId: string): Promise<DashboardSummary> {
-    await setOrgContext(tx, orgId);
-
+  async getSummary(tx: OrgScopedTx): Promise<DashboardSummary> {
+    // orgs is a core table without RLS; scope the read to the current org via
+    // the session context that withOrg already established.
     const [org] = await tx
       .select({
         defaultTimezone: orgs.defaultTimezone,
       })
       .from(orgs)
-      .where(eq(orgs.id, orgId))
+      .where(eq(orgs.id, sql`current_org_id()`))
       .limit(1);
 
     const timezone = org?.defaultTimezone ?? DEFAULT_TIMEZONE;

@@ -5,10 +5,9 @@ import {
   clientCustomAttributeValues,
   clients,
 } from "@scheduling/db/schema";
-import type { DbClient } from "../lib/db.js";
+import type { OrgScopedTx } from "../lib/db.js";
 import { isSlotColumn, type SlotColumn } from "../lib/slot-config.js";
 import { ApplicationError } from "../errors/application-error.js";
-import { setOrgContext } from "./base.js";
 
 export type CustomAttributeDefinition =
   typeof clientCustomAttributeDefinitions.$inferSelect;
@@ -144,11 +143,7 @@ function validateDefinitions(
 export class CustomAttributeRepository {
   // ─── Definitions ───
 
-  async listDefinitions(
-    tx: DbClient,
-    orgId: string,
-  ): Promise<ValidatedDefinition[]> {
-    await setOrgContext(tx, orgId);
+  async listDefinitions(tx: OrgScopedTx): Promise<ValidatedDefinition[]> {
     const rows = await tx
       .select()
       .from(clientCustomAttributeDefinitions)
@@ -160,11 +155,9 @@ export class CustomAttributeRepository {
   }
 
   async findDefinitionById(
-    tx: DbClient,
-    orgId: string,
+    tx: OrgScopedTx,
     id: string,
   ): Promise<ValidatedDefinition | null> {
-    await setOrgContext(tx, orgId);
     const [result] = await tx
       .select()
       .from(clientCustomAttributeDefinitions)
@@ -175,12 +168,10 @@ export class CustomAttributeRepository {
   }
 
   async findDefinitionsByIds(
-    tx: DbClient,
-    orgId: string,
+    tx: OrgScopedTx,
     ids: string[],
   ): Promise<ValidatedDefinition[]> {
     if (ids.length === 0) return [];
-    await setOrgContext(tx, orgId);
     const rows = await tx
       .select()
       .from(clientCustomAttributeDefinitions)
@@ -189,11 +180,9 @@ export class CustomAttributeRepository {
   }
 
   async findDefinitionByFieldKey(
-    tx: DbClient,
-    orgId: string,
+    tx: OrgScopedTx,
     fieldKey: string,
   ): Promise<ValidatedDefinition | null> {
-    await setOrgContext(tx, orgId);
     const [result] = await tx
       .select()
       .from(clientCustomAttributeDefinitions)
@@ -204,14 +193,12 @@ export class CustomAttributeRepository {
   }
 
   async createDefinition(
-    tx: DbClient,
-    orgId: string,
+    tx: OrgScopedTx,
     input: Omit<CustomAttributeDefinitionInsert, "id" | "orgId">,
   ): Promise<ValidatedDefinition> {
-    await setOrgContext(tx, orgId);
     const [result] = await tx
       .insert(clientCustomAttributeDefinitions)
-      .values({ ...input, orgId })
+      .values(input)
       .returning();
 
     if (!result) {
@@ -227,8 +214,7 @@ export class CustomAttributeRepository {
   }
 
   async updateDefinition(
-    tx: DbClient,
-    orgId: string,
+    tx: OrgScopedTx,
     id: string,
     input: Partial<
       Pick<
@@ -237,7 +223,6 @@ export class CustomAttributeRepository {
       >
     >,
   ): Promise<ValidatedDefinition | null> {
-    await setOrgContext(tx, orgId);
     const [result] = await tx
       .update(clientCustomAttributeDefinitions)
       .set({ ...input, updatedAt: sql`now()` })
@@ -248,15 +233,13 @@ export class CustomAttributeRepository {
   }
 
   async updateDefinitionPairing(
-    tx: DbClient,
-    orgId: string,
+    tx: OrgScopedTx,
     id: string,
     input: {
       pairedDefinitionId: string | null;
       pairedRole: "forward" | "reverse" | null;
     },
   ): Promise<ValidatedDefinition | null> {
-    await setOrgContext(tx, orgId);
     const [result] = await tx
       .update(clientCustomAttributeDefinitions)
       .set({
@@ -271,11 +254,9 @@ export class CustomAttributeRepository {
   }
 
   async clearDefinitionPairing(
-    tx: DbClient,
-    orgId: string,
+    tx: OrgScopedTx,
     pairedDefinitionId: string,
   ): Promise<void> {
-    await setOrgContext(tx, orgId);
     await tx
       .update(clientCustomAttributeDefinitions)
       .set({
@@ -291,12 +272,7 @@ export class CustomAttributeRepository {
       );
   }
 
-  async deleteDefinition(
-    tx: DbClient,
-    orgId: string,
-    id: string,
-  ): Promise<boolean> {
-    await setOrgContext(tx, orgId);
+  async deleteDefinition(tx: OrgScopedTx, id: string): Promise<boolean> {
     const result = await tx
       .delete(clientCustomAttributeDefinitions)
       .where(eq(clientCustomAttributeDefinitions.id, id))
@@ -304,14 +280,9 @@ export class CustomAttributeRepository {
     return result.length > 0;
   }
 
-  async deleteDefinitions(
-    tx: DbClient,
-    orgId: string,
-    ids: string[],
-  ): Promise<number> {
+  async deleteDefinitions(tx: OrgScopedTx, ids: string[]): Promise<number> {
     if (ids.length === 0) return 0;
 
-    await setOrgContext(tx, orgId);
     const result = await tx
       .delete(clientCustomAttributeDefinitions)
       .where(inArray(clientCustomAttributeDefinitions.id, ids))
@@ -321,11 +292,9 @@ export class CustomAttributeRepository {
   }
 
   async clearSlotColumn(
-    tx: DbClient,
-    orgId: string,
+    tx: OrgScopedTx,
     slotColumn: SlotColumn,
   ): Promise<void> {
-    await setOrgContext(tx, orgId);
     // Safe: slotColumn is typed as SlotColumn — only whitelisted values are possible
     await tx.execute(
       sql`UPDATE client_custom_attribute_values SET ${sql.raw(`"${slotColumn}"`)} = NULL, updated_at = now()`,
@@ -335,11 +304,9 @@ export class CustomAttributeRepository {
   // ─── Slot-backed values ───
 
   async getValues(
-    tx: DbClient,
-    orgId: string,
+    tx: OrgScopedTx,
     clientId: string,
   ): Promise<CustomAttributeValues | null> {
-    await setOrgContext(tx, orgId);
     const [result] = await tx
       .select()
       .from(clientCustomAttributeValues)
@@ -349,19 +316,16 @@ export class CustomAttributeRepository {
   }
 
   async upsertValues(
-    tx: DbClient,
-    orgId: string,
+    tx: OrgScopedTx,
     clientId: string,
     slotUpdates: Partial<Record<SlotColumn, unknown>>,
   ): Promise<CustomAttributeValues> {
-    await setOrgContext(tx, orgId);
     // Widen to Record<string, unknown> for Drizzle compatibility —
     // slot columns are validated at the service layer via isSlotColumn guards.
     const updates: Record<string, unknown> = { ...slotUpdates };
     const [result] = await tx
       .insert(clientCustomAttributeValues)
       .values({
-        orgId,
         clientId,
         ...updates,
       } as typeof clientCustomAttributeValues.$inferInsert)
@@ -389,13 +353,10 @@ export class CustomAttributeRepository {
   // ─── Relation-backed values ───
 
   async listRelationValuesBySource(
-    tx: DbClient,
-    orgId: string,
+    tx: OrgScopedTx,
     sourceClientId: string,
     definitionIds?: string[],
   ): Promise<Array<{ definitionId: string; targetClientId: string }>> {
-    await setOrgContext(tx, orgId);
-
     const filters = [
       eq(clientCustomAttributeRelations.sourceClientId, sourceClientId),
     ];
@@ -422,14 +383,11 @@ export class CustomAttributeRepository {
   }
 
   async replaceRelationValuesForSource(
-    tx: DbClient,
-    orgId: string,
+    tx: OrgScopedTx,
     definitionId: string,
     sourceClientId: string,
     targetClientIds: string[],
   ): Promise<void> {
-    await setOrgContext(tx, orgId);
-
     // Avoid hanging requests on lock contention during paired relation updates.
     await tx.execute(
       sql.raw(`SET LOCAL lock_timeout = '${RELATION_WRITE_LOCK_TIMEOUT}'`),
@@ -458,7 +416,6 @@ export class CustomAttributeRepository {
 
     await tx.insert(clientCustomAttributeRelations).values(
       targetClientIds.map((targetClientId) => ({
-        orgId,
         definitionId,
         sourceClientId,
         targetClientId,
@@ -467,25 +424,20 @@ export class CustomAttributeRepository {
   }
 
   async clearRelationValuesForDefinition(
-    tx: DbClient,
-    orgId: string,
+    tx: OrgScopedTx,
     definitionId: string,
   ): Promise<void> {
-    await setOrgContext(tx, orgId);
-
     await tx
       .delete(clientCustomAttributeRelations)
       .where(eq(clientCustomAttributeRelations.definitionId, definitionId));
   }
 
   async findExistingClientIds(
-    tx: DbClient,
-    orgId: string,
+    tx: OrgScopedTx,
     clientIds: string[],
   ): Promise<string[]> {
     if (clientIds.length === 0) return [];
 
-    await setOrgContext(tx, orgId);
     const rows = await tx
       .select({ id: clients.id })
       .from(clients)

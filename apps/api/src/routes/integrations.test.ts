@@ -397,7 +397,7 @@ describe("Integration Routes", () => {
     );
 
     const rowAfterSet = await withOrg(org.id, async (tx) => {
-      return integrationRepository.findByKey(tx, org.id, "logger");
+      return integrationRepository.findByKey(tx, "logger");
     });
 
     expect(rowAfterSet?.secretsEncrypted).toBeTruthy();
@@ -422,7 +422,7 @@ describe("Integration Routes", () => {
     );
 
     const rowAfterClear = await withOrg(org.id, async (tx) => {
-      return integrationRepository.findByKey(tx, org.id, "logger");
+      return integrationRepository.findByKey(tx, "logger");
     });
 
     expect(rowAfterClear?.secretsEncrypted).toBeNull();
@@ -455,7 +455,7 @@ describe("Integration Routes", () => {
     );
 
     const rowBeforeFailedUpdate = await withOrg(org.id, async (tx) => {
-      return integrationRepository.findByKey(tx, org.id, "logger");
+      return integrationRepository.findByKey(tx, "logger");
     });
     expect(rowBeforeFailedUpdate?.secretsEncrypted).toBeTruthy();
     expect(rowBeforeFailedUpdate?.secretSalt).toBeTruthy();
@@ -480,7 +480,7 @@ describe("Integration Routes", () => {
     ).rejects.toMatchObject({ code: "CONFLICT" });
 
     const rowAfterFailedUpdate = await withOrg(org.id, async (tx) => {
-      return integrationRepository.findByKey(tx, org.id, "logger");
+      return integrationRepository.findByKey(tx, "logger");
     });
     expect(rowAfterFailedUpdate?.secretsEncrypted).toBe(
       rowBeforeFailedUpdate?.secretsEncrypted,
@@ -538,7 +538,7 @@ describe("Integration Routes", () => {
     );
 
     const row = await withOrg(org.id, async (tx) =>
-      integrationRepository.findByKey(tx, org.id, "slack"),
+      integrationRepository.findByKey(tx, "slack"),
     );
     expect(row?.enabled).toBe(false);
     expect(row?.secretsEncrypted).toBeNull();

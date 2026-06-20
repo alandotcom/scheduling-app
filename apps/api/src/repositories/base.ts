@@ -1,8 +1,5 @@
 // Base repository utilities and types
 
-import { sql } from "drizzle-orm";
-import type { DbClient } from "../lib/db.js";
-
 // Pagination input for cursor-based pagination
 export interface PaginationInput {
   cursor?: string | null | undefined;
@@ -28,14 +25,4 @@ export function paginate<T extends { id: string }>(
     nextCursor: hasMore ? (items[items.length - 1]?.id ?? null) : null,
     hasMore,
   };
-}
-
-// Set org context for RLS within a transaction
-export async function setOrgContext(
-  tx: DbClient,
-  orgId: string,
-): Promise<void> {
-  await tx.execute(
-    sql`SELECT set_config('app.current_org_id', ${orgId}, true)`,
-  );
 }

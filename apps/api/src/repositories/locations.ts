@@ -3,8 +3,8 @@
 import { eq, gt, inArray, sql } from "drizzle-orm";
 import { calendars, locations, resources } from "@scheduling/db/schema";
 import type { PaginationInput, PaginatedResult } from "./base.js";
-import type { DbClient } from "../lib/db.js";
-import { paginate, setOrgContext } from "./base.js";
+import type { OrgScopedTx } from "../lib/db.js";
+import { paginate } from "./base.js";
 
 // Types inferred from schema
 export type Location = typeof locations.$inferSelect;
@@ -27,12 +27,7 @@ export interface LocationUpdateInput {
 }
 
 export class LocationRepository {
-  async findById(
-    tx: DbClient,
-    orgId: string,
-    id: string,
-  ): Promise<Location | null> {
-    await setOrgContext(tx, orgId);
+  async findById(tx: OrgScopedTx, id: string): Promise<Location | null> {
     const [result] = await tx
       .select()
       .from(locations)
@@ -42,11 +37,9 @@ export class LocationRepository {
   }
 
   async findMany(
-    tx: DbClient,
-    orgId: string,
+    tx: OrgScopedTx,
     input: PaginationInput,
   ): Promise<PaginatedResult<LocationWithRelationshipCounts>> {
-    await setOrgContext(tx, orgId);
     const { cursor, limit } = input;
 
     const results = await tx
@@ -111,16 +104,10 @@ export class LocationRepository {
     };
   }
 
-  async create(
-    tx: DbClient,
-    orgId: string,
-    input: LocationCreateInput,
-  ): Promise<Location> {
-    await setOrgContext(tx, orgId);
+  async create(tx: OrgScopedTx, input: LocationCreateInput): Promise<Location> {
     const [result] = await tx
       .insert(locations)
       .values({
-        orgId,
         name: input.name,
         timezone: input.timezone,
       })
@@ -129,12 +116,10 @@ export class LocationRepository {
   }
 
   async update(
-    tx: DbClient,
-    orgId: string,
+    tx: OrgScopedTx,
     id: string,
     input: LocationUpdateInput,
   ): Promise<Location | null> {
-    await setOrgContext(tx, orgId);
     const [result] = await tx
       .update(locations)
       .set({
@@ -146,8 +131,7 @@ export class LocationRepository {
     return result ?? null;
   }
 
-  async delete(tx: DbClient, orgId: string, id: string): Promise<boolean> {
-    await setOrgContext(tx, orgId);
+  async delete(tx: OrgScopedTx, id: string): Promise<boolean> {
     const result = await tx
       .delete(locations)
       .where(eq(locations.id, id))

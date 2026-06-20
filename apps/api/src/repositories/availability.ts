@@ -16,8 +16,7 @@ import {
   orgs,
   resources,
 } from "@scheduling/db/schema";
-import type { DbClient } from "../lib/db.js";
-import { setOrgContext } from "./base.js";
+import type { OrgScopedTx } from "../lib/db.js";
 import type {
   AppointmentTypeData,
   AvailabilityRule,
@@ -31,11 +30,9 @@ import type {
 
 export class AvailabilityRepository {
   async loadAppointmentType(
-    tx: DbClient,
-    orgId: string,
+    tx: OrgScopedTx,
     id: string,
   ): Promise<AppointmentTypeData | null> {
-    await setOrgContext(tx, orgId);
     const [appointmentType] = await tx
       .select({
         id: appointmentTypes.id,
@@ -53,12 +50,10 @@ export class AvailabilityRepository {
   }
 
   async getValidCalendar(
-    tx: DbClient,
-    orgId: string,
+    tx: OrgScopedTx,
     appointmentTypeId: string,
     requestedCalendarId: string,
   ): Promise<string | null> {
-    await setOrgContext(tx, orgId);
     const [link] = await tx
       .select({ calendarId: appointmentTypeCalendars.calendarId })
       .from(appointmentTypeCalendars)
@@ -74,11 +69,9 @@ export class AvailabilityRepository {
   }
 
   async loadCalendarTimezone(
-    tx: DbClient,
-    orgId: string,
+    tx: OrgScopedTx,
     calendarId: string,
   ): Promise<string | null> {
-    await setOrgContext(tx, orgId);
     const [row] = await tx
       .select({ timezone: calendars.timezone })
       .from(calendars)
@@ -89,11 +82,9 @@ export class AvailabilityRepository {
   }
 
   async loadCalendarSlotInterval(
-    tx: DbClient,
-    orgId: string,
+    tx: OrgScopedTx,
     calendarId: string,
   ): Promise<number | null> {
-    await setOrgContext(tx, orgId);
     const [row] = await tx
       .select({ slotIntervalMin: calendars.slotIntervalMin })
       .from(calendars)
@@ -103,27 +94,22 @@ export class AvailabilityRepository {
     return row?.slotIntervalMin ?? null;
   }
 
-  async loadOrgDefaultTimezone(
-    tx: DbClient,
-    orgId: string,
-  ): Promise<string | null> {
-    await setOrgContext(tx, orgId);
+  async loadOrgDefaultTimezone(tx: OrgScopedTx): Promise<string | null> {
+    // orgs is a core table without RLS; scope the read to the current org via
+    // the session context that withOrg already established.
     const [row] = await tx
       .select({ defaultTimezone: orgs.defaultTimezone })
       .from(orgs)
-      .where(eq(orgs.id, orgId))
+      .where(eq(orgs.id, sql`current_org_id()`))
       .limit(1);
 
     return row?.defaultTimezone ?? null;
   }
 
   async loadSchedulingLimits(
-    tx: DbClient,
-    orgId: string,
+    tx: OrgScopedTx,
     calendarId: string,
   ): Promise<MergedSchedulingLimits> {
-    await setOrgContext(tx, orgId);
-
     const results = await tx
       .select()
       .from(schedulingLimits)
@@ -155,11 +141,9 @@ export class AvailabilityRepository {
   }
 
   async loadAvailabilityRules(
-    tx: DbClient,
-    orgId: string,
+    tx: OrgScopedTx,
     calendarId: string,
   ): Promise<AvailabilityRule[]> {
-    await setOrgContext(tx, orgId);
     return tx
       .select({
         id: availabilityRules.id,
@@ -174,13 +158,11 @@ export class AvailabilityRepository {
   }
 
   async loadOverrides(
-    tx: DbClient,
-    orgId: string,
+    tx: OrgScopedTx,
     calendarId: string,
     startDate: string,
     endDate: string,
   ): Promise<AvailabilityOverride[]> {
-    await setOrgContext(tx, orgId);
     return tx
       .select({
         id: availabilityOverrides.id,
@@ -200,14 +182,12 @@ export class AvailabilityRepository {
   }
 
   async loadBlockedTimes(
-    tx: DbClient,
-    orgId: string,
+    tx: OrgScopedTx,
     calendarId: string,
     startDate: string,
     endDate: string,
     timezone: string,
   ): Promise<BlockedTimeEntry[]> {
-    await setOrgContext(tx, orgId);
     // Convert dates to UTC for database query
     const startDateTime = DateTime.fromISO(startDate, { zone: timezone })
       .startOf("day")
@@ -239,14 +219,12 @@ export class AvailabilityRepository {
   }
 
   async loadExistingAppointments(
-    tx: DbClient,
-    orgId: string,
+    tx: OrgScopedTx,
     calendarId: string,
     startDate: string,
     endDate: string,
     timezone: string,
   ): Promise<ExistingAppointment[]> {
-    await setOrgContext(tx, orgId);
     // Convert dates to UTC for database query
     const startDateTime = DateTime.fromISO(startDate, { zone: timezone })
       .startOf("day")
@@ -277,11 +255,9 @@ export class AvailabilityRepository {
   }
 
   async loadResourceConstraints(
-    tx: DbClient,
-    orgId: string,
+    tx: OrgScopedTx,
     appointmentTypeId: string,
   ): Promise<ResourceConstraint[]> {
-    await setOrgContext(tx, orgId);
     return tx
       .select({
         resourceId: appointmentTypeResources.resourceId,
@@ -292,14 +268,12 @@ export class AvailabilityRepository {
   }
 
   async loadResourceConstraintsByAppointmentTypeIds(
-    tx: DbClient,
-    orgId: string,
+    tx: OrgScopedTx,
     appointmentTypeIds: string[],
   ): Promise<Map<string, ResourceConstraint[]>> {
     const uniqueAppointmentTypeIds = Array.from(new Set(appointmentTypeIds));
     if (uniqueAppointmentTypeIds.length === 0) return new Map();
 
-    await setOrgContext(tx, orgId);
     const results = await tx
       .select()
       .from(appointmentTypeResources)
@@ -324,13 +298,11 @@ export class AvailabilityRepository {
   }
 
   async loadResourcesData(
-    tx: DbClient,
-    orgId: string,
+    tx: OrgScopedTx,
     resourceIds: string[],
   ): Promise<ResourceData[]> {
     if (resourceIds.length === 0) return [];
 
-    await setOrgContext(tx, orgId);
     return tx
       .select({
         id: resources.id,

@@ -16,8 +16,13 @@ import type {
   LimitsUpdateInput,
 } from "../repositories/availability-management.js";
 import type { PaginationInput, PaginatedResult } from "../repositories/base.js";
-import { withOrg, type DbClient } from "../lib/db.js";
+import { withOrg, type OrgScopedTx } from "../lib/db.js";
 import { ApplicationError } from "../errors/application-error.js";
+import {
+  parseHm,
+  setZonedTime,
+  sundayZeroWeekday,
+} from "./availability-engine/calendar-time.js";
 import type { ServiceContext } from "./locations.js";
 import type {
   AvailabilityFeedItem,
@@ -34,11 +39,6 @@ function hasOverlap(
   return start1 < end2 && end1 > start2;
 }
 
-function parseTime(time: string): { hour: number; minute: number } {
-  const [hour, minute] = time.split(":").map(Number);
-  return { hour: hour ?? 0, minute: minute ?? 0 };
-}
-
 export class AvailabilityManagementService {
   // ============================================================================
   // SHARED HELPERS
@@ -47,18 +47,16 @@ export class AvailabilityManagementService {
   private async ensureCalendarAccess(
     orgId: string,
     calendarId: string,
-    tx?: DbClient,
+    tx?: OrgScopedTx,
   ): Promise<void> {
     const exists = tx
       ? await availabilityManagementRepository.verifyCalendarAccess(
           tx,
-          orgId,
           calendarId,
         )
       : await withOrg(orgId, (orgTx) =>
           availabilityManagementRepository.verifyCalendarAccess(
             orgTx,
-            orgId,
             calendarId,
           ),
         );
@@ -80,7 +78,6 @@ export class AvailabilityManagementService {
     return withOrg(context.orgId, (tx) =>
       availabilityManagementRepository.findRulesByCalendar(
         tx,
-        context.orgId,
         calendarId,
         input,
       ),
@@ -92,11 +89,7 @@ export class AvailabilityManagementService {
     context: ServiceContext,
   ): Promise<AvailabilityRule> {
     return withOrg(context.orgId, async (tx) => {
-      const rule = await availabilityManagementRepository.findRuleById(
-        tx,
-        context.orgId,
-        id,
-      );
+      const rule = await availabilityManagementRepository.findRuleById(tx, id);
       if (!rule) {
         throw new ApplicationError("Availability rule not found", {
           code: "NOT_FOUND",
@@ -119,7 +112,6 @@ export class AvailabilityManagementService {
       const existing =
         await availabilityManagementRepository.findRulesByWeekday(
           tx,
-          context.orgId,
           calendarId,
           input.weekday,
         );
@@ -140,12 +132,7 @@ export class AvailabilityManagementService {
         }
       }
 
-      return availabilityManagementRepository.createRule(
-        tx,
-        context.orgId,
-        calendarId,
-        input,
-      );
+      return availabilityManagementRepository.createRule(tx, calendarId, input);
     });
   }
 
@@ -157,7 +144,6 @@ export class AvailabilityManagementService {
     return withOrg(context.orgId, async (tx) => {
       const existing = await availabilityManagementRepository.findRuleById(
         tx,
-        context.orgId,
         id,
       );
       if (!existing) {
@@ -175,7 +161,6 @@ export class AvailabilityManagementService {
 
       const others = await availabilityManagementRepository.findRulesByWeekday(
         tx,
-        context.orgId,
         existing.calendarId,
         newWeekday,
       );
@@ -194,7 +179,6 @@ export class AvailabilityManagementService {
 
       const updated = await availabilityManagementRepository.updateRule(
         tx,
-        context.orgId,
         id,
         {
           weekday: input.weekday ?? existing.weekday,
@@ -215,7 +199,6 @@ export class AvailabilityManagementService {
     return withOrg(context.orgId, async (tx) => {
       const existing = await availabilityManagementRepository.findRuleById(
         tx,
-        context.orgId,
         id,
       );
       if (!existing) {
@@ -224,7 +207,7 @@ export class AvailabilityManagementService {
         });
       }
       await this.ensureCalendarAccess(context.orgId, existing.calendarId, tx);
-      await availabilityManagementRepository.deleteRule(tx, context.orgId, id);
+      await availabilityManagementRepository.deleteRule(tx, id);
       return { success: true };
     });
   }
@@ -256,12 +239,10 @@ export class AvailabilityManagementService {
     return withOrg(context.orgId, async (tx) => {
       await availabilityManagementRepository.deleteRulesByCalendar(
         tx,
-        context.orgId,
         calendarId,
       );
       const inserted = await availabilityManagementRepository.createRulesBatch(
         tx,
-        context.orgId,
         calendarId,
         rules,
       );
@@ -282,7 +263,6 @@ export class AvailabilityManagementService {
     return withOrg(context.orgId, (tx) =>
       availabilityManagementRepository.findOverridesByCalendar(
         tx,
-        context.orgId,
         calendarId,
         input,
       ),
@@ -296,7 +276,6 @@ export class AvailabilityManagementService {
     return withOrg(context.orgId, async (tx) => {
       const override = await availabilityManagementRepository.findOverrideById(
         tx,
-        context.orgId,
         id,
       );
       if (!override) {
@@ -320,7 +299,6 @@ export class AvailabilityManagementService {
       const existing =
         await availabilityManagementRepository.findOverrideByDate(
           tx,
-          context.orgId,
           calendarId,
           input.date,
         );
@@ -332,7 +310,6 @@ export class AvailabilityManagementService {
       }
       return availabilityManagementRepository.createOverride(
         tx,
-        context.orgId,
         calendarId,
         input,
       );
@@ -347,7 +324,6 @@ export class AvailabilityManagementService {
     return withOrg(context.orgId, async (tx) => {
       const existing = await availabilityManagementRepository.findOverrideById(
         tx,
-        context.orgId,
         id,
       );
       if (!existing) {
@@ -362,7 +338,6 @@ export class AvailabilityManagementService {
         const conflicting =
           await availabilityManagementRepository.findOverrideByDate(
             tx,
-            context.orgId,
             existing.calendarId,
             input.date,
           );
@@ -376,7 +351,6 @@ export class AvailabilityManagementService {
 
       const updated = await availabilityManagementRepository.updateOverride(
         tx,
-        context.orgId,
         id,
         {
           date: input.date ?? existing.date,
@@ -399,7 +373,6 @@ export class AvailabilityManagementService {
     return withOrg(context.orgId, async (tx) => {
       const existing = await availabilityManagementRepository.findOverrideById(
         tx,
-        context.orgId,
         id,
       );
       if (!existing) {
@@ -408,11 +381,7 @@ export class AvailabilityManagementService {
         });
       }
       await this.ensureCalendarAccess(context.orgId, existing.calendarId, tx);
-      await availabilityManagementRepository.deleteOverride(
-        tx,
-        context.orgId,
-        id,
-      );
+      await availabilityManagementRepository.deleteOverride(tx, id);
       return { success: true };
     });
   }
@@ -430,7 +399,6 @@ export class AvailabilityManagementService {
     return withOrg(context.orgId, (tx) =>
       availabilityManagementRepository.findBlockedTimeByCalendar(
         tx,
-        context.orgId,
         calendarId,
         input,
       ),
@@ -444,7 +412,6 @@ export class AvailabilityManagementService {
     return withOrg(context.orgId, async (tx) => {
       const block = await availabilityManagementRepository.findBlockedTimeById(
         tx,
-        context.orgId,
         id,
       );
       if (!block) {
@@ -464,12 +431,7 @@ export class AvailabilityManagementService {
   ): Promise<BlockedTime> {
     await this.ensureCalendarAccess(context.orgId, calendarId);
     return withOrg(context.orgId, (tx) =>
-      availabilityManagementRepository.createBlockedTime(
-        tx,
-        context.orgId,
-        calendarId,
-        input,
-      ),
+      availabilityManagementRepository.createBlockedTime(tx, calendarId, input),
     );
   }
 
@@ -480,11 +442,7 @@ export class AvailabilityManagementService {
   ): Promise<BlockedTime> {
     return withOrg(context.orgId, async (tx) => {
       const existing =
-        await availabilityManagementRepository.findBlockedTimeById(
-          tx,
-          context.orgId,
-          id,
-        );
+        await availabilityManagementRepository.findBlockedTimeById(tx, id);
       if (!existing) {
         throw new ApplicationError("Blocked time not found", {
           code: "NOT_FOUND",
@@ -494,7 +452,6 @@ export class AvailabilityManagementService {
 
       const updated = await availabilityManagementRepository.updateBlockedTime(
         tx,
-        context.orgId,
         id,
         {
           startAt: input.startAt ?? existing.startAt,
@@ -515,22 +472,14 @@ export class AvailabilityManagementService {
   ): Promise<{ success: true }> {
     return withOrg(context.orgId, async (tx) => {
       const existing =
-        await availabilityManagementRepository.findBlockedTimeById(
-          tx,
-          context.orgId,
-          id,
-        );
+        await availabilityManagementRepository.findBlockedTimeById(tx, id);
       if (!existing) {
         throw new ApplicationError("Blocked time not found", {
           code: "NOT_FOUND",
         });
       }
       await this.ensureCalendarAccess(context.orgId, existing.calendarId, tx);
-      await availabilityManagementRepository.deleteBlockedTime(
-        tx,
-        context.orgId,
-        id,
-      );
+      await availabilityManagementRepository.deleteBlockedTime(tx, id);
       return { success: true };
     });
   }
@@ -543,7 +492,7 @@ export class AvailabilityManagementService {
     context: ServiceContext,
   ): Promise<SchedulingLimits | null> {
     return withOrg(context.orgId, (tx) =>
-      availabilityManagementRepository.findOrgDefaultLimits(tx, context.orgId),
+      availabilityManagementRepository.findOrgDefaultLimits(tx),
     );
   }
 
@@ -553,11 +502,7 @@ export class AvailabilityManagementService {
   ): Promise<SchedulingLimits | null> {
     await this.ensureCalendarAccess(context.orgId, calendarId);
     return withOrg(context.orgId, (tx) =>
-      availabilityManagementRepository.findLimitsByCalendarId(
-        tx,
-        context.orgId,
-        calendarId,
-      ),
+      availabilityManagementRepository.findLimitsByCalendarId(tx, calendarId),
     );
   }
 
@@ -566,11 +511,7 @@ export class AvailabilityManagementService {
     context: ServiceContext,
   ): Promise<SchedulingLimits> {
     return withOrg(context.orgId, (tx) =>
-      availabilityManagementRepository.upsertOrgDefaultLimits(
-        tx,
-        context.orgId,
-        input,
-      ),
+      availabilityManagementRepository.upsertOrgDefaultLimits(tx, input),
     );
   }
 
@@ -584,7 +525,6 @@ export class AvailabilityManagementService {
     return withOrg(context.orgId, (tx) =>
       availabilityManagementRepository.upsertCalendarLimits(
         tx,
-        context.orgId,
         calendarId,
         input,
       ),
@@ -627,19 +567,16 @@ export class AvailabilityManagementService {
           [
             availabilityManagementRepository.findRulesByCalendarIds(
               tx,
-              context.orgId,
               calendarIds,
             ),
             availabilityManagementRepository.findOverridesByCalendarIdsInRange(
               tx,
-              context.orgId,
               calendarIds,
               startDate,
               endDate,
             ),
             availabilityManagementRepository.findBlockedTimeByCalendarIdsInRange(
               tx,
-              context.orgId,
               calendarIds,
               startAt,
               endAt,
@@ -662,26 +599,11 @@ export class AvailabilityManagementService {
         cursor.toMillis() <= dayEnd.toMillis();
         cursor = cursor.plus({ days: 1 })
       ) {
-        const weekday = cursor.weekday % 7;
+        const weekday = sundayZeroWeekday(cursor);
         if (weekday !== rule.weekday) continue;
 
-        const { hour: startHour, minute: startMinute } = parseTime(
-          rule.startTime,
-        );
-        const { hour: endHour, minute: endMinute } = parseTime(rule.endTime);
-
-        const start = cursor.set({
-          hour: startHour,
-          minute: startMinute,
-          second: 0,
-          millisecond: 0,
-        });
-        const end = cursor.set({
-          hour: endHour,
-          minute: endMinute,
-          second: 0,
-          millisecond: 0,
-        });
+        const start = setZonedTime(cursor, parseHm(rule.startTime));
+        const end = setZonedTime(cursor, parseHm(rule.endTime));
 
         if (end.toMillis() <= start.toMillis()) continue;
         if (
@@ -729,8 +651,8 @@ export class AvailabilityManagementService {
       }
 
       for (const timeRange of override.timeRanges) {
-        const start = day.set(parseTime(timeRange.startTime));
-        const end = day.set(parseTime(timeRange.endTime));
+        const start = setZonedTime(day, parseHm(timeRange.startTime));
+        const end = setZonedTime(day, parseHm(timeRange.endTime));
 
         if (end.toMillis() <= start.toMillis()) continue;
         if (

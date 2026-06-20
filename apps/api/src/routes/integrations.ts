@@ -39,7 +39,6 @@ async function loadIntegrationSettings(orgId: string, key: AppIntegrationKey) {
   const state = await withOrg(orgId, (tx) =>
     getAppIntegrationState({
       tx,
-      orgId,
       key,
     }),
   );
@@ -72,7 +71,7 @@ export const list = adminOnly
   .output(integrationsListResponseSchema)
   .handler(async ({ context }) => {
     const rows = await withOrg(context.orgId, (tx) =>
-      integrationRepository.listByOrg(tx, context.orgId),
+      integrationRepository.listByOrg(tx),
     );
 
     const rowByKey = new Map(rows.map((row) => [row.key, row]));
@@ -123,11 +122,7 @@ export const update = adminOnly
     const definition = getAppManagedIntegrationDefinition(input.key);
 
     const updated = await withOrg(context.orgId, async (tx) => {
-      const current = await integrationRepository.findByKey(
-        tx,
-        context.orgId,
-        input.key,
-      );
+      const current = await integrationRepository.findByKey(tx, input.key);
 
       if (!current) {
         throw new ApplicationError("Integration not found", {
@@ -165,7 +160,7 @@ export const update = adminOnly
         config: nextConfig,
       };
 
-      return integrationRepository.update(tx, context.orgId, input.key, {
+      return integrationRepository.update(tx, input.key, {
         ...updateInput,
       });
     });
@@ -218,11 +213,7 @@ export const updateSecrets = adminOnly
     await ensureAppIntegrationDefaultsForOrg(context.orgId);
 
     await withOrg(context.orgId, async (tx) => {
-      const current = await integrationRepository.findByKey(
-        tx,
-        context.orgId,
-        input.key,
-      );
+      const current = await integrationRepository.findByKey(tx, input.key);
 
       if (!current) {
         throw new ApplicationError("Integration not found", {
@@ -281,7 +272,6 @@ export const updateSecrets = adminOnly
 
       const updated = await integrationRepository.updateSecrets(
         tx,
-        context.orgId,
         input.key,
         encrypted?.secretsEncrypted ?? null,
         encrypted?.secretSalt ?? null,
@@ -317,11 +307,7 @@ export const disconnectOAuth = adminOnly
     await ensureAppIntegrationDefaultsForOrg(context.orgId);
 
     await withOrg(context.orgId, async (tx) => {
-      const current = await integrationRepository.findByKey(
-        tx,
-        context.orgId,
-        input.key,
-      );
+      const current = await integrationRepository.findByKey(tx, input.key);
 
       if (!current) {
         throw new ApplicationError("Integration not found", {
@@ -332,15 +318,10 @@ export const disconnectOAuth = adminOnly
       const nextConfig = toConfig(current.config);
       delete nextConfig["oauth"];
 
-      const updated = await integrationRepository.update(
-        tx,
-        context.orgId,
-        input.key,
-        {
-          enabled: false,
-          config: nextConfig,
-        },
-      );
+      const updated = await integrationRepository.update(tx, input.key, {
+        enabled: false,
+        config: nextConfig,
+      });
       if (!updated) {
         throw new ApplicationError("Integration not found", {
           code: "NOT_FOUND",
@@ -349,7 +330,6 @@ export const disconnectOAuth = adminOnly
 
       const cleared = await integrationRepository.updateSecrets(
         tx,
-        context.orgId,
         input.key,
         null,
         null,

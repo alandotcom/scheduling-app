@@ -480,11 +480,26 @@ export const workflowNodeAttributesSchema = z
   })
   .loose();
 
+export const workflowConditionBranchSchema = z.enum(["true", "false"]);
+export const workflowTriggerBranchSchema = z.enum([
+  "scheduled",
+  "canceled",
+  "no_show",
+]);
+
+export const workflowEdgeDataSchema = z
+  .object({
+    conditionBranch: workflowConditionBranchSchema.optional(),
+    triggerBranch: workflowTriggerBranchSchema.optional(),
+  })
+  .loose();
+
 export const workflowEdgeAttributesSchema = z
   .object({
     id: z.string().trim().min(1),
     source: z.string().trim().min(1),
     target: z.string().trim().min(1),
+    data: workflowEdgeDataSchema.optional(),
   })
   .loose();
 
@@ -560,6 +575,9 @@ export type WorkflowNodeData = z.infer<typeof workflowNodeDataSchema>;
 export type WorkflowNodeAttributes = z.infer<
   typeof workflowNodeAttributesSchema
 >;
+export type ConditionBranch = z.infer<typeof workflowConditionBranchSchema>;
+export type TriggerBranch = z.infer<typeof workflowTriggerBranchSchema>;
+export type WorkflowEdgeData = z.infer<typeof workflowEdgeDataSchema>;
 export type WorkflowEdgeAttributes = z.infer<
   typeof workflowEdgeAttributesSchema
 >;

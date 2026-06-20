@@ -1,11 +1,18 @@
 // AvailabilityService - generates available dates and time slots with full rule enforcement
 
 import { DateTime } from "luxon";
-import { RRule } from "rrule";
 import { withOrg } from "../../lib/db.js";
-import type { DbClient } from "../../lib/db.js";
+import type { OrgScopedTx } from "../../lib/db.js";
 import { ApplicationError } from "../../errors/application-error.js";
 import { availabilityRepository } from "../../repositories/availability.js";
+import {
+  checkResourceCapacity,
+  evaluateSlot,
+  intervalsOverlap,
+  isBlockedAt,
+  type SlotConstraints,
+} from "./slot-evaluation.js";
+import { parseHm, setZonedTime, sundayZeroWeekday } from "./calendar-time.js";
 import type { ServiceContext } from "../locations.js";
 import type { AppointmentConflict } from "@scheduling/dto";
 import type {
@@ -83,7 +90,7 @@ export class AvailabilityService {
       const { startDate, endDate } = query;
 
       // Load all data once for efficiency
-      const data = await this.loadAvailabilityData(tx, context.orgId, query, {
+      const data = await this.loadAvailabilityData(tx, query, {
         requireAllCalendars: true,
       });
       if (!data) {
@@ -128,7 +135,7 @@ export class AvailabilityService {
     context: ServiceContext,
   ): Promise<TimeSlot[]> {
     return withOrg(context.orgId, async (tx) => {
-      const data = await this.loadAvailabilityData(tx, context.orgId, query, {
+      const data = await this.loadAvailabilityData(tx, query, {
         requireAllCalendars: true,
       });
       if (!data) {
@@ -162,7 +169,7 @@ export class AvailabilityService {
     context: ServiceContext,
   ): Promise<TimeSlot[]> {
     return withOrg(context.orgId, async (tx) => {
-      const data = await this.loadCalendarPreviewData(tx, context.orgId, query);
+      const data = await this.loadCalendarPreviewData(tx, query);
       const draftData = this.applyDraftOverlay<CalendarPreviewData>(
         data,
         query.calendarId,
@@ -192,14 +199,12 @@ export class AvailabilityService {
     return withOrg(context.orgId, async (tx) => {
       const resolvedTimezone = await this.resolveTimezone(
         tx,
-        context.orgId,
         calendarId,
         timezone,
       );
 
       const appointmentType = await availabilityRepository.loadAppointmentType(
         tx,
-        context.orgId,
         appointmentTypeId,
       );
       if (!appointmentType) {
@@ -221,7 +226,7 @@ export class AvailabilityService {
         timezone: resolvedTimezone,
       };
 
-      const data = await this.loadAvailabilityData(tx, context.orgId, query);
+      const data = await this.loadAvailabilityData(tx, query);
       if (!data) {
         return { available: false, reason: "INVALID_CALENDAR" };
       }
@@ -275,7 +280,6 @@ export class AvailabilityService {
     return withOrg(context.orgId, async (tx) => {
       const appointmentType = await availabilityRepository.loadAppointmentType(
         tx,
-        context.orgId,
         appointmentTypeId,
       );
       if (!appointmentType) {
@@ -314,7 +318,7 @@ export class AvailabilityService {
         timezone,
       };
 
-      const data = await this.loadAvailabilityData(tx, context.orgId, query);
+      const data = await this.loadAvailabilityData(tx, query);
       if (!data) {
         return {
           available: false,
@@ -394,7 +398,7 @@ export class AvailabilityService {
       }
 
       for (const blocked of data.blockedTimes) {
-        if (this.isBlockedAt(startTime, endTime, blocked)) {
+        if (isBlockedAt(startTime, endTime, blocked)) {
           return {
             available: false,
             conflicts: [makeConflict("unavailable", "This time is blocked")],
@@ -414,7 +418,7 @@ export class AvailabilityService {
           .toJSDate(),
       };
       const overlappingAppointments = existingAppointments.filter((appt) =>
-        this.intervalsOverlap(slotWithPadding, {
+        intervalsOverlap(slotWithPadding, {
           start: appt.startAt,
           end: appt.endAt,
         }),
@@ -439,7 +443,7 @@ export class AvailabilityService {
       }
 
       if (data.resourceConstraints.length > 0) {
-        const resourceAvailable = this.checkResourceCapacity(
+        const resourceAvailable = checkResourceCapacity(
           startTime,
           endTime,
           data.resourceConstraints,
@@ -515,8 +519,7 @@ export class AvailabilityService {
   // ============================================================================
 
   private async loadAvailabilityData(
-    tx: DbClient,
-    orgId: string,
+    tx: OrgScopedTx,
     query: AvailabilityQuery,
     options?: { requireAllCalendars?: boolean },
   ): Promise<AvailabilityData | null> {
@@ -526,7 +529,6 @@ export class AvailabilityService {
     // 1. Load appointment type details
     const appointmentType = await availabilityRepository.loadAppointmentType(
       tx,
-      orgId,
       appointmentTypeId,
     );
     if (!appointmentType) {
@@ -536,7 +538,6 @@ export class AvailabilityService {
     // 2. Validate calendars are linked to this appointment type
     const validCalendarId = await availabilityRepository.getValidCalendar(
       tx,
-      orgId,
       appointmentTypeId,
       calendarId,
     );
@@ -549,7 +550,6 @@ export class AvailabilityService {
 
     const resolvedTimezone = await this.resolveTimezone(
       tx,
-      orgId,
       validCalendarId,
       timezone,
     );
@@ -557,13 +557,11 @@ export class AvailabilityService {
     // 3. Load scheduling limits
     const limits = await availabilityRepository.loadSchedulingLimits(
       tx,
-      orgId,
       validCalendarId,
     );
     const slotIntervalMin =
       await availabilityRepository.loadCalendarSlotInterval(
         tx,
-        orgId,
         validCalendarId,
       );
     if (slotIntervalMin == null) {
@@ -573,21 +571,18 @@ export class AvailabilityService {
     // 4. Load availability rules for all calendars
     const rules = await availabilityRepository.loadAvailabilityRules(
       tx,
-      orgId,
       validCalendarId,
     );
 
     // 5. Load overrides and blocked time
     const overrides = await availabilityRepository.loadOverrides(
       tx,
-      orgId,
       validCalendarId,
       startDate,
       endDate,
     );
     const blockedTimes = await availabilityRepository.loadBlockedTimes(
       tx,
-      orgId,
       validCalendarId,
       startDate,
       endDate,
@@ -598,7 +593,6 @@ export class AvailabilityService {
     const existingAppointments =
       await availabilityRepository.loadExistingAppointments(
         tx,
-        orgId,
         validCalendarId,
         startDate,
         endDate,
@@ -613,14 +607,12 @@ export class AvailabilityService {
     const resourceConstraintsByAppointmentTypeId =
       await availabilityRepository.loadResourceConstraintsByAppointmentTypeIds(
         tx,
-        orgId,
         Array.from(appointmentTypeIds),
       );
     const resourceConstraints =
       resourceConstraintsByAppointmentTypeId.get(appointmentTypeId) ?? [];
     const resourcesData = await availabilityRepository.loadResourcesData(
       tx,
-      orgId,
       resourceConstraints.map((r) => r.resourceId),
     );
 
@@ -640,48 +632,38 @@ export class AvailabilityService {
   }
 
   private async loadCalendarPreviewData(
-    tx: DbClient,
-    orgId: string,
+    tx: OrgScopedTx,
     query: CalendarPreviewQuery,
   ): Promise<CalendarPreviewData> {
     const { calendarId, startDate, endDate, timezone } = query;
 
     const slotIntervalMin =
-      await availabilityRepository.loadCalendarSlotInterval(
-        tx,
-        orgId,
-        calendarId,
-      );
+      await availabilityRepository.loadCalendarSlotInterval(tx, calendarId);
     if (slotIntervalMin == null) {
       throw new ApplicationError("Calendar not found", { code: "NOT_FOUND" });
     }
 
     const resolvedTimezone = await this.resolveTimezone(
       tx,
-      orgId,
       calendarId,
       timezone,
     );
     const limits = await availabilityRepository.loadSchedulingLimits(
       tx,
-      orgId,
       calendarId,
     );
     const rules = await availabilityRepository.loadAvailabilityRules(
       tx,
-      orgId,
       calendarId,
     );
     const overrides = await availabilityRepository.loadOverrides(
       tx,
-      orgId,
       calendarId,
       startDate,
       endDate,
     );
     const blockedTimes = await availabilityRepository.loadBlockedTimes(
       tx,
-      orgId,
       calendarId,
       startDate,
       endDate,
@@ -690,7 +672,6 @@ export class AvailabilityService {
     const existingAppointments =
       await availabilityRepository.loadExistingAppointments(
         tx,
-        orgId,
         calendarId,
         startDate,
         endDate,
@@ -818,8 +799,7 @@ export class AvailabilityService {
   }
 
   private async resolveTimezone(
-    tx: DbClient,
-    orgId: string,
+    tx: OrgScopedTx,
     calendarId: string,
     requestedTimezone?: string,
   ): Promise<string> {
@@ -829,7 +809,6 @@ export class AvailabilityService {
 
     const calendarTimezone = await availabilityRepository.loadCalendarTimezone(
       tx,
-      orgId,
       calendarId,
     );
     if (calendarTimezone) {
@@ -837,7 +816,7 @@ export class AvailabilityService {
     }
 
     const orgDefaultTimezone =
-      await availabilityRepository.loadOrgDefaultTimezone(tx, orgId);
+      await availabilityRepository.loadOrgDefaultTimezone(tx);
     if (orgDefaultTimezone) {
       return orgDefaultTimezone;
     }
@@ -867,143 +846,34 @@ export class AvailabilityService {
       resourcesData,
     } = data;
 
-    const durationMin = appointmentType.durationMin;
-    const paddingBeforeMin = appointmentType.paddingBeforeMin ?? 0;
-    const paddingAfterMin = appointmentType.paddingAfterMin ?? 0;
-    const capacity = appointmentType.capacity ?? 1;
-
-    // Generate candidate slots
     const candidateSlots = this.generateCandidateSlots(
       startDate,
       endDate,
       timezone,
       rules,
       overrides,
-      durationMin,
+      appointmentType.durationMin,
       data.slotIntervalMin,
     );
 
-    // Apply filters
     const now = DateTime.now();
-    const slots: TimeSlot[] = [];
+    const constraints: SlotConstraints = {
+      limits,
+      blockedTimes,
+      capacity: {
+        kind: "type",
+        capacity: appointmentType.capacity ?? 1,
+        paddingBeforeMin: appointmentType.paddingBeforeMin ?? 0,
+        paddingAfterMin: appointmentType.paddingAfterMin ?? 0,
+        resourceConstraints,
+        resourcesData,
+        resourceConstraintsByAppointmentTypeId,
+      },
+    };
 
-    for (const slot of candidateSlots) {
-      let available = true;
-      let remainingCapacity = capacity;
-
-      const slotStart = DateTime.fromJSDate(slot.start);
-      const slotEnd = DateTime.fromJSDate(slot.end);
-
-      // Check min notice
-      if (available && limits.minNoticeMinutes != null) {
-        const minNotice = now.plus({ minutes: limits.minNoticeMinutes });
-        if (slotStart < minNotice) {
-          available = false;
-        }
-      }
-
-      // Check max notice
-      if (available && limits.maxNoticeDays != null) {
-        const maxNotice = now.plus({ days: limits.maxNoticeDays });
-        if (slotStart > maxNotice) {
-          available = false;
-        }
-      }
-
-      // Cannot book in the past
-      if (available && slotStart < now) {
-        available = false;
-      }
-
-      // Check blocked times (including recurring)
-      if (available) {
-        for (const blocked of blockedTimes) {
-          if (this.isBlockedAt(slot.start, slot.end, blocked)) {
-            available = false;
-            break;
-          }
-        }
-      }
-
-      // Check existing appointments (with padding)
-      if (available) {
-        const slotWithPadding = {
-          start: slotStart.minus({ minutes: paddingBeforeMin }).toJSDate(),
-          end: slotEnd.plus({ minutes: paddingAfterMin }).toJSDate(),
-        };
-
-        let overlappingCount = 0;
-        for (const appt of existingAppointments) {
-          if (
-            this.intervalsOverlap(slotWithPadding, {
-              start: appt.startAt,
-              end: appt.endAt,
-            })
-          ) {
-            overlappingCount++;
-          }
-        }
-
-        remainingCapacity = capacity - overlappingCount;
-        if (remainingCapacity <= 0) {
-          available = false;
-        }
-      }
-
-      // Check resource capacity
-      if (available && resourceConstraints.length > 0) {
-        const resourceAvailable = this.checkResourceCapacity(
-          slot.start,
-          slot.end,
-          resourceConstraints,
-          resourcesData,
-          existingAppointments,
-          resourceConstraintsByAppointmentTypeId,
-        );
-        if (!resourceAvailable) {
-          available = false;
-        }
-      }
-
-      // Check daily limits
-      if (available && limits.maxPerDay != null) {
-        const dailyCount = existingAppointments.filter((a) =>
-          DateTime.fromJSDate(a.startAt).hasSame(slotStart, "day"),
-        ).length;
-        if (dailyCount >= limits.maxPerDay) {
-          available = false;
-        }
-      }
-
-      // Check weekly limits
-      if (available && limits.maxPerWeek != null) {
-        const weekStart = slotStart.startOf("week");
-        const weekEnd = slotStart.endOf("week");
-        const weeklyCount = existingAppointments.filter((a) => {
-          const apptStart = DateTime.fromJSDate(a.startAt);
-          return apptStart >= weekStart && apptStart <= weekEnd;
-        }).length;
-        if (weeklyCount >= limits.maxPerWeek) {
-          available = false;
-        }
-      }
-
-      // Check per-slot limits (maxPerSlot)
-      if (available && limits.maxPerSlot != null) {
-        if (capacity - remainingCapacity >= limits.maxPerSlot) {
-          available = false;
-        }
-      }
-
-      slots.push({
-        start: slot.start,
-        end: slot.end,
-        available,
-        remainingCapacity: Math.max(0, remainingCapacity),
-      });
-    }
-
-    return slots;
+    return candidateSlots.map((slot) =>
+      evaluateSlot(slot, constraints, existingAppointments, now),
+    );
   }
 
   private computeSlotsForDate(
@@ -1031,94 +901,15 @@ export class AvailabilityService {
     );
 
     const now = DateTime.now();
-    const slots: TimeSlot[] = [];
+    const constraints: SlotConstraints = {
+      limits: data.limits,
+      blockedTimes: data.blockedTimes,
+      capacity: { kind: "perSlot" },
+    };
 
-    for (const slot of candidateSlots) {
-      let available = true;
-      const slotStart = DateTime.fromJSDate(slot.start);
-      const slotEnd = DateTime.fromJSDate(slot.end);
-      let overlappingCount = 0;
-
-      if (available && data.limits.minNoticeMinutes != null) {
-        const minNotice = now.plus({ minutes: data.limits.minNoticeMinutes });
-        if (slotStart < minNotice) {
-          available = false;
-        }
-      }
-
-      if (available && data.limits.maxNoticeDays != null) {
-        const maxNotice = now.plus({ days: data.limits.maxNoticeDays });
-        if (slotStart > maxNotice) {
-          available = false;
-        }
-      }
-
-      if (available && slotStart < now) {
-        available = false;
-      }
-
-      if (available) {
-        for (const blocked of data.blockedTimes) {
-          if (this.isBlockedAt(slot.start, slot.end, blocked)) {
-            available = false;
-            break;
-          }
-        }
-      }
-
-      if (available && data.limits.maxPerSlot != null) {
-        for (const appointment of data.existingAppointments) {
-          if (
-            this.intervalsOverlap(
-              { start: slotStart.toJSDate(), end: slotEnd.toJSDate() },
-              { start: appointment.startAt, end: appointment.endAt },
-            )
-          ) {
-            overlappingCount++;
-          }
-        }
-        if (overlappingCount >= data.limits.maxPerSlot) {
-          available = false;
-        }
-      }
-
-      if (available && data.limits.maxPerDay != null) {
-        const dailyCount = data.existingAppointments.filter((a) =>
-          DateTime.fromJSDate(a.startAt).hasSame(slotStart, "day"),
-        ).length;
-        if (dailyCount >= data.limits.maxPerDay) {
-          available = false;
-        }
-      }
-
-      if (available && data.limits.maxPerWeek != null) {
-        const weekStart = slotStart.startOf("week");
-        const weekEnd = slotStart.endOf("week");
-        const weeklyCount = data.existingAppointments.filter((a) => {
-          const apptStart = DateTime.fromJSDate(a.startAt);
-          return apptStart >= weekStart && apptStart <= weekEnd;
-        }).length;
-        if (weeklyCount >= data.limits.maxPerWeek) {
-          available = false;
-        }
-      }
-
-      const remainingCapacity =
-        data.limits.maxPerSlot != null
-          ? Math.max(0, data.limits.maxPerSlot - overlappingCount)
-          : available
-            ? 1
-            : 0;
-
-      slots.push({
-        start: slot.start,
-        end: slot.end,
-        available,
-        remainingCapacity,
-      });
-    }
-
-    return slots;
+    return candidateSlots.map((slot) =>
+      evaluateSlot(slot, constraints, data.existingAppointments, now),
+    );
   }
 
   private generateCandidateSlots(
@@ -1139,9 +930,7 @@ export class AvailabilityService {
 
     while (current <= end) {
       const dateStr = current.toISODate()!;
-      // Luxon weekday: 1 = Monday, 7 = Sunday
-      // We need 0 = Sunday, 1 = Monday, etc.
-      const weekday = current.weekday % 7;
+      const weekday = sundayZeroWeekday(current);
 
       // Check for override on this date
       const override = overrides.find((o) => o.date === dateStr);
@@ -1176,16 +965,10 @@ export class AvailabilityService {
 
       const seenSlots = new Set<string>();
       for (const rule of ruleWindows) {
-        const dayStart = rule.startTime;
-        const dayEnd = rule.endTime;
         const interval = slotIntervalMin;
 
-        // Generate slots for this day
-        const [startHour, startMin] = dayStart.split(":").map(Number);
-        const [endHour, endMin] = dayEnd.split(":").map(Number);
-
-        let slotStart = current.set({ hour: startHour, minute: startMin });
-        const dayEndTime = current.set({ hour: endHour, minute: endMin });
+        let slotStart = setZonedTime(current, parseHm(rule.startTime));
+        const dayEndTime = setZonedTime(current, parseHm(rule.endTime));
 
         while (slotStart.plus({ minutes: durationMin }) <= dayEndTime) {
           const slotEnd = slotStart.plus({ minutes: durationMin });
@@ -1205,111 +988,6 @@ export class AvailabilityService {
     }
 
     return slots;
-  }
-
-  private isBlockedAt(
-    start: Date,
-    end: Date,
-    blocked: BlockedTimeEntry,
-  ): boolean {
-    // Handle recurring blocked time
-    if (blocked.recurringRule) {
-      try {
-        const rruleOptions = RRule.parseString(blocked.recurringRule);
-        // Anchor recurrence to the block's configured start timestamp.
-        rruleOptions.dtstart = blocked.startAt;
-        const rrule = new RRule(rruleOptions);
-        const occurrences = rrule.between(
-          DateTime.fromJSDate(start).minus({ days: 1 }).toJSDate(),
-          DateTime.fromJSDate(end).plus({ days: 1 }).toJSDate(),
-          true,
-        );
-
-        const blockDuration =
-          blocked.endAt.getTime() - blocked.startAt.getTime();
-
-        for (const occurrence of occurrences) {
-          const blockStart = DateTime.fromJSDate(occurrence);
-          const blockEnd = blockStart.plus({ milliseconds: blockDuration });
-
-          if (
-            this.intervalsOverlap(
-              { start, end },
-              { start: blockStart.toJSDate(), end: blockEnd.toJSDate() },
-            )
-          ) {
-            return true;
-          }
-        }
-        return false;
-      } catch {
-        // If RRULE parsing fails, fall back to simple check
-        return this.intervalsOverlap(
-          { start, end },
-          { start: blocked.startAt, end: blocked.endAt },
-        );
-      }
-    }
-
-    // Simple blocked time
-    return this.intervalsOverlap(
-      { start, end },
-      { start: blocked.startAt, end: blocked.endAt },
-    );
-  }
-
-  private intervalsOverlap(
-    a: { start: Date; end: Date },
-    b: { start: Date; end: Date },
-  ): boolean {
-    return a.start < b.end && b.start < a.end;
-  }
-
-  private checkResourceCapacity(
-    start: Date,
-    end: Date,
-    resourceConstraints: ResourceConstraint[],
-    resourcesData: ResourceData[],
-    existingAppointments: ExistingAppointment[],
-    resourceConstraintsByAppointmentTypeId: Map<string, ResourceConstraint[]>,
-  ): boolean {
-    // For each resource, check if adding this appointment would exceed capacity
-    for (const constraint of resourceConstraints) {
-      const resource = resourcesData.find(
-        (r) => r.id === constraint.resourceId,
-      );
-      if (!resource) continue;
-
-      // Count how much of this resource is already allocated during this time
-      // We need to look at appointments that use this resource
-      const overlappingAppointments = existingAppointments.filter((a) =>
-        this.intervalsOverlap(
-          { start, end },
-          { start: a.startAt, end: a.endAt },
-        ),
-      );
-
-      let usedQuantity = 0;
-      for (const appointment of overlappingAppointments) {
-        const appointmentConstraints =
-          resourceConstraintsByAppointmentTypeId.get(
-            appointment.appointmentTypeId,
-          ) ?? [];
-        const matchingConstraint = appointmentConstraints.find(
-          (appointmentConstraint) =>
-            appointmentConstraint.resourceId === constraint.resourceId,
-        );
-        if (matchingConstraint) {
-          usedQuantity += matchingConstraint.quantityRequired;
-        }
-      }
-
-      if (usedQuantity + constraint.quantityRequired > resource.quantity) {
-        return false;
-      }
-    }
-
-    return true;
   }
 }
 

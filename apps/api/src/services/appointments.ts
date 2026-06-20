@@ -182,10 +182,9 @@ async function emitAppointmentLifecycleEvent(
     async (tx) => {
       const [clientsByIdMap, calendarRequiresConfirmationByIdMap] =
         await Promise.all([
-          appointmentRepository.findClientSnapshotsByIds(tx, orgId, clientIds),
+          appointmentRepository.findClientSnapshotsByIds(tx, clientIds),
           appointmentRepository.findCalendarConfirmationSettingsByIds(
             tx,
-            orgId,
             calendarIds,
           ),
         ]);
@@ -256,7 +255,7 @@ export class AppointmentService {
     context: ServiceContext,
   ): Promise<PaginatedResult<ReturnType<typeof toAppointmentResponse>>> {
     const result = await withOrg(context.orgId, (tx) =>
-      appointmentRepository.findMany(tx, context.orgId, input),
+      appointmentRepository.findMany(tx, input),
     );
 
     return {
@@ -299,14 +298,9 @@ export class AppointmentService {
       context.orgId,
       async (tx) =>
         Promise.all([
-          appointmentRepository.getLocationNamesByCalendarIds(
-            tx,
-            context.orgId,
-            calendarIds,
-          ),
+          appointmentRepository.getLocationNamesByCalendarIds(tx, calendarIds),
           appointmentRepository.getResourceSummariesByAppointmentTypeIds(
             tx,
-            context.orgId,
             appointmentTypeIds,
           ),
         ]),
@@ -330,11 +324,7 @@ export class AppointmentService {
     context: ServiceContext,
   ): Promise<ReturnType<typeof toAppointmentResponse>> {
     return withOrg(context.orgId, async (tx) => {
-      const result = await appointmentRepository.findByIdWithRelations(
-        tx,
-        context.orgId,
-        id,
-      );
+      const result = await appointmentRepository.findByIdWithRelations(tx, id);
 
       if (!result) {
         throw new ApplicationError("Appointment not found", {
@@ -362,7 +352,7 @@ export class AppointmentService {
 
     // Validate calendar access
     const calendarExists = await withOrg(orgId, (tx) =>
-      appointmentRepository.verifyCalendarAccess(tx, orgId, calendarId),
+      appointmentRepository.verifyCalendarAccess(tx, calendarId),
     );
     if (!calendarExists) {
       throw new ApplicationError("Calendar not found", { code: "NOT_FOUND" });
@@ -370,7 +360,7 @@ export class AppointmentService {
 
     // Validate client access
     const clientExists = await withOrg(orgId, (tx) =>
-      appointmentRepository.verifyClientAccess(tx, orgId, clientId),
+      appointmentRepository.verifyClientAccess(tx, clientId),
     );
     if (!clientExists) {
       throw new ApplicationError("Client not found", { code: "NOT_FOUND" });
@@ -380,7 +370,6 @@ export class AppointmentService {
     const appointmentType = await withOrg(orgId, (tx) =>
       appointmentRepository.getAppointmentTypeForCalendar(
         tx,
-        orgId,
         appointmentTypeId,
         calendarId,
       ),
@@ -430,7 +419,7 @@ export class AppointmentService {
     let appointment: Appointment;
     try {
       appointment = await withOrg(orgId, (tx) =>
-        appointmentRepository.create(tx, orgId, {
+        appointmentRepository.create(tx, {
           calendarId,
           appointmentTypeId,
           clientId,
@@ -476,11 +465,7 @@ export class AppointmentService {
 
     const { existing, updated } = await withOrg(orgId, async (tx) => {
       // Get existing appointment
-      const existingAppointment = await appointmentRepository.findById(
-        tx,
-        orgId,
-        id,
-      );
+      const existingAppointment = await appointmentRepository.findById(tx, id);
       if (!existingAppointment) {
         throw new ApplicationError("Appointment not found", {
           code: "NOT_FOUND",
@@ -489,7 +474,6 @@ export class AppointmentService {
 
       const updatedAppointment = await appointmentRepository.update(
         tx,
-        orgId,
         id,
         data,
       );
@@ -530,11 +514,7 @@ export class AppointmentService {
 
     const { existing, updated } = await withOrg(orgId, async (tx) => {
       // Get existing appointment
-      const existingAppointment = await appointmentRepository.findById(
-        tx,
-        orgId,
-        id,
-      );
+      const existingAppointment = await appointmentRepository.findById(tx, id);
       if (!existingAppointment) {
         throw new ApplicationError("Appointment not found", {
           code: "NOT_FOUND",
@@ -555,7 +535,6 @@ export class AppointmentService {
 
       const updatedAppointment = await appointmentRepository.updateStatus(
         tx,
-        orgId,
         id,
         "cancelled",
         updatedNotes,
@@ -602,7 +581,7 @@ export class AppointmentService {
 
     // Get existing appointment first (outside transaction for validation)
     const existing = await withOrg(orgId, (tx) =>
-      appointmentRepository.findById(tx, orgId, id),
+      appointmentRepository.findById(tx, id),
     );
     if (!existing) {
       throw new ApplicationError("Appointment not found", {
@@ -619,11 +598,7 @@ export class AppointmentService {
 
     // Get appointment type for duration
     const appointmentType = await withOrg(orgId, (tx) =>
-      appointmentRepository.getAppointmentType(
-        tx,
-        orgId,
-        existing.appointmentTypeId,
-      ),
+      appointmentRepository.getAppointmentType(tx, existing.appointmentTypeId),
     );
     if (!appointmentType) {
       throw new ApplicationError("Appointment type not found", {
@@ -674,7 +649,7 @@ export class AppointmentService {
     let updated: Appointment;
     try {
       updated = await withOrg(orgId, async (tx) => {
-        const result = await appointmentRepository.reschedule(tx, orgId, id, {
+        const result = await appointmentRepository.reschedule(tx, id, {
           startAt: newStartAt,
           endAt: newEndAt,
           timezone: data.timezone,
@@ -724,11 +699,7 @@ export class AppointmentService {
     const { orgId } = context;
 
     const { existing, updated } = await withOrg(orgId, async (tx) => {
-      const existingAppointment = await appointmentRepository.findById(
-        tx,
-        orgId,
-        id,
-      );
+      const existingAppointment = await appointmentRepository.findById(tx, id);
       if (!existingAppointment) {
         throw new ApplicationError("Appointment not found", {
           code: "NOT_FOUND",
@@ -758,7 +729,6 @@ export class AppointmentService {
 
       const updatedAppointment = await appointmentRepository.updateStatus(
         tx,
-        orgId,
         id,
         "confirmed",
       );
@@ -797,11 +767,7 @@ export class AppointmentService {
 
     const { existing, updated } = await withOrg(orgId, async (tx) => {
       // Get existing appointment
-      const existingAppointment = await appointmentRepository.findById(
-        tx,
-        orgId,
-        id,
-      );
+      const existingAppointment = await appointmentRepository.findById(tx, id);
       if (!existingAppointment) {
         throw new ApplicationError("Appointment not found", {
           code: "NOT_FOUND",
@@ -824,7 +790,6 @@ export class AppointmentService {
 
       const updatedAppointment = await appointmentRepository.updateStatus(
         tx,
-        orgId,
         id,
         "no_show",
       );

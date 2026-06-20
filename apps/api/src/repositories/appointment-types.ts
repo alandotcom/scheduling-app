@@ -10,8 +10,8 @@ import {
   resources,
 } from "@scheduling/db/schema";
 import type { PaginationInput, PaginatedResult } from "./base.js";
-import type { DbClient } from "../lib/db.js";
-import { paginate, setOrgContext } from "./base.js";
+import type { DbClient, OrgScopedTx } from "../lib/db.js";
+import { paginate } from "./base.js";
 
 // Types inferred from schema
 export type AppointmentType = typeof appointmentTypes.$inferSelect;
@@ -110,12 +110,7 @@ export interface AppointmentTypeWithLinks {
 }
 
 export class AppointmentTypeRepository {
-  async findById(
-    tx: DbClient,
-    orgId: string,
-    id: string,
-  ): Promise<AppointmentType | null> {
-    await setOrgContext(tx, orgId);
+  async findById(tx: OrgScopedTx, id: string): Promise<AppointmentType | null> {
     const [result] = await tx
       .select()
       .from(appointmentTypes)
@@ -125,12 +120,9 @@ export class AppointmentTypeRepository {
   }
 
   async findByIdWithLinks(
-    tx: DbClient,
-    orgId: string,
+    tx: OrgScopedTx,
     id: string,
   ): Promise<AppointmentTypeWithLinks | null> {
-    await setOrgContext(tx, orgId);
-
     // Get the appointment type
     const [appointmentType] = await tx
       .select()
@@ -178,11 +170,9 @@ export class AppointmentTypeRepository {
   }
 
   async findMany(
-    tx: DbClient,
-    orgId: string,
+    tx: OrgScopedTx,
     input: PaginationInput,
   ): Promise<PaginatedResult<AppointmentTypeWithRelationshipCounts>> {
-    await setOrgContext(tx, orgId);
     const { cursor, limit } = input;
 
     const results = await tx
@@ -277,15 +267,12 @@ export class AppointmentTypeRepository {
   }
 
   async create(
-    tx: DbClient,
-    orgId: string,
+    tx: OrgScopedTx,
     input: AppointmentTypeCreateInput,
   ): Promise<AppointmentType> {
-    await setOrgContext(tx, orgId);
     const [result] = await tx
       .insert(appointmentTypes)
       .values({
-        orgId,
         name: input.name,
         durationMin: input.durationMin,
         paddingBeforeMin: input.paddingBeforeMin ?? 0,
@@ -298,12 +285,10 @@ export class AppointmentTypeRepository {
   }
 
   async update(
-    tx: DbClient,
-    orgId: string,
+    tx: OrgScopedTx,
     id: string,
     input: AppointmentTypeUpdateInput,
   ): Promise<AppointmentType | null> {
-    await setOrgContext(tx, orgId);
     const [result] = await tx
       .update(appointmentTypes)
       .set({
@@ -315,8 +300,7 @@ export class AppointmentTypeRepository {
     return result ?? null;
   }
 
-  async delete(tx: DbClient, orgId: string, id: string): Promise<boolean> {
-    await setOrgContext(tx, orgId);
+  async delete(tx: OrgScopedTx, id: string): Promise<boolean> {
     const result = await tx
       .delete(appointmentTypes)
       .where(eq(appointmentTypes.id, id))
@@ -465,11 +449,9 @@ export class AppointmentTypeRepository {
 
   // Get calendars linked to an appointment type (with full calendar objects)
   async getLinkedCalendars(
-    tx: DbClient,
-    orgId: string,
+    tx: OrgScopedTx,
     appointmentTypeId: string,
   ): Promise<CalendarAssociation[]> {
-    await setOrgContext(tx, orgId);
     return tx
       .select({
         id: appointmentTypeCalendars.id,
@@ -487,11 +469,9 @@ export class AppointmentTypeRepository {
 
   // Get resources linked to an appointment type (with full resource objects)
   async getLinkedResources(
-    tx: DbClient,
-    orgId: string,
+    tx: OrgScopedTx,
     appointmentTypeId: string,
   ): Promise<ResourceAssociation[]> {
-    await setOrgContext(tx, orgId);
     return tx
       .select({
         id: appointmentTypeResources.id,
@@ -510,11 +490,9 @@ export class AppointmentTypeRepository {
 
   // Verify a calendar exists and belongs to org
   async verifyCalendarAccess(
-    tx: DbClient,
-    orgId: string,
+    tx: OrgScopedTx,
     calendarId: string,
   ): Promise<boolean> {
-    await setOrgContext(tx, orgId);
     const [calendar] = await tx
       .select({ id: calendars.id })
       .from(calendars)
@@ -525,11 +503,9 @@ export class AppointmentTypeRepository {
 
   // Verify a resource exists and belongs to org
   async verifyResourceAccess(
-    tx: DbClient,
-    orgId: string,
+    tx: OrgScopedTx,
     resourceId: string,
   ): Promise<boolean> {
-    await setOrgContext(tx, orgId);
     const [resource] = await tx
       .select({ id: resources.id })
       .from(resources)

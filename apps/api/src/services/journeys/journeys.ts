@@ -382,7 +382,6 @@ export class JourneyService {
       const parsedGraph = parseLinearJourneyGraph(existing.draftDefinition);
       await validateClientTriggerCustomAttributeReferences({
         tx,
-        orgId: context.orgId,
         graph: parsedGraph,
       });
       validateClientJourneyActionCompatibility(parsedGraph);
@@ -894,7 +893,6 @@ export class JourneyService {
       const customAttributes =
         await clientCustomAttributeService.loadClientCustomAttributes(
           tx,
-          context.orgId,
           appointment.client.id,
         );
 

@@ -20,13 +20,13 @@ export class ResourceService {
     context: ServiceContext,
   ): Promise<PaginatedResult<Resource>> {
     return withOrg(context.orgId, (tx) =>
-      resourceRepository.findMany(tx, context.orgId, input),
+      resourceRepository.findMany(tx, input),
     );
   }
 
   async get(id: string, context: ServiceContext): Promise<Resource> {
     return withOrg(context.orgId, async (tx) => {
-      const resource = await resourceRepository.findById(tx, context.orgId, id);
+      const resource = await resourceRepository.findById(tx, id);
 
       if (!resource) {
         throw new ApplicationError("Resource not found", { code: "NOT_FOUND" });
@@ -45,7 +45,6 @@ export class ResourceService {
       if (input.locationId) {
         const location = await locationRepository.findById(
           tx,
-          context.orgId,
           input.locationId,
         );
 
@@ -56,11 +55,7 @@ export class ResourceService {
         }
       }
 
-      const createdResource = await resourceRepository.create(
-        tx,
-        context.orgId,
-        input,
-      );
+      const createdResource = await resourceRepository.create(tx, input);
 
       return createdResource;
     });
@@ -83,11 +78,7 @@ export class ResourceService {
     const { existing: existingResource, updated: updatedResource } =
       await withOrg(context.orgId, async (tx) => {
         // Get existing for event payload
-        const currentResource = await resourceRepository.findById(
-          tx,
-          context.orgId,
-          id,
-        );
+        const currentResource = await resourceRepository.findById(tx, id);
 
         if (!currentResource) {
           throw new ApplicationError("Resource not found", {
@@ -99,7 +90,6 @@ export class ResourceService {
         if (data.locationId !== undefined && data.locationId !== null) {
           const location = await locationRepository.findById(
             tx,
-            context.orgId,
             data.locationId,
           );
 
@@ -110,12 +100,7 @@ export class ResourceService {
           }
         }
 
-        const nextResource = await resourceRepository.update(
-          tx,
-          context.orgId,
-          id,
-          data,
-        );
+        const nextResource = await resourceRepository.update(tx, id, data);
 
         if (!nextResource) {
           throw new ApplicationError("Resource not found", {
@@ -148,13 +133,13 @@ export class ResourceService {
   ): Promise<{ success: true }> {
     const deleted = await withOrg(context.orgId, async (tx) => {
       // Get existing for event payload
-      const existing = await resourceRepository.findById(tx, context.orgId, id);
+      const existing = await resourceRepository.findById(tx, id);
 
       if (!existing) {
         throw new ApplicationError("Resource not found", { code: "NOT_FOUND" });
       }
 
-      await resourceRepository.delete(tx, context.orgId, id);
+      await resourceRepository.delete(tx, id);
 
       return {
         resourceId: id,

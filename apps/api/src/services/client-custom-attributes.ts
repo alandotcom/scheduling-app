@@ -33,7 +33,7 @@ import {
 } from "../lib/db-errors.js";
 import { ApplicationError } from "../errors/application-error.js";
 import type { ServiceContext } from "./locations.js";
-import type { DbClient } from "../lib/db.js";
+import type { OrgScopedTx } from "../lib/db.js";
 
 const logger = getLogger(["clients", "custom-attributes"]);
 const DATE_ONLY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
@@ -233,10 +233,7 @@ export class ClientCustomAttributeService {
     context: ServiceContext,
   ): Promise<CustomAttributeDefinitionResponse[]> {
     return withOrg(context.orgId, async (tx) => {
-      const definitions = await customAttributeRepository.listDefinitions(
-        tx,
-        context.orgId,
-      );
+      const definitions = await customAttributeRepository.listDefinitions(tx);
       return definitions.map((definition) => toDefinitionResponse(definition));
     });
   }
@@ -251,7 +248,6 @@ export class ClientCustomAttributeService {
           const existing =
             await customAttributeRepository.findDefinitionByFieldKey(
               tx,
-              context.orgId,
               input.fieldKey,
             );
 
@@ -275,7 +271,6 @@ export class ClientCustomAttributeService {
               const reverseExisting =
                 await customAttributeRepository.findDefinitionByFieldKey(
                   tx,
-                  context.orgId,
                   input.reverseRelation.fieldKey,
                 );
               if (reverseExisting) {
@@ -291,7 +286,6 @@ export class ClientCustomAttributeService {
 
             const forward = await customAttributeRepository.createDefinition(
               tx,
-              context.orgId,
               {
                 fieldKey: input.fieldKey,
                 label: input.label,
@@ -313,7 +307,6 @@ export class ClientCustomAttributeService {
 
             const reverse = await customAttributeRepository.createDefinition(
               tx,
-              context.orgId,
               {
                 fieldKey: input.reverseRelation.fieldKey,
                 label: input.reverseRelation.label,
@@ -332,7 +325,6 @@ export class ClientCustomAttributeService {
             const forwardWithPairing =
               await customAttributeRepository.updateDefinitionPairing(
                 tx,
-                context.orgId,
                 forward.id,
                 {
                   pairedDefinitionId: reverse.id,
@@ -350,15 +342,12 @@ export class ClientCustomAttributeService {
             return toDefinitionResponse(forwardWithPairing);
           }
 
-          const definitions = await customAttributeRepository.listDefinitions(
-            tx,
-            context.orgId,
-          );
+          const definitions =
+            await customAttributeRepository.listDefinitions(tx);
           const slotColumn = findFreeSlot(definitions, input.type);
 
           const definition = await customAttributeRepository.createDefinition(
             tx,
-            context.orgId,
             {
               fieldKey: input.fieldKey,
               label: input.label,
@@ -388,7 +377,6 @@ export class ClientCustomAttributeService {
     return withOrg(context.orgId, async (tx) => {
       const existing = await customAttributeRepository.findDefinitionById(
         tx,
-        context.orgId,
         id,
       );
 
@@ -421,7 +409,6 @@ export class ClientCustomAttributeService {
 
       const result = await customAttributeRepository.updateDefinition(
         tx,
-        context.orgId,
         id,
         updateData,
       );
@@ -443,7 +430,6 @@ export class ClientCustomAttributeService {
     await withOrg(context.orgId, async (tx) => {
       const existing = await customAttributeRepository.findDefinitionById(
         tx,
-        context.orgId,
         id,
       );
       if (!existing) {
@@ -462,7 +448,6 @@ export class ClientCustomAttributeService {
       const definitionsToDelete =
         await customAttributeRepository.findDefinitionsByIds(
           tx,
-          context.orgId,
           definitionIdsToDelete,
         );
 
@@ -472,7 +457,6 @@ export class ClientCustomAttributeService {
           if (isSlotBackedDefinition(definition)) {
             await customAttributeRepository.clearSlotColumn(
               tx,
-              context.orgId,
               definition.slotColumn,
             );
             return;
@@ -480,7 +464,6 @@ export class ClientCustomAttributeService {
 
           await customAttributeRepository.clearRelationValuesForDefinition(
             tx,
-            context.orgId,
             definition.id,
           );
         },
@@ -492,7 +475,6 @@ export class ClientCustomAttributeService {
         async (definitionId) => {
           await customAttributeRepository.clearDefinitionPairing(
             tx,
-            context.orgId,
             definitionId,
           );
         },
@@ -501,7 +483,6 @@ export class ClientCustomAttributeService {
 
       await customAttributeRepository.deleteDefinitions(
         tx,
-        context.orgId,
         definitionIdsToDelete,
       );
     });
@@ -511,10 +492,7 @@ export class ClientCustomAttributeService {
 
   async getSlotUsage(context: ServiceContext): Promise<SlotUsage> {
     return withOrg(context.orgId, async (tx) => {
-      const definitions = await customAttributeRepository.listDefinitions(
-        tx,
-        context.orgId,
-      );
+      const definitions = await customAttributeRepository.listDefinitions(tx);
 
       const countByPrefix: Record<SlotPrefix, number> = {
         t: 0,
@@ -547,10 +525,7 @@ export class ClientCustomAttributeService {
     context: ServiceContext,
   ): Promise<{ success: true }> {
     await withOrg(context.orgId, async (tx) => {
-      const existing = await customAttributeRepository.listDefinitions(
-        tx,
-        context.orgId,
-      );
+      const existing = await customAttributeRepository.listDefinitions(tx);
       const existingIds = new Set(existing.map((definition) => definition.id));
       const inputIds = new Set(orderedIds);
 
@@ -579,16 +554,12 @@ export class ClientCustomAttributeService {
   }
 
   async writeValues(
-    tx: DbClient,
-    orgId: string,
+    tx: OrgScopedTx,
     clientId: string,
     values: Record<string, unknown>,
     options?: { enforceRequired?: boolean },
   ): Promise<ValidatedDefinition[]> {
-    const definitions = await customAttributeRepository.listDefinitions(
-      tx,
-      orgId,
-    );
+    const definitions = await customAttributeRepository.listDefinitions(tx);
 
     if (definitions.length === 0 && Object.keys(values).length > 0) {
       throw new ApplicationError(
@@ -789,7 +760,6 @@ export class ClientCustomAttributeService {
       const existingTargetIds = new Set(
         await customAttributeRepository.findExistingClientIds(
           tx,
-          orgId,
           relationTargetIds,
         ),
       );
@@ -806,12 +776,7 @@ export class ClientCustomAttributeService {
     }
 
     if (Object.keys(slotUpdates).length > 0) {
-      await customAttributeRepository.upsertValues(
-        tx,
-        orgId,
-        clientId,
-        slotUpdates,
-      );
+      await customAttributeRepository.upsertValues(tx, clientId, slotUpdates);
     }
 
     const definitionsById = new Map(
@@ -823,7 +788,6 @@ export class ClientCustomAttributeService {
       relationDefinitionIds.length > 0
         ? await customAttributeRepository.listRelationValuesBySource(
             tx,
-            orgId,
             clientId,
             relationDefinitionIds,
           )
@@ -854,7 +818,6 @@ export class ClientCustomAttributeService {
         if (!relationTargetsMatch(currentTargets, nextTargets)) {
           await this.replaceRelationTargetsForSource({
             tx,
-            orgId,
             definitionId: definition.id,
             clientId,
             targetClientIds: nextTargets,
@@ -864,7 +827,6 @@ export class ClientCustomAttributeService {
 
         await this.syncPairedDefinition({
           tx,
-          orgId,
           sourceClientId: clientId,
           definition,
           currentTargets,
@@ -880,25 +842,15 @@ export class ClientCustomAttributeService {
   }
 
   async loadClientCustomAttributes(
-    tx: DbClient,
-    orgId: string,
+    tx: OrgScopedTx,
     clientId: string,
   ): Promise<CustomAttributeValueMap> {
-    const definitions = await customAttributeRepository.listDefinitions(
-      tx,
-      orgId,
-    );
-    return this.loadClientCustomAttributesFromDefs(
-      tx,
-      orgId,
-      clientId,
-      definitions,
-    );
+    const definitions = await customAttributeRepository.listDefinitions(tx);
+    return this.loadClientCustomAttributesFromDefs(tx, clientId, definitions);
   }
 
   async loadClientCustomAttributesFromDefs(
-    tx: DbClient,
-    orgId: string,
+    tx: OrgScopedTx,
     clientId: string,
     definitions: ValidatedDefinition[],
   ): Promise<CustomAttributeValueMap> {
@@ -909,12 +861,11 @@ export class ClientCustomAttributeService {
 
     const [valuesRow, relationRows] = await Promise.all([
       slotDefinitions.length > 0
-        ? customAttributeRepository.getValues(tx, orgId, clientId)
+        ? customAttributeRepository.getValues(tx, clientId)
         : Promise.resolve(null),
       relationDefinitions.length > 0
         ? customAttributeRepository.listRelationValuesBySource(
             tx,
-            orgId,
             clientId,
             relationDefinitions.map((definition) => definition.id),
           )
@@ -971,8 +922,7 @@ export class ClientCustomAttributeService {
   }
 
   private async syncPairedDefinition(input: {
-    tx: DbClient;
-    orgId: string;
+    tx: OrgScopedTx;
     sourceClientId: string;
     definition: RelationDefinition;
     currentTargets: string[];
@@ -982,7 +932,6 @@ export class ClientCustomAttributeService {
   }): Promise<void> {
     const {
       tx,
-      orgId,
       sourceClientId,
       definition,
       currentTargets,
@@ -998,7 +947,6 @@ export class ClientCustomAttributeService {
       logger.warn(
         "Skipping paired relation sync: paired definition missing for {definitionId} (pairedDefinitionId={pairedDefinitionId})",
         {
-          orgId,
           definitionId: definition.id,
           pairedDefinitionId: definition.pairedDefinitionId,
         },
@@ -1010,7 +958,6 @@ export class ClientCustomAttributeService {
       logger.warn(
         "Skipping paired relation sync: paired definition {pairedDefinitionId} is not RELATION_CLIENT",
         {
-          orgId,
           definitionId: definition.id,
           pairedDefinitionId: definition.pairedDefinitionId,
           pairedType: paired.type,
@@ -1030,7 +977,6 @@ export class ClientCustomAttributeService {
       async (targetClientId) => {
         await this.removePairedEdge(
           tx,
-          orgId,
           paired,
           targetClientId,
           sourceClientId,
@@ -1045,7 +991,6 @@ export class ClientCustomAttributeService {
       async (targetClientId) => {
         const displacedTargets = await this.addPairedEdge(
           tx,
-          orgId,
           paired,
           targetClientId,
           sourceClientId,
@@ -1057,7 +1002,6 @@ export class ClientCustomAttributeService {
           async (displacedTarget) => {
             await this.removePairedEdge(
               tx,
-              orgId,
               definition,
               displacedTarget,
               targetClientId,
@@ -1072,8 +1016,7 @@ export class ClientCustomAttributeService {
   }
 
   private async addPairedEdge(
-    tx: DbClient,
-    orgId: string,
+    tx: OrgScopedTx,
     definition: RelationDefinition,
     sourceClientId: string,
     targetClientId: string,
@@ -1081,7 +1024,6 @@ export class ClientCustomAttributeService {
   ): Promise<string[]> {
     const currentTargets = await this.loadRelationTargetsForSource({
       tx,
-      orgId,
       definitionId: definition.id,
       clientId: sourceClientId,
       cache,
@@ -1094,7 +1036,6 @@ export class ClientCustomAttributeService {
     if (definition.relationValueMode === "single") {
       await this.replaceRelationTargetsForSource({
         tx,
-        orgId,
         definitionId: definition.id,
         clientId: sourceClientId,
         targetClientIds: [targetClientId],
@@ -1106,7 +1047,6 @@ export class ClientCustomAttributeService {
 
     await this.replaceRelationTargetsForSource({
       tx,
-      orgId,
       definitionId: definition.id,
       clientId: sourceClientId,
       targetClientIds: [...currentTargets, targetClientId],
@@ -1117,8 +1057,7 @@ export class ClientCustomAttributeService {
   }
 
   private async removePairedEdge(
-    tx: DbClient,
-    orgId: string,
+    tx: OrgScopedTx,
     definition: RelationDefinition,
     sourceClientId: string,
     targetClientId: string,
@@ -1126,7 +1065,6 @@ export class ClientCustomAttributeService {
   ): Promise<void> {
     const currentTargets = await this.loadRelationTargetsForSource({
       tx,
-      orgId,
       definitionId: definition.id,
       clientId: sourceClientId,
       cache,
@@ -1140,7 +1078,6 @@ export class ClientCustomAttributeService {
 
     await this.replaceRelationTargetsForSource({
       tx,
-      orgId,
       definitionId: definition.id,
       clientId: sourceClientId,
       targetClientIds: nextTargets,
@@ -1156,13 +1093,12 @@ export class ClientCustomAttributeService {
   }
 
   private async loadRelationTargetsForSource(input: {
-    tx: DbClient;
-    orgId: string;
+    tx: OrgScopedTx;
     definitionId: string;
     clientId: string;
     cache: RelationTargetsCache;
   }): Promise<string[]> {
-    const { tx, orgId, definitionId, clientId, cache } = input;
+    const { tx, definitionId, clientId, cache } = input;
     const cacheKey = this.relationTargetsCacheKey(definitionId, clientId);
     const cachedTargets = cache.get(cacheKey);
 
@@ -1172,7 +1108,6 @@ export class ClientCustomAttributeService {
 
     const rows = await customAttributeRepository.listRelationValuesBySource(
       tx,
-      orgId,
       clientId,
       [definitionId],
     );
@@ -1182,18 +1117,16 @@ export class ClientCustomAttributeService {
   }
 
   private async replaceRelationTargetsForSource(input: {
-    tx: DbClient;
-    orgId: string;
+    tx: OrgScopedTx;
     definitionId: string;
     clientId: string;
     targetClientIds: string[];
     cache: RelationTargetsCache;
   }): Promise<void> {
-    const { tx, orgId, definitionId, clientId, targetClientIds, cache } = input;
+    const { tx, definitionId, clientId, targetClientIds, cache } = input;
     try {
       await customAttributeRepository.replaceRelationValuesForSource(
         tx,
-        orgId,
         definitionId,
         clientId,
         targetClientIds,
@@ -1201,9 +1134,8 @@ export class ClientCustomAttributeService {
     } catch (error) {
       if (isRelationWriteContentionError(error)) {
         logger.warn(
-          "Relation custom attribute write contention for org {orgId}, client {clientId}, definition {definitionId}",
+          "Relation custom attribute write contention for client {clientId}, definition {definitionId}",
           {
-            orgId,
             clientId,
             definitionId,
             targetCount: targetClientIds.length,

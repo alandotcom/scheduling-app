@@ -20,6 +20,7 @@ import {
   resources,
   clients,
   journeys,
+  schedulingLimits,
 } from "./schema/index.js";
 import { eq, sql } from "drizzle-orm";
 
@@ -316,5 +317,68 @@ describe("CRUD operations with org context", () => {
     expect(journeysB[0]!.name).toBe("Journey B");
 
     await clearTestOrgContext(db);
+  });
+});
+
+describe("scheduling_limits RLS", () => {
+  test("org_id defaults to current_org_id() on insert", async () => {
+    const { org } = await seedTestOrg(db);
+
+    await setTestOrgContext(db, org.id);
+    // Insert without an explicit org_id; the column default current_org_id()
+    // must fill it from session context.
+    const [limit] = await db
+      .insert(schedulingLimits)
+      .values({ calendarId: null, maxPerDay: 5 })
+      .returning();
+
+    expect(limit).toBeDefined();
+    expect(limit!.orgId).toBe(org.id);
+    expect(limit!.maxPerDay).toBe(5);
+
+    await clearTestOrgContext(db);
+  });
+
+  test("org default limits are isolated across orgs", async () => {
+    const { org: orgA } = await seedTestOrg(db);
+    const { org: orgB } = await seedSecondTestOrg(db);
+
+    await withTestOrgContext(db, orgA.id, async () => {
+      await db
+        .insert(schedulingLimits)
+        .values({ calendarId: null, maxPerDay: 1 });
+    });
+
+    await withTestOrgContext(db, orgB.id, async () => {
+      await db
+        .insert(schedulingLimits)
+        .values({ calendarId: null, maxPerDay: 99 });
+    });
+
+    // Each org only sees its own org-default limits row.
+    await setTestOrgContext(db, orgA.id);
+    const limitsA = await db.query.schedulingLimits.findMany();
+    expect(limitsA).toHaveLength(1);
+    expect(limitsA[0]!.maxPerDay).toBe(1);
+
+    await setTestOrgContext(db, orgB.id);
+    const limitsB = await db.query.schedulingLimits.findMany();
+    expect(limitsB).toHaveLength(1);
+    expect(limitsB[0]!.maxPerDay).toBe(99);
+
+    await clearTestOrgContext(db);
+  });
+
+  test("unscoped read returns no scheduling_limits rows", async () => {
+    const { org } = await seedTestOrg(db);
+    await withTestOrgContext(db, org.id, async () => {
+      await db
+        .insert(schedulingLimits)
+        .values({ calendarId: null, maxPerWeek: 10 });
+    });
+
+    await clearTestOrgContext(db);
+    const rows = await db.query.schedulingLimits.findMany();
+    expect(rows).toHaveLength(0);
   });
 });

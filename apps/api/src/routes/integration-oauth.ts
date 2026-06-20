@@ -372,11 +372,7 @@ integrationOAuthRouter.get("/:provider/callback", async (c) => {
     await ensureAppIntegrationDefaultsForOrg(stateClaims.orgId);
 
     await withOrg(stateClaims.orgId, async (tx) => {
-      const current = await integrationRepository.findByKey(
-        tx,
-        stateClaims.orgId,
-        resolved.key,
-      );
+      const current = await integrationRepository.findByKey(tx, resolved.key);
       if (!current) {
         throw new Error("Integration row was not found");
       }
@@ -392,22 +388,16 @@ integrationOAuthRouter.get("/:provider/callback", async (c) => {
         pepper,
       });
 
-      const updated = await integrationRepository.update(
-        tx,
-        stateClaims.orgId,
-        resolved.key,
-        {
-          enabled: true,
-          config: nextConfig,
-        },
-      );
+      const updated = await integrationRepository.update(tx, resolved.key, {
+        enabled: true,
+        config: nextConfig,
+      });
       if (!updated) {
         throw new Error("Integration row update failed");
       }
 
       const secretsUpdated = await integrationRepository.updateSecrets(
         tx,
-        stateClaims.orgId,
         resolved.key,
         encrypted.secretsEncrypted,
         encrypted.secretSalt,

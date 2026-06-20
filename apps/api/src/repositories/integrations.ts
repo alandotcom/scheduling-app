@@ -1,7 +1,7 @@
-import { and, eq, inArray } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { integrations } from "@scheduling/db/schema";
 import type { AppIntegrationKey } from "@scheduling/dto";
-import type { DbClient } from "../lib/db.js";
+import type { OrgScopedTx } from "../lib/db.js";
 
 export type IntegrationRow = typeof integrations.$inferSelect;
 
@@ -18,8 +18,7 @@ export interface IntegrationUpdateInput {
 
 export class IntegrationRepository {
   async ensureDefaults(
-    tx: DbClient,
-    orgId: string,
+    tx: OrgScopedTx,
     defaults: readonly IntegrationDefaultsInput[],
   ): Promise<void> {
     if (defaults.length === 0) {
@@ -30,7 +29,6 @@ export class IntegrationRepository {
       .insert(integrations)
       .values(
         defaults.map((item) => ({
-          orgId,
           key: item.key,
           enabled: item.enabled,
           config: item.config,
@@ -41,13 +39,12 @@ export class IntegrationRepository {
       });
   }
 
-  async listByOrg(tx: DbClient, orgId: string): Promise<IntegrationRow[]> {
-    return tx.select().from(integrations).where(eq(integrations.orgId, orgId));
+  async listByOrg(tx: OrgScopedTx): Promise<IntegrationRow[]> {
+    return tx.select().from(integrations);
   }
 
   async listByKeys(
-    tx: DbClient,
-    orgId: string,
+    tx: OrgScopedTx,
     keys: readonly AppIntegrationKey[],
   ): Promise<IntegrationRow[]> {
     const uniqueKeys = [...new Set(keys)];
@@ -58,42 +55,33 @@ export class IntegrationRepository {
     return tx
       .select()
       .from(integrations)
-      .where(
-        and(
-          eq(integrations.orgId, orgId),
-          inArray(integrations.key, uniqueKeys),
-        ),
-      );
+      .where(inArray(integrations.key, uniqueKeys));
   }
 
   async findByKey(
-    tx: DbClient,
-    orgId: string,
+    tx: OrgScopedTx,
     key: AppIntegrationKey,
   ): Promise<IntegrationRow | null> {
     const [row] = await tx
       .select()
       .from(integrations)
-      .where(and(eq(integrations.orgId, orgId), eq(integrations.key, key)))
+      .where(eq(integrations.key, key))
       .limit(1);
 
     return row ?? null;
   }
 
-  async listEnabledKeys(tx: DbClient, orgId: string): Promise<string[]> {
+  async listEnabledKeys(tx: OrgScopedTx): Promise<string[]> {
     const rows = await tx
       .select({ key: integrations.key })
       .from(integrations)
-      .where(
-        and(eq(integrations.orgId, orgId), eq(integrations.enabled, true)),
-      );
+      .where(eq(integrations.enabled, true));
 
     return rows.map((row) => row.key);
   }
 
   async update(
-    tx: DbClient,
-    orgId: string,
+    tx: OrgScopedTx,
     key: AppIntegrationKey,
     input: IntegrationUpdateInput,
   ): Promise<IntegrationRow | null> {
@@ -112,15 +100,14 @@ export class IntegrationRepository {
     const [row] = await tx
       .update(integrations)
       .set(updateValues)
-      .where(and(eq(integrations.orgId, orgId), eq(integrations.key, key)))
+      .where(eq(integrations.key, key))
       .returning();
 
     return row ?? null;
   }
 
   async updateSecrets(
-    tx: DbClient,
-    orgId: string,
+    tx: OrgScopedTx,
     key: AppIntegrationKey,
     secretsEncrypted: string | null,
     secretSalt: string | null,
@@ -132,7 +119,7 @@ export class IntegrationRepository {
         secretSalt,
         updatedAt: new Date(),
       })
-      .where(and(eq(integrations.orgId, orgId), eq(integrations.key, key)))
+      .where(eq(integrations.key, key))
       .returning();
 
     return row ?? null;

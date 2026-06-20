@@ -489,9 +489,9 @@ export async function processJourneyDomainEvent(
         event.type === "client.updated"
           ? new Set([
               ...BUILT_IN_CLIENT_TRACKED_ATTRIBUTE_KEYS,
-              ...(
-                await customAttributeRepository.listDefinitions(tx, event.orgId)
-              ).map((definition) => definition.fieldKey),
+              ...(await customAttributeRepository.listDefinitions(tx)).map(
+                (definition) => definition.fieldKey,
+              ),
             ])
           : null;
 

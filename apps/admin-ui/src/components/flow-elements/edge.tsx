@@ -8,6 +8,12 @@ import {
   useInternalNode,
 } from "@xyflow/react";
 import { memo } from "react";
+import {
+  conditionBranchLabel,
+  normalizeConditionBranch,
+  normalizeTriggerBranch,
+  triggerBranchLabel,
+} from "../../features/workflows/graph-branches";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === "object" && !Array.isArray(value);
@@ -31,77 +37,14 @@ function getSwitchBranchLabel(value: unknown): string | null {
   return null;
 }
 
-function normalizeConditionBranch(value: unknown): "true" | "false" | null {
-  if (typeof value !== "string") {
-    return null;
-  }
-
-  let normalized = value.trim().toLowerCase();
-  if (normalized.startsWith("branch-")) {
-    normalized = normalized.slice("branch-".length);
-  }
-
-  if (normalized === "true" || normalized === "false") {
-    return normalized;
-  }
-
-  return null;
-}
-
 function getConditionBranchLabel(value: unknown): string | null {
   const normalized = normalizeConditionBranch(value);
-  if (normalized === "true") {
-    return "True";
-  }
-
-  if (normalized === "false") {
-    return "False";
-  }
-
-  return null;
-}
-
-function normalizeTriggerBranch(
-  value: unknown,
-): "scheduled" | "canceled" | "no_show" | null {
-  if (typeof value !== "string") {
-    return null;
-  }
-
-  const normalized = value
-    .trim()
-    .toLowerCase()
-    .replaceAll(/[\s-]+/g, "_");
-  if (
-    normalized === "scheduled" ||
-    normalized === "canceled" ||
-    normalized === "no_show"
-  ) {
-    return normalized;
-  }
-
-  if (normalized === "noshow") {
-    return "no_show";
-  }
-
-  return null;
+  return normalized ? conditionBranchLabel(normalized) : null;
 }
 
 function getTriggerBranchLabel(value: unknown): string | null {
   const normalized = normalizeTriggerBranch(value);
-  if (normalized === "scheduled") {
-    return "Scheduled";
-  }
-
-  if (normalized === "canceled") {
-    return "Canceled";
-  }
-
-  if (normalized === "no_show") {
-    return "No Show";
-  }
-
-  return null;
+  return normalized ? triggerBranchLabel(normalized) : null;
 }
 
 function normalizeSwitchBranch(

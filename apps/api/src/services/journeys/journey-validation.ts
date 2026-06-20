@@ -21,7 +21,7 @@ import { journeys, journeyVersions } from "@scheduling/db/schema";
 import { compact, uniq } from "es-toolkit/array";
 import { and, desc, eq, inArray, ne } from "drizzle-orm";
 import { ApplicationError } from "../../errors/application-error.js";
-import { type DbClient } from "../../lib/db.js";
+import { type DbClient, type OrgScopedTx } from "../../lib/db.js";
 import { isRecord } from "../../lib/type-guards.js";
 import { customAttributeRepository } from "../../repositories/custom-attributes.js";
 
@@ -98,8 +98,7 @@ function collectRoutingEvents(config: JourneyTriggerConfig): string[] {
 }
 
 export async function validateClientTriggerCustomAttributeReferences(input: {
-  tx: DbClient;
-  orgId: string;
+  tx: OrgScopedTx;
   graph: LinearJourneyGraph;
 }): Promise<void> {
   const triggerConfig = getTriggerConfigFromGraph(input.graph);
@@ -122,10 +121,7 @@ export async function validateClientTriggerCustomAttributeReferences(input: {
     ]);
   }
 
-  const definitions = await customAttributeRepository.listDefinitions(
-    input.tx,
-    input.orgId,
-  );
+  const definitions = await customAttributeRepository.listDefinitions(input.tx);
   const validFieldKeys = new Set<string>([
     ...BUILT_IN_CLIENT_TRACKED_ATTRIBUTE_KEYS,
     ...definitions.map((definition) => definition.fieldKey),
