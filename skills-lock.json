@@ -6,6 +6,12 @@
       "sourceType": "github",
       "computedHash": "a3fad19a3876a40e065f1add36fc2d24a5aebb0ea7242c74e1ed854d050e4101"
     },
+    "impeccable": {
+      "source": "pbakaus/impeccable",
+      "sourceType": "github",
+      "skillPath": ".agents/skills/impeccable/SKILL.md",
+      "computedHash": "cc3af10aadf2e273c2d74fa5c321325a5be1fd772175422da6b79d57978285ee"
+    },
     "react-flow": {
       "source": "existential-birds/beagle",
       "sourceType": "github",
