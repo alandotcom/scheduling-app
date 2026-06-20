@@ -23,6 +23,7 @@ import {
   EntityMobileCard,
   EntityMobileCardList,
 } from "@/components/entity-list";
+import { InitialsAvatar } from "@/components/ui/avatar";
 import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
 import { DataTablePagination } from "@/components/ui/data-table-pagination";
 import { Icon } from "@/components/ui/icon";
@@ -81,7 +82,10 @@ export function CalendarsListPresentation({
           <DataTableColumnHeader column={column} title="Name" />
         ),
         cell: ({ row }) => (
-          <span className="font-medium">{row.original.name}</span>
+          <div className="flex items-center gap-2.5">
+            <InitialsAvatar name={row.original.name} />
+            <span className="font-medium">{row.original.name}</span>
+          </div>
         ),
       },
       {
@@ -183,15 +187,18 @@ export function CalendarsListPresentation({
               onOpen={() => onOpen(calendar.id)}
             >
               <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <h3 className="truncate text-sm font-semibold text-foreground">
-                    {calendar.name}
-                  </h3>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    <span title={calendar.timezone}>
-                      {formatTimezoneShort(calendar.timezone)}
-                    </span>
-                  </p>
+                <div className="flex min-w-0 items-center gap-3">
+                  <InitialsAvatar name={calendar.name} className="size-9" />
+                  <div className="min-w-0">
+                    <h3 className="truncate text-sm font-semibold text-foreground">
+                      {calendar.name}
+                    </h3>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      <span title={calendar.timezone}>
+                        {formatTimezoneShort(calendar.timezone)}
+                      </span>
+                    </p>
+                  </div>
                 </div>
                 <RowActions
                   ariaLabel={`Actions for ${calendar.name}`}

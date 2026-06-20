@@ -1086,6 +1086,17 @@ function AppointmentsPage() {
           </button>
         </div>
 
+        {currentView === "list" ? (
+          <div className="shrink-0">
+            <FilterPopover
+              activeFilterCount={activeFilterCount}
+              onClear={clearAllFilters}
+            >
+              {filterPopoverContent}
+            </FilterPopover>
+          </div>
+        ) : null}
+
         <div className="ml-auto flex shrink-0 items-center gap-1">
           <TimeDisplayToggle
             value={timezoneMode}
@@ -1227,19 +1238,10 @@ function AppointmentsPage() {
         </div>
       </div>
 
-      {/* Filters */}
-      {currentView === "list" ? (
-        <div className="mt-6 hidden items-center gap-4 md:flex">
-          <FilterPopover
-            activeFilterCount={activeFilterCount}
-            onClear={clearAllFilters}
-          >
-            {filterPopoverContent}
-          </FilterPopover>
-
-          {activeFiltersDisplay.length > 0 ? (
-            <ActiveFilters filters={activeFiltersDisplay} />
-          ) : null}
+      {/* Active filters (chips only; the Filters control lives in the toolbar) */}
+      {currentView === "list" && activeFiltersDisplay.length > 0 ? (
+        <div className="mt-3 hidden items-center gap-2 md:flex">
+          <ActiveFilters filters={activeFiltersDisplay} />
         </div>
       ) : null}
 

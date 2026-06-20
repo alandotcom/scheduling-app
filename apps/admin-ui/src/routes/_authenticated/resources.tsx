@@ -7,7 +7,11 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Add01Icon, Delete01Icon } from "@hugeicons/core-free-icons";
+import {
+  Add01Icon,
+  Delete01Icon,
+  PackageIcon,
+} from "@hugeicons/core-free-icons";
 import { z } from "zod/mini";
 import { toast } from "sonner";
 
@@ -489,6 +493,7 @@ function ResourcesPage() {
           </div>
         ) : !resources.length ? (
           <EntityListEmptyState
+            icon={PackageIcon}
             actionLabel="Create Resource"
             onAction={crud.openCreate}
           >

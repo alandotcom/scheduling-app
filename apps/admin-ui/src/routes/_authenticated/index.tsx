@@ -20,6 +20,10 @@ import {
 
 import { orpc } from "@/lib/query";
 import { formatTimeDisplay } from "@/lib/date-utils";
+import {
+  formatStatusLabel,
+  getStatusBadgeVariant,
+} from "@/lib/appointment-status";
 import { cn } from "@/lib/utils";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -99,18 +103,28 @@ export function Dashboard() {
     ],
   });
 
-  // Get today's date boundaries
   const today = DateTime.now().startOf("day");
   const todayStr = today.toISODate() ?? "";
+  const todayLabel = today.toFormat("cccc, LLL d");
 
-  // Fetch dashboard summary metrics
-  const { data: summary, isLoading: isSummaryLoading } = useQuery({
+  // Dashboard summary metrics (stat ribbon + attention counts)
+  const {
+    data: summary,
+    isLoading: isSummaryLoading,
+    isError: isSummaryError,
+    refetch: refetchSummary,
+  } = useQuery({
     ...orpc.dashboard.summary.queryOptions(),
     enabled: hasActiveOrganization,
   });
 
-  // Fetch today's appointments for schedule list
-  const { data: todayAppointments, isLoading: isTodayLoading } = useQuery({
+  // Today's appointments for the schedule hero
+  const {
+    data: todayAppointments,
+    isLoading: isTodayLoading,
+    isError: isTodayError,
+    refetch: refetchToday,
+  } = useQuery({
     ...orpc.appointments.list.queryOptions({
       input: {
         startDate: todayStr,
@@ -121,8 +135,6 @@ export function Dashboard() {
     enabled: hasActiveOrganization,
   });
 
-  const isLoading = isSummaryLoading || isTodayLoading;
-
   const { todayCount, weekCount, clientCount, calendarCount } =
     getDashboardStats(summary);
   const todayItems = getSortedTodayAppointments(todayAppointments?.items);
@@ -132,190 +144,157 @@ export function Dashboard() {
 
   return (
     <PageScaffold className="pb-24 sm:pb-6">
-      {/* Stats Cards */}
-      {isLoading ? (
-        <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4 animate-skeleton-fade-in">
-          {Array.from({ length: 4 }, (_, i) => (
-            <div
-              key={i}
-              className="rounded-xl border border-border bg-card p-5"
-            >
-              <Skeleton className="h-3 w-16" />
-              <Skeleton className="mt-3 h-8 w-14" />
-              <Skeleton className="mt-1 h-3 w-20" />
-            </div>
-          ))}
-        </div>
+      {/* Stat ribbon — quiet pulse, demoted from hero tiles */}
+      {isSummaryError ? (
+        <RetryPanel
+          className="mt-6"
+          message="Couldn't load your dashboard metrics."
+          onRetry={() => {
+            void refetchSummary();
+          }}
+        />
+      ) : isSummaryLoading ? (
+        <StatRibbonSkeleton />
       ) : (
-        <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <DashboardCard
-            title="Today"
-            value={todayCount.toString()}
-            subtitle="appointments"
-            href="/appointments"
-          />
-          <DashboardCard
-            title="This Week"
-            value={weekCount.toString()}
-            subtitle="appointments"
-            href="/appointments"
-          />
-          <DashboardCard
-            title="Clients"
-            value={clientCount.toString()}
-            subtitle="total"
-            href="/clients"
-          />
-          <DashboardCard
-            title="Calendars"
-            value={calendarCount.toString()}
-            subtitle="active"
-            href="/calendars"
-          />
+        <div className="mt-6 grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-border bg-border sm:grid-cols-4">
+          <StatItem value={todayCount} label="Today" href="/appointments" />
+          <StatItem value={weekCount} label="This week" href="/appointments" />
+          <StatItem value={clientCount} label="Clients" href="/clients" />
+          <StatItem value={calendarCount} label="Calendars" href="/calendars" />
         </div>
       )}
 
-      {isLoading ? (
-        <div className="mt-8 grid gap-6 lg:grid-cols-2 animate-skeleton-fade-in">
-          <div>
-            <Skeleton className="h-5 w-36 mb-4" />
-            <div className="rounded-xl border border-border bg-card p-4 space-y-4">
-              {Array.from({ length: 3 }, (_, i) => (
-                <div key={i} className="flex items-center gap-3">
-                  <Skeleton className="h-4 w-16" />
-                  <div className="flex-1 space-y-1.5">
-                    <Skeleton className="h-4 w-32" />
-                    <Skeleton className="h-3 w-48" />
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-          <div>
-            <Skeleton className="h-5 w-32 mb-4" />
-            <div className="rounded-xl border border-border bg-card p-8 flex flex-col items-center gap-3">
-              <Skeleton className="h-10 w-10 rounded-full" />
-              <Skeleton className="h-4 w-48" />
-            </div>
-          </div>
-        </div>
-      ) : (
-        <div className="mt-8 grid gap-6 lg:grid-cols-2">
-          {/* Today's Schedule */}
-          <div>
-            <div className="flex items-center justify-between mb-4">
+      {/* Hero: Today's Schedule (2/3) + Needs Attention (1/3) */}
+      <div className="mt-8 grid gap-6 lg:grid-cols-3">
+        {/* Today's Schedule — the lead */}
+        <section className="lg:col-span-2">
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <div className="flex items-baseline gap-2.5">
               <h2 className="text-lg font-semibold tracking-tight">
                 {"Today's Schedule"}
               </h2>
-              <Link
-                to="/appointments"
-                search={{}}
-                className={buttonVariants({ variant: "ghost", size: "sm" })}
-              >
-                View all
-                <Icon icon={ArrowRight02Icon} data-icon="inline-end" />
-              </Link>
+              <span className="text-sm text-muted-foreground">
+                {todayLabel}
+              </span>
             </div>
-            {todayItems.length === 0 ? (
-              <div className="rounded-xl border border-border bg-card p-8 text-center">
-                <Icon
-                  icon={Calendar03Icon}
-                  className="mx-auto size-10 text-muted-foreground/40"
-                />
-                <p className="mt-3 text-sm text-muted-foreground">
-                  No appointments scheduled for today
-                </p>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="mt-4"
-                  onClick={() => setAppointmentModalOpen(true)}
+            <Link
+              to="/appointments"
+              search={{}}
+              className={buttonVariants({ variant: "ghost", size: "sm" })}
+            >
+              View all
+              <Icon icon={ArrowRight02Icon} data-icon="inline-end" />
+            </Link>
+          </div>
+
+          {isTodayError ? (
+            <RetryPanel
+              message="Couldn't load today's appointments."
+              onRetry={() => {
+                void refetchToday();
+              }}
+            />
+          ) : isTodayLoading ? (
+            <ScheduleSkeleton />
+          ) : todayItems.length === 0 ? (
+            <div className="flex min-h-56 flex-col items-center justify-center rounded-xl border border-border bg-card p-8 text-center">
+              <Icon
+                icon={Calendar03Icon}
+                className="size-9 text-muted-foreground/40"
+              />
+              <p className="mt-3 text-sm text-muted-foreground">
+                No appointments scheduled for today
+              </p>
+              <Button
+                variant="outline"
+                size="sm"
+                className="mt-4"
+                onClick={() => setAppointmentModalOpen(true)}
+              >
+                <Icon icon={Add01Icon} data-icon="inline-start" />
+                Book an appointment
+              </Button>
+            </div>
+          ) : (
+            <div className="divide-y divide-border overflow-hidden rounded-xl border border-border bg-card">
+              {todayItems.map((apt) => (
+                <Link
+                  key={apt.id}
+                  to="/appointments"
+                  search={{}}
+                  className="flex items-center justify-between gap-3 px-4 py-3 transition-colors hover:bg-muted/50 focus-visible:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/50"
                 >
-                  <Icon icon={Add01Icon} data-icon="inline-start" />
-                  Book an appointment
-                </Button>
-              </div>
-            ) : (
-              <div className="rounded-xl border border-border bg-card overflow-hidden divide-y divide-border">
-                {todayItems.map((apt) => (
-                  <Link
-                    key={apt.id}
-                    to="/appointments"
-                    search={{}}
-                    className="flex items-center justify-between px-4 py-3 hover:bg-muted/50 transition-colors"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="text-sm font-medium tabular-nums w-20 text-muted-foreground">
-                        {formatTimeDisplay(apt.startAt)}
+                  <div className="flex min-w-0 items-center gap-3">
+                    <div className="w-16 shrink-0 text-sm font-medium tabular-nums text-muted-foreground">
+                      {formatTimeDisplay(apt.startAt)}
+                    </div>
+                    <div className="min-w-0">
+                      <div className="truncate text-sm font-medium">
+                        {apt.client.firstName} {apt.client.lastName}
                       </div>
-                      <div>
-                        <div className="text-sm font-medium">
-                          {apt.client.firstName} {apt.client.lastName}
-                        </div>
-                        <div className="text-xs text-muted-foreground">
-                          {apt.appointmentType?.name}
-                          {apt.calendar && ` - ${apt.calendar.name}`}
-                        </div>
+                      <div className="truncate text-xs text-muted-foreground">
+                        {apt.appointmentType?.name}
+                        {apt.calendar && ` · ${apt.calendar.name}`}
                       </div>
                     </div>
-                    <Badge
-                      variant={
-                        apt.status === "confirmed"
-                          ? "success"
-                          : apt.status === "cancelled" ||
-                              apt.status === "no_show"
-                            ? "destructive"
-                            : "secondary"
-                      }
-                    >
-                      {apt.status}
-                    </Badge>
-                  </Link>
-                ))}
-              </div>
-            )}
-          </div>
+                  </div>
+                  <Badge variant={getStatusBadgeVariant(apt.status)}>
+                    {formatStatusLabel(apt.status)}
+                  </Badge>
+                </Link>
+              ))}
+            </div>
+          )}
+        </section>
 
-          {/* Needs Attention */}
-          <div>
-            <h2 className="text-lg font-semibold tracking-tight mb-4">
-              Needs Attention
-            </h2>
-            {!hasAlerts ? (
-              <div className="rounded-xl border border-border bg-card p-8 text-center">
-                <Icon
-                  icon={CheckmarkCircle01Icon}
-                  className="mx-auto size-10 text-muted-foreground/30"
+        {/* Needs Attention — sidebar */}
+        <section className="lg:col-span-1">
+          <h2 className="mb-4 text-lg font-semibold tracking-tight">
+            Needs Attention
+          </h2>
+
+          {isSummaryError ? (
+            <RetryPanel
+              message="Couldn't load alerts."
+              onRetry={() => {
+                void refetchSummary();
+              }}
+            />
+          ) : isSummaryLoading ? (
+            <Skeleton className="h-[4.5rem] w-full rounded-xl" />
+          ) : hasAlerts ? (
+            <div className="flex flex-col gap-3">
+              {pendingAppointments > 0 && (
+                <AlertCard
+                  icon={Clock01Icon}
+                  title={`${pendingAppointments} appointment${pendingAppointments === 1 ? "" : "s"} pending confirmation`}
+                  href="/appointments"
+                  variant="warning"
                 />
-                <p className="mt-3 text-sm text-muted-foreground">
-                  Everything looks good! No items need attention.
-                </p>
-              </div>
-            ) : (
-              <div className="flex flex-col gap-3">
-                {pendingAppointments > 0 && (
-                  <AlertCard
-                    icon={Clock01Icon}
-                    title={`${pendingAppointments} appointment${pendingAppointments === 1 ? "" : "s"} pending confirmation`}
-                    href="/appointments"
-                    variant="warning"
-                  />
-                )}
-                {noShows > 0 && (
-                  <AlertCard
-                    icon={Alert02Icon}
-                    title={`${noShows} no-show${noShows === 1 ? "" : "s"} this week`}
-                    href="/appointments"
-                    variant="destructive"
-                  />
-                )}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
+              )}
+              {noShows > 0 && (
+                <AlertCard
+                  icon={Alert02Icon}
+                  title={`${noShows} no-show${noShows === 1 ? "" : "s"} this week`}
+                  href="/appointments"
+                  variant="destructive"
+                />
+              )}
+            </div>
+          ) : (
+            <div className="flex flex-col items-center gap-2 rounded-xl border border-border bg-card p-6 text-center">
+              <Icon
+                icon={CheckmarkCircle01Icon}
+                className="size-7 text-emerald-500/60"
+              />
+              <p className="text-sm text-muted-foreground">
+                All clear. Nothing needs attention.
+              </p>
+            </div>
+          )}
+        </section>
+      </div>
 
-      {/* Appointment Modal */}
       <AppointmentModal
         open={appointmentModalOpen}
         onOpenChange={setAppointmentModalOpen}
@@ -335,29 +314,76 @@ export function Dashboard() {
   );
 }
 
-interface DashboardCardProps {
-  title: string;
-  value: string;
-  subtitle: string;
+interface StatItemProps {
+  value: number;
+  label: string;
   href: string;
 }
 
-function DashboardCard({ title, value, subtitle, href }: DashboardCardProps) {
+function StatItem({ value, label, href }: StatItemProps) {
   return (
     <Link
       to={href}
-      className="rounded-xl border border-border bg-card p-5 transition-all hover:border-foreground/15 hover:shadow-sm"
+      className="flex items-baseline gap-2 bg-card px-4 py-3.5 transition-colors hover:bg-muted/50 focus-visible:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/50"
     >
-      <div className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-        {title}
-      </div>
-      <div className="mt-2 flex items-baseline gap-2">
-        <span className="text-3xl font-semibold tracking-tight tabular-nums">
-          {value}
-        </span>
-        <span className="text-sm text-muted-foreground">{subtitle}</span>
-      </div>
+      <span className="text-2xl font-semibold tabular-nums tracking-tight">
+        {value}
+      </span>
+      <span className="truncate text-sm text-muted-foreground">{label}</span>
     </Link>
+  );
+}
+
+interface RetryPanelProps {
+  message: string;
+  onRetry: () => void;
+  className?: string;
+}
+
+function RetryPanel({ message, onRetry, className }: RetryPanelProps) {
+  return (
+    <div
+      className={cn(
+        "flex flex-col items-center gap-3 rounded-xl border border-border bg-card p-6 text-center",
+        className,
+      )}
+    >
+      <Icon icon={Alert02Icon} className="size-7 text-muted-foreground/50" />
+      <p className="text-sm text-muted-foreground">{message}</p>
+      <Button variant="outline" size="sm" onClick={onRetry}>
+        Try again
+      </Button>
+    </div>
+  );
+}
+
+function StatRibbonSkeleton() {
+  return (
+    <div className="mt-6 grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-border bg-border animate-skeleton-fade-in sm:grid-cols-4">
+      {Array.from({ length: 4 }, (_, i) => (
+        <div key={i} className="flex items-baseline gap-2 bg-card px-4 py-3.5">
+          <Skeleton className="h-7 w-8" />
+          <Skeleton className="h-3 w-16" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function ScheduleSkeleton() {
+  return (
+    <div className="divide-y divide-border overflow-hidden rounded-xl border border-border bg-card animate-skeleton-fade-in">
+      {Array.from({ length: 3 }, (_, i) => (
+        <div key={i} className="flex items-center gap-3 px-4 py-3">
+          <Skeleton className="h-4 w-14 shrink-0" />
+          <div className="flex-1 space-y-1.5">
+            <Skeleton className="h-4 w-32" />
+            <Skeleton className="h-3 w-48" />
+          </div>
+          <Skeleton className="h-6 w-20 rounded-full" />
+        </div>
+      ))}
+    </div>
   );
 }
 
@@ -373,25 +399,25 @@ function AlertCard({ icon, title, href, variant }: AlertCardProps) {
     <Link
       to={href}
       className={cn(
-        "flex items-center gap-3 rounded-xl border p-4 transition-all hover:shadow-sm",
+        "flex items-center gap-3 rounded-xl border p-4 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/50",
         variant === "warning" &&
-          "border-yellow-500/50 bg-yellow-500/5 hover:bg-yellow-500/10",
+          "border-amber-500/25 bg-amber-500/10 hover:bg-amber-500/15",
         variant === "destructive" &&
-          "border-destructive/50 bg-destructive/5 hover:bg-destructive/10",
+          "border-destructive/25 bg-destructive/10 hover:bg-destructive/15",
       )}
     >
       <Icon
         icon={icon}
         className={cn(
-          "size-5",
-          variant === "warning" && "text-yellow-600",
+          "size-5 shrink-0",
+          variant === "warning" && "text-amber-600 dark:text-amber-400",
           variant === "destructive" && "text-destructive",
         )}
       />
       <span className="text-sm font-medium">{title}</span>
       <Icon
         icon={ArrowRight02Icon}
-        className="ml-auto size-4 text-muted-foreground"
+        className="ml-auto size-4 shrink-0 text-muted-foreground"
       />
     </Link>
   );

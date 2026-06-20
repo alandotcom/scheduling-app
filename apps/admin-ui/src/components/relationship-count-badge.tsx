@@ -1,4 +1,5 @@
 import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
 
 interface RelationshipCountBadgeProps {
   count: number;
@@ -13,9 +14,13 @@ export function RelationshipCountBadge({
 }: RelationshipCountBadgeProps) {
   const pluralLabel = plural ?? `${singular}s`;
   const label = count === 1 ? singular : pluralLabel;
+  const isZero = count === 0;
 
   return (
-    <Badge variant="secondary">
+    <Badge
+      variant={isZero ? "ghost" : "secondary"}
+      className={cn("tabular-nums", isZero && "text-muted-foreground/60")}
+    >
       {count.toLocaleString()} {label}
     </Badge>
   );

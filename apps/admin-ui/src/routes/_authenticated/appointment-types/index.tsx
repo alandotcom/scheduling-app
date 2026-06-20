@@ -12,6 +12,7 @@ import {
   Delete01Icon,
   Link01Icon,
   PencilEdit01Icon,
+  Tag01Icon,
 } from "@hugeicons/core-free-icons";
 
 import { createAppointmentTypeSchema } from "@scheduling/dto";
@@ -586,6 +587,7 @@ function AppointmentTypesPage() {
           </div>
         ) : !appointmentTypes.length ? (
           <EntityListEmptyState
+            icon={Tag01Icon}
             actionLabel="Create Appointment Type"
             onAction={crud.openCreate}
           >

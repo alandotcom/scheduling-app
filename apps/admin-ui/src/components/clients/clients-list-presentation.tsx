@@ -21,6 +21,7 @@ import {
 } from "@/components/entity-list";
 import { RelationshipCountBadge } from "@/components/relationship-count-badge";
 import { RowActions } from "@/components/row-actions";
+import { InitialsAvatar } from "@/components/ui/avatar";
 import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
 import { DataTablePagination } from "@/components/ui/data-table-pagination";
 import {
@@ -98,9 +99,14 @@ export function ClientsListPresentation({
           <DataTableColumnHeader column={column} title="Name" />
         ),
         cell: ({ row }) => (
-          <span className="font-medium">
-            {row.original.firstName} {row.original.lastName}
-          </span>
+          <div className="flex items-center gap-2.5">
+            <InitialsAvatar
+              name={`${row.original.firstName} ${row.original.lastName}`}
+            />
+            <span className="font-medium">
+              {row.original.firstName} {row.original.lastName}
+            </span>
+          </div>
         ),
       },
       {
@@ -195,13 +201,16 @@ export function ClientsListPresentation({
           return (
             <EntityMobileCard key={client.id} onOpen={() => onOpen(client.id)}>
               <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <h3 className="truncate text-sm font-semibold text-foreground">
-                    {displayName}
-                  </h3>
-                  <p className="mt-1 truncate text-xs text-muted-foreground">
-                    {client.email ?? formattedPhone ?? "No contact details"}
-                  </p>
+                <div className="flex min-w-0 items-center gap-3">
+                  <InitialsAvatar name={displayName} className="size-9" />
+                  <div className="min-w-0">
+                    <h3 className="truncate text-sm font-semibold text-foreground">
+                      {displayName}
+                    </h3>
+                    <p className="mt-1 truncate text-xs text-muted-foreground">
+                      {client.email ?? formattedPhone ?? "No contact details"}
+                    </p>
+                  </div>
                 </div>
                 <RowActions
                   ariaLabel={`Actions for ${displayName}`}

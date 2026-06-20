@@ -11,6 +11,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import {
   Add01Icon,
   ArrowRight02Icon,
+  Calendar03Icon,
   Cancel01Icon,
   Clock01Icon,
   Copy01Icon,
@@ -1110,6 +1111,7 @@ function CalendarsPage() {
           </div>
         ) : !calendars.length ? (
           <EntityListEmptyState
+            icon={Calendar03Icon}
             actionLabel="Create Calendar"
             onAction={crud.openCreate}
           >

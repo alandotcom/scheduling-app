@@ -1,7 +1,7 @@
 import { useState } from "react";
 import type { ComponentProps } from "react";
 import { Popover } from "@base-ui/react/popover";
-import { Menu01Icon } from "@hugeicons/core-free-icons";
+import { MoreHorizontalIcon } from "@hugeicons/core-free-icons";
 
 import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
@@ -42,7 +42,7 @@ export function RowActions({ actions, ariaLabel }: RowActionsProps) {
               title="Open row actions"
               className="hover:translate-y-0"
             >
-              <Icon icon={Menu01Icon} className="size-4" />
+              <Icon icon={MoreHorizontalIcon} className="size-4" />
             </Button>
           }
         />

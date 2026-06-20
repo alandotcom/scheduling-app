@@ -11,6 +11,7 @@ import {
   Add01Icon,
   ArrowRight02Icon,
   Delete01Icon,
+  Location01Icon,
 } from "@hugeicons/core-free-icons";
 import { toast } from "sonner";
 
@@ -495,6 +496,7 @@ function LocationsPage() {
           </div>
         ) : !locations.length ? (
           <EntityListEmptyState
+            icon={Location01Icon}
             actionLabel="Create Location"
             onAction={crud.openCreate}
           >

@@ -1,6 +1,7 @@
-import type { ReactNode } from "react";
+import type { ComponentProps, ReactNode } from "react";
 
 import { Button } from "@/components/ui/button";
+import { Icon } from "@/components/ui/icon";
 import { TableSkeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 
@@ -27,6 +28,7 @@ interface EntityListEmptyStateProps {
   className?: string;
   actionLabel?: string;
   onAction?: () => void;
+  icon?: ComponentProps<typeof Icon>["icon"];
 }
 
 export function EntityListEmptyState({
@@ -34,6 +36,7 @@ export function EntityListEmptyState({
   className,
   actionLabel,
   onAction,
+  icon,
 }: EntityListEmptyStateProps) {
   const showCreateAction =
     typeof onAction === "function" && typeof actionLabel === "string";
@@ -41,20 +44,28 @@ export function EntityListEmptyState({
   return (
     <div
       className={cn(
-        "rounded-xl border border-border bg-card p-10 text-center text-muted-foreground shadow-sm",
+        "flex flex-col items-center rounded-xl border border-border bg-card px-6 py-14 text-center shadow-sm",
         className,
       )}
     >
-      <div className="space-y-4">
-        <div>{children}</div>
-        {showCreateAction ? (
-          <div className="flex flex-col items-center gap-2">
-            <Button type="button" variant="outline" onClick={onAction}>
-              {actionLabel}
-            </Button>
-          </div>
-        ) : null}
+      {icon ? (
+        <span className="mb-4 inline-flex size-12 items-center justify-center rounded-full bg-muted text-muted-foreground/70 ring-1 ring-border/60">
+          <Icon icon={icon} className="size-6" />
+        </span>
+      ) : null}
+      <div className="max-w-sm text-sm text-balance text-muted-foreground">
+        {children}
       </div>
+      {showCreateAction ? (
+        <Button
+          type="button"
+          variant="outline"
+          onClick={onAction}
+          className="mt-5"
+        >
+          {actionLabel}
+        </Button>
+      ) : null}
     </div>
   );
 }
