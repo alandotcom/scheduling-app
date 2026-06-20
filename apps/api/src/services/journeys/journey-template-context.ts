@@ -1,7 +1,7 @@
 import { appointments, calendars, clients, orgs } from "@scheduling/db/schema";
 import { eq } from "drizzle-orm";
-import { withOrg, type DbClient } from "../lib/db.js";
-import { clientCustomAttributeService } from "./client-custom-attributes.js";
+import { withOrg, type DbClient } from "../../lib/db.js";
+import { clientCustomAttributeService } from "../client-custom-attributes.js";
 import {
   toDataEnvelopeContext,
   toOptionalDataEnvelopeContext,

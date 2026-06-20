@@ -1,4 +1,4 @@
-import { isRecord } from "../lib/type-guards.js";
+import { isRecord } from "../../lib/type-guards.js";
 
 const TOKEN_PATTERN = /(^|[^A-Za-z0-9_.])@([A-Za-z][A-Za-z0-9_.]*)/g;
 

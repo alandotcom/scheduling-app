@@ -1,4 +1,4 @@
-import { toRecord } from "../lib/type-guards.js";
+import { toRecord } from "../../lib/type-guards.js";
 
 export function toDataEnvelopeContext(
   payload: Record<string, unknown>,

@@ -7,8 +7,8 @@ import {
 import { journeyDeliveries, journeyRuns } from "@scheduling/db/schema";
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { retry } from "es-toolkit/function";
-import { withOrg } from "../lib/db.js";
-import { toRecord } from "../lib/type-guards.js";
+import { withOrg } from "../../lib/db.js";
+import { toRecord } from "../../lib/type-guards.js";
 import {
   JourneyDeliveryNonRetryableError,
   type JourneyDeliveryDispatcher,

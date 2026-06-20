@@ -18,7 +18,7 @@ import {
   updateJourneySchema,
 } from "@scheduling/dto";
 import { authed, adminOnly } from "./base.js";
-import { journeyService } from "../services/journeys.js";
+import { journeyService } from "../services/journeys/journeys.js";
 
 const journeyIdInputSchema = z.object({ id: z.uuid() });
 const runIdInputSchema = z.object({ runId: z.uuid() });

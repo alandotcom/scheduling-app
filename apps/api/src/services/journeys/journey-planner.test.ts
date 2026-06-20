@@ -7,14 +7,14 @@ import {
   registerDbTestReset,
   setTestOrgContext,
   type TestDatabase,
-} from "../test-utils/index.js";
+} from "../../test-utils/index.js";
 import {
   createClient,
   createOrg,
   createQuickAppointment,
-} from "../test-utils/factories.js";
-import type { ServiceContext } from "./locations.js";
-import { clientCustomAttributeService } from "./client-custom-attributes.js";
+} from "../../test-utils/factories.js";
+import type { ServiceContext } from "../locations.js";
+import { clientCustomAttributeService } from "../client-custom-attributes.js";
 import { journeyService } from "./journeys.js";
 import { processJourneyDomainEvent as processJourneyDomainEventBase } from "./journey-planner.js";
 

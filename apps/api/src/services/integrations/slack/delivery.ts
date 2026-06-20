@@ -1,28 +1,7 @@
-import {
-  assertActionType,
-  resolveTestModeResult,
-  type JourneyDeliveryDispatchInput,
-  type JourneyDeliveryDispatchResult,
-} from "../../delivery-dispatch-helpers.js";
-
-export async function dispatchJourneySendSlackAction(
-  input: JourneyDeliveryDispatchInput,
-): Promise<JourneyDeliveryDispatchResult> {
-  assertActionType(input, "send-slack");
-
-  const testResult = await resolveTestModeResult({
-    providerKey: "slack",
-    idempotencyKey: input.idempotencyKey,
-    stepConfig: input.stepConfig,
-    runMode: input.runMode ?? "live",
-    orgId: input.orgId,
-  });
-  if (testResult) {
-    return testResult;
-  }
-
-  return {
-    providerMessageId: `slack:${input.idempotencyKey}`,
-    reasonCode: null,
-  };
+// Thin Slack adapter (stub until a real Slack integration lands). No journey
+// imports — the journey delivery dispatcher handles action-type and test-mode.
+export async function sendSlackMessage(input: {
+  idempotencyKey: string;
+}): Promise<{ providerMessageId: string }> {
+  return { providerMessageId: `slack:${input.idempotencyKey}` };
 }

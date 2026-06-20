@@ -1,21 +1,12 @@
 import twilio from "twilio";
-import {
-  journeyDeliveries,
-  journeyRunStepLogs,
-  type journeyDeliveryStatusEnum,
-} from "@scheduling/db/schema";
-import { and, eq, sql } from "drizzle-orm";
-import { withOrg } from "../../../lib/db.js";
-import { isRecord } from "../../../lib/type-guards.js";
-import {
-  appendJourneyRunEvent,
-  upsertJourneyRunStepLog,
-} from "../../journey-run-artifacts.js";
+
+// Pure Twilio status-callback handling: signature validation, body/path parsing,
+// and mapping a Twilio message status into a channel-neutral delivery outcome.
+// No journey imports and no DB — the journey domain's recordDeliveryOutcome
+// applies the mapped outcome to the run projection.
 
 const TWILIO_SUCCESS_STATUSES = new Set(["sent", "delivered", "read"]);
 const TWILIO_FAILURE_STATUSES = new Set(["failed", "undelivered", "canceled"]);
-
-type DeliveryStatus = (typeof journeyDeliveryStatusEnum.enumValues)[number];
 
 export type TwilioStatusCallbackPayload = {
   orgId: string;
@@ -25,12 +16,18 @@ export type TwilioStatusCallbackPayload = {
   errorCode?: string | null;
 };
 
-export type TwilioStatusCallbackApplyResult = {
-  applied: boolean;
-  status: "sent" | "failed" | null;
-  reasonCode: string | null;
-  detail: string;
-};
+export type TwilioCallbackMapping =
+  | {
+      kind: "terminal";
+      status: "sent" | "failed";
+      providerMessageId: string;
+      reasonCode: string | null;
+      providerMetadata: {
+        twilioStatus: string;
+        twilioErrorCode: string | null;
+      };
+    }
+  | { kind: "ignored"; detail: string };
 
 function normalizeTwilioMessageStatus(status: string): string {
   return status.trim().toLowerCase();
@@ -93,28 +90,24 @@ export function validateTwilioStatusCallbackSignature(input: {
   );
 }
 
-export async function applyTwilioStatusCallback(
+// Map a Twilio status callback to a channel-neutral delivery outcome. Returns
+// `ignored` for non-terminal statuses or a missing SID; otherwise a terminal
+// sent/failed outcome the journey reducer can apply.
+export function mapTwilioStatusCallback(
   payload: TwilioStatusCallbackPayload,
-): Promise<TwilioStatusCallbackApplyResult> {
+): TwilioCallbackMapping {
   const twilioStatus = normalizeTwilioMessageStatus(payload.messageStatus);
   const terminalStatus = toTerminalDeliveryStatus(twilioStatus);
   if (!terminalStatus) {
     return {
-      applied: false,
-      status: null,
-      reasonCode: null,
+      kind: "ignored",
       detail: `ignored_non_terminal_status:${twilioStatus || "unknown"}`,
     };
   }
 
   const normalizedMessageSid = normalizeMessageSid(payload.messageSid);
   if (!normalizedMessageSid) {
-    return {
-      applied: false,
-      status: null,
-      reasonCode: null,
-      detail: "ignored_missing_message_sid",
-    };
+    return { kind: "ignored", detail: "ignored_missing_message_sid" };
   }
 
   const errorCode = normalizeErrorCode(payload.errorCode ?? null);
@@ -123,153 +116,12 @@ export async function applyTwilioStatusCallback(
       ? toTwilioFailureReasonCode({ twilioStatus, errorCode })
       : null;
 
-  const result = await withOrg(payload.orgId, async (tx) => {
-    const [delivery] = await tx
-      .select({
-        id: journeyDeliveries.id,
-        journeyRunId: journeyDeliveries.journeyRunId,
-        stepKey: journeyDeliveries.stepKey,
-        status: journeyDeliveries.status,
-        scheduledFor: journeyDeliveries.scheduledFor,
-        reasonCode: journeyDeliveries.reasonCode,
-        channel: journeyDeliveries.channel,
-      })
-      .from(journeyDeliveries)
-      .where(eq(journeyDeliveries.id, payload.journeyDeliveryId))
-      .limit(1);
-
-    if (!delivery) {
-      return {
-        applied: false,
-        status: null,
-        reasonCode: null,
-        detail: "ignored_delivery_missing",
-        runId: null,
-      };
-    }
-
-    if (delivery.channel !== "sms") {
-      return {
-        applied: false,
-        status: null,
-        reasonCode: null,
-        detail: "ignored_non_sms_delivery",
-        runId: null,
-      };
-    }
-
-    if (delivery.status !== "planned") {
-      return {
-        applied: false,
-        status: null,
-        reasonCode: delivery.reasonCode,
-        detail: `ignored_delivery_already_${delivery.status}`,
-        runId: delivery.journeyRunId,
-      };
-    }
-
-    const [updated] = await tx
-      .update(journeyDeliveries)
-      .set({
-        status: terminalStatus,
-        reasonCode,
-        updatedAt: sql`now()`,
-      })
-      .where(
-        and(
-          eq(journeyDeliveries.id, payload.journeyDeliveryId),
-          eq(journeyDeliveries.status, "planned"),
-        ),
-      )
-      .returning({
-        id: journeyDeliveries.id,
-        journeyRunId: journeyDeliveries.journeyRunId,
-        stepKey: journeyDeliveries.stepKey,
-        status: journeyDeliveries.status,
-        scheduledFor: journeyDeliveries.scheduledFor,
-      });
-
-    if (!updated) {
-      return {
-        applied: false,
-        status: null,
-        reasonCode: null,
-        detail: "ignored_delivery_updated_concurrently",
-        runId: delivery.journeyRunId,
-      };
-    }
-
-    const [existingStepLog] = await tx
-      .select({
-        input: journeyRunStepLogs.input,
-        startedAt: journeyRunStepLogs.startedAt,
-      })
-      .from(journeyRunStepLogs)
-      .where(
-        and(
-          eq(journeyRunStepLogs.journeyRunId, updated.journeyRunId),
-          eq(journeyRunStepLogs.stepKey, updated.stepKey),
-        ),
-      )
-      .limit(1);
-
-    const startedAt = existingStepLog?.startedAt ?? updated.scheduledFor;
-    const completedAt = new Date();
-
-    await upsertJourneyRunStepLog({
-      tx,
-      orgId: payload.orgId,
-      runId: updated.journeyRunId,
-      stepKey: updated.stepKey,
-      nodeType: "send-twilio",
-      status: terminalStatus === "sent" ? "success" : "error",
-      startedAt,
-      completedAt,
-      durationMs: Math.max(0, completedAt.getTime() - startedAt.getTime()),
-      logInput: isRecord(existingStepLog?.input) ? existingStepLog.input : {},
-      logOutput: {
-        status: terminalStatus,
-        reasonCode,
-        providerMessageId: `twilio:${normalizedMessageSid}`,
-        twilioStatus,
-        twilioErrorCode: errorCode,
-      },
-      error:
-        terminalStatus === "failed" ? (reasonCode ?? "provider_error") : null,
-    });
-
-    await appendJourneyRunEvent({
-      tx,
-      orgId: payload.orgId,
-      runId: updated.journeyRunId,
-      eventType:
-        terminalStatus === "sent" ? "delivery_sent" : "delivery_failed",
-      message: `Delivery ${updated.stepKey} ${
-        terminalStatus === "sent" ? "sent" : "failed"
-      }`,
-      metadata: {
-        stepKey: updated.stepKey,
-        reasonCode: terminalStatus === "failed" ? reasonCode : null,
-        providerMessageId: `twilio:${normalizedMessageSid}`,
-        twilioStatus,
-        twilioErrorCode: errorCode,
-      },
-    });
-
-    return {
-      applied: true,
-      status: terminalStatus,
-      reasonCode,
-      detail: `applied_${terminalStatus}`,
-      runId: updated.journeyRunId,
-    };
-  });
-
   return {
-    applied: result.applied,
-    status: result.status,
-    reasonCode: result.reasonCode,
-    detail: result.detail,
+    kind: "terminal",
+    status: terminalStatus,
+    providerMessageId: `twilio:${normalizedMessageSid}`,
+    reasonCode,
+    providerMetadata: { twilioStatus, twilioErrorCode: errorCode },
   };
 }
 
@@ -318,5 +170,3 @@ export function resolveCallbackPathParams(input: {
     journeyDeliveryId,
   };
 }
-
-export type TwilioDeliveryStatus = DeliveryStatus;

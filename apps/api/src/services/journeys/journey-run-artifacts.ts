@@ -4,7 +4,7 @@ import {
   type journeyRunStepLogStatusEnum,
 } from "@scheduling/db/schema";
 import { sql } from "drizzle-orm";
-import type { DbClient } from "../lib/db.js";
+import type { DbClient } from "../../lib/db.js";
 
 type JourneyRunStepLogStatus =
   (typeof journeyRunStepLogStatusEnum.enumValues)[number];

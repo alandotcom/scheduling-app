@@ -4,7 +4,7 @@ import {
   type DomainEventType,
 } from "@scheduling/dto";
 import { domainTriggerEvent, inngest } from "../client.js";
-import { processJourneyDomainEvent } from "../../services/journey-planner.js";
+import { processJourneyDomainEvent } from "../../services/journeys/journey-planner.js";
 
 const journeyPlannerEventTypes = [
   "appointment.scheduled",

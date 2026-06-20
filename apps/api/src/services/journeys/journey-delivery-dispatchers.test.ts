@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
-import { dispatchJourneySendResendAction } from "./integrations/resend/delivery.js";
-import { dispatchJourneySendSlackAction } from "./integrations/slack/delivery.js";
-import { dispatchJourneySendTwilioAction } from "./integrations/twilio/delivery.js";
+import { dispatchJourneySendResendAction } from "./journey-dispatch-resend.js";
+import { dispatchJourneySendSlackAction } from "./journey-dispatch-slack.js";
+import { dispatchJourneySendTwilioAction } from "./journey-dispatch-twilio.js";
 import { JourneyDeliveryNonRetryableError } from "./delivery-dispatch-helpers.js";
 
 const baseDispatchInput = {

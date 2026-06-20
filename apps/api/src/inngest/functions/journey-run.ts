@@ -1,10 +1,10 @@
-import superjson from "superjson";
+import { parse, stringify } from "superjson";
 import {
   executeJourneyRun,
   markJourneyRunFailed,
   type JourneyRunStartInput,
   type JourneyRunStepRuntime,
-} from "../../services/journey-run-executor.js";
+} from "../../services/journeys/journey-run-executor.js";
 import { toRecord } from "../../lib/type-guards.js";
 import { inngest, journeyRunStartEvent } from "../client.js";
 
@@ -64,9 +64,9 @@ export function createJourneyRunFunction(
           fn: () => Promise<T>,
         ): Promise<T> => {
           const serialized = await step.run(stepId, async () =>
-            superjson.stringify(await fn()),
+            stringify(await fn()),
           );
-          return superjson.parse<T>(serialized);
+          return parse<T>(serialized);
         },
         sleepUntil: async (stepId, at) => {
           await step.sleepUntil(stepId, at);

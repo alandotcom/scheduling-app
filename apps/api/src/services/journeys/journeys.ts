@@ -48,18 +48,18 @@ import {
 } from "@scheduling/db/schema";
 import { compact, uniq } from "es-toolkit/array";
 import { and, asc, desc, eq, ilike, inArray, ne, sql } from "drizzle-orm";
-import { ApplicationError } from "../errors/application-error.js";
-import { withOrg, type DbClient } from "../lib/db.js";
+import { ApplicationError } from "../../errors/application-error.js";
+import { withOrg, type DbClient } from "../../lib/db.js";
 import {
   isUniqueConstraintViolation,
   getConstraintName,
-} from "../lib/db-errors.js";
-import { isRecord } from "../lib/type-guards.js";
-import { customAttributeRepository } from "../repositories/custom-attributes.js";
-import type { ServiceContext } from "./locations.js";
-import { clientCustomAttributeService } from "./client-custom-attributes.js";
+} from "../../lib/db-errors.js";
+import { isRecord } from "../../lib/type-guards.js";
+import { customAttributeRepository } from "../../repositories/custom-attributes.js";
+import type { ServiceContext } from "../locations.js";
+import { clientCustomAttributeService } from "../client-custom-attributes.js";
 import { processJourneyDomainEvent } from "./journey-planner.js";
-import { sendJourneyRunCancel } from "../inngest/runtime-events.js";
+import { sendJourneyRunCancel } from "../../inngest/runtime-events.js";
 
 const JOURNEY_NAME_UNIQUE_CONSTRAINT = "journeys_org_name_ci_uidx";
 const ACTIVE_RUN_STATUSES = ["planned", "running"] as const;

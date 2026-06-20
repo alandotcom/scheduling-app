@@ -13,7 +13,7 @@ import {
   registerDbTestReset,
   setTestOrgContext,
   type TestDatabase,
-} from "../test-utils/index.js";
+} from "../../test-utils/index.js";
 import {
   createAppointment,
   createAppointmentType,
@@ -22,10 +22,10 @@ import {
   createLocation,
   createOrg,
   createQuickAppointment,
-} from "../test-utils/factories.js";
+} from "../../test-utils/factories.js";
 import { journeyService } from "./journeys.js";
-import { clientCustomAttributeService } from "./client-custom-attributes.js";
-import type { ServiceContext } from "./locations.js";
+import { clientCustomAttributeService } from "../client-custom-attributes.js";
+import type { ServiceContext } from "../locations.js";
 import type { LinearJourneyGraph } from "@scheduling/dto";
 
 function createTriggerConfig() {

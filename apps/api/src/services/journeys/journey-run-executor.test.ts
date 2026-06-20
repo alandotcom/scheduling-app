@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, mock, test } from "bun:test";
-import superjson from "superjson";
+import { parse, stringify } from "superjson";
 import { and, eq } from "drizzle-orm";
 import {
   journeyDeliveries,
@@ -16,8 +16,11 @@ import {
   registerDbTestReset,
   setTestOrgContext,
   type TestDatabase,
-} from "../test-utils/index.js";
-import { createOrg, createQuickAppointment } from "../test-utils/factories.js";
+} from "../../test-utils/index.js";
+import {
+  createOrg,
+  createQuickAppointment,
+} from "../../test-utils/factories.js";
 import { JourneyDeliveryNonRetryableError } from "./delivery-dispatch-helpers.js";
 import {
   executeJourneyRun,
@@ -377,10 +380,10 @@ function createFakeRuntime(input: {
     runStep: async <T>(stepId: string, fn: () => Promise<T>): Promise<T> => {
       const cached = memo.get(stepId);
       if (cached !== undefined) {
-        return superjson.parse<T>(cached);
+        return parse<T>(cached);
       }
       const value = await fn();
-      memo.set(stepId, superjson.stringify(value));
+      memo.set(stepId, stringify(value));
       return value;
     },
     sleepUntil: async (stepId: string) => {

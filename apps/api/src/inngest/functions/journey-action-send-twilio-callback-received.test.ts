@@ -10,6 +10,7 @@ describe("journey action send twilio callback received function", () => {
         status: "sent",
         reasonCode: null,
         detail: "applied_sent",
+        runId: "run_1",
       }),
     );
 
@@ -37,6 +38,7 @@ describe("journey action send twilio callback received function", () => {
       status: "failed" as const,
       reasonCode: "twilio_status:failed:error_30003",
       detail: "applied_failed",
+      runId: "run_1",
     }));
 
     const fn =
@@ -63,6 +65,7 @@ describe("journey action send twilio callback received function", () => {
       status: "failed",
       reasonCode: "twilio_status:failed:error_30003",
       detail: "applied_failed",
+      runId: "run_1",
     });
     expect(applyCallback).toHaveBeenCalledTimes(1);
     expect(applyCallback).toHaveBeenCalledWith({

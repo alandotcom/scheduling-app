@@ -1,18 +1,16 @@
 import twilio from "twilio";
 import { authBaseUrl } from "../../../config.js";
-import {
-  assertActionType,
-  JourneyDeliveryNonRetryableError,
-  resolveTestModeResult,
-  type JourneyDeliveryDispatchInput,
-  type JourneyDeliveryDispatchResult,
-} from "../../delivery-dispatch-helpers.js";
-import { loadDeliveryTemplateContextByRun } from "../../journey-template-context.js";
-import { resolveTemplateString } from "../../template-resolution.js";
+import { ProviderSendError } from "../provider-send-error.js";
 import {
   getAppIntegrationSecretsForOrg,
   getAppIntegrationStateForOrg,
 } from "../readiness.js";
+
+// Thin Twilio SMS adapter. It knows only how to talk to Twilio: resolve org
+// credentials, send a message, and classify Twilio failures as retryable or not.
+// It has NO journey imports — the journey delivery dispatcher renders the body,
+// resolves the recipient, and translates a non-retryable ProviderSendError into
+// the journey's own non-retryable signal.
 
 export type TwilioCredentials = {
   accountSid: string;
@@ -22,19 +20,8 @@ export type TwilioCredentials = {
   messagingServiceSid: string;
 };
 
-type TwilioDispatcherDependencies = {
-  resolveTestRecipient?: (orgId: string) => Promise<string | null>;
+type TwilioSendDependencies = {
   resolveCredentials?: (orgId: string) => Promise<TwilioCredentials>;
-  resolveStatusCallbackUrl?: (input: {
-    orgId: string;
-    journeyDeliveryId: string;
-  }) => string;
-  loadTemplateContext?: (input: {
-    orgId: string;
-    triggerEntityType: "appointment" | "client";
-    appointmentId?: string | null;
-    clientId?: string | null;
-  }) => Promise<Record<string, unknown>>;
   sendTimeoutMs?: number;
   sendMessage?: (input: {
     accountSid: string;
@@ -52,7 +39,7 @@ const MESSAGING_SERVICE_SID_RE = /^MG[0-9a-zA-Z]{32}$/;
 const DEFAULT_TWILIO_SEND_TIMEOUT_MS = 10_000;
 const { RestException } = twilio;
 
-function normalizePhoneValue(value: unknown): string | null {
+export function normalizeTwilioPhone(value: unknown): string | null {
   if (typeof value !== "string") {
     return null;
   }
@@ -78,11 +65,11 @@ function normalizeMessagingServiceSid(value: unknown): string | null {
   return MESSAGING_SERVICE_SID_RE.test(normalized) ? normalized : null;
 }
 
-async function resolveTwilioIntegrationTestRecipient(
+export async function resolveTwilioIntegrationTestRecipient(
   orgId: string,
 ): Promise<string | null> {
   const integrationState = await getAppIntegrationStateForOrg(orgId, "twilio");
-  return normalizePhoneValue(integrationState.config["testRecipientPhone"]);
+  return normalizeTwilioPhone(integrationState.config["testRecipientPhone"]);
 }
 
 export async function resolveTwilioCredentialsForOrg(
@@ -94,8 +81,9 @@ export async function resolveTwilioCredentialsForOrg(
   ]);
 
   if (!integrationState.enabled) {
-    throw new JourneyDeliveryNonRetryableError(
+    throw new ProviderSendError(
       "Twilio integration is disabled for this organization. Enable the integration before sending SMS.",
+      { retryable: false },
     );
   }
 
@@ -122,8 +110,9 @@ export async function resolveTwilioCredentialsForOrg(
     !authToken ||
     !messagingServiceSid
   ) {
-    throw new JourneyDeliveryNonRetryableError(
+    throw new ProviderSendError(
       "Twilio integration is not fully configured. Expected accountSid, apiKeySid, apiKeySecret, authToken, and messagingServiceSid.",
+      { retryable: false },
     );
   }
 
@@ -206,81 +195,21 @@ async function sendTwilioMessageWithTimeout(
   }
 }
 
-export async function dispatchJourneySendTwilioAction(
-  input: JourneyDeliveryDispatchInput,
-  dependencies: TwilioDispatcherDependencies = {},
-): Promise<JourneyDeliveryDispatchResult> {
-  assertActionType(input, "send-twilio");
-
-  const testResult = await resolveTestModeResult({
-    providerKey: "twilio",
-    idempotencyKey: input.idempotencyKey,
-    stepConfig: input.stepConfig,
-    runMode: input.runMode ?? "live",
-    orgId: input.orgId,
-    resolveTestRecipient:
-      dependencies.resolveTestRecipient ??
-      resolveTwilioIntegrationTestRecipient,
-  });
-  if (testResult) {
-    return testResult;
-  }
-
-  let context: Record<string, unknown>;
-  if (dependencies.loadTemplateContext) {
-    context = await dependencies.loadTemplateContext({
-      orgId: input.orgId,
-      triggerEntityType: input.triggerEntityType ?? "appointment",
-      appointmentId: input.appointmentId ?? null,
-      clientId: input.clientId ?? null,
-    });
-  } else if (input.appointmentId || input.triggerEntityType === "client") {
-    context = await loadDeliveryTemplateContextByRun({
-      orgId: input.orgId,
-      triggerEntityType: input.triggerEntityType ?? "appointment",
-      appointmentId: input.appointmentId ?? null,
-      clientId: input.clientId ?? null,
-    });
-  } else {
-    context = {};
-  }
-  const messageBody = resolveTemplateString(
-    input.stepConfig["message"],
-    context,
-  );
-  if (!messageBody) {
-    throw new JourneyDeliveryNonRetryableError(
-      "Twilio SMS step requires a non-empty message body.",
-    );
-  }
-
-  const explicitRecipient = resolveTemplateString(
-    input.stepConfig["toPhone"],
-    context,
-  );
-  const fallbackRecipient = resolveTemplateString(
-    "@client.data.phone",
-    context,
-  );
-  const recipient = normalizePhoneValue(explicitRecipient ?? fallbackRecipient);
-  if (!recipient) {
-    throw new JourneyDeliveryNonRetryableError(
-      "Twilio SMS recipient is missing or invalid. Use E.164 format (for example +14155552671).",
-    );
-  }
-
+// Send one SMS. `to` must already be a valid E.164 number (the dispatcher
+// validates it). Throws ProviderSendError on a Twilio/network failure with the
+// retryability the journey retry loop should honor.
+export async function sendTwilioSms(
+  input: {
+    orgId: string;
+    to: string;
+    body: string;
+    statusCallbackUrl: string;
+  },
+  dependencies: TwilioSendDependencies = {},
+): Promise<{ providerMessageId: string }> {
   const resolveCredentials =
     dependencies.resolveCredentials ?? resolveTwilioCredentialsForOrg;
   const credentials = await resolveCredentials(input.orgId);
-
-  const resolveStatusCallbackUrl =
-    dependencies.resolveStatusCallbackUrl ??
-    ((callbackInput: { orgId: string; journeyDeliveryId: string }) =>
-      buildTwilioStatusCallbackUrl(callbackInput));
-  const statusCallback = resolveStatusCallbackUrl({
-    orgId: input.orgId,
-    journeyDeliveryId: input.journeyDeliveryId,
-  });
 
   const send = dependencies.sendMessage ?? sendTwilioMessage;
   const sendTimeoutMs = Math.max(
@@ -295,32 +224,27 @@ export async function dispatchJourneySendTwilioAction(
         apiKeySid: credentials.apiKeySid,
         apiKeySecret: credentials.apiKeySecret,
         messagingServiceSid: credentials.messagingServiceSid,
-        to: recipient,
-        body: messageBody,
-        statusCallback,
+        to: input.to,
+        body: input.body,
+        statusCallback: input.statusCallbackUrl,
       }),
       sendTimeoutMs,
     );
 
-    return {
-      providerMessageId: `twilio:${message.sid}`,
-      reasonCode: null,
-      awaitingAsyncCallback: true,
-    };
+    return { providerMessageId: `twilio:${message.sid}` };
   } catch (error) {
     if (error instanceof RestException) {
       const message = `Twilio API error ${error.code ?? "unknown"}: ${error.message}`;
-      if (isRetryableTwilioRestException(error)) {
-        throw new Error(message, { cause: error });
-      }
-
-      throw new JourneyDeliveryNonRetryableError(message, { cause: error });
+      throw new ProviderSendError(message, {
+        retryable: isRetryableTwilioRestException(error),
+        cause: error,
+      });
     }
 
     if (error instanceof Error && error.message.includes("timed out")) {
-      throw new Error(
+      throw new ProviderSendError(
         `${error.message} Check Twilio API health and network egress.`,
-        { cause: error },
+        { retryable: true, cause: error },
       );
     }
 

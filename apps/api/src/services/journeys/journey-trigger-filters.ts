@@ -5,7 +5,7 @@ import {
   type JourneyTriggerFilterAst,
   type JourneyTriggerFilterCondition,
 } from "@scheduling/dto";
-import { isRecord } from "../lib/type-guards.js";
+import { isRecord } from "../../lib/type-guards.js";
 
 type PrimitiveLiteral = string | number | boolean | null;
 

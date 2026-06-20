@@ -14,12 +14,12 @@ import {
   journeyVersions,
 } from "@scheduling/db/schema";
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
-import { withOrg, type DbClient } from "../lib/db.js";
-import { customAttributeRepository } from "../repositories/custom-attributes.js";
+import { withOrg, type DbClient } from "../../lib/db.js";
+import { customAttributeRepository } from "../../repositories/custom-attributes.js";
 import {
   sendJourneyRunStart,
   type JourneyRunStartEventData,
-} from "../inngest/runtime-events.js";
+} from "../../inngest/runtime-events.js";
 import {
   buildOutgoingEdgesBySource,
   getTriggerNode,

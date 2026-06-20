@@ -5,9 +5,9 @@ import {
   type JourneyDeliveryDispatchResult,
   type JourneyDeliveryDispatcher,
 } from "./delivery-dispatch-helpers.js";
-import { dispatchJourneySendResendAction } from "./integrations/resend/delivery.js";
-import { dispatchJourneySendSlackAction } from "./integrations/slack/delivery.js";
-import { dispatchJourneySendTwilioAction } from "./integrations/twilio/delivery.js";
+import { dispatchJourneySendResendAction } from "./journey-dispatch-resend.js";
+import { dispatchJourneySendSlackAction } from "./journey-dispatch-slack.js";
+import { dispatchJourneySendTwilioAction } from "./journey-dispatch-twilio.js";
 
 const journeyLoggerDeliverySink = getLogger([
   "journeys",
@@ -100,18 +100,6 @@ export function getProviderForActionType(
 export const deliveryActionTypes: readonly string[] = providers.flatMap(
   (p) => p.actionTypes,
 );
-
-export const SHARED_ORG_CONCURRENCY = {
-  key: '"journey-delivery:" + event.data.orgId',
-  scope: "env",
-  limit: 20,
-} as const;
-
-export const TWILIO_CALLBACK_ORG_CONCURRENCY = {
-  key: "event.data.orgId",
-  scope: "fn",
-  limit: 10,
-} as const;
 
 export async function dispatchForActionType(
   input: JourneyDeliveryDispatchInput,

@@ -6,7 +6,7 @@ import {
   type LinearJourneyGraph,
   type TriggerBranch,
 } from "@scheduling/dto";
-import { toRecord } from "../lib/type-guards.js";
+import { toRecord } from "../../lib/type-guards.js";
 import { normalizeActionType } from "./delivery-dispatch-helpers.js";
 import {
   deliveryActionTypes,
