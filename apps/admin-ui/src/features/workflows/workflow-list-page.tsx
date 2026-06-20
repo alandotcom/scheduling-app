@@ -16,6 +16,7 @@ import {
   EntityListLoadingState,
 } from "@/components/entity-list";
 import { PageScaffold } from "@/components/layout/page-scaffold";
+import { MobileActionBar } from "@/components/mobile-action-bar";
 import { CreateWorkflowDialog } from "@/features/workflows/create-workflow-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -436,7 +437,7 @@ export function WorkflowListPage({
                     {formatDisplayDateTime(journey.updatedAt)}
                   </p>
                 </CardContent>
-                <CardFooter className="flex items-center justify-end gap-2 overflow-x-auto">
+                <CardFooter className="flex flex-wrap items-center justify-end gap-2">
                   <WorkflowLifecycleControls
                     canManageWorkflows={canManageWorkflows}
                     compact
@@ -652,6 +653,7 @@ export function WorkflowListPage({
         open={isCreateDialogOpen}
         onOpenChange={setIsCreateDialogOpen}
       />
+      <MobileActionBar />
     </PageScaffold>
   );
 }

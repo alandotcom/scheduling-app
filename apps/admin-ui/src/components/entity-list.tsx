@@ -79,7 +79,7 @@ export function EntityMobileCardList({
   children,
   className,
 }: EntityMobileCardListProps) {
-  return <div className={cn("space-y-3 md:hidden", className)}>{children}</div>;
+  return <div className={cn("space-y-3 lg:hidden", className)}>{children}</div>;
 }
 
 interface EntityMobileCardProps {
@@ -132,7 +132,7 @@ export function EntityDesktopTable({
   return (
     <div
       className={cn(
-        "hidden min-h-0 flex-col overflow-hidden rounded-xl border border-border bg-card shadow-sm md:flex md:flex-1",
+        "hidden min-h-0 flex-col overflow-hidden rounded-xl border border-border bg-card shadow-sm lg:flex lg:flex-1",
         className,
       )}
     >

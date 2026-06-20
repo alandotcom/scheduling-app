@@ -273,7 +273,7 @@ export function ClientsListPresentation({
 
       <DataTablePagination
         table={table}
-        className="justify-center rounded-xl border border-border bg-card shadow-sm md:hidden"
+        className="justify-center rounded-xl border border-border bg-card shadow-sm lg:hidden"
       />
 
       <EntityDesktopTable>

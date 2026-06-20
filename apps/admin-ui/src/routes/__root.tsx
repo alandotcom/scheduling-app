@@ -720,7 +720,7 @@ function RootLayout() {
           </div>
 
           {/* Search + Create */}
-          <div className="hidden items-center gap-2 md:flex">
+          <div className="hidden items-center gap-2 lg:flex">
             <button
               type="button"
               onClick={() => openCommandCenter("commands")}
@@ -778,7 +778,7 @@ function RootLayout() {
                     variant="ghost"
                     size="sm"
                     aria-label="Open help menu"
-                    className="hidden md:inline-flex"
+                    className="hidden lg:inline-flex"
                   >
                     ?
                   </Button>

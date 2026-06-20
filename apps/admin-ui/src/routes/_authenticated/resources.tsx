@@ -30,6 +30,8 @@ import { Icon } from "@/components/ui/icon";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { PageScaffold } from "@/components/layout/page-scaffold";
+import { PageHeader } from "@/components/layout/page-header";
+import { MobileActionBar } from "@/components/mobile-action-bar";
 import { ResourcesListPresentation } from "@/components/resources/resources-list-presentation";
 import {
   Select,
@@ -484,7 +486,11 @@ function ResourcesPage() {
 
   return (
     <PageScaffold fullHeight>
-      <div className="mt-6 md:flex md:min-h-0 md:flex-1 md:flex-col">
+      <PageHeader
+        title="Resources"
+        description="Rooms, equipment, and staff that appointments can reserve."
+      />
+      <div className="mt-5 lg:flex lg:min-h-0 lg:flex-1 lg:flex-col">
         {isLoading ? (
           <EntityListLoadingState rows={5} cols={5} />
         ) : error ? (
@@ -646,12 +652,12 @@ function ResourcesPage() {
         isPending={deleteMutation.isPending}
       />
 
-      <div className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background/95 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:hidden">
+      <MobileActionBar>
         <Button className="w-full" onClick={crud.openCreate}>
           <Icon icon={Add01Icon} data-icon="inline-start" />
           Add Resource
         </Button>
-      </div>
+      </MobileActionBar>
     </PageScaffold>
   );
 }

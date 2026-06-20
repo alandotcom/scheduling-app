@@ -26,6 +26,8 @@ import { CopyIdHeaderAction } from "@/components/copy-id-header-action";
 import { DeleteConfirmDialog } from "@/components/delete-confirm-dialog";
 import { EntityModal } from "@/components/entity-modal";
 import { PageScaffold } from "@/components/layout/page-scaffold";
+import { PageHeader } from "@/components/layout/page-header";
+import { MobileActionBar } from "@/components/mobile-action-bar";
 import { AppointmentTypesListPresentation } from "@/components/appointment-types/appointment-types-list-presentation";
 import { Button } from "@/components/ui/button";
 import { FieldShortcutHint } from "@/components/ui/field-shortcut-hint";
@@ -578,7 +580,11 @@ function AppointmentTypesPage() {
 
   return (
     <PageScaffold fullHeight>
-      <div className="mt-6 md:flex md:min-h-0 md:flex-1 md:flex-col">
+      <PageHeader
+        title="Appointment Types"
+        description="Bookable services, each with its own duration, capacity, and buffers."
+      />
+      <div className="mt-5 lg:flex lg:min-h-0 lg:flex-1 lg:flex-col">
         {isLoading ? (
           <EntityListLoadingState rows={5} cols={7} />
         ) : error ? (
@@ -791,12 +797,12 @@ function AppointmentTypesPage() {
         isPending={deleteMutation.isPending}
       />
 
-      <div className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background/95 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:hidden">
+      <MobileActionBar>
         <Button className="w-full" onClick={crud.openCreate}>
           <Icon icon={Add01Icon} data-icon="inline-start" />
           Add Type
         </Button>
-      </div>
+      </MobileActionBar>
     </PageScaffold>
   );
 }

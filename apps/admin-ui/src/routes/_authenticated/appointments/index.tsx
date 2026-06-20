@@ -59,6 +59,7 @@ import { LazyAppointmentModal as AppointmentModal } from "@/components/lazy-appo
 import { CopyIdHeaderAction } from "@/components/copy-id-header-action";
 import { EntityModal } from "@/components/entity-modal";
 import { PageScaffold } from "@/components/layout/page-scaffold";
+import { MobileActionBar } from "@/components/mobile-action-bar";
 import {
   useKeyboardShortcuts,
   useFocusZones,
@@ -1046,8 +1047,8 @@ function AppointmentsPage() {
   );
 
   return (
-    <PageScaffold fullHeight className="max-md:pb-24">
-      <div className="hidden mt-2 items-center gap-1 md:flex md:min-w-0 md:flex-nowrap md:overflow-x-auto md:pb-1 md:[scrollbar-width:thin] md:[scrollbar-color:var(--color-border)_transparent]">
+    <PageScaffold fullHeight>
+      <div className="hidden mt-2 items-center gap-1 lg:flex lg:min-w-0 lg:flex-nowrap lg:overflow-x-auto lg:pb-1 lg:[scrollbar-width:thin] lg:[scrollbar-color:var(--color-border)_transparent]">
         <div className="shrink-0">
           <ViewToggle view={currentView} onViewChange={setView} size="sm" />
         </div>
@@ -1208,7 +1209,7 @@ function AppointmentsPage() {
 
       <div
         className={cn(
-          "space-y-2 md:hidden",
+          "space-y-2 lg:hidden",
           currentView === "schedule" ? "mt-2" : "mt-6",
         )}
       >
@@ -1280,7 +1281,7 @@ function AppointmentsPage() {
       <div
         id={FOCUS_ZONES.LIST}
         className={cn(
-          "flex min-h-[600px] flex-col md:min-h-0 md:flex-1",
+          "flex min-h-[600px] flex-col lg:min-h-0 lg:flex-1",
           currentView === "schedule" ? "mt-2" : "mt-6",
         )}
       >
@@ -1507,12 +1508,12 @@ function AppointmentsPage() {
         </AlertDialogContent>
       </AlertDialog>
 
-      <div className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background/95 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] md:hidden">
+      <MobileActionBar>
         <Button className="w-full" onClick={() => openCreateModal()}>
           <Icon icon={Add01Icon} data-icon="inline-start" />
           New Appointment
         </Button>
-      </div>
+      </MobileActionBar>
     </PageScaffold>
   );
 }

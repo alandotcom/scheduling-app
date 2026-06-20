@@ -353,14 +353,14 @@ export function AppointmentsList({
           })}
         </EntityMobileCardList>
       ) : (
-        <div className="rounded-xl border border-border bg-card p-10 text-center text-muted-foreground shadow-sm md:hidden">
+        <div className="rounded-xl border border-border bg-card p-10 text-center text-muted-foreground shadow-sm lg:hidden">
           No appointments match your filters.
         </div>
       )}
 
       <DataTablePagination
         table={table}
-        className="justify-center rounded-xl border border-border bg-card shadow-sm md:hidden"
+        className="justify-center rounded-xl border border-border bg-card shadow-sm lg:hidden"
       />
 
       <div className="hidden min-h-0 flex-col overflow-hidden rounded-xl border border-border bg-card shadow-sm md:flex md:flex-1">

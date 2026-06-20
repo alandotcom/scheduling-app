@@ -19,7 +19,7 @@ export function AssistantLauncher() {
       type="button"
       size="sm"
       onClick={() => openCommandCenter("assistant")}
-      className="fixed bottom-4 right-4 z-40 rounded-full pl-2.5 pr-3 shadow-lg"
+      className="fixed bottom-4 right-4 z-40 hidden rounded-full pl-2.5 pr-3 shadow-lg lg:inline-flex"
     >
       <Icon icon={Search01Icon} data-icon="inline-start" />
       <span>Assistant</span>

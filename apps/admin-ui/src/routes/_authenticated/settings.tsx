@@ -47,6 +47,7 @@ import type {
   WebhooksRouteState,
 } from "@/components/settings/webhooks/types";
 import { PageScaffold } from "@/components/layout/page-scaffold";
+import { MobileActionBar } from "@/components/mobile-action-bar";
 import { RowActions } from "@/components/row-actions";
 import {
   EntityCardField,
@@ -454,6 +455,7 @@ function SettingsPage() {
           )}
         </div>
       ) : null}
+      <MobileActionBar />
     </PageScaffold>
   );
 }
@@ -1228,10 +1230,10 @@ function ApiKeysSection() {
 
           <DataTablePagination
             table={apiKeysTable}
-            className="justify-center rounded-xl border border-border bg-card shadow-sm md:hidden"
+            className="justify-center rounded-xl border border-border bg-card shadow-sm lg:hidden"
           />
 
-          <div className="hidden overflow-hidden rounded-xl border border-border/50 md:block">
+          <div className="hidden overflow-hidden rounded-xl border border-border/50 lg:block">
             <Table>
               <TableHeader>
                 {apiKeysTable.getHeaderGroups().map((headerGroup) => (
@@ -1955,10 +1957,10 @@ function UsersManagementSection() {
 
           <DataTablePagination
             table={usersTable}
-            className="justify-center rounded-xl border border-border bg-card shadow-sm md:hidden"
+            className="justify-center rounded-xl border border-border bg-card shadow-sm lg:hidden"
           />
 
-          <div className="hidden overflow-hidden rounded-xl border border-border/50 md:block">
+          <div className="hidden overflow-hidden rounded-xl border border-border/50 lg:block">
             <Table>
               <TableHeader>
                 {usersTable.getHeaderGroups().map((headerGroup) => (

@@ -37,6 +37,7 @@ import { ClientsListPresentation } from "@/components/clients/clients-list-prese
 import { Icon } from "@/components/ui/icon";
 import { Input } from "@/components/ui/input";
 import { PageScaffold } from "@/components/layout/page-scaffold";
+import { MobileActionBar } from "@/components/mobile-action-bar";
 import { useCrudState } from "@/hooks/use-crud-state";
 import { useBufferedPending } from "@/hooks/use-buffered-pending";
 import { useCreateDraft, useResetCreateDraft } from "@/hooks/use-create-draft";
@@ -663,7 +664,7 @@ function ClientsPage() {
 
   return (
     <PageScaffold fullHeight>
-      <div className="flex flex-col gap-4 md:min-h-0 md:flex-1">
+      <div className="flex flex-col gap-4 lg:min-h-0 lg:flex-1">
         <div className="max-w-sm">
           <div className="relative">
             <Icon
@@ -679,7 +680,7 @@ function ClientsPage() {
           </div>
         </div>
 
-        <div className="md:flex md:min-h-0 md:flex-1 md:flex-col">
+        <div className="lg:flex lg:min-h-0 lg:flex-1 lg:flex-col">
           {isLoading ? (
             <EntityListLoadingState rows={5} cols={6} />
           ) : error ? (
@@ -1225,12 +1226,12 @@ function ClientsPage() {
         isPending={deleteMutation.isPending}
       />
 
-      <div className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background/95 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:hidden">
+      <MobileActionBar>
         <Button className="w-full" onClick={crud.openCreate}>
           <Icon icon={Add01Icon} data-icon="inline-start" />
           Add Client
         </Button>
-      </div>
+      </MobileActionBar>
     </PageScaffold>
   );
 }

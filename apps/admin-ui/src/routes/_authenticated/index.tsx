@@ -30,6 +30,7 @@ import { Badge } from "@/components/ui/badge";
 import { Icon } from "@/components/ui/icon";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PageScaffold } from "@/components/layout/page-scaffold";
+import { MobileActionBar } from "@/components/mobile-action-bar";
 import { LazyAppointmentModal as AppointmentModal } from "@/components/lazy-appointment-modal";
 import { useKeyboardShortcuts } from "@/hooks/use-keyboard-shortcuts";
 import { authClient } from "@/lib/auth-client";
@@ -143,7 +144,7 @@ export function Dashboard() {
   const hasAlerts = pendingAppointments > 0 || noShows > 0;
 
   return (
-    <PageScaffold className="pb-24 sm:pb-6">
+    <PageScaffold className="pb-24 lg:pb-6">
       {/* Stat ribbon — quiet pulse, demoted from hero tiles */}
       {isSummaryError ? (
         <RetryPanel
@@ -303,7 +304,7 @@ export function Dashboard() {
         onCreated={handleAppointmentCreated}
       />
 
-      <div className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background/95 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:hidden">
+      <MobileActionBar>
         <Button
           className="w-full"
           onClick={() => setAppointmentModalOpen(true)}
@@ -311,7 +312,7 @@ export function Dashboard() {
           <Icon icon={Add01Icon} data-icon="inline-start" />
           New Appointment
         </Button>
-      </div>
+      </MobileActionBar>
     </PageScaffold>
   );
 }

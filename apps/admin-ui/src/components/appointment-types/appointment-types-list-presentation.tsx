@@ -213,6 +213,19 @@ export function AppointmentTypesListPresentation({
 
   return (
     <>
+      <div className="relative mb-4 w-full max-w-sm shrink-0">
+        <Icon
+          icon={Search01Icon}
+          className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
+        />
+        <Input
+          value={globalFilter}
+          onChange={(event) => setGlobalFilter(event.target.value)}
+          placeholder="Filter appointment types..."
+          className="pl-10"
+        />
+      </div>
+
       <EntityMobileCardList>
         {table.getRowModel().rows.map((row) => {
           const type = row.original;
@@ -286,21 +299,8 @@ export function AppointmentTypesListPresentation({
 
       <DataTablePagination
         table={table}
-        className="justify-center rounded-xl border border-border bg-card shadow-sm md:hidden"
+        className="justify-center rounded-xl border border-border bg-card shadow-sm lg:hidden"
       />
-
-      <div className="relative mb-4 max-w-sm hidden md:block">
-        <Icon
-          icon={Search01Icon}
-          className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
-        />
-        <Input
-          value={globalFilter}
-          onChange={(event) => setGlobalFilter(event.target.value)}
-          placeholder="Filter appointment types..."
-          className="pl-10"
-        />
-      </div>
 
       <EntityDesktopTable>
         <Table
