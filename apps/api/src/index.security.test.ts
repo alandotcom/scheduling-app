@@ -36,7 +36,7 @@ describe("OpenAPI API key security", () => {
       valid: true,
       key: {
         id: "0198d09f-ff07-7f46-a5d9-26a3f0d94001",
-        userId: userA.id,
+        referenceId: userA.id,
         metadata: { organizationId: orgA.id, role: "owner" as const },
       },
       error: null,
@@ -80,7 +80,7 @@ describe("OpenAPI API key security", () => {
       valid: true,
       key: {
         id: "0198d09f-ff07-7f46-a5d9-26a3f0d94002",
-        userId: user.id,
+        referenceId: user.id,
         metadata: { organizationId: org.id, role: "admin" as const },
       },
       error: null,
@@ -118,7 +118,7 @@ describe("OpenAPI API key security", () => {
       valid: true,
       key: {
         id: "0198d09f-ff07-7f46-a5d9-26a3f0d94003",
-        userId: user.id,
+        referenceId: user.id,
         metadata: null,
       },
       error: null,
@@ -156,7 +156,7 @@ describe("OpenAPI API key security", () => {
       valid: true,
       key: {
         id: "0198d09f-ff07-7f46-a5d9-26a3f0d94004",
-        userId: userB.id,
+        referenceId: userB.id,
         metadata: { organizationId: orgA.id, role: "member" as const },
       },
       error: null,

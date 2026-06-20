@@ -3,7 +3,7 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { cleanup, render, screen } from "@testing-library/react";
 import { QueryClientProvider } from "@tanstack/react-query";
-import { useForm } from "react-hook-form";
+import { type FieldValues, useForm } from "react-hook-form";
 import type { CustomAttributeDefinitionResponse } from "@scheduling/dto";
 
 import { CustomAttributeFormField } from "@/components/clients/custom-attribute-form-field";
@@ -37,7 +37,7 @@ function createDefinition(
 
 function renderField(definition: CustomAttributeDefinitionResponse) {
   function TestForm() {
-    const { control } = useForm({
+    const { control } = useForm<FieldValues>({
       defaultValues: { customAttributes: {} },
     });
     return (
@@ -119,7 +119,9 @@ describe("CustomAttributeFormField layout", () => {
 
     const label = screen.getByText("SMS Opt in");
     const wrapper = label.closest("div");
-    const input = screen.getByLabelText("SMS Opt in");
+    // base-ui's Switch labels both the role="switch" span and the hidden
+    // checkbox input, so scope getByLabelText to the underlying input.
+    const input = screen.getByLabelText("SMS Opt in", { selector: "input" });
     const toggle = screen.getByRole("switch");
 
     expect(wrapper?.className).not.toContain("sm:col-span-2");
@@ -130,7 +132,7 @@ describe("CustomAttributeFormField layout", () => {
 
   test("RELATION_CLIENT single mode renders a modal trigger", () => {
     function TestForm() {
-      const { control } = useForm({
+      const { control } = useForm<FieldValues>({
         defaultValues: { customAttributes: {} },
       });
       return (
@@ -170,7 +172,7 @@ describe("CustomAttributeFormField layout", () => {
 
   test("RELATION_CLIENT multi mode renders a modal trigger", () => {
     function TestForm() {
-      const { control } = useForm({
+      const { control } = useForm<FieldValues>({
         defaultValues: { customAttributes: {} },
       });
       return (

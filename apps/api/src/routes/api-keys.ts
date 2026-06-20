@@ -91,7 +91,7 @@ export const list = adminOnly
         headers: context.headers,
       });
 
-      const items = keys
+      const items = keys.apiKeys
         .flatMap((key) => {
           const metadata = parseMetadata(key.metadata);
           if (!metadata || metadata.organizationId !== context.orgId) {

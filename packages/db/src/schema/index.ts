@@ -1090,9 +1090,9 @@ export const apiKeys = pgTable("apikey", {
   start: text("start"),
   prefix: text("prefix"),
   key: text("key").notNull().unique(),
-  userId: uuid("user_id")
-    .notNull()
-    .references(() => users.id, { onDelete: "cascade" }),
+  // better-auth's api-key plugin stores the owning entity as a generic
+  // reference (the session user's id under our default config).
+  referenceId: text("reference_id").notNull(),
   refillInterval: integer("refill_interval"),
   refillAmount: integer("refill_amount"),
   lastRefillAt: timestamp("last_refill_at", { withTimezone: true }),

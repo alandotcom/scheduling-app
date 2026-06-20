@@ -118,7 +118,7 @@ export const authMiddleware = createMiddleware(async (c, next) => {
 
       const membership = await db.query.orgMemberships.findFirst({
         where: {
-          userId: verification.key.userId,
+          userId: verification.key.referenceId,
           orgId,
         },
       });
@@ -147,7 +147,7 @@ export const authMiddleware = createMiddleware(async (c, next) => {
       const effectiveRole =
         keyRoleRank <= membershipRoleRank ? keyRole : membership.role;
 
-      c.set("userId", verification.key.userId);
+      c.set("userId", verification.key.referenceId);
       c.set("orgId", orgId);
       c.set("sessionId", null);
       c.set("tokenId", verification.key.id);

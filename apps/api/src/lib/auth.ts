@@ -2,7 +2,8 @@
 
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
-import { admin, apiKey, organization } from "better-auth/plugins";
+import { admin, organization } from "better-auth/plugins";
+import { apiKey } from "@better-auth/api-key";
 import { db } from "./db.js";
 import * as schema from "@scheduling/db/schema";
 import { config } from "../config.js";

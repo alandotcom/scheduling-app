@@ -36,61 +36,63 @@ describe("API Key Routes", () => {
       role: "admin",
     });
 
-    const listApiKeysMock = mock(async () => [
-      {
-        id: "0198d09f-ff07-7f46-a5d9-26a3f0d91001",
-        name: "Older Org Key",
-        prefix: "sched_",
-        start: "sched_abc",
-        metadata: {
-          organizationId: context.orgId,
-          role: "admin",
+    const listApiKeysMock = mock(async () => ({
+      apiKeys: [
+        {
+          id: "0198d09f-ff07-7f46-a5d9-26a3f0d91001",
+          name: "Older Org Key",
+          prefix: "sched_",
+          start: "sched_abc",
+          metadata: {
+            organizationId: context.orgId,
+            role: "admin",
+          },
+          expiresAt: null,
+          lastRequest: null,
+          createdAt: new Date("2026-01-01T00:00:00.000Z"),
+          updatedAt: new Date("2026-01-01T00:00:00.000Z"),
         },
-        expiresAt: null,
-        lastRequest: null,
-        createdAt: new Date("2026-01-01T00:00:00.000Z"),
-        updatedAt: new Date("2026-01-01T00:00:00.000Z"),
-      },
-      {
-        id: "0198d09f-ff07-7f46-a5d9-26a3f0d91002",
-        name: "Newer Org Key",
-        prefix: "sched_",
-        start: "sched_def",
-        metadata: JSON.stringify({
-          organizationId: context.orgId,
-          role: "member",
-        }),
-        expiresAt: null,
-        lastRequest: null,
-        createdAt: new Date("2026-02-01T00:00:00.000Z"),
-        updatedAt: new Date("2026-02-01T00:00:00.000Z"),
-      },
-      {
-        id: "0198d09f-ff07-7f46-a5d9-26a3f0d91003",
-        name: "Other Org Key",
-        prefix: "sched_",
-        start: "sched_xyz",
-        metadata: {
-          organizationId: "0198d09f-ff07-7f46-a5d9-26a3f0d99999",
-          role: "owner",
+        {
+          id: "0198d09f-ff07-7f46-a5d9-26a3f0d91002",
+          name: "Newer Org Key",
+          prefix: "sched_",
+          start: "sched_def",
+          metadata: JSON.stringify({
+            organizationId: context.orgId,
+            role: "member",
+          }),
+          expiresAt: null,
+          lastRequest: null,
+          createdAt: new Date("2026-02-01T00:00:00.000Z"),
+          updatedAt: new Date("2026-02-01T00:00:00.000Z"),
         },
-        expiresAt: null,
-        lastRequest: null,
-        createdAt: new Date("2026-03-01T00:00:00.000Z"),
-        updatedAt: new Date("2026-03-01T00:00:00.000Z"),
-      },
-      {
-        id: "0198d09f-ff07-7f46-a5d9-26a3f0d91004",
-        name: "Invalid Metadata",
-        prefix: "sched_",
-        start: "sched_bad",
-        metadata: "{bad json",
-        expiresAt: null,
-        lastRequest: null,
-        createdAt: new Date("2026-04-01T00:00:00.000Z"),
-        updatedAt: new Date("2026-04-01T00:00:00.000Z"),
-      },
-    ]);
+        {
+          id: "0198d09f-ff07-7f46-a5d9-26a3f0d91003",
+          name: "Other Org Key",
+          prefix: "sched_",
+          start: "sched_xyz",
+          metadata: {
+            organizationId: "0198d09f-ff07-7f46-a5d9-26a3f0d99999",
+            role: "owner",
+          },
+          expiresAt: null,
+          lastRequest: null,
+          createdAt: new Date("2026-03-01T00:00:00.000Z"),
+          updatedAt: new Date("2026-03-01T00:00:00.000Z"),
+        },
+        {
+          id: "0198d09f-ff07-7f46-a5d9-26a3f0d91004",
+          name: "Invalid Metadata",
+          prefix: "sched_",
+          start: "sched_bad",
+          metadata: "{bad json",
+          expiresAt: null,
+          lastRequest: null,
+          createdAt: new Date("2026-04-01T00:00:00.000Z"),
+          updatedAt: new Date("2026-04-01T00:00:00.000Z"),
+        },
+      ],
+    }));
 
     (auth.api as typeof auth.api).listApiKeys =
       listApiKeysMock as unknown as typeof auth.api.listApiKeys;

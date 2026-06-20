@@ -1,6 +1,7 @@
 import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { Combobox } from "@base-ui/react/combobox";
 import {
+  type Control,
   Controller,
   type FieldErrors,
   useForm,
@@ -247,6 +248,12 @@ export function ClientForm({
         : {}),
     },
   });
+
+  // react-hook-form 7.79 made Control invariant over the form's field paths, so
+  // a typed Control no longer narrows to the Control<any> that the dynamic
+  // custom-attribute fields accept. Those fields are form-shape agnostic, so
+  // widen the control to FieldValues at the boundary.
+  const customAttributeControl = control as unknown as Control;
 
   const phoneCountry = useWatch({
     control,
@@ -738,7 +745,7 @@ export function ClientForm({
                     definition={definition}
                     clientOptions={clientRelationOptions}
                     currentClientId={defaultValues?.id}
-                    control={control}
+                    control={customAttributeControl}
                     disabled={isSubmitting}
                   />
                 ))}
@@ -760,7 +767,7 @@ export function ClientForm({
                 definition={definition}
                 clientOptions={clientRelationOptions}
                 currentClientId={defaultValues?.id}
-                control={control}
+                control={customAttributeControl}
                 disabled={isSubmitting}
               />
             ))}

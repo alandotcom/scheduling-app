@@ -126,7 +126,7 @@ describe("Auth Middleware - API Key Security", () => {
       valid: true,
       key: {
         id: "0198d09f-ff07-7f46-a5d9-26a3f0d93001",
-        userId: user.id,
+        referenceId: user.id,
         metadata: null,
       },
       error: null,
@@ -164,7 +164,7 @@ describe("Auth Middleware - API Key Security", () => {
       valid: true,
       key: {
         id: "0198d09f-ff07-7f46-a5d9-26a3f0d93002",
-        userId: userB.id,
+        referenceId: userB.id,
         metadata: { organizationId: orgA.id, role: "member" as const },
       },
       error: null,
@@ -201,7 +201,7 @@ describe("Auth Middleware - API Key Security", () => {
       valid: true,
       key: {
         id: "0198d09f-ff07-7f46-a5d9-26a3f0d93003",
-        userId: user.id,
+        referenceId: user.id,
         metadata: { organizationId: org.id, role: "admin" as const },
       },
       error: null,
@@ -249,7 +249,7 @@ describe("Auth Middleware - API Key Security", () => {
       valid: true,
       key: {
         id: "0198d09f-ff07-7f46-a5d9-26a3f0d93004",
-        userId: member.id,
+        referenceId: member.id,
         metadata: { organizationId: org.id, role: "owner" as const },
       },
       error: null,
@@ -281,7 +281,7 @@ describe("Auth Middleware - API Key Security", () => {
       valid: true,
       key: {
         id: "0198d09f-ff07-7f46-a5d9-26a3f0d93005",
-        userId: user.id,
+        referenceId: user.id,
         metadata: { organizationId: org.id, role: "member" as const },
       },
       error: null,
@@ -316,7 +316,7 @@ describe("Auth Middleware - API Key Security", () => {
             valid: true,
             key: {
               id: "0198d09f-ff07-7f46-a5d9-26a3f0d93006",
-              userId: user.id,
+              referenceId: user.id,
               metadata: { organizationId: org.id, role: "member" as const },
             },
             error: null,
@@ -360,7 +360,7 @@ describe("Auth Middleware - API Key Security", () => {
       valid: true,
       key: {
         id: "0198d09f-ff07-7f46-a5d9-26a3f0d93007",
-        userId: user.id,
+        referenceId: user.id,
         metadata: { organizationId: org.id, role: "member" as const },
       },
       error: null,
@@ -392,7 +392,7 @@ describe("Auth Middleware - API Key Security", () => {
       valid: true,
       key: {
         id: "0198d09f-ff07-7f46-a5d9-26a3f0d93008",
-        userId: user.id,
+        referenceId: user.id,
         metadata: { organizationId: org.id, role: "admin" as const },
       },
       error: null,

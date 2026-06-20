@@ -312,7 +312,7 @@ export const relations = defineRelations(schema, (r) => ({
   // API keys
   apiKeys: {
     user: r.one.users({
-      from: r.apiKeys.userId,
+      from: r.apiKeys.referenceId,
       to: r.users.id,
     }),
   },

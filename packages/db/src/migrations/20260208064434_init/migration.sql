@@ -44,7 +44,7 @@ CREATE TABLE "apikey" (
 	"start" text,
 	"prefix" text,
 	"key" text NOT NULL UNIQUE,
-	"user_id" uuid NOT NULL,
+	"reference_id" text NOT NULL,
 	"refill_interval" integer,
 	"refill_amount" integer,
 	"last_refill_at" timestamp with time zone,
@@ -502,7 +502,6 @@ CREATE INDEX "accounts_user_id_idx" ON "accounts" ("user_id");--> statement-brea
 CREATE INDEX "journey_run_events_created_at_brin_idx" ON "journey_run_events" USING brin ("created_at");--> statement-breakpoint
 CREATE INDEX "journey_run_step_logs_created_at_brin_idx" ON "journey_run_step_logs" USING brin ("created_at");--> statement-breakpoint
 ALTER TABLE "accounts" ADD CONSTRAINT "accounts_user_id_users_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE;--> statement-breakpoint
-ALTER TABLE "apikey" ADD CONSTRAINT "apikey_user_id_users_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE;--> statement-breakpoint
 ALTER TABLE "appointment_type_calendars" ADD CONSTRAINT "appointment_type_calendars_gHcf7toxCUtt_fkey" FOREIGN KEY ("appointment_type_id") REFERENCES "appointment_types"("id") ON DELETE CASCADE;--> statement-breakpoint
 ALTER TABLE "appointment_type_calendars" ADD CONSTRAINT "appointment_type_calendars_calendar_id_calendars_id_fkey" FOREIGN KEY ("calendar_id") REFERENCES "calendars"("id") ON DELETE CASCADE;--> statement-breakpoint
 ALTER TABLE "appointment_type_resources" ADD CONSTRAINT "appointment_type_resources_6XPhdSeLmkCN_fkey" FOREIGN KEY ("appointment_type_id") REFERENCES "appointment_types"("id") ON DELETE CASCADE;--> statement-breakpoint

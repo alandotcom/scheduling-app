@@ -1,7 +1,8 @@
 // Better Auth React client for authentication
 
 import { createAuthClient } from "better-auth/react";
-import { apiKeyClient, organizationClient } from "better-auth/client/plugins";
+import { organizationClient } from "better-auth/client/plugins";
+import { apiKeyClient } from "@better-auth/api-key/client";
 
 const getAuthBaseUrl = () => {
   if (typeof window !== "undefined") {
