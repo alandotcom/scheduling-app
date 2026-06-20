@@ -1,0 +1,198 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-06-20T04:55:11Z",
+  "title": "Design System: Scheduling Admin",
+  "extensions": {
+    "colorMeta": {
+      "ink": {
+        "role": "neutral",
+        "displayName": "Ink",
+        "canonical": "oklch(0.145 0.015 250)",
+        "tonalRamp": ["oklch(0.145 0.015 250)", "oklch(0.22 0.012 250)", "oklch(0.32 0.01 250)", "oklch(0.45 0.01 250)", "oklch(0.58 0.008 250)", "oklch(0.72 0.006 250)", "oklch(0.86 0.004 250)", "oklch(0.97 0.002 250)"]
+      },
+      "canvas": {
+        "role": "neutral",
+        "displayName": "Canvas",
+        "canonical": "oklch(0.98 0.002 250)",
+        "tonalRamp": ["oklch(0.15 0.01 250)", "oklch(0.22 0.01 250)", "oklch(0.32 0.008 250)", "oklch(0.45 0.006 250)", "oklch(0.6 0.005 250)", "oklch(0.78 0.004 250)", "oklch(0.92 0.003 250)", "oklch(0.98 0.002 250)"]
+      },
+      "surface": {
+        "role": "neutral",
+        "displayName": "Surface",
+        "canonical": "oklch(1 0 0)",
+        "tonalRamp": ["oklch(0.17 0.01 260)", "oklch(0.26 0.008 260)", "oklch(0.4 0.006 255)", "oklch(0.55 0.004 255)", "oklch(0.72 0.003 250)", "oklch(0.88 0.002 250)", "oklch(0.96 0.001 250)", "oklch(1 0 0)"]
+      },
+      "primary-slate": {
+        "role": "primary",
+        "displayName": "Deep Slate",
+        "canonical": "oklch(0.205 0.015 265)",
+        "tonalRamp": ["oklch(0.15 0.015 265)", "oklch(0.205 0.015 265)", "oklch(0.3 0.018 265)", "oklch(0.42 0.02 265)", "oklch(0.55 0.02 265)", "oklch(0.68 0.018 265)", "oklch(0.82 0.012 265)", "oklch(0.95 0.006 265)"]
+      },
+      "muted-ink": {
+        "role": "neutral",
+        "displayName": "Muted Ink",
+        "canonical": "oklch(0.52 0.01 250)",
+        "tonalRamp": ["oklch(0.2 0.012 250)", "oklch(0.3 0.012 250)", "oklch(0.4 0.011 250)", "oklch(0.52 0.01 250)", "oklch(0.64 0.008 250)", "oklch(0.76 0.006 250)", "oklch(0.88 0.004 250)", "oklch(0.96 0.002 250)"]
+      },
+      "border": {
+        "role": "neutral",
+        "displayName": "Hairline Border",
+        "canonical": "oklch(0.922 0.004 250)",
+        "tonalRamp": ["oklch(0.3 0.006 250)", "oklch(0.42 0.006 250)", "oklch(0.55 0.005 250)", "oklch(0.68 0.005 250)", "oklch(0.8 0.004 250)", "oklch(0.88 0.004 250)", "oklch(0.922 0.004 250)", "oklch(0.97 0.002 250)"]
+      },
+      "focus-blue": {
+        "role": "secondary",
+        "displayName": "Focus Blue",
+        "canonical": "oklch(0.708 0.165 254)",
+        "tonalRamp": ["oklch(0.3 0.12 254)", "oklch(0.4 0.16 254)", "oklch(0.5 0.19 254)", "oklch(0.6 0.2 254)", "oklch(0.708 0.165 254)", "oklch(0.8 0.12 254)", "oklch(0.88 0.08 254)", "oklch(0.95 0.03 254)"]
+      },
+      "destructive-red": {
+        "role": "tertiary",
+        "displayName": "Destructive Red",
+        "canonical": "oklch(0.577 0.245 27.325)",
+        "tonalRamp": ["oklch(0.3 0.14 27)", "oklch(0.4 0.19 27)", "oklch(0.48 0.22 27)", "oklch(0.577 0.245 27)", "oklch(0.66 0.21 27)", "oklch(0.77 0.15 27)", "oklch(0.86 0.09 27)", "oklch(0.94 0.04 27)"]
+      },
+      "status-scheduled": {
+        "role": "tertiary",
+        "displayName": "Scheduled Blue",
+        "canonical": "oklch(0.623 0.214 259)",
+        "tonalRamp": ["oklch(0.3 0.14 259)", "oklch(0.4 0.18 259)", "oklch(0.5 0.21 259)", "oklch(0.623 0.214 259)", "oklch(0.7 0.18 259)", "oklch(0.8 0.13 259)", "oklch(0.88 0.08 259)", "oklch(0.95 0.03 259)"]
+      },
+      "status-confirmed": {
+        "role": "tertiary",
+        "displayName": "Confirmed Emerald",
+        "canonical": "oklch(0.696 0.17 162.48)",
+        "tonalRamp": ["oklch(0.3 0.1 162)", "oklch(0.4 0.13 162)", "oklch(0.52 0.15 162)", "oklch(0.62 0.16 162)", "oklch(0.696 0.17 162)", "oklch(0.8 0.13 162)", "oklch(0.88 0.08 162)", "oklch(0.95 0.04 162)"]
+      },
+      "status-no-show": {
+        "role": "tertiary",
+        "displayName": "No-Show Amber",
+        "canonical": "oklch(0.769 0.188 70.08)",
+        "tonalRamp": ["oklch(0.35 0.08 70)", "oklch(0.45 0.12 70)", "oklch(0.58 0.16 70)", "oklch(0.68 0.18 70)", "oklch(0.769 0.188 70)", "oklch(0.85 0.15 70)", "oklch(0.91 0.09 70)", "oklch(0.96 0.04 70)"]
+      },
+      "status-cancelled": {
+        "role": "tertiary",
+        "displayName": "Cancelled Slate",
+        "canonical": "oklch(0.554 0.022 257.42)",
+        "tonalRamp": ["oklch(0.2 0.02 257)", "oklch(0.3 0.02 257)", "oklch(0.4 0.022 257)", "oklch(0.48 0.022 257)", "oklch(0.554 0.022 257)", "oklch(0.68 0.018 257)", "oklch(0.82 0.01 257)", "oklch(0.94 0.005 257)"]
+      }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Display", "purpose": "Page titles in the scaffold header (Noto Sans, h1)." },
+      "title": { "displayName": "Title", "purpose": "Card and panel titles (h3, ~1.125rem)." },
+      "body": { "displayName": "Body", "purpose": "The workhorse 0.875rem size for tables, panels, and UI copy (Inter)." },
+      "label": { "displayName": "Label", "purpose": "Badges, chips, metadata, and column headers (Inter, 0.75rem)." }
+    },
+    "shadows": [
+      { "name": "rest", "value": "0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1)", "purpose": "Resting elevation on cards, popovers, and menus (Tailwind v4 shadow-sm)." },
+      { "name": "hover-lift", "value": "0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)", "purpose": "Single-step lift on interactive cards at hover (Tailwind v4 shadow-md)." }
+    ],
+    "motion": [
+      { "name": "ease-standard", "value": "ease-out", "purpose": "Default easing for state transitions." },
+      { "name": "transition-smooth", "value": "all 200ms ease-out", "purpose": "Shared smooth transition utility for state changes." },
+      { "name": "skeleton-fade-in", "value": "skeleton-fade-in 150ms ease-out 150ms both", "purpose": "Loading skeletons fade in after a 150ms delay to avoid flash." }
+    ],
+    "breakpoints": [
+      { "name": "sm", "value": "640px" },
+      { "name": "md", "value": "768px" },
+      { "name": "lg", "value": "1024px" },
+      { "name": "xl", "value": "1280px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Default high-emphasis action. Deep-slate fill, near-white text.",
+      "html": "<button class=\"ds-btn ds-btn-primary\">Save changes</button>",
+      "css": ".ds-btn { display:inline-flex; align-items:center; justify-content:center; gap:6px; height:36px; padding:0 12px; border-radius:10px; border:1px solid transparent; font-family:'Inter Variable',system-ui,sans-serif; font-size:0.875rem; font-weight:500; line-height:1; cursor:pointer; transition:all .2s ease-out; outline:none; } .ds-btn-primary { background:var(--primary); color:var(--primary-foreground); } .ds-btn-primary:hover { background:color-mix(in oklab, var(--primary), transparent 20%); } .ds-btn-primary:focus-visible { box-shadow:0 0 0 3px color-mix(in oklab, var(--ring), transparent 50%); border-color:var(--ring); } .ds-btn-primary:disabled { opacity:.5; pointer-events:none; }"
+    },
+    {
+      "name": "Outline Button",
+      "kind": "button",
+      "refersTo": "button-outline",
+      "description": "Medium-emphasis action with a hairline border.",
+      "html": "<button class=\"ds-btn ds-btn-outline\">Cancel</button>",
+      "css": ".ds-btn-outline { background:var(--background); color:var(--foreground); border:1px solid var(--border); } .ds-btn-outline:hover { background:var(--muted); } .ds-btn-outline:focus-visible { box-shadow:0 0 0 3px color-mix(in oklab, var(--ring), transparent 50%); border-color:var(--ring); outline:none; }"
+    },
+    {
+      "name": "Ghost Button",
+      "kind": "button",
+      "refersTo": "button-ghost",
+      "description": "Low-emphasis action for toolbars and dense rows. No border or fill at rest.",
+      "html": "<button class=\"ds-btn ds-btn-ghost\">Details</button>",
+      "css": ".ds-btn-ghost { background:transparent; color:var(--foreground); border:1px solid transparent; } .ds-btn-ghost:hover { background:var(--muted); } .ds-btn-ghost:focus-visible { box-shadow:0 0 0 3px color-mix(in oklab, var(--ring), transparent 50%); border-color:var(--ring); outline:none; }"
+    },
+    {
+      "name": "Default Badge",
+      "kind": "chip",
+      "refersTo": "badge-default",
+      "description": "Status/metadata pill. Tinted, never used as a button.",
+      "html": "<span class=\"ds-badge ds-badge-default\">Active</span>",
+      "css": ".ds-badge { display:inline-flex; align-items:center; gap:6px; height:24px; padding:2px 10px; border-radius:9999px; font-family:'Inter Variable',system-ui,sans-serif; font-size:0.75rem; font-weight:500; letter-spacing:0.0125em; white-space:nowrap; } .ds-badge-default { background:color-mix(in oklab, var(--primary), transparent 90%); color:var(--primary); border:1px solid color-mix(in oklab, var(--primary), transparent 80%); }"
+    },
+    {
+      "name": "Success Badge",
+      "kind": "chip",
+      "refersTo": "badge-default",
+      "description": "Semantic confirmed/success state using the emerald hue.",
+      "html": "<span class=\"ds-badge ds-badge-success\">Confirmed</span>",
+      "css": ".ds-badge-success { background:color-mix(in oklab, oklch(0.696 0.17 162.48), transparent 90%); color:oklch(0.52 0.13 162); border:1px solid color-mix(in oklab, oklch(0.696 0.17 162.48), transparent 80%); }"
+    },
+    {
+      "name": "Text Input",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "Standard single-line field. Transparent fill, hairline border, visible focus ring.",
+      "html": "<input class=\"ds-input\" type=\"text\" placeholder=\"Client name\" />",
+      "css": ".ds-input { height:40px; width:100%; box-sizing:border-box; border-radius:10px; border:1px solid var(--input); background:transparent; padding:4px 10px; font-family:'Inter Variable',system-ui,sans-serif; font-size:0.875rem; color:var(--foreground); outline:none; transition:border-color .15s ease-out, box-shadow .15s ease-out; } .ds-input::placeholder { color:var(--muted-foreground); } .ds-input:focus-visible { border-color:var(--ring); box-shadow:0 0 0 3px color-mix(in oklab, var(--ring), transparent 50%); } .ds-input:disabled { opacity:.5; cursor:not-allowed; background:color-mix(in oklab, var(--input), transparent 50%); }"
+    },
+    {
+      "name": "Card",
+      "kind": "card",
+      "refersTo": "card",
+      "description": "White surface container. Flat at rest, single-step lift on hover.",
+      "html": "<div class=\"ds-card\"><div class=\"ds-card-title\">Today</div><div class=\"ds-card-body\">8 appointments scheduled.</div></div>",
+      "css": ".ds-card { background:var(--card); color:var(--card-foreground); border:1px solid var(--border); border-radius:14px; box-shadow:0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1); padding:24px; transition:box-shadow .2s ease-out; } .ds-card:hover { box-shadow:0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1); } .ds-card-title { font-family:'Noto Sans Variable',system-ui,sans-serif; font-size:1.125rem; font-weight:600; letter-spacing:-0.0125em; line-height:1.4; } .ds-card-body { margin-top:8px; font-family:'Inter Variable',system-ui,sans-serif; font-size:0.875rem; line-height:1.5; color:var(--muted-foreground); }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Quiet Control Room",
+    "overview": "This is a command surface for people running a scheduling operation. Everything they need is legible at a glance, the chrome stays out of the way, and the fastest path through any task is the keyboard. The aesthetic is a calm room full of well-labelled instruments rather than a dashboard showing off. The same screen has to serve a non-technical owner-operator who opens it once a week and a front-desk power user who lives in it for hours, so nothing is allowed to feel either intimidating or sluggish. The palette is neutral-led: a cool near-white canvas, white content surfaces, near-black ink, and a single deep-slate primary. Color enters only where it carries meaning. The brand direction is a warmer pulse: the accent that marks primary actions and the current selection is allowed slightly more presence over time, without ever tipping into decoration.",
+    "keyCharacteristics": [
+      "Neutral slate foundation with meaning-bearing color only.",
+      "Dark sidebar over a bright, dense-capable content area.",
+      "Fixed rem type scale (no fluid clamps); one heading face, one text face.",
+      "Thin borders plus very soft shadows; flat at rest, a small lift on hover.",
+      "Keyboard-first affordances treated as a first-class part of the visual language."
+    ],
+    "rules": [
+      { "name": "The Meaning-Only Color Rule", "body": "Chromatic color appears only when it carries information: a focus ring, an appointment status, a workflow node type, a destructive action. It is never spent on decoration. On any given screen the saturated accents stay near or below 10% of the surface.", "section": "colors" },
+      { "name": "The Recede-on-Cancel Rule", "body": "State that no longer needs attention drops toward neutral rather than staying loud. Cancelled is intentionally the dullest status hue in the set.", "section": "colors" },
+      { "name": "The One-Voice Rule", "body": "No display or decorative face enters the UI. Labels, buttons, inputs, and data use Inter; headings use Noto Sans.", "section": "typography" },
+      { "name": "The Fixed-Scale Rule", "body": "Heading sizes are fixed rem steps, never clamp(). A title that shrinks inside a narrow split-pane or sidebar looks worse, not better.", "section": "typography" },
+      { "name": "The Flat-By-Default Rule", "body": "Surfaces are flat at rest and depth is carried by border and tone. A shadow is a response to state, not a permanent costume.", "section": "elevation" },
+      { "name": "The No-Ghost-Card Rule", "body": "Never pair a 1px border with a soft wide drop shadow on the same element as decoration. Pick one.", "section": "elevation" }
+    ],
+    "dos": [
+      "Do keep color meaning-bearing: focus, status, node type, destructive action. Hold saturated accents near or below 10% of any screen.",
+      "Do use rounded-lg (10px) for buttons and inputs, rounded-xl (14px) for cards, and full pills for badges and tags.",
+      "Do render every interactive component with a visible :focus-visible ring; keyboard parity is part of the brand.",
+      "Do keep depth flat-by-default, carried by tone and hairline borders, with shadows reserved for hover and open states.",
+      "Do use Inter for all labels, controls, and data, and Noto Sans for headings only.",
+      "Do keep transitions in the 150-250ms range with an ease-out curve, and give every animation a prefers-reduced-motion fallback.",
+      "Do let cancelled and disabled states recede toward neutral."
+    ],
+    "donts": [
+      "Don't ship the generic SaaS template look: no hero-metric tiles, no gradient accents, no endless identical icon-heading-text card grids.",
+      "Don't drift into a cluttered legacy scheduler; density must be earned by the task, never reflexive.",
+      "Don't over-design like a consumer app: no heavy gradients, no card radii past 16px, no decorative motion, no emoji as UI.",
+      "Don't fall into sterile enterprise gray; muted text stays at 4.5:1 and the warm accent stays present. Never lighten muted-ink for elegance.",
+      "Don't use background-clip: text gradient text, or a border-left/border-right greater than 1px as a colored accent stripe.",
+      "Don't pair a 1px border with a soft wide drop shadow on the same element (the ghost-card tell).",
+      "Don't introduce a display or serif face, a custom scrollbar, or a reinvented form control for flavor.",
+      "Don't reach for a modal as the first thought; exhaust inline and progressive alternatives first."
+    ]
+  }
+}

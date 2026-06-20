@@ -109,6 +109,18 @@ Use these docs as canonical references for runtime behavior and implementation c
 - `admin-ui` build uses `vite build`; TypeScript validation is enforced via root `pnpm typecheck`.
 - If `origin/main` is missing locally, run `git fetch origin main` before `pnpm build:changed`.
 
+## Design Context
+
+Strategic design direction lives in [`PRODUCT.md`](PRODUCT.md) at the repo root (written via `$impeccable init`). Read it before any UI work.
+
+- **Register:** `product` (design serves the task). The client-facing public booking surface is a secondary `brand` register; treat it as brand when working on it directly.
+- **Primary users:** mixed roles, all on the same screens, owner-operators (non-technical), front-desk/scheduling staff (power users), and ops/configurators.
+- **Personality:** efficient, approachable, unobtrusive. Keyboard-first efficiency in a friendly, out-of-the-way style that stays welcoming to non-power-users.
+- **Anti-references:** not a generic SaaS template, not a cluttered legacy scheduler, not an over-designed consumer app, not sterile enterprise gray.
+- **Accessibility floor:** WCAG 2.2 AA.
+
+The visual system (tokens, typography, components) is documented in [`DESIGN.md`](DESIGN.md). For design tasks, the `$impeccable` skill commands (`craft`, `critique`, `audit`, `polish`, `live`, …) read both files.
+
 ## Starting Dev Servers
 
 **IMPORTANT:** Before starting a dev server, ALWAYS check if one is already running:
