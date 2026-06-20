@@ -30,10 +30,8 @@ function parsePayloadForEvent(
   return parsed.data;
 }
 
-export function createJourneyDomainTriggerFunction<
-  TEventType extends JourneyPlannerDomainEventType,
->(
-  eventType: TEventType,
+export function createJourneyDomainTriggerFunction(
+  eventType: JourneyPlannerDomainEventType,
   processEvent: ProcessJourneyDomainEvent = processJourneyDomainEvent,
 ) {
   return inngest.createFunction(

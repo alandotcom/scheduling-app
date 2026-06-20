@@ -297,7 +297,7 @@ function AppointmentsPage() {
     placeholderData: (previous) => previous,
   });
 
-  const calendars = calendarsData?.items ?? [];
+  const calendars = useMemo(() => calendarsData?.items ?? [], [calendarsData]);
   const appointmentTypes = typesData?.items ?? [];
 
   const selectedCalendar = calendars.find((c) => c.id === filters.calendarId);

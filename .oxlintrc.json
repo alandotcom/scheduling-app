@@ -17,8 +17,19 @@
     "no-await-in-loop": "error",
     "prefer-const": "error",
     "typescript/no-unsafe-type-assertion": "error",
+    "no-underscore-dangle": [
+      "warn",
+      {
+        "allow": [
+          "__schedulingApiDbClient",
+          "__schedulingPackageDbClient",
+          "__schedulingApiTestDbOverride"
+        ]
+      }
+    ],
     "react/rules-of-hooks": "off",
     "react/exhaustive-deps": "off",
+    "react/no-unstable-nested-components": ["warn", { "allowAsProps": true }],
     "react-hooks-js/config": "error",
     "react-hooks-js/gating": "error",
     "react-hooks-js/rules-of-hooks": "error",

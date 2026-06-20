@@ -376,7 +376,7 @@ function CreateFieldForm({
         <div className="flex items-end pb-1">
           <Checkbox
             checked={watch("required")}
-            onChange={(checked) => setValue("required", !!checked)}
+            onChange={(checked) => setValue("required", checked)}
             label="Required"
             disabled={isSubmitting}
           />
@@ -413,7 +413,7 @@ function CreateFieldForm({
 
           <Checkbox
             checked={watchedRelationCreateReverse}
-            onChange={(checked) => setValue("createReverseRelation", !!checked)}
+            onChange={(checked) => setValue("createReverseRelation", checked)}
             label="Create reverse field"
             disabled={isSubmitting}
           />
@@ -485,9 +485,7 @@ function CreateFieldForm({
                 <div className="flex items-end pb-1">
                   <Checkbox
                     checked={watch("reverseRequired")}
-                    onChange={(checked) =>
-                      setValue("reverseRequired", !!checked)
-                    }
+                    onChange={(checked) => setValue("reverseRequired", checked)}
                     label="Required"
                     disabled={isSubmitting}
                   />
@@ -652,7 +650,7 @@ function EditFieldForm({
         <div className="flex items-end pb-1">
           <Checkbox
             checked={watch("required")}
-            onChange={(checked) => setValue("required", !!checked)}
+            onChange={(checked) => setValue("required", checked)}
             label="Required"
             disabled={isSubmitting}
           />

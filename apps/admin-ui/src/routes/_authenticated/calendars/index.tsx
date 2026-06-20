@@ -233,7 +233,7 @@ function CalendarForm({
   });
 
   useEffect(() => {
-    if (!onDraftChange) return;
+    if (!onDraftChange) return undefined;
     const subscription = watch((values) => {
       onDraftChange({
         name: values.name ?? "",

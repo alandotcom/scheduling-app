@@ -42,7 +42,7 @@ export function useSaveSessionHistory(input: {
   }, []);
 
   useEffect(() => {
-    if (!storageKey || typeof window === "undefined") return;
+    if (!storageKey || typeof window === "undefined") return undefined;
 
     if (writeTimerRef.current) clearTimeout(writeTimerRef.current);
     writeTimerRef.current = setTimeout(() => flushToStorage(storageKey), 500);

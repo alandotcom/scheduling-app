@@ -92,7 +92,7 @@ export function WorkflowSidebarPanel({ children }: WorkflowSidebarPanelProps) {
 
   // Clear entry animation after it plays
   useEffect(() => {
-    if (!shouldAnimate) return;
+    if (!shouldAnimate) return undefined;
     const timer = setTimeout(() => setShouldAnimate(false), 500);
     return () => clearTimeout(timer);
   }, [shouldAnimate]);

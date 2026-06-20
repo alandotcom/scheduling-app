@@ -52,15 +52,17 @@ export function getAttentionCounts(summary: DashboardSummary | undefined) {
   };
 }
 
+function toMillis(value: string | Date) {
+  return (
+    typeof value === "string"
+      ? DateTime.fromISO(value, { setZone: true })
+      : DateTime.fromJSDate(value)
+  ).toMillis();
+}
+
 export function getSortedTodayAppointments(
   appointments: AppointmentWithRelations[] | undefined,
 ) {
-  const toMillis = (value: string | Date) =>
-    (typeof value === "string"
-      ? DateTime.fromISO(value, { setZone: true })
-      : DateTime.fromJSDate(value)
-    ).toMillis();
-
   return (appointments ?? []).toSorted(
     (a, b) => toMillis(a.startAt) - toMillis(b.startAt),
   );

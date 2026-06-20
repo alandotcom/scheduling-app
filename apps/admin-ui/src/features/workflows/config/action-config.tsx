@@ -102,6 +102,17 @@ interface ActionConfigProps {
   defaultTimezone?: string;
 }
 
+const EMPTY_DISALLOWED_ACTION_TYPES: readonly string[] = [];
+const EMPTY_EXPRESSION_SUGGESTIONS: EventAttributeSuggestion[] = [];
+const EMPTY_SELECT_OPTIONS_BY_KEY: Record<
+  string,
+  Array<{ value: string; label: string }>
+> = {};
+const EMPTY_CONDITION_VALUE_OPTIONS_BY_FIELD: Record<
+  string,
+  WorkflowFilterValueOption[]
+> = {};
+
 function ActionSelectLabel({ action }: { action: ActionDefinition }) {
   const visual = getActionVisualSpec(action.id);
 
@@ -130,11 +141,11 @@ export function ActionConfig({
   configScopeKey,
   disabled,
   triggerType = null,
-  disallowedActionTypes = [],
-  expressionSuggestions = [],
+  disallowedActionTypes = EMPTY_DISALLOWED_ACTION_TYPES,
+  expressionSuggestions = EMPTY_EXPRESSION_SUGGESTIONS,
   fieldOptions,
-  selectOptionsByKey = {},
-  conditionValueOptionsByField = {},
+  selectOptionsByKey = EMPTY_SELECT_OPTIONS_BY_KEY,
+  conditionValueOptionsByField = EMPTY_CONDITION_VALUE_OPTIONS_BY_FIELD,
   defaultTimezone = "America/New_York",
 }: ActionConfigProps) {
   const isDev = String(import.meta.env.DEV) === "true";

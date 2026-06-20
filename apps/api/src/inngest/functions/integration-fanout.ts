@@ -36,10 +36,8 @@ function isAnyDomainEvent(
     .success;
 }
 
-export function createIntegrationFanoutFunction<
-  TEventType extends DomainEventType,
->(
-  eventType: TEventType,
+export function createIntegrationFanoutFunction(
+  eventType: DomainEventType,
   resolveIntegrations: ResolveIntegrations = getEnabledIntegrationsForOrg,
 ) {
   return inngest.createFunction(

@@ -115,7 +115,7 @@ export function WorkflowRunsPanelView({
 
   useEffect(() => {
     if (!selectedRun) {
-      return;
+      return undefined;
     }
 
     const animationFrameId = window.requestAnimationFrame(() => {

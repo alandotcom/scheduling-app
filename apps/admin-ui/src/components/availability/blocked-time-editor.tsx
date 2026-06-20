@@ -1,6 +1,6 @@
 // Blocked time editor - self-contained component for managing blocked time periods
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { DateTime } from "luxon";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
@@ -59,6 +59,32 @@ const toRecurrenceValue = (
   return value === "daily" || value === "weekly" ? value : "none";
 };
 
+const toDateTime = (value: string | Date) =>
+  typeof value === "string"
+    ? DateTime.fromISO(value, { setZone: true })
+    : DateTime.fromJSDate(value);
+
+const getWeekdayFromDate = (date: string): number => {
+  const dt = DateTime.fromISO(date);
+  return dt.isValid ? dt.weekday % 7 : 1;
+};
+
+const getWeekdaysFromDateSpan = (startDate: string, endDate: string) => {
+  const start = DateTime.fromISO(startDate).startOf("day");
+  const end = DateTime.fromISO(endDate).startOf("day");
+  if (!start.isValid || !end.isValid || end < start) return [];
+
+  const days = new Set<number>();
+  let cursor = start;
+  // Weekdays repeat every 7 days; cap iteration to one cycle for safety.
+  while (cursor <= end && days.size < 7) {
+    days.add(cursor.weekday % 7);
+    cursor = cursor.plus({ days: 1 });
+  }
+
+  return Array.from(days).toSorted((a, b) => a - b);
+};
+
 export function BlockedTimeEditor(props: BlockedTimeEditorProps) {
   return <BlockedTimeEditorBody {...props} compact={false} />;
 }
@@ -75,10 +101,12 @@ function TimeTextInput({
   onChange: (value: string) => void;
 }) {
   const [draftValue, setDraftValue] = useState(() => formatTime24to12(value));
+  const [prevValue, setPrevValue] = useState(value);
 
-  useEffect(() => {
+  if (value !== prevValue) {
+    setPrevValue(value);
     setDraftValue(formatTime24to12(value));
-  }, [value]);
+  }
 
   const commitValue = () => {
     const parsed = parseTimeInput(draftValue);
@@ -135,30 +163,7 @@ function BlockedTimeEditorBody({
     }),
   );
 
-  const blockedTimes = blockedData?.items ?? [];
-  const toDateTime = (value: string | Date) =>
-    typeof value === "string"
-      ? DateTime.fromISO(value, { setZone: true })
-      : DateTime.fromJSDate(value);
-  const getWeekdayFromDate = (date: string): number => {
-    const dt = DateTime.fromISO(date);
-    return dt.isValid ? dt.weekday % 7 : 1;
-  };
-  const getWeekdaysFromDateSpan = (startDate: string, endDate: string) => {
-    const start = DateTime.fromISO(startDate).startOf("day");
-    const end = DateTime.fromISO(endDate).startOf("day");
-    if (!start.isValid || !end.isValid || end < start) return [];
-
-    const days = new Set<number>();
-    let cursor = start;
-    // Weekdays repeat every 7 days; cap iteration to one cycle for safety.
-    while (cursor <= end && days.size < 7) {
-      days.add(cursor.weekday % 7);
-      cursor = cursor.plus({ days: 1 });
-    }
-
-    return Array.from(days).toSorted((a, b) => a - b);
-  };
+  const blockedTimes = useMemo(() => blockedData?.items ?? [], [blockedData]);
   const toggleWeekday = (weekday: number) => {
     setEditingBlock((prev) => {
       if (!prev) return null;

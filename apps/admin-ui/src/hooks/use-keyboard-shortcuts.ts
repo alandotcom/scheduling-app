@@ -186,7 +186,7 @@ export function useKeyboardShortcuts({
         unregisterShortcuts(registrationRef.current);
         registrationRef.current = null;
       }
-      return;
+      return undefined;
     }
 
     const registration: ShortcutRegistration = {

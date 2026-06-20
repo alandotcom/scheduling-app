@@ -23,7 +23,7 @@ import {
 import { cn } from "@/lib/utils";
 import { Icon } from "@/components/ui/icon";
 import { AssistantRuntime } from "./assistant-runtime";
-import { AssistantToolUIs } from "./assistant-tool-uis";
+import { assistantToolRenderers } from "./assistant-tool-uis";
 import {
   ProposalProvider,
   clearProposalResults,
@@ -108,6 +108,7 @@ function AssistantMessageBubble() {
           components={{
             Text: MarkdownText,
             Empty: TypingIndicator,
+            tools: { by_name: assistantToolRenderers },
           }}
         />
         {/* Fixed-height wrapper prevents layout shift when action bar mounts on hover */}
@@ -273,22 +274,23 @@ export function AssistantPane() {
   return (
     <AssistantRuntime>
       <ProposalProvider>
-        <AssistantToolUIs />
         <div className="flex items-center justify-end px-3 py-1.5">
           <NewChatButton />
         </div>
         <ThreadPrimitive.Root className="relative flex min-h-0 flex-1 flex-col">
           <ThreadPrimitive.Viewport className="flex-1 overflow-y-auto">
-            <ThreadPrimitive.Empty>
+            <AuiIf condition={(s) => s.thread.isEmpty}>
               <WelcomeScreen />
-            </ThreadPrimitive.Empty>
+            </AuiIf>
             <div className="mx-auto max-w-2xl space-y-1 px-4 pt-4 pb-4">
-              <ThreadPrimitive.Messages
-                components={{
-                  UserMessage: UserMessageBubble,
-                  AssistantMessage: AssistantMessageBubble,
+              <ThreadPrimitive.Messages>
+                {({ message }) => {
+                  if (message.role === "user") return <UserMessageBubble />;
+                  if (message.role === "assistant")
+                    return <AssistantMessageBubble />;
+                  return null;
                 }}
-              />
+              </ThreadPrimitive.Messages>
             </div>
             <ScrollToBottomButton />
           </ThreadPrimitive.Viewport>

@@ -167,9 +167,17 @@ function WorkflowEditorPage() {
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [dismissedMobileSelectionKey, setDismissedMobileSelectionKey] =
     useState<string | null>(null);
+  const [prevMobileSidebarTrigger, setPrevMobileSidebarTrigger] = useState<{
+    isMobile: boolean;
+    selectionKey: string | null;
+  } | null>(null);
   const [lifecycleDraft, setLifecycleDraft] = useState<{
     status: JourneyStatus;
     mode: JourneyMode;
+  } | null>(null);
+  const [prevJourneyInit, setPrevJourneyInit] = useState<{
+    data: typeof journeyQuery.data;
+    isExecutionViewActive: boolean;
   } | null>(null);
   const renameInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -277,23 +285,20 @@ function WorkflowEditorPage() {
     }
   }, [isMobile, setRightPanelWidth]);
 
-  useEffect(() => {
-    if (!isMobile) {
+  if (
+    prevMobileSidebarTrigger === null ||
+    prevMobileSidebarTrigger.isMobile !== isMobile ||
+    prevMobileSidebarTrigger.selectionKey !== mobileSelectionKey
+  ) {
+    setPrevMobileSidebarTrigger({ isMobile, selectionKey: mobileSelectionKey });
+
+    if (!isMobile || !mobileSelectionKey) {
       setMobileSidebarOpen(false);
       setDismissedMobileSelectionKey(null);
-      return;
-    }
-
-    if (!mobileSelectionKey) {
-      setMobileSidebarOpen(false);
-      setDismissedMobileSelectionKey(null);
-      return;
-    }
-
-    if (mobileSelectionKey !== dismissedMobileSelectionKey) {
+    } else if (mobileSelectionKey !== dismissedMobileSelectionKey) {
       setMobileSidebarOpen(true);
     }
-  }, [dismissedMobileSelectionKey, isMobile, mobileSelectionKey]);
+  }
 
   const handleMobileSidebarOpenChange = useCallback(
     (open: boolean) => {
@@ -305,24 +310,31 @@ function WorkflowEditorPage() {
     [mobileSelectionKey],
   );
 
-  useEffect(() => {
-    if (!journeyQuery.data || isExecutionViewActive) {
-      return;
-    }
-
-    setGraph(journeyQuery.data.graph);
-    setWorkflowId(journeyQuery.data.id);
-    setPersistedName(journeyQuery.data.name);
-    setCurrentVersionDraft(journeyQuery.data.currentVersion);
-    setLifecycleDraft({
-      status: journeyQuery.data.status,
-      mode: journeyQuery.data.mode,
+  if (
+    prevJourneyInit === null ||
+    prevJourneyInit.data !== journeyQuery.data ||
+    prevJourneyInit.isExecutionViewActive !== isExecutionViewActive
+  ) {
+    setPrevJourneyInit({
+      data: journeyQuery.data,
+      isExecutionViewActive,
     });
 
-    if (journeyQuery.data.status === "draft") {
-      setDraftPublishMode(journeyQuery.data.mode);
+    if (journeyQuery.data && !isExecutionViewActive) {
+      setGraph(journeyQuery.data.graph);
+      setWorkflowId(journeyQuery.data.id);
+      setPersistedName(journeyQuery.data.name);
+      setCurrentVersionDraft(journeyQuery.data.currentVersion);
+      setLifecycleDraft({
+        status: journeyQuery.data.status,
+        mode: journeyQuery.data.mode,
+      });
+
+      if (journeyQuery.data.status === "draft") {
+        setDraftPublishMode(journeyQuery.data.mode);
+      }
     }
-  }, [isExecutionViewActive, journeyQuery.data, setGraph, setWorkflowId]);
+  }
 
   useEffect(() => {
     setJourneyMode(effectiveMode);
@@ -618,7 +630,7 @@ function WorkflowEditorPage() {
 
   useEffect(() => {
     if (!isRenameDialogOpen) {
-      return;
+      return undefined;
     }
 
     const timer = window.setTimeout(() => {

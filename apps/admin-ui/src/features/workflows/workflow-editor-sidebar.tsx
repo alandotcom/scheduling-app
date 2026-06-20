@@ -61,6 +61,9 @@ interface WorkflowEditorSidebarProps {
   onDeleteEdge?: (edgeId: string) => void;
 }
 
+const EMPTY_NODES: Node[] = [];
+const EMPTY_EDGES: Edge[] = [];
+
 function toNodeLabel(node: Node | null): string {
   if (!node || typeof node.data !== "object" || node.data === null) {
     return "";
@@ -365,8 +368,8 @@ export function WorkflowEditorSidebar({
   defaultTimezone,
   selectedNode,
   selectedEdge = null,
-  nodes = [],
-  edges = [],
+  nodes = EMPTY_NODES,
+  edges = EMPTY_EDGES,
   canManageWorkflow,
   isTriggerTypeLocked = false,
   onUpdateNodeData,

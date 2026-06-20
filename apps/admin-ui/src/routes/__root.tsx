@@ -378,6 +378,17 @@ function RootLayout() {
       ? membershipsQuery.error
       : authContextQuery.error;
   const hasValidActiveOrganization = !!activeOrganization;
+
+  // Track the last non-null active organization so transient nulls (during
+  // refetch/switch) don't blank out the UI. Adjust state during render instead
+  // of via an effect to avoid a cascading re-render.
+  if (
+    activeOrganization &&
+    activeOrganization !== lastStableActiveOrganization
+  ) {
+    setLastStableActiveOrganization(activeOrganization);
+  }
+
   const displayActiveOrganization =
     activeOrganization ?? lastStableActiveOrganization;
   const organizationGateState = getOrganizationGateState({
@@ -389,12 +400,7 @@ function RootLayout() {
   });
 
   useEffect(() => {
-    if (!activeOrganization) return;
-    setLastStableActiveOrganization(activeOrganization);
-  }, [activeOrganization]);
-
-  useEffect(() => {
-    if (!isOrganizationSwitchPending) return;
+    if (!isOrganizationSwitchPending) return undefined;
     const showTimer = window.setTimeout(() => {
       organizationSwitchOverlayShownAtRef.current = Date.now();
       setIsOrganizationSwitchOverlayVisible(true);

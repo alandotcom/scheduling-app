@@ -300,22 +300,26 @@ export function getWorkflowBooleanFilterMode(input: {
   return null;
 }
 
+const WORKFLOW_BOOLEAN_FILTER_CONDITIONS: Record<
+  WorkflowBooleanFilterMode,
+  {
+    operator: JourneyTriggerFilterCondition["operator"];
+    value?: boolean;
+  }
+> = {
+  is_true: { operator: "equals", value: true },
+  is_false: { operator: "equals", value: false },
+  is_set: { operator: "is_set" },
+  is_not_set: { operator: "is_not_set" },
+};
+
 export function toWorkflowBooleanFilterCondition(
   mode: WorkflowBooleanFilterMode,
 ): {
   operator: JourneyTriggerFilterCondition["operator"];
   value?: boolean;
 } {
-  switch (mode) {
-    case "is_true":
-      return { operator: "equals", value: true };
-    case "is_false":
-      return { operator: "equals", value: false };
-    case "is_set":
-      return { operator: "is_set" };
-    case "is_not_set":
-      return { operator: "is_not_set" };
-  }
+  return WORKFLOW_BOOLEAN_FILTER_CONDITIONS[mode];
 }
 
 export function getWorkflowBooleanFilterModeLabel(

@@ -43,6 +43,8 @@ type ActionGridViewMode = "list" | "grid";
 const HIDDEN_GROUPS_KEY = "workflow-action-grid-hidden-groups";
 const VIEW_MODE_KEY = "workflow-action-grid-view-mode";
 
+const EMPTY_DISALLOWED_ACTION_TYPES: readonly string[] = [];
+
 function renderActionIcon(actionType: string): ReactNode {
   const visual = getActionVisualSpec(actionType);
 
@@ -169,7 +171,7 @@ function readViewMode(): ActionGridViewMode {
 export function ActionGrid({
   disabled,
   triggerType = null,
-  disallowedActionTypes = [],
+  disallowedActionTypes = EMPTY_DISALLOWED_ACTION_TYPES,
   onSelectAction,
 }: ActionGridProps) {
   const [searchQuery, setSearchQuery] = useState("");

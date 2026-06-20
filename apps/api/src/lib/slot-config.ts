@@ -43,11 +43,11 @@ const VALID_SLOT_COLUMN_STRINGS = new Set<string>(
 // Compile-time safety: if a column is added to clientCustomAttributeValues
 // without updating NonSlotColumn, SlotColumn expands and this check fails
 // because the new member won't match the `${SlotPrefix}${number}` pattern.
-type _AssertSlotShape = SlotColumn extends `${SlotPrefix}${number}`
+type AssertSlotShape = SlotColumn extends `${SlotPrefix}${number}`
   ? true
   : never;
-const _exhaustiveCheck: _AssertSlotShape = true;
-void _exhaustiveCheck;
+const assertSlotShape: AssertSlotShape = true;
+void assertSlotShape;
 
 export function isSlotColumn(value: string): value is SlotColumn {
   return VALID_SLOT_COLUMN_STRINGS.has(value);

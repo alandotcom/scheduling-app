@@ -67,7 +67,7 @@ function sendViaInngest(event: RuntimeEvent): Promise<unknown> {
 
 function getEventId(result: unknown): string | undefined {
   if (!result) {
-    return;
+    return undefined;
   }
 
   if (Array.isArray(result)) {
@@ -75,7 +75,7 @@ function getEventId(result: unknown): string | undefined {
   }
 
   if (typeof result !== "object") {
-    return;
+    return undefined;
   }
 
   const typedResult = result as InngestSendResult;
@@ -100,7 +100,7 @@ function getEventId(result: unknown): string | undefined {
     return typedResult.ids[0];
   }
 
-  return;
+  return undefined;
 }
 
 export async function sendJourneyActionSendTwilioCallbackReceived(

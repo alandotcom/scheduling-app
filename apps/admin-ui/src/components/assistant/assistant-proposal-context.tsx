@@ -157,10 +157,14 @@ export function ProposalProvider({ children }: { children: ReactNode }) {
     Record<string, AssistantActionResult>
   >(() => loadProposalResults(orgId, userId));
 
-  // Reload persisted results when org/user changes
-  useEffect(() => {
+  // Reload persisted results when org/user changes (adjust state during render)
+  const [prevOrgId, setPrevOrgId] = useState(orgId);
+  const [prevUserId, setPrevUserId] = useState(userId);
+  if (orgId !== prevOrgId || userId !== prevUserId) {
+    setPrevOrgId(orgId);
+    setPrevUserId(userId);
     setProposalResults(loadProposalResults(orgId, userId));
-  }, [orgId, userId]);
+  }
 
   // Persist results whenever they change
   useEffect(() => {
@@ -191,13 +195,15 @@ export function ProposalProvider({ children }: { children: ReactNode }) {
     cancel: cancelMutation,
     noShow: noShowMutation,
   });
-  mutationsRef.current = {
-    create: createMutation,
-    reschedule: rescheduleMutation,
-    confirm: confirmMutation,
-    cancel: cancelMutation,
-    noShow: noShowMutation,
-  };
+  useEffect(() => {
+    mutationsRef.current = {
+      create: createMutation,
+      reschedule: rescheduleMutation,
+      confirm: confirmMutation,
+      cancel: cancelMutation,
+      noShow: noShowMutation,
+    };
+  });
 
   const invalidateSchedulingQueries = useCallback(async () => {
     await Promise.all([
@@ -310,7 +316,9 @@ export function ProposalProvider({ children }: { children: ReactNode }) {
   );
 
   const auiRef = useRef(aui);
-  auiRef.current = aui;
+  useEffect(() => {
+    auiRef.current = aui;
+  });
 
   const onDeclineProposal = useCallback((proposal: AssistantActionProposal) => {
     setProposalResults((previous) => ({

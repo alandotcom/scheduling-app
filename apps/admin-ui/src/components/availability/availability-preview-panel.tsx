@@ -444,7 +444,7 @@ export function AvailabilityPreviewPanel({
                       aria-hidden="true"
                     />
                   ))}
-                  {day.windows.map((window, index) => {
+                  {day.windows.map((window) => {
                     const clippedStartMinute = Math.max(
                       window.startMinute,
                       timelineScale.startMinute,
@@ -468,7 +468,7 @@ export function AvailabilityPreviewPanel({
                     );
                     return (
                       <span
-                        key={`${day.dateKey}-${index}`}
+                        key={`${day.dateKey}-${window.startMinute}-${window.endMinute}`}
                         className="absolute inset-y-1 rounded-sm bg-primary/75"
                         style={{ left: `${left}%`, width: `${width}%` }}
                         title={`${formatMinuteLabel(window.startMinute, timezone)} - ${formatMinuteLabel(window.endMinute, timezone)}`}

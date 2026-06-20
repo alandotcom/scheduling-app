@@ -143,13 +143,13 @@ function useAttemptEventTypes(attempts: Array<{ msgId: string }> | undefined) {
   const fetchedRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
-    if (!attempts?.length) return;
+    if (!attempts?.length) return undefined;
 
     const newMsgIds = attempts
       .map((a) => a.msgId)
       .filter((id) => !fetchedRef.current.has(id));
 
-    if (newMsgIds.length === 0) return;
+    if (newMsgIds.length === 0) return undefined;
 
     const uniqueIds = [...new Set(newMsgIds)];
 

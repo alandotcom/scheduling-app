@@ -212,7 +212,7 @@ export function WorkflowToolbar({
 
   useEffect(() => {
     if (typeof window === "undefined" || isMobile) {
-      return;
+      return undefined;
     }
 
     const initialMeasureFrame = window.requestAnimationFrame(() => {
@@ -256,7 +256,7 @@ export function WorkflowToolbar({
 
   useEffect(() => {
     if (isMobile) {
-      return;
+      return undefined;
     }
 
     const frame = window.requestAnimationFrame(() => {

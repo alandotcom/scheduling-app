@@ -144,6 +144,13 @@ type FilterDraftState = {
 
 const EMPTY_FILTER_SOURCE_KEY = "__empty_filter_source__";
 
+const EMPTY_CLIENT_ATTRIBUTE_DEFINITIONS: CustomAttributeDefinitionForFilter[] =
+  [];
+const EMPTY_VALUE_OPTIONS_BY_FIELD: Record<
+  string,
+  WorkflowFilterValueOption[]
+> = {};
+
 function toFilterDraft(value: unknown): JourneyTriggerFilterAstDraft | null {
   const parsed = journeyTriggerFilterAstSchema.safeParse(value);
   if (!parsed.success) {
@@ -1064,7 +1071,7 @@ interface WorkflowTriggerConfigProps {
 
 export function WorkflowTriggerConfig({
   config,
-  clientAttributeDefinitions = [],
+  clientAttributeDefinitions = EMPTY_CLIENT_ATTRIBUTE_DEFINITIONS,
   clientAttributeDefinitionsLoaded = true,
   defaultTimezone = "America/New_York",
   disabled,
@@ -1072,7 +1079,7 @@ export function WorkflowTriggerConfig({
   triggerTypeLocked = false,
   onTriggerTypeChange,
   onUpdate,
-  valueOptionsByField = {},
+  valueOptionsByField = EMPTY_VALUE_OPTIONS_BY_FIELD,
 }: WorkflowTriggerConfigProps) {
   const [showFilters, setShowFilters] = useState(false);
 
@@ -1101,7 +1108,7 @@ interface WorkflowTriggerConfigInnerProps extends WorkflowTriggerConfigProps {
 
 function WorkflowTriggerConfigInner({
   config,
-  clientAttributeDefinitions = [],
+  clientAttributeDefinitions = EMPTY_CLIENT_ATTRIBUTE_DEFINITIONS,
   clientAttributeDefinitionsLoaded = true,
   defaultTimezone = "America/New_York",
   disabled,
@@ -1111,7 +1118,7 @@ function WorkflowTriggerConfigInner({
   onUpdate,
   showFilters,
   onShowFiltersChange,
-  valueOptionsByField = {},
+  valueOptionsByField = EMPTY_VALUE_OPTIONS_BY_FIELD,
 }: WorkflowTriggerConfigInnerProps) {
   const configFilterState = useMemo(
     () => toFilterSourceState(config.filter),

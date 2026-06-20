@@ -755,7 +755,7 @@ export function WorkflowEditorCanvas({
       nodes.length === 0 ||
       hasAppliedInitialViewportRef.current
     ) {
-      return;
+      return undefined;
     }
 
     hasAppliedInitialViewportRef.current = true;
@@ -775,12 +775,12 @@ export function WorkflowEditorCanvas({
 
   useEffect(() => {
     if (!isLoaded || typeof window === "undefined") {
-      return;
+      return undefined;
     }
 
     const container = canvasContainerRef.current;
     if (!container) {
-      return;
+      return undefined;
     }
 
     const handleWindowResize = () => {

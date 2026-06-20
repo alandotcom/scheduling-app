@@ -11,19 +11,16 @@ import { formatDisplayDateTime } from "@/lib/date-utils";
 // Run status helpers
 // ---------------------------------------------------------------------------
 
+const RUN_STATUS_LABELS: Record<JourneyRun["status"], string> = {
+  planned: "Planned",
+  running: "Running",
+  completed: "Completed",
+  failed: "Failed",
+  canceled: "Canceled",
+};
+
 export function toRunStatusLabel(status: JourneyRun["status"]): string {
-  switch (status) {
-    case "planned":
-      return "Planned";
-    case "running":
-      return "Running";
-    case "completed":
-      return "Completed";
-    case "failed":
-      return "Failed";
-    case "canceled":
-      return "Canceled";
-  }
+  return RUN_STATUS_LABELS[status];
 }
 
 export function toRunStatusBadgeVariant(
@@ -53,21 +50,18 @@ export function isRunActive(status: JourneyRun["status"]): boolean {
 // Step log status helpers
 // ---------------------------------------------------------------------------
 
+const STEP_LOG_STATUS_LABELS: Record<JourneyRunStepLog["status"], string> = {
+  pending: "Planned",
+  running: "Running",
+  success: "Completed",
+  error: "Failed",
+  cancelled: "Canceled",
+};
+
 export function toStepLogStatusLabel(
   status: JourneyRunStepLog["status"],
 ): string {
-  switch (status) {
-    case "pending":
-      return "Planned";
-    case "running":
-      return "Running";
-    case "success":
-      return "Completed";
-    case "error":
-      return "Failed";
-    case "cancelled":
-      return "Canceled";
-  }
+  return STEP_LOG_STATUS_LABELS[status];
 }
 
 export function toStepLogStatusBadgeVariant(
@@ -166,59 +160,53 @@ export function toDeliveryStatusBadgeVariant(
   }
 }
 
+const DELIVERY_STATUS_LABELS: Record<JourneyRunDelivery["status"], string> = {
+  planned: "Planned",
+  sent: "Completed",
+  failed: "Failed",
+  canceled: "Canceled",
+  skipped: "Skipped",
+};
+
 export function toDeliveryStatusLabel(
   status: JourneyRunDelivery["status"],
 ): string {
-  switch (status) {
-    case "planned":
-      return "Planned";
-    case "sent":
-      return "Completed";
-    case "failed":
-      return "Failed";
-    case "canceled":
-      return "Canceled";
-    case "skipped":
-      return "Skipped";
-  }
+  return DELIVERY_STATUS_LABELS[status];
 }
 
 // ---------------------------------------------------------------------------
 // Status dot color helpers (new)
 // ---------------------------------------------------------------------------
 
+const RUN_STATUS_DOT_COLOR_CLASSES: Record<JourneyRun["status"], string> = {
+  completed: "bg-emerald-500",
+  running: "bg-blue-500 animate-pulse",
+  planned: "bg-blue-400",
+  failed: "bg-red-500",
+  canceled: "bg-zinc-400",
+};
+
 export function getRunStatusDotColorClass(
   status: JourneyRun["status"],
 ): string {
-  switch (status) {
-    case "completed":
-      return "bg-emerald-500";
-    case "running":
-      return "bg-blue-500 animate-pulse";
-    case "planned":
-      return "bg-blue-400";
-    case "failed":
-      return "bg-red-500";
-    case "canceled":
-      return "bg-zinc-400";
-  }
+  return RUN_STATUS_DOT_COLOR_CLASSES[status];
 }
+
+const STEP_STATUS_DOT_COLOR_CLASSES: Record<
+  JourneyRunStepLog["status"],
+  string
+> = {
+  success: "bg-emerald-500",
+  running: "bg-blue-500 animate-pulse",
+  pending: "bg-zinc-300",
+  error: "bg-red-500",
+  cancelled: "bg-zinc-400",
+};
 
 export function getStepStatusDotColorClass(
   status: JourneyRunStepLog["status"],
 ): string {
-  switch (status) {
-    case "success":
-      return "bg-emerald-500";
-    case "running":
-      return "bg-blue-500 animate-pulse";
-    case "pending":
-      return "bg-zinc-300";
-    case "error":
-      return "bg-red-500";
-    case "cancelled":
-      return "bg-zinc-400";
-  }
+  return STEP_STATUS_DOT_COLOR_CLASSES[status];
 }
 
 export function getDeliveryStatusDotColorClass(

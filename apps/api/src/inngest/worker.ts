@@ -19,5 +19,6 @@ export async function startInngestWorker() {
     return connection;
   } catch (error) {
     logger.error("Inngest connect worker failed to start: {error}", { error });
+    return undefined;
   }
 }

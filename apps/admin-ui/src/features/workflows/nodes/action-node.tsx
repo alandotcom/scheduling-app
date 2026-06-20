@@ -277,7 +277,7 @@ function useRuntimeWaitPreview(
 
   useEffect(() => {
     if (!shouldShowRuntimeWaitPreview) {
-      return;
+      return undefined;
     }
 
     const intervalId = window.setInterval(() => {

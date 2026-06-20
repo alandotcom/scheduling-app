@@ -1,6 +1,6 @@
 import { type ReactElement, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
-import { makeAssistantToolUI } from "@assistant-ui/react";
+import type { ToolCallMessagePartComponent } from "@assistant-ui/react";
 import {
   Alert01Icon,
   Clock01Icon,
@@ -232,55 +232,53 @@ function GetAppointmentResult({ data }: { data: unknown }) {
   );
 }
 
-// ---------- Data tool UIs ----------
+// ---------- Data tool render components ----------
 
-const FindClientsToolUI = makeAssistantToolUI({
-  toolName: "findClients",
-  render: ({ result, status }) =>
-    renderToolStatus(status, result, (data) => (
-      <FindClientsResult data={data} />
-    )),
-});
+const FindClientsToolRender: ToolCallMessagePartComponent = ({
+  result,
+  status,
+}) =>
+  renderToolStatus(status, result, (data) => <FindClientsResult data={data} />);
 
-const FindAppointmentsToolUI = makeAssistantToolUI({
-  toolName: "findAppointments",
-  render: ({ result, status }) =>
-    renderToolStatus(status, result, (data) => (
-      <FindAppointmentsResult data={data} />
-    )),
-});
+const FindAppointmentsToolRender: ToolCallMessagePartComponent = ({
+  result,
+  status,
+}) =>
+  renderToolStatus(status, result, (data) => (
+    <FindAppointmentsResult data={data} />
+  ));
 
-const GetAppointmentToolUI = makeAssistantToolUI({
-  toolName: "getAppointment",
-  render: ({ result, status }) =>
-    renderToolStatus(status, result, (data) => (
-      <GetAppointmentResult data={data} />
-    )),
-});
+const GetAppointmentToolRender: ToolCallMessagePartComponent = ({
+  result,
+  status,
+}) =>
+  renderToolStatus(status, result, (data) => (
+    <GetAppointmentResult data={data} />
+  ));
 
-const FindCalendarsToolUI = makeAssistantToolUI({
-  toolName: "findCalendars",
-  render: ({ result, status }) =>
-    renderToolStatus(status, result, (data) => (
-      <FindCalendarsResult data={data} />
-    )),
-});
+const FindCalendarsToolRender: ToolCallMessagePartComponent = ({
+  result,
+  status,
+}) =>
+  renderToolStatus(status, result, (data) => (
+    <FindCalendarsResult data={data} />
+  ));
 
-const FindAppointmentTypesToolUI = makeAssistantToolUI({
-  toolName: "findAppointmentTypes",
-  render: ({ result, status }) =>
-    renderToolStatus(status, result, (data) => (
-      <FindAppointmentTypesResult data={data} />
-    )),
-});
+const FindAppointmentTypesToolRender: ToolCallMessagePartComponent = ({
+  result,
+  status,
+}) =>
+  renderToolStatus(status, result, (data) => (
+    <FindAppointmentTypesResult data={data} />
+  ));
 
-const GetAvailableSlotsToolUI = makeAssistantToolUI({
-  toolName: "getAvailableSlots",
-  render: ({ result, status }) =>
-    renderToolStatus(status, result, (data) => (
-      <GetAvailableSlotsResult data={data} />
-    )),
-});
+const GetAvailableSlotsToolRender: ToolCallMessagePartComponent = ({
+  result,
+  status,
+}) =>
+  renderToolStatus(status, result, (data) => (
+    <GetAvailableSlotsResult data={data} />
+  ));
 
 // ---------- Shared data renderers ----------
 
@@ -516,60 +514,36 @@ function ProposalToolResult({ output }: { output: unknown }) {
   );
 }
 
-function ProposalToolRender({
+const ProposalToolRender: ToolCallMessagePartComponent = ({
   result,
   status,
-}: {
-  result?: unknown;
-  status: ToolStatus;
-}) {
+}) => {
   if (status.type === "incomplete") return <ToolError />;
   if (status.type !== "complete") return <SearchingIndicator />;
   if (!result) return null;
   return <ProposalToolResult output={result} />;
-}
+};
 
-const ProposeBookToolUI = makeAssistantToolUI({
-  toolName: "proposeBookAppointment",
-  render: ProposalToolRender,
-});
+// ---------- Tool renderer registry ----------
 
-const ProposeRescheduleToolUI = makeAssistantToolUI({
-  toolName: "proposeRescheduleAppointment",
-  render: ProposalToolRender,
-});
-
-const ProposeConfirmToolUI = makeAssistantToolUI({
-  toolName: "proposeConfirmAppointment",
-  render: ProposalToolRender,
-});
-
-const ProposeCancelToolUI = makeAssistantToolUI({
-  toolName: "proposeCancelAppointment",
-  render: ProposalToolRender,
-});
-
-const ProposeNoShowToolUI = makeAssistantToolUI({
-  toolName: "proposeNoShowAppointment",
-  render: ProposalToolRender,
-});
-
-// ---------- Aggregated registration ----------
-
-export function AssistantToolUIs() {
-  return (
-    <>
-      <FindClientsToolUI />
-      <FindAppointmentsToolUI />
-      <GetAppointmentToolUI />
-      <FindCalendarsToolUI />
-      <FindAppointmentTypesToolUI />
-      <GetAvailableSlotsToolUI />
-      <ProposeBookToolUI />
-      <ProposeRescheduleToolUI />
-      <ProposeConfirmToolUI />
-      <ProposeCancelToolUI />
-      <ProposeNoShowToolUI />
-    </>
-  );
-}
+/**
+ * Maps each tool name to its tool-call render component. Consumed by
+ * `MessagePrimitive.Content`/`MessagePrimitive.Parts` via `tools.by_name`
+ * to render tool-call message parts.
+ */
+export const assistantToolRenderers: Record<
+  string,
+  ToolCallMessagePartComponent
+> = {
+  findClients: FindClientsToolRender,
+  findAppointments: FindAppointmentsToolRender,
+  getAppointment: GetAppointmentToolRender,
+  findCalendars: FindCalendarsToolRender,
+  findAppointmentTypes: FindAppointmentTypesToolRender,
+  getAvailableSlots: GetAvailableSlotsToolRender,
+  proposeBookAppointment: ProposalToolRender,
+  proposeRescheduleAppointment: ProposalToolRender,
+  proposeConfirmAppointment: ProposalToolRender,
+  proposeCancelAppointment: ProposalToolRender,
+  proposeNoShowAppointment: ProposalToolRender,
+};

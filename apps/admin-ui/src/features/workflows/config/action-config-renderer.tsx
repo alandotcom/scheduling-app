@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import {
   Add01Icon,
   ArrowDown01Icon,
@@ -737,6 +737,11 @@ function TextFieldRenderer({
       ? String(config[field.key])
       : (field.defaultValue ?? "");
   const [localValue, setLocalValue] = useState(configValue);
+  const [prevConfigValue, setPrevConfigValue] = useState(configValue);
+  if (configValue !== prevConfigValue) {
+    setPrevConfigValue(configValue);
+    setLocalValue(configValue);
+  }
   const scopedSuggestions = useMemo(
     () => getExpressionSuggestionsForField(field.key, suggestions),
     [field.key, suggestions],
@@ -756,10 +761,6 @@ function TextFieldRenderer({
       value: localValue,
     });
   }, [field.key, localValue, config]);
-
-  useEffect(() => {
-    setLocalValue(configValue);
-  }, [configValue]);
 
   return (
     <div className="space-y-2">
@@ -805,14 +806,15 @@ function TextareaFieldRenderer({
       ? String(config[field.key])
       : (field.defaultValue ?? "");
   const [localValue, setLocalValue] = useState(configValue);
+  const [prevConfigValue, setPrevConfigValue] = useState(configValue);
+  if (configValue !== prevConfigValue) {
+    setPrevConfigValue(configValue);
+    setLocalValue(configValue);
+  }
   const scopedSuggestions = useMemo(
     () => getExpressionSuggestionsForField(field.key, suggestions),
     [field.key, suggestions],
   );
-
-  useEffect(() => {
-    setLocalValue(configValue);
-  }, [configValue]);
 
   return (
     <div className="space-y-2">
@@ -850,10 +852,11 @@ function NumberFieldRenderer({
       ? String(config[field.key])
       : (field.defaultValue ?? "");
   const [localValue, setLocalValue] = useState(configValue);
-
-  useEffect(() => {
+  const [prevConfigValue, setPrevConfigValue] = useState(configValue);
+  if (configValue !== prevConfigValue) {
+    setPrevConfigValue(configValue);
     setLocalValue(configValue);
-  }, [configValue]);
+  }
 
   return (
     <div className="space-y-2">
@@ -957,6 +960,11 @@ function ExpressionFieldRenderer({
       ? String(config[field.key])
       : (field.defaultValue ?? "");
   const [localValue, setLocalValue] = useState(configValue);
+  const [prevConfigValue, setPrevConfigValue] = useState(configValue);
+  if (configValue !== prevConfigValue) {
+    setPrevConfigValue(configValue);
+    setLocalValue(configValue);
+  }
   const scopedSuggestions = useMemo(
     () => getExpressionSuggestionsForField(field.key, suggestions),
     [field.key, suggestions],
@@ -968,10 +976,6 @@ function ExpressionFieldRenderer({
 
     return validateWaitUntilValue(localValue, suggestions);
   }, [field.key, localValue, suggestions]);
-
-  useEffect(() => {
-    setLocalValue(configValue);
-  }, [configValue]);
 
   return (
     <div className="space-y-2">
@@ -1688,15 +1692,33 @@ function ConditionExpressionFieldRenderer({
     [field.key, suggestions],
   );
   const [rawValue, setRawValue] = useState(configValue);
+  const [prevRawConfigValue, setPrevRawConfigValue] = useState(configValue);
+  if (configValue !== prevRawConfigValue) {
+    setPrevRawConfigValue(configValue);
+    setRawValue(configValue);
+  }
+  const conditionFilter = config["conditionFilter"];
   const configConditionFilterState = useMemo(
-    () => toConditionFilterSourceState(config["conditionFilter"]),
-    [config["conditionFilter"], configScopeKey],
+    () => toConditionFilterSourceState(conditionFilter),
+    [conditionFilter],
   );
   const [conditionFilterDraftState, setConditionFilterDraftState] =
     useState<ConditionFilterDraftState>(() => configConditionFilterState);
   const [filterValidationError, setFilterValidationError] = useState<
     string | null
   >(null);
+  const [prevConfigConditionFilterState, setPrevConfigConditionFilterState] =
+    useState(configConditionFilterState);
+  const [prevConfigScopeKey, setPrevConfigScopeKey] = useState(configScopeKey);
+  if (
+    configConditionFilterState !== prevConfigConditionFilterState ||
+    configScopeKey !== prevConfigScopeKey
+  ) {
+    setPrevConfigConditionFilterState(configConditionFilterState);
+    setPrevConfigScopeKey(configScopeKey);
+    setConditionFilterDraftState(configConditionFilterState);
+    setFilterValidationError(null);
+  }
   const hasExternalConditionFilterUpdate =
     configConditionFilterState.sourceKey !==
     conditionFilterDraftState.sourceKey;
@@ -1718,15 +1740,6 @@ function ConditionExpressionFieldRenderer({
           configValue === "true"
         ? "builder"
         : "raw";
-
-  useEffect(() => {
-    setRawValue(configValue);
-  }, [configValue]);
-
-  useEffect(() => {
-    setConditionFilterDraftState(configConditionFilterState);
-    setFilterValidationError(null);
-  }, [configConditionFilterState, configScopeKey]);
 
   const commitConditionFilter = (nextFilter: ConditionFilterDraft | null) => {
     setFilterValidationError(null);
@@ -2370,7 +2383,19 @@ function FieldRenderer({
       );
     }
   }
+
+  return null;
 }
+
+const EMPTY_EXPRESSION_SUGGESTIONS: EventAttributeSuggestion[] = [];
+const EMPTY_SELECT_OPTIONS_BY_KEY: Record<
+  string,
+  Array<{ value: string; label: string }>
+> = {};
+const EMPTY_CONDITION_VALUE_OPTIONS_BY_FIELD: Record<
+  string,
+  WorkflowFilterValueOption[]
+> = {};
 
 export function ActionConfigRenderer({
   fields,
@@ -2379,10 +2404,10 @@ export function ActionConfigRenderer({
   onUpdateConfigBatch,
   configScopeKey,
   disabled,
-  expressionSuggestions = [],
+  expressionSuggestions = EMPTY_EXPRESSION_SUGGESTIONS,
   fieldOptions,
-  selectOptionsByKey = {},
-  conditionValueOptionsByField = {},
+  selectOptionsByKey = EMPTY_SELECT_OPTIONS_BY_KEY,
+  conditionValueOptionsByField = EMPTY_CONDITION_VALUE_OPTIONS_BY_FIELD,
   defaultTimezone = "America/New_York",
 }: ActionConfigRendererProps) {
   const fieldDefaults = collectFieldDefaults(fields);

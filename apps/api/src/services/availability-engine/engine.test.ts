@@ -1137,12 +1137,6 @@ describe("AvailabilityService", () => {
         testContext,
       );
 
-      // 9:30-10:30 slot would overlap with padding, should be unavailable
-      const _nineThirtySlot = slots.find((s) => {
-        const d = new Date(s.start);
-        return d.getUTCHours() === 14 && d.getUTCMinutes() === 30;
-      });
-
       // The 10:00 slot definitely overlaps
       const tenAmSlot = slots.find((s) => {
         const d = new Date(s.start);

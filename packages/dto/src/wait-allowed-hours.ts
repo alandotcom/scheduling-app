@@ -50,7 +50,7 @@ export function isValidIanaTimeZone(value: unknown): value is string {
   }
 
   try {
-    new Intl.DateTimeFormat("en-US", { timeZone: trimmed });
+    Intl.DateTimeFormat("en-US", { timeZone: trimmed });
     return true;
   } catch {
     return false;

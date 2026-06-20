@@ -87,6 +87,7 @@ export function CreateWorkflowDialog({
       const timer = setTimeout(() => inputRef.current?.focus(), 50);
       return () => clearTimeout(timer);
     }
+    return undefined;
   }, [open, reset]);
 
   const createMutation = useMutation(

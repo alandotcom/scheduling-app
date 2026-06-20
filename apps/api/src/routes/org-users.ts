@@ -129,7 +129,7 @@ async function countOwners(orgId: string) {
     .where(
       and(eq(orgMemberships.orgId, orgId), eq(orgMemberships.role, "owner")),
     );
-  return Number(result?.count ?? 0);
+  return result?.count ?? 0;
 }
 
 async function assertOwnerRoleTransitionAllowed(params: {

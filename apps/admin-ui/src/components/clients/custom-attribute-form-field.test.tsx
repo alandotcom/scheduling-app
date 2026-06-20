@@ -3,8 +3,11 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { cleanup, render, screen } from "@testing-library/react";
 import { QueryClientProvider } from "@tanstack/react-query";
-import { type FieldValues, useForm } from "react-hook-form";
-import type { CustomAttributeDefinitionResponse } from "@scheduling/dto";
+import { useForm } from "react-hook-form";
+import type {
+  CreateClientInput,
+  CustomAttributeDefinitionResponse,
+} from "@scheduling/dto";
 
 import { CustomAttributeFormField } from "@/components/clients/custom-attribute-form-field";
 import { createTestQueryClient } from "@/test-utils/render";
@@ -37,7 +40,7 @@ function createDefinition(
 
 function renderField(definition: CustomAttributeDefinitionResponse) {
   function TestForm() {
-    const { control } = useForm<FieldValues>({
+    const { control } = useForm<CreateClientInput>({
       defaultValues: { customAttributes: {} },
     });
     return (
@@ -132,7 +135,7 @@ describe("CustomAttributeFormField layout", () => {
 
   test("RELATION_CLIENT single mode renders a modal trigger", () => {
     function TestForm() {
-      const { control } = useForm<FieldValues>({
+      const { control } = useForm<CreateClientInput>({
         defaultValues: { customAttributes: {} },
       });
       return (
@@ -172,7 +175,7 @@ describe("CustomAttributeFormField layout", () => {
 
   test("RELATION_CLIENT multi mode renders a modal trigger", () => {
     function TestForm() {
-      const { control } = useForm<FieldValues>({
+      const { control } = useForm<CreateClientInput>({
         defaultValues: { customAttributes: {} },
       });
       return (

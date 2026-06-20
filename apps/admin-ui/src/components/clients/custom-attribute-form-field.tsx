@@ -1,7 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { Controller, type Control, useWatch } from "react-hook-form";
-import type { CustomAttributeDefinitionResponse } from "@scheduling/dto";
+import type {
+  CreateClientInput,
+  CustomAttributeDefinitionResponse,
+} from "@scheduling/dto";
 
 import {
   ClientRelationPickerModal,
@@ -29,8 +32,7 @@ interface CustomAttributeFormFieldProps {
   definition: CustomAttributeDefinitionResponse;
   clientOptions?: MultiSelectComboboxOption[];
   currentClientId?: string;
-  // biome-ignore lint/suspicious/noExplicitAny: dynamic form fields bypass strict typing
-  control: Control<any>;
+  control: Control<CreateClientInput>;
   disabled?: boolean;
 }
 
@@ -43,8 +45,7 @@ interface RelationClientFieldProps {
   fieldWrapperClass: string;
   currentClientId?: string;
   clientOptions?: MultiSelectComboboxOption[];
-  // biome-ignore lint/suspicious/noExplicitAny: dynamic form fields bypass strict typing
-  control: Control<any>;
+  control: Control<CreateClientInput>;
   disabled: boolean;
 }
 
@@ -297,7 +298,7 @@ export function CustomAttributeFormField({
                 <Input
                   id={fieldId}
                   type="text"
-                  value={field.value ?? ""}
+                  value={typeof field.value === "string" ? field.value : ""}
                   onChange={field.onChange}
                   onBlur={field.onBlur}
                   aria-describedby={fieldState.error ? errorId : undefined}
@@ -327,7 +328,12 @@ export function CustomAttributeFormField({
                 <Input
                   id={fieldId}
                   type="number"
-                  value={field.value ?? ""}
+                  value={
+                    typeof field.value === "number" ||
+                    typeof field.value === "string"
+                      ? field.value
+                      : ""
+                  }
                   onChange={(e) => {
                     const val = e.target.value;
                     field.onChange(val === "" ? null : Number(val));
@@ -459,7 +465,7 @@ export function CustomAttributeFormField({
             render={({ field, fieldState }) => (
               <>
                 <Select
-                  value={field.value ?? ""}
+                  value={typeof field.value === "string" ? field.value : ""}
                   onValueChange={(value) => field.onChange(value || null)}
                   disabled={disabled}
                 >
@@ -542,4 +548,6 @@ export function CustomAttributeFormField({
         />
       );
   }
+
+  return null;
 }

@@ -56,6 +56,28 @@ interface ClientDrawerProps {
   onBookAppointment?: (clientId: string) => void;
 }
 
+function toDateTime(value: string | Date) {
+  return typeof value === "string"
+    ? DateTime.fromISO(value, { setZone: true })
+    : DateTime.fromJSDate(value);
+}
+
+function getStatusIcon(status: string) {
+  switch (status) {
+    case "confirmed":
+      return (
+        <Icon icon={CheckmarkCircle01Icon} className="text-green-600 size-4" />
+      );
+    case "cancelled":
+    case "no_show":
+      return <Icon icon={Cancel01Icon} className="text-destructive size-4" />;
+    default:
+      return (
+        <Icon icon={Calendar03Icon} className="text-muted-foreground size-4" />
+      );
+  }
+}
+
 export function ClientDrawer({
   client,
   open,
@@ -110,10 +132,6 @@ export function ClientDrawer({
 
   const appointments = appointmentsData?.items ?? [];
   const now = DateTime.now();
-  const toDateTime = (value: string | Date) =>
-    typeof value === "string"
-      ? DateTime.fromISO(value, { setZone: true })
-      : DateTime.fromJSDate(value);
 
   // Separate upcoming and past appointments
   const upcomingAppointments = appointments.filter(
@@ -177,28 +195,6 @@ export function ClientDrawer({
   });
 
   if (!client) return null;
-
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case "confirmed":
-        return (
-          <Icon
-            icon={CheckmarkCircle01Icon}
-            className="text-green-600 size-4"
-          />
-        );
-      case "cancelled":
-      case "no_show":
-        return <Icon icon={Cancel01Icon} className="text-destructive size-4" />;
-      default:
-        return (
-          <Icon
-            icon={Calendar03Icon}
-            className="text-muted-foreground size-4"
-          />
-        );
-    }
-  };
 
   return (
     <>

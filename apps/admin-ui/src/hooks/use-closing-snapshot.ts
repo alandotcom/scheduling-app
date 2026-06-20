@@ -5,7 +5,7 @@ export function useClosingSnapshot<T>(entity: T | undefined): T | undefined {
 
   useEffect(() => {
     if (entity === undefined) {
-      return;
+      return undefined;
     }
 
     let cancelled = false;

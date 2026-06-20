@@ -144,7 +144,7 @@ export function WorkflowEditorContextMenu({
 
   useEffect(() => {
     if (!menuState) {
-      return;
+      return undefined;
     }
 
     const handleClickOutside = (event: MouseEvent) => {

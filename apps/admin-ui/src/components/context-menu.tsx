@@ -43,7 +43,7 @@ export function ContextMenu({ children, items }: ContextMenuProps) {
 
   // Close on click outside
   React.useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen) return undefined;
 
     const handleClickOutside = (e: MouseEvent) => {
       const target = e.target;

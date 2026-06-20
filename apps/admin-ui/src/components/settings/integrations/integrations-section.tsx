@@ -89,6 +89,20 @@ function getOAuthErrorMessage(reason: string | null): string {
   return oauthErrorMessageByReason[reason] ?? "Failed to connect integration.";
 }
 
+function readInitialSelectedIntegrationKey(): AppIntegrationKey | null {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  const url = new URL(window.location.href);
+  if (!url.searchParams.get("integration_oauth")) {
+    return null;
+  }
+
+  const provider = url.searchParams.get("integration_provider");
+  return isAppIntegrationKeyValue(provider) ? provider : null;
+}
+
 function startOAuthConnect(integration: IntegrationSummary): void {
   if (typeof window === "undefined") {
     return;
@@ -363,7 +377,7 @@ export function IntegrationsSection() {
   const [addSearchQuery, setAddSearchQuery] = useState("");
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [selectedIntegrationKey, setSelectedIntegrationKey] =
-    useState<AppIntegrationKey | null>(null);
+    useState<AppIntegrationKey | null>(readInitialSelectedIntegrationKey);
   const [draftConfig, setDraftConfig] = useState<Record<string, string>>({});
   const [draftSecrets, setDraftSecrets] = useState<Record<string, string>>({});
   const [clearSecretKeys, setClearSecretKeys] = useState<string[]>([]);
@@ -444,10 +458,6 @@ export function IntegrationsSection() {
       toast.error(getOAuthErrorMessage(reason));
     }
 
-    if (isAppIntegrationKeyValue(provider)) {
-      setSelectedIntegrationKey(provider);
-    }
-
     url.searchParams.delete("integration_oauth");
     url.searchParams.delete("integration_provider");
     url.searchParams.delete("integration_reason");
@@ -489,36 +499,25 @@ export function IntegrationsSection() {
     [disabledIntegrations, addSearchQuery],
   );
 
-  useEffect(() => {
-    if (selectedIntegrationKey === null) {
+  if (selectedIntegrationKey === null) {
+    if (draftHydratedForKey !== null) {
       setDraftHydratedForKey(null);
       setDraftConfig({});
       setDraftSecrets({});
       setClearSecretKeys([]);
-      return;
     }
-  }, [selectedIntegrationKey]);
-
-  useEffect(() => {
-    const settings = selectedIntegrationSettings;
-    if (!settings) {
-      return;
-    }
-
-    if (
-      !shouldHydrateIntegrationDrafts({
-        selectedIntegrationKey,
-        selectedIntegrationSettings: settings,
-        draftHydratedForKey,
-      })
-    ) {
-      return;
-    }
-
+  } else if (
+    selectedIntegrationSettings &&
+    shouldHydrateIntegrationDrafts({
+      selectedIntegrationKey,
+      selectedIntegrationSettings,
+      draftHydratedForKey,
+    })
+  ) {
     const nextDraftConfig: Record<string, string> = {};
-    for (const field of settings.configSchema) {
+    for (const field of selectedIntegrationSettings.configSchema) {
       nextDraftConfig[field.key] = normalizeConfigValue(
-        settings.config[field.key],
+        selectedIntegrationSettings.config[field.key],
       );
     }
 
@@ -526,11 +525,7 @@ export function IntegrationsSection() {
     setDraftSecrets({});
     setClearSecretKeys([]);
     setDraftHydratedForKey(selectedIntegrationKey);
-  }, [
-    selectedIntegrationSettings,
-    selectedIntegrationKey,
-    draftHydratedForKey,
-  ]);
+  }
 
   const isSavingSettings =
     updateIntegrationMutation.isPending ||

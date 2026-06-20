@@ -68,7 +68,7 @@ function logServerError(
 
 export const errorHandler = createMiddleware(async (c, next) => {
   try {
-    await next();
+    return await next();
   } catch (error) {
     const method = c.req.method;
     const path = c.req.path;
