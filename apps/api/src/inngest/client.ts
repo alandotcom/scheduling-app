@@ -74,10 +74,6 @@ export const inngest = new Inngest({
   ...(config.inngest.signingKey
     ? { signingKey: config.inngest.signingKey }
     : {}),
-  ...(config.inngest.servePath ? { servePath: config.inngest.servePath } : {}),
-  ...(config.inngest.serveHost
-    ? { serveOrigin: config.inngest.serveHost }
-    : {}),
 });
 
 /**

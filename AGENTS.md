@@ -42,7 +42,7 @@ This app is in active development — there are no production users yet. This me
 # Development
 pnpm dev              # Run API + admin UI in parallel
 pnpm dev:api          # Run API only with hot reload
-pnpm dev:inngest      # Run Inngest Dev Server and sync with /api/inngest
+pnpm dev:inngest      # Run Inngest Dev Server (API connects via outbound WebSocket)
 pnpm dev:admin        # Run admin UI only
 pnpm bootstrap:dev    # Push DB schema and seed demo data
 pnpm --filter @scheduling/api run sync:svix-event-catalog  # Manual Svix schema sync

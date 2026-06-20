@@ -18,7 +18,7 @@ import { requestLogger } from "./middleware/request-logger.js";
 import { config } from "./config.js";
 import { backfillAppIntegrationDefaultsForAllOrgs } from "./services/integrations/defaults.js";
 import { bootstrapSvixEventCatalogOnStartup } from "./services/svix-event-catalog.js";
-import { inngestServeHandler } from "./inngest/serve.js";
+import { startInngestWorker } from "./inngest/worker.js";
 import { integrationOAuthRouter } from "./routes/integration-oauth.js";
 import { assistantRouter } from "./routes/assistant.js";
 import { twilioStatusCallbackRouter } from "./routes/integrations/twilio-status-callback.js";
@@ -75,9 +75,6 @@ app.route("/api/integrations/twilio", twilioStatusCallbackRouter);
 // Assistant chat routes
 app.use("/api/assistant/*", authMiddleware);
 app.route("/api/assistant", assistantRouter);
-
-// Inngest serve endpoint
-app.on(["GET", "POST", "PUT"], config.inngest.servePath, inngestServeHandler);
 
 // ============================================================================
 // oRPC HANDLER (Admin UI) - /v1/*
@@ -147,6 +144,13 @@ app.all(`${OPENAPI_PREFIX}/*`, async (c) => {
     404,
   );
 });
+
+// Start the outbound Inngest connect worker (non-blocking, so a down dev
+// server can't block the HTTP server from booting). Only when this module is
+// the entrypoint — tests import the app and must not open a real connection.
+if (import.meta.main) {
+  void startInngestWorker();
+}
 
 // Export for Bun server
 export default {

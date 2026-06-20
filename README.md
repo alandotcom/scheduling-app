@@ -77,7 +77,7 @@ A multi-tenant appointment scheduling platform (Acuity-style) built with modern 
 ```bash
 # Development
 pnpm dev              # Run API + admin UI in parallel
-pnpm dev:inngest      # Run Inngest Dev Server and sync with /api/inngest
+pnpm dev:inngest      # Run Inngest Dev Server (API connects via outbound WebSocket)
 pnpm dev:api          # Run API only with hot reload
 pnpm dev:admin        # Run admin UI only
 pnpm bootstrap:dev    # Push DB schema and seed demo data
@@ -127,8 +127,6 @@ Commonly used variables:
 | `INNGEST_BASE_URL`     | Inngest runtime base URL                  | `http://127.0.0.1:8288` in non-production; _(unset)_ in production |
 | `INNGEST_EVENT_KEY`    | Inngest event key                         | `dev` in non-production; _(unset)_ in production            |
 | `INNGEST_SIGNING_KEY`  | Inngest signing key                       | _(unset)_                                                    |
-| `INNGEST_SERVE_PATH`   | Inngest serve endpoint path               | `/api/inngest`                                               |
-| `INNGEST_SERVE_HOST`   | Explicit host for Inngest serve endpoint  | _(unset)_                                                    |
 | `INTEGRATIONS_ENABLED` | Comma-separated enabled integrations     | `svix`                                                       |
 | `INTEGRATIONS_ENCRYPTION_KEY` | Encrypts integration secrets (API keys/OAuth tokens) | _(unset)_                                       |
 | `INTEGRATIONS_OAUTH_STATE_SIGNING_KEY` | Signs OAuth state for org-level integrations | _(unset)_                                      |

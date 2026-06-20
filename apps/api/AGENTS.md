@@ -179,6 +179,6 @@ pnpm dev:inngest
 
 Then confirm:
 
-1. `GET /api/inngest` returns `200`.
-2. Inngest dev server reports app sync.
+1. The API log shows `Inngest connect worker established (ACTIVE)`.
+2. The Inngest dev server (http://localhost:8288) lists the `scheduling-api` app and its functions (synced over the connection).
 3. Sending a test event triggers the expected function run.

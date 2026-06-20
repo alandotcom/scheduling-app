@@ -151,16 +151,6 @@ export const config = envParse(Bun.env, {
       env: "INNGEST_SIGNING_KEY",
       optional: true,
     },
-    servePath: {
-      format: z.string(),
-      env: "INNGEST_SERVE_PATH",
-      default: "/api/inngest",
-    },
-    serveHost: {
-      format: z.url(),
-      env: "INNGEST_SERVE_HOST",
-      optional: true,
-    },
   },
 });
 
