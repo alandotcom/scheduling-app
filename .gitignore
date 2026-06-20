@@ -49,3 +49,6 @@ tmp/
 
 # Evalite storage + cache
 apps/api/.evalite/
+
+# Impeccable critique output
+.impeccable/critique/
