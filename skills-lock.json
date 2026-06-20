@@ -4,13 +4,38 @@
     "assistant-ui": {
       "source": "assistant-ui/skills",
       "sourceType": "github",
-      "computedHash": "a3fad19a3876a40e065f1add36fc2d24a5aebb0ea7242c74e1ed854d050e4101"
+      "skillPath": "assistant-ui/skills/assistant-ui/SKILL.md",
+      "computedHash": "5e342f1cae9193afe989d2244b73f5e1074951adc8cf7014119cedac88747a53"
+    },
+    "copilots": {
+      "source": "assistant-ui/skills",
+      "sourceType": "github",
+      "skillPath": "assistant-ui/skills/copilots/SKILL.md",
+      "computedHash": "60036a154b62e09cf6fb9d55a22696b42cc3396b63e1a21dfa65bfaf70b63f4f"
     },
     "impeccable": {
       "source": "pbakaus/impeccable",
       "sourceType": "github",
       "skillPath": ".agents/skills/impeccable/SKILL.md",
       "computedHash": "f2a6bed082dd9bf7bf8b9244e6ac6eb80fc24ed8446425effe213655662dcab9"
+    },
+    "markdown": {
+      "source": "assistant-ui/skills",
+      "sourceType": "github",
+      "skillPath": "assistant-ui/skills/markdown/SKILL.md",
+      "computedHash": "1ec28d7895066a4b60f56ec8d101f16d4272f31c92f13421c71cfadcab35b91f"
+    },
+    "observability": {
+      "source": "assistant-ui/skills",
+      "sourceType": "github",
+      "skillPath": "assistant-ui/skills/observability/SKILL.md",
+      "computedHash": "27e48ebf864a7fe0b5325caf252df136fd5177a90ff41ac9c0ed90daafa23799"
+    },
+    "primitives": {
+      "source": "assistant-ui/skills",
+      "sourceType": "github",
+      "skillPath": "assistant-ui/skills/primitives/SKILL.md",
+      "computedHash": "a05fe573e66f672bcac4fa101e1a08ea78b8e4478a54fe61f1bcb3957677b6e7"
     },
     "react-flow": {
       "source": "existential-birds/beagle",
@@ -37,10 +62,41 @@
       "sourceType": "github",
       "computedHash": "ab7ca5f3ff515b873a8446bdf88b9edc156741cf32c07accbbb3804f25543179"
     },
+    "runtime": {
+      "source": "assistant-ui/skills",
+      "sourceType": "github",
+      "skillPath": "assistant-ui/skills/runtime/SKILL.md",
+      "computedHash": "6c5e6ab03191384f10e91c546806d4f18329fcefeabe9197a7be64c4b9dc513e"
+    },
+    "setup": {
+      "source": "assistant-ui/skills",
+      "sourceType": "github",
+      "skillPath": "assistant-ui/skills/setup/SKILL.md",
+      "computedHash": "4613a1ba6ba0bd46ed0790e7e3e3b108773abfd7b988014f97643146d337a1d8"
+    },
+    "streaming": {
+      "source": "assistant-ui/skills",
+      "sourceType": "github",
+      "skillPath": "assistant-ui/skills/streaming/SKILL.md",
+      "computedHash": "20221d04867a93cdf254a74d9275f5d758b84607f214c3a8eb326520de7521b8"
+    },
+    "thread-list": {
+      "source": "assistant-ui/skills",
+      "sourceType": "github",
+      "skillPath": "assistant-ui/skills/thread-list/SKILL.md",
+      "computedHash": "516095f7f33d3662ca8964e9ea4b276df7fe63af0d00a21aba144221af352b9c"
+    },
     "tools": {
       "source": "assistant-ui/skills",
       "sourceType": "github",
-      "computedHash": "55a64b569cf4eac3bc8877e216e401af6b40d296e5180eb71174ac80b68d670d"
+      "skillPath": "assistant-ui/skills/tools/SKILL.md",
+      "computedHash": "2236be8f55e7938cd1176e5cb33a0654c655dee9037f31a9f95c09a2d2dbc046"
+    },
+    "update": {
+      "source": "assistant-ui/skills",
+      "sourceType": "github",
+      "skillPath": "assistant-ui/skills/update/SKILL.md",
+      "computedHash": "09377b82f0d459363421569315cb9a9a85c59998cec1387012e82a14c46ab73f"
     },
     "vercel-composition-patterns": {
       "source": "vercel-labs/agent-skills",
