@@ -8,89 +8,229 @@
         "role": "neutral",
         "displayName": "Ink",
         "canonical": "oklch(0.145 0.015 250)",
-        "tonalRamp": ["oklch(0.145 0.015 250)", "oklch(0.22 0.012 250)", "oklch(0.32 0.01 250)", "oklch(0.45 0.01 250)", "oklch(0.58 0.008 250)", "oklch(0.72 0.006 250)", "oklch(0.86 0.004 250)", "oklch(0.97 0.002 250)"]
+        "tonalRamp": [
+          "oklch(0.145 0.015 250)",
+          "oklch(0.22 0.012 250)",
+          "oklch(0.32 0.01 250)",
+          "oklch(0.45 0.01 250)",
+          "oklch(0.58 0.008 250)",
+          "oklch(0.72 0.006 250)",
+          "oklch(0.86 0.004 250)",
+          "oklch(0.97 0.002 250)"
+        ]
       },
       "canvas": {
         "role": "neutral",
         "displayName": "Canvas",
         "canonical": "oklch(0.98 0.002 250)",
-        "tonalRamp": ["oklch(0.15 0.01 250)", "oklch(0.22 0.01 250)", "oklch(0.32 0.008 250)", "oklch(0.45 0.006 250)", "oklch(0.6 0.005 250)", "oklch(0.78 0.004 250)", "oklch(0.92 0.003 250)", "oklch(0.98 0.002 250)"]
+        "tonalRamp": [
+          "oklch(0.15 0.01 250)",
+          "oklch(0.22 0.01 250)",
+          "oklch(0.32 0.008 250)",
+          "oklch(0.45 0.006 250)",
+          "oklch(0.6 0.005 250)",
+          "oklch(0.78 0.004 250)",
+          "oklch(0.92 0.003 250)",
+          "oklch(0.98 0.002 250)"
+        ]
       },
       "surface": {
         "role": "neutral",
         "displayName": "Surface",
         "canonical": "oklch(1 0 0)",
-        "tonalRamp": ["oklch(0.17 0.01 260)", "oklch(0.26 0.008 260)", "oklch(0.4 0.006 255)", "oklch(0.55 0.004 255)", "oklch(0.72 0.003 250)", "oklch(0.88 0.002 250)", "oklch(0.96 0.001 250)", "oklch(1 0 0)"]
+        "tonalRamp": [
+          "oklch(0.17 0.01 260)",
+          "oklch(0.26 0.008 260)",
+          "oklch(0.4 0.006 255)",
+          "oklch(0.55 0.004 255)",
+          "oklch(0.72 0.003 250)",
+          "oklch(0.88 0.002 250)",
+          "oklch(0.96 0.001 250)",
+          "oklch(1 0 0)"
+        ]
       },
       "primary-slate": {
         "role": "primary",
         "displayName": "Deep Slate",
         "canonical": "oklch(0.205 0.015 265)",
-        "tonalRamp": ["oklch(0.15 0.015 265)", "oklch(0.205 0.015 265)", "oklch(0.3 0.018 265)", "oklch(0.42 0.02 265)", "oklch(0.55 0.02 265)", "oklch(0.68 0.018 265)", "oklch(0.82 0.012 265)", "oklch(0.95 0.006 265)"]
+        "tonalRamp": [
+          "oklch(0.15 0.015 265)",
+          "oklch(0.205 0.015 265)",
+          "oklch(0.3 0.018 265)",
+          "oklch(0.42 0.02 265)",
+          "oklch(0.55 0.02 265)",
+          "oklch(0.68 0.018 265)",
+          "oklch(0.82 0.012 265)",
+          "oklch(0.95 0.006 265)"
+        ]
       },
       "muted-ink": {
         "role": "neutral",
         "displayName": "Muted Ink",
         "canonical": "oklch(0.52 0.01 250)",
-        "tonalRamp": ["oklch(0.2 0.012 250)", "oklch(0.3 0.012 250)", "oklch(0.4 0.011 250)", "oklch(0.52 0.01 250)", "oklch(0.64 0.008 250)", "oklch(0.76 0.006 250)", "oklch(0.88 0.004 250)", "oklch(0.96 0.002 250)"]
+        "tonalRamp": [
+          "oklch(0.2 0.012 250)",
+          "oklch(0.3 0.012 250)",
+          "oklch(0.4 0.011 250)",
+          "oklch(0.52 0.01 250)",
+          "oklch(0.64 0.008 250)",
+          "oklch(0.76 0.006 250)",
+          "oklch(0.88 0.004 250)",
+          "oklch(0.96 0.002 250)"
+        ]
       },
       "border": {
         "role": "neutral",
         "displayName": "Hairline Border",
         "canonical": "oklch(0.922 0.004 250)",
-        "tonalRamp": ["oklch(0.3 0.006 250)", "oklch(0.42 0.006 250)", "oklch(0.55 0.005 250)", "oklch(0.68 0.005 250)", "oklch(0.8 0.004 250)", "oklch(0.88 0.004 250)", "oklch(0.922 0.004 250)", "oklch(0.97 0.002 250)"]
+        "tonalRamp": [
+          "oklch(0.3 0.006 250)",
+          "oklch(0.42 0.006 250)",
+          "oklch(0.55 0.005 250)",
+          "oklch(0.68 0.005 250)",
+          "oklch(0.8 0.004 250)",
+          "oklch(0.88 0.004 250)",
+          "oklch(0.922 0.004 250)",
+          "oklch(0.97 0.002 250)"
+        ]
       },
       "focus-blue": {
         "role": "secondary",
         "displayName": "Focus Blue",
         "canonical": "oklch(0.708 0.165 254)",
-        "tonalRamp": ["oklch(0.3 0.12 254)", "oklch(0.4 0.16 254)", "oklch(0.5 0.19 254)", "oklch(0.6 0.2 254)", "oklch(0.708 0.165 254)", "oklch(0.8 0.12 254)", "oklch(0.88 0.08 254)", "oklch(0.95 0.03 254)"]
+        "tonalRamp": [
+          "oklch(0.3 0.12 254)",
+          "oklch(0.4 0.16 254)",
+          "oklch(0.5 0.19 254)",
+          "oklch(0.6 0.2 254)",
+          "oklch(0.708 0.165 254)",
+          "oklch(0.8 0.12 254)",
+          "oklch(0.88 0.08 254)",
+          "oklch(0.95 0.03 254)"
+        ]
       },
       "destructive-red": {
         "role": "tertiary",
         "displayName": "Destructive Red",
         "canonical": "oklch(0.577 0.245 27.325)",
-        "tonalRamp": ["oklch(0.3 0.14 27)", "oklch(0.4 0.19 27)", "oklch(0.48 0.22 27)", "oklch(0.577 0.245 27)", "oklch(0.66 0.21 27)", "oklch(0.77 0.15 27)", "oklch(0.86 0.09 27)", "oklch(0.94 0.04 27)"]
+        "tonalRamp": [
+          "oklch(0.3 0.14 27)",
+          "oklch(0.4 0.19 27)",
+          "oklch(0.48 0.22 27)",
+          "oklch(0.577 0.245 27)",
+          "oklch(0.66 0.21 27)",
+          "oklch(0.77 0.15 27)",
+          "oklch(0.86 0.09 27)",
+          "oklch(0.94 0.04 27)"
+        ]
       },
       "status-scheduled": {
         "role": "tertiary",
         "displayName": "Scheduled Blue",
         "canonical": "oklch(0.623 0.214 259)",
-        "tonalRamp": ["oklch(0.3 0.14 259)", "oklch(0.4 0.18 259)", "oklch(0.5 0.21 259)", "oklch(0.623 0.214 259)", "oklch(0.7 0.18 259)", "oklch(0.8 0.13 259)", "oklch(0.88 0.08 259)", "oklch(0.95 0.03 259)"]
+        "tonalRamp": [
+          "oklch(0.3 0.14 259)",
+          "oklch(0.4 0.18 259)",
+          "oklch(0.5 0.21 259)",
+          "oklch(0.623 0.214 259)",
+          "oklch(0.7 0.18 259)",
+          "oklch(0.8 0.13 259)",
+          "oklch(0.88 0.08 259)",
+          "oklch(0.95 0.03 259)"
+        ]
       },
       "status-confirmed": {
         "role": "tertiary",
         "displayName": "Confirmed Emerald",
         "canonical": "oklch(0.696 0.17 162.48)",
-        "tonalRamp": ["oklch(0.3 0.1 162)", "oklch(0.4 0.13 162)", "oklch(0.52 0.15 162)", "oklch(0.62 0.16 162)", "oklch(0.696 0.17 162)", "oklch(0.8 0.13 162)", "oklch(0.88 0.08 162)", "oklch(0.95 0.04 162)"]
+        "tonalRamp": [
+          "oklch(0.3 0.1 162)",
+          "oklch(0.4 0.13 162)",
+          "oklch(0.52 0.15 162)",
+          "oklch(0.62 0.16 162)",
+          "oklch(0.696 0.17 162)",
+          "oklch(0.8 0.13 162)",
+          "oklch(0.88 0.08 162)",
+          "oklch(0.95 0.04 162)"
+        ]
       },
       "status-no-show": {
         "role": "tertiary",
         "displayName": "No-Show Amber",
         "canonical": "oklch(0.769 0.188 70.08)",
-        "tonalRamp": ["oklch(0.35 0.08 70)", "oklch(0.45 0.12 70)", "oklch(0.58 0.16 70)", "oklch(0.68 0.18 70)", "oklch(0.769 0.188 70)", "oklch(0.85 0.15 70)", "oklch(0.91 0.09 70)", "oklch(0.96 0.04 70)"]
+        "tonalRamp": [
+          "oklch(0.35 0.08 70)",
+          "oklch(0.45 0.12 70)",
+          "oklch(0.58 0.16 70)",
+          "oklch(0.68 0.18 70)",
+          "oklch(0.769 0.188 70)",
+          "oklch(0.85 0.15 70)",
+          "oklch(0.91 0.09 70)",
+          "oklch(0.96 0.04 70)"
+        ]
       },
       "status-cancelled": {
         "role": "tertiary",
         "displayName": "Cancelled Slate",
         "canonical": "oklch(0.554 0.022 257.42)",
-        "tonalRamp": ["oklch(0.2 0.02 257)", "oklch(0.3 0.02 257)", "oklch(0.4 0.022 257)", "oklch(0.48 0.022 257)", "oklch(0.554 0.022 257)", "oklch(0.68 0.018 257)", "oklch(0.82 0.01 257)", "oklch(0.94 0.005 257)"]
+        "tonalRamp": [
+          "oklch(0.2 0.02 257)",
+          "oklch(0.3 0.02 257)",
+          "oklch(0.4 0.022 257)",
+          "oklch(0.48 0.022 257)",
+          "oklch(0.554 0.022 257)",
+          "oklch(0.68 0.018 257)",
+          "oklch(0.82 0.01 257)",
+          "oklch(0.94 0.005 257)"
+        ]
       }
     },
     "typographyMeta": {
-      "display": { "displayName": "Display", "purpose": "Page titles in the scaffold header (Noto Sans, h1)." },
-      "title": { "displayName": "Title", "purpose": "Card and panel titles (h3, ~1.125rem)." },
-      "body": { "displayName": "Body", "purpose": "The workhorse 0.875rem size for tables, panels, and UI copy (Inter)." },
-      "label": { "displayName": "Label", "purpose": "Badges, chips, metadata, and column headers (Inter, 0.75rem)." }
+      "display": {
+        "displayName": "Display",
+        "purpose": "Page titles in the scaffold header (Noto Sans, h1)."
+      },
+      "title": {
+        "displayName": "Title",
+        "purpose": "Card and panel titles (h3, ~1.125rem)."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "The workhorse 0.875rem size for tables, panels, and UI copy (Inter)."
+      },
+      "label": {
+        "displayName": "Label",
+        "purpose": "Badges, chips, metadata, and column headers (Inter, 0.75rem)."
+      }
     },
     "shadows": [
-      { "name": "rest", "value": "0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1)", "purpose": "Resting elevation on cards, popovers, and menus (Tailwind v4 shadow-sm)." },
-      { "name": "hover-lift", "value": "0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)", "purpose": "Single-step lift on interactive cards at hover (Tailwind v4 shadow-md)." }
+      {
+        "name": "rest",
+        "value": "0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1)",
+        "purpose": "Resting elevation on cards, popovers, and menus (Tailwind v4 shadow-sm)."
+      },
+      {
+        "name": "hover-lift",
+        "value": "0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)",
+        "purpose": "Single-step lift on interactive cards at hover (Tailwind v4 shadow-md)."
+      }
     ],
     "motion": [
-      { "name": "ease-standard", "value": "ease-out", "purpose": "Default easing for state transitions." },
-      { "name": "transition-smooth", "value": "all 200ms ease-out", "purpose": "Shared smooth transition utility for state changes." },
-      { "name": "skeleton-fade-in", "value": "skeleton-fade-in 150ms ease-out 150ms both", "purpose": "Loading skeletons fade in after a 150ms delay to avoid flash." }
+      {
+        "name": "ease-standard",
+        "value": "ease-out",
+        "purpose": "Default easing for state transitions."
+      },
+      {
+        "name": "transition-smooth",
+        "value": "all 200ms ease-out",
+        "purpose": "Shared smooth transition utility for state changes."
+      },
+      {
+        "name": "skeleton-fade-in",
+        "value": "skeleton-fade-in 150ms ease-out 150ms both",
+        "purpose": "Loading skeletons fade in after a 150ms delay to avoid flash."
+      }
     ],
     "breakpoints": [
       { "name": "sm", "value": "640px" },
@@ -168,12 +308,36 @@
       "Keyboard-first affordances treated as a first-class part of the visual language."
     ],
     "rules": [
-      { "name": "The Meaning-Only Color Rule", "body": "Chromatic color appears only when it carries information: a focus ring, an appointment status, a workflow node type, a destructive action. It is never spent on decoration. On any given screen the saturated accents stay near or below 10% of the surface.", "section": "colors" },
-      { "name": "The Recede-on-Cancel Rule", "body": "State that no longer needs attention drops toward neutral rather than staying loud. Cancelled is intentionally the dullest status hue in the set.", "section": "colors" },
-      { "name": "The One-Voice Rule", "body": "No display or decorative face enters the UI. Labels, buttons, inputs, and data use Inter; headings use Noto Sans.", "section": "typography" },
-      { "name": "The Fixed-Scale Rule", "body": "Heading sizes are fixed rem steps, never clamp(). A title that shrinks inside a narrow split-pane or sidebar looks worse, not better.", "section": "typography" },
-      { "name": "The Flat-By-Default Rule", "body": "Surfaces are flat at rest and depth is carried by border and tone. A shadow is a response to state, not a permanent costume.", "section": "elevation" },
-      { "name": "The No-Ghost-Card Rule", "body": "Never pair a 1px border with a soft wide drop shadow on the same element as decoration. Pick one.", "section": "elevation" }
+      {
+        "name": "The Meaning-Only Color Rule",
+        "body": "Chromatic color appears only when it carries information: a focus ring, an appointment status, a workflow node type, a destructive action. It is never spent on decoration. On any given screen the saturated accents stay near or below 10% of the surface.",
+        "section": "colors"
+      },
+      {
+        "name": "The Recede-on-Cancel Rule",
+        "body": "State that no longer needs attention drops toward neutral rather than staying loud. Cancelled is intentionally the dullest status hue in the set.",
+        "section": "colors"
+      },
+      {
+        "name": "The One-Voice Rule",
+        "body": "No display or decorative face enters the UI. Labels, buttons, inputs, and data use Inter; headings use Noto Sans.",
+        "section": "typography"
+      },
+      {
+        "name": "The Fixed-Scale Rule",
+        "body": "Heading sizes are fixed rem steps, never clamp(). A title that shrinks inside a narrow split-pane or sidebar looks worse, not better.",
+        "section": "typography"
+      },
+      {
+        "name": "The Flat-By-Default Rule",
+        "body": "Surfaces are flat at rest and depth is carried by border and tone. A shadow is a response to state, not a permanent costume.",
+        "section": "elevation"
+      },
+      {
+        "name": "The No-Ghost-Card Rule",
+        "body": "Never pair a 1px border with a soft wide drop shadow on the same element as decoration. Pick one.",
+        "section": "elevation"
+      }
     ],
     "dos": [
       "Do keep color meaning-bearing: focus, status, node type, destructive action. Hold saturated accents near or below 10% of any screen.",

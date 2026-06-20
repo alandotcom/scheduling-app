@@ -23,6 +23,7 @@ import {
 } from "@/components/entity-list";
 import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
 import { DataTablePagination } from "@/components/ui/data-table-pagination";
+import { cn } from "@/lib/utils";
 import { Icon } from "@/components/ui/icon";
 import { Input } from "@/components/ui/input";
 import {
@@ -49,6 +50,14 @@ interface ResourcesListPresentationProps {
   onOpen: (resourceId: string) => void;
   onDelete: (resourceId: string) => void;
 }
+
+const RESOURCE_COLUMN_WIDTHS: Record<string, string> = {
+  name: "w-[34%]",
+  quantity: "w-[16%]",
+  location: "w-[26%]",
+  createdAt: "w-[20%]",
+  actions: "w-[4%]",
+};
 
 export function ResourcesListPresentation({
   resources,
@@ -220,16 +229,20 @@ export function ResourcesListPresentation({
       </div>
 
       <EntityDesktopTable>
-        <Table>
+        <Table
+          className="table-fixed"
+          containerClassName="min-h-0 flex-1 overflow-y-auto"
+        >
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
               <TableRow key={headerGroup.id}>
                 {headerGroup.headers.map((header) => (
                   <TableHead
                     key={header.id}
-                    className={
-                      header.id === "actions" ? "text-right" : undefined
-                    }
+                    className={cn(
+                      RESOURCE_COLUMN_WIDTHS[header.id],
+                      header.id === "actions" && "text-right",
+                    )}
                   >
                     {header.isPlaceholder
                       ? null
@@ -284,7 +297,10 @@ export function ResourcesListPresentation({
             )}
           </TableBody>
         </Table>
-        <DataTablePagination table={table} />
+        <DataTablePagination
+          table={table}
+          className="shrink-0 border-t border-border"
+        />
       </EntityDesktopTable>
     </>
   );

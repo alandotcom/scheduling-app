@@ -55,7 +55,7 @@ import {
   FilterField,
   ActiveFilters,
 } from "@/components/filter-popover";
-import { AppointmentModal } from "@/components/appointment-modal";
+import { LazyAppointmentModal as AppointmentModal } from "@/components/lazy-appointment-modal";
 import { CopyIdHeaderAction } from "@/components/copy-id-header-action";
 import { EntityModal } from "@/components/entity-modal";
 import { PageScaffold } from "@/components/layout/page-scaffold";
@@ -1046,7 +1046,7 @@ function AppointmentsPage() {
   );
 
   return (
-    <PageScaffold className="pb-24 md:pb-6">
+    <PageScaffold fullHeight className="max-md:pb-24">
       <div className="hidden mt-2 items-center gap-1 md:flex md:min-w-0 md:flex-nowrap md:overflow-x-auto md:pb-1 md:[scrollbar-width:thin] md:[scrollbar-color:var(--color-border)_transparent]">
         <div className="shrink-0">
           <ViewToggle view={currentView} onViewChange={setView} size="sm" />
@@ -1280,7 +1280,7 @@ function AppointmentsPage() {
       <div
         id={FOCUS_ZONES.LIST}
         className={cn(
-          "flex min-h-[600px] flex-col",
+          "flex min-h-[600px] flex-col md:min-h-0 md:flex-1",
           currentView === "schedule" ? "mt-2" : "mt-6",
         )}
       >

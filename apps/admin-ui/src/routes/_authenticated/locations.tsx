@@ -486,8 +486,8 @@ function LocationsPage() {
   };
 
   return (
-    <PageScaffold className="pb-24 sm:pb-6">
-      <div className="mt-6">
+    <PageScaffold fullHeight>
+      <div className="mt-6 md:flex md:min-h-0 md:flex-1 md:flex-col">
         {isLoading ? (
           <EntityListLoadingState rows={5} cols={5} />
         ) : error ? (

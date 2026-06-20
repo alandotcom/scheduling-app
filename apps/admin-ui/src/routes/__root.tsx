@@ -1,6 +1,6 @@
 // Root route layout with modern navigation shell
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   type ErrorComponentProps,
@@ -33,6 +33,7 @@ import { authClient } from "@/lib/auth-client";
 import { getSafeRedirectHref } from "@/lib/auth-redirect";
 import { UserMenu, type UserMenuOrganization } from "@/components/user-menu";
 import { ShortcutsHelpDialog } from "@/components/shortcuts-help-dialog";
+import { RoutePendingComponent } from "@/components/route-boundaries";
 import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
 import { Input } from "@/components/ui/input";
@@ -861,7 +862,9 @@ function RootLayout() {
               </div>
             </div>
           ) : (
-            <Outlet />
+            <Suspense fallback={<RoutePendingComponent />}>
+              <Outlet />
+            </Suspense>
           )}
           {isOrganizationSwitchOverlayVisible ? (
             <div className="absolute inset-0 z-20 flex items-start justify-center bg-background/40 pt-6 backdrop-blur-[1px]">

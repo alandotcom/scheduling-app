@@ -29,7 +29,7 @@ import {
 import { AvailabilitySubTabs } from "@/components/availability/availability-sub-tabs";
 import { AvailabilityPreviewPanel } from "@/components/availability/availability-preview-panel";
 import { BlockedTimeEditor } from "@/components/availability/blocked-time-editor";
-import { AppointmentModal } from "@/components/appointment-modal";
+import { LazyAppointmentModal as AppointmentModal } from "@/components/lazy-appointment-modal";
 import {
   WEEKDAYS,
   type AvailabilityPreviewDraftState,
@@ -1101,8 +1101,8 @@ function CalendarsPage() {
   );
 
   return (
-    <PageScaffold className="pb-24 sm:pb-6">
-      <div className="mt-6">
+    <PageScaffold fullHeight>
+      <div className="mt-6 md:flex md:min-h-0 md:flex-1 md:flex-col">
         {isLoading ? (
           <EntityListLoadingState rows={5} cols={6} />
         ) : error ? (

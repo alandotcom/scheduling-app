@@ -132,7 +132,7 @@ export function EntityDesktopTable({
   return (
     <div
       className={cn(
-        "hidden overflow-hidden rounded-xl border border-border shadow-sm md:block",
+        "hidden min-h-0 flex-col overflow-hidden rounded-xl border border-border bg-card shadow-sm md:flex md:flex-1",
         className,
       )}
     >

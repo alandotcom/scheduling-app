@@ -26,6 +26,7 @@ import { RelationshipCountBadge } from "@/components/relationship-count-badge";
 import { RowActions } from "@/components/row-actions";
 import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
 import { DataTablePagination } from "@/components/ui/data-table-pagination";
+import { cn } from "@/lib/utils";
 import { Icon } from "@/components/ui/icon";
 import { Input } from "@/components/ui/input";
 import {
@@ -63,6 +64,16 @@ interface AppointmentTypesListPresentationProps {
   getActions: (type: AppointmentTypeListItem) => ContextMenuItem[];
   onOpen: (typeId: string, tab?: ManageTab) => void;
 }
+
+const APPOINTMENT_TYPE_COLUMN_WIDTHS: Record<string, string> = {
+  name: "w-[22%]",
+  durationMin: "w-[12%]",
+  padding: "w-[12%]",
+  capacity: "w-[10%]",
+  relationships: "w-[26%]",
+  createdAt: "w-[14%]",
+  actions: "w-[4%]",
+};
 
 export function AppointmentTypesListPresentation({
   appointmentTypes,
@@ -292,16 +303,20 @@ export function AppointmentTypesListPresentation({
       </div>
 
       <EntityDesktopTable>
-        <Table>
+        <Table
+          className="table-fixed"
+          containerClassName="min-h-0 flex-1 overflow-y-auto"
+        >
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
               <TableRow key={headerGroup.id}>
                 {headerGroup.headers.map((header) => (
                   <TableHead
                     key={header.id}
-                    className={
-                      header.id === "actions" ? "text-right" : undefined
-                    }
+                    className={cn(
+                      APPOINTMENT_TYPE_COLUMN_WIDTHS[header.id],
+                      header.id === "actions" && "text-right",
+                    )}
                   >
                     {header.isPlaceholder
                       ? null
@@ -362,7 +377,10 @@ export function AppointmentTypesListPresentation({
             )}
           </TableBody>
         </Table>
-        <DataTablePagination table={table} />
+        <DataTablePagination
+          table={table}
+          className="shrink-0 border-t border-border"
+        />
       </EntityDesktopTable>
     </>
   );

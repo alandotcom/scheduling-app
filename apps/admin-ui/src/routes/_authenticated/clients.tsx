@@ -21,7 +21,7 @@ import type {
   CustomAttributeDefinitionResponse,
 } from "@scheduling/dto";
 import type { ContextMenuItem } from "@/components/context-menu";
-import { AppointmentModal } from "@/components/appointment-modal";
+import { LazyAppointmentModal as AppointmentModal } from "@/components/lazy-appointment-modal";
 import { ClientForm } from "@/components/clients/client-form";
 import { CopyIdHeaderAction } from "@/components/copy-id-header-action";
 import { DeleteConfirmDialog } from "@/components/delete-confirm-dialog";
@@ -662,8 +662,8 @@ function ClientsPage() {
   ]);
 
   return (
-    <PageScaffold className="pb-24 sm:pb-6">
-      <div className="mt-6 space-y-6">
+    <PageScaffold fullHeight>
+      <div className="flex flex-col gap-4 md:min-h-0 md:flex-1">
         <div className="max-w-sm">
           <div className="relative">
             <Icon
@@ -679,7 +679,7 @@ function ClientsPage() {
           </div>
         </div>
 
-        <div>
+        <div className="md:flex md:min-h-0 md:flex-1 md:flex-col">
           {isLoading ? (
             <EntityListLoadingState rows={5} cols={6} />
           ) : error ? (

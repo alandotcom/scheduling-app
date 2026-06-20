@@ -34,6 +34,17 @@ import {
 } from "@/components/ui/table";
 import { formatDisplayDate } from "@/lib/date-utils";
 import { formatPhoneForDisplay } from "@/lib/phone";
+import { cn } from "@/lib/utils";
+
+// Fixed column widths keep the layout stable when filtering (table-layout: fixed).
+const CLIENT_COLUMN_WIDTHS: Record<string, string> = {
+  name: "w-[24%]",
+  email: "w-[30%]",
+  phone: "w-[16%]",
+  appointments: "w-[15%]",
+  createdAt: "w-[11%]",
+  actions: "w-[4%]",
+};
 
 interface ClientListItem {
   id: string;
@@ -116,7 +127,9 @@ export function ClientsListPresentation({
           <DataTableColumnHeader column={column} title="Email" />
         ),
         cell: ({ row }) =>
-          row.original.email || (
+          row.original.email ? (
+            <span className="block truncate">{row.original.email}</span>
+          ) : (
             <span className="text-muted-foreground">-</span>
           ),
       },
@@ -264,16 +277,20 @@ export function ClientsListPresentation({
       />
 
       <EntityDesktopTable>
-        <Table>
+        <Table
+          className="table-fixed"
+          containerClassName="min-h-0 flex-1 overflow-y-auto"
+        >
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
               <TableRow key={headerGroup.id}>
                 {headerGroup.headers.map((header) => (
                   <TableHead
                     key={header.id}
-                    className={
-                      header.id === "actions" ? "text-right" : undefined
-                    }
+                    className={cn(
+                      CLIENT_COLUMN_WIDTHS[header.id],
+                      header.id === "actions" && "text-right",
+                    )}
                   >
                     {header.isPlaceholder
                       ? null
@@ -336,7 +353,10 @@ export function ClientsListPresentation({
             )}
           </TableBody>
         </Table>
-        <DataTablePagination table={table} />
+        <DataTablePagination
+          table={table}
+          className="shrink-0 border-t border-border"
+        />
       </EntityDesktopTable>
     </>
   );

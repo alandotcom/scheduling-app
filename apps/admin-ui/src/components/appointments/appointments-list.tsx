@@ -71,6 +71,14 @@ function getStatusVariant(status: string) {
   return getStatusBadgeVariant(status);
 }
 
+const APPOINTMENT_COLUMN_WIDTHS: Record<string, string> = {
+  startAt: "w-[22%]",
+  type: "w-[26%]",
+  calendar: "w-[18%]",
+  client: "w-[22%]",
+  status: "w-[12%]",
+};
+
 export function AppointmentsList({
   appointments,
   displayTimezone,
@@ -277,7 +285,7 @@ export function AppointmentsList({
   }
 
   return (
-    <div className="space-y-4">
+    <div className="flex flex-col gap-4 md:min-h-0 md:flex-1">
       <div className="relative max-w-sm">
         <Icon
           icon={Search01Icon}
@@ -355,13 +363,19 @@ export function AppointmentsList({
         className="justify-center rounded-xl border border-border bg-card shadow-sm md:hidden"
       />
 
-      <div className="hidden overflow-hidden rounded-xl border border-border shadow-sm md:block">
-        <Table>
+      <div className="hidden min-h-0 flex-col overflow-hidden rounded-xl border border-border bg-card shadow-sm md:flex md:flex-1">
+        <Table
+          className="table-fixed"
+          containerClassName="min-h-0 flex-1 overflow-y-auto"
+        >
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
               <TableRow key={headerGroup.id}>
                 {headerGroup.headers.map((header) => (
-                  <TableHead key={header.id}>
+                  <TableHead
+                    key={header.id}
+                    className={cn(APPOINTMENT_COLUMN_WIDTHS[header.id])}
+                  >
                     {header.isPlaceholder
                       ? null
                       : flexRender(
@@ -414,7 +428,10 @@ export function AppointmentsList({
             )}
           </TableBody>
         </Table>
-        <DataTablePagination table={table} />
+        <DataTablePagination
+          table={table}
+          className="shrink-0 border-t border-border"
+        />
       </div>
     </div>
   );

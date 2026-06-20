@@ -30,7 +30,7 @@ import { Badge } from "@/components/ui/badge";
 import { Icon } from "@/components/ui/icon";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PageScaffold } from "@/components/layout/page-scaffold";
-import { AppointmentModal } from "@/components/appointment-modal";
+import { LazyAppointmentModal as AppointmentModal } from "@/components/lazy-appointment-modal";
 import { useKeyboardShortcuts } from "@/hooks/use-keyboard-shortcuts";
 import { authClient } from "@/lib/auth-client";
 
@@ -168,7 +168,7 @@ export function Dashboard() {
       <div className="mt-8 grid gap-6 lg:grid-cols-3">
         {/* Today's Schedule — the lead */}
         <section className="lg:col-span-2">
-          <div className="mb-4 flex items-center justify-between gap-3">
+          <div className="mb-4 flex h-8 items-center justify-between gap-3">
             <div className="flex items-baseline gap-2.5">
               <h2 className="text-lg font-semibold tracking-tight">
                 {"Today's Schedule"}
@@ -249,9 +249,11 @@ export function Dashboard() {
 
         {/* Needs Attention — sidebar */}
         <section className="lg:col-span-1">
-          <h2 className="mb-4 text-lg font-semibold tracking-tight">
-            Needs Attention
-          </h2>
+          <div className="mb-4 flex h-8 items-center">
+            <h2 className="text-lg font-semibold tracking-tight">
+              Needs Attention
+            </h2>
+          </div>
 
           {isSummaryError ? (
             <RetryPanel
@@ -359,7 +361,7 @@ function RetryPanel({ message, onRetry, className }: RetryPanelProps) {
 
 function StatRibbonSkeleton() {
   return (
-    <div className="mt-6 grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-border bg-border animate-skeleton-fade-in sm:grid-cols-4">
+    <div className="mt-6 grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-border bg-border sm:grid-cols-4">
       {Array.from({ length: 4 }, (_, i) => (
         <div key={i} className="flex items-baseline gap-2 bg-card px-4 py-3.5">
           <Skeleton className="h-7 w-8" />
@@ -372,7 +374,7 @@ function StatRibbonSkeleton() {
 
 function ScheduleSkeleton() {
   return (
-    <div className="divide-y divide-border overflow-hidden rounded-xl border border-border bg-card animate-skeleton-fade-in">
+    <div className="min-h-56 divide-y divide-border overflow-hidden rounded-xl border border-border bg-card">
       {Array.from({ length: 3 }, (_, i) => (
         <div key={i} className="flex items-center gap-3 px-4 py-3">
           <Skeleton className="h-4 w-14 shrink-0" />

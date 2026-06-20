@@ -27,6 +27,11 @@ import { QueryClientProvider } from "@tanstack/react-query";
 
 import { routeTree } from "./routeTree.gen";
 import { getQueryClient } from "./lib/query";
+import {
+  RouteErrorComponent,
+  RouteNotFoundComponent,
+  RoutePendingComponent,
+} from "./components/route-boundaries";
 
 // oxlint-disable-next-line import/no-unassigned-import
 import "./index.css";
@@ -45,7 +50,10 @@ const router = createRouter({
   defaultPreloadStaleTime: 45_000,
   defaultPendingMs: 220,
   defaultPendingMinMs: 80,
-  defaultViewTransition: false,
+  defaultViewTransition: true,
+  defaultErrorComponent: RouteErrorComponent,
+  defaultPendingComponent: RoutePendingComponent,
+  defaultNotFoundComponent: RouteNotFoundComponent,
 });
 
 // Register the router instance for type safety
