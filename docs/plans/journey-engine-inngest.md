@@ -5,7 +5,7 @@ Scope: replace the hand-rolled durable-execution layer in the journey engine wit
 
 ## Why this document exists
 
-The current engine and the [XState proposal](./journey-engine-xstate.md) both build a durable workflow runner by hand. The current one does it with delivery rows, a reconcile diff, deterministic keys, and per-delivery worker functions. The XState proposal does it with a compiled state machine, a command buffer, an outbox, and a host step-loop. Both treat Inngest as a timer that fires `RESUME` / `scheduleResume` events back at our own machinery.
+The current engine builds a durable workflow runner by hand: delivery rows, a reconcile diff, deterministic keys, and per-delivery worker functions. An earlier rebuild proposal kept that shape and swapped the rows for a compiled state machine with a command buffer, an outbox, and a host step-loop. Both treat Inngest as a timer that fires `RESUME` / `scheduleResume` events back at our own machinery.
 
 This document argues the opposite: Inngest is already a durable-execution engine. It provides durable sleep, wait-for-event, step memoization (exactly-once side effects), automatic retries, and declarative cancellation. We should model a journey run **as an Inngest function** and use those primitives directly, instead of building a second durable runtime on top of the one we already pay for.
 
@@ -85,7 +85,7 @@ inngest.createFunction(
 
 ## What this deletes
 
-- `journey-run-status.ts` — status is the Inngest run status; "status drifted from the rows" stops being representable. (Same win the XState doc claims, without a snapshot machine.)
+- `journey-run-status.ts` — status is the Inngest run status; "status drifted from the rows" stops being representable.
 - `reconcileDeliveries`, `buildDesiredDeliveries`'s scheduling half, `buildDeliveryDeterministicKey`, and the wait-resume / confirmation-timeout delivery machinery in `journey-planner.ts`.
 - The `appointment.confirmed` inline special case and `findPlannedConfirmationTimeoutByJourneyTx`.
 - The worker's cancellation re-check, stale-key check, and the per-delivery dispatch function — sends are steps inside the run function.
@@ -93,14 +93,13 @@ inngest.createFunction(
 
 `journey_deliveries` does not have to disappear — it becomes a *projection* (an audit/observability row written inside each send step), not the scheduling substrate. Run events and step logs stay for the builder overlay.
 
-## Where this differs from the XState proposal
+## Inngest as the runtime, not a timer
 
-Both kill status inference and centralize "how a run advances." The difference is what owns durability:
+The alternative is a hand-built engine that treats Inngest as a timer: a compiled state machine plus a host loop that persists snapshots, drains a command buffer, and needs an outbox row written in the same transaction as the snapshot to get at-least-once delivery. That outbox is `step.run` re-implemented.
 
-- **XState doc:** Inngest is a timer. The engine is a compiled machine; a host loop persists snapshots, drains a command buffer, and needs an outbox row "written in the same transaction as the snapshot" to get at-least-once delivery (its own honest caveat, line 609). That outbox is `step.run` re-implemented.
-- **This doc:** Inngest is the runtime. No snapshot persistence, no command buffer, no outbox — the function's position in its own step log *is* the run state, and `step.run` *is* the outbox-with-exactly-once.
+This doc treats Inngest as the runtime. There is no snapshot persistence, no command buffer, and no outbox; the function's position in its own step log *is* the run state, and `step.run` *is* the outbox-with-exactly-once.
 
-The XState doc optimizes for a portable, framework-free engine you could lift into another app. This optimizes for the smallest correct system in *this* app, by not rebuilding what Inngest guarantees. If portability is a real requirement we can revisit; "assume Inngest operates as expected" says it is not the priority.
+A hand-built engine buys portability: an orchestration core you could lift into another app. This optimizes for the smallest correct system in *this* app, by not rebuilding what Inngest already guarantees. If portability becomes a real requirement we can revisit; "assume Inngest operates as expected" says it is not the priority today.
 
 ## Honest caveats
 

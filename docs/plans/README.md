@@ -11,8 +11,8 @@ This is the canonical place to start implementation work.
 
 ## Decision Docs
 
-1. Journey Engine on XState — rationale for a portable, machine-based rebuild
-   - Doc: [`./journey-engine-xstate.md`](./journey-engine-xstate.md)
+1. Journey Engine on Inngest — model a journey run as a single Inngest function instead of a hand-rolled durable layer
+   - Doc: [`./journey-engine-inngest.md`](./journey-engine-inngest.md)
 
 ## Notes
 
