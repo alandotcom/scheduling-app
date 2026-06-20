@@ -39,13 +39,13 @@
     "typecheck:changed": "turbo run typecheck --filter='...[origin/main]'"
   },
   "devDependencies": {
-    "@biomejs/biome": "2.4.4",
+    "@biomejs/biome": "2.5.0",
     "@typescript/native-preview": "7.0.0-dev.20260223.1",
-    "eslint-plugin-react-hooks": "^7.0.1",
-    "inngest-cli": "^1.17.1",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "inngest-cli": "^1.31.0",
     "knip": "^5.85.0",
-    "oxlint": "^1.50.0",
-    "oxlint-tsgolint": "^0.14.2",
+    "oxlint": "^1.70.0",
+    "oxlint-tsgolint": "^0.23.0",
     "turbo": "^2.9.18",
     "typescript": "catalog:"
   },
