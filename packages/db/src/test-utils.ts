@@ -5,7 +5,7 @@
 
 import { PGlite } from "@electric-sql/pglite";
 import { pg_trgm } from "@electric-sql/pglite/contrib/pg_trgm";
-import { sql } from "drizzle-orm";
+import { sql, type SQL } from "drizzle-orm";
 import type { BunSQLDatabase } from "drizzle-orm/bun-sql/postgres";
 import { drizzle } from "drizzle-orm/pglite";
 import { readdir, readFile } from "node:fs/promises";
@@ -51,8 +51,11 @@ const TRUNCATE_ALL_TABLES_SQL = `
   CASCADE;
 `;
 
-export type TestDatabase = BunSQLDatabase<typeof schema, typeof relations>;
-type TestDbExecutor = Pick<TestDatabase, "execute">;
+export type TestDatabase = BunSQLDatabase<typeof relations>;
+// Setup helpers run against the raw PGlite instance, whose execute() return
+// type differs from BunSQLDatabase under drizzle v1. They only run raw SQL and
+// ignore the result, so a minimal structural executor keeps them driver-agnostic.
+type TestDbExecutor = { execute: (query: SQL) => Promise<unknown> };
 
 const clientsByDb = new WeakMap<TestDatabase, PGlite>();
 
@@ -166,7 +169,7 @@ export async function createTestDb(): Promise<TestDatabase> {
   }
 
   const client = new PGlite({ extensions: { pg_trgm } });
-  const db = drizzle({ client, schema, relations });
+  const db = drizzle({ client, relations });
 
   await ensureTestCompatibility(db);
   await runMigrations(db);

@@ -21,15 +21,10 @@ import {
 } from "../test-utils/index.js";
 import * as appointmentRoutes from "./appointments.js";
 import { appointments } from "@scheduling/db/schema";
-import type { BunSQLDatabase } from "drizzle-orm/bun-sql/postgres";
-import type * as schema from "@scheduling/db/schema";
-import type { relations } from "@scheduling/db/relations";
-
-type Database = BunSQLDatabase<typeof schema, typeof relations>;
 
 describe("Appointment Routes", () => {
   registerDbTestReset("per-file");
-  const db = getTestDb() as Database;
+  const db = getTestDb();
 
   // Helper to create a complete test fixture with availability
   async function createFixtureWithAvailability() {

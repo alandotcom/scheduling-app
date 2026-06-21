@@ -15,15 +15,10 @@ import {
 } from "../test-utils/index.js";
 import * as auditRoutes from "./audit.js";
 import { auditEvents } from "@scheduling/db/schema";
-import type { BunSQLDatabase } from "drizzle-orm/bun-sql/postgres";
-import type * as schema from "@scheduling/db/schema";
-import type { relations } from "@scheduling/db/relations";
-
-type Database = BunSQLDatabase<typeof schema, typeof relations>;
 
 describe("Audit Routes", () => {
   registerDbTestReset("per-file");
-  const db = getTestDb() as Database;
+  const db = getTestDb();
 
   async function insertAuditEvent(options: {
     orgId: string;

@@ -14,15 +14,10 @@ import {
 } from "../test-utils/index.js";
 import * as resourceRoutes from "./resources.js";
 import { resources } from "@scheduling/db/schema";
-import type { BunSQLDatabase } from "drizzle-orm/bun-sql/postgres";
-import type * as schema from "@scheduling/db/schema";
-import type { relations } from "@scheduling/db/relations";
-
-type Database = BunSQLDatabase<typeof schema, typeof relations>;
 
 describe("Resource Routes", () => {
   registerDbTestReset("per-file");
-  const db = getTestDb() as Database;
+  const db = getTestDb();
 
   describe("list", () => {
     test("returns empty list when no resources exist", async () => {

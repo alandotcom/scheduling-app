@@ -1,12 +1,8 @@
 import { createOrg, createCalendar, createAppointmentType } from "./index.js";
 import type { BunSQLDatabase } from "drizzle-orm/bun-sql/postgres";
-import type * as schema from "@scheduling/db/schema";
 import type { relations } from "@scheduling/db/relations";
 
-export type AvailabilityTestDb = BunSQLDatabase<
-  typeof schema,
-  typeof relations
->;
+export type AvailabilityTestDb = BunSQLDatabase<typeof relations>;
 
 export const defaultTimezone = "America/New_York";
 

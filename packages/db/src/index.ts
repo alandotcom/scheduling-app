@@ -3,7 +3,6 @@
 import { drizzle } from "drizzle-orm/bun-sql";
 import type { BunSQLDatabase } from "drizzle-orm/bun-sql/postgres";
 import { SQL } from "bun";
-import * as schema from "./schema/index.js";
 import { relations } from "./relations.js";
 
 // Re-export schema for consumers
@@ -37,8 +36,9 @@ if (process.env["NODE_ENV"] !== "production") {
   globalWithDbClient.__schedulingPackageDbClient = client;
 }
 
-// Create drizzle instance with schema and relations for relational queries
-export const db = drizzle({ client, schema, relations });
+// Create drizzle instance with relations for relational queries.
+// The relations object (from defineRelations) carries the schema tables in v1.
+export const db = drizzle({ client, relations });
 
 // Export types
-export type Database = BunSQLDatabase<typeof schema, typeof relations>;
+export type Database = BunSQLDatabase<typeof relations>;

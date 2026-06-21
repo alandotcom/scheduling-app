@@ -1,8 +1,5 @@
 import { describe, expect, test } from "bun:test";
 import { call } from "@orpc/server";
-import type { BunSQLDatabase } from "drizzle-orm/bun-sql/postgres";
-import type * as schema from "@scheduling/db/schema";
-import type { relations } from "@scheduling/db/relations";
 import { and, eq } from "drizzle-orm";
 import { orgMemberships, users } from "@scheduling/db/schema";
 import {
@@ -15,11 +12,9 @@ import {
 } from "../test-utils/index.js";
 import { orgUserRoutes } from "./org-users.js";
 
-type Database = BunSQLDatabase<typeof schema, typeof relations>;
-
 describe("Org User Routes", () => {
   registerDbTestReset();
-  const db = getTestDb() as Database;
+  const db = getTestDb();
 
   test("list returns members for active organization only", async () => {
     const { org, user: owner } = await createOrg(db, {

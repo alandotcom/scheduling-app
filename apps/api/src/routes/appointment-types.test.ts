@@ -22,15 +22,10 @@ import {
   appointmentTypes,
   appointments,
 } from "@scheduling/db/schema";
-import type { BunSQLDatabase } from "drizzle-orm/bun-sql/postgres";
-import type * as schema from "@scheduling/db/schema";
-import type { relations } from "@scheduling/db/relations";
-
-type Database = BunSQLDatabase<typeof schema, typeof relations>;
 
 describe("Appointment Type Routes", () => {
   registerDbTestReset();
-  const db = getTestDb() as Database;
+  const db = getTestDb();
 
   describe("list", () => {
     test("returns empty list when no appointment types exist", async () => {

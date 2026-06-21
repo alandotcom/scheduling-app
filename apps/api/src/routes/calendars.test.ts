@@ -18,15 +18,10 @@ import {
 } from "../test-utils/index.js";
 import * as calendarRoutes from "./calendars.js";
 import { appointments, calendars } from "@scheduling/db/schema";
-import type { BunSQLDatabase } from "drizzle-orm/bun-sql/postgres";
-import type * as schema from "@scheduling/db/schema";
-import type { relations } from "@scheduling/db/relations";
-
-type Database = BunSQLDatabase<typeof schema, typeof relations>;
 
 describe("Calendar Routes", () => {
   registerDbTestReset("per-file");
-  const db = getTestDb() as Database;
+  const db = getTestDb();
 
   describe("list", () => {
     test("returns empty list when no calendars exist", async () => {

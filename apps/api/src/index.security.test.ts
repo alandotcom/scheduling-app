@@ -1,7 +1,4 @@
 import { afterEach, describe, expect, mock, test } from "bun:test";
-import type { BunSQLDatabase } from "drizzle-orm/bun-sql/postgres";
-import type * as schema from "@scheduling/db/schema";
-import type { relations } from "@scheduling/db/relations";
 import server from "./index.js";
 import { auth } from "./lib/auth.js";
 import {
@@ -11,11 +8,9 @@ import {
   registerDbTestReset,
 } from "./test-utils/index.js";
 
-type Database = BunSQLDatabase<typeof schema, typeof relations>;
-
 describe("OpenAPI API key security", () => {
   registerDbTestReset("per-file");
-  const db = getTestDb() as Database;
+  const db = getTestDb();
   const originalGetSession = auth.api.getSession;
   const originalVerifyApiKey = auth.api.verifyApiKey;
 

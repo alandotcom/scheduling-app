@@ -11,15 +11,10 @@ import {
 } from "../test-utils/index.js";
 import * as customAttributeRoutes from "./custom-attributes.js";
 import { clientRoutes } from "./clients.js";
-import type { BunSQLDatabase } from "drizzle-orm/bun-sql/postgres";
-import type * as schema from "@scheduling/db/schema";
-import type { relations } from "@scheduling/db/relations";
-
-type Database = BunSQLDatabase<typeof schema, typeof relations>;
 
 describe("Custom Attribute Routes", () => {
   registerDbTestReset("per-file");
-  const db = getTestDb() as Database;
+  const db = getTestDb();
 
   describe("listDefinitions", () => {
     test("returns empty list when no definitions exist", async () => {

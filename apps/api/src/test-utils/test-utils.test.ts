@@ -22,15 +22,10 @@ import {
   clearTestOrgContext,
 } from "./index.js";
 import { locations } from "@scheduling/db/schema";
-import type { BunSQLDatabase } from "drizzle-orm/bun-sql/postgres";
-import type * as schema from "@scheduling/db/schema";
-import type { relations } from "@scheduling/db/relations";
-
-type Database = BunSQLDatabase<typeof schema, typeof relations>;
 
 describe("Test Utilities", () => {
   registerDbTestReset("per-file");
-  const db = getTestDb() as Database;
+  const db = getTestDb();
 
   describe("createTestContext", () => {
     test("creates context with required fields", () => {

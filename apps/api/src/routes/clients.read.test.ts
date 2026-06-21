@@ -15,15 +15,10 @@ import {
   registerDbTestReset,
 } from "../test-utils/index.js";
 import * as clientRoutes from "./clients.js";
-import type { BunSQLDatabase } from "drizzle-orm/bun-sql/postgres";
-import type * as schema from "@scheduling/db/schema";
-import type { relations } from "@scheduling/db/relations";
-
-type Database = BunSQLDatabase<typeof schema, typeof relations>;
 
 describe("Client Routes", () => {
   registerDbTestReset("per-file");
-  const db = getTestDb() as Database;
+  const db = getTestDb();
 
   describe("list", () => {
     // The updated-at sorting test below mocks the system clock to control

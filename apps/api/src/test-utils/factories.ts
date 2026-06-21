@@ -6,9 +6,6 @@
 // All factories that insert into RLS-protected tables automatically set
 // the org context before inserting.
 
-import type { BunSQLDatabase } from "drizzle-orm/bun-sql/postgres";
-import type * as schema from "@scheduling/db/schema";
-import type { relations } from "@scheduling/db/relations";
 import {
   orgs,
   users,
@@ -29,10 +26,9 @@ import {
 import {
   setTestOrgContext,
   clearTestOrgContext,
+  type TestDatabase,
 } from "@scheduling/db/test-utils";
 import { createTestContext } from "./context.js";
-
-type Database = BunSQLDatabase<typeof schema, typeof relations>;
 
 // Counter to ensure unique emails within the same millisecond
 let orgCounter = 0;
@@ -42,7 +38,7 @@ let orgCounter = 0;
  * Note: orgs and users are NOT RLS-protected, but org_memberships IS RLS-protected
  */
 export async function createOrg(
-  db: Database,
+  db: TestDatabase,
   options: { name?: string; email?: string; userName?: string } = {},
 ) {
   const [org] = await db
@@ -77,7 +73,7 @@ export async function createOrg(
  * Note: users is NOT RLS-protected, but org_memberships IS RLS-protected
  */
 export async function createOrgMember(
-  db: Database,
+  db: TestDatabase,
   orgId: string,
   options: {
     email?: string;
@@ -108,7 +104,7 @@ export async function createOrgMember(
  * Useful for reducing per-helper context overhead in integration tests.
  */
 export async function insertManyWithOrgContext<T>(
-  db: Database,
+  db: TestDatabase,
   orgId: string,
   fn: () => Promise<T>,
 ): Promise<T> {
@@ -124,7 +120,7 @@ export async function insertManyWithOrgContext<T>(
  * Create an org/user pair and prebuilt route context object.
  */
 export async function createRouteTestContext(
-  db: Database,
+  db: TestDatabase,
   options: { name?: string; email?: string; userName?: string } = {},
 ) {
   const { org, user } = await createOrg(db, options);
@@ -137,7 +133,7 @@ export async function createRouteTestContext(
  * appointment type. Optionally seeds weekday availability.
  */
 export async function createSchedulingFixtureFast(
-  db: Database,
+  db: TestDatabase,
   options: {
     orgName?: string;
     calendarName?: string;
@@ -214,7 +210,7 @@ export async function createSchedulingFixtureFast(
  * Create a location (RLS-protected)
  */
 export async function createLocation(
-  db: Database,
+  db: TestDatabase,
   orgId: string,
   options: { name?: string; timezone?: string } = {},
 ) {
@@ -238,7 +234,7 @@ export async function createLocation(
  * Create a calendar (RLS-protected)
  */
 export async function createCalendar(
-  db: Database,
+  db: TestDatabase,
   orgId: string,
   options: {
     locationId?: string;
@@ -269,7 +265,7 @@ export async function createCalendar(
  * Create an appointment type (RLS-protected)
  */
 export async function createAppointmentType(
-  db: Database,
+  db: TestDatabase,
   orgId: string,
   options: {
     name?: string;
@@ -326,7 +322,7 @@ export async function createAppointmentType(
  * Create a resource (RLS-protected)
  */
 export async function createResource(
-  db: Database,
+  db: TestDatabase,
   orgId: string,
   options: { name?: string; quantity?: number; locationId?: string } = {},
 ) {
@@ -351,7 +347,7 @@ export async function createResource(
  * Create a client (RLS-protected)
  */
 export async function createClient(
-  db: Database,
+  db: TestDatabase,
   orgId: string,
   options: {
     firstName?: string;
@@ -384,7 +380,7 @@ export async function createClient(
  * Create an appointment (RLS-protected)
  */
 export async function createAppointment(
-  db: Database,
+  db: TestDatabase,
   orgId: string,
   options: {
     calendarId: string;
@@ -424,7 +420,7 @@ export async function createAppointment(
  * Note: availability_rules are NOT RLS-protected (calendar-scoped)
  */
 export async function createAvailabilityRule(
-  db: Database,
+  db: TestDatabase,
   calendarId: string,
   options: {
     weekday: number; // 0-6 (Sun-Sat)
@@ -452,7 +448,7 @@ export async function createAvailabilityRule(
  * Note: availability_overrides are NOT RLS-protected (calendar-scoped)
  */
 export async function createAvailabilityOverride(
-  db: Database,
+  db: TestDatabase,
   calendarId: string,
   options: {
     date: string; // YYYY-MM-DD
@@ -478,7 +474,7 @@ export async function createAvailabilityOverride(
  * Note: blocked_time is NOT RLS-protected (calendar-scoped)
  */
 export async function createBlockedTime(
-  db: Database,
+  db: TestDatabase,
   calendarId: string,
   options: {
     startAt: Date;
@@ -504,7 +500,7 @@ export async function createBlockedTime(
  * Note: scheduling_limits is NOT RLS-protected (calendar-scoped)
  */
 export async function createSchedulingLimits(
-  db: Database,
+  db: TestDatabase,
   orgId: string,
   options: {
     calendarId?: string;
@@ -538,7 +534,7 @@ export async function createSchedulingLimits(
  * Sets org context internally.
  */
 export async function createQuickAppointment(
-  db: Database,
+  db: TestDatabase,
   orgId: string,
 ): Promise<string> {
   await setTestOrgContext(db, orgId);
@@ -583,7 +579,7 @@ export async function createQuickAppointment(
  * Useful for integration tests that need a full setup
  */
 export async function createTestFixture(
-  db: Database,
+  db: TestDatabase,
   options: {
     orgName?: string;
     locationName?: string;

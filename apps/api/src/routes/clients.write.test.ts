@@ -19,15 +19,10 @@ import {
 import * as clientRoutes from "./clients.js";
 import * as customAttributeRoutes from "./custom-attributes.js";
 import { appointments, clients } from "@scheduling/db/schema";
-import type { BunSQLDatabase } from "drizzle-orm/bun-sql/postgres";
-import type * as schema from "@scheduling/db/schema";
-import type { relations } from "@scheduling/db/relations";
-
-type Database = BunSQLDatabase<typeof schema, typeof relations>;
 
 describe("Client Routes", () => {
   registerDbTestReset("per-file");
-  const db = getTestDb() as Database;
+  const db = getTestDb();
 
   describe("create", () => {
     test("creates a new client", async () => {

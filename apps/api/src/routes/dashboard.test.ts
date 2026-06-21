@@ -12,17 +12,12 @@ import {
   registerDbTestReset,
 } from "../test-utils/index.js";
 import { summary } from "./dashboard.js";
-import type { BunSQLDatabase } from "drizzle-orm/bun-sql/postgres";
-import type * as schema from "@scheduling/db/schema";
-import type { relations } from "@scheduling/db/relations";
-
-type Database = BunSQLDatabase<typeof schema, typeof relations>;
 
 const DASHBOARD_TZ = "America/New_York";
 
 describe("Dashboard Routes", () => {
   registerDbTestReset("per-file");
-  const db = getTestDb() as Database;
+  const db = getTestDb();
 
   test("returns accurate summary counts for the org and date window", async () => {
     const { org, user } = await createOrg(db);

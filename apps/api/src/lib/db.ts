@@ -5,7 +5,6 @@ import type { BunSQLDatabase } from "drizzle-orm/bun-sql/postgres";
 import { SQL } from "bun";
 import { sql } from "drizzle-orm";
 import { getLogger } from "@logtape/logtape";
-import * as schema from "@scheduling/db/schema";
 import { relations } from "@scheduling/db/relations";
 import { config } from "../config.js";
 import { getApiTestDbOverride } from "./test-db-runtime.js";
@@ -37,7 +36,7 @@ if (isDev) {
 }
 
 // Export types
-export type Database = BunSQLDatabase<typeof schema, typeof relations>;
+export type Database = BunSQLDatabase<typeof relations>;
 export type DbTransaction = Parameters<
   Parameters<Database["transaction"]>[0]
 >[0];
@@ -52,7 +51,6 @@ export type OrgScopedTx = DbClient & { readonly [orgScopedBrand]: true };
 function createDefaultDb(): Database {
   return drizzle({
     client,
-    schema,
     relations,
     logger: isDev
       ? {

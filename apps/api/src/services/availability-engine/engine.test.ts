@@ -30,18 +30,14 @@ import {
   resources,
   appointmentTypeResources,
 } from "@scheduling/db/schema";
-import type { BunSQLDatabase } from "drizzle-orm/bun-sql/postgres";
-import type * as schema from "@scheduling/db/schema";
-import type { relations } from "@scheduling/db/relations";
 import { availabilityService } from "./engine.js";
 import type { ServiceContext } from "../locations.js";
 
 // Cast to the type the service expects
-type Database = BunSQLDatabase<typeof schema, typeof relations>;
 
 describe("AvailabilityService", () => {
   registerDbTestReset();
-  const db = getTestDb() as Database;
+  const db = getTestDb();
   let org: { id: string; name: string };
   let user: { id: string };
   let location: { id: string };
