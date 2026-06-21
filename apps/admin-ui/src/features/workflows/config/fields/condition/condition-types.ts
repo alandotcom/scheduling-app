@@ -56,9 +56,7 @@ export function toConditionFilterSourceKey(
   return filter ? JSON.stringify(filter) : EMPTY_CONDITION_FILTER_SOURCE_KEY;
 }
 
-function toConditionFilterDraft(
-  value: unknown,
-): ConditionFilterDraft | null {
+function toConditionFilterDraft(value: unknown): ConditionFilterDraft | null {
   const parsed = journeyTriggerFilterAstSchema.safeParse(value);
   if (!parsed.success) {
     return null;
