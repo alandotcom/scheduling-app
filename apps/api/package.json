@@ -26,7 +26,7 @@
   },
   "dependencies": {
     "@ai-sdk/gateway": "^3.0.133",
-    "@better-auth/api-key": "^1.6.19",
+    "@better-auth/api-key": "^1.6.20",
     "@logtape/logtape": "catalog:",
     "@marcbachmann/cel-js": "^7.6.1",
     "@orpc/openapi": "^1.14.6",
@@ -35,7 +35,7 @@
     "@scheduling/db": "workspace:*",
     "@scheduling/dto": "workspace:*",
     "ai": "^6.0.208",
-    "better-auth": "^1.6.19",
+    "better-auth": "^1.6.20",
     "drizzle-orm": "catalog:",
     "es-toolkit": "^1.47.1",
     "hono": "^4.12.26",
@@ -53,12 +53,12 @@
     "zod": "catalog:"
   },
   "devDependencies": {
-    "@electric-sql/pglite": "^0.3.16",
+    "@electric-sql/pglite": "^0.5.3",
     "@faker-js/faker": "^10.5.0",
     "@inngest/test": "^1.0.0",
     "@types/bun": "catalog:",
-    "@types/luxon": "^3.7.1",
-    "autoevals": "^0.0.132",
+    "@types/luxon": "^3.7.2",
+    "autoevals": "^0.3.0",
     "better-sqlite3": "11.10.0",
     "evalite": "1.0.0-beta.16",
     "typescript": "catalog:",
