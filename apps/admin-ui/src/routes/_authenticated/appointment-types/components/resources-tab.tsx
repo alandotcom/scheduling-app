@@ -324,10 +324,11 @@ export function ResourcesTab({
         <Button
           size="sm"
           onClick={handleAdd}
+          loading={isAddPending}
           disabled={!selectedResourceId || isAddPending}
         >
           <Icon icon={Add01Icon} data-icon="inline-start" />
-          {isAddPending ? "Adding..." : "Add"}
+          Add
         </Button>
       </div>
 

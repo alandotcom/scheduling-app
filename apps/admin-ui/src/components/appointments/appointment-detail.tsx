@@ -51,7 +51,6 @@ import {
   toRunStatusLabel,
 } from "@/features/workflows/workflow-runs-helpers";
 import { useModalFieldShortcuts } from "@/hooks/use-modal-field-shortcuts";
-import { useBufferedPending } from "@/hooks/use-buffered-pending";
 import { useResetFormOnOpen } from "@/hooks/use-reset-form-on-open";
 import { useSubmitShortcut } from "@/hooks/use-submit-shortcut";
 import {
@@ -252,8 +251,6 @@ export function AppointmentDetail({
       },
     }),
   );
-  const showUpdatePendingVisual = useBufferedPending(updateMutation.isPending);
-  const showNoShowPendingVisual = useBufferedPending(noShowMutation.isPending);
 
   const isActionable =
     appointment?.status === "scheduled" || appointment?.status === "confirmed";
@@ -441,12 +438,9 @@ export function AppointmentDetail({
                     type="submit"
                     size="sm"
                     form={`appointment-notes-form-${appointment.id}`}
-                    disabled={updateMutation.isPending}
-                    className={
-                      updateMutation.isPending ? "disabled:opacity-100" : ""
-                    }
+                    loading={updateMutation.isPending}
                   >
-                    {showUpdatePendingVisual ? "Saving..." : "Save Notes"}
+                    Save Notes
                     <ShortcutBadge
                       shortcut="meta+enter"
                       className="ml-2 hidden sm:inline-flex"
@@ -472,15 +466,13 @@ export function AppointmentDetail({
                         variant="outline"
                         size="sm"
                         onClick={() => setShowConfirmDialog(true)}
-                        disabled={confirmMutation.isPending}
+                        loading={confirmMutation.isPending}
                       >
                         <Icon
                           icon={CheckmarkCircle01Icon}
                           data-icon="inline-start"
                         />
-                        {confirmMutation.isPending
-                          ? "Confirming..."
-                          : "Confirm"}
+                        Confirm
                       </Button>
                     )}
                     <Button
@@ -648,8 +640,9 @@ export function AppointmentDetail({
             <AlertDialogCancel>Keep Scheduled</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => confirmMutation.mutate({ id: appointment.id })}
+              loading={confirmMutation.isPending}
             >
-              {confirmMutation.isPending ? "Confirming..." : "Confirm"}
+              Confirm
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -669,10 +662,9 @@ export function AppointmentDetail({
             <AlertDialogCancel>Keep Appointment</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => cancelMutation.mutate({ id: appointment.id })}
+              loading={cancelMutation.isPending}
             >
-              {cancelMutation.isPending
-                ? "Cancelling..."
-                : "Cancel Appointment"}
+              Cancel Appointment
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -691,8 +683,9 @@ export function AppointmentDetail({
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => noShowMutation.mutate({ id: appointment.id })}
+              loading={noShowMutation.isPending}
             >
-              {showNoShowPendingVisual ? "Saving..." : "Mark as No-Show"}
+              Mark as No-Show
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

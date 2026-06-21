@@ -3,7 +3,7 @@
 import * as React from "react";
 import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
 import { Cancel01Icon } from "@hugeicons/core-free-icons";
-import { cn } from "@/lib/utils";
+import { cn, overlayClassName } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
 import { TabsContext, useTabs } from "@/components/ui/tabs-context";
@@ -44,7 +44,8 @@ export function DrawerContent({
     <DialogPrimitive.Portal>
       <DialogPrimitive.Backdrop
         className={cn(
-          "fixed inset-0 z-50 bg-black/15 md:backdrop-blur-sm",
+          "fixed inset-0 z-50",
+          overlayClassName,
           "data-open:animate-in data-closed:animate-out",
           "data-closed:fade-out-0 data-open:fade-in-0",
           "duration-100",

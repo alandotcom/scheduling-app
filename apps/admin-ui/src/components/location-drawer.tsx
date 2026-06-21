@@ -42,7 +42,6 @@ import {
 } from "@/components/ui/select";
 import { DeleteConfirmDialog } from "@/components/delete-confirm-dialog";
 import { useModalFieldShortcuts } from "@/hooks/use-modal-field-shortcuts";
-import { useBufferedPending } from "@/hooks/use-buffered-pending";
 import { useResetFormOnOpen } from "@/hooks/use-reset-form-on-open";
 import { useSubmitShortcut } from "@/hooks/use-submit-shortcut";
 
@@ -98,7 +97,6 @@ export function LocationDrawer({
       },
     }),
   );
-  const showUpdatePendingVisual = useBufferedPending(updateMutation.isPending);
 
   // Delete mutation
   const deleteMutation = useMutation(
@@ -358,14 +356,9 @@ export function LocationDrawer({
                     type="submit"
                     form={formId}
                     size="sm"
-                    disabled={updateMutation.isPending}
-                    className={
-                      updateMutation.isPending
-                        ? "disabled:opacity-100"
-                        : undefined
-                    }
+                    loading={updateMutation.isPending}
                   >
-                    {showUpdatePendingVisual ? "Saving..." : "Save Changes"}
+                    Save Changes
                   </Button>
                 </div>
               )}

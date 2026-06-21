@@ -36,7 +36,6 @@ import { DeleteConfirmDialog } from "@/components/delete-confirm-dialog";
 import { EntityModal } from "@/components/entity-modal";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { useBufferedPending } from "@/hooks/use-buffered-pending";
 import { Icon } from "@/components/ui/icon";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -485,10 +484,10 @@ function CreateEndpointModal({
           <Button
             type="button"
             size="sm"
-            disabled={createMutation.isPending}
+            loading={createMutation.isPending}
             onClick={onSubmit}
           >
-            {createMutation.isPending ? "Creating..." : "Create endpoint"}
+            Create endpoint
           </Button>
         </div>
       }
@@ -1146,7 +1145,6 @@ function EditEndpointEventsModal({
   const eventTypes = useEventTypes({ limit: 100 });
   const [selected, setSelected] = useState<string[]>(currentFilterTypes);
   const [isSaving, setIsSaving] = useState(false);
-  const showSavingVisual = useBufferedPending(isSaving);
 
   // Reset selection when modal opens
   const prevOpen = useState(open)[0];
@@ -1193,14 +1191,8 @@ function EditEndpointEventsModal({
           >
             Cancel
           </Button>
-          <Button
-            type="button"
-            size="sm"
-            disabled={isSaving}
-            onClick={onSave}
-            className={isSaving ? "disabled:opacity-100" : undefined}
-          >
-            {showSavingVisual ? "Saving..." : "Save"}
+          <Button type="button" size="sm" loading={isSaving} onClick={onSave}>
+            Save
           </Button>
         </div>
       }

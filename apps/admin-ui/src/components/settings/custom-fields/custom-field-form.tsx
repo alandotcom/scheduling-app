@@ -12,7 +12,6 @@ import {
 } from "@scheduling/dto";
 
 import { Button } from "@/components/ui/button";
-import { useBufferedPending } from "@/hooks/use-buffered-pending";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Icon } from "@/components/ui/icon";
 import { Input } from "@/components/ui/input";
@@ -555,9 +554,10 @@ function CreateFieldForm({
         <Button
           type="submit"
           size="sm"
+          loading={isSubmitting}
           disabled={isSubmitting || !!slotWarning}
         >
-          {isSubmitting ? "Creating..." : "Create field"}
+          Create field
         </Button>
       </div>
     </form>
@@ -575,7 +575,6 @@ function EditFieldForm({
   onCancel: () => void;
   isSubmitting: boolean;
 }) {
-  const showSubmittingVisual = useBufferedPending(isSubmitting);
   const showOptions =
     defaultValues?.type === "SELECT" || defaultValues?.type === "MULTI_SELECT";
   const isRelationType = defaultValues?.type === "RELATION_CLIENT";
@@ -718,13 +717,8 @@ function EditFieldForm({
         >
           Cancel
         </Button>
-        <Button
-          type="submit"
-          size="sm"
-          disabled={isSubmitting}
-          className={isSubmitting ? "disabled:opacity-100" : undefined}
-        >
-          {showSubmittingVisual ? "Saving..." : "Save changes"}
+        <Button type="submit" size="sm" loading={isSubmitting}>
+          Save changes
         </Button>
       </div>
     </form>

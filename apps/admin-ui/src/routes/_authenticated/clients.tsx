@@ -39,7 +39,6 @@ import { Input } from "@/components/ui/input";
 import { PageScaffold } from "@/components/layout/page-scaffold";
 import { MobileActionBar } from "@/components/mobile-action-bar";
 import { useCrudState } from "@/hooks/use-crud-state";
-import { useBufferedPending } from "@/hooks/use-buffered-pending";
 import { useCreateDraft, useResetCreateDraft } from "@/hooks/use-create-draft";
 import { useCreateIntentTrigger } from "@/hooks/use-create-intent";
 import {
@@ -450,9 +449,6 @@ function ClientsPage() {
       },
     }),
   );
-  const showCreatePendingVisual = useBufferedPending(createMutation.isPending);
-  const showUpdatePendingVisual = useBufferedPending(updateMutation.isPending);
-
   const handleCreate = (formData: CreateClientInput) => {
     createMutation.mutate(sanitizeClientMutationInput(formData));
   };
@@ -791,14 +787,10 @@ function ClientsPage() {
                   type="submit"
                   size="sm"
                   form={detailFormId}
+                  loading={updateMutation.isPending}
                   disabled={updateMutation.isPending || !isDetailFormDirty}
-                  className={
-                    updateMutation.isPending
-                      ? "disabled:opacity-100"
-                      : undefined
-                  }
                 >
-                  {showUpdatePendingVisual ? "Saving..." : "Save"}
+                  Save
                 </Button>
               </div>
             </div>
@@ -1180,12 +1172,9 @@ function ClientsPage() {
               type="submit"
               size="sm"
               form={createClientFormId}
-              disabled={createMutation.isPending}
-              className={
-                createMutation.isPending ? "disabled:opacity-100" : undefined
-              }
+              loading={createMutation.isPending}
             >
-              {showCreatePendingVisual ? "Saving..." : "Save"}
+              Save
             </Button>
           </div>
         }

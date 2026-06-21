@@ -144,8 +144,8 @@ export function CreateWorkflowDialog({
           </div>
           <AlertDialogFooter className="mt-6">
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction type="submit">
-              {createMutation.isPending ? "Creating…" : "Create"}
+            <AlertDialogAction type="submit" loading={createMutation.isPending}>
+              Create
             </AlertDialogAction>
           </AlertDialogFooter>
         </form>

@@ -16,7 +16,6 @@ import {
   EntityListLoadingState,
 } from "@/components/entity-list";
 import { PageScaffold } from "@/components/layout/page-scaffold";
-import { MobileActionBar } from "@/components/mobile-action-bar";
 import { CreateWorkflowDialog } from "@/features/workflows/create-workflow-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -653,7 +652,6 @@ export function WorkflowListPage({
         open={isCreateDialogOpen}
         onOpenChange={setIsCreateDialogOpen}
       />
-      <MobileActionBar />
     </PageScaffold>
   );
 }

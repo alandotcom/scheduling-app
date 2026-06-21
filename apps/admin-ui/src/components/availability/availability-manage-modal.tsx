@@ -4,7 +4,7 @@ import { Cancel01Icon } from "@hugeicons/core-free-icons";
 
 import { formatTimezoneShort } from "@/lib/date-utils";
 import { MOBILE_FIRST_MODAL_CONTENT_CLASS } from "@/lib/modal";
-import { cn } from "@/lib/utils";
+import { cn, overlayClassName } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
 import { AvailabilitySubTabs } from "@/components/availability/availability-sub-tabs";
@@ -44,7 +44,8 @@ export function AvailabilityManageModal({
         <DialogPrimitive.Backdrop
           data-slot="availability-manage-modal-backdrop"
           className={cn(
-            "fixed inset-0 z-[70] bg-black/60 md:backdrop-blur-sm",
+            "fixed inset-0 z-[70]",
+            overlayClassName,
             "data-open:animate-in data-closed:animate-out",
             "data-closed:fade-out-0 data-open:fade-in-0",
             "duration-200",

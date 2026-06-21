@@ -17,7 +17,7 @@ import {
   UserGroup02Icon,
   Settings01Icon,
 } from "@hugeicons/core-free-icons";
-import { cn } from "@/lib/utils";
+import { cn, overlayClassName } from "@/lib/utils";
 import { formatShortcut } from "@/lib/shortcuts";
 import { Icon } from "@/components/ui/icon";
 import { ShortcutBadge } from "@/components/ui/shortcut-badge";
@@ -345,7 +345,8 @@ export function CommandPalette() {
       <DialogPrimitive.Portal>
         <DialogPrimitive.Backdrop
           className={cn(
-            "fixed inset-0 z-50 bg-black/35 md:backdrop-blur-[2px]",
+            "fixed inset-0 z-50",
+            overlayClassName,
             "data-open:animate-in data-closed:animate-out",
             "data-closed:fade-out-0 data-open:fade-in-0",
             "duration-200",

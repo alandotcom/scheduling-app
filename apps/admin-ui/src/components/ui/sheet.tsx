@@ -4,7 +4,7 @@ import * as React from "react";
 import { Dialog as SheetPrimitive } from "@base-ui/react/dialog";
 import { Cancel01Icon } from "@hugeicons/core-free-icons";
 
-import { cn } from "@/lib/utils";
+import { cn, overlayClassName } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
 
@@ -29,7 +29,8 @@ function SheetOverlay({ className, ...props }: SheetPrimitive.Backdrop.Props) {
     <SheetPrimitive.Backdrop
       data-slot="sheet-overlay"
       className={cn(
-        "data-open:animate-in data-closed:animate-out data-closed:fade-out-0 data-open:fade-in-0 bg-black/15 duration-100 data-ending-style:opacity-0 data-starting-style:opacity-0 fixed inset-0 z-50 md:backdrop-blur-sm",
+        "data-open:animate-in data-closed:animate-out data-closed:fade-out-0 data-open:fade-in-0 duration-100 data-ending-style:opacity-0 data-starting-style:opacity-0 fixed inset-0 z-50",
+        overlayClassName,
         className,
       )}
       {...props}

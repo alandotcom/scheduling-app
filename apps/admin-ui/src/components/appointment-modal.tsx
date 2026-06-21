@@ -29,7 +29,7 @@ import {
 } from "@/lib/scheduling-timezone";
 import { MOBILE_FIRST_MODAL_CONTENT_CLASS } from "@/lib/modal";
 import { resolveSelectValueLabel } from "@/lib/select-value-label";
-import { cn } from "@/lib/utils";
+import { cn, overlayClassName } from "@/lib/utils";
 import { AvailabilityCalendarPicker } from "@/components/appointments/availability-calendar-picker";
 import { ClientForm } from "@/components/clients/client-form";
 import { TimeDisplayToggle } from "@/components/appointments/time-display-toggle";
@@ -50,7 +50,6 @@ import { FieldShortcutHint } from "@/components/ui/field-shortcut-hint";
 import { useModalFieldShortcuts } from "@/hooks/use-modal-field-shortcuts";
 import { useCreateDraft } from "@/hooks/use-create-draft";
 import { useSubmitShortcut } from "@/hooks/use-submit-shortcut";
-import { useBufferedPending } from "@/hooks/use-buffered-pending";
 
 interface AppointmentModalProps {
   open: boolean;
@@ -279,9 +278,6 @@ export function AppointmentModal({
         toast.error(mutationError.message || "Failed to create client");
       },
     }),
-  );
-  const showCreateClientPendingVisual = useBufferedPending(
-    createClientMutation.isPending,
   );
 
   // Fetch available time slots for visible month
@@ -553,7 +549,8 @@ export function AppointmentModal({
           <DialogPrimitive.Backdrop
             data-slot="appointment-modal-backdrop"
             className={cn(
-              "fixed inset-0 z-50 bg-black/50 md:backdrop-blur-sm",
+              "fixed inset-0 z-50",
+              overlayClassName,
               "data-open:animate-in data-closed:animate-out",
               "data-closed:fade-out-0 data-open:fade-in-0",
               "duration-200",
@@ -769,7 +766,12 @@ export function AppointmentModal({
                         }}
                       >
                         <DialogPrimitive.Portal>
-                          <DialogPrimitive.Backdrop className="fixed inset-0 z-[60] bg-black/50" />
+                          <DialogPrimitive.Backdrop
+                            className={cn(
+                              "fixed inset-0 z-[60]",
+                              overlayClassName,
+                            )}
+                          />
                           <DialogPrimitive.Popup
                             className="fixed inset-0 z-[60] flex flex-col bg-background"
                             onKeyDown={(e) => {
@@ -1100,12 +1102,11 @@ export function AppointmentModal({
                   </Button>
                   <Button
                     onClick={handleSubmit}
+                    loading={createMutation.isPending}
                     disabled={!canBook || createMutation.isPending}
                     className="w-full sm:w-auto"
                   >
-                    {createMutation.isPending
-                      ? "Booking..."
-                      : "Book Appointment"}
+                    Book Appointment
                   </Button>
                 </div>
               </div>
@@ -1147,14 +1148,9 @@ export function AppointmentModal({
               type="submit"
               size="sm"
               form={createClientFormId}
-              disabled={createClientMutation.isPending}
-              className={
-                createClientMutation.isPending
-                  ? "disabled:opacity-100"
-                  : undefined
-              }
+              loading={createClientMutation.isPending}
             >
-              {showCreateClientPendingVisual ? "Saving..." : "Save"}
+              Save
             </Button>
           </div>
         }

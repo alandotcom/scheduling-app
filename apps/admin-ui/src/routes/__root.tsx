@@ -711,15 +711,15 @@ function RootLayout() {
       />
 
       <SidebarInset>
-        <header className="sticky top-0 z-10 flex h-14 items-center justify-between border-b border-border bg-background px-4 shrink-0 lg:px-6">
-          <div className="flex min-w-0 items-center gap-3">
+        <header className="sticky top-0 z-10 flex h-14 items-center gap-3 border-b border-border bg-background px-4 shrink-0 lg:px-6">
+          <div className="flex min-w-0 flex-1 items-center gap-3">
             <SidebarTrigger aria-label="Toggle navigation menu">
               <Icon icon={Menu01Icon} className="size-5" />
             </SidebarTrigger>
             <HeaderBreadcrumb items={headerBreadcrumbItems} />
           </div>
 
-          {/* Search + Create */}
+          {/* Search + Create + Assistant */}
           <div className="hidden items-center gap-2 lg:flex">
             <button
               type="button"
@@ -731,10 +731,15 @@ function RootLayout() {
               <ShortcutBadge shortcut="meta+k" className="ml-4" />
             </button>
             <CreateMenu />
+            {activeOrganizationId ? <AssistantLauncher /> : null}
           </div>
 
           {/* Right side */}
           <div className="flex items-center gap-3">
+            <div
+              aria-hidden="true"
+              className="hidden h-5 w-px bg-border lg:block"
+            />
             <div className="hidden min-w-0 text-right lg:block">
               {isResolvingActiveOrganization ? (
                 <div className="animate-skeleton-fade-in">
@@ -755,6 +760,11 @@ function RootLayout() {
                 </>
               )}
             </div>
+            {activeOrganizationId ? (
+              <div className="lg:hidden">
+                <AssistantLauncher compact />
+              </div>
+            ) : null}
             <div className="lg:hidden">
               <UserMenu
                 userName={user?.name}
@@ -888,7 +898,6 @@ function RootLayout() {
 
       <Toaster richColors position="top-right" />
       <CommandPalette />
-      {activeOrganizationId ? <AssistantLauncher /> : null}
       <ShortcutsHelpDialog
         open={shortcutsHelpOpen}
         onOpenChange={setShortcutsHelpOpen}
@@ -991,12 +1000,11 @@ function OrganizationSelectionScreen({
                 type="button"
                 variant="outline"
                 className="w-full justify-start"
+                loading={selectingOrganizationId === organization.id}
                 disabled={isSelectingOrganization || isCreatingOrganization}
                 onClick={() => void onSelectOrganization(organization.id)}
               >
-                {selectingOrganizationId === organization.id
-                  ? "Switching…"
-                  : organization.name}
+                {organization.name}
               </Button>
             ))
           )}
@@ -1047,9 +1055,10 @@ function OrganizationSelectionScreen({
               )}
               <Button
                 type="submit"
+                loading={isCreatingOrganization}
                 disabled={isCreatingOrganization || isSelectingOrganization}
               >
-                {isCreatingOrganization ? "Creating…" : "Create organization"}
+                Create organization
               </Button>
             </div>
           </form>
@@ -1075,7 +1084,7 @@ function OrganizationSelectionScreen({
           type="button"
           variant="ghost"
           className="mt-4 w-full text-destructive hover:text-destructive"
-          disabled={isSigningOut}
+          loading={isSigningOut}
           onClick={async () => {
             setIsSigningOut(true);
             try {
@@ -1086,7 +1095,7 @@ function OrganizationSelectionScreen({
           }}
         >
           <Icon icon={Logout01Icon} data-icon="inline-start" />
-          {isSigningOut ? "Signing out…" : "Sign out"}
+          Sign out
         </Button>
       </div>
     </div>

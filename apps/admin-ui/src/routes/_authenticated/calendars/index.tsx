@@ -69,7 +69,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useCrudState } from "@/hooks/use-crud-state";
-import { useBufferedPending } from "@/hooks/use-buffered-pending";
 import { useCreateDraft, useResetCreateDraft } from "@/hooks/use-create-draft";
 import { useCreateIntentTrigger } from "@/hooks/use-create-intent";
 import {
@@ -171,7 +170,6 @@ function CalendarForm({
   onDirtyChange,
 }: CalendarFormProps) {
   const formRef = useRef<HTMLFormElement>(null);
-  const showSubmittingVisual = useBufferedPending(isSubmitting);
   const {
     register,
     handleSubmit,
@@ -425,10 +423,10 @@ function CalendarForm({
             <Button
               type="submit"
               size="sm"
+              loading={isSubmitting}
               disabled={isSubmitting || (disableSubmitWhenPristine && !isDirty)}
-              className={isSubmitting ? "disabled:opacity-100" : undefined}
             >
-              {showSubmittingVisual ? "Saving..." : "Save"}
+              Save
             </Button>
           </div>
         </div>
@@ -978,8 +976,6 @@ function CalendarsPage() {
   );
   const createSavePending =
     createMutation.isPending || setWeeklyAvailabilityMutation.isPending;
-  const showCreatePendingVisual = useBufferedPending(createSavePending);
-  const showUpdatePendingVisual = useBufferedPending(updateMutation.isPending);
 
   const locations = locationsData?.items ?? [];
 
@@ -1157,13 +1153,13 @@ function CalendarsPage() {
               type="submit"
               size="sm"
               form={CALENDAR_CREATE_FORM_ID}
+              loading={createSavePending}
               disabled={
                 createMutation.isPending ||
                 setWeeklyAvailabilityMutation.isPending
               }
-              className={createSavePending ? "disabled:opacity-100" : undefined}
             >
-              {showCreatePendingVisual ? "Saving..." : "Save"}
+              Save
             </Button>
           </div>
         }
@@ -1230,14 +1226,10 @@ function CalendarsPage() {
                   type="submit"
                   size="sm"
                   form={detailFormId}
+                  loading={updateMutation.isPending}
                   disabled={updateMutation.isPending || !isDetailFormDirty}
-                  className={
-                    updateMutation.isPending
-                      ? "disabled:opacity-100"
-                      : undefined
-                  }
                 >
-                  {showUpdatePendingVisual ? "Saving..." : "Save"}
+                  Save
                 </Button>
               </div>
             </div>

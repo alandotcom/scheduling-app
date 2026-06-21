@@ -68,7 +68,6 @@ import {
 } from "@/hooks/use-keyboard-shortcuts";
 import { useClosingSnapshot } from "@/hooks/use-closing-snapshot";
 import { useCreateIntentTrigger } from "@/hooks/use-create-intent";
-import { useBufferedPending } from "@/hooks/use-buffered-pending";
 import { useUrlDrivenModal } from "@/hooks/use-url-driven-modal";
 import { useValidateSelection } from "@/hooks/use-selection-search-params";
 import {
@@ -573,7 +572,6 @@ function AppointmentsPage() {
       },
     }),
   );
-  const showNoShowPendingVisual = useBufferedPending(noShowMutation.isPending);
 
   const calendarFilterLabel = resolveSelectValueLabel({
     value: filters.calendarId || "all",
@@ -1424,8 +1422,11 @@ function AppointmentsPage() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Keep Scheduled</AlertDialogCancel>
-            <AlertDialogAction onClick={handleConfirm}>
-              {confirmMutation.isPending ? "Confirming..." : "Confirm"}
+            <AlertDialogAction
+              onClick={handleConfirm}
+              loading={confirmMutation.isPending}
+            >
+              Confirm
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -1457,10 +1458,11 @@ function AppointmentsPage() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Keep Original Time</AlertDialogCancel>
-            <AlertDialogAction onClick={handleCalendarRescheduleConfirm}>
-              {calendarRescheduleMutation.isPending
-                ? "Rescheduling..."
-                : "Reschedule"}
+            <AlertDialogAction
+              onClick={handleCalendarRescheduleConfirm}
+              loading={calendarRescheduleMutation.isPending}
+            >
+              Reschedule
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -1481,10 +1483,11 @@ function AppointmentsPage() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Keep Appointment</AlertDialogCancel>
-            <AlertDialogAction onClick={handleCancel}>
-              {cancelMutation.isPending
-                ? "Cancelling..."
-                : "Cancel Appointment"}
+            <AlertDialogAction
+              onClick={handleCancel}
+              loading={cancelMutation.isPending}
+            >
+              Cancel Appointment
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -1501,8 +1504,11 @@ function AppointmentsPage() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleNoShow}>
-              {showNoShowPendingVisual ? "Saving..." : "Mark as No-Show"}
+            <AlertDialogAction
+              onClick={handleNoShow}
+              loading={noShowMutation.isPending}
+            >
+              Mark as No-Show
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

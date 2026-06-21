@@ -5,7 +5,7 @@ import { Cancel01Icon } from "@hugeicons/core-free-icons";
 import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
 import { MOBILE_FIRST_MODAL_CONTENT_CLASS } from "@/lib/modal";
-import { cn } from "@/lib/utils";
+import { cn, overlayClassName } from "@/lib/utils";
 
 interface EntityModalProps {
   open: boolean;
@@ -52,7 +52,8 @@ export function EntityModal({
         <DialogPrimitive.Backdrop
           data-slot="entity-modal-backdrop"
           className={cn(
-            "fixed inset-0 z-50 bg-black/40",
+            "fixed inset-0 z-50",
+            overlayClassName,
             "data-open:animate-in data-closed:animate-out",
             "data-closed:fade-out-0 data-open:fade-in-0",
             "duration-200",

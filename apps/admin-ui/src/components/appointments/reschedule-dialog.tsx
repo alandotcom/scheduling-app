@@ -10,7 +10,7 @@ import type { AppointmentWithRelations } from "@scheduling/dto";
 
 import { orpc } from "@/lib/query";
 import { MOBILE_FIRST_MODAL_CONTENT_CLASS } from "@/lib/modal";
-import { cn } from "@/lib/utils";
+import { cn, overlayClassName } from "@/lib/utils";
 import {
   formatDateWithWeekday,
   formatTimezoneShort,
@@ -186,7 +186,8 @@ export function RescheduleDialog({
         <DialogPrimitive.Portal>
           <DialogPrimitive.Backdrop
             className={cn(
-              "fixed inset-0 z-50 bg-black/50 md:backdrop-blur-sm",
+              "fixed inset-0 z-50",
+              overlayClassName,
               "data-open:animate-in data-closed:animate-out",
               "data-closed:fade-out-0 data-open:fade-in-0",
               "duration-200",
@@ -330,11 +331,10 @@ export function RescheduleDialog({
                     }
                   }}
                   disabled={!canReschedule}
+                  loading={rescheduleMutation.isPending}
                   className="w-full sm:w-auto"
                 >
-                  {rescheduleMutation.isPending
-                    ? "Rescheduling..."
-                    : "Reschedule"}
+                  Reschedule
                 </Button>
               </div>
             </div>

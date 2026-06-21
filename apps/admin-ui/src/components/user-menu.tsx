@@ -240,9 +240,9 @@ export function UserMenu({
               type="submit"
               size="sm"
               form="create-organization-form"
-              disabled={creatingOrg}
+              loading={creatingOrg}
             >
-              {creatingOrg ? "Creating…" : "Create"}
+              Create
             </Button>
           </div>
         }

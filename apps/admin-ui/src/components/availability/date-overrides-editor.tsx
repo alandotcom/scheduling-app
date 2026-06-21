@@ -16,7 +16,6 @@ import { Icon } from "@/components/ui/icon";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useBufferedPending } from "@/hooks/use-buffered-pending";
 import { useSubmitShortcut } from "@/hooks/use-submit-shortcut";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { MiniCalendar } from "./mini-calendar";
@@ -216,7 +215,6 @@ function DateOverridesEditorBody({
   };
 
   const isSaving = createMutation.isPending || updateMutation.isPending;
-  const showSavingVisual = useBufferedPending(isSaving);
   const canSave = !!editingOverride && !isSaving;
 
   useSubmitShortcut({
@@ -287,14 +285,9 @@ function DateOverridesEditorBody({
             </div>
 
             <div className="flex gap-2 pt-1">
-              <Button
-                size="sm"
-                onClick={handleSave}
-                disabled={isSaving}
-                className={isSaving ? "disabled:opacity-100" : undefined}
-              >
+              <Button size="sm" onClick={handleSave} loading={isSaving}>
                 <Icon icon={FloppyDiskIcon} className="mr-1.5" />
-                {showSavingVisual ? "Saving..." : "Save"}
+                Save
               </Button>
               <Button variant="ghost" size="sm" onClick={clearEditor}>
                 Cancel
@@ -431,13 +424,9 @@ function DateOverridesEditorBody({
               </div>
 
               <div className="flex gap-2 pt-2">
-                <Button
-                  onClick={handleSave}
-                  disabled={isSaving}
-                  className={isSaving ? "disabled:opacity-100" : undefined}
-                >
+                <Button onClick={handleSave} loading={isSaving}>
                   <Icon icon={FloppyDiskIcon} className="mr-2" />
-                  {showSavingVisual ? "Saving..." : "Save"}
+                  Save
                 </Button>
                 <Button variant="ghost" onClick={clearEditor}>
                   Cancel

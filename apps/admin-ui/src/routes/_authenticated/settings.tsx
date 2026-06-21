@@ -47,7 +47,6 @@ import type {
   WebhooksRouteState,
 } from "@/components/settings/webhooks/types";
 import { PageScaffold } from "@/components/layout/page-scaffold";
-import { MobileActionBar } from "@/components/mobile-action-bar";
 import { RowActions } from "@/components/row-actions";
 import {
   EntityCardField,
@@ -66,7 +65,6 @@ import { Switch } from "@/components/ui/switch";
 import { ShortcutBadge } from "@/components/ui/shortcut-badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useSubmitShortcut } from "@/hooks/use-submit-shortcut";
-import { useBufferedPending } from "@/hooks/use-buffered-pending";
 import {
   Card,
   CardHeader,
@@ -455,7 +453,6 @@ function SettingsPage() {
           )}
         </div>
       ) : null}
-      <MobileActionBar />
     </PageScaffold>
   );
 }
@@ -523,8 +520,6 @@ function OrgSettingsForm({ org }: SettingsFormProps) {
       },
     }),
   );
-  const showUpdatePendingVisual = useBufferedPending(updateMutation.isPending);
-
   // Form setup with defaults from fetched org data
   const {
     control,
@@ -767,12 +762,10 @@ function OrgSettingsForm({ org }: SettingsFormProps) {
           {isDirty ? <Badge variant="warning">Unsaved changes</Badge> : null}
           <Button
             type="submit"
+            loading={updateMutation.isPending}
             disabled={updateMutation.isPending || !isDirty}
-            className={
-              updateMutation.isPending ? "disabled:opacity-100" : undefined
-            }
           >
-            {showUpdatePendingVisual ? "Saving..." : "Save changes"}
+            Save changes
             <ShortcutBadge
               shortcut="meta+enter"
               className="ml-2 hidden sm:inline-flex"
@@ -1316,9 +1309,9 @@ function ApiKeysSection() {
               type="submit"
               size="sm"
               form="create-api-key-form"
-              disabled={createApiKeyMutation.isPending}
+              loading={createApiKeyMutation.isPending}
             >
-              {createApiKeyMutation.isPending ? "Creating..." : "Create key"}
+              Create key
             </Button>
           </div>
         }
@@ -2043,9 +2036,9 @@ function UsersManagementSection() {
               type="submit"
               size="sm"
               form="create-org-user-form"
-              disabled={createUserMutation.isPending}
+              loading={createUserMutation.isPending}
             >
-              {createUserMutation.isPending ? "Creating..." : "Create user"}
+              Create user
             </Button>
           </div>
         }
