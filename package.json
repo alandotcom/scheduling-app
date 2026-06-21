@@ -39,7 +39,7 @@
     "typecheck:changed": "turbo run typecheck --filter='...[origin/main]'"
   },
   "devDependencies": {
-    "@biomejs/biome": "2.4.4",
+    "@biomejs/biome": "2.5.0",
     "@typescript/native-preview": "7.0.0-dev.20260223.1",
     "eslint-plugin-react-hooks": "^7.1.1",
     "inngest-cli": "^1.31.0",
