@@ -63,10 +63,10 @@ jobs:
         run: pnpm knip:deps:ci
 
       - name: Typecheck
-        run: pnpm typecheck:changed
+        run: pnpm typecheck
 
       - name: Build Frontend
         run: pnpm build:frontend
 
       - name: Test
-        run: pnpm test:changed
+        run: pnpm test
