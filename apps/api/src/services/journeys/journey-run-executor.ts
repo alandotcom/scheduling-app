@@ -10,29 +10,22 @@ import { dispatchForActionType } from "./delivery-provider-registry.js";
 import {
   buildNodeById,
   buildOutgoingEdgesBySource,
-  getActionConfig,
   getNormalizedActionType,
   getTriggerNode,
-  isJourneyDeliveryActionType,
-  resolveChannel,
   resolveDefaultNextNodeIds,
   resolveTriggerNextNodeIds,
-  toNumber,
   type JourneyEdge,
 } from "./journey-graph-walk.js";
+import { resolveNodeHandler } from "./journey-run-handlers/index.js";
+import type {
+  JourneyRunHandlerDeps,
+  JourneyRunIdentity,
+} from "./journey-run-handlers/index.js";
 import { loadFreshContextForPlannerByRun } from "./journey-template-context.js";
 import {
   ACTIVE_RUN_STATUSES,
-  dispatchSendOnly,
-  enterWaitForConfirmationStep,
-  enterWaitStep,
-  evaluateConditionStep,
-  exitWaitForConfirmationStep,
-  exitWaitStep,
   finalizeRun,
-  finalizeSendStep,
   loadRunForExecution,
-  prepareSendStep,
   startRunExecution,
   type PlannerContext,
 } from "./journey-run-steps.js";
@@ -121,7 +114,7 @@ export type JourneyRunExecutorResult = {
   visitedNodeIds: string[];
 };
 
-type WalkResult = {
+export type WalkResult = {
   finalStatus: "completed" | "canceled" | "failed";
   outcome: JourneyRunOutcome;
 };
@@ -200,6 +193,26 @@ export async function executeJourneyRun(
   const maxDispatchAttempts =
     dependencies.maxDispatchAttempts ?? DEFAULT_MAX_DISPATCH_ATTEMPTS;
   const visitedNodeIds: string[] = [];
+
+  // Per-run facts and injected effects, built once and handed to every node
+  // handler via its NodeExecutionContext.
+  const identity: JourneyRunIdentity = {
+    orgId: input.orgId,
+    journeyRunId: input.journeyRunId,
+    journeyId: input.journeyId,
+    triggerEntityType: input.triggerEntityType,
+    triggerEntityId: input.triggerEntityId,
+    appointmentId: input.appointmentId,
+    clientId: input.clientId,
+    mode: input.mode,
+    triggerEventType: input.triggerEventType,
+  };
+  const deps: JourneyRunHandlerDeps = {
+    dispatchDelivery,
+    loadContext,
+    now,
+    maxDispatchAttempts,
+  };
 
   // Step 1 — read the pinned snapshot + current status (memoized for determinism).
   const loaded = await runtime.runStep("load-run", () =>
@@ -357,185 +370,29 @@ export async function executeJourneyRun(
         ? node.attributes.data.label
         : "";
     const successors = () => successorsOf(stepKey, outgoingEdgesBySource);
-    const reloadContext = () =>
-      loadContext({
-        orgId: input.orgId,
-        triggerEntityType: input.triggerEntityType,
-        triggerEntityId: input.triggerEntityId,
-        appointmentId: input.appointmentId,
-        clientId: input.clientId,
-      });
 
-    if (actionType === "wait") {
-      const waitUntilIso = await runtime.runStep(`wait-enter:${stepKey}`, () =>
-        enterWaitStep({
-          orgId: input.orgId,
-          runId: input.journeyRunId,
-          node,
-          stepKey,
-          label,
-          cursor,
-          context: nodeContext,
-        }),
-      );
-      const waitUntil = new Date(waitUntilIso);
-      await runtime.sleepUntil(`wait:${stepKey}`, waitUntil);
-      await runtime.runStep(`wait-exit:${stepKey}`, () =>
-        exitWaitStep({
-          orgId: input.orgId,
-          runId: input.journeyRunId,
-          stepKey,
-          startedAt: cursor,
-          completedAt: waitUntil,
-        }),
-      );
-      // Reload fresh context after the durable sleep (memoized so replay is stable).
-      const reloaded = await runtime.runStep(
-        `wait-reload:${stepKey}`,
-        reloadContext,
-      );
-      if (!reloaded) {
-        return { finalStatus: "canceled", outcome: "skipped_missing_context" };
-      }
-      return walkAll(successors(), waitUntil, reloaded);
-    }
-
-    if (actionType === "condition") {
-      const decision = await runtime.runStep(`condition:${stepKey}`, () =>
-        evaluateConditionStep({
-          orgId: input.orgId,
-          runId: input.journeyRunId,
-          node,
-          stepKey,
-          journeyId: input.journeyId,
-          triggerEntityId: input.triggerEntityId,
-          outgoingEdgesBySource,
-          context: nodeContext,
-          now: now(),
-          startedAt: cursor,
-        }),
-      );
-      return walkAll(decision.nextNodeIds, cursor, nodeContext);
-    }
-
-    if (actionType === "wait-for-confirmation") {
-      const graceMinutes = Math.max(
-        0,
-        Math.floor(
-          toNumber(getActionConfig(node)["confirmationGraceMinutes"]) ?? 0,
-        ),
-      );
-      const decision = await runtime.runStep(`wfc-enter:${stepKey}`, () =>
-        enterWaitForConfirmationStep({
-          orgId: input.orgId,
-          runId: input.journeyRunId,
-          stepKey,
-          label,
-          graceMinutes,
-          cursor,
-          context: nodeContext,
-        }),
-      );
-
-      if (!decision.waiting) {
-        return walkAll(successors(), cursor, nodeContext);
-      }
-
-      const confirmation = await runtime.waitForEvent(`confirm:${stepKey}`, {
-        event: "appointment.confirmed",
-        timeout: new Date(decision.timeoutAt),
-        ...(input.appointmentId
-          ? {
-              ifExpression: `async.data.appointmentId == "${input.appointmentId}"`,
-            }
-          : {}),
-      });
-
-      const confirmed = confirmation != null;
-      await runtime.runStep(`wfc-exit:${stepKey}`, () =>
-        exitWaitForConfirmationStep({
-          orgId: input.orgId,
-          runId: input.journeyRunId,
-          stepKey,
-          startedAt: cursor,
-          completedAt: now(),
-          confirmed,
-        }),
-      );
-
-      if (!confirmed) {
-        // Today's semantics: a confirmation timeout ends the journey.
-        return { finalStatus: "completed", outcome: "confirmation_timed_out" };
-      }
-
-      const reloaded = await runtime.runStep(
-        `wfc-reload:${stepKey}`,
-        reloadContext,
-      );
-      if (!reloaded) {
-        return { finalStatus: "canceled", outcome: "skipped_missing_context" };
-      }
-      return walkAll(successors(), cursor, reloaded);
-    }
-
-    if (actionType && isJourneyDeliveryActionType(actionType)) {
-      const channel = resolveChannel(actionType);
-      const scheduledFor = new Date(cursor);
-      const deterministicKey = `${input.journeyRunId}:${stepKey}`;
-
-      // Three ordered steps so the non-idempotent provider send is isolated:
-      // (1) record the delivery row in `planned` (so a status callback always
-      // finds a row, and the delivery id is stable across replays), (2) dispatch
-      // — the only non-idempotent effect, memoized so a later failure never
-      // re-sends, (3) finalize the projection from the memoized send result.
-      const journeyDeliveryId = await runtime.runStep(
-        `send-prepare:${stepKey}`,
-        () =>
-          prepareSendStep({
-            orgId: input.orgId,
-            runId: input.journeyRunId,
-            stepKey,
-            actionType,
-            channel,
-            scheduledFor,
-            deterministicKey,
-          }),
-      );
-      const sendResult = await runtime.runStep(`send:${stepKey}`, () =>
-        dispatchSendOnly({
-          orgId: input.orgId,
-          runId: input.journeyRunId,
-          stepKey,
-          actionType,
-          channel,
-          journeyDeliveryId,
-          deterministicKey,
-          stepConfig: getActionConfig(node),
-          mode: input.mode,
-          triggerEntityType: input.triggerEntityType,
-          appointmentId: input.appointmentId,
-          clientId: input.clientId,
-          dispatchDelivery,
-          maxDispatchAttempts,
-        }),
-      );
-      await runtime.runStep(`send-finalize:${stepKey}`, () =>
-        finalizeSendStep({
-          orgId: input.orgId,
-          runId: input.journeyRunId,
-          stepKey,
-          actionType,
-          channel,
-          deterministicKey,
-          scheduledFor,
-          result: sendResult,
-        }),
-      );
+    const handler = resolveNodeHandler(actionType);
+    if (!handler) {
+      // Unknown / passthrough node: advance to all successors.
       return walkAll(successors(), cursor, nodeContext);
     }
 
-    // Unknown / passthrough node: advance to all successors.
-    return walkAll(successors(), cursor, nodeContext);
+    const result = await handler({
+      runtime,
+      node,
+      actionType: actionType ?? "",
+      stepKey,
+      label,
+      cursor,
+      nodeContext,
+      identity,
+      deps,
+      nav: { outgoingEdgesBySource, successors },
+    });
+
+    return result.kind === "terminate"
+      ? result.result
+      : walkAll(result.nextNodeIds, result.cursor, result.context);
   };
 
   const walk = await walkAll(firstNodes, startCursor, context);
