@@ -86,7 +86,7 @@ export function ResourcesTab({
 
   // Fetch required resources for this type
   const { data: requiredResourcesData } = useQuery({
-    ...orpc.appointmentTypes.resources.list.queryOptions({
+    ...orpc.appointmentTypes.resourceLinks.list.queryOptions({
       input: { appointmentTypeId },
     }),
     enabled: !!appointmentTypeId,

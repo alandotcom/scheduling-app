@@ -2,7 +2,7 @@
 
 import { buildClientParams, type Client as Client2, type Options as Options2, type TDataShape } from './client';
 import { client } from './client.gen';
-import type { AppointmentsCancelResponses, AppointmentsConfirmResponses, AppointmentsCreateResponses, AppointmentsGetResponses, AppointmentsListResponses, AppointmentsNoShowResponses, AppointmentsRangeResponses, AppointmentsRescheduleResponses, AppointmentsUpdateResponses, AppointmentTypesCalendarsLinkResponses, AppointmentTypesCalendarsListResponses, AppointmentTypesCalendarsUnlinkResponses, AppointmentTypesCreateResponses, AppointmentTypesGetResponses, AppointmentTypesListResponses, AppointmentTypesRemoveResponses, AppointmentTypesResourcesLinkResponses, AppointmentTypesResourcesListResponses, AppointmentTypesResourcesUnlinkResponses, AppointmentTypesResourcesUpdateResponses, AppointmentTypesUpdateResponses, AvailabilityCheckResponses, AvailabilityDatesResponses, AvailabilityTimesResponses, CalendarsCreateResponses, CalendarsGetResponses, CalendarsListResponses, CalendarsRemoveResponses, CalendarsSchedulingLimitsGetResponses, CalendarsSchedulingLimitsUpsertResponses, CalendarsUpdateResponses, ClientsCreateResponses, ClientsGetByIdsResponses, ClientsGetByReferenceResponses, ClientsGetResponses, ClientsHistorySummaryByReferenceResponses, ClientsHistorySummaryResponses, ClientsListResponses, ClientsRemoveByReferenceResponses, ClientsRemoveResponses, ClientsUpdateByReferenceResponses, ClientsUpdateResponses, CustomAttributesCreateDefinitionResponses, CustomAttributesDeleteDefinitionResponses, CustomAttributesGetSlotUsageResponses, CustomAttributesListDefinitionsResponses, CustomAttributesReorderDefinitionsResponses, CustomAttributesUpdateDefinitionResponses, HealthResponses, LocationsCreateResponses, LocationsGetResponses, LocationsListResponses, LocationsRemoveResponses, LocationsUpdateResponses, ResourcesCreateResponses, ResourcesGetResponses, ResourcesListResponses, ResourcesRemoveResponses, ResourcesUpdateResponses } from './types.gen';
+import type { AppointmentsCancelResponses, AppointmentsConfirmResponses, AppointmentsCreateResponses, AppointmentsGetResponses, AppointmentsListResponses, AppointmentsNoShowResponses, AppointmentsRangeResponses, AppointmentsRescheduleResponses, AppointmentsUpdateResponses, AppointmentTypesCalendarLinksLinkResponses, AppointmentTypesCalendarLinksListResponses, AppointmentTypesCalendarLinksUnlinkResponses, AppointmentTypesCreateResponses, AppointmentTypesGetResponses, AppointmentTypesListResponses, AppointmentTypesRemoveResponses, AppointmentTypesResourceLinksLinkResponses, AppointmentTypesResourceLinksListResponses, AppointmentTypesResourceLinksUnlinkResponses, AppointmentTypesResourceLinksUpdateResponses, AppointmentTypesUpdateResponses, AvailabilityCheckResponses, AvailabilityDatesResponses, AvailabilityTimesResponses, CalendarsCreateResponses, CalendarsGetResponses, CalendarsListResponses, CalendarsRemoveResponses, CalendarsSchedulingLimitsGetResponses, CalendarsSchedulingLimitsUpsertResponses, CalendarsUpdateResponses, ClientsCreateResponses, ClientsGetByIdsResponses, ClientsGetByReferenceResponses, ClientsGetResponses, ClientsHistorySummaryByReferenceResponses, ClientsHistorySummaryResponses, ClientsListResponses, ClientsRemoveByReferenceResponses, ClientsRemoveResponses, ClientsUpdateByReferenceResponses, ClientsUpdateResponses, CustomAttributesCreateDefinitionResponses, CustomAttributesDeleteDefinitionResponses, CustomAttributesGetSlotUsageResponses, CustomAttributesListDefinitionsResponses, CustomAttributesReorderDefinitionsResponses, CustomAttributesUpdateDefinitionResponses, HealthResponses, LocationsCreateResponses, LocationsGetResponses, LocationsListResponses, LocationsRemoveResponses, LocationsUpdateResponses, ResourcesCreateResponses, ResourcesGetResponses, ResourcesListResponses, ResourcesRemoveResponses, ResourcesUpdateResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean> = Options2<TData, ThrowOnError> & {
     /**
@@ -446,7 +446,7 @@ export class Resources extends HeyApiClient {
     }
 }
 
-export class Calendars2 extends HeyApiClient {
+export class CalendarLinks extends HeyApiClient {
     /**
      * List linked calendars
      *
@@ -456,7 +456,7 @@ export class Calendars2 extends HeyApiClient {
         appointmentTypeId: string;
     }, options?: Options<never, ThrowOnError>) {
         const params = buildClientParams([parameters], [{ args: [{ in: 'path', key: 'appointmentTypeId' }] }]);
-        return (options?.client ?? this.client).get<AppointmentTypesCalendarsListResponses, unknown, ThrowOnError>({
+        return (options?.client ?? this.client).get<AppointmentTypesCalendarLinksListResponses, unknown, ThrowOnError>({
             security: [{ scheme: 'bearer', type: 'http' }, { name: 'x-api-key', type: 'apiKey' }],
             url: '/appointment-types/{appointmentTypeId}/calendars',
             ...options,
@@ -474,7 +474,7 @@ export class Calendars2 extends HeyApiClient {
         calendarId?: string;
     }, options?: Options<never, ThrowOnError>) {
         const params = buildClientParams([parameters], [{ args: [{ in: 'path', key: 'appointmentTypeId' }, { in: 'body', key: 'calendarId' }] }]);
-        return (options?.client ?? this.client).post<AppointmentTypesCalendarsLinkResponses, unknown, ThrowOnError>({
+        return (options?.client ?? this.client).post<AppointmentTypesCalendarLinksLinkResponses, unknown, ThrowOnError>({
             security: [{ scheme: 'bearer', type: 'http' }, { name: 'x-api-key', type: 'apiKey' }],
             url: '/appointment-types/{appointmentTypeId}/calendars',
             ...options,
@@ -497,7 +497,7 @@ export class Calendars2 extends HeyApiClient {
         calendarId: string;
     }, options?: Options<never, ThrowOnError>) {
         const params = buildClientParams([parameters], [{ args: [{ in: 'path', key: 'appointmentTypeId' }, { in: 'path', key: 'calendarId' }] }]);
-        return (options?.client ?? this.client).delete<AppointmentTypesCalendarsUnlinkResponses, unknown, ThrowOnError>({
+        return (options?.client ?? this.client).delete<AppointmentTypesCalendarLinksUnlinkResponses, unknown, ThrowOnError>({
             security: [{ scheme: 'bearer', type: 'http' }, { name: 'x-api-key', type: 'apiKey' }],
             url: '/appointment-types/{appointmentTypeId}/calendars/{calendarId}',
             ...options,
@@ -506,7 +506,7 @@ export class Calendars2 extends HeyApiClient {
     }
 }
 
-export class Resources2 extends HeyApiClient {
+export class ResourceLinks extends HeyApiClient {
     /**
      * List linked resources
      *
@@ -516,7 +516,7 @@ export class Resources2 extends HeyApiClient {
         appointmentTypeId: string;
     }, options?: Options<never, ThrowOnError>) {
         const params = buildClientParams([parameters], [{ args: [{ in: 'path', key: 'appointmentTypeId' }] }]);
-        return (options?.client ?? this.client).get<AppointmentTypesResourcesListResponses, unknown, ThrowOnError>({
+        return (options?.client ?? this.client).get<AppointmentTypesResourceLinksListResponses, unknown, ThrowOnError>({
             security: [{ scheme: 'bearer', type: 'http' }, { name: 'x-api-key', type: 'apiKey' }],
             url: '/appointment-types/{appointmentTypeId}/resources',
             ...options,
@@ -539,7 +539,7 @@ export class Resources2 extends HeyApiClient {
                     { in: 'body', key: 'resourceId' },
                     { in: 'body', key: 'quantityRequired' }
                 ] }]);
-        return (options?.client ?? this.client).post<AppointmentTypesResourcesLinkResponses, unknown, ThrowOnError>({
+        return (options?.client ?? this.client).post<AppointmentTypesResourceLinksLinkResponses, unknown, ThrowOnError>({
             security: [{ scheme: 'bearer', type: 'http' }, { name: 'x-api-key', type: 'apiKey' }],
             url: '/appointment-types/{appointmentTypeId}/resources',
             ...options,
@@ -562,7 +562,7 @@ export class Resources2 extends HeyApiClient {
         resourceId: string;
     }, options?: Options<never, ThrowOnError>) {
         const params = buildClientParams([parameters], [{ args: [{ in: 'path', key: 'appointmentTypeId' }, { in: 'path', key: 'resourceId' }] }]);
-        return (options?.client ?? this.client).delete<AppointmentTypesResourcesUnlinkResponses, unknown, ThrowOnError>({
+        return (options?.client ?? this.client).delete<AppointmentTypesResourceLinksUnlinkResponses, unknown, ThrowOnError>({
             security: [{ scheme: 'bearer', type: 'http' }, { name: 'x-api-key', type: 'apiKey' }],
             url: '/appointment-types/{appointmentTypeId}/resources/{resourceId}',
             ...options,
@@ -585,7 +585,7 @@ export class Resources2 extends HeyApiClient {
                     { in: 'path', key: 'resourceId' },
                     { in: 'body', key: 'quantityRequired' }
                 ] }]);
-        return (options?.client ?? this.client).patch<AppointmentTypesResourcesUpdateResponses, unknown, ThrowOnError>({
+        return (options?.client ?? this.client).patch<AppointmentTypesResourceLinksUpdateResponses, unknown, ThrowOnError>({
             security: [{ scheme: 'bearer', type: 'http' }, { name: 'x-api-key', type: 'apiKey' }],
             url: '/appointment-types/{appointmentTypeId}/resources/{resourceId}',
             ...options,
@@ -726,14 +726,14 @@ export class AppointmentTypes extends HeyApiClient {
         });
     }
     
-    private _calendars?: Calendars2;
-    get calendars(): Calendars2 {
-        return this._calendars ??= new Calendars2({ client: this.client });
+    private _calendarLinks?: CalendarLinks;
+    get calendarLinks(): CalendarLinks {
+        return this._calendarLinks ??= new CalendarLinks({ client: this.client });
     }
     
-    private _resources?: Resources2;
-    get resources(): Resources2 {
-        return this._resources ??= new Resources2({ client: this.client });
+    private _resourceLinks?: ResourceLinks;
+    get resourceLinks(): ResourceLinks {
+        return this._resourceLinks ??= new ResourceLinks({ client: this.client });
     }
 }
 

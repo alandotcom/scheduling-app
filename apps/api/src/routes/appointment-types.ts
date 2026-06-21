@@ -320,13 +320,13 @@ export const appointmentTypeRoutes = {
   update,
   remove,
   // Calendar associations
-  calendars: {
+  calendarLinks: {
     list: listCalendars,
     link: addCalendar,
     unlink: removeCalendar,
   },
   // Resource associations
-  resources: {
+  resourceLinks: {
     list: listResources,
     link: addResource,
     update: updateResource,

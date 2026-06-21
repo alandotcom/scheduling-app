@@ -1012,15 +1012,15 @@ describe("Appointment Type Routes", () => {
       expect(routes.appointmentTypeRoutes.create).toBeDefined();
       expect(routes.appointmentTypeRoutes.update).toBeDefined();
       expect(routes.appointmentTypeRoutes.remove).toBeDefined();
-      expect(routes.appointmentTypeRoutes.calendars).toBeDefined();
-      expect(routes.appointmentTypeRoutes.calendars.list).toBeDefined();
-      expect(routes.appointmentTypeRoutes.calendars.link).toBeDefined();
-      expect(routes.appointmentTypeRoutes.calendars.unlink).toBeDefined();
-      expect(routes.appointmentTypeRoutes.resources).toBeDefined();
-      expect(routes.appointmentTypeRoutes.resources.list).toBeDefined();
-      expect(routes.appointmentTypeRoutes.resources.link).toBeDefined();
-      expect(routes.appointmentTypeRoutes.resources.update).toBeDefined();
-      expect(routes.appointmentTypeRoutes.resources.unlink).toBeDefined();
+      expect(routes.appointmentTypeRoutes.calendarLinks).toBeDefined();
+      expect(routes.appointmentTypeRoutes.calendarLinks.list).toBeDefined();
+      expect(routes.appointmentTypeRoutes.calendarLinks.link).toBeDefined();
+      expect(routes.appointmentTypeRoutes.calendarLinks.unlink).toBeDefined();
+      expect(routes.appointmentTypeRoutes.resourceLinks).toBeDefined();
+      expect(routes.appointmentTypeRoutes.resourceLinks.list).toBeDefined();
+      expect(routes.appointmentTypeRoutes.resourceLinks.link).toBeDefined();
+      expect(routes.appointmentTypeRoutes.resourceLinks.update).toBeDefined();
+      expect(routes.appointmentTypeRoutes.resourceLinks.unlink).toBeDefined();
     });
 
     test("main router includes appointment type routes", async () => {
@@ -1033,8 +1033,8 @@ describe("Appointment Type Routes", () => {
       expect(router.appointmentTypes.create).toBeDefined();
       expect(router.appointmentTypes.update).toBeDefined();
       expect(router.appointmentTypes.remove).toBeDefined();
-      expect(router.appointmentTypes.calendars).toBeDefined();
-      expect(router.appointmentTypes.resources).toBeDefined();
+      expect(router.appointmentTypes.calendarLinks).toBeDefined();
+      expect(router.appointmentTypes.resourceLinks).toBeDefined();
     });
   });
 });

@@ -689,7 +689,7 @@ export type AppointmentTypesUpdateResponses = {
 
 export type AppointmentTypesUpdateResponse = AppointmentTypesUpdateResponses[keyof AppointmentTypesUpdateResponses];
 
-export type AppointmentTypesCalendarsListData = {
+export type AppointmentTypesCalendarLinksListData = {
     body?: never;
     path: {
         appointmentTypeId: string;
@@ -698,7 +698,7 @@ export type AppointmentTypesCalendarsListData = {
     url: '/appointment-types/{appointmentTypeId}/calendars';
 };
 
-export type AppointmentTypesCalendarsListResponses = {
+export type AppointmentTypesCalendarLinksListResponses = {
     /**
      * OK
      */
@@ -720,9 +720,9 @@ export type AppointmentTypesCalendarsListResponses = {
     }>;
 };
 
-export type AppointmentTypesCalendarsListResponse = AppointmentTypesCalendarsListResponses[keyof AppointmentTypesCalendarsListResponses];
+export type AppointmentTypesCalendarLinksListResponse = AppointmentTypesCalendarLinksListResponses[keyof AppointmentTypesCalendarLinksListResponses];
 
-export type AppointmentTypesCalendarsLinkData = {
+export type AppointmentTypesCalendarLinksLinkData = {
     body: {
         /**
          * ID of an existing calendar to link to the appointment type.
@@ -736,7 +736,7 @@ export type AppointmentTypesCalendarsLinkData = {
     url: '/appointment-types/{appointmentTypeId}/calendars';
 };
 
-export type AppointmentTypesCalendarsLinkResponses = {
+export type AppointmentTypesCalendarLinksLinkResponses = {
     /**
      * OK
      */
@@ -747,9 +747,9 @@ export type AppointmentTypesCalendarsLinkResponses = {
     };
 };
 
-export type AppointmentTypesCalendarsLinkResponse = AppointmentTypesCalendarsLinkResponses[keyof AppointmentTypesCalendarsLinkResponses];
+export type AppointmentTypesCalendarLinksLinkResponse = AppointmentTypesCalendarLinksLinkResponses[keyof AppointmentTypesCalendarLinksLinkResponses];
 
-export type AppointmentTypesCalendarsUnlinkData = {
+export type AppointmentTypesCalendarLinksUnlinkData = {
     body?: never;
     path: {
         appointmentTypeId: string;
@@ -759,7 +759,7 @@ export type AppointmentTypesCalendarsUnlinkData = {
     url: '/appointment-types/{appointmentTypeId}/calendars/{calendarId}';
 };
 
-export type AppointmentTypesCalendarsUnlinkResponses = {
+export type AppointmentTypesCalendarLinksUnlinkResponses = {
     /**
      * OK
      */
@@ -768,9 +768,9 @@ export type AppointmentTypesCalendarsUnlinkResponses = {
     };
 };
 
-export type AppointmentTypesCalendarsUnlinkResponse = AppointmentTypesCalendarsUnlinkResponses[keyof AppointmentTypesCalendarsUnlinkResponses];
+export type AppointmentTypesCalendarLinksUnlinkResponse = AppointmentTypesCalendarLinksUnlinkResponses[keyof AppointmentTypesCalendarLinksUnlinkResponses];
 
-export type AppointmentTypesResourcesListData = {
+export type AppointmentTypesResourceLinksListData = {
     body?: never;
     path: {
         appointmentTypeId: string;
@@ -779,7 +779,7 @@ export type AppointmentTypesResourcesListData = {
     url: '/appointment-types/{appointmentTypeId}/resources';
 };
 
-export type AppointmentTypesResourcesListResponses = {
+export type AppointmentTypesResourceLinksListResponses = {
     /**
      * OK
      */
@@ -800,9 +800,9 @@ export type AppointmentTypesResourcesListResponses = {
     }>;
 };
 
-export type AppointmentTypesResourcesListResponse = AppointmentTypesResourcesListResponses[keyof AppointmentTypesResourcesListResponses];
+export type AppointmentTypesResourceLinksListResponse = AppointmentTypesResourceLinksListResponses[keyof AppointmentTypesResourceLinksListResponses];
 
-export type AppointmentTypesResourcesLinkData = {
+export type AppointmentTypesResourceLinksLinkData = {
     body: {
         /**
          * ID of an existing resource to link to the appointment type.
@@ -820,7 +820,7 @@ export type AppointmentTypesResourcesLinkData = {
     url: '/appointment-types/{appointmentTypeId}/resources';
 };
 
-export type AppointmentTypesResourcesLinkResponses = {
+export type AppointmentTypesResourceLinksLinkResponses = {
     /**
      * OK
      */
@@ -832,9 +832,9 @@ export type AppointmentTypesResourcesLinkResponses = {
     };
 };
 
-export type AppointmentTypesResourcesLinkResponse = AppointmentTypesResourcesLinkResponses[keyof AppointmentTypesResourcesLinkResponses];
+export type AppointmentTypesResourceLinksLinkResponse = AppointmentTypesResourceLinksLinkResponses[keyof AppointmentTypesResourceLinksLinkResponses];
 
-export type AppointmentTypesResourcesUnlinkData = {
+export type AppointmentTypesResourceLinksUnlinkData = {
     body?: never;
     path: {
         appointmentTypeId: string;
@@ -844,7 +844,7 @@ export type AppointmentTypesResourcesUnlinkData = {
     url: '/appointment-types/{appointmentTypeId}/resources/{resourceId}';
 };
 
-export type AppointmentTypesResourcesUnlinkResponses = {
+export type AppointmentTypesResourceLinksUnlinkResponses = {
     /**
      * OK
      */
@@ -853,9 +853,9 @@ export type AppointmentTypesResourcesUnlinkResponses = {
     };
 };
 
-export type AppointmentTypesResourcesUnlinkResponse = AppointmentTypesResourcesUnlinkResponses[keyof AppointmentTypesResourcesUnlinkResponses];
+export type AppointmentTypesResourceLinksUnlinkResponse = AppointmentTypesResourceLinksUnlinkResponses[keyof AppointmentTypesResourceLinksUnlinkResponses];
 
-export type AppointmentTypesResourcesUpdateData = {
+export type AppointmentTypesResourceLinksUpdateData = {
     body?: {
         quantityRequired?: number;
     };
@@ -867,7 +867,7 @@ export type AppointmentTypesResourcesUpdateData = {
     url: '/appointment-types/{appointmentTypeId}/resources/{resourceId}';
 };
 
-export type AppointmentTypesResourcesUpdateResponses = {
+export type AppointmentTypesResourceLinksUpdateResponses = {
     /**
      * OK
      */
@@ -879,7 +879,7 @@ export type AppointmentTypesResourcesUpdateResponses = {
     };
 };
 
-export type AppointmentTypesResourcesUpdateResponse = AppointmentTypesResourcesUpdateResponses[keyof AppointmentTypesResourcesUpdateResponses];
+export type AppointmentTypesResourceLinksUpdateResponse = AppointmentTypesResourceLinksUpdateResponses[keyof AppointmentTypesResourceLinksUpdateResponses];
 
 export type AvailabilityDatesData = {
     body?: never;

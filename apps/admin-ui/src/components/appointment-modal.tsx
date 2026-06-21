@@ -185,7 +185,7 @@ export function AppointmentModal({
 
   // Fetch calendars linked to the selected type
   const { data: linkedCalendars, isLoading: calendarsLoading } = useQuery({
-    ...orpc.appointmentTypes.calendars.list.queryOptions({
+    ...orpc.appointmentTypes.calendarLinks.list.queryOptions({
       input: { appointmentTypeId: selectedTypeId },
     }),
     enabled: open && !!selectedTypeId,

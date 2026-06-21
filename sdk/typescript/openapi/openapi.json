@@ -2608,7 +2608,7 @@
     },
     "/appointment-types/{appointmentTypeId}/calendars": {
       "get": {
-        "operationId": "appointmentTypes.calendars.list",
+        "operationId": "appointmentTypes.calendarLinks.list",
         "summary": "List linked calendars",
         "description": "Lists calendars currently linked to an appointment type.",
         "tags": [
@@ -2724,7 +2724,7 @@
         }
       },
       "post": {
-        "operationId": "appointmentTypes.calendars.link",
+        "operationId": "appointmentTypes.calendarLinks.link",
         "summary": "Link calendar to appointment type",
         "description": "Links an existing calendar to an appointment type. This does not create a calendar.",
         "tags": [
@@ -2796,7 +2796,7 @@
     },
     "/appointment-types/{appointmentTypeId}/calendars/{calendarId}": {
       "delete": {
-        "operationId": "appointmentTypes.calendars.unlink",
+        "operationId": "appointmentTypes.calendarLinks.unlink",
         "summary": "Unlink calendar from appointment type",
         "description": "Removes an existing calendar link from an appointment type.",
         "tags": [
@@ -2846,7 +2846,7 @@
     },
     "/appointment-types/{appointmentTypeId}/resources": {
       "get": {
-        "operationId": "appointmentTypes.resources.list",
+        "operationId": "appointmentTypes.resourceLinks.list",
         "summary": "List linked resources",
         "description": "Lists resources currently linked to an appointment type.",
         "tags": [
@@ -2959,7 +2959,7 @@
         }
       },
       "post": {
-        "operationId": "appointmentTypes.resources.link",
+        "operationId": "appointmentTypes.resourceLinks.link",
         "summary": "Link resource to appointment type",
         "description": "Links an existing resource to an appointment type. This does not create a resource.",
         "tags": [
@@ -3044,7 +3044,7 @@
     },
     "/appointment-types/{appointmentTypeId}/resources/{resourceId}": {
       "patch": {
-        "operationId": "appointmentTypes.resources.update",
+        "operationId": "appointmentTypes.resourceLinks.update",
         "summary": "Update linked resource",
         "description": "Updates an existing resource link for an appointment type.",
         "tags": [
@@ -3126,7 +3126,7 @@
         }
       },
       "delete": {
-        "operationId": "appointmentTypes.resources.unlink",
+        "operationId": "appointmentTypes.resourceLinks.unlink",
         "summary": "Unlink resource from appointment type",
         "description": "Removes an existing resource link from an appointment type.",
         "tags": [

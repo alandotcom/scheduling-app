@@ -75,7 +75,7 @@ export function CalendarsTab({
 
   // Fetch linked calendars for this type
   const { data: linkedCalendarsData } = useQuery({
-    ...orpc.appointmentTypes.calendars.list.queryOptions({
+    ...orpc.appointmentTypes.calendarLinks.list.queryOptions({
       input: { appointmentTypeId },
     }),
     enabled: !!appointmentTypeId,
