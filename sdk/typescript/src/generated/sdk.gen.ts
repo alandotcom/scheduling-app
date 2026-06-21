@@ -95,21 +95,13 @@ export class Locations extends HeyApiClient {
      */
     public remove<ThrowOnError extends boolean = false>(parameters: {
         id: string;
-        body?: {
-            [key: string]: unknown;
-        };
     }, options?: Options<never, ThrowOnError>) {
-        const params = buildClientParams([parameters], [{ args: [{ in: 'path', key: 'id' }, { key: 'body', map: 'body' }] }]);
+        const params = buildClientParams([parameters], [{ args: [{ in: 'path', key: 'id' }] }]);
         return (options?.client ?? this.client).delete<LocationsRemoveResponses, unknown, ThrowOnError>({
             security: [{ scheme: 'bearer', type: 'http' }, { name: 'x-api-key', type: 'apiKey' }],
             url: '/locations/{id}',
             ...options,
-            ...params,
-            headers: {
-                'Content-Type': 'application/json',
-                ...options?.headers,
-                ...params.headers
-            }
+            ...params
         });
     }
     
@@ -270,21 +262,13 @@ export class Calendars extends HeyApiClient {
      */
     public remove<ThrowOnError extends boolean = false>(parameters: {
         id: string;
-        body?: {
-            [key: string]: unknown;
-        };
     }, options?: Options<never, ThrowOnError>) {
-        const params = buildClientParams([parameters], [{ args: [{ in: 'path', key: 'id' }, { key: 'body', map: 'body' }] }]);
+        const params = buildClientParams([parameters], [{ args: [{ in: 'path', key: 'id' }] }]);
         return (options?.client ?? this.client).delete<CalendarsRemoveResponses, unknown, ThrowOnError>({
             security: [{ scheme: 'bearer', type: 'http' }, { name: 'x-api-key', type: 'apiKey' }],
             url: '/calendars/{id}',
             ...options,
-            ...params,
-            headers: {
-                'Content-Type': 'application/json',
-                ...options?.headers,
-                ...params.headers
-            }
+            ...params
         });
     }
     
@@ -404,21 +388,13 @@ export class Resources extends HeyApiClient {
      */
     public remove<ThrowOnError extends boolean = false>(parameters: {
         id: string;
-        body?: {
-            [key: string]: unknown;
-        };
     }, options?: Options<never, ThrowOnError>) {
-        const params = buildClientParams([parameters], [{ args: [{ in: 'path', key: 'id' }, { key: 'body', map: 'body' }] }]);
+        const params = buildClientParams([parameters], [{ args: [{ in: 'path', key: 'id' }] }]);
         return (options?.client ?? this.client).delete<ResourcesRemoveResponses, unknown, ThrowOnError>({
             security: [{ scheme: 'bearer', type: 'http' }, { name: 'x-api-key', type: 'apiKey' }],
             url: '/resources/{id}',
             ...options,
-            ...params,
-            headers: {
-                'Content-Type': 'application/json',
-                ...options?.headers,
-                ...params.headers
-            }
+            ...params
         });
     }
     
@@ -519,25 +495,13 @@ export class Calendars2 extends HeyApiClient {
     public unlink<ThrowOnError extends boolean = false>(parameters: {
         appointmentTypeId: string;
         calendarId: string;
-        body?: {
-            [key: string]: unknown;
-        };
     }, options?: Options<never, ThrowOnError>) {
-        const params = buildClientParams([parameters], [{ args: [
-                    { in: 'path', key: 'appointmentTypeId' },
-                    { in: 'path', key: 'calendarId' },
-                    { key: 'body', map: 'body' }
-                ] }]);
+        const params = buildClientParams([parameters], [{ args: [{ in: 'path', key: 'appointmentTypeId' }, { in: 'path', key: 'calendarId' }] }]);
         return (options?.client ?? this.client).delete<AppointmentTypesCalendarsUnlinkResponses, unknown, ThrowOnError>({
             security: [{ scheme: 'bearer', type: 'http' }, { name: 'x-api-key', type: 'apiKey' }],
             url: '/appointment-types/{appointmentTypeId}/calendars/{calendarId}',
             ...options,
-            ...params,
-            headers: {
-                'Content-Type': 'application/json',
-                ...options?.headers,
-                ...params.headers
-            }
+            ...params
         });
     }
 }
@@ -596,25 +560,13 @@ export class Resources2 extends HeyApiClient {
     public unlink<ThrowOnError extends boolean = false>(parameters: {
         appointmentTypeId: string;
         resourceId: string;
-        body?: {
-            [key: string]: unknown;
-        };
     }, options?: Options<never, ThrowOnError>) {
-        const params = buildClientParams([parameters], [{ args: [
-                    { in: 'path', key: 'appointmentTypeId' },
-                    { in: 'path', key: 'resourceId' },
-                    { key: 'body', map: 'body' }
-                ] }]);
+        const params = buildClientParams([parameters], [{ args: [{ in: 'path', key: 'appointmentTypeId' }, { in: 'path', key: 'resourceId' }] }]);
         return (options?.client ?? this.client).delete<AppointmentTypesResourcesUnlinkResponses, unknown, ThrowOnError>({
             security: [{ scheme: 'bearer', type: 'http' }, { name: 'x-api-key', type: 'apiKey' }],
             url: '/appointment-types/{appointmentTypeId}/resources/{resourceId}',
             ...options,
-            ...params,
-            headers: {
-                'Content-Type': 'application/json',
-                ...options?.headers,
-                ...params.headers
-            }
+            ...params
         });
     }
     
@@ -709,21 +661,13 @@ export class AppointmentTypes extends HeyApiClient {
      */
     public remove<ThrowOnError extends boolean = false>(parameters: {
         id: string;
-        body?: {
-            [key: string]: unknown;
-        };
     }, options?: Options<never, ThrowOnError>) {
-        const params = buildClientParams([parameters], [{ args: [{ in: 'path', key: 'id' }, { key: 'body', map: 'body' }] }]);
+        const params = buildClientParams([parameters], [{ args: [{ in: 'path', key: 'id' }] }]);
         return (options?.client ?? this.client).delete<AppointmentTypesRemoveResponses, unknown, ThrowOnError>({
             security: [{ scheme: 'bearer', type: 'http' }, { name: 'x-api-key', type: 'apiKey' }],
             url: '/appointment-types/{id}',
             ...options,
-            ...params,
-            headers: {
-                'Content-Type': 'application/json',
-                ...options?.headers,
-                ...params.headers
-            }
+            ...params
         });
     }
     
@@ -1088,21 +1032,13 @@ export class Appointments extends HeyApiClient {
      */
     public confirm<ThrowOnError extends boolean = false>(parameters: {
         id: string;
-        body?: {
-            [key: string]: unknown;
-        };
     }, options?: Options<never, ThrowOnError>) {
-        const params = buildClientParams([parameters], [{ args: [{ in: 'path', key: 'id' }, { key: 'body', map: 'body' }] }]);
+        const params = buildClientParams([parameters], [{ args: [{ in: 'path', key: 'id' }] }]);
         return (options?.client ?? this.client).post<AppointmentsConfirmResponses, unknown, ThrowOnError>({
             security: [{ scheme: 'bearer', type: 'http' }, { name: 'x-api-key', type: 'apiKey' }],
             url: '/appointments/{id}/confirm',
             ...options,
-            ...params,
-            headers: {
-                'Content-Type': 'application/json',
-                ...options?.headers,
-                ...params.headers
-            }
+            ...params
         });
     }
     
@@ -1113,21 +1049,13 @@ export class Appointments extends HeyApiClient {
      */
     public noShow<ThrowOnError extends boolean = false>(parameters: {
         id: string;
-        body?: {
-            [key: string]: unknown;
-        };
     }, options?: Options<never, ThrowOnError>) {
-        const params = buildClientParams([parameters], [{ args: [{ in: 'path', key: 'id' }, { key: 'body', map: 'body' }] }]);
+        const params = buildClientParams([parameters], [{ args: [{ in: 'path', key: 'id' }] }]);
         return (options?.client ?? this.client).post<AppointmentsNoShowResponses, unknown, ThrowOnError>({
             security: [{ scheme: 'bearer', type: 'http' }, { name: 'x-api-key', type: 'apiKey' }],
             url: '/appointments/{id}/no-show',
             ...options,
-            ...params,
-            headers: {
-                'Content-Type': 'application/json',
-                ...options?.headers,
-                ...params.headers
-            }
+            ...params
         });
     }
 }
@@ -1203,21 +1131,13 @@ export class Clients extends HeyApiClient {
      */
     public remove<ThrowOnError extends boolean = false>(parameters: {
         id: string;
-        body?: {
-            [key: string]: unknown;
-        };
     }, options?: Options<never, ThrowOnError>) {
-        const params = buildClientParams([parameters], [{ args: [{ in: 'path', key: 'id' }, { key: 'body', map: 'body' }] }]);
+        const params = buildClientParams([parameters], [{ args: [{ in: 'path', key: 'id' }] }]);
         return (options?.client ?? this.client).delete<ClientsRemoveResponses, unknown, ThrowOnError>({
             security: [{ scheme: 'bearer', type: 'http' }, { name: 'x-api-key', type: 'apiKey' }],
             url: '/clients/{id}',
             ...options,
-            ...params,
-            headers: {
-                'Content-Type': 'application/json',
-                ...options?.headers,
-                ...params.headers
-            }
+            ...params
         });
     }
     
@@ -1307,21 +1227,13 @@ export class Clients extends HeyApiClient {
      */
     public removeByReference<ThrowOnError extends boolean = false>(parameters: {
         referenceId: string;
-        body?: {
-            [key: string]: unknown;
-        };
     }, options?: Options<never, ThrowOnError>) {
-        const params = buildClientParams([parameters], [{ args: [{ in: 'path', key: 'referenceId' }, { key: 'body', map: 'body' }] }]);
+        const params = buildClientParams([parameters], [{ args: [{ in: 'path', key: 'referenceId' }] }]);
         return (options?.client ?? this.client).delete<ClientsRemoveByReferenceResponses, unknown, ThrowOnError>({
             security: [{ scheme: 'bearer', type: 'http' }, { name: 'x-api-key', type: 'apiKey' }],
             url: '/clients/by-reference/{referenceId}',
             ...options,
-            ...params,
-            headers: {
-                'Content-Type': 'application/json',
-                ...options?.headers,
-                ...params.headers
-            }
+            ...params
         });
     }
     
@@ -1497,21 +1409,13 @@ export class CustomAttributes extends HeyApiClient {
      */
     public deleteDefinition<ThrowOnError extends boolean = false>(parameters: {
         id: string;
-        body?: {
-            [key: string]: unknown;
-        };
     }, options?: Options<never, ThrowOnError>) {
-        const params = buildClientParams([parameters], [{ args: [{ in: 'path', key: 'id' }, { key: 'body', map: 'body' }] }]);
+        const params = buildClientParams([parameters], [{ args: [{ in: 'path', key: 'id' }] }]);
         return (options?.client ?? this.client).delete<CustomAttributesDeleteDefinitionResponses, unknown, ThrowOnError>({
             security: [{ scheme: 'bearer', type: 'http' }, { name: 'x-api-key', type: 'apiKey' }],
             url: '/clients/custom-attributes/{id}',
             ...options,
-            ...params,
-            headers: {
-                'Content-Type': 'application/json',
-                ...options?.headers,
-                ...params.headers
-            }
+            ...params
         });
     }
     

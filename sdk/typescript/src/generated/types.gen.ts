@@ -83,9 +83,7 @@ export type LocationsCreateResponses = {
 export type LocationsCreateResponse = LocationsCreateResponses[keyof LocationsCreateResponses];
 
 export type LocationsRemoveData = {
-    body?: {
-        [key: string]: unknown;
-    };
+    body?: never;
     path: {
         id: string;
     };
@@ -227,9 +225,7 @@ export type CalendarsCreateResponses = {
 export type CalendarsCreateResponse = CalendarsCreateResponses[keyof CalendarsCreateResponses];
 
 export type CalendarsRemoveData = {
-    body?: {
-        [key: string]: unknown;
-    };
+    body?: never;
     path: {
         id: string;
     };
@@ -438,9 +434,7 @@ export type ResourcesCreateResponses = {
 export type ResourcesCreateResponse = ResourcesCreateResponses[keyof ResourcesCreateResponses];
 
 export type ResourcesRemoveData = {
-    body?: {
-        [key: string]: unknown;
-    };
+    body?: never;
     path: {
         id: string;
     };
@@ -595,9 +589,7 @@ export type AppointmentTypesCreateResponses = {
 export type AppointmentTypesCreateResponse = AppointmentTypesCreateResponses[keyof AppointmentTypesCreateResponses];
 
 export type AppointmentTypesRemoveData = {
-    body?: {
-        [key: string]: unknown;
-    };
+    body?: never;
     path: {
         id: string;
     };
@@ -758,9 +750,7 @@ export type AppointmentTypesCalendarsLinkResponses = {
 export type AppointmentTypesCalendarsLinkResponse = AppointmentTypesCalendarsLinkResponses[keyof AppointmentTypesCalendarsLinkResponses];
 
 export type AppointmentTypesCalendarsUnlinkData = {
-    body?: {
-        [key: string]: unknown;
-    };
+    body?: never;
     path: {
         appointmentTypeId: string;
         calendarId: string;
@@ -845,9 +835,7 @@ export type AppointmentTypesResourcesLinkResponses = {
 export type AppointmentTypesResourcesLinkResponse = AppointmentTypesResourcesLinkResponses[keyof AppointmentTypesResourcesLinkResponses];
 
 export type AppointmentTypesResourcesUnlinkData = {
-    body?: {
-        [key: string]: unknown;
-    };
+    body?: never;
     path: {
         appointmentTypeId: string;
         resourceId: string;
@@ -1261,9 +1249,7 @@ export type AppointmentsRescheduleResponses = {
 export type AppointmentsRescheduleResponse = AppointmentsRescheduleResponses[keyof AppointmentsRescheduleResponses];
 
 export type AppointmentsConfirmData = {
-    body?: {
-        [key: string]: unknown;
-    };
+    body?: never;
     path: {
         id: string;
     };
@@ -1294,9 +1280,7 @@ export type AppointmentsConfirmResponses = {
 export type AppointmentsConfirmResponse = AppointmentsConfirmResponses[keyof AppointmentsConfirmResponses];
 
 export type AppointmentsNoShowData = {
-    body?: {
-        [key: string]: unknown;
-    };
+    body?: never;
     path: {
         id: string;
     };
@@ -1404,9 +1388,7 @@ export type ClientsCreateResponses = {
 export type ClientsCreateResponse = ClientsCreateResponses[keyof ClientsCreateResponses];
 
 export type ClientsRemoveData = {
-    body?: {
-        [key: string]: unknown;
-    };
+    body?: never;
     path: {
         id: string;
     };
@@ -1526,9 +1508,7 @@ export type ClientsGetByIdsResponses = {
 export type ClientsGetByIdsResponse = ClientsGetByIdsResponses[keyof ClientsGetByIdsResponses];
 
 export type ClientsRemoveByReferenceData = {
-    body?: {
-        [key: string]: unknown;
-    };
+    body?: never;
     path: {
         referenceId: string;
     };
@@ -1794,9 +1774,7 @@ export type CustomAttributesGetSlotUsageResponses = {
 export type CustomAttributesGetSlotUsageResponse = CustomAttributesGetSlotUsageResponses[keyof CustomAttributesGetSlotUsageResponses];
 
 export type CustomAttributesDeleteDefinitionData = {
-    body?: {
-        [key: string]: unknown;
-    };
+    body?: never;
     path: {
         id: string;
     };

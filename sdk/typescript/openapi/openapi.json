@@ -380,8 +380,7 @@
                     "type": "string",
                     "minLength": 1
                   }
-                },
-                "required": []
+                }
               }
             }
           }
@@ -454,18 +453,6 @@
             }
           }
         ],
-        "requestBody": {
-          "required": false,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {},
-                "required": []
-              }
-            }
-          }
-        },
         "responses": {
           "200": {
             "description": "OK",
@@ -925,8 +912,7 @@
                   "requiresConfirmation": {
                     "type": "boolean"
                   }
-                },
-                "required": []
+                }
               }
             }
           }
@@ -1021,18 +1007,6 @@
             }
           }
         ],
-        "requestBody": {
-          "required": false,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {},
-                "required": []
-              }
-            }
-          }
-        },
         "responses": {
           "200": {
             "description": "OK",
@@ -1763,8 +1737,7 @@
                     "minimum": 1,
                     "maximum": 2147483647
                   }
-                },
-                "required": []
+                }
               }
             }
           }
@@ -1850,18 +1823,6 @@
             }
           }
         ],
-        "requestBody": {
-          "required": false,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {},
-                "required": []
-              }
-            }
-          }
-        },
         "responses": {
           "200": {
             "description": "OK",
@@ -2495,8 +2456,7 @@
                       }
                     ]
                   }
-                },
-                "required": []
+                }
               }
             }
           }
@@ -2624,18 +2584,6 @@
             }
           }
         ],
-        "requestBody": {
-          "required": false,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {},
-                "required": []
-              }
-            }
-          }
-        },
         "responses": {
           "200": {
             "description": "OK",
@@ -2874,18 +2822,6 @@
             }
           }
         ],
-        "requestBody": {
-          "required": false,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {},
-                "required": []
-              }
-            }
-          }
-        },
         "responses": {
           "200": {
             "description": "OK",
@@ -3146,8 +3082,7 @@
                     "minimum": 1,
                     "maximum": 2147483647
                   }
-                },
-                "required": []
+                }
               }
             }
           }
@@ -3217,18 +3152,6 @@
             }
           }
         ],
-        "requestBody": {
-          "required": false,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {},
-                "required": []
-              }
-            }
-          }
-        },
         "responses": {
           "200": {
             "description": "OK",
@@ -3615,10 +3538,9 @@
                 "confirmed",
                 "cancelled",
                 "no_show"
-              ]
+              ],
+              "type": "string"
             },
-            "style": "deepObject",
-            "explode": true,
             "allowEmptyValue": true,
             "allowReserved": true
           },
@@ -3630,10 +3552,9 @@
                 "upcoming",
                 "history",
                 "all"
-              ]
+              ],
+              "type": "string"
             },
-            "style": "deepObject",
-            "explode": true,
             "allowEmptyValue": true,
             "allowReserved": true
           },
@@ -3744,7 +3665,8 @@
                               "confirmed",
                               "cancelled",
                               "no_show"
-                            ]
+                            ],
+                            "type": "string"
                           },
                           "notes": {
                             "anyOf": [
@@ -3983,7 +3905,8 @@
                         "confirmed",
                         "cancelled",
                         "no_show"
-                      ]
+                      ],
+                      "type": "string"
                     },
                     "notes": {
                       "anyOf": [
@@ -4103,10 +4026,9 @@
                 "confirmed",
                 "cancelled",
                 "no_show"
-              ]
+              ],
+              "type": "string"
             },
-            "style": "deepObject",
-            "explode": true,
             "allowEmptyValue": true,
             "allowReserved": true
           },
@@ -4158,7 +4080,8 @@
                               "confirmed",
                               "cancelled",
                               "no_show"
-                            ]
+                            ],
+                            "type": "string"
                           },
                           "startAt": {
                             "type": "string",
@@ -4329,7 +4252,8 @@
                         "confirmed",
                         "cancelled",
                         "no_show"
-                      ]
+                      ],
+                      "type": "string"
                     },
                     "notes": {
                       "anyOf": [
@@ -4486,8 +4410,7 @@
                       }
                     ]
                   }
-                },
-                "required": []
+                }
               }
             }
           }
@@ -4540,7 +4463,8 @@
                         "confirmed",
                         "cancelled",
                         "no_show"
-                      ]
+                      ],
+                      "type": "string"
                     },
                     "notes": {
                       "anyOf": [
@@ -4611,8 +4535,7 @@
                   "reason": {
                     "type": "string"
                   }
-                },
-                "required": []
+                }
               }
             }
           }
@@ -4665,7 +4588,8 @@
                         "confirmed",
                         "cancelled",
                         "no_show"
-                      ]
+                      ],
+                      "type": "string"
                     },
                     "notes": {
                       "anyOf": [
@@ -4801,7 +4725,8 @@
                         "confirmed",
                         "cancelled",
                         "no_show"
-                      ]
+                      ],
+                      "type": "string"
                     },
                     "notes": {
                       "anyOf": [
@@ -4864,18 +4789,6 @@
             }
           }
         ],
-        "requestBody": {
-          "required": false,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {},
-                "required": []
-              }
-            }
-          }
-        },
         "responses": {
           "200": {
             "description": "OK",
@@ -4924,7 +4837,8 @@
                         "confirmed",
                         "cancelled",
                         "no_show"
-                      ]
+                      ],
+                      "type": "string"
                     },
                     "notes": {
                       "anyOf": [
@@ -4987,18 +4901,6 @@
             }
           }
         ],
-        "requestBody": {
-          "required": false,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {},
-                "required": []
-              }
-            }
-          }
-        },
         "responses": {
           "200": {
             "description": "OK",
@@ -5047,7 +4949,8 @@
                         "confirmed",
                         "cancelled",
                         "no_show"
-                      ]
+                      ],
+                      "type": "string"
                     },
                     "notes": {
                       "anyOf": [
@@ -5127,10 +5030,9 @@
                 "id_asc",
                 "updated_at_desc"
               ],
+              "type": "string",
               "default": "id_asc"
             },
-            "style": "deepObject",
-            "explode": true,
             "allowEmptyValue": true,
             "allowReserved": true
           },
@@ -5711,8 +5613,7 @@
                       ]
                     }
                   }
-                },
-                "required": []
+                }
               }
             }
           }
@@ -5849,18 +5750,6 @@
             }
           }
         ],
-        "requestBody": {
-          "required": false,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {},
-                "required": []
-              }
-            }
-          }
-        },
         "responses": {
           "200": {
             "description": "OK",
@@ -6156,18 +6045,6 @@
             }
           }
         ],
-        "requestBody": {
-          "required": false,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {},
-                "required": []
-              }
-            }
-          }
-        },
         "responses": {
           "200": {
             "description": "OK",
@@ -6295,8 +6172,7 @@
                       ]
                     }
                   }
-                },
-                "required": []
+                }
               }
             }
           }
@@ -6654,7 +6530,8 @@
                           "SELECT",
                           "MULTI_SELECT",
                           "RELATION_CLIENT"
-                        ]
+                        ],
+                        "type": "string"
                       },
                       "required": {
                         "type": "boolean"
@@ -6680,13 +6557,15 @@
                               "targetEntity": {
                                 "enum": [
                                   "CLIENT"
-                                ]
+                                ],
+                                "type": "string"
                               },
                               "valueMode": {
                                 "enum": [
                                   "single",
                                   "multi"
-                                ]
+                                ],
+                                "type": "string"
                               },
                               "pairedDefinitionId": {
                                 "anyOf": [
@@ -6705,7 +6584,8 @@
                                     "enum": [
                                       "forward",
                                       "reverse"
-                                    ]
+                                    ],
+                                    "type": "string"
                                   },
                                   {
                                     "type": "null"
@@ -6795,7 +6675,8 @@
                       "SELECT",
                       "MULTI_SELECT",
                       "RELATION_CLIENT"
-                    ]
+                    ],
+                    "type": "string"
                   },
                   "required": {
                     "type": "boolean",
@@ -6816,13 +6697,15 @@
                         "enum": [
                           "CLIENT"
                         ],
+                        "type": "string",
                         "default": "CLIENT"
                       },
                       "valueMode": {
                         "enum": [
                           "single",
                           "multi"
-                        ]
+                        ],
+                        "type": "string"
                       }
                     },
                     "required": [
@@ -6847,7 +6730,8 @@
                         "enum": [
                           "single",
                           "multi"
-                        ]
+                        ],
+                        "type": "string"
                       },
                       "required": {
                         "type": "boolean",
@@ -6908,7 +6792,8 @@
                         "SELECT",
                         "MULTI_SELECT",
                         "RELATION_CLIENT"
-                      ]
+                      ],
+                      "type": "string"
                     },
                     "required": {
                       "type": "boolean"
@@ -6934,13 +6819,15 @@
                             "targetEntity": {
                               "enum": [
                                 "CLIENT"
-                              ]
+                              ],
+                              "type": "string"
                             },
                             "valueMode": {
                               "enum": [
                                 "single",
                                 "multi"
-                              ]
+                              ],
+                              "type": "string"
                             },
                             "pairedDefinitionId": {
                               "anyOf": [
@@ -6959,7 +6846,8 @@
                                   "enum": [
                                     "forward",
                                     "reverse"
-                                  ]
+                                  ],
+                                  "type": "string"
                                 },
                                 {
                                   "type": "null"
@@ -7187,8 +7075,7 @@
                     "minimum": 0,
                     "maximum": 2147483647
                   }
-                },
-                "required": []
+                }
               }
             }
           }
@@ -7225,7 +7112,8 @@
                         "SELECT",
                         "MULTI_SELECT",
                         "RELATION_CLIENT"
-                      ]
+                      ],
+                      "type": "string"
                     },
                     "required": {
                       "type": "boolean"
@@ -7251,13 +7139,15 @@
                             "targetEntity": {
                               "enum": [
                                 "CLIENT"
-                              ]
+                              ],
+                              "type": "string"
                             },
                             "valueMode": {
                               "enum": [
                                 "single",
                                 "multi"
-                              ]
+                              ],
+                              "type": "string"
                             },
                             "pairedDefinitionId": {
                               "anyOf": [
@@ -7276,7 +7166,8 @@
                                   "enum": [
                                     "forward",
                                     "reverse"
-                                  ]
+                                  ],
+                                  "type": "string"
                                 },
                                 {
                                   "type": "null"
@@ -7348,18 +7239,6 @@
             }
           }
         ],
-        "requestBody": {
-          "required": false,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {},
-                "required": []
-              }
-            }
-          }
-        },
         "responses": {
           "200": {
             "description": "OK",
