@@ -23,7 +23,9 @@ overrides:
   # Pin a single better-sqlite3 version across the workspace. evalite wants ^11
   # and better-auth wants ^12; without this they fork drizzle-orm's optional
   # better-sqlite3 peer into two incompatible type instances, breaking typecheck.
-  better-sqlite3: 11.10.0
+  # 12.x is the first line shipping Node 24 (N-API v137) prebuilt binaries, so CI
+  # and local installs download a binary instead of compiling from source (~80s).
+  better-sqlite3: 12.11.1
   # js-yaml <4.1.2: quadratic-complexity DoS in merge keys, pulled transitively
   # by @hey-api/openapi-ts. Safe in-major bump (4.1.1 -> 4.2.0).
   js-yaml: ^4.2.0

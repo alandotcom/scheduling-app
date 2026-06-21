@@ -105,15 +105,6 @@ mock.module("@/components/flow-elements/panel", () => ({
   Panel: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
 }));
 
-mock.module("./workflow-editor-context-menu", () => ({
-  WorkflowEditorContextMenu: () => null,
-  useWorkflowEditorContextMenuHandlers: () => ({
-    onNodeContextMenu: () => undefined,
-    onEdgeContextMenu: () => undefined,
-    onPaneContextMenu: () => undefined,
-  }),
-}));
-
 const { WorkflowEditorCanvas } = await import("./workflow-editor-canvas");
 const {
   setWorkflowEditorSelectionAtom,
