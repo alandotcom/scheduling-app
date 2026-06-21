@@ -580,147 +580,101 @@ export function AppointmentModal({
             </div>
 
             {/* Content */}
-            <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain p-4 sm:p-6">
-              {/* Type, Calendar, and Time Display */}
-              <div className="mb-5 grid grid-cols-1 gap-4 sm:mb-6 lg:grid-cols-2">
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    <Label>Appointment Type *</Label>
-                    <div
-                      className="relative"
-                      ref={registerField("appointment-type")}
+            <div className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto overscroll-contain p-4 sm:p-6 md:grid md:grid-cols-[minmax(0,19rem)_1fr] md:gap-6 md:overflow-hidden">
+              {/* Left rail: type, calendar, time display, client, notes */}
+              <div className="flex flex-col gap-4 md:min-h-0 md:overflow-y-auto md:pr-1">
+                <div className="space-y-2">
+                  <Label>Appointment Type *</Label>
+                  <div
+                    className="relative"
+                    ref={registerField("appointment-type")}
+                  >
+                    <Select
+                      value={selectedTypeId}
+                      onValueChange={(v) => v && handleTypeChange(v)}
                     >
-                      <Select
-                        value={selectedTypeId}
-                        onValueChange={(v) => v && handleTypeChange(v)}
-                      >
-                        <SelectTrigger className="w-full">
-                          <SelectValue placeholder="Select type">
-                            {appointmentTypeSelectLabel}
-                          </SelectValue>
-                        </SelectTrigger>
-                        <SelectContent>
-                          {appointmentTypes.map((type) => (
-                            <SelectItem key={type.id} value={type.id}>
-                              {type.name} ({type.durationMin} min)
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FieldShortcutHint
-                        shortcut="t"
-                        label="Type"
-                        visible={hintsVisible}
-                      />
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label>Calendar *</Label>
-                    <div className="relative" ref={registerField("calendar")}>
-                      <Select
-                        value={activeSelectedCalendarId}
-                        onValueChange={(v) => v && handleCalendarChange(v)}
-                        disabled={!selectedTypeId || calendarsLoading}
-                      >
-                        <SelectTrigger className="w-full">
-                          <SelectValue
-                            placeholder={
-                              calendarsLoading
-                                ? "Loading..."
-                                : "Select calendar"
-                            }
-                          >
-                            {calendarSelectLabel}
-                          </SelectValue>
-                        </SelectTrigger>
-                        <SelectContent>
-                          {calendars.map((cal) => (
-                            <SelectItem key={cal.id} value={cal.id}>
-                              {cal.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FieldShortcutHint
-                        shortcut="c"
-                        label="Calendar"
-                        visible={hintsVisible}
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                <div className="rounded-lg border border-border bg-muted/30 px-4 py-3">
-                  <div className="space-y-2">
-                    <Label>Time Display *</Label>
-                    <TimeDisplayToggle
-                      value={timezoneMode}
-                      onValueChange={(value) => {
-                        setDraft((previous) => ({
-                          ...previous,
-                          selectedTime: "",
-                        }));
-                        if (onTimezoneModeChange) {
-                          onTimezoneModeChange(value);
-                          return;
-                        }
-                        setLocalTimezoneMode(value);
-                      }}
-                      className="w-full sm:w-fit"
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Select type">
+                          {appointmentTypeSelectLabel}
+                        </SelectValue>
+                      </SelectTrigger>
+                      <SelectContent>
+                        {appointmentTypes.map((type) => (
+                          <SelectItem key={type.id} value={type.id}>
+                            {type.name} ({type.durationMin} min)
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FieldShortcutHint
+                      shortcut="t"
+                      label="Type"
+                      visible={hintsVisible}
                     />
-                    <p
-                      className="text-sm text-muted-foreground"
-                      title={effectiveTimezone}
-                    >
-                      Showing{" "}
-                      {timezoneMode === "viewer" ? "your local" : "calendar"}{" "}
-                      time ({timezoneShortLabel})
-                    </p>
                   </div>
                 </div>
-              </div>
 
-              {/* Calendar and Time Selection */}
-              {activeSelectedCalendarId && (
-                <div className="relative" ref={registerField("date-time")}>
-                  <AvailabilityCalendarPicker
-                    viewMonth={viewMonth}
-                    onViewMonthChange={setViewMonth}
-                    selectedDate={selectedDate}
-                    onSelectDate={handleDateSelect}
-                    selectedTime={activeSelectedTime}
-                    onSelectTime={(nextTime) =>
+                <div className="space-y-2">
+                  <Label>Calendar *</Label>
+                  <div className="relative" ref={registerField("calendar")}>
+                    <Select
+                      value={activeSelectedCalendarId}
+                      onValueChange={(v) => v && handleCalendarChange(v)}
+                      disabled={!selectedTypeId || calendarsLoading}
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue
+                          placeholder={
+                            calendarsLoading ? "Loading..." : "Select calendar"
+                          }
+                        >
+                          {calendarSelectLabel}
+                        </SelectValue>
+                      </SelectTrigger>
+                      <SelectContent>
+                        {calendars.map((cal) => (
+                          <SelectItem key={cal.id} value={cal.id}>
+                            {cal.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FieldShortcutHint
+                      shortcut="c"
+                      label="Calendar"
+                      visible={hintsVisible}
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Time Display</Label>
+                  <TimeDisplayToggle
+                    value={timezoneMode}
+                    onValueChange={(value) => {
                       setDraft((previous) => ({
                         ...previous,
-                        selectedTime: nextTime,
-                      }))
-                    }
-                    monthSlots={monthSlots}
-                    slotsLoading={slotsLoading}
-                    schedulingTimezone={schedulingTimezone}
-                    displayTimezone={effectiveTimezone}
-                    onManageAvailability={
-                      activeSelectedCalendarId
-                        ? () =>
-                            openCalendarAvailability(activeSelectedCalendarId)
-                        : undefined
-                    }
+                        selectedTime: "",
+                      }));
+                      if (onTimezoneModeChange) {
+                        onTimezoneModeChange(value);
+                        return;
+                      }
+                      setLocalTimezoneMode(value);
+                    }}
+                    size="sm"
+                    className="w-full sm:w-fit"
                   />
-                  <FieldShortcutHint
-                    shortcut="d"
-                    label="Date/Time"
-                    visible={hintsVisible}
-                  />
+                  <p
+                    className="text-sm text-muted-foreground"
+                    title={effectiveTimezone}
+                  >
+                    Showing{" "}
+                    {timezoneMode === "viewer" ? "your local" : "calendar"} time
+                    ({timezoneShortLabel})
+                  </p>
                 </div>
-              )}
 
-              <div
-                className={cn(
-                  "mt-5 grid grid-cols-1 gap-4 lg:grid-cols-2",
-                  activeSelectedCalendarId && "lg:mt-auto",
-                )}
-              >
                 {/* Client selection */}
                 <div>
                   <Label>Client *</Label>
@@ -1042,9 +996,12 @@ export function AppointmentModal({
                 </div>
 
                 {/* Notes */}
-                <div>
+                <div className="md:flex md:min-h-0 md:flex-1 md:flex-col">
                   <Label>Notes</Label>
-                  <div className="relative mt-2" ref={registerField("notes")}>
+                  <div
+                    className="relative mt-2 md:flex md:min-h-0 md:flex-1 md:flex-col"
+                    ref={registerField("notes")}
+                  >
                     <Textarea
                       placeholder="Add any notes..."
                       value={notes}
@@ -1055,6 +1012,7 @@ export function AppointmentModal({
                         }))
                       }
                       rows={2}
+                      className="md:min-h-16 md:flex-1 md:resize-none"
                     />
                     <FieldShortcutHint
                       shortcut="n"
@@ -1063,6 +1021,53 @@ export function AppointmentModal({
                     />
                   </div>
                 </div>
+              </div>
+
+              {/* Right pane: date + time picker */}
+              <div className="md:flex md:min-h-0 md:flex-col">
+                {activeSelectedCalendarId ? (
+                  <div
+                    className="relative md:flex md:min-h-0 md:flex-1 md:flex-col"
+                    ref={registerField("date-time")}
+                  >
+                    <AvailabilityCalendarPicker
+                      orientation="stacked"
+                      viewMonth={viewMonth}
+                      onViewMonthChange={setViewMonth}
+                      selectedDate={selectedDate}
+                      onSelectDate={handleDateSelect}
+                      selectedTime={activeSelectedTime}
+                      onSelectTime={(nextTime) =>
+                        setDraft((previous) => ({
+                          ...previous,
+                          selectedTime: nextTime,
+                        }))
+                      }
+                      monthSlots={monthSlots}
+                      slotsLoading={slotsLoading}
+                      schedulingTimezone={schedulingTimezone}
+                      displayTimezone={effectiveTimezone}
+                      onManageAvailability={
+                        activeSelectedCalendarId
+                          ? () =>
+                              openCalendarAvailability(activeSelectedCalendarId)
+                          : undefined
+                      }
+                    />
+                    <FieldShortcutHint
+                      shortcut="d"
+                      label="Date/Time"
+                      visible={hintsVisible}
+                    />
+                  </div>
+                ) : (
+                  <div className="flex min-h-[12rem] flex-col items-center justify-center rounded-lg border border-dashed border-border bg-muted/20 px-6 py-10 text-center md:h-full">
+                    <p className="max-w-[18rem] text-sm text-muted-foreground">
+                      Select an appointment type and calendar to see available
+                      times.
+                    </p>
+                  </div>
+                )}
               </div>
             </div>
 

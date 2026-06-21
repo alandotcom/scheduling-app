@@ -37,6 +37,12 @@ interface AvailabilityCalendarPickerProps {
   schedulingTimezone: string;
   displayTimezone: string;
   onManageAvailability?: () => void;
+  /**
+   * "split" (default): calendar and slots sit side-by-side from `sm` up.
+   * "stacked": calendar over slots in a single column, slot list fills the
+   * remaining height and is the only scroll region (used by the booking modal).
+   */
+  orientation?: "split" | "stacked";
 }
 
 export function AvailabilityCalendarPicker({
@@ -51,7 +57,9 @@ export function AvailabilityCalendarPicker({
   schedulingTimezone,
   displayTimezone,
   onManageAvailability,
+  orientation = "split",
 }: AvailabilityCalendarPickerProps) {
+  const isStacked = orientation === "stacked";
   const dayAvailabilityCounts = useMemo(
     () => buildDayAvailabilityMap(monthSlots, schedulingTimezone),
     [monthSlots, schedulingTimezone],
@@ -85,9 +93,15 @@ export function AvailabilityCalendarPicker({
   }, [schedulingTimezone, viewMonth]);
 
   return (
-    <div className="grid grid-cols-1 gap-5 pb-16 sm:grid-cols-2 sm:gap-6 sm:pb-0">
+    <div
+      className={cn(
+        isStacked
+          ? "flex h-full min-h-0 flex-col gap-5 pb-16 sm:pb-0"
+          : "grid grid-cols-1 gap-5 pb-16 sm:grid-cols-2 sm:gap-6 sm:pb-0",
+      )}
+    >
       {/* Calendar */}
-      <div>
+      <div className={cn(isStacked && "shrink-0")}>
         <div className="flex items-center justify-between mb-4">
           <h3 className="font-medium">
             {viewMonth.toLocaleString({
@@ -142,11 +156,25 @@ export function AvailabilityCalendarPicker({
               : getDayAvailabilityLevel(
                   dayAvailabilityCounts.get(dayDateKey) ?? 0,
                 );
+            // Availability is also encoded by background color; surface it to
+            // assistive tech so it does not rely on color alone (WCAG 1.4.1).
+            const availabilityDescription = day.isPast
+              ? "unavailable, past date"
+              : availabilityLevel === "good"
+                ? "available"
+                : availabilityLevel === "low"
+                  ? "limited availability"
+                  : "no availability";
             return (
               <button
                 key={dayDateKey}
                 type="button"
                 data-availability={availabilityLevel}
+                aria-label={`${day.date.toLocaleString({
+                  weekday: "long",
+                  month: "long",
+                  day: "numeric",
+                })}, ${availabilityDescription}`}
                 disabled={day.isPast}
                 onClick={() => onSelectDate(day.date)}
                 className={cn(
@@ -175,8 +203,8 @@ export function AvailabilityCalendarPicker({
       </div>
 
       {/* Time Slots */}
-      <div>
-        <h3 className="font-medium mb-4">
+      <div className={cn(isStacked && "flex min-h-0 flex-1 flex-col")}>
+        <h3 className="font-medium mb-4 shrink-0">
           {selectedDate
             ? selectedDate.toLocaleString({
                 weekday: "short",
@@ -208,7 +236,14 @@ export function AvailabilityCalendarPicker({
             ) : null}
           </div>
         ) : (
-          <div className="grid grid-cols-2 gap-2 md:max-h-56 md:overflow-y-auto">
+          <div
+            className={cn(
+              "grid grid-cols-2 gap-2",
+              isStacked
+                ? "min-h-0 flex-1 overflow-y-auto lg:grid-cols-3"
+                : "md:max-h-56 md:overflow-y-auto",
+            )}
+          >
             {availableSlots.map((slot) => (
               <Button
                 key={slot.start}
