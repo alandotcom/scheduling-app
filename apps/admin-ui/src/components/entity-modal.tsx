@@ -4,6 +4,7 @@ import { Cancel01Icon } from "@hugeicons/core-free-icons";
 
 import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
+import { ShortcutBadge } from "@/components/ui/shortcut-badge";
 import { MOBILE_FIRST_MODAL_CONTENT_CLASS } from "@/lib/modal";
 import { cn, overlayClassName } from "@/lib/utils";
 
@@ -16,6 +17,44 @@ interface EntityModalProps {
   footer?: ReactNode;
   className?: string;
   children: ReactNode;
+}
+
+interface CreateModalFooterProps {
+  /** id of the create `<form>` this footer's Save button submits. */
+  formId: string;
+  isPending: boolean;
+  onCancel: () => void;
+}
+
+/**
+ * Standard Cancel/Save footer for an entity create form rendered inside an
+ * `EntityModal`. Shared so the create surfaces stay identical across routes.
+ */
+export function CreateModalFooter({
+  formId,
+  isPending,
+  onCancel,
+}: CreateModalFooterProps) {
+  return (
+    <div className="flex flex-wrap items-center justify-end gap-2">
+      <Button
+        type="button"
+        size="sm"
+        variant="outline"
+        onClick={onCancel}
+        disabled={isPending}
+      >
+        Cancel
+      </Button>
+      <Button type="submit" size="sm" form={formId} loading={isPending}>
+        Save
+        <ShortcutBadge
+          shortcut="meta+enter"
+          className="ml-2 hidden sm:inline-flex"
+        />
+      </Button>
+    </div>
+  );
 }
 
 export function EntityModal({

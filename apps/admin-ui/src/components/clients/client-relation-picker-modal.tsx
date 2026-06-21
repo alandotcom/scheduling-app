@@ -202,7 +202,7 @@ function ClientRelationPickerModalContent({
               : toggleMultiSelection(client.id)
           }
           className={cn(
-            "flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-left text-sm hover:bg-accent",
+            "flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-left text-sm hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
             selected ? "bg-accent/60" : "",
             "disabled:cursor-not-allowed disabled:opacity-60",
           )}
@@ -289,7 +289,7 @@ function ClientRelationPickerModalContent({
               <button
                 type="button"
                 className={cn(
-                  "rounded-sm px-3 py-1 text-xs font-medium",
+                  "rounded-sm px-3 py-1 text-xs font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70",
                   mobileFilter === "all" ? "bg-background shadow-sm" : "",
                 )}
                 onClick={() => setMobileFilter("all")}
@@ -299,7 +299,7 @@ function ClientRelationPickerModalContent({
               <button
                 type="button"
                 className={cn(
-                  "rounded-sm px-3 py-1 text-xs font-medium",
+                  "rounded-sm px-3 py-1 text-xs font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70",
                   mobileFilter === "selected" ? "bg-background shadow-sm" : "",
                 )}
                 onClick={() => setMobileFilter("selected")}
@@ -358,7 +358,7 @@ function ClientRelationPickerModalContent({
                       }
                       toggleMultiSelection(client.id);
                     }}
-                    className="mb-1 flex w-full items-center justify-between gap-3 rounded-md border border-border/60 px-2.5 py-2 text-left text-sm hover:bg-muted/50 disabled:cursor-not-allowed disabled:opacity-60"
+                    className="mb-1 flex w-full items-center justify-between gap-3 rounded-md border border-border/60 px-2.5 py-2 text-left text-sm hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     <div className="min-w-0">
                       <p className="truncate font-medium">

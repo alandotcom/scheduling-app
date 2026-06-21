@@ -512,7 +512,7 @@ function CreateAvailabilityDayInput({
           onUpdate(day.value, { enabled: true, blocks: defaultBlocks });
         }}
         disabled={isSubmitting}
-        className={`mt-1 shrink-0 h-8 w-12 flex items-center justify-center rounded-lg text-sm font-semibold transition-all ${
+        className={`mt-1 shrink-0 h-8 w-12 flex items-center justify-center rounded-lg text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70 ${
           isActive
             ? "bg-primary text-primary-foreground"
             : "bg-muted text-muted-foreground hover:bg-muted/80"

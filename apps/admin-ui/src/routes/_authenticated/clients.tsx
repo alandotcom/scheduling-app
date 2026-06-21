@@ -26,7 +26,7 @@ import { ClientForm } from "@/components/clients/client-form";
 import { CopyIdHeaderAction } from "@/components/copy-id-header-action";
 import { DeleteConfirmDialog } from "@/components/delete-confirm-dialog";
 import { DetailTab, DetailTabs } from "@/components/workbench";
-import { EntityModal } from "@/components/entity-modal";
+import { CreateModalFooter, EntityModal } from "@/components/entity-modal";
 import {
   EntityListEmptyState,
   EntityListLoadingState,
@@ -41,6 +41,7 @@ import { MobileActionBar } from "@/components/mobile-action-bar";
 import { useCrudState } from "@/hooks/use-crud-state";
 import { useCreateDraft, useResetCreateDraft } from "@/hooks/use-create-draft";
 import { useCreateIntentTrigger } from "@/hooks/use-create-intent";
+import { useCreateOrDetailModal } from "@/hooks/use-create-or-detail-modal";
 import {
   useKeyboardShortcuts,
   useListNavigation,
@@ -59,6 +60,7 @@ import {
   formatRelativeTime,
 } from "@/lib/date-utils";
 import { deriveCountryFromPhone, formatPhoneForDisplay } from "@/lib/phone";
+import { addCreatedToListCache } from "@/lib/list-cache";
 import { getQueryClient, orpc } from "@/lib/query";
 import { swallowIgnorableRouteLoaderError } from "@/lib/query-cancellation";
 import {
@@ -246,6 +248,14 @@ function ClientsPage() {
       selectedId,
       hasResolvedEntity: !!selectedClient,
     });
+  const isCreating = crud.showCreateForm;
+  const { open: modalOpen, onOpenChange: onModalOpenChange } =
+    useCreateOrDetailModal({
+      isCreating,
+      detailOpen: detailModalOpen && !!displayClient,
+      onCloseCreate: crud.closeCreate,
+      onCloseDetail: () => clearDetails(),
+    });
 
   const openDetails = useCallback(
     (clientId: string, nextTab: DetailTabValue = "details") => {
@@ -403,9 +413,16 @@ function ClientsPage() {
     orpc.clients.create.mutationOptions({
       onSuccess: (createdClient) => {
         resetCreateDraft();
-        queryClient.invalidateQueries({ queryKey: orpc.clients.key() });
         setSearch("");
-        crud.closeCreate();
+        // Write the created client into the list cache from the mutation
+        // response so the new row resolves in the same render the create form
+        // closes — the detail modal then morphs open seamlessly instead of
+        // crossfading via a separate Dialog instance.
+        addCreatedToListCache(
+          queryClient,
+          orpc.clients.list.key(),
+          createdClient,
+        );
         navigate({
           search: (prev) => ({
             ...prev,
@@ -414,6 +431,16 @@ function ClientsPage() {
             appointment: undefined,
             appointmentTab: undefined,
           }),
+        });
+        crud.closeCreate();
+        // Mark the list stale WITHOUT an active refetch: an immediate refetch
+        // that returned without the new row (filter/sort window, replication
+        // lag) would null out the selection and slam the modal shut mid-morph.
+        // The cache write above is the authoritative server object; the list
+        // reconciles on its next access.
+        queryClient.invalidateQueries({
+          queryKey: orpc.clients.key(),
+          refetchType: "none",
         });
       },
       onError: (mutationError) => {
@@ -704,12 +731,10 @@ function ClientsPage() {
       </div>
 
       <EntityModal
-        open={detailModalOpen && !!displayClient}
-        onOpenChange={(isOpen) => {
-          if (!isOpen) clearDetails();
-        }}
+        open={modalOpen}
+        onOpenChange={onModalOpenChange}
         headerActions={
-          displayAppointment ? (
+          isCreating ? null : displayAppointment ? (
             <CopyIdHeaderAction
               id={displayAppointment.id}
               entityLabel="appointment"
@@ -719,33 +744,43 @@ function ClientsPage() {
           ) : null
         }
         title={
-          isAppointmentDetailOpen
-            ? (displayAppointment?.appointmentType?.name ?? "Appointment")
-            : displayClient
-              ? `${displayClient.firstName} ${displayClient.lastName}`
-              : ""
+          isCreating
+            ? "New Client"
+            : isAppointmentDetailOpen
+              ? (displayAppointment?.appointmentType?.name ?? "Appointment")
+              : displayClient
+                ? `${displayClient.firstName} ${displayClient.lastName}`
+                : ""
         }
         description={
-          isAppointmentDetailOpen && displayAppointment
-            ? formatDisplayDate(
-                displayAppointment.startAt,
-                appointmentDisplayTimezone,
-              )
-            : !isAppointmentDetailOpen
-              ? buildClientDetailDescription({
-                  email: displayClient?.email,
-                  formattedPhone: formatPhoneForDisplay(displayClient?.phone),
-                  referenceId: displayClient?.referenceId,
-                })
-              : undefined
+          isCreating
+            ? undefined
+            : isAppointmentDetailOpen && displayAppointment
+              ? formatDisplayDate(
+                  displayAppointment.startAt,
+                  appointmentDisplayTimezone,
+                )
+              : !isAppointmentDetailOpen
+                ? buildClientDetailDescription({
+                    email: displayClient?.email,
+                    formattedPhone: formatPhoneForDisplay(displayClient?.phone),
+                    referenceId: displayClient?.referenceId,
+                  })
+                : undefined
         }
         className={
-          displayAppointment
+          !isCreating && displayAppointment
             ? "sm:h-[min(94dvh,60rem)] sm:min-h-[42rem]"
             : undefined
         }
         footer={
-          isAppointmentDetailOpen ? (
+          isCreating ? (
+            <CreateModalFooter
+              formId={createClientFormId}
+              isPending={createMutation.isPending}
+              onCancel={crud.closeCreate}
+            />
+          ) : isAppointmentDetailOpen ? (
             <Button
               size="sm"
               variant="outline"
@@ -830,7 +865,20 @@ function ClientsPage() {
           ) : null
         }
       >
-        {displayClient ? (
+        {isCreating ? (
+          <div className="h-full overflow-y-auto px-4 py-4 sm:px-6 sm:py-5">
+            <CreateClientForm
+              onSubmit={handleCreate}
+              onCancel={crud.closeCreate}
+              isSubmitting={createMutation.isPending}
+              shortcutsEnabled={crud.showCreateForm}
+              formId={createClientFormId}
+              showActions={false}
+              customFieldDefinitions={customFieldDefinitions}
+              clientRelationOptions={clientRelationOptions}
+            />
+          </div>
+        ) : displayClient ? (
           <div className="flex h-full min-h-0 flex-col">
             {isAppointmentDetailOpen ? (
               <div className="min-h-0 flex-1">
@@ -1149,48 +1197,6 @@ function ClientsPage() {
             )}
           </div>
         ) : null}
-      </EntityModal>
-
-      <EntityModal
-        open={crud.showCreateForm}
-        onOpenChange={(isOpen) => {
-          if (!isOpen) crud.closeCreate();
-        }}
-        title="New Client"
-        footer={
-          <div className="flex flex-wrap items-center justify-end gap-2">
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              onClick={crud.closeCreate}
-              disabled={createMutation.isPending}
-            >
-              Cancel
-            </Button>
-            <Button
-              type="submit"
-              size="sm"
-              form={createClientFormId}
-              loading={createMutation.isPending}
-            >
-              Save
-            </Button>
-          </div>
-        }
-      >
-        <div className="h-full overflow-y-auto px-4 py-4 sm:px-6 sm:py-5">
-          <CreateClientForm
-            onSubmit={handleCreate}
-            onCancel={crud.closeCreate}
-            isSubmitting={createMutation.isPending}
-            shortcutsEnabled={crud.showCreateForm}
-            formId={createClientFormId}
-            showActions={false}
-            customFieldDefinitions={customFieldDefinitions}
-            clientRelationOptions={clientRelationOptions}
-          />
-        </div>
       </EntityModal>
 
       <AppointmentModal

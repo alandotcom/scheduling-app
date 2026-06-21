@@ -19,7 +19,7 @@ import { createResourceSchema } from "@scheduling/dto";
 import type { CreateResourceInput } from "@scheduling/dto";
 import { DeleteConfirmDialog } from "@/components/delete-confirm-dialog";
 import { CopyIdHeaderAction } from "@/components/copy-id-header-action";
-import { EntityModal } from "@/components/entity-modal";
+import { CreateModalFooter, EntityModal } from "@/components/entity-modal";
 import {
   EntityListEmptyState,
   EntityListLoadingState,
@@ -43,6 +43,7 @@ import {
 import { useCrudState } from "@/hooks/use-crud-state";
 import { useCreateDraft, useResetCreateDraft } from "@/hooks/use-create-draft";
 import { useCreateIntentTrigger } from "@/hooks/use-create-intent";
+import { useCreateOrDetailModal } from "@/hooks/use-create-or-detail-modal";
 import {
   useKeyboardShortcuts,
   useListNavigation,
@@ -51,6 +52,7 @@ import { useModalFieldShortcuts } from "@/hooks/use-modal-field-shortcuts";
 import { useSubmitShortcut } from "@/hooks/use-submit-shortcut";
 import { useUrlDrivenModal } from "@/hooks/use-url-driven-modal";
 import { useValidateSelection } from "@/hooks/use-selection-search-params";
+import { addCreatedToListCache } from "@/lib/list-cache";
 import { getQueryClient, orpc } from "@/lib/query";
 import { swallowIgnorableRouteLoaderError } from "@/lib/query-cancellation";
 import { resolveSelectValueLabel } from "@/lib/select-value-label";
@@ -351,6 +353,14 @@ function ResourcesPage() {
       selectedId,
       hasResolvedEntity: !!selectedResource,
     });
+  const isCreating = crud.showCreateForm;
+  const { open: modalOpen, onOpenChange: onModalOpenChange } =
+    useCreateOrDetailModal({
+      isCreating,
+      detailOpen: detailModalOpen && !!displayResource,
+      onCloseCreate: crud.closeCreate,
+      onCloseDetail: () => clearDetails(),
+    });
 
   const openDetails = useCallback(
     (resourceId: string) => {
@@ -418,10 +428,27 @@ function ResourcesPage() {
     orpc.resources.create.mutationOptions({
       onSuccess: (createdResource) => {
         resetCreateDraft();
-        queryClient.invalidateQueries({ queryKey: orpc.resources.key() });
-        queryClient.invalidateQueries({ queryKey: orpc.locations.key() });
-        crud.closeCreate();
+        // Write the created resource into the list cache from the mutation
+        // response so the new row resolves in the same render the create form
+        // closes — the detail modal then morphs open seamlessly instead of
+        // crossfading via a separate Dialog instance.
+        addCreatedToListCache(
+          queryClient,
+          orpc.resources.list.key(),
+          createdResource,
+        );
         openDetails(createdResource.id);
+        crud.closeCreate();
+        // Mark the list stale WITHOUT an active refetch: an immediate refetch
+        // that returned without the new row (filter/sort window, replication
+        // lag) would null out the selection and slam the modal shut mid-morph.
+        // The cache write above is the authoritative server object; the list
+        // reconciles on its next access.
+        queryClient.invalidateQueries({
+          queryKey: orpc.resources.key(),
+          refetchType: "none",
+        });
+        queryClient.invalidateQueries({ queryKey: orpc.locations.key() });
       },
       onError: (mutationError) => {
         toast.error(mutationError.message || "Failed to create resource");
@@ -511,66 +538,30 @@ function ResourcesPage() {
       </div>
 
       <EntityModal
-        open={crud.showCreateForm}
-        onOpenChange={(isOpen) => {
-          if (!isOpen) crud.closeCreate();
-        }}
-        title="New Resource"
-        footer={
-          <div className="flex flex-wrap items-center justify-end gap-2">
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              onClick={crud.closeCreate}
-              disabled={createMutation.isPending}
-            >
-              Cancel
-            </Button>
-            <Button
-              type="submit"
-              size="sm"
-              form={RESOURCE_CREATE_FORM_ID}
-              loading={createMutation.isPending}
-            >
-              Save
-            </Button>
-          </div>
-        }
-      >
-        <div className="h-full overflow-y-auto px-4 py-4 sm:px-6 sm:py-5">
-          <CreateResourceForm
-            locations={locations}
-            onSubmit={handleCreate}
-            onCancel={crud.closeCreate}
-            isSubmitting={createMutation.isPending}
-            formId={RESOURCE_CREATE_FORM_ID}
-            showActions={false}
-          />
-        </div>
-      </EntityModal>
-
-      <EntityModal
-        open={detailModalOpen && !!displayResource}
-        onOpenChange={(isOpen) => {
-          if (!isOpen) clearDetails();
-        }}
+        open={modalOpen}
+        onOpenChange={onModalOpenChange}
         headerActions={
-          displayResource ? (
+          !isCreating && displayResource ? (
             <CopyIdHeaderAction
               id={displayResource.id}
               entityLabel="resource"
             />
           ) : null
         }
-        title={displayResource?.name ?? ""}
+        title={isCreating ? "New Resource" : (displayResource?.name ?? "")}
         description={
-          displayResource
-            ? getLocationName(displayResource.locationId)
-            : undefined
+          isCreating || !displayResource
+            ? undefined
+            : getLocationName(displayResource.locationId)
         }
         footer={
-          displayResource ? (
+          isCreating ? (
+            <CreateModalFooter
+              formId={RESOURCE_CREATE_FORM_ID}
+              isPending={createMutation.isPending}
+              onCancel={crud.closeCreate}
+            />
+          ) : displayResource ? (
             <div className="flex flex-wrap items-center gap-2">
               <Button
                 type="button"
@@ -607,7 +598,18 @@ function ResourcesPage() {
           ) : null
         }
       >
-        {displayResource ? (
+        {isCreating ? (
+          <div className="h-full overflow-y-auto px-4 py-4 sm:px-6 sm:py-5">
+            <CreateResourceForm
+              locations={locations}
+              onSubmit={handleCreate}
+              onCancel={crud.closeCreate}
+              isSubmitting={createMutation.isPending}
+              formId={RESOURCE_CREATE_FORM_ID}
+              showActions={false}
+            />
+          </div>
+        ) : displayResource ? (
           <div className="h-full overflow-y-auto px-4 py-4 sm:px-6 sm:py-5">
             <div className="space-y-4">
               <ResourceForm

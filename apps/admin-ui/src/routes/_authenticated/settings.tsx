@@ -736,7 +736,7 @@ function OrgSettingsForm({ org }: SettingsFormProps) {
                       onClick={() => toggleDay(day.value)}
                       disabled={updateMutation.isPending}
                       className={cn(
-                        "shrink-0 rounded-lg border px-2.5 py-1.5 text-sm font-medium whitespace-nowrap transition-colors",
+                        "shrink-0 rounded-lg border px-2.5 py-1.5 text-sm font-medium whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70",
                         selectedDays.includes(day.value)
                           ? "border-primary bg-primary text-primary-foreground"
                           : "border-border bg-background hover:bg-muted",

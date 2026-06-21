@@ -27,7 +27,7 @@ export function ViewToggle({
         aria-selected={view === "list"}
         onClick={() => onViewChange("list")}
         className={cn(
-          "flex items-center gap-1.5 rounded-md font-medium transition-colors",
+          "flex items-center gap-1.5 rounded-md font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70",
           size === "sm"
             ? "h-10 px-2.5 text-[13px] md:h-8"
             : "h-10 px-3.5 text-sm md:h-9",
@@ -45,7 +45,7 @@ export function ViewToggle({
         aria-selected={view === "schedule"}
         onClick={() => onViewChange("schedule")}
         className={cn(
-          "flex items-center gap-1.5 rounded-md font-medium transition-colors",
+          "flex items-center gap-1.5 rounded-md font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70",
           size === "sm"
             ? "h-10 px-2.5 text-[13px] md:h-8"
             : "h-10 px-3.5 text-sm md:h-9",

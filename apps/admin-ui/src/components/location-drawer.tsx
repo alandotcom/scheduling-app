@@ -29,6 +29,7 @@ import {
 } from "@/components/drawer";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { FieldShortcutHint } from "@/components/ui/field-shortcut-hint";
+import { ShortcutBadge } from "@/components/ui/shortcut-badge";
 import { Icon } from "@/components/ui/icon";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -358,7 +359,11 @@ export function LocationDrawer({
                     size="sm"
                     loading={updateMutation.isPending}
                   >
-                    Save Changes
+                    Save
+                    <ShortcutBadge
+                      shortcut="meta+enter"
+                      className="ml-2 hidden sm:inline-flex"
+                    />
                   </Button>
                 </div>
               )}

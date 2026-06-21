@@ -20,6 +20,7 @@ import {
 } from "@/components/drawer";
 import { Button } from "@/components/ui/button";
 import { FieldShortcutHint } from "@/components/ui/field-shortcut-hint";
+import { ShortcutBadge } from "@/components/ui/shortcut-badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -262,7 +263,11 @@ export function ResourceDrawer({
                   size="sm"
                   loading={updateMutation.isPending}
                 >
-                  Save Changes
+                  Save
+                  <ShortcutBadge
+                    shortcut="meta+enter"
+                    className="ml-2 hidden sm:inline-flex"
+                  />
                 </Button>
               </div>
             </div>

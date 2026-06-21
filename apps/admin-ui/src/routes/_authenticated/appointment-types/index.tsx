@@ -24,7 +24,7 @@ import {
 import type { ContextMenuItem } from "@/components/context-menu";
 import { CopyIdHeaderAction } from "@/components/copy-id-header-action";
 import { DeleteConfirmDialog } from "@/components/delete-confirm-dialog";
-import { EntityModal } from "@/components/entity-modal";
+import { CreateModalFooter, EntityModal } from "@/components/entity-modal";
 import { PageScaffold } from "@/components/layout/page-scaffold";
 import { PageHeader } from "@/components/layout/page-header";
 import { MobileActionBar } from "@/components/mobile-action-bar";
@@ -37,6 +37,7 @@ import { Label } from "@/components/ui/label";
 import { useCrudState } from "@/hooks/use-crud-state";
 import { useCreateDraft, useResetCreateDraft } from "@/hooks/use-create-draft";
 import { useCreateIntentTrigger } from "@/hooks/use-create-intent";
+import { useCreateOrDetailModal } from "@/hooks/use-create-or-detail-modal";
 import {
   useKeyboardShortcuts,
   useListNavigation,
@@ -394,6 +395,14 @@ function AppointmentTypesPage() {
       selectedId: manageTypeId,
       hasResolvedEntity: !!manageType,
     });
+  const isCreating = crud.showCreateForm;
+  const { open: modalOpen, onOpenChange: onModalOpenChange } =
+    useCreateOrDetailModal({
+      isCreating,
+      detailOpen: manageModalOpen && !!displayManageType,
+      onCloseCreate: crud.closeCreate,
+      onCloseDetail: () => closeManageModal(),
+    });
 
   const selectedIndex = manageTypeId
     ? appointmentTypes.findIndex((item) => item.id === manageTypeId)
@@ -440,7 +449,9 @@ function AppointmentTypesPage() {
   } = useAppointmentTypeMutations({
     onCreateSuccess: (createdAppointmentTypeId) => {
       resetCreateDraft();
-      crud.closeCreate();
+      // The list cache was already updated from the mutation response inside
+      // the hook, so the new row resolves immediately and the modal morphs
+      // from the create form into the detail view without closing/reopening.
       navigate({
         search: (prev) => ({
           ...prev,
@@ -448,6 +459,7 @@ function AppointmentTypesPage() {
           tab: "details",
         }),
       });
+      crud.closeCreate();
     },
     onDeleteSuccess: () => {
       const removedId = crud.deletingItemId;
@@ -608,60 +620,27 @@ function AppointmentTypesPage() {
       </div>
 
       <EntityModal
-        open={crud.showCreateForm}
-        onOpenChange={(open) => {
-          if (!open) crud.closeCreate();
-        }}
-        title="New Appointment Type"
-        footer={
-          <div className="flex flex-wrap items-center justify-end gap-2">
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              onClick={crud.closeCreate}
-              disabled={createMutation.isPending}
-            >
-              Cancel
-            </Button>
-            <Button
-              type="submit"
-              size="sm"
-              form={APPOINTMENT_TYPE_CREATE_FORM_ID}
-              loading={createMutation.isPending}
-            >
-              Save
-            </Button>
-          </div>
-        }
-      >
-        <div className="h-full overflow-y-auto px-4 py-4 sm:px-6 sm:py-5">
-          <CreateAppointmentTypeForm
-            onSubmit={handleCreate}
-            onCancel={crud.closeCreate}
-            isSubmitting={createMutation.isPending}
-            formId={APPOINTMENT_TYPE_CREATE_FORM_ID}
-            showActions={false}
-          />
-        </div>
-      </EntityModal>
-
-      <EntityModal
-        open={manageModalOpen && !!displayManageType}
-        onOpenChange={(open) => {
-          if (!open) closeManageModal();
-        }}
+        open={modalOpen}
+        onOpenChange={onModalOpenChange}
         headerActions={
-          displayManageType ? (
+          !isCreating && displayManageType ? (
             <CopyIdHeaderAction
               id={displayManageType.id}
               entityLabel="appointment type"
             />
           ) : null
         }
-        title={displayManageType?.name ?? ""}
+        title={
+          isCreating ? "New Appointment Type" : (displayManageType?.name ?? "")
+        }
         footer={
-          manageTab === "details" && displayManageType ? (
+          isCreating ? (
+            <CreateModalFooter
+              formId={APPOINTMENT_TYPE_CREATE_FORM_ID}
+              isPending={createMutation.isPending}
+              onCancel={crud.closeCreate}
+            />
+          ) : manageTab === "details" && displayManageType ? (
             <div className="flex flex-wrap items-center gap-2">
               <Button
                 type="button"
@@ -698,7 +677,17 @@ function AppointmentTypesPage() {
           ) : null
         }
       >
-        {displayManageType ? (
+        {isCreating ? (
+          <div className="h-full overflow-y-auto px-4 py-4 sm:px-6 sm:py-5">
+            <CreateAppointmentTypeForm
+              onSubmit={handleCreate}
+              onCancel={crud.closeCreate}
+              isSubmitting={createMutation.isPending}
+              formId={APPOINTMENT_TYPE_CREATE_FORM_ID}
+              showActions={false}
+            />
+          </div>
+        ) : displayManageType ? (
           <div className="h-full overflow-y-auto px-4 py-4 sm:px-6 sm:py-5">
             <div className="space-y-4">
               <div className="flex flex-wrap gap-2 border-b border-border pb-3">

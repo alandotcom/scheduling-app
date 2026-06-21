@@ -401,9 +401,26 @@ export function AppointmentDetail({
 
               {/* Notes */}
               <div>
-                <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                  Notes
-                </Label>
+                <div className="flex min-h-7 items-center justify-between gap-2">
+                  <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                    Notes
+                  </Label>
+                  {isActionable && isNotesDirty && (
+                    <Button
+                      type="submit"
+                      size="xs"
+                      form={`appointment-notes-form-${appointment.id}`}
+                      loading={updateMutation.isPending}
+                      className="animate-in fade-in-0 duration-150 motion-reduce:animate-none"
+                    >
+                      Save
+                      <ShortcutBadge
+                        shortcut="meta+enter"
+                        className="ml-1.5 hidden h-5 sm:inline-flex"
+                      />
+                    </Button>
+                  )}
+                </div>
                 {isActionable ? (
                   <form
                     id={`appointment-notes-form-${appointment.id}`}
@@ -430,24 +447,6 @@ export function AppointmentDetail({
                   </div>
                 )}
               </div>
-
-              {/* Notes save */}
-              {isActionable && isNotesDirty && (
-                <div className="flex justify-end">
-                  <Button
-                    type="submit"
-                    size="sm"
-                    form={`appointment-notes-form-${appointment.id}`}
-                    loading={updateMutation.isPending}
-                  >
-                    Save Notes
-                    <ShortcutBadge
-                      shortcut="meta+enter"
-                      className="ml-2 hidden sm:inline-flex"
-                    />
-                  </Button>
-                </div>
-              )}
 
               {/* Status actions */}
               {isActionable && (

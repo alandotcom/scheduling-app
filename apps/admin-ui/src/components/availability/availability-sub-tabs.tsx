@@ -31,9 +31,10 @@ export function AvailabilitySubTabs({
       {visibleTabs.map((tab) => (
         <button
           key={tab.id}
+          type="button"
           onClick={() => onChange(tab.id)}
           className={cn(
-            "h-10 rounded-md px-3 text-sm font-medium transition-colors md:h-8",
+            "h-10 rounded-md px-3 text-sm font-medium transition-colors md:h-8 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70",
             value === tab.id
               ? "bg-background text-foreground shadow-sm"
               : "text-muted-foreground hover:text-foreground",

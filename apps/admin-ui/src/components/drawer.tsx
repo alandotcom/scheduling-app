@@ -211,7 +211,7 @@ export function DrawerTab({ value, children }: DrawerTabProps) {
       onClick={() => onValueChange(value)}
       className={cn(
         "relative px-3 py-2.5 text-sm font-medium transition-colors",
-        "hover:text-foreground",
+        "hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/70 focus-visible:outline-none",
         isActive
           ? "text-foreground after:absolute after:inset-x-0 after:bottom-0 after:h-0.5 after:bg-primary"
           : "text-muted-foreground",

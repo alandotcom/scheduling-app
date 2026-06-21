@@ -160,7 +160,7 @@ function DayTimeInput({
             onUpdate(day.value, { enabled: true, blocks: defaultBlocks });
           }
         }}
-        className={`mt-2.5 shrink-0 flex items-center justify-center rounded-md text-xs font-semibold transition-all ${
+        className={`mt-2.5 shrink-0 flex items-center justify-center rounded-md text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70 ${
           compact ? "w-10 h-7" : "w-12 h-8"
         } ${
           isActive
@@ -169,7 +169,7 @@ function DayTimeInput({
         }`}
         aria-label={`Toggle ${day.label}`}
       >
-        {compact ? day.short : day.short}
+        {day.short}
       </button>
 
       <div className="flex-1 min-w-0">

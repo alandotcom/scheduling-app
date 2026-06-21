@@ -2,6 +2,7 @@
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { addCreatedToListCache } from "@/lib/list-cache";
 import { orpc } from "@/lib/query";
 
 interface UseAppointmentTypeMutationsOptions {
@@ -29,7 +30,23 @@ export function useAppointmentTypeMutations(
   const createMutation = useMutation(
     orpc.appointmentTypes.create.mutationOptions({
       onSuccess: (createdAppointmentType) => {
-        invalidateAppointmentTypes();
+        // Write the created type into the list cache from the mutation response
+        // so the new row resolves in the same render the create form closes —
+        // the detail modal then morphs open seamlessly instead of crossfading
+        // via a separate Dialog instance.
+        addCreatedToListCache(
+          queryClient,
+          orpc.appointmentTypes.list.key(),
+          createdAppointmentType,
+        );
+        // Mark stale WITHOUT an active refetch (unlike the other mutations): an
+        // immediate refetch that returned without the new row would null out
+        // the selection and slam the modal shut mid-morph. The cache write
+        // above is authoritative; the list reconciles on its next access.
+        queryClient.invalidateQueries({
+          queryKey: orpc.appointmentTypes.key(),
+          refetchType: "none",
+        });
         options.onCreateSuccess?.(createdAppointmentType.id);
       },
       onError: (error) => {

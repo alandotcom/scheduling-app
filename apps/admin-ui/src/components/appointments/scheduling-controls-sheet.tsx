@@ -108,7 +108,7 @@ export function SchedulingControlsSheet({
                   type="button"
                   onClick={() => onListScopeChange("upcoming")}
                   className={cn(
-                    "h-10 flex-1 rounded-md px-3 text-sm font-medium transition-all duration-200",
+                    "h-10 flex-1 rounded-md px-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70",
                     listScope === "upcoming"
                       ? "bg-background text-foreground shadow-sm"
                       : "text-muted-foreground hover:text-foreground",
@@ -120,7 +120,7 @@ export function SchedulingControlsSheet({
                   type="button"
                   onClick={() => onListScopeChange("history")}
                   className={cn(
-                    "h-10 flex-1 rounded-md px-3 text-sm font-medium transition-all duration-200",
+                    "h-10 flex-1 rounded-md px-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70",
                     listScope === "history"
                       ? "bg-background text-foreground shadow-sm"
                       : "text-muted-foreground hover:text-foreground",
@@ -183,7 +183,7 @@ export function SchedulingControlsSheet({
                         type="button"
                         onClick={() => onToggleCalendarVisibility(cal.id)}
                         className={cn(
-                          "flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm font-medium transition-opacity hover:bg-muted/50",
+                          "flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm font-medium transition-opacity hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70",
                           isHidden && "opacity-35 line-through",
                         )}
                       >

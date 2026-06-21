@@ -33,10 +33,11 @@ import { cn, overlayClassName } from "@/lib/utils";
 import { AvailabilityCalendarPicker } from "@/components/appointments/availability-calendar-picker";
 import { ClientForm } from "@/components/clients/client-form";
 import { TimeDisplayToggle } from "@/components/appointments/time-display-toggle";
-import { EntityModal } from "@/components/entity-modal";
+import { CreateModalFooter, EntityModal } from "@/components/entity-modal";
 import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
 import { Label } from "@/components/ui/label";
+import { ShortcutBadge } from "@/components/ui/shortcut-badge";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
@@ -693,7 +694,7 @@ export function AppointmentModal({
                           }));
                           setMobileClientPickerOpen(true);
                         }}
-                        className="dark:bg-input/30 border-input h-11 rounded-lg border bg-transparent px-3 py-2 text-base w-full text-left text-muted-foreground/70"
+                        className="dark:bg-input/30 border-input h-11 rounded-lg border bg-transparent px-3 py-2 text-base w-full text-left text-muted-foreground/70 outline-none transition-colors focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-3"
                       >
                         {selectedClient ? (
                           <span className="text-foreground">
@@ -771,7 +772,7 @@ export function AppointmentModal({
                                       skipClientClearRef.current = false;
                                     }
                                   }}
-                                  className="h-11 w-full rounded-lg border border-input bg-transparent pl-10 pr-3 text-base outline-none placeholder:text-muted-foreground/70 focus-visible:border-ring focus-visible:ring-ring/30 focus-visible:ring-[3px]"
+                                  className="h-11 w-full rounded-lg border border-input bg-transparent pl-10 pr-3 text-base outline-none transition-colors placeholder:text-muted-foreground/70 focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-3"
                                 />
                               </div>
                               <Button
@@ -810,7 +811,7 @@ export function AppointmentModal({
                                       }));
                                       setMobileClientPickerOpen(false);
                                     }}
-                                    className="flex w-full items-center gap-3 border-b border-border px-4 py-3 text-left active:bg-accent"
+                                    className="flex w-full items-center gap-3 border-b border-border px-4 py-3 text-left outline-none focus-visible:bg-accent active:bg-accent"
                                   >
                                     <div className="min-w-0 flex-1">
                                       <div className="font-medium">
@@ -894,7 +895,7 @@ export function AppointmentModal({
                               }
                             }}
                             className={cn(
-                              "dark:bg-input/30 border-input focus-visible:border-ring focus-visible:ring-ring/30 aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive dark:aria-invalid:border-destructive/50 disabled:bg-input/50 dark:disabled:bg-input/80 h-11 md:h-10 rounded-lg border bg-transparent pr-10 pl-3 py-2 text-base transition-all duration-200 ease-out focus-visible:ring-[3px] aria-invalid:ring-[3px] md:text-sm placeholder:text-muted-foreground/70 w-full min-w-0 outline-none disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50",
+                              "dark:bg-input/30 border-input focus-visible:border-ring focus-visible:ring-ring/50 aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive dark:aria-invalid:border-destructive/50 disabled:bg-input/50 dark:disabled:bg-input/80 h-11 md:h-10 rounded-lg border bg-transparent pr-10 pl-3 py-2 text-base transition-colors focus-visible:ring-3 aria-invalid:ring-3 md:text-sm placeholder:text-muted-foreground/70 w-full min-w-0 outline-none disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50",
                             )}
                           />
                           <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-muted-foreground">
@@ -1112,6 +1113,10 @@ export function AppointmentModal({
                     className="w-full sm:w-auto"
                   >
                     Book Appointment
+                    <ShortcutBadge
+                      shortcut="meta+enter"
+                      className="ml-2 hidden sm:inline-flex"
+                    />
                   </Button>
                 </div>
               </div>
@@ -1139,25 +1144,11 @@ export function AppointmentModal({
         }}
         title="New Client"
         footer={
-          <div className="flex flex-wrap items-center justify-end gap-2">
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              onClick={() => setCreateClientModalOpen(false)}
-              disabled={createClientMutation.isPending}
-            >
-              Cancel
-            </Button>
-            <Button
-              type="submit"
-              size="sm"
-              form={createClientFormId}
-              loading={createClientMutation.isPending}
-            >
-              Save
-            </Button>
-          </div>
+          <CreateModalFooter
+            formId={createClientFormId}
+            isPending={createClientMutation.isPending}
+            onCancel={() => setCreateClientModalOpen(false)}
+          />
         }
       >
         <div className="h-full overflow-y-auto px-4 py-4 sm:px-6 sm:py-5">
