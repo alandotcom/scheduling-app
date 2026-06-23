@@ -18,6 +18,7 @@ import {
 import { Add01Icon, Delete01Icon } from "@hugeicons/core-free-icons";
 
 import { Icon } from "@/components/ui/icon";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
 import { DataTablePagination } from "@/components/ui/data-table-pagination";
@@ -57,6 +58,7 @@ interface RequiredResourceRow {
     id: string;
     name: string;
     quantity: number;
+    locationId: string | null;
   };
 }
 
@@ -100,9 +102,47 @@ export function ResourcesTab({
     enabled: !!appointmentTypeId,
   });
 
+  // Fetch locations to label resource scoping
+  const { data: locationsData } = useQuery({
+    ...orpc.locations.list.queryOptions({ input: { limit: 100 } }),
+    enabled: !!appointmentTypeId,
+  });
+
+  const locationNameById = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const location of locationsData?.items ?? []) {
+      map.set(location.id, location.name);
+    }
+    return map;
+  }, [locationsData?.items]);
+
+  const locationLabel = useCallback(
+    (locationId: string | null | undefined) =>
+      locationId
+        ? (locationNameById.get(locationId) ?? "Unknown location")
+        : "",
+    [locationNameById],
+  );
+
+  // Org-wide resources sort before location-bound ones; alphabetical within.
+  const sortByScope = useCallback(
+    (
+      a: { locationId: string | null; name: string },
+      b: { locationId: string | null; name: string },
+    ) => {
+      if (!a.locationId && b.locationId) return -1;
+      if (a.locationId && !b.locationId) return 1;
+      return a.name.localeCompare(b.name);
+    },
+    [],
+  );
+
   const requiredResources = useMemo(
-    () => requiredResourcesData ?? [],
-    [requiredResourcesData],
+    () =>
+      [...(requiredResourcesData ?? [])].sort((a, b) =>
+        sortByScope(a.resource, b.resource),
+      ),
+    [requiredResourcesData, sortByScope],
   );
 
   useEffect(() => {
@@ -130,17 +170,19 @@ export function ResourcesTab({
       requiredResources.map((r) => r.resourceId),
     );
     return (
-      allResourcesData?.items.filter(
-        (resource) => !linkedResourceIds.has(resource.id),
-      ) ?? []
+      allResourcesData?.items
+        .filter((resource) => !linkedResourceIds.has(resource.id))
+        .sort(sortByScope) ?? []
     );
-  }, [requiredResources, allResourcesData?.items]);
+  }, [requiredResources, allResourcesData?.items, sortByScope]);
   const selectedResourceLabel = resolveSelectValueLabel({
     value: selectedResourceId,
     options: availableResources,
     getOptionValue: (resource) => resource.id,
     getOptionLabel: (resource) =>
-      `${resource.name} (Qty: ${resource.quantity})`,
+      `${resource.name} (Qty: ${resource.quantity}) · ${
+        resource.locationId ? locationLabel(resource.locationId) : "Org-wide"
+      }`,
     unknownLabel: "Unknown resource",
   });
 
@@ -190,6 +232,24 @@ export function ResourcesTab({
         cell: ({ row }) => (
           <span className="font-medium">{row.original.resource.name}</span>
         ),
+      },
+      {
+        id: "scope",
+        accessorFn: (row) =>
+          row.resource.locationId
+            ? locationLabel(row.resource.locationId)
+            : "Org-wide",
+        header: ({ column }) => (
+          <DataTableColumnHeader column={column} title="Location" />
+        ),
+        cell: ({ row }) =>
+          row.original.resource.locationId ? (
+            <span className="text-muted-foreground">
+              {locationLabel(row.original.resource.locationId)}
+            </span>
+          ) : (
+            <Badge variant="outline">Org-wide</Badge>
+          ),
       },
       {
         id: "available",
@@ -251,6 +311,7 @@ export function ResourcesTab({
       handleRequiredQuantityInputChange,
       isRemovePending,
       isUpdatePending,
+      locationLabel,
       onRemoveResource,
       quantityDraftsByResourceId,
     ],
@@ -305,7 +366,10 @@ export function ResourcesTab({
             ) : (
               availableResources.map((resource) => (
                 <SelectItem key={resource.id} value={resource.id}>
-                  {resource.name} (Qty: {resource.quantity})
+                  {resource.name} (Qty: {resource.quantity}) ·{" "}
+                  {resource.locationId
+                    ? locationLabel(resource.locationId)
+                    : "Org-wide"}
                 </SelectItem>
               ))
             )}

@@ -117,10 +117,25 @@ export interface ResourceConstraint {
   quantityRequired: number;
 }
 
+// An existing appointment that consumes one of the required resources, used to
+// count resource usage across the correct scope (org-wide: the whole org;
+// location-bound: calendars at the resource's location). Carries the booking
+// calendar's location so the in-memory check can scope exactly like the
+// check_appointment_capacity() trigger.
+export interface ResourceUsageAppointment {
+  id: string;
+  calendarId: string;
+  calendarLocationId: string | null;
+  appointmentTypeId: string;
+  startAt: Date;
+  endAt: Date;
+}
+
 export interface ResourceData {
   id: string;
   name: string;
   quantity: number;
+  locationId: string | null;
 }
 
 export interface AppointmentResource {

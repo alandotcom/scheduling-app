@@ -31,11 +31,13 @@ import type {
   ExistingAppointment,
   ResourceConstraint,
   ResourceData,
+  ResourceUsageAppointment,
 } from "./types.js";
 
 // Pre-loaded data for slot computation
 interface AvailabilityData {
   appointmentType: AppointmentTypeData;
+  calendarLocationId: string | null;
   timezone: string;
   slotIntervalMin: number;
   limits: MergedSchedulingLimits;
@@ -46,6 +48,7 @@ interface AvailabilityData {
   resourceConstraintsByAppointmentTypeId: Map<string, ResourceConstraint[]>;
   resourceConstraints: ResourceConstraint[];
   resourcesData: ResourceData[];
+  resourceUsageAppointments: ResourceUsageAppointment[];
 }
 
 interface CalendarPreviewData {
@@ -63,6 +66,15 @@ interface DraftOverlayData {
   rules: AvailabilityRule[];
   overrides: AvailabilityOverride[];
   blockedTimes: BlockedTimeEntry[];
+}
+
+// Drop the appointment being rescheduled so it doesn't count against itself.
+function excludeAppointment<T extends { id: string }>(
+  appointments: T[],
+  excludeId: string | undefined,
+): T[] {
+  if (excludeId == null) return appointments;
+  return appointments.filter((appointment) => appointment.id !== excludeId);
 }
 
 function makeConflict(
@@ -96,15 +108,17 @@ export class AvailabilityService {
       if (!data) {
         return [];
       }
-      const existingAppointments =
-        query.excludeAppointmentId == null
-          ? data.existingAppointments
-          : data.existingAppointments.filter(
-              (appointment) => appointment.id !== query.excludeAppointmentId,
-            );
+      const excludeId = query.excludeAppointmentId;
       const filteredData: AvailabilityData = {
         ...data,
-        existingAppointments,
+        existingAppointments: excludeAppointment(
+          data.existingAppointments,
+          excludeId,
+        ),
+        resourceUsageAppointments: excludeAppointment(
+          data.resourceUsageAppointments,
+          excludeId,
+        ),
       };
       const { timezone } = data;
 
@@ -141,15 +155,17 @@ export class AvailabilityService {
       if (!data) {
         return [];
       }
-      const existingAppointments =
-        query.excludeAppointmentId == null
-          ? data.existingAppointments
-          : data.existingAppointments.filter(
-              (appointment) => appointment.id !== query.excludeAppointmentId,
-            );
+      const excludeId = query.excludeAppointmentId;
       const filteredData: AvailabilityData = {
         ...data,
-        existingAppointments,
+        existingAppointments: excludeAppointment(
+          data.existingAppointments,
+          excludeId,
+        ),
+        resourceUsageAppointments: excludeAppointment(
+          data.resourceUsageAppointments,
+          excludeId,
+        ),
       };
 
       return this.computeSlots(
@@ -230,15 +246,17 @@ export class AvailabilityService {
       if (!data) {
         return { available: false, reason: "INVALID_CALENDAR" };
       }
-      const existingAppointments =
-        options?.excludeAppointmentId == null
-          ? data.existingAppointments
-          : data.existingAppointments.filter(
-              (appointment) => appointment.id !== options.excludeAppointmentId,
-            );
+      const excludeId = options?.excludeAppointmentId;
       const filteredData: AvailabilityData = {
         ...data,
-        existingAppointments,
+        existingAppointments: excludeAppointment(
+          data.existingAppointments,
+          excludeId,
+        ),
+        resourceUsageAppointments: excludeAppointment(
+          data.resourceUsageAppointments,
+          excludeId,
+        ),
       };
 
       const slots = this.computeSlots(
@@ -406,8 +424,9 @@ export class AvailabilityService {
         }
       }
 
-      const existingAppointments = data.existingAppointments.filter(
-        (appt) => appt.id !== options?.excludeAppointmentId,
+      const existingAppointments = excludeAppointment(
+        data.existingAppointments,
+        options?.excludeAppointmentId,
       );
       const slotWithPadding = {
         start: DateTime.fromJSDate(startTime)
@@ -443,13 +462,18 @@ export class AvailabilityService {
       }
 
       if (data.resourceConstraints.length > 0) {
+        const resourceUsageAppointments = excludeAppointment(
+          data.resourceUsageAppointments,
+          options?.excludeAppointmentId,
+        );
         const resourceAvailable = checkResourceCapacity(
           startTime,
           endTime,
           data.resourceConstraints,
           data.resourcesData,
-          existingAppointments,
+          resourceUsageAppointments,
           data.resourceConstraintsByAppointmentTypeId,
+          data.calendarLocationId,
         );
         if (!resourceAvailable) {
           return {
@@ -599,25 +623,50 @@ export class AvailabilityService {
         resolvedTimezone,
       );
 
-    // 7. Load resource constraints
-    const appointmentTypeIds = new Set(
-      existingAppointments.map((appointment) => appointment.appointmentTypeId),
+    // 7. Load resource constraints for the booking type, then the appointments
+    // that consume those resources across the whole org (the trigger counts
+    // shared pools org-wide / location-wide, not per calendar — so the picker
+    // must too). The constraint map covers every type in that usage set.
+    const resourceConstraints =
+      await availabilityRepository.loadResourceConstraints(
+        tx,
+        appointmentTypeId,
+      );
+    const requiredResourceIds = resourceConstraints.map((r) => r.resourceId);
+    const resourcesData = await availabilityRepository.loadResourcesData(
+      tx,
+      requiredResourceIds,
     );
-    appointmentTypeIds.add(appointmentTypeId);
+    const resourceUsageAppointments =
+      await availabilityRepository.loadResourceUsageAppointments(
+        tx,
+        requiredResourceIds,
+        startDate,
+        endDate,
+        resolvedTimezone,
+      );
+    const usageTypeIds = new Set(
+      resourceUsageAppointments.map((a) => a.appointmentTypeId),
+    );
+    usageTypeIds.add(appointmentTypeId);
     const resourceConstraintsByAppointmentTypeId =
       await availabilityRepository.loadResourceConstraintsByAppointmentTypeIds(
         tx,
-        Array.from(appointmentTypeIds),
+        Array.from(usageTypeIds),
       );
-    const resourceConstraints =
-      resourceConstraintsByAppointmentTypeId.get(appointmentTypeId) ?? [];
-    const resourcesData = await availabilityRepository.loadResourcesData(
-      tx,
-      resourceConstraints.map((r) => r.resourceId),
-    );
+    // Only needed to scope resource enforcement; skip the read when the type
+    // requires no resources.
+    const calendarLocationId =
+      requiredResourceIds.length > 0
+        ? await availabilityRepository.loadCalendarLocationId(
+            tx,
+            validCalendarId,
+          )
+        : null;
 
     return {
       appointmentType,
+      calendarLocationId,
       timezone: resolvedTimezone,
       slotIntervalMin,
       limits,
@@ -628,6 +677,7 @@ export class AvailabilityService {
       resourceConstraintsByAppointmentTypeId,
       resourceConstraints,
       resourcesData,
+      resourceUsageAppointments,
     };
   }
 
@@ -844,6 +894,7 @@ export class AvailabilityService {
       resourceConstraintsByAppointmentTypeId,
       resourceConstraints,
       resourcesData,
+      resourceUsageAppointments,
     } = data;
 
     const candidateSlots = this.generateCandidateSlots(
@@ -867,7 +918,9 @@ export class AvailabilityService {
         paddingAfterMin: appointmentType.paddingAfterMin ?? 0,
         resourceConstraints,
         resourcesData,
+        resourceUsageAppointments,
         resourceConstraintsByAppointmentTypeId,
+        calendarLocationId: data.calendarLocationId,
       },
     };
 

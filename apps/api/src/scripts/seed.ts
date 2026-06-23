@@ -66,12 +66,22 @@ type SeedAppointmentType = {
   paddingAfterMin?: number;
   capacity?: number;
   calendarKeys: string[];
+  resourceKeys?: Array<{ key: string; quantityRequired: number }>;
+};
+
+type SeedResource = {
+  key: string;
+  name: string;
+  quantity: number;
+  // null = org-wide (usable by any location's calendars)
+  locationKey: string | null;
 };
 
 type SeedOrg = {
   name: string;
   locations: SeedLocation[];
   calendars: SeedCalendar[];
+  resources: SeedResource[];
   appointmentTypes: SeedAppointmentType[];
 };
 
@@ -121,6 +131,13 @@ const APPOINTMENT_TYPE_FIXTURES: SeedAppointmentType[] = [
     durationMin: 30,
     paddingAfterMin: 10,
     calendarKeys: ["provider_a", "provider_b", "support"],
+    // Org-wide interpreter applies everywhere; the exam room is bound to the
+    // primary location, so the secondary-location "support" calendar surfaces a
+    // mismatch warning in the appointment type editor.
+    resourceKeys: [
+      { key: "interpreter_pool", quantityRequired: 1 },
+      { key: "exam_room_1", quantityRequired: 1 },
+    ],
   },
   {
     key: "annual_exam",
@@ -142,6 +159,21 @@ const APPOINTMENT_TYPE_FIXTURES: SeedAppointmentType[] = [
     durationMin: 15,
     paddingAfterMin: 5,
     calendarKeys: ["provider_a", "support"],
+  },
+];
+
+const RESOURCE_FIXTURES: SeedResource[] = [
+  {
+    key: "interpreter_pool",
+    name: "Interpreter pool",
+    quantity: 2,
+    locationKey: null,
+  },
+  {
+    key: "exam_room_1",
+    name: "Exam Room 1",
+    quantity: 1,
+    locationKey: "primary",
   },
 ];
 
@@ -366,6 +398,7 @@ const SEED_ORGS: SeedOrg[] = [
         profile: "support",
       },
     ],
+    resources: RESOURCE_FIXTURES,
     appointmentTypes: APPOINTMENT_TYPE_FIXTURES,
   },
   {
@@ -405,6 +438,7 @@ const SEED_ORGS: SeedOrg[] = [
         profile: "support",
       },
     ],
+    resources: RESOURCE_FIXTURES,
     appointmentTypes: APPOINTMENT_TYPE_FIXTURES,
   },
 ];
@@ -905,6 +939,7 @@ async function seed() {
     return withOrgContext(orgId, async (tx) => {
       const locationIds = new Map<string, string>();
       const calendarIds = new Map<string, string>();
+      const resourceIds = new Map<string, string>();
       const calendarProfiles = new Map<string, CalendarProfile>();
       const appointmentTypeByKey = new Map<
         string,
@@ -990,6 +1025,37 @@ async function seed() {
         { concurrency: 1 },
       );
 
+      await mapAsync(
+        seedOrg.resources,
+        async (resource) => {
+          const locationId = resource.locationKey
+            ? locationIds.get(resource.locationKey)
+            : null;
+          if (resource.locationKey && !locationId) {
+            throw new Error(
+              `Missing location key for resource: ${resource.key}`,
+            );
+          }
+
+          const [inserted] = await tx
+            .insert(resources)
+            .values({
+              orgId,
+              locationId,
+              name: resource.name,
+              quantity: resource.quantity,
+            })
+            .returning({ id: resources.id });
+
+          if (!inserted) {
+            throw new Error(`Failed to create resource: ${resource.name}`);
+          }
+
+          resourceIds.set(resource.key, inserted.id);
+        },
+        { concurrency: 1 },
+      );
+
       await forEachAsync(
         seedOrg.appointmentTypes,
         async (appointmentType) => {
@@ -1029,6 +1095,24 @@ async function seed() {
               calendarId,
             })),
           );
+
+          if (appointmentType.resourceKeys?.length) {
+            await tx.insert(appointmentTypeResources).values(
+              appointmentType.resourceKeys.map((link) => {
+                const resourceId = resourceIds.get(link.key);
+                if (!resourceId) {
+                  throw new Error(
+                    `Missing resource key for appointment type link: ${link.key}`,
+                  );
+                }
+                return {
+                  appointmentTypeId: insertedType.id,
+                  resourceId,
+                  quantityRequired: link.quantityRequired,
+                };
+              }),
+            );
+          }
 
           appointmentTypeByKey.set(appointmentType.key, {
             id: insertedType.id,

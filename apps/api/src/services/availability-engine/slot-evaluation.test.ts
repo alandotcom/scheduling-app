@@ -13,6 +13,7 @@ import type {
   MergedSchedulingLimits,
   ResourceConstraint,
   ResourceData,
+  ResourceUsageAppointment,
 } from "./types.js";
 
 const NOW = DateTime.fromISO("2026-06-20T08:00:00", { zone: "utc" });
@@ -99,8 +100,28 @@ describe("isBlockedAt", () => {
   });
 });
 
+function usageAppt(
+  startHour: number,
+  overrides: Partial<ResourceUsageAppointment> = {},
+): ResourceUsageAppointment {
+  const start = DateTime.fromISO("2026-06-22T00:00:00", { zone: "utc" }).set({
+    hour: startHour,
+  });
+  return {
+    id: `usage-${startHour}`,
+    calendarId: "cal-1",
+    calendarLocationId: null,
+    appointmentTypeId: "type-1",
+    startAt: start.toJSDate(),
+    endAt: start.plus({ minutes: 60 }).toJSDate(),
+    ...overrides,
+  };
+}
+
 describe("checkResourceCapacity", () => {
-  const resources: ResourceData[] = [{ id: "r1", name: "Room", quantity: 1 }];
+  const resources: ResourceData[] = [
+    { id: "r1", name: "Room", quantity: 1, locationId: null },
+  ];
   const constraints: ResourceConstraint[] = [
     { resourceId: "r1", quantityRequired: 1 },
   ];
@@ -109,27 +130,94 @@ describe("checkResourceCapacity", () => {
   ]);
 
   test("blocks when the resource is fully consumed by an overlapping appointment", () => {
-    const existing = [appt(9)];
     const ok = checkResourceCapacity(
       slotAt(9).start,
       slotAt(9).end,
       constraints,
       resources,
-      existing,
+      [usageAppt(9)],
       byType,
+      null,
     );
     expect(ok).toBe(false);
   });
 
   test("allows when no overlap", () => {
-    const existing = [appt(11)];
     const ok = checkResourceCapacity(
       slotAt(9).start,
       slotAt(9).end,
       constraints,
       resources,
-      existing,
+      [usageAppt(11)],
       byType,
+      null,
+    );
+    expect(ok).toBe(true);
+  });
+
+  test("counts an org-wide pool used on a different calendar at another location", () => {
+    // Org-wide resource, booking calendar at loc-b, but the existing usage is on
+    // a calendar at loc-a. It still counts — org-wide pools span the whole org.
+    const ok = checkResourceCapacity(
+      slotAt(9).start,
+      slotAt(9).end,
+      constraints,
+      resources,
+      [usageAppt(9, { calendarLocationId: "loc-a", calendarId: "cal-2" })],
+      byType,
+      "loc-b",
+    );
+    expect(ok).toBe(false);
+  });
+
+  test("skips a location-bound resource when the calendar is at a different location", () => {
+    const boundResources: ResourceData[] = [
+      { id: "r1", name: "Room A", quantity: 1, locationId: "loc-a" },
+    ];
+    // Resource lives at loc-a, but the booking calendar is at loc-b, so the
+    // requirement is skipped and the slot stays available despite the overlap.
+    const ok = checkResourceCapacity(
+      slotAt(9).start,
+      slotAt(9).end,
+      constraints,
+      boundResources,
+      [usageAppt(9, { calendarLocationId: "loc-a" })],
+      byType,
+      "loc-b",
+    );
+    expect(ok).toBe(true);
+  });
+
+  test("enforces a location-bound resource when the calendar matches its location", () => {
+    const boundResources: ResourceData[] = [
+      { id: "r1", name: "Room A", quantity: 1, locationId: "loc-a" },
+    ];
+    const ok = checkResourceCapacity(
+      slotAt(9).start,
+      slotAt(9).end,
+      constraints,
+      boundResources,
+      [usageAppt(9, { calendarLocationId: "loc-a" })],
+      byType,
+      "loc-a",
+    );
+    expect(ok).toBe(false);
+  });
+
+  test("ignores a location-bound resource's usage from another location", () => {
+    const boundResources: ResourceData[] = [
+      { id: "r1", name: "Room A", quantity: 1, locationId: "loc-a" },
+    ];
+    // Booking at loc-a, but the only overlapping usage is at loc-b — a different
+    // physical room, so it does not count against loc-a's room.
+    const ok = checkResourceCapacity(
+      slotAt(9).start,
+      slotAt(9).end,
+      constraints,
+      boundResources,
+      [usageAppt(9, { calendarLocationId: "loc-b" })],
+      byType,
+      "loc-a",
     );
     expect(ok).toBe(true);
   });
@@ -150,7 +238,9 @@ describe("evaluateSlot — type kind", () => {
         paddingAfterMin: 0,
         resourceConstraints: [],
         resourcesData: [],
+        resourceUsageAppointments: [],
         resourceConstraintsByAppointmentTypeId: new Map(),
+        calendarLocationId: null,
       },
     };
   }

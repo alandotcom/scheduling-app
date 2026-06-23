@@ -358,6 +358,205 @@ describe("AvailabilityService", () => {
       expect(slotsWithExclusion[1]!.remainingCapacity).toBe(1);
     });
 
+    test("hides a slot when an org-wide resource is used on another location's calendar", async () => {
+      // An org-wide interpreter pool (qty 1) shared by this calendar's type and
+      // a second type at a different location. When the pool is consumed at the
+      // other location, the slot must read as unavailable HERE in the picker —
+      // not just fail at booking time.
+      const [interpreter] = await db
+        .insert(resources)
+        .values({ orgId: org.id, name: "Interpreter pool", quantity: 1 })
+        .returning({ id: resources.id });
+
+      // This calendar's type now requires the pool.
+      await db.insert(appointmentTypeResources).values({
+        appointmentTypeId: appointmentType.id,
+        resourceId: interpreter!.id,
+        quantityRequired: 1,
+      });
+
+      // A second location + calendar + type, also requiring the pool.
+      const [otherLocation] = await db
+        .insert(locations)
+        .values({
+          orgId: org.id,
+          name: "Satellite Office",
+          timezone: "America/New_York",
+        })
+        .returning({ id: locations.id });
+      const [otherCalendar] = await db
+        .insert(calendars)
+        .values({
+          orgId: org.id,
+          locationId: otherLocation!.id,
+          name: "Satellite Room",
+          timezone: "America/New_York",
+          slotIntervalMin: 60,
+        })
+        .returning({ id: calendars.id });
+      const [otherType] = await db
+        .insert(appointmentTypes)
+        .values({
+          orgId: org.id,
+          name: "Satellite Visit",
+          durationMin: 60,
+          paddingBeforeMin: 0,
+          paddingAfterMin: 0,
+          capacity: 1,
+        })
+        .returning({ id: appointmentTypes.id });
+      await db.insert(appointmentTypeCalendars).values({
+        appointmentTypeId: otherType!.id,
+        calendarId: otherCalendar!.id,
+      });
+      await db.insert(appointmentTypeResources).values({
+        appointmentTypeId: otherType!.id,
+        resourceId: interpreter!.id,
+        quantityRequired: 1,
+      });
+
+      await db.insert(availabilityRules).values({
+        calendarId: calendar.id,
+        weekday: 2,
+        startTime: "09:00",
+        endTime: "12:00",
+      });
+
+      // Consume the single interpreter at the OTHER location, 10:00-11:00.
+      await db.insert(appointments).values({
+        orgId: org.id,
+        calendarId: otherCalendar!.id,
+        appointmentTypeId: otherType!.id,
+        clientId: client.id,
+        startAt: new Date("2026-01-27T15:00:00Z"),
+        endAt: new Date("2026-01-27T16:00:00Z"),
+        timezone: "America/New_York",
+        status: "scheduled",
+      });
+
+      const slots = await availabilityService.getAvailableSlots(
+        {
+          appointmentTypeId: appointmentType.id,
+          calendarId: calendar.id,
+          startDate: "2026-01-27",
+          endDate: "2026-01-27",
+          timezone: "America/New_York",
+        },
+        testContext,
+      );
+
+      // 9:00 free, 10:00 blocked by the org-wide pool used elsewhere, 11:00 free.
+      const byHour = new Map(
+        slots.map((s) => [new Date(s.start).getUTCHours(), s]),
+      );
+      expect(byHour.get(14)!.available).toBe(true); // 9am EST
+      expect(byHour.get(15)!.available).toBe(false); // 10am EST
+      expect(byHour.get(16)!.available).toBe(true); // 11am EST
+    });
+
+    test("does not double-count an appointment that requires two shared resources", async () => {
+      // Both the booking type and a second type require the same two org-wide
+      // pools (qty 2 each). An overlapping appointment of the second type joins
+      // two appointment_type_resources rows; without DISTINCT in the usage query
+      // it would be counted twice and wrongly exhaust a pool.
+      const [poolA] = await db
+        .insert(resources)
+        .values({ orgId: org.id, name: "Pool A", quantity: 2 })
+        .returning({ id: resources.id });
+      const [poolB] = await db
+        .insert(resources)
+        .values({ orgId: org.id, name: "Pool B", quantity: 2 })
+        .returning({ id: resources.id });
+
+      await db.insert(appointmentTypeResources).values([
+        {
+          appointmentTypeId: appointmentType.id,
+          resourceId: poolA!.id,
+          quantityRequired: 1,
+        },
+        {
+          appointmentTypeId: appointmentType.id,
+          resourceId: poolB!.id,
+          quantityRequired: 1,
+        },
+      ]);
+
+      // A second calendar + type requiring both pools, on its own calendar so it
+      // doesn't consume the booking calendar's per-calendar capacity.
+      const [otherCalendar] = await db
+        .insert(calendars)
+        .values({
+          orgId: org.id,
+          locationId: location.id,
+          name: "Room 2",
+          timezone: "America/New_York",
+          slotIntervalMin: 60,
+        })
+        .returning({ id: calendars.id });
+      const [otherType] = await db
+        .insert(appointmentTypes)
+        .values({
+          orgId: org.id,
+          name: "Combined Visit",
+          durationMin: 60,
+          paddingBeforeMin: 0,
+          paddingAfterMin: 0,
+          capacity: 1,
+        })
+        .returning({ id: appointmentTypes.id });
+      await db.insert(appointmentTypeCalendars).values({
+        appointmentTypeId: otherType!.id,
+        calendarId: otherCalendar!.id,
+      });
+      await db.insert(appointmentTypeResources).values([
+        {
+          appointmentTypeId: otherType!.id,
+          resourceId: poolA!.id,
+          quantityRequired: 1,
+        },
+        {
+          appointmentTypeId: otherType!.id,
+          resourceId: poolB!.id,
+          quantityRequired: 1,
+        },
+      ]);
+
+      await db.insert(availabilityRules).values({
+        calendarId: calendar.id,
+        weekday: 2,
+        startTime: "09:00",
+        endTime: "12:00",
+      });
+
+      // One unit of each pool taken at 10:00 by the second type.
+      await db.insert(appointments).values({
+        orgId: org.id,
+        calendarId: otherCalendar!.id,
+        appointmentTypeId: otherType!.id,
+        clientId: client.id,
+        startAt: new Date("2026-01-27T15:00:00Z"),
+        endAt: new Date("2026-01-27T16:00:00Z"),
+        timezone: "America/New_York",
+        status: "scheduled",
+      });
+
+      const slots = await availabilityService.getAvailableSlots(
+        {
+          appointmentTypeId: appointmentType.id,
+          calendarId: calendar.id,
+          startDate: "2026-01-27",
+          endDate: "2026-01-27",
+          timezone: "America/New_York",
+        },
+        testContext,
+      );
+
+      // Pool A usage is 1 of 2, so the 10:00 slot stays open. A double-count
+      // would read it as 2 of 2 and hide the slot.
+      const tenAm = slots.find((s) => new Date(s.start).getUTCHours() === 15);
+      expect(tenAm!.available).toBe(true);
+    });
+
     test("treats overlapping appointments as unavailable", async () => {
       await db.insert(availabilityRules).values({
         calendarId: calendar.id,

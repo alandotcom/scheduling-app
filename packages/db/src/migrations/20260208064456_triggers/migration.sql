@@ -12,7 +12,6 @@ DECLARE
   v_resource RECORD;
   v_used_quantity INTEGER;
   v_calendar_location_id UUID;
-  v_location_calendar_ids UUID[];
   v_resource_ids UUID[];
   v_resource_id UUID;
 BEGIN
@@ -30,24 +29,27 @@ BEGIN
     v_capacity := 1;
   END IF;
 
-  -- Resolve location for resource scoping
+  -- Resolve the booking calendar's location for resource scoping
   SELECT location_id INTO v_calendar_location_id
   FROM calendars
   WHERE id = NEW.calendar_id;
 
-  IF v_calendar_location_id IS NULL THEN
-    v_location_calendar_ids := ARRAY[NEW.calendar_id];
-  ELSE
-    SELECT array_agg(id) INTO v_location_calendar_ids
-    FROM calendars
-    WHERE location_id = v_calendar_location_id;
-  END IF;
-
+  -- Org-wide resources (location_id IS NULL) apply to every booking; a
+  -- location-bound resource applies only when its location matches the booking
+  -- calendar's location. A location-bound resource on a different-location
+  -- calendar is skipped. Note: a calendar with no location (NULL) can only
+  -- satisfy org-wide resources — location-bound requirements are skipped there,
+  -- which the appointment-type editor surfaces as a mismatch warning.
+  --
+  -- KEEP THIS PREDICATE IN SYNC with the enforcement loop below. The advisory
+  -- locks are acquired for exactly the resources this query selects; if the two
+  -- predicates drift, concurrent bookings can over-book a resource the lock set
+  -- no longer covers.
   SELECT array_agg(atr.resource_id ORDER BY atr.resource_id) INTO v_resource_ids
   FROM appointment_type_resources atr
   JOIN resources r ON r.id = atr.resource_id
   WHERE atr.appointment_type_id = NEW.appointment_type_id
-    AND r.location_id IS NOT DISTINCT FROM v_calendar_location_id;
+    AND (r.location_id IS NULL OR r.location_id = v_calendar_location_id);
 
   -- Calculate bucket range that covers the appointment
   v_bucket_start := date_trunc('hour', NEW.start_at) +
@@ -94,27 +96,38 @@ BEGIN
   END IF;
 
   -- ========== RESOURCE CAPACITY CHECK ==========
-  -- For each resource required by this appointment type, check availability
+  -- For each resource required by this appointment type, check availability.
+  -- Org-wide resources are enforced on every calendar; location-bound resources
+  -- only on calendars at their own location.
   FOR v_resource IN
     SELECT
       atr.resource_id,
       atr.quantity_required,
       r.quantity AS total_quantity,
-      r.name AS resource_name
+      r.name AS resource_name,
+      r.location_id AS resource_location_id
     FROM appointment_type_resources atr
     JOIN resources r ON r.id = atr.resource_id
     WHERE atr.appointment_type_id = NEW.appointment_type_id
-      AND r.location_id IS NOT DISTINCT FROM v_calendar_location_id
+      -- KEEP IN SYNC with the advisory-lock resource set above.
+      AND (r.location_id IS NULL OR r.location_id = v_calendar_location_id)
   LOOP
-    -- Count how many of this resource are used by overlapping appointments
+    -- Count usage by overlapping appointments. An org-wide resource is a single
+    -- pool shared across the whole org, so count every appointment that requires
+    -- it. A location-bound resource is shared only across calendars at its own
+    -- location, so count only appointments booked on those calendars.
     SELECT COALESCE(SUM(atr2.quantity_required), 0) INTO v_used_quantity
     FROM appointments a
     JOIN appointment_type_resources atr2 ON atr2.appointment_type_id = a.appointment_type_id
+    LEFT JOIN calendars c ON c.id = a.calendar_id
     WHERE atr2.resource_id = v_resource.resource_id
-      AND a.calendar_id = ANY(v_location_calendar_ids)
       AND a.status != 'cancelled'
       AND a.id != COALESCE(NEW.id, '00000000-0000-0000-0000-000000000000'::uuid)
-      AND tstzrange(a.start_at, a.end_at, '[)') && tstzrange(NEW.start_at, NEW.end_at, '[)');
+      AND tstzrange(a.start_at, a.end_at, '[)') && tstzrange(NEW.start_at, NEW.end_at, '[)')
+      AND (
+        v_resource.resource_location_id IS NULL
+        OR c.location_id = v_resource.resource_location_id
+      );
 
     -- Check if adding this appointment would exceed resource capacity
     IF v_used_quantity + v_resource.quantity_required > v_resource.total_quantity THEN

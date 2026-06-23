@@ -113,7 +113,7 @@ export function ResourceForm({
     options: locations,
     getOptionValue: (location) => location.id,
     getOptionLabel: (location) => location.name,
-    noneLabel: "No location",
+    noneLabel: "Org-wide (all locations)",
     unknownLabel: "Unknown location",
   });
 
@@ -212,7 +212,7 @@ export function ResourceForm({
             </SelectValue>
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="none">No location</SelectItem>
+            <SelectItem value="none">Org-wide (all locations)</SelectItem>
             {locations.map((loc) => (
               <SelectItem key={loc.id} value={loc.id}>
                 {loc.name}
@@ -220,6 +220,10 @@ export function ResourceForm({
             ))}
           </SelectContent>
         </Select>
+        <p className="text-xs text-muted-foreground">
+          Org-wide resources can be used by any location's calendars. A
+          location-bound resource only applies to bookings at that location.
+        </p>
         <FieldShortcutHint shortcut="l" visible={hintsVisible} />
       </div>
 
@@ -484,7 +488,7 @@ function ResourcesPage() {
     }),
   );
   const getLocationName = (locationId: string | null | undefined) => {
-    if (!locationId) return "-";
+    if (!locationId) return "Org-wide";
     const location = locations.find((loc) => loc.id === locationId);
     return location?.name ?? "-";
   };

@@ -1,7 +1,8 @@
 // Calendars tab for linking calendars to appointment types
 
-import { useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useCallback, useMemo, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import type {
   ColumnDef,
   PaginationState,
@@ -15,10 +16,24 @@ import {
   getSortedRowModel,
   useReactTable,
 } from "@tanstack/react-table";
-import { Add01Icon, Delete01Icon } from "@hugeicons/core-free-icons";
+import {
+  Add01Icon,
+  Alert02Icon,
+  Delete01Icon,
+} from "@hugeicons/core-free-icons";
 
 import { Icon } from "@/components/ui/icon";
 import { formatTimezoneShort } from "@/lib/date-utils";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
 import { DataTablePagination } from "@/components/ui/data-table-pagination";
@@ -55,6 +70,7 @@ interface LinkedCalendarRow {
     id: string;
     name: string;
     timezone: string;
+    locationId: string | null;
   };
 }
 
@@ -66,6 +82,10 @@ export function CalendarsTab({
   isRemovePending,
 }: CalendarsTabProps) {
   const [selectedCalendarId, setSelectedCalendarId] = useState<string>("");
+  const [pendingOrgWide, setPendingOrgWide] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
   const [sorting, setSorting] = useState<SortingState>([]);
   const [globalFilter, setGlobalFilter] = useState("");
   const [pagination, setPagination] = useState<PaginationState>({
@@ -89,10 +109,95 @@ export function CalendarsTab({
     enabled: !!appointmentTypeId,
   });
 
+  // Required resources + locations let us flag calendars that can't reserve a
+  // location-bound resource the type depends on.
+  const { data: requiredResourcesData } = useQuery({
+    ...orpc.appointmentTypes.resourceLinks.list.queryOptions({
+      input: { appointmentTypeId },
+    }),
+    enabled: !!appointmentTypeId,
+  });
+
+  const { data: locationsData } = useQuery({
+    ...orpc.locations.list.queryOptions({ input: { limit: 100 } }),
+    enabled: !!appointmentTypeId,
+  });
+
+  const queryClient = useQueryClient();
+  const makeResourceOrgWideMutation = useMutation(
+    orpc.resources.update.mutationOptions({
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: orpc.resources.key() });
+        queryClient.invalidateQueries({
+          queryKey: orpc.appointmentTypes.resourceLinks.key(),
+        });
+        // A resource leaving a location changes that location's resource count.
+        queryClient.invalidateQueries({ queryKey: orpc.locations.key() });
+        setPendingOrgWide(null);
+      },
+      onError: (mutationError) => {
+        toast.error(mutationError.message || "Failed to update resource");
+      },
+    }),
+  );
+
   const linkedCalendars = useMemo(
     () => linkedCalendarsData ?? [],
     [linkedCalendarsData],
   );
+
+  const locationNameById = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const location of locationsData?.items ?? []) {
+      map.set(location.id, location.name);
+    }
+    return map;
+  }, [locationsData?.items]);
+
+  // The location-bound resources this type requires (org-wide ones never clash).
+  const locationBoundResources = useMemo(
+    () =>
+      (requiredResourcesData ?? [])
+        .map((link) => link.resource)
+        .filter(
+          (resource): resource is typeof resource & { locationId: string } =>
+            resource.locationId !== null,
+        ),
+    [requiredResourcesData],
+  );
+
+  // Per calendar, the required location-bound resources that won't be reserved
+  // there (resource lives at a different location, or the calendar has none).
+  const unmetResourcesByCalendarId = useMemo(() => {
+    const map = new Map<string, typeof locationBoundResources>();
+    if (locationBoundResources.length === 0) return map;
+    for (const link of linkedCalendars) {
+      const unmet = locationBoundResources.filter(
+        (resource) => resource.locationId !== link.calendar.locationId,
+      );
+      if (unmet.length > 0) map.set(link.calendarId, unmet);
+    }
+    return map;
+  }, [linkedCalendars, locationBoundResources]);
+
+  const calendarLocationLabel = useCallback(
+    (locationId: string | null) =>
+      locationId
+        ? (locationNameById.get(locationId) ?? "Unknown location")
+        : "No location",
+    [locationNameById],
+  );
+
+  const offeredLocationSummary = useMemo(() => {
+    const labels = [
+      ...new Set(
+        linkedCalendars.map((link) =>
+          calendarLocationLabel(link.calendar.locationId),
+        ),
+      ),
+    ];
+    return labels.join(", ");
+  }, [linkedCalendars, calendarLocationLabel]);
 
   // Memoize derived state
   const availableCalendars = useMemo(() => {
@@ -136,6 +241,33 @@ export function CalendarsTab({
         ),
       },
       {
+        id: "location",
+        accessorFn: (row) => calendarLocationLabel(row.calendar.locationId),
+        header: ({ column }) => (
+          <DataTableColumnHeader column={column} title="Location" />
+        ),
+        cell: ({ row }) => {
+          const hasMismatch = unmetResourcesByCalendarId.has(
+            row.original.calendarId,
+          );
+          return (
+            <span className="inline-flex items-center gap-1.5">
+              {row.original.calendar.locationId ? (
+                calendarLocationLabel(row.original.calendar.locationId)
+              ) : (
+                <span className="text-muted-foreground">No location</span>
+              )}
+              {hasMismatch ? (
+                <Icon
+                  icon={Alert02Icon}
+                  className="size-3.5 text-amber-600 dark:text-amber-400"
+                />
+              ) : null}
+            </span>
+          );
+        },
+      },
+      {
         id: "actions",
         enableSorting: false,
         enableGlobalFilter: false,
@@ -152,7 +284,12 @@ export function CalendarsTab({
         ),
       },
     ],
-    [isRemovePending, onRemoveCalendar],
+    [
+      calendarLocationLabel,
+      isRemovePending,
+      onRemoveCalendar,
+      unmetResourcesByCalendarId,
+    ],
   );
 
   const table = useReactTable({
@@ -207,7 +344,7 @@ export function CalendarsTab({
             ) : (
               availableCalendars.map((calendar) => (
                 <SelectItem key={calendar.id} value={calendar.id}>
-                  {calendar.name}
+                  {calendar.name} · {calendarLocationLabel(calendar.locationId)}
                 </SelectItem>
               ))
             )}
@@ -223,6 +360,79 @@ export function CalendarsTab({
           Add
         </Button>
       </div>
+
+      {unmetResourcesByCalendarId.size > 0 ? (
+        <div className="space-y-3 rounded-lg border border-amber-500/30 bg-amber-500/5 p-3">
+          <div className="flex items-start gap-2 text-sm text-amber-700 dark:text-amber-300">
+            <Icon icon={Alert02Icon} className="mt-0.5 size-4 shrink-0" />
+            <p>
+              Some calendars can't reserve a required resource. Bookings there
+              will still succeed, but won't hold that resource.
+            </p>
+          </div>
+          <ul className="space-y-2">
+            {linkedCalendars
+              .filter((link) => unmetResourcesByCalendarId.has(link.calendarId))
+              .map((link) => {
+                const unmet =
+                  unmetResourcesByCalendarId.get(link.calendarId) ?? [];
+                return (
+                  <li
+                    key={link.calendarId}
+                    className="rounded-md border border-border bg-background p-2.5 text-sm"
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <span className="font-medium">
+                        {link.calendar.name}
+                        <span className="ml-1.5 font-normal text-muted-foreground">
+                          {calendarLocationLabel(link.calendar.locationId)}
+                        </span>
+                      </span>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                        onClick={() => onRemoveCalendar(link.calendarId)}
+                        disabled={isRemovePending}
+                      >
+                        Remove calendar
+                      </Button>
+                    </div>
+                    <ul className="mt-1.5 space-y-1.5">
+                      {unmet.map((resource) => (
+                        <li
+                          key={resource.id}
+                          className="flex flex-wrap items-center justify-between gap-2 text-muted-foreground"
+                        >
+                          <span>
+                            Won't reserve{" "}
+                            <span className="font-medium text-foreground">
+                              {resource.name}
+                            </span>{" "}
+                            (at {calendarLocationLabel(resource.locationId)})
+                          </span>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() =>
+                              setPendingOrgWide({
+                                id: resource.id,
+                                name: resource.name,
+                              })
+                            }
+                            disabled={makeResourceOrgWideMutation.isPending}
+                          >
+                            Make {resource.name} org-wide
+                          </Button>
+                        </li>
+                      ))}
+                    </ul>
+                  </li>
+                );
+              })}
+          </ul>
+        </div>
+      ) : null}
 
       {linkedCalendars.length === 0 ? (
         <p className="text-sm text-muted-foreground">
@@ -299,6 +509,54 @@ export function CalendarsTab({
           <DataTablePagination table={table} className="border-t-0" />
         </div>
       )}
+
+      {linkedCalendars.length > 0 ? (
+        <p className="text-xs text-muted-foreground">
+          Offered at {offeredLocationSummary}.
+          {unmetResourcesByCalendarId.size > 0
+            ? ` ${unmetResourcesByCalendarId.size} calendar${
+                unmetResourcesByCalendarId.size === 1 ? "" : "s"
+              } can't reserve every required resource.`
+            : ""}
+        </p>
+      ) : null}
+
+      <AlertDialog
+        open={pendingOrgWide !== null}
+        onOpenChange={(open) => {
+          if (!open) setPendingOrgWide(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              Make {pendingOrgWide?.name} org-wide?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              This changes the resource everywhere, not just for this
+              appointment type. {pendingOrgWide?.name} will become bookable from
+              every location and shared as a single pool across the whole
+              organization.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (pendingOrgWide) {
+                  makeResourceOrgWideMutation.mutate({
+                    id: pendingOrgWide.id,
+                    locationId: null,
+                  });
+                }
+              }}
+              loading={makeResourceOrgWideMutation.isPending}
+            >
+              Make org-wide
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

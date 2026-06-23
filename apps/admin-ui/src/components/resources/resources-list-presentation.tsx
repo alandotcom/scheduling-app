@@ -21,6 +21,7 @@ import {
   EntityMobileCard,
   EntityMobileCardList,
 } from "@/components/entity-list";
+import { Badge } from "@/components/ui/badge";
 import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
 import { DataTablePagination } from "@/components/ui/data-table-pagination";
 import { cn } from "@/lib/utils";
@@ -97,6 +98,12 @@ export function ResourcesListPresentation({
         header: ({ column }) => (
           <DataTableColumnHeader column={column} title="Location" />
         ),
+        cell: ({ row }) =>
+          row.original.locationId ? (
+            getLocationName(row.original.locationId)
+          ) : (
+            <Badge variant="outline">Org-wide</Badge>
+          ),
       },
       {
         id: "createdAt",
@@ -191,9 +198,13 @@ export function ResourcesListPresentation({
                   <h3 className="truncate text-sm font-semibold text-foreground">
                     {resource.name}
                   </h3>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    {getLocationName(resource.locationId)}
-                  </p>
+                  <div className="mt-1 text-xs text-muted-foreground">
+                    {resource.locationId ? (
+                      getLocationName(resource.locationId)
+                    ) : (
+                      <Badge variant="outline">Org-wide</Badge>
+                    )}
+                  </div>
                 </div>
                 <RowActions
                   ariaLabel={`Actions for ${resource.name}`}

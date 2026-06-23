@@ -679,6 +679,270 @@ describe("Appointment Routes", () => {
       });
     });
 
+    test("skips a location-bound resource on a different-location calendar", async () => {
+      const { org, user } = await createOrg(db);
+      const ctx = createTestContext({ orgId: org.id, userId: user.id });
+
+      const locationA = await createLocation(db, org.id, {
+        name: "Location A",
+      });
+      const locationB = await createLocation(db, org.id, {
+        name: "Location B",
+      });
+
+      const calendarA1 = await createCalendar(db, org.id, {
+        locationId: locationA.id,
+        name: "Calendar A1",
+        timezone: "America/New_York",
+      });
+      const calendarA2 = await createCalendar(db, org.id, {
+        locationId: locationA.id,
+        name: "Calendar A2",
+        timezone: "America/New_York",
+      });
+      const calendarB = await createCalendar(db, org.id, {
+        locationId: locationB.id,
+        name: "Calendar B",
+        timezone: "America/New_York",
+      });
+
+      // A single room that physically lives at Location A.
+      const roomA = await createResource(db, org.id, {
+        name: "Room A",
+        quantity: 1,
+        locationId: locationA.id,
+      });
+
+      const appointmentType = await createAppointmentType(db, org.id, {
+        name: "Visit",
+        durationMin: 60,
+        capacity: 10,
+        calendarIds: [calendarA1.id, calendarA2.id, calendarB.id],
+        resourceIds: [{ id: roomA.id, quantityRequired: 1 }],
+      });
+
+      for (const calendar of [calendarA1, calendarA2, calendarB]) {
+        for (let weekday = 0; weekday < 7; weekday++) {
+          await createAvailabilityRule(db, calendar.id, {
+            weekday,
+            startTime: "09:00",
+            endTime: "17:00",
+          });
+        }
+      }
+
+      const startTime = getFutureStartTime(1, 10);
+
+      // Fill Room A via a booking at Location A.
+      const bookedAtA = await call(
+        appointmentRoutes.create,
+        {
+          calendarId: calendarA1.id,
+          appointmentTypeId: appointmentType.id,
+          startTime,
+          timezone: "America/New_York",
+          clientId: (await createClient(db, org.id)).id,
+        },
+        { context: ctx },
+      );
+      expect(bookedAtA).toBeDefined();
+
+      // Location B does not draw from Room A, so the same slot is bookable there.
+      const bookedAtB = await call(
+        appointmentRoutes.create,
+        {
+          calendarId: calendarB.id,
+          appointmentTypeId: appointmentType.id,
+          startTime,
+          timezone: "America/New_York",
+          clientId: (await createClient(db, org.id)).id,
+        },
+        { context: ctx },
+      );
+      expect(bookedAtB).toBeDefined();
+
+      // Room A is genuinely full at Location A: a second Location-A booking on a
+      // sibling calendar is rejected.
+      await expect(
+        call(
+          appointmentRoutes.create,
+          {
+            calendarId: calendarA2.id,
+            appointmentTypeId: appointmentType.id,
+            startTime,
+            timezone: "America/New_York",
+            clientId: (await createClient(db, org.id)).id,
+          },
+          { context: ctx },
+        ),
+      ).rejects.toMatchObject({ code: "CONFLICT" });
+    });
+
+    test("enforces an org-wide resource across every location", async () => {
+      const { org, user } = await createOrg(db);
+      const ctx = createTestContext({ orgId: org.id, userId: user.id });
+
+      const locationA = await createLocation(db, org.id, {
+        name: "Location A",
+      });
+      const locationB = await createLocation(db, org.id, {
+        name: "Location B",
+      });
+
+      const calendarA = await createCalendar(db, org.id, {
+        locationId: locationA.id,
+        name: "Calendar A",
+        timezone: "America/New_York",
+      });
+      const calendarB = await createCalendar(db, org.id, {
+        locationId: locationB.id,
+        name: "Calendar B",
+        timezone: "America/New_York",
+      });
+
+      // A shared pool with no location — usable from any location.
+      const interpreterPool = await createResource(db, org.id, {
+        name: "Interpreter pool",
+        quantity: 1,
+      });
+
+      const appointmentType = await createAppointmentType(db, org.id, {
+        name: "Interpreted Visit",
+        durationMin: 60,
+        capacity: 10,
+        calendarIds: [calendarA.id, calendarB.id],
+        resourceIds: [{ id: interpreterPool.id, quantityRequired: 1 }],
+      });
+
+      for (const calendar of [calendarA, calendarB]) {
+        for (let weekday = 0; weekday < 7; weekday++) {
+          await createAvailabilityRule(db, calendar.id, {
+            weekday,
+            startTime: "09:00",
+            endTime: "17:00",
+          });
+        }
+      }
+
+      const startTime = getFutureStartTime(1, 10);
+
+      const bookedAtA = await call(
+        appointmentRoutes.create,
+        {
+          calendarId: calendarA.id,
+          appointmentTypeId: appointmentType.id,
+          startTime,
+          timezone: "America/New_York",
+          clientId: (await createClient(db, org.id)).id,
+        },
+        { context: ctx },
+      );
+      expect(bookedAtA).toBeDefined();
+
+      // The single interpreter is already taken, even though Location B is a
+      // different site, because the pool is org-wide.
+      await expect(
+        call(
+          appointmentRoutes.create,
+          {
+            calendarId: calendarB.id,
+            appointmentTypeId: appointmentType.id,
+            startTime,
+            timezone: "America/New_York",
+            clientId: (await createClient(db, org.id)).id,
+          },
+          { context: ctx },
+        ),
+      ).rejects.toMatchObject({ code: "CONFLICT" });
+    });
+
+    test("shares an org-wide pool across different types and locations", async () => {
+      const { org, user } = await createOrg(db);
+      const ctx = createTestContext({ orgId: org.id, userId: user.id });
+
+      const locationA = await createLocation(db, org.id, {
+        name: "Location A",
+      });
+      const locationB = await createLocation(db, org.id, {
+        name: "Location B",
+      });
+
+      const calendarA = await createCalendar(db, org.id, {
+        locationId: locationA.id,
+        name: "Calendar A",
+        timezone: "America/New_York",
+      });
+      const calendarB = await createCalendar(db, org.id, {
+        locationId: locationB.id,
+        name: "Calendar B",
+        timezone: "America/New_York",
+      });
+
+      // One shared interpreter, org-wide.
+      const interpreterPool = await createResource(db, org.id, {
+        name: "Interpreter pool",
+        quantity: 1,
+      });
+
+      // Two DISTINCT appointment types, each on a different location's calendar,
+      // both drawing from the same org-wide pool.
+      const typeX = await createAppointmentType(db, org.id, {
+        name: "Type X",
+        durationMin: 60,
+        capacity: 10,
+        calendarIds: [calendarA.id],
+        resourceIds: [{ id: interpreterPool.id, quantityRequired: 1 }],
+      });
+      const typeY = await createAppointmentType(db, org.id, {
+        name: "Type Y",
+        durationMin: 60,
+        capacity: 10,
+        calendarIds: [calendarB.id],
+        resourceIds: [{ id: interpreterPool.id, quantityRequired: 1 }],
+      });
+
+      for (const calendar of [calendarA, calendarB]) {
+        for (let weekday = 0; weekday < 7; weekday++) {
+          await createAvailabilityRule(db, calendar.id, {
+            weekday,
+            startTime: "09:00",
+            endTime: "17:00",
+          });
+        }
+      }
+
+      const startTime = getFutureStartTime(1, 10);
+
+      const bookedX = await call(
+        appointmentRoutes.create,
+        {
+          calendarId: calendarA.id,
+          appointmentTypeId: typeX.id,
+          startTime,
+          timezone: "America/New_York",
+          clientId: (await createClient(db, org.id)).id,
+        },
+        { context: ctx },
+      );
+      expect(bookedX).toBeDefined();
+
+      // Different type, different location, same pool — the single interpreter
+      // is already in use, so this is rejected.
+      await expect(
+        call(
+          appointmentRoutes.create,
+          {
+            calendarId: calendarB.id,
+            appointmentTypeId: typeY.id,
+            startTime,
+            timezone: "America/New_York",
+            clientId: (await createClient(db, org.id)).id,
+          },
+          { context: ctx },
+        ),
+      ).rejects.toMatchObject({ code: "CONFLICT" });
+    });
+
     test("returns conflict metadata for overlapping slot", async () => {
       const { org, user, calendar, appointmentType } =
         await createFixtureWithAvailability();

@@ -12,6 +12,7 @@ import type {
   MergedSchedulingLimits,
   ResourceConstraint,
   ResourceData,
+  ResourceUsageAppointment,
   TimeSlot,
 } from "./types.js";
 
@@ -77,30 +78,50 @@ export function checkResourceCapacity(
   end: Date,
   resourceConstraints: ResourceConstraint[],
   resourcesData: ResourceData[],
-  existingAppointments: ExistingAppointment[],
+  resourceUsageAppointments: ResourceUsageAppointment[],
   resourceConstraintsByAppointmentTypeId: Map<string, ResourceConstraint[]>,
+  calendarLocationId: string | null,
 ): boolean {
-  // For each resource, check if adding this appointment would exceed capacity
+  // Mirrors the check_appointment_capacity() trigger so the slot picker matches
+  // booking-time enforcement. For each required resource:
   for (const constraint of resourceConstraints) {
     const resource = resourcesData.find((r) => r.id === constraint.resourceId);
     if (!resource) continue;
 
-    // Count how much of this resource is already allocated during this time
-    // We need to look at appointments that use this resource
-    const overlappingAppointments = existingAppointments.filter((a) =>
-      intervalsOverlap({ start, end }, { start: a.startAt, end: a.endAt }),
-    );
+    // SCOPING — which resources apply to this booking. A location-bound resource
+    // only applies at its own location; org-wide resources (null location) apply
+    // everywhere. A calendar with no location can only satisfy org-wide ones.
+    if (
+      resource.locationId !== null &&
+      resource.locationId !== calendarLocationId
+    ) {
+      continue;
+    }
 
+    // COUNTING — sum usage from overlapping appointments in this resource's
+    // pool. An org-wide resource is one pool across the whole org, so every
+    // overlapping appointment that requires it counts. A location-bound resource
+    // is shared only across calendars at its own location, so only appointments
+    // booked there count.
     let usedQuantity = 0;
-    for (const appointment of overlappingAppointments) {
-      const appointmentConstraints =
-        resourceConstraintsByAppointmentTypeId.get(
-          appointment.appointmentTypeId,
-        ) ?? [];
-      const matchingConstraint = appointmentConstraints.find(
-        (appointmentConstraint) =>
-          appointmentConstraint.resourceId === constraint.resourceId,
-      );
+    for (const appointment of resourceUsageAppointments) {
+      if (
+        !intervalsOverlap(
+          { start, end },
+          { start: appointment.startAt, end: appointment.endAt },
+        )
+      ) {
+        continue;
+      }
+      if (
+        resource.locationId !== null &&
+        appointment.calendarLocationId !== resource.locationId
+      ) {
+        continue;
+      }
+      const matchingConstraint = resourceConstraintsByAppointmentTypeId
+        .get(appointment.appointmentTypeId)
+        ?.find((c) => c.resourceId === constraint.resourceId);
       if (matchingConstraint) {
         usedQuantity += matchingConstraint.quantityRequired;
       }
@@ -127,7 +148,9 @@ export type SlotCapacityConstraint =
       paddingAfterMin: number;
       resourceConstraints: ResourceConstraint[];
       resourcesData: ResourceData[];
+      resourceUsageAppointments: ResourceUsageAppointment[];
       resourceConstraintsByAppointmentTypeId: Map<string, ResourceConstraint[]>;
+      calendarLocationId: string | null;
     }
   | { kind: "perSlot" };
 
@@ -210,8 +233,9 @@ export function evaluateSlot(
         slot.end,
         capacity.resourceConstraints,
         capacity.resourcesData,
-        existingAppointments,
+        capacity.resourceUsageAppointments,
         capacity.resourceConstraintsByAppointmentTypeId,
+        capacity.calendarLocationId,
       );
       if (!resourceAvailable) {
         available = false;

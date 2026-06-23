@@ -26,6 +26,7 @@ import type {
   ExistingAppointment,
   ResourceConstraint,
   ResourceData,
+  ResourceUsageAppointment,
 } from "../services/availability-engine/types.js";
 
 export class AvailabilityRepository {
@@ -308,9 +309,88 @@ export class AvailabilityRepository {
         id: resources.id,
         name: resources.name,
         quantity: resources.quantity,
+        locationId: resources.locationId,
       })
       .from(resources)
       .where(inArray(resources.id, resourceIds));
+  }
+
+  // Existing appointments whose type requires any of the given resources, across
+  // EVERY calendar in the org, with the calendar's location. The in-memory
+  // resource check scopes these per resource the same way the trigger does, so
+  // the slot picker matches booking-time enforcement.
+  //
+  // Org scoping is via RLS: appointments and calendars are RLS-protected and the
+  // resourceIds were themselves loaded under this org-scoped tx, so the IN list
+  // can't reference another org. appointment_type_resources is reached only
+  // through those RLS-protected joins.
+  //
+  // selectDistinct collapses the join fan-out: an appointment whose type
+  // requires two of the requested resources matches two atr rows but projects to
+  // identical columns. Without DISTINCT it would appear twice and be
+  // double-counted (checkResourceCapacity re-derives quantity per resource but
+  // iterates the list once per appearance). The unique (appointmentTypeId,
+  // resourceId) index guarantees no further duplication.
+  //
+  // The [startDate, endDate] window must dominate every candidate slot span —
+  // which it does, since slots are generated within that range, so any
+  // appointment overlapping a slot also overlaps the window and is loaded.
+  async loadResourceUsageAppointments(
+    tx: OrgScopedTx,
+    resourceIds: string[],
+    startDate: string,
+    endDate: string,
+    timezone: string,
+  ): Promise<ResourceUsageAppointment[]> {
+    if (resourceIds.length === 0) return [];
+
+    const rangeStart = DateTime.fromISO(startDate, { zone: timezone })
+      .startOf("day")
+      .toUTC()
+      .toJSDate();
+    const rangeEnd = DateTime.fromISO(endDate, { zone: timezone })
+      .endOf("day")
+      .toUTC()
+      .toJSDate();
+
+    return tx
+      .selectDistinct({
+        id: appointments.id,
+        calendarId: appointments.calendarId,
+        calendarLocationId: calendars.locationId,
+        appointmentTypeId: appointments.appointmentTypeId,
+        startAt: appointments.startAt,
+        endAt: appointments.endAt,
+      })
+      .from(appointments)
+      .innerJoin(
+        appointmentTypeResources,
+        eq(
+          appointmentTypeResources.appointmentTypeId,
+          appointments.appointmentTypeId,
+        ),
+      )
+      .innerJoin(calendars, eq(calendars.id, appointments.calendarId))
+      .where(
+        and(
+          inArray(appointmentTypeResources.resourceId, resourceIds),
+          ne(appointments.status, "cancelled"),
+          sql`tstzrange(${appointments.startAt}, ${appointments.endAt}, '[)') && tstzrange(${rangeStart}, ${rangeEnd}, '[)')`,
+        ),
+      );
+  }
+
+  async loadCalendarLocationId(
+    tx: OrgScopedTx,
+    calendarId: string,
+  ): Promise<string | null> {
+    const [row] = await tx
+      .select({ locationId: calendars.locationId })
+      .from(calendars)
+      .where(eq(calendars.id, calendarId))
+      .limit(1);
+
+    return row?.locationId ?? null;
   }
 }
 
