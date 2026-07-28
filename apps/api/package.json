@@ -35,7 +35,7 @@
     "@scheduling/db": "workspace:*",
     "@scheduling/dto": "workspace:*",
     "ai": "^6.0.208",
-    "better-auth": "^1.6.19",
+    "better-auth": "^1.6.22",
     "drizzle-orm": "catalog:",
     "es-toolkit": "^1.47.1",
     "hono": "^4.12.26",
